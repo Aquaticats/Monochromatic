@@ -285,8 +285,11 @@ pub fn decline_in_process_lfs_scan(fixture: &Fixture, repo: &Path) {
 ///
 /// When the service already started with another value of the variable.
 pub fn give_service_environment(fixture: &Fixture, name: &str, value: &str) {
+    // The service's lock first and the environment's second: `service_runtime` holds the service's lock while it starts a service,
+    //  and the start reads the environment, so the other order let two threads wait for each other for ever.
+    let service = fixture.service.lock().expect("the fixture's service lock");
     let mut given = fixture.service_environment.lock().expect("the service environment");
-    let present = fixture.service.lock().expect("the fixture's service lock").is_some();
+    let present = service.is_some();
     let already: bool = given.iter().any(|(held, text)| { return held == name && text == value; });
     assert!(already || !present, "the fixture's service already started without {name}={value}");
     if !already {

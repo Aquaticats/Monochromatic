@@ -171,6 +171,19 @@ const FILE_ENFORCER_SECONDS: u64 = 300;
 pub struct FileEnforcer;
 
 /// What:
+/// `fn file_enforcer_run_failure(error: RunError) -> String` words a failed `file-enforcer` run:
+/// the start failure for an I/O error,
+/// the error's own text for a timeout or another bound.
+/// Why:
+/// `Result::map_err` takes it by path instead of a closure.
+fn file_enforcer_run_failure(error: RunError) -> String {
+    return match error {
+        RunError::Io(inner) => file_enforcer_start_failure(inner),
+        timed_out => timed_out.to_string(),
+    };
+}
+
+/// What:
 /// `fn file_enforcer_start_failure(error: std::io::Error) -> String` words the failure to start `file-enforcer`,
 /// with the command that renders the floors by hand.
 /// Why:
@@ -263,28 +276,7 @@ impl Syncer for FileEnforcer {
         // ```ts
         // try { ... } catch (error) { throw new MyError(String(error)); }
         // ```
-        let output = output_within(&mut command, None, &bound).map_err(|error| {
-            // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
-            // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
-            // ```
-            return match error {
-                RunError::Io(inner) => file_enforcer_start_failure(inner),
-                // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-                timed_out => timed_out.to_string(),
-            };
-        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
-        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
-        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const value = await expr;   // throws to the caller on failure
-        // ```
-        })?;
+        let output = output_within(&mut command, None, &bound).map_err(file_enforcer_run_failure)?;
         if !output.status.success() {
             return Err(format!("file-enforcer write failed: {}", String::from_utf8_lossy(&output.stderr).trim()));
         }

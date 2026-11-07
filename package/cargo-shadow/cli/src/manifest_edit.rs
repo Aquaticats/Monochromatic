@@ -196,7 +196,7 @@ pub fn snapshot_manifests(crate_dir: &str, paths: &[PathBuf], edits: &RefCell<Ve
 /// ```ts
 /// export function runRecordingManifests<T>(crateDir: string, edits: ManifestEdit[], run: () => T): T
 /// ```
-pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestEdit>>, run: impl FnOnce() -> T) -> io::Result<T> {
+pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestEdit>>, run: impl crate::file_owner::RecordedWork<T>) -> io::Result<T> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
     //

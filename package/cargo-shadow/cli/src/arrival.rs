@@ -65,13 +65,36 @@ struct Found {
     candidate: bool,
 }
 
+/// Whether a path variable entry is not empty.
+fn is_not_empty(entry: &&str) -> bool {
+    return !entry.is_empty();
+}
+
+/// Whether a launch record sits beside a file (the file name plus the record suffix).
+fn has_launch_record(path: &Path) -> bool {
+    let mut record: std::ffi::OsString = path.as_os_str().to_os_string();
+    record.push(LAUNCH_RECORD_SUFFIX);
+    return Path::new(&record).is_file();
+}
+
+/// The first file that is a candidate for the real cargo,
+/// if any.
+fn first_candidate(files: &[Found]) -> Option<&Found> {
+    for one in files {
+        if one.candidate {
+            return Some(one);
+        }
+    }
+    return None;
+}
+
 /// The `cargo` files of a PATH,
 /// in order,
 /// each classified.
 fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
     let image: Option<(u64, u64)> = running_image_identity();
     let mut found: Vec<Found> = Vec::new();
-    for directory in path_variable.split(':').filter(|entry| { return !entry.is_empty(); }) {
+    for directory in path_variable.split(':').filter(is_not_empty) {
         let file: PathBuf = Path::new(directory).join("cargo");
         let Ok(metadata) = fs::metadata(&file) else {
             continue;
@@ -81,12 +104,14 @@ fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
         }
         let resolved: Option<PathBuf> = fs::canonicalize(&file).ok();
         let is_us: bool = image == Some((metadata.dev(), metadata.ino()));
-        let is_chosen: bool = chosen.is_some_and(|picked| { return resolved.as_deref() == Some(picked); });
-        let recorded: bool = resolved.as_ref().is_some_and(|path| {
-            let mut record: std::ffi::OsString = path.as_os_str().to_os_string();
-            record.push(LAUNCH_RECORD_SUFFIX);
-            return Path::new(&record).is_file();
-        });
+        let is_chosen: bool = match chosen {
+            Some(picked) => resolved.as_deref() == Some(picked),
+            None => false,
+        };
+        let recorded: bool = match resolved.as_ref() {
+            Some(path) => has_launch_record(path),
+            None => false,
+        };
         let (note, candidate) = if is_us {
             ("this is cargo-shadow itself", false)
         } else if is_chosen {
@@ -143,11 +168,17 @@ fn launch_record_text(own_executable: &Path) -> String {
 /// ```
 pub fn arrival_message(guard: &Guard, own_executable: &Path, path_variable: &str) -> String {
     let chosen: Option<&Path> = guard.skipped.last().map(PathBuf::as_path);
-    let chosen_text: String = chosen.map_or_else(|| { return "(a file that is not known any more)".to_string(); }, |path| { return path.display().to_string(); });
+    let chosen_text: String = match chosen {
+        Some(path) => path.display().to_string(),
+        None => "(a file that is not known any more)".to_string(),
+    };
     let starter: String = match guard.kind {
         GuardKind::Exec => format!("an earlier cargo-shadow (process {}) replaced itself with that file", guard.pid),
         GuardKind::Spawn => {
-            let program: String = fs::read_link(format!("/proc/{}/exe", guard.pid)).map_or_else(|_| { return "a program that has ended".to_string(); }, |path| { return path.display().to_string(); });
+            let program: String = match fs::read_link(format!("/proc/{}/exe", guard.pid)) {
+                Ok(path) => path.display().to_string(),
+                Err(_) => "a program that has ended".to_string(),
+            };
             format!("an earlier cargo-shadow (process {}, the program {program}) started that file as a child", guard.pid)
         }
     };
@@ -155,11 +186,18 @@ pub fn arrival_message(guard: &Guard, own_executable: &Path, path_variable: &str
     let listing: String = if files.is_empty() {
         "    (no file named `cargo` was found on that PATH)\n".to_string()
     } else {
-        files.iter().enumerate().map(|(index, one)| { return format!("    {}. {}  ({})\n", index + 1, one.spelled.display(), one.note); }).collect()
+        let mut lines: String = String::new();
+        for (index, one) in files.iter().enumerate() {
+            lines.push_str(&format!("    {}. {}  ({})\n", index + 1, one.spelled.display(), one.note));
+        }
+        lines
     };
-    let steps_for_the_path: String = match files.iter().find(|one| { return one.candidate; }) {
+    let steps_for_the_path: String = match first_candidate(&files) {
         Some(real) => {
-            let directory: String = real.spelled.parent().map_or_else(String::new, |parent| { return parent.display().to_string(); });
+            let directory: String = match real.spelled.parent() {
+                Some(parent) => parent.display().to_string(),
+                None => String::new(),
+            };
             format!(
                 "  Fix A, put the real cargo first (this changes only the terminal you type it in):\n\
                  \x20   1. Type this line exactly and press Enter:\n\

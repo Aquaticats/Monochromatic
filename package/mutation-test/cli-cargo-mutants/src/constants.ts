@@ -309,6 +309,13 @@ export const systemdValueCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmno
 export const imageTagCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-';
 
 /**
+ Characters of an image repository after its first character, which must be a letter or number: path segments, an
+ optional registry port, and the separators between them. No `@` (a digest) and no blank, so a repository never reads as
+ a Podman option or as two words.
+ */
+export const imageRepositoryCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-/:';
+
+/**
  Characters of an environment variable name after its first character, which must be a letter or underscore.
  */
 export const environmentNameCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';

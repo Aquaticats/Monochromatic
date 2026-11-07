@@ -105,7 +105,7 @@ use std::path::{Path, PathBuf};
 pub use crate::journal_replace::{create_directories_synced, create_directories_with, create_exclusive, unique_suffix, KeepAs, ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks, replace_keeping, replace_keeping_with_hook, replace_with_swap, sync_directory};
 /// Re-exports the recovery entry points,
 /// which live in `journal_recover.rs`.
-pub use crate::journal_recover::{RecoveryReport, recover, recover_report, recover_report_with, recover_with};
+pub use crate::journal_recover::{Judge, RecoveryReport, recover, recover_report, recover_report_with, recover_with};
 /// Re-exports the transaction handle,
 /// which lives in `journal_transaction.rs`.
 pub use crate::journal_transaction::{Transaction, begin};
@@ -495,7 +495,7 @@ fn restore_one(root: &Path, snapshot: &LockSnapshot, produced: &[LockSnapshot], 
 /// ```ts
 /// export function runRecording<T>(root, crateDir, produced, run: () => T): [T, Claim]
 /// ```
-pub fn run_recording<T>(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSnapshot>>, run: impl FnOnce() -> T) -> io::Result<(T, Claim)> {
+pub fn run_recording<T>(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSnapshot>>, run: impl crate::file_owner::RecordedWork<T>) -> io::Result<(T, Claim)> {
     // Typed binding: `path: PathBuf`.
     let path: PathBuf = root.join(crate_dir).join(LOCKFILE_NAME);
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -651,7 +651,7 @@ pub fn make_durable(path: &Path) -> io::Result<()> {
     // recovery sees the real output barrier succeed, and not a callback of its own (certification, third and fourth passes, A4, V5).
     #[cfg(test)]
     if directory_synced.is_ok() {
-        crate::bounded_run::trace(|| { return format!("durable {}", path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default()); });
+        crate::bounded_run::trace_text(format!("durable {}", path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default()));
     }
     return directory_synced;
 }

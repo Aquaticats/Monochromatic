@@ -62,107 +62,34 @@ jobs:
 
       - name: Compute the tag
         id: tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="$(sha256sum playwright.Dockerfile | cut --characters=1-16)"
-          echo "value=$tag" >> "$GITHUB_OUTPUT"
-          echo "tag $tag"
+        run: node package/monorepo-task/core-exec/src/playwright-image-tag.ts
 
       - name: Check whether the tag exists
         id: exists
-        shell: bash
+        # Asks ghcr.io with the registry's own token flow (the workflow's token is the password of a basic-auth request, the
+        # answer is a bearer token for this repository; credentials go through curl's standard input, not its command
+        # line). A transport fault ends the step with curl's own message, so the build and the push are skipped.
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_ACTOR_NAME: ${{ github.actor }}
           TAG: ${{ steps.tag.outputs.value }}
-        run: |
-          set -euo pipefail
-          repository="${IMAGE#ghcr.io/}"
-          accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json'
-          # A transport fault (no connection, a timeout after the retries) makes curl exit non-zero, which ends this
-          # step with curl's own message, so the build and the push are skipped.
-          curl_options=(--silent --show-error --max-time 30 --retry 3 --retry-delay 2)
-          absent() {
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "$IMAGE:$TAG is absent ($1); building it"
-            exit 0
-          }
-          unknown() {
-            echo "::error title=Cannot tell whether the tag exists::$1. Nothing was built or pushed, so no existing tag was replaced. After a registry fault one rerun of the job is right. On the first run, before the package exists, the registry answer for a missing package was never observed with the workflow token, so a rerun would fail the same way and the status handling of this step has to be edited (doc/runbook/publish-playwright-image.md)."
-            exit 1
-          }
-          body="$(mktemp)"
-          # The registry's own token flow, the one `podman login` and `podman pull` use: the workflow's token is the
-          # password of a basic-auth request and the answer is a bearer token for this repository. The credentials go
-          # through stdin (`--config -`) and not the command line.
-          token_status="$(printf 'user = "%s:%s"\n' "$GITHUB_ACTOR_NAME" "$GITHUB_TOKEN" \
-            | curl "${curl_options[@]}" --config - --output "$body" --write-out '%{http_code}' \
-              "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull")"
-          if [ "$token_status" = 403 ]; then
-            # A 403 from the token endpoint means the registry grants this token nothing for the package: the package
-            # does not exist yet, or it exists and the workflow token has no access to it. Both go on to the build; in
-            # the second reading the push is refused, so no existing tag is replaced.
-            absent "HTTP 403 for the token: the package does not exist yet, or it exists and this token has no access to it; the build runs, and a push this token may not make is refused"
-          fi
-          if [ "$token_status" != 200 ]; then
-            unknown "The token request answered HTTP $token_status"
-          fi
-          if ! token="$(jq --raw-output '.token // empty' "$body")" || [ -z "$token" ]; then
-            unknown "The token response had no token"
-          fi
-          echo "::add-mask::$token"
-          manifest_status="$(printf 'header = "Authorization: Bearer %s"\nheader = "Accept: %s"\n' "$token" "$accept" \
-            | curl "${curl_options[@]}" --config - --head --output /dev/null --write-out '%{http_code}' \
-              "https://ghcr.io/v2/$repository/manifests/$TAG")"
-          if [ "$manifest_status" = 200 ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "$IMAGE:$TAG exists (HTTP $manifest_status); nothing to build"
-            exit 0
-          fi
-          if [ "$manifest_status" = 404 ]; then
-            absent "HTTP 404 for the tag"
-          fi
-          unknown "The manifest request answered HTTP $manifest_status"
+        run: node package/monorepo-task/core-exec/src/playwright-image-tag-exists.ts
 
       - name: Build the image
         if: steps.exists.outputs.present != 'true'
-        shell: bash
         env:
           TAG: ${{ steps.tag.outputs.value }}
           REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
-        run: |
-          set -euo pipefail
-          podman --version
-          podman build \
-            --file playwright.Dockerfile \
-            --label "org.opencontainers.image.source=$REPOSITORY_URL" \
-            --label "org.opencontainers.image.description=Browsers and system libraries for the Playwright tests of the Monochromatic monorepo (playwright.Dockerfile)" \
-            --tag "$IMAGE:$TAG" \
-            .
+        run: node package/monorepo-task/core-exec/src/playwright-image-build.ts
 
       - name: Push the image
         id: push
         if: steps.exists.outputs.present != 'true'
-        shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_ACTOR_NAME: ${{ github.actor }}
           TAG: ${{ steps.tag.outputs.value }}
-        run: |
-          set -euo pipefail
-          printf '%s' "$GITHUB_TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR_NAME" --password-stdin
-          podman push --digestfile "$RUNNER_TEMP/playwright-image.digest" "$IMAGE:$TAG"
-          digest="$(cat "$RUNNER_TEMP/playwright-image.digest")"
-          case "$digest" in
-            sha256:*) ;;
-            *)
-              echo "::error title=Unexpected digest::podman wrote '$digest' as the digest of the pushed image"
-              exit 1
-              ;;
-          esac
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "pushed $IMAGE:$TAG as $digest"
+        run: node package/monorepo-task/core-exec/src/playwright-image-push.ts
 
       # Provenance is recorded in GitHub's attestation store for the digest, as for the files music-player-release.yml
       # attests (no push-to-registry, so no registry credential is involved). Consumers still pull by tag and nothing
@@ -175,44 +102,9 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
 
       - name: Check that anyone can pull it
-        shell: bash
+        # Advisory only: a fault here is reported as the status in the summary (000 when nothing answered) and never fails a
+        # run that has already published the image. No credentials of ours are sent: this is what a person without a login
+        # (or prepare:playwright) sees.
         env:
           TAG: ${{ steps.tag.outputs.value }}
-        run: |
-          set -euo pipefail
-          repository="${IMAGE#ghcr.io/}"
-          accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json'
-          # Advisory only: a fault here is reported as the status below (000 when nothing answered) and never fails a
-          # run that has already published the image. No credentials of ours are sent: this is what a person without
-          # a login (or prepare:playwright) sees.
-          curl_options=(--silent --max-time 30 --retry 3 --retry-delay 2)
-          body="$(mktemp)"
-          token_status="$(curl "${curl_options[@]}" --output "$body" --write-out '%{http_code}' \
-            "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull" || true)"
-          # What the first refused request answered: HTTP 403 and the registry's error code for a private package.
-          answer="$token_status"
-          token=""
-          if [ "$token_status" = 200 ]; then
-            token="$(jq --raw-output '.token // empty' "$body" 2>/dev/null || true)"
-          else
-            code="$(jq --raw-output '.errors[0].code // empty' "$body" 2>/dev/null || true)"
-            if [ -n "$code" ]; then
-              answer="$token_status ($code)"
-            fi
-          fi
-          if [ -n "$token" ]; then
-            echo "::add-mask::$token"
-            answer="$(printf 'header = "Authorization: Bearer %s"\nheader = "Accept: %s"\n' "$token" "$accept" \
-              | curl "${curl_options[@]}" --config - --head --output /dev/null --write-out '%{http_code}' \
-                "https://ghcr.io/v2/$repository/manifests/$TAG" || true)"
-          fi
-          {
-            echo "## Playwright image"
-            echo "- image: \`$IMAGE:$TAG\`"
-            echo "- anonymous pull check: HTTP $answer"
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$answer" = 200 ]; then
-            echo "anyone can pull $IMAGE:$TAG"
-          else
-            echo "::warning title=Playwright image is not public::An anonymous request for $IMAGE:$TAG answered HTTP $answer, so the package is private or the tag is missing. The owner makes the package public once: open it from https://github.com/orgs/Aquaticats/packages, then Package settings, Danger Zone, Change visibility, Public. Until then prepare:playwright falls back to building playwright.Dockerfile locally."
-          fi
+        run: node package/monorepo-task/core-exec/src/playwright-image-anonymous-pull-check.ts

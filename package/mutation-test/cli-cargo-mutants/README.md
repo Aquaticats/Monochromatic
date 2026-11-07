@@ -18,6 +18,7 @@ The inventory of other cargo-mutants scripts and the plan to fold their neutral 
 # mise task: any Rust product, with its own campaign task
 mise run //package/mutation-test/cli-cargo-mutants:campaign:parallel -- \
   --task //package/some/cli:mutation:scoped --tag-env SOME_IMAGE_TAG \
+  --image-repository localhost/some-test --from-tag development \
   --scope-prefix src/ <label> <file.rs>...
 ```
 
@@ -27,8 +28,55 @@ Each unit runs `mise run <task> -- --timeout <seconds> <scope flag> <scope prefi
 see the options),
 with the image tag in the variable named by `--tag-env`,
 so no two campaigns share an image.
+Before the first unit starts,
+the launcher makes sure every unit's image exists (see "Image tags").
 Output goes to `<log dir>/<log prefix>-<label>-<stem>.log.<attempt>`.
 The launcher prints one line per unit and a `systemctl --user is-active` command that waits for them.
+
+### Image tags
+
+A unit runs the image `<repository>:<tag>`,
+with the repository from `--image-repository` and the tag built from `--tag-template`
+(`{label}{index}` by default,
+one tag per file).
+A unit whose image does not exist dies at once with "image not known",
+so the launcher decides about every tag before it starts any unit
+(`ensureUnitImages` in `src/unit-images.ts`).
+On 2026-11-07 it did not:
+it started 21 units whose tags did not exist,
+every unit died at once,
+and the launcher exited 0 and printed "started" for each.
+
+- With `--from-tag <tag>`,
+  the image `<repository>:<tag>` (the gate image) is the source.
+  The launcher reads its full ID,
+  runs `podman tag <full ID> <repository>:<unit tag>` for every unit,
+  and then reads every unit tag back:
+  a tag that does not name the source's ID stops the launch,
+  naming the tag,
+  both IDs and the `podman tag` command that makes it.
+  A missing source image stops the launch too.
+  `podman tag` moves a tag that already exists,
+  so relaunching a label after a new gate points that label's tags at the new image
+  (a resumed campaign then has another image ID,
+  so another campaign key,
+  see "Where the outcomes live").
+  The launcher prints a line naming each tag that held another image,
+  with both IDs,
+  and leaves the old image in storage.
+- Without `--from-tag`,
+  every unit tag must already resolve to a full image ID.
+  A missing one stops the launch before anything starts and exits nonzero,
+  naming each missing tag with the command that makes it,
+  `podman tag <repository>:<gate tag> <repository>:<unit tag>`.
+- The launcher's only writes to Podman are `podman tag` calls.
+  It reads with `podman image inspect`,
+  in the environment a unit gets (so it looks in the same container storage),
+  and never removes an image or a tag.
+- The launch is refused before `systemd-run` is called,
+  so no unit starts when it is refused.
+
+### Reruns
 
 A unit reruns its campaign,
 at most `--attempts` times,
@@ -56,9 +104,16 @@ the resume does not depend on the label.
 
 Run the script without arguments for the same list with defaults.
 
-- `--task <task>` and `--tag-env <name>` are required:
-  the campaign task and the environment variable through which it
-  reads its image tag.
+- `--task <task>`,
+  `--tag-env <name>` and `--image-repository <repository>` are required:
+  the campaign task,
+  the environment variable through which it reads its image tag,
+  and the repository of the image a unit runs (`<repository>:<tag>`),
+  which the launcher needs to make or check each unit's tag (see "Image tags").
+- `--from-tag <tag>` names the gate image,
+  the tag in `--image-repository` that every unit's tag is made from with `podman tag` before any unit starts
+  (see "Image tags").
+  Without it every unit tag must already exist.
 - `--tag-template <text>` builds the tag from `{label}` and `{index}`;
   `{index}` is required (default `{label}{index}`).
 - `--scope-prefix <text>` and `--scope-flag=<flag>` turn each file into the task's scope argument
@@ -220,6 +275,11 @@ The lock files are never removed:
 a probe that removes a file races with a gate of the earlier release that has just created
 and locked a new one at the same path,
 and would delete the file that gate holds.
+A directory or a pipe where a slot file belongs is no lock file of the earlier release,
+which makes only plain files:
+the gate gives its claim back and stops with an error naming the path (`src/legacy-hold-or-give-back.ts`),
+and the person moves the path away,
+instead of the slot counting as held by an earlier release for good.
 A gate that reads the interim source (claims without the lock) holds only a claim,
 and an earlier-release gate can still take
 its slot;
@@ -788,6 +848,9 @@ never by a test.
   with `planUnits`,
   to start its own extra units beside the file units
   (the native wrapper starts its planted-controls unit that way).
+- `src/unit-images.ts` makes or checks every unit's image tag before any unit starts (see "Image tags");
+  the stand-in `podman` of the tests (`src/fake-programs.ts`) keeps an image registry in `images.json` of its fixture
+  for it.
 - `src/` holds the pure builders (unit name,
   log path,
   image tag,

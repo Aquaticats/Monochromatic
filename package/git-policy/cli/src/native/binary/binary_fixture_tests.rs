@@ -3,7 +3,8 @@
 //! (issue 1809).
 
 use super::support::{
-    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, remove_patiently, settle_fixture, spawn_owned, start_fixture_service,
+    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, give_service_environment, remove_patiently, repository, service_runtime,
+    service_is_serving, settle_fixture, spawn_owned, start_fixture_service,
 };
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -334,4 +335,74 @@ fn a_process_a_binary_test_starts_may_not_write_a_core_dump() {
     let output = std::process::Command::new("sh").args(["-c", "ulimit -c; ulimit -H -c"]).output().expect("sh runs");
     assert_eq!(String::from_utf8_lossy(&output.stdout).split_whitespace().collect::<Vec<&str>>(), vec!["0", "0"]);
     drop(fixture);
+}
+
+/// How long the control below waits for two threads that give the service a variable and then start it,
+/// so a hang fails it and
+///  never holds it.
+/// The two calls take well under a second when nothing blocks (a service start and a variable).
+const SERVICE_ENVIRONMENT_PATIENCE: Duration = Duration::from_secs(60);
+
+/// What:
+///  Two threads of one control that each give the fixture's service a variable and then start it do not wait for each other for ever.
+/// Why:
+///   `service_runtime` holds the service's lock and reads the environment while it starts a service,
+/// and
+///  `give_service_environment` held the environment's lock and then took the service's:
+/// each waited for the lock the other held
+///  (measured with `gdb` on the hung test process:
+/// one thread in `service_runtime` at the environment lock,
+/// the other in
+///  `give_service_environment` at the service lock,
+/// 3 of 3 runs of the two-worktree LFS control when it passed an environment).
+///  The threads are the two worktrees' commits of that control.
+#[test]
+fn two_threads_that_give_the_service_a_variable_and_start_it_do_not_wait_for_each_other_for_ever() {
+    let fixture: Fixture = fixture("service-environment-order");
+    let repo: PathBuf = repository(&fixture, std::ffi::OsStr::new("repo"));
+    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+    let fixture_ref: &'static Fixture = Box::leak(Box::new(fixture));
+    for _ in 0..2 {
+        let done = sender.clone();
+        std::thread::spawn(move || {
+            give_service_environment(fixture_ref, "CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+            let _runtime = service_runtime(fixture_ref);
+            let _sent = done.send(());
+        });
+    }
+    for _ in 0..2 {
+        receiver.recv_timeout(SERVICE_ENVIRONMENT_PATIENCE).expect("the thread ended: the service's two locks are taken in one order");
+    }
+    assert!(repo.exists());
+}
+
+/// How long the control below lets a listener sit without greeting before it says the service is not serving.
+const SILENT_LISTENER_WAIT: Duration = Duration::from_millis(300);
+
+/// A service is serving when it greets a connection,
+/// not when the kernel accepts one:
+/// a listener that has not started its
+/// threads accepts a connection and says nothing,
+/// and the fixture must not count it as started (a control that lowered the
+/// service's process limit at that moment ended the service with status 4,
+/// `cannot start the thread for the after-commit work`).
+#[test]
+fn a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_is_serving() {
+    use std::io::Write;
+    let held: Fixture = fixture("silent-listener");
+    let socket: PathBuf = held.root.join("socket");
+    let listener = std::os::unix::net::UnixListener::bind(&socket).expect("a listening socket");
+    assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok(), "the kernel accepts a connection for a listener that has not answered");
+    let began: Instant = Instant::now();
+    let silent: bool = !service_is_serving(&socket);
+    assert!(silent, "no greeting came, so the service is not serving");
+    assert!(began.elapsed() < SILENT_LISTENER_WAIT * 20, "the check ended within its own bound");
+    let greeter = std::thread::spawn(move || {
+        for connection in listener.incoming().take(3).flatten() {
+            let mut stream = connection;
+            let _greeted = stream.write_all(b"{\"greeting\":true}\n");
+        }
+    });
+    assert!(service_is_serving(&socket), "a listener that greets is serving");
+    greeter.join().expect("the greeter ends");
 }

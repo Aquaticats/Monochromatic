@@ -89,3 +89,40 @@ fn a_read_that_fails_is_reported_and_not_taken_for_the_end() {
     assert!(shown.notes.iter().any(|note| { return note.contains("could not be read whole"); }), "{:?}", shown.notes);
     crate::test_support::remove(directory.as_path());
 }
+
+/// Every write lands at the end of the file,
+/// whatever offset the writers think they have:
+/// two processes that share the file
+/// each keep the position of their own last write in mind,
+/// and a write at a stale position overwrites a line the other process
+/// wrote (measured on this host with a leader and a helper writing to one `memfd` with a shared offset:
+/// the leader's line was
+/// gone in 5 of 150 runs at a 20% CPU quota and in none of 300 runs once the file was in append mode).
+/// The control makes the
+/// stale position certain:
+/// a child writes,
+/// the files are emptied,
+/// the child writes again,
+/// and the second write must be the
+/// whole of what is there,
+/// not a line after a hole of zero bytes where the first one was.
+#[test]
+fn a_write_after_the_files_were_emptied_lands_at_the_start_and_leaves_no_hole() {
+    let directory: std::path::PathBuf = crate::test_support::fixture("output-capture-append");
+    let go: std::path::PathBuf = directory.join("go");
+    let capture: Capture = Capture::new().expect("the files");
+    let (out, err) = capture.stdio().expect("the streams");
+    let script: String = format!("echo first; while [ ! -e '{}' ]; do sleep 0.01; done; echo second", go.display());
+    let mut child = Command::new("sh").args(["-c", script.as_str()]).stdout(out).stderr(err).spawn().expect("the child");
+    let began: std::time::Instant = std::time::Instant::now();
+    while capture.snapshot(1024).stdout != b"first\n" {
+        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the child never wrote its first line");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    capture.discard();
+    std::fs::write(&go, b"").expect("the signal to go on");
+    assert!(child.wait().expect("the child ends").success());
+    let shown: Captured = capture.snapshot(1024);
+    assert_eq!(shown.stdout, b"second\n", "the second write is the whole file");
+    crate::test_support::remove(directory.as_path());
+}

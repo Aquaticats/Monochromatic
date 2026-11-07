@@ -317,8 +317,8 @@ async function probeOnce({
 }
 
 /**
- What {@link holdLegacyLock} found: `busy` (a process holds the lock), `absent` (no such path, or one that is not a plain file
- where a plain file was asked for), or `kept` (this process now holds the lock, which it gives back when `lock` is disposed).
+ What {@link holdLegacyLock} found: `busy` (a process holds the lock), `absent` (no such path where none was asked to be
+ created), or `kept` (this process now holds the lock, which it gives back when `lock` is disposed).
  */
 export type LegacyHold =
   | { readonly kind: 'busy' }
@@ -392,8 +392,8 @@ async function openForHold({
 
  @returns `busy` when a process holds the lock, `absent` when there is nothing to lock, or `kept` with the lock to dispose
 
- @throws CargoMutantsToolingError when the path cannot be opened or `flock` cannot be run or ends unexpectedly, or the path
- keeps naming new files
+ @throws CargoMutantsToolingError when the path cannot be opened, or is not a plain file where a plain file was asked for, or
+ `flock` cannot be run or ends unexpectedly, or the path keeps naming new files
 
  @example
  ```ts
@@ -434,10 +434,10 @@ export async function holdLegacyLock({
    What the opened file is.
    */
   const status = await file.stat();
-  // A path that is not a plain file is never a lock file the earlier release made (it makes only plain ones); a directory is
-  // wanted only where asked not to create.
+  // A path that is not a plain file is never a lock file the earlier release made (it makes only plain ones), so where a plain
+  // file is wanted it is an error to fix, never a holder to wait for; a directory is wanted only where asked not to create.
   if (create && (!status.isFile()))
-    return { kind: 'absent' };
+    throw new CargoMutantsToolingError(`${path} is not a plain file, and no run of the earlier release makes anything else at a slot file, so it cannot hold the slot and nothing was changed. Move it away or remove it, then run the command again.`);
   if (await lockIsHeld({
     descriptor: file.fd,
     program,

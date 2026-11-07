@@ -22,6 +22,9 @@
 //!  the name exists,
 //! so two writers cannot take one number,
 //! and a removal that another pass did first is not an error.
+//! A file a
+//!  killed rotation left at its private name is given the next number by the same pass,
+//! because readers go by number.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -286,60 +289,60 @@ fn names_a_copy_on_disk(path: &Path) -> std::io::Result<bool> {
 }
 
 /// What:
-///  Removes the oldest generations that name no copy on disk until the others fit `budget` bytes,
-/// and the second name of any
-///  file that has a number.
+///  Removes the second name of any file that has two,
+/// gives a file left at a private name by a killed rotation the next
+///  generation number,
+/// and removes the oldest generations that name no copy on disk until the others fit `budget` bytes.
 /// Why:
-///   The budget counts what explains nothing on disk:
-/// generations without a copy,
-/// and files at a private name (a killed
-///  rotation's,
-/// which are never removed because their lines are in no other place).
+///   Readers go by number,
+/// so a file that stays at a private name is read by nobody:
+/// its lines are on disk and in no
+///  reader's sight.
+/// The pass gives it a number by the hard link that gives a rotation its own,
+/// so two passes cannot take one
+///  number.
+/// A writer that is not killed but between its take and its install finds its private name gone and reports an error
+///  that costs nothing:
+/// the record it was appending went to the file it held,
+/// which is now the generation.
+/// If two passes did
+///  give one file two numbers,
+/// the higher name goes,
+/// which loses no line.
+/// The budget counts what explains nothing on disk:
+///  generations without a copy.
 /// A generation that names a copy on disk,
-/// or
-///  cannot be read to see,
-/// is outside the budget and stays.
+/// or cannot be read to see,
+/// is outside the budget and
+///  stays.
 /// A removal another pass did first is the same result,
-/// and the pass
-///  never waits.
+/// and the pass never waits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// for (const second of secondNames(pieces)) await unlink(second);
+/// for (const orphan of orphans(pieces)) await installGeneration(orphan, target);
 /// for (const g of oldestFirst(generations)) { if (total <= budget) break; if (!(await namesACopyOnDisk(g))) { await unlink(g); total -= g.size; } }
 /// ```
 ///
 /// # Errors
 /// The system's error when the directory cannot be read.
 pub(super) fn trim_generations(target: &Path, budget: u64) -> std::io::Result<()> {
-    let pieces: Vec<Piece> = list_pieces(target)?;
-    let mut generations: Vec<&Piece> = Vec::new();
-    for piece in &pieces {
-        if piece.number.is_some() {
-            generations.push(piece);
-        }
+    let mut pieces: Vec<Piece> = list_pieces(target)?;
+    if settle_names(target, pieces.as_slice()) {
+        pieces = list_pieces(target)?;
     }
-    generations.sort_by_key(piece_number);
+    let mut generations: Vec<&Piece> = Vec::new();
     let mut total: u64 = 0;
     for piece in &pieces {
         if piece.number.is_some() {
-            continue;
-        }
-        let mut numbered_too: bool = false;
-        for generation in &generations {
-            if generation.identity == piece.identity {
-                numbered_too = true;
-                break;
-            }
-        }
-        if numbered_too {
-            // The same file under its generation number: a rotation was killed between its link and its removal.
-            if let Err(error) = std::fs::remove_file(&piece.path) {
-                debug(TAG, &format!("the second name {} of a generation could not be removed: {error}", piece.path.display()));
-            }
+            generations.push(piece);
         } else {
+            // A file that could not be given a number stays where it is, and its bytes count against the bound.
             total = total.saturating_add(piece.length);
         }
     }
+    generations.sort_by_key(piece_number);
     let mut candidates: Vec<&Piece> = Vec::new();
     for generation in generations {
         match names_a_copy_on_disk(generation.path.as_path()) {
@@ -363,4 +366,75 @@ pub(super) fn trim_generations(target: &Path, budget: u64) -> std::io::Result<()
         }
     }
     return Ok(());
+}
+
+/// What:
+///  Whether `pieces` holds a file that `file` is a second name of:
+/// a numbered piece with the same device and inode,
+/// which a
+///  lower number or a numbered name already stands for.
+/// Why:
+///   A second name keeps the file's bytes and says nothing new,
+/// so it may go;
+/// the first name,
+/// the lowest number,
+/// stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSecondName = (file, pieces) => pieces.some((p) => sameFile(p, file) && p.number !== undefined && (file.number === undefined || p.number < file.number));
+/// ```
+fn is_second_name(file: &Piece, pieces: &[Piece]) -> bool {
+    for other in pieces {
+        let Some(other_number) = other.number else { continue };
+        if other.identity != file.identity {
+            continue;
+        }
+        match file.number {
+            None => return true,
+            Some(number) if other_number < number => return true,
+            Some(_) => {}
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Removes the second names of files and gives each file left at a private name its generation number;
+/// whether the listing
+///  changed.
+/// Why:
+///   The two repairs of a killed rotation.
+/// A kill between the link and the removal leaves a private name beside the number;
+/// a
+///  kill after the take leaves a private name alone.
+/// Either way the work is one hard link or one removal,
+/// and a failure is a
+///  debug line,
+/// never an error:
+/// the file stays and the next pass tries again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const p of pieces) if (isSecondName(p)) await unlink(p.path); else if (p.number === undefined) await installGeneration(p.path, target);
+/// ```
+fn settle_names(target: &Path, pieces: &[Piece]) -> bool {
+    let mut changed: bool = false;
+    for piece in pieces {
+        if is_second_name(piece, pieces) {
+            // The same file under its generation number: a rotation was killed between its link and its removal, or two passes
+            // gave one file two numbers.
+            match std::fs::remove_file(&piece.path) {
+                Ok(()) => changed = true,
+                Err(error) => debug(TAG, &format!("the second name {} of a generation could not be removed: {error}", piece.path.display())),
+            }
+        } else if piece.number.is_none() {
+            // A file a rotation took off the name and never placed: its lines are in no reader's sight until it has a number.
+            match install_generation(piece.path.as_path(), target) {
+                Ok(()) => changed = true,
+                Err(error) => debug(TAG, &format!("{} could not be given a generation number: {error}", piece.path.display())),
+            }
+        }
+    }
+    return changed;
 }

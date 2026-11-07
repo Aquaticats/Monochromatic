@@ -225,7 +225,8 @@ Fetch the `mpm-shadow` archive that `toolchain.lock.json` records for your platf
 check it against the SHA-256 recorded beside it,
 run its `install` from the repository root,
 and remove the throwaway copy
-(the same steps are in `.github/actions/repo-tools-setup/action.yml` for CI):
+(the same steps are in `src/repo-tools-setup.ts` of `package/monorepo-task/core-exec`,
+which `.github/actions/repo-tools-setup/action.yml` runs for CI):
 
 ```sh
 # Run from the repository root; platform is linux-x64 or linux-arm64.

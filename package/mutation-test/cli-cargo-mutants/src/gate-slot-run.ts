@@ -23,16 +23,14 @@ import {
   slotClaimPrefix,
   slotLockPath,
 } from './gate-slot.ts';
-import {
-  holdLegacyLock,
-  probeLegacyLock,
-} from './legacy-flock.ts';
+import { probeLegacyLock } from './legacy-flock.ts';
 import {
   liveOwnerOf,
   type OwnerClaim,
   takeClaim,
 } from './owner-claim.ts';
 import { noLiveOwner } from './claim-liveness.ts';
+import { holdLegacyLockOrGiveBack } from './legacy-hold-or-give-back.ts';
 
 /**
  Milliseconds in a second, to say how long a gate has waited.
@@ -222,9 +220,9 @@ async function tryFrom({
     /**
      The kernel lock a gate of the earlier release would poll for, kept for as long as the claim.
      */
-    const hold = await holdLegacyLock({
+    const hold = await holdLegacyLockOrGiveBack({
       path: lockFile,
-      create: true,
+      claim: outcome.claim,
     });
     if (hold.kind === 'kept')
       return {
@@ -233,8 +231,7 @@ async function tryFrom({
         claim: outcome.claim,
         legacyLock: hold.lock,
       };
-    // A gate of the earlier release took the lock after the probe, or there is nothing a plain lock file could be: give the
-    // claim back, and count the slot as held by it.
+    // A gate of the earlier release took the lock after the probe: give the claim back, and count the slot as held by it.
     await outcome.claim
       .release();
     return await tryFrom({

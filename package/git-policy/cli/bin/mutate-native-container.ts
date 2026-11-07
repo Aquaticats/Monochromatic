@@ -21,6 +21,10 @@ import {
 
 import { parseContainerLimitOptions } from './container-limits.ts';
 import {
+  gateImageTagOf,
+  nativeTestImageRepository,
+} from './native-gate-image-tag.ts';
+import {
   campaignPrefix,
   passingGateEvidence,
 } from './native-gate-proof.ts';
@@ -62,9 +66,7 @@ const outstanding: { current: readonly PlantedObligation[] } = { current: [] };
 /**
  Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never mutates another's image.
  */
-const imageTag = process.env
-  .GIT_POLICY_NATIVE_IMAGE_TAG
-  ?? 'development';
+const imageTag = gateImageTagOf(process.env);
 /**
  Report directory inside the container; the tester's home is the only writable place outside the package.
  */
@@ -165,7 +167,7 @@ if (passOne !== undefined) {
 }
 
 await runCampaign({
-  testImage: `localhost/git-policy-native-test:${imageTag}`,
+  testImage: `${nativeTestImageRepository}:${imageTag}`,
   mutationImage: `localhost/git-policy-native-mutation:${imageTag}`,
   testImageHint: '; run native:test:container first',
   // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,

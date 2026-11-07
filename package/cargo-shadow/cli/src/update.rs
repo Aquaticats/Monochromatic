@@ -138,7 +138,7 @@ use crate::crates::{LockSnapshot, read_locks};
 /// ```ts
 /// import { policy_findings } from 'crate/install';
 /// ```
-use crate::install::{LockBaseFactory, policy_findings};
+use crate::install::{LockBaseFactory, PolicyJudge};
 /// What:
 /// `use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};` imports `begin`,
 /// `finish`,
@@ -165,7 +165,7 @@ use crate::journal_finish::{FinishError, settle_finish};
 use crate::file_owner::Claim;
 /// Imports the manifest transaction that `--breaking` needs:
 /// cargo rewrites `Cargo.toml` as well as the lockfile.
-use crate::manifest_edit::{ManifestEdit, restore_manifests, run_recording_manifests, snapshot_manifests};
+use crate::manifest_edit::{ManifestEdit, restore_manifests, snapshot_manifests};
 /// Imports the manifest list of a `cargo metadata` answer.
 use crate::stamp::manifests_from_metadata;
 /// Imports the keep rule of a rollback and the quarantine directory,
@@ -281,6 +281,9 @@ use crate::update_resolve::resolve_all;
 use crate::update_argument_and_warning_text::{is_breaking_option, is_precise_option, raised_floor_warning};
 /// Imports the file-system error module (the result type of the recorded calls).
 use std::io;
+
+/// The work values of the update (split out of the update module).
+pub(crate) use crate::update_recorded_work::{SyncChain, CargoRun, ManifestsThenCargo};
 
 /// Which procedure the update runs.
 pub enum UpdateKind<'a> {
@@ -699,15 +702,11 @@ fn sync_recording(request: &UpdateRequest, edits: &RefCell<Vec<ManifestEdit>>) -
     // function f(registry: Registry) { ... }  // an interface type
     // ```
     // Constructor `Box::new(`: an empty owned collection or a boxed value.
-    let mut run: Box<dyn FnOnce() -> io::Result<Result<String, String>> + '_> = Box::new(|| { return Ok(request.syncer.sync(request.root)); });
+    let mut chain: SyncChain = SyncChain::Sync { request };
     for crate_dir in request.crate_dirs {
-        let inner = run;
-        // Closure `|answer|`: an anonymous function, like a TS arrow function.
-        // Adapter `.and_then(`: transforms or selects items with a closure.
-        // Constructor `Box::new(`: an empty owned collection or a boxed value.
-        run = Box::new(move || { return run_recording_manifests(crate_dir, edits, inner).and_then(std::convert::identity); });
+        chain = SyncChain::Around { crate_dir, edits, inner: Box::new(chain) };
     }
-    return run();
+    return crate::file_owner::RecordedWork::run(chain);
 }
 
 /// What:
@@ -832,10 +831,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             for crate_dir in request.crate_dirs {
                 // Both the lockfile and the manifests of this root are attributed by the evidence in `file_owner.rs`, whether the
                 // call succeeds or fails; the manifests of other roots are never claimed by this call.
-                let (ran, _claim): (io::Result<Result<CargoOutcome, UpdateError>>, Claim) = run_recording(request.root, crate_dir, produced, || {
-                    // Borrow `&args`: lends the value without copying or giving it away.
-                    return run_recording_manifests(crate_dir, edits, || { return run_or_fail(request, crate_dir, &args); });
-                })
+                let (ran, _claim): (io::Result<Result<CargoOutcome, UpdateError>>, Claim) = run_recording(request.root, crate_dir, produced, ManifestsThenCargo { cargo: CargoRun { request, crate_dir, args: &args }, edits })
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // `.map_err(...)`: converts the callee's error into this function's error type.
                 .map_err(other_text)?;
@@ -1040,12 +1036,8 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
 /// export async function updateRustLockfiles(args): Promise<UpdateReport>
 /// ```
 pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Result<UpdateReport, UpdateError> {
-    // Closure `|old, live|`: an anonymous function, like a TS arrow function.
-    // Borrow `&process_exists`: lends the value without copying or giving it away.
     // Typed binding: `recovered: Vec<String>`.
-    let recovery = recover_report(request.root, &|old, live| {
-        return policy_findings(request.settings, request.registry, request.now, old, live);
-    });
+    let recovery = recover_report(request.root, &PolicyJudge { settings: request.settings, registry: request.registry, now: request.now });
     let mandatory_recovery_failure: bool = recovery.mandatory_failure;
     let recovered: Vec<String> = recovery.messages;
     // Borrow `&recovered`: lends the value without copying or giving it away.

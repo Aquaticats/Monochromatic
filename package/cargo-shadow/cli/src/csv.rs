@@ -285,7 +285,7 @@ impl State {
 
     /// Hands the finished row to the callback;
     /// `false` from the callback stops the read.
-    fn end_row(&mut self, on_row: &mut dyn FnMut(&[String]) -> bool) -> io::Result<bool> {
+    fn end_row(&mut self, on_row: &mut dyn RowHandler) -> io::Result<bool> {
         // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
         // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
         // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
@@ -295,7 +295,7 @@ impl State {
         // const value = await expr;   // throws to the caller on failure
         // ```
         self.end_field()?;
-        let keep_going: bool = on_row(&self.row);
+        let keep_going: bool = on_row.on_row(&self.row);
         self.row.clear();
         self.row_bytes = 0;
         self.row_started = false;
@@ -351,7 +351,42 @@ fn malformed(message: String) -> io::Error {
 }
 
 /// What:
-/// `pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool) -> io::Result<()>` reads rows until the
+/// `pub trait RowHandler` is what `read_csv` hands each finished row to:
+/// `on_row(row)` returns `false` to stop the read.
+/// Why:
+/// The reader takes the handler as a value instead of a closure,
+/// so a handler can be a struct that holds its own state.
+/// Every `FnMut(&[String]) -> bool` is a `RowHandler` too,
+/// so a test passes a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface RowHandler { onRow(row: string[]): boolean; }
+/// ```
+pub trait RowHandler {
+    /// What:
+    /// `on_row(&mut self, row)` takes one finished row.
+    /// Why:
+    /// `false` stops the read.
+    fn on_row(&mut self, row: &[String]) -> bool;
+}
+
+/// What:
+/// The implementation of `RowHandler` for every function with the handler's shape.
+/// Why:
+/// Tests and callers that already hold a closure need no wrapper.
+impl<F: FnMut(&[String]) -> bool> RowHandler for F {
+    /// What:
+    /// Calls the function.
+    /// Why:
+    /// The function is the handler.
+    fn on_row(&mut self, row: &[String]) -> bool {
+        return self(row);
+    }
+}
+
+/// What:
+/// `pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn RowHandler) -> io::Result<()>` reads rows until the
 /// stream ends or the callback returns `false`.
 /// Why:
 /// A byte state machine:
@@ -369,7 +404,7 @@ fn malformed(message: String) -> io::Error {
 /// ```ts
 /// export function readCsv(stream, onRow: (row: string[]) => boolean): void
 /// ```
-pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool) -> io::Result<()> {
+pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn RowHandler) -> io::Result<()> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
     //
