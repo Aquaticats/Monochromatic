@@ -512,3 +512,28 @@ fn a_tool_whose_request_spells_this_repository_in_another_case_is_kept_newest_on
     let warnings = older_lock_warnings(&rig.scope, &old_lock.tools, Some(OsFamily::Linux));
     assert_eq!(warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1")]);
 }
+
+/// Two pre-releases of one version whose numbers differ in length: `.10` is newer than `.9` by semver.
+const EARLIER_ALPHA: &str = "0.2.2-alpha.9";
+
+/// The newer pre-release of the same version as `EARLIER_ALPHA`.
+const LATER_ALPHA: &str = "0.2.2-alpha.10";
+
+#[test]
+fn the_newest_archive_and_the_removal_of_older_ones_read_a_longer_alpha_number_as_the_newer_one() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    for version in [EARLIER_ALPHA, LATER_ALPHA] {
+        finish_archive(&root, version);
+    }
+    assert_eq!(newest_installed_archive(&root, ID, BIN).as_deref(), Some(LATER_ALPHA));
+    let removed = super::published_archive::remove_older_archives(&root, ID, BIN).expect("removed");
+    assert_eq!(removed.len(), 1, "{removed:?}");
+    assert!(removed[0].ends_with(EARLIER_ALPHA), "{removed:?}");
+}
+
+#[test]
+fn the_archive_prune_rule_keeps_the_longer_alpha_number() {
+    let removals = plan_archive_prune(&versions_present(&[(EARLIER_ALPHA, true), (LATER_ALPHA, true)]));
+    assert_eq!(removals, vec![(ID.to_string(), EARLIER_ALPHA.to_string())]);
+}

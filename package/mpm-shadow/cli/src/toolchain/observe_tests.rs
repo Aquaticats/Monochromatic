@@ -177,3 +177,14 @@ fn a_fully_matching_report_says_so() {
     }];
     assert!(format_status(&observations).ends_with("toolchain list: 1 tools in sync with toolchain.lock.json\n"));
 }
+
+#[test]
+fn an_observed_version_satisfies_a_repository_published_lock_by_the_alpha_number_read_as_a_number() {
+    let rig = Rig::new();
+    let tool = rig.tool("cargo:monochromatic-mpm-shadow");
+    let mut locked = tool.clone();
+    locked.version = "0.4.5-alpha.10".to_string();
+    assert!(!super::observe::satisfies_lock(&locked, "0.4.5-alpha.9"), "alpha.9 is older than the locked alpha.10");
+    locked.version = "0.4.5-alpha.9".to_string();
+    assert!(super::observe::satisfies_lock(&locked, "0.4.5-alpha.10"), "alpha.10 is newer than the locked alpha.9");
+}

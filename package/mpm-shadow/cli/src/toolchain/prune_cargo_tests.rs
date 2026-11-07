@@ -154,3 +154,10 @@ fn an_extra_lock_keeps_the_version_it_names_and_an_unreadable_lock_deletes_nothi
     assert!(error.message.contains("not JSON"), "{error}");
     assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "a lock that cannot be read deletes nothing");
 }
+
+#[test]
+fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_version() {
+    let found = present(&[("monochromatic-lint", &["0.4.5-alpha.9", "0.4.5-alpha.10"])]);
+    let removals = plan_prune(&found, &named(&[("monochromatic-lint", &["0.4.5-alpha.9", "0.4.5-alpha.10"])]));
+    assert_eq!(removals, vec![("monochromatic-lint".to_string(), "0.4.5-alpha.9".to_string())]);
+}
