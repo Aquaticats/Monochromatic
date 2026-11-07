@@ -78,7 +78,7 @@ fn the_repository_scope_puts_plan_lock_and_payloads_where_the_ide_and_ci_expect(
     assert_eq!(scope.lock_file, Path::new("/work/tree").join(LOCK_FILE_NAME));
     assert_eq!(scope.exposure_dir, Path::new("/work/tree").join(EXPOSURE_DIR_RELATIVE));
     assert_eq!(scope.exposure_dir_relative, EXPOSURE_DIR_RELATIVE);
-    assert_eq!(scope.link_dir, PathBuf::from("/work/tree/.cache/cli-git-bin"));
+    assert_eq!(scope.link_dir, PathBuf::from("/work/tree/.cache/monochromatic-git-policy-cli-bin"));
     assert_eq!(scope.toolchain_root, PathBuf::from("/home/someone/.local/share/monochromatic-dev/toolchain"));
     assert_eq!(scope.toolchain_bin_dir, PathBuf::from("/home/someone/.local/share/monochromatic-dev/toolchain/bin"));
 }

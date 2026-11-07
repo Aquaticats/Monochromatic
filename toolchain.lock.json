@@ -629,7 +629,7 @@
           "link": {
             "sourceBin": "monochromatic-git-policy-cli",
             "linkName": "git",
-            "linkDir": ".cache/cli-git-bin"
+            "linkDir": ".cache/monochromatic-git-policy-cli-bin"
           }
         }
       },
@@ -1654,5 +1654,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:f29bd6625a26b7c5eebfa9c4767e3d8c60155e24f7f627cd1aa8aa47e6033ff7"
+  "digest": "sha256:9626738506ad6505f2147defe0421f61d14c5fbb2266f6d56a367e6894ba13d8"
 }

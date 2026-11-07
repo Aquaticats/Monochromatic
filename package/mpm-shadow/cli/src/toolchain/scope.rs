@@ -231,7 +231,7 @@ pub fn repo_scope(root: &Path, env: &EnvMap) -> Result<Scope, ToolchainError> {
         exposure_dir: root.join(".cache").join("toolchain-bin"),
         exposure_dir_relative: EXPOSURE_DIR_RELATIVE.to_string(),
         mise_env_file: Some(root.join(REPO_MISE_ENV_FILE_RELATIVE)),
-        link_dir: root.join(".cache").join("cli-git-bin"),
+        link_dir: root.join(".cache").join("monochromatic-git-policy-cli-bin"),
         launcher_dir: root.join(".cache").join("toolchain-launchers"),
         toolchain_bin_dir: toolchain_root.join("bin"),
         bin_config_file: toolchain_root.join("bin.config.json"),

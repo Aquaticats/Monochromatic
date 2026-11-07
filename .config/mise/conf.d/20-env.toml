@@ -35,7 +35,7 @@ PNPM_CONFIG_STORE_DIR = "{{ env.HOME | canonicalize }}/.local/share/pnpm/store"
 # shadow runs, and it does not exist until the tool is installed. The fifth is the gitignored
 # per-worktree toolchain exposure directory .cache/toolchain-bin, one link per tool
 # toolchain.lock.json declares, so tasks resolve the locked tools before any ambient or
-# global one. The sixth is the gitignored per-worktree directory .cache/cli-git-bin that
+# global one. The sixth is the gitignored per-worktree directory .cache/monochromatic-git-policy-cli-bin that
 # holds the git link to the installed Git policy wrapper (the postinstall of the
 # cargo:monochromatic-git-policy-cli tool in the toolchain plan). The last is the root
 # workspace bin directory. The package bin directories come from 10-bin.local.toml.
@@ -45,7 +45,7 @@ _.path = [
   ".cache/pnpm-shadow-bin",
   ".cache/cargo-shadow-bin",
   ".cache/toolchain-bin",
-  ".cache/cli-git-bin",
+  ".cache/monochromatic-git-policy-cli-bin",
   "node_modules/.bin",
 ]
 
