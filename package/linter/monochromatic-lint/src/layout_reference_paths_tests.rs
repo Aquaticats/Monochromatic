@@ -202,3 +202,23 @@ fn layout_a_group_that_is_never_closed_ends_with_the_source() {
         finished_within_deadline(|| return references_of("use crate::{a, b::{c, d"));
     assert_eq!(found, ["crate::a", "crate::b::c", "crate::b::d"]);
 }
+
+/// Group entries of several segments and group entries that end in a glob are read whole,
+///  and a glob entry adds no glob of the prefix.
+#[test]
+fn layout_group_entries_of_several_segments_and_globs_are_read_whole() {
+    assert_eq!(
+        references_of("use crate::{a::b::c, d::e, f::*, g::{h::*}};"),
+        ["crate::a::b::c", "crate::d::e", "crate::f::*", "crate::g::h::*"]
+    );
+}
+
+/// A path that starts with `self` and continues keeps its `self` segment inside a group,
+///  where a lone `self` names the prefix itself.
+#[test]
+fn layout_a_self_path_inside_a_group_keeps_its_self_segment() {
+    assert_eq!(
+        references_of("use crate::{self::b};"),
+        ["crate::self::b"]
+    );
+}
