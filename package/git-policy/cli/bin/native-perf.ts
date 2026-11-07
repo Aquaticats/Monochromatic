@@ -96,6 +96,7 @@ const { values } = parseArgs({
     // How many tracked text files every commit sample edits and commits by name (the size of the commit), default one.
     files: { type: 'string', },
     'new-files': { type: 'string', },
+    'change-rules': { type: 'boolean', },
     // Milliseconds to wait after each round, so the work a commit leaves running after its answer is over before the next one.
     pause: { type: 'string' },
   },
@@ -211,6 +212,7 @@ const wrappedRepository = await fixture('wrapped-repo');
 const edits = await sampleEditsOf({
   ...(values.files === undefined ? {} : { files: values.files, }),
   ...(values['new-files'] === undefined ? {} : { added: values['new-files'], }),
+  ...(values['change-rules'] === true ? { changeRules: true, } : {}),
   root,
   shaped: values.shape !== undefined,
   directory: directRepository,

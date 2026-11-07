@@ -300,6 +300,9 @@ export type SampleEdits = {
  @param added - the `--new-files` text, how many new files each sample creates and stages with `git add` before its commit, which
    then names them with the edited ones; absent means none
 
+ @param changeRules - whether each sample first appends a comment line to the repository's optional local rules file
+   (`forbidden-strings.append.local.txt`), so the commit meets rules text whose compiled form is in no cache
+
  @param root - scratch root that holds `bin` and `home`, which staging runs in
 
  @param shaped - whether the fixtures are copies of a prepared repository, which tracks `README.md` at its root (`DPL`), instead of
@@ -319,12 +322,14 @@ export type SampleEdits = {
 export async function sampleEditsOf({
   files,
   added,
+  changeRules,
   root,
   shaped,
   directory,
 }: {
   readonly files?: string;
   readonly added?: string;
+  readonly changeRules?: boolean;
   readonly root: string;
   readonly shaped: boolean;
   readonly directory: string;
@@ -415,6 +420,15 @@ export async function sampleEditsOf({
           `edit ${String(sample)} ${String(Math.random())}\n`,
         );
       }));
+      if (changeRules === true) {
+        await appendFile(
+          join(
+            target,
+            'forbidden-strings.append.local.txt',
+          ),
+          `# rules change of sample ${String(sample)}\n`,
+        );
+      }
       if (created > 0) {
         await Promise.all(addedBy(sample)
           .map(function create(name) {
