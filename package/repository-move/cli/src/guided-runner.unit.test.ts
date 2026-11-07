@@ -13,8 +13,10 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   stat,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import {
@@ -101,23 +103,57 @@ async function exists(path: string,): Promise<boolean> {
   return await stat(path,).then(() => true, () => false);
 }
 
-/** Where the stand-in `sudo` of a fixture run records the commands it was asked to run. */
-type StandInSudo = {
+/** Where the stand-ins for the privileged and mount-reading commands of a fixture run keep their records. */
+type StandIns = {
   readonly folder: string;
   readonly log: string;
+  readonly mounts: string;
 };
 
 /**
- Writes a `sudo` that records its arguments and exits 0, so a real prepare run can reach a root stage without any
- privilege and without changing anything.
+ Writes stand-ins for `sudo`, `findmnt` and `mountpoint` that change nothing real: `sudo` records its arguments, runs
+ only `mkdir` for real, pretends `mkfs.btrfs`, `mount` and `umount`, and refuses the rest; `findmnt` and `mountpoint`
+ answer from the list of folders the pretend `mount` was given, after resolving links the way the real tools do.
  */
-async function writeStandInSudo(home: string,): Promise<StandInSudo> {
+async function writeStandIns(home: string,): Promise<StandIns> {
   const folder = join(home, 'stand-in-bin',);
   const log = join(home, 'stand-in-sudo.log',);
+  const mounts = join(home, 'stand-in-mounts.txt',);
   await mkdir(folder, { recursive: true, },);
-  await writeFile(join(folder, 'sudo',), '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$STAND_IN_SUDO_LOG"\nexit 0\n',);
-  await chmod(join(folder, 'sudo',), EXECUTABLE_MODE,);
-  return { folder, log, };
+  const scripts: Record<string, string> = {
+    sudo: [
+      '#!/bin/sh',
+      'printf \'%s\\n\' "$*" >> "$STAND_IN_SUDO_LOG"',
+      'case "$1" in',
+      '  --non-interactive|mkfs.btrfs|umount) exit 0 ;;',
+      '  mount) for last; do :; done; printf \'%s\\n\' "$(realpath "$last")" >> "$STAND_IN_MOUNTS"; exit 0 ;;',
+      '  mkdir) exec "$@" ;;',
+      'esac',
+      'echo "stand-in sudo refuses: $*" >&2',
+      'exit 1',
+      '',
+    ].join('\n',),
+    findmnt: [
+      '#!/bin/sh',
+      'for last; do :; done',
+      'resolved=$(realpath "$last" 2>/dev/null) || exit 1',
+      'grep --fixed-strings --line-regexp --quiet "$resolved" "$STAND_IN_MOUNTS" 2>/dev/null || exit 1',
+      'printf \'/dev/loop0 %s\\n\' "$resolved"',
+      '',
+    ].join('\n',),
+    mountpoint: [
+      '#!/bin/sh',
+      'for last; do :; done',
+      'resolved=$(realpath "$last" 2>/dev/null) || exit 1',
+      'grep --fixed-strings --line-regexp --quiet "$resolved" "$STAND_IN_MOUNTS" 2>/dev/null',
+      '',
+    ].join('\n',),
+  };
+  await Promise.all(Object.entries(scripts,).map(async ([name, text,],) => {
+    await writeFile(join(folder, name,), text,);
+    await chmod(join(folder, name,), EXECUTABLE_MODE,);
+  },),);
+  return { folder, log, mounts, };
 }
 
 /** Marks stages of the prepare phase done, as a completed earlier run would have. */
@@ -126,19 +162,26 @@ async function markPrepareDone({ config, ids, }: { config: GuidedConfig; ids: re
   await Promise.all(ids.map((id,) => writeFile(join(config.wiz, 'done', 'prepare', id,), '2026-01-01T00:00:00.000Z\n',)),);
 }
 
-/** Runs the real prepare command through the built bin with the stand-in sudo first on the path. */
-async function runPrepareWithStandInSudo(
-  { home, standIn, }: { home: string; standIn: StandInSudo; },
+/** Runs the real prepare command through the built bin with the stand-ins first on the path. */
+async function runPrepareWithStandIns(
+  { home, standIns, flags = [], extraEnv = {}, }: {
+    home: string;
+    standIns: StandIns;
+    flags?: readonly string[];
+    extraEnv?: Record<string, string>;
+  },
 ): Promise<string> {
   try {
-    const result = await execFileAsync(process.execPath, [BIN, 'prepare',], {
+    const result = await execFileAsync(process.execPath, [BIN, 'prepare', ...flags,], {
       encoding: 'utf8',
       env: {
         ...process.env,
         HOME: home,
         MOVE_TOOLS_DIR: TOOLS_FOLDER,
-        PATH: `${standIn.folder}:${process.env.PATH ?? ''}`,
-        STAND_IN_SUDO_LOG: standIn.log,
+        PATH: `${standIns.folder}:${process.env.PATH ?? ''}`,
+        STAND_IN_SUDO_LOG: standIns.log,
+        STAND_IN_MOUNTS: standIns.mounts,
+        ...extraEnv,
       },
       cwd: '/',
     },);
@@ -572,11 +615,11 @@ await describe({
           name: 'a real prepare run gives the fixture folder that f1a made to the later fixture stages, not the dry-run placeholder',
           fn: async () => {
             await withConfig(async ({ config, home, },) => {
-              const standIn = await writeStandInSudo(home,);
+              const standIns = await writeStandIns(home,);
               await markPrepareDone({ config, ids: ['i1-install-link-check', 'i2-record-before',], },);
-              const output = await runPrepareWithStandInSudo({ home, standIn, },);
+              const output = await runPrepareWithStandIns({ home, standIns, },);
               const fixture = (await readFile(join(config.wiz, 'fixture-path',), 'utf8',)).trim();
-              const sudoLog = await readFile(standIn.log, 'utf8',);
+              const sudoLog = await readFile(standIns.log, 'utf8',);
               expect(output,).toContain('f1a-folder',);
               expect(sudoLog,).toContain(`mkfs.btrfs --quiet ${fixture}/source.img`,);
               expect(sudoLog,).not.toContain('DRYRUN',);
@@ -589,16 +632,90 @@ await describe({
           name: 'a resumed prepare run with f1a already recorded done uses the folder f1a recorded',
           fn: async () => {
             await withConfig(async ({ config, home, },) => {
-              const standIn = await writeStandInSudo(home,);
+              const standIns = await writeStandIns(home,);
               const fixture = join(config.fixtureParent, 'send-fixture.RESUMED',);
               await mkdir(fixture, { recursive: true, },);
               await mkdir(config.wiz, { recursive: true, },);
               await writeFile(join(config.wiz, 'fixture-path',), `${fixture}\n`,);
               await markPrepareDone({ config, ids: ['i1-install-link-check', 'i2-record-before', 'f1a-folder',], },);
-              await runPrepareWithStandInSudo({ home, standIn, },);
-              const sudoLog = await readFile(standIn.log, 'utf8',);
+              await runPrepareWithStandIns({ home, standIns, },);
+              const sudoLog = await readFile(standIns.log, 'utf8',);
               expect(sudoLog,).toContain(`mkfs.btrfs --quiet ${fixture}/source.img`,);
               expect(sudoLog,).not.toContain('DRYRUN',);
+            },);
+          },
+        },),
+        it({
+          name: 'f1a records the fixture folder with its links resolved, so every later path text equals what the mount table holds',
+          fn: async () => {
+            await withConfig(async ({ config, home, },) => {
+              const standIns = await writeStandIns(home,);
+              const realParent = join(home, 'real-parent',);
+              const linkedParent = join(home, 'via-link',);
+              await mkdir(realParent, { recursive: true, },);
+              await symlink(realParent, linkedParent,);
+              await markPrepareDone({ config, ids: ['i1-install-link-check', 'i2-record-before',], },);
+              await runPrepareWithStandIns({ home, standIns, extraEnv: { MOVE_FIXTURE_PARENT: linkedParent, }, },);
+              const recorded = (await readFile(join(config.wiz, 'fixture-path',), 'utf8',)).trim();
+              expect(recorded,).toBe(await realpath(recorded,),);
+              expect(recorded.startsWith(`${await realpath(realParent,)}/`,),).toBe(true,);
+            },);
+          },
+        },),
+        it({
+          name: 'f1-images can be run again after it finished or stopped part way: it reuses what it made and both loop mounts are found',
+          fn: async () => {
+            await withConfig(async ({ config, home, },) => {
+              const standIns = await writeStandIns(home,);
+              await markPrepareDone({ config, ids: ['i1-install-link-check', 'i2-record-before',], },);
+              const first = await runPrepareWithStandIns({ home, standIns, },);
+              expect(first,).toContain('both mount lines are loop devices',);
+              expect(await exists(join(config.wiz, 'done', 'prepare', 'f1-images',),),).toBe(true,);
+              const again = await runPrepareWithStandIns({ home, standIns, flags: ['--redo=f1-images',], },);
+              expect(again,).not.toContain('cannot overwrite',);
+              expect(again,).not.toContain('File exists',);
+              expect(again.split('both mount lines are loop devices',).length - 1,).toBeGreaterThanOrEqual(1,);
+            },);
+          },
+        },),
+        it({
+          name: 'no stage runs findmnt with two operands, which findmnt reads as one source and one target that must both match',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const sets = [
+                await prepareStages({ c: config, fixtureFolder: '/x', },),
+                await cutoverStages({ c: config, stamp: 'S', },),
+                thawStages(config,),
+                rollbackStages({ c: config, stamp: 'S', },),
+              ];
+              for (const stages of sets) {
+                for (const s of stages) {
+                  const texts = [await resolvedCommand({ stage: s, config, },), s.check ?? '', s.rollback ?? '',];
+                  for (const text of texts) {
+                    for (const line of text.split('\n',).filter((row,) => row.includes('findmnt',))) {
+                      const words = commandWords(line,);
+                      const after = words.slice(words.indexOf('findmnt',) + 1,);
+                      const operands: string[] = [];
+                      let skipValue = false;
+                      for (const word of after) {
+                        if (skipValue) {
+                          skipValue = false;
+                        }
+                        else if (['--output', '--target', '--mountpoint', '--source', '--types', '-o', '-T', '-M',].includes(word,)) {
+                          skipValue = true;
+                        }
+                        else if (!word.startsWith('-',) && !word.startsWith('"',) && !word.startsWith("'",)) {
+                          operands.push(word,);
+                        }
+                        else if (word.startsWith('"$',) || word.startsWith("'",)) {
+                          break;
+                        }
+                      }
+                      expect([s.id, operands.length <= 1,],).toEqual([s.id, true,],);
+                    }
+                  }
+                }
+              }
             },);
           },
         },),
