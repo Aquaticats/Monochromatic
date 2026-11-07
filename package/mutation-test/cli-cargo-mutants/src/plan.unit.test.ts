@@ -20,6 +20,16 @@ import {
 import { planUnits } from './plan.ts';
 
 /**
+ Start of the `systemd-run` argument that sets a unit's disk weight.
+ */
+const ioWeightPrefix = '--property=IOWeight=';
+
+/**
+ Start of the `systemd-run` argument that sets a unit's task limit.
+ */
+const tasksMaxPrefix = '--property=TasksMax=';
+
+/**
  Build options through the real parser, so the plan is checked against what a command line produces.
 
  @param argv - arguments after the required task and tag variable
@@ -93,10 +103,16 @@ await describe({
             const plans = planUnits(options({ argv: ['w5', 'a.rs', 'b.rs'] }));
             expect(plans).toHaveLength(2);
             for (const plan of plans) {
-              const weights = (plan.systemdRunArguments).flatMap((argument) => /^--property=IOWeight=(\d+)$/u.exec(argument)?.[1] ?? []);
+              const weights = plan.systemdRunArguments
+                .filter((argument) => argument.startsWith(ioWeightPrefix))
+                .map((argument) => Number(argument.slice(ioWeightPrefix.length)));
               expect(weights).toHaveLength(1);
-              expect(Number(weights[0])).toBeLessThanOrEqual(maximumUnitIoWeight);
-              expect(plan.systemdRunArguments.filter((argument) => /^--property=TasksMax=[1-9]\d*$/u.test(argument))).toHaveLength(1);
+              expect(weights[0]).toBeLessThanOrEqual(maximumUnitIoWeight);
+              const limits = plan.systemdRunArguments
+                .filter((argument) => argument.startsWith(tasksMaxPrefix))
+                .map((argument) => Number(argument.slice(tasksMaxPrefix.length)));
+              expect(limits).toHaveLength(1);
+              expect(limits[0]).toBeGreaterThan(0);
             }
           },
         }),
