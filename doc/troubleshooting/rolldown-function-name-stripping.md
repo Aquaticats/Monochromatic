@@ -49,11 +49,13 @@ let memoized=mimicFunction({to:function({args}){/* … */},from:fn,ignoreNonConf
 ```
 
 `mimicFunction` reads `to.name` before copying the source identity
-(`src/mimic-function.ts`: `const { name, } = to;`),
+(`src/mimic-function.ts`:
+`const { name, } = to;`),
  so the wrapper marker and
 any name-dependent output silently change with the build mode.
 
-Earlier reading was wrong: blaming the source shape
+Earlier reading was wrong:
+blaming the source shape
  (`to: function memoized`)
 is not the cause;
  the same source keeps the name under `node src.ts`.
@@ -66,18 +68,21 @@ bundled artifact loses it.
  (build banner `✔ rolldown v1.2.9 Finished`),
  Node
 `v26.10.0`.
-- Harness: `node probe.mjs` printing `o.to.name` for
+- Harness:
+  `node probe.mjs` printing `o.to.name` for
 `const o = { to: function memoized() { return 1; } }` reports `memoized`;
  the
 bundled build of the same pattern reports `to`
  (visible in the bundle excerpt
 above and in the failing assertion).
-- Works cleanly: function declarations referenced by name in source
+- Works cleanly:
+  function declarations referenced by name in source
 execution;
  named function expressions in unbundled runs;
  explicit
 `Object.defineProperty` name assignment in bundled runs.
-- Fails: named function expressions as property values after minification;
+- Fails:
+  named function expressions as property values after minification;
  anonymous ones always take the property key
  (`to`),
  bundled or not.
@@ -98,7 +103,8 @@ to: Object.defineProperty(
 ),
 ```
 
-Tradeoffs: the name is now data instead of syntax,
+Tradeoffs:
+the name is now data instead of syntax,
  so renaming the wrapper
 requires editing the string too;
  the comment above the call site names the
@@ -108,12 +114,15 @@ unbundled source exactly.
 
 ## What does not work
 
-- Relying on named function expressions: minification strips the name.
-- Relying on `const memoized = function (…) {…}` name inference: same
+- Relying on named function expressions:
+  minification strips the name.
+- Relying on `const memoized = function (…) {…}` name inference:
+  same
 stripping,
  and the repository's `no-variable-function-expression` rule bans
 that shape anyway.
-- Comparing against a bundled `fn.name` in tests without pinning it: the
+- Comparing against a bundled `fn.name` in tests without pinning it:
+  the
 value differs between source runs and artifact runs,
  so tests pass locally
 and fail against `dist`.

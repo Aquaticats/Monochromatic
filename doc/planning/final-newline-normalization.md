@@ -1,9 +1,11 @@
 # Final-newline normalization plan
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -320,7 +322,8 @@ platform's exact-byte model.
 Formatter-only enforcement remains incomplete because it cannot protect every in-scope text file.
 
 Issue `#356` added independent final-newline CI in `.github/workflows/final-newline.yml`
-(Removed on 2026-10-14 at the owner's request, together with `package/git-policy/cli/bin/final-newline-workflow.mjs`:
+(Removed on 2026-10-14 at the owner's request,
+together with `package/git-policy/cli/bin/final-newline-workflow.mjs`:
 the check rebuilt the wrapper on every pull request.).
 Hosted run `29171565809` passed while invoking cli-git's direct checker through typed Node orchestration over a
 disposable clone without loading unrelated hk or Pkl tooling.

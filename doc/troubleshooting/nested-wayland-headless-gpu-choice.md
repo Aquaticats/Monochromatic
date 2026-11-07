@@ -6,8 +6,10 @@ and three environment variables move the GPU under the session
 On 2026-10-14,
 while adding `--gpu` to the headless mode of `monochromatic-nested-wayland-session`,
 three Mesa behaviors made the device that renders differ from the device a person asked for.
-The host has an integrated AMD GPU (`/dev/dri/renderD129`, PCI `1002:164e`),
-a discrete AMD GPU (`/dev/dri/renderD128`, PCI `1002:7480`),
+The host has an integrated AMD GPU (`/dev/dri/renderD129`,
+PCI `1002:164e`),
+a discrete AMD GPU (`/dev/dri/renderD128`,
+PCI `1002:7480`),
 and Mesa 26.2.4.
 
 The surfaceless platform answers with the CPU rasterizer when it can use no render node.

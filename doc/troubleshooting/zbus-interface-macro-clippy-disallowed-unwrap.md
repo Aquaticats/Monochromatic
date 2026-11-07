@@ -22,13 +22,15 @@ error: use of a disallowed method `std::result::Result::unwrap`
     = note: this error originates in the attribute macro `zbus::interface`
 ```
 
-One error appears per annotated `impl` block, nine in `package/nested-wayland-session/cli/src`.
+One error appears per annotated `impl` block,
+nine in `package/nested-wayland-session/cli/src`.
 
 ## Root cause
 
 The macro generates a method `introspect_to_writer` on a trait impl that it emits next to the annotated block.
 That method writes the introspection XML with `writeln!` into a `&mut dyn std::fmt::Write` and unwraps each result.
-Source: `zbus_macros-5.19.0/src/iface.rs:994` to `:1007` and the signal and method helpers near `:1168` in the
+Source:
+`zbus_macros-5.19.0/src/iface.rs:994` to `:1007` and the signal and method helpers near `:1168` in the
 crates.io source as vendored in the local cargo registry.
 
 ```rust
@@ -42,8 +44,11 @@ and `clippy.toml` has no option to skip code produced by an external macro.
 ## What does not work
 
 An `#[allow(clippy::disallowed_methods)]` attribute placed directly above `#[zbus::interface(...)]` has no effect.
-The generated trait impl is a sibling item of the annotated block, so a lint level on the block does not reach it.
-Observed: all nine errors remained with that attribute on each block, in the container lint run with the root
+The generated trait impl is a sibling item of the annotated block,
+so a lint level on the block does not reach it.
+Observed:
+all nine errors remained with that attribute on each block,
+in the container lint run with the root
 `clippy.toml` mounted.
 
 ## Verified workaround
@@ -66,17 +71,24 @@ const _: () = {
 };
 ```
 
-The generated sibling item lands inside the same block, so the allow covers it and nothing else in the file.
-Method privacy is unchanged, because a block is not a module.
-Observed: `cargo clippy --release --all-targets -- -D warnings` with the root `clippy.toml` in effect passes,
-and a planted `Result::unwrap` elsewhere in `src/lib.rs` still fails, so the allow does not widen beyond its block.
+The generated sibling item lands inside the same block,
+so the allow covers it and nothing else in the file.
+Method privacy is unchanged,
+because a block is not a module.
+Observed:
+`cargo clippy --release --all-targets -- -D warnings` with the root `clippy.toml` in effect passes,
+and a planted `Result::unwrap` elsewhere in `src/lib.rs` still fails,
+so the allow does not widen beyond its block.
 
-A file-level `#![allow(clippy::disallowed_methods)]` was not tried, because it would silence the ban for the
+A file-level `#![allow(clippy::disallowed_methods)]` was not tried,
+because it would silence the ban for the
 hand-written code in the same file.
 
 ## Upstream filing decision
 
 Not filed.
-`zbus` unwraps a `fmt::Write` into a string buffer on purpose, and the lint behaves as documented;
-the collision is a local-policy interaction, the same shape as
+`zbus` unwraps a `fmt::Write` into a string buffer on purpose,
+and the lint behaves as documented;
+the collision is a local-policy interaction,
+the same shape as
 `doc/troubleshooting/serde-json-macro-clippy-disallowed-unwrap.md`.

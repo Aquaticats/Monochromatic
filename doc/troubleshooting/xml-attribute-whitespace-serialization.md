@@ -410,13 +410,18 @@ xot = "=0.31.2"
 ```rust
 // ${HARNESS}/src/main.rs
 #![forbid(unsafe_code)]
-//! Writes attribute values holding TAB, LF, and CR with xot, xml-rs, and xmltree,
+//! Writes attribute values holding TAB,
+//! LF,
+//! and CR with xot,
+//! xml-rs,
+//! and xmltree,
 //! then reads them back with the same crate and with roxmltree.
 
 use xml::reader::{EventReader, XmlEvent as ReaderEvent};
 use xml::writer::{EmitterConfig, XmlEvent as WriterEvent};
 
-/// Attribute value whose whitespace must survive serialize, then parse.
+/// Attribute value whose whitespace must survive serialize,
+/// then parse.
 const VALUE: &str = "a\tb\nc\rd";
 
 /// Unedited source document that spells the same value with character references.
@@ -485,7 +490,8 @@ fn xmlrs_read(xml: &str) -> String {
     panic!("no element");
 }
 
-/// Copies reader events to the writer without any edit, skipping the synthesized document start.
+/// Copies reader events to the writer without any edit,
+/// skipping the synthesized document start.
 fn xmlrs_copy(xml: &str) -> String {
     let mut out = Vec::new();
     let config = EmitterConfig::new().write_document_declaration(false);
@@ -529,7 +535,8 @@ fn xmltree_copy(xml: &str) -> String {
     return xmltree_emit(&element);
 }
 
-/// Encodes attribute text for its own quote character, as file-enforcer `escapeXmlAttribute` does.
+/// Encodes attribute text for its own quote character,
+/// as file-enforcer `escapeXmlAttribute` does.
 fn encode_attribute(value: &str, quote: char) -> String {
     let mut out = String::with_capacity(value.len());
     for c in value.chars() {
@@ -548,7 +555,8 @@ fn encode_attribute(value: &str, quote: char) -> String {
     return out;
 }
 
-/// Replaces only the bytes of attribute `v` on the document element, then re-parses the result.
+/// Replaces only the bytes of attribute `v` on the document element,
+/// then re-parses the result.
 fn roxmltree_splice(source: &str, value: &str) -> String {
     let document = roxmltree::Document::parse(source).expect("roxmltree parse");
     let attribute = document.root_element().attribute_node("v").expect("attribute v");

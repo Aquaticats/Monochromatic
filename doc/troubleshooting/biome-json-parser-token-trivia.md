@@ -51,7 +51,8 @@ The published `biome_rowan-0.5.7/src/syntax/token.rs:77-94,467-493` documents th
 
 ```rust
 // biome_rowan-0.5.7/src/syntax/token.rs:77-94,467-493
-/// Returns the text of the token, including all trivia.
+/// Returns the text of the token,
+/// including all trivia.
 pub fn text(&self) -> &str {
     self.raw.text()
 }

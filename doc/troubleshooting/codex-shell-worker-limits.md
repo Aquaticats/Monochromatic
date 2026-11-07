@@ -14,7 +14,8 @@ The [decision record](../decision/codex-shell-worker-limits.md) owns the accepte
 ### Increasing capacity without leaving the hook and kernel mismatched
 
 On 2026-10-15 the user authorized 2048 tasks instead of 256.
-Changing only systemd caused the installed hook to reject every subsequent command, including restoration:
+Changing only systemd caused the installed hook to reject every subsequent command,
+including restoration:
 
 ```text
 # codex-bash-limit stderr
@@ -22,24 +23,34 @@ Codex worker limits: Worker control pids.max must be 256; restore the systemd sl
 ```
 
 The baseline `package/codex-plugin/bash-limit/src/limits.rs:32` required the exact pair
-`("pids.max", "256")`; commit `561ac46f20` changes that pair to `("pids.max", "2048")`.
-The check remains exact; the increase does not disable enforcement.
+`("pids.max", "256")`;
+commit `561ac46f20` changes that pair to `("pids.max", "2048")`.
+The check remains exact;
+the increase does not disable enforcement.
 
 The existing `codex` child also had `pids.max=256`.
 Raising its parent alone therefore left command descendants capped at 256 tasks.
-Both live controls now report 2048, and the persistent slice definition records `TasksMax=2048`.
-The native tests pass five cases, including changed-control rejection; Clippy passes.
+Both live controls now report 2048,
+and the persistent slice definition records `TasksMax=2048`.
+The native tests pass five cases,
+including changed-control rejection;
+Clippy passes.
 The installed hook accepts subsequent real shell commands without changing their trust definition.
-The 4 GiB memory cap, zero swap, and 200% CPU quota remain intact.
+The 4 GiB memory cap,
+zero swap,
+and 200% CPU quota remain intact.
 
-The recovery first restored the parent through the file-edit interface, which is outside the shell hook.
+The recovery first restored the parent through the file-edit interface,
+which is outside the shell hook.
 The coordinated update then rebuilt and tested the helper and installed it with the matching kernel limit.
 The recovery script retained the old helper and restored the original bound if compilation or verification failed.
 Do not raise a checked kernel value in one tool call and defer updating the corresponding helper to another call.
 That intermediate mismatch prevents the next shell command from running.
 
-This is a local configuration coordination issue, not an upstream Codex defect.
-No upstream report is proposed; the maintained helper owns both the check and its diagnostic.
+This is a local configuration coordination issue,
+not an upstream Codex defect.
+No upstream report is proposed;
+the maintained helper owns both the check and its diagnostic.
 
 ### Original host contract
 

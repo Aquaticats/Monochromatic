@@ -97,7 +97,9 @@ and that the token is read from `--github-token` or `GITHUB_TOKEN`,
 then `GH_TOKEN`,
 then `~/.git-credentials`,
 then `gh auth token` unless `--no-discover-github-token`
-(`crates/bin/src/args.rs:426-440`, `crates/binstalk-git-repo-api`, `crates/binstalk-downloader/src/remote.rs`).
+(`crates/bin/src/args.rs:426-440`,
+`crates/binstalk-git-repo-api`,
+`crates/binstalk-downloader/src/remote.rs`).
 
 ### Evidence that the quota was the trigger
 
@@ -108,7 +110,9 @@ then `gh auth token` unless `--no-discover-github-token`
   while the logged-in `gh` reported `limit 5000, remaining 4964`.
   Several sessions on this machine share the unauthenticated quota.
 - No `GITHUB_TOKEN` was set,
-  and the install scripts ran with `PATH` limited to `.cache/toolchain-bin`, `~/.cargo/bin`, `/usr/bin` and `/bin`.
+  and the install scripts ran with `PATH` limited to `.cache/toolchain-bin`,
+  `~/.cargo/bin`,
+  `/usr/bin` and `/bin`.
   `gh` lives in `~/.local/share/monochromatic-dev/toolchain-global/exposure`,
   which that `PATH` omitted,
   so binstall's own `gh auth token` discovery could not have found a token.
@@ -128,7 +132,8 @@ An earlier note blamed cargo's package-cache file lock for the slow install.
 The `Blocking waiting for file lock on package cache` lines came from `cargo publish`,
 which is cargo's own lock.
 The slow install was a source build:
-the child `cargo install`, the 2:10 duration and the differing binary hash show it.
+the child `cargo install`,
+the 2:10 duration and the differing binary hash show it.
 `cargo-binstall` does not take cargo's package-cache lock for resolution.
 
 ## Verification
@@ -152,7 +157,8 @@ CARGO_HOME="${HOME}/temp/agent/binstall-diag" \
 Catalog that works:
 
 - Same command with `GITHUB_TOKEN="$(gh auth token)"` added:
-  `has been downloaded from github.com`, 6.3 seconds.
+  `has been downloaded from github.com`,
+  6.3 seconds.
 - `mpm remove` then `mpm install` through the extension with the token set:
   `Installed 1/1 packages` in 9.7 seconds,
   installed binary SHA-256 equal to the archive's.
@@ -173,11 +179,14 @@ Catalog that fails:
    Tradeoff:
    the token reaches every child of the install,
    although binstall removes `GITHUB_TOKEN` and `GH_TOKEN` from the `cargo install` fallback it starts
-   (`crates/binstalk/src/ops/resolve/resolution.rs:176-183`, reported, not re-read).
+   (`crates/binstalk/src/ops/resolve/resolution.rs:176-183`,
+   reported,
+   not re-read).
 2. Fail instead of compiling.
    Add `--disable-strategies compile` to the install arguments.
    In this repository the mpm extension bakes a fixed argument list per crate
-   (`package/file-enforcer/core/src/toolchain/mpm-manifest.ts`, `installArgs`),
+   (`package/file-enforcer/core/src/toolchain/mpm-manifest.ts`,
+   `installArgs`),
    so the flag could be baked for crates that publish archives.
    Tradeoff:
    a crate with no prebuilt archive,
@@ -185,10 +194,15 @@ Catalog that fails:
    then fails to install instead of compiling,
    and the other `cargo:` tools rely on the fallback.
    Applied in `mpm-shadow` (`package/mpm-shadow/cli/src/toolchain/install_cargo.rs`) for crates this repository publishes,
-   as `--disable-strategies compile,quick-install` (owner decision 2026-11-04, "A: one flag, our crates"),
-   (names starting with `monochromatic-`, ignoring letter case and `_` versus `-`),
+   as `--disable-strategies compile,quick-install` (owner decision 2026-11-04,
+   "A:
+   one flag,
+   our crates"),
+   (names starting with `monochromatic-`,
+   ignoring letter case and `_` versus `-`),
    whose failure then names the reasons binstall printed and the ways forward;
-   third-party crates keep the fallback, because `mpm-shadow` must still be able to compile a tool this repository
+   third-party crates keep the fallback,
+   because `mpm-shadow` must still be able to compile a tool this repository
    does not control when no archive fits.
 3. Raise `BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT`.
    Tradeoff:
@@ -217,23 +231,34 @@ Catalog that fails:
    That is closer to diagnostics than to wrong behavior,
    so this constraint is not clearly met.
 2. Can upstream fix it?
-   Yes: the sleep and the timeout are ordinary code in two files.
+   Yes:
+   the sleep and the timeout are ordinary code in two files.
 3. Do they support this use case?
-   Yes: GitHub-release `pkg-url` resolution is the main path.
+   Yes:
+   GitHub-release `pkg-url` resolution is the main path.
 4. Would the repository welcome a contribution?
    No policy found.
-   The research pass found no `CONTRIBUTING.md`, issue template, pull request template, code of conduct or
-   AI-assistance rule, and `README.md` invites contributions in general terms.
+   The research pass found no `CONTRIBUTING.md`,
+   issue template,
+   pull request template,
+   code of conduct or
+   AI-assistance rule,
+   and `README.md` invites contributions in general terms.
 5. Will they likely fix it?
    No signal either way.
-   Open issue `cargo-bins/cargo-binstall#1560` ("feature: Improve retrying logic") says binstall
+   Open issue `cargo-bins/cargo-binstall#1560` ("feature:
+   Improve retrying logic") says binstall
    "often fails in our very own CI and fallback to cargo-install".
    Closed `#2705` is a malformed `GITHUB_TOKEN` silently disabling resolution and falling back to compiling.
-   The research pass read only the openings of `#1560`, `#2705`, `#1229` and `#822`, not the threads.
+   The research pass read only the openings of `#1560`,
+   `#2705`,
+   `#1229` and `#822`,
+   not the threads.
 6. Prototype?
    Not done.
    Constraint 1 is not clearly met,
-   so the default applies: do not file.
+   so the default applies:
+   do not file.
 
 `.out-of-scope/` has no entry for cargo-binstall.
 Duplicate search found no issue stating that unauthenticated rate limiting makes binstall compile silently,

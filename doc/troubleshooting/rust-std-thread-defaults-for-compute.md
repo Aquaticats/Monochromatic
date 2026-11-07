@@ -3,7 +3,8 @@
 Two `std::thread` defaults surfaced
 when `forbidden-regex` moved `RegexSet::new` rule construction onto worker threads
 (`package/forbidden-strings/core/src/parallel.rs`).
-Both are documented behavior, not bugs,
+Both are documented behavior,
+not bugs,
 but each one silently regresses a library that adopts threads naively.
 
 ## Symptom
@@ -13,10 +14,17 @@ but each one silently regresses a library that adopts threads naively.
 After threading landed,
 a single-pattern `RegexSet::compile_lenient` got slower even though one pattern never spawns a thread:
 
-- before threading: 45.9, 47.4, and 46.3 microseconds per call
-- after threading, calling `thread::available_parallelism()` on every call:
-  111.9, 110.0, and 110.0 microseconds per call
-- after caching the core count in a `OnceLock`: 45.6 microseconds per call
+- before threading:
+  45.9,
+  47.4,
+  and 46.3 microseconds per call
+- after threading,
+  calling `thread::available_parallelism()` on every call:
+  111.9,
+  110.0,
+  and 110.0 microseconds per call
+- after caching the core count in a `OnceLock`:
+  45.6 microseconds per call
 
 `forbidden-strings` validates each user rule with a one-element `RegexSet::new` call
 (`package/forbidden-strings/cli/src/rule/frx.rs:111`),
@@ -35,7 +43,8 @@ fatal runtime error: stack overflow, aborting
 Under `cargo nextest` the same abort is reported as
 `SIGABRT [   0.131s] (1/1) forbidden-regex parallel::tests::workers_build_deeply_nested_groups`
 with `(test aborted with signal 6: SIGABRT)`.
-It is not a panic, so no `catch_unwind` boundary can contain it.
+It is not a panic,
+so no `catch_unwind` boundary can contain it.
 
 ## Root cause
 
@@ -45,8 +54,10 @@ The public docs state the cost directly,
 `library/std/src/thread/functions.rs:633` to `:635` in the `rust-src` component of `nightly-2026-09-16`:
 
 ```rust
-/// Resource limits can be changed during the runtime of a program, therefore the value is
-/// not cached and instead recomputed every time this function is called. It should not be
+/// Resource limits can be changed during the runtime of a program,
+/// therefore the value is
+/// not cached and instead recomputed every time this function is called.
+/// It should not be
 /// called from hot code.
 ```
 
@@ -72,7 +83,9 @@ On Linux the implementation queries cgroup quotas before the affinity mask on ev
             File::open("/proc/self/cgroup").ok()?.read_to_end(&mut buf).ok()?;
 ```
 
-then, for cgroup v2, walks from the process cgroup up to `/sys/fs/cgroup`,
+then,
+for cgroup v2,
+walks from the process cgroup up to `/sys/fs/cgroup`,
 opening `cpu.max` at every level,
 `library/std/src/sys/thread/unix.rs:929` to `:935`:
 
@@ -98,19 +111,23 @@ The module docs,
 
 ```rust
 //! The default stack size is platform-dependent and subject to change.
-//! Currently, it is 2 MiB on all Tier-1 platforms.
+//! Currently,
+//! it is 2 MiB on all Tier-1 platforms.
 //!
 //! There are two ways to manually specify the stack size for spawned threads:
 //!
 //! * Build the thread with [`Builder`] and pass the desired stack size to [`Builder::stack_size`].
 //! * Set the `RUST_MIN_STACK` environment variable to an integer representing the desired stack
-//!   size (in bytes). Note that setting [`Builder::stack_size`] will override this. Be aware that
+//!   size (in bytes).
+//!   Note that setting [`Builder::stack_size`] will override this.
+//!   Be aware that
 //!   changes to `RUST_MIN_STACK` may be ignored after program start.
 //!
 //! Note that the stack size of the main thread is *not* determined by Rust.
 ```
 
-The constant, `library/std/src/sys/thread/unix.rs:33`:
+The constant,
+`library/std/src/sys/thread/unix.rs:33`:
 
 ```rust
 pub const DEFAULT_MIN_STACK_SIZE: usize = 2 * 1024 * 1024;
@@ -135,11 +152,15 @@ cuts the survivable nesting depth by the ratio of the two stacks.
 
 Versions under test:
 
-- `rustc 1.100.0-nightly (215a8af4b 2026-09-15)`, `rust-src` component of `nightly-2026-09-16-x86_64-unknown-linux-gnu`
+- `rustc 1.100.0-nightly (215a8af4b 2026-09-15)`,
+  `rust-src` component of `nightly-2026-09-16-x86_64-unknown-linux-gnu`
 - `cargo 1.100.0-nightly (7941be6fb 2026-09-11)`
-- Linux `7.2.0-ogc6.1.fc44.x86_64`, 16 logical CPUs, cgroup v2
+- Linux `7.2.0-ogc6.1.fc44.x86_64`,
+  16 logical CPUs,
+  cgroup v2
 
-Harness crate (throwaway, outside the repository),
+Harness crate (throwaway,
+outside the repository),
 depending on the engine by path so the before and after commits can be swapped:
 
 ```toml
@@ -215,23 +236,38 @@ cargo build --release
 
 ### Stack configurations that build cleanly
 
-- depth 1000 on a 2 MiB thread: `Ok(1) in 0.001s`
-- depth 10000 on an 8 MiB thread: `Ok(1) in 0.003s`
-- depth 10000 on a 64 MiB thread: `Ok(1) in 0.003s`
+- depth 1000 on a 2 MiB thread:
+  `Ok(1) in 0.001s`
+- depth 10000 on an 8 MiB thread:
+  `Ok(1) in 0.003s`
+- depth 10000 on a 64 MiB thread:
+  `Ok(1) in 0.003s`
 
 ### Stack configurations that abort
 
-- depth 3000 on a 2 MiB thread: `has overflowed its stack`, exit code 134
-- depth 10000 on a 2 MiB thread: `has overflowed its stack`, exit code 134
+- depth 3000 on a 2 MiB thread:
+  `has overflowed its stack`,
+  exit code 134
+- depth 10000 on a 2 MiB thread:
+  `has overflowed its stack`,
+  exit code 134
 
 ### Small-set cost, before threading vs after caching the core count
 
 Measured alternately in one session to share the noise band:
 
-- 1 pattern: 46.3 before, 45.6 after
-- 2 patterns: 99.6 before, 140.3 after (thread startup for two workers)
-- 4 patterns: 178.3 before, 192.5 after
-- 8 patterns: 343.2 and 340.2 before, 352.2 and 336.2 after (same band)
+- 1 pattern:
+  46.3 before,
+  45.6 after
+- 2 patterns:
+  99.6 before,
+  140.3 after (thread startup for two workers)
+- 4 patterns:
+  178.3 before,
+  192.5 after
+- 8 patterns:
+  343.2 and 340.2 before,
+  352.2 and 336.2 after (same band)
 
 ## Verified workarounds
 
@@ -263,12 +299,14 @@ let spawned = thread::Builder::new()
 `WORKER_STACK_BYTES` is 64 MiB.
 Tradeoffs:
 each worker reserves 64 MiB of address space
-(committed only when touched, but a strict `vm.overcommit_memory` setting can refuse the spawn,
+(committed only when touched,
+but a strict `vm.overcommit_memory` setting can refuse the spawn,
 which the helper handles by continuing with fewer workers or building on the calling thread);
 nesting beyond what 64 MiB holds still aborts the process;
 a caller whose own main thread is larger than 64 MiB could see a lower limit than before.
 The guard test `parallel::tests::workers_build_deeply_nested_groups` aborts with `SIGABRT`
-when `.stack_size(WORKER_STACK_BYTES)` is removed, and passes with it.
+when `.stack_size(WORKER_STACK_BYTES)` is removed,
+and passes with it.
 
 ## What does not work
 
@@ -277,9 +315,11 @@ when `.stack_size(WORKER_STACK_BYTES)` is removed, and passes with it.
   so a library cannot set it for its own threads,
   and it would also change every unrelated thread the host program spawns.
 - Running one worker on the calling thread in addition to the spawned ones:
-  rejected by reasoning, not measurement.
+  rejected by reasoning,
+  not measurement.
   The calling thread's stack is unknown to the library
-  (a `cargo test` thread is 2 MiB, a `build.rs` main thread follows `ulimit -s`),
+  (a `cargo test` thread is 2 MiB,
+  a `build.rs` main thread follows `ulimit -s`),
   so which rule lands on it would make the depth limit nondeterministic,
   and the deep-nesting guard test could pass or abort depending on scheduling.
 - Skipping `available_parallelism` only for one-pattern calls:
@@ -290,7 +330,8 @@ when `.stack_size(WORKER_STACK_BYTES)` is removed, and passes with it.
 
 ### Upstream filing decision
 
-Checked `.out-of-scope/`: no entry covers Rust std or its thread API.
+Checked `.out-of-scope/`:
+no entry covers Rust std or its thread API.
 
 1. **Is it really upstream's fault?**
    No.
@@ -299,11 +340,15 @@ Checked `.out-of-scope/`: no entry covers Rust std or its thread API.
    and `library/std/src/thread/mod.rs:128` to `:138` documents the 2 MiB spawn default and both override paths.
    The regression was ours for adopting threads without reading them.
 2. **Can upstream fix it?**
-   Not applicable: there is no defect to fix.
+   Not applicable:
+   there is no defect to fix.
 3. **Are they supporting this use case?**
-   Yes, through `Builder::stack_size` and caller-side caching, which is what the workarounds use.
+   Yes,
+   through `Builder::stack_size` and caller-side caching,
+   which is what the workarounds use.
 4. **Would the repo welcome our contribution?**
-   Not evaluated, because constraint 1 fails.
+   Not evaluated,
+   because constraint 1 fails.
 5. **Will they likely fix it?**
    Not applicable.
 6. **Have we prototyped a minimal fix?**
@@ -314,6 +359,8 @@ Duplicate search:
 rust-lang/rust#98168
 ("compile-time regression from switch from num_cpus to available_parallelism needs a regression test"),
 the closest related thread about the call's cost.
-Nothing here advances it: our finding is a consumer calling a documented-uncached function per operation.
+Nothing here advances it:
+our finding is a consumer calling a documented-uncached function per operation.
 
-Nothing to file, and no comment to post.
+Nothing to file,
+and no comment to post.

@@ -69,8 +69,10 @@ declare_oxc_lint!(
     ///
     /// ### Why is this bad?
     ///
-    /// When you initialize a variable and immediately mutate it, it's cleaner to include
-    /// the mutation in the initialization. This makes the code more readable and reduces
+    /// When you initialize a variable and immediately mutate it,
+    /// it's cleaner to include
+    /// the mutation in the initialization.
+    /// This makes the code more readable and reduces
     /// the number of statements.
     ///
     /// ### Examples
@@ -161,7 +163,8 @@ fn get_expression_init_type<'a>(expr: &Expression<'a>, ctx: &LintContext<'a>) ->
     }
 }
 
-/// Get the init type from a new expression (new Set(), new Map())
+/// Get the init type from a new expression (new Set(),
+/// new Map())
 fn get_new_expression_type<'a>(
     new_expr: &NewExpression<'a>,
     ctx: &LintContext<'a>,

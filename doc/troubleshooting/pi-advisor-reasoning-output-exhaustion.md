@@ -412,7 +412,9 @@ The same shape reappeared under `@monochromatic-dev/dsh-plugin-advisor`
  at a 32,000-token budget and pinned `reasoning=high`:
  `neuralwatt/deepseek-v4-flash` ended a review at `stopReason: "length"`
  with a 2,060-character body,
- while a focused follow-up on the same model, effort, and budget completed fully.
+ while a focused follow-up on the same model,
+effort,
+and budget completed fully.
 The advisor still shares the response pool with reasoning
  and offers no effort or output knob in the tool schema.
 On 2026-10-29 the request budget learned to clamp to advertised capacity and

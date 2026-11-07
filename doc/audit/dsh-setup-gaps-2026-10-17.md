@@ -296,7 +296,8 @@ Moved 2026-10-29:
 this row now sits inside the `preset-cordis` override in
 `~/.dsh/cordis.patch.yml`,
 the user-wide layer;
-see the section Glob and grep disabled user-wide, 2026-10-29.
+see the section Glob and grep disabled user-wide,
+2026-10-29.
 
 The change takes effect at the next server start.
 It has not been observed,
@@ -371,7 +372,8 @@ Moved 2026-10-29:
 the `preset-cordis` override this snippet came from now lives in
 `~/.dsh/cordis.patch.yml`,
 the user-wide layer;
-see the section Glob and grep disabled user-wide, 2026-10-29.
+see the section Glob and grep disabled user-wide,
+2026-10-29.
 
 This is strictly better than the third-file option this section proposed,
 because `diff AGENTS.md CLAUDE.md` reports `0a1,49`:
@@ -1122,7 +1124,8 @@ Measured from the active plugin list:
 
 ## Glob and grep disabled user-wide, 2026-10-29
 
-Requested as "disable the grep and find tools in dsh, user-wide",
+Requested as "disable the grep and find tools in dsh,
+user-wide",
 then corrected to name `glob` by "find".
 The pair is `glob` and `grep`,
 both registered by `@deepseek-ai/dsh-tool-fs-search`,
@@ -1310,7 +1313,8 @@ done or settled rather than open.
    The comment and the override moved to `~/.dsh/cordis.patch.yml` on
    2026-10-29,
    and that file now restates three preset lists after the tool disable
-   recorded in the section Glob and grep disabled user-wide, 2026-10-29,
+   recorded in the section Glob and grep disabled user-wide,
+   2026-10-29,
    so a drift guard has three lists to cover.
    A repo task that diffs the shipped preset against the override and fails on
    drift would turn that into a loud failure,

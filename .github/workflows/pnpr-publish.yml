@@ -167,18 +167,24 @@ jobs:
           await prepare();
 
       - name: Start disposable registry
+        shell: node {0}
         env:
           PNPR_VERIFY_CONFIG: ${{ steps.fixture.outputs.config }}
         # These are verification-container bounds, matching the local image task.
-        run: >-
-          docker run --detach --rm --init --name pnpr-image-check
-          --cpus=2 --memory=2g --pids-limit=256 --blkio-weight=10
-          --publish 127.0.0.1:17677:7677
-          --volume "$PNPR_VERIFY_CONFIG:/pnpr/config.yaml:ro"
-          --env PNPR_SECRET=ci-disposable-registry-secret-not-for-production
-          --env PNPR_PUBLIC_URL=http://127.0.0.1:17677
-          "$PNPR_VERIFY_IMAGE"
-          --config /pnpr/config.yaml --listen 0.0.0.0:7677 --disable-resolver
+        # The Node shell hands each argument to Docker as one argv item; a folded `run: >-` command needs shell
+        # quoting for the same, and the workflow shell rules refuse to read a folded `run:`.
+        run: |
+          import { execFileSync } from 'node:child_process';
+          execFileSync('docker', [
+            'run', '--detach', '--rm', '--init', '--name', 'pnpr-image-check',
+            '--cpus=2', '--memory=2g', '--pids-limit=256', '--blkio-weight=10',
+            '--publish', '127.0.0.1:17677:7677',
+            '--volume', `${process.env.PNPR_VERIFY_CONFIG}:/pnpr/config.yaml:ro`,
+            '--env', 'PNPR_SECRET=ci-disposable-registry-secret-not-for-production',
+            '--env', 'PNPR_PUBLIC_URL=http://127.0.0.1:17677',
+            process.env.PNPR_VERIFY_IMAGE,
+            '--config', '/pnpr/config.yaml', '--listen', '0.0.0.0:7677', '--disable-resolver',
+          ], { stdio: 'inherit' });
 
       - name: Verify signed workload publish and exact archive download
         shell: node {0}

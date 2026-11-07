@@ -16,7 +16,10 @@ so the natural next step is to inspect the patch,
 and the patch is fine.
 Checking it against everything `commitTransactionPatch` actually rejects
 (`package/git-policy/cli/src/policy-engine/commit-transaction-patch.ts`)
-finds exactly one `diff --git` line, one `---`, one `+++`, one `index`,
+finds exactly one `diff --git` line,
+one `---`,
+one `+++`,
+one `index`,
 and none of the `FORBIDDEN_PATCH_PREFIXES`.
 Retrying reproduces it exactly.
 
@@ -46,11 +49,15 @@ and then the same engine failure.
 
 ## Fix
 
-Stage the pathspec explicitly, read the finding that now appears, and fix that.
-For the final-newline case, trim the file to exactly one trailing LF.
+Stage the pathspec explicitly,
+read the finding that now appears,
+and fix that.
+For the final-newline case,
+trim the file to exactly one trailing LF.
 
 The usual trigger is appending to a document with a template literal
-that ends in a blank line, so the write leaves `\n\n` at the end of the file:
+that ends in a blank line,
+so the write leaves `\n\n` at the end of the file:
 
 ```ts
 // Leaves two trailing LF bytes, and the commit then fails as patch-invalid.
@@ -64,4 +71,5 @@ await writeFile(path, `${text.replace(/\n+$/u, '',)}\n${section.replace(/\n+$/u,
 
 Do not reach for `--no-enforce-*`.
 `CLG` reserves those for a change no scoped pathspec fits,
-and this is not that: the guard is correct and the file is malformed.
+and this is not that:
+the guard is correct and the file is malformed.

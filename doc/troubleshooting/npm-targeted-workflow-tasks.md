@@ -44,7 +44,8 @@ A real `npm:module:pack` invocation succeeds with `NPM_MODULE=logger` and a priv
 It produces `monochromatic-dev-module-logger-0.4.2.tgz`.
 The regenerated publishing tasks reach the remote in commit `d6d1d67b06`.
 Targeted run `39106517976` uses that revision.
-It succeeds, including the npm upload.
+It succeeds,
+including the npm upload.
 The registry serves `0.4.2` and identifies GitHub Actions as its trusted publisher.
 The registry's SLSA statement names `.github/workflows/npm-publish.yml`,
 source commit `d6d1d67b069de6dd6cff8dc7543f06bd6fd94caa`,
@@ -53,7 +54,9 @@ and that workflow invocation.
 A fresh installation in a disposable consumer confirms version and repository metadata,
 public root and Node exports,
 and the absence of the workspace-only `/ts` export.
-It writes five tagged, large, reentrant and independently owned-file records as complete JSONL.
+It writes five tagged,
+large,
+reentrant and independently owned-file records as complete JSONL.
 The release record is [the logger publication plan](../planning/module-logger-release.md).
 
 The source and generated configuration now agree,

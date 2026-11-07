@@ -136,15 +136,21 @@ the paired contaminated-parent run disproves that conclusion.
 
 ## Upstream filing decision
 
-- Fault: the owned test assumes replacement while the documented option augments its parent environment.
-- Fixability: the consumer controls its child environment;
+- Fault:
+  the owned test assumes replacement while the documented option augments its parent environment.
+- Fixability:
+  the consumer controls its child environment;
   no upstream change is needed to address this failure.
-- Supported use: variable inheritance is explicitly documented and requested in
+- Supported use:
+  variable inheritance is explicitly documented and requested in
   [issue 11](https://github.com/sindresorhus/nano-spawn/issues/11).
   Its full body and owner comment confirm the chosen default.
-- Contribution policy: not assessed for a patch because no upstream defect or contribution is proposed.
-- Maintainer disposition: issue 11 explicitly approves the observed augmentation behavior.
-- Prototype: no upstream prototype is justified;
+- Contribution policy:
+  not assessed for a patch because no upstream defect or contribution is proposed.
+- Maintainer disposition:
+  issue 11 explicitly approves the observed augmentation behavior.
+- Prototype:
+  no upstream prototype is justified;
   the owned fix passes clean and contaminated-parent verification.
 
 The `.out-of-scope` inventory was checked;

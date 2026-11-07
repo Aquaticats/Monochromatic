@@ -1,5 +1,6 @@
 # mise npm backend keeps a stale lockfile-pinned "latest" version
-(npm:socket@2.1.0, a deprecated bad build) after the npm dist-tag rolls back
+(npm:socket@2.1.0,
+a deprecated bad build) after the npm dist-tag rolls back
 
 > Toolchain status:
 >  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off

@@ -22,20 +22,25 @@ Only more entries can,
 which means more settled version 2 artifacts,
 which is what task `#108` would produce.
 
-AND WIDER THAN THE EFFECT, measured rather than feared.
+AND WIDER THAN THE EFFECT,
+measured rather than feared.
 The population was audited THREE times.
 Over 40 digest-verified pairs of identical text,
 the corroborated total moved from four to ten,
 ten of the forty subjects flipped between claiming something and claiming nothing,
-and across the three readings the archive corroborated count ran 5, 3, 7
-while the gap being measured ran 4, 2, 4.
+and across the three readings the archive corroborated count ran 5,
+3,
+7
+while the gap being measured ran 4,
+2, 4.
 The rule fixed in advance puts a move of about four inside the noise;
 this is six.
 
 IT DOES ANSWER several things worth having:
 
 -   The instrument runs on real lane output at all,
-    over 40 subjects, at zero cost to the producing path.
+    over 40 subjects,
+    at zero cost to the producing path.
 -   Both `#107` relocation candidates found in the first run anchor against
     their shared slice boundary,
     which is the geometry `#107` predicts,
@@ -71,7 +76,8 @@ Nothing in this task re-ran one.
 
 An AUDIT RUN is one pass of this telemetry probe over all 40 subjects.
 Three of them exist,
-numbered 1, 2 and 3 throughout,
+numbered 1,
+2 and 3 throughout,
 and they differ only in when they were bought.
 
 Both were called "runs" in earlier drafts,
@@ -131,18 +137,33 @@ zheermao101    sha256-preparation-v1:100b954149dcaf28a05a1f  15 slices
 corpus         a41fc607     digests  3e6902fb  and  8a63a9cd
 ```
 
-Same slices, same source text, two independent settlements.
+Same slices,
+same source text,
+two independent settlements.
 That buys two readings nothing was paid for:
 
 -   SIX SUBJECTS ARE CHARACTER-IDENTICAL ACROSS BOTH SETTLEMENTS
-    (`zheermao101` slices 0, 2, 7, 8, 9, 11),
+    (`zheermao101` slices 0,
+    2,
+    7,
+    8,
+    9,
+    11),
     so the instrument can be asked the same question twice
     and its own audit-to-audit band read off real text rather than fixtures.
-    Five of those six are retained-in-both, identical by construction.
-    The sixth, slice 9, is `replacement-shipped` in BOTH settlements with identical text:
+    Five of those six are retained-in-both,
+    identical by construction.
+    The sixth,
+    slice 9,
+    is `replacement-shipped` in BOTH settlements with identical text:
     two independent productions converged on the same characters.
 -   SIX OF TWENTY SLICES CHANGED THEIR DECISION between the settlements
-    (`Aniloviraw` 1, 2, 3; `zheermao101` 3, 6, 13).
+    (`Aniloviraw` 1,
+    2,
+    3;
+    `zheermao101` 3,
+    6,
+    13).
     That is the per-slice instability measured on identical inputs,
     and it is the reason a single run of anything here settles very little.
 
@@ -152,19 +173,23 @@ The artifact carries `sourceText` on every delivery row.
 So the audit reads the two texts straight out of the artifact and never re-slices.
 Auditing re-sliced text would audit a different input than the one the judges saw.
 
-Re-preparation still happens, for two things that live only in the preparation:
+Re-preparation still happens,
+for two things that live only in the preparation:
 
 -   `identityContext`.
     Both entries declare real names,
     and the producing judges were given them:
-    236 characters for `Aniloviraw`, 218 for `zheermao101`,
-    declaring name, alias and location on both sides.
+    236 characters for `Aniloviraw`,
+    218 for `zheermao101`,
+    declaring name,
+    alias and location on both sides.
     An auditor shown a rendering WITHOUT that block sees a name
     it cannot derive from the source
     and has every reason to call it a fabrication.
     That is the defect `#36` was opened for,
     and rediscovering it as findings would poison every name-bearing slice.
-    So it is passed, and recorded as a tagged value rather than an optional string,
+    So it is passed,
+    and recorded as a tagged value rather than an optional string,
     because "this pair declared nothing" and "nobody recorded whether it did"
     mean opposite things when a name-shaped finding turns up.
 -   Provenance.
@@ -180,7 +205,8 @@ The corpus pin comes from each artifact's own `corpusSha`,
 never from `RUN_CORPUS_PIN`,
 and the read goes through the commit object rather than the working tree,
 so neither a moved pin nor a dirty clone can change the answer.
-The clone was clean when this was measured, and it would not have mattered.
+The clone was clean when this was measured,
+and it would not have mattered.
 
 ## What this population cannot answer
 
@@ -193,7 +219,8 @@ The instrument's own production error rate is still unmeasured:
 `#68` records that one of the three checkers raises claims
 at a tenth the rate of the others.
 So nothing this run says may gate what ships.
-It is telemetry, and the producing path does not change.
+It is telemetry,
+and the producing path does not change.
 
 Read `corroborated` and `agreed` apart.
 Four runs of `audit-sensitivity` now show the strict tier
@@ -207,7 +234,8 @@ A passage the archive carried across a slice boundary
 reads as an omission on one slice
 and as an unsupported addition on its neighbour.
 
-So: paired omission and addition findings on ADJACENT slices of one entry
+So:
+paired omission and addition findings on ADJACENT slices of one entry
 get checked against each other and counted as one relocation,
 not as two defects.
 This is written down before the tally exists,
@@ -236,7 +264,8 @@ hf:nvidia/NVIDIA-Nemotron-3-Super      asked 37   spoke on 13   claims 16   drop
 hf:Qwen/Qwen3.6-27B                    asked 38   spoke on 11   claims 14   dropped  4
 ```
 
-Relocation candidates under the `#107` rule: two.
+Relocation candidates under the `#107` rule:
+two.
 `grace-remeasure-2026-08-17/Aniloviraw` pairs an omission at slice 1
 with an addition at slice 2,
 and `grace-remeasure-2026-08-17/zheermao101` pairs an omission at slice 1
@@ -276,7 +305,9 @@ The denominators make it worse rather than better.
 The archive half's 16 subjects are 3 from one entry and 13 from the other,
 so the pooled archive figure is very nearly `zheermao101`'s archive figure.
 
-WHAT WOULD FIX IT: more ENTRIES, not more slices.
+WHAT WOULD FIX IT:
+more ENTRIES,
+not more slices.
 The band from a second run answers a different question,
 which is whether one entry's reading is stable,
 and it is worth having for that.
@@ -338,8 +369,10 @@ reads as an omission on one slice and an unsupported addition on its neighbour.
 That predicts WHERE inside each slice the two claims should anchor:
 against the shared boundary.
 
-Measured, from the persisted spans and the artifacts' own slice lengths.
-No text, only offsets:
+Measured,
+from the persisted spans and the artifacts' own slice lengths.
+No text,
+only offsets:
 
 ```text
 Aniloviraw   omission  at slice 1, source 189 chars, anchored [149..161]   79% to 85% through
@@ -364,8 +397,11 @@ which is what `#107` asks for and what this reading deliberately does not do.
 
 On `zheermao101` slice 0,
 Qwen anchored BOTH an `altered-actor` and an `unsupported-addition`
-to the identical candidate span, characters 176 to 218.
-One voice, one region, two claims.
+to the identical candidate span,
+characters 176 to 218.
+One voice,
+one region,
+two claims.
 
 So `claimed` counts CLAIMS and not distinct problems,
 and the two are not the same number.
@@ -519,7 +555,8 @@ the corroborated totals do not move at all,
 and by the rule fixed in advance
 a corroborated total that moves by nought means the tier is stable.
 
-Read against the population figures above, it is misleading,
+Read against the population figures above,
+it is misleading,
 and the reason is already recorded:
 those six are almost all archive text inside one entry,
 five of six retained in both settlements.
@@ -529,7 +566,8 @@ while moving by nought on them.
 
 So a narrow band measured on a convenience sample of a population
 is not a band for that population.
-The six pairs were free, and worth having,
+The six pairs were free,
+and worth having,
 and they would have licensed exactly the wrong conclusion on their own.
 
 ### The per-voice rates are not stable either, which revises `#68`
@@ -551,7 +589,8 @@ which is three to one,
 and Qwen's own claim count nearly halves between the two runs
 on identical input.
 
-What survives, and it is the part that mattered:
+What survives,
+and it is the part that mattered:
 the ORDER-OF-MAGNITUDE gap from the introduced-defect probe does not appear
 in either run,
 so that finding still looks specific to the probe task.
@@ -575,7 +614,8 @@ All four predictions were recorded before the run landed and all four hold,
 so the pairing is doing what it claims
 and the archive did not move under any of the three audits.
 
-THE BAND OVER 40 IDENTICAL TEXTS, about thirty-eight minutes apart:
+THE BAND OVER 40 IDENTICAL TEXTS,
+about thirty-eight minutes apart:
 
 ```text
 pairs 40   same claim count 19   widest gap 4   total gap 37   silent on one side only 10
@@ -589,7 +629,9 @@ a corroborated total moving by about four between two readings
 puts the archive-versus-fresh difference inside the noise.
 
 The corroborated total moved from FOUR TO TEN.
-That is a move of six, on identical text, with an identical roster.
+That is a move of six,
+on identical text,
+with an identical roster.
 It is past the marker rather than between the markers,
 so unlike the run-one-to-run-two comparison this one is not undecidable:
 the rule applies and the answer is that a difference of four is not readable.
@@ -625,14 +667,18 @@ The relocation candidates appeared once and never again,
 which is worth stating plainly:
 the two candidates whose geometry corroborates `#107` so neatly
 were not reproduced by either later audit of the same text.
-The GEOMETRY finding stands, because it is a fact about where those two claims
+The GEOMETRY finding stands,
+because it is a fact about where those two claims
 anchored.
-The RATE finding does not exist: two, nought and nought is not a rate.
+The RATE finding does not exist:
+two,
+nought and nought is not a rate.
 
 ### What this does not say
 
 It does not say the archive's English is as good as a fresh rendering,
-or worse, or better.
+or worse,
+or better.
 It says this instrument on this population cannot tell,
 and now says so with a measured band rather than as a caution.
 
@@ -644,7 +690,8 @@ because it is two entries.
 
 ## How the band was to be read, written before it existed
 
-Two bands, resting on different things,
+Two bands,
+resting on different things,
 and the write-up must say which is which rather than quoting the friendlier one.
 
 WITHIN one run,
@@ -654,9 +701,11 @@ one build,
 one roster,
 minutes apart,
 every pair verified by recorded digest on both sides.
-Small, and free.
+Small,
+and free.
 
-AND IT IS NOT A GENERAL SAMPLE, re-derived from the artifacts before the run landed
+AND IT IS NOT A GENERAL SAMPLE,
+re-derived from the artifacts before the run landed
 by digesting both texts of every slice in both run sets:
 
 ```text
@@ -683,9 +732,14 @@ It cannot say anything about its stability on fresh renderings,
 which is the half the instrument was built for.
 Only the across-run band reaches those.
 
-A CHECK ON THE PAIRING ITSELF, recorded before the run lands:
+A CHECK ON THE PAIRING ITSELF,
+recorded before the run lands:
 the population section says those six are
-`zheermao101` slices 0, 2, 7, 8, 9 and 11,
+`zheermao101` slices 0,
+2,
+7,
+8,
+9 and 11,
 measured from the artifacts back when the population was counted.
 `auditRepeatsWithin` should find exactly those six and no others.
 It reaches that answer by a completely different route,
@@ -741,7 +795,9 @@ what it was shown,
 which both builds do.
 Fewer than 40 paired would mean the two runs bought different populations.
 
-Writing this down turns 40, 0, 0 into a confirmation
+Writing this down turns 40,
+0,
+0 into a confirmation
 instead of a description of whatever turns up.
 
 ### What "the same build" can and cannot mean here

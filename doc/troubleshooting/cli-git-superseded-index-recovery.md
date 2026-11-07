@@ -1,9 +1,11 @@
 # Cli-git journal schema 2 recovery rejects a superseded index
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -213,7 +215,8 @@ There is no external issue draft or additive comment to publish.
 
 The protected `.cache/cli-git-bin/git log --max-count=3 --oneline` failed with exit 2
 while a supervised rootless-container worker checkpointed package changes.
-The native wrapper emitted `engine-failure`, code `content-unavailable`:
+The native wrapper emitted `engine-failure`,
+code `content-unavailable`:
 
 ```text
 # Native recovery diagnostic, distinct from superseded-index recovery.
@@ -225,7 +228,9 @@ and showed the intended five-path commit `3a21255dde` had landed.
 The protected wrapper subsequently succeeded during frozen-source preparation.
 No journal was deleted and no commit was repeated.
 
-`package/git-policy/cli/src/native/recovery_inspect.rs`, `liveness`, propagates the refused signal probe.
+`package/git-policy/cli/src/native/recovery_inspect.rs`,
+`liveness`,
+propagates the refused signal probe.
 `transaction_owner.rs` records the current process PID;
 `classify_transaction_owner` probes existence before comparing birth identity.
 Shared repository access across PID namespaces is a hypothesis requiring a disposable reproduction,

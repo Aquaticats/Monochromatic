@@ -61,15 +61,18 @@ console.log('decorators-ok', typeof new C().m);
  (`node --version`),
  TypeScript `7.0.2`
  via the workspace's `node_modules/.bin/tsc`.
-- Harness: `node ${HOME}/temp/agent/p-memoize-probe/dec.ts` fails;
+- Harness:
+  `node ${HOME}/temp/agent/p-memoize-probe/dec.ts` fails;
  the same
 file with the decorator line removed runs.
-- Works cleanly: ordinary annotations,
+- Works cleanly:
+  ordinary annotations,
  interfaces,
  generics,
  `declare` fields,
  enums-free classes without decorators.
-- Fails: `@decorator` on a method,
+- Fails:
+  `@decorator` on a method,
  `@decorator` on a getter,
  any decorator
 expression position.
@@ -86,7 +89,8 @@ pMemoizeDecorator()(counterMethod, decoration.context,);
 decoration.initialize(alpha,);
 ```
 
-Tradeoffs: the runtime's real `ClassMethodDecoratorContext` construction is
+Tradeoffs:
+the runtime's real `ClassMethodDecoratorContext` construction is
 not exercised
  (the standard library provides no constructor for it),
  so
@@ -97,13 +101,16 @@ separate `tsc`-only probe.
 
 ## What does not work
 
-- `node --experimental-transform-types`: bad option on Node 26.10.0.
-- Compiling tests to JS first: the repository's `test:unit` task runs raw
+- `node --experimental-transform-types`:
+  bad option on Node 26.10.0.
+- Compiling tests to JS first:
+  the repository's `test:unit` task runs raw
 `.ts` files through `node`,
  so a build step before every test run is a
 workflow change,
  not a local fix.
-- `experimentalDecorators` in tsconfig: changes the decorator protocol
+- `experimentalDecorators` in tsconfig:
+  changes the decorator protocol
 shape entirely
  (legacy decorators),
  so the code under test would differ from what
