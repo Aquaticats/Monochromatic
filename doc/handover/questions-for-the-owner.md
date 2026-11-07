@@ -18,6 +18,37 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Coordinator picks made 2026-11-07 with your veto open (not asked yet)
+
+Each is built and in main;
+saying nothing keeps it.
+- How the 860 move copies each subvolume:
+  every first-pass copy is sent against one empty read-only snapshot,
+  with every earlier copy as a clone source,
+  and only the final pass sends a subvolume as an increment on its own first-pass snapshot.
+  The plan it replaced sent a worktree as an increment on a snapshot of `main`,
+  which the kernel's send code can pair with the wrong file
+  (it treats two inodes as one when their number and creating transaction match,
+  `fs/btrfs/send.c` `changed_inode`);
+  on the throwaway fixture that plan failed,
+  and the new one copied every file exactly and kept sharing.
+  Record:
+  `doc/troubleshooting/btrfs-send-clone-sources-need-a-parent.md`
+  and `doc/planning/repository-on-the-860-drive.md`.
+- `monochromatic-lint --fix` now applies only whitespace fixes,
+  and content-changing fixes need `--fix-content`
+  (0.5.2-alpha.5);
+  the repository's `format:monochromatic-lint` task therefore changes no word.
+- When the fixer breaks a line inside a blockquote,
+  the new line carries no `>`
+  (a lazy continuation that renders the same under CommonMark 0.31.2,
+  section 5.1,
+  rule 2),
+  so the fixer never adds a character to your text.
+- The wrapper's own `markdown/autofix` commit policy keeps applying its one content fix
+  (the LFS image link rewrite),
+  since that rewrite is the policy's whole purpose.
+
 ## Open: how long may a commit's own signed `git commit` step run? (not asked yet)
 
 Your global config signs every commit,
