@@ -400,8 +400,10 @@ while the calling Rust worker blocks on `rx.recv()`:
 
 ```rust
 /// `ThreadsafeFunction` executes the callback
-/// on main JS thread, and therefore it may have to wait for a previous `lintFile` call to complete.
-/// Use an `mpsc::channel` to wait for the result from JS side, and block current thread until `lintFile`
+/// on main JS thread,
+/// and therefore it may have to wait for a previous `lintFile` call to complete.
+/// Use an `mpsc::channel` to wait for the result from JS side,
+/// and block current thread until `lintFile`
 /// completes execution.
 // ...
 if status == Status::Ok {

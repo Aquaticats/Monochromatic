@@ -28,10 +28,12 @@ The complete enumeration has no `Dialog` member.
 
 ```rust
 // Slint internal/common/enums.rs
-/// Landmark: a generic section significant enough to be listed in a summary.
+/// Landmark:
+/// a generic section significant enough to be listed in a summary.
 /// Use a more specific landmark if one applies.
 Region,
-/// Landmark: a region containing controls for searching or filtering content.
+/// Landmark:
+/// a region containing controls for searching or filtering content.
 Search,
 ```
 
@@ -78,9 +80,15 @@ mise run //package/ide/app:inspect:search-accessibility
 
 Observed results with `slint-viewer 1.18.1`:
 
-- `accessible-role: search`: status `0`, no diagnostic.
-- `accessible-role: region`: status `0`, no diagnostic.
-- `accessible-role: dialog`: status `1`, both diagnostics quoted in “Symptom”.
+- `accessible-role: search`:
+  status `0`,
+  no diagnostic.
+- `accessible-role: region`:
+  status `0`,
+  no diagnostic.
+- `accessible-role: dialog`:
+  status `1`,
+  both diagnostics quoted in “Symptom”.
 
 The recorded run is `/tmp/ide-search-accessibility-VVu3o7/results.json`.
 The task prints its newly created artifact directory on each invocation.
@@ -126,16 +134,22 @@ and contains no comments.
 That is implementation precedent for the supported value,
 not proof of a missing promised dialog feature.
 
-1.  Upstream fault: not demonstrated.
+1.  Upstream fault:
+    not demonstrated.
     The application requested an absent enumeration member.
-2.  Fixability: another role could be a feature proposal,
+2.  Fixability:
+    another role could be a feature proposal,
     but no compiler correction is required to use the existing search landmark.
-3.  Supported use: the search landmark is explicitly supported by the enumeration and positive control.
+3.  Supported use:
+    the search landmark is explicitly supported by the enumeration and positive control.
     No claim of promised dialog-role support is made.
-4.  Contribution policy: no feature proposal is being prepared,
+4.  Contribution policy:
+    no feature proposal is being prepared,
     so contribution receptiveness was not reassessed for one.
-5.  Corrective change: none is requested for rejecting this unsupported token.
-6.  Prototype: none is warranted for an upstream defect because the first condition is unmet.
+5.  Corrective change:
+    none is requested for rejecting this unsupported token.
+6.  Prototype:
+    none is warranted for an upstream defect because the first condition is unmet.
     The consumer correction is built and exercised instead.
 
 [landmarks]: https://github.com/slint-ui/slint/pull/11831

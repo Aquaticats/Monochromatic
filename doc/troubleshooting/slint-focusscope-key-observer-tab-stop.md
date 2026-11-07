@@ -82,11 +82,13 @@ An observer scope therefore never needs focus to do its job.
 
 ```rust
 // i-slint-compiler-1.18.1/builtin_elements.rs:1402
-        /// When true, the `FocusScope` will make itself the focused element when clicked.
+        /// When true,
+        /// the `FocusScope` will make itself the focused element when clicked.
         ///
         /// This property has no effect if the `enabled` property is set to false.
         in property <bool> focus-on-click: true;
-        /// When true, the `FocusScope` will accept focus as part of the tab focus traversal.
+        /// When true,
+        /// the `FocusScope` will accept focus as part of the tab focus traversal.
         ///
         /// This property has no effect if the `enabled` property is set to false.
         in property <bool> focus-on-tab-navigation: true;
