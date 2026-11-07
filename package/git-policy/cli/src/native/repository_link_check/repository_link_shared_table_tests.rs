@@ -1,6 +1,7 @@
 //! Controls for the Rust copy of the repository link check against the one table of fixture states.
 //! The TypeScript suite `package/repository-link/check/src/check-link.unit.test.ts` runs the same file
-//! (`repository_link_shared_table.json`, inside this crate because the container gate copies only the crate);
+//! (`repository_link_shared_table.json`,
+//! inside this crate because the container gate copies only the crate);
 //! edit a row there and both suites follow.
 
 use crate::repository_link_answer::LinkAnswer;

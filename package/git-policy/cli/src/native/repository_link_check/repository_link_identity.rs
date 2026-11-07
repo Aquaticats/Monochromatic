@@ -125,9 +125,10 @@ fn text_of(parsed: &Value, key: &str) -> String {
 /// identityFrom(JSON.parse(text))
 /// ```
 pub fn identity_from_text(text: &str) -> Result<LinkIdentity, String> {
-    let parsed: Value = serde_json::from_str(text).map_err(|error| {
-        return error.to_string();
-    })?;
+    let parsed: Value = match serde_json::from_str(text) {
+        Ok(value) => value,
+        Err(error) => return Err(error.to_string()),
+    };
     return Ok(LinkIdentity {
         link_path: text_of(&parsed, "linkPath"),
         link_text: text_of(&parsed, "linkText"),

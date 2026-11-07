@@ -18,6 +18,7 @@
 //! ```
 
 use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for};
+use crate::service_instance::try_instance_of;
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_messages::{ClientFailure, render};
 use crate::service_provision::platform_without_manager;
@@ -255,7 +256,7 @@ pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing:
         git_dir: git_dir.as_path(),
     });
     let Some(Route { address, provision: provisioning }) = route else {
-        return Err(TransactionStop::Message(render(&ClientFailure::NoActivation(platform_without_manager()))));
+        return Err(refusal_without_route(git_dir.as_path()));
     };
     // From here on the commit is recorded; one that stopped above, on a machine with no way to start a service, took no time
     //  worth splitting and leaves no record (nothing it does changes the repository).
@@ -298,6 +299,11 @@ pub(crate) fn managed_client_config(address: Bind, provisioning: Option<&Provisi
 /// const stop = refusalWithoutRoute(gitDir);
 /// ```
 pub(crate) fn refusal_without_route(git_dir: &Path) -> TransactionStop {
+    if let Err(unreachable) = try_instance_of(git_dir) {
+        return TransactionStop::Message(format!(
+            "{unreachable}, so this commit was not made and nothing was written. If the repository is on a drive that is not mounted, mount it and run the commit again."
+        ));
+    }
     return TransactionStop::Message(render(&ClientFailure::NoActivation(platform_without_manager())));
 }
 

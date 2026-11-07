@@ -5,6 +5,7 @@
 //! and anything less has no route.
 
 use super::*;
+use crate::service_instance::socket_for;
 use crate::test_support::{fixture, remove};
 
 const GIT: &str = "/usr/bin/git";

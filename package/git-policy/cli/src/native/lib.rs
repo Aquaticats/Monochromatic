@@ -220,11 +220,9 @@ pub use subvolume::*;
 
 /// Whether the repository path is a usable link to the 860 drive,
 /// and the gate that asks it before a command touches the repository.
-#[cfg(target_os = "linux")]
 pub mod repository_link_check;
 
 /// The same re-export for `repository_link_check`.
-#[cfg(target_os = "linux")]
 pub use repository_link_check::*;
 
 /// Package-manager and toolchain repair after a worktree is created.

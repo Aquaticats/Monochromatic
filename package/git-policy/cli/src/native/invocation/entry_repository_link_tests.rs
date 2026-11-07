@@ -4,13 +4,38 @@
 //! and nothing is created.
 #![cfg(unix)]
 
-use super::plan_invocation;
-use super::tests::{inputs, text};
 use crate::action::Action;
+use crate::entry::plan_invocation;
+use crate::real_git::{Platform, ResolutionInputs};
 use crate::repository_link_identity::IDENTITY_RELATIVE_PATH;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{executable, fixture, remove};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+
+/// Inputs selecting the image's real Git,
+/// with a fixture file standing in for this wrapper.
+fn inputs(root: &Path) -> ResolutionInputs {
+    let own: PathBuf = root.join("own-wrapper");
+    executable(own.as_path(), b"\x7fELF fixture wrapper");
+    return ResolutionInputs {
+        platform: Platform::Unix,
+        path: OsString::from("/usr/bin"),
+        path_extensions: OsString::new(),
+        current_directory: root.to_path_buf(),
+        common_paths: Vec::<PathBuf>::new(),
+        own_executable: own,
+        service_unit: None,
+    };
+}
+
+/// Owned arguments from text.
+fn text(values: &[&str]) -> Vec<OsString> {
+    let mut result: Vec<OsString> = Vec::<OsString>::new();
+    for value in values {
+        result.push(OsString::from(value));
+    }
+    return result;
+}
 
 /// The exit status of a Git fatal error.
 const GIT_FATAL: i32 = 128;
@@ -51,11 +76,10 @@ fn world(name: &str) -> World {
 /// The message and status the invocation stops with.
 fn stopped_with(world: &World, arguments: &[&str]) -> (i32, String) {
     let mut owned: Vec<OsString> = text(arguments);
+    // `LINK` stands for the link path wherever an argument holds it.
     for argument in &mut owned {
-        if argument.to_string_lossy().starts_with("LINK") {
-            let rest: String = argument.to_string_lossy()["LINK".len()..].to_string();
-            *argument = OsString::from(format!("{}{rest}", world.link.display()));
-        }
+        let spelled: String = argument.to_string_lossy().replace("LINK", world.link.to_string_lossy().as_ref());
+        *argument = OsString::from(spelled);
     }
     return match plan_invocation(owned.as_slice(), world.environment.as_slice(), &inputs(world.root.as_path())) {
         Action::Exit { code, stderr, .. } => (code, stderr),

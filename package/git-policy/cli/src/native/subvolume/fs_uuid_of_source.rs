@@ -14,7 +14,7 @@
 //! const uuid = (await readdir(byUuid)).find(async (name) => (await realpath(join(byUuid, name))) === (await realpath(source)));
 //! ```
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Where udev keeps one link per filesystem UUID,
 /// each to the device that holds the filesystem.
@@ -35,7 +35,23 @@ pub const BY_UUID_DIRECTORY: &str = "/dev/disk/by-uuid";
 /// await uuidOfSource(source)
 /// ```
 pub fn filesystem_uuid_of_source(source: &str, by_uuid_directory: &Path) -> Option<String> {
-    todo!("{source} {}", by_uuid_directory.display())
+    let source_path: &Path = Path::new(source);
+    // A relative source (`tmpfs`, `overlay`) would resolve against the working directory: it names no device.
+    if !source_path.is_absolute() {
+        return None;
+    }
+    let device: PathBuf = std::fs::canonicalize(source_path).ok()?;
+    let entries: std::fs::ReadDir = std::fs::read_dir(by_uuid_directory).ok()?;
+    // Each link of the folder leads to the device that holds the filesystem it is named for.
+    for entry in entries.flatten() {
+        let Ok(target) = std::fs::canonicalize(entry.path()) else {
+            continue;
+        };
+        if target == device {
+            return entry.file_name().into_string().ok();
+        }
+    }
+    return None;
 }
 
 /// Controls stay out of the release executable.

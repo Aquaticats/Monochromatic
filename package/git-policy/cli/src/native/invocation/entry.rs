@@ -38,6 +38,7 @@ use crate::real_git::{ResolutionInputs, ResolvedGit, process_resolution_inputs, 
 use crate::started_as_git::refusal_when_started_as_git;
 use crate::real_git_candidate::same_file;
 use crate::repository_facts::{GitFacts, git_facts};
+use crate::entry_repository_link_stop::repository_link_stop;
 use crate::rule_require_root::{RequireRootDecision, decide_require_root};
 /// The variable that names the forbidden-strings rules list.
 use crate::scanner_selection::RULES_VARIABLE;
@@ -184,6 +185,11 @@ pub fn plan_invocation(
             return with_leading_notice(answer, Some(EARLIER_COMMAND_WORD_NOTICE));
         }
         return answer;
+    }
+    // A command that names the repository through a link to the 860 drive that does not resolve stops here with the plain
+    // message, before Git prints its own; with no identity file the cost is one failed open.
+    if let Some(stop) = repository_link_stop(global_clean.as_slice(), &layout, environment, inputs.current_directory.as_path()) {
+        return stop;
     }
     // What: `match` on the resolver's `Result`: keep the selection or stop with its message.
     // Why:  Without real Git there is nothing to forward to.
@@ -497,9 +503,3 @@ mod stop_tests;
 #[cfg(test)]
 #[path = "entry_tests.rs"]
 mod tests;
-
-/// The repository link gate at the entry:
-/// a command that names a repository whose link to the 860 dangles stops with the plain message.
-#[cfg(test)]
-#[path = "entry_repository_link_tests.rs"]
-mod repository_link_tests;

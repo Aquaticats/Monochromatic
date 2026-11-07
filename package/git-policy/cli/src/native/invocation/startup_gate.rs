@@ -28,6 +28,8 @@ use crate::diagnostic_log::debug;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 use crate::merge_isolation_recovery::{RecoveryPlace, merge_intents_to_recover, recover_interrupted_merges};
 use crate::random_id::is_canonical_uuid;
+use crate::repository_link_gate::{LinkGate, link_gate};
+use crate::service_route::non_empty_path_variable;
 use crate::recovery_error::RecoveryError;
 use crate::recovery_files::recovery_path_exists;
 use crate::transaction_git::GitContext;
@@ -59,6 +61,12 @@ pub enum Gate {
     /// The command stops;
     /// this is its standard error.
     Stop(String),
+    /// The command stops because the repository it names is not reachable (the link to the 860 drive dangles,
+    /// or is not the recorded one);
+    /// this is its standard error,
+    /// and the status is Git's fatal status,
+    /// where `Stop` ends with the engine failure status.
+    RepositoryUnreachable(String),
 }
 
 /// What:
@@ -230,9 +238,29 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path) -> Res
 /// async function recoverForCommand({ gitPath, identity }): Promise<Gate>;
 /// ```
 pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity) -> Gate {
+    let home: Option<PathBuf> = non_empty_path_variable("HOME");
+    return recover_for_command_with_home(context, identity, home.as_deref());
+}
+
+/// What:
+///  The startup step with the home directory that holds the repository link identity file named.
+/// Why:
+///  The link gate runs first and costs one failed open when the file is absent;
+/// tests give a disposable home.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recoverForCommand({ context, identity, home })
+/// ```
+pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeIdentity, home: Option<&Path>) -> Gate {
     let Some((git_dir, common_dir)) = worktree_directories(identity) else {
         return Gate::Clear;
     };
+    // The paths the layout resolved (a worktree `.git` file may name the repository through the link while the command runs elsewhere).
+    let resolved: [PathBuf; 2] = [git_dir.to_path_buf(), common_dir.to_path_buf()];
+    if let LinkGate::Stop(stderr) = link_gate(home, &resolved) {
+        return Gate::RepositoryUnreachable(stderr);
+    }
     let legacy: PathBuf = git_dir.join(LEGACY_JOURNAL_DIRECTORY_NAME);
     match recovery_path_exists(legacy.as_path()) {
         Ok(true) => return Gate::Stop(legacy_notice(legacy.as_path())),

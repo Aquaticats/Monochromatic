@@ -1,5 +1,6 @@
 //! What:
-//!  The Rust copy of the repository link check (W1, `package/repository-link/check`):
+//!  The Rust copy of the repository link check (W1,
+//! `package/repository-link/check`):
 //! is the repository path a usable link to the 860 drive right now,
 //! and the gate that asks it before a Git command touches the repository.
 //! Why:
@@ -9,9 +10,11 @@
 //! so every command whose paths lie under the link,
 //! its approved root or the old copy is checked first and stops with a plain message and status 128.
 //! The plan is `doc/planning/repository-on-the-860-drive.md`,
-//! section "Work items per tool", W1 and W2.
+//! section "Work items per tool",
+//! W1 and W2.
 //! The folder moves with the layout plan of issue 6261
-//! (`doc/planning/cli-git-source-layout.md`, "Folders to move"),
+//! (`doc/planning/cli-git-source-layout.md`,
+//! "Folders to move"),
 //! where it gets its `uses/` folder like every other folder.
 //!
 //! In TS you'd write (pseudocode):

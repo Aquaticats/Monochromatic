@@ -58,7 +58,8 @@ fn a_source_that_is_not_a_device_path_has_no_uuid() {
     remove(devices.root.as_path());
 }
 
-/// A device without a link, and a folder of links that is not there,
+/// A device without a link,
+/// and a folder of links that is not there,
 /// give no UUID.
 #[test]
 fn a_device_without_a_link_or_without_a_folder_has_no_uuid() {

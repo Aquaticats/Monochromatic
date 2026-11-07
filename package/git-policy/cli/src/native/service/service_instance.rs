@@ -67,19 +67,28 @@ const FNV_PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
 ///   The real path makes two spellings of one directory (a link,
 /// a relative part) one instance.
 /// A directory that cannot be
-///  resolved is hashed as given.
+///  resolved is hashed as given:
+/// never use this to name anything new (a socket,
+/// a unit instance,
+/// a journal directory);
+/// `try_instance_of` refuses such a directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// instanceOf(gitDir) // '3f9a...' (32 digits)
 /// ```
 pub fn instance_of(git_dir: &Path) -> String {
-    use std::os::unix::ffi::OsStrExt;
     // A directory that cannot be resolved is named as given.
     let real: PathBuf = match std::fs::canonicalize(git_dir) {
         Ok(resolved) => resolved,
         Err(_unresolvable) => git_dir.to_path_buf(),
     };
+    return instance_named_by(real.as_path());
+}
+
+/// The 32 hexadecimal digits of the FNV-1a hash of a path's bytes.
+fn instance_named_by(real: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
     let mut hash: u128 = FNV_OFFSET;
     for byte in real.as_os_str().as_bytes() {
         hash ^= u128::from(*byte);
@@ -131,7 +140,10 @@ impl std::error::Error for GitDirUnreachable {}
 /// tryInstanceOf(gitDir) // '3f9a...' or throws GitDirUnreachable
 /// ```
 pub fn try_instance_of(git_dir: &Path) -> Result<String, GitDirUnreachable> {
-    todo!("{}", git_dir.display())
+    return match std::fs::canonicalize(git_dir) {
+        Ok(real) => Ok(instance_named_by(real.as_path())),
+        Err(error) => Err(GitDirUnreachable { path: git_dir.to_path_buf(), reason: error.to_string() }),
+    };
 }
 
 /// The socket of an instance under the user's runtime directory.

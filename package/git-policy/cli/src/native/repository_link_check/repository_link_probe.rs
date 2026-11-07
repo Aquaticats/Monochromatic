@@ -13,7 +13,9 @@
 //! const probe: Probe = { lstat, readlink, realpath, readText, uuidOf, isMountPoint };
 //! ```
 
+#[cfg(target_os = "linux")]
 use crate::fs_mount_options::{MountFacts, read_mount_facts};
+#[cfg(target_os = "linux")]
 use crate::fs_uuid_of_source::{BY_UUID_DIRECTORY, filesystem_uuid_of_source};
 use std::path::{Path, PathBuf};
 
@@ -42,6 +44,27 @@ pub enum EntryKind {
     /// Anything else,
     /// or something that cannot be looked at.
     Other,
+}
+
+impl EntryKind {
+    /// What:
+    ///  The word the plain messages use for what a path is.
+    /// Why:
+    ///  The TypeScript check prints the same words.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// entry.kind // 'file'
+    /// ```
+    pub fn name(self) -> &'static str {
+        return match self {
+            Self::Directory => "directory",
+            Self::File => "file",
+            Self::Link => "link",
+            Self::Missing => "missing",
+            Self::Other => "other",
+        };
+    }
 }
 
 /// What:
@@ -89,8 +112,35 @@ pub struct RealLinkProbe;
 /// The mount that holds a path,
 /// from the table of this process,
 /// nothing when the path does not resolve or the table cannot be read.
+#[cfg(target_os = "linux")]
 fn mount_of(path: &Path) -> Option<MountFacts> {
     return read_mount_facts(path).ok().flatten();
+}
+
+/// The filesystem UUID of the device a mount names.
+#[cfg(target_os = "linux")]
+fn uuid_of_mount(mount: &MountFacts) -> String {
+    return filesystem_uuid_of_source(mount.source.as_str(), Path::new(BY_UUID_DIRECTORY)).unwrap_or_default();
+}
+
+/// Without the Linux mount table there is no mount to name:
+/// the check then reports an unknown filesystem and a drive that is not mounted.
+#[cfg(not(target_os = "linux"))]
+fn mount_of(_path: &Path) -> Option<NoMount> {
+    return None;
+}
+
+/// A mount that cannot exist on a system without the Linux mount table.
+#[cfg(not(target_os = "linux"))]
+struct NoMount {
+    /// Never read.
+    mount_point: PathBuf,
+}
+
+/// Never reached without the Linux mount table.
+#[cfg(not(target_os = "linux"))]
+fn uuid_of_mount(_mount: &NoMount) -> String {
+    return String::new();
 }
 
 impl LinkProbe for RealLinkProbe {
@@ -127,7 +177,7 @@ impl LinkProbe for RealLinkProbe {
         let Some(mount) = mount_of(path) else {
             return String::new();
         };
-        return filesystem_uuid_of_source(mount.source.as_str(), Path::new(BY_UUID_DIRECTORY)).unwrap_or_default();
+        return uuid_of_mount(&mount);
     }
 
     fn is_mount_point(&self, path: &Path) -> bool {
