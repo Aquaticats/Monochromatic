@@ -242,7 +242,8 @@ export const scopes: ReadonlyMap<string, MutationScope> = new Map<string, Mutati
   // The router of a build without the `semantic` feature. Its source file is compiled only when the feature is off,
   // so a campaign built with the default features never compiles it: its first mutants all survived (workflow
   // record: doc/handover/monochromatic-lint-layout-and-workflow-mutants.md). This scope builds without the default
-  // features and runs the one test target that reaches the file, the same slice as `mise run test:syntax-only`.
+  // features and builds and runs only the one test target that reaches the file (the library's own tests do not compile
+  // without the feature), the same slice as `mise run test:syntax-only`.
   [
     '--syntax-only',
     {
@@ -250,8 +251,8 @@ export const scopes: ReadonlyMap<string, MutationScope> = new Map<string, Mutati
       select: fileArguments('src/rust_file_engine_syntax.rs'),
       run: [
         '--cargo-arg=--no-default-features',
-        '--cargo-test-arg=--test',
-        '--cargo-test-arg=syntax_only_engine',
+        '--cargo-arg=--test',
+        '--cargo-arg=syntax_only_engine',
       ],
     }
   ],
