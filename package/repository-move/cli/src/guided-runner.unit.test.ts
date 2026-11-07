@@ -9,6 +9,7 @@
 
 import { execFile, } from 'node:child_process';
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -16,7 +17,10 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { promisify, } from 'node:util';
 import {
   describe,
@@ -47,6 +51,9 @@ import {
 
 const execFileAsync = promisify(execFile,);
 const BIN = new URL('../dist/final/node/run-repository-move.mjs', import.meta.url,).pathname;
+/** Mode of the stand-in `sudo` script: readable and executable by everyone, writable by its owner. */
+const EXECUTABLE_MODE = 0o755;
+const TOOLS_FOLDER = dirname(new URL(import.meta.url,).pathname,);
 
 type HomeFolder = {
   readonly path: string;
@@ -92,6 +99,54 @@ function commandWords(command: string,): readonly string[] {
 
 async function exists(path: string,): Promise<boolean> {
   return await stat(path,).then(() => true, () => false);
+}
+
+/** Where the stand-in `sudo` of a fixture run records the commands it was asked to run. */
+type StandInSudo = {
+  readonly folder: string;
+  readonly log: string;
+};
+
+/**
+ Writes a `sudo` that records its arguments and exits 0, so a real prepare run can reach a root stage without any
+ privilege and without changing anything.
+ */
+async function writeStandInSudo(home: string,): Promise<StandInSudo> {
+  const folder = join(home, 'stand-in-bin',);
+  const log = join(home, 'stand-in-sudo.log',);
+  await mkdir(folder, { recursive: true, },);
+  await writeFile(join(folder, 'sudo',), '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$STAND_IN_SUDO_LOG"\nexit 0\n',);
+  await chmod(join(folder, 'sudo',), EXECUTABLE_MODE,);
+  return { folder, log, };
+}
+
+/** Marks stages of the prepare phase done, as a completed earlier run would have. */
+async function markPrepareDone({ config, ids, }: { config: GuidedConfig; ids: readonly string[]; },): Promise<void> {
+  await mkdir(join(config.wiz, 'done', 'prepare',), { recursive: true, },);
+  await Promise.all(ids.map((id,) => writeFile(join(config.wiz, 'done', 'prepare', id,), '2026-01-01T00:00:00.000Z\n',)),);
+}
+
+/** Runs the real prepare command through the built bin with the stand-in sudo first on the path. */
+async function runPrepareWithStandInSudo(
+  { home, standIn, }: { home: string; standIn: StandInSudo; },
+): Promise<string> {
+  try {
+    const result = await execFileAsync(process.execPath, [BIN, 'prepare',], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: home,
+        MOVE_TOOLS_DIR: TOOLS_FOLDER,
+        PATH: `${standIn.folder}:${process.env.PATH ?? ''}`,
+        STAND_IN_SUDO_LOG: standIn.log,
+      },
+      cwd: '/',
+    },);
+    return result.stdout;
+  }
+  catch (error) {
+    return (error as { stdout: string; }).stdout;
+  }
 }
 
 async function runStages(
@@ -510,6 +565,40 @@ await describe({
               }
               expect(await exists(config.wiz,),).toBe(false,);
               expect(await exists(config.moveState,),).toBe(false,);
+            },);
+          },
+        },),
+        it({
+          name: 'a real prepare run gives the fixture folder that f1a made to the later fixture stages, not the dry-run placeholder',
+          fn: async () => {
+            await withConfig(async ({ config, home, },) => {
+              const standIn = await writeStandInSudo(home,);
+              await markPrepareDone({ config, ids: ['i1-install-link-check', 'i2-record-before',], },);
+              const output = await runPrepareWithStandInSudo({ home, standIn, },);
+              const fixture = (await readFile(join(config.wiz, 'fixture-path',), 'utf8',)).trim();
+              const sudoLog = await readFile(standIn.log, 'utf8',);
+              expect(output,).toContain('f1a-folder',);
+              expect(sudoLog,).toContain(`mkfs.btrfs --quiet ${fixture}/source.img`,);
+              expect(sudoLog,).not.toContain('DRYRUN',);
+              const imageExists = await exists(join(fixture, 'source.img',),);
+              expect(imageExists,).toBe(true,);
+            },);
+          },
+        },),
+        it({
+          name: 'a resumed prepare run with f1a already recorded done uses the folder f1a recorded',
+          fn: async () => {
+            await withConfig(async ({ config, home, },) => {
+              const standIn = await writeStandInSudo(home,);
+              const fixture = join(config.fixtureParent, 'send-fixture.RESUMED',);
+              await mkdir(fixture, { recursive: true, },);
+              await mkdir(config.wiz, { recursive: true, },);
+              await writeFile(join(config.wiz, 'fixture-path',), `${fixture}\n`,);
+              await markPrepareDone({ config, ids: ['i1-install-link-check', 'i2-record-before', 'f1a-folder',], },);
+              await runPrepareWithStandInSudo({ home, standIn, },);
+              const sudoLog = await readFile(standIn.log, 'utf8',);
+              expect(sudoLog,).toContain(`mkfs.btrfs --quiet ${fixture}/source.img`,);
+              expect(sudoLog,).not.toContain('DRYRUN',);
             },);
           },
         },),
