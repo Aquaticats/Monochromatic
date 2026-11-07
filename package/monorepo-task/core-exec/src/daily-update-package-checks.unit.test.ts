@@ -21,6 +21,8 @@ import {
   dailyUpdateGroups,
   firstErrorOf,
   type CheckResult,
+  type FirstError,
+  NO_ERROR_IN_OUTPUT,
   issueMarker,
   MAXIMUM_MOVE_LINES,
   type PackageCheck,
@@ -39,7 +41,51 @@ import {
   fixture,
   FIXTURE_GLOBAL_LOCK,
   PASSES,
+  type ScriptedPass,
 } from './daily-update-checks-fixture.ts';
+
+/**
+ The pass a scripted check has before the update in the pool test: the first times out, the second fails, the rest pass.
+
+ @param index - position of the check
+
+ @returns the pass
+ */
+function scriptedPassAt(index: number,): ScriptedPass {
+  if (index === 0)
+    return { exitCode: 1, timedOut: true, seconds: 5, };
+  if (index === 1)
+    return { exitCode: 1, seconds: 5, output: 'error TS1005: x', };
+  return { exitCode: 0, seconds: 5, };
+}
+
+/**
+ The first element of a list, failing the test when the list is empty.
+
+ @param values - the list
+
+ @returns its first element
+ */
+function onlyFirst<Value,>(values: readonly Value[],): Value {
+  const [value,] = values;
+  if (value === undefined)
+    throw new Error('the list is empty',);
+  return value;
+}
+
+/**
+ The first error in an output, failing the test when there is none.
+
+ @param output - check output
+
+ @returns the first error
+ */
+function errorIn(output: string,): FirstError {
+  const found = firstErrorOf(output,);
+  if (found === NO_ERROR_IN_OUTPUT)
+    throw new Error('the output has no error',);
+  return found;
+}
 
 //region Fixtures: texts the tests read
 
@@ -59,6 +105,11 @@ const ZBUS_BREAK_OUTPUT = [
   '',
   'error: could not compile `a` (lib) due to 1 previous error',
 ].join('\n',);
+
+/**
+ The first error of that output.
+ */
+const ZBUS_ERROR: FirstError = errorIn(ZBUS_BREAK_OUTPUT,);
 
 /**
  A Cargo lock text with a given zbus version and one unrelated crate.
@@ -142,6 +193,16 @@ function toolchainLock({
 }
 
 /**
+ Toolchain lock text before the update in the scenarios.
+ */
+const LOCK_BEFORE: string = toolchainLock({ rust: 'nightly-2026-11-01', zig: '0.15.2', },);
+
+/**
+ Toolchain lock text after the update in the scenarios.
+ */
+const LOCK_AFTER: string = toolchainLock({ rust: 'nightly-2026-11-07', zig: '0.15.2', },);
+
+/**
  A failed result of a Rust check with the zbus error.
 
  @param pass - package path
@@ -149,12 +210,12 @@ function toolchainLock({
  @returns the result
  */
 function redResult(pass: string,): CheckResult {
-  const check: PackageCheck = checksFromTaskNames({ taskNames: [`//${pass}:lint:clippy`,], },)[0]!;
+  const check: PackageCheck = onlyFirst(checksFromTaskNames({ taskNames: [`//${pass}:lint:clippy`,], },),);
   return {
     check,
     status: 'failed',
     seconds: 3,
-    firstError: firstErrorOf(ZBUS_BREAK_OUTPUT,),
+    firstError: ZBUS_ERROR,
   };
 }
 
@@ -214,20 +275,20 @@ await describe({
         it({
           name: 'finds the first Rust error with its code, skipping warnings and the closing summary error',
           fn: async () => {
-            const error = firstErrorOf(ZBUS_BREAK_OUTPUT,);
-            expect(error?.code,).toBe('E0433',);
-            expect(error?.message,).toBe('failed to resolve: could not find `blocking` in `zbus`',);
-            expect(error?.excerpt,).toContain('src/session.rs:12:11',);
-            expect(error?.excerpt,).not.toContain('could not compile',);
+            const error = errorIn(ZBUS_BREAK_OUTPUT,);
+            expect(error.code,).toBe('E0433',);
+            expect(error.message,).toBe('failed to resolve: could not find `blocking` in `zbus`',);
+            expect(error.excerpt,).toContain('src/session.rs:12:11',);
+            expect(error.excerpt,).not.toContain('could not compile',);
           },
         },),
         it({
           name: 'finds a TypeScript error code and a Rust error without one, and strips colors and the task prefix',
           fn: async () => {
-            expect(firstErrorOf('src/x.ts(3,5): error TS2307: Cannot find module \'foo\'.',)?.code,).toBe('TS2307',);
-            expect(firstErrorOf('error: failed to run custom build command for `x`',)?.code,).toBe('',);
-            expect(firstErrorOf('\u001B[31merror[E0425]\u001B[0m: cannot find value `y`',)?.code,).toBe('E0425',);
-            expect(firstErrorOf('[//package/a/b:lint:clippy] error[E0425]: cannot find value `y`',)?.message,).toBe(
+            expect(errorIn('src/x.ts(3,5): error TS2307: Cannot find module \'foo\'.',).code,).toBe('TS2307',);
+            expect(errorIn('error: failed to run custom build command for `x`',).code,).toBe('',);
+            expect(errorIn('\u001B[31merror[E0425]\u001B[0m: cannot find value `y`',).code,).toBe('E0425',);
+            expect(errorIn('[//package/a/b:lint:clippy] error[E0425]: cannot find value `y`',).message,).toBe(
               'cannot find value `y`',
             );
           },
@@ -235,7 +296,7 @@ await describe({
         it({
           name: 'answers nothing for output without an error',
           fn: async () => {
-            expect(firstErrorOf('all good\nwarning: something',),).toBe(undefined,);
+            expect(firstErrorOf('all good\nwarning: something',),).toBe(NO_ERROR_IN_OUTPUT,);
           },
         },),
       ],
@@ -262,11 +323,11 @@ await describe({
         it({
           name: 'names a check newly red only when it passed before and fails after',
           fn: async () => {
-            const check = checksFromTaskNames({ taskNames: ['//package/a/b:lint:clippy',], },)[0]!;
+            const check = onlyFirst(checksFromTaskNames({ taskNames: ['//package/a/b:lint:clippy',], },),);
             /**
              Builds a result with a status.
              */
-            const result = (status: CheckResult['status'],): CheckResult => ({ check, status, seconds: 1, firstError: undefined, });
+            const result = (status: CheckResult['status'],): CheckResult => ({ check, status, seconds: 1, });
             const verdicts = {
               newlyRed: compareChecks({ before: [result('passed',),], after: [result('failed',),], },)[0]?.verdict,
               alreadyRed: compareChecks({ before: [result('failed',),], after: [result('failed',),], },)[0]?.verdict,
@@ -284,8 +345,8 @@ await describe({
         it({
           name: 'cannot tell when either side timed out, never ran or is missing, and says why',
           fn: async () => {
-            const check = checksFromTaskNames({ taskNames: ['//package/a/b:lint:clippy',], },)[0]!;
-            const result = (status: CheckResult['status'],): CheckResult => ({ check, status, seconds: 1, firstError: undefined, });
+            const check = onlyFirst(checksFromTaskNames({ taskNames: ['//package/a/b:lint:clippy',], },),);
+            const result = (status: CheckResult['status'],): CheckResult => ({ check, status, seconds: 1, });
             for (
               const [before, after,] of [
                 ['timed-out', 'failed',],
@@ -365,7 +426,7 @@ await describe({
             const failed = redResult('package/a/b',);
             const issue = renderIssue({
               check: failed.check,
-              firstError: failed.firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['d61dc1934a', 'e72ed2045b',],
               baselineCommit: 'c0ffee0001',
               moves: [
@@ -408,12 +469,12 @@ await describe({
             }),);
             const issue = renderIssue({
               check: failed.check,
-              firstError: failed.firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['d61dc1934a',],
               baselineCommit: 'c0ffee0001',
               moves: [{ source: 'package/a/b/Cargo.lock', moves: many, },],
             },);
-            expect(issue.body.match(/^- `crate\d+`/gm,)?.length,).toBe(MAXIMUM_MOVE_LINES,);
+            expect(issue.body.split('\n',).filter((line,) => line.startsWith('- `crate',),).length,).toBe(MAXIMUM_MOVE_LINES,);
             expect(issue.body,).toContain('and 7 more',);
           },
         },),
@@ -423,12 +484,12 @@ await describe({
             const failed = redResult('package/a/b',);
             const issue = renderIssue({
               check: failed.check,
-              firstError: failed.firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: [],
               baselineCommit: 'c0ffee0001',
               moves: [],
             },);
-            expect(issue.body,).toContain('no lock of this package moved',);
+            expect(issue.body,).toContain('No lock of this package moved',);
             expect(issue.body,).toContain('no commit',);
           },
         },),
@@ -452,7 +513,7 @@ await describe({
             const failed = redResult('package/a/b',);
             const issue = renderIssue({
               check: failed.check,
-              firstError: failed.firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['d61dc1934a',],
               baselineCommit: 'c0ffee0001',
               moves: [],
@@ -468,7 +529,7 @@ await describe({
             expect(outcomes[0]?.action,).toBe('created',);
             expect(outcomes[0]?.issueNumber,).toBe(501,);
             expect(calls.map((call,) => call.args.slice(0, 2,).join(' ',),),).toEqual(['issue list', 'issue create',],);
-            const create = calls[1]!;
+            const create = onlyFirst(calls.slice(1,),);
             expect(create.args,).toContain('--label',);
             expect(create.args,).toContain('needs-triage',);
             expect(create.args,).toContain('--title',);
@@ -482,7 +543,7 @@ await describe({
             const failed = redResult('package/a/b',);
             const issue = renderIssue({
               check: failed.check,
-              firstError: failed.firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['d61dc1934a',],
               baselineCommit: 'c0ffee0001',
               moves: [],
@@ -506,7 +567,7 @@ await describe({
             expect(outcomes[0]?.action,).toBe('commented',);
             expect(outcomes[0]?.issueNumber,).toBe(42,);
             expect(calls.some((call,) => call.args[1] === 'create',),).toBe(false,);
-            const comment = calls.find((call,) => call.args[1] === 'comment',)!;
+            const comment = onlyFirst(calls.filter((call,) => call.args[1] === 'comment',),);
             expect(comment.args[2],).toBe('42',);
             expect(comment.stdin,).toBe(issue.comment,);
           },
@@ -517,7 +578,7 @@ await describe({
             const failed = redResult('package/a/b',);
             const issue = renderIssue({
               check: failed.check,
-              firstError: failed.firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['d61dc1934a',],
               baselineCommit: 'c0ffee0001',
               moves: [],
@@ -541,7 +602,7 @@ await describe({
             const failed = redResult('package/a/b',);
             const issue = renderIssue({
               check: failed.check,
-              firstError: failed.firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['d61dc1934a',],
               baselineCommit: 'c0ffee0001',
               moves: [],
@@ -562,7 +623,7 @@ await describe({
             const failed = redResult('package/a/b',);
             const issue = renderIssue({
               check: failed.check,
-              firstError: failed.firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['d61dc1934a',],
               baselineCommit: 'c0ffee0001',
               moves: [],
@@ -586,14 +647,14 @@ await describe({
           fn: async () => {
             const first = renderIssue({
               check: redResult('package/a/b',).check,
-              firstError: redResult('package/a/b',).firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['d61dc1934a',],
               baselineCommit: 'c0ffee0001',
               moves: [],
             },);
             const second = renderIssue({
               check: redResult('package/c/d',).check,
-              firstError: redResult('package/c/d',).firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['d61dc1934a',],
               baselineCommit: 'c0ffee0001',
               moves: [],
@@ -661,11 +722,7 @@ await describe({
               checks: Object.fromEntries(names.map((name, index,) => [
                 name,
                 {
-                  before: index === 0
-                    ? { exitCode: 1, timedOut: true, seconds: 5, }
-                    : index === 1
-                    ? { exitCode: 1, seconds: 5, output: 'error TS1005: x', }
-                    : { exitCode: 0, seconds: 5, },
+                  before: scriptedPassAt(index,),
                   after: PASSES,
                 },
               ],),),
@@ -724,7 +781,7 @@ await describe({
             expect(creates[0]?.stdin,).not.toContain('package/c/d',);
             expect(creates[0]?.stdin,).toContain('`zbus` 5.19.0 to 6.2.1',);
             expect(creates[0]?.stdin,).toContain('`rust` nightly-2026-11-01 to nightly-2026-11-07',);
-            expect(creates[0]?.stdin,).toContain(world.commits[0]!.id,);
+            expect(creates[0]?.stdin,).toContain(onlyFirst(world.commits,).id,);
             expect(creates[0]?.stdin,).toContain('E0433',);
             expect(result.exitCode,).toBe(0,);
             expect(result.checks.newlyRed.map((entry,) => entry.check.package,),).toEqual(['package/a/b',],);
@@ -735,12 +792,12 @@ await describe({
           name: 'checks every package before the update and again after it commits, and keeps the commits whatever the checks say',
           fn: async () => {
             const { effects, checkEffects, world, } = fixture({
-              tracked: { 'toolchain.lock.json': 'before', },
+              tracked: { 'toolchain.lock.json': LOCK_BEFORE, },
               checks: {
                 '//package/a/b:lint:clippy': { before: PASSES, after: { exitCode: 101, output: ZBUS_BREAK_OUTPUT, }, },
                 '//package/e/f:lint:types': { before: PASSES, after: PASSES, },
               },
-              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': 'after', }, },
+              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': LOCK_AFTER, }, },
             },);
             await runUpdateWithChecks({
               effects,
@@ -754,8 +811,8 @@ await describe({
               'before://package/e/f:lint:types',
             ],);
             expect(world.commits.length,).toBe(1,);
-            expect(world.files.get('/repo/toolchain.lock.json',),).toBe('after',);
-            const firstUpdateCommand = world.ran[0];
+            expect(world.files.get('/repo/toolchain.lock.json',),).toBe(LOCK_AFTER,);
+            const [firstUpdateCommand,] = world.ran;
             expect(firstUpdateCommand,).toBe('mise run toolchain:update',);
           },
         },),
@@ -764,12 +821,12 @@ await describe({
           fn: async () => {
             const order: string[] = [];
             const { effects, checkEffects, } = fixture({
-              tracked: { 'toolchain.lock.json': 'before', },
+              tracked: { 'toolchain.lock.json': LOCK_BEFORE, },
               checks: { '//package/a/b:lint:clippy': { before: PASSES, after: PASSES, }, },
-              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': 'after', }, },
+              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': LOCK_AFTER, }, },
             },);
             const run = effects.runCommand;
-            const commit = effects.commit;
+            const { commit, } = effects;
             const check = checkEffects.runCheck;
             await runUpdateWithChecks({
               effects: {
@@ -801,7 +858,7 @@ await describe({
           name: 'checks nothing a second time and asks gh for nothing when the update moved nothing',
           fn: async () => {
             const { effects, checkEffects, world, } = fixture({
-              tracked: { 'toolchain.lock.json': 'same', },
+              tracked: { 'toolchain.lock.json': LOCK_BEFORE, },
               checks: { '//package/a/b:lint:clippy': { before: PASSES, after: { exitCode: 101, output: ZBUS_BREAK_OUTPUT, }, }, },
             },);
             await runUpdateWithChecks({
@@ -818,15 +875,15 @@ await describe({
           fn: async () => {
             const earlier = renderIssue({
               check: redResult('package/a/b',).check,
-              firstError: redResult('package/a/b',).firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['0000000000',],
               baselineCommit: '1111111111',
               moves: [],
             },);
             const { effects, checkEffects, world, } = fixture({
-              tracked: { 'toolchain.lock.json': 'before', },
+              tracked: { 'toolchain.lock.json': LOCK_BEFORE, },
               checks: { '//package/a/b:lint:clippy': { before: PASSES, after: { exitCode: 101, output: ZBUS_BREAK_OUTPUT, }, }, },
-              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': 'after', }, },
+              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': LOCK_AFTER, }, },
               gh: (request,) =>
                 request.args[1] === 'list'
                   ? { exitCode: 0, stdout: JSON.stringify([{ number: 9, body: earlier.marker, },],), stderr: '', }
@@ -845,9 +902,9 @@ await describe({
           name: 'never opens an issue for a check that timed out or never ran, and says so in the notification',
           fn: async () => {
             const { effects, checkEffects, world, } = fixture({
-              tracked: { 'toolchain.lock.json': 'before', },
+              tracked: { 'toolchain.lock.json': LOCK_BEFORE, },
               checks: { '//package/a/b:lint:clippy': { before: PASSES, after: { exitCode: 1, timedOut: true, }, }, },
-              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': 'after', }, },
+              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': LOCK_AFTER, }, },
             },);
             const result = await runUpdateWithChecks({
               effects,
@@ -863,9 +920,9 @@ await describe({
           name: 'logs a gh failure, keeps the issue for the next run and still exits as the update did',
           fn: async () => {
             const { effects, checkEffects, world, } = fixture({
-              tracked: { 'toolchain.lock.json': 'before', },
+              tracked: { 'toolchain.lock.json': LOCK_BEFORE, },
               checks: { '//package/a/b:lint:clippy': { before: PASSES, after: { exitCode: 101, output: ZBUS_BREAK_OUTPUT, }, }, },
-              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': 'after', }, },
+              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': LOCK_AFTER, }, },
               gh: () => ({ exitCode: 1, stdout: '', stderr: 'error connecting to api.github.com', }),
             },);
             const result = await runUpdateWithChecks({
@@ -883,13 +940,13 @@ await describe({
           fn: async () => {
             const pendingIssue = renderIssue({
               check: redResult('package/a/b',).check,
-              firstError: redResult('package/a/b',).firstError!,
+              firstError: ZBUS_ERROR,
               updateCommits: ['0000000000',],
               baselineCommit: '1111111111',
               moves: [],
             },);
             const { effects, checkEffects, world, } = fixture({
-              tracked: { 'toolchain.lock.json': 'same', },
+              tracked: { 'toolchain.lock.json': LOCK_BEFORE, },
               checks: { '//package/a/b:lint:clippy': { before: PASSES, after: PASSES, }, },
               pending: [pendingIssue,],
             },);
@@ -906,9 +963,9 @@ await describe({
           name: 'finishes with the update result when listing the checks throws, and tells the owner',
           fn: async () => {
             const { effects, checkEffects, world, } = fixture({
-              tracked: { 'toolchain.lock.json': 'before', },
+              tracked: { 'toolchain.lock.json': LOCK_BEFORE, },
               checks: {},
-              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': 'after', }, },
+              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': LOCK_AFTER, }, },
               listingFails: true,
             },);
             const result = await runUpdateWithChecks({
