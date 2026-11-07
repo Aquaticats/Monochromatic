@@ -1,9 +1,16 @@
-//! What: `mono/dependent-version-bump` through the built executable: `git monochromatic-git-policy-cli check`
-//!       reports the dependents of a raised manifest, `git monochromatic-git-policy-cli fix` bumps them in the
-//!       worktree, and a narrow fix changes an unselected dependent only when it matches
+//! What:
+//! `mono/dependent-version-bump` through the built executable:
+//! `git monochromatic-git-policy-cli check`
+//!       reports the dependents of a raised manifest,
+//! `git monochromatic-git-policy-cli fix` bumps them in the
+//!       worktree,
+//! and a narrow fix changes an unselected dependent only when it matches
 //!       `HEAD`.
-//! Why: These are the commands the release workflow will run; the controls read the
-//!      events, the worktree and the index exactly as a person would see them.
+//! Why:
+//! These are the commands the release workflow will run;
+//! the controls read the
+//!      events,
+//! the worktree and the index exactly as a person would see them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,15 +44,18 @@ fn manifest(name: &str, version: &str, dependency: Option<&str>) -> String {
     );
 }
 
-/// Write a file below the repository, creating its directory.
+/// Write a file below the repository,
+/// creating its directory.
 fn write(repo: &Path, path: &str, text: &str) {
     let file: PathBuf = repo.join(path);
     std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
     std::fs::write(file, text).expect("file");
 }
 
-/// A committed workspace of `@s/a` and its dependents `@s/b` and `@s/c`, configured for
-/// the policy, with `@s/a` raised to `1.1.0` in the worktree.
+/// A committed workspace of `@s/a` and its dependents `@s/b` and `@s/c`,
+/// configured for
+/// the policy,
+/// with `@s/a` raised to `1.1.0` in the worktree.
 fn workspace(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     write(
@@ -100,8 +110,10 @@ fn read(repo: &Path, name: &str) -> String {
         .expect("manifest");
 }
 
-/// A check reports both dependents with a fix available and exits 1; `fix --all` bumps
-/// both in one pass without changing the index; the check is then clean.
+/// A check reports both dependents with a fix available and exits 1;
+/// `fix --all` bumps
+/// both in one pass without changing the index;
+/// the check is then clean.
 #[test]
 fn check_reports_and_fix_bumps_every_dependent() {
     let fixture: Fixture = fixture("dependent-version-all");
@@ -151,8 +163,10 @@ fn check_reports_and_fix_bumps_every_dependent() {
     remove(&fixture);
 }
 
-/// A fix of the raised manifest alone bumps the clean dependents it did not select, and
-/// refuses one whose worktree copy changed, changing nothing.
+/// A fix of the raised manifest alone bumps the clean dependents it did not select,
+/// and
+/// refuses one whose worktree copy changed,
+/// changing nothing.
 #[test]
 fn a_narrow_fix_changes_unselected_dependents_only_when_they_match_head() {
     let fixture: Fixture = fixture("dependent-version-narrow");
@@ -199,9 +213,13 @@ fn a_narrow_fix_changes_unselected_dependents_only_when_they_match_head() {
     remove(&fixture);
 }
 
-/// `git add` of the raised manifest, with the policy enabled and that manifest a candidate,
-/// stages it and says nothing: the pre-forward trigger plans only for `commit`, as the
-/// incumbent does, so the command is never refused.
+/// `git add` of the raised manifest,
+/// with the policy enabled and that manifest a candidate,
+/// stages it and says nothing:
+/// the pre-forward trigger plans only for `commit`,
+/// as the
+/// incumbent does,
+/// so the command is never refused.
 #[test]
 fn add_of_a_raised_manifest_is_not_refused() {
     let fixture: Fixture = fixture("dependent-version-add");
@@ -232,7 +250,9 @@ fn add_of_a_raised_manifest_is_not_refused() {
 }
 
 /// A staged deletion of an unrelated file does not stop `check --all` from reporting both
-/// dependents of a raised manifest: the check reports them and exits 1, as it does without it.
+/// dependents of a raised manifest:
+/// the check reports them and exits 1,
+/// as it does without it.
 #[test]
 fn a_staged_deletion_does_not_block_the_check() {
     let fixture: Fixture = fixture("dependent-version-deletion");
@@ -275,8 +295,10 @@ fn a_staged_deletion_does_not_block_the_check() {
     remove(&fixture);
 }
 
-/// Under `GIT_LITERAL_PATHSPECS=1`, a direct check that names one raised manifest reports
-/// its dependents exactly as plain mode does: the listing and the staging read the pathspec alike.
+/// Under `GIT_LITERAL_PATHSPECS=1`,
+/// a direct check that names one raised manifest reports
+/// its dependents exactly as plain mode does:
+/// the listing and the staging read the pathspec alike.
 #[test]
 fn literal_pathspecs_check_a_named_manifest_like_plain_mode() {
     let fixture: Fixture = fixture("dependent-version-literal-named");
@@ -298,7 +320,8 @@ fn literal_pathspecs_check_a_named_manifest_like_plain_mode() {
     remove(&fixture);
 }
 
-/// Under `GIT_LITERAL_PATHSPECS=1`, `check --all` reports the same dependents as plain mode:
+/// Under `GIT_LITERAL_PATHSPECS=1`,
+/// `check --all` reports the same dependents as plain mode:
 /// the `:/` pathspec is magic that literal mode would otherwise read as a file name.
 #[test]
 fn literal_pathspecs_check_all_like_plain_mode() {

@@ -1,11 +1,23 @@
 //! What:
-//!  The ignored-state copy for every form of `git worktree add` that Git itself accepts, through the built executable:
-//!  abbreviated long options, `--git-dir` and `--work-tree`, a destination whose parent Git has to create; and no copy, with
-//!  Git's own error kept, for each form Git rejects.
+//!  The ignored-state copy for every form of `git worktree add` that Git itself accepts,
+//! through the built executable:
+//!  abbreviated long options,
+//! `--git-dir` and `--work-tree`,
+//! a destination whose parent Git has to create;
+//! and no copy,
+//! with
+//!  Git's own error kept,
+//! for each form Git rejects.
 //! Why:
-//!  The owner decided on 2026-11-03 to keep the lock-free copy and read more forms, so that fewer adds skip the copy. The
-//!  wrapper resolves an abbreviation exactly as Git's `parse_long_opt` does (`parse-options.c` of Git 2.56.0): an exact name
-//!  wins, a unique prefix is the option, an ambiguous prefix is Git's error, and `--no-` forms negate.
+//!  The owner decided on 2026-11-03 to keep the lock-free copy and read more forms,
+//! so that fewer adds skip the copy.
+//! The
+//!  wrapper resolves an abbreviation exactly as Git's `parse_long_opt` does (`parse-options.c` of Git 2.56.0):
+//! an exact name
+//!  wins,
+//! a unique prefix is the option,
+//! an ambiguous prefix is Git's error,
+//! and `--no-` forms negate.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,7 +28,8 @@ use super::support::{Fixture, Observed, fixture, remove, run_wrapped, stderr_of}
 use super::worktree_copy::{needle, repository_with_rules};
 use std::path::PathBuf;
 
-/// Where the generated rules file lives, as the repository's configuration names it.
+/// Where the generated rules file lives,
+/// as the repository's configuration names it.
 const RULES_FILE: &str = ".cache/forbidden-strings.rules.txt";
 
 /// The text the copy line of a successful add starts with.
@@ -36,7 +49,10 @@ fn assert_copied(fixture: &Fixture, observed: &Observed, destination: &str) {
     );
 }
 
-/// An add Git rejected: its own error, no worktree, no copy line.
+/// An add Git rejected:
+/// its own error,
+/// no worktree,
+/// no copy line.
 fn assert_rejected(fixture: &Fixture, observed: &Observed, destination: &str) {
     assert_ne!(observed.code, Some(0), "{}", stderr_of(observed));
     assert!(!stderr_of(observed).contains(COPIED), "{}", stderr_of(observed));
@@ -44,8 +60,11 @@ fn assert_rejected(fixture: &Fixture, observed: &Observed, destination: &str) {
     assert!(!fixture.root.join(destination).exists(), "{destination} must not exist");
 }
 
-/// Abbreviations Git accepts, with the value of an abbreviated valued option in the next token or after `=`, and the
-/// negated abbreviation, are copied into like the full spelling.
+/// Abbreviations Git accepts,
+/// with the value of an abbreviated valued option in the next token or after `=`,
+/// and the
+/// negated abbreviation,
+/// are copied into like the full spelling.
 #[test]
 fn an_abbreviated_long_option_gets_the_copy() {
     let fixture: Fixture = fixture("forms-abbreviated");
@@ -64,7 +83,8 @@ fn an_abbreviated_long_option_gets_the_copy() {
     remove(&fixture);
 }
 
-/// An exact name wins over longer names it is a prefix of, and a `--no-` form of an abbreviation negates it.
+/// An exact name wins over longer names it is a prefix of,
+/// and a `--no-` form of an abbreviation negates it.
 #[test]
 fn an_exact_name_wins_and_a_negated_abbreviation_negates() {
     let fixture: Fixture = fixture("forms-exact");
@@ -75,7 +95,9 @@ fn an_exact_name_wins_and_a_negated_abbreviation_negates() {
     remove(&fixture);
 }
 
-/// A prefix that fits two options is Git's error: the wrapper does not guess, adds nothing and copies nothing.
+/// A prefix that fits two options is Git's error:
+/// the wrapper does not guess,
+/// adds nothing and copies nothing.
 #[test]
 fn an_ambiguous_prefix_is_gits_error_and_gets_no_copy() {
     let fixture: Fixture = fixture("forms-ambiguous");
@@ -92,7 +114,11 @@ fn an_ambiguous_prefix_is_gits_error_and_gets_no_copy() {
     remove(&fixture);
 }
 
-/// Forms Git rejects for another reason keep Git's own error: a value on a flag, a double negation, an unknown option, and
+/// Forms Git rejects for another reason keep Git's own error:
+/// a value on a flag,
+/// a double negation,
+/// an unknown option,
+/// and
 /// an option between `worktree` and `add`.
 #[test]
 fn forms_git_rejects_keep_gits_error_and_get_no_copy() {
@@ -111,8 +137,12 @@ fn forms_git_rejects_keep_gits_error_and_get_no_copy() {
     remove(&fixture);
 }
 
-/// `--git-dir` and `--work-tree` do not move a relative destination: it lies against the working directory, as Git resolves
-/// it, from outside the work tree and from inside it, in the attached and the separate spelling.
+/// `--git-dir` and `--work-tree` do not move a relative destination:
+/// it lies against the working directory,
+/// as Git resolves
+/// it,
+/// from outside the work tree and from inside it,
+/// in the attached and the separate spelling.
 #[test]
 fn git_dir_and_work_tree_globals_get_the_copy() {
     let fixture: Fixture = fixture("forms-git-dir");

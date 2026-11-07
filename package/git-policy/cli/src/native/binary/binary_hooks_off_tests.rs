@@ -1,9 +1,17 @@
-//! Binary-level controls for traditional hooks never running through the wrapper, and for what `git monochromatic-git-policy-cli doctor`
+//! Binary-level controls for traditional hooks never running through the wrapper,
+//! and for what `git monochromatic-git-policy-cli doctor`
 //!  says about the shims `git lfs` writes.
-//! A hook file in the hooks directory writes a marker when it runs. Forwarded commands, the commit path, the
+//! A hook file in the hooks directory writes a marker when it runs.
+//! Forwarded commands,
+//! the commit path,
+//! the
 //!  auto-push and the push-race integration start the real Git with `-c core.hooksPath=` pointing at a directory that
-//!  never exists, so no marker appears; hooks defined in the configuration still run, and a `-c core.hooksPath` the
-//!  caller writes brings a directory back. Real Git started directly is the positive control for every marker.
+//!  never exists,
+//! so no marker appears;
+//! hooks defined in the configuration still run,
+//! and a `-c core.hooksPath` the
+//!  caller writes brings a directory back.
+//! Real Git started directly is the positive control for every marker.
 
 use super::commit::{remove_settled, run_commit, wrapped_commit};
 use super::support::{Fixture, Observed, decline_in_process_lfs_scan, direct, executable, fixture, git, observe, repository, stderr_of, wrapper_first_path};
@@ -11,9 +19,12 @@ use git_policy_cli::doctor::lfs_shim_text;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-/// A repository with a bare origin, hook files that write markers, and a stand-in `git-lfs` that records its runs.
+/// A repository with a bare origin,
+/// hook files that write markers,
+/// and a stand-in `git-lfs` that records its runs.
 struct World {
-    /// The working repository, on `main`.
+    /// The working repository,
+    /// on `main`.
     repo: PathBuf,
     /// The bare origin.
     origin: PathBuf,
@@ -32,7 +43,8 @@ fn marker_hook(world: &World, name: &str, status: i32) {
     );
 }
 
-/// The hooks that ran, one name per line.
+/// The hooks that ran,
+/// one name per line.
 fn markers(world: &World) -> String {
     return std::fs::read_to_string(&world.markers).unwrap_or_default();
 }
@@ -42,7 +54,8 @@ fn lfs_runs(world: &World) -> usize {
     return std::fs::read_to_string(&world.lfs_runs).unwrap_or_default().lines().count();
 }
 
-/// Create the world; `lfs` adds a Git LFS key to the repository configuration.
+/// Create the world;
+/// `lfs` adds a Git LFS key to the repository configuration.
 fn world(fixture: &Fixture, lfs: bool) -> World {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let origin: PathBuf = fixture.root.join("origin.git");
@@ -65,7 +78,8 @@ fn wrapped(fixture: &Fixture, world: &World, arguments: &[&str]) -> Observed {
     return observe(&mut wrapped_commit(fixture, world.repo.as_path(), arguments), b"");
 }
 
-/// A hook file does not run for a forwarded command, and runs for real Git started directly.
+/// A hook file does not run for a forwarded command,
+/// and runs for real Git started directly.
 #[test]
 fn a_forwarded_command_does_not_run_a_hook_file() {
     let fixture: Fixture = fixture("hooks-off-forwarded");
@@ -81,7 +95,8 @@ fn a_forwarded_command_does_not_run_a_hook_file() {
     remove_settled(&fixture);
 }
 
-/// A hook defined in the configuration never runs through the wrapper: the wrapper supports no external hook program.
+/// A hook defined in the configuration never runs through the wrapper:
+/// the wrapper supports no external hook program.
 #[test]
 fn a_configured_hook_never_runs_for_a_forwarded_command() {
     let fixture: Fixture = fixture("hooks-off-configured");
@@ -97,7 +112,8 @@ fn a_configured_hook_never_runs_for_a_forwarded_command() {
     remove_settled(&fixture);
 }
 
-/// A `-c core.hooksPath` the caller writes cannot bring the hook file back: the wrapper's options follow it.
+/// A `-c core.hooksPath` the caller writes cannot bring the hook file back:
+/// the wrapper's options follow it.
 #[test]
 fn a_hooks_path_of_the_caller_does_not_bring_the_hook_file_back() {
     let fixture: Fixture = fixture("hooks-off-caller");
@@ -111,7 +127,8 @@ fn a_hooks_path_of_the_caller_does_not_bring_the_hook_file_back() {
     remove_settled(&fixture);
 }
 
-/// The repository's own `core.hooksPath` directory does not run either, and a configuration query still reports it.
+/// The repository's own `core.hooksPath` directory does not run either,
+/// and a configuration query still reports it.
 #[test]
 fn a_configured_hooks_directory_is_not_used_and_is_still_reported() {
     let fixture: Fixture = fixture("hooks-off-configured-directory");
@@ -159,7 +176,8 @@ fn configured_pre_push(fixture: &Fixture, world: &World) {
     git(fixture, world.repo.as_path(), &["config", "hook.control.command", script.to_str().expect("UTF-8")]);
 }
 
-/// A configured `pre-push` hook does not run for a normal push, and neither does the wrapper's scope probe's copy of it.
+/// A configured `pre-push` hook does not run for a normal push,
+/// and neither does the wrapper's scope probe's copy of it.
 #[test]
 fn a_configured_pre_push_hook_does_not_run_for_a_normal_push() {
     let fixture: Fixture = fixture("hooks-off-probe-once");
@@ -185,7 +203,9 @@ fn a_configured_pre_push_hook_does_not_run_for_an_auto_push() {
     remove_settled(&fixture);
 }
 
-/// A lost race runs the hook for none of its pushes: the typed push, the three probes and the stacked push.
+/// A lost race runs the hook for none of its pushes:
+/// the typed push,
+/// the three probes and the stacked push.
 #[test]
 fn a_configured_pre_push_hook_does_not_run_for_a_lost_race_push() {
     let fixture: Fixture = fixture("hooks-off-probe-race");
@@ -207,7 +227,8 @@ fn a_configured_pre_push_hook_does_not_run_for_a_lost_race_push() {
     remove_settled(&fixture);
 }
 
-/// A local-path remote runs its own server-side hooks: the setting does not follow the push into the remote.
+/// A local-path remote runs its own server-side hooks:
+/// the setting does not follow the push into the remote.
 #[test]
 fn a_local_remotes_server_side_hook_still_runs() {
     let fixture: Fixture = fixture("hooks-off-remote-hook");
@@ -222,7 +243,8 @@ fn a_local_remotes_server_side_hook_still_runs() {
     remove_settled(&fixture);
 }
 
-/// A regenerated `pre-push` shim does not upload a second time: only the wrapper's own step runs `git-lfs`.
+/// A regenerated `pre-push` shim does not upload a second time:
+/// only the wrapper's own step runs `git-lfs`.
 #[test]
 fn a_regenerated_pre_push_shim_does_not_double_the_upload() {
     let fixture: Fixture = fixture("hooks-off-shim-double");
@@ -247,7 +269,8 @@ fn a_regenerated_pre_push_shim_does_not_double_the_upload() {
     remove_settled(&fixture);
 }
 
-/// Commit a file with real Git, so no auto-push runs.
+/// Commit a file with real Git,
+/// so no auto-push runs.
 fn commit_directly(fixture: &Fixture, world: &World, name: &str) {
     std::fs::write(world.repo.join(name), b"x\n").expect("fixture file");
     git(fixture, world.repo.as_path(), &["add", "--", name]);
@@ -259,7 +282,10 @@ fn doctor(fixture: &Fixture, world: &World) -> Observed {
     return wrapped(fixture, world, &["monochromatic-git-policy-cli", "doctor"]);
 }
 
-/// Only the shims `git lfs` writes: status 0, nothing on standard output, the explanation on standard error.
+/// Only the shims `git lfs` writes:
+/// status 0,
+/// nothing on standard output,
+/// the explanation on standard error.
 #[test]
 fn doctor_explains_the_git_lfs_shims_and_exits_zero() {
     let fixture: Fixture = fixture("hooks-off-doctor-shims");
@@ -304,7 +330,8 @@ fn doctor_outside_a_repository_still_exits_two() {
     remove_settled(&fixture);
 }
 
-/// The text a person sees is the text git-lfs itself wrote: this compares the recognized bytes with a real file.
+/// The text a person sees is the text git-lfs itself wrote:
+/// this compares the recognized bytes with a real file.
 #[test]
 fn the_recognized_shim_bytes_are_the_ones_the_real_git_lfs_writes() {
     let Some(program) = std::env::var_os("PATH").and_then(|path| {

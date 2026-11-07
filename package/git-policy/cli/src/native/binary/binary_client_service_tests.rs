@@ -1,8 +1,13 @@
 //! What:
-//!  Client-side behavior of a commit that lands through the resident service, seen from the person's terminal.
+//!  Client-side behavior of a commit that lands through the resident service,
+//! seen from the person's terminal.
 //! Why:
-//!  The wrapper process prints what the person reads (warnings, the summary line, the wait notices), while the service
-//!  lands the commit; each control starts a service of its own at a throwaway socket and runs the built wrapper against it.
+//!  The wrapper process prints what the person reads (warnings,
+//! the summary line,
+//! the wait notices),
+//! while the service
+//!  lands the commit;
+//! each control starts a service of its own at a throwaway socket and runs the built wrapper against it.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::{Running, runtime_for, start};
@@ -12,7 +17,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-/// A repository with `a.txt` committed and edited in the worktree, ready for one commit.
+/// A repository with `a.txt` committed and edited in the worktree,
+/// ready for one commit.
 fn edited_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
@@ -40,7 +46,8 @@ fn finished_batches(fixture: &Fixture) -> usize {
 }
 
 /// A commit that lands through the service in a repository that configures an external hook prints the same
-///  `external-hooks-unsupported` warning the transaction route prints, and the hook never runs.
+///  `external-hooks-unsupported` warning the transaction route prints,
+/// and the hook never runs.
 #[test]
 fn a_service_commit_warns_that_configured_hooks_never_run() {
     let fixture: Fixture = fixture("client-hooks-warning");
@@ -62,7 +69,9 @@ fn a_service_commit_warns_that_configured_hooks_never_run() {
     remove_settled(&fixture);
 }
 
-/// The summary lines on standard output, each with the name it carries: the first word that ends the bracket.
+/// The summary lines on standard output,
+/// each with the name it carries:
+/// the first word that ends the bracket.
 fn summaries(output: &Output) -> Vec<(String, String)> {
     return String::from_utf8_lossy(&output.stdout)
         .lines()
@@ -79,7 +88,8 @@ fn git_short_head(fixture: &Fixture, repo: &Path) -> String {
     return git_text(fixture, repo, &["rev-parse", "--short", "HEAD"]).trim().to_string();
 }
 
-/// A commit the service builds from the command line prints the name Git abbreviates to: the length `core.abbrev` asks for,
+/// A commit the service builds from the command line prints the name Git abbreviates to:
+/// the length `core.abbrev` asks for,
 ///  and the automatic length when it is unset.
 #[test]
 fn the_summary_line_of_a_service_commit_has_the_name_length_git_gives() {
@@ -102,8 +112,10 @@ fn the_summary_line_of_a_service_commit_has_the_name_length_git_gives() {
     }
 }
 
-/// A commit that Git builds (an option the service does not read) prints one summary line with the same name, and `--quiet`
-///  prints none, whoever builds the commit.
+/// A commit that Git builds (an option the service does not read) prints one summary line with the same name,
+/// and `--quiet`
+///  prints none,
+/// whoever builds the commit.
 #[test]
 fn a_commit_git_builds_prints_one_summary_line_and_quiet_prints_none() {
     let fixture: Fixture = fixture("client-built-summary");
@@ -132,7 +144,8 @@ fn a_commit_git_builds_prints_one_summary_line_and_quiet_prints_none() {
     remove_settled(&fixture);
 }
 
-/// The first commit of a branch is worded `(root-commit)` and a detached head `detached HEAD`, as Git words them.
+/// The first commit of a branch is worded `(root-commit)` and a detached head `detached HEAD`,
+/// as Git words them.
 #[test]
 fn a_root_commit_and_a_detached_head_are_worded_as_git_words_them() {
     let fixture: Fixture = fixture("client-summary-states");
@@ -160,7 +173,9 @@ fn a_root_commit_and_a_detached_head_are_worded_as_git_words_them() {
     remove_settled(&fixture);
 }
 
-/// A service process that is stopped, with its runtime directory removed, when the control ends.
+/// A service process that is stopped,
+/// with its runtime directory removed,
+/// when the control ends.
 struct Held {
     child: Child,
     runtime: PathBuf,
@@ -174,7 +189,8 @@ impl Drop for Held {
     }
 }
 
-/// A service whose Git is the program at `git_program`, listening where the wrapper looks for it under the runtime directory
+/// A service whose Git is the program at `git_program`,
+/// listening where the wrapper looks for it under the runtime directory
 ///  of `name`.
 fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: &Path) -> Held {
     let runtime: PathBuf = runtime_for(name);
@@ -208,10 +224,13 @@ fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: 
     return held;
 }
 
-/// How long a control waits for a state it started, far beyond what a healthy run needs.
+/// How long a control waits for a state it started,
+/// far beyond what a healthy run needs.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// A Git for the service that stops the landing at its branch move, with the index held, until the control releases it:
+/// A Git for the service that stops the landing at its branch move,
+/// with the index held,
+/// until the control releases it:
 ///  it creates `entered` when the move starts and goes on once `release` exists.
 fn stalling_git(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
     let entered: PathBuf = fixture.root.join("landing-entered");
@@ -230,8 +249,12 @@ fn stalling_git(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
     return (program, entered, release);
 }
 
-/// While the service lands a commit it holds the repository's index; a wrapped command that writes the index in the same
-///  worktree waits for it, says what it waits for, and then succeeds, as it would behind a commit that returned.
+/// While the service lands a commit it holds the repository's index;
+/// a wrapped command that writes the index in the same
+///  worktree waits for it,
+/// says what it waits for,
+/// and then succeeds,
+/// as it would behind a commit that returned.
 #[test]
 fn an_index_writer_waits_for_the_service_to_finish_landing_and_says_so() {
     let fixture: Fixture = fixture("client-index-wait");
@@ -283,8 +306,10 @@ fn an_index_writer_waits_for_the_service_to_finish_landing_and_says_so() {
     remove_settled(&fixture);
 }
 
-/// A hold of the service that is far older than any landing is a dead service's leftover: the wrapped command does not wait for
-///  it as if a commit were in progress, and keeps the behavior it has with a lock nobody can prove alive.
+/// A hold of the service that is far older than any landing is a dead service's leftover:
+/// the wrapped command does not wait for
+///  it as if a commit were in progress,
+/// and keeps the behavior it has with a lock nobody can prove alive.
 #[test]
 fn a_stale_mark_of_the_service_is_not_waited_for() {
     let fixture: Fixture = fixture("client-stale-mark");
@@ -304,7 +329,8 @@ fn a_stale_mark_of_the_service_is_not_waited_for() {
     remove_settled(&fixture);
 }
 
-/// An index lock that is not the service's is a foreign program's, and the wrapped command keeps native Git's behavior with it:
+/// An index lock that is not the service's is a foreign program's,
+/// and the wrapped command keeps native Git's behavior with it:
 ///  it does not claim to wait for the service.
 #[test]
 fn a_foreign_index_lock_is_not_called_the_commit_service() {

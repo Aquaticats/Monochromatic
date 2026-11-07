@@ -1,9 +1,15 @@
 //! What:
-//!  The scratch directory of a commit in preparation, whose life the service owns while the client's connection is open.
+//!  The scratch directory of a commit in preparation,
+//! whose life the service owns while the client's connection is open.
 //! Why:
-//!  A client that is killed without warning cannot remove its scratch directory, and nothing afterwards can tell a dead client
-//!  from a slow one without a process id or a lock. The open connection is the signal: the service removes the directory when
-//!  the connection closes, by whatever means, and removes nothing a client merely names.
+//!  A client that is killed without warning cannot remove its scratch directory,
+//! and nothing afterwards can tell a dead client
+//!  from a slow one without a process id or a lock.
+//! The open connection is the signal:
+//! the service removes the directory when
+//!  the connection closes,
+//! by whatever means,
+//! and removes nothing a client merely names.
 
 use super::support::{Fixture, fixture};
 use git_policy_cli::service_client::{Activation, ClientConfig, ScratchWatch, watch_scratch};
@@ -17,13 +23,16 @@ use std::process::{Child, Stdio};
 use std::time::{Duration, Instant};
 
 
-/// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
+/// The longest a control waits for anything:
+/// far beyond what a healthy run needs,
+/// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// How long a control waits before it takes a directory that stays to be one the service left alone.
 const SETTLE: Duration = Duration::from_millis(1500);
 
-/// A service process that is stopped when the control ends, whether it passed or panicked.
+/// A service process that is stopped when the control ends,
+/// whether it passed or panicked.
 struct Held(Child);
 
 impl Drop for Held {
@@ -55,7 +64,8 @@ fn config(name: &str) -> ClientConfig {
     return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING };
 }
 
-/// A repository's Git directory with a scratch directory in it, holding a file.
+/// A repository's Git directory with a scratch directory in it,
+/// holding a file.
 fn scratch_in(root: &Path, identity: &str) -> (PathBuf, PathBuf) {
     let git_dir: PathBuf = root.join("repo/.git");
     let scratch: PathBuf = git_dir.join(format!("{SCRATCH_PREFIX}{identity}"));
@@ -91,8 +101,11 @@ fn a_scratch_directory_goes_with_the_connection_that_holds_it() {
     super::commit::remove_settled(&fixture);
 }
 
-/// A client can only hand over a scratch directory of the wrapper's own name inside the repository: a path anywhere else, or
-///  of any other name, is left alone when the connection closes.
+/// A client can only hand over a scratch directory of the wrapper's own name inside the repository:
+/// a path anywhere else,
+/// or
+///  of any other name,
+/// is left alone when the connection closes.
 #[test]
 fn nothing_but_a_scratch_directory_of_the_repository_is_ever_removed() {
     let fixture: Fixture = fixture("service-scratch-hostile");
@@ -119,7 +132,8 @@ fn nothing_but_a_scratch_directory_of_the_repository_is_ever_removed() {
     super::commit::remove_settled(&fixture);
 }
 
-/// A service of another release takes nothing: the client learns that and keeps the directory's removal to itself.
+/// A service of another release takes nothing:
+/// the client learns that and keeps the directory's removal to itself.
 #[test]
 fn no_service_means_no_watch() {
     let fixture: Fixture = fixture("service-scratch-none");
@@ -130,8 +144,11 @@ fn no_service_means_no_watch() {
     super::commit::remove_settled(&fixture);
 }
 
-/// A service that is frozen (a busy host, a stopped process) still takes the directory: the announcement is written at once
-/// and read when the service runs again, so a client killed while the service is frozen loses its directory too.
+/// A service that is frozen (a busy host,
+/// a stopped process) still takes the directory:
+/// the announcement is written at once
+/// and read when the service runs again,
+/// so a client killed while the service is frozen loses its directory too.
 #[test]
 fn a_frozen_service_takes_the_directory_when_it_runs_again() {
     let fixture: Fixture = fixture("service-scratch-frozen");

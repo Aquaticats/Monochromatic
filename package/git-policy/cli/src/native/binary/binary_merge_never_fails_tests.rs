@@ -1,11 +1,23 @@
 //! What:
-//!  A `git merge` through the built executable while something else uses the checkout: another program holds
-//!  `index.lock`, or the branch moves between the merge's computation and its application.
+//!  A `git merge` through the built executable while something else uses the checkout:
+//! another program holds
+//!  `index.lock`,
+//! or the branch moves between the merge's computation and its application.
 //! Why:
-//!  The owner's rules (`SPEC.md`, "Merges and commits never fail"): "Auto merging should never fail." and "Manual merge
-//!  should never fail too." Native Git dies on a held lock (`stash failed`, `Unable to create ... index.lock`) and, when
-//!  its ref update loses a race, leaves the checkout half merged with `MERGE_HEAD` behind. The wrapper waits for the lock,
-//!  and lands the merge on the head that moved, leaving the checkout either as it was or merged, never between.
+//!  The owner's rules (`SPEC.md`,
+//! "Merges and commits never fail"):
+//! "Auto merging should never fail."
+//! and "Manual merge
+//!  should never fail too."
+//! Native Git dies on a held lock (`stash failed`,
+//! `Unable to create ... index.lock`) and,
+//! when
+//!  its ref update loses a race,
+//! leaves the checkout half merged with `MERGE_HEAD` behind.
+//! The wrapper waits for the lock,
+//!  and lands the merge on the head that moved,
+//! leaving the checkout either as it was or merged,
+//! never between.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,12 +32,14 @@ use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// The parents of `HEAD`, as object names.
+/// The parents of `HEAD`,
+/// as object names.
 fn parents(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return git_text(fixture, repo, &["rev-list", "--parents", "-n", "1", "HEAD"]).split_whitespace().skip(1).map(String::from).collect();
 }
 
-/// A merge started while another program holds `index.lock` says what it waits for, and lands when the lock is gone;
+/// A merge started while another program holds `index.lock` says what it waits for,
+/// and lands when the lock is gone;
 ///  native Git dies on it (`stash failed`) after the work it did before.
 #[test]
 fn a_merge_waits_for_a_held_index_lock_and_then_lands() {
@@ -55,14 +69,20 @@ fn a_merge_waits_for_a_held_index_lock_and_then_lands() {
     }
 }
 
-/// The branch tip, read without taking any lock.
+/// The branch tip,
+/// read without taking any lock.
 fn snapshot_head(fixture: &Fixture, repo: &Path) -> String {
     return git_text(fixture, repo, &["rev-parse", "HEAD"]);
 }
 
-/// The branch moves while the merge is between its computation and its application (a commit by another session, or the
-///  auto-push's own reconcile merge): the merge lands on the head that moved, the checkout holds both, and there is no
-///  `MERGE_HEAD` and no record. Native Git's update of the branch loses the same race after it changed the checkout.
+/// The branch moves while the merge is between its computation and its application (a commit by another session,
+/// or the
+///  auto-push's own reconcile merge):
+/// the merge lands on the head that moved,
+/// the checkout holds both,
+/// and there is no
+///  `MERGE_HEAD` and no record.
+/// Native Git's update of the branch loses the same race after it changed the checkout.
 #[test]
 fn a_merge_whose_branch_moved_underneath_it_lands_on_the_new_head() {
     for staged in [true, false] {

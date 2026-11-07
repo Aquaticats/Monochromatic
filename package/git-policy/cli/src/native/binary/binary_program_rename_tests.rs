@@ -1,10 +1,18 @@
 //! What:
-//!  The built program under its new name and its earlier names, in real repositories.
+//!  The built program under its new name and its earlier names,
+//! in real repositories.
 //! Why:
-//!  The owner renamed the program to `monochromatic-git-policy-cli`, its command word, its settings file and the folders
-//!  and files it keeps in the Git directory, and decided that the earlier names keep working: the earlier command word with
-//!  one notice line, an earlier settings file read with one notice, and a kept folder or file moved in place the first time
-//!  it is needed, with nothing lost when processes race to move it (`doc/planning/git-policy-cli-program-rename.md`).
+//!  The owner renamed the program to `monochromatic-git-policy-cli`,
+//! its command word,
+//! its settings file and the folders
+//!  and files it keeps in the Git directory,
+//! and decided that the earlier names keep working:
+//! the earlier command word with
+//!  one notice line,
+//! an earlier settings file read with one notice,
+//! and a kept folder or file moved in place the first time
+//!  it is needed,
+//! with nothing lost when processes race to move it (`doc/planning/git-policy-cli-program-rename.md`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -197,10 +205,17 @@ fn every_kept_kind_is_renamed_in_place_by_an_ordinary_command() {
     remove(&fixture);
 }
 
-/// Both names of a kind: an ordinary command folds the earlier one into the new one without a word, and every entry survives.
-///  The fold looks at this user's processes, so a process of another test that has the earlier service's journal option with a
-///  folder that cannot be resolved makes the look say "may be running" (the conservative answer the fold is built on): the
-///  command then prints exactly one line that says it will fold later, and nothing has moved. Both ends are checked, and the
+/// Both names of a kind:
+/// an ordinary command folds the earlier one into the new one without a word,
+/// and every entry survives.
+///  The fold looks at this user's processes,
+/// so a process of another test that has the earlier service's journal option with a
+///  folder that cannot be resolved makes the look say "may be running" (the conservative answer the fold is built on):
+/// the
+///  command then prints exactly one line that says it will fold later,
+/// and nothing has moved.
+/// Both ends are checked,
+/// and the
 ///  fold itself with a process table of its own is checked by `earlier_names_folded_into_current_tests.rs`.
 #[test]
 fn both_names_of_a_kept_kind_are_folded_into_the_new_one_without_a_word_or_wait_with_one_line() {
@@ -260,8 +275,10 @@ fn wrapper_processes_racing_to_move_a_kept_folder_lose_nothing() {
     remove(&fixture);
 }
 
-/// A repository path with a space, quotes and a newline in it:
-///  the earlier command word, the earlier settings file and the earlier folder all work as in any other path.
+/// A repository path with a space,
+/// quotes and a newline in it:
+///  the earlier command word,
+/// the earlier settings file and the earlier folder all work as in any other path.
 #[test]
 fn an_awkward_repository_path_changes_nothing() {
     let fixture: Fixture = fixture("rename-awkward");
@@ -306,7 +323,9 @@ fn repository_with_a_committed_file(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// The service this release starts, under the new command word, lands a commit.
+/// The service this release starts,
+/// under the new command word,
+/// lands a commit.
 #[test]
 fn a_service_started_with_the_new_command_word_lands_a_commit() {
     let fixture: Fixture = fixture("rename-service-new");
@@ -316,7 +335,8 @@ fn a_service_started_with_the_new_command_word_lands_a_commit() {
 }
 
 /// A helper that an older program started has the earlier command word in its unit file;
-///  the executable answers that word as the service, and the helper lands the commits it is sent.
+///  the executable answers that word as the service,
+/// and the helper lands the commits it is sent.
 #[test]
 fn a_helper_started_with_the_earlier_command_word_keeps_landing_commits() {
     let fixture: Fixture = fixture("rename-service-earlier");

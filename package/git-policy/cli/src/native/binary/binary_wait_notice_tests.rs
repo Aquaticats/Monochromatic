@@ -1,11 +1,16 @@
 //! Binary-level controls for the notices of a commit that waits for Git's own `index.lock` (issue 1811):
 //!  the wait names what it waits for and who holds it,
-//!  repeats at a steady interval, and waits with no bound for a holder proven alive and for an owner nothing proves alive,
+//!  repeats at a steady interval,
+//! and waits with no bound for a holder proven alive and for an owner nothing proves alive,
 //!  saying what is known about the second.
-//! The holder is this test process, holding the lock file open.
+//! The holder is this test process,
+//! holding the lock file open.
 //! A control of a repeated notice reads the wrapper's standard error line by line and ends the wait on the notice that
-//!  counts, so the count holds however slowly a loaded host runs the wrapper; a control of the backoff only asks for a
-//!  notice before the refusal, which the wait guarantees.
+//!  counts,
+//! so the count holds however slowly a loaded host runs the wrapper;
+//! a control of the backoff only asks for a
+//!  notice before the refusal,
+//! which the wait guarantees.
 //! Every control runs the built executable on a disposable repository with the host's Git.
 
 use super::commit::{remove_settled, wrapped_commit};
@@ -18,12 +23,15 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
-/// The repeat interval the controls ask for, in seconds: the smallest the variable accepts.
+/// The repeat interval the controls ask for,
+/// in seconds:
+/// the smallest the variable accepts.
 const NOTICE_SECONDS: &str = "1";
 
 /// What a watched commit showed its caller.
 pub(super) struct Watched {
-    /// Exit code, absent when a signal ended it.
+    /// Exit code,
+    /// absent when a signal ended it.
     pub(super) code: Option<i32>,
     /// Every line of standard error.
     pub(super) stderr: String,
@@ -40,7 +48,8 @@ fn edited_repository(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// A waiting commit's command: the notice interval of the controls.
+/// A waiting commit's command:
+/// the notice interval of the controls.
 fn waiting_commit(fixture: &Fixture, repo: &Path) -> Command {
     // The wait for the index lock is the service's, so its cadence is given to the service, before it starts.
     super::support::give_service_environment(fixture, "CLI_GIT_WAIT_NOTICE_SECONDS", NOTICE_SECONDS);
@@ -55,7 +64,8 @@ fn lines_with<'text>(stderr: &'text str, needle: &str) -> Vec<&'text str> {
 }
 
 /// What:
-///  Run `command` with standard error read line by line, and run `on_count` once when `count` lines containing `needle`
+///  Run `command` with standard error read line by line,
+/// and run `on_count` once when `count` lines containing `needle`
 ///  have been read.
 /// Why:
 ///   The action ends the wait the notices describe (it releases the lock the commit waits for),
@@ -93,8 +103,11 @@ pub(super) fn watch_notices(command: &mut Command, needle: &str, count: usize, o
     return Watched { code: status.code(), stderr };
 }
 
-/// A commit that waits for a live `index.lock` holder repeats the line that names it, with the elapsed time and without any
-///  time at which it gives up; the second notice makes the holder let go, and the commit then lands.
+/// A commit that waits for a live `index.lock` holder repeats the line that names it,
+/// with the elapsed time and without any
+///  time at which it gives up;
+/// the second notice makes the holder let go,
+/// and the commit then lands.
 #[test]
 fn a_commit_waiting_for_a_live_index_lock_holder_repeats_its_notice() {
     let fixture: Fixture = fixture("wait-notice-index-live");
@@ -121,7 +134,10 @@ fn a_commit_waiting_for_a_live_index_lock_holder_repeats_its_notice() {
 }
 
 /// A commit that waits for a live `index.lock` holder is still waiting after more notices than any earlier limit of a few
-///  seconds allowed: the holder is announced again and again, nothing gives up, and the commit lands when the holder lets go.
+///  seconds allowed:
+/// the holder is announced again and again,
+/// nothing gives up,
+/// and the commit lands when the holder lets go.
 #[test]
 fn a_commit_waits_on_a_live_index_lock_holder_with_no_bound() {
     let fixture: Fixture = fixture("wait-notice-index-live-no-bound");
@@ -139,11 +155,16 @@ fn a_commit_waits_on_a_live_index_lock_holder_with_no_bound() {
     remove_settled(&fixture);
 }
 
-/// The notices a control waits for before it lets the holder go: more seconds of waiting, at one notice a second, than the
-///  second an owner nothing proves alive used to be given, so only a wait with no bound lasts this long.
+/// The notices a control waits for before it lets the holder go:
+/// more seconds of waiting,
+/// at one notice a second,
+/// than the
+///  second an owner nothing proves alive used to be given,
+/// so only a wait with no bound lasts this long.
 const LONG_WAIT_NOTICES: usize = 4;
 
-/// A commit that waits for an `index.lock` nobody can be proven to hold says so, and a lock that goes during the backoff lets
+/// A commit that waits for an `index.lock` nobody can be proven to hold says so,
+/// and a lock that goes during the backoff lets
 ///  the commit land.
 #[test]
 fn a_commit_waiting_for_an_unproven_index_lock_lands_when_it_goes() {
@@ -163,9 +184,13 @@ fn a_commit_waiting_for_an_unproven_index_lock_lands_when_it_goes() {
     remove_settled(&fixture);
 }
 
-/// A commit that waits for an `index.lock` nobody can be proven to hold waits for it like one proven alive: through more notices
-///  than the second it used to be given, each saying what is known and naming the file to remove if no program is using the
-///  repository, and it lands when the lock goes. The person's own `git commit` with its editor open holds the lock the same way.
+/// A commit that waits for an `index.lock` nobody can be proven to hold waits for it like one proven alive:
+/// through more notices
+///  than the second it used to be given,
+/// each saying what is known and naming the file to remove if no program is using the
+///  repository,
+/// and it lands when the lock goes.
+/// The person's own `git commit` with its editor open holds the lock the same way.
 #[test]
 fn a_commit_waits_on_an_unproven_index_lock_and_says_what_it_knows() {
     let fixture: Fixture = fixture("wait-notice-index-unproven-no-bound");
