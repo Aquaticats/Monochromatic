@@ -59,7 +59,7 @@ use crate::band::Placement;
 ///  imports the sticky layout adapter.
 /// Why:
 ///  this controller delegates GTK reconciliation and reveal to it.
-use crate::layout::StickyLayout;
+use crate::layout::{PaneWidgetBuilder, StickyLayout};
 /// What:
 ///  imports listing and preview pane builders.
 /// Why:
@@ -210,17 +210,16 @@ fn next_generation(inner: &Rc<StripInner>) -> u64 {
 /// Why:
 ///  both consumers need only grid coordinates and parent links.
 fn placements_of(inner: &Rc<StripInner>) -> Vec<Placement> {
-    return inner
-        .state
-        .borrow()
-        .panes()
-        .map(|pane| return Placement {
+    let mut placements = Vec::new();
+    for pane in inner.state.borrow().panes() {
+        placements.push(Placement {
             id: pane.id,
             column: pane.column,
             row: pane.row,
             parent: pane.parent,
-        })
-        .collect()
+        });
+    }
+    return placements
 }
 
 /// What:
@@ -232,10 +231,43 @@ fn placements_of(inner: &Rc<StripInner>) -> Vec<Placement> {
 ///      boundary test sees the new state.
 fn reconcile(inner: &Rc<StripInner>) {
     let placements = placements_of(inner);
-    inner
-        .layout
-        .reconcile(placements, |id| return build_pane_widget(inner, id));
+    inner.layout.reconcile(placements, inner);
     write_state(inner);
+}
+
+/// What:
+///  the display text of the active pane's path,
+///  or an empty string when no pane is active.
+/// Why:
+///  the boundary-test file reports which location has focus.
+fn active_path_of(state: &PaneStripState) -> String {
+    let Some(id) = state.active() else {
+        return String::new();
+    };
+    let Some(pane) = state.pane(id) else {
+        return String::new();
+    };
+    match &pane.location {
+        PaneLocation::Directory(path) | PaneLocation::Preview(path) => return path.display().to_string(),
+    }
+}
+
+/// What:
+///  a clone of pane `id`'s location,
+///  or nothing when the pane is not live.
+/// Why:
+///  callers release the state borrow before building widgets from the location.
+fn location_of(state: &PaneStripState, id: PaneId) -> Option<PaneLocation> {
+    return Some(state.pane(id)?.location.clone())
+}
+
+/// What:
+///  pane `id`'s column,
+///  or nothing when the pane is not live.
+/// Why:
+///  a spawn focuses the column of the pane it just created.
+fn column_of(state: &PaneStripState, id: PaneId) -> Option<usize> {
+    return Some(state.pane(id)?.column)
 }
 
 /// What:
@@ -247,15 +279,7 @@ fn reconcile(inner: &Rc<StripInner>) {
 ///      reported facts are exactly what the unit-tested formulas say.
 fn write_state(inner: &Rc<StripInner>) {
     let state = inner.state.borrow();
-    let active_path = state
-        .active()
-        .and_then(|id| return state.pane(id))
-        .map(|pane| match &pane.location {
-            PaneLocation::Directory(path) | PaneLocation::Preview(path) => {
-                return path.display().to_string()
-            }
-        })
-        .unwrap_or_default();
+    let active_path = active_path_of(&state);
     let inputs = ObservedInputs {
         active_path,
         column_count: state.column_count(),
@@ -269,6 +293,21 @@ fn write_state(inner: &Rc<StripInner>) {
 }
 
 /// What:
+///  lets the layout build missing pane widgets through the strip's state.
+/// Why:
+///  `reconcile` takes the strip as data instead of a closure that captured it.
+impl PaneWidgetBuilder for Rc<StripInner> {
+    /// What:
+    ///  build the widget for pane `id` from its location.
+    /// Why:
+    ///  forwards to `build_pane_widget`,
+    ///  which owns the per-location construction.
+    fn build_widget(&self, id: PaneId) -> Widget {
+        return build_pane_widget(self, id)
+    }
+}
+
+/// What:
 ///  build the widget for pane `id` from its location.
 /// Why:
 ///  a directory becomes a listing pane wired to spawn;
@@ -276,7 +315,7 @@ fn write_state(inner: &Rc<StripInner>) {
 ///  a
 ///      missing pane degrades to a label.
 fn build_pane_widget(inner: &Rc<StripInner>, id: PaneId) -> Widget {
-    let location = inner.state.borrow().pane(id).map(|pane| return pane.location.clone());
+    let location = location_of(&inner.state.borrow(), id);
     match location {
         Some(PaneLocation::Directory(path)) => return build_directory_pane(inner, id, &path),
         Some(PaneLocation::Preview(path)) => {
@@ -347,7 +386,7 @@ fn spawn_from(inner: &Rc<StripInner>, source: PaneId, entry: &FileEntry, force_d
         .state
         .borrow_mut()
         .spawn_child(source, location, force_duplicate);
-    if let Some(column) = inner.state.borrow().pane(spawned).map(|pane| return pane.column) {
+    if let Some(column) = column_of(&inner.state.borrow(), spawned) {
         inner.layout.set_focused_column(column);
     }
     reconcile(inner);

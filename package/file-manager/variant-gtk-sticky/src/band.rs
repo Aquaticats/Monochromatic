@@ -75,6 +75,19 @@ pub fn row_y(row: usize) -> f64 {
 }
 
 /// What:
+///  look up a placement by pane id.
+/// Why:
+///  reveal needs the target pane's placement snapshot.
+pub fn placement_by_id(placements: &[Placement], id: PaneId) -> Option<Placement> {
+    for placement in placements {
+        if placement.id == id {
+            return Some(*placement)
+        }
+    }
+    return None
+}
+
+/// What:
 ///  compute `placement`'s sticky band from the placement snapshot.
 /// Why:
 ///  a leaf's band is one pane tall (no travel);
@@ -82,10 +95,12 @@ pub fn row_y(row: usize) -> f64 {
 ///      DIRECT child's bottom edge,
 ///  so the parent stays visible while any direct child is.
 pub fn band_for(placement: Placement, placements: &[Placement]) -> Band {
-    let deepest = placements
-        .iter()
-        .filter(|candidate| return candidate.parent == Some(placement.id))
-        .fold(placement.row, |deepest_row, child| return deepest_row.max(child.row));
+    let mut deepest = placement.row;
+    for candidate in placements {
+        if candidate.parent == Some(placement.id) {
+            deepest = deepest.max(candidate.row);
+        }
+    }
     return Band {
         top: row_y(placement.row),
         height: row_y(deepest) + f64::from(PANE_HEIGHT) - row_y(placement.row),
@@ -115,14 +130,13 @@ pub fn sticky_y(band: Band, scroll: f64) -> f64 {
 ///  so the GTK adapter holds
 ///      no per-lane state and the boundary test can assert geometry without a GUI.
 pub fn positions(placements: &[Placement], scroll: f64) -> Vec<(PaneId, f64, f64)> {
-    return placements
-        .iter()
-        .map(|placement| {
-            let x = placement.column as f64 * f64::from(PANE_WIDTH + PANE_GAP);
-            let y = sticky_y(band_for(*placement, placements), scroll);
-            return (placement.id, x, y)
-        })
-        .collect()
+    let mut resolved = Vec::new();
+    for placement in placements {
+        let x = placement.column as f64 * f64::from(PANE_WIDTH + PANE_GAP);
+        let y = sticky_y(band_for(*placement, placements), scroll);
+        resolved.push((placement.id, x, y));
+    }
+    return resolved
 }
 
 /// What:
@@ -135,21 +149,19 @@ pub fn overlap_count(placements: &[Placement], scroll: f64) -> usize {
     let resolved = positions(placements, scroll);
     let width = f64::from(PANE_WIDTH);
     let height = f64::from(PANE_HEIGHT);
-    return resolved
-        .iter()
-        .enumerate()
-        .map(|(index, (_, left_x, left_y))| {
-            return resolved[index + 1..]
-                .iter()
-                .filter(|(_, right_x, right_y)| {
-                    return (left_x < &(right_x + width))
-                        && (right_x < &(left_x + width))
-                        && (left_y < &(right_y + height))
-                        && (right_y < &(left_y + height))
-                })
-                .count()
-        })
-        .sum()
+    let mut overlaps = 0;
+    for (index, (_, left_x, left_y)) in resolved.iter().enumerate() {
+        for (_, right_x, right_y) in &resolved[index + 1..] {
+            if (*left_x < *right_x + width)
+                && (*right_x < *left_x + width)
+                && (*left_y < *right_y + height)
+                && (*right_y < *left_y + height)
+            {
+                overlaps += 1;
+            }
+        }
+    }
+    return overlaps
 }
 
 /// What:
@@ -164,13 +176,19 @@ pub fn root_pinned(placements: &[Placement], scroll: f64) -> bool {
     if scroll <= 0.0 {
         return false;
     }
-    let Some(root) = placements
-        .iter()
-        .filter(|placement| return placement.column == 0)
-        .min_by_key(|placement| return placement.row)
-    else {
+    let mut first_root: Option<Placement> = None;
+    for placement in placements {
+        if placement.column != 0 {
+            continue;
+        }
+        match first_root {
+            Some(best) if best.row <= placement.row => {}
+            _ => first_root = Some(*placement),
+        }
+    }
+    let Some(root) = first_root else {
         return false;
     };
-    let y = sticky_y(band_for(*root, placements), scroll);
+    let y = sticky_y(band_for(root, placements), scroll);
     return (y - scroll).abs() < 1.0
 }
