@@ -11,11 +11,22 @@
 //!  A journal makes the fold restartable after a kill at any instruction. It records where the current log ended before the
 //!  append and which bytes of the moved log are being appended; a restart looks for exactly those bytes at or after that
 //!  place (and in the current log's numbered older copies, because the next append may have rotated the log), appends them
-//!  only when they are not there, and then removes the moved log and the journal. The journal file is also the lock: an
-//!  advisory `flock` on it is held while one process folds, and the kernel releases it when that process dies, so no
-//!  stale lock can outlive a kill. The one lock covers one log and is held for one fold.
+//!  only when they are not there, and then removes the moved log and the journal. The journal only grows: each record is a new
+//!  last line, and the last whole line that is a record wins, so no instant exists in which a truncated journal records
+//!  nothing. A journal left by an earlier fold is emptied before the move that starts a new one, so a restart never resumes
+//!  its last line against a new moved log. The journal file is also the lock: an advisory `flock` on it is held while one
+//!  process folds, and the kernel releases it when that process dies, so no stale lock can outlive a kill. The one lock
+//!  covers one log and is held for one fold.
 //!  A write that a kill cut short can leave the first lines of the added bytes in the current log; the restart then adds the
 //!  whole block again, so the cut lines appear twice and none is lost.
+//!  A program of an earlier release that opened the log before the move (a checkout whose lock file names an older release
+//!  runs that release's wrapper) can still write a line to the moved log after
+//!  any size check. So the moved log is removed only after `file_open_for_write_by_any_process.rs` found no process holding
+//!  it open for writing, and the size is checked once more after that probe: with no writer open and the name private, no line
+//!  can arrive, so that check is final. While a writer holds the moved log, the fold appends a last journal line that says
+//!  every byte before a place is already in the current log, leaves the moved log and the journal, and ends silently; the
+//!  next command resumes from that line, adds only what grew, and tries the probe again. One command runs at most
+//!  `ROUNDS_PER_COMMAND` rounds, so a log that never stops growing cannot keep a command waiting.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,12 +48,14 @@ pub const WAITING_SUFFIX: &str = ".earlier-lines-to-add";
 pub const JOURNAL_SUFFIX: &str = ".earlier-lines-journal";
 
 /// The most rounds one command adds before it leaves the moved log for a later command.
-///  Unmeasured as a waiting time, derived from two measurements and the owner's rule "nothing should ever wait forever or
-///  indefinitely". The fastest writing of the timing logs read on 2026-11-07 (1,112 records of the current commit timing log, 257 of
-///  the earlier one, 114 and 19 of the two worktree-add timing logs) was 4 records in one second, so a program writes a record
-///  at most about every 250 ms; a round (one read, one append, one sync) is a few milliseconds, so a second round already outpaces
-///  every writer seen, and two seconds of the fastest writing seen would need 8 rounds. The leftover moved log and its journal
-///  carry whatever this command does not reach, and the next command continues from them.
+///  Derived from two measurements and the owner's rule "nothing should ever wait forever or indefinitely". The fastest writing of
+///  the timing logs read on 2026-11-07 (1,112 records of the current commit timing log, 257 of the earlier one, 114 and 19 of the
+///  two worktree-add timing logs) was 4 records in one second, so a program writes a record at most about every 250 ms. A whole
+///  fold of one log (one round: a record, an append, two syncs, the removal) added a median of 43 ms to `status --short` on this
+///  host (47.8 ms against 4.7 ms with nothing to fold, release build, nine alternating trials in fresh repositories, the
+///  same-binary control spread 44.3 to 53.1 ms). A round is therefore about six times shorter than the gap between records, so one
+///  extra round already catches every writer seen. Eight rounds cost about 0.35 s at that median, one fourteenth of the 5 s
+///  by which the owner said a commit must not be slower than native Git, and leave the log to the next command after that.
 pub const ROUNDS_PER_COMMAND: usize = 8;
 
 /// The steps of a fold at which a control can stop it, as if the process had been killed there.
