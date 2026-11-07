@@ -35,7 +35,7 @@ path = "src/lib.rs"
 
 [dependencies]
 # Reads the manifest bytes into a tree that keeps duplicate object keys visible, which a map-based JSON parser drops.
-monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
+monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.3" }
 
 [dev-dependencies]
 # Loads fixtures/vectors.json, the executable form of the contract in the README.
