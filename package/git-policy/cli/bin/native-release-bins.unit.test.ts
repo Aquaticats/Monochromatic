@@ -29,14 +29,6 @@ const repositoryRoot = resolve(
 const crateName = 'monochromatic-git-policy-cli';
 
 /**
- The executables of the releases before the program was renamed (2026-11-04, `doc/planning/git-policy-cli-program-rename.md`).
- The toolchain lock names the executables of the release it pins, so until the lock pins a release that carries the new
- name it may list these instead of the manifest's; the lock step of the rename changes that, and from then on only the
- manifest's set is accepted.
- */
-const earlierExecutables: readonly string[] = ['cli-git-native',];
-
-/**
  Marker line that starts the job which builds and packages the crate's archive, and the job that follows it.
  */
 const buildJobStart = '  gpc-build-binary:';
@@ -147,8 +139,7 @@ function disagreements({
     ['toolchain.lock.json installs', installed,],
   ] as const) {
     const sorted = [...listed ?? [],].toSorted();
-    const lockPinsEarlierRelease = (listed === installed) && (JSON.stringify(sorted) === JSON.stringify(earlierExecutables));
-    if ((JSON.stringify(sorted) !== JSON.stringify(declared,)) && (!lockPinsEarlierRelease))
+    if (JSON.stringify(sorted) !== JSON.stringify(declared,))
       found.push(`${label} ${JSON.stringify(sorted)}, but Cargo.toml declares ${JSON.stringify(declared)}`);
   }
   return found;
@@ -215,28 +206,29 @@ await describe({
           ...sources,
           manifest: planted,
         });
-        const lockBins = (JSON.parse(sources.lock) as { readonly tools: Record<string, { readonly bins: readonly string[]; }>; }).tools[`cargo:${crateName}`]?.bins;
-        const lockPinsEarlierRelease = JSON.stringify([...lockBins ?? [],].toSorted()) === JSON.stringify(earlierExecutables);
-        expect(found.length).toBe(lockPinsEarlierRelease ? 3 : 4);
+        expect(found.length).toBe(4);
         expect(found.every((line) => line.includes('cli-git-planted-second'))).toBe(true);
       },
     }),
     it({
-      name: 'a lock that pins a release before the rename may list the earlier executable, and no other list may',
+      name: 'a lock or a release check that still lists the executable of the releases before the rename is a disagreement',
       fn: async () => {
         const sources = realSources();
-        const earlierLock = JSON.stringify({ tools: { [`cargo:${crateName}`]: { bins: earlierExecutables, }, }, },);
-        expect(disagreements({
+        const executablesBeforeRename = ['cli-git-native',];
+        const earlierLock = JSON.stringify({ tools: { [`cargo:${crateName}`]: { bins: executablesBeforeRename, }, }, },);
+        const lockFound = disagreements({
           ...sources,
           lock: earlierLock,
-        })).toEqual([]);
-        const releasable = JSON.stringify({ [crateName]: { checkBins: earlierExecutables, }, },);
-        const found = disagreements({
+        });
+        expect(lockFound.length).toBe(1);
+        expect(lockFound[0]).toContain('toolchain.lock.json');
+        const releasable = JSON.stringify({ [crateName]: { checkBins: executablesBeforeRename, }, },);
+        const releasableFound = disagreements({
           ...sources,
           releasable,
         });
-        expect(found.length).toBe(1);
-        expect(found[0]).toContain('releasable-crates.json');
+        expect(releasableFound.length).toBe(1);
+        expect(releasableFound[0]).toContain('releasable-crates.json');
       },
     }),
     it({

@@ -38,9 +38,11 @@ Each answer now lives in its canonical doc; nothing here needs an answer.
   so renaming the file earlier would run every commit on `main` with no policies until then;
   the new program reads the old name too, with a one-line notice.
   Your "rename them." still holds; only the timing of this one file moves.
+  Done 2026-11-07T08:54:45-05:00 (`c0b4812639`, merged in `71498b658f`) once 0.6.0 was installed.
 - 2026-11-05T03:58:47Z, program rename: the link folder `.cache/cli-git-bin` becomes
   `.cache/monochromatic-git-policy-cli-bin` at the release step
   (you said to rename it and gave no name; this follows the program's name).
+  Done 2026-11-07T09:00:24-05:00 (lock `f44c638269`, merged in `71498b658f`).
 - 2026-11-05T03:58:47Z, program rename: before the renamed program is released, it must finish any work an old
   background helper left half done (an agent is checking whether that can happen and fixing it if so),
   following "never discard user data".

@@ -3563,6 +3563,32 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
 
+### After the release: agents at work (2026-11-07, resumed after a usage-limit stop)
+
+- Post-release steps are done (lock on the archive route `c048f3a566`, live commit through 0.6.0, 14 yanks, daily timer on,
+  first run `d61dc1934a`); records in the batch plan, `crates-io-footprint.md` and `toolchain-always-latest.md`.
+- Decision record `doc/decision/mpm-toolchain-adoption.md`, section "Our seven tools install from GitHub release archives"
+  (`0c7b081fbd`), holds the owner's answer: "GitHub, but I'm still not seeing the research I asked you to do on some sort of
+  workspace protocol. ... I'm also wondering if pnpm's new rust management capabilities can help."
+- Running, each told to report back:
+  - research on a `workspace:`-like protocol for Cargo and pnpm's Rust support (doc under `doc/research/`, cross-vendor
+    reviewed before hand-back); it answers the owner's 2026-11-05 request that the earlier research missed;
+  - the wrapper folds the old `cli-git` data names into the new ones losslessly, so the six "both exist" notices stop
+    (`fix/git-policy-cli-fold-earlier-names`; no release yet, and an `-alpha` would not reach this machine through `@latest`);
+  - the tokio continuation on `feat/git-policy-cli-on-tokio` (main merge allowed; coordinator merges after its final gate).
+- Rename step 3 landed (merge `71498b658f`, record `3af147fcfb`, 2026-11-07T09:01:50-05:00): the settings file is
+  `monochromatic-git-policy-cli.config.jsonc`, the link folder `.cache/monochromatic-git-policy-cli-bin`,
+  `changeset:version` starts the program by its own name, `earlierExecutables` is gone; details and the names kept on
+  purpose are in the rename plan's "Step 3 as built". In main, `command -v git` gives the new link and the
+  settings-file notice no longer prints; the six "both exist" notices wait on the fold branch.
+- Open incident, separate from the rename: main's `.cache/cli-git-bin`, `mpm-shadow-bin` and `cargo-shadow-bin` were
+  found empty (folder times 08:42) before step 3 installed anything, so `git` in main fell through to the global
+  `~/.local/bin/git` (also wrapper 0.6.0) until 09:00:59. The fold worktree's link folders were filled at 08:42:49,
+  which makes an install in one checkout removing links in another the first suspect; not yet shown.
+- Left for later: the old `cli-git@` units of each worktree still run 0.5.34 until their three-hour idle exit (0.6.0 neither
+  stops nor removes them, `package/git-policy/cli/README.md` lines 40 to 41); old `cargo/<crate>/<version>` install folders
+  stay on disk; `toolchain:install:global` and `toolchain:list:global` disagree on 12 npm-routed tools (not investigated).
+
 ### Release batch finished (2026-11-07T13:10:36Z, wrapper 0.6.0 last)
 
 - All 16 crates published in wave order; per-crate runs and times in `doc/planning/one-release-each-batch-2026-11.md`,

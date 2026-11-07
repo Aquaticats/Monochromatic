@@ -116,7 +116,7 @@ async function createWrapperLink(root: string, programName: string,): Promise<st
    */
   const installBin = join(root, 'install-bin',);
   /**
-   Directory standing in for `.cache/cli-git-bin`.
+   Directory standing in for `.cache/monochromatic-git-policy-cli-bin`.
    */
   const linkBin = join(root, 'link-bin',);
   await mkdir(installBin,);

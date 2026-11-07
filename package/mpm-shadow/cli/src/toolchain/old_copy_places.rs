@@ -39,7 +39,7 @@ use super::runner::Runner;
 use super::scope::{EnvMap, Scope, ScopeKind, global_scope};
 
 /// The suffix of the link directories a checkout keeps under `.cache`
-/// (`cli-git-bin`,
+/// (`monochromatic-git-policy-cli-bin`,
 /// `mpm-shadow-bin`,
 /// `search-shadow-bin`,
 /// `toolchain-bin`).

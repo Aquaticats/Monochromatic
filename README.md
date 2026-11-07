@@ -63,8 +63,7 @@ A sibling Gradle-based Kotlin linter lives in
 **Policy-aware git tooling**:
 [`git-policy-cli`](package/git-policy/cli/) wraps git with policy guards
 (rejecting bulk staging and pathspec-less commits,
-guarding worktree removal) as a native Rust executable configured by data in the settings file, `cli-git.config.jsonc` here until the toolchain lock carries a release with the new name
-(then `monochromatic-git-policy-cli.config.jsonc`).
+guarding worktree removal) as a native Rust executable configured by data in the settings file, `monochromatic-git-policy-cli.config.jsonc`.
 [`forbidden-strings/cli`](package/forbidden-strings/cli/) is a gitignore-aware Rust scanner
 for banned tokens and leaked credentials,
 with a coverage-guided [`cargo-fuzz` harness](package/forbidden-strings/cli.fuzz/).

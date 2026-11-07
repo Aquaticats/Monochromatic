@@ -7,8 +7,7 @@ because the command word is read in `invocation/management*.rs`, which one of th
 They merged on 2026-11-05; the branch started from `a7e32e118e`, the gated suppression branch
 (worktree `.claude/worktrees/git-policy-cli-program-rename`).
 The proposed handling of the settings file and data folders is adopted as written, owner veto open.
-Steps 2 and 3 (release, lock) wait for the owner's answer on when the one release of each crate happens
-(`doc/handover/questions-for-the-owner.md`).
+Steps 2 and 3 are done: the release is 0.6.0 and step 3 is recorded in "Step 3 as built".
 
 ## What the owner decided
 
@@ -577,3 +576,64 @@ prefixes `cli-git-mutpar` and `localhost/cli-git-concurrent-e2e`.
 - With the link folder (owner: rename it): `.cache/cli-git-bin` becomes `.cache/monochromatic-git-policy-cli-bin` in the plan,
   the lock, `.config/mise/conf.d/20-env.toml`, `package/mpm-shadow/cli/src/toolchain/scope.rs` and
   `old_copy_places.rs` with their tests, and the READMEs that name it.
+
+## Step 3 as built
+
+Recorded 2026-11-07T09:01:20-05:00, on `main`, after the merge `71498b658f` (2026-11-07T09:00:54-05:00) of the branch
+`chore/git-policy-cli-rename-step3`.
+The locked release is `monochromatic-git-policy-cli` 0.6.0 (crates.io 2026-11-07T13:10:36Z; lock and install since `c048f3a566`).
+
+### What changed
+
+- The settings file: `git mv cli-git.config.jsonc monochromatic-git-policy-cli.config.jsonc`, content byte for byte
+  (`c0b4812639`).
+  The plan said to update the first comment line too, and that line said the file keeps its earlier name until the
+  lock carries the release, which the rename made false; it changed in its own commit (`4935573a7b`).
+  No generator manages the file (`file-enforcer.config.jsonc` has no rule for it), so no `file-enforcer write` was needed.
+- The link folder: `.cache/cli-git-bin` is `.cache/monochromatic-git-policy-cli-bin` in `toolchain.plan.jsonc` (`linkDir` and
+  its comment) and in `.config/mise/conf.d/20-env.toml` (`_.path`; hand-written, nothing generates it) (`eab04cdf95`),
+  and in the default `link_dir` of the repository scope in `package/mpm-shadow/cli/src/toolchain/scope.rs`
+  with its layout test, a doc comment and the README (`c4a1204ec9`).
+- The lock: `mise run toolchain:update` wrote `toolchain.lock.json`, zero tools moved, and the only changes are the
+  `linkDir` of `cargo:monochromatic-git-policy-cli` and the digest (`f44c638269`).
+  `mise run toolchain:outdated` before it reported zero tools to move.
+- The leftovers: the root task `changeset:version` runs `monochromatic-git-policy-cli monochromatic-git-policy-cli fix ...`,
+  and `npm-release.yml` no longer links `cli-git-native` (`171f4046a1`);
+  `native-release-bins.unit.test.ts` lost `earlierExecutables`, so a lock or release check that lists `cli-git-native`
+  is a disagreement (`1abae36683`).
+- Prose that named the file or the folder: the root README, the READMEs of `git-policy/cli`, `forbidden-strings/cli`,
+  `config/lfs-r2-worker` and `mpm-shadow/cli`, the comment in `catalog-specifiers.yml`, two TypeScript comments and
+  `doc/runbook/cli-git-global-install.md` (`2a59f6f09d`).
+
+### Checked
+
+- `mise run check:files` clean; `//package/git-policy/cli:lint:types` and `:lint:oxlint` clean;
+  `node package/git-policy/cli/bin/native-release-bins.unit.test.ts` passes with the changed expectations.
+- `mise run //package/mpm-shadow/cli:test`: every test passes, including the layout test of the new default folder.
+- `mise run toolchain:install` in the main checkout: nothing to install, the postinstall link `git` is made under
+  `.cache/monochromatic-git-policy-cli-bin` and points at `.cache/toolchain-launchers/monochromatic-git-policy-cli`.
+  In a fresh `mise exec` environment `command -v git` is `.cache/monochromatic-git-policy-cli-bin/git`,
+  and `git --version` ends with `monochromatic-git-policy-cli 0.6.0, shadowing git at /usr/bin/git`.
+- The old folder `.cache/cli-git-bin` of the main checkout was empty before the install (its link and those of
+  `mpm-shadow-bin` and `cargo-shadow-bin` were missing at 08:42; whoever cleared them is not known, and the install made
+  them again); it is removed.
+  A worktree that still has the old link is cleaned by its own `toolchain:install`, which retires a postinstall link
+  the lock no longer declares (measured in the step 3 worktree).
+- The commit that records this section is the first with the new settings file read from the main checkout:
+  its output carries no settings-file notice.
+  The merge `71498b658f` still printed it, because the wrapper reads the file before the merge lands.
+
+### Kept under the earlier name on purpose
+
+- `package/mpm-shadow/cli` tests `old_copies_tests.rs`, `across_roots_tests.rs`, `tests/old_copies.rs` and
+  `launcher_tests.rs`, and `old_copy_places_tests.rs`: they model installs of the releases before the rename
+  (`cli-git-native` copies and `.cache/cli-git-bin/git` links to them); a checkout made before this step still has such a
+  folder, and `old_copy_places.rs` finds link folders by the `-bin` suffix, so those fixtures stay true.
+- `EARLIER_SETTINGS_FILE` in `package/git-policy/cli/bin/native-test-settings-file.ts`,
+  the `cp` of the settings file for a pinned release before the rename in `catalog-specifiers.yml`,
+  and the word-merge corpus files under `package/git-policy/cli/src/native/merge/word_merge_corpus/`
+  (recorded texts and their outputs): behaviour or data that older releases and older checkouts still need.
+- `package/git-executable/core` keeps `cli-git-native` in its list of names never to pick as the real Git (older installs).
+- Historical records in `doc/` (research, handover, planning of earlier dates) keep the old link folder name as written (WR6).
+- The data names in `.git` and the wrapper's Rust code: another agent's fix
+  (`fix/git-policy-cli-fold-earlier-names`) folds the earlier data names into the new ones.

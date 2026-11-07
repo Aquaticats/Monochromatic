@@ -1116,7 +1116,7 @@ every `install` removes the older managed copies of this repository's tools:
 
 A bare symlink to the binary has nowhere to check the tree's lock,
 so the exposed link of a repository-published tool (`.cache/toolchain-bin/<bin>`)
-and its postinstall links (`.cache/cli-git-bin/git`) point at a launcher in `.cache/toolchain-launchers/<bin>`.
+and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point at a launcher in `.cache/toolchain-launchers/<bin>`.
 
 - The launcher is a hard link of the `mpm-shadow` that ran `install` (a copy across file systems),
   with a `<bin>.launch` record beside it naming the tool id,
@@ -1296,7 +1296,7 @@ and the launchers it made were made before the removal.
   because a link beside the copy (`git` to its sibling `cli-git-native`,
   relative) would dangle once the copy is gone;
   rustup's proxies and links to other programs there are never touched.
-- Every directory under `.cache` whose name ends in `-bin` (`cli-git-bin`,
+- Every directory under `.cache` whose name ends in `-bin` (`monochromatic-git-policy-cli-bin`,
   `mpm-shadow-bin`,
   `search-shadow-bin`,
   `toolchain-bin`) in the scope's own worktree and in every worktree that `git worktree list --porcelain` reports.
