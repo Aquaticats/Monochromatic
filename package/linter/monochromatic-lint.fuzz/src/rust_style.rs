@@ -152,7 +152,8 @@ fn every_rust_style_generator_branch_has_a_positive_or_negative_control() {
     );
 }
 
-/// The sidecar rule has a positive control, a sidecar-name negative control and a no-test negative control.
+/// The sidecar rule has a positive control,
+/// a sidecar-name negative control and a no-test negative control.
 #[test]
 fn the_sidecar_rule_has_positive_and_negative_controls() {
     assert_eq!(check_sidecar_source(INLINE_TEST_MODULE, "fuzz.rs"), 1);
