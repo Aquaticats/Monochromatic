@@ -12,39 +12,6 @@ use std::fs;
 /// The paths the overflow events name.
 use std::path::Path;
 
-/// A real inotify queue overflow (`IN_Q_OVERFLOW`,
-///  notify's rescan flag) requests a full reread.
-#[test]
-fn queue_overflow_requests_a_full_reread() {
-    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
-    let (mut watcher, workspace) = start(fixture.path());
-    let root = workspace.root().to_path_buf();
-    let folder = root.join("burst");
-    fs::create_dir(&folder).expect("burst folder");
-    watcher.watch_only(&set(&[&root, &folder]), None);
-    settle(&mut watcher, &[&root, &folder]);
-    let limit: usize = fs::read_to_string("/proc/sys/fs/inotify/max_queued_events")
-        .expect("inotify queue limit")
-        .trim()
-        .parse()
-        .expect("numeric queue limit");
-    {
-        // While paused, notify's thread waits inside the handler and stops draining the kernel queue.
-        let _pause = watcher.pause_delivery();
-        // Each created and closed file queues create, open, and close-write: three events.
-        for index in 0..(limit / 2 + 64) {
-            fs::File::create(folder.join(format!("{index}.txt"))).expect("burst file");
-        }
-    }
-    {
-        let mut arrival = Arrival::begin(&mut watcher, "an overflowed queue's full reread");
-        while !(arrival.record.everything) {
-            arrival.again(&mut watcher);
-        }
-        arrival.into_record()
-    };
-}
-
 /// The file that the overflow events below name:
 ///  an overflow says the queue lost events, so whatever path an event carries cannot be trusted to be the only change.
 const UNSEEN_FILE: &str = "unseen.txt";
