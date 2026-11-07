@@ -4077,7 +4077,37 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   hand fixes for the rest,
   and a conflict recipe for the
   tokio and held-settle branches.
-  Repo-wide baseline running as unit `repo-wide-monochromatic-lint-136a40fe69`.
+  Repo-wide baseline on main `136a40fe69`
+  (log `~/temp/agent/repo-wide-monochromatic-lint-136a40fe69.log`,
+  `mise` exit 2):
+  171,262 `markdown/semantic-line-breaks` errors,
+  1,961 `markdown/no-bare-urls`,
+  731 `rust/require-rustdoc` errors and 268 warnings,
+  508 `rust/avoidable-closure` warnings and 8 errors,
+  about a hundred `shell/*` errors,
+  18 `rust/max-lines`,
+  10 `rust/tests-in-sidecars`,
+  1 `core/processing-failure`,
+  and a few other Markdown rules.
+  Largest:
+  `doc/audit` 43,797,
+  `doc/planning` 37,335,
+  the wrapper 34,865,
+  `doc/handover` 25,452,
+  `doc/troubleshooting` 8,162,
+  `package/music-player/desktop-app` 8,152,
+  `doc/research` 7,603.
+  The coordinator's own handover and layout-plan edits were among them
+  (prose wrapped at 120 characters instead of semantic breaks,
+  rule MD1);
+  both files pass since the fixer commit after `35182c890e`,
+  rendered text unchanged.
+  Queued for the next free slot:
+  the rest of the repository through the fixer first (line breaks,
+  bare URLs),
+  one family or package per commit with a whitespace-and-rendered-text proof,
+  then the hand-fixed rules package by package,
+  then why nothing enforced the rule at commit time and a proposal to enforce it.
 - systemd-run limits audit:
   merged `aab8488b0b` (2026-11-07).
   `crate-release` publish dry run,
