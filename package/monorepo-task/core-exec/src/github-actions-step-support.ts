@@ -14,8 +14,11 @@
 import { spawn, } from 'node:child_process';
 import { once, } from 'node:events';
 import {
+  access,
   appendFile,
+  constants as fileConstants,
   readFile,
+  stat,
 } from 'node:fs/promises';
 import { constants, } from 'node:os';
 
@@ -367,6 +370,114 @@ export function withoutTrailingLineBreaks(text: string,): string {
 }
 
 //endregion Text the way `jq` and the shell give it
+
+//region Looking at paths, like `[ -e ]`, `[ -f ]` and `[ -x ]`
+
+/**
+ Error codes that make a shell file test answer false instead of failing: nothing there, a parent that is not a folder,
+ no permission to look, or a loop of links.
+ */
+const ABSENT_CODES: ReadonlySet<string> = new Set([
+  'ENOENT',
+  'ENOTDIR',
+  'EACCES',
+  'ELOOP',
+]);
+
+/**
+ Whether a failed file lookup only means the answer is no.
+
+ @param error - What the lookup threw
+
+ @returns True for the error codes a shell file test treats as false
+
+ @example
+ ```ts
+ const absent = meansNo(new Error('x',),);
+ ```
+ */
+function meansNo(error: unknown,): boolean {
+  return ((typeof error) === 'object') && (error !== null)
+    && ('code' in error)
+    && ((typeof error.code) === 'string')
+    && ABSENT_CODES.has(error.code,);
+}
+
+/**
+ What a path is, following links.
+ */
+export type PathFacts = {
+  /**
+   Whether something is there, as `[ -e path ]` answers.
+   */
+  readonly exists: boolean;
+  /**
+   Whether it is a regular file, as `[ -f path ]` answers.
+   */
+  readonly isFile: boolean;
+};
+
+/**
+ Looks at a path the way `[ -e path ]` and `[ -f path ]` do.
+
+ @param path - Path to look at
+
+ @returns Whether it exists and whether it is a regular file
+
+ @throws {@link Error} When the lookup fails for a reason a shell test would also report as an error
+
+ @example
+ ```ts
+ const { exists, isFile, } = await pathFacts('package.json',);
+ ```
+ */
+export async function pathFacts(path: string,): Promise<PathFacts> {
+  try {
+    return {
+      exists: true,
+      isFile: (await stat(path,)).isFile(),
+    };
+  }
+  catch (error) {
+    if (meansNo(error,))
+      return {
+        exists: false,
+        isFile: false,
+      };
+    throw error;
+  }
+}
+
+/**
+ Whether the current user may run a path, as `[ -x path ]` answers.
+
+ @param path - Path to look at
+
+ @returns True when it exists and is executable
+
+ @throws {@link Error} When the lookup fails for a reason a shell test would also report as an error
+
+ @example
+ ```ts
+ const runnable = await isExecutable('/usr/bin/env',);
+ ```
+ */
+export async function isExecutable(path: string,): Promise<boolean> {
+  try {
+    await access(
+      path,
+      fileConstants.X_OK,
+    );
+    return true;
+  }
+  catch (error) {
+    if (meansNo(error,))
+      return false;
+    throw error;
+  }
+}
+
+//endregion Looking at paths, like `[ -e ]`, `[ -f ]` and `[ -x ]`
 
 //region Running programs
 
