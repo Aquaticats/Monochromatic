@@ -80,3 +80,6 @@ pub mod runtime_limits;
 
 /// How many workers and blocking threads a runtime gets from the budget and the limits.
 pub mod runtime_plan;
+
+/// The process's one tokio runtime: built on the first need, sized from the budget and the limits, bounded by a deadline.
+pub mod lazy_runtime;
