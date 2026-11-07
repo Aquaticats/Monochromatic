@@ -6,13 +6,23 @@ use super::tests::{World, land_with_failed_index, request, world};
 use super::*;
 use crate::service_land::Handled;
 use std::time::Duration;
-use crate::earlier_service_journal_adopted::{EarlierJournals, adopt_open_batches, earlier_commits_landed, earlier_journals_of};
+use crate::earlier_service_journal_adopted::{EarlierJournals, RequestedSettlement, earlier_commits_landed, earlier_journals_of, settle_on_request};
 use crate::earlier_service_process_look::{ServiceLook, effective_user, service_of_instance_may_run};
 use crate::service_instance::instance_of;
 use crate::service_index_lock::try_acquire;
 use crate::service_journal::{DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, batch_path, list_intents, mark_indexed, parse_intent, write_intent};
 use crate::test_support::{git_text, remove};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
+
+/// The settling the person asks for, for the journals the earlier unit gives the instance of the new service's journal: the
+///  reports of the batches it dealt with, none when it found nothing open or an earlier helper may run.
+fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Path) -> Vec<RecoveryReport> {
+    let Some(earlier) = earlier_journals_of(context.journal.as_path(), instance) else { return Vec::new() };
+    return match settle_on_request(&context.git, &earlier, instance, proc_root, context.lock_ceiling) {
+        RequestedSettlement::Settled(batches) => batches.into_iter().map(|batch| { return batch.report; }).collect(),
+        RequestedSettlement::NothingOpen | RequestedSettlement::Held { .. } => Vec::new(),
+    };
+}
 
 /// The state folder name of an awkward test: a space, quotes and a newline.
 const AWKWARD_STATE: &str = "state with 'quotes' and \"more\"\nand a break";

@@ -1,63 +1,55 @@
 //! What:
-//!  Finish the batches that the commit service of an earlier release left open, when the service of this release starts for
-//!  the same worktree.
+//!  Finish, when the person asks, the batches that the commit service of an earlier release left open for a worktree.
 //! Why:
 //!  The unit this release writes keeps the service journal in a state folder named after the renamed program, so a batch that
 //!  the earlier helper had accepted and not finished (its branch moved and its index update lost, for example after a logout
-//!  or a kill) sits in the earlier folder, where nothing of this release looks. Left there, the person's index would show the
-//!  landed commit as reverted. The owner's rule is "never discard user data", so the new service finishes those batches
-//!  with the recovery it already has, in place and before it accepts a connection: nothing is moved or copied, and a batch
-//!  that landed stays remembered where it is. It does so only when the earlier helper can neither be running nor start, because
-//!  a running service finishes its own batches and two services must never settle one batch. The earlier helper takes no lock
-//!  on its journal (tag `monochromatic-git-policy-cli-v0.5.34`, `service_main.rs`: it creates the folder, binds, recovers and
-//!  serves), so there is no exclusion this program could also take, and the adoption defers instead. The proof is a look
-//!  (`earlier_service_process_look.rs`): no socket of the earlier units listens (a connection to one starts the helper at any
-//!  moment, so a look at the processes alone cannot prove that none will run), and no process has the start arguments of the
-//!  worktree's service. A look that cannot be made counts as "may run".
-//! What deferring means:
-//!  Nothing is discarded and nothing waits. The intents and records stay on disk where the earlier helper wrote them, and the
-//!  adoption is tried again at each start of this service (it exits when idle, and its socket starts it again). Such a batch
-//!  is settled by the first of: the earlier helper itself (its start recovers the shared journal, and it recovers its own
-//!  journal before each batch it lands), or this service at the first start after the earlier socket stops listening, for
-//!  example when the earlier units are stopped or removed, or after a reboot, since the earlier units live in the runtime
-//!  directory. While an earlier unit stays active and no earlier client ever connects, a batch it left open stays open; the
-//!  index shows the landed commit as reverted until then.
+//!  or a kill) sits in the earlier folder (`<state>/cli-git/service/<instance>` and the shared `<state>/cli-git/service`), where
+//!  nothing of this release looks on its own. Left there, the person's index would show the landed commit as reverted. The
+//!  owner's rule is "never discard user data", so
+//!  `git monochromatic-git-policy-cli service settle-earlier-batches` finishes those batches with the recovery the service
+//!  already has, in place: nothing is moved or copied, a batch that landed stays remembered where it is, and a batch that looks
+//!  as if it never landed keeps its intent on disk (a landing in progress writes its intent first). It does so only when the
+//!  earlier helper can neither be running nor start, because a running service finishes its own batches and two services must
+//!  never settle one batch.
+//! Why not automatically:
+//!  The earlier helper takes no lock on its journal (tag `monochromatic-git-policy-cli-v0.5.34`, `service_main.rs`: it creates
+//!  the folder, binds, recovers and serves), so there is no exclusion this program could also take; the only gate on its
+//!  start is the manager's socket activation. The proof is a look (`earlier_service_process_look.rs`): no socket of the earlier
+//!  units listens (a connection to one starts the helper at any moment) and no process has the start arguments of the
+//!  worktree's service; a look that cannot be made counts as "may run". A wrapper of the earlier release that runs in the same
+//!  worktree writes its units again and starts its socket, which can start the earlier helper between the look and the end of
+//!  the recovery, and nothing stops that: the fifth and sixth cross-vendor reviews (2026-11-07) rated it a defect. The guard
+//!  systemd would enforce, a mask of the earlier unit, makes that wrapper fail its commit (tag `service_provision.rs` line 453
+//!  starts the socket and line 435 returns the refusal; `service_commit.rs` lines 386 to 388 stop the commit with it;
+//!  `commit_command.rs` lines 105 to 108 exit 1), so it was not built. The owner picked "Off, settle on request" (2026-11-07):
+//!  the service never runs this, no unit file and no start option turns it on, and the command says plainly, before it acts,
+//!  that it is safe only when no wrapper of the earlier release is in use in that worktree at that moment.
 //! What the provisioning does about the earlier socket:
 //!  When a commit sets up this release's service for a worktree, it also stops the earlier release's socket unit of the same
 //!  worktree (`cli-git@<instance>.socket`, the same instance text; owner, 2026-11-07, "Stop the old socket"), so that nothing
-//!  can start the earlier helper by a connection (`service_provision.rs`, `stop_earlier_instance_socket`). A helper of the earlier
+//!  starts the earlier helper by a connection (`service_provision.rs`, `stop_earlier_instance_socket`). A helper of the earlier
 //!  release that is still running is left as it is, with its socket: its service `Requires` the socket, so a stop of the socket
-//!  in the usual job mode would stop it mid-batch (measured with throwaway units), and the stop that is sent names the socket
-//!  alone and is sent only after the service has been seen not to run. The socket keeps listening, so this look keeps waiting;
-//!  the helper finishes its batches and exits when idle (three hours after its last client, `IDLE_EXIT` at the tag), and the next
-//!  commit that sets the service up stops the socket, after which the next start of this service can adopt. A stop that fails
-//!  (no bus, no such unit, permission) is logged and never fails the commit; the adoption then waits as before.
-//! Adoption is off in the unit this release writes:
-//!  A wrapper of the earlier release that runs in the same worktree writes its units again and starts the socket, which can
-//!  start the earlier helper between the look and the end of the adoption; nothing stops that, and the fifth cross-vendor review
-//!  (2026-11-07) rated it a defect. The guard systemd would enforce, a mask of the earlier unit, makes that wrapper fail its commit
-//!  (tag `monochromatic-git-policy-cli-v0.5.34`, `service_provision.rs` line 453 starts the socket and line 435 returns the
-//!  refusal; `service_commit.rs` lines 386 to 388 stop the commit with it; `commit_command.rs` lines 105 to 108 exit 1), so it was
-//!  not built. `service_main.rs` therefore calls `adopt_open_batches` only when started with `--adopt-earlier-journals`, which
-//!  the unit does not pass, until the owner chooses
-//!  (`doc/planning/git-policy-cli-program-rename.md`, "Changes after the fifth review").
+//!  in the usual job mode would stop it mid-batch (measured with throwaway units). The socket keeps listening, so the look keeps
+//!  holding; the helper finishes its batches and exits when idle (three hours after its last client, `IDLE_EXIT` at the tag),
+//!  and the next commit that sets the service up stops the socket. The socket file is never unlinked: an earlier wrapper can
+//!  make its unit listen again at that path at any moment.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (!(await serviceMayRun(instance))) await recoverInstance(earlierJournal, instance);
+//! if (!(await earlierServiceHold(instance))) await recoverInstance(earlierJournal, instance);
 //! ```
 
-/// Whether a service of the worktree may be running.
-use crate::earlier_service_process_look::{Hold, ServiceLook, effective_user, service_of_instance_may_run};
+use crate::earlier_service_process_look::{Hold, ServiceLook, earlier_service_hold, effective_user};
 /// How long that look may take.
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 /// The context a recovery runs in,
 ///  and the recovery itself.
 use crate::service_land::{Handled, LandContext, RecoveryReport, recover_instance_without_drops};
+use crate::service_instance::instance_of;
 use crate::transaction_git::GitContext;
 /// The log of the service.
 use crate::journald_native::Priority;
-use crate::service_journal::Recovery;
+use crate::service_journal::{OPEN_EXTENSION, Recovery, list_intents_read_only};
 use crate::service_timing::log_entry;
 /// The names of the folders.
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
@@ -102,9 +94,7 @@ pub fn earlier_journals_of(journal: &Path, instance: &str) -> Option<EarlierJour
     if data_folder.file_name()? != DATA_FOLDER.current {
         return None;
     }
-    let state: &Path = data_folder.parent()?;
-    let shared: PathBuf = state.join(DATA_FOLDER.earlier).join(SERVICE_FOLDER);
-    return Some(EarlierJournals { per_instance: shared.join(instance), shared });
+    return Some(earlier_journals_in_state(data_folder.parent()?, instance));
 }
 
 /// The earlier journals of an instance below a state folder (`<state>/cli-git/service/<instance>` and `<state>/cli-git/service`).
@@ -113,10 +103,27 @@ pub fn earlier_journals_in_state(state: &Path, instance: &str) -> EarlierJournal
     return EarlierJournals { per_instance: shared.join(instance), shared };
 }
 
-/// How many batches the earlier journals of a worktree hold open, counted without changing a file of them.
+/// What:
+///  How many batches the earlier journals of a worktree hold open, counted without changing a file of them.
+/// Why:
+///   The count decides whether anything needs looking at, and the doctor reports it. A batch is the worktree's when the Git
+///  directory its intent records names this instance, which is how the recovery selects it too; a file that cannot be read is
+///  nobody's. The journals may belong to a helper that is alive, so nothing in them is tidied.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openBatchCount(earlier: EarlierJournals, instance: string): number;
+/// ```
 pub fn open_batch_count(earlier: &EarlierJournals, instance: &str) -> usize {
-    let _unused = (earlier, instance);
-    return 0;
+    let mut count: usize = 0;
+    for journal in [&earlier.per_instance, &earlier.shared] {
+        for (_path, parsed) in list_intents_read_only(journal.as_path(), OPEN_EXTENSION) {
+            if parsed.is_some_and(|intent| { return instance_of(intent.git_dir.as_path()) == instance; }) {
+                count += 1;
+            }
+        }
+    }
+    return count;
 }
 
 /// One batch an on-request settling dealt with, and the journal it was found in.
@@ -140,14 +147,60 @@ pub enum RequestedSettlement {
         /// Why nothing was settled.
         because: Hold,
     },
-    /// The batches were dealt with as the adoption deals with them.
+    /// The batches were dealt with by the finish-only recovery; a batch Git could not answer for is not among them.
     Settled(Vec<SettledBatch>),
 }
 
-/// Settles the open batches of the worktree's earlier journals when the person asks.
+/// The look at the sockets and processes of the earlier helper of an instance, for journals in `earlier`.
+pub fn hold_on_earlier_helper(earlier: &EarlierJournals, instance: &str, proc_root: &Path) -> Option<Hold> {
+    let look: ServiceLook = ServiceLook {
+        instance: instance.to_string(),
+        journals: vec![earlier.per_instance.clone(), earlier.shared.clone()],
+        own_pid: std::process::id(),
+        own_user: effective_user(),
+        ceiling: PROCESS_LOOK_CEILING,
+    };
+    return earlier_service_hold(look, proc_root);
+}
+
+/// What:
+///  Settles the open batches of the worktree's earlier journals when the person asks, if no earlier helper can be running or
+///  start. `RequestedSettlement` says which of nothing open, held back (with the reason) and settled happened.
+/// Why:
+///   The recovery decides each batch by the branch and the index, finishes the index update that may be missing, and marks the
+///  finished batch done in the folder it found it in. It never drops the intent of a batch that looks unlanded: the look can
+///  miss a live helper, and a live landing writes its intent before it moves the branch, so that intent stays on disk (and is
+///  reported as left) for the earlier helper's own start-up recovery. Each batch is logged. Calling it again finds nothing new.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function settleOnRequest(git, earlier, instance, procRoot, lockCeiling): RequestedSettlement;
+/// ```
 pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: &str, proc_root: &Path, lock_ceiling: std::time::Duration) -> RequestedSettlement {
-    let _unused = (git, earlier, instance, proc_root, lock_ceiling);
-    return RequestedSettlement::NothingOpen;
+    let open: usize = open_batch_count(earlier, instance);
+    if open == 0 {
+        return RequestedSettlement::NothingOpen;
+    }
+    if let Some(because) = hold_on_earlier_helper(earlier, instance, proc_root) {
+        crate::service_log!(
+            "the earlier service's journals {} and {} were not settled, because {}; {open} open batch(es) stay where they are",
+            earlier.per_instance.display(),
+            earlier.shared.display(),
+            because.words()
+        );
+        return RequestedSettlement::Held { open, because };
+    }
+    let mut settled: Vec<SettledBatch> = Vec::new();
+    for journal in [earlier.per_instance.clone(), earlier.shared.clone()] {
+        if !journal.is_dir() {
+            continue;
+        }
+        let earlier_context: LandContext = LandContext { git: git.clone(), journal: journal.clone(), on_objects_written: None, lock_ceiling };
+        let reports: Vec<RecoveryReport> = recover_instance_without_drops(&earlier_context, instance);
+        log_adopted_batches(reports.as_slice(), journal.as_path());
+        settled.extend(reports.into_iter().map(|report| { return SettledBatch { journal: journal.clone(), report }; }));
+    }
+    return RequestedSettlement::Settled(settled);
 }
 
 /// What:
@@ -171,52 +224,6 @@ pub fn earlier_commits_landed(journal: &Path, instance: &str) -> HashMap<String,
         landed.extend(landed_commits_read_only(folder.as_path()));
     }
     return landed;
-}
-
-/// What:
-///  Finish the open batches of the worktree's instance in the journals the earlier release kept,
-///  when no service of the instance is running.
-///  `&LandContext` is the new service's context: its Git and the new journal's place.
-/// Why:
-///   The recovery decides each batch by the branch and the index, finishes the index update that may be missing, and marks
-///  the finished batch done in the folder it found it in. It never drops the intent of a batch that looks unlanded: the look at
-///  the processes can miss a live helper, and a live landing writes its intent before it moves the branch, so that intent stays
-///  on disk (and is reported as left) for the earlier helper's own start-up recovery.
-///  Calling it again finds nothing new to finish.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function adoptOpenBatches(context: LandContext, instance: string, procRoot: string): RecoveryReport[];
-/// ```
-pub fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Path) -> Vec<RecoveryReport> {
-    let mut reports: Vec<RecoveryReport> = Vec::new();
-    let Some(earlier) = earlier_journals_of(context.journal.as_path(), instance) else {
-        return reports;
-    };
-    if !earlier.per_instance.is_dir() && !earlier.shared.is_dir() {
-        return reports;
-    }
-    let look: ServiceLook = ServiceLook {
-        instance: instance.to_string(),
-        journals: vec![earlier.per_instance.clone(), earlier.shared.clone()],
-        own_pid: std::process::id(),
-        own_user: effective_user(),
-        ceiling: PROCESS_LOOK_CEILING,
-    };
-    if service_of_instance_may_run(look, proc_root) {
-        crate::service_log!("the earlier service's journals {} and {} are left for now: a service of this worktree may be running or may start (its socket listens), or the sockets and processes cannot be looked at; the next start of this service tries again", earlier.per_instance.display(), earlier.shared.display());
-        return reports;
-    }
-    for journal in [earlier.per_instance, earlier.shared] {
-        if !journal.is_dir() {
-            continue;
-        }
-        let earlier_context: LandContext = LandContext { git: context.git.clone(), journal, on_objects_written: None, lock_ceiling: context.lock_ceiling };
-        let settled: Vec<RecoveryReport> = recover_instance_without_drops(&earlier_context, instance);
-        log_adopted_batches(settled.as_slice(), earlier_context.journal.as_path());
-        reports.extend(settled);
-    }
-    return reports;
 }
 
 /// What:

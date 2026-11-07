@@ -119,19 +119,19 @@ fn a_command_that_cannot_find_the_worktree_or_the_journals_says_so_and_changes_n
     world.leave_open_batches(1);
     let mut outside = world.request();
     outside.selection = Selection::Outside;
-    let ((code, stdout, stderr), before) = run(&outside);
-    assert_eq!((code, stdout.as_str(), before.as_str()), (1, "", ""));
-    assert!(stderr.contains("not inside a repository"), "{stderr}");
+    let ((outside_code, outside_out, outside_err), before) = run(&outside);
+    assert_eq!((outside_code, outside_out.as_str(), before.as_str()), (1, "", ""));
+    assert!(outside_err.contains("not inside a repository"), "{outside_err}");
     let mut unresolved = world.request();
     unresolved.selection = Selection::Unresolved(String::from("Git said: boom"));
-    let ((code, _, stderr), _) = run(&unresolved);
-    assert_eq!(code, 1);
-    assert!(stderr.contains("Git said: boom"), "{stderr}");
+    let ((unresolved_code, _, unresolved_err), _) = run(&unresolved);
+    assert_eq!(unresolved_code, 1);
+    assert!(unresolved_err.contains("Git said: boom"), "{unresolved_err}");
     let mut homeless = world.request();
     homeless.state_dir = None;
-    let ((code, _, stderr), _) = run(&homeless);
-    assert_eq!(code, 1);
-    assert!(stderr.contains("state folder"), "{stderr}");
+    let ((homeless_code, _, homeless_err), _) = run(&homeless);
+    assert_eq!(homeless_code, 1);
+    assert!(homeless_err.contains("state folder"), "{homeless_err}");
     assert_eq!(world.open_files(), 1);
     remove(world.root.as_path());
 }
@@ -146,22 +146,22 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
     let table: PathBuf = world.proc_root.join("net/unix");
     let header: String = std::fs::read_to_string(&table).expect("header");
     std::fs::write(&table, format!("{header}0000000000000001: 00000002 00000000 00010000 0001 01 1 /run/user/1000/cli-git/{instance}.sock\n")).expect("a listening socket");
-    let ((code, stdout, stderr), before) = run(&world.request());
-    assert_eq!((code, stdout.as_str(), before.as_str()), (1, "", ""));
+    let ((socket_code, socket_out, socket_err), before) = run(&world.request());
+    assert_eq!((socket_code, socket_out.as_str(), before.as_str()), (1, "", ""));
     for wanted in ["2 batches", "listens", "Nothing was changed", "systemctl --user stop", "three hours", COMMAND] {
-        assert!(stderr.contains(wanted), "{wanted}: {stderr}");
+        assert!(socket_err.contains(wanted), "{wanted}: {socket_err}");
     }
     std::fs::write(&table, header).expect("an empty table");
     let process: PathBuf = world.proc_root.join("77");
     std::fs::create_dir_all(&process).expect("process");
     std::fs::write(process.join("cmdline"), format!("/p/cli-git\0cli-git\0service\0run\0--instance\0{instance}\0")).expect("command line");
-    let ((code, _, stderr), _) = run(&world.request());
-    assert_eq!(code, 1);
-    assert!(stderr.contains("runs as the earlier helper") && stderr.contains("Nothing was changed"), "{stderr}");
+    let ((process_code, _, process_err), _) = run(&world.request());
+    assert_eq!(process_code, 1);
+    assert!(process_err.contains("runs as the earlier helper") && process_err.contains("Nothing was changed"), "{process_err}");
     std::fs::remove_file(&table).expect("no table");
-    let ((code, _, stderr), _) = run(&world.request());
-    assert_eq!(code, 1);
-    assert!(stderr.contains("could not be looked at") && stderr.contains("Nothing was changed"), "{stderr}");
+    let ((blind_code, _, blind_err), _) = run(&world.request());
+    assert_eq!(blind_code, 1);
+    assert!(blind_err.contains("could not be looked at") && blind_err.contains("Nothing was changed"), "{blind_err}");
     assert_eq!(world.open_files(), 2, "nothing was settled or removed");
     remove(world.root.as_path());
 }

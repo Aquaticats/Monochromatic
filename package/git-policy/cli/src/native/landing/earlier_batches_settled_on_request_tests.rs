@@ -3,7 +3,7 @@
 //!  finish-only recovery of the adoption.
 
 use super::adoption_tests::{LISTENING_FLAGS, empty_proc, fake_process, instance_for, unix_table_line, world_with_earlier_journal, write_unix_table};
-use super::tests::{World, land_with_failed_index, request, world};
+use super::tests::{World, land_with_failed_index, request};
 use super::*;
 use crate::earlier_service_journal_adopted::{RequestedSettlement, earlier_journals_in_state, open_batch_count, settle_on_request};
 use crate::earlier_service_process_look::Hold;
@@ -165,6 +165,7 @@ fn the_service_of_this_release_is_no_earlier_helper() {
     let instance: String = instance_for(&world);
     let proc_root: PathBuf = empty_proc(&world);
     let new_journal: String = state.join("monochromatic-git-policy-cli/service").join(instance.as_str()).display().to_string();
+    std::fs::create_dir_all(new_journal.as_str()).expect("the new service's journal exists, as it does for a running service");
     fake_process(proc_root.as_path(), 41, &["/p/monochromatic-git-policy-cli", "monochromatic-git-policy-cli", "service", "run", "--journal", new_journal.as_str(), "--instance", instance.as_str()]);
     let RequestedSettlement::Settled(batches) = settle(&world, state.as_path(), proc_root.as_path()) else { panic!("the new service held the settling back") };
     assert_eq!(batches.len(), 1);

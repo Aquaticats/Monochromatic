@@ -35,6 +35,7 @@ pub use crate::service_provision_unit_file_ownership_and_writes::OWN_MARKERS;
 use crate::service_provision_unit_file_ownership_and_writes::{any_named_anywhere, carries_own_marker, is_own_unit_file, own_unit_file_in_runtime_or_user_directory, remove_settled, write_atomically};
 use crate::service_messages::{ClientFailure, Platform};
 use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
+use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
 use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
@@ -163,7 +164,7 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 
 /// What:
 ///  Whether the installed templates are the ones this wrapper would write, the worktree's socket is there, and nothing of
-///  the single service of the earlier releases, nor the earlier release's socket file of this worktree, is left.
+///  the single service of the earlier releases is left, and no socket of the earlier release for this worktree listens.
 /// Why:
 ///   The socket belongs to the manager and outlives every upgrade, so its presence says nothing about which program the
 ///  service template names; the text does. A few small reads and two `stat` calls decide, and the bus is not touched when
@@ -179,7 +180,6 @@ pub fn in_place(host: &ProvisionHost) -> bool {
 
 /// `in_place` with the process table to read the listening sockets from.
 pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
-    let _unused = proc_root;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     // Every unit file holds exactly the text the wrapper would write.
     let mut all_current: bool = true;
@@ -198,10 +198,14 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
         }
     }
     earlier_left = earlier_left || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
-    return all_current
-        && socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists()
-        && !earlier_left
-        && !earlier_socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists();
+    if !all_current || earlier_left || !socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists() {
+        return false;
+    }
+    // The earlier release's socket of this worktree: a listener there starts the earlier helper on a connection, so the stop
+    //  has to be tried (again). The socket's file stays after the unit stops and says nothing; the table of sockets is read
+    //  only when that file is there, which a worktree the earlier release never served never has.
+    let earlier_file: PathBuf = earlier_socket_path(host.runtime_dir.as_path(), host.instance.as_str());
+    return !(earlier_file.exists() && earlier_socket_of_instance_listens(proc_root, host.instance.as_str()));
 }
 
 /// What the user's own unit directory holds under the names the wrapper uses.
@@ -501,17 +505,19 @@ fn describe(error: &CallError) -> String {
 
 /// What:
 ///  Stops the socket unit `cli-git@<instance>.socket` that the earlier release set up for this very worktree, when no helper
-///  of that unit runs, and removes the socket file the manager leaves behind. Nothing here fails the commit.
+///  of that unit runs. Nothing here fails the commit.
 /// Why:
 ///   The owner's pick of 2026-11-07 ("Stop the old socket"): while that socket listens, a connection starts the earlier helper
-///  at any moment, so the batches it left open (`earlier_service_journal_adopted.rs`) cannot be finished. The instance name is
-///  the same text in both releases (the same hash of the same Git directory), so the unit is this worktree's and no other's.
-///  The earlier release wrote only two shared templates, from which every worktree's instance is made, so there is no file of
-///  this instance to remove and the templates stay; a stopped instance is unloaded by the manager. A helper that runs is left
-///  as it is: the earlier service `Requires=` its socket, so a plain stop of the socket stops it mid-batch, and the stop that is
-///  sent names the one unit. The socket file stays while a helper runs or the socket is still stopping, which makes the next
-///  commit look again. Every failure is logged and ignored, each call is bounded by one exchange's time, and an earlier-release
-///  wrapper that sets the unit up again undoes this (the owner accepted that).
+///  at any moment, which keeps the person's earlier batches from being settled on request
+///  (`earlier_service_journal_adopted.rs`). The instance name is the same text in both releases (the same hash of the same Git
+///  directory), so the unit is this worktree's and no other's. The earlier release wrote only two shared templates, from which
+///  every worktree's instance is made, so there is no file of this instance to remove and the templates stay; a stopped instance
+///  is unloaded by the manager. A helper that runs is left as it is: the earlier service `Requires=` its socket, so a plain stop
+///  of the socket stops it mid-batch, and the stop that is sent names the one unit. The socket file is never unlinked, because
+///  an earlier-release wrapper can make its unit listen again at that path between any answer of the manager and an unlink.
+///  Whether the stop is still to be done is read from the table of listening sockets (`in_place_with`). Every failure is logged
+///  and ignored, each call is bounded by one exchange's time, and an earlier-release wrapper that sets the unit up again
+///  undoes this (the owner accepted that).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -520,7 +526,6 @@ fn describe(error: &CallError) -> String {
 fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager) {
     let socket: String = earlier_socket_unit_instance(host.instance.as_str());
     let service: String = earlier_service_unit_instance(host.instance.as_str());
-    let file: PathBuf = earlier_socket_path(host.runtime_dir.as_path(), host.instance.as_str());
     // The start that came before may have used the time of its exchange; these calls have a time of their own.
     manager.within(EXCHANGE_WAIT);
     let unreadable = |unit: &str, error: &CallError| {
@@ -539,25 +544,13 @@ fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager)
         Ok(state) => state,
         Err(error) => return unreadable(socket.as_str(), &error),
     };
-    if matches!(&held, Some(state) if !is_at_rest(state.as_str())) {
-        match manager.stop_alone(socket.as_str()) {
-            Ok(()) => {}
-            Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => {}
-            Err(error) => return unreadable(socket.as_str(), &error),
-        }
-        // A stop call returns when the job is queued; a socket that has not stopped yet keeps its file for the next commit.
-        match manager.active_state(socket.as_str()) {
-            Ok(Some(state)) if !is_at_rest(state.as_str()) => return,
-            Ok(_) => {}
-            Err(error) => return unreadable(socket.as_str(), &error),
-        }
+    if !matches!(&held, Some(state) if !is_at_rest(state.as_str())) {
+        return;
     }
-    // The manager leaves the file of a stopped socket behind. No unit listens on it and no helper runs, so the file is the
-    //  leftover of this worktree's own unit.
-    match std::fs::remove_file(&file) {
+    match manager.stop_alone(socket.as_str()) {
         Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => crate::service_warn!("the socket file {} of the stopped earlier commit service could not be removed: {error}", file.display()),
+        Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => {}
+        Err(error) => unreadable(socket.as_str(), &error),
     }
 }
 

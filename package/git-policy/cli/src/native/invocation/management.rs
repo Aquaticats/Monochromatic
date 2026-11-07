@@ -21,7 +21,7 @@ use crate::child_environment::{child_environment_overlay, environment_value};
 /// The traditional-hook listing of `git monochromatic-git-policy-cli doctor`.
 use crate::doctor::doctor_action_with_section;
 use crate::service_route::service_status;
-use crate::management_service_settle_earlier_batches::plan_settle_earlier_batches;
+use crate::management_service_settle_earlier_batches::{earlier_batches_note, plan_settle_earlier_batches, state_dir_of};
 use crate::management_arguments::{
     MANAGEMENT_HELP, ManagementAction, RetiredCommand,
     parse_management_arguments,
@@ -129,6 +129,22 @@ fn scope_pathspecs(all: bool, pathspecs: Vec<OsString>) -> Vec<OsString> {
 fn plan_service(global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
     let (real_git, notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
     let action: Action = plan_service_with(global_arguments, environment, real_git.as_deref());
+    return with_leading_notice(action, notice.as_deref());
+}
+
+/// What:
+///  Decide the action of `git monochromatic-git-policy-cli service settle-earlier-batches`.
+/// Why:
+///   The command needs no valid configuration; it works on the commit service's earlier journals of the worktree it runs in,
+///  with the real Git the wrapper forwards to (a recorded fallback owes its notice, as for the status).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planSettle(globalArguments, environment, inputs): Action;
+/// ```
+fn plan_settle(global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
+    let (real_git, notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
+    let action: Action = plan_settle_earlier_batches(global_arguments, environment, real_git.as_deref());
     return with_leading_notice(action, notice.as_deref());
 }
 
@@ -306,7 +322,30 @@ fn plan_doctor(
         common_dir: None,
     };
     let action: Action = doctor_action_with_section(&context, cwd.as_path(), filesystem_section);
-    return with_leading_notice(action, resolved.notice.as_deref());
+    let noted: Action = with_earlier_batches_note(action, git_global_arguments, environment, context.real_git.as_path());
+    return with_leading_notice(noted, resolved.notice.as_deref());
+}
+
+/// What:
+///  The doctor's action with the note about the batches the earlier release left open for this worktree on standard error.
+/// Why:
+///   The note is informational and read-only; it changes neither the status nor standard output, and a run that could not
+///  examine the repository (status 2) gets none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withEarlierBatchesNote(action, globalArguments, environment, realGit)
+/// ```
+fn with_earlier_batches_note(action: Action, global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: &Path) -> Action {
+    let Action::Exit { code, stdout, stderr } = action else {
+        return action;
+    };
+    if code == ENGINE_FAILURE_EXIT_CODE {
+        return Action::Exit { code, stdout, stderr };
+    }
+    let selection: Selection = status_git_dir(global_arguments, environment, Some(real_git));
+    let note: String = earlier_batches_note(&selection, state_dir_of(environment).as_deref());
+    return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
 }
 
 /// What:
@@ -409,7 +448,7 @@ pub fn plan_management_with_section(
         }
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
         ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
-        ManagementAction::SettleEarlierBatches => return plan_settle_earlier_batches(git_global_arguments, environment, inputs),
+        ManagementAction::SettleEarlierBatches => return plan_settle(git_global_arguments, environment, inputs),
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
         ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments, environment, inputs),
         ManagementAction::Direct {

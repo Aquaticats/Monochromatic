@@ -43,6 +43,7 @@ pub const MANAGEMENT_USAGE: &str = "\
 Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...) [--policy <id>]...
        git monochromatic-git-policy-cli fix (--all | -- <pathspec>...) [--policy <id>]...
        git monochromatic-git-policy-cli doctor
+       git monochromatic-git-policy-cli service (status | settle-earlier-batches)
        git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run | --rollback | --remove-old]
        git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
        git monochromatic-git-policy-cli --help
@@ -59,6 +60,9 @@ Commands:
   check    Check policies over an explicit scope.
   fix      Apply policy fixes over an explicit scope.
   service  status: whether the commit service answers (it sets itself up when a commit needs it).
+           settle-earlier-batches: finish the batches an earlier release's commit service left open for this worktree (doctor
+           says how many). Run it only when no wrapper of the earlier release is in use in this worktree at that moment; it
+           refuses while an earlier socket listens or an earlier helper runs, and says what to do.
   doctor   List traditional hooks (unsupported). Exit 0 when none or only git-lfs shims are found,
            1 when any other hook is found, 2 outside a repository.
   migrate-to-subvolume
@@ -432,6 +436,7 @@ pub fn parse_management_arguments(
     if name == "service" {
         return match rest {
             [word] if word == "status" => Ok(ManagementAction::ServiceStatus),
+            [word] if word == "settle-earlier-batches" => Ok(ManagementAction::SettleEarlierBatches),
             _ => Err(ManagementRefusal::Usage),
         };
     }
