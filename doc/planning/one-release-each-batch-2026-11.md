@@ -572,20 +572,14 @@ but the choice is listed under "Open choices".
   so its manifest must
   satisfy the pins (see the measured failure above).
   Repairing the import is separate work and does not gate this batch.
-- Pins that the release tool cannot edit.
-  `package/crate-release/cli/src/manifest-edit.ts` matches a dependency only as an inline table on one line
+- Pins that the release tool could not edit (fixed on `main`, see "What exists now" under "Preparatory steps").
+  `package/crate-release/cli/src/manifest-edit.ts` matched a dependency only as an inline table on one line
   (`name = { ..., version = "=x" }`);
   three sidecars use a multi-line `[dependencies.<crate>]` table:
   `package/jsonc-edit/core-rust.fuzz`,
   `package/xml-edit/core-rust.fuzz`,
   `package/forbidden-strings/core.fuzz`.
-  Read from the source,
-  not run.
-  `file-enforcer check` does list `jsonc-edit/core-rust.fuzz/Cargo.toml` as drift,
-  so `file-enforcer write` handles it.
-  Registering `monochromatic-jsonc-edit`,
-  `monochromatic-xml-edit` or `forbidden-regex` in the release tool would leave
-  these pins stale unless they are converted to inline form first.
+  The tool now moves both forms.
 - Missing wait on dependencies.
   A dependent dispatched before its dependency is in the crates.io index fails at `cargo package` (verification builds
   against crates.io).
@@ -857,11 +851,15 @@ Separate work,
 not part of this plan's commit,
 and done before the first dispatch:
 
-1.  Confirm the owner's pick for each item under "Open choices";
-    the runbook below assumes route A for the twelve,
-    the exempt pair not released,
-    0.5.35,
-    and yank option B.
+1.  The owner's answers are recorded under "The owner's answers at 2026-11-07":
+    the exempt pair is released,
+    the wrapper goes to 0.6.0,
+    the yank waits until the lock moves,
+    and all twelve unregistered crates go through `crate-release.yml`.
+    The runbook below was written for route A (a bump commit per wave);
+    the registered route replaces its "Per wave" procedure and its steps 3, 4 and 6 with one dispatch per crate
+    (see "What exists now"),
+    and the version steps follow the owner's answers.
 2.  Confirm `gh auth status` works and that Cargo's credentials file holds a token with the yank scope
     (the owner logged in with publish-new,
     trusted-publishing and yank scopes on 2026-11-04).
@@ -870,24 +868,60 @@ and done before the first dispatch:
 3.  Run `file-enforcer check` on a clean `main` worktree and confirm its only drift is the local
     `.config/mise/conf.d/10-bin.local.toml`;
     any other drift is fixed first,
-    so a wave commit shows only its own changes.
-4.  If route B or C is picked instead of A:
-    add the registry entries (with `pinFiles` limited to inline-table pins),
-    the `crate` choices in `crate-release.yml`,
-    and the package tasks,
-    and run the registry unit test
-    (`package/crate-release/cli/src/release-workflow.unit.test.ts` through the package's `test:unit` task).
-    Suggested entries for route C (each with `crateDir` and `scope` from its path):
-    `monochromatic-lint` with `pinFiles` `git-policy/cli`,
-    `git-policy/cli.fuzz`,
-    `linter/monochromatic-lint.fuzz`;
-    `monochromatic-pnpm-shadow`,
-    `monochromatic-file-enforcer-cli`,
-    `monochromatic-search-shadow` and
-    `monochromatic-nested-wayland-session` with none.
+    so a release commit shows only its own changes.
+4.  Done: the registry entries,
+    the `crate` choices of `crate-release.yml`,
+    the package tasks and the multi-line pin edit (see "What exists now").
 5.  Optional,
     not blocking:
     repair the `owner_lock_record` import of `package/git-policy/cli.fuzz/src/owners.rs`.
+
+### What exists now
+
+Written 2026-11-07,
+on the branch `feat/crate-release-register-every-published-crate`.
+
+- `package/crate-release/cli/releasable-crates.json` lists all sixteen crates.
+  The twelve new entries hold `crateDir`,
+  `scope`,
+  `pinFiles` (every manifest that pins the crate exactly,
+  sidecars included),
+  `checkBins` (empty for the libraries and `forbidden-regex`,
+  the real `[[bin]]` name for the five tools) and
+  `lockDirs` (every directory whose `Cargo.lock` holds the crate as a path package,
+  except the crate's own).
+  The pin and lock sets were found by scanning every tracked `Cargo.toml` and `Cargo.lock` and agree with the sets
+  under "Pins that move when a dependency gets its new version".
+- `crate-release.yml` offers all sixteen crates in the registry's order;
+  `cargo-publish.yml` already offered all sixteen.
+  The release job installs the Wayland build libraries for `monochromatic-nested-wayland-session` only,
+  because the release command builds the crate on the runner and `cargo-publish.yml` installs the same set for it.
+  This was missing before and would have failed that crate's release at `cargo check`.
+- Every new crate's package has `release` and `release:wait` tasks
+  (`mise run //package/<path>:release -- [--dry-run] <from> <to> "<note>"`).
+  A library has no GitHub release,
+  so its `release:wait` ends with `PUBLISH CHECK FAILED: missing release assets: ...` even when the crate is on
+  crates.io;
+  read its `crates.io <version>: <time>` line as the result.
+- The release tool moves a pin written as a `[dependencies.<crate>]`,
+  `[dev-dependencies.<crate>]` or `[build-dependencies.<crate>]` table as well as the inline form.
+  Applying the tool's own edit to all sixteen crates at once (each one patch up) left `file-enforcer check` with only
+  the local `10-bin.local.toml` drift;
+  the same check reports drift when one table pin is put back (positive control).
+- The release commit now includes the `Cargo.lock` of every lock directory.
+  Before, only the lockfiles beside the crate and beside the pin files were committed,
+  so a directory that reaches the crate through another crate (for example `package/file-enforcer/cli` for
+  `monochromatic-jsonc-edit`) was refreshed on the runner and then left out of the commit.
+- The existing `forbidden-strings` entry listed one lock directory (`git-policy/cli.fuzz`);
+  the scan finds four (`forbidden-strings/cli.fuzz`,
+  `forbidden-strings/core.bench`,
+  `git-policy/cli`,
+  `git-policy/cli.fuzz`),
+  and the entry now lists all four.
+  Its 0.6.1 commit `55f3a1634e` changed no lockfile beside the `git-policy/cli`,
+  `cli.fuzz` or `core.bench` pins.
+  The entries of `monochromatic-cargo-shadow`,
+  `monochromatic-git-policy-cli` and `monochromatic-mpm-shadow` already match the scan.
 
 ## Runbook
 
