@@ -78,9 +78,15 @@ pub enum DriverState {
     ///  or the cargo cache can build one.
     Ready,
     /// The driver is absent or outdated and the cargo cache cannot build one.
-    Missing(String),
+    Missing(
+        /// Why the driver cannot be built, as the first error line of the failed resolve.
+        String,
+    ),
     /// The check itself could not be made.
-    Unknown(String),
+    Unknown(
+        /// What stopped the check.
+        String,
+    ),
 }
 
 /// What:
@@ -98,6 +104,24 @@ pub struct DriverGaps {
     pub gaps: Vec<DriverGap>,
     /// Notes for checks that could not be made.
     pub notes: Vec<String>,
+}
+
+/// What:
+///  Whether a library's driver is among the missing ones.
+/// Why:
+///  The packages of such a library are skipped instead of checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function gapsHoldLibrary(gaps: Gap[], library: Path): boolean;
+/// ```
+pub fn gaps_hold_library(gaps: &[DriverGap], library: &Path) -> bool {
+    for gap in gaps {
+        if gap.library.as_path() == library {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -123,6 +147,45 @@ pub struct DriverGap {
 }
 
 /// What:
+///  The default directory of the Dylint drivers in a home directory.
+/// Why:
+///  A named function can stand in for the closure that `Option::map` would run over the home directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function dylintDriversDirectory(home: Path): Path;
+/// ```
+fn dylint_drivers_directory(home: &Path) -> PathBuf {
+    return home.join(".dylint_drivers");
+}
+
+/// What:
+///  The per-user cache directory in a home directory.
+/// Why:
+///  A named function can stand in for the closure that `Option::map` would run over the home directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cacheDirectory(home: Path): Path;
+/// ```
+fn cache_directory(home: &Path) -> PathBuf {
+    return home.join(".cache");
+}
+
+/// What:
+///  This tool's scratch directory in a cache directory.
+/// Why:
+///  A named function can stand in for the closure that `Option::map` would run over the cache directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function scratchDirectory(cache: Path): Path;
+/// ```
+fn scratch_directory(cache: &Path) -> PathBuf {
+    return cache.join("monochromatic-lint");
+}
+
+/// What:
 ///  Read the machine's facts from the process environment.
 /// Why:
 ///  `DYLINT_DRIVER_PATH` replaces the default driver directory as it does for `cargo-dylint`.
@@ -137,18 +200,16 @@ pub fn driver_site_from_environment() -> DriverSite {
     let home: Option<PathBuf> = std::env::home_dir();
     let drivers: Option<PathBuf> = match std::env::var_os("DYLINT_DRIVER_PATH") {
         Some(set) => Some(PathBuf::from(set)),
-        None => home
-            .as_ref()
-            .map(|directory| return directory.join(".dylint_drivers")),
+        None => home.as_deref().map(dylint_drivers_directory),
     };
     let cache: Option<PathBuf> = match std::env::var_os("XDG_CACHE_HOME") {
         Some(set) if !set.is_empty() => Some(PathBuf::from(set)),
-        _ => home.map(|directory| return directory.join(".cache")),
+        _ => home.as_deref().map(cache_directory),
     };
     return DriverSite {
         rustup: PathBuf::from("rustup"),
         drivers,
-        scratch: cache.map(|directory| return directory.join("monochromatic-lint")),
+        scratch: cache.as_deref().map(scratch_directory),
     };
 }
 
@@ -298,6 +359,19 @@ fn prepare_probe(package: &Path, version: &str) -> std::io::Result<()> {
 }
 
 /// What:
+///  Whether a line of Cargo's standard error is an error line.
+/// Why:
+///  A named function can stand in for the closure that `Iterator::find` would run over the lines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isErrorLine(line: string): boolean;
+/// ```
+fn is_error_line(line: &&str) -> bool {
+    return line.starts_with("error");
+}
+
+/// What:
 ///  Run the offline resolution of the throwaway crate.
 /// Why:
 ///  The run starts in the crate's directory,
@@ -334,8 +408,8 @@ fn resolve_probe(cargo: &Path, package: &Path) -> Result<Option<String>, String>
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     let explanation: &str = stderr
         .lines()
-        .find(|line| return line.starts_with("error"))
-        .or_else(|| return stderr.lines().next())
+        .find(is_error_line)
+        .or(stderr.lines().next())
         .unwrap_or("none");
     return Ok(Some(
         explanation
@@ -389,7 +463,7 @@ pub fn driver_state(
     };
     let driver: PathBuf = drivers.join(&toolchain).join("dylint-driver");
     let found: Option<(u64, u64, u64)> = driver_version(&driver);
-    if found.is_some_and(|version| return version >= needed) {
+    if matches!(found, Some(version) if version >= needed) {
         return DriverState::Ready;
     }
     let Some(scratch) = site.scratch.as_ref() else {
@@ -436,6 +510,25 @@ pub fn warm_command(library: &str, manifest: &str) -> String {
 }
 
 /// What:
+///  Count the packages that use one library.
+/// Why:
+///  The skip message says whether a missing driver costs every package or only some of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function packagesUsing(packages: ClosurePackage[], library: Path): number;
+/// ```
+fn packages_using(packages: &[ClosurePackage], library: &Path) -> usize {
+    let mut count: usize = 0;
+    for other in packages {
+        if other.library.as_path() == library {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+/// What:
 ///  Check the driver once per distinct library of the packages.
 /// Why:
 ///  The driver depends on the toolchain active in the library directory and not on the package,
@@ -478,10 +571,7 @@ pub fn driver_gaps(
                 "the Dylint driver check for the library {library_name} did not run: {note}"
             )),
             DriverState::Missing(reason) => {
-                let count: usize = packages
-                    .iter()
-                    .filter(|other| return other.library == package.library)
-                    .count();
+                let count: usize = packages_using(packages, &package.library);
                 let subject: String = if count == packages.len() {
                     format!("all {count} package(s)")
                 } else {
