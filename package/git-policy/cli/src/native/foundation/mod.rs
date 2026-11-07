@@ -83,3 +83,9 @@ pub mod runtime_plan;
 
 /// The process's one tokio runtime: built on the first need, sized from the budget and the limits, bounded by a deadline.
 pub mod lazy_runtime;
+
+/// A blocking call on tokio's blocking pool, with "no thread to start" as an error value instead of a panic.
+pub mod blocking_job;
+
+/// The test-only entry that builds the runtime and runs a blocking job, for the controls that start the executable under limits.
+pub mod runtime_probe;

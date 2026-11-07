@@ -54,33 +54,145 @@ pub enum RuntimeError {
 impl std::fmt::Display for RuntimeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         return match self {
-            RuntimeError::Nested => write!(formatter, "red stub"),
-            RuntimeError::CouldNotStart(reason) => write!(formatter, "red stub {reason}"),
+            RuntimeError::Nested => write!(
+                formatter,
+                "the runtime that runs this command's waits was asked for from inside itself, where waiting for it would never end; \
+                 nothing was run. This is a defect of monochromatic-git-policy-cli: report it with the command that was run"
+            ),
+            RuntimeError::CouldNotStart(reason) => write!(
+                formatter,
+                "cannot start the runtime that runs this command's waits: {reason}. Hint: the system refused a thread or memory, so \
+                 check the process limit (`ulimit -u`), the address-space limit (`ulimit -v`) and the control group's `pids.max` and \
+                 `memory.max`, free some, and run the command again; no Git command ran"
+            ),
         };
     }
 }
 
-/// Red stub.
+/// How long the build of the multi-thread runtime may take before the current-thread runtime stands in. A build takes well under
+///  a few milliseconds when it works (the probe of `doc/planning/git-policy-cli-full-tokio.md` measured +0.3 to +0.5 ms for the
+///  whole eager build with 28 workers); a build the system refuses can hang inside tokio's unwind with no end. One second is
+///  more than two hundred times the working build and a fifth of the owner's "should not take 5s longer" for a commit, so a hung
+///  build costs a commit part of its slack and never all of it. The coordinator's pick under the owner's choice 9
+///  ("Helper thread + deadline"), open to the owner's veto.
 pub const BUILD_DEADLINE: Duration = Duration::from_secs(1);
 
-/// Red stub.
-pub fn build_with_deadline<B>(plan: RuntimePlan, deadline: Duration, multi_thread: B) -> std::io::Result<BuiltRuntime>
+/// The most malloc arenas the process may create, set before the first worker starts. Each arena past the first reserves 64 MiB
+///  of address space per thread that uses it, and 28 workers with the default arenas hung the build under an address-space limit
+///  of 900 to 1150 MiB where the same workers with one arena ran at 100 MiB (`doc/planning/git-policy-cli-full-tokio.md`,
+///  "Why the address space runs out"); the plan's per-thread figures assume this value. The owner's choice 3 ("Cap pools + read
+///  limits"). Allocation contention is measured in the same document's progress notes.
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+const MALLOC_ARENA_LIMIT: libc::c_int = 1;
+
+/// Caps the malloc arenas of the process; a no-op where the allocator has no arenas.
+fn cap_malloc_arenas() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        // SAFETY: `mallopt` takes two integers and reads no memory; it runs before this process starts its first worker.
+        let _ = unsafe { libc::mallopt(libc::M_ARENA_MAX, MALLOC_ARENA_LIMIT) };
+    }
+}
+
+/// The current-thread runtime: no worker, the calling thread runs every task.
+fn current_thread() -> std::io::Result<Runtime> {
+    return tokio::runtime::Builder::new_current_thread().enable_all().build();
+}
+
+/// The multi-thread runtime with `workers` workers and at most `blocking` blocking-pool threads.
+fn multi_thread(workers: usize, blocking: usize) -> std::io::Result<Runtime> {
+    return tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(workers)
+        .max_blocking_threads(blocking)
+        .thread_stack_size(crate::runtime_plan::THREAD_STACK_BYTES)
+        .thread_name("git-policy-worker")
+        .enable_all()
+        .build();
+}
+
+/// What:
+///  Builds the runtime `plan` names. The multi-thread runtime is built by `multi_thread` on a helper thread that the caller waits
+///  for until `deadline`; when the helper fails, panics, cannot be started or is late, the current-thread runtime stands in and
+///  the helper is left to finish or hang without the caller.
+/// Why:
+///  tokio's multi-thread build panics when the system refuses a thread and can hang inside the unwind, where no `catch_unwind`
+///  reaches; only a wait with a deadline from outside bounds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const built = await Promise.race([buildMulti(workers, blocking), sleep(deadline).then(() => 'late')]);
+/// return built === 'late' ? currentThreadRuntime() : built;
+/// ```
+pub fn build_with_deadline<B>(plan: RuntimePlan, deadline: Duration, multi_thread_builder: B) -> std::io::Result<BuiltRuntime>
 where
     B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
 {
-    let _ = (plan, deadline, multi_thread);
-    return Err(std::io::Error::other("red stub"));
+    let RuntimePlan::MultiThread { workers, blocking_threads } = plan else {
+        return Ok(BuiltRuntime { runtime: current_thread()?, flavor: BuiltFlavor::CurrentThread });
+    };
+    let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<Runtime>>();
+    let started = std::thread::Builder::new().name(String::from("git-policy-runtime-build")).spawn(move || {
+        // A refused thread panics inside tokio's build; the panic is caught here and reported as a replaced runtime.
+        let outcome: std::thread::Result<std::io::Result<Runtime>> =
+            crate::panic_notice::while_panics_are_expected(|| { return multi_thread_builder(workers, blocking_threads); });
+        let result: std::io::Result<Runtime> = match outcome {
+            Ok(built) => built,
+            Err(_payload) => Err(std::io::Error::other("the build of the multi-thread runtime panicked")),
+        };
+        if let Err(unsent) = sender.send(result)
+            && let Ok(late) = unsent.0
+        {
+            // The caller moved on; a runtime is never dropped (dropping waits for its tasks without end).
+            std::mem::forget(late);
+        }
+    });
+    let flavor_when_replaced: BuiltFlavor = match started {
+        Err(_no_thread) => BuiltFlavor::CurrentThreadAfterFailure,
+        Ok(_helper) => match receiver.recv_timeout(deadline) {
+            Ok(Ok(runtime)) => return Ok(BuiltRuntime { runtime, flavor: BuiltFlavor::MultiThread { workers } }),
+            Ok(Err(_refused)) => BuiltFlavor::CurrentThreadAfterFailure,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => BuiltFlavor::CurrentThreadAfterDeadline,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => BuiltFlavor::CurrentThreadAfterFailure,
+        },
+    };
+    return Ok(BuiltRuntime { runtime: current_thread()?, flavor: flavor_when_replaced });
 }
 
-/// Red stub.
+/// The process's runtime, built by the first call that needs it; the error is the reason no runtime could be built.
+static RUNTIME: std::sync::OnceLock<Result<BuiltRuntime, String>> = std::sync::OnceLock::new();
+
+/// Plans from this process's budget and limits and builds.
+fn build_for_this_process() -> Result<BuiltRuntime, String> {
+    cap_malloc_arenas();
+    let host: crate::parallel_budget::HostResources = crate::parallel_budget::HostResources::read();
+    let limits: crate::runtime_limits::RuntimeLimits = crate::runtime_limits::RuntimeLimits::read();
+    let plan: RuntimePlan = crate::runtime_plan::plan_runtime(&host, &limits);
+    return build_with_deadline(plan, BUILD_DEADLINE, multi_thread).map_err(|error| { return error.to_string(); });
+}
+
+/// What:
+///  Runs `future` to its end on the process's runtime, building the runtime on the first call.
+/// Why:
+///  One owner builds the only runtime, lazily, so a command that needs none never pays for one. A call from inside the runtime
+///  returns `RuntimeError::Nested` where `Runtime::block_on` would panic.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const value = await future; // Node's loop is always there; here the loop is built on first need.
+/// ```
 pub fn run_on_runtime<F: std::future::Future>(future: F) -> Result<F::Output, RuntimeError> {
-    let _ = future;
-    return Err(RuntimeError::Nested);
+    if tokio::runtime::Handle::try_current().is_ok() {
+        return Err(RuntimeError::Nested);
+    }
+    return match RUNTIME.get_or_init(build_for_this_process) {
+        Ok(built) => Ok(built.runtime.block_on(future)),
+        Err(reason) => Err(RuntimeError::CouldNotStart(reason.clone())),
+    };
 }
 
-/// Red stub.
+/// How the process's runtime was built, or nothing before the first need.
 pub fn built_flavor() -> Option<BuiltFlavor> {
-    return None;
+    return RUNTIME.get().and_then(|built| { return built.as_ref().ok(); }).map(|built| { return built.flavor; });
 }
 
 /// Runtime controls stay out of the release executable.
