@@ -55,7 +55,7 @@ pub const TOOL_TABLE: &str = "[[tools.\"cargo:monochromatic-lint\"]]";
 /// function staleBinaryHint(configDirectory: Path): string | undefined;
 /// ```
 pub(crate) fn stale_binary_hint(config_directory: &Path) -> Option<String> {
-    return stale_binary_hint_with(config_directory, &read_lock_text);
+    return stale_binary_hint_with(config_directory, VERSION, &read_lock_text);
 }
 
 /// What:
@@ -80,6 +80,8 @@ fn read_lock_text(path: &Path) -> Option<String> {
 ///  The nearest lockfile is the one governing the rejected configuration's repository;
 ///  a
 /// farther lockfile belongs to another repository and is not evidence here.
+///  The running version is a parameter so that a control can run
+/// with a plain `x.y.z` version when the manifest's own version is a pre-release the comparison refuses to order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,6 +89,7 @@ fn read_lock_text(path: &Path) -> Option<String> {
 /// ```
 fn stale_binary_hint_with(
     config_directory: &Path,
+    own_version: &str,
     read: &dyn Fn(&Path) -> Option<String>,
 ) -> Option<String> {
     for directory in config_directory.ancestors() {
@@ -102,7 +105,7 @@ fn stale_binary_hint_with(
             continue;
         };
         let pin = pinned_tool_version(lock_text.as_str())?;
-        if !older_than_pin(VERSION, pin.as_str()) {
+        if !older_than_pin(own_version, pin.as_str()) {
             return None;
         }
         return Some(format!(

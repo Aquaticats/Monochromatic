@@ -14,7 +14,6 @@
 
 /// Import the probe under test and the running build's version.
 use super::{older_than_pin, pinned_tool_version, stale_binary_hint_with};
-use crate::run_finish::VERSION;
 use std::path::{Path, PathBuf};
 
 /// The lockfile table header as it appears in a real mise lockfile,
@@ -22,10 +21,24 @@ use std::path::{Path, PathBuf};
 /// extraction controls pin the format rather than this module's constant.
 const REAL_HEADER: &str = "[[tools.\"cargo:monochromatic-lint\"]]";
 
+/// The running version every control compares against.
+/// It is fixed here, not read from the manifest,
+///  because a pre-release manifest version is deliberately unorderable and would leave every
+/// newer-pin control without a measurement.
+const RUNNING_VERSION: &str = "2.3.4";
+
+/// The hint for one configuration directory as the running version `RUNNING_VERSION` would give it.
+fn hint_for_running_version(
+    directory: &Path,
+    read: &dyn Fn(&Path) -> Option<String>,
+) -> Option<String> {
+    return stale_binary_hint_with(directory, RUNNING_VERSION, read);
+}
+
 /// A pin strictly newer than the running version,
-///  built from the manifest version.
+///  built from `RUNNING_VERSION`.
 fn newer_pin() -> String {
-    let major: u64 = VERSION
+    let major: u64 = RUNNING_VERSION
         .split('.')
         .next()
         .expect("manifest version has a major component")
@@ -101,13 +114,13 @@ fn the_hint_names_a_measured_newer_pin_and_nothing_else() {
     let lock: PathBuf = root.join("mise.lock");
     let newer: String = newer_pin();
     let stale_text: String = format!("{REAL_HEADER}\nversion = \"{newer}\"\n");
-    let hint = stale_binary_hint_with(root, &reader(&[(lock.as_path(), stale_text.as_str())]))
+    let hint = hint_for_running_version(root, &reader(&[(lock.as_path(), stale_text.as_str())]))
         .expect("a measured newer pin produces a hint");
     assert!(hint.contains("may be stale"), "{hint}");
     assert!(hint.contains(newer.as_str()), "{hint}");
     assert!(hint.contains(lock.to_string_lossy().as_ref()), "{hint}");
     // The same pin in a nested configuration directory is still the repository's pin.
-    let nested = stale_binary_hint_with(
+    let nested = hint_for_running_version(
         &root.join("src"),
         &reader(&[(lock.as_path(), stale_text.as_str())]),
     )
@@ -121,39 +134,39 @@ fn the_hint_names_a_measured_newer_pin_and_nothing_else() {
 #[test]
 fn unmeasured_pins_and_farther_lockfiles_produce_no_hint() {
     assert_ne!(
-        VERSION, "0.0.0",
+        RUNNING_VERSION, "0.0.0",
         "the older-pin control needs a strictly older pin"
     );
     let root: &Path = Path::new("/repo");
     let lock: PathBuf = root.join("mise.lock");
-    let equal: String = format!("{REAL_HEADER}\nversion = \"{VERSION}\"\n");
+    let equal: String = format!("{REAL_HEADER}\nversion = \"{RUNNING_VERSION}\"\n");
     assert_eq!(
-        stale_binary_hint_with(root, &reader(&[(lock.as_path(), equal.as_str())])),
+        hint_for_running_version(root, &reader(&[(lock.as_path(), equal.as_str())])),
         None
     );
     let older: String = format!("{REAL_HEADER}\nversion = \"0.0.0\"\n");
     assert_eq!(
-        stale_binary_hint_with(root, &reader(&[(lock.as_path(), older.as_str())])),
+        hint_for_running_version(root, &reader(&[(lock.as_path(), older.as_str())])),
         None
     );
-    let unorderable: String = format!("{REAL_HEADER}\nversion = \"{VERSION}-alpha.1\"\n");
+    let unorderable: String = format!("{REAL_HEADER}\nversion = \"{RUNNING_VERSION}-alpha.1\"\n");
     assert_eq!(
-        stale_binary_hint_with(root, &reader(&[(lock.as_path(), unorderable.as_str())])),
+        hint_for_running_version(root, &reader(&[(lock.as_path(), unorderable.as_str())])),
         None
     );
     let not_this_tool: String = String::from("[[tools.\"cargo:fd-find\"]]\nversion = \"9.9.9\"\n");
     assert_eq!(
-        stale_binary_hint_with(root, &reader(&[(lock.as_path(), not_this_tool.as_str())])),
+        hint_for_running_version(root, &reader(&[(lock.as_path(), not_this_tool.as_str())])),
         None
     );
     // Positive control: the same probe hints when the nearest lockfile pins a newer version.
     let near: String = format!("{REAL_HEADER}\nversion = \"{}\"\n", newer_pin());
-    assert!(stale_binary_hint_with(root, &reader(&[(lock.as_path(), near.as_str())])).is_some());
+    assert!(hint_for_running_version(root, &reader(&[(lock.as_path(), near.as_str())])).is_some());
     // The nearest lockfile governs: this tool's absence there is measured silence, not a hint.
     let farther: PathBuf = Path::new("/").join("mise.lock");
     let no_tool: String = String::from("[[tools.\"cargo:fd-find\"]]\nversion = \"1.0.0\"\n");
     assert_eq!(
-        stale_binary_hint_with(
+        hint_for_running_version(
             &root.join("src"),
             &reader(&[
                 (lock.as_path(), no_tool.as_str()),
@@ -163,7 +176,7 @@ fn unmeasured_pins_and_farther_lockfiles_produce_no_hint() {
         None
     );
     assert_eq!(
-        stale_binary_hint_with(&root.join("src"), &reader(&[])),
+        hint_for_running_version(&root.join("src"), &reader(&[])),
         None
     );
 }
