@@ -3430,6 +3430,11 @@
       "kept_names_in_the_git_directories": [
         "cli",
         "moving_kept_files_to_the_new_names"
+      ],
+      "lfs_output_mask": [
+        "text-time-and-log-line-formats",
+        "lines_printed_for_the_person",
+        "(moved from the program)"
       ]
     },
     "named_changes": [
@@ -3454,7 +3459,8 @@
       "side_by_side_threads": "running_jobs_on_threads_side_by_side",
       "rename_that_never_replaces": "renaming_a_file_without_replacing_another",
       "captured_child_run_to_its_end": "running_a_command_to_its_end_and_collecting_its_output",
-      "child_awaited_through_a_pidfd": "waiting_for_a_child_through_its_process_file_handle"
+      "child_awaited_through_a_pidfd": "waiting_for_a_child_through_its_process_file_handle",
+      "lfs_output_mask": "hiding_the_password_in_web_addresses_in_text"
     },
     "program_folder_uses": {
       "after_commit_work_of_the_service": [

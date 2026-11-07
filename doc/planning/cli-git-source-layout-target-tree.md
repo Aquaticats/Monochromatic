@@ -406,10 +406,10 @@ This commit holds tokio steps T1 to T5 (`48611f7e09`) and the swaps to `tempfile
 - The lint baseline:
   362 findings (358 before).
   `rust/folder-uses-links` has 321:
-  292 folders that use another folder without a link,
+  292 findings of a folder that uses another folder without a link,
   28 flat `pub use folder::*;` re-exports and 1 folder loop.
   `rust/file-order-in-folder` has 41:
-  27 folders without a file list in their top doc and 14 file loops.
+  27 findings of a folder without a file list in its top doc and 14 file loops.
   One of the 14 file loops is one the scan cannot see:
   `discard_audit_generations` is declared inside `discard_audit` by `#[path]` as the child module `generations`,
   `discard_audit` names `generations::Retention`,
@@ -427,12 +427,17 @@ This commit holds tokio steps T1 to T5 (`48611f7e09`) and the swaps to `tempfile
 
 ### Files added since the first scan, placed
 
-Twenty-two production modules were not in the placement table.
+Twenty-two production modules were not in the placement table
+(one of them,
+`runtime_probe`,
+is a test-only entry that lives in production code).
 The four the proposal expected to join libraries did:
 `side_by_side_threads`,
 `rename_that_never_replaces`,
 `line_sink` and `call_catching_panics`.
-All placements below are proposals and the folder names are working names that pass MKY only after the owner's veto round.
+The placements in this list are proposals,
+and the folder names are working names that the owner's veto round settles;
+several fail MKY alone today (names to revisit are listed in the section "One level of groups in the program").
 
 - Join `parallel-work-within-a-budget`:
   `side_by_side_threads`,
@@ -500,6 +505,9 @@ The seventh change is for a loop the engine cannot count.
   its variables and its Git commands passed in");
   the constant stays in `wrapper_names_old_and_new`.
 - `lfs_output_mask` moves whole to the text library as a Git-free file
+  (and is renamed,
+  for example `hiding_the_password_in_web_addresses_in_text`,
+  because the name says `lfs`)
   (it is a masker of the user and password part of a URL inside text;
   only its doc comments say `git-lfs`,
   which is reworded).
@@ -545,6 +553,16 @@ Printed by `engine5.ts` on `spec/spec6.txt`:
   `binary_service_landing_support`,
   `binary_support_observation`) are not placed;
   they belong to the `native_binary` test target.
+
+What this shows and what it does not:
+it is a structural check of the production model,
+with no use of a program file by a library file and no loop,
+and independent builds and tests of the packages are not verified
+(the owner's "I'd like you to confirm with me each pkg can stand on its own itself" stays pending;
+the 46 test references named in the counts and the scanner's blind spots remain).
+The 653 scanned files and the 617 placed files differ by index files (`mod.rs`),
+the two crate roots,
+the test-only files and the new files that the named changes create.
 
 Facts the scan does not settle:
 
@@ -1267,9 +1285,13 @@ Its `src/` holds 74 folders and `main.rs` and `lib.rs`;
 each folder is a former crate or a folder of a former crate,
 listed in section "Inside each crate" with its `uses/` links.
 It depends on the eight libraries in its `Cargo.toml`.
-The folders do not nest,
-so the linter never sees a parent that uses its child;
-open point "Flat folders or one level of grouping" has the other choice.
+Superseded 2026-11-07T10:43:12-05:00:
+the folders no longer sit flat.
+The owner answered "One level of groups",
+so they sit in group folders,
+and section "One level of groups in the program" drafts the groups and ranks the options for the rule that relates a group
+to its children.
+The flat list in this section and in "Inside each crate" is the list of child folders.
 
 Former crates and the program folders they became,
 in the order of the draft:
@@ -1600,8 +1622,8 @@ it is not a claim about crates this page did not show.
   optional `async-io`),
   `waitpidx` 0.0.1 (25 downloads):
   pidfd wrappers.
-  They are built on `async-io`,
-  not tokio's `AsyncFd`;
+  `async-io` is an optional feature of each,
+  and whether they work with tokio's `AsyncFd` was not established;
   not read.
 - `systemd-transient` 0.2.1 (Apache-2.0 or MIT,
   72 downloads,
@@ -1620,7 +1642,8 @@ it is not a claim about crates this page did not show.
 
 Three outcomes are used:
 a published crate now does the whole job so no crate of ours is needed,
-a crate does part and a thin remainder is left (with where it belongs),
+a crate does part and a remainder is left (with where it belongs;
+the line counts of each remainder are given because "thin" is not claimed for the large ones),
 or nothing published fits so the library stays.
 
 - `safe-file-saving`:
@@ -1690,7 +1713,7 @@ or nothing published fits so the library stays.
   341),
   the error mapping (`fs_primitive_error`, 110)
   and the three files that remove a folder tree below a held parent without crossing a mount (437 together).
-  Candidates for those pieces are screened above (`btrfs-uapi` needs `libclang`;
+  Candidates for those pieces are in the list of crates screened here (`btrfs-uapi` needs `libclang`;
   `procfs-core` and `whichdisk` have a mount-table reader;
   `remove_dir_all` removes trees);
   none is validated.
@@ -1710,12 +1733,12 @@ or nothing published fits so the library stays.
   so the library stays,
   smaller where `rustix` and tokio take over.
   Evidence:
-  no inactivity-based watcher among 274 results of "run command inactivity timeout"
+  no inactivity-based watcher on the first page of 274 results of "run command inactivity timeout"
   (page one;
   `command_timeout` 0.1.3 is a tokio command timeout by elapsed time,
   which the owner ruled out as a reason to end a child),
-  the study read `process-wrap`,
-  `kill_tree` and `wait-timeout` and found none with start-time guarded signalling or a no-progress rule;
+  the study screened `process-wrap` and `wait-timeout` by description and read the source of `kill_tree`,
+  and found none with start-time guarded signalling or a no-progress rule;
   `signal-hook-registry::unregister` leaves the signal ignored instead of restoring it
   (tokio plan,
   "The signal relay cannot be tokio's signal handling");
@@ -1727,8 +1750,8 @@ or nothing published fits so the library stays.
   Already in `main`:
   `child_awaited_through_a_pidfd` (166 lines) is `rustix` and `tokio::io::unix::AsyncFd`,
   `child_watch` is a task on the shared runtime.
-  The pidfd crates screened above use `async-io`,
-  so they do not replace it.
+  The pidfd crates in the list of crates screened here have not been shown to work with tokio,
+  so none is shown to replace it.
   The sibling that carries its own copy of the operation:
   `package/cargo-shadow/cli/src/bounded_run.rs` and `control_group.rs` use `rustix` process and event calls and `pidfd`,
   and `package/wg/cli-quicker-exempt/src/watcher_sentinel.rs` uses `pidfd`.
@@ -1770,8 +1793,14 @@ or nothing published fits so the library stays.
   about 620 lines) goes at step T12.
   Where the remainder belongs:
   the library while a sibling needs the runner,
-  and the program after step T12,
+  and a part of the program after step T12,
   unless a sibling that builds a tokio runtime names a call.
+  A fold is not free:
+  `starting-and-watching-programs` uses `lazy_runtime` and `blocking_job`,
+  so folding the runtime into the program would make that library use program files again.
+  Either the caller hands the library a tokio runtime handle and the runtime-building policy stays in the program,
+  or the runtime component stays independent;
+  the graph is rescanned before the fold is treated as viable.
   Today's siblings do not:
   `package/forbidden-strings/core/src/parallel.rs` builds rules on its own threads
   and `package/linter/monochromatic-lint/src/run_command.rs` only asks for the thread count.
@@ -1779,7 +1808,10 @@ or nothing published fits so the library stays.
   after step T12 shows how large they are.
 - `text-time-and-log-line-formats`:
   a crate does part (time stamps and JSON quoting),
-  and about 850 lines remain that have no validated crate and no outside user.
+  and about 850 lines remain that have no validated crate and no outside user
+  (`json_record` and `js_text`,
+  468 lines together,
+  wait for a comparison of their readers before anyone can say whether a standard form replaces them).
   Evidence:
   `jiff` (adopted) writes the time stamps,
   and `iso_time` is now 56 lines over it;
@@ -1802,7 +1834,7 @@ or nothing published fits so the library stays.
   One consequence is new:
   with this library gone,
   the four libraries that stay would still call program files for log lines,
-  quoting and text trimming (next section),
+  quoting and text trimming (section "What the verdicts do to the table"),
   so the owner must say how a library prints a log line.
 - `talking-to-the-systemd-user-manager`:
   a published crate now does the whole job.
@@ -1846,9 +1878,9 @@ or nothing published fits so the library stays.
   tokio);
   tokio steps T6 and T12 convert its `std::thread` uses (9 of them).
 - `dependent-version-bump-check`:
-  nothing known to be published fits,
-  with two candidates unread,
-  so the library stays on paper.
+  published coverage is undetermined,
+  because two candidates are unread,
+  so the library stays in the model provisionally and this is not an established case of the third outcome.
   Evidence:
   the study's four queries returned release tools (`changesette`,
   `changepacks`,
@@ -1867,7 +1899,7 @@ The owner has not said how many libraries remain ("I'm not ready to answer this 
 These are readings,
 not a proposal to decide:
 
-- If every verdict above is taken,
+- If every verdict in the list of verdicts is taken,
   `safe-file-saving`,
   `linux-file-and-disk-calls`,
   `text-time-and-log-line-formats` and `talking-to-the-systemd-user-manager` leave the list of libraries,
@@ -1899,9 +1931,15 @@ not a proposal to decide:
   (`tracing` or the `log` facade for the lines,
   `str::trim` and `str::parse` once the readers are compared,
   `serde_json::to_string`,
-  `std::fs::copy` or `tempfile`),
+  and for `private_storage::copy_file_exclusive` a create-new copy built on the adopted `tokio::fs`
+  or `tempfile` calls;
+  `std::fs::copy` is not that form,
+  because it overwrites an existing destination,
+  so the exclusive copy must be specified and tested with the owner-kept fallback before the edge counts as solved),
   except `shell_quote`,
   which the owner chose to keep.
+  None of these replacements is approved by this section:
+  naming `tracing` or the `log` facade says only that a published form exists.
 - So taking the verdicts makes two owner decisions necessary:
   how a library prints a log line
   (a facade crate that the program installs a printer for,
@@ -1909,7 +1947,9 @@ not a proposal to decide:
   which would keep one library that the verdicts would otherwise remove),
   and where `shell_quote` lives
   (two repair files quote shell words).
-- The dependency graph changes:
+- The conditional target graph for reading D,
+  which holds only after the replacements above and the two owner decisions
+  (the engine measured one crate loop and 19 edges until then):
   `starting-and-watching-programs` depends on `parallel-work-within-a-budget` (the shared runtime),
   `fix-packages-after-copying-a-folder` on both,
   and no library depends on the text or file-saving libraries.
@@ -1920,13 +1960,13 @@ Written 2026-11-07T10:43:12-05:00.
 The owner answered the question of flat folders or grouping with,
 verbatim,
 "One level of groups".
-So the program's 78 folders sit in group folders,
+So the program's 78 folders sit in 16 group folders and 10 one-folder entries,
 one level deep:
 a group folder holds child folders,
 and a child folder holds files and its own `uses/` folder.
 The owner still has to word the rule for how a group folder and its children relate
 under "Two source folders never use each other" (LYL);
-the next section gives the options.
+the section "The rule the owner must word" gives the options.
 
 ### How the groups were drafted
 
@@ -1961,10 +2001,13 @@ the next section gives the options.
   so the folder sits directly in `src/` under its own name,
   and other entries' `uses/` links name it by that name.
   The 78 folders are all placed (the script's `missing` and `extra` lists are empty).
-- The group folders and the `uses/` folder of each entry
-  (the group's `uses/` links are the other entries its children use;
-  the children's own `uses/` links are in the next paragraph).
-  Listed from the entry that uses nothing to the entry that uses the most:
+- The entries.
+  The group `uses/` links shown are the summaries of Option B in the section "The rule the owner must word",
+  which the installed lint rejects today;
+  an initial layout under Option A would omit them and keep the exact links of the child folders
+  (listed in the paragraph that starts "The children's own `uses/` links").
+  Listed in dependency order,
+  with each entry using only entries already listed:
   - `understanding_the_git_command_you_typed/` (a group folder):
     Reads the words typed after `git` the way Git reads them,
     and the words meant only for this wrapper.
@@ -2379,6 +2422,17 @@ the next section gives the options.
   and `sha_1_and_sha_256_of_bytes` (two calls into `sha1` and `sha2` since commit `1aea0ae238`;
   the folder can dissolve into its users).
   Neither is renamed here.
+- Names that fail MKY alone today and are for the veto round,
+  not settled by it:
+  `the_service_program` (which service,
+  and what it does),
+  `the_built_in_policies` (what the policies check),
+  `after_commit_work_of_the_service` (which work),
+  `syncing_files_off_the_waiting_path` (scheduling jargon),
+  `scanning_those_bytes_for_forbidden_strings` ("those" needs its context),
+  `who_owns_a_transaction_folder` (transaction is unexplained),
+  and `clearing_leftover_reference_locks` (Git's reference lock needs its top doc).
+  Each either gets a plainer name or a top doc that explains the term to someone who knows only `git commit` and `git push`.
 
 ### The rule the owner must word
 
@@ -2411,7 +2465,7 @@ so what each lint would check is measured where the installed linter already dec
   Two source folders never use each other,
   and the package's lint fails when a source folder's `uses/` links and its code disagree."
   - Pros:
-    the installed lint already enforces it and needs no change
+    the installed lint already enforces its links and its folder-loop check and needs no change for them
     (measured:
     without links it printed one finding for `g/b` using `g/a` and one for `h/c` using `g/a`,
     with exact child links it printed none);
@@ -2440,7 +2494,10 @@ so what each lint would check is measured where the installed linter already dec
     a group folder that grows code of its own is then a source folder and needs links to its children
     (measured:
     a `pub use a::x::X;` in `g/mod.rs` printed "src/g uses the folder src/g/a ... but src/g/uses has no link to it").
-    An optional new check could fail a group folder that holds a file other than its top doc and `mod` lines.
+    The installed lint does not enforce the shelf-only restriction:
+    a properly linked re-export in a group folder would pass it.
+    Enforcing it mechanically needs a new check that fails a group folder holding a file other than its top doc and `mod` lines;
+    without that check the restriction is a convention.
 - Option B,
   the shelf and a group-level summary:
   Option A plus,
@@ -2470,7 +2527,7 @@ so what each lint would check is measured where the installed linter already dec
   - Example from this tree:
     `running_every_check_in_order` links `reading_what_a_commit_would_save`,
     `rules_about_what_a_command_may_do`,
-    `keeping_what_a_command_would_throw_away`,
+    `saving_copies_of_what_a_command_would_throw_away`,
     `your_settings_for_this_wrapper`
     and five more entries,
     and its child `the_list_of_checks_every_commit_runs` links exact folders such as `rules_about_where_a_command_may_run`
@@ -2486,6 +2543,9 @@ so what each lint would check is measured where the installed linter already dec
   a child's `uses/` links only siblings in its own group;
   its uses of other entries are declared once,
   by the group's `uses/`.
+  A one-folder entry is a source folder with no group,
+  so under B and C it keeps exact links to the entries it uses,
+  as in A.
   Draft wording:
   "A folder's `uses/` links the folders of its group that it uses;
   a group's `uses/` links the groups its children use.
@@ -2544,8 +2604,13 @@ which is what moved six folders off their theme in the draft.
   dependency order,
   and a `uses/` folder of links to the folders of the same crate it uses.
   A crate root `lib.rs` holds only `mod` lines.
-- No folder is nested inside another one;
-  the lint then never sees a parent that uses its child.
+- Superseded 2026-11-07T10:43:12-05:00:
+  the owner answered "One level of groups",
+  so a child folder of the program sits inside a group folder,
+  one level deep and no more;
+  section "One level of groups in the program" holds the groups and the options for how a group relates to its children.
+  The libraries' folders stay as drafted,
+  because the owner's words name the program.
 - Folder names are plain sentences.
   The folders that exist on disk,
   with their `uses/` links.
@@ -4347,6 +4412,9 @@ and passes the crate's tests.
     the owner's release answers of 2026-11-07 are in the section "Cargo packaging facts that bear on the tree").
     Nothing below runs earlier.
 1.  Rescan `main` (open point "Rescan before step 0") and place the files added since `f44d921e24`.
+    Done once on 2026-11-07 (section "Rescan of main after the adopted crates");
+    tokio steps T6 to T13 are still to land,
+    so it runs again before step 7.
 2.  Every change listed above that is not a loop break also gets its own commit before the first grouping that needs it:
     the `worktree_command_facts` move,
     the `copy_file_exclusive` error type,
@@ -4380,6 +4448,8 @@ and passes the crate's tests.
     the build proves the rewrite.
 7.  Group the files into the target folders of the same package:
     `src/<folder>/<file>.rs` for the program,
+    or `src/<group>/<folder>/<file>.rs` under the owner's one level of groups
+    (a one-folder entry keeps `src/<folder>/<file>.rs`),
     and `src/<crate>/<folder>/<file>.rs` for the eight libraries while they still live inside it,
     one commit per former crate,
     bottom first;
@@ -4609,7 +4679,7 @@ the recommendation is the first option.
     `forbidden-strings`' `parallel.rs`);
     the repair and version jobs fold into the program.
     Pros:
-    every remaining library has demonstrated outside use,
+    every remaining library has a sibling that duplicates a related operation (not a consumer of the library's API),
     and fewer manifests,
     READMEs and licence texts.
     Cons:
@@ -4664,7 +4734,7 @@ the recommendation is the first option.
     the owned process group,
     the core-dump ban,
     the file-size-limit child,
-    which no crate gives;
+    for which the study found no crate;
     study,
     "Disposable test folders") more than folders.
   - The `testing/` folder holds 1,228 lines in nine non-sidecar files,
@@ -4739,7 +4809,10 @@ the recommendation is the first option.
     as `package/catalog-specifier/core-rust` is,
     and under the owner's rule every release goes to pnpr,
     with `-rc.N` and plain numbers also on crates.io.
-  - Three of the four remaining names are ones the open point after this one calls plural
+  - The directory spellings `core-rust` and `cli` are the repository's precedent,
+    not names that pass MKY alone;
+    that is for the owner's veto round and is not decided here.
+  - Three of the four remaining names are ones the open point "Singular directory names" calls plural
     (`starting-and-watching-programs`,
     `parallel-work-within-a-budget` and `fix-packages-after-copying-a-folder`);
     `dependent-version-bump-check` is not.
@@ -5021,8 +5094,123 @@ and what was done:
   its remark that no folded crate is shown to pass every condition,
   since none is claimed to.
 
+## Third review, of the rescan, the library verdicts and the groups (2026-11-07)
+
+The reviewer was `openai/gpt-6.1-sol` (thinking xhigh),
+given the owner's words,
+the raw command output lines the sections cite,
+and the changed sections whole (the rescan,
+the library verdicts,
+the groups and the open points),
+with no tools.
+It started at 2026-11-07T10:44:48-05:00 and answered at 2026-11-07T10:58:57-05:00,
+well inside the hour.
+It could not read the source or the scanners.
+It reviewed the version of 2026-11-07T10:43:12-05:00
+(the first commit of the branch plus the fixes of the second);
+its input is `~/temp/agent/wrapper-layout-after-crates/review/input.md`.
+Its twenty-one findings,
+and what was done:
+
+- The count of new modules does not match the list (medium):
+  taken.
+  The sections said twenty;
+  the unmatched list minus the support and root files is twenty-two,
+  and that was already corrected before the answer.
+  The text now says twenty-two and notes that `runtime_probe` is a test-only entry.
+- The 292 lint findings are not 292 folders (low):
+  taken.
+  The wording says findings.
+- The four-library graph is stated as settled although the measured model has a loop and 19 edges (high):
+  taken.
+  The graph is labelled the conditional target graph of reading D,
+  with the measured loop and the 19 edges attached,
+  and the text says that naming `tracing` or `log` approves nothing.
+- Folding the runtime after step T12 would make the process library use program files (high):
+  taken.
+  The text now says the caller must hand a runtime handle or the runtime component must stay independent,
+  and that the graph is rescanned before the fold is viable.
+- `std::fs::copy` does not copy exclusively (high):
+  taken.
+  The text names a create-new copy on `tokio::fs` or `tempfile` with the owner-kept fallback,
+  says `std::fs::copy` overwrites,
+  and does not count the edge as solved.
+- "Thin remainder" is not established for two libraries (medium):
+  taken.
+  The outcome wording no longer claims thinness for the large remainders,
+  the line counts are given,
+  and the 468 lines of `json_record` and `js_text` are named as waiting for a comparison of their readers.
+- The version-check verdict assigns an outcome the text says is unknown (medium):
+  taken.
+  Its coverage is undetermined and the library stays provisionally.
+- Optional `async-io` does not show the pidfd candidates cannot work with tokio (medium):
+  taken.
+  The text says their tokio suitability was not established.
+- Search coverage is overstated (medium):
+  taken.
+  The watcher claim says "first page",
+  and the test-helper facts say the study found no crate instead of saying no crate gives the helpers.
+- The introduction and options do not handle the ten one-folder entries (medium):
+  taken.
+  The introduction says 16 group folders and 10 one-folder entries,
+  and options B and C say a one-folder entry keeps exact links as in A.
+- The group link lists assume Option B (medium):
+  taken.
+  They are labelled the summaries of Option B,
+  and the text says an initial layout under Option A omits them.
+- Option A overstates what the installed lint enforces (medium):
+  taken.
+  The text separates the links and the folder-loop check (enforced) from the shelf-only restriction
+  (not enforced;
+  a convention until a new check exists).
+- The Option B example names an entry that does not exist (medium):
+  taken.
+  It names `saving_copies_of_what_a_command_would_throw_away`.
+- The list is in dependency order,
+  not by count (low):
+  taken.
+- The stand-alone claim exceeds the evidence (high):
+  taken in part.
+  The rescan now says what it shows (a structural check of the production model with no library use of a program file and no loop)
+  and what it does not (independent builds and tests are unverified and the owner's confirmation is pending).
+  The sentence "The eight pass the coordinator's stand-alone test" is older text of the second review's version
+  and was left unedited;
+  the new sections carry the qualification.
+- Test-helper Option C contradicts itself (medium):
+  not acted on.
+  The option and its ranking are the text the owner saw and answered "Not yet."
+  to;
+  the section only adds facts.
+  The reviewer's point (tests that use only `std` can run alone,
+  at a cost of rewrites and duplication) is recorded here for the owner's reading.
+- "Demonstrated outside use" is really duplication of a related operation (medium):
+  taken.
+  Option E now says duplicates a related operation,
+  not a consumer of the library's API.
+- `cli` and `core-rust` directory names fail the naming rule (medium):
+  taken in part.
+  The facts of the location point say these spellings are precedent and not names that pass MKY alone.
+  They are not changed because the owner answered "Not yet."
+  on where libraries live.
+- The masker keeps an `lfs` name (medium):
+  taken.
+  A rename is proposed in the text and in the group map (`hiding_the_password_in_web_addresses_in_text`).
+- The veto round is not a naming-compliance test,
+  and several folder names are opaque (medium):
+  taken in part.
+  The text says the veto round settles names that fail today,
+  and lists the reviewer's examples as names for a plainer name or a top-doc explanation.
+  They are not renamed here (proposal only).
+- Relative pointers (low):
+  taken for the new sections;
+  older text of the file that says above or below is left.
+
 ## Next
 
-The owner answers the open points;
-then step 0 and steps 3 to 6 start,
+The owner answers the open points,
+among them the rule for a group folder and its children,
+the count of libraries and how a library prints a log line;
+then the tokio steps still to come land,
+the rescan runs again,
+and steps 3 to 6 of the move order start,
 each on its own branch.
