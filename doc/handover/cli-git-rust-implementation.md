@@ -3663,6 +3663,13 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and for a failing Node import), but the reading of a unit started with `--collect`, which systemd unloads when it
   ends, after which `systemctl show` prints default values. Read a collected unit's outcome from its log, where the
   gate command now appends "mise exit status: N".
+- Mutation launcher limits merged `0c1c5a7d87` (file units `IOWeight=10`, `TasksMax=256` from a measured peak of
+  about 40 to 60, `--unit-tasks-max`; planted-controls unit too). Gate-slot wake test fixed in the test (merged
+  `6e599398d9`): it measured 262 ms at load about 70 on 28 CPUs, nearly all in the test's own release; the case now
+  asserts a wake by directory event, shown red against a 50 ms polling plant. Running after them: every repository
+  `systemd-run` builder gets all four limits (`fix/systemd-run-units-carry-all-four-limits`; `crate-release` sets only
+  `MemoryMax`), and the global install and list disagreement on 12 npm tools
+  (`fix/mpm-shadow-cli-global-list-sees-npm-installs`).
 - `mpm-shadow` `0.2.7-alpha.1` is installed (lock `fb7e05141c`, records `724c6a14fd`); a plain copy-route
   `git worktree add` from main left main's four link folders byte-identical, so `--no-worktree-copy` is no longer
   needed. The label gate kept it off crates.io (crates.io 404 for that version; publish log "label alpha, goes to
