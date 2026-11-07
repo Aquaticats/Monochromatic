@@ -1033,9 +1033,9 @@ impl Controller {
                 // if (select) { /* preselect */ } else { /* normal open */ }
                 // ```
                 match select {
-                    // What:     `Some(sel) => { ... }`. Find `sel` in the scanned queue and
-                    //           select it; `position(|p| *p == sel)` returns the matching index
-                    //           or `None`.
+                    // What:     `Some(sel) => match self.queue.position_of_path(&sel) { ... }`. Find `sel` in the
+                    //           scanned queue and select it; `position_of_path` returns the matching index or
+                    //           `None`.
                     // Why:      Cue the file the launch named, loaded paused unless `play`.
                     //
                     // In TS you'd write (pseudocode):

@@ -316,7 +316,8 @@ fn run_sweep(job: SweepJob) {
     // ```
     let workers = worker_count(total);
     tracing::info!(tracks = total, workers, generation = job.generation, "warming sweep started");
-    // What:     `handles = (0..workers).map(|_| thread::spawn(...))`. Start the workers.
+    // What:     The loop below starts `workers` threads, each with its own clone of the shared state, and keeps
+    //           their join handles.
     // Why:      Every worker shares the same `SweepShared`.
     //
     // In TS you'd write (pseudocode):
@@ -628,8 +629,8 @@ fn worker_count(track_count: usize) -> usize {
     if track_count == 0 {
         return 0;
     }
-    // What:     `let cores = thread::available_parallelism().map(|n| n.get()).unwrap_or(1);`.
-    //           Logical core count; fall back to 1 if the platform cannot report it.
+    // What:     `let cores = match thread::available_parallelism() { Ok(count) => count.get(), Err(_) => 1 };` is
+    //           the number of cores the operating system reports, or 1 when it cannot say.
     // Why:      The degree of parallelism for CPU-bound decoding.
     //
     // In TS you'd write (pseudocode):

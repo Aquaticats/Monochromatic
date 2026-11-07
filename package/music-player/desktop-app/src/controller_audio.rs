@@ -359,8 +359,9 @@ impl Controller {
         // const index = this.queue.currentIndex();
         // ```
         let index = self.queue.current_index();
-        // What:     `let name = index.and_then(|i| names.get(i).cloned()).unwrap_or_default();`.
-        //           The display path at that index (borrowing from `names`), or `""`.
+        // What:     `let name = match index { Some(position) => names.get(position).cloned().unwrap_or_default(),
+        //           None => String::new() };` is the display path at that index (cloned from `names`), or an empty
+        //           string when no track stays selected.
         // Why:      The window title and label use this same relative-path string.
         //
         // In TS you'd write (pseudocode):
@@ -895,13 +896,8 @@ impl Controller {
         // const index = this.queue.currentIndex();
         // ```
         let index = self.queue.current_index();
-        // What:     `let name = index.and_then(|i| self.queue.display_paths().into_iter().nth(i)).unwrap_or_else(|| file_name_of(path));`.
-        //           The track's DISPLAY PATH relative to the queue root (the same string the
-        //           list row shows, e.g. `r-906/diaLOG/06 V.flac`): `.and_then` indexes
-        //           `display_paths()` by the load-order index (`.into_iter().nth(i)`), and
-        //           `.unwrap_or_else(...)` falls back to the bare filename if the index is
-        //           absent. `display_paths()` runs only when `index` is `Some` (lazily,
-        //           inside the closure).
+        // What:     `let shown = match index { ... }` takes the queue's display path at the index, and `let name =
+        //           match shown { ... }` falls back to the bare file name of `path` when there is none.
         // Why:      The window title shows this name, so it must match the list row, not just
         //           the filename. Still filesystem-derived (no embedded tags).
         //

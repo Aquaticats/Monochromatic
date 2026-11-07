@@ -679,10 +679,8 @@ async fn write_batch(cache: Option<&DecisionCache>, identity: CacheIdentity, bat
         tracing::debug!(rows = batch.len(), "degraded cache; write batch dropped");
         return;
     };
-    // What:     `batch.iter().map(|upsert| return (upsert.fingerprint, upsert.decision)).collect()`. Turn each
-    //           queued upsert into the `(fingerprint, decision)` pair the shared cache takes; `.iter()` walks the
-    //           list by reference, `|upsert| ...` is a closure (an arrow function), and `.collect()` gathers the
-    //           pairs into a new `Vec`.
+    // What:     The loop below turns each upsert of the batch into a `(fingerprint, decision)` pair, in the batch's
+    //           order.
     // Why:      The shared crate does not know the desktop's `Upsert` type.
     //
     // In TS you'd write (pseudocode):
