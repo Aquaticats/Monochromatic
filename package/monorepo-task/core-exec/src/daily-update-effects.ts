@@ -75,6 +75,50 @@ export function splitNul(output: string,): readonly string[] {
 }
 
 /**
+ The environment the desktop notifier runs with: the caller's, with the session bus address exactly as the caller has
+ it. An address the caller does not have is never invented, so a process that was given no bus (a test, a fixture) can
+ never reach the owner's desktop by a guessed path; the timer's unit sets the address itself.
+
+ @param environment - the caller's environment
+
+ @returns a copy to give the notifier
+
+ @example
+ ```ts
+ notifierEnvironment({ environment: { DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus', }, },);
+ ```
+ */
+export function notifierEnvironment({
+  environment,
+}: {
+  readonly environment: Readonly<Record<string, string>>;
+},): Readonly<Record<string, string>> {
+  return { ...environment, };
+}
+
+/**
+ This process's environment without the variables that are unset.
+
+ @returns the variables that have a value
+
+ @example
+ ```ts
+ const environment = definedEnvironment();
+ ```
+ */
+export function definedEnvironment(): Readonly<Record<string, string>> {
+  /**
+   Variables with a value.
+   */
+  const defined: Record<string, string> = {};
+  for (const [name, value,] of Object.entries(process.env,)) {
+    if (value !== undefined)
+      defined[name] = value;
+  }
+  return defined;
+}
+
+/**
  Sends a desktop notification and writes the same text to the journal.
 
  @param title - notification title
@@ -114,18 +158,28 @@ export async function notifyOwner({
         shown,
       ],
       {
-        env: { DBUS_SESSION_BUS_ADDRESS: process.env
-          .DBUS_SESSION_BUS_ADDRESS
-          ?? `unix:path=/run/user/${process.getuid?.() ?? 0}/bus`, },
+        env: notifierEnvironment({ environment: definedEnvironment(), },),
+        timeout: NOTIFY_TIMEOUT_MS,
       },
     );
   }
   catch (error) {
     // A missing desktop must not turn a reported problem into a crash; the journal already has the text.
     process.stderr
-      .write(`daily-update: no desktop notification was shown: ${String(error,)}\n`,);
+      .write(
+      `daily-update: no desktop notification was shown: ${String(error,)} ${
+          (Error.isError(error,)) && ('stderr' in error) ? String(error.stderr,) : ''
+        }\n`,
+      );
   }
 }
+
+/**
+ Longest `notify-send` may take, in milliseconds.
+ GLib's D-Bus calls wait 25 seconds for an answer at most, which is the longest `notify-send` can wait on a bus whose
+ service does not answer; measured 2026-11-07: 0.6 seconds against a private bus with no notification service.
+ */
+export const NOTIFY_TIMEOUT_MS = 30_000;
 
 /**
  Characters of a notification body that are sent to the desktop.
@@ -252,6 +306,15 @@ export function realEffects(repository: string,): DailyUpdateEffects {
           ...paths,
         ],
       },);
+    },
+    headCommit: async function headCommit() {
+      return (await git({
+        repository,
+        args: [
+          'rev-parse',
+          'HEAD',
+        ],
+      },)).trim();
     },
     notify: notifyOwner,
     log: logLine,

@@ -1173,6 +1173,29 @@ Two costs of B remain that A did not have:
 replacement of the link by a real folder is not preventable by a mode (fixture state 6),
 and every tool needs the shared check (W1).
 
+### The owner's go-ahead on timing, 2026-11-07T12:46:40-05:00
+
+Told that the move waited only on the bounded cut-over window with commits refused,
+the owner said,
+verbatim:
+"No need to wait for me.
+Do it whenever you see fit."
+So the coordinator picks the window:
+the moment no agent works in a worktree,
+so no commit is refused,
+with the stated maximum the runbook gives after timing the first pass.
+Every copy step still needs root,
+and agents never run `sudo`,
+so the owner runs the root commands;
+the coordinator hands them over as one guided script in this order:
+the root fixture test of `btrfs send` and `receive` on loop images,
+the inventory `R0`,
+the first pass (no window;
+the tree stays writable),
+then,
+at the chosen moment,
+the final pass and the switch to the link.
+
 ## Copy methods
 
 ### M1: btrfs send and receive with clone sources (needs root)

@@ -213,6 +213,7 @@ export async function runGroup({
       name: group.name,
       outcome: 'skipped',
       committed: [],
+      commit: '',
       problems: [
         `${group.name}: skipped because these files have uncommitted changes that the update would mix with its own: ${
           dirtyOwned.join(', ',)
@@ -245,6 +246,7 @@ export async function runGroup({
       name: group.name,
       outcome: 'failed',
       committed: [],
+      commit: '',
       problems,
     };
   }
@@ -283,6 +285,7 @@ export async function runGroup({
       name: group.name,
       outcome: 'unchanged',
       committed: [],
+      commit: '',
       problems,
     };
   }
@@ -312,6 +315,7 @@ export async function runGroup({
       name: group.name,
       outcome: 'failed',
       committed: [],
+      commit: '',
       problems,
     };
   }
@@ -319,12 +323,13 @@ export async function runGroup({
     name: group.name,
     outcome: 'landed',
     committed: changed,
+    commit: await effects.headCommit(),
     problems,
   };
 }
 
 /**
- Runs every group in order and tells the owner about anything that went wrong.
+ Runs every group in order and tells nobody: the caller decides how the reports reach the owner.
  A failed or skipped group never stops the groups after it.
 
  @param effects - the outside world
@@ -335,10 +340,10 @@ export async function runGroup({
 
  @example
  ```ts
- const reports = await runDailyUpdate({ effects, groups: dailyUpdateGroups({ globalLockPath, },), },);
+ const reports = await runGroups({ effects, groups: dailyUpdateGroups({ globalLockPath, },), },);
  ```
  */
-export async function runDailyUpdate({
+export async function runGroups({
   effects,
   groups,
 }: {
@@ -366,12 +371,60 @@ export async function runDailyUpdate({
     },
   },),);
 
+  return reports;
+}
+
+/**
+ Every problem of every group, in group order.
+
+ @param reports - what the groups did
+
+ @returns the problems, empty when nothing went wrong
+
+ @example
+ ```ts
+ const problems = groupProblems(reports,);
+ ```
+ */
+export function groupProblems(reports: readonly GroupReport[],): readonly string[] {
+  return reports.flatMap(function problemsOf(report,) {
+    return report.problems;
+  },);
+}
+
+/**
+ Runs every group in order and tells the owner about anything that went wrong, in one notification.
+ A failed or skipped group never stops the groups after it.
+
+ @param effects - the outside world
+
+ @param groups - groups in the order they run
+
+ @returns one report per group
+
+ @example
+ ```ts
+ const reports = await runDailyUpdate({ effects, groups: dailyUpdateGroups({ globalLockPath, },), },);
+ ```
+ */
+export async function runDailyUpdate({
+  effects,
+  groups,
+}: {
+  readonly effects: DailyUpdateEffects;
+  readonly groups: readonly UpdateGroup[];
+},): Promise<readonly GroupReport[]> {
+  /**
+   What the groups did.
+   */
+  const reports = await runGroups({
+    effects,
+    groups,
+  },);
   /**
    Every problem of every group.
    */
-  const problems = reports.flatMap(function problemsOf(report,) {
-    return report.problems;
-  },);
+  const problems = groupProblems(reports,);
   if (problems.length > 0) {
     await effects.notify({
       title: 'Daily toolchain update needs a look',
