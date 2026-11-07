@@ -233,8 +233,23 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
 /// const serving = (socket: string) => connect(socket).then(readLine).then((line) => line.length > 0).catch(() => false)
 /// ```
 pub fn service_is_serving(socket: &Path) -> bool {
-    return std::os::unix::net::UnixStream::connect(socket).is_ok();
+    use std::io::BufRead;
+    let Ok(stream) = std::os::unix::net::UnixStream::connect(socket) else { return false };
+    // A service greets as soon as it has started its threads; a read that gets nothing within this bound is asked again by the
+    //  caller's loop, which has its own bound.
+    let _timeout = stream.set_read_timeout(Some(GREETING_READ));
+    let mut line: String = String::new();
+    // An empty read is a connection that ended without a greeting: the service went away as it was starting.
+    return std::io::BufReader::new(stream).read_line(&mut line).is_ok_and(|read| { return read > 0; });
 }
+
+/// How long one readiness check waits for the greeting.
+/// A service answers within milliseconds once its threads run,
+/// so a second
+///  is far past it;
+/// a longer start (a loaded host) is covered by the repeated checks of the caller,
+/// not by a longer read.
+const GREETING_READ: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// How long a fixture waits for an ended service's socket to stop answering before it says the service is still there.
 pub const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);

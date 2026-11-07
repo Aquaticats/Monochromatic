@@ -398,7 +398,7 @@ fn a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_i
     assert!(silent, "no greeting came, so the service is not serving");
     assert!(began.elapsed() < SILENT_LISTENER_WAIT * 20, "the check ended within its own bound");
     let greeter = std::thread::spawn(move || {
-        for connection in listener.incoming().take(1).flatten() {
+        for connection in listener.incoming().take(3).flatten() {
             let mut stream = connection;
             let _greeted = stream.write_all(b"{\"greeting\":true}\n");
         }
