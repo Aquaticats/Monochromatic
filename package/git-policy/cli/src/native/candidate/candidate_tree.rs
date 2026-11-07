@@ -1,11 +1,19 @@
-//! What: Parse the NUL-delimited records of `git ls-tree -r -z --full-tree <commit>`: every
+//! What:
+//! Parse the NUL-delimited records of `git ls-tree -r -z --full-tree <commit>`:
+//! every
 //!       file of one commit with its mode and object.
-//! Why: The dependent-version policy compares the candidate state with `HEAD`: it reads
-//!      each workspace manifest's `HEAD` bytes, and a direct fix may change a tracked file
+//! Why:
+//! The dependent-version policy compares the candidate state with `HEAD`:
+//! it reads
+//!      each workspace manifest's `HEAD` bytes,
+//! and a direct fix may change a tracked file
 //!      it did not select only when `HEAD` holds that file as the same ordinary blob.
-//!      One listing answers both for every path. Pathnames stay the raw bytes Git printed.
+//!      One listing answers both for every path.
+//! Pathnames stay the raw bytes Git printed.
 //!
-//! Git 2.56.0 (`builtin/ls-tree.c`, `show_tree_default`) prints, with `-r -z`:
+//! Git 2.56.0 (`builtin/ls-tree.c`,
+//! `show_tree_default`) prints,
+//! with `-r -z`:
 //! `<mode> SP <type> SP <object> TAB <path> NUL`.
 //!
 //! In TS you'd write (pseudocode):
@@ -15,12 +23,18 @@
 
 /// Import the layer's failure type and its closed list of causes.
 use crate::candidate_error::{CandidateError, CandidateFailure};
-/// Import the candidate modes, the validated object name and their parsers.
+/// Import the candidate modes,
+/// the validated object name and their parsers.
 use crate::candidate_object::{CandidateMode, ObjectId, mode_from_git, parse_object_id};
 
-/// What: One file of a commit's tree. `#[derive(...)]` generates cloning, debug printing
+/// What:
+/// One file of a commit's tree.
+/// `#[derive(...)]` generates cloning,
+/// debug printing
 ///       and `==`.
-/// Why:  A record holds what a comparison with an index entry needs: mode and object.
+/// Why:
+///  A record holds what a comparison with an index entry needs:
+/// mode and object.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,15 +44,23 @@ use crate::candidate_object::{CandidateMode, ObjectId, mode_from_git, parse_obje
 pub struct TreeRecord {
     /// The file's mode.
     pub mode: CandidateMode,
-    /// The blob, or for a submodule the commit, the entry names.
+    /// The blob,
+    /// or for a submodule the commit,
+    /// the entry names.
     pub object: ObjectId,
-    /// Repository-relative pathname, exactly as Git printed it.
+    /// Repository-relative pathname,
+    /// exactly as Git printed it.
     pub path: Vec<u8>,
 }
 
-/// What: Build the failure for one malformed tree record. `position` is the record's
+/// What:
+/// Build the failure for one malformed tree record.
+/// `position` is the record's
 ///       zero-based place in the listing.
-/// Why:  A record is named by its position, never by its pathname, which can itself be a
+/// Why:
+///  A record is named by its position,
+/// never by its pathname,
+/// which can itself be a
 ///       forbidden string.
 ///
 /// In TS you'd write (pseudocode):
@@ -56,8 +78,12 @@ fn tree_failure(failure: CandidateFailure, position: usize, detail: &str) -> Can
     );
 }
 
-/// What: Whether one byte is NUL, the record terminator.
-/// Why:  A named predicate for `split`, because the repository bans anonymous functions.
+/// What:
+/// Whether one byte is NUL,
+/// the record terminator.
+/// Why:
+///  A named predicate for `split`,
+/// because the repository bans anonymous functions.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,8 +93,11 @@ fn is_nul(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// What: Whether one byte is a space, the metadata field separator.
-/// Why:  A named predicate for `split`.
+/// What:
+/// Whether one byte is a space,
+/// the metadata field separator.
+/// Why:
+///  A named predicate for `split`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,8 +107,11 @@ fn is_space(byte: &u8) -> bool {
     return *byte == b' ';
 }
 
-/// What: Whether one byte is a tab, which ends the metadata.
-/// Why:  A named predicate for `position`.
+/// What:
+/// Whether one byte is a tab,
+/// which ends the metadata.
+/// Why:
+///  A named predicate for `position`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,9 +121,14 @@ fn is_tab(byte: &u8) -> bool {
     return *byte == b'\t';
 }
 
-/// What: The object type Git prints for an entry of `mode`.
-/// Why:  A recursive listing names files only: a submodule is a commit, every other file
-///       a blob. Any other pairing means the output is not such a listing.
+/// What:
+/// The object type Git prints for an entry of `mode`.
+/// Why:
+///  A recursive listing names files only:
+/// a submodule is a commit,
+/// every other file
+///       a blob.
+/// Any other pairing means the output is not such a listing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -106,9 +143,15 @@ fn expected_type(mode: CandidateMode) -> &'static [u8] {
     }
 }
 
-/// What: Parse one record from its zero-based position and its bytes, terminator removed.
-/// Why:  The first tab ends the metadata; the pathname is every byte after it, tabs
-///       included, and must not be empty.
+/// What:
+/// Parse one record from its zero-based position and its bytes,
+/// terminator removed.
+/// Why:
+///  The first tab ends the metadata;
+/// the pathname is every byte after it,
+/// tabs
+///       included,
+/// and must not be empty.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -161,10 +204,15 @@ fn parse_tree_record(position: usize, record: &[u8]) -> Result<TreeRecord, Candi
     });
 }
 
-/// What: Parse a complete `git ls-tree -r -z` listing.
-///       `Result<Vec<TreeRecord>, CandidateError>` is "every record, or the first failure".
-/// Why:  A listing that does not end with NUL was cut short; a partial list would read a
-///       file `HEAD` holds as new, so the whole listing is refused.
+/// What:
+/// Parse a complete `git ls-tree -r -z` listing.
+///       `Result<Vec<TreeRecord>, CandidateError>` is "every record,
+/// or the first failure".
+/// Why:
+///  A listing that does not end with NUL was cut short;
+/// a partial list would read a
+///       file `HEAD` holds as new,
+/// so the whole listing is refused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

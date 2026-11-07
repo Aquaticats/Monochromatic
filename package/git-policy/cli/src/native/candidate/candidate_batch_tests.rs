@@ -291,7 +291,10 @@ fn unreadable_content_is_a_reader_failure() {
     assert_eq!(error.failure, CandidateFailure::ReaderEnded);
 }
 
-/// The bytes Git adds to the echoed request in a missing notice: a space, `missing`, and the line feed.
+/// The bytes Git adds to the echoed request in a missing notice:
+/// a space,
+/// `missing`,
+/// and the line feed.
 const MISSING_NOTICE_BYTES: usize = 8;
 
 /// The header bound is exact:

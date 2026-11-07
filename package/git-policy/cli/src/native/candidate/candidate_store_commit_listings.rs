@@ -1,9 +1,14 @@
 //! What:
-//!  The listings of one commit's tree, of the parents of a set of commits, and of a tree's blobs, as a second block
+//!  The listings of one commit's tree,
+//! of the parents of a set of commits,
+//! and of a tree's blobs,
+//! as a second block
 //!  of operations of the candidate store.
 //! Why:
-//!  `candidate_store.rs` holds the store and its working listings and stays under the file-size limit; these
-//!  operations only ask the store to run Git and parse what it prints, so they live in a file of their own that
+//!  `candidate_store.rs` holds the store and its working listings and stays under the file-size limit;
+//! these
+//!  operations only ask the store to run Git and parse what it prints,
+//! so they live in a file of their own that
 //!  imports the store and that the store does not import.
 //!
 //! In TS you'd write (pseudocode):
@@ -15,24 +20,33 @@
 use crate::candidate_error::{CandidateError, CandidateFailure};
 /// The validated object name and its parser.
 use crate::candidate_object::{ObjectId, parse_object_id};
-/// The size of a pathspec chunk, shared with the prediction and the attribute query.
+/// The size of a pathspec chunk,
+/// shared with the prediction and the attribute query.
 use crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE;
-/// The record a diff listing prints, and its parser.
+/// The record a diff listing prints,
+/// and its parser.
 use crate::candidate_record::{CandidateRecord, parse_raw_records};
-/// The store these operations belong to, and the failure of a listing command.
+/// The store these operations belong to,
+/// and the failure of a listing command.
 use crate::candidate_store::{CandidateStore, listing_failure};
-/// The record a tree listing prints, and its parser.
+/// The record a tree listing prints,
+/// and its parser.
 use crate::candidate_tree::{TreeRecord, parse_tree_records};
-/// A hash-based set, for the membership tests of the parent listing.
+/// A hash-based set,
+/// for the membership tests of the parent listing.
 use std::collections::HashSet;
 /// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
 /// What:
-///  The last commit any store listed with its files, kept for the rest of the process.
+///  The last commit any store listed with its files,
+/// kept for the rest of the process.
 /// Why:
-///   See `CandidateStore::commit_tree_records`. One entry bounds the memory to one commit's listing, and a commit's listing is
-///  the same whichever store asks, so no store has to be told about another.
+///   See `CandidateStore::commit_tree_records`.
+/// One entry bounds the memory to one commit's listing,
+/// and a commit's listing is
+///  the same whichever store asks,
+/// so no store has to be told about another.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,18 +55,29 @@ use std::ffi::OsString;
 static LISTED: std::sync::Mutex<Option<(ObjectId, std::sync::Arc<Vec<TreeRecord>>)>> = std::sync::Mutex::new(None);
 
 /// The most commits one `git rev-list` receives.
-///  `usize` is the type of counts; 2,048 object names stay far below any argument limit.
-///  Exempt from a citation under `LQM` (class: chunk size): it splits one command into several starts of the same
-///  command, so the result is the same and only the number of starts changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  `usize` is the type of counts;
+/// 2,048 object names stay far below any argument limit.
+///  Exempt from a citation under `LQM` (class:
+/// chunk size):
+/// it splits one command into several starts of the same
+///  command,
+/// so the result is the same and only the number of starts changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const COMMIT_CHUNK_SIZE: usize = PATHSPEC_CHUNK_SIZE;
 
 impl CandidateStore {
-    /// What: Every file of the `HEAD` commit with its mode and object; nothing when the
+    /// What:
+    /// Every file of the `HEAD` commit with its mode and object;
+    /// nothing when the
     ///       branch has no commit yet.
-    /// Why:  A policy that compares the candidate state with `HEAD` reads `HEAD`'s copy of
-    ///       a file without naming the path in an object request, and learns its mode.
+    /// Why:
+    ///  A policy that compares the candidate state with `HEAD` reads `HEAD`'s copy of
+    ///       a file without naming the path in an object request,
+    /// and learns its mode.
     ///       `--full-tree` lists from the top level whatever directory Git runs in.
     ///
     /// In TS you'd write (pseudocode):
@@ -66,9 +91,12 @@ impl CandidateStore {
         return self.commit_tree_records(&head);
     }
 
-    /// What: Every file of one commit with its mode and object.
-    /// Why:  Policies that compare candidates with the parents of a commit read each parent's files
-    ///       the way they read `HEAD`'s. `--full-tree` lists from the top level whatever directory
+    /// What:
+    /// Every file of one commit with its mode and object.
+    /// Why:
+    ///  Policies that compare candidates with the parents of a commit read each parent's files
+    ///       the way they read `HEAD`'s.
+    /// `--full-tree` lists from the top level whatever directory
     ///       Git runs in.
     ///
     /// In TS you'd write (pseudocode):
@@ -104,7 +132,8 @@ impl CandidateStore {
         return Ok(records);
     }
 
-    /// The listing of one commit's files by Git, as `commit_tree_records` asks for it when it has no answer kept.
+    /// The listing of one commit's files by Git,
+    /// as `commit_tree_records` asks for it when it has no answer kept.
     fn list_commit_tree(&mut self, commit: &ObjectId) -> Result<Vec<TreeRecord>, CandidateError> {
         let output: Vec<u8> = self.run_listing(
             "ls-tree",
@@ -119,11 +148,18 @@ impl CandidateStore {
         return parse_tree_records(output.as_slice());
     }
 
-    /// What: The parents of these commits that are not among the commits themselves, each once, in
+    /// What:
+    /// The parents of these commits that are not among the commits themselves,
+    /// each once,
+    /// in
     ///       the order of the commits and then of their parents.
-    /// Why:  A pushed commit's parent that is also pushed is new to the remote, so only the parents
-    ///       outside the given commits count as already published. One `rev-list` answers 2,048
-    ///       commits, so the process count does not grow with the commits.
+    /// Why:
+    ///  A pushed commit's parent that is also pushed is new to the remote,
+    /// so only the parents
+    ///       outside the given commits count as already published.
+    /// One `rev-list` answers 2,048
+    ///       commits,
+    /// so the process count does not grow with the commits.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -167,9 +203,11 @@ impl CandidateStore {
     }
 
     /// What:
-    ///  The records of one commit's own delta, each against every parent (or the empty tree for a root commit).
+    ///  The records of one commit's own delta,
+    /// each against every parent (or the empty tree for a root commit).
     /// Why:
-    ///   A pushed commit's changes are the content a manual-push scan reads; the listing is the one the
+    ///   A pushed commit's changes are the content a manual-push scan reads;
+    /// the listing is the one the
     ///  landed-delta source already uses.
     ///
     /// In TS you'd write (pseudocode):
@@ -185,10 +223,13 @@ impl CandidateStore {
     }
 
     /// What:
-    ///  Every blob entry of one tree, as records that add each path.
+    ///  Every blob entry of one tree,
+    /// as records that add each path.
     /// Why:
     ///   A push with no known published base scans the pushed tip's whole tree.
-    ///   Submodule entries are not listed: their content is a commit name, which no content policy reads.
+    ///   Submodule entries are not listed:
+    /// their content is a commit name,
+    /// which no content policy reads.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -215,7 +256,8 @@ impl CandidateStore {
 
 /// What:
 ///  Whether one byte is the line feed that ends a line of `git rev-list` output.
-///  `&u8` borrows the byte, as `split` hands it over.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
 /// Why:
 ///   `split` takes this function by path where a closure would otherwise stand.
 ///
@@ -229,7 +271,8 @@ fn is_line_feed_byte(byte: &u8) -> bool {
 
 /// What:
 ///  Whether one byte is the space that separates the names on a line of `git rev-list --parents` output.
-///  `&u8` borrows the byte, as `split` hands it over.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
 /// Why:
 ///   `split` takes this function by path where a closure would otherwise stand.
 ///
@@ -243,7 +286,8 @@ fn is_space_byte(byte: &u8) -> bool {
 
 /// What:
 ///  Whether one byte is the NUL byte that ends each record of `git ls-tree -z` output.
-///  `&u8` borrows the byte, as `split` hands it over.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
 /// Why:
 ///   `split` takes this function by path where a closure would otherwise stand.
 ///
@@ -257,7 +301,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 
 /// What:
 ///  Whether one byte is the tab that separates the metadata of a `git ls-tree` record from its path.
-///  `&u8` borrows the byte, as `position` hands it over.
+///  `&u8` borrows the byte,
+/// as `position` hands it over.
 /// Why:
 ///   `position` takes this function by path where a closure would otherwise stand.
 ///
@@ -272,7 +317,8 @@ fn is_tab_byte(byte: &u8) -> bool {
 /// What:
 ///  Turn NUL-separated `ls-tree -r -z` records into raw diff records that add each blob.
 /// Why:
-///   The record parser is the one the diff listings use, so tree entries follow the same path and mode rules.
+///   The record parser is the one the diff listings use,
+/// so tree entries follow the same path and mode rules.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
