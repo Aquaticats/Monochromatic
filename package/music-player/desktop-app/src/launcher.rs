@@ -40,7 +40,7 @@ pub mod taskbar_state;
 ///           `BTreeMap` (sorted by key).
 ///  Used for the signal's `a{sv}` property dict.
 /// Why:
-///       zvariant serializes `HashMap<&str, Value>` as the D-Bus `a{sv}` the
+///       zvariant serializes `HashMap<&str, Variant>` as the D-Bus `a{sv}` the
 ///           LauncherEntry `Update` body needs (key order does not matter,
 ///  so a hash
 ///           map,
@@ -108,17 +108,16 @@ use i_slint_backend_winit::winit::platform::wayland::WindowAttributesExtWayland;
 use i_slint_backend_winit::winit::window::WindowAttributes;
 
 /// What:
-///      `use zbus::blocking::Connection;`.
-///  A synchronous D-Bus connection (the
-///           blocking facade over the async `zbus::Connection`).
+///      `use zbus::Connection;`.
+///  The D-Bus connection.
 ///  It is `Clone` (it
 ///           shares one underlying socket),
 ///  `Send`,
 ///  `Sync`.
 /// Why:
-///       The UI thread emits the signal inline;
-///  the blocking API avoids dragging an
-///           async runtime into the property edge.
+///       The UI thread emits the signal inline through `crate::dbus_step_bound::step`,
+///  which drives the async API with `zbus::block_on` and bounds the wait,
+///  so no async runtime of the player's own enters the property edge.
 ///  `Clone` lets each update tick carry
 ///           its own handle into the event-loop closure.
 /// What:
@@ -136,19 +135,19 @@ use i_slint_backend_winit::winit::window::WindowAttributes;
 /// import { Connection } from "dbus"; // Linux only
 /// ```
 #[cfg(target_os = "linux")]
-use zbus::blocking::Connection;
+use zbus::Connection;
 
 /// What:
-///      `use zbus::zvariant::Value;`.
+///      `use zbus::Variant;`.
 ///  The D-Bus dynamic-value enum (`v`):
-///           `Value::F64(f64)`,
-///  `Value::Bool(bool)`,
+///           `Variant::F64(f64)`,
+///  `Variant::Bool(bool)`,
 ///  and so on.
 ///  `zvariant` is
-///           re-exported by `zbus`.
+///           merged into `zbus` by zbus 6, which also renamed `Value` to `Variant`.
 /// Why:
 ///       The `a{sv}` dict's values are variants;
-///  `Value` is each entry's value.
+///  `Variant` is each entry's value.
 /// What:
 ///      `#[cfg(target_os = "linux")]`:
 ///  Linux-only import (see the first gated
@@ -160,10 +159,10 @@ use zbus::blocking::Connection;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Value = number | boolean | string; // Linux only
+/// type Variant = number | boolean | string; // Linux only
 /// ```
 #[cfg(target_os = "linux")]
-use zbus::zvariant::Value;
+use zbus::Variant;
 
 /// What:
 ///      `use crate::identity::APP_ID;` imports the Wayland app id (the `.desktop`
@@ -432,7 +431,11 @@ impl Launcher {
         // ```ts
         // const connection = trySessionBus(); // null on failure
         // ```
-        let connection = Connection::session().ok();
+        let connection = crate::dbus_step_bound::connect(
+            zbus::connection::Builder::session(),
+            crate::dbus_step_bound::DBUS_STEP_BOUND,
+        )
+        .ok();
         // What:     `Launcher { connection, app_uri: format!("application://{APP_ID}.desktop") }`.
         //           Build the handle (field shorthand for `connection`); `format!`
         //           builds the URI string. Tail expression -> return value.
@@ -483,9 +486,9 @@ impl Launcher {
             // const clamped = Math.min(1, Math.max(0, fraction));
             // ```
             let clamped = fraction.clamp(0.0, 1.0);
-            // What:     `let properties: HashMap<&str, Value> = HashMap::from([...]);`.
+            // What:     `let properties: HashMap<&str, Variant> = HashMap::from([...]);`.
             //           `HashMap::from([...])` builds the map from key/value pairs; the
-            //           values are `Value` variants (`Value::F64`, `Value::Bool`). This
+            //           values are `Variant` variants (`Variant::F64`, `Variant::Bool`). This
             //           is the `a{sv}` body: `progress` (double) and `progress-visible`
             //           (bool).
             // Why:      These two keys drive the taskbar bar; others (count, urgent) are
@@ -495,9 +498,9 @@ impl Launcher {
             // ```ts
             // const properties = { progress: clamped, "progress-visible": visible };
             // ```
-            let properties: HashMap<&str, Value> = HashMap::from([
-                ("progress", Value::F64(clamped)),
-                ("progress-visible", Value::Bool(visible)),
+            let properties: HashMap<&str, Variant> = HashMap::from([
+                ("progress", Variant::F64(clamped)),
+                ("progress-visible", Variant::Bool(visible)),
             ]);
             // What:     `let emitted = connection.emit_signal(None::<&str>, SIGNAL_PATH, LAUNCHER_INTERFACE, UPDATE_MEMBER, &(self.app_uri.as_str(), properties));`.
             //           Broadcast the signal and keep the returned `Result`. `None::<&str>` is the destination (a
@@ -510,13 +513,13 @@ impl Launcher {
             // ```ts
             // const emitted = tryEmit(this.connection, SIGNAL_PATH, LAUNCHER_INTERFACE, "Update", [this.appUri, properties]);
             // ```
-            let emitted = connection.emit_signal(
+            let emitted = crate::dbus_step_bound::step(connection.emit_signal(
                 None::<&str>,
                 SIGNAL_PATH,
                 LAUNCHER_INTERFACE,
                 UPDATE_MEMBER,
                 &(self.app_uri.as_str(), properties),
-            );
+            ));
             // What:     `if let Err(error) = emitted { ... } else { ... }`. Log the failure, or the value sent.
             // Why:      A failed emit (bus dropped) must not interrupt playback, but it should leave a trace.
             //
