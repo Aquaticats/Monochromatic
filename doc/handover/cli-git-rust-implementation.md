@@ -3624,7 +3624,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_side_ref` failed once in a host run of
   178 tests (13 s; passes alone in 8.6 s and in three container gates), cause not measured (rule SUF). Repo-wide
   `monochromatic-lint` found 27 `markdown/semantic-line-breaks` errors in `service_fault.rs` that the package lint
-  does not run; whole-package count running as unit `main-wrapper-repo-lint-136a40fe69`.
+  does not run. Whole package on main `136a40fe69` (log `~/temp/agent/main-wrapper-repo-lint-136a40fe69.log`):
+  34,817 `markdown/semantic-line-breaks` errors in 1,087 files (`SPEC.md` 2,896, `README.md` 1,478, the rest mostly
+  Rust doc comments through the `**/*.rs/*.md` rustdoc section), 3 `rust/max-lines` errors, 45
+  `rust/avoidable-closure` warnings (an earlier pass had reached zero). The rule has been `error` since at least
+  `0b49ae109e` (2026-10-06); the package `lint` task never ran `monochromatic-lint`. Agent running since
+  2026-11-07T12:30-05:00 on `fix/git-policy-cli-passes-the-repository-linter`: wire it into the package lint, the
+  repository fixer for line breaks (whitespace-only proof), hand fixes for the rest, and a conflict recipe for the
+  tokio and held-settle branches. Repo-wide baseline running as unit `repo-wide-monochromatic-lint-136a40fe69`.
 - systemd-run limits audit: merged `aab8488b0b` (2026-11-07). `crate-release` publish dry run, music-player e2e units,
   `nested-wayland-session` app scope and the guardrail refusal text now carry `MemoryMax`, `CPUQuota`, `TasksMax` and
   `IOWeight=10`, each cited to a measurement. Queued, all eight agent slots full at 2026-11-07T11:40-05:00 (start
