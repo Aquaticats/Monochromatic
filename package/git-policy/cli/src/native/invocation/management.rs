@@ -291,7 +291,15 @@ fn run_convert(_arguments: &ConvertArguments, _cwd: &Path, _environment: &[(OsSt
 /// The doctor's filesystem section read from the running system.
 #[cfg(target_os = "linux")]
 pub fn host_filesystem_section(common_directory: &Path) -> String {
-    return crate::doctor_filesystem::host_section(common_directory);
+    let home: Option<std::path::PathBuf> = crate::service_route::non_empty_path_variable("HOME");
+    return filesystem_section_with_link_line(common_directory, home.as_deref());
+}
+
+/// The doctor's filesystem section followed by its line about the repository's link to the 860 drive (plan item W15),
+/// read from the identity file below `home`.
+#[cfg(target_os = "linux")]
+pub fn filesystem_section_with_link_line(common_directory: &Path, home: Option<&Path>) -> String {
+    return format!("{}{}", crate::doctor_filesystem::host_section(common_directory), crate::repository_link_doctor_line::doctor_link_line(home));
 }
 
 /// Other platforms have no btrfs or overlayfs section.

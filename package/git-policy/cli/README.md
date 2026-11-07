@@ -892,6 +892,20 @@ the scope
  and the command that turns it off when it is on.
 It never changes the exit status and never writes configuration.
 
+After the filesystem section the doctor prints one line,
+`repository link: <message>`,
+when the file `~/.config/monochromatic-dev/repository-link.json` exists (the move of the repository to the 860 drive recorded it):
+the same plain message `repository-link-check` prints (ready,
+the drive is not mounted,
+a real folder replaced the link,
+and the others).
+It is informational too and starts no program;
+a machine with no such file gets no line.
+Every Git command whose paths lie under that repository link,
+its approved root or the renamed old copy is checked the same way first,
+and a link that is not usable stops it with that message and status 128 before Git prints its own error;
+with the file absent the check costs one failed open.
+
 The doctor ends its standard error with a filesystem section for the main checkout of the repository Git selects
  (so `-C`,
 `--git-dir` and a linked worktree report the main checkout;
