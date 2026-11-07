@@ -116,13 +116,21 @@ fn a_failed_barrier_of_the_new_journal_refuses_the_transaction_before_anything_c
 #[test]
 fn a_compiled_real_cargo_runs_in_the_contained_runner_of_the_install_step() {
     use crate::cargo_run::{CargoRunner, RealCargo};
+    // The scope route is the one where the launcher starts the program from its own process; on the process-group route a directly
+    // spawned child inherits the descriptor, and starting by descriptor would also pass, so this test needs the scope.
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
     let directory = scratch();
     let chosen: PathBuf = directory.path().join("cargo");
     fs::copy("/usr/bin/echo", &chosen).expect("a compiled stand-in for the real cargo");
     let cargo = RealCargo { program: chosen, toolchain: String::new(), bound: std::time::Duration::from_secs(60) };
 
+    let _ = crate::bounded_run::take_trace_for_test();
     let outcome = cargo.run(directory.path(), &["ran".to_string(), "contained".to_string()]).expect("the stand-in starts");
+    let events: Vec<String> = crate::bounded_run::take_trace_for_test();
 
+    assert!(events.iter().any(|event| { return event.starts_with("launch scope "); }), "the run was not started in a scope: {events:?}");
     assert!(outcome.ok && outcome.stdout == "ran contained\n", "{outcome:?}");
 }
 
