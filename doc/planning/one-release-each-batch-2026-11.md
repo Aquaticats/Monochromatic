@@ -2151,6 +2151,8 @@ not to crates.io.
   where 0.2.2 never ended.
   A shadow started by a script that runs another shadow stopped with exit status 2 and the one line.
 - Not done here:
+  the real cargo that `cargo-shadow`'s install step starts inside its contained runner gets no arrival marker
+  (it keeps the vetting and a lookup that skips shadows by identity);
   a tree whose links point at an older shadow keeps the old behavior until `mise run toolchain:install` runs in it;
   a shared crate for the identity rule was not added (the broader option,
   left to the owner).

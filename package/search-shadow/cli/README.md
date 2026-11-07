@@ -117,7 +117,7 @@ so the rule has three parts that do not depend on either:
   so a path made to name a shadow after the check cannot reach the start.
   A script, an unreadable program or a launcher is started by its path.
 - Arrival.
-  Every start of the real tool sets `MONOCHROMATIC_SHADOW_STARTED_BY` to the starter's mode (`exec` or `spawn`),
+  Every start of the real tool that the shim makes sets `MONOCHROMATIC_SHADOW_STARTED_BY` to the starter's mode (`exec` or `spawn`),
   process number, birth identity (the start time in `/proc/<pid>/stat`) and crate name and version.
   A shadow that finds the marker left for its own process (after `exec`) or for its direct parent (after a child start)
   was started by a shadow:

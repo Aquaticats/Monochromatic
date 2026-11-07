@@ -177,7 +177,7 @@ a byte-identical copy in each of the four crates;
    when compiled and not a launcher,
    started through the open file (the way `cargo-shadow` vets its real cargo).
 3. Arrival.
-   Every start of a real program sets `MONOCHROMATIC_SHADOW_STARTED_BY` (mode,
+   Every start of the real tool that a shadow's shim makes sets `MONOCHROMATIC_SHADOW_STARTED_BY` (mode,
    process number,
    birth identity,
    starter),
@@ -208,6 +208,11 @@ A shared crate is the broader option and is left to the owner.
   instead of looping.
 - A launcher with no record that leads to a shadow is started once and stopped on arrival;
   the toolchain's own launchers always have a record.
+- `cargo-shadow`'s install step starts the real cargo inside its contained runner (`src/cargo_run.rs`, `src/bounded_run.rs`,
+  `src/control_group.rs`) and does not set the arrival marker on that start.
+  That start keeps its vetting (`vet` refuses a shadow while the file is open, and `refuse_if_ourselves` runs again before the start),
+  and the cargo it starts was chosen by a lookup that now skips every shadow by identity.
+  A shadow reached there by a path the lookup cannot see is stopped by `CARGO_SHADOW_GUARD` only when cargo-shadow itself is the starter.
 - A candidate that cannot be opened, or a record that names a file that does not exist,
   is no verdict:
   the arrival stop is the backstop.

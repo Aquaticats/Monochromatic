@@ -607,6 +607,8 @@ and the incident in `doc/troubleshooting/search-shadow-copies-start-each-other-w
 
 The vetting of the chosen program (`vet` in `src/real_binary.rs`) refuses a program that is a shadow while the file is open,
 and the program is started through that open file.
+The real cargo that the install step starts inside its contained runner (`src/cargo_run.rs`) sets no arrival marker:
+it is chosen by the same lookup that skips shadows by identity, and it keeps `vet` and the repeated check before its start.
 Two arrival stops exist: the guard value `CARGO_SHADOW_GUARD` (cargo-shadow's own, with the long message below) and the marker above
 (any shadow, one line); both exit with status 2.
 A cargo-shadow that finds it was started by another cargo-shadow's own start of the real cargo (a script or launcher named `cargo`
