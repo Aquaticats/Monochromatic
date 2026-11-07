@@ -231,13 +231,13 @@ pub mod markdown_semantic_breaks;
 /// Internal native Markdown/MDX parser interface.
 #[doc(hidden)]
 pub mod markdown_source;
-/// The whitespace set of JavaScript trim, shared by the LFS rules.
-mod markdown_trim_space;
 /// Pipe-table reporting.
 #[doc(hidden)]
 pub mod markdown_tables;
 /// Validated arena traversal lists built by the source adapter's walk.
 mod markdown_traversal;
+/// The whitespace set of JavaScript trim, shared by the LFS rules.
+mod markdown_trim_space;
 /// Native literal and glob command-input expansion.
 #[doc(hidden)]
 pub mod path_inputs;
