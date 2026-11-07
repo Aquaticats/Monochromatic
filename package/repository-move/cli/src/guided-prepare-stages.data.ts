@@ -303,5 +303,18 @@ ${rootCopy} --run --pass=first ${args} --deadline-seconds=${String(c.transferDea
       root: 'yes',
       unprivileged: 'du of the checkout works as the user except for root-owned files; root is used so every file is counted',
     },
+    {
+      id: 'p4f-verify-first',
+      title: 'Verify every first-pass copy',
+      says: `Every first-pass copy against the read-only snapshot it was sent from, with rsync --dry-run by path, type, size, time and mode (no data is read), outside any window because both sides are immutable. The nested subvolume folders a snapshot shows empty are the only excused differences. A difference stops the run and names the copy.`,
+      command: `${rootCopy} --run --pass=verify-first ${args} --deadline-seconds=${String(c.transferDeadlineSeconds,)} --total-deadline-seconds=${String(c.firstPassTotalSeconds,)}`,
+      check: `grep --fixed-strings 'verify-first finished' "$OUTPUT_FILE"`,
+      checkText: "'verify-first finished': every copy matches its snapshot",
+      rollback: 'read-only comparison; nothing changed. A copy that differs is deleted by you (the tool names it) and sent again',
+      timeoutSeconds: c.firstPassTotalSeconds + (c.killGraceSeconds
+        * 2),
+      root: 'yes',
+      unprivileged: 'none: the comparison reads files only root can read (root-owned logs inside some worktrees) and the copy tool runs the same root scopes as the transfers',
+    },
   ];
 }

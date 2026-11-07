@@ -45,7 +45,7 @@ use gtk4::gdk::{Key, ModifierType};
 ///  `FileEntry` rides a `BoxedAnyObject` through the model;
 ///  the key handler returns
 ///      `Propagation`.
-use gtk4::glib::{BoxedAnyObject, Propagation};
+use gtk4::glib::{self, BoxedAnyObject, Propagation};
 /// What:
 ///  imports the list-store model type.
 /// Why:
@@ -230,7 +230,7 @@ where
     icon.set_pixel_size(PREVIEW_ICON_SIZE);
     icon.set_vexpand(true);
     body.append(&icon);
-    body.append(&Label::new(path.file_name().and_then(|name| return name.to_str())));
+    body.append(&Label::new(path.file_name().and_then(std::ffi::OsStr::to_str)));
     container.append(&body);
     return container
 }
@@ -244,27 +244,45 @@ where
 ///  so only visible rows ever touch a `FileEntry`.
 fn build_row_factory() -> SignalListItemFactory {
     let factory = SignalListItemFactory::new();
-    factory.connect_setup(|_, item| {
-        let list_item = item.downcast_ref::<ListItem>().expect("list item");
-        let row = GtkBox::new(Orientation::Horizontal, ROW_SPACING);
-        row.append(&Image::new());
-        row.append(&Label::builder().xalign(0.0).build());
-        list_item.set_child(Some(&row));
-    });
-    factory.connect_bind(|_, item| {
-        let list_item = item.downcast_ref::<ListItem>().expect("list item");
-        let boxed = list_item.item().and_downcast::<BoxedAnyObject>().expect("boxed entry");
-        let entry = boxed.borrow::<FileEntry>();
-        let row = list_item.child().and_downcast::<GtkBox>().expect("row box");
-        let icon = row.first_child().and_downcast::<Image>().expect("row icon");
-        let label = icon
-            .next_sibling()
-            .and_downcast::<Label>()
-            .expect("row label");
-        icon.set_icon_name(Some(icon_name(entry.kind)));
-        label.set_text(&entry.name);
-    });
+    factory.connect_setup(setup_row);
+    factory.connect_bind(bind_row);
     return factory
+}
+
+/// What:
+///  the factory's `setup` handler:
+///  build an empty row (icon + name label) for one realized slot.
+/// Why:
+///  the factory keeps the handler for its whole life,
+///  and this one captures nothing,
+///  so a named function replaces the closure.
+fn setup_row(_factory: &SignalListItemFactory, item: &glib::Object) {
+    let list_item = item.downcast_ref::<ListItem>().expect("list item");
+    let row = GtkBox::new(Orientation::Horizontal, ROW_SPACING);
+    row.append(&Image::new());
+    row.append(&Label::builder().xalign(0.0).build());
+    list_item.set_child(Some(&row));
+}
+
+/// What:
+///  the factory's `bind` handler:
+///  fill a row's icon and label from the row's boxed `FileEntry`.
+/// Why:
+///  only visible rows ever touch a `FileEntry`;
+///  the handler captures nothing,
+///  so a named function replaces the closure.
+fn bind_row(_factory: &SignalListItemFactory, item: &glib::Object) {
+    let list_item = item.downcast_ref::<ListItem>().expect("list item");
+    let boxed = list_item.item().and_downcast::<BoxedAnyObject>().expect("boxed entry");
+    let entry = boxed.borrow::<FileEntry>();
+    let row = list_item.child().and_downcast::<GtkBox>().expect("row box");
+    let icon = row.first_child().and_downcast::<Image>().expect("row icon");
+    let label = icon
+        .next_sibling()
+        .and_downcast::<Label>()
+        .expect("row label");
+    icon.set_icon_name(Some(icon_name(entry.kind)));
+    label.set_text(&entry.name);
 }
 
 /// What:

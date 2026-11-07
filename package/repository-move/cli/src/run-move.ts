@@ -15,6 +15,7 @@ import {
 } from './freeze-pass.ts';
 import { reconcileInventory, } from './inventory.ts';
 import { parseMoveOptions, } from './move-options.ts';
+import { runVerifyPass, } from './verify-pass.ts';
 
 /**
  Runs one pass.
@@ -58,6 +59,13 @@ export async function runMove(argv: readonly string[],): Promise<void> {
     },);
     return;
   }
+  if ((options.pass === 'verify-first') || (options.pass === 'verify-final')) {
+    await runVerifyPass({
+      options,
+      runner,
+    },);
+    return;
+  }
   if (options.pass === 'thaw') {
     await thaw({
       loadCurrent: async function loadCurrent() {
@@ -79,19 +87,16 @@ export async function runMove(argv: readonly string[],): Promise<void> {
     options: givenOptions,
     log: runner.log,
   },);
-  if (options.pass === 'freeze') {
-    await freeze({
+  await (options.pass === 'freeze'
+    ? freeze({
       subvolumes,
       runner,
       stateFolder: options.stateFolder,
       run: options.run,
-    },);
-  }
-  else {
-    await runCopyPass({
+    },)
+    : runCopyPass({
       options,
       runner,
       subvolumes,
-    },);
-  }
+    },));
 }

@@ -5,10 +5,9 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
-import { promisify, } from 'node:util';
 import { canonicalPath, } from './canonical-path.ts';
 import { MoveStopError, } from './errors.ts';
+import { execFileAsync, } from './exec-file-async.ts';
 
 /**
  A folder named in its canonical spelling, with the spelling the other side gave it when that differs.
@@ -17,18 +16,6 @@ export type SpelledPath = {
   readonly canonical: string;
   readonly given: string;
 };
-
-/**
- Specialized promisified `execFile`, typed through Node's own adapter contract.
- The generic `promisify(execFile)` form trips `strict-void-return`;
- see `doc/troubleshooting/oxlint-promisify-void-return.md`.
- */
-const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
-
-/**
- Runs a program and waits for it to end.
- */
-const execFileAsync = promisifyExecFile(execFile,);
 
 /**
  Git's own program, never the repository's wrapper.

@@ -83,5 +83,8 @@ fn start_directory() -> PathBuf {
     if let Some(home) = std::env::var_os("HOME") {
         return PathBuf::from(home);
     }
-    return std::env::current_dir().unwrap_or_else(|_| return PathBuf::from("."))
+    match std::env::current_dir() {
+        Ok(dir) => return dir,
+        Err(_) => return PathBuf::from("."),
+    }
 }

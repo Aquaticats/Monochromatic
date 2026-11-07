@@ -16,7 +16,7 @@ import { MoveStopError, } from './errors.ts';
 /**
  The passes the tool runs: two copies, the freeze and its thaw, and the two external-folder passes.
  */
-export type MovePass = 'external-final' | 'external-first' | 'final' | 'first' | 'freeze' | 'thaw';
+export type MovePass = 'external-final' | 'external-first' | 'final' | 'first' | 'freeze' | 'thaw' | 'verify-final' | 'verify-first';
 
 /**
  The options of one invocation. A string option that was not given is the empty string, and an absent limit is
@@ -41,6 +41,7 @@ export type MoveOptions = {
   readonly cloneSources: 'all' | 'main';
   readonly limit: number;
   readonly run: boolean;
+  readonly checksum: boolean;
   readonly noScope: boolean;
   readonly subvolumeMarker: string;
   readonly externalSource: string;
@@ -57,6 +58,8 @@ const PASSES: readonly MovePass[] = [
   'thaw',
   'external-first',
   'external-final',
+  'verify-first',
+  'verify-final',
 ];
 
 /**
@@ -297,6 +300,7 @@ export function parseMoveOptions(argv: readonly string[],): MoveOptions {
       fallback: Number.POSITIVE_INFINITY,
     },),
     run: argv.includes('--run',) && (!argv.includes('--print',)),
+    checksum: argv.includes('--checksum',),
     noScope: argv.includes('--no-scope',),
     subvolumeMarker: flagValue({
       argv,

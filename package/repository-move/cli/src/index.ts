@@ -5,6 +5,8 @@
  */
 
 export { MoveStopError, } from './errors.ts';
+export { execFileAsync, } from './exec-file-async.ts';
+export { childFailureOf, } from './json-text-fields.ts';
 export {
   type MoveOptions,
   parseMoveOptions,

@@ -10,26 +10,13 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
-import { promisify, } from 'node:util';
 import { ancestorChain, } from './canonical-path.ts';
 import { pathExists, } from './completion-records.ts';
 import { MILLISECONDS_PER_SECOND, } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
 import type { Subvolume, } from './inventory.ts';
 import type { MoveOptions, } from './move-options.ts';
-
-/**
- Specialized promisified `execFile`, typed through Node's own adapter contract.
- The generic `promisify(execFile)` form trips `strict-void-return`;
- see `doc/troubleshooting/oxlint-promisify-void-return.md`.
- */
-const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
-
-/**
- Runs a program and waits for it to end.
- */
-const execFileAsync = promisifyExecFile(execFile,);
+import { execFileAsync, } from './exec-file-async.ts';
 
 /**
  The program that names the mount a path is on; read-only.
@@ -59,7 +46,9 @@ export async function nearestExisting(path: string,): Promise<string> {
   /**
    Whether each of them exists.
    */
-  const present = await Promise.all(chain.map(pathExists,),);
+  const present = await Promise.all(chain.map(async function exists(candidate,) {
+    return await pathExists(candidate,);
+  },),);
   return chain[present.indexOf(true,)] ?? path;
 }
 

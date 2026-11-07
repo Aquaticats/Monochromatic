@@ -111,12 +111,19 @@ pub fn cargo_program() -> PathBuf {
 /// ```
 const UNSTARTABLE_PROGRAM_STATUSES: [i32; 2] = [126, 127];
 
+/// What cargo prints when asked for a subcommand it does not have,
+///  the only answer that means cargo-dylint is not installed.
+const NO_SUCH_COMMAND: &str = "no such command";
+
 /// What:
 ///  Why the `cargo dylint --version` probe did not pass.
 /// Why:
 ///  A machine without the tool is a documented skip with one note,
-///  but a `cargo` that was found and could not start its program is a defect of the machine's links,
-///  so it fails the run with what `cargo` printed:
+///  and the only evidence of that is cargo saying there is no such subcommand.
+///  Any other failure is a `cargo` that was found and is broken or older than the lock
+///  (a launcher that cannot start its program,
+/// an installed tool that lags the lock),
+///  so it fails the run with what `cargo` printed and the install command:
 ///  skipping the rule with exit status zero would hide that nothing was checked.
 ///
 /// In TS you'd write (pseudocode):
@@ -170,21 +177,35 @@ pub fn dylint_probe(cargo: &Path) -> Result<String, ProbeFailure> {
         }
     };
     if !output.status.success() {
+        let standard_error: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        // Only cargo's own words for an unknown subcommand mean that cargo-dylint is not installed,
+        //  the machine the owner's decision skips with a message.
+        if standard_error.contains(NO_SUCH_COMMAND) && standard_error.contains("dylint") {
+            return Err(ProbeFailure::Absent(format!(
+                "`cargo dylint --version` failed ({}) because cargo-dylint is not installed; install cargo-dylint and dylint-link with `mise run toolchain:install`",
+                output.status
+            )));
+        }
         let unstartable: bool = output
             .status
             .code()
             .is_some_and(|code| return UNSTARTABLE_PROGRAM_STATUSES.contains(&code));
-        if unstartable {
-            return Err(ProbeFailure::Broken(format!(
-                "`{} dylint --version` exited with {}, the status of a program that exists and cannot be started, so this is a broken `cargo` link or launcher and not a missing cargo-dylint. Its standard error was:\n{}",
+        let diagnosis: String = if unstartable {
+            format!(
+                "`{} dylint --version` exited with {}, the status of a program that exists and cannot be started, so this is a broken `cargo` link or launcher and not a missing cargo-dylint.",
                 cargo.display(),
-                output.status.code().unwrap_or_default(),
-                String::from_utf8_lossy(&output.stderr).trim_end()
-            )));
-        }
-        return Err(ProbeFailure::Absent(format!(
-            "`cargo dylint --version` failed ({}); install cargo-dylint and dylint-link with mise install",
-            output.status
+                output.status.code().unwrap_or_default()
+            )
+        } else {
+            format!(
+                "`{} dylint --version` failed ({}) without saying that cargo-dylint is missing, so this is a `cargo` that is broken or older than the lock and not a machine without cargo-dylint.",
+                cargo.display(),
+                output.status
+            )
+        };
+        return Err(ProbeFailure::Broken(format!(
+            "{diagnosis} Its standard error was:\n{}\nInstalled tools that lag toolchain.lock.json cause this; run `mise run toolchain:install` in this checkout.",
+            standard_error.trim_end()
         )));
     }
     return Ok(String::from_utf8_lossy(&output.stdout).into_owned());

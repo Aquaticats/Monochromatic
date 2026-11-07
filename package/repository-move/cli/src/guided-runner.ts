@@ -133,12 +133,47 @@ export function parseGuidedFlags(argv: readonly string[],): GuidedFlags {
 }
 
 /**
- Prints the progress of one phase.
+ Builds the text that says what a phase completed.
 
  @param config - the configuration
- 
+
  @param phase - the phase
- 
+
+ @returns the text, ending in a newline
+ */
+async function progressText(
+  {
+    config,
+    phase,
+  }: {
+    readonly config: GuidedConfig;
+    readonly phase: string;
+  },
+): Promise<string> {
+  /**
+   The lines of text this step works on.
+   */
+  const lines = await listProgress({
+    config,
+    phase,
+  },);
+  return lines.length === 0
+    ? `Nothing in phase ${phase} has completed yet.\n`
+    : `Completed so far (phase ${phase}):\n${
+      lines.map(function indent(line,) {
+        return `  - ${line}`;
+      },)
+        .join('\n',)
+    }\n`;
+}
+
+/**
+ Prints what a phase completed.
+
+ @param config - the configuration
+
+ @param phase - the phase
+
  @param out - the output
  */
 async function printProgress(
@@ -152,23 +187,10 @@ async function printProgress(
     readonly out: (text: string,) => void;
   },
 ): Promise<void> {
-  /**
-   The lines of text this step works on.
-   */
-  const lines = await listProgress({
+  out(await progressText({
     config,
     phase,
-  },);
-  out(
-    lines.length === 0
-      ? `Nothing in phase ${phase} has completed yet.\n`
-      : `Completed so far (phase ${phase}):\n${
-        lines.map(function indent(line,) {
-          return `  - ${line}`;
-        },)
-          .join('\n',)
-      }\n`,
-  );
+  },),);
 }
 
 /**
@@ -291,17 +313,20 @@ async function printStatus(
   },
 ): Promise<void> {
   out(`State folder: ${config.wiz}\n`,);
-  for (const phase of [
-    'prepare',
-    'cutover',
-    'thaw',
-    'rollback',
-  ]) {
-    await printProgress({
-      config,
-      phase,
-      out,
-    },);
+  for (
+    const text of await Promise.all([
+      'prepare',
+      'cutover',
+      'thaw',
+      'rollback',
+    ].map(async function textOf(phase,) {
+      return await progressText({
+        config,
+        phase,
+      },);
+    },),)
+  ) {
+    out(text,);
   }
   if (await windowRunning(config,)) {
     out(`window running; remaining ${String(await windowRemaining(config,),)} s\n`,);

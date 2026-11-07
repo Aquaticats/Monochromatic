@@ -147,6 +147,7 @@ async function setReadOnly(
   },
 ): Promise<void> {
   for (const { path, } of subvolumes) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one btrfs command at a time, in manifest order, each printed when it runs and each read back after it; see doc/lint/sequential-awaits.md
     await runner.exec({
       command: 'btrfs',
       args: [
@@ -163,6 +164,7 @@ async function setReadOnly(
     /**
      The value read.
      */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one btrfs command at a time, in manifest order, each printed when it runs and each read back after it; see doc/lint/sequential-awaits.md
     const read = await readOnlyValue({
       runner,
       path,
@@ -354,6 +356,7 @@ export async function requireFrozen(
     /**
      The value read.
      */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one btrfs command at a time, in manifest order, each printed when it runs and each read back after it; see doc/lint/sequential-awaits.md
     const read = await readOnlyValue({
       runner,
       path,
