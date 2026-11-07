@@ -38,7 +38,6 @@ use crate::blocking_job::run_blocking_job;
 /// for the task that waits for the pool.
 use crate::lazy_runtime::spawn_on_runtime;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -49,11 +48,6 @@ pub const REMEMBERED_FILE: &str = "rules-repository";
 /// a second one is skipped,
 /// and the next landing tries again.
 static RUNNING: AtomicBool = AtomicBool::new(false);
-
-/// The repositories this process has seen a landing or a restart for.
-/// The set is tiny (one worktree per service) and touched once per landing,
-/// so a lock around it costs nothing and has no other user.
-static SEEN: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
 /// What:
 ///  Compiles the rules of the repository at `repository_root` into the cache,
@@ -140,17 +134,16 @@ pub fn warm_in_background(repository_root: PathBuf) {
     spawn_warm(repository_root, true, Vec::new());
 }
 
-/// Whether this is the first time this process hears of the repository;
-/// it is then marked as seen.
-fn first_look_at(repository: &Path) -> bool {
-    let mut seen = SEEN.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    for known in seen.iter() {
-        if known == repository {
-            return false;
-        }
-    }
-    seen.push(repository.to_path_buf());
-    return true;
+/// Whether the state directory does not yet name `repository`:
+/// the first look at it,
+/// which no lock decides,
+/// because the file is the
+///  one owner of the answer and survives a restart.
+fn first_look_at(journal: &Path, repository: &Path) -> bool {
+    return match std::fs::read_to_string(journal.join(REMEMBERED_FILE)) {
+        Ok(text) => text.trim() != repository.to_string_lossy(),
+        Err(_unreadable) => true,
+    };
 }
 
 /// Writes the repository's root into the state directory,
@@ -173,7 +166,7 @@ fn remember(journal: &Path, repository: &Path) {
 /// and warms on the first one and when a landing
 ///  changed a path of the rules.
 pub fn after_landing(journal: &Path, repository: &Path, changed: &[String]) {
-    let first: bool = first_look_at(repository);
+    let first: bool = first_look_at(journal, repository);
     if first {
         remember(journal, repository);
     }
@@ -185,7 +178,7 @@ pub fn after_landing(journal: &Path, repository: &Path, changed: &[String]) {
 pub fn warm_remembered(journal: &Path) {
     let Ok(text) = std::fs::read_to_string(journal.join(REMEMBERED_FILE)) else { return };
     let repository: PathBuf = PathBuf::from(text.trim());
-    if repository.is_absolute() && repository.is_dir() && first_look_at(repository.as_path()) {
+    if repository.is_absolute() && repository.is_dir() {
         warm_in_background(repository);
     }
 }
