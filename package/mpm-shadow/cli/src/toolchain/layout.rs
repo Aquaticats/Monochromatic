@@ -233,6 +233,43 @@ fn pnpm_home(env: &EnvMap, home: &Path) -> PathBuf {
 }
 
 /// What:
+/// The pnpm home spelled by the directories' physical paths:
+/// the longest existing ancestor of `pnpm_home` resolved through its symbolic links,
+/// with the part that does not exist yet appended unchanged.
+/// Why:
+/// pnpm writes the relative links of a global package from the spelling of its home,
+/// while the filesystem follows every symbolic link of that spelling when it reads them back.
+/// Where `$HOME` is a link (`/home` to `/var/home`) and the store is spelled physically,
+/// `pnpm add --global` exits 0 and writes links that dangle,
+/// and `pnpm list --global` then shows the package absent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function physicalPnpmHome(env: EnvMap, home: string): string
+/// ```
+pub fn physical_pnpm_home(env: &EnvMap, home: &Path) -> PathBuf {
+    let spelled: PathBuf = pnpm_home(env, home);
+    let mut missing_tail: Vec<std::ffi::OsString> = Vec::new();
+    let mut existing: &Path = &spelled;
+    // Walk up until an ancestor resolves; the names walked past are re-appended in their original order.
+    loop {
+        if let Ok(resolved) = std::fs::canonicalize(existing) {
+            let mut physical: PathBuf = resolved;
+            physical.extend(missing_tail.iter().rev());
+            return physical;
+        }
+        match (existing.file_name(), existing.parent()) {
+            (Some(name), Some(parent)) => {
+                missing_tail.push(name.to_os_string());
+                existing = parent;
+            }
+            // Nothing on the way up exists (a relative or empty spelling): the spelling stands.
+            _ => return spelled,
+        }
+    }
+}
+
+/// What:
 /// The bin directories of the package managers the routes install through,
 /// preceded by the scope's exposure
 ///           and toolchain bin directories:

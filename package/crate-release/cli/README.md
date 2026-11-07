@@ -309,10 +309,17 @@ Each step is printed as `== <step>` and a `$ ...` line that can be pasted into a
   because the bump is already on the branch and committing it again would find nothing to commit.
 - `local` is the default.
   Cargo works with `--offline`,
-  the dry run is capped in a transient `systemd-run --user --wait --pipe` unit (`--memory-max`,
-  default `12G`,
-  and `--unit-name`,
-  default `<crate-name>-publish-dry`),
+  the dry run is capped in a transient `systemd-run --user --wait --pipe` unit
+  that carries all four limits the owner's rule asks of a capped unit:
+  `--memory-max` (default `12G`),
+  `--cpu-quota` (default `800%`),
+  `--tasks-max` (default `2048`,
+  threads included),
+  and a fixed disk weight of 10 (`IOWeight`),
+  which no option raises.
+  The defaults come from a cold dry run of the largest releasable crate,
+  and the evidence sits beside each value in `src/constants.ts`.
+  `--unit-name` names the unit (default `<crate-name>-publish-dry`),
   and a manifest that already holds `<to>` is reported and not rewritten,
   which makes a run that failed at a later step safe to run again.
   It compiles the crate on the machine that runs it.
@@ -382,7 +389,9 @@ for the same list with defaults.
   repeatable,
   names a directory whose lockfile is refreshed after the edit.
 - `--host`,
-  `--memory-max` and `--unit-name` are described under hosts.
+  `--memory-max`,
+  `--cpu-quota`,
+  `--tasks-max` and `--unit-name` are described under hosts.
 - `--root <dir>` overrides the repository root,
   which is otherwise found by walking up from the package to the nearest
   `pnpm-workspace.yaml`.

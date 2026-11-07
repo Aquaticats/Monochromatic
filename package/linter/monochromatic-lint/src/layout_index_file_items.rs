@@ -56,6 +56,9 @@ pub enum IndexRole {
     Index,
     /// A `main.rs` that is a folder's index.
     EntryPoint,
+    /// The `mod.rs` of a group folder,
+    ///  which holds its top doc and `mod` lines only.
+    Group,
 }
 
 /// What:
@@ -139,7 +142,11 @@ fn is_main(found: &ast::Fn) -> bool {
 fn is_allowed(item: &ast::Item, role: IndexRole) -> bool {
     return match item {
         ast::Item::Module(found) => found.item_list().is_none(),
-        ast::Item::Use(found) => role == IndexRole::EntryPoint || found.visibility().is_some(),
+        ast::Item::Use(found) => match role {
+            IndexRole::EntryPoint => true,
+            IndexRole::Index => found.visibility().is_some(),
+            IndexRole::Group => false,
+        },
         ast::Item::Fn(found) => role == IndexRole::EntryPoint && is_main(found),
         _ => false,
     };
@@ -205,6 +212,20 @@ pub fn check_index_items(file: &Path, role: IndexRole, base: &Path) -> Vec<Layou
                 ),
                 String::from(
                     "Move it into a file of this folder named for what it does, add `mod` for that file here, and re-export the names other folders use with `pub use`.",
+                ),
+            ),
+            IndexRole::Group => (
+                format!(
+                    "{} is the index of the group folder {}, so it may hold only its top doc and `mod` lines, but it holds {}.",
+                    shown(file, base),
+                    shown(file.parent().unwrap_or(file), base),
+                    match &item {
+                        ast::Item::Use(_) => String::from("a `use` line"),
+                        other => what_it_holds(other),
+                    }
+                ),
+                String::from(
+                    "Move it into a child folder of the group named for what it does, and let other folders name that child folder directly.",
                 ),
             ),
             IndexRole::EntryPoint => (

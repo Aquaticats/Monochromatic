@@ -156,6 +156,25 @@ fn a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result
     }
 }
 
+/// An earlier program that still has a log open for writing: that name is left for a later command with no line to the person, and
+///  the later command, run once the program has written its last line and closed the log, folds the line too.
+#[test]
+fn a_log_that_an_earlier_program_still_writes_is_left_silently_and_folded_after_it_closes() {
+    use std::io::Write;
+    let world: World = world("writer-open");
+    let mut writer = std::fs::OpenOptions::new().append(true).open(world.git_dir.join(COMMIT_TIMING_LOG.earlier)).expect("writer");
+    let report: FoldReport = fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut NeverStopped);
+    let timing: Option<&Outcome> = report.outcomes.iter().find(|(name, _)| return name.current == COMMIT_TIMING_LOG.current).map(|(_, outcome)| return outcome);
+    assert_eq!(timing, Some(&Outcome::LeftForALaterCommand), "{report:?}");
+    assert_eq!(failure_line(world.git_dir.as_path(), COMMIT_TIMING_LOG, &Outcome::LeftForALaterCommand), None, "nothing is printed for it");
+    writer.write_all(b"late-timing\n").expect("late line");
+    drop(writer);
+    let later: FoldReport = fold_kept_names(world.git_dir.as_path(), &NAMES, &world.surroundings, &mut NeverStopped);
+    assert!(later.outcomes.iter().all(|(_, outcome)| return *outcome == Outcome::Folded), "{later:?}");
+    assert_eq!(std::fs::read_to_string(world.git_dir.join(COMMIT_TIMING_LOG.current)).expect("current"), "current-timing\nearlier-timing\nlate-timing\n");
+    std::fs::remove_dir_all(world.git_dir.parent().expect("root")).expect("remove only the fixture");
+}
+
 /// A read-only Git directory: nothing is folded, nothing is lost, each name reports a failure, and the failure line is one line.
 #[cfg(unix)]
 #[test]

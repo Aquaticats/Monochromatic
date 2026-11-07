@@ -663,7 +663,24 @@ never both, so the existing in-place rename covers them; the fold runs there too
   The journal `<current>.earlier-lines-journal` is also the lock (`flock`, released by the kernel when the process dies): it
   records where the current log ended and which bytes of the moved log are being added, so a restart looks for exactly those
   bytes (in the current log from that place and in its numbered older copies) and appends them only when absent.
+  The journal only grows: each record is a new last line and the last whole line that is a record wins; a journal left by an
+  earlier fold is emptied before the move that starts a new one (the earlier code resumed such a line against the new moved
+  log, which skipped the bytes before it).
   A line a program with the moved log still open adds later is folded in a further round.
+  Recorded 2026-11-07T10:42:51-05:00 on the branch `fix/git-policy-cli-fold-keeps-late-lines`: the moved log is removed only
+  after `foundation/file_open_for_write_by_any_process.rs` found no process holding it open for writing, and the size is
+  checked once more after that probe.
+  The probe takes a read lease on the moved log (`fcntl` `F_SETLEASE`, `F_RDLCK`) and gives it back at once: the kernel grants
+  it only while no process has the file open for writing, in any PID namespace and for any user, and no lock file is added.
+  Its signal is set to `SIGURG` first because a lease break's default signal ends the process.
+  A `/proc/<pid>/fd` scan was rejected because it cannot see other users' processes or other namespaces.
+  While a writer holds the moved log, the fold appends a last journal line that says every byte before a place is already in
+  the current log, leaves the moved log and the journal, and ends silently; the next command resumes from that line and adds
+  only the growth.
+  Any other refusal of the lease (`EACCES`, `EINVAL` on a file system without leases, `/proc/sys/fs/leases-enable` set to 0)
+  becomes the existing one-line failure, and everything stays in place.
+  One command runs at most `ROUNDS_PER_COMMAND` (8) rounds; the number is derived in the constant's documentation from the
+  measured gap between records (4 records in one second at most) and the measured cost of one round (43 ms).
 - Not done, and why: lines are not interleaved by time stamp.
   Other programs of this release append to the current log with no lock, so replacing or rewriting it would drop every line
   appended between the read and the replace.
@@ -686,8 +703,16 @@ never both, so the existing in-place rename covers them; the fold runs there too
 
 - The look sees the earlier service of the one worktree whose Git directory is being settled, in this user's PID namespace.
   Short-lived programs of the earlier release in other checkouts (a checkout whose lock file still names an older release runs
-  that release's wrapper) are not seen; a line such a program appends to the moved log in the instant between the last size
-  check and the removal is lost, and one it appends later goes to a new earlier-named log that the next command folds again.
+  that release's wrapper) are not seen by the look, but the lease probe sees them: a line such a program appends to the moved
+  log is no longer lost, because the moved log stays until the program has closed it (the earlier text of this limit said such a
+  line "is lost" in the instant between the last size check and the removal).
+  A line it appends after the fold removed the moved log goes to a new earlier-named log that the next command folds again.
+- While a writer keeps the moved log open, every command pays the look (about 10 ms) and the probe (an open and three `fcntl`
+  calls) until that program closes the log; a program that never closes it leaves the moved log and journal for good, each
+  holding bytes that are already in the current log.
+- A file system without leases (some network file systems) or a Git directory owned by another user makes the probe fail, so the
+  fold does not finish there: one line per process says so and every byte stays in place (the earlier fold needed only `flock`).
+  `rustix` has no lease call, so the probe uses `libc::fcntl`.
 - A write that a kill cut short can leave the first lines of a block in the current log; the restart adds the whole block again,
   so those lines appear twice and none is lost.
 - Folding adds the earlier commit-timing log (250,668 bytes here) to a current one of 987,465 bytes, over the 1 MiB rotation
@@ -702,5 +727,22 @@ a repository with no names twice takes a median of 4.7 ms; the first command tha
 log lines, all kept) a median of 143.7 ms, once per Git directory; a command that finds a name twice while an earlier program
 runs (the look is made, nothing is folded) a median of 15.1 ms, so the look adds about 10 ms to each command until that program
 stops.
+Measured 2026-11-07 for the lease probe with the control binary built at `ead9d7463c` (the fold before the probe, copied to
+`~/temp/agent/fold-control-ead9d7463c`) and the fixed one (`~/temp/agent/fold-fixed-dda3fe3332`), same method, nine alternating
+trials per arm, medians, and a second series of the control binary as the same-binary spread.
+One log pair only (the commit timing log, 1,112 plus 257 records): nothing to fold 4.5 ms (control), 4.6 ms (fixed), 4.5 ms
+(control again); fold 47.8 ms (control), 49.8 ms (fixed), 48.1 ms (control again, range 44.3 to 53.1 ms), so the fixed fold
+is 2.0 ms above the control with a same-binary spread of 8.8 ms.
+All six pairs: nothing to fold 5.1 ms, 4.9 ms and 5.1 ms; fold 1,177.1 ms (control; range 449.4 to 1,865.8 ms), 480.2 ms
+(fixed) and 354.7 ms (control again; range 323.9 to 682.3 ms): the host's file-system syncs vary by more between runs of one
+binary than the binaries differ, so no cost of the probe shows at that size.
+A moved log with a writer holding it open (a `sleep` with the earlier log open for appending): the first command 41.6 ms for one
+pair and 476.7 ms for six, and each later command a median of 13.5 ms (one pair) and 14.0 ms (six), which is the look's 10 ms plus
+the probe, against 4.9 ms with nothing to fold.
+The commit path is not touched: the fold runs on the settling of the Git directory, once per Git directory plus the recurring
+cost above, far below "commits vs native git should not take 5s longer".
+A first measurement series in a host-wide I/O stall (load average above 30) showed single commands of 10.5 s and 120.7 s in the
+writer arms (also 19.0 s for the control binary and 5.6 s in a fold arm); 50 later runs of that arm at load 14 to 24 showed none above
+1.3 s, so the stall is the host's and was not reproduced.
 No marker throttles the look; a marker with a short life beside the names would, and it is the next step if that 10 ms matters.
 The fold runs on the command's own path because a forwarded command replaces the process, so a thread would die with it.

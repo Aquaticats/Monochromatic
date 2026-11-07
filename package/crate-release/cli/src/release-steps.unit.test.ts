@@ -12,7 +12,9 @@ import {
   gitProgram,
   lockFileName,
   manifestFileName,
+  maximumUnitIoWeight,
   systemdRunProgram,
+  unitIoWeight,
 } from './constants.ts';
 import type { ReleaseOptions } from './release-options.ts';
 import {
@@ -42,8 +44,30 @@ const gitPolicyOptions: ReleaseOptions = {
   lockDirectories: ['package/git-policy/cli.fuzz'],
   host: 'local',
   memoryMax: '12G',
+  cpuQuota: '1600%',
+  tasksMax: '512',
   unitName: 'cli-git-publish-dry',
 };
+
+/**
+ Highest `IOWeight` a per-command cgroup may carry: the owner's rule in `CLAUDE.md` (RXS) says never above 10.
+ The test states it itself so a change to the implementation's own constant cannot move it.
+ */
+const ownerMaximumIoWeight = 10;
+
+/**
+ Values a unit's arguments give one `--property` name, in order.
+
+ @param args - arguments after `systemd-run`
+ @param property - systemd property name such as `TasksMax`
+ @returns the text after `--property=<name>=` of every argument that sets the property
+ */
+function propertyValues({ args, property }: { readonly args: readonly string[]; readonly property: string }): readonly string[] {
+  const prefix = `--property=${property}=`;
+  return args
+    .filter((argument) => argument.startsWith(prefix))
+    .map((argument) => argument.slice(prefix.length));
+}
 
 await describe({
   name: '',
@@ -206,6 +230,8 @@ await describe({
               unitName: 'cli-git-publish-dry',
               workingDirectory: '/repo/package/git-policy/cli',
               memoryMax: '12G',
+              cpuQuota: '800%',
+              tasksMax: '2048',
             })).toEqual([
               '--user',
               '--unit=cli-git-publish-dry',
@@ -214,6 +240,9 @@ await describe({
               '--pipe',
               '--working-directory=/repo/package/git-policy/cli',
               '--property=MemoryMax=12G',
+              '--property=CPUQuota=800%',
+              '--property=TasksMax=2048',
+              `--property=IOWeight=${String(unitIoWeight)}`,
               cargoProgram,
               'publish',
               '--dry-run',
@@ -225,8 +254,47 @@ await describe({
         it({
           name: 'keeps a working directory with spaces and quotes as one argument',
           fn: async () => {
-            const args = buildPublishDryRunArguments({ unitName: 'u', workingDirectory: `/r/a b'c;d`, memoryMax: '1G' });
+            const args = buildPublishDryRunArguments({
+              unitName: 'u',
+              workingDirectory: `/r/a b'c;d`,
+              memoryMax: '1G',
+              cpuQuota: '100%',
+              tasksMax: '64',
+            });
             expect(args).toContain(`--working-directory=/r/a b'c;d`);
+          },
+        }),
+        it({
+          name: 'sets memory, CPU, task and disk-weight limits on the unit, one of each',
+          fn: async () => {
+            const args = buildPublishDryRunArguments({
+              unitName: 'u',
+              workingDirectory: '/r/c',
+              memoryMax: '3G',
+              cpuQuota: '700%',
+              tasksMax: '77',
+            });
+            expect(propertyValues({ args, property: 'MemoryMax' })).toEqual(['3G']);
+            expect(propertyValues({ args, property: 'CPUQuota' })).toEqual(['700%']);
+            expect(propertyValues({ args, property: 'TasksMax' })).toEqual(['77']);
+            expect(propertyValues({ args, property: 'IOWeight' })).toHaveLength(1);
+          },
+        }),
+        it({
+          name: 'never sets a disk weight above the owner limit',
+          fn: async () => {
+            const args = buildPublishDryRunArguments({
+              unitName: 'u',
+              workingDirectory: '/r/c',
+              memoryMax: '3G',
+              cpuQuota: '700%',
+              tasksMax: '77',
+            });
+            const [weight] = propertyValues({ args, property: 'IOWeight' });
+            expect(Number(weight)).toBeGreaterThan(0);
+            expect(Number(weight)).toBeLessThanOrEqual(ownerMaximumIoWeight);
+            expect(maximumUnitIoWeight).toBeLessThanOrEqual(ownerMaximumIoWeight);
+            expect(unitIoWeight).toBeLessThanOrEqual(maximumUnitIoWeight);
           },
         }),
       ],
@@ -263,6 +331,21 @@ await describe({
       name: buildReleaseSteps.name,
       children: [
         it({
+          name: 'gives the local publish dry run all four limits and the runner none of them',
+          fn: async () => {
+            const local = buildReleaseSteps(gitPolicyOptions)
+              .find((step) => step.label === 'publish dry run');
+            expect(local?.program).toBe(systemdRunProgram);
+            for (const property of ['MemoryMax', 'CPUQuota', 'TasksMax', 'IOWeight'])
+              expect(propertyValues({ args: local?.args ?? [], property })).toHaveLength(1);
+            expect(propertyValues({ args: local?.args ?? [], property: 'CPUQuota' })).toEqual([gitPolicyOptions.cpuQuota]);
+            expect(propertyValues({ args: local?.args ?? [], property: 'TasksMax' })).toEqual([gitPolicyOptions.tasksMax]);
+            const runner = buildReleaseSteps({ ...gitPolicyOptions, host: 'runner' })
+              .find((step) => step.label === 'publish dry run');
+            expect(runner?.program).toBe(cargoProgram);
+          },
+        }),
+        it({
           name: 'plans the four steps of a release in order with their working directories',
           fn: async () => {
             expect(buildReleaseSteps(gitPolicyOptions)).toEqual([
@@ -289,6 +372,9 @@ await describe({
                   '--pipe',
                   '--working-directory=/repo/package/git-policy/cli',
                   '--property=MemoryMax=12G',
+                  `--property=CPUQuota=${gitPolicyOptions.cpuQuota}`,
+                  `--property=TasksMax=${gitPolicyOptions.tasksMax}`,
+                  `--property=IOWeight=${String(unitIoWeight)}`,
                   cargoProgram,
                   'publish',
                   '--dry-run',

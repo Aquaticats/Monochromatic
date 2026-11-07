@@ -3320,5 +3320,1186 @@
     "reader_fsmonitor_tests": "cli",
     "subvolume_btrfs_tests": "cli",
     "worktree_trash_tests": "cli"
+  },
+  "after_adopted_crates": {
+    "_note": "Added 2026-11-07 by the rescan after the adopted crates; see doc/planning/cli-git-source-layout-target-tree.md, sections \"Rescan of main after the adopted crates\" and \"One level of groups in the program\". Folder names are working names.",
+    "scanned_commit": "e728c63911c046eed2c66f055aed26bf08d797ac",
+    "counts": {
+      "crates": 9,
+      "crate_loops": 0,
+      "folders": 92,
+      "program_folders": 78,
+      "folder_loops": 0,
+      "files_placed": 617,
+      "program_files": 536,
+      "library_files": 81,
+      "file_loops": 0,
+      "library_uses_of_program_files": 0,
+      "lint_findings": 362
+    },
+    "new_modules": {
+      "side_by_side_threads": [
+        "parallel-work-within-a-budget",
+        "running_independent_jobs_side_by_side"
+      ],
+      "call_catching_panics": [
+        "parallel-work-within-a-budget",
+        "running_independent_jobs_side_by_side"
+      ],
+      "line_sink": [
+        "parallel-work-within-a-budget",
+        "running_independent_jobs_side_by_side"
+      ],
+      "panics_that_the_caller_expects": [
+        "parallel-work-within-a-budget",
+        "running_independent_jobs_side_by_side",
+        "(new file)"
+      ],
+      "runtime_limits": [
+        "parallel-work-within-a-budget",
+        "the_shared_runtime_that_runs_waiting_jobs"
+      ],
+      "runtime_plan": [
+        "parallel-work-within-a-budget",
+        "the_shared_runtime_that_runs_waiting_jobs"
+      ],
+      "lazy_runtime": [
+        "parallel-work-within-a-budget",
+        "the_shared_runtime_that_runs_waiting_jobs"
+      ],
+      "blocking_job": [
+        "parallel-work-within-a-budget",
+        "the_shared_runtime_that_runs_waiting_jobs"
+      ],
+      "captured_child_run_to_its_end": [
+        "starting-and-watching-programs",
+        "starting_programs_catching_signals_and_keeping_their_output"
+      ],
+      "child_awaited_through_a_pidfd": [
+        "starting-and-watching-programs",
+        "starting_programs_catching_signals_and_keeping_their_output"
+      ],
+      "rename_that_never_replaces": [
+        "linux-filesystem-primitives",
+        "fast_copies_and_swaps_on_linux"
+      ],
+      "name_held_while_one_thread_publishes_it": [
+        "safe-file-saving",
+        "saving_files_so_a_crash_leaves_no_half_file"
+      ],
+      "runtime_probe": [
+        "cli",
+        "what_happens_when_you_type_a_command"
+      ],
+      "push_failure_notice_machine_output": [
+        "cli",
+        "pushing_what_the_commit_service_saved"
+      ],
+      "wrapper_names_old_and_new": [
+        "cli",
+        "names_this_release_and_the_one_before"
+      ],
+      "earlier_unix_sockets_that_listen": [
+        "cli",
+        "telling_whether_an_earlier_commit_service_still_runs"
+      ],
+      "earlier_service_process_look": [
+        "cli",
+        "telling_whether_an_earlier_commit_service_still_runs"
+      ],
+      "earlier_service_journal_adopted": [
+        "cli",
+        "finishing_what_an_earlier_commit_service_left_open"
+      ],
+      "earlier_folder_entries_moved_into_current_folder": [
+        "cli",
+        "moving_kept_files_to_the_new_names"
+      ],
+      "earlier_log_lines_added_to_current_log": [
+        "cli",
+        "moving_kept_files_to_the_new_names"
+      ],
+      "earlier_name_moved_to_current_in_place": [
+        "cli",
+        "moving_kept_files_to_the_new_names"
+      ],
+      "earlier_names_folded_into_current": [
+        "cli",
+        "moving_kept_files_to_the_new_names"
+      ],
+      "kept_names_in_the_git_directories": [
+        "cli",
+        "moving_kept_files_to_the_new_names"
+      ],
+      "lfs_output_mask": [
+        "text-time-and-log-line-formats",
+        "lines_printed_for_the_person",
+        "(moved from the program)"
+      ]
+    },
+    "named_changes": [
+      "service_index_lock::Announcer -> service_index_lock_names_and_failures",
+      "panic_notice::while_panics_are_expected -> panics_that_the_caller_expects",
+      "panic_notice::panics_are_expected_here -> panics_that_the_caller_expects",
+      "earlier_service_journal_adopted::earlier_journals_in_state -> wrapper_names_old_and_new",
+      "earlier_service_journal_adopted::EarlierJournals -> wrapper_names_old_and_new",
+      "drop scratch_location -> wrapper_names_old_and_new",
+      "lfs_output_mask moves whole to text-time-and-log-line-formats/lines_printed_for_the_person",
+      "service_review_key placed in messages_between_the_wrapper_and_the_commit_service",
+      "discard_audit_generations::AUDIT_FILE (read through super:: from the child module declared by #[path] in discard_audit): moves into discard_audit_generations, or retention_of takes the file name; the scanner cannot see this edge, the linter reports it"
+    ],
+    "renames": {
+      "blocking_job": "running_a_waiting_call_on_a_spare_thread",
+      "call_catching_panics": "catching_a_crash_inside_a_called_function",
+      "lazy_runtime": "the_one_runtime_built_when_first_needed",
+      "line_sink": "the_place_one_line_of_progress_goes",
+      "runtime_limits": "limits_the_system_puts_on_starting_threads",
+      "runtime_plan": "how_many_threads_the_runtime_gets",
+      "runtime_probe": "test_only_entry_that_builds_the_runtime",
+      "side_by_side_threads": "running_jobs_on_threads_side_by_side",
+      "rename_that_never_replaces": "renaming_a_file_without_replacing_another",
+      "captured_child_run_to_its_end": "running_a_command_to_its_end_and_collecting_its_output",
+      "child_awaited_through_a_pidfd": "waiting_for_a_child_through_its_process_file_handle",
+      "lfs_output_mask": "hiding_the_password_in_web_addresses_in_text"
+    },
+    "program_folder_uses": {
+      "after_commit_work_of_the_service": [
+        "environment_variables_for_git_children",
+        "git_settings_read_once",
+        "holding_the_index_lock_for_the_commit_service",
+        "how_long_the_program_waits_for_git_steps",
+        "landing_commits",
+        "log_lines_of_the_commit_service",
+        "making_a_worktree_quickly",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "moving_kept_files_to_the_new_names",
+        "naming_the_service_of_one_worktree",
+        "pushing_what_the_commit_service_saved",
+        "reading_git_settings_from_files",
+        "reviewing_landed_commits_against_standards",
+        "running_git_for_a_transaction",
+        "running_git_push_until_it_ends_or_stalls",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run",
+        "uploading_large_files",
+        "work_left_for_the_service_to_finish_later"
+      ],
+      "answering_questions_without_starting_git": [
+        "finding_the_git_folders",
+        "reading_and_writing_the_index_file_of_git",
+        "reading_branches_tags_and_markers",
+        "reading_git_settings_from_files",
+        "reading_saved_commits_and_files",
+        "starting_git_and_describing_a_run"
+      ],
+      "asking_the_commit_service_to_save_a_commit": [
+        "finding_the_git_folders",
+        "git_settings_read_once",
+        "log_lines_of_the_commit_service",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "naming_the_service_of_one_worktree",
+        "reading_saved_commits_and_files",
+        "reading_the_bytes_a_commit_would_save",
+        "recording_where_worktree_add_spent_its_time",
+        "reviewing_landed_commits_against_standards",
+        "running_git_for_a_transaction",
+        "running_policies_and_settling_their_corrections",
+        "starting_git_and_describing_a_run",
+        "stopping_the_program_at_a_named_step_for_tests",
+        "telling_whether_an_earlier_commit_service_still_runs",
+        "the_settings_file_cli_git_config_jsonc",
+        "work_left_for_the_service_to_finish_later"
+      ],
+      "checking_that_your_setup_works": [
+        "git_settings_read_once",
+        "hooks_a_repository_configures",
+        "how_long_the_program_waits_for_git_steps",
+        "moving_kept_files_to_the_new_names",
+        "running_git_for_a_transaction",
+        "saving_copies_of_what_a_command_would_throw_away",
+        "starting_git_and_describing_a_run",
+        "the_settings_file_cli_git_config_jsonc"
+      ],
+      "checking_version_bumps_in_a_commit": [
+        "putting_corrected_files_into_the_private_index",
+        "reading_the_bytes_a_commit_would_save",
+        "running_git_for_a_transaction",
+        "running_policies_and_settling_their_corrections",
+        "the_settings_file_cli_git_config_jsonc",
+        "what_the_wrapper_asks_git_about_a_repository"
+      ],
+      "clearing_leftover_reference_locks": [
+        "finding_the_git_folders",
+        "who_owns_a_transaction_folder"
+      ],
+      "converting_a_linked_worktree": [
+        "converting_the_main_checkout",
+        "is_the_worktree_clean",
+        "lines_about_worktrees_and_large_files"
+      ],
+      "converting_the_main_checkout": [
+        "how_long_the_program_waits_for_git_steps",
+        "moving_kept_files_to_the_new_names",
+        "names_this_release_and_the_one_before",
+        "sha_1_and_sha_256_of_bytes",
+        "starting_git_and_describing_a_run",
+        "who_owns_a_transaction_folder"
+      ],
+      "copying_ignored_files_around_one_git_command": [
+        "copying_ignored_files_into_a_stage",
+        "making_a_worktree_quickly",
+        "recording_where_worktree_add_spent_its_time",
+        "running_git_for_a_transaction",
+        "starting_git_and_describing_a_run",
+        "the_words_meant_for_this_wrapper"
+      ],
+      "copying_ignored_files_into_a_stage": [
+        "names_this_release_and_the_one_before",
+        "planning_a_worktree_add_and_what_git_made",
+        "recording_where_worktree_add_spent_its_time",
+        "running_git_for_a_transaction",
+        "starting_git_and_describing_a_run",
+        "the_words_meant_for_this_wrapper",
+        "who_owns_a_transaction_folder"
+      ],
+      "environment_variables_for_git_children": [],
+      "finding_the_git_folders": [
+        "environment_variables_for_git_children",
+        "reading_git_settings_from_files"
+      ],
+      "finding_the_real_git_program": [
+        "environment_variables_for_git_children"
+      ],
+      "finding_who_holds_a_lock_file": [],
+      "finishing_what_an_earlier_commit_service_left_open": [
+        "how_long_the_program_waits_for_git_steps",
+        "landing_commits",
+        "log_lines_of_the_commit_service",
+        "names_this_release_and_the_one_before",
+        "naming_the_service_of_one_worktree",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run",
+        "telling_whether_an_earlier_commit_service_still_runs"
+      ],
+      "fixing_markdown_in_process": [
+        "how_long_the_program_waits_for_git_steps",
+        "reading_the_bytes_a_commit_would_save",
+        "running_git_for_a_transaction",
+        "running_policies_and_settling_their_corrections",
+        "the_settings_file_cli_git_config_jsonc",
+        "what_the_wrapper_asks_git_about_a_repository"
+      ],
+      "git_settings_read_once": [
+        "running_git_for_a_transaction",
+        "starting_git_and_describing_a_run"
+      ],
+      "holding_the_index_lock_for_the_commit_service": [
+        "finding_who_holds_a_lock_file",
+        "how_long_the_program_waits_for_git_steps",
+        "log_lines_of_the_commit_service",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "sha_1_and_sha_256_of_bytes",
+        "stopping_the_program_at_a_named_step_for_tests",
+        "syncing_files_off_the_waiting_path"
+      ],
+      "hooks_a_repository_configures": [
+        "git_settings_read_once",
+        "starting_git_and_describing_a_run",
+        "the_settings_file_cli_git_config_jsonc"
+      ],
+      "how_long_the_program_waits_for_git_steps": [],
+      "is_the_worktree_clean": [
+        "converting_the_main_checkout",
+        "finding_the_git_folders",
+        "lines_about_worktrees_and_large_files",
+        "reading_branches_tags_and_markers",
+        "reading_git_settings_from_files",
+        "reading_saved_commits_and_files",
+        "recording_where_worktree_add_spent_its_time",
+        "running_git_for_a_transaction",
+        "sha_1_and_sha_256_of_bytes",
+        "starting_git_and_describing_a_run"
+      ],
+      "landing_commits": [
+        "answering_questions_without_starting_git",
+        "asking_the_commit_service_to_save_a_commit",
+        "finding_the_git_folders",
+        "git_settings_read_once",
+        "holding_the_index_lock_for_the_commit_service",
+        "how_long_the_program_waits_for_git_steps",
+        "log_lines_of_the_commit_service",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "naming_the_service_of_one_worktree",
+        "reading_and_writing_the_index_file_of_git",
+        "reading_git_settings_from_files",
+        "reading_saved_commits_and_files",
+        "running_git_for_a_transaction",
+        "running_git_push_until_it_ends_or_stalls",
+        "saving_copies_of_what_a_command_would_throw_away",
+        "sending_log_entries_to_the_system_journal",
+        "settings_that_decide_how_the_index_is_read",
+        "sha_1_and_sha_256_of_bytes",
+        "starting_git_and_describing_a_run",
+        "state_shared_by_preparing_and_landing_a_commit",
+        "stopping_the_program_at_a_named_step_for_tests",
+        "syncing_files_off_the_waiting_path",
+        "the_hidden_second_git_folder",
+        "waiting_for_the_index_lock_of_git"
+      ],
+      "lines_about_worktrees_and_large_files": [],
+      "log_lines_of_the_commit_service": [
+        "names_this_release_and_the_one_before",
+        "naming_the_service_of_one_worktree",
+        "recording_where_worktree_add_spent_its_time",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run"
+      ],
+      "making_a_worktree_quickly": [
+        "asking_the_commit_service_to_save_a_commit",
+        "converting_the_main_checkout",
+        "copying_ignored_files_into_a_stage",
+        "finding_the_git_folders",
+        "git_settings_read_once",
+        "how_long_the_program_waits_for_git_steps",
+        "is_the_worktree_clean",
+        "lines_about_worktrees_and_large_files",
+        "log_lines_of_the_commit_service",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "planning_a_worktree_add_and_what_git_made",
+        "reading_saved_commits_and_files",
+        "reading_the_bytes_a_commit_would_save",
+        "recording_where_worktree_add_spent_its_time",
+        "running_git_for_a_transaction",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run",
+        "state_shared_by_preparing_and_landing_a_commit",
+        "the_words_meant_for_this_wrapper",
+        "work_left_for_the_service_to_finish_later"
+      ],
+      "merging_text_by_line_and_by_word": [],
+      "merging_without_touching_your_files": [
+        "environment_variables_for_git_children",
+        "holding_the_index_lock_for_the_commit_service",
+        "log_lines_of_the_commit_service",
+        "pushing_what_the_commit_service_saved",
+        "recovering_a_merge_that_was_cut_short",
+        "rerunning_a_merge_word_by_word",
+        "running_git_for_a_transaction",
+        "running_policies_and_settling_their_corrections",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run",
+        "stopping_the_program_at_a_named_step_for_tests",
+        "the_settings_file_cli_git_config_jsonc",
+        "the_words_meant_for_this_wrapper",
+        "waiting_for_the_index_lock_of_git",
+        "who_owns_a_transaction_folder"
+      ],
+      "messages_between_the_wrapper_and_the_commit_service": [],
+      "moving_kept_files_to_the_new_names": [
+        "how_long_the_program_waits_for_git_steps",
+        "names_this_release_and_the_one_before",
+        "naming_the_service_of_one_worktree",
+        "telling_whether_an_earlier_commit_service_still_runs"
+      ],
+      "names_this_release_and_the_one_before": [],
+      "naming_the_service_of_one_worktree": [
+        "names_this_release_and_the_one_before"
+      ],
+      "planning_a_worktree_add_and_what_git_made": [
+        "git_settings_read_once",
+        "how_long_the_program_waits_for_git_steps",
+        "lines_about_worktrees_and_large_files",
+        "starting_git_and_describing_a_run",
+        "what_each_git_command_accepts"
+      ],
+      "pushing_what_the_commit_service_saved": [
+        "answering_questions_without_starting_git",
+        "asking_the_commit_service_to_save_a_commit",
+        "finding_the_git_folders",
+        "git_settings_read_once",
+        "how_long_the_program_waits_for_git_steps",
+        "log_lines_of_the_commit_service",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "moving_kept_files_to_the_new_names",
+        "names_this_release_and_the_one_before",
+        "naming_the_service_of_one_worktree",
+        "reading_branches_tags_and_markers",
+        "reading_git_settings_from_files",
+        "reading_saved_commits_and_files",
+        "recording_where_worktree_add_spent_its_time",
+        "recovering_a_merge_that_was_cut_short",
+        "rerunning_a_merge_word_by_word",
+        "running_git_push_until_it_ends_or_stalls",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run",
+        "uploading_large_files",
+        "who_owns_a_transaction_folder",
+        "work_left_for_the_service_to_finish_later"
+      ],
+      "putting_corrected_files_into_the_private_index": [
+        "reading_the_bytes_a_commit_would_save",
+        "running_git_for_a_transaction"
+      ],
+      "reading_and_writing_the_index_file_of_git": [],
+      "reading_branches_tags_and_markers": [
+        "reading_saved_commits_and_files",
+        "state_shared_by_preparing_and_landing_a_commit"
+      ],
+      "reading_git_settings_from_files": [
+        "environment_variables_for_git_children"
+      ],
+      "reading_options_the_way_git_does": [],
+      "reading_saved_commits_and_files": [
+        "finding_the_git_folders",
+        "reading_and_writing_the_index_file_of_git"
+      ],
+      "reading_the_bytes_a_commit_would_save": [
+        "answering_questions_without_starting_git",
+        "finding_the_git_folders",
+        "how_long_the_program_waits_for_git_steps",
+        "running_git_for_a_transaction",
+        "starting_git_and_describing_a_run"
+      ],
+      "recording_where_worktree_add_spent_its_time": [
+        "names_this_release_and_the_one_before"
+      ],
+      "recovering_a_merge_that_was_cut_short": [
+        "log_lines_of_the_commit_service",
+        "names_this_release_and_the_one_before",
+        "running_git_for_a_transaction",
+        "starting_git_and_describing_a_run",
+        "who_owns_a_transaction_folder"
+      ],
+      "removing_a_linked_worktree": [
+        "is_the_worktree_clean",
+        "lines_about_worktrees_and_large_files",
+        "moving_kept_files_to_the_new_names",
+        "naming_the_service_of_one_worktree",
+        "pushing_what_the_commit_service_saved",
+        "starting_git_and_describing_a_run",
+        "work_left_for_the_service_to_finish_later"
+      ],
+      "replaying_changes_onto_new_commits": [
+        "environment_variables_for_git_children",
+        "reading_the_bytes_a_commit_would_save",
+        "rerunning_a_merge_word_by_word",
+        "running_git_for_a_transaction",
+        "starting_git_and_describing_a_run",
+        "the_hidden_second_git_folder"
+      ],
+      "rerunning_a_merge_word_by_word": [
+        "environment_variables_for_git_children",
+        "finding_the_git_folders",
+        "merging_text_by_line_and_by_word",
+        "reading_branches_tags_and_markers",
+        "reading_git_settings_from_files",
+        "reading_saved_commits_and_files",
+        "running_git_for_a_transaction",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run",
+        "waiting_for_the_index_lock_of_git"
+      ],
+      "reviewing_landed_commits_against_standards": [
+        "how_long_the_program_waits_for_git_steps",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "running_git_for_a_transaction",
+        "starting_git_and_describing_a_run"
+      ],
+      "rules_about_what_a_commit_may_contain": [
+        "reading_options_the_way_git_does",
+        "rules_that_add_flags_to_a_command",
+        "what_each_git_command_accepts",
+        "what_the_wrapper_asks_git_about_a_repository"
+      ],
+      "rules_about_where_a_command_may_run": [
+        "answering_questions_without_starting_git",
+        "reading_options_the_way_git_does",
+        "spellings_that_switch_the_wrapper_off",
+        "the_words_meant_for_this_wrapper",
+        "what_each_git_command_accepts"
+      ],
+      "rules_that_add_flags_to_a_command": [
+        "reading_options_the_way_git_does",
+        "what_each_git_command_accepts"
+      ],
+      "running_git_for_a_transaction": [
+        "answering_questions_without_starting_git",
+        "clearing_leftover_reference_locks",
+        "finding_the_real_git_program",
+        "how_long_the_program_waits_for_git_steps",
+        "recording_where_worktree_add_spent_its_time",
+        "starting_git_and_describing_a_run",
+        "what_each_git_command_accepts"
+      ],
+      "running_git_push_until_it_ends_or_stalls": [
+        "answering_questions_without_starting_git",
+        "clearing_leftover_reference_locks",
+        "finding_the_git_folders",
+        "finding_the_real_git_program",
+        "how_long_the_program_waits_for_git_steps",
+        "starting_git_and_describing_a_run"
+      ],
+      "running_policies_and_settling_their_corrections": [
+        "answering_questions_without_starting_git",
+        "finding_the_git_folders",
+        "how_long_the_program_waits_for_git_steps",
+        "moving_kept_files_to_the_new_names",
+        "putting_corrected_files_into_the_private_index",
+        "reading_options_the_way_git_does",
+        "reading_the_bytes_a_commit_would_save",
+        "rules_about_what_a_commit_may_contain",
+        "rules_about_where_a_command_may_run",
+        "rules_that_add_flags_to_a_command",
+        "running_git_for_a_transaction",
+        "scanning_those_bytes_for_forbidden_strings",
+        "starting_git_and_describing_a_run",
+        "the_settings_file_cli_git_config_jsonc",
+        "the_words_meant_for_this_wrapper",
+        "what_the_wrapper_asks_git_about_a_repository"
+      ],
+      "saving_copies_of_what_a_command_would_throw_away": [
+        "finding_the_git_folders",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "names_this_release_and_the_one_before",
+        "reading_branches_tags_and_markers",
+        "reading_options_the_way_git_does",
+        "reading_saved_commits_and_files",
+        "recording_where_worktree_add_spent_its_time",
+        "rules_about_where_a_command_may_run",
+        "running_git_for_a_transaction",
+        "starting_git_and_describing_a_run",
+        "the_hidden_second_git_folder",
+        "the_settings_file_cli_git_config_jsonc",
+        "the_words_meant_for_this_wrapper",
+        "what_each_git_command_accepts"
+      ],
+      "scanning_those_bytes_for_forbidden_strings": [
+        "putting_corrected_files_into_the_private_index",
+        "reading_the_bytes_a_commit_would_save",
+        "running_git_for_a_transaction",
+        "the_settings_file_cli_git_config_jsonc"
+      ],
+      "sending_log_entries_to_the_system_journal": [],
+      "settings_that_decide_how_the_index_is_read": [
+        "reading_git_settings_from_files"
+      ],
+      "sha_1_and_sha_256_of_bytes": [],
+      "spellings_that_switch_the_wrapper_off": [],
+      "starting_git_and_describing_a_run": [
+        "environment_variables_for_git_children",
+        "finding_the_real_git_program",
+        "the_words_meant_for_this_wrapper",
+        "what_each_git_command_accepts"
+      ],
+      "state_shared_by_preparing_and_landing_a_commit": [],
+      "stopping_the_program_at_a_named_step_for_tests": [
+        "how_long_the_program_waits_for_git_steps"
+      ],
+      "syncing_files_off_the_waiting_path": [
+        "stopping_the_program_at_a_named_step_for_tests"
+      ],
+      "telling_whether_an_earlier_commit_service_still_runs": [
+        "names_this_release_and_the_one_before"
+      ],
+      "the_built_in_policies": [
+        "reading_the_bytes_a_commit_would_save",
+        "running_policies_and_settling_their_corrections",
+        "scanning_those_bytes_for_forbidden_strings",
+        "the_settings_file_cli_git_config_jsonc",
+        "what_the_wrapper_asks_git_about_a_repository"
+      ],
+      "the_commit_command": [
+        "answering_questions_without_starting_git",
+        "asking_the_commit_service_to_save_a_commit",
+        "environment_variables_for_git_children",
+        "fixing_markdown_in_process",
+        "git_settings_read_once",
+        "hooks_a_repository_configures",
+        "how_long_the_program_waits_for_git_steps",
+        "landing_commits",
+        "log_lines_of_the_commit_service",
+        "making_a_worktree_quickly",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "putting_corrected_files_into_the_private_index",
+        "reading_and_writing_the_index_file_of_git",
+        "reading_options_the_way_git_does",
+        "reading_the_bytes_a_commit_would_save",
+        "replaying_changes_onto_new_commits",
+        "rerunning_a_merge_word_by_word",
+        "rules_about_what_a_commit_may_contain",
+        "rules_about_where_a_command_may_run",
+        "running_git_for_a_transaction",
+        "running_policies_and_settling_their_corrections",
+        "saving_copies_of_what_a_command_would_throw_away",
+        "scanning_those_bytes_for_forbidden_strings",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run",
+        "state_shared_by_preparing_and_landing_a_commit",
+        "stopping_the_program_at_a_named_step_for_tests",
+        "the_built_in_policies",
+        "the_hidden_second_git_folder",
+        "the_list_of_checks_every_commit_runs",
+        "the_settings_file_cli_git_config_jsonc",
+        "the_words_meant_for_this_wrapper",
+        "uploading_large_files",
+        "what_each_git_command_accepts",
+        "what_the_wrapper_asks_git_about_a_repository",
+        "work_left_for_the_service_to_finish_later"
+      ],
+      "the_hidden_second_git_folder": [
+        "finding_the_git_folders",
+        "git_settings_read_once",
+        "log_lines_of_the_commit_service",
+        "reading_branches_tags_and_markers",
+        "running_git_for_a_transaction",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run",
+        "state_shared_by_preparing_and_landing_a_commit",
+        "what_the_wrapper_asks_git_about_a_repository"
+      ],
+      "the_list_of_checks_every_commit_runs": [
+        "checking_version_bumps_in_a_commit",
+        "fixing_markdown_in_process",
+        "putting_corrected_files_into_the_private_index",
+        "rules_about_where_a_command_may_run",
+        "rules_that_add_flags_to_a_command",
+        "running_policies_and_settling_their_corrections",
+        "saving_copies_of_what_a_command_would_throw_away",
+        "the_built_in_policies",
+        "the_settings_file_cli_git_config_jsonc",
+        "the_words_meant_for_this_wrapper",
+        "what_the_wrapper_asks_git_about_a_repository"
+      ],
+      "the_service_program": [
+        "after_commit_work_of_the_service",
+        "environment_variables_for_git_children",
+        "finding_the_real_git_program",
+        "finishing_what_an_earlier_commit_service_left_open",
+        "holding_the_index_lock_for_the_commit_service",
+        "how_long_the_program_waits_for_git_steps",
+        "landing_commits",
+        "log_lines_of_the_commit_service",
+        "messages_between_the_wrapper_and_the_commit_service",
+        "names_this_release_and_the_one_before",
+        "naming_the_service_of_one_worktree",
+        "pushing_what_the_commit_service_saved",
+        "recording_where_worktree_add_spent_its_time",
+        "running_git_push_until_it_ends_or_stalls",
+        "sending_log_entries_to_the_system_journal",
+        "starting_git_and_describing_a_run",
+        "stopping_the_program_at_a_named_step_for_tests",
+        "syncing_files_off_the_waiting_path",
+        "work_left_for_the_service_to_finish_later"
+      ],
+      "the_settings_file_cli_git_config_jsonc": [
+        "names_this_release_and_the_one_before",
+        "the_words_meant_for_this_wrapper",
+        "what_each_git_command_accepts",
+        "what_the_wrapper_asks_git_about_a_repository"
+      ],
+      "the_words_meant_for_this_wrapper": [
+        "reading_options_the_way_git_does",
+        "spellings_that_switch_the_wrapper_off",
+        "what_each_git_command_accepts"
+      ],
+      "uploading_large_files": [
+        "finding_the_git_folders",
+        "git_settings_read_once",
+        "how_long_the_program_waits_for_git_steps",
+        "reading_branches_tags_and_markers",
+        "reading_saved_commits_and_files",
+        "running_git_push_until_it_ends_or_stalls",
+        "starting_git_and_describing_a_run",
+        "the_words_meant_for_this_wrapper",
+        "what_each_git_command_accepts"
+      ],
+      "waiting_for_the_index_lock_of_git": [
+        "finding_who_holds_a_lock_file",
+        "holding_the_index_lock_for_the_commit_service",
+        "how_long_the_program_waits_for_git_steps",
+        "running_git_for_a_transaction"
+      ],
+      "what_each_git_command_accepts": [
+        "reading_options_the_way_git_does",
+        "spellings_that_switch_the_wrapper_off"
+      ],
+      "what_happens_when_you_type_a_command": [
+        "after_commit_work_of_the_service",
+        "asking_the_commit_service_to_save_a_commit",
+        "checking_that_your_setup_works",
+        "clearing_leftover_reference_locks",
+        "converting_a_linked_worktree",
+        "converting_the_main_checkout",
+        "copying_ignored_files_around_one_git_command",
+        "copying_ignored_files_into_a_stage",
+        "environment_variables_for_git_children",
+        "finding_the_git_folders",
+        "finding_the_real_git_program",
+        "finishing_what_an_earlier_commit_service_left_open",
+        "git_settings_read_once",
+        "holding_the_index_lock_for_the_commit_service",
+        "hooks_a_repository_configures",
+        "how_long_the_program_waits_for_git_steps",
+        "landing_commits",
+        "merging_without_touching_your_files",
+        "names_this_release_and_the_one_before",
+        "naming_the_service_of_one_worktree",
+        "planning_a_worktree_add_and_what_git_made",
+        "pushing_what_the_commit_service_saved",
+        "reading_options_the_way_git_does",
+        "reading_the_bytes_a_commit_would_save",
+        "recovering_a_merge_that_was_cut_short",
+        "removing_a_linked_worktree",
+        "rerunning_a_merge_word_by_word",
+        "rules_about_what_a_commit_may_contain",
+        "rules_about_where_a_command_may_run",
+        "running_git_for_a_transaction",
+        "running_git_push_until_it_ends_or_stalls",
+        "running_policies_and_settling_their_corrections",
+        "saving_copies_of_what_a_command_would_throw_away",
+        "scanning_those_bytes_for_forbidden_strings",
+        "starting_git_and_describing_a_run",
+        "telling_whether_an_earlier_commit_service_still_runs",
+        "the_commit_command",
+        "the_list_of_checks_every_commit_runs",
+        "the_service_program",
+        "the_settings_file_cli_git_config_jsonc",
+        "the_words_meant_for_this_wrapper",
+        "uploading_large_files",
+        "waiting_for_the_index_lock_of_git",
+        "what_each_git_command_accepts",
+        "what_the_wrapper_asks_git_about_a_repository",
+        "working_out_what_a_typed_push_would_send"
+      ],
+      "what_the_wrapper_asks_git_about_a_repository": [
+        "answering_questions_without_starting_git",
+        "finding_the_git_folders",
+        "running_git_for_a_transaction",
+        "starting_git_and_describing_a_run",
+        "the_words_meant_for_this_wrapper"
+      ],
+      "who_owns_a_transaction_folder": [
+        "how_long_the_program_waits_for_git_steps"
+      ],
+      "work_left_for_the_service_to_finish_later": [
+        "log_lines_of_the_commit_service"
+      ],
+      "working_out_what_a_typed_push_would_send": [
+        "environment_variables_for_git_children",
+        "finding_the_real_git_program",
+        "how_long_the_program_waits_for_git_steps",
+        "pushing_what_the_commit_service_saved",
+        "reading_options_the_way_git_does",
+        "reading_the_bytes_a_commit_would_save",
+        "rules_about_what_a_commit_may_contain",
+        "running_git_for_a_transaction",
+        "running_git_push_until_it_ends_or_stalls",
+        "starting_git_and_describing_a_run",
+        "uploading_large_files",
+        "what_each_git_command_accepts"
+      ]
+    },
+    "program_groups": {
+      "entries": {
+        "waits_logs_names_and_checksums_used_everywhere": "waits_logs_names_and_checksums_used_everywhere",
+        "names_kept_from_the_earlier_release": "names_kept_from_the_earlier_release",
+        "reading_what_git_saved_on_disk": "reading_what_git_saved_on_disk",
+        "understanding_the_git_command_you_typed": "understanding_the_git_command_you_typed",
+        "running_the_real_git_program": "running_the_real_git_program",
+        "waiting_your_turn_to_change_git_files": "waiting_your_turn_to_change_git_files",
+        "running_git_push_with_a_time_limit": "running_git_push_until_it_ends_or_stalls",
+        "your_settings_for_this_wrapper": "your_settings_for_this_wrapper",
+        "rules_about_what_a_command_may_do": "rules_about_what_a_command_may_do",
+        "reading_what_a_commit_would_save": "reading_what_a_commit_would_save",
+        "running_every_check_in_order": "running_every_check_in_order",
+        "reviewing_landed_commits_against_standards": "reviewing_landed_commits_against_standards",
+        "what_the_wrapper_and_the_commit_helper_say_to_each_other": "what_the_wrapper_and_the_commit_helper_say_to_each_other",
+        "talking_to_the_background_commit_helper": "asking_the_commit_service_to_save_a_commit",
+        "combining_two_versions_of_the_same_file": "combining_two_versions_of_the_same_file",
+        "a_hidden_copy_of_git_data_for_preparing_commits": "a_hidden_copy_of_git_data_for_preparing_commits",
+        "instant_folder_copies_on_btrfs_disks": "converting_the_main_checkout",
+        "uploading_big_files_kept_outside_git": "uploading_large_files",
+        "pushing_after_a_commit_and_pushing_by_hand": "pushing_after_a_commit_and_pushing_by_hand",
+        "extra_working_folders_for_one_project": "extra_working_folders_for_one_project",
+        "keeping_what_a_command_would_throw_away": "saving_copies_of_what_a_command_would_throw_away",
+        "merging_without_touching_your_files": "merging_without_touching_your_files",
+        "checking_that_your_setup_works": "checking_that_your_setup_works",
+        "the_background_commit_helper": "the_background_commit_helper",
+        "the_commit_command": "the_commit_command",
+        "what_happens_when_you_type_a_command": "what_happens_when_you_type_a_command"
+      },
+      "groups": {
+        "waits_logs_names_and_checksums_used_everywhere": [
+          "environment_variables_for_git_children",
+          "how_long_the_program_waits_for_git_steps",
+          "lines_about_worktrees_and_large_files",
+          "recording_where_worktree_add_spent_its_time",
+          "sending_log_entries_to_the_system_journal",
+          "sha_1_and_sha_256_of_bytes",
+          "stopping_the_program_at_a_named_step_for_tests",
+          "syncing_files_off_the_waiting_path",
+          "who_owns_a_transaction_folder",
+          "names_this_release_and_the_one_before"
+        ],
+        "names_kept_from_the_earlier_release": [
+          "telling_whether_an_earlier_commit_service_still_runs",
+          "moving_kept_files_to_the_new_names"
+        ],
+        "reading_what_git_saved_on_disk": [
+          "reading_and_writing_the_index_file_of_git",
+          "reading_git_settings_from_files",
+          "finding_the_git_folders",
+          "reading_saved_commits_and_files",
+          "reading_branches_tags_and_markers",
+          "settings_that_decide_how_the_index_is_read",
+          "state_shared_by_preparing_and_landing_a_commit"
+        ],
+        "understanding_the_git_command_you_typed": [
+          "reading_options_the_way_git_does",
+          "spellings_that_switch_the_wrapper_off",
+          "what_each_git_command_accepts",
+          "the_words_meant_for_this_wrapper"
+        ],
+        "running_the_real_git_program": [
+          "clearing_leftover_reference_locks",
+          "finding_the_real_git_program",
+          "starting_git_and_describing_a_run",
+          "answering_questions_without_starting_git",
+          "running_git_for_a_transaction",
+          "what_the_wrapper_asks_git_about_a_repository",
+          "git_settings_read_once"
+        ],
+        "waiting_your_turn_to_change_git_files": [
+          "finding_who_holds_a_lock_file",
+          "waiting_for_the_index_lock_of_git",
+          "holding_the_index_lock_for_the_commit_service"
+        ],
+        "running_git_push_with_a_time_limit": [
+          "running_git_push_until_it_ends_or_stalls"
+        ],
+        "your_settings_for_this_wrapper": [
+          "the_settings_file_cli_git_config_jsonc",
+          "hooks_a_repository_configures"
+        ],
+        "rules_about_what_a_command_may_do": [
+          "rules_about_where_a_command_may_run",
+          "rules_that_add_flags_to_a_command",
+          "rules_about_what_a_commit_may_contain"
+        ],
+        "reading_what_a_commit_would_save": [
+          "reading_the_bytes_a_commit_would_save",
+          "putting_corrected_files_into_the_private_index",
+          "scanning_those_bytes_for_forbidden_strings"
+        ],
+        "running_every_check_in_order": [
+          "running_policies_and_settling_their_corrections",
+          "the_built_in_policies",
+          "checking_version_bumps_in_a_commit",
+          "fixing_markdown_in_process",
+          "the_list_of_checks_every_commit_runs"
+        ],
+        "reviewing_landed_commits_against_standards": [
+          "reviewing_landed_commits_against_standards"
+        ],
+        "what_the_wrapper_and_the_commit_helper_say_to_each_other": [
+          "messages_between_the_wrapper_and_the_commit_service",
+          "log_lines_of_the_commit_service",
+          "work_left_for_the_service_to_finish_later",
+          "naming_the_service_of_one_worktree"
+        ],
+        "talking_to_the_background_commit_helper": [
+          "asking_the_commit_service_to_save_a_commit"
+        ],
+        "combining_two_versions_of_the_same_file": [
+          "merging_text_by_line_and_by_word",
+          "recovering_a_merge_that_was_cut_short",
+          "rerunning_a_merge_word_by_word"
+        ],
+        "a_hidden_copy_of_git_data_for_preparing_commits": [
+          "the_hidden_second_git_folder",
+          "replaying_changes_onto_new_commits"
+        ],
+        "instant_folder_copies_on_btrfs_disks": [
+          "converting_the_main_checkout"
+        ],
+        "uploading_big_files_kept_outside_git": [
+          "uploading_large_files"
+        ],
+        "pushing_after_a_commit_and_pushing_by_hand": [
+          "pushing_what_the_commit_service_saved",
+          "working_out_what_a_typed_push_would_send"
+        ],
+        "extra_working_folders_for_one_project": [
+          "converting_a_linked_worktree",
+          "planning_a_worktree_add_and_what_git_made",
+          "copying_ignored_files_into_a_stage",
+          "is_the_worktree_clean",
+          "making_a_worktree_quickly",
+          "copying_ignored_files_around_one_git_command",
+          "removing_a_linked_worktree"
+        ],
+        "keeping_what_a_command_would_throw_away": [
+          "saving_copies_of_what_a_command_would_throw_away"
+        ],
+        "merging_without_touching_your_files": [
+          "merging_without_touching_your_files"
+        ],
+        "checking_that_your_setup_works": [
+          "checking_that_your_setup_works"
+        ],
+        "the_background_commit_helper": [
+          "landing_commits",
+          "after_commit_work_of_the_service",
+          "finishing_what_an_earlier_commit_service_left_open",
+          "the_service_program"
+        ],
+        "the_commit_command": [
+          "the_commit_command"
+        ],
+        "what_happens_when_you_type_a_command": [
+          "what_happens_when_you_type_a_command"
+        ]
+      },
+      "group_uses": {
+        "the_background_commit_helper": [
+          "a_hidden_copy_of_git_data_for_preparing_commits",
+          "extra_working_folders_for_one_project",
+          "keeping_what_a_command_would_throw_away",
+          "names_kept_from_the_earlier_release",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "pushing_after_a_commit_and_pushing_by_hand",
+          "reading_what_git_saved_on_disk",
+          "reviewing_landed_commits_against_standards",
+          "running_git_push_with_a_time_limit",
+          "running_the_real_git_program",
+          "talking_to_the_background_commit_helper",
+          "uploading_big_files_kept_outside_git",
+          "waiting_your_turn_to_change_git_files",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other"
+        ],
+        "running_the_real_git_program": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_git_saved_on_disk",
+          "understanding_the_git_command_you_typed"
+        ],
+        "talking_to_the_background_commit_helper": [
+          "names_kept_from_the_earlier_release",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_a_commit_would_save",
+          "reading_what_git_saved_on_disk",
+          "reviewing_landed_commits_against_standards",
+          "running_every_check_in_order",
+          "running_the_real_git_program",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other",
+          "your_settings_for_this_wrapper"
+        ],
+        "checking_that_your_setup_works": [
+          "keeping_what_a_command_would_throw_away",
+          "names_kept_from_the_earlier_release",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "running_the_real_git_program",
+          "your_settings_for_this_wrapper"
+        ],
+        "running_every_check_in_order": [
+          "keeping_what_a_command_would_throw_away",
+          "names_kept_from_the_earlier_release",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_a_commit_would_save",
+          "reading_what_git_saved_on_disk",
+          "rules_about_what_a_command_may_do",
+          "running_the_real_git_program",
+          "understanding_the_git_command_you_typed",
+          "your_settings_for_this_wrapper"
+        ],
+        "extra_working_folders_for_one_project": [
+          "instant_folder_copies_on_btrfs_disks",
+          "names_kept_from_the_earlier_release",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "pushing_after_a_commit_and_pushing_by_hand",
+          "reading_what_a_commit_would_save",
+          "reading_what_git_saved_on_disk",
+          "running_the_real_git_program",
+          "talking_to_the_background_commit_helper",
+          "understanding_the_git_command_you_typed",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other"
+        ],
+        "instant_folder_copies_on_btrfs_disks": [
+          "names_kept_from_the_earlier_release",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "running_the_real_git_program"
+        ],
+        "reading_what_git_saved_on_disk": [
+          "waits_logs_names_and_checksums_used_everywhere"
+        ],
+        "waiting_your_turn_to_change_git_files": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "running_the_real_git_program",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other"
+        ],
+        "your_settings_for_this_wrapper": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "running_the_real_git_program",
+          "understanding_the_git_command_you_typed"
+        ],
+        "what_the_wrapper_and_the_commit_helper_say_to_each_other": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "running_the_real_git_program"
+        ],
+        "merging_without_touching_your_files": [
+          "combining_two_versions_of_the_same_file",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "pushing_after_a_commit_and_pushing_by_hand",
+          "running_every_check_in_order",
+          "running_the_real_git_program",
+          "understanding_the_git_command_you_typed",
+          "waiting_your_turn_to_change_git_files",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other",
+          "your_settings_for_this_wrapper"
+        ],
+        "names_kept_from_the_earlier_release": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other"
+        ],
+        "pushing_after_a_commit_and_pushing_by_hand": [
+          "combining_two_versions_of_the_same_file",
+          "names_kept_from_the_earlier_release",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_a_commit_would_save",
+          "reading_what_git_saved_on_disk",
+          "rules_about_what_a_command_may_do",
+          "running_git_push_with_a_time_limit",
+          "running_the_real_git_program",
+          "talking_to_the_background_commit_helper",
+          "understanding_the_git_command_you_typed",
+          "uploading_big_files_kept_outside_git",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other"
+        ],
+        "reading_what_a_commit_would_save": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_git_saved_on_disk",
+          "running_the_real_git_program",
+          "your_settings_for_this_wrapper"
+        ],
+        "combining_two_versions_of_the_same_file": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_git_saved_on_disk",
+          "running_the_real_git_program",
+          "waiting_your_turn_to_change_git_files",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other"
+        ],
+        "a_hidden_copy_of_git_data_for_preparing_commits": [
+          "combining_two_versions_of_the_same_file",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_a_commit_would_save",
+          "reading_what_git_saved_on_disk",
+          "running_the_real_git_program",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other"
+        ],
+        "reviewing_landed_commits_against_standards": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "running_the_real_git_program",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other"
+        ],
+        "rules_about_what_a_command_may_do": [
+          "running_the_real_git_program",
+          "understanding_the_git_command_you_typed"
+        ],
+        "running_git_push_with_a_time_limit": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_git_saved_on_disk",
+          "running_the_real_git_program"
+        ],
+        "keeping_what_a_command_would_throw_away": [
+          "a_hidden_copy_of_git_data_for_preparing_commits",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_git_saved_on_disk",
+          "rules_about_what_a_command_may_do",
+          "running_the_real_git_program",
+          "understanding_the_git_command_you_typed",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other",
+          "your_settings_for_this_wrapper"
+        ],
+        "the_commit_command": [
+          "a_hidden_copy_of_git_data_for_preparing_commits",
+          "combining_two_versions_of_the_same_file",
+          "extra_working_folders_for_one_project",
+          "keeping_what_a_command_would_throw_away",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_a_commit_would_save",
+          "reading_what_git_saved_on_disk",
+          "rules_about_what_a_command_may_do",
+          "running_every_check_in_order",
+          "running_the_real_git_program",
+          "talking_to_the_background_commit_helper",
+          "the_background_commit_helper",
+          "understanding_the_git_command_you_typed",
+          "uploading_big_files_kept_outside_git",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other",
+          "your_settings_for_this_wrapper"
+        ],
+        "uploading_big_files_kept_outside_git": [
+          "waits_logs_names_and_checksums_used_everywhere",
+          "reading_what_git_saved_on_disk",
+          "running_git_push_with_a_time_limit",
+          "running_the_real_git_program",
+          "understanding_the_git_command_you_typed"
+        ],
+        "what_happens_when_you_type_a_command": [
+          "checking_that_your_setup_works",
+          "combining_two_versions_of_the_same_file",
+          "extra_working_folders_for_one_project",
+          "instant_folder_copies_on_btrfs_disks",
+          "keeping_what_a_command_would_throw_away",
+          "merging_without_touching_your_files",
+          "names_kept_from_the_earlier_release",
+          "waits_logs_names_and_checksums_used_everywhere",
+          "pushing_after_a_commit_and_pushing_by_hand",
+          "reading_what_a_commit_would_save",
+          "reading_what_git_saved_on_disk",
+          "rules_about_what_a_command_may_do",
+          "running_every_check_in_order",
+          "running_git_push_with_a_time_limit",
+          "running_the_real_git_program",
+          "talking_to_the_background_commit_helper",
+          "the_background_commit_helper",
+          "the_commit_command",
+          "understanding_the_git_command_you_typed",
+          "uploading_big_files_kept_outside_git",
+          "waiting_your_turn_to_change_git_files",
+          "what_the_wrapper_and_the_commit_helper_say_to_each_other",
+          "your_settings_for_this_wrapper"
+        ],
+        "waits_logs_names_and_checksums_used_everywhere": [],
+        "understanding_the_git_command_you_typed": []
+      },
+      "order_from_bottom": [
+        "understanding_the_git_command_you_typed",
+        "waits_logs_names_and_checksums_used_everywhere",
+        "reading_what_git_saved_on_disk",
+        "running_the_real_git_program",
+        "rules_about_what_a_command_may_do",
+        "running_git_push_with_a_time_limit",
+        "what_the_wrapper_and_the_commit_helper_say_to_each_other",
+        "your_settings_for_this_wrapper",
+        "names_kept_from_the_earlier_release",
+        "reading_what_a_commit_would_save",
+        "reviewing_landed_commits_against_standards",
+        "uploading_big_files_kept_outside_git",
+        "waiting_your_turn_to_change_git_files",
+        "combining_two_versions_of_the_same_file",
+        "instant_folder_copies_on_btrfs_disks",
+        "a_hidden_copy_of_git_data_for_preparing_commits",
+        "keeping_what_a_command_would_throw_away",
+        "checking_that_your_setup_works",
+        "running_every_check_in_order",
+        "talking_to_the_background_commit_helper",
+        "pushing_after_a_commit_and_pushing_by_hand",
+        "extra_working_folders_for_one_project",
+        "merging_without_touching_your_files",
+        "the_background_commit_helper",
+        "the_commit_command",
+        "what_happens_when_you_type_a_command"
+      ]
+    }
   }
 }

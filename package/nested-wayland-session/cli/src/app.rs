@@ -280,6 +280,8 @@ pub fn run(config: Config) -> Result<i32> {
         enabled: config.isolate,
         cpu_quota_percent: config.app_cpu_quota,
         cpu_weight: config.app_cpu_weight,
+        memory_max: config.app_memory_max.clone(),
+        tasks_max: config.app_tasks_max,
     };
 
     // Launch client on nested Wayland socket and private appearance bus when configured.

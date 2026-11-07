@@ -301,6 +301,9 @@ export async function checkClickThrough(
         condition: indexA !== NO_INDEX,
         message: 'a click on row A selected no track',
       },);
+      /**
+       The state after the click on the selected row A that starts it.
+       */
       const playingA = await press({
         session,
         act: clickAt(ROW_A,),
@@ -311,6 +314,9 @@ export async function checkClickThrough(
       },);
 
       // Row B is another row: the click selects it, and the track that played stops.
+      /**
+       The state after the click on row B that selects it and stops row A.
+       */
       const selectedB = await press({
         session,
         act: clickAt(ROW_B,),
@@ -331,6 +337,9 @@ export async function checkClickThrough(
         condition: (!(await session.last()).playing) && ((await session.last()).current_index === indexB),
         message: 'row B started playing by itself after it was selected',
       },);
+      /**
+       The state after the click on the selected row B that starts it.
+       */
       const playingB = await press({
         session,
         act: clickAt(ROW_B,),
@@ -340,6 +349,9 @@ export async function checkClickThrough(
         what: 'a click on the selected row B playing it',
       },);
       await session.shot('row-b-playing',);
+      /**
+       The state after the click on the playing row B that pauses it.
+       */
       const pausedB = await press({
         session,
         act: clickAt(ROW_B,),

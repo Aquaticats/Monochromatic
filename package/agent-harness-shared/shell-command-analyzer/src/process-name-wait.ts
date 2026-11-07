@@ -41,7 +41,9 @@ const PROCESS_NAME_WAIT_BAN_REASON: string = [
   'so `pgrep --full <pattern>` matches that wrapper and the loop never sees the process exit.',
   'Wait on a PID instead, under a bound: `timeout 600 tail --pid=<pid> --follow /dev/null`.',
   'Take the PID from the launch (`$!`, or `systemctl --user show --property=MainPID --value <unit>`).',
-  'For long runs start a named unit with `systemd-run --user --wait --collect --unit=<name> <command>`,',
+  'For long runs start a named unit with `systemd-run --user --wait --collect --unit=<name>',
+  '--property=MemoryMax=<size> --property=CPUQuota=<percent> --property=TasksMax=<count> --property=IOWeight=10 <command>`',
+  '(all four limits, each sized to the command, and never an IOWeight above 10),',
   'or use Monitor on the PID and emit only lines you would act on.',
 ]
   .join(' ',);

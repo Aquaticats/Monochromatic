@@ -34,7 +34,10 @@ the other options below stand as the owner answered them above.
   Day-to-day releases carry `-alpha.N` from now on.
   crates.io refuses a crate that uses a crate it does not hold,
   so a crate can become rc only once everything it uses is rc or stable;
-  the release tool refuses such a release and names the dependency.
+  the release tool refuses such a release and names the dependency;
+  that refusal exists from the merge `4fd9c70572` (2026-11-07T09:59:47-05:00),
+  as does the label gate that keeps `-alpha.N` and `-beta.N` versions off crates.io
+  (`package/crate-release/cli/README.md`, "Labels and crates.io").
 - The one release of each crate (README notice, renamed wrapper program) goes out
   "After the test gap is fixed":
   the planted-defect check `records_grow_by_batch_not_by_entry` missed its planted defect

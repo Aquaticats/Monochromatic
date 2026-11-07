@@ -1302,6 +1302,117 @@ Run 2026-11-07T08:20:23-05:00 to 2026-11-07T08:33:17-05:00 on the main checkout,
   First run, `systemctl --user start --no-block toolchain-daily-update.service`: 08:30:04 to 08:33:17 (3 min 12.6 s wall,
   1 min 15.3 s CPU, 1.4 G memory peak), result `success`; see `doc/planning/toolchain-always-latest.md`, "First run".
 
+### Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.1, the first release held back from crates.io (2026-11-07T10:06:13-05:00)
+
+The owner's rule, verbatim: "My thinking is to deploy all releases on pnpr,
+but only publish rc and stable releases on crates.io";
+"Label decides"; "I'm authorizing you to bump and publish any updates this session."
+This is the first release run under the label gate (merge `4fd9c70572`, 2026-11-07T09:59:47-05:00),
+so its version ends in `-alpha.1` and goes to the GitHub release (and so to the toolchain lock) but not to crates.io.
+
+- Proof runs before it, both on the merged gate:
+  publish dry run for 0.2.6 (`https://github.com/Aquaticats/Monochromatic/actions/runs/42384236171`, `success`;
+  decision `label stable, goes to crates.io: true`, the package build and the dry run ran) and
+  release dry run (`https://github.com/Aquaticats/Monochromatic/actions/runs/42384566055`, `success`;
+  no publish dry run step).
+- Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42384727529`
+  (`workflow_dispatch`, 2026-11-07T10:06:13-05:00 to 10:07:37-05:00, `success`), bump commit `ec2e7dbeb1`
+  (2026-11-07T10:07:26-05:00), version 0.2.6 to 0.2.7-alpha.1.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42384840600`
+  (built from `ec2e7dbeb1`, 2026-11-07T10:07:34-05:00 to 10:10:13-05:00, `success`).
+  The `ms-detect` job printed `package/mpm-shadow/cli/Cargo.toml holds version '0.2.7-alpha.1': label alpha, goes to crates.io: false`.
+  The crates.io steps of `ms-publish-crate` (package build, provenance attestation, Trusted Publishing login,
+  dry run, publish) were skipped; the job itself ran, so `ms-create-release` was not skipped.
+  Every other crate's `-publish-crate`, `-build-binary` and `-create-release` job was skipped.
+- crates.io does not hold it: the public API
+  `https://crates.io/api/v1/crates/monochromatic-mpm-shadow/0.2.7-alpha.1` answered HTTP 404
+  (`crate ... does not have a version 0.2.7-alpha.1`, user agent `crate-release-plan-check`, no token),
+  and the crate's newest listed version is 0.2.6.
+  Nothing was yanked, because nothing went to crates.io.
+- GitHub release `monochromatic-mpm-shadow-v0.2.7-alpha.1` (published 2026-11-07T10:10:11-05:00):
+  `isPrerelease` false; assets are the aarch64 and x86_64 Linux tarballs and
+  `monochromatic-mpm-shadow-0.2.7-alpha.1-sha256sums.txt`.
+  (The release is not marked a pre-release, so `@latest` resolves to it; that is what moved the lock.)
+- Lock move (commit `fb7e05141c`, 2026-11-07T10:19:16-05:00):
+  `mise run toolchain:update` moved `mpm-shadow` 0.2.6 to 0.2.7-alpha.1 and nothing else (`llama.cpp` stays pinned);
+  the two archive SHA-256 values in the lock equal the release's checksums file.
+  `mise run toolchain:install` fetched and verified the archive, removed the older 0.2.6 copy,
+  and reported no other tool changed; `mpm-shadow --version` prints `mpm-shadow 0.2.7-alpha.1`.
+- Copy check of the fix this release carries (links of the source checkout survive an install in a copy):
+  main's four link folders (`.cache/monochromatic-git-policy-cli-bin`, `mpm-shadow-bin`, `cargo-shadow-bin`,
+  `pnpm-shadow-bin`)
+  were recorded (links, targets, modification times) before a plain `git worktree add --detach <path> main`,
+  after it, after `mise run toolchain:install` inside the copy, and after `git worktree remove --force`;
+  all four records were byte-identical to the first.
+  The copy's own links pointed at the copy's own `.cache/toolchain-launchers`.
+  A first attempt put the worktree under `~/temp/agent`, which is on another filesystem,
+  so the wrapper copied the ignored files
+  instead of making a snapshot (tens of gigabytes staged); it was stopped by PID after about seven minutes
+  and its worktree and staging folder were removed.
+  Main's links were identical after that attempt as well.
+  The second worktree, under `.claude/worktrees` on main's filesystem, was a snapshot (removal took 16.4 s).
+  Evidence files: `~/temp/agent/release-0-2-7-alpha-1/links-before.txt`, `links-after.txt`, `links-after-install.txt`,
+  `links-after-remove.txt`.
+
+### Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.2, the install read-back (2026-11-07T11:19:01-05:00)
+
+The owner's rules, verbatim: "My thinking is to deploy all releases on pnpr,
+but only publish rc and stable releases on crates.io";
+"Label decides"; "I'm authorizing you to bump and publish any updates this session."
+The second run under the label gate, again an alpha: it goes to the GitHub release and the toolchain lock, not to crates.io.
+
+- The change it carries (branch `fix/mpm-shadow-cli-install-reobserves-and-plan-fields`,
+  test commit `496b2e4bbf` 2026-11-07T11:14:10-05:00, fix commit `ed9e78b79a` 2026-11-07T11:18:09-05:00,
+  merge `fc27f0bbc4` 2026-11-07T11:18:21-05:00):
+  after `pnpm add --global`, `install` reads the package back from the `pnpm list --global --depth=0 --json` listing that
+  `list` uses, and a package that is absent or listed at another version fails the install,
+  naming the package, the locked version and what pnpm lists.
+  The test commit failed on the three new read-back tests before the fix (the positive control among them) and
+  all of the package's tests pass after it.
+- Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42390673663`
+  (`workflow_dispatch`, 2026-11-07T11:19:01-05:00 to 11:20:47-05:00, `success`), bump commit `b6ddfcfe7e`
+  (2026-11-07T11:20:35-05:00), version 0.2.7-alpha.1 to 0.2.7-alpha.2.
+  The dispatch printed no refusal, so origin held every local commit.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42390823090`
+  (built from `caf8b050b4`, a merge of origin's main that holds the bump commit,
+  2026-11-07T11:20:44-05:00 to 11:23:23-05:00, `success`).
+  The `ms-detect` job printed `package/mpm-shadow/cli/Cargo.toml holds version '0.2.7-alpha.2': label alpha, goes to crates.io: false`.
+  In `ms-publish-crate` the steps "Build .crate package", "Attest .crate provenance", "Authenticate with crates.io",
+  "Publish (dry run)" and "Publish" were `skipped`, and the job itself ran, so `ms-create-release` was not skipped.
+- crates.io does not hold it:
+  `https://crates.io/api/v1/crates/monochromatic-mpm-shadow/0.2.7-alpha.2` answered HTTP 404 (user agent
+  `crate-release-plan-check`, no token), and the crate's newest version is still 0.2.6.
+  The wait task said `crates.io 0.2.7-alpha.2: skipped, the alpha label is not published to crates.io`.
+- GitHub release `monochromatic-mpm-shadow-v0.2.7-alpha.2` (published 2026-11-07T11:23:21-05:00): `isPrerelease` false,
+  `isDraft` false; assets are the aarch64 and x86_64 Linux tarballs and
+  `monochromatic-mpm-shadow-0.2.7-alpha.2-sha256sums.txt`.
+- Lock move (commit `d48fb5cc36`, 2026-11-07T11:25:37-05:00): `mise run toolchain:update` moved `mpm-shadow` 0.2.7-alpha.1 to
+  0.2.7-alpha.2 and nothing else (`llama.cpp` stays pinned); the two archive SHA-256 values in the lock equal the release's
+  checksums file.
+  `mise run toolchain:install` fetched and verified the archive, removed the older copy,
+  and reported no failure; `mpm-shadow --version` prints `mpm-shadow 0.2.7-alpha.2`.
+- Machine-global toolchain, repaired by one `mise run toolchain:install:global` run with that binary
+  (`toolchain install: 11 installed, 51 unchanged, 0 failed`):
+  before, `mise run toolchain:list:global` printed `toolchain list: 11 of 62 tools drifted from toolchain.lock.json`,
+  all eleven `npm:` tools observed `(absent)` (`@kilocode/cli`, `command-code`, `agent-browser`, `@openai/codex`, `ccusage`,
+  `cf`, `@alibaba-group/open-code-review`, `@github/copilot`, `@opencode/cli`, `@deepseek-ai/dsh`, `@namespacelabs/cli`);
+  after, `toolchain list: 62 tools in sync with toolchain.lock.json`, each at its locked version.
+  A binary built from main before the release printed the same eleven rows as the installed 0.2.7-alpha.1.
+  Evidence files: `~/temp/agent/mpm-shadow-alpha2/list-global-before-alpha1.txt`, `list-global-before-main-binary.txt`,
+  `list-global-after.txt`, `install-global.log`, `groups-before.txt` and `groups-after.txt`.
+- The `tagPrefix` rejection the fix branch's agent reported ("not a known field" for
+  `tools.cargo:monochromatic-git-policy-cli.options.tagPrefix`) does not come from main.
+  A debug build of main at `5e4e8170ec` read the real global plan and lock (`list --global` printed every row),
+  `decode_options` lists `tagPrefix` (added by `eb202865fc`, 2026-10-31T03:40:22-04:00),
+  and that message is exactly what the allow-list prints for a key it lacks,
+  so the binary that printed it predates the option (`monochromatic-mpm-shadow` 0.2.0 and earlier;
+  0.2.1 has it).
+  The global plan entry is the documented shape for a repository release archive
+  (`cargo:` is only the id the entry kept when its route moved to `archive`),
+  so neither the plan nor the decoder was changed;
+  `an_entry_with_a_cargo_id_on_the_archive_route_takes_a_tag_prefix_and_a_postinstall_link` pins it.
+  Which checkout produced the old binary was not found.
+
 ## Evidence log
 
 - crates.io API reads:
