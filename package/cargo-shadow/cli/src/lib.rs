@@ -256,13 +256,13 @@ pub mod tighten;
 /// what the shadow does for a cargo command line.
 pub mod verb;
 
-/// Scratch directories for the unit tests,
-/// placed beside the build output.
 /// The unit tests of the identity,
 /// the launcher-record follow and the arrival marker.
 #[cfg(test)]
 mod shadow_identity_tests;
 
+/// Scratch directories for the unit tests,
+/// placed beside the build output.
 #[cfg(test)]
 mod test_scratch;
 
