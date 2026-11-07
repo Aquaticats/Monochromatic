@@ -1,11 +1,23 @@
 //! What:
-//!  Controls of what a pass of the bound on the folder of saved copies may touch and what it must say: a link where the folder
-//!  should be, a directory replaced between the listing and the removal, a second pass, names that are no date, the edge of
-//!  the one-day floor, sums and differences that overflow, and every failure that used to read as a success.
+//!  Controls of what a pass of the bound on the folder of saved copies may touch and what it must say:
+//! a link where the folder
+//!  should be,
+//! a directory replaced between the listing and the removal,
+//! a second pass,
+//! names that are no date,
+//! the edge of
+//!  the one-day floor,
+//! sums and differences that overflow,
+//! and every failure that used to read as a success.
 //! Why:
-//!  The copies are the only remaining content of replaced files, so a pass must never reach a file outside the folder or a
-//!  directory it did not judge, and must never hide that it kept or half-removed something. Each race is made by a step run at
-//!  the moment a pass is most exposed (`prune_with`), never by load, so every control fails or passes the same way each run.
+//!  The copies are the only remaining content of replaced files,
+//! so a pass must never reach a file outside the folder or a
+//!  directory it did not judge,
+//! and must never hide that it kept or half-removed something.
+//! Each race is made by a step run at
+//!  the moment a pass is most exposed (`prune_with`),
+//! never by load,
+//! so every control fails or passes the same way each run.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,23 +36,29 @@ use std::path::{Path, PathBuf};
 /// A day in milliseconds.
 const DAY: i64 = 24 * 60 * 60 * 1000;
 
-/// A second in milliseconds: the resolution of a directory name.
+/// A second in milliseconds:
+/// the resolution of a directory name.
 const SECOND: i64 = 1000;
 
-/// A time well after 2026-11-02, the clock of the controls.
+/// A time well after 2026-11-02,
+/// the clock of the controls.
 const NOW: i64 = 1_793_660_000_000;
 
-/// A directory name for a save made `age` before `NOW`, the way the wrapper names it.
+/// A directory name for a save made `age` before `NOW`,
+/// the way the wrapper names it.
 fn name_at(age: i64) -> String {
     return format_iso_milliseconds(NOW - age).chars().take(19).map(|each| { return if each == ':' { '-' } else { each }; }).collect();
 }
 
-/// The limits of the controls: thirty days and no size limit that matters.
+/// The limits of the controls:
+/// thirty days and no size limit that matters.
 fn age_only() -> Limits {
     return Limits { max_age_days: 30, max_bytes: u64::MAX };
 }
 
-/// Makes the directory of a save made `age` before `NOW` under `root`, holding one file, and gives its path.
+/// Makes the directory of a save made `age` before `NOW` under `root`,
+/// holding one file,
+/// and gives its path.
 fn save_under(root: &Path, age: i64, file: &str, text: &str) -> PathBuf {
     let directory: PathBuf = root.join(name_at(age));
     std::fs::create_dir_all(&directory).expect("save directory");
@@ -48,11 +66,13 @@ fn save_under(root: &Path, age: i64, file: &str, text: &str) -> PathBuf {
     return directory;
 }
 
-/// How many passes empty one directory together, and how many copies each of its two levels holds.
+/// How many passes empty one directory together,
+/// and how many copies each of its two levels holds.
 const SHARED_PASSES: usize = 4;
 const SHARED_COPIES: usize = 400;
 
-/// The folder of a repository's saved copies, made.
+/// The folder of a repository's saved copies,
+/// made.
 fn saved_root_of(common: &Path) -> PathBuf {
     let saved_root: PathBuf = common.join(SAVED_DIRECTORY);
     std::fs::create_dir_all(&saved_root).expect("the folder");
@@ -60,13 +80,23 @@ fn saved_root_of(common: &Path) -> PathBuf {
 }
 
 /// What:
-///  The audit file as a writer in the middle of a race can leave it: a whole record, an empty line, a whole record, and a last
-///  line that ends without its newline. Reading it gives the two whole records.
+///  The audit file as a writer in the middle of a race can leave it:
+/// a whole record,
+/// an empty line,
+/// a whole record,
+/// and a last
+///  line that ends without its newline.
+/// Reading it gives the two whole records.
 /// Why:
 ///  A writer that looks at the last byte while another writer is half-way through a page-crossing write sees no newline and
-///  starts its own record on a fresh line, which leaves an empty line between records (`append_line` states this and says that
-///  readers skip empty lines). A record is complete only at its newline, so a last line without one is not a record yet. A
-///  reader that parses either fails with "EOF while parsing" on an input that is not an error, which is how
+///  starts its own record on a fresh line,
+/// which leaves an empty line between records (`append_line` states this and says that
+///  readers skip empty lines).
+/// A record is complete only at its newline,
+/// so a last line without one is not a record yet.
+/// A
+///  reader that parses either fails with "EOF while parsing" on an input that is not an error,
+/// which is how
 ///  `passes_emptying_one_directory_together_audit_every_copy_once` failed once in a full host run.
 ///
 /// In TS you'd write (pseudocode):
@@ -85,8 +115,10 @@ fn the_audit_reader_skips_an_empty_line_and_a_last_line_without_its_newline() {
     remove(root.as_path());
 }
 
-/// A folder of saved copies that is a link to a directory elsewhere is not the wrapper's store: what the link reaches is
-/// not touched, and the pass says why it did nothing.
+/// A folder of saved copies that is a link to a directory elsewhere is not the wrapper's store:
+/// what the link reaches is
+/// not touched,
+/// and the pass says why it did nothing.
 #[test]
 fn a_folder_that_is_a_link_is_never_followed() {
     let root: PathBuf = fixture("prune-link-folder");
@@ -103,7 +135,8 @@ fn a_folder_that_is_a_link_is_never_followed() {
     remove(root.as_path());
 }
 
-/// The same holds when the link stands higher up, at the wrapper's own directory.
+/// The same holds when the link stands higher up,
+/// at the wrapper's own directory.
 #[test]
 fn a_wrapper_directory_that_is_a_link_is_never_followed() {
     let root: PathBuf = fixture("prune-link-parent");
@@ -118,7 +151,8 @@ fn a_wrapper_directory_that_is_a_link_is_never_followed() {
     remove(root.as_path());
 }
 
-/// The folder swapped for a link after the listing and before the removal sends nothing outside: the pass goes on in the
+/// The folder swapped for a link after the listing and before the removal sends nothing outside:
+/// the pass goes on in the
 /// folder it listed.
 #[test]
 fn a_folder_swapped_for_a_link_after_the_listing_reaches_nothing_outside() {
@@ -140,7 +174,10 @@ fn a_folder_swapped_for_a_link_after_the_listing_reaches_nothing_outside() {
 }
 
 /// A directory renamed away and replaced by a new one under the same name between the listing and the removal is not the
-/// directory that was judged: the replacement stays, with everything in it, and the pass says it kept it.
+/// directory that was judged:
+/// the replacement stays,
+/// with everything in it,
+/// and the pass says it kept it.
 #[test]
 fn a_replacement_under_the_chosen_name_is_kept() {
     let root: PathBuf = fixture("prune-replaced");
@@ -182,7 +219,10 @@ fn a_chosen_directory_replaced_by_a_link_reaches_nothing_outside() {
     remove(root.as_path());
 }
 
-/// A subdirectory of a chosen directory replaced by a link, after the listing, is removed as a link: what it points at stays.
+/// A subdirectory of a chosen directory replaced by a link,
+/// after the listing,
+/// is removed as a link:
+/// what it points at stays.
 #[test]
 fn a_subdirectory_replaced_by_a_link_is_removed_as_a_link() {
     let root: PathBuf = fixture("prune-inner-link");
@@ -202,8 +242,12 @@ fn a_subdirectory_replaced_by_a_link_is_removed_as_a_link() {
     remove(root.as_path());
 }
 
-/// A second pass that starts while one is running does not wait and does not give up: it removes what it judged, the running
-/// pass then finds the directory gone and says nothing, and the directory is audited once (NLK: no lock covers the folder).
+/// A second pass that starts while one is running does not wait and does not give up:
+/// it removes what it judged,
+/// the running
+/// pass then finds the directory gone and says nothing,
+/// and the directory is audited once (NLK:
+/// no lock covers the folder).
 #[test]
 fn a_second_pass_while_one_runs_does_its_own_work_and_neither_loses_a_record() {
     let root: PathBuf = fixture("prune-two-passes");
@@ -224,8 +268,14 @@ fn a_second_pass_while_one_runs_does_its_own_work_and_neither_loses_a_record() {
     remove(root.as_path());
 }
 
-/// A file added to a judged directory after the listing makes it a directory the pass did not judge: it stays, with the new
-/// file, and the pass says why. (Its change time moves when a file is added, as when another pass removes files, so the
+/// A file added to a judged directory after the listing makes it a directory the pass did not judge:
+/// it stays,
+/// with the new
+/// file,
+/// and the pass says why.
+/// (Its change time moves when a file is added,
+/// as when another pass removes files,
+/// so the
 /// pass compares what the directory holds now with what it held when listed.)
 #[test]
 fn a_file_added_after_the_listing_keeps_the_directory() {
@@ -244,8 +294,10 @@ fn a_file_added_after_the_listing_keeps_the_directory() {
     remove(root.as_path());
 }
 
-/// Passes that empty one directory together share its files without a lock: a file is audited by the pass whose removal of it
-/// succeeded, so every copy is counted once across the passes and none of them reports a failure.
+/// Passes that empty one directory together share its files without a lock:
+/// a file is audited by the pass whose removal of it
+/// succeeded,
+/// so every copy is counted once across the passes and none of them reports a failure.
 #[test]
 fn passes_emptying_one_directory_together_audit_every_copy_once() {
     let root: PathBuf = fixture("prune-shared-directory");
@@ -277,7 +329,9 @@ fn passes_emptying_one_directory_together_audit_every_copy_once() {
     remove(root.as_path());
 }
 
-/// Names that no calendar has are not the wrapper's: a date that does not exist is nothing, however old it would be.
+/// Names that no calendar has are not the wrapper's:
+/// a date that does not exist is nothing,
+/// however old it would be.
 #[test]
 fn a_name_that_is_no_calendar_date_is_not_a_stamp() {
     for impossible in [
@@ -302,7 +356,8 @@ fn a_name_that_is_no_calendar_date_is_not_a_stamp() {
     }
 }
 
-/// A save made at the last millisecond of its named second is a whole second younger than the name says: the floor and the
+/// A save made at the last millisecond of its named second is a whole second younger than the name says:
+/// the floor and the
 /// age limit count from the end of that second.
 #[test]
 fn the_floor_and_the_age_limit_count_from_the_end_of_the_named_second() {
@@ -330,7 +385,8 @@ fn an_age_that_overflows_chooses_nothing() {
     assert_eq!(plan(std::slice::from_ref(&old), i64::MAX, Limits { max_age_days: 1, max_bytes: u64::MAX }, None), vec![(0, Reason::Age)], "a very old entry is old");
 }
 
-/// Sizes that together pass what a 64-bit count holds still add up, so the size cut sees the folder as it is.
+/// Sizes that together pass what a 64-bit count holds still add up,
+/// so the size cut sees the folder as it is.
 #[test]
 fn sizes_that_pass_a_sixty_four_bit_count_still_add_up() {
     let huge: u128 = u128::from(u64::MAX);
@@ -343,7 +399,9 @@ fn sizes_that_pass_a_sixty_four_bit_count_still_add_up() {
     assert_eq!(plan(entries.as_slice(), NOW, limits, None), vec![(0, Reason::Size), (1, Reason::Size)], "three counts of the limit leave one");
 }
 
-/// A pass cannot append to the audit file, so it removes nothing: a directory never goes without its line.
+/// A pass cannot append to the audit file,
+/// so it removes nothing:
+/// a directory never goes without its line.
 #[test]
 fn an_audit_file_that_cannot_be_appended_stops_the_pass_before_any_removal() {
     let root: PathBuf = fixture("prune-no-audit");
@@ -358,7 +416,8 @@ fn an_audit_file_that_cannot_be_appended_stops_the_pass_before_any_removal() {
     remove(root.as_path());
 }
 
-/// A directory that cannot be removed in full is said to be half-removed, and the audit line names what did go.
+/// A directory that cannot be removed in full is said to be half-removed,
+/// and the audit line names what did go.
 #[test]
 fn a_removal_that_fails_part_way_is_reported_and_audited_as_partial() {
     let root: PathBuf = fixture("prune-partial");
@@ -385,7 +444,10 @@ fn a_removal_that_fails_part_way_is_reported_and_audited_as_partial() {
     remove(root.as_path());
 }
 
-/// A directory that cannot be read has an unknown size: it is kept, not counted as empty, and the listing says so.
+/// A directory that cannot be read has an unknown size:
+/// it is kept,
+/// not counted as empty,
+/// and the listing says so.
 #[test]
 fn an_unreadable_directory_is_kept_and_reported_not_counted_as_empty() {
     let root: PathBuf = fixture("prune-unreadable");
@@ -406,7 +468,9 @@ fn an_unreadable_directory_is_kept_and_reported_not_counted_as_empty() {
     remove(root.as_path());
 }
 
-/// The doctor says when the folder cannot be used, naming it, instead of reporting an empty folder.
+/// The doctor says when the folder cannot be used,
+/// naming it,
+/// instead of reporting an empty folder.
 #[test]
 fn the_doctor_says_when_the_folder_is_a_link() {
     let root: PathBuf = fixture("prune-doctor-link");

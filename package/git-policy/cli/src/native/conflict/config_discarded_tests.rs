@@ -1,8 +1,13 @@
 //! What:
-//!  Controls of the `discardedCopies` section: defaults, accepted spellings and the rejection of every value that is no limit.
+//!  Controls of the `discardedCopies` section:
+//! defaults,
+//! accepted spellings and the rejection of every value that is no limit.
 //! Why:
-//!  A limit that reads as zero would remove every copy, and one that reads as "none" would never remove one; both are
-//!  refused by name, like every other bad value of the file.
+//!  A limit that reads as zero would remove every copy,
+//! and one that reads as "none" would never remove one;
+//! both are
+//!  refused by name,
+//! like every other bad value of the file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +27,10 @@ fn rejection_of(text: &str) -> String {
     return parse_config(text).expect_err("a rejected document").message;
 }
 
-/// Without the section, or with an empty one, the defaults apply: thirty days and one gibibyte.
+/// Without the section,
+/// or with an empty one,
+/// the defaults apply:
+/// thirty days and one gibibyte.
 #[test]
 fn the_defaults_apply_without_the_section_or_its_keys() {
     let defaults: Limits = Limits { max_age_days: DEFAULT_MAX_AGE_DAYS, max_bytes: DEFAULT_MAX_BYTES };
@@ -32,7 +40,9 @@ fn the_defaults_apply_without_the_section_or_its_keys() {
     assert_eq!(limits_of(r#"{ "discardedCopies": { "maxSize": "2k" } }"#), Limits { max_bytes: 2048, ..defaults });
 }
 
-/// Both keys together, a size as text with Git's suffixes or as a number of bytes, and comments as in any other section.
+/// Both keys together,
+/// a size as text with Git's suffixes or as a number of bytes,
+/// and comments as in any other section.
 #[test]
 fn the_keys_set_the_limits() {
     assert_eq!(
@@ -43,7 +53,8 @@ fn the_keys_set_the_limits() {
     assert_eq!(limits_of(r#"{ "discardedCopies": { "maxSize": "1G" } }"#).max_bytes, 1 << 30);
 }
 
-/// A value that is no limit is refused with the key named; zero never means "no limit" or "remove everything".
+/// A value that is no limit is refused with the key named;
+/// zero never means "no limit" or "remove everything".
 #[test]
 fn a_value_that_is_no_limit_is_rejected_by_key() {
     for (text, key) in [
@@ -66,7 +77,9 @@ fn a_value_that_is_no_limit_is_rejected_by_key() {
     }
 }
 
-/// An unknown key under the section, and a section that is not an object, are refused with the accepted keys named.
+/// An unknown key under the section,
+/// and a section that is not an object,
+/// are refused with the accepted keys named.
 #[test]
 fn an_unknown_key_or_a_wrong_shape_is_rejected() {
     let unknown: String = rejection_of(r#"{ "discardedCopies": { "maxCopies": 3 } }"#);
