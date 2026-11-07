@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import {
   chmod,
   lstat,
@@ -325,6 +326,33 @@ await describe({
               retireWhenFree: false,
             })).toBe('free');
             expect((await lstat(path)).isFile()).toBe(true);
+          },
+        }),
+        it({
+          name: 'refuses with an error naming the path, and changes nothing, where a named pipe stands in place of the slot file it was asked to keep',
+          fn: async () => {
+            await using directory = await scratchDirectory('legacy-hold-pipe-');
+            const path = join(
+              directory.path,
+              'slot-1.lock',
+            );
+            expect(spawnSync(
+              'mkfifo',
+              [path],
+            ).status).toBe(0);
+            let caught: unknown;
+            try {
+              await holdLegacyLock({
+                path,
+                create: true,
+              });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught).toBeInstanceOf(CargoMutantsToolingError);
+            expect(String((caught as Error).message)).toContain(path);
+            expect((await lstat(path)).isFIFO()).toBe(true);
           },
         }),
         it({
