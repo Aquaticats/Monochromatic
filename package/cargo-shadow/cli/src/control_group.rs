@@ -255,7 +255,8 @@ pub(crate) struct Route {
     /// How the slice directory is seen now.
     pub(crate) slice_view: View,
     /// The limits of the caller's control group that every scope of this route carries.
-    pub(crate) limits: InheritedLimits,
+    /// Shared, not inline, so a `Route` stays small enough to sit in the run's containment value (`clippy::large_enum_variant`).
+    pub(crate) limits: Arc<InheritedLimits>,
 }
 
 /// Who ran: the machine and the boot of the kernel that held the processes of a run.
@@ -1065,7 +1066,7 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
     let slice_view: View = view_of(&slice_dir).map_err(|error| { return unavailable(format!("{} cannot be examined ({error})", slice_dir.display())); })?;
     let limits: InheritedLimits = caller_limits(&settings.own_cgroup_file, &settings.cgroup_root, &slice_dir)
         .map_err(|error| { return unavailable(format!("the resource limits of the caller's control group cannot be read ({error}), and a scope without them would loosen the run")); })?;
-    return Ok(Route { systemd_run: settings.systemd_run.clone(), slice: settings.slice.clone(), slice_dir, namespace, slice_view, limits });
+    return Ok(Route { systemd_run: settings.systemd_run.clone(), slice: settings.slice.clone(), slice_dir, namespace, slice_view, limits: Arc::new(limits) });
 }
 
 /// The scope of one run.
@@ -1237,6 +1238,8 @@ impl ControlGroup {
     /// The working directory and the variables of the original are given to the launcher;
     /// a command that clears the environment runs through `env --ignore-environment`,
     /// so the manager is still reachable by the launcher and the program sees only the variables it was given.
+    /// The scope carries the limits of the caller's control group that the route read (`inherited_limits.rs`): the manager makes the
+    /// scope under its own slice, so without them a capped caller would get an uncapped run.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1245,6 +1248,10 @@ impl ControlGroup {
     pub(crate) fn launcher(&self, route: &Route, original: &Command, clean_environment: bool) -> Command {
         let mut launch: Command = Command::new(&route.systemd_run);
         launch.args(["--user", "--scope", "--quiet", "--collect", "--property=Delegate=yes"]);
+        // The scope sits under the manager's slice, so the caller's own limits would not reach it: it carries them (absent stay absent).
+        for property in route.limits.properties() {
+            launch.arg(format!("--property={property}"));
+        }
         launch.arg(format!("--unit={}", self.name));
         launch.arg(format!("--slice={}", route.slice));
         launch.arg("--");

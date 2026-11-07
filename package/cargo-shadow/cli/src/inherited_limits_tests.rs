@@ -17,6 +17,7 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::sync::Arc;
 
 use crate::cgroup_test_support::delegated_route;
 use crate::control_group::{ControlGroup, Route, RouteSettings, detect_route};
@@ -181,7 +182,7 @@ fn the_callers_limits_come_from_its_cgroup_file_and_the_slice() {
 
 /// A route whose scopes carry the given limits, for the launcher tests.
 fn route_with(limits: InheritedLimits) -> Route {
-    return Route { systemd_run: "systemd-run".to_string(), slice: "app.slice".to_string(), slice_dir: "/sys/fs/cgroup/app.slice".into(), namespace: 1, slice_view: crate::control_group::View { mount: 1, inode: 1 }, limits };
+    return Route { systemd_run: "systemd-run".to_string(), slice: "app.slice".to_string(), slice_dir: "/sys/fs/cgroup/app.slice".into(), namespace: 1, slice_view: crate::control_group::View { mount: 1, inode: 1 }, limits: Arc::new(limits) };
 }
 
 /// The arguments of a launcher, as text.
@@ -268,7 +269,7 @@ fn a_real_scope_carries_the_limits_of_its_route() {
         return;
     };
     let route = Route {
-        limits: InheritedLimits { memory_max: Some(SCOPE_MEMORY_MAX), cpu_quota_per_sec_usec: Some(SCOPE_CPU_QUOTA), tasks_max: Some(SCOPE_TASKS_MAX), io_weight: Some(SCOPE_IO_WEIGHT) },
+        limits: Arc::new(InheritedLimits { memory_max: Some(SCOPE_MEMORY_MAX), cpu_quota_per_sec_usec: Some(SCOPE_CPU_QUOTA), tasks_max: Some(SCOPE_TASKS_MAX), io_weight: Some(SCOPE_IO_WEIGHT) }),
         ..found
     };
     let planned = ControlGroup::plan(&route).expect("a scope name");
