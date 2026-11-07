@@ -3589,6 +3589,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   runs
   (passed;
   not looked at).
+- Found 2026-11-07 by the published-crates study (`doc/research/wrapper-git-free-jobs-and-published-crates.md`):
+  `the_runner_waits_for_a_slow_job_and_contains_a_panic` fails (`Busy` instead of `Finished(7)`) in a selection run of
+  the `systemd_dbus`, `standards_review` and `source_guard` tests on unchanged code, and passes alone twice;
+  an ordering or contention defect of the suite, not yet looked at (the full container gate passes it).
+- Found 2026-11-07 by the same study:
+  `zbus` 5.19.0 and 6.x do not compile on the pinned `nightly-2026-11-01`
+  (`E0391: cycle detected when computing when ...::signature::child::Child needs async drop`)
+  and do compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate).
+  `package/nested-wayland-session/cli` locks `zbus` 5.19.0, so it may not build on the pinned toolchain;
+  not built yet. The study's agent is bisecting the nightly and checking newer ones.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
