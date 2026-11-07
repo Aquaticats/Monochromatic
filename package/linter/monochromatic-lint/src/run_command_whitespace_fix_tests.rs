@@ -61,18 +61,25 @@ fn tokens(text: &str) -> Vec<&str> {
     return text.split_whitespace().collect::<Vec<&str>>();
 }
 
-/// A comment marker a Rust host gains when a doc comment line is broken:
-///  the continuation line must start with the same marker,
-///  so a Rust file's tokens are compared without these.
-fn is_comment_marker(token: &str) -> bool {
-    return ["///", "//!", "//"].contains(&token);
+/// The comment marker that opens a line of Rust comment text,
+///  which a broken doc comment line gains on its continuation line.
+///  Only that one leading marker is set aside:
+///  a marker later in the line is quoted source and stays a token.
+fn without_leading_comment_marker(line: &str) -> &str {
+    let trimmed: &str = line.trim_start();
+    for marker in ["///", "//!", "//"] {
+        if let Some(rest) = trimmed.strip_prefix(marker) {
+            return rest;
+        }
+    }
+    return trimmed;
 }
 
-/// Tokens of Rust source with the comment markers removed.
+/// Tokens of Rust source with the one leading comment marker of each line removed.
 fn tokens_without_comment_markers(text: &str) -> Vec<&str> {
     return text
-        .split_whitespace()
-        .filter(|token| !is_comment_marker(token))
+        .lines()
+        .flat_map(|line| without_leading_comment_marker(line).split_whitespace())
         .collect::<Vec<&str>>();
 }
 
