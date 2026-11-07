@@ -5258,7 +5258,9 @@ and what was done:
 The owner answered the group rule,
 the count of libraries and how a library prints a log line on 2026-11-07T11:05:21-05:00
 (section "The owner's words and the rules that bind this").
-Still open from the owner: the test helpers and where the libraries live ("Not yet." to both).
+Still open from the owner:
+the test helpers and where the libraries live ("Not yet."
+to both).
 Next:
 the `monochromatic-lint` change for group summaries starts now (it touches no wrapper file);
 the tokio steps still to come land,
