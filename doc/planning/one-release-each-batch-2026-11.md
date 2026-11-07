@@ -1862,6 +1862,35 @@ not to crates.io.
   `final-test.log`,
   `release-wait.log`).
 
+### Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.3 and 0.2.7-alpha.4 and `monochromatic-lint` 0.5.2-alpha.2, worktree launchers follow current (2026-11-07T13:32:40-05:00)
+
+The owner's rules, verbatim: "Label decides"; "I'm authorizing you to bump and publish any updates this session."
+Three runs under the label gate, all alphas: they go to GitHub releases and the toolchain lock, not to crates.io.
+
+- The defect (branch `fix/worktrees-use-their-own-locked-tools`; troubleshooting entry
+  `doc/troubleshooting/mpm-shadow-launcher-names-a-deleted-release-folder-after-a-newer-install.md`):
+  a launcher record names the archive folder below `current`, whose name carries the version, so installing a newer release in any tree
+  deleted the folder and every other tree's launcher exited 127 (122 of 853 records dangled in a scan of this repository's checkouts).
+  The brief's suspect, the inherited `PATH` or mise, was not the cause: `mise run` puts the tree's own `.cache/*-bin` first.
+- Red first: test commits `982deb5c73` (2026-11-07T12:32:30-05:00, four red), `54f544709f` (2026-11-07T12:44:09-05:00, one red, the closure check
+  that skipped with exit 0) and `51513f35aa` (2026-11-07T13:23:32-05:00, red for the record rewrite).
+  Fix commits `477be995d3`, `14cd55b8d5` and `99dd1a03c0`; the mpm-shadow package ended at 589 of 589 tests, clippy with warnings denied clean;
+  the monochromatic-lint focused tests passed and its container clippy passed, while its container test run stops at
+  `config_pin::tests::the_hint_names_a_measured_newer_pin_and_nothing_else`, which fails alone as well and is in a module this change does not touch.
+- Release runs: 0.2.7-alpha.3 `https://github.com/Aquaticats/Monochromatic/actions/runs/42398834142` (publish `42398943635`),
+  0.5.2-alpha.2 `https://github.com/Aquaticats/Monochromatic/actions/runs/42399661482` (publish `42399787455`),
+  0.2.7-alpha.4 `https://github.com/Aquaticats/Monochromatic/actions/runs/42401355789` (publish `42401456839`);
+  each dry run succeeded first; crates.io skipped each ("the alpha label is not published to crates.io").
+- Lock moves: `ee2d870060` (mpm-shadow 0.2.7-alpha.2 to alpha.3 and monochromatic-lint 0.5.2-alpha.1 to alpha.2, two tools moved) and
+  `5cd86b210f` (mpm-shadow alpha.3 to alpha.4, one tool moved); `toolchain:install` ended with `toolchain list: 66 tools in sync`.
+- Proof at the user boundary (disposable worktree of the parent of `c6177b875b`, lock cargo-shadow 0.1.4, launcher record naming the deleted 0.1.4
+  folder, launcher binary copied from the installed alpha.4, shell started in the main checkout):
+  `cargo --version` printed the older-lock warning and the version lines with exit 0 (before: exit 127 `could not start ... 0.1.4 ... No such file`),
+  and `mise run //package/mpm-shadow/cli:test` ended `581 tests run: 581 passed` with exit 0; the record had been rewritten to the 0.1.5-alpha.1 folder.
+  With the alpha.3 launcher the same state stopped `mise run` at cargo-shadow's recursion guard, which the alpha.4 record rewrite fixed.
+- Not fixed here: launcher binaries are hard links of the `mpm-shadow` that last ran `install` in each tree, so a tree that has not run
+  `mise run toolchain:install` since alpha.4 still has an older launcher and fails until it does; 174 records name another tree's lock file.
+
 ## Evidence log
 
 - crates.io API reads:
