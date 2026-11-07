@@ -160,8 +160,9 @@ const MAX_LAUNCHER_HOPS: usize = 8;
 /// The choice of the real cargo and its start are two steps, and a path can be made to name the shadow between them (an ordinary
 /// installation swapping a link). The check is repeated right before each start, so the window shrinks to the instants between this
 /// check and the start itself; the shadow no longer starts itself for a path that already named it when the start was made
-/// (fifth certification pass). A file descriptor opened at the check and executed would close that window; it breaks scripts and
-/// proxies that open their own path, so it is not done without an owner decision.
+/// (fifth certification pass). Round 21 closes the window for a compiled program: `vet` opens the file once and `Vetted::command`
+/// starts it through that descriptor. A script, and the cargo of an install step (started by the scope's launcher from its own
+/// process), keep the pathname and this repeated check; their remaining window ends at the arrival stop of the second cargo-shadow.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
