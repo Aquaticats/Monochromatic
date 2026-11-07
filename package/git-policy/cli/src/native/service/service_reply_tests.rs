@@ -60,29 +60,49 @@ fn the_beat_ends_with_the_reply_and_the_connection_closes() {
     }
 }
 
-/// A message queued before the reply is dropped is written before the connection closes.
-#[test]
-fn a_queued_answer_is_written_before_the_connection_closes() {
+/// What:
+///  Queues one answer `delay` after the writer started, drops the reply, and checks that the client reads, in this order: any beats,
+///  the answer, then only beats until the end of the stream.
+/// Why:
+///   Beats before an answer are allowed (the writer beats whenever nothing is queued for a beat's length), so the claim is that the
+///  queued answer is written before the connection closes, not that it is the first line; a delay longer than a beat makes the
+///  beats certain.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(skipBeats(lines).next()).toEqual(landed); expect(lines.rest().every(isBeat)).toBe(true);
+/// ```
+fn queued_answer_is_written_before_the_connection_closes(delay: Duration) {
     let (reply, writer, mut client) = connected();
     let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("x"), commit: String::from("c"), already: false };
+    std::thread::sleep(delay);
     reply.send(&landed);
     drop(reply);
     writer.join().expect("the writer ends");
-    assert_eq!(next(&mut client), landed);
+    let mut first_answer: ServiceMessage = next(&mut client);
+    while first_answer == ServiceMessage::Heartbeat {
+        first_answer = next(&mut client);
+    }
+    assert_eq!(first_answer, landed);
+    let mut rest: String = String::new();
+    while client.read_line(&mut rest).expect("read") > 0 {
+        assert!(rest.contains("heartbeat"), "only beats may follow the answer: {rest}");
+        rest.clear();
+    }
 }
 
-/// POSITIVE CONTROL of the race of the control above: the answer is queued after the writer has beaten, as it is when the thread that
-///  sends it is scheduled late (the gate of the branch merged with main at `944bdd30b5` read a `Heartbeat` first). The strict claim of
-///  the control above, that the first line is the answer, fails here every time, which shows the control raced a beat.
+/// A message queued before the reply is dropped is written before the connection closes, whether or not a beat came first.
+#[test]
+fn a_queued_answer_is_written_before_the_connection_closes() {
+    queued_answer_is_written_before_the_connection_closes(Duration::ZERO);
+}
+
+/// POSITIVE CONTROL of the race: the answer is queued after the writer has beaten, as it is when the thread that sends it is
+///  scheduled late (the gate of the branch merged with main at `944bdd30b5` read a `Heartbeat` first). The delay makes the beat
+///  certain, and the answer still arrives before the close.
 #[test]
 fn a_queued_answer_is_written_before_the_connection_closes_even_when_the_sender_is_late() {
-    let (reply, writer, mut client) = connected();
-    let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("x"), commit: String::from("c"), already: false };
-    std::thread::sleep(QUICK_BEAT * 3);
-    reply.send(&landed);
-    drop(reply);
-    writer.join().expect("the writer ends");
-    assert_eq!(next(&mut client), landed);
+    queued_answer_is_written_before_the_connection_closes(QUICK_BEAT * 3);
 }
 
 /// A client that closed its end stops the writer on the next write.
