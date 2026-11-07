@@ -3598,6 +3598,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   messaging token into the session log; the owner answered "I'll rotate it" and, asked whether to add an `AGENTS.md`
   rule for exact-name environment reads, "Don't add it".
 
+### Tokio branch: owner answers (2026-11-07)
+
+- jiff newer than the locked 0.2.24 was refused by the trust policy through optional `defmt-parser` 1.1.0
+  (publisher change). Owner, verbatim: "I'm approving the publisher change for jiff."
+  The tokio agent records it in `doc/planning/git-policy-cli-full-tokio.md`, adds a narrowly scoped trust entry
+  with that sentence as its reason, and moves jiff to the newest allowed version on `feat/git-policy-cli-on-tokio`.
+- G1 of `doc/audit/tech-safe-file-saving-published-crates-vet-2026-11-07.md` (checked-rename fallback where a filesystem
+  has neither `RENAME_NOREPLACE` nor hard links) is not asked yet: the agent first measures which filesystems hit it
+  and what a person sees in each option. Today's checked rename stays meanwhile.
+
 ### Background Git never prompts (owner pick 2026-11-07)
 
 - Cause and probe: `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
