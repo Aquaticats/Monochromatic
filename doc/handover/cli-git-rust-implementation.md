@@ -3655,8 +3655,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `mpm-shadow install` there, which treated main's recorded links as its own undeclared ones and removed them (08:42 for
   the fold worktree, 09:08:16 for the masking worktree). Main was reinstalled at 09:19:48 (`mise run toolchain:install`,
   all four links back). Until the fixed `mpm-shadow` is released and installed, every copy-route worktree add empties
-  main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`,
-  or reinstall main afterwards.
+  main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`
+  and `mise run prepare:pnpm:install -- --frozen-lockfile` (a no-copy worktree has no `node_modules`; the wrapper's
+  container gate then fails with `ERR_MODULE_NOT_FOUND` for `@monochromatic-dev/mutation-test-cli-cargo-mutants`),
+  or reinstall main afterwards. Seen 2026-11-07: that failed gate ran in a user unit that ended `Result=success`,
+  `ExecMainStatus=0`, although the task printed "ERROR task failed"; whether `mise run` returns 0 on a failed task is
+  being checked with an exit-status line in the rerun's log.
 - Release of the fix, first try (stopped before dispatch, nothing published): the installed 0.2.6 does resolve an
   unflagged `-alpha.N` GitHub release through `@latest` (fixture test on `test/mpm-shadow-cli-resolver-picks-alpha-release`,
   `aee8bf86c0`), but nothing enforces "only publish rc and stable releases on crates.io": `cargo-publish.yml` runs
