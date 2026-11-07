@@ -3645,9 +3645,19 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Which questions to ask and how to word them is open in issue #6262
   (owner: "This is about how you ask questions and which questions to ask. Your wording is bad.");
   the owner settles it in another session, so no rule change until then.
-- The plan agent left two btrfs scratch subvolumes it could not delete as the user
-  (`/var/home/user/temp/agent/dangling/svfix` and `svfix-snap`; the 860 lacks `user_subvol_rm_allowed`):
-  the owner removes them with sudo, or they go when Q3 adds the mount option.
+- The review is folded in (`b89d384cca`, `1a462e1eb5`): 21 findings fixed, narrowed or marked root-only unverified;
+  the former Q1 to Q9 are adopted in the plan with reasons, open to the owner's veto.
+  One real owner decision remains and is not asked until the move is scheduled:
+  the cut-over needs a bounded window with commits refused, against "Commits should never fail"
+  (plan's ranking: a bounded window at an owner-chosen idle time with a stated maximum, after timing the first pass).
+- Incident: the plan agent ran `btrfs property set -ts /var/home/user/Monochromatic ro true` on the real main checkout
+  by mistake at about 06:51 and cleared it (`ro=false` confirmed 2026-11-07T06:52:28-05:00).
+  Every worktree's Git dir lives in that subvolume, so commits anywhere would have been refused for about a minute.
+  The coordinator re-checked after the report: `ro=false`, no `*.lock` files under `.git` dated 06:50 to 06:54, no probe
+  processes left, main's `git status` clean. A refused attempt in that minute can be neither confirmed nor excluded.
+- Root-only scratch for the owner to delete (the 860 lacks `user_subvol_rm_allowed`):
+  `svfix`, `svfix-snap`, `svfix-snap-ro`, `svfix-asm` and the subvolumes nested in `svfix` and `svfix-asm`,
+  all in `/var/home/user/temp/agent/dangling`; they go without sudo once the adopted mount option is added.
 - Its guard fixture mounted a tmpfs at `/dev/shm/dangling-world` inside `podman unshare`, outside the scratch rule;
   the mount ended with the namespace and the empty folder was removed.
 
