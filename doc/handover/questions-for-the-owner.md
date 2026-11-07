@@ -18,6 +18,36 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: may the decision records get the linter's whitespace-only line breaks? (not asked yet)
+
+The repository-wide lint pass left `doc/decision/` alone (rule:
+never edit `doc/decision/` without the owner's approval):
+1,785 findings in 172 files.
+A probe on a scratch copy:
+32 files change,
+31 of them whitespace only;
+`music-player-third-party-licenses.md` would also gain `>` markers in a blockquote,
+which is a linter defect being fixed now (branch `fix/monochromatic-lint-fix-changes-only-whitespace`).
+The choice:
+allow the whitespace-only reflow of `doc/decision/` after that fix,
+or leave the decision records as they are and exclude them from the line-break rule
+(an exclusion loosens the rule,
+which also needs approval).
+
+## Open: how the repository linter stays at zero (not asked yet)
+
+Nothing ran the repository linter before today:
+the commit path checks one Markdown rule at `warn`;
+CI's step fails with `monochromatic-lint: command not found` and is skipped by its budget gate in 394 of 400 runs;
+`mise run lint` is run by nothing.
+Proposal with five options and the ranking A > C > B > D > E:
+`doc/planning/repository-linter-stays-at-zero.md`
+(recommendation:
+a check-only commit policy for all Markdown rules,
+then a required whole-tree CI workflow).
+A commit-time check adds to the commit path,
+which the owner's 5 s rule bounds.
+
 ## Open: where a blank at the end of a row goes in the IDE (not asked yet; the owner asked to focus on the Git wrapper)
 
 The text-layout library the IDE uses (Parley) moved to 0.12 in the daily update,

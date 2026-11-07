@@ -160,6 +160,39 @@ because the notice follows pnpm's text.
 The real pnpm is the first executable named `pnpm` on `PATH` that does not resolve to this binary
 and that no earlier shadow instance in the same chain already picked (see "Launchers and the loop guard").
 
+## Never starts a shadow
+
+A shadow never starts a shadow of any version as its real tool,
+whatever the path or the version of the candidate
+(owner, 2026-11-07: "We should never invoke ourselves recursively. That's bad design.").
+Every shadow program (`cargo-shadow`,
+`mpm-shadow`,
+`pnpm-shadow` and `search-shadow`) carries the same identity text in the ELF section `.monochromatic_shadow_identity`
+(`src/shadow_identity.rs`,
+a byte-identical copy in each crate;
+`package/search-shadow/cli/tests/shadow_identity_copies.rs` fails when the copies differ).
+The lookup skips a candidate that carries it,
+or a launcher whose record leads to one,
+without starting it,
+and the start checks the open file again.
+A shadow that finds `MONOCHROMATIC_SHADOW_STARTED_BY` left for its own process or its direct parent
+was started by a shadow:
+it does nothing,
+prints one line and exits with status 2.
+The full description,
+the measurement and the cost are in `package/search-shadow/cli/README.md`,
+section "Never starts a shadow",
+and the incident in `doc/troubleshooting/search-shadow-copies-start-each-other-without-end.md`.
+
+The loop guard below is older and stays:
+it can no longer see a second hop,
+because the second shadow stops on arrival,
+and it still bounds anything the marker cannot see.
+A launcher script that leads back to the shadow and has no `.launch` record beside it
+used to be run once and skipped by the second instance;
+now the second instance stops with exit status 2 and the one line.
+The toolchain's own launchers always have a record and are skipped before they are run.
+
 ## Launchers and the loop guard
 
 The toolchain links `pnpm` through a launcher:

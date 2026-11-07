@@ -276,6 +276,9 @@ use crate::time_text::publish_time_cutoff;
 /// import { resolveAll } from 'crate/update_resolve';
 /// ```
 use crate::update_resolve::resolve_all;
+/// The three small wordings of a cargo update:
+/// the two option tests and the raised-floor warning line.
+use crate::update_argument_and_warning_text::{is_breaking_option, is_precise_option, raised_floor_warning};
 /// Imports the file-system error module (the result type of the recorded calls).
 use std::io;
 
@@ -670,34 +673,6 @@ pub(crate) fn other_text(error: impl fmt::Display) -> UpdateError {
 }
 
 /// What:
-/// `fn is_precise_option(argument: &str) -> bool` tells whether one cargo argument is `--precise` in either spelling (`--precise x` or `--precise=x`).
-/// Why:
-/// An update that pins an exact version must not have another version set aside,
-/// so this run skips the set-aside step.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isPreciseOption = (argument: string) => argument === '--precise' || argument.startsWith('--precise=');
-/// ```
-fn is_precise_option(argument: &str) -> bool {
-    return argument == "--precise" || argument.starts_with("--precise=");
-}
-
-/// What:
-/// `fn is_breaking_option(argument: &str) -> bool` tells whether one cargo argument is `--breaking`.
-/// Why:
-/// Only a `--breaking` update raises the catalog floors,
-/// as `pnpm update --latest` raises the ranges.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isBreakingOption = (argument: string) => argument === '--breaking';
-/// ```
-fn is_breaking_option(argument: &str) -> bool {
-    return argument == "--breaking";
-}
-
-/// What:
 /// `fn sync_recording(request, edits) -> io::Result<Result<String, String>>` runs the manifest sync with every crate root's manifests
 /// recorded,
 /// so what a sync that fails halfway wrote goes back with the transaction.
@@ -733,19 +708,6 @@ fn sync_recording(request: &UpdateRequest, edits: &RefCell<Vec<ManifestEdit>>) -
         run = Box::new(move || { return run_recording_manifests(crate_dir, edits, inner).and_then(std::convert::identity); });
     }
     return run();
-}
-
-/// What:
-/// `fn raised_floor_warning(change: &str) -> String` words one raised floor as a warning line.
-/// Why:
-/// The user sees which catalog floors the `--breaking` update raised.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const raisedFloorWarning = (change: string) => `Raised the catalog floor ${change}`;
-/// ```
-fn raised_floor_warning(change: &str) -> String {
-    return format!("Raised the catalog floor {change}");
 }
 
 /// What:

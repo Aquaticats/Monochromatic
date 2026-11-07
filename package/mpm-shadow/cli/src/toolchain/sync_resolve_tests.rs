@@ -16,7 +16,8 @@ use super::error::ErrorKind;
 use super::fakes::{FakeHttp, FakeRunner};
 use super::lock_cmd::{LockMode, run_lock};
 use super::scope::EnvMap;
-use super::sync::{FrozenReason, LockPolicy, format_sync_report, run_lockfile_only, run_sync, run_sync_with};
+use super::sync::{FrozenReason, LockPolicy, run_lockfile_only, run_sync, run_sync_with};
+use super::sync_report_text::format_sync_report;
 use super::update_named_tests::{VITE_LINE, VITE_URL, WRANGLER_LINE, add_vite, locked_scope, moved_network};
 use super::update_tests::{CRATES_URL, NPM_URL, linux, read_lock, serve_registries};
 

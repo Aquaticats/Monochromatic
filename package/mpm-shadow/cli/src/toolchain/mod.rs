@@ -94,6 +94,10 @@ pub mod archive_staging;
 /// The per-tree launcher for repository-published tools.
 pub mod launcher;
 
+/// The check that a launcher's records never lead back to the launcher or in a circle,
+/// so a launcher never starts itself.
+pub mod launcher_chain;
+
 /// What a launcher runs when its record's program is gone:
 /// the program under `current`,
 /// or the sentence that names both versions and the command that fixes it.
@@ -198,6 +202,8 @@ pub mod sync;
 
 /// Running the cleanup of old copies after `install` and printing its lines.
 pub mod sync_old_copies;
+/// The wording of what `install` prints for a sync.
+pub mod sync_report_text;
 
 /// CI detection by the rules of `ci-info`,
 /// which pnpm uses.

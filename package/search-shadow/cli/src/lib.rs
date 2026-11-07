@@ -65,6 +65,12 @@ pub mod walk_target;
 /// The PATH lookup that finds the real tool while skipping the shadow itself.
 pub mod real_binary;
 
+/// The rule that a shadow never starts a shadow:
+/// the identity every shadow carries,
+/// the check of a candidate,
+/// and the arrival marker.
+pub mod shadow_identity;
+
 /// The shadow mode:
 /// policy check,
 /// then lookup,
@@ -107,6 +113,11 @@ mod walk_target_tests;
 /// The unit tests of the grep and find refusal rules.
 #[cfg(test)]
 mod policy_walk_tests;
+
+/// The unit tests of the identity,
+/// the launcher-record follow and the arrival marker.
+#[cfg(test)]
+mod shadow_identity_tests;
 
 /// Scratch directories for the unit tests,
 /// placed beside the build output.
