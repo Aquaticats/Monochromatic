@@ -286,6 +286,12 @@ await describe({
               expect((failedCheck.error as GuidedStopError).message,).toContain('its check failed: the thing',);
               const accepted = await runStages({ config, stages: [stage({ id: 'k', command: 'exit 1', okCodes: [1,], },),], },);
               expect(accepted.error,).toBeUndefined();
+              expect(await readFile(join(config.wiz, 'done', 'prepare', 'k',), 'utf8',),).toContain('exit status 1',);
+              const stoppedFor = await runStages({ config, stages: [stage({ id: 'two', command: 'exit 2', okCodes: [0, 1,], },),], },);
+              expect((stoppedFor.error as GuidedStopError).message,).toContain('exited 2',);
+              const finished = await runStages({ config, stages: [stage({ id: 'ok', command: 'true', okCodes: [0, 1,], },),], },);
+              expect(finished.error,).toBeUndefined();
+              expect(await readFile(join(config.wiz, 'done', 'prepare', 'ok',), 'utf8',),).toContain('exit status 0',);
               const refusedZero = await runStages({ config, stages: [stage({ id: 'z', command: 'true', okCodes: [1,], },),], },);
               expect((refusedZero.error as GuidedStopError).status,).toBe(1,);
             },);
@@ -401,7 +407,10 @@ await describe({
               await mkdir(config.wiz, { recursive: true, },);
               await writeFile(join(config.wiz, 'main-du.txt',), 'Total Exclusive Set shared Filename\n1000 1000 1000 /x\n',);
               await writeFile(join(config.wiz, 'external-du.txt',), '2000\t/y\n',);
-              expect(await preflight(config,),).toContain('pre-flight passed',);
+              const passed = await preflight(config,);
+              expect(passed,).toContain('pre-flight passed',);
+              expect(passed,).toContain('clone-limit allowance: 13038362624 bytes',);
+              expect(passed,).toContain('estimate: 12 GiB',);
               const tight = await createGuidedConfig({
                 env: { HOME: home, MOVE_DRIVE: home, MOVE_MIN_FREE_GIB: '99999999', },
                 nodePath: process.execPath,
@@ -522,6 +531,46 @@ await describe({
           },
         },),
         it({
+          name: 'parseGuidedFlags refuses every flag it does not know, an empty value, and extra words, naming them and the valid flags',
+          fn: async () => {
+            for (const bad of [['--log-file=/x',], ['--redo=',], ['--assert=',], ['--dryrun',], ['extra',], ['--redo',],]) {
+              let caught: unknown;
+              try {
+                parseGuidedFlags(['prepare', ...bad,],);
+              }
+              catch (error) {
+                caught = error;
+              }
+              expect(caught,).toBeInstanceOf(GuidedStopError,);
+              expect((caught as GuidedStopError).message,).toContain(bad[0] ?? '',);
+              expect((caught as GuidedStopError).message,).toContain('--dry-run',);
+            }
+          },
+        },),
+        it({
+          name: 'runGuided refuses a --redo or --assert that names no stage of the command, listing the stage ids',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const outcomes = await Promise.all([{ redo: ['no-such-stage',], asserted: [], }, { redo: [], asserted: ['no-such-stage',], },].map(async (flags,) => {
+                const lines: string[] = [];
+                const status = await runGuided({
+                  config,
+                  flags: { command: 'prepare', dryRun: true, ...flags, },
+                  out: (text,) => {
+                    lines.push(text,);
+                  },
+                },);
+                return { status, text: lines.join('',), };
+              },),);
+              for (const { status, text, } of outcomes) {
+                expect(status,).toBe(64,);
+                expect(text,).toContain('no-such-stage',);
+                expect(text,).toContain('f1-images',);
+              }
+            },);
+          },
+        },),
+        it({
           name: 'createGuidedConfig refuses a path with a character the shown commands would not quote',
           fn: async () => {
             await withConfig(async ({ home, },) => {
@@ -587,6 +636,22 @@ await describe({
                 const texts = [command, s.check ?? '', s.rollback ?? '',].join('\n',);
                 expect([s.id, texts.includes('/x/snap',),],).toEqual([s.id, false,],);
               }
+            },);
+          },
+        },),
+        it({
+          name: 'the deadline stage declares the statuses it accepts instead of swallowing them in its shell text, and works in fresh folders so a rerun never meets its own partial receive',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await prepareStages({ c: config, fixtureFolder: '/x', },);
+              const deadline = stages.find((s,) => s.id === 'f5a-deadline',) as Stage;
+              expect(deadline.okCodes,).toEqual([0, 1,],);
+              const command = await resolvedCommand({ stage: deadline, config, },);
+              expect(command,).not.toContain('$?',);
+              expect(command,).not.toContain('script exit status',);
+              expect(command,).toContain('mktemp --directory /x/dest/recv-f5a.',);
+              expect(deadline.check,).toContain('exited 124',);
+              expect((stages.find((s,) => s.id === 'f5b-leftover',) as Stage).okCodes,).toEqual([1,],);
             },);
           },
         },),
@@ -750,6 +815,38 @@ await describe({
                   }
                 }
               }
+            },);
+          },
+        },),
+        it({
+          name: 'status says not to delete the old tree after the swap until the checksum verification of the final copies is done',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              await mkdir(join(config.wiz, 'done', 'cutover',), { recursive: true, },);
+              await writeFile(join(config.wiz, 'swap-timestamp',), '20260101T000000Z\n',);
+              const before: string[] = [];
+              await runGuided({ config, flags: { command: 'status', dryRun: false, redo: [], asserted: [], }, out: (text,) => {
+                before.push(text,);
+              }, },);
+              expect(before.join('',),).toContain('DO NOT DELETE the old tree',);
+              await writeFile(join(config.wiz, 'done', 'cutover', 'c22-verify-final-checksum',), 'done\n',);
+              const after: string[] = [];
+              await runGuided({ config, flags: { command: 'status', dryRun: false, redo: [], asserted: [], }, out: (text,) => {
+                after.push(text,);
+              }, },);
+              expect(after.join('',),).toContain('may be deleted by you',);
+            },);
+          },
+        },),
+        it({
+          name: 'the cut-over verifies the final copies inside the window after the final pass and by checksum after the release',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const ids = (await cutoverStages({ c: config, stamp: 'S', },)).map((s,) => s.id);
+              const at = (id: string,) => ids.indexOf(id,);
+              expect(at('c10-final-pass',),).toBeLessThan(at('c10b-verify-final',),);
+              expect(at('c10b-verify-final',),).toBeLessThan(at('c19-swap',),);
+              expect(at('c21-release',),).toBeLessThan(at('c22-verify-final-checksum',),);
             },);
           },
         },),

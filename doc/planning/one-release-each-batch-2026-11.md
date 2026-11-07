@@ -2214,6 +2214,78 @@ not to crates.io.
   broke the outer doc comment of a Rust file and left its doc example alone,
   and broke the blockquote lines without adding a `>`.
 
+### Release record: `monochromatic-lint` 0.5.2-alpha.4 and 0.5.2-alpha.5, the fix classes and the stale install (2026-11-07T16:50:00-05:00)
+
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session."
+Two alphas under the label gate:
+they go to GitHub releases and the toolchain lock,
+not to crates.io.
+
+- 0.5.2-alpha.4 carries the fix classes
+  (merge `2b6c1521ef`,
+  branch `feat/monochromatic-lint-fix-classes-whitespace-and-content`,
+  coordinator pick of option A in `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`,
+  owner veto open):
+  every fix carries a class,
+  plain `--fix` applies only whitespace fixes,
+  `--fix-content` also applies content fixes,
+  and `--rules` prints `fixClass`.
+- 0.5.2-alpha.5 carries the closure check change
+  (merge `4de475d142`):
+  a `cargo` that fails `cargo dylint --version` without saying `no such command` is a broken or stale tool,
+  so the run fails with status 2 and names `mise run toolchain:install`;
+  before,
+  any failure other than 126 and 127 was taken for a machine without cargo-dylint
+  and skipped with exit 0.
+  The other skips (cold cargo cache,
+  missing rustc-dev,
+  driver gap,
+  package prerequisites) are unchanged,
+  because the owner's answer of 2026-10-19 skips a package whose prerequisites are missing on the machine.
+- Red first:
+  `13baff0739` (seven class tests and the token property) and `19ae70cc7d` (three stale-install tests);
+  fix commits `a186d61108` and `1eafeab702`.
+- Gates on the merged tree:
+  `lint` and `lint:types` exit 0;
+  the test run ended `880 tests run: 877 passed, 3 failed, 3 skipped`,
+  the three failures being the pin-hint family
+  (`config_pin::tests::the_hint_names_a_measured_newer_pin_and_nothing_else`,
+  `config_pin::tests::unmeasured_pins_and_farther_lockfiles_produce_no_hint`,
+  `binary::a_newer_repository_pin_adds_the_stale_binary_hint`),
+  which the 0.5.2-alpha.3 record already names and which another agent owns.
+- Release runs:
+  0.5.2-alpha.4 dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42415498694`,
+  release `https://github.com/Aquaticats/Monochromatic/actions/runs/42415630578`,
+  publish `https://github.com/Aquaticats/Monochromatic/actions/runs/42415748634`;
+  0.5.2-alpha.5 dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42416513288`,
+  release `https://github.com/Aquaticats/Monochromatic/actions/runs/42416647214`,
+  publish `https://github.com/Aquaticats/Monochromatic/actions/runs/42416777236`;
+  crates.io skipped both.
+- Lock move:
+  one commit moves `cargo:monochromatic-lint` 0.5.2-alpha.3 to 0.5.2-alpha.5 (one tool moved);
+  0.5.2-alpha.4 was never locked because alpha.5 followed within the hour.
+  `mise run toolchain:install` then installed it and `monochromatic-lint --version` printed `monochromatic-lint 0.5.2-alpha.5`.
+- Proof at the user boundary,
+  with the installed 0.5.2-alpha.5:
+  for each of the six content rules plain `--fix` left the file as written and kept the finding,
+  and `--fix-content` rewrote it with no finding left;
+  `--rules` listed `semantic-line-breaks` as `whitespace` and the seven other fixable rules as `content`;
+  a stub `cargo` whose `dylint --version` exits 1 with its own words made the run exit 2 with a processing failure
+  that names `mise run toolchain:install`,
+  while a stub whose standard error says `no such command: dylint` still skipped with exit 0 and one message;
+  the five earlier reproductions behave as in the 0.5.2-alpha.3 record.
+- Property measurement (plain `--fix`,
+  every fixable Markdown rule enabled,
+  the ignored `real_tree_keeps_every_token_under_the_whitespace_rule` test):
+  6575 tracked Markdown,
+  MDX and Rust files,
+  1212 changed by the fix,
+  none changed a token (731 s).
+  The 0.5.2-alpha.3 executable with the same rules over 3063 Markdown files changed tokens in 9.
+
 ## Evidence log
 
 - crates.io API reads:

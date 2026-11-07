@@ -47,7 +47,8 @@ the evidence behind the settings is in
   minima and maxima of every sample column between two UTC times.
 - `systemd/claude-cpu-watch.service`:
   the unit;
-  `ExecStart` runs `src/cpu-watch.ts` from this checkout.
+  `ExecStart` runs `src/cpu-watch.ts` from this checkout,
+  after an `ExecStartPre` that checks the repository link.
 
 ## Overrides
 
@@ -181,17 +182,27 @@ so they are out of scope for this package.
 
 ## Install
 
-The unit file in `~/.config/systemd/user/` is a symlink to the file in `systemd/`,
-so edits here reach the host
-after a daemon reload and a restart:
+The unit file in `~/.config/systemd/user/` is a regular copy of the file in `systemd/`, not a link into the repository:
+the user manager reads it while loading units, and a link into a repository that lives on the 860 drive would leave the
+unit unloaded whenever the drive is not mounted at manager start or at a daemon reload.
+The copy's `ExecStartPre` runs the repository link check installed outside the repository
+(`~/.local/share/monochromatic-dev/repository-link/check.mjs`), so a start before the mount fails with the plain
+message and status 75, and `Restart=on-failure` with `RestartSec=30` and no start limit retries until the mount is
+there.
+Copy again after every edit of the file in `systemd/`:
 
 ```bash
-# systemd/claude-cpu-watch.service is the single source of the unit.
-ln --symbolic --force "${HOME}/Monochromatic/package/claude-cpu-cap/daemon/systemd/claude-cpu-watch.service" \
+# systemd/claude-cpu-watch.service is the single source of the unit; the installed file is a copy of it.
+cp "${HOME}/Monochromatic/package/claude-cpu-cap/daemon/systemd/claude-cpu-watch.service" \
+  "${HOME}/.config/systemd/user/claude-cpu-watch.service.new"
+mv --no-target-directory "${HOME}/.config/systemd/user/claude-cpu-watch.service.new" \
   "${HOME}/.config/systemd/user/claude-cpu-watch.service"
 systemctl --user daemon-reload
 systemctl --user restart claude-cpu-watch.service
 ```
+
+`mise run //package/claude-cpu-cap/daemon:check:installed-unit` compares the installed file with the one in `systemd/`
+and fails with the difference.
 
 ## State that stays on the host
 

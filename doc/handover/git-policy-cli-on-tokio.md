@@ -3,9 +3,10 @@
 ## Current state
 
 - Written:
-  2026-11-07T10:40:00-05:00.
+  2026-11-07T13:30:00-05:00.
 - Branch and worktree:
   `feat/git-policy-cli-on-tokio` in `.claude/worktrees/wrapper-on-tokio`.
+  Main was last merged into it at `6c0ff76dc9` (the coordinator merged the branch at `48611f7e09`); the coordinator may merge gated checkpoints.
   Main merged into it by fast-forward at `cb0b734efa` (the coordinator had merged the branch at `5e441f25d3`);
   the coordinator may merge gated checkpoints.
 - Plan and the owner's answers:
@@ -73,6 +74,25 @@
 
 ## Open work, in order
 
+- Done since the previous handover (details and figures: the plan, "The coordinator's three settlements after T5", "The two gate failures
+  of main at `85e6d2ab99`", "Step T8" and "Step T9"): the T5 one-shot form on runtime pipes that keep all output, the futex wait of the
+  name claim, the measured `HELD_NAME_WAIT` (60.3 s, because a hold of 6.03 s was seen) and `WATCHER_END_BOUND` (stop grace plus one
+  second), the test-helper fix for the `DirectoryNotEmpty` gate failure, the measured cause of the left ref lock, T8 (`zbus` 6) and T9
+  (`hyper`, `ureq` gone).
+- Not started, in the plan's order: T6 (`start_retry`, `try_wait` loops, `sweep_after_exit`), T7 (the signal relay on a pidfd with the
+  registry of children), T10 (the service), T11 (the callers become `async`, the synchronous bridges go), T12 (the parallel runner),
+  T13 (removal of what nothing uses: the hand wire format `service/systemd_dbus_wire_format.rs` and its fuzz target, the thread helpers,
+  the poll constants; the source guards; `native:perf` with a same-binary control; the mutation campaign). T6 to T12 convert code whose
+  callers are synchronous, so they are in practice T11's leaf-first conversion.
+- Left on purpose by the settlements: the `LeaveRunning` waiter thread and the `Unbounded` blocking `wait` of `output_watched_within`
+  (a reaper that does not end the child when dropped is needed first).
+- Settled by the owner, 2026-11-07, "3x worst case" (plan, "The owner's pick on the waits"): `HELD_NAME_WAIT` and the stop's ceiling are three
+  times the longest delay measured (about 18.1 s); a stop waits past its grace while a member is in state `D`. Still open: the cause of the 6.03 s
+  (disk or scheduler) is not measured; the index-lock fallback belongs to another agent.
+- The mutation campaign is the coordinator's. Files changed since the last list: `src/native/process/step_output_read_whole_through_pipes.rs`,
+  `src/native/push/child_watch.rs`, `src/native/foundation/name_held_while_one_thread_publishes_it.rs`, `src/native/foundation/private_storage.rs`,
+  `src/native/service/systemd_dbus.rs`, `src/native/standards_review/standards_review_client.rs`, `src/native/process/stop_waits_while_a_member_cannot_be_interrupted.rs`, `src/native/process/process_tree.rs`, `src/native/push/bounded_push.rs`, `src/native/push/child_watch_clock_marks_and_stopping.rs`, `src/native/foundation/worst_delay_seen_on_this_host.rs` (the test helper
+  `src/native/testing/test_support.rs` is not mutated code).
 - T4 is done on Linux (descriptor-limit sweeps landed).
   T5 landed as a task behind an unchanged synchronous face;
   its one-shot

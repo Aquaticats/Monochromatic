@@ -56,13 +56,17 @@ use crate::wait_ceilings::OBJECT_STEP_CEILING;
 /// The captured output of a step that is never ended,
 /// in files that outlive the command.
 use crate::output_capture::Capture;
+/// The pipes a step that is ended at its ceiling is read through,
+/// whole,
+/// on the runtime.
+use crate::step_output_read_whole_through_pipes::{StepPipes, attach_pipes, release_write_ends};
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::RetryStart;
 /// The longest quiet gap of each step,
 /// kept for the timing records.
 use crate::quiet_ledger;
 /// The child and command types of the one-shot run.
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, Output};
 /// The flag the watcher raises when a wait crossed the bound,
 /// read by the waiting thread.
 use std::sync::Arc;
@@ -265,16 +269,33 @@ impl Drop for ChildWatch {
 
 /// How long dropping a watch waits for its task to end:
 /// the bound of "nothing should ever wait forever" on a wait that is over in
-///  a few milliseconds (the task reads the closed marks at its next look,
-/// at most `STOP_POLL` after,
-/// then sweeps the lock files
-///  of a step it ended).
-/// No measurement picked it;
-/// it is the budget the start retry gives a refused start
-///  (`start_retry.rs`,
-/// `START_RETRY_BUDGET`),
-/// open to the owner's veto.
-const WATCHER_END_BOUND: Duration = Duration::from_secs(5);
+///  a few hundred microseconds.
+/// Measured on 2026-11-07 (`push/child_watch_drop_time_measurement_tests.rs`,
+/// three runs by hand under
+///  a load average of 15 to 40):
+/// dropping a watch between waits took at most 505 us and in the middle of a wait at most 389 us,
+/// the
+///  lock sweep alone at most 569 us,
+/// and a whole stop of a child that answers the request at most 41680 us past the window.
+/// A task
+///  can legitimately outlast those only inside a stop that waits for a member in uninterruptible sleep,
+/// which is at most
+///  `STOP_CEILING` after the request (the owner's "3x worst case" of the longest delay measured;
+/// a descendant that ignores the request
+///  is killed when that wait ends),
+/// so the bound is that ceiling plus `STOP_TAIL_ALLOWANCE`:
+/// aborting earlier would cancel the kill of a
+///  stubborn descendant that holds no pipe.
+const WATCHER_END_BOUND: Duration = crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING.saturating_add(STOP_TAIL_ALLOWANCE);
+
+/// What a stop needs beyond its grace:
+/// the kill,
+/// the look at the processes,
+/// the lock sweep and the end of the task.
+/// One second is
+///  twenty-four times the longest tail measured (41680 us),
+/// see `WATCHER_END_BOUND`.
+const STOP_TAIL_ALLOWANCE: Duration = Duration::from_secs(1);
 
 /// A watcher task and the signal that it has ended.
 struct RunningWatcher {
@@ -403,20 +424,25 @@ pub fn output_watched_within(
         StepBound::LeaveRunning { .. } | StepBound::Unbounded => None,
     };
     // A step that is never ended writes into files that outlive this command, not into pipes this command holds: when the command
-    // stops waiting and exits, the step must find its output open, or it dies of SIGPIPE at its next write, which is a cut.
-    let captured: Option<Capture> = if matches!(bound, StepBound::EndAt(_)) { None } else { Some(Capture::new()?) };
-    match captured.as_ref() {
-        Some(files) => {
-            let (out, err) = files.stdio()?;
-            command.stdout(out).stderr(err);
-        }
-        None => {
-            command.stdout(Stdio::piped()).stderr(Stdio::piped());
-        }
+    // stops waiting and exits, the step must find its output open, or it dies of SIGPIPE at its next write, which is a cut. A step
+    // that is ended at its ceiling is read to its end by this command through pipes on the runtime, every byte of it; the pipes are
+    // made before the child starts, so a refusal starts nothing.
+    let (captured, pipes): (Option<Capture>, Option<StepPipes>) = match bound {
+        StepBound::EndAt(_) => (None, Some(attach_pipes(command)?)),
+        StepBound::LeaveRunning { .. } | StepBound::Unbounded => (Some(Capture::new()?), None),
+    };
+    if let Some(files) = captured.as_ref() {
+        let (out, err) = files.stdio()?;
+        command.stdout(out).stderr(err);
     }
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
-    let child: Child = command.spawn_retrying()?;
+    let spawned: std::io::Result<Child> = command.spawn_retrying();
+    // The command holds the write ends of the pipes until they are replaced, and the readers see no end of output while it does.
+    if pipes.is_some() {
+        release_write_ends(command);
+    }
+    let child: Child = spawned?;
     let started: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step);
     // A step with no ceiling is waited for as long as it lives: the watch starts without one.
     let watch: ChildWatch = match ceiling {
@@ -456,7 +482,10 @@ pub fn output_watched_within(
                 }
             }
         }
-        StepBound::EndAt(_) => child.wait_with_output(),
+        StepBound::EndAt(_) => match pipes {
+            Some(open) => open.read_until_the_child_ends(child),
+            None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
+        },
         StepBound::Unbounded => {
             let mut waited_for: Child = child;
             match waited_for.wait() {
@@ -487,3 +516,14 @@ pub fn output_watched_within(
 #[cfg(test)]
 #[path = "child_watch_tests.rs"]
 mod tests;
+
+/// One-shot run controls stay out of the release executable.
+#[cfg(test)]
+#[path = "child_watch_one_shot_through_pipes_tests.rs"]
+mod one_shot_through_pipes_tests;
+
+/// The measurement of how long dropping a watch takes,
+/// kept out of the release executable.
+#[cfg(test)]
+#[path = "child_watch_drop_time_measurement_tests.rs"]
+mod drop_time_measurement_tests;

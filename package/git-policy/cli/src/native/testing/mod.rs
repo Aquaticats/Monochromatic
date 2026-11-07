@@ -42,3 +42,11 @@ pub(crate) mod no_threads_child_test_support;
 /// for controls that prove work overlapped.
 #[cfg(test)]
 pub(crate) mod parallel_test_support;
+
+/// Ending a child together with its whole process group,
+/// for controls that must leave no process behind;
+/// never part of the
+///  release executable.
+#[cfg(test)]
+#[cfg(unix)]
+pub(crate) mod child_ended_with_its_whole_group;

@@ -33,10 +33,8 @@ export {
 export { holderPatterns, } from './guided-holders.ts';
 export { prepareUnitEdit, } from './guided-unit-edit.ts';
 export { selectVerify, } from './guided-verify-set.ts';
-export {
-  parseGuidedFlags,
-  runGuided,
-} from './guided-runner.ts';
+export { parseGuidedFlags, } from './guided-flags.ts';
+export { runGuided, } from './guided-runner.ts';
 export type {
   GuidedConfig,
   GuidedFlags,

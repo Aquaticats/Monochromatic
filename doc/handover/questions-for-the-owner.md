@@ -18,6 +18,61 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: how long may a commit's own signed `git commit` step run? (not asked yet)
+
+Your global config signs every commit,
+so the wrapper builds each commit with a real `git commit` in a scratch repository
+(branch `feat/git-policy-cli-commit-timing-names-every-step`,
+not merged yet).
+That step runs with the terminal attached,
+unwatched and with no ceiling.
+That is why the commit that took 248 s on 2026-11-07 showed no waiting notice.
+Your rule says "nothing should ever wait forever or indefinitely",
+but an editor can legitimately stay open in that step when no message was given.
+The coordinator will add a waiting notice that names the step either way;
+the question is the ceiling.
+- A:
+  when the message came with the command (`-m`,
+  `-F`,
+  `-C`),
+  a ceiling from measured signing times (three times the worst seen);
+  with an editor,
+  no ceiling,
+  only the waiting notice.
+- B:
+  a ceiling in both cases,
+  generous for the editor case.
+- C:
+  no ceiling;
+  the waiting notice only.
+
+## Open: may the repository's own lint run fail when the closure check skips a package? (not asked yet)
+
+Your decision record says
+"A package whose prerequisites are missing on the machine is skipped,
+and the linter says so."
+(`doc/decision/rust-closure-lint-dylint.md:150`).
+In practice,
+on 2026-11-07,
+that skip hid five packages' closure findings (a cold cargo cache),
+and the run still exited 0,
+so a green lint did not mean "no findings".
+`monochromatic-lint` 0.5.2-alpha.5 already fails a run whose cargo is stale or broken;
+the skips for a cold cargo cache,
+missing `rustc-dev`,
+a driver gap,
+or a missing package prerequisite are unchanged.
+The new root task `mise run fetch:rust-dependencies` warms the cache.
+- A:
+  keep the decision as written (skip with a message,
+  exit 0).
+- B:
+  keep skipping on other machines,
+  but the repository's own lint tasks fetch first and then fail on any skip,
+  naming the package and the command that fixes it.
+- C:
+  fail on every skip everywhere.
+
 ## Open: must fenced Rust examples inside docs carry rustdoc? (not asked yet)
 
 The linter's `rust/require-rustdoc` also checks Rust in fenced code blocks inside Markdown,

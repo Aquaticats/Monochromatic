@@ -254,14 +254,18 @@ df --block-size=1M ${fx}/source ${fx}/dest`,
       id: 'f5a-deadline',
       title: 'Fixture F5a: deadline',
       says: 'Fixture F5a: a first pass with a one-second per-transfer deadline on fresh folders. It is expected to stop; a copy that finishes inside a second is also accepted, because F5b makes the interrupted case deterministically.',
-      command: `sudo mkdir ${fx}/dest/recv-f5a
-sudo mkdir --parents ${fx}/source/snap-f5a
-sudo chown ${c.userName}:${c.groupName} ${fx}/source/snap-f5a
-mkdir ${fx}/state-f5a
-${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/source/snap-f5a --received=${fx}/dest/recv-f5a --final=${fx}/dest/final-f5a --state=${fx}/state-f5a --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=1 --min-free-gib=1; echo "script exit status: $?"`,
-      check: `grep --extended-regexp 'script exit status: [01]' "$OUTPUT_FILE"`,
-      checkText: 'the run ended with status 0 (finished) or 1 (stopped at the deadline)',
-      rollback: `a partial copy in ${fx}/dest/recv-f5a, if any, goes with the images`,
+      command: `recv=$(sudo mktemp --directory ${fx}/dest/recv-f5a.XXXXXX)
+snap=$(sudo mktemp --directory ${fx}/source/snap-f5a.XXXXXX)
+sudo chown ${c.userName}:${c.groupName} "$snap"
+state=$(mktemp --directory ${fx}/state-f5a.XXXXXX)
+${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots="$snap" --received="$recv" --final=${fx}/dest/final-f5a --state="$state" --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=1 --min-free-gib=1`,
+      okCodes: [
+        0,
+        1,
+      ],
+      check: `grep --extended-regexp 'pass first finished|exited 124' "$OUTPUT_FILE"`,
+      checkText: 'the run finished (status 0) or stopped at the deadline (status 1 with the send exited 124); any other status or message fails the stage',
+      rollback: `fresh folders ${fx}/dest/recv-f5a.*, ${fx}/source/snap-f5a.* and ${fx}/state-f5a.* belong to this run; a partial copy in the first goes with the images, and a rerun makes new folders, so it never meets this run's partial receive`,
       timeoutSeconds: timeout,
       root: 'yes',
       unprivileged: 'none for send and receive',
