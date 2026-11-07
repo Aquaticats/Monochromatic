@@ -19,6 +19,20 @@ fn quick() -> Cadence {
     return Cadence::from_interval(Duration::from_millis(40));
 }
 
+/// What:
+///  Holds a lock for `holding` counted from the moment the wait has begun, which its first notice shows.
+/// Why:
+///   A hold counted from the start of the holding thread begins before the wait's own clock does, so the wait could read a little less
+///  than `holding` when the thread that starts the wait was late (`Released(2.49917834s)` for a hold of 2.5 s in the gate of the
+///  branch merged with main at `c23b85309c`); the wait speaks only after it began, so the hold counted from its first notice is never
+///  longer than what the wait measured.
+fn hold_from_the_first_notice_of_the_wait(watching: &SharedSink, holding: Duration) {
+    while watching.text().is_empty() {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    std::thread::sleep(holding);
+}
+
 /// A free index is not waited for, and nothing is printed.
 #[test]
 fn a_free_index_is_not_waited_for() {
@@ -62,11 +76,12 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     std::fs::write(&lock, b"").expect("a lock nobody holds open");
     let holding: Duration = LONG_HOLD;
     let remover: lock_remover::Remover = lock_remover::Remover::new(lock.clone());
+    let sink: SharedSink = SharedSink::default();
+    let watching: SharedSink = sink.clone();
     let letting_go = std::thread::spawn(move || {
-        std::thread::sleep(holding);
+        hold_from_the_first_notice_of_the_wait(&watching, holding);
         remover.remove();
     });
-    let sink: SharedSink = SharedSink::default();
     let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", quick(), &mut sink.clone());
     letting_go.join().expect("the lock goes");
     assert!(matches!(outcome, IndexWait::Released(waited) if waited >= holding), "{outcome:?}");
@@ -193,11 +208,12 @@ fn a_holder_proven_alive_is_waited_for_with_no_bound() {
     std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
     let holding: Duration = LONG_HOLD;
     let remover: lock_remover::Remover = lock_remover::Remover::new(lock.clone());
+    let sink: SharedSink = SharedSink::default();
+    let watching: SharedSink = sink.clone();
     let letting_go = std::thread::spawn(move || {
-        std::thread::sleep(holding);
+        hold_from_the_first_notice_of_the_wait(&watching, holding);
         remover.remove();
     });
-    let sink: SharedSink = SharedSink::default();
     let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", quick(), &mut sink.clone());
     letting_go.join().expect("the holder lets go");
     assert!(matches!(outcome, IndexWait::Released(waited) if waited >= holding), "{outcome:?}");
