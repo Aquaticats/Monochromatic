@@ -63,7 +63,7 @@ Interpretation notes applied to every candidate:
   styles,
   and tags removed.
 
-### sgaunet/runq
+## sgaunet/runq
 
 - URL:
   <https://github.com/sgaunet/runq>
@@ -122,7 +122,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (not a watch process and not a monorepo manager).
 
-### standardbeagle/brummer
+## standardbeagle/brummer
 
 - URL:
   <https://github.com/standardbeagle/brummer>
@@ -181,7 +181,7 @@ Interpretation notes applied to every candidate:
   exit at G2 (no license file;
   project also archived).
 
-### lerna/lerna
+## lerna/lerna
 
 - URL:
   <https://github.com/lerna/lerna>
@@ -277,7 +277,7 @@ Interpretation notes applied to every candidate:
   command's options out to per-command GitHub READMEs,
   so the site alone does not show where command behavior lives.
 
-### vercel/turborepo
+## vercel/turborepo
 
 - URL:
   <https://github.com/vercel/turborepo>
@@ -371,7 +371,7 @@ Interpretation notes applied to every candidate:
   says the daemon still backs `turbo watch`,
   while <https://turborepo.dev/docs/reference/watch> never mentions it.
 
-### nrwl/nx
+## nrwl/nx
 
 - URL:
   <https://github.com/nrwl/nx>
@@ -504,7 +504,7 @@ Interpretation notes applied to every candidate:
   With the confusion rule applied,
   this exit no longer depends on the borderline coverage reading.
 
-### bazelbuild/bazel
+## bazelbuild/bazel
 
 - URL:
   <https://github.com/bazelbuild/bazel>
@@ -605,7 +605,7 @@ Interpretation notes applied to every candidate:
   exit at G3 confusion (duplicate sidebar entries and BEP filed under Remote Execution,
 - <https://bazel.build/remote/bep>).
 
-### gradle/gradle
+## gradle/gradle
 
 - URL:
   <https://github.com/gradle/gradle>
@@ -693,7 +693,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (duplicate plugin-authoring page sets in one sidebar).
 
-### teambit/bit
+## teambit/bit
 
 - URL:
   <https://github.com/teambit/bit>
@@ -786,7 +786,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 no-JS (reference pages are JS app shells without documentation text).
 
-### facebook/buck
+## facebook/buck
 
 - URL:
   <https://github.com/facebook/buck>
@@ -824,7 +824,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (frozen docs for a dead project).
 
-### microsoft/rushstack
+## microsoft/rushstack
 
 - URL:
   <https://github.com/microsoft/rushstack>
@@ -886,7 +886,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (watch docs defer to GitHub PR and issue).
 
-### sbt/sbt
+## sbt/sbt
 
 - URL:
   <https://github.com/sbt/sbt>
@@ -947,7 +947,7 @@ Interpretation notes applied to every candidate:
   exit at G3 confusion (server protocol contradicts across doc versions;
   no current-version page).
 
-### moonrepo/moon
+## moonrepo/moon
 
 - URL:
   <https://github.com/moonrepo/moon>
@@ -964,7 +964,7 @@ Interpretation notes applied to every candidate:
   user exclusion (documentation),
   skipped as instructed.
 
-### pantsbuild/pants
+## pantsbuild/pants
 
 - URL:
   <https://github.com/pantsbuild/pants>
@@ -1036,7 +1036,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (plugin debugging deferred to Slack).
 
-### sagiegurari/cargo-make
+## sagiegurari/cargo-make
 
 - URL:
   <https://github.com/sagiegurari/cargo-make>
@@ -1072,7 +1072,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (no use of project relationships).
 
-### com-lihaoyi/mill
+## com-lihaoyi/mill
 
 - URL:
   <https://github.com/com-lihaoyi/mill>
@@ -1130,7 +1130,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (reference and extension navigation mix unrelated page kinds).
 
-### thought-machine/please
+## thought-machine/please
 
 - URL:
   <https://github.com/thought-machine/please>
@@ -1185,7 +1185,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (plugin authoring location unclear and flagged experimental).
 
-### blade-build/blade-build
+## blade-build/blade-build
 
 - URL:
   <https://github.com/blade-build/blade-build>
@@ -1234,7 +1234,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (misleading page title).
 
-### invertase/melos
+## invertase/melos
 
 - URL:
   <https://github.com/invertase/melos>
@@ -1286,13 +1286,13 @@ Interpretation notes applied to every candidate:
   - of rendered HTML (HTTP 200,
     excerpt "--- description:
     A tool for managing Dart projects with multiple packages. ---
-  - ## About").
+  - \## About").
 - G4:
   not evaluated.
 - Final:
   exit at G3 coverage (no extension mechanism).
 
-### folke/ultra-runner
+## folke/ultra-runner
 
 - URL:
   <https://github.com/folke/ultra-runner>
@@ -1327,7 +1327,7 @@ Interpretation notes applied to every candidate:
   exit at G3 coverage (no extension mechanism;
   README-only docs).
 
-### guigrpa/oao
+## guigrpa/oao
 
 - URL:
   <https://github.com/guigrpa/oao>
@@ -1364,7 +1364,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 coverage.
 
-### lerna-lite/lerna-lite
+## lerna-lite/lerna-lite
 
 - URL:
   <https://github.com/lerna-lite/lerna-lite>
@@ -1406,7 +1406,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 coverage (no extension mechanism).
 
-### benchkram/bob
+## benchkram/bob
 
 - URL:
   <https://github.com/benchkram/bob>
@@ -1443,7 +1443,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 (docs domain does not resolve).
 
-### simplesurance/baur
+## simplesurance/baur
 
 - URL:
   <https://github.com/simplesurance/baur>
@@ -1480,7 +1480,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 coverage (no extension mechanism).
 
-### ojkelly/yarn.build
+## ojkelly/yarn.build
 
 - URL:
   <https://github.com/ojkelly/yarn.build>
@@ -1523,7 +1523,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (supported Yarn versions contradict).
 
-### mbtproject/mbt
+## mbtproject/mbt
 
 - URL:
   <https://github.com/mbtproject/mbt>
@@ -1557,7 +1557,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 coverage (no extension mechanism).
 
-### toss/yarn-plugin-workspace-since
+## toss/yarn-plugin-workspace-since
 
 - URL:
   <https://github.com/toss/yarn-plugin-workspace-since>
@@ -1587,7 +1587,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no license).
 
-### Akryum/monorepo-run
+## Akryum/monorepo-run
 
 - URL:
   <https://github.com/Akryum/monorepo-run>
@@ -1617,7 +1617,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (runs scripts in every package without project relationships).
 
-### seansfkelley/yerna
+## seansfkelley/yerna
 
 - URL:
   <https://github.com/seansfkelley/yerna>
@@ -1653,7 +1653,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 coverage (no extension mechanism).
 
-### giltayar/bilt
+## giltayar/bilt
 
 - URL:
   <https://github.com/giltayar/bilt>
