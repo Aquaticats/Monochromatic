@@ -286,6 +286,12 @@ await describe({
               expect((failedCheck.error as GuidedStopError).message,).toContain('its check failed: the thing',);
               const accepted = await runStages({ config, stages: [stage({ id: 'k', command: 'exit 1', okCodes: [1,], },),], },);
               expect(accepted.error,).toBeUndefined();
+              expect(await readFile(join(config.wiz, 'done', 'prepare', 'k',), 'utf8',),).toContain('exit status 1',);
+              const stoppedFor = await runStages({ config, stages: [stage({ id: 'two', command: 'exit 2', okCodes: [0, 1,], },),], },);
+              expect((stoppedFor.error as GuidedStopError).message,).toContain('exited 2',);
+              const finished = await runStages({ config, stages: [stage({ id: 'ok', command: 'true', okCodes: [0, 1,], },),], },);
+              expect(finished.error,).toBeUndefined();
+              expect(await readFile(join(config.wiz, 'done', 'prepare', 'ok',), 'utf8',),).toContain('exit status 0',);
               const refusedZero = await runStages({ config, stages: [stage({ id: 'z', command: 'true', okCodes: [1,], },),], },);
               expect((refusedZero.error as GuidedStopError).status,).toBe(1,);
             },);
@@ -630,6 +636,22 @@ await describe({
                 const texts = [command, s.check ?? '', s.rollback ?? '',].join('\n',);
                 expect([s.id, texts.includes('/x/snap',),],).toEqual([s.id, false,],);
               }
+            },);
+          },
+        },),
+        it({
+          name: 'the deadline stage declares the statuses it accepts instead of swallowing them in its shell text, and works in fresh folders so a rerun never meets its own partial receive',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await prepareStages({ c: config, fixtureFolder: '/x', },);
+              const deadline = stages.find((s,) => s.id === 'f5a-deadline',) as Stage;
+              expect(deadline.okCodes,).toEqual([0, 1,],);
+              const command = await resolvedCommand({ stage: deadline, config, },);
+              expect(command,).not.toContain('$?',);
+              expect(command,).not.toContain('script exit status',);
+              expect(command,).toContain('mktemp --directory /x/dest/recv-f5a.',);
+              expect(deadline.check,).toContain('exited 124',);
+              expect((stages.find((s,) => s.id === 'f5b-leftover',) as Stage).okCodes,).toEqual([1,],);
             },);
           },
         },),
