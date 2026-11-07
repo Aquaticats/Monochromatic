@@ -108,3 +108,21 @@ export {
   ZIG_LOCK_PLATFORM_BY_HOST_ARCHITECTURE,
 } from './locked-tool-build-arguments.ts';
 export type { LockedBuildArgumentTool, } from './locked-tool-build-arguments.ts';
+
+/**
+ Builds a local container image again when the inputs it was built from, labelled on the image, have changed.
+ */
+export {
+  buildContainerImage,
+  ensureContainerImage,
+  IMAGE_BUILD_INPUTS_LABEL_NAME,
+  inputsDigestOf,
+  isContainerImageCurrent,
+  podmanEngineWith,
+} from './container-image-rebuild-on-changed-inputs.ts';
+export type {
+  ContainerEngine,
+  ContainerImageInputs,
+  ContainerImageOptions,
+  ImageLabelQuery,
+} from './container-image-rebuild-on-changed-inputs.ts';
