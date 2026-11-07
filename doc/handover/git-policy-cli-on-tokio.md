@@ -6,7 +6,7 @@
   2026-11-07T13:30:00-05:00.
 - Branch and worktree:
   `feat/git-policy-cli-on-tokio` in `.claude/worktrees/wrapper-on-tokio`.
-  Main merged into it by fast-forward at `cb0b734efa` (the coordinator had merged the branch at `5e441f25d3`); the coordinator may merge gated checkpoints.
+  Main was last merged into it at `6c0ff76dc9` (the coordinator merged the branch at `48611f7e09`); the coordinator may merge gated checkpoints.
 - Plan and the owner's answers:
   `doc/planning/git-policy-cli-full-tokio.md`, sections "The owner's answers at 2026-11-07" and "Progress on the branch".
 - Landed on the branch: the guard that a forwarded command makes no thread (T2), the budget, limits, plan, lazy runtime, blocking-job

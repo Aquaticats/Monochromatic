@@ -2084,6 +2084,23 @@ The coordinator's gate under a load average of about 70 failed two controls that
 - Known from the research and not changed: `hyper-util`'s resolver runs `getaddrinfo` on tokio's blocking pool when the URL has a host name,
   and that thread stays idle for tokio's keep-alive; the endpoint is one fixed host.
 
+### Gates of the settlements, T8 and T9, 2026-11-07T14:10:00-05:00
+
+- Settlements (a) to (c), snapshot at `9dee521668` (unit `tokio-gate-settle`, log `${HOME}/temp/agent/tokio-steps/gate-settle.log`): 5174 tests
+  run, 5174 passed (3 slow), 11 skipped; the container Clippy then failed on shadowed bindings in `push/child_watch_drop_time_measurement_tests.rs`
+  (fixed in `768f215ae3`).
+- T8 and T9 together, first snapshot at `e4773d1976` (unit `tokio-gate-t8t9`, `gate-t8t9.log`): 5179 run, 5172 passed, 7 failed, all of them
+  the stand-in session bus of the binary controls (`binary/binary_service_provision_tests.rs`), which did not agree to `NEGOTIATE_UNIX_FD` or
+  answer `Hello` with a name, so `zbus` waited out the 20 second exchange. Fixed in the commit that names them.
+- T8 and T9 together, after that fix (unit `tokio-gate-t8t9b`, `gate-t8t9b.log`): 5179 run, 5179 passed (1 slow), 11 skipped, container
+  Clippy clean. Added after that snapshot, all tests or comments: `the_quiet_gap_kept_for_a_call_is_the_calls_own_and_not_the_idle_waiting_thread`
+  (passes: the quiet clock counts the process's established sockets as work, so the idle waiting thread of the `hyper` call does not make
+  the ledger figure hollow), the ignored strace reproduction, and the reworded citation of the 6.03 s; the package lint of that tree is clean
+  and the quiet-gap control passed on the host.
+- Not measured: `native:perf` (the plan asks for it after T10, T12 and T13). Settlement (a) is the first change on the commit wait path (every
+  `EndAt` Git step of `run_git_watched` now enters the runtime twice, `attach_pipes` and `read_until_the_child_ends`); its cost against "commits
+  vs native git should not take 5s longer" is an unmeasured exposure until then.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`, the `try_wait` loops of
