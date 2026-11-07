@@ -574,6 +574,27 @@ await describe({
           },
         }),
         it({
+          name: 'installs the libraries the compositor crate links before the release command builds it, for that crate only',
+          fn: async () => {
+            const stepAt = releaseLines.indexOf('    - name: Install the system libraries the compositor crate links');
+            const releaseAt = releaseLines.findIndex(function isRelease(line) {
+              return line.includes('bin/release.ts');
+            });
+            expect(stepAt).toBeGreaterThan(-1);
+            expect(stepAt).toBeLessThan(releaseAt);
+            expect(releaseLines[stepAt + 1]).toBe(
+              `      if: \${{ inputs.crate == 'monochromatic-nested-wayland-session' }}`,
+            );
+            // The publish workflow installs these for the same crate, so a release that builds it needs the same set.
+            const published = publishLines.join('\n');
+            const installed = releaseLines.slice(stepAt, stepAt + 7).join('\n');
+            for (const library of ['pkg-config', 'libwayland-dev', 'libxkbcommon-dev', 'libdrm-dev', 'libegl-dev', 'libclang-dev']) {
+              expect(published).toContain(library);
+              expect(installed).toContain(library);
+            }
+          },
+        }),
+        it({
           name: 'runs the release command for the chosen crate on the runner host, with the note after a double hyphen',
           fn: async () => {
             expect(releaseLines.map(function trimmed(line) {

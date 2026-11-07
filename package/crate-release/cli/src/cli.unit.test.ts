@@ -70,6 +70,18 @@ const listedCrateNames = registryCrateNames(packageRegistry)
   .join(', ');
 
 /**
+ The `forbidden-strings` entry of the registry, whose lock directories the registry-based tests derive their calls from.
+ */
+const scannerEntry = packageRegistry.get('forbidden-strings');
+if (scannerEntry === undefined)
+  throw new Error('the registry has no forbidden-strings entry');
+
+/**
+ Lock directories of the `forbidden-strings` entry, as a constant that stays typed inside functions.
+ */
+const scannerLockDirectories: readonly string[] = scannerEntry.lockDirectories;
+
+/**
  Note that holds every character a shell treats as syntax.
  */
 const hostileNote = `it's "done"; $HOME \`id\` $(id) && touch pwned`;
@@ -102,11 +114,13 @@ async function writeRegistryRepository(fixture: StubFixture): Promise<void> {
     path: 'package/forbidden-strings/cli/Cargo.toml',
     text: '[package]\nname = "forbidden-strings"\nversion = "0.6.0"\n',
   });
-  // The lock directory must exist, because the lock step starts cargo inside it.
-  await fixture.write({
-    path: 'package/git-policy/cli.fuzz/Cargo.toml',
-    text: '[package]\nname = "fuzz"\nversion = "0.0.0"\n',
-  });
+  // Each lock directory must exist, because the lock step starts cargo inside it.
+  await Promise.all(scannerLockDirectories.map(async function writeLockDirectory(directory) {
+    await fixture.write({
+      path: `${directory}/Cargo.toml`,
+      text: '[package]\nname = "fuzz"\nversion = "0.0.0"\n',
+    });
+  }));
   await Promise.all([
     'package/git-policy/cli/Cargo.toml',
     'package/forbidden-strings/cli.fuzz/Cargo.toml',
@@ -362,14 +376,25 @@ await describe({
             expect(await fixture.read('package/forbidden-strings/cli/Cargo.toml')).toContain('version = "0.6.1"');
             expect(await fixture.read('package/git-policy/cli/Cargo.toml')).toContain('version = "=0.6.1"');
             const calls = await fixture.calls();
+            const lockCount = scannerLockDirectories.length;
             expect(calls.map(function programOf(call) {
               return call.program;
-            })).toEqual(['cargo', 'cargo', 'cargo', 'git']);
+            })).toEqual(['cargo', ...scannerLockDirectories.map(function cargoOf() {
+              return 'cargo';
+            }), 'cargo', 'git']);
             expect(calls[0]?.args).toEqual(['check', '--bin', 'forbidden-strings']);
-            expect(calls[1]?.args).toEqual(['update', '--workspace']);
-            expect(calls[2]?.args).toEqual(['publish', '--dry-run', '--locked', '--allow-dirty']);
-            expect(calls[1]?.cwd).toBe(`${fixture.directory}/package/git-policy/cli.fuzz`);
-            expect(calls[3]?.args.slice(0, 3)).toEqual([
+            expect(calls.slice(1, 1 + lockCount).map(function argsOf(call) {
+              return call.args;
+            })).toEqual(scannerLockDirectories.map(function updateOf() {
+              return ['update', '--workspace'];
+            }));
+            expect(calls.slice(1, 1 + lockCount).map(function cwdOf(call) {
+              return call.cwd;
+            })).toEqual(scannerLockDirectories.map(function directoryOf(directory) {
+              return `${fixture.directory}/${directory}`;
+            }));
+            expect(calls[1 + lockCount]?.args).toEqual(['publish', '--dry-run', '--locked', '--allow-dirty']);
+            expect(calls[2 + lockCount]?.args.slice(0, 3)).toEqual([
               'commit',
               '--message',
               `chore(forbidden-strings/cli): release 0.6.1: ${hostileNote}`,
@@ -755,8 +780,10 @@ await describe({
               }) ?? '';
             }).toSorted()).toEqual([
               'package/forbidden-strings/cli/Cargo.toml',
-              'package/git-policy/cli.fuzz/Cargo.toml',
-            ].map(function optionOf(manifest) {
+              ...scannerLockDirectories.map(function manifestOf(directory) {
+                return `${directory}/Cargo.toml`;
+              }),
+            ].toSorted().map(function optionOf(manifest) {
               return `--manifest-path=${manifest}`;
             }));
             expect(cargo.every(function inRoot(call) {
