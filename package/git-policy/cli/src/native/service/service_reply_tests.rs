@@ -71,6 +71,20 @@ fn a_queued_answer_is_written_before_the_connection_closes() {
     assert_eq!(next(&mut client), landed);
 }
 
+/// POSITIVE CONTROL of the race of the control above: the answer is queued after the writer has beaten, as it is when the thread that
+///  sends it is scheduled late (the gate of the branch merged with main at `944bdd30b5` read a `Heartbeat` first). The strict claim of
+///  the control above, that the first line is the answer, fails here every time, which shows the control raced a beat.
+#[test]
+fn a_queued_answer_is_written_before_the_connection_closes_even_when_the_sender_is_late() {
+    let (reply, writer, mut client) = connected();
+    let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("x"), commit: String::from("c"), already: false };
+    std::thread::sleep(QUICK_BEAT * 3);
+    reply.send(&landed);
+    drop(reply);
+    writer.join().expect("the writer ends");
+    assert_eq!(next(&mut client), landed);
+}
+
 /// A client that closed its end stops the writer on the next write.
 #[test]
 fn the_beat_ends_when_the_client_is_gone() {
