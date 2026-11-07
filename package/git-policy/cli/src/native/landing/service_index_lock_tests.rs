@@ -438,21 +438,25 @@ fn staged_by_the_last_release(lock: &Path, pid: u32, seq: u64) -> PathBuf {
 //endregion
 
 /// Where neither a rename without replacing nor a hard link works,
-/// no lock is created at all:
-/// creating one and writing the marker after would leave an empty lock for as long as a kill between the two lasts,
-/// which no restart may take over.
-///  The attempt fails with the code the clients are answered with,
+/// the lock is taken as Git takes it:
+/// created by exclusive creation and then given its marker,
+/// so a commit lands there as it does with plain Git.
+/// The hold is the lock's own file,
+/// so its release installs the new index and removes the lock,
 /// and nothing stays in the directory.
 #[test]
-fn a_filesystem_that_can_place_no_lock_atomically_gets_none() {
+fn a_filesystem_that_can_place_no_lock_atomically_gets_one_by_exclusive_creation() {
     let (root, index) = index_in("index-lock-bare");
     let rename = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EINVAL); };
     let link = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EPERM); };
     let platform: Platform = bare_filesystem(&rename, &link);
-    let failure = acquire_on(&platform, &index, 20, &|_| {}).expect_err("refused");
-    assert_eq!(failure.code, FailureCode::Unavailable);
-    assert!(!lock_path_of(&index).exists(), "no lock, so none can be left empty");
-    assert!(try_acquire_on(&platform, &index, 21).is_none());
+    let lock = acquire_on(&platform, &index, 20, &|_| {}).expect("taken as Git takes it");
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(20), "the marker is in the lock once the hold begins");
+    assert!(try_acquire_on(&platform, &index, 21).is_none(), "a live holder's lock is not taken over");
+    let built: PathBuf = index.with_file_name("index.built");
+    std::fs::write(&built, "new index").expect("built");
+    lock.release_with(&built).expect("the hold names the created lock, so the release finds it the holder's own");
+    assert_eq!(std::fs::read_to_string(&index).expect("index"), "new index");
     assert!(!lock_path_of(&index).exists());
     assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
     remove(root.as_path());
@@ -1199,7 +1203,7 @@ fn the_notice_interval_is_a_positive_number_of_seconds_or_the_default() {
 
 /// A failure to place says what failed,
 /// a lock that exists is no failure,
-/// and a filesystem that offers neither atomic way is named with what to do:
+/// and a filesystem that answers that it cannot place a file is named with what to do:
 /// the log is the only place the person who reads it finds these.
 #[test]
 fn a_placement_failure_is_worded_by_what_failed() {
@@ -1213,7 +1217,8 @@ fn a_placement_failure_is_worded_by_what_failed() {
     assert!(storage_said.contains(storage.to_string().as_str()) && !storage_said.contains("can neither rename"), "{storage_said}");
     let unsupported = std::io::Error::new(std::io::ErrorKind::Unsupported, "no way");
     let unsupported_said: String = placement_failure_text(&lock_path, &unsupported).expect("a failure");
-    assert!(unsupported_said.contains("can neither rename") && unsupported_said.contains("filesystem") && unsupported_said.contains("no way"), "{unsupported_said}");
+    assert!(unsupported_said.contains("cannot place a file") && unsupported_said.contains("filesystem") && unsupported_said.contains("no way"), "{unsupported_said}");
+    assert!(!unsupported_said.contains("can neither rename"), "the refusal of both atomic ways is no longer a failure: {unsupported_said}");
     remove(root.as_path());
 }
 
