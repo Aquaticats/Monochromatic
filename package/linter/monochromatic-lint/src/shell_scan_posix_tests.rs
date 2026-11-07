@@ -84,9 +84,9 @@ fn operators_are_found() {
 /// Hits carry the exact byte range.
 #[test]
 fn hit_ranges_are_exact() {
-    let hits = scan("é && b", false);
-    assert_eq!(hits.len(), 1);
-    assert_eq!((hits[0].start, hits[0].end), (3, 5));
+    let found = hits("é && b", false);
+    assert_eq!(found.len(), 1);
+    assert_eq!((found[0].start, found[0].end), (3, 5));
 }
 
 /// Redirections that contain `&` or `|` are not operators,

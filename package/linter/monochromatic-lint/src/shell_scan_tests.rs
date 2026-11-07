@@ -9,15 +9,20 @@
 //! describe('scan dispatch', () => { /* per-dialect filtering */ });
 //! ```
 
-/// Import the dispatch and the tables.
+/// Import the dispatch,
+///  the tables and the deadline that ends a scan which stops advancing.
 use super::{expression_end, scan};
 use crate::shell_dialect::{Construct, ShellDialect};
+use crate::shell_scan::Hit;
+use crate::test_deadline::finished_within_deadline;
 
 /// The constructs found,
 ///  in source order.
 fn kinds(text: &str, dialect: ShellDialect) -> Vec<Construct> {
     let mut found: Vec<Construct> = Vec::new();
-    for hit in scan(text, dialect) {
+    let owned: String = String::from(text);
+    let scanned: Vec<Hit> = finished_within_deadline(move || return scan(owned.as_str(), dialect));
+    for hit in scanned {
         found.push(hit.construct);
     }
     return found;

@@ -14,6 +14,28 @@ use super::check_shell;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::shell_dialect::{Construct, ShellDialect};
 use crate::shell_rule_settings::{ShellBudget, ShellRuleSettings};
+use crate::test_deadline::finished_within_deadline;
+
+/// Check one run body under the test deadline,
+///  so a scan that stops advancing fails the test instead of hanging the run.
+fn check_bounded(
+    filename: &str,
+    source: &str,
+    dialect: ShellDialect,
+    settings: &ShellRuleSettings,
+) -> Vec<Diagnostic> {
+    let owned_filename: String = String::from(filename);
+    let owned_source: String = String::from(source);
+    let owned_settings: ShellRuleSettings = settings.clone();
+    return finished_within_deadline(move || {
+        return check_shell(
+            owned_filename.as_str(),
+            owned_source.as_str(),
+            dialect,
+            &owned_settings,
+        );
+    });
+}
 
 /// A line budget only.
 fn lines(max: usize) -> ShellRuleSettings {
@@ -45,7 +67,8 @@ fn range(finding: &Diagnostic) -> (usize, usize) {
 #[test]
 fn lines_over_the_budget_are_reported_once() {
     let source: &str = "a\nb\nlong third\nfourth\n";
-    let found: Vec<Diagnostic> = check_shell("ci.yml/0.sh", source, ShellDialect::Posix, &lines(2));
+    let found: Vec<Diagnostic> =
+        check_bounded("ci.yml/0.sh", source, ShellDialect::Posix, &lines(2));
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].code, "shell/max-lines");
     assert_eq!(range(&found[0]), (4, 14));
@@ -58,9 +81,9 @@ fn lines_over_the_budget_are_reported_once() {
 #[test]
 fn blank_and_comment_lines_do_not_count() {
     let source: &str = "# note\n\na\n  # indented note\nb\n\n";
-    assert!(check_shell("x.sh", source, ShellDialect::Posix, &lines(2)).is_empty());
+    assert!(check_bounded("x.sh", source, ShellDialect::Posix, &lines(2)).is_empty());
     assert_eq!(
-        check_shell("x.sh", source, ShellDialect::Posix, &lines(1)).len(),
+        check_bounded("x.sh", source, ShellDialect::Posix, &lines(1)).len(),
         1
     );
 }
@@ -70,12 +93,12 @@ fn blank_and_comment_lines_do_not_count() {
 fn continuations_and_heredocs_count() {
     let source: &str = "cmd \\\n  --flag \\\n  --other\n";
     assert_eq!(
-        check_shell("x.sh", source, ShellDialect::Posix, &lines(2)).len(),
+        check_bounded("x.sh", source, ShellDialect::Posix, &lines(2)).len(),
         1
     );
     let heredoc: &str = "cat <<EOF\nline\nEOF\n";
     assert_eq!(
-        check_shell("x.sh", heredoc, ShellDialect::Posix, &lines(2)).len(),
+        check_bounded("x.sh", heredoc, ShellDialect::Posix, &lines(2)).len(),
         1
     );
 }
@@ -84,7 +107,7 @@ fn continuations_and_heredocs_count() {
 #[test]
 fn carriage_returns_stay_outside_the_range() {
     let found: Vec<Diagnostic> =
-        check_shell("x.sh", "a\r\nb\r\nc\r\n", ShellDialect::Posix, &lines(2));
+        check_bounded("x.sh", "a\r\nb\r\nc\r\n", ShellDialect::Posix, &lines(2));
     assert_eq!(range(&found[0]), (6, 7));
 }
 
@@ -92,9 +115,9 @@ fn carriage_returns_stay_outside_the_range() {
 #[test]
 fn cmd_comment_lines_are_free() {
     let source: &str = "rem a\n:: b\nREM c\necho x\n";
-    assert!(check_shell("x.cmd", source, ShellDialect::Cmd, &lines(1)).is_empty());
+    assert!(check_bounded("x.cmd", source, ShellDialect::Cmd, &lines(1)).is_empty());
     assert_eq!(
-        check_shell("x.cmd", source, ShellDialect::Posix, &lines(1)).len(),
+        check_bounded("x.cmd", source, ShellDialect::Posix, &lines(1)).len(),
         1
     );
 }
@@ -104,7 +127,7 @@ fn cmd_comment_lines_are_free() {
 #[test]
 fn every_occurrence_over_the_budget_is_reported() {
     let settings: ShellRuleSettings = construct(Construct::Pipe, 0, Severity::Error);
-    let found: Vec<Diagnostic> = check_shell("x.sh", "a | b | c", ShellDialect::Posix, &settings);
+    let found: Vec<Diagnostic> = check_bounded("x.sh", "a | b | c", ShellDialect::Posix, &settings);
     assert_eq!(found.len(), 2);
     assert_eq!(found[0].code, "shell/no-pipe");
     assert_eq!(range(&found[0]), (2, 3));
@@ -116,12 +139,12 @@ fn every_occurrence_over_the_budget_is_reported() {
 #[test]
 fn a_positive_budget_reports_only_the_excess() {
     let settings: ShellRuleSettings = construct(Construct::Pipe, 1, Severity::Warn);
-    let found: Vec<Diagnostic> = check_shell("x.sh", "a | b | c", ShellDialect::Posix, &settings);
+    let found: Vec<Diagnostic> = check_bounded("x.sh", "a | b | c", ShellDialect::Posix, &settings);
     assert_eq!(found.len(), 1);
     assert_eq!(range(&found[0]), (6, 7));
     assert_eq!(found[0].severity, Severity::Warn);
     let enough: ShellRuleSettings = construct(Construct::Pipe, 2, Severity::Error);
-    assert!(check_shell("x.sh", "a | b | c", ShellDialect::Posix, &enough).is_empty());
+    assert!(check_bounded("x.sh", "a | b | c", ShellDialect::Posix, &enough).is_empty());
 }
 
 /// Only the selected construct is reported,
@@ -130,12 +153,12 @@ fn a_positive_budget_reports_only_the_excess() {
 fn other_constructs_and_inapplicable_dialects_are_quiet() {
     let settings: ShellRuleSettings = construct(Construct::Backtick, 0, Severity::Error);
     assert_eq!(
-        check_shell("x.sh", "echo `x` | y", ShellDialect::Posix, &settings).len(),
+        check_bounded("x.sh", "echo `x` | y", ShellDialect::Posix, &settings).len(),
         1
     );
-    assert!(check_shell("x.ps1", "echo `x`", ShellDialect::PowerShell, &settings).is_empty());
+    assert!(check_bounded("x.ps1", "echo `x`", ShellDialect::PowerShell, &settings).is_empty());
     assert!(
-        check_shell(
+        check_bounded(
             "x.sh",
             "echo ok",
             ShellDialect::Posix,
@@ -152,7 +175,7 @@ fn both_budgets_report_together() {
         max_lines: lines(1).max_lines,
         constructs: construct(Construct::Semicolon, 0, Severity::Error).constructs,
     };
-    let found: Vec<Diagnostic> = check_shell("x.sh", "a; b\nc\n", ShellDialect::Posix, &settings);
+    let found: Vec<Diagnostic> = check_bounded("x.sh", "a; b\nc\n", ShellDialect::Posix, &settings);
     assert_eq!(found.len(), 2);
     assert_eq!(found[0].code, "shell/max-lines");
     assert_eq!(found[1].code, "shell/no-semicolon");
@@ -163,8 +186,8 @@ fn both_budgets_report_together() {
 #[test]
 fn shell_a_bare_rem_line_is_a_cmd_comment_and_other_lines_count() {
     let comment_only: &str = "rem\nREM\n  Rem  \necho a\n";
-    assert!(check_shell("x.cmd", comment_only, ShellDialect::Cmd, &lines(1)).is_empty());
-    let found: Vec<Diagnostic> = check_shell(
+    assert!(check_bounded("x.cmd", comment_only, ShellDialect::Cmd, &lines(1)).is_empty());
+    let found: Vec<Diagnostic> = check_bounded(
         "x.cmd",
         "echo a\necho b\necho c\n",
         ShellDialect::Cmd,
@@ -181,7 +204,7 @@ fn shell_a_bare_rem_line_is_a_cmd_comment_and_other_lines_count() {
 /// A finding names the construct as the author wrote it.
 #[test]
 fn shell_a_construct_finding_quotes_the_token_as_written() {
-    let found: Vec<Diagnostic> = check_shell(
+    let found: Vec<Diagnostic> = check_bounded(
         "x.sh",
         "a | b\n",
         ShellDialect::Posix,
