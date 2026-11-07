@@ -4241,8 +4241,27 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     and nothing imports that file;
     so the notifications came from runs of `toolchain:update:daily` or `node daily-update.ts`
     outside the timer and outside a journaled unit.
-    Which agent ran them is not yet known;
-    the daily-update agent is asked to name it.
+    Measured cause (the daily-update agent's report):
+    its whole-path test ran the real entry point about seven times between 11:55 and 11:59
+    (four through `test:unit`,
+    three through a debug script),
+    about eleven notifications,
+    and `notifyOwner` fell back to the owner's real bus `unix:path=/run/user/<uid>/bus`
+    whenever the environment had no `DBUS_SESSION_BUS_ADDRESS`.
+    Fixed in `2b789210ec`:
+    the fallback is gone,
+    the test hosts the entry point in `monochromatic-nested-wayland-session-notification-recorder`
+    (private `dbus-daemon`,
+    no compositor,
+    log of what was sent),
+    a probe fails the test outside it,
+    and a real run sends at most one summary notification.
+    The same merge adds the after-update package checks
+    (Clippy for 31 Rust crates,
+    `lint:types` for 218 TypeScript packages,
+    measured bounds,
+    one `needs-triage` issue per newly broken package,
+    deduplicated by a marker).
     Owner,
     verbatim:
     "You can send real desktop notifications.
