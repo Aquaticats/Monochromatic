@@ -9,12 +9,15 @@
 //!  disk ("Keep the fallback (Recommended)", 2026-11-07), and the coordinator settled the same-process case from the owner's
 //!  rules ("Use as few locks as possible.", an atomic claim first; `doc/planning/git-policy-cli-full-tokio.md`, "Safe file
 //!  saving: the publish replaced", "Settled by the coordinator", item 1): the race is inside one process, so the process can
-//!  settle it by itself, without a lock and without a file. Two programs on such a disk can still overwrite each other; nothing
+//!  settle it by itself, in memory and without a file. Two programs on such a disk can still overwrite each other; nothing
 //!  in memory reaches them.
-//!  The claims are slots of a fixed table picked by a hash of the path. A claim is one atomic flag, taken and given back with no
-//!  lock, so a thread that dies holding a claim cannot be waited for by a lock that never opens: a claim is given back when its
-//!  guard drops, including by a panic. Two different names that hash to one slot wait for each other for the few microseconds a
-//!  check and a rename take; that is slower for that pair and never wrong.
+//!  The claims are slots of a fixed table picked by a hash of the path. A claim is one atomic flag taken by compare-and-swap and
+//!  given back when its guard drops, a panic included, so no thread that dies holding one leaves a name closed. It is not
+//!  lock-free for a thread that finds the flag taken: that thread waits for the holder (the one wait this design needs, so that
+//!  the loser can read the winner's file whole afterwards; the lock-inventory guard `source_guard/service_lock_inventory_tests.rs`
+//!  names mutexes, read-write locks, condition variables and `flock`, and this is none of them). Two different names that hash
+//!  to one slot wait for each other for the few microseconds a check and a rename take; that is slower for that pair and never
+//!  wrong.
 //!  A wait is bounded ("nothing should ever wait forever"): past the bound the caller gets an error and nothing was published,
 //!  which is the one answer that cannot let two threads win. The wait offers its turn a few times and then sleeps briefly between
 //!  tries, because a claim lasts a check and a rename, so the wait is over almost at once unless a rename stalls.
