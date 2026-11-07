@@ -13,10 +13,12 @@
 /// Message type of a method call.
 pub(crate) const METHOD_CALL: u8 = 1;
 
-/// Message type of a successful reply.
+/// Message type of a successful reply; only the controls' fake bus and the reader's controls use it now.
+#[cfg(test)]
 pub(crate) const METHOD_RETURN: u8 = 2;
 
-/// Message type of an error reply.
+/// Message type of an error reply; only the controls' fake bus and the reader's controls use it now.
+#[cfg(test)]
 pub(crate) const ERROR: u8 = 3;
 
 /// Header field code of the number of the call a reply answers.

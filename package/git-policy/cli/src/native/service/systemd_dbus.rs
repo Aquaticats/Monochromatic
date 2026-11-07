@@ -297,7 +297,7 @@ impl Bus {
             Ok(reply) => reply
                 .body()
                 .deserialize::<zbus::OwnedObjectPath>()
-                .map_err(|error| CallError::Malformed(error.to_string()))?
+                .map_err(|error| { return CallError::Malformed(error.to_string()); })?
                 .to_string(),
             Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => return Ok(None),
             Err(error) => return Err(error),
@@ -311,7 +311,7 @@ impl Bus {
         });
         return match reply {
             Ok(message) => {
-                let value: zbus::OwnedVariant = message.body().deserialize().map_err(|error| CallError::Malformed(error.to_string()))?;
+                let value: zbus::OwnedVariant = message.body().deserialize().map_err(|error| { return CallError::Malformed(error.to_string()); })?;
                 match String::try_from(value) {
                     Ok(text) => Ok(Some(text)),
                     Err(error) => Err(CallError::Malformed(error.to_string())),

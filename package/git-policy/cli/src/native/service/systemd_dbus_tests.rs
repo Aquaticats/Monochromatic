@@ -234,7 +234,7 @@ fn serial_of(call: &[u8]) -> u32 {
 
 /// A prebuilt answer with its `reply_serial` field set to `serial`.
 fn answering(mut answer: Vec<u8>, serial: u32) -> Vec<u8> {
-    if let Some(at) = answer.windows(4).position(|window| window == [5, 1, b'u', 0]) {
+    if let Some(at) = answer.windows(4).position(|window| { return window == [5, 1, b'u', 0]; }) {
         answer[at + 4..at + 8].copy_from_slice(&serial.to_le_bytes());
     }
     return answer;
@@ -421,7 +421,7 @@ fn the_state_of_a_unit_is_read_from_its_object_and_an_unloaded_unit_has_none() {
     };
     // Layouts are zbus's own now; the members called, in order, are what the exchange must show.
     let _unused = (&property, &GET_UNIT);
-    let members: Vec<bool> = [b"GetUnit".as_slice(), b"Get".as_slice(), b"GetUnit".as_slice()].iter().enumerate().map(|(at, member)| calls[at + 1].windows(member.len()).any(|window| window == *member)).collect();
+    let members: Vec<bool> = [b"GetUnit".as_slice(), b"Get".as_slice(), b"GetUnit".as_slice()].iter().enumerate().map(|(at, member)| { return calls[at + 1].windows(member.len()).any(|window| { return window == *member; }); }).collect();
     assert_eq!(members, vec![true, true, true]);
     remove(root.as_path());
 }

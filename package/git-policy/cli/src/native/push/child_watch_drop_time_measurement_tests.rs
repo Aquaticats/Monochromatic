@@ -64,18 +64,18 @@ fn measure_how_long_dropping_a_watch_takes() {
     let mut idle: Vec<u128> = Vec::new();
     let mut in_a_wait: Vec<u128> = Vec::new();
     for _ in 0..DROPS {
-        let watch: ChildWatch = ChildWatch::start("an idle watch", child.id(), terms(Duration::from_secs(3600), &sink));
+        let idle_watch: ChildWatch = ChildWatch::start("an idle watch", child.id(), terms(Duration::from_secs(3600), &sink));
         // The task is started on a worker; let it reach its first wait for a mark.
         std::thread::sleep(Duration::from_millis(2));
-        let started: Instant = Instant::now();
-        drop(watch);
-        idle.push(started.elapsed().as_micros());
-        let watch: ChildWatch = ChildWatch::start("a watch in a wait", child.id(), terms(Duration::from_secs(3600), &sink));
-        watch.begin();
+        let idle_started: Instant = Instant::now();
+        drop(idle_watch);
+        idle.push(idle_started.elapsed().as_micros());
+        let waiting_watch: ChildWatch = ChildWatch::start("a watch in a wait", child.id(), terms(Duration::from_secs(3600), &sink));
+        waiting_watch.begin();
         std::thread::sleep(Duration::from_millis(80));
-        let started: Instant = Instant::now();
-        drop(watch);
-        in_a_wait.push(started.elapsed().as_micros());
+        let waiting_started: Instant = Instant::now();
+        drop(waiting_watch);
+        in_a_wait.push(waiting_started.elapsed().as_micros());
     }
     child.kill().expect("end the child");
     child.wait().expect("collect the child");
