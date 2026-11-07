@@ -4241,6 +4241,19 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     the agent proposes the smallest shared piece,
     keeps a red-first guard against reaching the owner's bus,
     and limits a real run to one summary notification.
+- `monochromatic-lint` package clean on its own gates
+  (rustfmt,
+  README line breaks,
+  71 repository-lint findings,
+  merge `b75b3755ea`)
+  and released as `0.5.2-alpha.1`,
+  locked `86ce4da394`,
+  installed.
+  Fixer output measured unchanged on all 3051 Markdown files with three binaries.
+  `mutation:coverage` passes:
+  new scopes `--layout` (415 mutants) and `--workflow-shell` (741),
+  two files added to `--semantic`.
+  Campaigns over those three running (`test/monochromatic-lint-layout-and-workflow-mutants`).
 - zbus 6:
   `package/nested-wayland-session/cli` and `package/music-player/desktop-app` ported to zbus 6 async
   (`zbus::block_on` on zbus's own runtime;
