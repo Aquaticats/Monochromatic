@@ -75,6 +75,9 @@ pub mod earlier_name_moved_to_current_in_place;
 ///  and the finder for a reader that moves nothing.
 pub mod kept_names_in_the_git_directories;
 
+/// Whether any process has a file open for writing, found with a read lease that is taken and given back at once.
+pub mod file_open_for_write_by_any_process;
+
 /// The lines of a log an earlier release wrote added to the log under the current name, restartable after a kill.
 pub mod earlier_log_lines_added_to_current_log;
 

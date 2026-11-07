@@ -22,6 +22,7 @@
 //! await foldLog(gitDir, COMMIT_TIMING_LOG); // cli-git-commit-timing.jsonl is gone, its lines end the new log
 //! ```
 
+use crate::file_open_for_write_by_any_process::{WriterCheck, writer_check};
 use crate::private_storage::sync_directory;
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::wrapper_names_old_and_new::RenamedName;
@@ -34,6 +35,15 @@ pub const WAITING_SUFFIX: &str = ".earlier-lines-to-add";
 
 /// The end of the name of the journal and lock file of one fold: the name of the current log with this after it.
 pub const JOURNAL_SUFFIX: &str = ".earlier-lines-journal";
+
+/// The most rounds one command adds before it leaves the moved log for a later command.
+///  Unmeasured as a waiting time, derived from two measurements and the owner's rule "nothing should ever wait forever or
+///  indefinitely". The fastest writing of the timing logs read on 2026-11-07 (1,112 records of the current commit timing log, 257 of
+///  the earlier one, 114 and 19 of the two worktree-add timing logs) was 4 records in one second, so a program writes a record
+///  at most about every 250 ms; a round (one read, one append, one sync) is a few milliseconds, so a second round already outpaces
+///  every writer seen, and two seconds of the fastest writing seen would need 8 rounds. The leftover moved log and its journal
+///  carry whatever this command does not reach, and the next command continues from them.
+pub const ROUNDS_PER_COMMAND: usize = 8;
 
 /// The steps of a fold at which a control can stop it, as if the process had been killed there.
 pub trait FoldSteps {
@@ -57,6 +67,10 @@ pub enum LogFold {
     Nothing,
     /// Every byte of the earlier log is in the current log, and the earlier log and the journal are gone.
     Folded,
+    /// A program still has the moved log open for writing, or the rounds of this command ran out while it kept growing: every byte
+    ///  added so far is in the current log and the journal says where the next command continues, so no line is lost and none
+    ///  is added twice.
+    LeftForALaterCommand,
     /// Another process holds the fold of this log, or the earlier log vanished under another process's rename.
     Busy,
     /// A control stopped the fold at the named step.
@@ -79,10 +93,9 @@ fn journal_text(round: Round) -> String {
     return format!("{} {} {}\n", round.offset, round.from, round.to);
 }
 
-/// The round a journal's text records, or nothing when the text is empty or was cut short (nothing was appended yet then,
-///  because the append starts after the journal is synced).
-fn parse_journal(text: &str) -> Option<Round> {
-    let line: &str = text.strip_suffix('\n')?;
+/// The round one complete journal line records, or nothing when the line is not a record.
+fn parse_journal_line(whole_line: &str) -> Option<Round> {
+    let line: &str = whole_line.strip_suffix('\n')?;
     let mut numbers = line.split(' ').map(str::parse::<u64>);
     let offset: u64 = numbers.next()?.ok()?;
     let from: u64 = numbers.next()?.ok()?;
@@ -91,6 +104,13 @@ fn parse_journal(text: &str) -> Option<Round> {
         return None;
     }
     return Some(Round { offset, from, to });
+}
+
+/// The round a journal's text records: its last complete line that is a record, or nothing when there is none. A line cut short
+///  records nothing (nothing was appended yet then, because the append starts after the journal is synced), and the journal only
+///  grows, so a round is never recorded by overwriting the one before it.
+fn parse_journal(text: &str) -> Option<Round> {
+    return text.split_inclusive('\n').rev().find_map(parse_journal_line);
 }
 
 /// Whether anything exists at a path, a final symbolic link counting as present.
@@ -164,11 +184,34 @@ impl HeldJournal {
         return Ok(parse_journal(text.as_str()));
     }
 
-    /// Record a round and make the record durable before the round's append starts.
+    /// Record a round as a new last line and make the record durable before the round's append starts. A last line that a kill cut
+    ///  short is ended first, so the new line is a line of its own and the cut one stays unreadable.
     fn record(&mut self, round: Round) -> std::io::Result<()> {
+        let length: u64 = self.file.seek(SeekFrom::End(0))?;
+        let mut line: Vec<u8> = Vec::new();
+        if length > 0 {
+            let mut last: [u8; 1] = [0];
+            self.file.seek(SeekFrom::End(-1))?;
+            self.file.read_exact(&mut last)?;
+            if last[0] != b'\n' {
+                line.push(b'\n');
+            }
+        }
+        line.extend_from_slice(journal_text(round).as_bytes());
+        self.file.seek(SeekFrom::End(0))?;
+        self.file.write_all(line.as_slice())?;
+        return self.file.sync_all();
+    }
+
+    /// Whether the journal holds no byte.
+    fn is_empty(&self) -> std::io::Result<bool> {
+        return Ok(self.file.metadata()?.len() == 0);
+    }
+
+    /// Empty the journal and make that durable, for a journal that recorded an earlier fold's rounds.
+    fn clear(&mut self) -> std::io::Result<()> {
         self.file.set_len(0)?;
         self.file.seek(SeekFrom::Start(0))?;
-        self.file.write_all(journal_text(round).as_bytes())?;
         return self.file.sync_all();
     }
 }
@@ -283,6 +326,31 @@ fn length_of(path: &Path) -> std::io::Result<Option<u64>> {
     };
 }
 
+/// Whether the moved log is longer than the bytes already added; a log that is shorter counts as not grown.
+fn grown_past(path: &Path, from: u64) -> std::io::Result<bool> {
+    return Ok(length_of(path)?.is_some_and(|length| return length > from));
+}
+
+/// What:
+///  Leave the moved log and the journal for a later command, after recording that every byte before `from` is already in the
+///  current log (a round whose first and last byte are both `from`), unless the journal's last line already says so.
+/// Why:
+///   A program that opened the log before the move may write more lines to it, so the log cannot be removed now. The next
+///  command resumes from this record and adds only what grew since, which a record of the last real round would not say.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function leaveForALaterCommand(held: HeldJournal, last: Round | undefined, from: number): LogFold;
+/// ```
+fn leave_for_a_later_command(held: &mut HeldJournal, last: Option<Round>, from: u64, current: &Path) -> std::io::Result<LogFold> {
+    let said: bool = last.is_some_and(|round| return round.from == from && round.to == from);
+    if !said {
+        let offset: u64 = length_of(current)?.unwrap_or(0);
+        held.record(Round { offset, from, to: from })?;
+    }
+    return Ok(LogFold::LeftForALaterCommand);
+}
+
 /// What:
 ///  Fold the earlier log of `name` in `parent` into the current log, or finish a fold that a kill interrupted.
 /// Why:
@@ -320,6 +388,14 @@ pub fn fold_log(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) -> 
             let _gone = std::fs::remove_file(journal.as_path());
             return Ok(LogFold::Nothing);
         }
+        // A journal that survived without its moved log recorded a finished fold's rounds, and a later command must never resume
+        //  them against the moved log this one makes, so it is emptied before the move.
+        if !held.is_empty()? {
+            if !steps.may_continue("before-journal-clear") {
+                return Ok(LogFold::Stopped("before-journal-clear"));
+            }
+            held.clear()?;
+        }
         if !steps.may_continue("before-move-aside") {
             return Ok(LogFold::Stopped("before-move-aside"));
         }
@@ -328,11 +404,12 @@ pub fn fold_log(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) -> 
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(LogFold::Busy),
             Err(error) => return Err(error),
         }
-        // A journal that survived without its moved log recorded a finished fold's round, not this one's.
         recorded = None;
         sync_directory(parent)?;
     }
+    let mut last: Option<Round> = recorded;
     let mut from: u64 = 0;
+    let mut rounds: usize = 0;
     loop {
         let round: Round = match recorded.take() {
             Some(resumed) => resumed,
@@ -344,6 +421,7 @@ pub fn fold_log(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) -> 
                     return Ok(LogFold::Stopped("before-journal-record"));
                 }
                 held.record(fresh)?;
+                last = Some(fresh);
                 fresh
             }
         };
@@ -358,13 +436,30 @@ pub fn fold_log(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) -> 
             return Ok(LogFold::Stopped("after-append"));
         }
         from = round.to;
+        rounds += 1;
         // A program that had the moved log open when it was moved may have added a line since; those bytes are the next round.
-        if length_of(waiting.as_path())?.unwrap_or(from) == from {
-            break;
+        if grown_past(waiting.as_path(), from)? {
+            if rounds >= ROUNDS_PER_COMMAND {
+                return leave_for_a_later_command(&mut held, last, from, current.as_path());
+            }
+            continue;
         }
-    }
-    if !steps.may_continue("before-remove-moved-log") {
-        return Ok(LogFold::Stopped("before-remove-moved-log"));
+        if !steps.may_continue("before-remove-moved-log") {
+            return Ok(LogFold::Stopped("before-remove-moved-log"));
+        }
+        // The probe comes before the last size check: while no program has the moved log open for writing, none can write to it,
+        //  so a length that is still `from` after a probe that found no writer is final. A length checked before the probe would
+        //  leave room for a line written between the two.
+        if writer_check(waiting.as_path())? == WriterCheck::WriterHolds {
+            return leave_for_a_later_command(&mut held, last, from, current.as_path());
+        }
+        if grown_past(waiting.as_path(), from)? {
+            if rounds >= ROUNDS_PER_COMMAND {
+                return leave_for_a_later_command(&mut held, last, from, current.as_path());
+            }
+            continue;
+        }
+        break;
     }
     std::fs::remove_file(waiting.as_path())?;
     sync_directory(parent)?;
