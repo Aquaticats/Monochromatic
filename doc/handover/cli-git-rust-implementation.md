@@ -3605,8 +3605,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The tokio agent records it in `doc/planning/git-policy-cli-full-tokio.md`, adds a narrowly scoped trust entry
   with that sentence as its reason, and moves jiff to the newest allowed version on `feat/git-policy-cli-on-tokio`.
 - G1 of `doc/audit/tech-safe-file-saving-published-crates-vet-2026-11-07.md` (checked-rename fallback where a filesystem
-  has neither `RENAME_NOREPLACE` nor hard links) is not asked yet: the agent first measures which filesystems hit it
-  and what a person sees in each option. Today's checked rename stays meanwhile.
+  has neither `RENAME_NOREPLACE` nor hard links): facts gathered first (no in-kernel filesystem read lacks both;
+  s3fs-fuse does; with the library only, merge-concluding commits fail with "Operation not supported").
+  Asked, the owner picked "Keep the fallback (Recommended)" (10 lines plus a 15-line test).
+- The first tokio agent ran out of context with T1 to T3, the crate swaps and part of T4 done (head `8383a12bf7`,
+  gate 5094/5094). A second agent continues on the same branch from T4's remainder through T13 and the
+  `private_storage` replacement on `tempfile::persist_noclobber` with that fallback, and fixes the defect it found:
+  the service journal publishes by hard link with no fallback (`service/service_busy.rs:149`), so a state directory
+  that refuses links fails service commits today. It was told not to repeat the rules the first agent bent
+  (tests and fixes in one commit, a direct `cargo fetch`, one `pkill -f`, hand-reverting edits after a guard refused
+  `git checkout --`).
 
 ### Background Git never prompts (owner pick 2026-11-07)
 
