@@ -29,14 +29,24 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
- Lock platform the fixture archives are filed under.
+ Host architecture whose lock platform carries the fixture archive.
  */
-const FIXTURE_PLATFORM = ZIG_LOCK_PLATFORM_BY_HOST_ARCHITECTURE.x64;
+const FIXTURE_HOST_ARCHITECTURE = 'x64';
 
 /**
- Lock platform the fixture has no archive for.
+ Host architecture the lock maps to a platform, though the fixture holds no archive for it.
  */
-const FIXTURE_PLATFORM_WITHOUT_ARCHIVE = ZIG_LOCK_PLATFORM_BY_HOST_ARCHITECTURE.arm64;
+const FIXTURE_HOST_ARCHITECTURE_WITHOUT_ARCHIVE = 'arm64';
+
+/**
+ Host architecture the lock maps to no platform at all.
+ */
+const FIXTURE_HOST_ARCHITECTURE_WITHOUT_PLATFORM = 'riscv64';
+
+/**
+ Lock platform the fixture archives are filed under.
+ */
+const FIXTURE_PLATFORM = ZIG_LOCK_PLATFORM_BY_HOST_ARCHITECTURE[FIXTURE_HOST_ARCHITECTURE];
 
 /**
  Archive address the fixture lock records for Zig.
@@ -96,17 +106,17 @@ await describe({
             expect(lockedToolBuildArgumentsFromText({
               lockText: FIXTURE_LOCK,
               tool: 'zig',
-              platform: FIXTURE_PLATFORM,
+              hostArchitecture: FIXTURE_HOST_ARCHITECTURE,
             },),).toEqual([`ZIG_ARCHIVE_URL=${FIXTURE_ZIG_URL}`, `ZIG_ARCHIVE_SHA256=${FIXTURE_ZIG_SHA256}`,],);
           },
         },),
         it({
-          name: 'returns only the version for cargo-about, whatever the platform',
+          name: 'returns only the version for cargo-about, whatever the host architecture',
           fn: async () => {
             expect(lockedToolBuildArgumentsFromText({
               lockText: FIXTURE_LOCK,
               tool: 'cargo-about',
-              platform: undefined,
+              hostArchitecture: FIXTURE_HOST_ARCHITECTURE_WITHOUT_PLATFORM,
             },),).toEqual([`CARGO_ABOUT_VERSION=${FIXTURE_CARGO_ABOUT_VERSION}`,],);
           },
         },),
@@ -117,26 +127,26 @@ await describe({
               lockedToolBuildArgumentsFromText({
                 lockText: '{',
                 tool: 'zig',
-                platform: FIXTURE_PLATFORM,
+                hostArchitecture: FIXTURE_HOST_ARCHITECTURE,
               },)
             ).toThrow(LockedToolBuildArgumentsError,);
           },
         },),
         it({
-          name: 'rejects a zig lock without an archive for the platform, without a platform, and with an empty checksum',
+          name: 'rejects a zig lock without an archive for the platform, for an architecture the lock has no platform for, and with an empty checksum',
           fn: async () => {
             expect(() =>
               lockedToolBuildArgumentsFromText({
                 lockText: FIXTURE_LOCK,
                 tool: 'zig',
-                platform: FIXTURE_PLATFORM_WITHOUT_ARCHIVE,
+                hostArchitecture: FIXTURE_HOST_ARCHITECTURE_WITHOUT_ARCHIVE,
               },)
             ).toThrow(LockedToolBuildArgumentsError,);
             expect(() =>
               lockedToolBuildArgumentsFromText({
                 lockText: FIXTURE_LOCK,
                 tool: 'zig',
-                platform: undefined,
+                hostArchitecture: FIXTURE_HOST_ARCHITECTURE_WITHOUT_PLATFORM,
               },)
             ).toThrow(LockedToolBuildArgumentsError,);
             expect(() =>
@@ -145,7 +155,7 @@ await describe({
                   tools: { zig: { artifacts: { [FIXTURE_PLATFORM]: { url: FIXTURE_ZIG_URL, sha256: '', }, }, }, },
                 },),
                 tool: 'zig',
-                platform: FIXTURE_PLATFORM,
+                hostArchitecture: FIXTURE_HOST_ARCHITECTURE,
               },)
             ).toThrow(LockedToolBuildArgumentsError,);
           },
@@ -158,7 +168,7 @@ await describe({
                 lockedToolBuildArgumentsFromText({
                   lockText,
                   tool: 'cargo-about',
-                  platform: undefined,
+                  hostArchitecture: FIXTURE_HOST_ARCHITECTURE_WITHOUT_PLATFORM,
                 },)
               ).toThrow(LockedToolBuildArgumentsError,);
             }
@@ -182,7 +192,7 @@ await describe({
             expect(await readLockedToolBuildArguments({
               startDirectory: nested,
               tool: 'cargo-about',
-              platform: undefined,
+              hostArchitecture: FIXTURE_HOST_ARCHITECTURE_WITHOUT_PLATFORM,
             },),).toEqual([`CARGO_ABOUT_VERSION=${FIXTURE_CARGO_ABOUT_VERSION}`,],);
           },
         },),
@@ -194,7 +204,7 @@ await describe({
             await expect(readLockedToolBuildArguments({
               startDirectory: directory.path,
               tool: 'zig',
-              platform: FIXTURE_PLATFORM,
+              hostArchitecture: FIXTURE_HOST_ARCHITECTURE,
             },),).rejects.toThrow(LockedToolBuildArgumentsError,);
           },
         },),
