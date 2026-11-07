@@ -202,6 +202,8 @@ pub mod sync;
 
 /// Running the cleanup of old copies after `install` and printing its lines.
 pub mod sync_old_copies;
+/// The wording of what `install` prints for a sync.
+pub mod sync_report_text;
 
 /// CI detection by the rules of `ci-info`,
 /// which pnpm uses.

@@ -233,6 +233,8 @@ pub mod update;
 /// The full update's resolution of each crate root,
 /// split out of `update.rs`.
 pub mod update_resolve;
+/// The option tests and the raised-floor warning wording that `update` asks about.
+pub(crate) mod update_argument_and_warning_text;
 
 /// The verification of the lockfiles an update leaves,
 /// split out of `update.rs`.
@@ -431,6 +433,7 @@ mod round_seventeen_tests;
 /// Round 8 tests of acceptance rows no other test file of the round holds.
 #[cfg(test)]
 mod round_twentyone_tests;
+/// Round 8 tests of acceptance rows that no other test file of the round holds.
 #[cfg(test)]
 mod acceptance_rows_tests;
 /// Round 8 tests of the failures on the containment path after a program started,

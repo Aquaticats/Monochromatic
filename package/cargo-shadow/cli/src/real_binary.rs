@@ -269,8 +269,11 @@ pub fn after_check_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
 /// export function vet(program: string): Vetted  // throws the reason
 /// ```
 pub fn vet(program: &Path) -> Result<Vetted, String> {
+    /// Reads the first bytes of the file to see whether it is a script or a compiled program.
     use std::io::Read;
+    /// The raw descriptor number that names the opened file in `/proc/self/fd`.
     use std::os::fd::AsRawFd;
+    /// The device and inode numbers that identify the file whatever its name.
     use std::os::unix::fs::MetadataExt;
     // Executing a program needs no read permission, and the PATH search accepts an execute-only file, so a refused read is not a refusal
     // to start: the file is opened by `O_PATH` instead (an identity for the checks, no reading). What cannot be read cannot be told from
@@ -279,6 +282,8 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
     let (file, readable): (fs::File, bool) = match fs::File::open(program) {
         Ok(opened) => (opened, true),
         Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            /// The raw open flag `O_PATH`,
+            /// which opens a file only as an identity when its content cannot be read.
             use std::os::unix::fs::OpenOptionsExt;
             let by_path: fs::File = fs::OpenOptions::new().read(true).custom_flags(OPEN_BY_PATH_ONLY).open(program).map_err(|second| { return format!("{} cannot be opened ({error}; by path only: {second})", program.display()); })?;
             (by_path, false)
@@ -327,7 +332,9 @@ impl Vetted {
     /// command(): Command  // throws the reason
     /// ```
     pub fn command(&self) -> Result<std::process::Command, String> {
+        /// The raw descriptor number the vetted file is started through.
         use std::os::fd::AsRawFd;
+        /// The exec call that replaces the current process image with the vetted program.
         use std::os::unix::process::CommandExt;
         #[cfg(test)]
         if let Some(hook) = AFTER_CHECK.with(|slot| { return slot.borrow().clone(); }) {

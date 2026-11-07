@@ -3993,12 +3993,29 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     and the test asserts the queued answer is the first line (`service_reply_tests.rs:65-71`),
     so a test thread scheduled more than 20 ms late reads a beat first;
     the tokio agent fixes the test with a sleep control proving the race;
-    back with the tokio agent for measured causes of the four push failures;
-    the coordinator's unmeasured hypothesis is that stops now wait up to 18 s whenever a member is in `D` under disk pressure,
-    which would be a production regression too;
-    not merged;
-    after a clean gate:
-    merge into main,
+    the coordinator's hypothesis that stops now wait up to 18 s whenever a member is in `D` was measured false
+    (stop controls took 2.6 to 8.1 s before and after the change;
+    a temporary probe counted zero looks finding a member in `D` across 86 stop controls at load 24 to 47;
+    the three aborted push controls log no stop at all);
+    those three were victims of a host stall episode
+    (tests needing no wait took 0.04 s to 122 s,
+    0.02 s to 35 s;
+    total test time 2108 s against 1289 s;
+    alone afterwards at normal speed);
+    `bounded_push` sweep control and the `service_reply` control fixed red-first;
+    the tokio agent's narrowing proposal (wait past the grace for a member in `D` only while the ledger names an unproven
+    lock born since the step began) is recorded in the plan,
+    not built,
+    because nothing measured shows the owner's 3x costing anything.
+    Clean gate on `9afcac4a26`:
+    5217 of 5217,
+    Clippy and lint clean;
+    main merged again `8b8c9440de` without conflict.
+    Order:
+    the branch stays frozen until the wrapper alpha cut from main `d2598b2842` is out
+    (the release tool releases whatever main holds),
+    then merge into main,
+    gate,
     `native:perf`,
     a wrapper alpha,
     and the mutation campaign over the changed files;
@@ -4374,6 +4391,67 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   alpha releases.
   Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
   its worktree and branch are removed.
+- Repository-wide `monochromatic-lint`:
+  merged into main in small merges,
+  the last `cc34dc6faf`;
+  174,916 findings (main `136a40fe69`) down to 38,466.
+  Left:
+  `package/git-policy/cli` 35,006 (its own branch,
+  ready,
+  merges after the alpha);
+  `doc/decision` 1,785 (owner question in `doc/handover/questions-for-the-owner.md`);
+  about 1,675 in scope
+  (`music-player/desktop-app` rustdoc 664,
+  closures 610 across `cargo-shadow`,
+  `forbidden-strings`,
+  `file-manager` and others,
+  fenced-Rust rustdoc warnings in docs 263,
+  shell 96 in `catalog-specifiers.yml`,
+  `playwright-image.yml` and `repo-tools-setup`,
+  `max-lines` 13,
+  fuzz seeds 4 that need an approved ignore);
+  the closure check skipped five packages whose dependencies were not in the cargo cache,
+  so the closure count is low.
+  The fixer's content-changing defects (URL in a code span,
+  pipe table to HTML,
+  `///` inside fenced Rust,
+  `>` in blockquotes) are given to an agent (`fix/monochromatic-lint-fix-changes-only-whitespace`);
+  commits that only added markers are separate and revertable
+  (`c9d4e2dde5`,
+  `18b830ea58`,
+  `2f11a41621`,
+  `8a7ca6e81f`,
+  `102099f24b`,
+  `265cdbbc0c`,
+  `4b367c4a37`).
+  Why nothing caught it:
+  the commit path checks one Markdown rule,
+  CI's lint step cannot find the tool,
+  `mise run lint` runs nowhere;
+  proposal `doc/planning/repository-linter-stays-at-zero.md` (owner question).
+  It also changed release-path files after the wrapper's release gate started:
+  `.github/workflows/cargo-publish.yml` (trimmed under its ratchet)
+  and the crates.io decision action (now a Node step,
+  agreeing with the old bash on 21 manifests);
+  the release dry run exercises both.
+- Commit stalls,
+  measured 2026-11-07 from `.git/monochromatic-git-policy-cli-commit-timing.jsonl`
+  (`~/temp/agent/commit-timing-today.ts`):
+  450 commits,
+  442 landed,
+  7 stopped,
+  1 ended;
+  `totalMs` p50 2066,
+  p90 13710,
+  p99 416760,
+  max 1228797;
+  141 over 5 s.
+  The four longest (678 to 1229 s,
+  worktree `repository-passes-monochromatic-lint`) ended `stopped` after `answerWaitMs` 1200776 with `lockHolderKind`
+  `unproven`;
+  the holder was an orphaned `git commit` holding that worktree's `index.lock`.
+  Against "Commits should never fail" and the 5 s rule;
+  given to an agent (`fix/git-policy-cli-commits-never-stall-on-an-unproven-lock`).
 - Music player:
   merged into main `9944c1ffe8` (1601 of 1601 desktop-app tests,
   Clippy and e2e lint clean;
@@ -4451,8 +4529,25 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   a new `file-enforcer` rule kind;
   C:
   a commit-time guard) is in `package/claude-code-plugin/guardrail/README.md` "Maintenance";
-  not built,
-  for the owner.
+  not built.
+  Owner,
+  2026-11-07:
+  "Open a gh issue.
+  Do not address it in this session as we need to focus on our git wrapper."
+  Opened as issue #6265.
+  Old against new bundle on 3000 commands sampled evenly from 386294 distinct Bash commands in 1725 local transcripts
+  (owner:
+  "I approve personal data and transcript corpus commands.";
+  scratch `~/temp/agent/gbm`,
+  `extract-streaming.ts`,
+  `diff-run.ts`,
+  `diff-run2.ts`):
+  guardrail 3000 commands,
+  one deny on each side for the same command (an `until ! pgrep` loop),
+  differing only in the refusal text (`2619ea3af7`),
+  no non-zero exit;
+  `bash-output-filter` 1620 of 1620 identical;
+  `terminal-title` 800 of 800 identical title bytes on a private pty.
   A leftover:
   `.claude/worktrees/guardrail-bundle-matches-sources` holds two uncommitted,
   regenerable sibling builds.
