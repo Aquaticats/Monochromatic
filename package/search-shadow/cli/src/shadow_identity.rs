@@ -202,6 +202,20 @@ pub fn shadow_behind(candidate: &Path) -> Option<String> {
     return Some(format!("a chain of more than {MAX_LAUNCHER_HOPS} launchers that never reaches a program"));
 }
 
+/// What:
+/// `pub fn identity_of_open_file_unless_launcher(file: &fs::File, program: &Path) -> Option<String>` is the identity of the shadow that
+/// starting `program` would start, judged on the open file when no launcher record stands beside the path and by where the record leads when one does.
+/// Why:
+/// A launcher is a copy of the `mpm-shadow` program, which carries the identity: its own bytes say nothing about the tool it starts.
+/// Without a record the open file is the whole answer, and it is the file that is about to be started.
+pub fn identity_of_open_file_unless_launcher(file: &fs::File, program: &Path) -> Option<String> {
+    let has_record: bool = fs::canonicalize(program).ok().is_some_and(|resolved| { return record_target(&resolved).is_some(); });
+    if has_record {
+        return shadow_behind(program);
+    }
+    return identity_of_open_file(file);
+}
+
 /// The first bytes of an ELF file.
 const ELF_MAGIC: [u8; 4] = *b"\x7fELF";
 
@@ -241,11 +255,8 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
         }
         Err(error) => return Err(format!("{} cannot be opened ({error})", program.display())),
     };
-    if let Some(identity) = identity_of_open_file(&file) {
-        return Err(format!("{} is {identity}, a shadow, so it was not started", program.display()));
-    }
-    if let Some(identity) = shadow_behind(program) {
-        return Err(format!("{} leads to {identity}, a shadow, so it was not started", program.display()));
+    if let Some(identity) = identity_of_open_file_unless_launcher(&file, program) {
+        return Err(format!("{} is or leads to {identity}, a shadow, so it was not started", program.display()));
     }
     let mut magic: [u8; 4] = [0; 4];
     let looks_compiled: bool = readable && file.read_exact_at(&mut magic, 0).is_ok() && magic == ELF_MAGIC;

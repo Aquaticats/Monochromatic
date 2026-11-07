@@ -44,7 +44,7 @@ fn the_running_program_carries_the_identity_it_says_it_has() {
     let found: Option<String> = identity_of_open_file(&file);
 
     assert_eq!(found.as_deref(), Some(own_identity()));
-    assert!(own_identity().starts_with("monochromatic-search-shadow "), "{}", own_identity());
+    assert!(own_identity().starts_with(concat!(env!("CARGO_PKG_NAME"), " ")), "{}", own_identity());
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn a_compiled_program_that_is_not_a_shadow_carries_no_identity() {
 fn a_text_file_that_quotes_the_identity_is_not_a_shadow() {
     let folder = scratch();
     let path: PathBuf = folder.path().join("quote");
-    fs::write(&path, format!("{IDENTITY_PREFIX}monochromatic-search-shadow 0.0.1\n")).expect("write the file");
+    fs::write(&path, format!("{IDENTITY_PREFIX}monochromatic-example-shadow 0.0.1\n")).expect("write the file");
 
     assert_eq!(identity_of_open_file(&fs::File::open(&path).expect("open")), None);
     assert_eq!(shadow_behind(&path), None);
@@ -197,8 +197,19 @@ fn vet_refuses_a_shadow_and_a_launcher_that_leads_to_one_and_accepts_a_real_prog
     let refused_launcher: String = vet(&launcher).err().expect("a launcher of a shadow is refused");
 
     assert!(refused_shadow.contains(own_identity()) && refused_shadow.contains("a shadow"), "{refused_shadow}");
-    assert!(refused_launcher.contains("leads to"), "{refused_launcher}");
+    assert!(refused_launcher.contains("leads to") || refused_launcher.contains("or leads"), "{refused_launcher}");
     assert!(vet(&real).is_ok());
+}
+
+#[test]
+fn vet_accepts_a_launcher_that_is_a_copy_of_a_shadow_when_its_record_leads_to_a_real_program() {
+    // The toolchain's launcher carries the identity (it is a copy of mpm-shadow) and must not make every tool look like a shadow.
+    let folder = scratch();
+    let real: PathBuf = copy_program(Path::new("/usr/bin/true"), &folder.path().join("real").join("tool"));
+    let launcher: PathBuf = copy_program(&test_program(), &folder.path().join("launchers").join("tool"));
+    write_record(&launcher, &real);
+
+    assert!(vet(&launcher).is_ok());
 }
 
 #[test]
@@ -307,12 +318,12 @@ fn the_birth_identity_is_counted_after_the_last_bracket_of_the_name() {
 
 #[test]
 fn the_arrival_line_is_one_line_naming_both_shadows_the_tool_and_the_exit_status() {
-    let arrival = Arrival { mode: StartMode::Exec, pid: 4242, birth: "1".to_string(), starter: "monochromatic-search-shadow 0.2.1".to_string() };
+    let arrival = Arrival { mode: StartMode::Exec, pid: 4242, birth: "1".to_string(), starter: "monochromatic-example-shadow 0.2.1".to_string() };
 
     let line: String = arrival_line("grep", &arrival);
 
     assert_eq!(line.lines().count(), 1, "{line}");
-    assert!(line.contains(own_identity()) && line.contains("monochromatic-search-shadow 0.2.1") && line.contains("4242"), "{line}");
+    assert!(line.contains(own_identity()) && line.contains("monochromatic-example-shadow 0.2.1") && line.contains("4242"), "{line}");
     assert!(line.contains("real `grep`") && line.contains(&ARRIVAL_EXIT_CODE.to_string()), "{line}");
     assert_ne!(ARRIVAL_EXIT_CODE, 0);
     assert!(ARRIVAL_VARIABLE.starts_with("MONOCHROMATIC_SHADOW_"));
