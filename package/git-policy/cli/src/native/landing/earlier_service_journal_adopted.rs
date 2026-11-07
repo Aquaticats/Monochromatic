@@ -130,7 +130,7 @@ pub fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Pat
         ceiling: PROCESS_LOOK_CEILING,
     };
     if service_of_instance_may_run(look, proc_root) {
-        crate::service_log!("the earlier service's journals {} and {} are left for now: a service of this worktree may be running, or the processes cannot be looked at", earlier.per_instance.display(), earlier.shared.display());
+        crate::service_log!("the earlier service's journals {} and {} are left for now: a service of this worktree may be running or may start (its socket listens), or the sockets and processes cannot be looked at; the next start of this service tries again", earlier.per_instance.display(), earlier.shared.display());
         return reports;
     }
     for journal in [earlier.per_instance, earlier.shared] {

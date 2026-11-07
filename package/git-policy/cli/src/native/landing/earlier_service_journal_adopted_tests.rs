@@ -44,10 +44,11 @@ fn world_with_earlier_journal(name: &str, state_name: &str) -> (World, PathBuf) 
     return (world, state);
 }
 
-/// A proc root that lists no process.
+/// A proc root that lists no process and no socket.
 fn empty_proc(world: &World) -> PathBuf {
     let proc_root: PathBuf = world.root.join("proc-empty");
     std::fs::create_dir_all(proc_root.as_path()).expect("proc root");
+    write_unix_table(proc_root.as_path(), &[]);
     return proc_root;
 }
 
@@ -96,12 +97,18 @@ fn a_service_of_the_worktree_is_found_among_the_processes_and_nothing_else_is() 
     let world: World = world("adopt-proc");
     let proc_root: PathBuf = empty_proc(&world);
     let own: u32 = 4242;
+    // Journals other than the worktree's earlier ones exist as folders: a journal that cannot be resolved counts as "may be running".
+    let other_journal: PathBuf = world.root.join("other-journal");
+    let other_instance_journal: PathBuf = world.root.join("shared-of-other/other");
+    std::fs::create_dir_all(other_journal.as_path()).expect("another journal");
+    std::fs::create_dir_all(other_instance_journal.as_path()).expect("another instance's journal");
+    let (other_journal, other_instance_journal) = (other_journal.to_string_lossy().into_owned(), other_instance_journal.to_string_lossy().into_owned());
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "no process");
     fake_process(proc_root.as_path(), 10, &["/bin/sh", "-c", "service run --instance abc"]);
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "one word, not separate words");
-    fake_process(proc_root.as_path(), 11, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", "/j", "--instance", "other"]);
+    fake_process(proc_root.as_path(), 11, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", other_journal.as_str(), "--instance", "other"]);
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "another worktree's service");
-    fake_process(proc_root.as_path(), 14, &["/p/cli-git-native", "--journal", "/s/other", "--git", "/usr/bin/git", "--instance", "other"]);
+    fake_process(proc_root.as_path(), 14, &["/p/cli-git-native", "--journal", other_instance_journal.as_str(), "--git", "/usr/bin/git", "--instance", "other"]);
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "another worktree's service of the earlier unit shape");
     fake_process(proc_root.as_path(), 15, &["/p/cli-git-native", "/s/abc", "--journal"]);
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "the journal is the word after the option");
@@ -327,6 +334,7 @@ fn the_single_service_of_the_first_releases_is_found_by_the_shared_journal() {
 #[test]
 fn a_process_with_another_journal_and_another_instance_does_not_hold_the_adoption() {
     let taken: bool = adoption_takes_the_batch("adopt-other-journal", |proc_root, world, _instance| {
+        std::fs::create_dir_all(world.root.join("elsewhere")).expect("another journal");
         let other: String = world.root.join("elsewhere").to_string_lossy().into_owned();
         fake_process(proc_root, 23, &["/p/cli-git-native", "--journal", other.as_str(), "--git", "/usr/bin/git", "--instance", "other"]);
     });
