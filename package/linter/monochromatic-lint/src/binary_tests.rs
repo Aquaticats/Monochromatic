@@ -1488,21 +1488,34 @@ fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
 #[test]
 fn layout_group_folders_run_in_the_built_executable() {
     let fixture: Fixture = Fixture::new();
-    fixture.write("Cargo.toml", "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n");
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
     fixture.write("src/lib.rs", "mod g;\nmod h;\n");
     let list: &str = "//! Files in this folder, each using only files listed before it:\n//!\n";
     fixture.write("src/g/mod.rs", "mod a;\n");
-    fixture.write("src/g/a/mod.rs", format!("{list}//! - `thing.rs`: the thing.\nmod thing;\n").as_str());
+    fixture.write(
+        "src/g/a/mod.rs",
+        format!("{list}//! - `thing.rs`: the thing.\nmod thing;\n").as_str(),
+    );
     fixture.write("src/g/a/thing.rs", "pub struct X;\n");
     fixture.write("src/h/mod.rs", "mod c;\n");
-    fixture.write("src/h/c/mod.rs", format!("{list}//! - `user.rs`: uses the thing.\nmod user;\n").as_str());
+    fixture.write(
+        "src/h/c/mod.rs",
+        format!("{list}//! - `user.rs`: uses the thing.\nmod user;\n").as_str(),
+    );
     fixture.write("src/h/c/user.rs", "use crate::g::a::X;\n");
-    fixture.write(CONFIG, r#"[{ "files": ["**/*.rs"], "rules": {
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["**/*.rs"], "rules": {
       "rust/folder-uses-links": { "severity": "error" },
       "rust/file-order-in-folder": { "severity": "error" }
-    } }]"#);
+    } }]"#,
+    );
     std::fs::create_dir_all(fixture.path.join("src/h/c/uses")).expect("child uses folder");
-    std::os::unix::fs::symlink("../../../g/a", fixture.path.join("src/h/c/uses/a")).expect("child link");
+    std::os::unix::fs::symlink("../../../g/a", fixture.path.join("src/h/c/uses/a"))
+        .expect("child link");
     // The child's link is exact, but the group has no summary of the entry its child uses.
     let missing: Run = run(&fixture.path, &["src"], b"");
     assert_eq!(missing.status, 1, "{}", missing.stderr);
@@ -1512,12 +1525,21 @@ fn layout_group_folders_run_in_the_built_executable() {
         "{}",
         missing.stdout
     );
-    assert!(missing.stdout.contains("src/h/uses has no link to src/g."), "{}", missing.stdout);
+    assert!(
+        missing.stdout.contains("src/h/uses has no link to src/g."),
+        "{}",
+        missing.stdout
+    );
     // With the summary in place nothing is left.
     std::fs::create_dir_all(fixture.path.join("src/h/uses")).expect("group uses folder");
     std::os::unix::fs::symlink("../../g", fixture.path.join("src/h/uses/g")).expect("group link");
     let clean: Run = run(&fixture.path, &["src"], b"");
-    assert_eq!((clean.status, clean.stdout.as_str()), (0, ""), "{}", clean.stderr);
+    assert_eq!(
+        (clean.status, clean.stdout.as_str()),
+        (0, ""),
+        "{}",
+        clean.stderr
+    );
 }
 
 /// The unit-test scratch root,

@@ -119,7 +119,9 @@ fn layout_a_summary_link_into_another_group_is_reported() {
         "{found:#?}"
     );
     assert!(
-        found.iter().any(|text| return text.contains("src/h/uses has no link to src/g.")),
+        found
+            .iter()
+            .any(|text| return text.contains("src/h/uses has no link to src/g.")),
         "{found:#?}"
     );
 }
@@ -137,7 +139,9 @@ fn layout_a_one_folder_entry_is_summarized_by_its_own_name() {
     link(&fixture.path, "src/h/c/uses/x", "../../../x");
     assert_eq!(
         findings_of(&fixture.path),
-        ["src/h/c/mod.rs:1 src/h/c uses the folder src/x (`crate::x::Y`), but src/h/uses has no link to src/x."]
+        [
+            "src/h/c/mod.rs:1 src/h/c uses the folder src/x (`crate::x::Y`), but src/h/uses has no link to src/x."
+        ]
     );
     link(&fixture.path, "src/h/uses/x", "../../x");
     assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
@@ -183,7 +187,9 @@ fn layout_code_in_the_index_of_a_group_is_reported() {
     link_group_h_to_g(&fixture.path);
     assert_eq!(
         findings_of(&fixture.path),
-        ["src/g/mod.rs:3 src/g/mod.rs is the index of the group folder src/g, so it may hold only its top doc and `mod` lines, but it holds a function `helper`."]
+        [
+            "src/g/mod.rs:3 src/g/mod.rs is the index of the group folder src/g, so it may hold only its top doc and `mod` lines, but it holds a function `helper`."
+        ]
     );
 }
 
@@ -220,7 +226,9 @@ fn layout_a_child_that_links_a_group_is_reported() {
         "{found:#?}"
     );
     assert!(
-        found.iter().any(|text| return text.contains("src/h/c uses the folder src/g/a (`crate::g::a::X`) but src/h/c/uses has no link to it.")),
+        found.iter().any(|text| return text.contains(
+            "src/h/c uses the folder src/g/a (`crate::g::a::X`) but src/h/c/uses has no link to it."
+        )),
         "{found:#?}"
     );
 }
@@ -233,7 +241,9 @@ fn layout_a_child_that_names_a_group_is_reported() {
     let fixture = package_with(&files);
     assert_eq!(
         findings_of(&fixture.path),
-        ["src/h/c/mod.rs:1 src/h/c uses the group folder src/g itself (`crate::g`), but a folder names the folders inside a group that it uses, never the group itself."]
+        [
+            "src/h/c/mod.rs:1 src/h/c uses the group folder src/g itself (`crate::g`), but a folder names the folders inside a group that it uses, never the group itself."
+        ]
     );
 }
 
