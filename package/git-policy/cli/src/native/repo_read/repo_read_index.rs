@@ -1,24 +1,39 @@
 //! What:
-//!  The entries of an index file read in process, for versions 2, 3 and 4.
+//!  The entries of an index file read in process,
+//! for versions 2,
+//! 3 and 4.
 //! Why:
-//!  `ls-files --stage`, `ls-files --unmerged` and the cached diffs only need each entry's path, mode, object name and
+//!  `ls-files --stage`,
+//! `ls-files --unmerged` and the cached diffs only need each entry's path,
+//! mode,
+//! object name and
 //!  stage.
-//!  The reader returns `None` for a split index (`link`), a sparse index (`sdir` or a directory entry), an unknown
-//!  required extension, unsorted entries or a size that does not add up, so Git answers those.
-//!  It does not verify the trailing checksum; Git does, and a torn index cannot occur because writers rename a finished file.
+//!  The reader returns `None` for a split index (`link`),
+//! a sparse index (`sdir` or a directory entry),
+//! an unknown
+//!  required extension,
+//! unsorted entries or a size that does not add up,
+//! so Git answers those.
+//!  It does not verify the trailing checksum;
+//! Git does,
+//! and a torn index cannot occur because writers rename a finished file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const entries: IndexEntry[] | undefined = parseIndex(bytes, objectFormat); // undefined: ask Git
 //! ```
 
-/// The `TREE` (cache-tree) extension, which names the tree each valid directory of the index hashes to.
+/// The `TREE` (cache-tree) extension,
+/// which names the tree each valid directory of the index hashes to.
 use crate::index_byte_search::first_index_of_byte;
 use crate::index_cache_tree::CacheTree;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::name_length;
 
-/// The bytes of the index header: signature, version, entry count.
+/// The bytes of the index header:
+/// signature,
+/// version,
+/// entry count.
 const HEADER_LENGTH: usize = 12;
 
 /// The bytes of the fixed stat fields before the object name in an entry.
@@ -30,15 +45,19 @@ pub const INTENT_TO_ADD: u16 = 0x2000;
 /// One index entry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexEntry {
-    /// The path, `/` separated, relative to the top of the worktree.
+    /// The path,
+    /// `/` separated,
+    /// relative to the top of the worktree.
     pub path: Vec<u8>,
     /// The file mode with its type bits.
     pub mode: u32,
     /// The object name.
     pub id: Vec<u8>,
-    /// The merge stage, 0 for a resolved path.
+    /// The merge stage,
+    /// 0 for a resolved path.
     pub stage: u8,
-    /// The extended flags of a version 3 or 4 entry, 0 otherwise.
+    /// The extended flags of a version 3 or 4 entry,
+    /// 0 otherwise.
     pub extended: u16,
 }
 
@@ -55,7 +74,8 @@ fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 }
 
 /// What:
-///  Parse the whole file; `None` when anything is outside the plain layouts listed above.
+///  Parse the whole file;
+/// `None` when anything is outside the plain layouts listed above.
 /// Why:
 ///   Every answer built on it is checked against Git by the differential controls.
 ///
@@ -71,16 +91,20 @@ pub fn parse_index(bytes: &[u8], format: ObjectFormat) -> Option<Vec<IndexEntry>
 /// The entries of an index file and its cache-tree extension.
 #[derive(Clone, Debug)]
 pub struct ParsedIndex {
-    /// The entries, sorted by path and stage.
+    /// The entries,
+    /// sorted by path and stage.
     pub entries: Vec<IndexEntry>,
-    /// The `TREE` extension, or `None` when the file has none or it does not read as Git writes it.
+    /// The `TREE` extension,
+    /// or `None` when the file has none or it does not read as Git writes it.
     pub tree: Option<CacheTree>,
 }
 
 /// What:
-///  `parse_index`, keeping the cache-tree extension.
+///  `parse_index`,
+/// keeping the cache-tree extension.
 /// Why:
-///   A directory the cache-tree marks valid has a tree name that the index entries below it hash to, so a comparison of the index
+///   A directory the cache-tree marks valid has a tree name that the index entries below it hash to,
+/// so a comparison of the index
 ///  with a tree can leave that directory unread when the tree has the same name there (`repo_read_tree_cached.rs`).
 ///
 /// In TS you'd write (pseudocode):

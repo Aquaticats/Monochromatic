@@ -1,8 +1,14 @@
-//! Controls for the tree and commit parsers; the comparisons with real Git are in `repo_read_query_tests.rs`.
+//! Controls for the tree and commit parsers;
+//! the comparisons with real Git are in `repo_read_query_tests.rs`.
 
 use super::*;
 
-/// A tree entry in the stored layout: mode, space, name, NUL, raw name.
+/// A tree entry in the stored layout:
+/// mode,
+/// space,
+/// name,
+/// NUL,
+/// raw name.
 fn stored(mode: &str, name: &str, id: u8) -> Vec<u8> {
     let mut bytes: Vec<u8> = format!("{mode} {name}").into_bytes();
     bytes.push(0);
@@ -10,12 +16,14 @@ fn stored(mode: &str, name: &str, id: u8) -> Vec<u8> {
     return bytes;
 }
 
-/// The subject of a message that holds a NUL byte, which Git's string handling would cut.
+/// The subject of a message that holds a NUL byte,
+/// which Git's string handling would cut.
 fn parse_subject_with_nul() -> Option<Vec<u8>> {
     return subject_of(b"left\0right\n");
 }
 
-/// Entries come back in stored order with their modes, and malformed ones are refused.
+/// Entries come back in stored order with their modes,
+/// and malformed ones are refused.
 #[test]
 fn trees_parse_and_malformed_ones_are_refused() {
     let mut bytes = stored("100644", "a", 1);
@@ -32,7 +40,9 @@ fn trees_parse_and_malformed_ones_are_refused() {
     assert!(parse_subject_with_nul().is_none(), "a message with a NUL");
 }
 
-/// The tree, parents and message of a commit are read; an `encoding` header is declined.
+/// The tree,
+/// parents and message of a commit are read;
+/// an `encoding` header is declined.
 #[test]
 fn commits_parse_and_encodings_are_declined() {
     let tree = "1".repeat(40);
@@ -46,7 +56,8 @@ fn commits_parse_and_encodings_are_declined() {
     assert!(parse_commit(b"no header", ObjectFormat::Sha1).is_none());
 }
 
-/// The subject is the first paragraph on one line; a carriage return is declined.
+/// The subject is the first paragraph on one line;
+/// a carriage return is declined.
 #[test]
 fn subjects_join_the_first_paragraph() {
     assert_eq!(subject_of(b"one\ntwo\n\nbody\n"), Some(b"one two".to_vec()));
@@ -55,8 +66,12 @@ fn subjects_join_the_first_paragraph() {
     assert!(subject_of(b"a\r\nb\n").is_none());
 }
 
-/// A second listing of the same tree, through a database opened afresh as each in-process question does, decodes no pack
-/// entry: one commit asks a dozen questions about the same base tree, and each used to read all of it again.
+/// A second listing of the same tree,
+/// through a database opened afresh as each in-process question does,
+/// decodes no pack
+/// entry:
+/// one commit asks a dozen questions about the same base tree,
+/// and each used to read all of it again.
 #[test]
 fn a_tree_listed_before_is_not_read_again() {
     use crate::repo_read_object::from_hex;

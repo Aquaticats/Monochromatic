@@ -1,8 +1,13 @@
 //! What:
-//!  Three small checks on bytes and names that the object-name abbreviation uses: a NUL separator, a hexadecimal digit, and
+//!  Three small checks on bytes and names that the object-name abbreviation uses:
+//! a NUL separator,
+//! a hexadecimal digit,
+//! and
 //!  how long two names agree at their start.
 //! Why:
-//!  They read only bytes, so they sit in a file of their own that does not use `object_abbreviation.rs`, which keeps that file
+//!  They read only bytes,
+//! so they sit in a file of their own that does not use `object_abbreviation.rs`,
+//! which keeps that file
 //!  under the line limit.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,7 +16,8 @@
 //! ```
 
 
-/// Whether `byte` is zero, the separator between pack names in a multi-pack-index.
+/// Whether `byte` is zero,
+/// the separator between pack names in a multi-pack-index.
 pub(crate) fn is_nul(byte: &u8) -> bool {
     return *byte == 0;
 }

@@ -1,17 +1,28 @@
-//! Controls for the abbreviated object name: the setting, the automatic length, and agreement with real Git for loose objects,
-//!  packs, a multi-pack-index and alternates, in a repository where four characters are often ambiguous.
+//! Controls for the abbreviated object name:
+//! the setting,
+//! the automatic length,
+//! and agreement with real Git for loose objects,
+//!  packs,
+//! a multi-pack-index and alternates,
+//! in a repository where four characters are often ambiguous.
 
 use super::*;
 use crate::test_support::{fixture, git, git_output, remove};
 
-/// How many files the fixture commits: enough that some four-character prefixes are shared by several names.
+/// How many files the fixture commits:
+/// enough that some four-character prefixes are shared by several names.
 const FILES: usize = 1500;
 
-/// The shortest length the fixture asks for, so that many names must be lengthened.
+/// The shortest length the fixture asks for,
+/// so that many names must be lengthened.
 const SHORT: usize = 4;
 
-/// `core.abbrev` unset, `auto` in any case, and unusable values give the automatic length; a number from four up gives
-///  that length; a false word or an empty value gives the whole name.
+/// `core.abbrev` unset,
+/// `auto` in any case,
+/// and unusable values give the automatic length;
+/// a number from four up gives
+///  that length;
+/// a false word or an empty value gives the whole name.
 #[test]
 fn the_setting_follows_what_git_reads_from_core_abbrev() {
     assert_eq!(setting_of(None), Setting::Auto);
@@ -28,7 +39,9 @@ fn the_setting_follows_what_git_reads_from_core_abbrev() {
     }
 }
 
-/// The automatic length is half the bit length of the object count rounded up, never below the fallback: a repository of
+/// The automatic length is half the bit length of the object count rounded up,
+/// never below the fallback:
+/// a repository of
 ///  about 380000 packed objects (as this one) gets ten characters.
 #[test]
 fn the_automatic_length_grows_with_the_object_count() {
@@ -49,7 +62,8 @@ fn the_automatic_length_grows_with_the_object_count() {
     }
 }
 
-/// A repository whose last commit holds `FILES` blobs, so that four characters are ambiguous for several of them.
+/// A repository whose last commit holds `FILES` blobs,
+/// so that four characters are ambiguous for several of them.
 fn crowded(root: &Path, name: &str) -> PathBuf {
     let repo: PathBuf = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
@@ -63,7 +77,9 @@ fn crowded(root: &Path, name: &str) -> PathBuf {
     return repo;
 }
 
-/// The names of the blobs of `HEAD`, whole, then as Git abbreviates them with `argument`.
+/// The names of the blobs of `HEAD`,
+/// whole,
+/// then as Git abbreviates them with `argument`.
 fn names_of(repo: &Path, argument: Option<&str>) -> Vec<String> {
     let mut arguments: Vec<&str> = vec!["ls-tree", "-r"];
     arguments.extend(argument);
@@ -77,8 +93,10 @@ fn names_of(repo: &Path, argument: Option<&str>) -> Vec<String> {
         .collect();
 }
 
-/// Requires the in-process answer to equal Git's for every blob, with the asked minimum and with the automatic length;
-///  returns how many names were lengthened beyond the minimum, which shows the uniqueness search had work to do.
+/// Requires the in-process answer to equal Git's for every blob,
+/// with the asked minimum and with the automatic length;
+///  returns how many names were lengthened beyond the minimum,
+/// which shows the uniqueness search had work to do.
 fn agrees_with_git(repo: &Path, objects: &Path, label: &str) -> usize {
     let whole: Vec<String> = names_of(repo, None);
     let asked: Vec<String> = names_of(repo, Some(format!("--abbrev={SHORT}").as_str()));
@@ -97,7 +115,8 @@ fn agrees_with_git(repo: &Path, objects: &Path, label: &str) -> usize {
     return lengthened;
 }
 
-/// Loose objects: a name is lengthened exactly when another loose object shares its start.
+/// Loose objects:
+/// a name is lengthened exactly when another loose object shares its start.
 #[test]
 fn loose_objects_agree_with_git() {
     let root: PathBuf = fixture("abbrev-loose");
@@ -107,7 +126,9 @@ fn loose_objects_agree_with_git() {
     remove(root.as_path());
 }
 
-/// Packed objects: the neighbours in the index decide, as they do for Git.
+/// Packed objects:
+/// the neighbours in the index decide,
+/// as they do for Git.
 #[test]
 fn packed_objects_agree_with_git() {
     let root: PathBuf = fixture("abbrev-packed");
@@ -118,8 +139,10 @@ fn packed_objects_agree_with_git() {
     remove(root.as_path());
 }
 
-/// Requires every name `open_index` reads from the one pack index of `repo` to be the name Git lists at that position; the
-///  listing of every object is in name order, which is the order of a pack index's names.
+/// Requires every name `open_index` reads from the one pack index of `repo` to be the name Git lists at that position;
+/// the
+///  listing of every object is in name order,
+/// which is the order of a pack index's names.
 fn index_names_equal_git(repo: &Path, version: u8) {
     let pack: PathBuf = repo.join(".git/objects/pack");
     let indexes: Vec<PathBuf> = std::fs::read_dir(&pack)
@@ -142,8 +165,11 @@ fn index_names_equal_git(repo: &Path, version: u8) {
     }
 }
 
-/// Every name read from a version 2 pack index is the one Git lists at that position, from the first to the last; agreement
-///  on the abbreviations alone passes with a shifted name table, because only the neighbours of the names that collide decide.
+/// Every name read from a version 2 pack index is the one Git lists at that position,
+/// from the first to the last;
+/// agreement
+///  on the abbreviations alone passes with a shifted name table,
+/// because only the neighbours of the names that collide decide.
 #[test]
 fn every_name_of_a_version_2_pack_index_is_read_where_git_has_it() {
     let root: PathBuf = fixture("abbrev-index-v2");
@@ -153,7 +179,9 @@ fn every_name_of_a_version_2_pack_index_is_read_where_git_has_it() {
     remove(root.as_path());
 }
 
-/// Every name read from a version 1 pack index (no header; each entry is an offset, then the name) is the one Git lists at
+/// Every name read from a version 1 pack index (no header;
+/// each entry is an offset,
+/// then the name) is the one Git lists at
 ///  that position.
 #[test]
 fn every_name_of_a_version_1_pack_index_is_read_where_git_has_it() {
@@ -164,7 +192,8 @@ fn every_name_of_a_version_1_pack_index_is_read_where_git_has_it() {
     remove(root.as_path());
 }
 
-/// Two packs under a multi-pack-index, plus loose objects made afterwards.
+/// Two packs under a multi-pack-index,
+/// plus loose objects made afterwards.
 #[test]
 fn a_multi_pack_index_and_loose_objects_agree_with_git() {
     let root: PathBuf = fixture("abbrev-midx");
@@ -199,7 +228,8 @@ fn objects_of_an_alternate_agree_with_git() {
     remove(root.as_path());
 }
 
-/// An incremental multi-pack-index chain is not modelled, so nothing is answered and the caller asks Git.
+/// An incremental multi-pack-index chain is not modelled,
+/// so nothing is answered and the caller asks Git.
 #[test]
 fn an_incremental_multi_pack_index_chain_is_declined() {
     let root: PathBuf = fixture("abbrev-chain");
@@ -211,7 +241,9 @@ fn an_incremental_multi_pack_index_chain_is_declined() {
     remove(root.as_path());
 }
 
-/// A name that is not lower-case hexadecimal, or an object directory that does not exist, is not answered.
+/// A name that is not lower-case hexadecimal,
+/// or an object directory that does not exist,
+/// is not answered.
 #[test]
 fn names_and_directories_that_cannot_be_read_are_not_answered() {
     let root: PathBuf = fixture("abbrev-unreadable");

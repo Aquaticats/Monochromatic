@@ -1,8 +1,12 @@
 //! What:
-//!  The shapes the wrapper's existing queries answer with, built from an in-process `RepoLayout`.
+//!  The shapes the wrapper's existing queries answer with,
+//! built from an in-process `RepoLayout`.
 //! Why:
-//!  Each caller keeps its own result type; the adapter is the one place that says how a layout becomes a
-//!  `RepositoryLocation`, a `LandingLocation` or a sequencer state, so a caller tries the layout first and asks Git
+//!  Each caller keeps its own result type;
+//! the adapter is the one place that says how a layout becomes a
+//!  `RepositoryLocation`,
+//! a `LandingLocation` or a sequencer state,
+//! so a caller tries the layout first and asks Git
 //!  only when the layout declines.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +23,8 @@ use crate::worktree_identity::WorktreeIdentity;
 /// What:
 ///  The location `git rev-parse` would report for this layout.
 /// Why:
-///   A Git directory equal to the common directory is the main worktree, any other is a linked one.
+///   A Git directory equal to the common directory is the main worktree,
+/// any other is a linked one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,7 +48,9 @@ pub fn location_of(layout: &RepoLayout) -> RepositoryLocation {
 }
 
 /// What:
-///  The landing location (Git directory, index) for this layout, or `None` for a layout whose
+///  The landing location (Git directory,
+/// index) for this layout,
+/// or `None` for a layout whose
 ///  per-worktree and shared names Git splits.
 /// Why:
 ///   Only a worktree that owns its Git directory has one answer per name.
@@ -63,7 +70,9 @@ pub fn landing_of(layout: &RepoLayout) -> Option<LandingLocation> {
 /// What:
 ///  The sequencer state from the three head files of the layout's Git directory.
 /// Why:
-///   `MERGE_HEAD`, `CHERRY_PICK_HEAD` and `REVERT_HEAD` are per-worktree names; the state only needs whether each file exists.
+///   `MERGE_HEAD`,
+/// `CHERRY_PICK_HEAD` and `REVERT_HEAD` are per-worktree names;
+/// the state only needs whether each file exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,17 +86,25 @@ pub fn sequencer_of(layout: &RepoLayout) -> Option<SequencerState> {
     }));
 }
 
-/// Whether the per-worktree Git file `name` exists (a link counts), or nothing when its path cannot be worked out.
+/// Whether the per-worktree Git file `name` exists (a link counts),
+/// or nothing when its path cannot be worked out.
 fn git_file_exists(layout: &RepoLayout, name: &str) -> Option<bool> {
     let path = git_path(layout, name)?;
     return Some(std::fs::symlink_metadata(path).is_ok());
 }
 
 /// What:
-///  The seven-line report the invocation capture asks `rev-parse` for: top level, Git directory, common directory,
-///  index, objects, transaction registry and object format, one per line.
+///  The seven-line report the invocation capture asks `rev-parse` for:
+/// top level,
+/// Git directory,
+/// common directory,
+///  index,
+/// objects,
+/// transaction registry and object format,
+/// one per line.
 /// Why:
-///   The capture parses that text by line number, so an in-process answer is the same text and the parser stays one.
+///   The capture parses that text by line number,
+/// so an in-process answer is the same text and the parser stays one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
