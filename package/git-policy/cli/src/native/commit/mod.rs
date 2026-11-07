@@ -25,16 +25,21 @@ pub mod rule_commit_only_message;
 ///  cherry-pick and revert conclusion check.
 pub mod rule_commit_sequencer;
 
-/// Slice 6: writes one corrected file into the private commit index as a blob and an index entry.
+/// Slice 6:
+/// writes one corrected file into the private commit index as a blob and an index entry.
 pub mod private_index_stage;
 
-/// Slice 6: the commit path's bounded policy convergence over the private index.
+/// Slice 6:
+/// the commit path's bounded policy convergence over the private index.
 pub mod commit_convergence;
 
-/// The commit transaction in the incumbent's order, up to the settled policies.
+/// The commit transaction in the incumbent's order,
+/// up to the settled policies.
 pub mod commit_transaction;
 
-/// The conclusion of a settled commit transaction: preparation, landing and post-landing completion.
+/// The conclusion of a settled commit transaction:
+/// preparation,
+/// landing and post-landing completion.
 pub mod commit_conclusion;
 
 /// The normalization-only transaction for a correction that removed every change.
@@ -45,7 +50,10 @@ pub mod commit_staged_additions;
 
 pub mod commit_staged_deletions;
 
-/// The `git commit` command: the transaction, the settled events, the post-commit gate and the backup.
+/// The `git commit` command:
+/// the transaction,
+/// the settled events,
+/// the post-commit gate and the backup.
 pub mod commit_command;
 
 /// Rule facts from the real repository with candidates read from the private index.
@@ -62,26 +70,39 @@ pub mod commit_timing;
 pub mod conclusion_cleanup;
 
 /// The invocation capture:
-///  repository layout, symbolic `HEAD`, conclusion kind, ref backend and base.
+///  repository layout,
+/// symbolic `HEAD`,
+/// conclusion kind,
+/// ref backend and base.
 pub mod capture_invocation;
 
-/// The private index and object store a commit's preparation selects, and the Git request that carries them.
+/// The private index and object store a commit's preparation selects,
+/// and the Git request that carries them.
 pub mod private_index_request;
 
 /// The shadow conclusion copies at preparation.
 pub mod conclusion_copy;
 
-/// Argument transforms of native preparation: normalisation, global split, `-a` removal and private arguments.
+/// Argument transforms of native preparation:
+/// normalisation,
+/// global split,
+/// `-a` removal and private arguments.
 pub mod commit_args;
 
-/// The private commit index: copies, selection modes, pathspec files and listings.
+/// The private commit index:
+/// copies,
+/// selection modes,
+/// pathspec files and listings.
 pub mod commit_index;
 
 /// The copying of the real index into a private index and the check of whether it may seed an explicit-path commit.
 pub mod commit_index_copying;
 
-/// Native `git commit` in the shadow, the prepared commit read back and `prepared.json`.
+/// Native `git commit` in the shadow,
+/// the prepared commit read back and `prepared.json`.
 pub mod commit_preparation;
 
-/// The post-commit gate over a landed commit: its events, its blocking and the backup it allows.
+/// The post-commit gate over a landed commit:
+/// its events,
+/// its blocking and the backup it allows.
 pub mod post_commit;
