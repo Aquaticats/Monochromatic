@@ -3595,6 +3595,20 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   tagged rule in `package/git-policy/cli/README.md`, container gate).
   Merge it, then send the batch agent "go wrapper" so 0.6.0 carries it.
 - `package/config/lfs-r2-worker` gets the same package-local rule after "unpause lfs".
+- Second fix on the same branch (sent by 2026-11-07T07:11:35-05:00 by the coordinator after the LFS report):
+  push records (`.git/monochromatic-git-policy-cli/push/*.last-pushed.json`) store failed push output with URL userinfo
+  unmasked while the terminal relay masks it; red test, shared masking, existing records untouched.
+
+### LFS credential work: finished and paused (owner: "pause the lfs thread until I say unpause lfs")
+
+- The LFS agent's report and full inventory: `doc/troubleshooting/lfs-credential-in-url.md`,
+  merged to main as `05199a8d8e` (credential guard task, `url-userinfo-credential` scanner rule, credential-helper docs).
+- Not done, by the pause: local migration off `lfs.url`, rotation, Worker auth change.
+  Its open owner questions (auth design A to F, anonymous reads, credential helper, copy classes, wiring the guard
+  into the wrapper) wait for "unpause lfs"; ask only the real decisions among them (issue #6262).
+- It printed a config key name that embeds the old token into its own transcript: one more copy for the inventory.
+- It left an unbounded `du` over home folders running for 68 minutes (PIDs 3421138, 3421137); the coordinator stopped it.
+  Its worktree `.claude/worktrees/lfs-credential-fix` is still there.
 
 ### Repository on the 860: plan revised, owner questions next
 
