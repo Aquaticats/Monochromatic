@@ -1,8 +1,12 @@
 //! What:
 //! Finds the root of the pnpm workspace that contains the current directory and checks every manifest under it.
 //! Why:
-//! The shadow warns before each pnpm run, so it needs the whole tree's findings in one pass, and that pass is on the
-//! path of every pnpm call. The rule itself lives in `monochromatic-catalog-specifier`; this file only walks and reads.
+//! The shadow warns before each pnpm run,
+//! so it needs the whole tree's findings in one pass,
+//! and that pass is on the
+//! path of every pnpm call.
+//! The rule itself lives in `monochromatic-catalog-specifier`;
+//! this file only walks and reads.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,10 +15,15 @@
 //! export function scanWorkspace(root: string): ScanReport { ... }
 //! ```
 
-/// Imports the walker that honors `.gitignore`, its entry and error types, and the answer a visitor gives after each entry.
+/// Imports the walker that honors `.gitignore`,
+/// its entry and error types,
+/// and the answer a visitor gives after each entry.
 use ignore::{DirEntry, Error as WalkError, WalkBuilder, WalkState};
 
-/// Imports the rule: one function for any manifest name, one for a name alone, and the finding type.
+/// Imports the rule:
+/// one function for any manifest name,
+/// one for a name alone,
+/// and the finding type.
 use monochromatic_catalog_specifier::{Finding, check_manifest, check_manifest_path};
 
 /// Imports the borrowed and owned path types.
@@ -27,12 +36,23 @@ use std::sync::Mutex;
 use crate::constants::{MANIFEST_NAMES, READ_MANIFEST_NAME, SKIPPED_DIRECTORIES, WORKSPACE_MARKER};
 
 /// What:
-/// `pub struct ScanReport { ... }` is a record type with three fields, all owned by the record: a count
-/// (`usize`, the unsigned integer sized for counts and indexes; siblings `u32`, `u64`), a list of findings
-/// (`Vec<Finding>`, a growable list; siblings `&[Finding]`, `[Finding; N]`) and a list of notes (`Vec<String>`,
-/// owned text; sibling `&str`).
+/// `pub struct ScanReport { ... }` is a record type with three fields,
+/// all owned by the record:
+/// a count
+/// (`usize`,
+/// the unsigned integer sized for counts and indexes;
+/// siblings `u32`,
+/// `u64`),
+/// a list of findings
+/// (`Vec<Finding>`,
+/// a growable list;
+/// siblings `&[Finding]`,
+/// `[Finding; N]`) and a list of notes (`Vec<String>`,
+/// owned text;
+/// sibling `&str`).
 /// Why:
-/// The caller prints findings and notes alike, and the count says how many `package.json` files were really read.
+/// The caller prints findings and notes alike,
+/// and the count says how many `package.json` files were really read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,9 +61,12 @@ use crate::constants::{MANIFEST_NAMES, READ_MANIFEST_NAME, SKIPPED_DIRECTORIES, 
 pub struct ScanReport {
     /// How many `package.json` files were read and checked.
     pub manifests_checked: usize,
-    /// Every finding, sorted by path; the findings of one file keep the rule's own order.
+    /// Every finding,
+    /// sorted by path;
+    /// the findings of one file keep the rule's own order.
     pub findings: Vec<Finding>,
-    /// Problems that kept a file from being checked at all (an unreadable file or directory), sorted.
+    /// Problems that kept a file from being checked at all (an unreadable file or directory),
+    /// sorted.
     pub notes: Vec<String>,
 }
 
@@ -51,8 +74,11 @@ pub struct ScanReport {
 /// `pub fn find_workspace_root(start: &Path) -> Option<PathBuf>` walks from `start` up to the filesystem root and
 /// returns the first directory that holds `pnpm-workspace.yaml`.
 /// Why:
-/// pnpm itself finds its workspace this way, and the shadow checks the tree pnpm would use. Only the file's
-/// presence is tested: the YAML is never read.
+/// pnpm itself finds its workspace this way,
+/// and the shadow checks the tree pnpm would use.
+/// Only the file's
+/// presence is tested:
+/// the YAML is never read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,7 +99,8 @@ pub fn find_workspace_root(start: &Path) -> Option<PathBuf> {
 /// What:
 /// `fn is_skipped_directory(entry: &DirEntry) -> bool` says whether the walk must not enter this entry.
 /// Why:
-/// `.git` and `node_modules` are never tracked sources; skipping them by name keeps the walk fast even when a
+/// `.git` and `node_modules` are never tracked sources;
+/// skipping them by name keeps the walk fast even when a
 /// checkout has no `.gitignore` for them.
 ///
 /// In TS you'd write (pseudocode):
@@ -98,11 +125,15 @@ fn is_skipped_directory(entry: &DirEntry) -> bool {
 }
 
 /// What:
-/// `fn relative_path_text(root: &Path, path: &Path) -> String` makes the path under `root` as text, with `/`
+/// `fn relative_path_text(root: &Path, path: &Path) -> String` makes the path under `root` as text,
+/// with `/`
 /// between segments.
 /// Why:
-/// The rule reports a path as text and reads the file name from its last segment; a path relative to the workspace
-/// root is what a person recognizes in the message. Unix only, so `/` is already the separator.
+/// The rule reports a path as text and reads the file name from its last segment;
+/// a path relative to the workspace
+/// root is what a person recognizes in the message.
+/// Unix only,
+/// so `/` is already the separator.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -121,8 +152,12 @@ fn relative_path_text(root: &Path, path: &Path) -> String {
 /// `fn check_walk_result(root: &Path, result: Result<DirEntry, WalkError>) -> ScanReport` checks one walk result and
 /// returns what it found as a small report of its own.
 /// Why:
-/// Each walker thread calls it without touching shared state, so the lock is held only to merge the small result.
-/// A file that cannot be read becomes a note, never a failure: the shadow's job is to advise, and a scan problem
+/// Each walker thread calls it without touching shared state,
+/// so the lock is held only to merge the small result.
+/// A file that cannot be read becomes a note,
+/// never a failure:
+/// the shadow's job is to advise,
+/// and a scan problem
 /// must not stop pnpm.
 ///
 /// In TS you'd write (pseudocode):
@@ -175,9 +210,13 @@ fn check_walk_result(root: &Path, result: Result<DirEntry, WalkError>) -> ScanRe
 /// What:
 /// `pub fn scan_workspace(root: &Path) -> ScanReport` walks the tree under `root` and checks every manifest.
 /// Why:
-/// One pass returns everything the warning needs. The walk is parallel because it is the whole cost of the scan:
-/// measured on this repository (about 22,500 entries, 257 manifests), the serial walk took a median of 79 ms and the
-/// parallel walk a median of 10 ms, alternating 30 rounds each (doc/handover/catalog-specifier-policy.md).
+/// One pass returns everything the warning needs.
+/// The walk is parallel because it is the whole cost of the scan:
+/// measured on this repository (about 22,500 entries,
+/// 257 manifests),
+/// the serial walk took a median of 79 ms and the
+/// parallel walk a median of 10 ms,
+/// alternating 30 rounds each (doc/handover/catalog-specifier-policy.md).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,10 +1,19 @@
 //! What:
-//! The shadow mode: when the binary is started as `pnpm`, it warns about manifest problems in the workspace of the
-//! current directory, finds the real `pnpm` on PATH, runs it as a child with the arguments untouched, waits for it,
+//! The shadow mode:
+//! when the binary is started as `pnpm`,
+//! it warns about manifest problems in the workspace of the
+//! current directory,
+//! finds the real `pnpm` on PATH,
+//! runs it as a child with the arguments untouched,
+//! waits for it,
 //! and exits with the child's own status.
 //! Why:
-//! The warning never blocks. A scan problem, a missing workspace and a closed standard error all lead to the same
-//! thing: pnpm runs. Only a missing or unstartable pnpm is the shadow's own failure.
+//! The warning never blocks.
+//! A scan problem,
+//! a missing workspace and a closed standard error all lead to the same
+//! thing:
+//! pnpm runs.
+//! Only a missing or unstartable pnpm is the shadow's own failure.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,22 +26,26 @@
 //! }
 //! ```
 
-/// Imports the process-environment module (PATH, the current directory).
+/// Imports the process-environment module (PATH,
+/// the current directory).
 use std::env;
 
-/// Imports the owned operating-system text type: arguments may be invalid UTF-8 and pass byte for byte.
+/// Imports the owned operating-system text type:
+/// arguments may be invalid UTF-8 and pass byte for byte.
 use std::ffi::OsString;
 
 /// Imports the file-system module (resolves the shadow's own path).
 use std::fs;
 
-/// Imports `Write`, the trait that adds `write_all` to standard error.
+/// Imports `Write`,
+/// the trait that adds `write_all` to standard error.
 use std::io::Write;
 
 /// What:
 /// `use std::os::unix::process::ExitStatusExt;` imports a trait that adds `.signal()` to a process's exit status.
 /// Why:
-/// A child killed by a signal has no exit code, and the shadow reports it the way a shell does.
+/// A child killed by a signal has no exit code,
+/// and the shadow reports it the way a shell does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,10 +54,12 @@ use std::io::Write;
 use std::os::unix::process::ExitStatusExt;
 
 /// What:
-/// `use std::os::unix::process::CommandExt;` imports a trait that adds `.exec()` to a command: replace this process with the
+/// `use std::os::unix::process::CommandExt;` imports a trait that adds `.exec()` to a command:
+/// replace this process with the
 /// program instead of starting it as a child.
 /// Why:
-/// A run that needs no notice hands over completely, so the shadow's cost ends before pnpm starts.
+/// A run that needs no notice hands over completely,
+/// so the shadow's cost ends before pnpm starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,7 +93,9 @@ use crate::verb::warning_makes_sense;
 /// What:
 /// `pub fn exit_code_of(status: ExitStatus) -> i32` turns a finished child's status into the number the shadow exits with.
 /// Why:
-/// A normal exit passes its code through; death by signal becomes `128 + signal`, the shell convention.
+/// A normal exit passes its code through;
+/// death by signal becomes `128 + signal`,
+/// the shell convention.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,9 +136,11 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
 }
 
 /// What:
-/// `fn own_real_path() -> PathBuf` is the shadow's own resolved executable path, or an empty path when the system cannot say.
+/// `fn own_real_path() -> PathBuf` is the shadow's own resolved executable path,
+/// or an empty path when the system cannot say.
 /// Why:
-/// The PATH search skips every entry that resolves to it; an empty path matches nothing.
+/// The PATH search skips every entry that resolves to it;
+/// an empty path matches nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,8 +160,12 @@ fn own_real_path() -> PathBuf {
 /// `pub fn warn_about_workspace(start: &Path, sink: &mut dyn Write)` scans the workspace that contains `start` and
 /// writes the report to `sink` when there is one.
 /// Why:
-/// The sink is a parameter so tests read the text; the shadow passes standard error. `&mut dyn Write` is a borrowed
-/// writer of any type (a TS `Writable`). A write error is ignored on purpose: a closed standard error must not stop pnpm.
+/// The sink is a parameter so tests read the text;
+/// the shadow passes standard error.
+/// `&mut dyn Write` is a borrowed
+/// writer of any type (a TS `Writable`).
+/// A write error is ignored on purpose:
+/// a closed standard error must not stop pnpm.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
