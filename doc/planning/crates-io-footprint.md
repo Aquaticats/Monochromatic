@@ -44,6 +44,9 @@ nothing on crates.io, in the toolchain lock or in the publish workflow has been 
   (`~/temp/agent/issue-6261/sol-review-retry-4/review.txt`) are fixed before it too.
   That release is a plain-number release, so it counts as stable under the rule above;
   the older versions are yanked right after it.
+- When the seven tools move from the `cargo:` install route (crates.io plus `cargo-binstall`) to the `archive` route
+  of GitHub releases that `mpm-shadow` uses: "Right after the release" (owner's pick, 2026-11-07),
+  because every later release carries `-alpha.N`, skips crates.io, and could not be installed here otherwise.
 - pnpr's side of this (Cargo login, pnpr version, crate copies) is in `doc/planning/self-hosted-cargo-registry.md`,
   section "The owner's answers at 2026-11-07T02:03:01-05:00".
 
