@@ -3440,7 +3440,8 @@
       "earlier_service_journal_adopted::EarlierJournals -> wrapper_names_old_and_new",
       "drop scratch_location -> wrapper_names_old_and_new",
       "lfs_output_mask moves whole to text-time-and-log-line-formats/lines_printed_for_the_person",
-      "service_review_key placed in messages_between_the_wrapper_and_the_commit_service"
+      "service_review_key placed in messages_between_the_wrapper_and_the_commit_service",
+      "discard_audit_generations::AUDIT_FILE (read through super:: from the child module declared by #[path] in discard_audit): moves into discard_audit_generations, or retention_of takes the file name; the scanner cannot see this edge, the linter reports it"
     ],
     "renames": {
       "blocking_job": "running_a_waiting_call_on_a_spare_thread",

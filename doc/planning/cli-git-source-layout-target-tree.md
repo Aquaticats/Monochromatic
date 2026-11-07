@@ -46,7 +46,9 @@ the machine-readable map is [`cli-git-source-layout-groups.json`](cli-git-source
   26 draft entries for the program's one level of groups,
   and three options for the rule the owner must word about a group folder and its children.
   Nothing is decided in them;
-  the two open points the owner answered "Not yet." (test helpers, where libraries live) are only updated to today's facts.
+  the two open points the owner answered "Not yet."
+  (test helpers,
+  where libraries live) are only updated to today's facts.
 - Inspect first:
   the stand-alone test and the verdicts (section "The crate split"),
   what each of the eight changes (same section),
@@ -135,7 +137,8 @@ verbatim:
     "Not yet."
   - Rescan before step 0:
     taken by the coordinator without asking (option A),
-    because the measured zero loops describe the tree of `f44d921e24`, not today's `main`.
+    because the measured zero loops describe the tree of `f44d921e24`,
+    not today's `main`.
   - On text identical to JavaScript output (the job of `text-time-and-log-line-formats` as drafted),
     verbatim:
     "\" text identical to JavaScript output\" - that's not needed."
@@ -143,34 +146,53 @@ verbatim:
     a reader of a format that is still in the repository is listed before that format changes.
   - On the published-crates study (`doc/research/wrapper-git-free-jobs-and-published-crates.md`),
     picks verbatim:
-    replace with published crates "Time stamps: jiff, Digests: sha1 + sha2, Linux calls: rustix, Memory headroom: sysinfo";
+    replace with published crates "Time stamps:
+    jiff,
+    Digests:
+    sha1 + sha2,
+    Linux calls:
+    rustix,
+    Memory headroom:
+    sysinfo";
     how many library crates of ours remain:
     "I'm not ready to answer this specific question yet.";
     D-Bus:
-    "zbus 6, and I suppose the lack of a blocking api can be worked around."
+    "zbus 6,
+    and I suppose the lack of a blocking api can be worked around."
     (to be proven inside the wrapper before it is built on);
     shell quoting:
     "Keep ours (readable)".
     The replacements are built after the release.
   - Then,
     verbatim:
-    "Adopt tokio, do not adopt ureq, use the `hyper` set of https libs."
-    So the wrapper gets tokio as its async runtime (zbus 6 runs on it, no blocking workaround needed),
-    and the standards-review HTTPS call moves from `ureq` to `hyper`, `hyper-util`, `hyper-rustls` and `http-body-util`
+    "Adopt tokio,
+    do not adopt ureq,
+    use the `hyper` set of https libs."
+    So the wrapper gets tokio as its async runtime (zbus 6 runs on it,
+    no blocking workaround needed),
+    and the standards-review HTTPS call moves from `ureq` to `hyper`,
+    `hyper-util`,
+    `hyper-rustls` and `http-body-util`
     (all already in `rust-catalog.toml`).
     Which tokio runtime flavour is chosen by measurement inside the wrapper.
-  - Then, on the runtime:
-    picked "Multi-thread, sized to budget"
+  - Then,
+    on the runtime:
+    picked "Multi-thread,
+    sized to budget"
     (worker count from the wrapper's existing budget for parallel work),
     and verbatim:
-    "Full on tokio. Multi-thread."
-    So the wrapper moves to tokio as a whole, not only for D-Bus and HTTPS;
-    the migration plan is `doc/planning/git-policy-cli-full-tokio.md`, and nothing is rewritten before the owner
+    "Full on tokio.
+    Multi-thread."
+    So the wrapper moves to tokio as a whole,
+    not only for D-Bus and HTTPS;
+    the migration plan is `doc/planning/git-policy-cli-full-tokio.md`,
+    and nothing is rewritten before the owner
     has seen it.
   - On the toolchain,
     verbatim:
     "Rust nightly should always be latest."
-    Moving the lock and keeping it latest: `doc/planning/rust-nightly-always-latest.md`.
+    Moving the lock and keeping it latest:
+    `doc/planning/rust-nightly-always-latest.md`.
 
 `AGENTS.md`,
 verbatim:
@@ -321,7 +343,11 @@ the base of the branch `docs/git-policy-cli-layout-after-adopted-crates`.
 `main` was at `dcd52b9fb9` while this ran;
 `git diff --stat e728c63911 main -- package/git-policy` prints nothing,
 so the wrapper source of the two commits is the same.
-This commit holds tokio steps T1 to T5 (`48611f7e09`) and the swaps to `tempfile`, `jiff`, `sha1`, `sha2`, `sysinfo` and `rustix`.
+This commit holds tokio steps T1 to T5 (`48611f7e09`) and the swaps to `tempfile`,
+`jiff`,
+`sha1`,
+`sha2`,
+`sysinfo` and `rustix`.
 `hyper` and `zbus` 6 are adopted by the owner's pick and are not built into the wrapper yet
 (`Cargo.toml` still lists `ureq` and the hand-written D-Bus client is still the one in `systemd_dbus.rs`).
 
@@ -329,9 +355,17 @@ This commit holds tokio steps T1 to T5 (`48611f7e09`) and the swaps to `tempfile
 
 - The scanners are the ones of the section "Rescan of main",
   copied unchanged from `~/temp/agent/wrapper-redo/scan/` into `~/temp/agent/wrapper-layout-after-crates/scan/`:
-  `refs.ts`, `testrefs.ts`, `reexports.ts`, `modules.ts`, `unmapped.ts`, `inside.ts`, `engine5.ts`, `testcheck5.ts`
+  `refs.ts`,
+  `testrefs.ts`,
+  `reexports.ts`,
+  `modules.ts`,
+  `unmapped.ts`,
+  `inside.ts`,
+  `engine5.ts`,
+  `testcheck5.ts`
   and `moveduses.ts`.
-  Two scanners hard-code the folder they read (`reexports.ts`, `moveduses.ts`),
+  Two scanners hard-code the folder they read (`reexports.ts`,
+  `moveduses.ts`),
   so one path constant in each copy was changed to the worktree of this branch;
   nothing else in a scanner changed.
 - The group map is `groups8.json` of the redo plus the named changes of `spec/changes.txt`,
@@ -339,17 +373,23 @@ This commit holds tokio steps T1 to T5 (`48611f7e09`) and the swaps to `tempfile
   `spec/spec6.txt` is the redo's placement table (`spec5.txt`) with the placements of this section added.
 - The scanner treats a module as test code only when a `cfg(test)` line says so.
   The sixteen support files of the `native_binary` test target (`binary_*` without `_tests`),
-  `fixture_executable`, `test_alive` and the two crate roots (`lib`, `main`) have no such line,
+  `fixture_executable`,
+  `test_alive` and the two crate roots (`lib`,
+  `main`) have no such line,
   so they were added by hand to the scratch list of test-only modules.
   They start the built program or are crate roots;
   none is a production module.
 - The lint baseline ran with the installed `monochromatic-lint` 0.5.1,
   which lists both layout rules (`monochromatic-lint --rules`),
   with the throwaway configuration of the first baseline
-  (`rust/folder-uses-links` and `rust/file-order-in-folder`, severity error, on `package/git-policy/cli`).
+  (`rust/folder-uses-links` and `rust/file-order-in-folder`,
+  severity error,
+  on `package/git-policy/cli`).
   The first baseline needed a linter built from source;
   this one did not.
-- Every command ran in its own `systemd-run --user --scope` with `CPUQuota`, `MemoryMax`, `TasksMax` and `IOWeight=10`.
+- Every command ran in its own `systemd-run --user --scope` with `CPUQuota`,
+  `MemoryMax`,
+  `TasksMax` and `IOWeight=10`.
   No load was generated.
 
 ### What the scan counts now
@@ -359,7 +399,8 @@ This commit holds tokio steps T1 to T5 (`48611f7e09`) and the swaps to `tempfile
   module references 2722 (2607);
   item references 5683 (5456);
   sidecar test files 632 (604).
-- Loops between files of one group, as the files stand (`inside.ts`):
+- Loops between files of one group,
+  as the files stand (`inside.ts`):
   17 loops touching 53 files,
   the same set as before.
 - The lint baseline:
@@ -369,21 +410,39 @@ This commit holds tokio steps T1 to T5 (`48611f7e09`) and the swaps to `tempfile
   28 flat `pub use folder::*;` re-exports and 1 folder loop.
   `rust/file-order-in-folder` has 41:
   27 folders without a file list in their top doc and 14 file loops.
-  The 14 file loops include `discard_audit` with `discard_audit_generations`,
-  a pair the group scan does not report because the scan reads the files after the planned moves.
+  One of the 14 file loops is one the scan cannot see:
+  `discard_audit_generations` is declared inside `discard_audit` by `#[path]` as the child module `generations`,
+  `discard_audit` names `generations::Retention`,
+  and the child reads `super::AUDIT_FILE`.
+  The scanner reads `crate::` paths and `super::<module>` paths,
+  and `super::AUDIT_FILE` names an item of the parent,
+  so the scan has no edge between the two files (`scan/item-edges.tsv` holds none).
+  The linter sees it.
+  This is a blind spot of the scan that the first review already listed ("`self::`,
+  macros,
+  trait impls"),
+  and a seventh named change is needed:
+  `AUDIT_FILE` moves into `discard_audit_generations`,
+  or `retention_of` takes the file name as a value.
 
 ### Files added since the first scan, placed
 
-Twenty production modules were not in the placement table.
+Twenty-two production modules were not in the placement table.
 The four the proposal expected to join libraries did:
-`side_by_side_threads`, `rename_that_never_replaces`, `line_sink` and `call_catching_panics`.
+`side_by_side_threads`,
+`rename_that_never_replaces`,
+`line_sink` and `call_catching_panics`.
 All placements below are proposals and the folder names are working names that pass MKY only after the owner's veto round.
 
 - Join `parallel-work-within-a-budget`:
-  `side_by_side_threads`, `call_catching_panics` and `line_sink`
+  `side_by_side_threads`,
+  `call_catching_panics` and `line_sink`
   (folder `running_independent_jobs_side_by_side`);
-  `runtime_limits`, `runtime_plan`, `lazy_runtime` and `blocking_job`
-  (a second folder, `the_shared_runtime_that_runs_waiting_jobs`).
+  `runtime_limits`,
+  `runtime_plan`,
+  `lazy_runtime` and `blocking_job`
+  (a second folder,
+  `the_shared_runtime_that_runs_waiting_jobs`).
   The tokio plan says this library owns the budget and the runtime-building policy.
 - Join `starting-and-watching-programs`
   (folder `starting_programs_catching_signals_and_keeping_their_output`):
@@ -396,16 +455,20 @@ All placements below are proposals and the folder names are working names that p
   `runtime_probe` (the test-only entry that builds the runtime;
   folder `what_happens_when_you_type_a_command`),
   `push_failure_notice_machine_output` (folder `pushing_what_the_commit_service_saved`),
-  and the files of the rename of the program's own names, in four new program folders:
+  and the files of the rename of the program's own names,
+  in four new program folders:
   - `names_this_release_and_the_one_before`:
     `wrapper_names_old_and_new`.
   - `telling_whether_an_earlier_commit_service_still_runs`:
-    `earlier_unix_sockets_that_listen`, `earlier_service_process_look`.
+    `earlier_unix_sockets_that_listen`,
+    `earlier_service_process_look`.
   - `finishing_what_an_earlier_commit_service_left_open`:
     `earlier_service_journal_adopted`.
   - `moving_kept_files_to_the_new_names`:
-    `earlier_folder_entries_moved_into_current_folder`, `earlier_log_lines_added_to_current_log`,
-    `earlier_name_moved_to_current_in_place`, `earlier_names_folded_into_current`,
+    `earlier_folder_entries_moved_into_current_folder`,
+    `earlier_log_lines_added_to_current_log`,
+    `earlier_name_moved_to_current_in_place`,
+    `earlier_names_folded_into_current`,
     `kept_names_in_the_git_directories`.
 - Suggested plain names for the new files whose names fail MKY alone are in the group map under
   `after_adopted_crates.renames`
@@ -423,7 +486,8 @@ one loop between folders
 and one loop between files.
 The check was therefore able to fail on this tree.
 Each finding has one named change;
-with all of them the counts are zero.
+with the first six of the list that follows the engine's counts are zero.
+The seventh change is for a loop the engine cannot count.
 
 - `Announcer` joins `service_index_lock_names_and_failures`
   (the old file loop of `service_index_attempts` and `service_index_lock` came back through a new item).
@@ -432,13 +496,17 @@ with all of them the counts are zero.
   the program's `panic_notice` reads them from there.
   Without it the runtime files of `parallel-work-within-a-budget` use the program's panic hook file.
 - `scratch_location` takes the repository scratch folder name as a value
-  (an instance of "Names of the program, its variables and its Git commands passed in");
+  (an instance of "Names of the program,
+  its variables and its Git commands passed in");
   the constant stays in `wrapper_names_old_and_new`.
 - `lfs_output_mask` moves whole to the text library as a Git-free file
   (it is a masker of the user and password part of a URL inside text;
-  only its doc comments say `git-lfs`, which is reworded).
-  `diagnostic_log` uses it, and six program files use it from there.
-  This reverses the old plan, which sent the file to the program.
+  only its doc comments say `git-lfs`,
+  which is reworded).
+  `diagnostic_log` uses it,
+  and six program files use it from there.
+  This reverses the old plan,
+  which sent the file to the program.
 - `earlier_journals_in_state` and `EarlierJournals` move from `earlier_service_journal_adopted` to
   `wrapper_names_old_and_new`.
   Without it `earlier_names_folded_into_current` uses a folder that uses `landing_commits`,
@@ -459,17 +527,22 @@ Printed by `engine5.ts` on `spec/spec6.txt`:
   9 (8 libraries and the program);
   crate loops 0.
 - folders:
-  92 (78 in the program, 14 in libraries);
+  92 (78 in the program,
+  14 in libraries);
   folder loops 0.
 - files placed:
-  617 (536 in the program, 81 in libraries);
+  617 (536 in the program,
+  81 in libraries);
   loops between any files 0.
 - uses of a program file by a library file:
   0.
 - test references from a library's sidecar to a module outside its crate and outside the test helpers:
-  2 (`scratch_location` names `child_class`, `package_repair_report` names `wait_ceilings`, as before);
+  2 (`scratch_location` names `child_class`,
+  `package_repair_report` names `wait_ceilings`,
+  as before);
   44 more name test helpers.
-- Edges from the three binary support files (`binary_fault_support`, `binary_service_landing_support`,
+- Edges from the three binary support files (`binary_fault_support`,
+  `binary_service_landing_support`,
   `binary_support_observation`) are not placed;
   they belong to the `native_binary` test target.
 
@@ -1398,7 +1471,8 @@ The owner asked,
 verbatim,
 "Why are we not using already established crates for some functions?"
 The study `doc/research/wrapper-git-free-jobs-and-published-crates.md` answered it job by job on 2026-11-07T03:30:00-05:00.
-Since then the owner picked tokio (multi-thread) for processes, waits and parallel work,
+Since then the owner picked tokio (multi-thread) for processes,
+waits and parallel work,
 `tempfile` for safe file saving,
 `rustix` for Linux calls,
 `jiff` for time stamps,
@@ -1407,7 +1481,8 @@ Since then the owner picked tokio (multi-thread) for processes, waits and parall
 `hyper` for HTTPS and `zbus` 6 for D-Bus,
 and said of file saving,
 verbatim,
-"Everything async, and safe-file-saving shouldn't be something we own at all."
+"Everything async,
+and safe-file-saving shouldn't be something we own at all."
 This section checks each library of the table against those picks and against other published crates,
 with the code of `e728c63911` (section "Rescan of main after the adopted crates").
 
@@ -1418,11 +1493,15 @@ Every candidate here is open-source local technology,
 so the managed-service gates do not apply.
 What ran:
 
-- Category fit, licence, newest release and normal dependencies of each crate not yet adopted,
+- Category fit,
+  licence,
+  newest release and normal dependencies of each crate not yet adopted,
   from the crates.io API on 2026-11-07
-  (`~/temp/agent/wrapper-layout-after-crates/crates/facts.out`, `deps.out`).
+  (`~/temp/agent/wrapper-layout-after-crates/crates/facts.out`,
+  `deps.out`).
 - A frozen list of ten registry queries,
-  each page one, sorted by relevance
+  each page one,
+  sorted by relevance
   (`search.out`):
   "redact url credentials in text" (779 results),
   "mask password in url" (335),
@@ -1434,14 +1513,17 @@ What ran:
   "run command inactivity timeout" (274),
   "pidfd async" (30),
   "systemd unit start dbus" (50).
-  Page one only: this is not a saturated discovery.
+  Page one only:
+  this is not a saturated discovery.
 - The measurements and source reads of the study and of `doc/audit/tech-safe-file-saving-published-crates-vet-2026-11-07.md`,
   which are cited where they decide a verdict.
 - Sibling packages searched for users of each job
   (`rg` over `package/` outside `package/git-policy`).
 
 What did not run:
-no clone, upstream test run, maintenance sample,
+no clone,
+upstream test run,
+maintenance sample,
 execution of third-party code or scoring for any crate that is not already adopted.
 So this section recommends no new crate.
 A crate named as a candidate is a name for the owner's next step,
@@ -1457,7 +1539,11 @@ it is not a claim about crates this page did not show.
   MIT or Apache-2.0,
   updated 2026-05-14,
   9,792 downloads,
-  dependencies `bindgen` (build), `bitflags`, `btrfs-disk`, `nix`, `uuid`.
+  dependencies `bindgen` (build),
+  `bitflags`,
+  `btrfs-disk`,
+  `nix`,
+  `uuid`.
   The build dependency needs `libclang`;
   the study built it in 21.1 s on this host and did not check the container images.
   Screening result:
@@ -1475,18 +1561,25 @@ it is not a claim about crates this page did not show.
 - `netlink-packet-sock-diag` 0.5.0:
   MIT,
   updated 2026-08-24;
-  has both byte counters the watcher reads (study, `src/inet/nlas.rs` lines 599 and 600).
+  has both byte counters the watcher reads (study,
+  `src/inet/nlas.rs` lines 599 and 600).
   Not removed,
   not run.
 - `shell-quote` 0.8.0:
   Apache-2.0,
   updated 2026-08-07,
   optional `bstr` only.
-  The owner picked "Keep ours (readable)", so it is not a candidate unless the owner changes that.
+  The owner picked "Keep ours (readable)",
+  so it is not a candidate unless the owner changes that.
 - `remove_dir_all` 1.0.0:
   MIT or Apache-2.0,
   last release 2024-11-22,
-  depends on `fs_at`, `normpath`, `cvt`, `libc`, `cfg-if`, `log`.
+  depends on `fs_at`,
+  `normpath`,
+  `cvt`,
+  `libc`,
+  `cfg-if`,
+  `log`.
   Named from general knowledge,
   not surfaced by this page's queries.
   Whether it refuses to cross a mount below a held parent was not read.
@@ -1494,17 +1587,26 @@ it is not a claim about crates this page did not show.
   MIT or Apache-2.0,
   updated 2026-10-01,
   about 20,000 downloads,
-  depends on `rustix`, `libc`, `bytes`, `memchr`.
+  depends on `rustix`,
+  `libc`,
+  `bytes`,
+  `memchr`.
   Its description (disk and mount a path is on) overlaps `fs_kind` and the mount reader.
   Not read.
-- `async-pidfd` 0.1.5 (MIT or Apache-2.0, optional `async-io`),
-  `pidfd-util` 0.1.0 (MIT or Apache-2.0, `nix`, optional `async-io`),
+- `async-pidfd` 0.1.5 (MIT or Apache-2.0,
+  optional `async-io`),
+  `pidfd-util` 0.1.0 (MIT or Apache-2.0,
+  `nix`,
+  optional `async-io`),
   `waitpidx` 0.0.1 (25 downloads):
   pidfd wrappers.
   They are built on `async-io`,
   not tokio's `AsyncFd`;
   not read.
-- `systemd-transient` 0.2.1 (Apache-2.0 or MIT, 72 downloads, `zbus`, `tokio`):
+- `systemd-transient` 0.2.1 (Apache-2.0 or MIT,
+  72 downloads,
+  `zbus`,
+  `tokio`):
   starts transient units by D-Bus.
   The wrapper starts an existing unit,
   so it is a neighbour,
@@ -1523,47 +1625,69 @@ or nothing published fits so the library stays.
 
 - `safe-file-saving`:
   a crate does part,
-  and the remainder is thin enough that it is not a library of ours.
+  and the remainder is not a library of ours:
+  about forty lines of glue and fallback that the owner asked to keep in the program,
+  plus program-specific rules.
   Evidence:
   `tempfile::Builder` with `persist_noclobber` takes the staging name and the no-replace publish,
   `rustix::fs::fsync` the directory sync,
-  `tokio::fs` the create-new, the `O_NOFOLLOW` read and the private folder
-  (vet report, "Behavior measured with the published calls alone", 15 probe lines read PASS).
+  `tokio::fs` the create-new,
+  the `O_NOFOLLOW` read and the private folder
+  (vet report,
+  "Behavior measured with the published calls alone",
+  15 probe lines read PASS).
   Already in `main`:
   `foundation/private_storage.rs` publishes through `tempfile` (9 uses) after commit `2a503fc9e1`.
-  What no crate gives (vet report, "What no crate gives"):
+  What no crate gives (vet report,
+  "What no crate gives"):
   the fallback to a checked rename on a disk with neither `renameat2` no-replace nor hard links
   (about ten lines and a fifteen-line test,
-  which the owner kept: "Keep the fallback (Recommended)"),
-  the composition of file sync, publish and directory sync (about fifteen lines),
+  which the owner kept:
+  "Keep the fallback (Recommended)"),
+  the composition of file sync,
+  publish and directory sync (about fifteen lines),
   and removing a staging file a kill left.
   The other files of the table are rules of this program's own scratch locations
-  (`scratch_location`, 371 lines, the rule of `doc/planning/cli-git-scratch-locations.md`),
-  path helpers (`lexical_path`, `path_bytes`, `worktree_add_plan_path_questions`),
-  random names in a layout (`random_id`, 131 lines;
+  (`scratch_location`,
+  371 lines,
+  the rule of `doc/planning/cli-git-scratch-locations.md`),
+  path helpers (`lexical_path`,
+  `path_bytes`,
+  `worktree_add_plan_path_questions`),
+  random names in a layout (`random_id`,
+  131 lines;
   `uuid` with `v4` is the published candidate)
   and recovery file helpers.
   Where the remainder belongs:
   the program,
   in the folder that keeps the name `saving_files_so_a_crash_leaves_no_half_file`;
   it shrinks again when the 38 callers become asynchronous (tokio step T11).
-  The tier-one evidence of the table (siblings that write, sync and replace files)
+  The tier-one evidence of the table (siblings that write,
+  sync and replace files)
   no longer argues for a crate of ours,
   because the siblings can use the same published calls.
 - `linux-file-and-disk-calls`:
-  a crate does part.
+  a crate does part (the syscall layer),
+  and the rest has no validated crate,
+  so it is a remainder of about 1,350 lines that folds on the stand-alone test,
+  not on size.
   Evidence:
-  `rustix` (adopted, already linked) did `openat2` with the four resolve flags,
+  `rustix` (adopted,
+  already linked) did `openat2` with the four resolve flags,
   `renameat_with` exchange and no-replace,
-  `statfs`, `ioctl_ficlone` and inotify on a btrfs probe (study, "Linux file and disk calls");
+  `statfs`,
+  `ioctl_ficlone` and inotify on a btrfs probe (study,
+  "Linux file and disk calls");
   at `e728c63911` none of these files calls `rustix` yet
   (113 `libc::` uses and 32 `unsafe` in the library's files),
   so the swap is still to do.
   `rename_that_never_replaces` (48 lines) is the one file that `rustix` replaces whole.
   What `rustix` lacks:
-  the btrfs ioctls (`fs_btrfs_ioctl`, 456 lines;
+  the btrfs ioctls (`fs_btrfs_ioctl`,
+  456 lines;
   a search of `rustix` 1.1.4 for `btrfs` found nothing),
-  the mount-option reader (`fs_mount_options`, 341),
+  the mount-option reader (`fs_mount_options`,
+  341),
   the error mapping (`fs_primitive_error`, 110)
   and the three files that remove a folder tree below a held parent without crossing a mount (437 together).
   Candidates for those pieces are screened above (`btrfs-uapi` needs `libclang`;
@@ -1572,12 +1696,14 @@ or nothing published fits so the library stays.
   none is validated.
   Where the remainder belongs:
   the program,
-  because no sibling package uses a btrfs ioctl,
+  because it has no outside user:
+  no sibling package uses a btrfs ioctl,
   a mount-table reader or `openat2` outside `cargo-shadow`'s control-group file
   (`rg` over `package/` outside `package/git-policy`:
   btrfs appears only in tests and text,
   `mountinfo` only in `ide`'s audit tool).
-  The two sibling copies the table named as evidence (`journal_replace.rs`, `pin.rs`) call `renameat2`,
+  The two sibling copies the table named as evidence (`journal_replace.rs`,
+  `pin.rs`) call `renameat2`,
   which `rustix` already does.
 - `starting-and-watching-programs`:
   nothing published fits the core,
@@ -1585,13 +1711,18 @@ or nothing published fits so the library stays.
   smaller where `rustix` and tokio take over.
   Evidence:
   no inactivity-based watcher among 274 results of "run command inactivity timeout"
-  (page one; `command_timeout` 0.1.3 is a tokio command timeout by elapsed time,
+  (page one;
+  `command_timeout` 0.1.3 is a tokio command timeout by elapsed time,
   which the owner ruled out as a reason to end a child),
-  the study read `process-wrap`, `kill_tree` and `wait-timeout` and found none with start-time guarded signalling or a no-progress rule;
+  the study read `process-wrap`,
+  `kill_tree` and `wait-timeout` and found none with start-time guarded signalling or a no-progress rule;
   `signal-hook-registry::unregister` leaves the signal ignored instead of restoring it
-  (tokio plan, "The signal relay cannot be tokio's signal handling");
+  (tokio plan,
+  "The signal relay cannot be tokio's signal handling");
   tokio's own child start can report a failed start after the child runs
-  (`tokio::process`, `src/process/unix/mod.rs`, read in the tokio plan),
+  (`tokio::process`,
+  `src/process/unix/mod.rs`,
+  read in the tokio plan),
   which is why the owner picked "std start + pidfd".
   Already in `main`:
   `child_awaited_through_a_pidfd` (166 lines) is `rustix` and `tokio::io::unix::AsyncFd`,
@@ -1603,7 +1734,9 @@ or nothing published fits so the library stays.
   and `package/wg/cli-quicker-exempt/src/watcher_sentinel.rs` uses `pidfd`.
   What may still go to published crates:
   the `/proc` parsers to `procfs` and the netlink read to `netlink-packet-sock-diag`
-  (study: candidates, not validated).
+  (study:
+  candidates,
+  not validated).
   Where the remainder belongs:
   this library,
   with the new dependency on `parallel-work-within-a-budget` for the shared runtime
@@ -1613,7 +1746,8 @@ or nothing published fits so the library stays.
   and what is left is thinner each tokio step.
   Evidence:
   `sysinfo` (adopted) now reads the memory headroom (`parallel_budget` holds 3 uses),
-  tokio's `JoinSet` and `Semaphore` are the planned form of the ordered runner (tokio plan, step T12),
+  tokio's `JoinSet` and `Semaphore` are the planned form of the ordered runner (tokio plan,
+  step T12),
   and `std::thread::available_parallelism` follows the cgroup quota.
   What nothing published gives:
   the budget formula with the owner's margins,
@@ -1623,10 +1757,16 @@ or nothing published fits so the library stays.
   the arena cap,
   the deadline-bounded build,
   the stand-in runtime;
-  tokio plan, "A multi-thread runtime panics, then hangs, when the system refuses it threads");
-  `rayon`'s global pool panics where our code runs the job in turn (study, `rayon-core-1.13.0/src/registry.rs` line 171).
+  tokio plan,
+  "A multi-thread runtime panics,
+  then hangs,
+  when the system refuses it threads");
+  `rayon`'s global pool panics where our code runs the job in turn (study,
+  `rayon-core-1.13.0/src/registry.rs` line 171).
   Today the library holds 10 files and 1,426 lines,
-  of which the scoped-thread runner (`parallel_runner`, `scoped_start`, `side_by_side_threads`,
+  of which the scoped-thread runner (`parallel_runner`,
+  `scoped_start`,
+  `side_by_side_threads`,
   about 620 lines) goes at step T12.
   Where the remainder belongs:
   the library while a sibling needs the runner,
@@ -1638,8 +1778,8 @@ or nothing published fits so the library stays.
   Whether the policy files alone justify a crate is for the owner,
   after step T12 shows how large they are.
 - `text-time-and-log-line-formats`:
-  a crate does part,
-  and the remainder is thin.
+  a crate does part (time stamps and JSON quoting),
+  and about 850 lines remain that have no validated crate and no outside user.
   Evidence:
   `jiff` (adopted) writes the time stamps,
   and `iso_time` is now 56 lines over it;
@@ -1653,7 +1793,8 @@ or nothing published fits so the library stays.
   the two registry queries about masking credentials in URLs returned applications and agents only,
   no library),
   `json_record` (347,
-  its ordered object writer and the safe-integer rules, readers not compared)
+  its ordered object writer and the safe-integer rules,
+  readers not compared)
   and `js_text` (121,
   its readers not compared).
   Where the remainder belongs:
@@ -1670,11 +1811,15 @@ or nothing published fits so the library stays.
   and two sibling packages already depend on it
   (`package/nested-wayland-session/cli/Cargo.toml` line 89 and `package/music-player/desktop-app/Cargo.toml` line 159,
   both with the catalog floor `>=6.2.1`).
-  The hand-written client is still in `main` (`systemd_dbus.rs`, 396 lines,
-  and `systemd_dbus_wire_format.rs`, 317);
+  The hand-written client is still in `main` (`systemd_dbus.rs`,
+  396 lines,
+  and `systemd_dbus_wire_format.rs`,
+  317);
   tokio step T8 replaces it.
-  The one thing `zbus` lacks is one deadline over connect, authentication and the calls
-  (its only timeout is `method_timeout`, study `src/connection/mod.rs` lines 269 and 270);
+  The one thing `zbus` lacks is one deadline over connect,
+  authentication and the calls
+  (its only timeout is `method_timeout`,
+  study `src/connection/mod.rs` lines 269 and 270);
   a `tokio::time::timeout` around the call does that in the caller.
   So no crate of ours is needed,
   and the few lines of call and deadline belong in the program,
@@ -1686,21 +1831,30 @@ or nothing published fits so the library stays.
   nothing published fits,
   so the library stays.
   Evidence:
-  the study's queries ("package.json dependent version bump", "pnpm workspace", "node_modules relink",
-  "repair node_modules", "cargo target directory relocate") found this repository's own packages,
+  the study's queries ("package.json dependent version bump",
+  "pnpm workspace",
+  "node_modules relink",
+  "repair node_modules",
+  "cargo target directory relocate") found this repository's own packages,
   release tools and unrelated names;
   they were not rerun here.
   It is the weakest library on evidence (tier two,
   still no sibling that carries a copy or calls it),
   and the first to fold if the owner finds none.
-  Its published parts are already crates (`serde_json`, `tempfile`, tokio);
+  Its published parts are already crates (`serde_json`,
+  `tempfile`,
+  tokio);
   tokio steps T6 and T12 convert its `std::thread` uses (9 of them).
 - `dependent-version-bump-check`:
   nothing known to be published fits,
   with two candidates unread,
   so the library stays on paper.
   Evidence:
-  the study's four queries returned release tools (`changesette`, `changepacks`, `sampo`, `monochange`, `vup-rs`),
+  the study's four queries returned release tools (`changesette`,
+  `changepacks`,
+  `sampo`,
+  `monochange`,
+  `vup-rs`),
   and it read none as a library;
   `semver` is in the lock file.
   Reading `changesette` and `changepacks-core` against `dependent_version_plan_tests.rs` is the work that would turn this into
@@ -1731,10 +1885,15 @@ not a proposal to decide:
   file loops 0,
   and 19 uses of a program file by a library file in 15 files.
   The 19 uses are five small things:
-  `diagnostic_log` (`debug` and `warn`, 10 files),
-  `js_text` (`trim_javascript`, `decimal_attempt`, 4 files),
+  `diagnostic_log` (`debug` and `warn`,
+  10 files),
+  `js_text` (`trim_javascript`,
+  `decimal_attempt`,
+  4 files),
   `shell_quote` (2 files),
-  `json_record` (`quote`, `MAX_SAFE_INTEGER`, 2 files)
+  `json_record` (`quote`,
+  `MAX_SAFE_INTEGER`,
+  2 files)
   and `private_storage::copy_file_exclusive` (1 file).
   Each has a published or standard-library form
   (`tracing` or the `log` facade for the lines,
@@ -1786,11 +1945,15 @@ the next section gives the options.
   Six folders moved off their theme to break them:
   `clearing_leftover_reference_locks` to the real-Git group,
   `converting_a_linked_worktree` to the extra working folders,
-  and the four folders for messages, log lines, saved notes and service naming to a group of their own that the lock group uses.
+  and the four folders for messages,
+  log lines,
+  saved notes and service naming to a group of their own that the lock group uses.
   The final draft has no loop between groups,
-  checked by the script (strongly connected sets of two or more groups: none).
+  checked by the script (strongly connected sets of two or more groups:
+  none).
 - The group map keeps the draft under `after_adopted_crates.program_groups`
-  (entries, group links and the order from the bottom).
+  (entries,
+  group links and the order from the bottom).
 - The result is 26 entries directly in `src/`:
   16 group folders with two or more child folders,
   and 10 entries that hold one folder only.
@@ -1803,7 +1966,8 @@ the next section gives the options.
   the children's own `uses/` links are in the next paragraph).
   Listed from the entry that uses nothing to the entry that uses the most:
   - `understanding_the_git_command_you_typed/` (a group folder):
-    Reads the words typed after `git` the way Git reads them, and the words meant only for this wrapper.
+    Reads the words typed after `git` the way Git reads them,
+    and the words meant only for this wrapper.
     Child folders:
     `reading_options_the_way_git_does`,
     `spellings_that_switch_the_wrapper_off`,
@@ -1812,8 +1976,12 @@ the next section gives the options.
     `uses/` links of the group:
     none.
   - `waits_logs_names_and_checksums_used_everywhere/` (a group folder):
-    How long the program waits for a Git step, the log lines and journal entries it writes, the names of
-    this release, checksums, and the other small things every other entry may use.
+    How long the program waits for a Git step,
+    the log lines and journal entries it writes,
+    the names of
+    this release,
+    checksums,
+    and the other small things every other entry may use.
     Child folders:
     `environment_variables_for_git_children`,
     `how_long_the_program_waits_for_git_steps`,
@@ -1828,7 +1996,9 @@ the next section gives the options.
     `uses/` links of the group:
     none.
   - `reading_what_git_saved_on_disk/` (a group folder):
-    Git keeps commits and settings as files in the hidden `.git` folder; this reads them directly, which is
+    Git keeps commits and settings as files in the hidden `.git` folder;
+    this reads them directly,
+    which is
     faster than starting Git.
     Child folders:
     `finding_the_git_folders`,
@@ -1841,7 +2011,10 @@ the next section gives the options.
     `uses/` links of the group:
     `waits_logs_names_and_checksums_used_everywhere`.
   - `running_the_real_git_program/` (a group folder):
-    This wrapper only pretends to be `git`; this finds the real one, starts it, and answers some questions
+    This wrapper only pretends to be `git`;
+    this finds the real one,
+    starts it,
+    and answers some questions
     without starting it.
     Child folders:
     `answering_questions_without_starting_git`,
@@ -1856,7 +2029,9 @@ the next section gives the options.
     `understanding_the_git_command_you_typed`,
     `waits_logs_names_and_checksums_used_everywhere`.
   - `rules_about_what_a_command_may_do/` (a group folder):
-    The rules that refuse a command, add words to it, or say where it may run.
+    The rules that refuse a command,
+    add words to it,
+    or say where it may run.
     Child folders:
     `rules_about_what_a_commit_may_contain`,
     `rules_about_where_a_command_may_run`,
@@ -1864,14 +2039,18 @@ the next section gives the options.
     `uses/` links of the group:
     `running_the_real_git_program`,
     `understanding_the_git_command_you_typed`.
-  - `running_git_push_until_it_ends_or_stalls/` (one folder, no group folder):
-    Runs `git push`, stops it when it shows no sign of work, and runs one push at a time.
+  - `running_git_push_until_it_ends_or_stalls/` (one folder,
+    no group folder):
+    Runs `git push`,
+    stops it when it shows no sign of work,
+    and runs one push at a time.
     `uses/` links of the entry:
     `reading_what_git_saved_on_disk`,
     `running_the_real_git_program`,
     `waits_logs_names_and_checksums_used_everywhere`.
   - `what_the_wrapper_and_the_commit_helper_say_to_each_other/` (a group folder):
-    The messages, log lines and saved "still to do" notes that pass between a command and the background
+    The messages,
+    log lines and saved "still to do" notes that pass between a command and the background
     commit helper.
     Child folders:
     `log_lines_of_the_commit_service`,
@@ -1882,7 +2061,8 @@ the next section gives the options.
     `running_the_real_git_program`,
     `waits_logs_names_and_checksums_used_everywhere`.
   - `your_settings_for_this_wrapper/` (a group folder):
-    Reads the settings file where checks are turned on and off, and the hooks a repository sets.
+    Reads the settings file where checks are turned on and off,
+    and the hooks a repository sets.
     Child folders:
     `hooks_a_repository_configures`,
     `the_settings_file_cli_git_config_jsonc`.
@@ -1891,7 +2071,8 @@ the next section gives the options.
     `understanding_the_git_command_you_typed`,
     `waits_logs_names_and_checksums_used_everywhere`.
   - `names_kept_from_the_earlier_release/` (a group folder):
-    Moves files kept under the old program name to the new name, and checks whether the old commit helper
+    Moves files kept under the old program name to the new name,
+    and checks whether the old commit helper
     still runs.
     Child folders:
     `moving_kept_files_to_the_new_names`,
@@ -1900,7 +2081,9 @@ the next section gives the options.
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`.
   - `reading_what_a_commit_would_save/` (a group folder):
-    Loads each file a commit would save, scans it for forbidden strings, and writes corrected files into the
+    Loads each file a commit would save,
+    scans it for forbidden strings,
+    and writes corrected files into the
     private index.
     Child folders:
     `putting_corrected_files_into_the_private_index`,
@@ -1911,15 +2094,18 @@ the next section gives the options.
     `running_the_real_git_program`,
     `waits_logs_names_and_checksums_used_everywhere`,
     `your_settings_for_this_wrapper`.
-  - `reviewing_landed_commits_against_standards/` (one folder, no group folder):
+  - `reviewing_landed_commits_against_standards/` (one folder,
+    no group folder):
     Reviews landed commits against the written standards with one HTTPS call and keeps the log of the
     answers.
     `uses/` links of the entry:
     `running_the_real_git_program`,
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`.
-  - `uploading_large_files/` (one folder, no group folder):
-    Git LFS keeps big files on a separate server; this uploads them before a push.
+  - `uploading_large_files/` (one folder,
+    no group folder):
+    Git LFS keeps big files on a separate server;
+    this uploads them before a push.
     `uses/` links of the entry:
     `reading_what_git_saved_on_disk`,
     `running_git_push_until_it_ends_or_stalls`,
@@ -1927,8 +2113,11 @@ the next section gives the options.
     `understanding_the_git_command_you_typed`,
     `waits_logs_names_and_checksums_used_everywhere`.
   - `waiting_your_turn_to_change_git_files/` (a group folder):
-    Git puts a lock file beside a file it changes; this waits for those, holds the one the commit helper
-    needs, and finds who holds one.
+    Git puts a lock file beside a file it changes;
+    this waits for those,
+    holds the one the commit helper
+    needs,
+    and finds who holds one.
     Child folders:
     `finding_who_holds_a_lock_file`,
     `holding_the_index_lock_for_the_commit_service`,
@@ -1938,7 +2127,10 @@ the next section gives the options.
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`.
   - `combining_two_versions_of_the_same_file/` (a group folder):
-    When two people changed the same file, this merges the text, tries again word by word, and finishes a
+    When two people changed the same file,
+    this merges the text,
+    tries again word by word,
+    and finishes a
     merge a dead process left half done.
     Child folders:
     `merging_text_by_line_and_by_word`,
@@ -1950,15 +2142,18 @@ the next section gives the options.
     `waiting_your_turn_to_change_git_files`,
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`.
-  - `converting_the_main_checkout/` (one folder, no group folder):
-    btrfs is a kind of disk that can copy a whole folder instantly; this converts the main project folder so
+  - `converting_the_main_checkout/` (one folder,
+    no group folder):
+    btrfs is a kind of disk that can copy a whole folder instantly;
+    this converts the main project folder so
     it can be copied that way.
     `uses/` links of the entry:
     `names_kept_from_the_earlier_release`,
     `running_the_real_git_program`,
     `waits_logs_names_and_checksums_used_everywhere`.
   - `a_hidden_copy_of_git_data_for_preparing_commits/` (a group folder):
-    Prepares a commit in a hidden second Git folder, and re-applies prepared changes onto commits that
+    Prepares a commit in a hidden second Git folder,
+    and re-applies prepared changes onto commits that
     landed meanwhile.
     Child folders:
     `replaying_changes_onto_new_commits`,
@@ -1970,8 +2165,11 @@ the next section gives the options.
     `running_the_real_git_program`,
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`.
-  - `saving_copies_of_what_a_command_would_throw_away/` (one folder, no group folder):
-    Saves a copy of work a command would throw away, records what happened, and removes old copies.
+  - `saving_copies_of_what_a_command_would_throw_away/` (one folder,
+    no group folder):
+    Saves a copy of work a command would throw away,
+    records what happened,
+    and removes old copies.
     `uses/` links of the entry:
     `a_hidden_copy_of_git_data_for_preparing_commits`,
     `reading_what_git_saved_on_disk`,
@@ -1981,8 +2179,11 @@ the next section gives the options.
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`,
     `your_settings_for_this_wrapper`.
-  - `checking_that_your_setup_works/` (one folder, no group folder):
-    Prints the doctor report on hooks, settings, the disk and file watching.
+  - `checking_that_your_setup_works/` (one folder,
+    no group folder):
+    Prints the doctor report on hooks,
+    settings,
+    the disk and file watching.
     `uses/` links of the entry:
     `names_kept_from_the_earlier_release`,
     `running_the_real_git_program`,
@@ -1990,7 +2191,8 @@ the next section gives the options.
     `waits_logs_names_and_checksums_used_everywhere`,
     `your_settings_for_this_wrapper`.
   - `running_every_check_in_order/` (a group folder):
-    Runs every check one after another for a commit or a push, including the version bump check and the
+    Runs every check one after another for a commit or a push,
+    including the version bump check and the
     Markdown fixer.
     Child folders:
     `checking_version_bumps_in_a_commit`,
@@ -2008,8 +2210,10 @@ the next section gives the options.
     `understanding_the_git_command_you_typed`,
     `waits_logs_names_and_checksums_used_everywhere`,
     `your_settings_for_this_wrapper`.
-  - `asking_the_commit_service_to_save_a_commit/` (one folder, no group folder):
-    Asks the background helper to save a commit, starting it first when nothing answers.
+  - `asking_the_commit_service_to_save_a_commit/` (one folder,
+    no group folder):
+    Asks the background helper to save a commit,
+    starting it first when nothing answers.
     `uses/` links of the entry:
     `names_kept_from_the_earlier_release`,
     `reading_what_a_commit_would_save`,
@@ -2021,7 +2225,9 @@ the next section gives the options.
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`,
     `your_settings_for_this_wrapper`.
   - `pushing_after_a_commit_and_pushing_by_hand/` (a group folder):
-    The push the wrapper makes after each commit, the push you type, and what happens when someone else
+    The push the wrapper makes after each commit,
+    the push you type,
+    and what happens when someone else
     pushed first.
     Child folders:
     `pushing_what_the_commit_service_saved`,
@@ -2040,7 +2246,10 @@ the next section gives the options.
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`.
   - `extra_working_folders_for_one_project/` (a group folder):
-    Makes, converts, cleans and removes the extra working folders ("worktrees") of one project, copying the
+    Makes,
+    converts,
+    cleans and removes the extra working folders ("worktrees") of one project,
+    copying the
     files Git ignores.
     Child folders:
     `converting_a_linked_worktree`,
@@ -2061,7 +2270,8 @@ the next section gives the options.
     `understanding_the_git_command_you_typed`,
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`.
-  - `merging_without_touching_your_files/` (one folder, no group folder):
+  - `merging_without_touching_your_files/` (one folder,
+    no group folder):
     Completes a merge or pull without touching staged work.
     `uses/` links of the entry:
     `combining_two_versions_of_the_same_file`,
@@ -2074,7 +2284,10 @@ the next section gives the options.
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`,
     `your_settings_for_this_wrapper`.
   - `the_background_commit_helper/` (a group folder):
-    The background helper itself: lands commits in batches, pushes them and tidies up, and finishes what an
+    The background helper itself:
+    lands commits in batches,
+    pushes them and tidies up,
+    and finishes what an
     earlier helper left open.
     Child folders:
     `after_commit_work_of_the_service`,
@@ -2096,8 +2309,12 @@ the next section gives the options.
     `waiting_your_turn_to_change_git_files`,
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`.
-  - `the_commit_command/` (one folder, no group folder):
-    The `git commit` command: prepares the commit aside, asks the helper to land it, and reports.
+  - `the_commit_command/` (one folder,
+    no group folder):
+    The `git commit` command:
+    prepares the commit aside,
+    asks the helper to land it,
+    and reports.
     `uses/` links of the entry:
     `a_hidden_copy_of_git_data_for_preparing_commits`,
     `asking_the_commit_service_to_save_a_commit`,
@@ -2115,9 +2332,14 @@ the next section gives the options.
     `waits_logs_names_and_checksums_used_everywhere`,
     `what_the_wrapper_and_the_commit_helper_say_to_each_other`,
     `your_settings_for_this_wrapper`.
-  - `what_happens_when_you_type_a_command/` (one folder, no group folder):
-    The first stop of every command: reads what was typed, then hands it to the real Git, runs one of the
-    others, or refuses and says why.
+  - `what_happens_when_you_type_a_command/` (one folder,
+    no group folder):
+    The first stop of every command:
+    reads what was typed,
+    then hands it to the real Git,
+    runs one of the
+    others,
+    or refuses and says why.
     `uses/` links of the entry:
     `asking_the_commit_service_to_save_a_commit`,
     `checking_that_your_setup_works`,
@@ -2160,7 +2382,9 @@ the next section gives the options.
 
 ### The rule the owner must word
 
-Today's rule (`AGENTS.md`, LYL, verbatim):
+Today's rule (`AGENTS.md`,
+LYL,
+verbatim):
 "Two source folders never use each other,
 and the package's lint fails when a folder's `uses/` folder of links and its code disagree."
 A group folder is a second kind of folder.
@@ -2169,7 +2393,8 @@ and what links it holds.
 The options were tried on a throwaway crate with the installed `monochromatic-lint` 0.5.1
 (`~/temp/agent/wrapper-layout-after-crates/groupfixture/`:
 two groups `g` and `h`,
-children `g/a`, `g/b` and `h/c`,
+children `g/a`,
+`g/b` and `h/c`,
 `h/c` using `g/a`,
 both rules on at severity error),
 so what each lint would check is measured where the installed linter already decides it.
@@ -2193,7 +2418,9 @@ so what each lint would check is measured where the installed linter already dec
     the links keep the precision of today's rule,
     so a child cannot use a folder it did not declare;
     it can start with step 8 of the move order and loses nothing if a group level is added later;
-    the folder graph is already loop free (78 folders, 0 loops), so no regrouping is needed to pass.
+    the folder graph is already loop free (78 folders,
+    0 loops),
+    so no regrouping is needed to pass.
   - Cons:
     the dependencies between groups are not visible from the group folders;
     to see which groups a group uses one opens every child's `uses/` and compares,
@@ -2203,19 +2430,25 @@ so what each lint would check is measured where the installed linter already dec
   - Example from this tree:
     `rules_about_what_a_commit_may_contain` in the group `rules_about_what_a_command_may_do` links its sibling
     `rules_that_add_flags_to_a_command`
-    and, in other groups, `reading_options_the_way_git_does`,
+    and,
+    in other groups,
+    `reading_options_the_way_git_does`,
     `what_each_git_command_accepts` and `what_the_wrapper_asks_git_about_a_repository`.
   - What the lint checks:
-    what it checks today, per child folder;
+    what it checks today,
+    per child folder;
     a group folder that grows code of its own is then a source folder and needs links to its children
-    (measured: a `pub use a::x::X;` in `g/mod.rs` printed "src/g uses the folder src/g/a ... but src/g/uses has no link to it").
+    (measured:
+    a `pub use a::x::X;` in `g/mod.rs` printed "src/g uses the folder src/g/a ... but src/g/uses has no link to it").
     An optional new check could fail a group folder that holds a file other than its top doc and `mod` lines.
 - Option B,
   the shelf and a group-level summary:
-  Option A plus, in each group folder,
+  Option A plus,
+  in each group folder,
   a `uses/` folder with one link per other entry that any of its children uses.
   Draft wording:
-  "A group folder holds only folders, its top doc and a `uses/` folder with one link per other group or one-folder entry
+  "A group folder holds only folders,
+  its top doc and a `uses/` folder with one link per other group or one-folder entry
   its children use.
   The lint fails when the group's links and its children's code disagree."
   - Pros:
@@ -2225,7 +2458,9 @@ so what each lint would check is measured where the installed linter already dec
     the group links can be written by the same fix that writes today's links.
   - Cons:
     the installed lint rejects it today
-    (measured: a link `h/uses/g` printed "links to the folder src/g, but no code in src/h uses it"),
+    (measured:
+    a link `h/uses/g` printed "links to the folder src/g,
+    but no code in src/h uses it"),
     so it needs a change in `package/linter/monochromatic-lint`;
     the group links repeat what the children say,
     so every new cross-group use edits two `uses/` folders;
@@ -2233,8 +2468,10 @@ so what each lint would check is measured where the installed linter already dec
     which the drafted groups are only after six folders moved;
     one-folder entries have no group level.
   - Example from this tree:
-    `running_every_check_in_order` links `reading_what_a_commit_would_save`, `rules_about_what_a_command_may_do`,
-    `keeping_what_a_command_would_throw_away`, `your_settings_for_this_wrapper`
+    `running_every_check_in_order` links `reading_what_a_commit_would_save`,
+    `rules_about_what_a_command_may_do`,
+    `keeping_what_a_command_would_throw_away`,
+    `your_settings_for_this_wrapper`
     and five more entries,
     and its child `the_list_of_checks_every_commit_runs` links exact folders such as `rules_about_where_a_command_may_run`
     and `saving_copies_of_what_a_command_would_throw_away`.
@@ -2247,7 +2484,8 @@ so what each lint would check is measured where the installed linter already dec
 - Option C,
   groups hold the cross-group links:
   a child's `uses/` links only siblings in its own group;
-  its uses of other entries are declared once, by the group's `uses/`.
+  its uses of other entries are declared once,
+  by the group's `uses/`.
   Draft wording:
   "A folder's `uses/` links the folders of its group that it uses;
   a group's `uses/` links the groups its children use.
@@ -2257,7 +2495,8 @@ so what each lint would check is measured where the installed linter already dec
     the overview is complete at group level.
   - Cons:
     the installed lint rejects it today
-    (measured: with `h/c/uses/a` removed and only `h/uses/g` kept,
+    (measured:
+    with `h/c/uses/a` removed and only `h/uses/g` kept,
     it printed the group link as unused and the child's use as unlinked);
     a child may use any folder of a linked group without saying so,
     which is weaker than today's rule and breaks "who depends on who" at the folder level
@@ -2266,7 +2505,9 @@ so what each lint would check is measured where the installed linter already dec
     a group of one sibling gets no links of its own.
   - Example from this tree:
     `making_a_worktree_quickly` would show only its siblings in `extra_working_folders_for_one_project`
-    (`planning_a_worktree_add_and_what_git_made`, `copying_ignored_files_into_a_stage`, `is_the_worktree_clean`);
+    (`planning_a_worktree_add_and_what_git_made`,
+    `copying_ignored_files_into_a_stage`,
+    `is_the_worktree_clean`);
     its uses of the commit helper and the btrfs folder would be on the group.
   - What the lint checks:
     a new rule for sibling-only child links,
@@ -2280,7 +2521,9 @@ because:
   only B shows the dependencies between the 26 entries from the file structure,
   and it keeps A's exact child links,
   so it costs a lint change and a second set of links where A costs nothing;
-  A is the first step of B, so "A now, B when the linter has it" is reachable and moves no folder.
+  A is the first step of B,
+  so "A now,
+  B when the linter has it" is reachable and moves no folder.
 - A over C:
   A keeps today's rule at today's precision and passes the installed lint,
   while C weakens the precision of the child links
@@ -4336,7 +4579,8 @@ the recommendation is the first option.
   and section "The eight libraries against published crates" answers it job by job.
   Options A to C count libraries by the coordinator's tier test,
   which the verdicts change:
-  for `safe-file-saving` the tier-one evidence (siblings that write, sync and replace files) no longer argues for a crate of ours,
+  for `safe-file-saving` the tier-one evidence (siblings that write,
+    sync and replace files) no longer argues for a crate of ours,
   because the siblings can use the same published calls,
   and `talking-to-the-systemd-user-manager` is a job `zbus` 6 does whole,
   which two siblings already depend on.
@@ -4352,8 +4596,10 @@ the recommendation is the first option.
     and every Git-free job the owner's tightened rule allows keeps its library.
     Cons:
     19 uses of program files by these libraries need five small changes and two owner decisions
-    (how a library prints a log line, and where `shell_quote` lives);
-    two of the four (`fix-packages-after-copying-a-folder`, `dependent-version-bump-check`) still have no sibling that carries a
+    (how a library prints a log line,
+    and where `shell_quote` lives);
+    two of the four (`fix-packages-after-copying-a-folder`,
+    `dependent-version-bump-check`) still have no sibling that carries a
     copy or asks;
     and the reason for `parallel-work-within-a-budget` shrinks when tokio step T12 removes the thread runner.
   - E,
@@ -4364,7 +4610,8 @@ the recommendation is the first option.
     the repair and version jobs fold into the program.
     Pros:
     every remaining library has demonstrated outside use,
-    and fewer manifests, READMEs and licence texts.
+    and fewer manifests,
+    READMEs and licence texts.
     Cons:
     two Git-free jobs of about 2,300 and 2,100 lines go into the program,
     which is a narrow reading of "We should not put everything in one crate.";
@@ -4405,15 +4652,27 @@ the recommendation is the first option.
   B over C because C fails the test the owner asked for.
   Facts after the adopted crates,
   2026-11-07T10:43:12-05:00
-  (the owner's answer was "Not yet." and this decides nothing):
-  - `tempfile` is adopted (`Builder::tempdir_in`, `TempDir`, and `keep` for the keep-fixtures switch),
-    but `test_support` (509 lines, 21 public functions) still makes its folders by hand and uses `tempfile` nowhere,
+  (the owner's answer was "Not yet."
+    and this decides nothing):
+  - `tempfile` is adopted (`Builder::tempdir_in`,
+    `TempDir`,
+    and `keep` for the keep-fixtures switch),
+    but `test_support` (509 lines,
+    21 public functions) still makes its folders by hand and uses `tempfile` nowhere,
     so option A's library would hold the process helpers
-    (the watchdog, the owned process group, the core-dump ban, the file-size-limit child,
-    which no crate gives; study, "Disposable test folders") more than folders.
+    (the watchdog,
+    the owned process group,
+    the core-dump ban,
+    the file-size-limit child,
+    which no crate gives;
+    study,
+    "Disposable test folders") more than folders.
   - The `testing/` folder holds 1,228 lines in nine non-sidecar files,
-    of which the Git half (`recording_git`, `smart_http_support`, part of `test_support`) stays with the program's tests.
-  - Sixteen support files of the `native_binary` test target (about 4,700 lines, `binary_*` without `_tests`)
+    of which the Git half (`recording_git`,
+    `smart_http_support`,
+    part of `test_support`) stays with the program's tests.
+  - Sixteen support files of the `native_binary` test target (about 4,700 lines,
+    `binary_*` without `_tests`)
     are new since the first scan.
     They start the built program,
     so they stay with the program's tests under every option.
@@ -4430,6 +4689,10 @@ the recommendation is the first option.
   and the final names of the groups:
   section "One level of groups in the program" drafts 26 entries and ranks three options for the rule
   (B > A > C).
+  The ranking is by value and the recommendation is by order:
+  both are reachable,
+  in the order A then B,
+  because B is A plus a group-level summary.
   Recommendation:
   A now,
   because the installed lint already enforces it and loses nothing if B is added later,
@@ -4462,7 +4725,8 @@ the recommendation is the first option.
   A because the new rule is about the name and the path is part of it.
   Facts after the adopted crates,
   2026-11-07T10:43:12-05:00
-  (the owner's answer was "Not yet." and this decides nothing):
+  (the owner's answer was "Not yet."
+    and this decides nothing):
   - The number of libraries depends on the open point "Which Git-free jobs become libraries":
     eight as drafted,
     four if the verdicts are taken (reading D),
@@ -4476,7 +4740,8 @@ the recommendation is the first option.
     and under the owner's rule every release goes to pnpr,
     with `-rc.N` and plain numbers also on crates.io.
   - Three of the four remaining names are ones the open point after this one calls plural
-    (`starting-and-watching-programs`, `parallel-work-within-a-budget` and `fix-packages-after-copying-a-folder`);
+    (`starting-and-watching-programs`,
+    `parallel-work-within-a-budget` and `fix-packages-after-copying-a-folder`);
     `dependent-version-bump-check` is not.
   - The dependency graph of the four is:
     `parallel-work-within-a-budget` and `dependent-version-bump-check` use no crate of ours,
@@ -4509,7 +4774,8 @@ the recommendation is the first option.
   B only if the owner will not exempt.
 - SHA digests.
   Answered and done:
-  the owner picked "Digests: sha1 + sha2" (2026-11-07),
+  the owner picked "Digests:
+  sha1 + sha2" (2026-11-07),
   and `subvolume/subvolume_sha.rs` is two calls into `sha1` 0.11.0 and `sha2` 0.11.1 since commit `1aea0ae238`.
   The program folder `sha_1_and_sha_256_of_bytes` is therefore one thin file and can dissolve into its users.
 
