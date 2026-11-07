@@ -3,8 +3,10 @@
 ## Scheduling check at 2026-11-07T05:10:54-05:00
 
 The running Linux player has a realtime audio data loop.
-The requested condition for opening a GitHub issue, an audio thread without realtime scheduling,
-was not observed, so no issue was opened.
+The requested condition for opening a GitHub issue,
+an audio thread without realtime scheduling,
+was not observed,
+so no issue was opened.
 
 ## Why thread names can mislead
 
@@ -60,7 +62,8 @@ and its `sched` file independently reported policy `2`.
 `pw-dump --no-colors` identified client `73` as process `1805131`,
 application `music-player`.
 Audio output node `87` belonged to that client,
-had state `running`, media class `Stream/Output/Audio`,
+had state `running`,
+media class `Stream/Output/Audio`,
 and `node.loop.name` equal to `data-loop.0`.
 The inspection did not change playback or scheduling.
 
@@ -70,7 +73,10 @@ No workaround was needed or tested.
 Looking only at the process leader or the thread named `music-player-audio`
 does not describe the measured audio data loop.
 This check covers the running Linux PipeWire output;
-Android, Windows, macOS, and the ALSA fallback were not exercised.
+Android,
+Windows,
+macOS,
+and the ALSA fallback were not exercised.
 Realtime scheduling alone does not prove that every callback operation is safe or that underruns cannot occur.
 
 ## Issue disposition
@@ -79,10 +85,14 @@ No new filing or additive comment is warranted by this scheduling check.
 The repository search for `"realtime" "music"` found existing callback-allocation reports
 [#5171](https://github.com/Aquaticats/Monochromatic/issues/5171) and
 [#3662](https://github.com/Aquaticats/Monochromatic/issues/3662).
-Those concern work performed inside the callback, a separate question from its scheduling policy.
+Those concern work performed inside the callback,
+a separate question from its scheduling policy.
 The search for `"audio" "priority"` found closed decoder-priority and CI-session reports,
 not a failure in the running audio data loop.
 
 No upstream defect was established.
-Upstream fix feasibility, contribution policy, willingness, and prototype requirements therefore do not apply;
+Upstream fix feasibility,
+contribution policy,
+willingness,
+and prototype requirements therefore do not apply;
 no upstream filing artifact or fix is proposed.
