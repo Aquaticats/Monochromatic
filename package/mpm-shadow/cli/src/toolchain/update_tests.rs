@@ -282,6 +282,9 @@ fn auto_sync_rig() -> (tempfile::TempDir, Scope, EnvMap, FakeHttp, FakeRunner) {
             }
         }),
     );
+    // The install reads `wrangler` back from pnpm's listing, so the fake pnpm lists it, at the version the lock pins,
+    // once `pnpm add` ran (and not before: an installed tool is not synced).
+    runner.answer_after("pnpm add --global", "pnpm list --global","[{\"dependencies\": {\"wrangler\": {\"version\": \"4.0.0\"}}}]", 0);
     return (directory, scope, env, http, runner);
 }
 
