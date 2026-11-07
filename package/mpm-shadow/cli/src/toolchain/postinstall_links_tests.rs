@@ -11,7 +11,8 @@ use super::cargo_installs::current_link;
 use super::fakes::{Rig, write_executable};
 use super::model::{LockedTool, Postinstall, PostinstallLink};
 use super::postinstall_links::{LinkNotices, sync_postinstall_links};
-use super::sync::{SyncReport, format_sync_report};
+use super::sync::SyncReport;
+use super::sync_report_text::format_sync_report;
 
 /// The sample lock's tool that declares a postinstall link.
 const LINKED: &str = "cargo:monochromatic-mpm-shadow";

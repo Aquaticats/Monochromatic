@@ -15,7 +15,8 @@ use super::fakes_cargo::finish_install;
 use super::fixtures::{SAMPLE_PLAN, sample_lock, sample_scope_on_disk};
 use super::launcher::{parse_record, record_path};
 use super::model::{Postinstall, PostinstallRun};
-use super::sync::{format_sync_report, replacement_warning, run_sync, sync_order, sync_tools};
+use super::sync::{replacement_warning, run_sync, sync_order, sync_tools};
+use super::sync_report_text::format_sync_report;
 
 /// Keeps only the named tools and makes `cargo-binstall` a cargo crate,
 /// so the scenario needs no `bin` CLI.
