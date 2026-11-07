@@ -240,7 +240,7 @@ await describe({
         it({
           name: 'handles adversarial paths: a target with a newline, a space, dot-dot segments, and a link chain',
           fn: async () => {
-            for (const target of ['/mnt/860/a\nb', '/mnt/860/a b', '/mnt/860/x/../y', '/mnt/860/$(touch z)',]) {
+            await Promise.all(['/mnt/860/a\nb', '/mnt/860/a b', '/mnt/860/x/../y', '/mnt/860/$(touch z)',].map(async (target,) => {
               const world = readyAfter();
               const identity = { ...AFTER, linkText: target, canonicalRoot: '/mnt/860/real', };
               world.links[LINK] = target;
@@ -251,7 +251,7 @@ await describe({
               world.uuids['/mnt/860/real/.git'] = 'DRIVE';
               world.texts['/mnt/860/real/.git/monochromatic-root-commit'] = 'abc123';
               expect((await answerFor({ identity, world, },)).kind,).toBe('ready-after',);
-            }
+            },),);
           },
         },),
       ],

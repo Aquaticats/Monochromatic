@@ -20,6 +20,7 @@ import {
   IDENTITY_RELATIVE_PATH,
 } from './constants.ts';
 import type { LinkIdentity, } from './link-types.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 
 /**
  What reading the identity file yields: whether it exists, and what it says.
@@ -49,12 +50,59 @@ const EMPTY_IDENTITY: LinkIdentity = {
  @param home - the home folder
  
  @returns the path
+
+ @example
+ ```ts
+ import { identityPathFor, } from '\@monochromatic-dev/repository-link-check';
+ 
+ const result = identityPathFor(home,);
+ ```
  */
 export function identityPathFor(home: string,): string {
   return join(
     home,
     IDENTITY_RELATIVE_PATH,
   );
+}
+
+/**
+ Builds the identity from parsed JSON of any shape: a field that is missing or not text becomes the empty text.
+
+ @param parsed - the parsed JSON, of any shape
+
+ @returns the identity
+ */
+function identityFrom(parsed: unknown,): LinkIdentity {
+  /**
+   The reader of one text field of the parsed value.
+
+   @param key - the field name
+
+   @returns the field when it is text, else the empty text
+   */
+  function textOf(key: string,): string {
+    if (((typeof parsed) !== 'object') || (parsed === null)) {
+      return '';
+    }
+    /**
+     The field's value.
+     */
+    const value: unknown = Reflect.get(
+      parsed,
+      key,
+    );
+    return (typeof value) === 'string' ? value : '';
+  }
+  return {
+    linkPath: textOf('linkPath',),
+    linkText: textOf('linkText',),
+    canonicalRoot: textOf('canonicalRoot',),
+    mountPoint: textOf('mountPoint',),
+    driveUuid: textOf('driveUuid',),
+    nvmeUuid: textOf('nvmeUuid',),
+    rootCommit: textOf('rootCommit',),
+    phase: textOf('phase',) === 'after' ? 'after' : 'before',
+  };
 }
 
 /**
@@ -65,32 +113,30 @@ export function identityPathFor(home: string,): string {
  @returns the identity; `found` is false when the file is absent
  
  @throws Error when the file exists but is not valid JSON
+
+ @example
+ ```ts
+ import { readIdentity, } from '\@monochromatic-dev/repository-link-check';
+ 
+ const result = await readIdentity(path,);
+ ```
  */
 export async function readIdentity(path: string,): Promise<IdentityRead> {
   try {
     /**
      The parsed of this step.
      */
-    const parsed = JSON.parse(await readFile(
+    const parsed: unknown = JSON.parse(await readFile(
       path,
       'utf8',
-    ),) as Readonly<Record<string, string>>;
+    ),);
     return {
       found: true,
-      identity: {
-        linkPath: parsed.linkPath ?? '',
-        linkText: parsed.linkText ?? '',
-        canonicalRoot: parsed.canonicalRoot ?? '',
-        mountPoint: parsed.mountPoint ?? '',
-        driveUuid: parsed.driveUuid ?? '',
-        nvmeUuid: parsed.nvmeUuid ?? '',
-        rootCommit: parsed.rootCommit ?? '',
-        phase: parsed.phase === 'after' ? 'after' : 'before',
-      },
+      identity: identityFrom(parsed,),
     };
   }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (errorCodeOf(error,) === 'ENOENT') {
       return {
         found: false,
         identity: EMPTY_IDENTITY,
@@ -106,6 +152,13 @@ export async function readIdentity(path: string,): Promise<IdentityRead> {
  @param path - the identity file
  
  @param identity - what to record
+
+ @example
+ ```ts
+ import { writeIdentity, } from '\@monochromatic-dev/repository-link-check';
+ 
+ await writeIdentity({ path, identity, },);
+ ```
  */
 export async function writeIdentity(
   {

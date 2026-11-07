@@ -16,6 +16,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { setTimeout, } from 'node:timers/promises';
 import { promisify, } from 'node:util';
 import {
   describe,
@@ -34,7 +35,16 @@ import {
   writeIdentity,
 } from '../dist/final/node/index.mjs';
 
-const execFileAsync = promisify(execFile,);
+/**
+ Specialized promisified `execFile`, typed through Node's own adapter contract.
+ The generic `promisify(execFile)` form trips `strict-void-return`;
+ see `doc/troubleshooting/oxlint-promisify-void-return.md`.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+
+const execFileAsync = promisifyExecFile(execFile,);
+/** Milliseconds the wait test lets the command poll before the identity file appears (under the 15 s wait). */
+const WRITE_DELAY_MILLISECONDS = 1_500;
 const BIN_FOLDER = new URL('../dist/final/node/', import.meta.url,).pathname;
 const INSTALLER = new URL('install-outside-repository.ts', import.meta.url,).pathname;
 
@@ -252,31 +262,31 @@ await describe({
               const before = await run({ file: join(BIN_FOLDER, 'check.mjs',), args: [`--identity=${identityFile}`,], },);
               expect(before.status,).toBe(0,);
               expect(before.stdout,).toContain('ready (before the move)',);
-              for (const name of ['with space', 'with\nnewline', 'dots',]) {
+              await Promise.all(['with space', 'with\nnewline', 'dots',].map(async (name, index,) => {
                 const root = join(home, 'real', name,);
                 await mkdir(join(root, '.git',), { recursive: true, },);
                 await writeFile(join(root, '.git', 'monochromatic-root-commit',), 'abc123\n',);
-                const hop = join(home, `hop ${name.length}`,);
-                const link = join(home, `link-${name.length}`,);
+                const hop = join(home, `hop ${String(index,)}`,);
+                const link = join(home, `link-${String(index,)}`,);
+                const linkText = join(home, 'real', '..', `hop ${String(index,)}`,);
                 await symlink(root, hop,);
-                const text = join(home, 'real', 'x', '..', 'z', '..', `../hop ${name.length}`,);
-                await symlink(join(home, 'real', '..', `hop ${name.length}`,), link,);
-                void text;
+                await symlink(linkText, link,);
                 const canonical = await realProbe.realpath(link,);
+                const ownIdentityFile = join(home, `identity-${String(index,)}.json`,);
                 await writeIdentity({
-                  path: identityFile,
+                  path: ownIdentityFile,
                   identity: identityOf({
                     linkPath: link,
-                    linkText: join(home, 'real', '..', `hop ${name.length}`,),
+                    linkText,
                     canonicalRoot: canonical,
                     mountPoint: home,
                     driveUuid: uuid,
                   },),
                 },);
-                const after = await run({ file: join(BIN_FOLDER, 'check.mjs',), args: [`--identity=${identityFile}`,], },);
+                const after = await run({ file: join(BIN_FOLDER, 'check.mjs',), args: [`--identity=${ownIdentityFile}`,], },);
                 expect(after.status,).toBe(0,);
                 expect(after.stdout,).toContain('ready (on the 860)',);
-              }
+              },),);
             },);
           },
         },),
@@ -314,7 +324,7 @@ await describe({
                 file: join(BIN_FOLDER, 'run.mjs',),
                 args: [`--identity=${identityFile}`, '--wait-seconds=15', '--', 'node', '-e', "console.log('command ran')",],
               },);
-              await new Promise((resolve,) => setTimeout(resolve, 1_500,));
+              await setTimeout(WRITE_DELAY_MILLISECONDS,);
               await writeIdentity({ path: identityFile, identity: identityOf({ linkPath: folder, nvmeUuid: uuid, phase: 'before', },), },);
               const result = await pending;
               expect(result.status,).toBe(0,);

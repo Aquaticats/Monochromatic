@@ -75,6 +75,13 @@ export type OpenedRepositoryRoot = {
  @returns the opened root
  
  @throws RepositoryLinkNotReadyError when the check is not ready, carrying its plain message
+
+ @example
+ ```ts
+ import { openRepositoryRoot, } from '\@monochromatic-dev/repository-link-check';
+ 
+ const result = await openRepositoryRoot({ identityFile, home, probe, },);
+ ```
  */
 export async function openRepositoryRoot(
   {

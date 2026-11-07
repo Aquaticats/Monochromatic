@@ -5,6 +5,7 @@
  */
 
 import { access, } from 'node:fs/promises';
+import { errorCodeOf, } from './error-code-of.ts';
 
 /**
  Error code of a path that does not exist.
@@ -19,6 +20,13 @@ const MISSING_PATH_CODE = 'ENOENT';
  @returns true when it exists
  
  @throws Error when the path cannot be inspected for a reason other than absence
+
+ @example
+ ```ts
+ import { pathExists, } from './path-exists.ts';
+ 
+ const result = await pathExists(path,);
+ ```
  */
 export async function pathExists(path: string,): Promise<boolean> {
   try {
@@ -26,7 +34,7 @@ export async function pathExists(path: string,): Promise<boolean> {
     return true;
   }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === MISSING_PATH_CODE) {
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
       return false;
     }
     throw error;
