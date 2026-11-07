@@ -2,20 +2,33 @@
 
 ## Symptom
 
-Wine 11.0 (Flathub `org.winehq.Wine`, `WINE_VIDEO_DRIVER=wayland`) on KDE Plasma Wayland with rotated and
-scaled outputs: a Unity 2022.3 IL2CPP game (`PlantsVsZombiesRH.exe`, Plants vs Zombies Fusion 4.0.5) opens
-with a window larger than the entire logical desktop, spilling across every output.
-User report: "It's now extremely huge when launched."
+Wine 11.0 (Flathub `org.winehq.Wine`,
+`WINE_VIDEO_DRIVER=wayland`) on KDE Plasma Wayland with rotated and
+scaled outputs:
+a Unity 2022.3 IL2CPP game (`PlantsVsZombiesRH.exe`,
+Plants vs Zombies Fusion 4.0.5) opens
+with a window larger than the entire logical desktop,
+spilling across every output.
+User report:
+"It's now extremely huge when launched."
 
-The surface trigger is Unity's borderless fullscreen convention: when `Screenmanager Fullscreen mode` is
-`FullScreenWindow`, Unity sizes its window from the current display mode of the monitor.
+The surface trigger is Unity's borderless fullscreen convention:
+when `Screenmanager Fullscreen mode` is
+`FullScreenWindow`,
+Unity sizes its window from the current display mode of the monitor.
 The affected desktop has three 4K panels rotated to portrait at compositor scale 2 (logical 1080x1920 each)
-plus one 4K panel at scale 3 (logical 1280x720), so the logical desktop spans 3240x2640.
+plus one 4K panel at scale 3 (logical 1280x720),
+so the logical desktop spans 3240x2640.
 The game window came out 3840x2160 in window coordinates.
 
-A second, game-side variant appears once the window is sized correctly: this game is designed for 16:9, so
+A second,
+game-side variant appears once the window is sized correctly:
+this game is designed for 16:9,
+so
 a 9:16 window stretches its content.
-User report: "Looks like it was made for 16:9. Non 16:9 = everything is stretched."
+User report:
+"Looks like it was made for 16:9.
+Non 16:9 = everything is stretched."
 That distortion is the game filling a non-16:9 window and is not the driver bug.
 
 ## Root cause
@@ -23,7 +36,8 @@ That distortion is the game filling a non-16:9 window and is not the driver bug.
 The call chain that produces the failure:
 
 1.  Unity reads the current display mode through `EnumDisplaySettings` and creates a borderless popup
-    window sized to it. This is the standard Windows borderless fullscreen pattern and works on Windows.
+    window sized to it.
+    This is the standard Windows borderless fullscreen pattern and works on Windows.
 2.  winewayland fills `DEVMODEW` entries from the raw `wl_output` mode dimensions:
 
 ```c
@@ -32,7 +46,8 @@ The call chain that produces the failure:
     mode->dmPelsHeight = output_mode->height;
 ```
 
-3.  Output orientation is ignored everywhere. `populate_devmode` hardcodes the orientation field and the
+3.  Output orientation is ignored everywhere.
+    `populate_devmode` hardcodes the orientation field and the
     protocol handler that receives the transform throws it away:
 
 ```c
@@ -61,8 +76,10 @@ static void output_handle_geometry(void *data, struct wl_output *wl_output,
             output_info->y + output_info->output->current_mode->height);
 ```
 
-5.  The compositor's logical size and position are known to the driver, but only steer output overlap
-    resolution, and fall back to the raw mode when the compositor omits them:
+5.  The compositor's logical size and position are known to the driver,
+    but only steer output overlap
+    resolution,
+    and fall back to the raw mode when the compositor omits them:
 
 ```c
 // dlls/winewayland.drv/wayland_output.c:262 (Wine 11.0, db11d0fe6a1)
@@ -76,11 +93,17 @@ static void output_handle_geometry(void *data, struct wl_output *wl_output,
                     (double)anchor->output->logical_w;
 ```
 
-6.  Window coordinates meanwhile live in xdg logical space, one Wine pixel per logical pixel.
-    The pointer trace maps a Wayland logical coordinate to the identical screen coordinate, and a window
-    created at 1072x603 came out exactly 1080 wide including its frame, matching the 1080 logical width of
+6.  Window coordinates meanwhile live in xdg logical space,
+    one Wine pixel per logical pixel.
+    The pointer trace maps a Wayland logical coordinate to the identical screen coordinate,
+    and a window
+    created at 1072x603 came out exactly 1080 wide including its frame,
+    matching the 1080 logical width of
     the portrait output.
-7.  For the incident numbers, the mode list, the logical geometry, and the resulting window disagree:
+7.  For the incident numbers,
+    the mode list,
+    the logical geometry,
+    and the resulting window disagree:
 
 ```text
 # excerpt from WINEDEBUG=+waylanddrv trace of PlantsVsZombiesRH.exe (Wine 11.0)
@@ -91,20 +114,28 @@ static void output_handle_geometry(void *data, struct wl_output *wl_output,
 0024:trace:waylanddrv:wayland_surface_reconfigure_size hwnd=0x20082 size=3840x2160
 ```
 
-So the game asked for 3840x2160, the raw landscape panel mode of a panel that is rotated to 2160x3840
-physical and presented as 1080x1920 logical, and the driver turned that into a 3840x2160 logical window,
+So the game asked for 3840x2160,
+the raw landscape panel mode of a panel that is rotated to 2160x3840
+physical and presented as 1080x1920 logical,
+and the driver turned that into a 3840x2160 logical window,
 wider than the 3240x2640 logical desktop.
 
-A hypothesis from this investigation was wrong and is worth recording: Wine window coordinates do not
+A hypothesis from this investigation was wrong and is worth recording:
+Wine window coordinates do not
 equal physical pixels that the compositor then scales.
 The pointer trace quoted in the root cause chain shows a 1:1 mapping between Wayland logical and screen
-coordinates on a scale 2 output, and the fitted window matched the logical output width exactly.
-The oversize window is a coordinate space mismatch between the mode list and the window space, made worse
-by ignored rotation, not a compositor scaling artifact.
+coordinates on a scale 2 output,
+and the fitted window matched the logical output width exactly.
+The oversize window is a coordinate space mismatch between the mode list and the window space,
+made worse
+by ignored rotation,
+not a compositor scaling artifact.
 
 Master does not fix this.
-`git diff db11d0fe6a1 f343ca6085b -- dlls/winewayland.drv/wayland_output.c` is empty, so
-`output_handle_geometry` still discards the transform, and the only change to `display.c` re-anchors
+`git diff db11d0fe6a1 f343ca6085b -- dlls/winewayland.drv/wayland_output.c` is empty,
+so
+`output_handle_geometry` still discards the transform,
+and the only change to `display.c` re-anchors
 monitor and mode positions to the primary output while keeping `current_mode->width` for the size:
 
 ```c
@@ -115,18 +146,26 @@ monitor and mode positions to the primary output while keeping `current_mode->wi
     OffsetRect(&monitor.rc_monitor, -primary->x, -primary->y);
 ```
 
-Master does add `fractional-scale-v1.xml` surface scaling that Wine 11.0 lacks, which is the direction
-upstream wants for HiDPI, but rotation is still unhandled in the mode and monitor reporting.
+Master does add `fractional-scale-v1.xml` surface scaling that Wine 11.0 lacks,
+which is the direction
+upstream wants for HiDPI,
+but rotation is still unhandled in the mode and monitor reporting.
 
 ## Verification
 
-Version under test: Flathub `org.winehq.Wine` stable, Wine 11.0 (runtime commit
-`2b7feee9cd37329c1fecd0c45960b0634cd0e684a3f1fd895df8771612ed2865`), source tree
+Version under test:
+Flathub `org.winehq.Wine` stable,
+Wine 11.0 (runtime commit
+`2b7feee9cd37329c1fecd0c45960b0634cd0e684a3f1fd895df8771612ed2865`),
+source tree
 `wine-mirror/wine` tag `wine-11.0` (`db11d0fe6a1`).
-Compositor: KDE Plasma Wayland (`kscreen-doctor -o` reports the three portrait outputs as
-`1080x1920` logical at `Scale: 2`, `Rotation: 2`).
+Compositor:
+KDE Plasma Wayland (`kscreen-doctor -o` reports the three portrait outputs as
+`1080x1920` logical at `Scale: 2`,
+`Rotation: 2`).
 
-Harness: run the Unity player with the wayland driver and read the window geometry from the driver trace:
+Harness:
+run the Unity player with the wayland driver and read the window geometry from the driver trace:
 
 ```sh
 # launch with tracing, from the game's directory
@@ -144,7 +183,8 @@ Failing catalog (Unity `FullScreenWindow`):
 
 - `Screenmanager Fullscreen mode_h3630240806` = 1 with any saved `Screenmanager Resolution` value
   produces the 3840x2160 window quoted in the root cause chain.
-- The xdg configure for that window reports `1080x1920` while the surface size stays `3840x2160`, so the
+- The xdg configure for that window reports `1080x1920` while the surface size stays `3840x2160`,
+  so the
   window and the compositor disagree about its extent:
 
 ```text
@@ -155,13 +195,17 @@ Failing catalog (Unity `FullScreenWindow`):
 ```
 
 - Filling a portrait output at 9:16 (windowed client 1080x1920) fits one output but stretches 16:9 game
-  content, which the user confirmed on screen.
+  content,
+  which the user confirmed on screen.
 
 Working catalog (windowed with explicit sizes):
 
-- Windowed client 1080x1920 yields outer window 1088x1954, that is the client plus the 8x34 window frame.
-- Windowed client 1072x603 yields outer window 1080x637: the outer width equals the portrait output's
-  logical width and the client is exactly 16:9, so a 16:9 game renders undistorted.
+- Windowed client 1080x1920 yields outer window 1088x1954,
+  that is the client plus the 8x34 window frame.
+- Windowed client 1072x603 yields outer window 1080x637:
+  the outer width equals the portrait output's
+  logical width and the client is exactly 16:9,
+  so a 16:9 game renders undistorted.
 
 ```text
 # excerpt from WINEDEBUG=+waylanddrv trace (client 1072x603 run)
@@ -170,10 +214,14 @@ Working catalog (windowed with explicit sizes):
 
 ## Verified workarounds
 
-1.  Consumer-side sizing recipe: run the Unity player windowed and pass explicit sizes computed from the
+1.  Consumer-side sizing recipe:
+    run the Unity player windowed and pass explicit sizes computed from the
     target output's logical geometry (`kscreen-doctor -o` or the `zxdg_output_v1_handle_logical_size`
-    trace line), never from the mode list. For a 16:9 game on a 1080x1920 portrait output the client is
-    1072x603, because the 8x34 window frame then makes the outer window exactly 1080x637:
+    trace line),
+    never from the mode list.
+    For a 16:9 game on a 1080x1920 portrait output the client is
+    1072x603,
+    because the 8x34 window frame then makes the outer window exactly 1080x637:
 
 ```sh
 # launcher fragment, from /var/home/user/.local/share/applications/pvz-fusion.desktop
@@ -198,35 +246,55 @@ Exec=env -u DISPLAY WINEPREFIX=/var/home/user/.local/share/wineprefixes/pvzfusio
     it is softer than a physical-pixel rendering of the same panel; Unity rewrites these registry values
     at exit, so the launcher arguments are what actually pin the size across runs.
 
-2.  Aspect matching for fixed-aspect games: compute the client size in the game's aspect ratio rather
-    than filling the output. 1072x603 is exactly 16:9 and as wide as the portrait output allows once the
-    frame is counted. Tradeoff: the window covers a horizontal strip of the portrait output and leaves
-    the rest unused, which is inherent to playing a 16:9 game on a 9:16 monitor.
+2.
+ Aspect matching for fixed-aspect games:
+compute the client size in the game's aspect ratio rather
+    than filling the output.
+1072x603 is exactly 16:9 and as wide as the portrait output allows once the
+    frame is counted.
+Tradeoff:
+the window covers a horizontal strip of the portrait output and leaves
+    the rest unused,
+which is inherent to playing a 16:9 game on a 9:16 monitor.
 
 ## What does not work
 
 - Keeping Unity's `FullScreenWindow` mode and setting `Screenmanager Resolution Width_h182942802` and
-  `Screenmanager Resolution Height_h2627697771`: Unity ignores the saved size in that mode and covers the
-  display as the driver reports it, so the window stays 3840x2160. Verified by saving 1920x1080 with
+  `Screenmanager Resolution Height_h2627697771`:
+  Unity ignores the saved size in that mode and covers the
+  display as the driver reports it,
+  so the window stays 3840x2160.
+  Verified by saving 1920x1080 with
   fullscreen mode 1 and tracing the resulting window.
-- Filling the portrait output at 9:16 (windowed 1080x1920): the window fits one output but the 16:9 game
-  content stretches, as the user confirmed.
-- Setting `Screenmanager Resolution Use Native_h1405027254` to 0: it does not change the mode list, and
-  the mode list is what the driver reports. Verified in the same registry block.
+- Filling the portrait output at 9:16 (windowed 1080x1920):
+  the window fits one output but the 16:9 game
+  content stretches,
+  as the user confirmed.
+- Setting `Screenmanager Resolution Use Native_h1405027254` to 0:
+  it does not change the mode list,
+  and
+  the mode list is what the driver reports.
+  Verified in the same registry block.
 
 ## Prototype of the minimal fix
 
 The prototype lives in a fresh private clone of `https://github.com/wine-mirror/wine.git` at
-`${HOME}/temp/agent/upstream-prototype.b6w0B90E/wine`, created with `mktemp` and checked to
-`db11d0fe6a1` (tag `wine-11.0`) before any edit, matching the source cited in the root cause chain.
+`${HOME}/temp/agent/upstream-prototype.b6w0B90E/wine`,
+created with `mktemp` and checked to
+`db11d0fe6a1` (tag `wine-11.0`) before any edit,
+matching the source cited in the root cause chain.
 
 The minimal fix is kept as
 [the prototype patch](wine-winewayland-raw-modes-oversize-unity-fullscreen.patch):
 83 insertions and 18 deletions across `dlls/winewayland.drv/waylanddrv.h`,
-`dlls/winewayland.drv/wayland_output.c`, and `dlls/winewayland.drv/display.c`.
-It stores `wl_output.transform` (the `output_handle_geometry` body was empty), applies it in
-`populate_devmode` (dimension swap plus `dmDisplayOrientation`), scales each mode into the logical
-output size, and builds the monitor rect and the overlap math from the logical geometry.
+`dlls/winewayland.drv/wayland_output.c`,
+and `dlls/winewayland.drv/display.c`.
+It stores `wl_output.transform` (the `output_handle_geometry` body was empty),
+applies it in
+`populate_devmode` (dimension swap plus `dmDisplayOrientation`),
+scales each mode into the logical
+output size,
+and builds the monitor rect and the overlap math from the logical geometry.
 
 Build and verification:
 
@@ -243,12 +311,17 @@ env -u DISPLAY WINEPREFIX="${HOME}/temp/agent/upstream-prototype.b6w0B90E/prefix
 rg "wayland_add_device_monitor|trace:system:add_modes current" harness.log
 ```
 
-A `EnumDisplaySettingsW` probe binary was the first harness choice, but winegcc in the build tree
+A `EnumDisplaySettingsW` probe binary was the first harness choice,
+but winegcc in the build tree
 cannot link an out-of-tree winelib app (`-lwinecrt0` thunks are unresolvable) and the host is a Fedora
-Atomic image where `dnf` refuses to install a mingw cross compiler, so the harness uses the driver's
-own `rc_monitor` trace plus win32u's `add_modes` trace, which print the same values.
+Atomic image where `dnf` refuses to install a mingw cross compiler,
+so the harness uses the driver's
+own `rc_monitor` trace plus win32u's `add_modes` trace,
+which print the same values.
 
-Before the patch (bug visible: portrait outputs report the raw landscape mode, rotated 0 degrees):
+Before the patch (bug visible:
+portrait outputs report the raw landscape mode,
+rotated 0 degrees):
 
 ```text
 # excerpt from harness.log on the unpatched build (Wine 11.0, db11d0fe6a1)
@@ -273,31 +346,55 @@ After the patch (rects and modes match `kscreen-doctor -o` logical geometry exac
 0074:trace:system:add_modes current 1280x720 32bits 60Hz rotated 0 degrees ... at (976,1920), ...
 ```
 
-Result: the current mode a Win32 app reads becomes 1080x1920 on the portrait outputs and 1280x720 on
-the scale 3 output, with `dmDisplayOrientation` matching the rotation, so the borderless fullscreen
-convention sizes its window to one output instead of the raw 3840x2160 panel mode. The game itself was
-not run against the patched build: its MelonLoader and .NET stack runs in the Flatpak Wine prefix, and
-the prototype harness targets the reported geometry, which is the value the fix changes.
+Result:
+the current mode a Win32 app reads becomes 1080x1920 on the portrait outputs and 1280x720 on
+the scale 3 output,
+with `dmDisplayOrientation` matching the rotation,
+so the borderless fullscreen
+convention sizes its window to one output instead of the raw 3840x2160 panel mode.
+The game itself was
+not run against the patched build:
+its MelonLoader and .NET stack runs in the Flatpak Wine prefix,
+and
+the prototype harness targets the reported geometry,
+which is the value the fix changes.
 
 ## Upstream filing artifact
 
-`.out-of-scope/` holds no entry for Wine, winewayland, or display mode reporting, so no exemption applies.
+`.out-of-scope/` holds no entry for Wine,
+winewayland,
+or display mode reporting,
+so no exemption applies.
 
-Duplicate search: `bugs.winehq.org` is unreachable from this environment behind its anti-bot gate, as
-recorded in `wine-icu-forward-mismatch-breaks-dotnet.md`, so the tracker itself could not be queried.
-Web search found no WineHQ bug describing this mode and rotation mismatch. Related but distinct signals:
+Duplicate search:
+`bugs.winehq.org` is unreachable from this environment behind its anti-bot gate,
+as
+recorded in `wine-icu-forward-mismatch-breaks-dotnet.md`,
+so the tracker itself could not be queried.
+Web search found no WineHQ bug describing this mode and rotation mismatch.
+Related but distinct signals:
 
 - [GNOME mutter work item 4042][mutter-4042] reports Wine Wayland windows made 200% too large at 200%
-  display scale, a compositor scaling interaction, not a mode list mismatch.
+  display scale,
+  a compositor scaling interaction,
+  not a mode list mismatch.
 - [Wine merge request 4947][wine-mr-4947] emulates display mode changes with compositor surface scaling.
-- On mutter work item 4042, winewayland contributor Etaash Mathamsetty states the design: "The wl_output
+- On mutter work item 4042,
+  winewayland contributor Etaash Mathamsetty states the design:
+  "The wl_output
   display modes are used to determine the resolution of the outputs and that is exposed to the game using
-  the same mechanisms available on windows. The games choose the resolution they run at, as they do on
-  windows. The fractional scale protocol is then used to convert to logical scale."
+  the same mechanisms available on windows.
+  The games choose the resolution they run at,
+  as they do on
+  windows.
+  The fractional scale protocol is then used to convert to logical scale."
 
-Wine rejects LLM-generated code (see the decision walk), so the kept artifact is a text-only report with
-no patch attached. It is marked "do not file as-is" until a human re-runs the reproduction and checks the
-source citations and the tracker, since those checks were assistant-run.
+Wine rejects LLM-generated code (see the decision walk),
+so the kept artifact is a text-only report with
+no patch attached.
+It is marked "do not file as-is" until a human re-runs the reproduction and checks the
+source citations and the tracker,
+since those checks were assistant-run.
 
 ~~~md
 Title: winewayland: display modes and monitor rects ignore output transform and scale, oversizing

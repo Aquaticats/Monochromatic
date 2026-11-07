@@ -70,7 +70,8 @@ Tool under test:
  neither the Arch nor the CachyOS repositories package the tool.
  Its `sign` usage confirms both
 the legacy `.pfx` path and the PKCS#11 path (`-pkcs11module` and `-pkcs11cert` still exist;
- the 2.9 option `-pkcs11engine` is now `-engine`, and `-provider` was added):
+ the 2.9 option `-pkcs11engine` is now `-engine`,
+and `-provider` was added):
 
 ```text
 [ sign ] -pkcs12 <file> | ( [ -certs <file|URI> | -spc <file> ]
@@ -83,8 +84,10 @@ the legacy `.pfx` path and the PKCS#11 path (`-pkcs11module` and `-pkcs11cert` s
 
 The `sign:windows` task was run on 2026-10-29 with the throwaway self-signed `.pfx` path
  on a 19-section PE executable built with the Windows GNU cross compiler of this repository;
- it ended with `Signature verification: ok`, `Number of verified signatures: 1` and `Succeeded`.
- The PKCS#11 path was not exercised, because it needs a real certificate and the CA's module.
+ it ended with `Signature verification: ok`,
+`Number of verified signatures: 1` and `Succeeded`.
+ The PKCS#11 path was not exercised,
+because it needs a real certificate and the CA's module.
 
 What still works:
 

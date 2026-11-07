@@ -25,7 +25,8 @@ Reading the same option inside `Program` succeeds and exposes configured value.
 
 ## Root cause
 
-Source was inspected at Oxc commit `3d6ddcef3256c2de40dec417bfc20232d9d8f485`, whose
+Source was inspected at Oxc commit `3d6ddcef3256c2de40dec417bfc20232d9d8f485`,
+whose
 `apps/oxlint/package.json` and `npm/oxlint/package.json` both identify version `1.81.0`.
 
 Oxlint constructs one context and calls `createOnce` while registering each plugin rule.
@@ -102,7 +103,8 @@ const { id, options } = context;
 ```
 
 Its checked snapshot,
-`apps/oxlint/test/fixtures/createOnce/output.snap.md:84-92`, records:
+`apps/oxlint/test/fixtures/createOnce/output.snap.md:84-92`,
+records:
 
 ```text
 x create-once-plugin(always-run): createOnce: id: null
@@ -113,7 +115,8 @@ x create-once-plugin(always-run): createOnce: options: null
 The first implementation hypothesis was that `meta.schema.minItems: 1` guaranteed a populated array whenever
 `createOnce` ran.
 That reading was wrong.
-Schema validation governs configured rule options, while plugin registration still calls `createOnce` before Oxlint
+Schema validation governs configured rule options,
+while plugin registration still calls `createOnce` before Oxlint
 installs any file's validated options.
 
 ## Verification
@@ -216,7 +219,8 @@ mise exec -- oxlint \
   Verified output was `error options-probe(probe): configured`.
 - Read `context.options` inside `before` for state needed by that file's subsequent visitors.
   `apps/oxlint/src-js/plugins/lint.ts:210-228` installs options before invoking `beforeHook`.
-- Use ESLint-compatible `create`, which Oxlint invokes per file after installing options at
+- Use ESLint-compatible `create`,
+  which Oxlint invokes per file after installing options at
   `apps/oxlint/src-js/plugins/lint.ts:212-218`.
 
 ### Patterns that fail during plugin loading
@@ -224,7 +228,8 @@ mise exec -- oxlint \
 - Index `context.options[0]` directly in `createOnce`.
   The verified result is `TypeError: Cannot read properties of null (reading '0')`.
 - Destructure `const { options } = context` in `createOnce` and use captured value later.
-  Upstream's checked fixture records captured value as `null`, so closure remains stale after context property is
+  Upstream's checked fixture records captured value as `null`,
+  so closure remains stale after context property is
   redefined.
 - Assume `meta.defaultOptions` or a required options schema populates context before `createOnce`.
   Per-file installation happens later in `lintFileImpl`.
@@ -246,28 +251,36 @@ mise exec -- oxlint \
 ```
 
 This preserves `createOnce` and reads options once per file at a callback guaranteed to run for every parsed file.
-Tradeoff: option decoding occurs per file rather than once per plugin process.
+Tradeoff:
+option decoding occurs per file rather than once per plugin process.
 
 `package/oxlint-plugin/stylistic/src/rule/require-asterisk-prefix.ts` uses this pattern.
-`mise run //package/oxlint-plugin/stylistic:test:unit` passed after the change, including separate `always`, `never`,
-omitted-mode, invalid-mode, and bidirectional autofix cases.
+`mise run //package/oxlint-plugin/stylistic:test:unit` passed after the change,
+including separate `always`,
+`never`,
+omitted-mode,
+invalid-mode,
+and bidirectional autofix cases.
 
 ### Read options inside `before`
 
 A rule can decode options in `before` and retain result for its visitors.
-Tradeoff: Oxlint's writing-plugin documentation warns that `before` is not guaranteed to run for every file in future
+Tradeoff:
+Oxlint's writing-plugin documentation warns that `before` is not guaranteed to run for every file in future
 optimized traversal.
 Use this only when retained state is consumed by visitors whose execution is coupled to that hook.
 
 ### Use `create`
 
 Replacing `createOnce` with ESLint's per-file `create` makes option access valid in callback body.
-Tradeoff: this abandons Oxlint's alternative lifecycle and its intended future interop optimizations.
+Tradeoff:
+this abandons Oxlint's alternative lifecycle and its intended future interop optimizations.
 
 ## What does not work
 
 - Strengthening option schema does not change registration lifecycle.
-  Schema controls validity, not timing.
+  Schema controls validity,
+  not timing.
 - Adding `defaultOptions` does not populate registration context.
   `lint.ts` chooses defaults while beginning each file.
 - Capturing null in `createOnce` and expecting later `Object.defineProperty` calls
@@ -280,24 +293,42 @@ Tradeoff: this abandons Oxlint's alternative lifecycle and its intended future i
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?** No.
-   Runtime behavior is explicit in `context.ts`, covered by upstream fixture and snapshot, and follows one-context
+1. **Is it really upstream's fault?**
+   No.
+   Runtime behavior is explicit in `context.ts`,
+   covered by upstream fixture and snapshot,
+   and follows one-context
    `createOnce` lifecycle.
    Consumer read occurred at wrong lifecycle boundary.
-2. **Can upstream fix it?** Documentation and public typing could expose lifecycle nullability, but changing runtime to
+2. **Can upstream fix it?**
+   Documentation and public typing could expose lifecycle nullability,
+   but changing runtime to
    provide file options during one-time registration would conflict with per-file configuration.
-3. **Are they supporting this use case?** Yes.
-   Oxlint documentation supports both rule options and `createOnce`, and directs per-file setup into callbacks.
-4. **Would the repo welcome our contribution?** Yes, with conditions.
-   `CONTRIBUTING.md:7-20` welcomes contributions and permits AI assistance when disclosed, reviewed, tested, understood,
+3. **Are they supporting this use case?**
+   Yes.
+   Oxlint documentation supports both rule options and `createOnce`,
+   and directs per-file setup into callbacks.
+4. **Would the repo welcome our contribution?**
+   Yes,
+   with conditions.
+   `CONTRIBUTING.md:7-20` welcomes contributions and permits AI assistance when disclosed,
+   reviewed,
+   tested,
+   understood,
    and adapted.
-   `.github/ISSUE_TEMPLATE/linter_bug_report.yaml:1-42` requests version, command, config, and reproduction.
-5. **Will they likely fix it?** Not applicable as runtime bug because source and snapshots assert behavior.
+   `.github/ISSUE_TEMPLATE/linter_bug_report.yaml:1-42` requests version,
+   command,
+   config,
+   and reproduction.
+5. **Will they likely fix it?**
+   Not applicable as runtime bug because source and snapshots assert behavior.
    GitHub issue and PR searches for `createOnce context options null` across open and closed state found no duplicate.
-6. **Have we prototyped a minimal fix compatible with their architecture?** No upstream patch is warranted because
+6. **Have we prototyped a minimal fix compatible with their architecture?**
+   No upstream patch is warranted because
    constraint 1 fails.
    Consumer-side deferred read was implemented and verified instead.
 
 Nothing should be filed upstream from this incident.
-The tested behavior matches upstream's source-level contract, and a report would not identify a runtime defect or add
+The tested behavior matches upstream's source-level contract,
+and a report would not identify a runtime defect or add
 new evidence to an existing thread.

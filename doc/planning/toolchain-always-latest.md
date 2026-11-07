@@ -4,7 +4,8 @@ Status as of 2026-11-07T08:33:17-05:00:
 the plan,
 both locks and the container builds follow the newest versions;
 the daily update is built,
-rehearsed in a throwaway worktree, and since 2026-11-07T08:29:48-05:00 enabled as a timer;
+rehearsed in a throwaway worktree,
+and since 2026-11-07T08:29:48-05:00 enabled as a timer;
 its first real run ended at 2026-11-07T08:33:17-05:00 with result `success` (section "First run").
 
 ## Owner's words
@@ -229,7 +230,8 @@ None does now.
   and each image task (the `mise.toml` files and the translated `task.ts` files) adds it to `podman build`.
 - `PINNED` in `package/cargo-shadow/cli/src/toolchain_tests.rs` is read from the repository lock.
 - The same holds for Zig and `cargo-about`:
-  the Containerfiles declare `ZIG_ARCHIVE_URL`, `ZIG_ARCHIVE_SHA256` and `CARGO_ABOUT_VERSION` with no default,
+  the Containerfiles declare `ZIG_ARCHIVE_URL`,
+  `ZIG_ARCHIVE_SHA256` and `CARGO_ABOUT_VERSION` with no default,
   and their callers read the values from `package/test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts`
   (`zig` or `cargo-about`).
   The Zig install checks the SHA-256 and prints `zig version`.
@@ -241,7 +243,8 @@ None does now.
   The explicit `image` tasks always build and label.
   Limits:
   an image built before the label existed has none and rebuilds once;
-  the digest covers build arguments and base images, not the contents of a Containerfile;
+  the digest covers build arguments and base images,
+  not the contents of a Containerfile;
   the `image:windows-gnu` task and `package/nested-wayland-session/cli` still use the old exists check.
 - Built on 2026-11-07 with the lock's nightly-2026-11-07:
   see "Images built".
@@ -399,33 +402,48 @@ the lock's `nightly-2026-11-07`.
 
 ## Zig 0.17.1 results
 
-Run on 2026-11-07 in containers capped with `--cpus`, `--memory`, `--pids-limit` and `--blkio-weight` inside a `systemd-run --user --scope`
+Run on 2026-11-07 in containers capped with `--cpus`,
+`--memory`,
+`--pids-limit` and `--blkio-weight` inside a `systemd-run --user --scope`
 with `IOWeight` 10.
 
-- The five images below were rebuilt by `container-image-build-if-inputs-changed` (each carried no label, so each was stale):
-  `localhost/monochromatic/terminal`, `terminal-release`, `music-player`, `ide` and `ide-release`.
-  `zig version` printed 0.17.1 in `terminal`, `terminal-release`, `music-player` and `ide`
+- The five images below were rebuilt by `container-image-build-if-inputs-changed` (each carried no label,
+  so each was stale):
+  `localhost/monochromatic/terminal`,
+  `terminal-release`,
+  `music-player`,
+  `ide` and `ide-release`.
+  `zig version` printed 0.17.1 in `terminal`,
+  `terminal-release`,
+  `music-player` and `ide`
   (`ide-release` starts from `terminal-release`),
   and `cargo-about --version` printed 0.9.3 in `ide`.
-  A second run of the command on each image built nothing, so the labels match the digests the tasks compute.
+  A second run of the command on each image built nothing,
+  so the labels match the digests the tasks compute.
 - `package/terminal/app`:
   `cargo clippy --locked --release --all-targets -- --deny warnings` passed,
-  and `cargo nextest run --locked --release` ran 16 tests, 16 passed.
+  and `cargo nextest run --locked --release` ran 16 tests,
+  16 passed.
 - `package/music-player/desktop-app`:
   `cargo zigbuild --locked --release --target x86_64-unknown-linux-gnu.2.39` finished in 5m09s on Zig 0.17.1
   after the `branches` and `zbus` repairs;
   `cargo clippy --locked --release --all-targets -- -D warnings` passed after five findings of the newest nightly's Clippy
-  (a shadowed binding, two constant assertions and two needless borrows in tests) were fixed.
-  `cargo nextest run --locked --release --no-fail-fast` with `SLINT_EMIT_DEBUG_INFO=1` ran 1594 tests, 1593 passed,
-  1 skipped, 1 failed:
+  (a shadowed binding,
+  two constant assertions and two needless borrows in tests) were fixed.
+  `cargo nextest run --locked --release --no-fail-fast` with `SLINT_EMIT_DEBUG_INFO=1` ran 1594 tests,
+  1593 passed,
+  1 skipped,
+  1 failed:
   `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis`
-  ("the long title ends in an ellipsis", `src/ui_lists_render_tests.rs:227`).
+  ("the long title ends in an ellipsis",
+  `src/ui_lists_render_tests.rs:227`).
   That is a text-layout assertion in the Slint renderer test;
   it was not investigated and nothing in this change touches it.
 - The terminal task `mise run //package/terminal/app:test:container` ran through the rewired dispatch:
   the image was current (no build),
   and 16 of 16 tests passed.
-- Found on the way, separate from Zig:
+- Found on the way,
+  separate from Zig:
   the open-ended `zbus` floor and the `branches` feature unification
   (section "Fix-forward items").
 
@@ -479,29 +497,65 @@ from 2026-11-07T06:39:09-05:00.
 
 ## First run
 
-Run 2026-11-07T08:30:04-05:00 to 2026-11-07T08:33:17-05:00, after the crate release batch finished
+Run 2026-11-07T08:30:04-05:00 to 2026-11-07T08:33:17-05:00,
+after the crate release batch finished
 (2026-11-07T13:10:36Z) and the seven repository tools moved to the `archive` route (`doc/planning/one-release-each-batch-2026-11.md`,
 "Steps after the batch").
 
-- Steps taken: merge `feat/toolchain-always-latest-landing` (`ea2f72c3c1`, 2026-11-07T08:20:23-05:00);
-  `mise run toolchain:timer:install` (2026-11-07T08:29:48-05:00, timer enabled, next run 2026-11-08T00:07:05-05:00);
-  `systemctl --user start --no-block toolchain-daily-update.service`, followed with `journalctl --user --unit toolchain-daily-update`.
-- Result of the service: `success`; 3 min 12.6 s wall clock, 1 min 15.3 s CPU, 1.4 G memory peak
-  (the rehearsal took 20 min 51 s because its global install compiled the wrapper; now every repository tool installs from an archive).
-- Repository toolchain: unchanged, 0 files committed (the lock had just been updated by hand through `toolchain:update`);
-  `toolchain:update` 38 s, `toolchain:install` 3 s.
-- Machine-global toolchain: unchanged, 0 files committed (outside the repository); `toolchain:update:global` 24 s,
+- Steps taken:
+  merge `feat/toolchain-always-latest-landing` (`ea2f72c3c1`,
+  2026-11-07T08:20:23-05:00);
+  `mise run toolchain:timer:install` (2026-11-07T08:29:48-05:00,
+  timer enabled,
+  next run 2026-11-08T00:07:05-05:00);
+  `systemctl --user start --no-block toolchain-daily-update.service`,
+  followed with `journalctl --user --unit toolchain-daily-update`.
+- Result of the service:
+  `success`;
+  3 min 12.6 s wall clock,
+  1 min 15.3 s CPU,
+  1.4 G memory peak
+  (the rehearsal took 20 min 51 s because its global install compiled the wrapper;
+  now every repository tool installs from an archive).
+- Repository toolchain:
+  unchanged,
+  0 files committed (the lock had just been updated by hand through `toolchain:update`);
+  `toolchain:update` 38 s,
+  `toolchain:install` 3 s.
+- Machine-global toolchain:
+  unchanged,
+  0 files committed (outside the repository);
+  `toolchain:update:global` 24 s,
   `toolchain:install:global` 14 s.
-- Dependency locks: landed, 51 files in one commit, `d61dc1934a` (2026-11-07T08:33:16-05:00, pushed):
-  `deps:update` 6 s, `cargo-shadow update` 76 s, `catalog:tighten` 6 s, `sync:files` 2 s, `pnpm install` 4 s,
-  `cargo-shadow install` 16 s, `check:files` 3 s; 35 lockfiles satisfy their manifests; `bincode` stayed on 1.3.3 in `package/git-policy/cli/Cargo.lock`
+- Dependency locks:
+  landed,
+  51 files in one commit,
+  `d61dc1934a` (2026-11-07T08:33:16-05:00,
+  pushed):
+  `deps:update` 6 s,
+  `cargo-shadow update` 76 s,
+  `catalog:tighten` 6 s,
+  `sync:files` 2 s,
+  `pnpm install` 4 s,
+  `cargo-shadow install` 16 s,
+  `check:files` 3 s;
+  35 lockfiles satisfy their manifests;
+  `bincode` stayed on 1.3.3 in `package/git-policy/cli/Cargo.lock`
   (the `bincode-1` catalog held).
-- No group failed; no restore and no notification were triggered.
-- Seen, not changed: `toolchain:install:global` and `toolchain:list:global` disagree about 12 npm-routed global tools
-  (`npm:@github/copilot`, `npm:@deepseek-ai/dsh` and others): each install reports them installed
-  (`12 installed, 50 unchanged, 0 failed`, again on the repeated run), the list reports them absent
+- No group failed;
+  no restore and no notification were triggered.
+- Seen,
+  not changed:
+  `toolchain:install:global` and `toolchain:list:global` disagree about 12 npm-routed global tools
+  (`npm:@github/copilot`,
+  `npm:@deepseek-ai/dsh` and others):
+  each install reports them installed
+  (`12 installed, 50 unchanged, 0 failed`,
+  again on the repeated run),
+  the list reports them absent
   (`12 of 62 tools drifted`) and an `unresolved bins:` line names their programs.
-  The service still ends `success`, because the install step exits 0.
+  The service still ends `success`,
+  because the install step exits 0.
 
 ## Dependency locks: what the daily update changes and what usually breaks
 
@@ -591,7 +645,8 @@ on the branch with the new locks:
 - bun 1.4.4 in both locks:
   nothing has run on it;
   the pin's reason was a doubt about the rewrite.
-- zig 0.17.1: done (section "Containers follow the lock").
+- zig 0.17.1:
+  done (section "Containers follow the lock").
   The Slint and `cargo-zigbuild` builds of the music player and the terminal's Clippy and nextest ran on 0.17.1
   (section "Zig 0.17.1 results").
 - `libghostty-vt` comes from a `libghostty-rs` git revision;
@@ -600,10 +655,12 @@ on the branch with the new locks:
   the named catalog `branches-0-4` enables `std` on the line `turso_core` uses;
   remove it when `turso_core` requires `branches` 0.5 or newer
   (`doc/troubleshooting/branches-0-4-calls-removed-core-intrinsics-abort.md`).
-- zbus 6: the daily update locked 6.2.1, which removed `zbus::blocking`.
-  `package/music-player/desktop-app` is held on 5.x by the named catalog `zbus-5`;
-  `package/nested-wayland-session/cli` uses `zbus::blocking` too and was not built;
-  the port to `zbus::block_on` is open
+- zbus 6:
+  done on 2026-11-07.
+  The daily update locked 6.2.1,
+  which removed `zbus::blocking`;
+  `package/music-player/desktop-app` and `package/nested-wayland-session/cli` are ported to `zbus::block_on`
+  and the named catalog `zbus-5` is gone
   (`doc/troubleshooting/zbus-6-removed-the-blocking-api.md`).
 - cargo-fuzz:
   the next point release may break the fuzz crates;

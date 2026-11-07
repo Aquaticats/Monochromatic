@@ -11,13 +11,26 @@ Failure mode:
 
 ## Rule for agents: headful only (2026-10-13)
 
-Never launch an emulator with `-no-window`, under `xvfb-run`, or in a container, and never let a brief permit it.
-Headless launches broke repeatedly: a container launch hung for 2.8 hours, two container boots on 2026-10-13 hung on
-software rendering, and the human reports that headless emulators break frequently.
-The only launch form for agent sessions is the one in "Working agent launch: headful, host GPU, no container":
-a window on the host GPU, as its own systemd user unit with `MemoryMax`.
-If that launch fails, stop and report the error; do not fall back to a headless form.
-The headless commands below are the evidence of the original crash and stay as a record, not as instructions.
+Never launch an emulator with `-no-window`,
+under `xvfb-run`,
+or in a container,
+and never let a brief permit it.
+Headless launches broke repeatedly:
+a container launch hung for 2.8 hours,
+two container boots on 2026-10-13 hung on
+software rendering,
+and the human reports that headless emulators break frequently.
+The only launch form for agent sessions is the one in "Working agent launch:
+headful,
+host GPU,
+no container":
+a window on the host GPU,
+as its own systemd user unit with `MemoryMax`.
+If that launch fails,
+stop and report the error;
+do not fall back to a headless form.
+The headless commands below are the evidence of the original crash and stay as a record,
+not as instructions.
 
 ## Symptom
 
@@ -219,7 +232,8 @@ emulator -avd Pixel_9_Pro_Fold -no-audio -gpu host -no-snapshot-load
 This comparison changes renderer and window mode together;
  the prior read-only
 headless `-gpu host` positive control showed that a window is not required for host-GPU success on this host.
-That is a fact about the crash only: agents still launch headful (see "Rule for agents").
+That is a fact about the crash only:
+agents still launch headful (see "Rule for agents").
  The music-player APK and test APK installed on that emulator.
 The real Android instrumentation runner then executed the migration suite:
 
@@ -234,9 +248,12 @@ OK (2 tests)
 ## Working agent launch: headful, host GPU, no container (2026-10-12)
 
 An agent session drove the owned Pixel 9 Pro Fold AVD for hours with a headless container launch that passed
-`-feature -Vulkan` under `xvfb-run` (software rendering, 2 CPUs and 6 GiB for a 4 GiB guest) and met repeated System UI
-and Pixel Launcher ANRs, a `qemu` segmentation fault and an ANR loop.
-The same AVD booted cleanly when launched headfully as its own systemd user unit, on the host GPU:
+`-feature -Vulkan` under `xvfb-run` (software rendering,
+2 CPUs and 6 GiB for a 4 GiB guest) and met repeated System UI
+and Pixel Launcher ANRs,
+a `qemu` segmentation fault and an ANR loop.
+The same AVD booted cleanly when launched headfully as its own systemd user unit,
+on the host GPU:
 
 ```bash
 systemd-run --user --unit=agent-fold-headful --collect --property=MemoryMax=12G \
@@ -247,49 +264,97 @@ systemd-run --user --unit=agent-fold-headful --collect --property=MemoryMax=12G 
   -no-snapshot -no-audio -no-boot-anim -gpu host -camera-back none -camera-front none -memory 4096 -cores 4 -no-metrics
 ```
 
-(The owned AVD also needs its own `HOME`, `ANDROID_USER_HOME` and `ANDROID_AVD_HOME`, and a private adb server port, as
+(The owned AVD also needs its own `HOME`,
+`ANDROID_USER_HOME` and `ANDROID_AVD_HOME`,
+and a private adb server port,
+as
 in the agent's notes.
-Every `adb` call for that emulator, including `emu kill`, must run with the same `HOME` and port:
+Every `adb` call for that emulator,
+including `emu kill`,
+must run with the same `HOME` and port:
 in one session the shell's real `HOME` showed the device as `unauthorized` and failed the console token check,
 see `android-emulator-console-token-container-home.md`.)
-Result: `sys.boot_completed=1` after 98 s, no ANR dialog and no crash, with the journal naming the AMD Radeon RX 7600
-as the GL and Vulkan device, at a load average above 60 on 16 cores.
-So the failures were launch flags and container limits, not host load.
-Use this form for agent sessions: no `-no-window`, no `xvfb-run`, no container, Vulkan left at its default.
-The window opens on the human's session; close it with `adb emu kill` after `sync`.
+Result:
+`sys.boot_completed=1` after 98 s,
+no ANR dialog and no crash,
+with the journal naming the AMD Radeon RX 7600
+as the GL and Vulkan device,
+at a load average above 60 on 16 cores.
+So the failures were launch flags and container limits,
+not host load.
+Use this form for agent sessions:
+no `-no-window`,
+no `xvfb-run`,
+no container,
+Vulkan left at its default.
+The window opens on the human's session;
+close it with `adb emu kill` after `sync`.
 
 ## Separate incident: SIGABRT in a gRPC callback of the headful launch (2026-10-14)
 
-This happened with the working headful launch form above, so it is not the SwiftShader boot crash and not the llvmpipe
+This happened with the working headful launch form above,
+so it is not the SwiftShader boot crash and not the llvmpipe
 crash below.
-It is recorded as a separate incident: the cause is not shown.
+It is recorded as a separate incident:
+the cause is not shown.
 
-- Emulator 37.2.12, the owned Pixel 9 Pro Fold AVD copy, ports 5772 and 5773, `-gpu host`, as its own systemd user unit
+- Emulator 37.2.12,
+  the owned Pixel 9 Pro Fold AVD copy,
+  ports 5772 and 5773,
+  `-gpu host`,
+  as its own systemd user unit
   with `MemoryMax=12G`.
-  The guest booted (about 35 s), a 35-track library was pushed, an APK was installed and the demo-mode broadcasts were
-  sent; the emulator process then aborted about a minute later.
-- `coredumpctl info` names the emitter and signal: `qemu-system-x86_64`, signal 6 (ABRT), raised by
+  The guest booted (about 35 s),
+  a 35-track library was pushed,
+  an APK was installed and the demo-mode broadcasts were
+  sent;
+  the emulator process then aborted about a minute later.
+- `coredumpctl info` names the emitter and signal:
+  `qemu-system-x86_64`,
+  signal 6 (ABRT),
+  raised by
   `__libcpp_verbose_abort` from a frame of the emulator binary inside `grpc::internal::CallbackWithSuccessTag::Proceed`,
   run by a gRPC event-engine worker thread of `libandroid-webrtc.so`.
-- The journal line just before it, at the second the core was dumped, was
+- The journal line just before it,
+  at the second the core was dumped,
+  was
   `Netsim Wifi ipv6:... is gone due to CANCELLED` followed by `Got goaway [2] ... Cancelling all calls`.
   Another agent's emulator unit (`-ports 5592,5593`) was running when this one started and was gone when the
-  relaunch was prepared, so a shared netsim daemon is one candidate; nothing here shows it.
-- Workaround that held: a fresh reflink copy of the AVD and the same launch form booted again and ran the rest of the
-  scripted captures with no abort; the session ended with `sync`, a wait of 8 s, `sync` and `adb emu kill`.
-- Not done: no reproduction on purpose, no `-no-netsim` or other flag was tried, because the launch rule allows one
+  relaunch was prepared,
+  so a shared netsim daemon is one candidate;
+  nothing here shows it.
+- Workaround that held:
+  a fresh reflink copy of the AVD and the same launch form booted again and ran the rest of the
+  scripted captures with no abort;
+  the session ended with `sync`,
+  a wait of 8 s,
+  `sync` and `adb emu kill`.
+- Not done:
+  no reproduction on purpose,
+  no `-no-netsim` or other flag was tried,
+  because the launch rule allows one
   form only.
 
 ## Separate incident: crash consent dialog blocks the next headful launch (2026-10-18)
 
-Three headful launches (the working form above, a private reflink copy of the owned AVD, `-gpu host`) in one session:
+Three headful launches (the working form above,
+a private reflink copy of the owned AVD,
+`-gpu host`) in one session:
 the first crashed with SIGSEGV in `gfxstream::host::gl::TextureResize` right after boot,
-the second aborted (SIGABRT, `grpc::internal::CallbackWithSuccessTag::Proceed`, the frame of the 2026-10-14 incident),
-and the third printed `Showing crashdialog to get consent.` at start, then `Vulkan emulation initialized`,
+the second aborted (SIGABRT,
+`grpc::internal::CallbackWithSuccessTag::Proceed`,
+the frame of the 2026-10-14 incident),
+and the third printed `Showing crashdialog to get consent.` at start,
+then `Vulkan emulation initialized`,
 and stayed alive for 15 minutes with no console port and no device in `adb devices`.
-The two earlier reports sit in `/tmp/android-user/emu-crash-37.2.12.db`, and the emulator asks for consent before it
-boots; the dialog is on the host session, which an agent cannot answer.
-Not tested: whether `-no-metrics` is ignored by that dialog, or whether removing the report database avoids it.
+The two earlier reports sit in `/tmp/android-user/emu-crash-37.2.12.db`,
+and the emulator asks for consent before it
+boots;
+the dialog is on the host session,
+which an agent cannot answer.
+Not tested:
+whether `-no-metrics` is ignored by that dialog,
+or whether removing the report database avoids it.
 The third launch was stopped with `systemctl --user stop` (the guest had not booted).
 
 ## Separate incident: mid-session SIGSEGV under llvmpipe in a container (2026-10-05)
@@ -439,70 +504,133 @@ A fresh boot of the host therefore did not stop the crash.
 
 ## Separate incident: headful host-GPU SEGV in gfxstream TextureResize (2026-10-13)
 
-This is not the SwiftShader boot crash above: the launch was the recommended one in "Working agent launch: headful,
-host GPU, no container" (`-gpu host`, own systemd unit, AMD Radeon RX 7600 through RADV), and the guest had booted.
+This is not the SwiftShader boot crash above:
+the launch was the recommended one in "Working agent launch:
+headful,
+host GPU,
+no container" (`-gpu host`,
+own systemd unit,
+AMD Radeon RX 7600 through RADV),
+and the guest had booted.
 
 Two agent runs on the same invented 10 000-track library each lost the emulator to `SIGSEGV` in
 `qemu-system-x86_64` during long runs.
 The first came at 13:46:59 during the third play-window run (`lf-emulator.service` exited with
-`code=dumped, status=11/SEGV`); the second at 17:50:44, on the first cold start after a clean reinstall, about 53
-minutes after the launch (core of 1.3 GB; its `coredumpctl info` is in the agent scratch
+`code=dumped, status=11/SEGV`);
+the second at 17:50:44,
+on the first cold start after a clean reinstall,
+about 53
+minutes after the launch (core of 1.3 GB;
+its `coredumpctl info` is in the agent scratch
 `lf/logs/crash2-coredumpctl-info.txt`).
-The crashing thread in both was in `libgfxstream_backend.so`: `gfxstream::host::gl::TextureResize::TextureResize`
-called from `ColorBufferGl::create` (first crash) and `EmulationGl::createColorBuffer` (second); in the first the top
+The crashing thread in both was in `libgfxstream_backend.so`:
+`gfxstream::host::gl::TextureResize::TextureResize`
+called from `ColorBufferGl::create` (first crash) and `EmulationGl::createColorBuffer` (second);
+in the first the top
 frame was `__strlen_evex`.
 Earlier on 2026-10-13 an Android gallery run saw one similar crash after its captures (a null-context SIGSEGV in the
 same backend).
-A fourth came on 2026-10-13 at 21:40:18 (local time, 01:40 UTC on the 14th), 24 minutes 39 seconds after the launch,
-on the same 10 000-track library, during the cold start of the second trial of a play-window run; the stack was the same
-(`__strlen_evex` under `TextureResize::TextureResize` under `EmulationGl::createColorBuffer`), the core 1.2 GB, and the
+A fourth came on 2026-10-13 at 21:40:18 (local time,
+01:40 UTC on the 14th),
+24 minutes 39 seconds after the launch,
+on the same 10 000-track library,
+during the cold start of the second trial of a play-window run;
+the stack was the same
+(`__strlen_evex` under `TextureResize::TextureResize` under `EmulationGl::createColorBuffer`),
+the core 1.2 GB,
+and the
 trial that was running was lost (its child hit the 20 minute timeout).
 The two later launches from fresh copies ran 70 and 28 minutes without a crash.
-A fifth came on 2026-10-14 at 08:30:17 (local time), 10 minutes after the launch
+A fifth came on 2026-10-14 at 08:30:17 (local time),
+10 minutes after the launch
 and 2 minutes into the first run on that
-copy (the `pm clear`, install and cold start of a second variant); the stack was again `__strlen_evex` under
-`TextureResize::TextureResize` under `EmulationGl::createColorBuffer`, the core 1.3 GB, and the journal showed
+copy (the `pm clear`,
+install and cold start of a second variant);
+the stack was again `__strlen_evex` under
+`TextureResize::TextureResize` under `EmulationGl::createColorBuffer`,
+the core 1.3 GB,
+and the journal showed
 `glGenTextures ... error null ctx` lines from the backend two minutes earlier.
-The relaunch from a fresh copy then ran about 1 hour 40 minutes (a 10 003-file push, 17 interleaved play windows, four
-simpleperf runs and the controller checks) without a crash and shut down gracefully, and a third launch from another
-fresh copy (three invented tones, transport checks) also ended without a crash.
+The relaunch from a fresh copy then ran about 1 hour 40 minutes (a 10 003-file push,
+17 interleaved play windows,
+four
+simpleperf runs and the controller checks) without a crash and shut down gracefully,
+and a third launch from another
+fresh copy (three invented tones,
+transport checks) also ended without a crash.
 
 A sixth and a seventh came on 2026-10-15 during the release-build measurements
-(`doc/audit/music-player-release-build-measurements-2026-10-15.md`), from the same headful host-GPU launch
-(own `systemd-run --user` unit, `MemoryMax=12G`, reflink copy of the owned AVD):
+(`doc/audit/music-player-release-build-measurements-2026-10-15.md`),
+from the same headful host-GPU launch
+(own `systemd-run --user` unit,
+`MemoryMax=12G`,
+reflink copy of the owned AVD):
 
-- `coredumpctl` entry 2569769, unit `relmeasure-emulator-1.service`, 13:02:34 local time, 1 hour 3 minutes 54 seconds
-  after the launch, core 1.6 GB.
-  The crash came during the 10 000-track scroll runs (the `dumpsys gfxinfo` windows), right after the first deep
+- `coredumpctl` entry 2569769,
+  unit `relmeasure-emulator-1.service`,
+  13:02:34 local time,
+  1 hour 3 minutes 54 seconds
+  after the launch,
+  core 1.6 GB.
+  The crash came during the 10 000-track scroll runs (the `dumpsys gfxinfo` windows),
+  right after the first deep
   window of that size.
-- `coredumpctl` entry 302782, unit `relmeasure-emulator-2.service`, 13:24:05 local time, 19 minutes 49 seconds after
-  the launch, core 1.5 GB, again during the 10 000-track scroll runs.
+- `coredumpctl` entry 302782,
+  unit `relmeasure-emulator-2.service`,
+  13:24:05 local time,
+  19 minutes 49 seconds after
+  the launch,
+  core 1.5 GB,
+  again during the 10 000-track scroll runs.
 
-Both stacks are the same as the fourth and fifth: `__strlen_evex` under
+Both stacks are the same as the fourth and fifth:
+`__strlen_evex` under
 `gfxstream::host::gl::TextureResize::TextureResize` under `ColorBufferGl::create` under
 `EmulationGl::createColorBuffer`.
-The journal carried `glestranslator ... error null ctx` lines before each crash, as before the fifth.
-The third launch, which ran only 1 000-track scroll windows and idle counts, ran to a graceful shutdown.
-The driver then failed with `no scrollable node found` because the guest was gone, which is how the crash showed up
+The journal carried `glestranslator ... error null ctx` lines before each crash,
+as before the fifth.
+The third launch,
+which ran only 1 000-track scroll windows and idle counts,
+ran to a graceful shutdown.
+The driver then failed with `no scrollable node found` because the guest was gone,
+which is how the crash showed up
 in the run.
-Each was recovered by a fresh reflink copy and relaunch, at most twice as the task allowed, and the scroll windows
+Each was recovered by a fresh reflink copy and relaunch,
+at most twice as the task allowed,
+and the scroll windows
 that ran in the two crashed sessions are kept in the audit with the crashes noted as a confound.
 
-Two facts about the owned AVD copy found in the same session: the sdcard of the owned AVD already holds
-`/sdcard/Music/RealAppTest` (private names), so delete it before pushing a library and before the volume scan, not
-after; and on this emulator `content query ... --projection` takes columns separated by a colon (`_data:duration`), a
+Two facts about the owned AVD copy found in the same session:
+the sdcard of the owned AVD already holds
+`/sdcard/Music/RealAppTest` (private names),
+so delete it before pushing a library and before the volume scan,
+not
+after;
+and on this emulator `content query ... --projection` takes columns separated by a colon (`_data:duration`),
+a
 comma is rejected with `Invalid column`.
 
-Recovery that worked: discard that AVD copy, make a fresh reflink copy of the owned AVD, relaunch headful, reinstall and
+Recovery that worked:
+discard that AVD copy,
+make a fresh reflink copy of the owned AVD,
+relaunch headful,
+reinstall and
 re-push the invented library.
-The guest is already dead when the crash is seen, so `sync`, `adb emu kill` and the settings restore have nothing to
-act on; compare settings only on the next boot.
-Measurements in flight are lost, so run each scenario trial from a clean reinstall and redo the trial that was running.
+The guest is already dead when the crash is seen,
+so `sync`,
+`adb emu kill` and the settings restore have nothing to
+act on;
+compare settings only on the next boot.
+Measurements in flight are lost,
+so run each scenario trial from a clean reinstall and redo the trial that was running.
 
-Not established: what triggers it (the common point is a color buffer allocation in the backend),
-whether another emulator build or `-gpu` mode avoids it, and whether it is related to the host load (20 to 36 during
+Not established:
+what triggers it (the common point is a color buffer allocation in the backend),
+whether another emulator build or `-gpu` mode avoids it,
+and whether it is related to the host load (20 to 36 during
 those runs).
-Do not fall back to a headless launch: it is banned (see "Rule for agents").
+Do not fall back to a headless launch:
+it is banned (see "Rule for agents").
 
 ## Verified workarounds
 

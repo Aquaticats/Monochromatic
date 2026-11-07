@@ -87,7 +87,8 @@ User decisions taken during execution
    the preexisting TS7006 in `src/toolchain/update.ts` (user defers it).
   `dependency-catalog/cli-rust-update`:
    `registry.unit.test.ts` lacks `fetchDump`,
-   from `monochromatic-fb`'s in-progress registry change, not the move.
+   from `monochromatic-fb`'s in-progress registry change,
+  not the move.
   `upstream-fork/deepmerge-ts.fuzz`:
    its gitignored `*.local.*` files still imported `module-test`
    (the move script reads tracked files only);
@@ -152,12 +153,14 @@ User decisions taken during execution
    (the user ran `~/temp/agent/npm-first-publish/publish-renamed.sh`,
     then `finish-renamed.sh` after its stage 3 needed `--allow-publish`):
    `@monochromatic-dev/logger-core` 0.4.5 and `@monochromatic-dev/fs-path-core` 0.2.1 are published;
-   `module-logger` and `module-fs-path` are deprecated ("Renamed to …", verified on the registry);
+   `module-logger` and `module-fs-path` are deprecated ("Renamed to …",
+  verified on the registry);
    the npm login was removed (`npm whoami` fails).
   `npm-publish.yml` is registered as both packages' trusted publisher (`--allow-publish`).
 - First trusted-publisher releases (user:
    "just do new releases through npm-publish.yml now"):
-   `logger-core` 0.4.6 and `fs-path-core` 0.2.2 (`66e9826bab`, version bump and changelog only).
+   `logger-core` 0.4.6 and `fs-path-core` 0.2.2 (`66e9826bab`,
+  version bump and changelog only).
   Runs 40863033623 and 40863038503 succeeded (pack and publish);
    npm printed `+ @monochromatic-dev/logger-core@0.4.6` and `+ @monochromatic-dev/fs-path-core@0.2.2`,
    a signed provenance statement for each (Sigstore log indexes 3565726298 and 3565721940),
@@ -203,68 +206,113 @@ User decisions taken during execution
     `or-throw-core`).
 - `package/pnpm-override/shim-readable-stream/lib/*.js` match the blanket `*.js` ignore,
    which `doc/decision/gitignore-negations.md` already names.
-  The move commit `592d78b143` dropped them (deleted at the old path, never added at the new one);
+  The move commit `592d78b143` dropped them (deleted at the old path,
+  never added at the new one);
    restored byte-identical in `5cb4a779ff`.
   Only `git commit --no-only -- <files>` from the repo root committed them:
    a directory pathspec silently committed nothing and explicit paths failed in the guard's `git add --all`
    (issue 1807);
    running from a subdirectory was refused (issue 1808).
 - `file-enforcer/core`:
-   the TS7006 error is gone (fixed elsewhere; `lint:types` passes);
+   the TS7006 error is gone (fixed elsewhere;
+  `lint:types` passes);
    `55afe67909` makes the toolchain tests read the nightly and node versions from the plan,
    so daily toolchain bumps no longer break them.
 - `dependency-catalog/cli-rust-update` `lint:types` passes now (fixed by its owning session).
 - The 80 stale `src/*.js` files naming old packages were a one-off `tsc` emit from 2026-10-03
-   (`noEmit` is set, so no build regenerates them; the earlier "regenerate on the next build" note was wrong).
+   (`noEmit` is set,
+  so no build regenerates them;
+  the earlier "regenerate on the next build" note was wrong).
   Moved to `~/temp/agent/package-category-elimination/stale-js-backup/`;
    `test:unit` passes for every affected package that has the task.
 - `~/.local/bin/spawn-claude` and `spawn-pi` now link to
    `package/claude-code-plugin/source/src/cli/spawn-claude.ts` and `package/pi-plugin/spawn/dist/final/node/cli.mjs`;
    both print their help.
 - Fork parity fixes:
-  - `conf`: the fork was fine;
+  - `conf`:
+    the fork was fine;
      autofix pass `3da31bdc3a` had corrupted the vendored upstream oracle `conf.fuzz/upstream-conf/`
-     (arrow `set` became a `function`, losing `this`).
+     (arrow `set` became a `function`,
+    losing `this`).
     Restored byte-exact in `4b2565bd3c` and `090879d2ff` (corrective commit comment posted on `4b2565bd3c`).
     User approved an oxlint ignore for that directory:
-     `78c8068b76` (verified: oxlint reports no files for it, still lints its sibling `src/`).
-    First coverage baseline frozen: `975ab54da3`.
-  - `p-memoize`: upstream 9.0.0 (floating `>=9.0.0`) changed the clear message and the `cache: false` ordering;
+     `78c8068b76` (verified:
+    oxlint reports no files for it,
+    still lints its sibling `src/`).
+    First coverage baseline frozen:
+    `975ab54da3`.
+  - `p-memoize`:
+    upstream 9.0.0 (floating `>=9.0.0`) changed the clear message and the `cache: false` ordering;
      ported in `21bff0aa78`.
     User chose a full 9.0.0 port next:
-     done in `ab6bf76143` (fork) and `aed44ff3c3` (sidecar, coverage baseline refrozen for the added functions only),
+     done in `ab6bf76143` (fork) and `aed44ff3c3` (sidecar,
+    coverage baseline refrozen for the added functions only),
      README fix `55ca780397`.
-    Rerun confirms fork `test:unit`, sidecar parity, and the coverage gate (8 files) pass;
+    Rerun confirms fork `test:unit`,
+    sidecar parity,
+    and the coverage gate (8 files) pass;
      the sidecar's `coverage-report.ts` lint errors are fixed.
-    `test:mutation` was not run (the subagent hand-mutated `dist` with 12 mutants, all caught).
+    `test:mutation` was not run (the subagent hand-mutated `dist` with 12 mutants,
+    all caught).
     Open notes:
-     `isCacheEnabled` is now `cache !== false` like upstream, so a falsy non-`false` `cache` fails, with no test pinning it;
+     `isCacheEnabled` is now `cache !== false` like upstream,
+    so a falsy non-`false` `cache` fails,
+    with no test pinning it;
      `mimicBestEffort` swallows its caught error (`void error`) because the package has no logger dependency.
-  - `p-map`: the lockfile moved the floating oracle from 7.0.8 to 7.1.1 (`755685da03`, 2026-10-14);
+  - `p-map`:
+    the lockfile moved the floating oracle from 7.0.8 to 7.1.1 (`755685da03`,
+    2026-10-14);
      the 7.1.x engines were ported in `56aa14e30f` through `7c45cfd072`
-     (parity and coverage gates pass, confirmed by a rerun).
-    User chose to port the new 7.1 APIs too (`pMapSettled`, `pMapKeyed`, `pMapSettledKeyed`, `pMapStop`, `preserveOrder`),
+     (parity and coverage gates pass,
+    confirmed by a rerun).
+    User chose to port the new 7.1 APIs too (`pMapSettled`,
+    `pMapKeyed`,
+    `pMapSettledKeyed`,
+    `pMapStop`,
+    `preserveOrder`),
      mirroring upstream's shapes.
-    Done: `cc54c0acc6` (`pMapStop`, `pMapSettled`, `preserveOrder`), `89fdcb55c1` (keyed variants),
-     the stack-trace link, sidecar parity tests, refrozen coverage baseline (`dca2e1f455`),
-     unit suites (`a035dcc4f2`, `638225a63b`, `9c4daa4605`), fork README `9df5ebfe0e`, sidecar README `ab896e888e`.
-    Rerun confirms fork `test:unit`, sidecar parity, and the coverage gate (10 files) pass.
+    Done:
+    `cc54c0acc6` (`pMapStop`,
+    `pMapSettled`,
+    `preserveOrder`),
+    `89fdcb55c1` (keyed variants),
+     the stack-trace link,
+    sidecar parity tests,
+    refrozen coverage baseline (`dca2e1f455`),
+     unit suites (`a035dcc4f2`,
+    `638225a63b`,
+    `9c4daa4605`),
+    fork README `9df5ebfe0e`,
+    sidecar README `ab896e888e`.
+    Rerun confirms fork `test:unit`,
+    sidecar parity,
+    and the coverage gate (10 files) pass.
     The subagent once stopped on `EDQUOT`
-     (8.9G of leaked `native-binary-*` git-policy/cli test fixtures filled the user's `/tmp` tmpfs quota, issue #1809).
+     (8.9G of leaked `native-binary-*` git-policy/cli test fixtures filled the user's `/tmp` tmpfs quota,
+    issue #1809).
     Upstream's ava suite was hand-adapted per feature rather than ported wholesale;
      the differential fuzz against installed upstream is the parity guarantee for the new APIs.
   - `test:mutation` for `p-map` and `p-memoize` (user asked 2026-10-29):
      first attempt failed because `package/mutation-test/cli/dist` was built 2026-10-20 and still scanned
-     `package/cli/mutation-test/src/container`; rebuilt (doc example fixed in `5ae7a23939`).
+     `package/cli/mutation-test/src/container`;
+    rebuilt (doc example fixed in `5ae7a23939`).
     Running as systemd user units `mutation-p-memoize` and `mutation-p-map`,
      logs in `~/temp/agent/package-category-elimination/mutation-*.log`,
-     reports land in each package's `dist/mutation-report.json`; survivors still need triage.
+     reports land in each package's `dist/mutation-report.json`;
+    survivors still need triage.
   - A scan of `package/**/dist` for old category paths found stale builds;
-     rebuilt `test-harness/core-matrix` (stack-frame filter fragments), `wg/cli-quicker` (build hint),
-     `file-manager/variant-electron`, `doodle-widget/app`; all now clean.
-    Remaining hits are old mutation reports, fuzz artifacts, and deliberate doc examples
-     (`/repo/package/module/x` in oxlint plugins; translation-repair's pre-split history path).
-  - `jsonc-edit/core-ts.fuzz` coverage: `6d66763505` refroze four source-explained deltas
+     rebuilt `test-harness/core-matrix` (stack-frame filter fragments),
+    `wg/cli-quicker` (build hint),
+     `file-manager/variant-electron`,
+    `doodle-widget/app`;
+    all now clean.
+    Remaining hits are old mutation reports,
+    fuzz artifacts,
+    and deliberate doc examples
+     (`/repo/package/module/x` in oxlint plugins;
+    translation-repair's pre-split history path).
+  - `jsonc-edit/core-ts.fuzz` coverage:
+    `6d66763505` refroze four source-explained deltas
      (removed `rebuildEntry` callbacks and the JSON.parse fast path)
      and made the driver reach `emitPlainJson` again;
      the gate passes (17 files).
@@ -273,13 +321,18 @@ User decisions taken during execution
      the porting subagents fix theirs if cheap.
 - `0c5e7be0ee`:
    ten fuzz sidecars built `SOURCE_MARKER` from `${sep}`-joined old segments (`package/module/<x>-fork/src`),
-   a form the move rewrite could not see, so every `fuzz:coverage` gate projected nothing.
-  After the fix, eight of ten gates pass.
+   a form the move rewrite could not see,
+  so every `fuzz:coverage` gate projected nothing.
+  After the fix,
+  eight of ten gates pass.
   `conf.fuzz` lacked a baseline (now frozen);
-   `jsonc-edit/core-ts.fuzz` reports covered-function drops in four files (`edit-comment.ts` 12 < 14, and so on),
+   `jsonc-edit/core-ts.fuzz` reports covered-function drops in four files (`edit-comment.ts` 12 < 14,
+  and so on),
    and a subagent is diagnosing whether source changes or lost driver reach explain them.
-- Searches for moved paths so far covered literal paths, quoted segment lists (`'package', 'dev-script'`),
-   escaped separators, and `${sep}` joins;
+- Searches for moved paths so far covered literal paths,
+  quoted segment lists (`'package', 'dev-script'`),
+   escaped separators,
+  and `${sep}` joins;
    test fixtures that use made-up paths such as `/repo/package/module/x` are left as they are.
 - `56178d85ed` is mislabeled;
    corrective commit comment posted.

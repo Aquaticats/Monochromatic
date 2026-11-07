@@ -73,7 +73,9 @@ and open items:
    each known runtime divergence asserted to still reproduce,
    so an upstream fix turns it red.
    The comment on each test names the generator region it excludes.
-- `src/accepted-behaviour.unit.test.ts`, `src/exotic-behaviour.unit.test.ts`, and `src/alias-accepted.unit.test.ts`:
+- `src/accepted-behaviour.unit.test.ts`,
+  `src/exotic-behaviour.unit.test.ts`,
+  and `src/alias-accepted.unit.test.ts`:
    accepted but otherwise untested behaviour
    (the default `maxDepth` fallback,
    getter flattening,
@@ -83,7 +85,8 @@ and open items:
    `expectTypeOf` pins of result types beside runtime values;
    `src/type-known-defect.unit.test.ts` pins result types the runtime contradicts.
 - `src/type-soundness.generated.ts`:
-   1000 generated calls (600 on widened literals, 400 on `as const` literals checked for exact literal and tuple types)
+   1000 generated calls (600 on widened literals,
+  400 on `as const` literals checked for exact literal and tuple types)
    whose runtime results must type-check against their static result types;
    `src/type-soundness.unit.test.ts` replays them at runtime.
 - `src/declared-type-*.ts`:
@@ -97,7 +100,10 @@ and open items:
    and `src/type-known-defect-declared.unit.test.ts` pins the classes it found.
 - `src/mutation-*.unit.test.ts`:
    example tests that detect the upstream mutants the rest of the suite missed
-   (custom merge functions, cycle resolution, record paths, custom metadata),
+   (custom merge functions,
+  cycle resolution,
+  record paths,
+  custom metadata),
    each naming the mutant ids it kills;
    method and results in `doc/audit/deepmerge-ts-mutation-2026-09-24.md`.
 - `src/recall-*.ts`:
@@ -106,14 +112,21 @@ and open items:
    a ledger of every bug upstream shipped and fixed,
    rebuilt buggy and fixed,
    with the sidecar run against both
-   (runtime bundles, result types against each npm release, and six ways of loading each release);
+   (runtime bundles,
+  result types against each npm release,
+  and six ways of loading each release);
    `src/recall-known-defect-union-depth.unit.test.ts` pins the result-type defect found on the way;
    method and results in `doc/audit/deepmerge-ts-recall-2026-09-24.md`.
 - `src/surface-*.ts`:
    surfaces no other layer loads:
    every documented example and claim run literally
-   (`surface-docs-example`, `surface-docs-claim`, `surface-docs-type`),
-   export, collection-view, spread, and interface result types (`surface-known-defect`),
+   (`surface-docs-example`,
+  `surface-docs-claim`,
+  `surface-docs-type`),
+   export,
+  collection-view,
+  spread,
+  and interface result types (`surface-known-defect`),
    and container scripts for the TypeScript 4.7 to 7.0 flag matrix,
    type-checker cost sweeps,
    and Bun and Deno runs;
@@ -131,7 +144,9 @@ and the coverage gate measures that bounded layer.
 Regenerate the type-level soundness corpus with `generate:type-cases` after a generator or version change.
 
 Mutation testing of a deepmerge-ts checkout
-(StrykerJS, Vitest, and esbuild live only in the image from `container/mutation.Containerfile`;
+(StrykerJS,
+Vitest,
+and esbuild live only in the image from `container/mutation.Containerfile`;
 every run is capped at 2 GiB / 2 CPUs with the checkout and this repo read-only and `dist/mutation/` writable):
 
 ```bash
@@ -151,7 +166,8 @@ mise run //package/upstream-fork/deepmerge-ts.fuzz:mutation:differential --contr
 ```
 
 Historical recall
-(inputs live under `~/temp/agent`, outside this repo;
+(inputs live under `~/temp/agent`,
+outside this repo;
 the runtime and packaging runs use the mutation image,
 and every run except setup and report is capped at 2 GiB / 2 CPUs
 with this repo read-only and only its `dist/recall/<area>/` writable):
@@ -177,7 +193,8 @@ mise run //package/upstream-fork/deepmerge-ts.fuzz:recall:report
 ```
 
 Unsearched surfaces
-(the toolchain installs into `dist/surface/scratch`, never this workspace;
+(the toolchain installs into `dist/surface/scratch`,
+never this workspace;
 every run is capped at 2 GiB / 2 CPUs with this repo read-only and only `dist/surface/` writable):
 
 ```bash

@@ -23,7 +23,8 @@ It receives an existing judgment rather than creating a second execution owner.
 ## Admission questions
 
 `native/contract/integration/action-policy/decision-scopes.mjs`
-(current path: `native/contract/integration/action-policy/decision-scopes.ts`,
+(current path:
+`native/contract/integration/action-policy/decision-scopes.ts`,
 moved October 19, 2026)
 chooses which clause,
 heading-context and same-source incorporation questions apply.

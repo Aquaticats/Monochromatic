@@ -230,7 +230,8 @@ Rust:
    No automatic extraction fix;
    captured state may require redesigning the callback interface.
    Macro token trees remain opaque to the current unexpanded syntax frontend.
-   Rollout (user, 2026-10-05):
+   Rollout (user,
+  2026-10-05):
    `warn` everywhere at cutover,
    raised to `error` once the count reaches zero.
    The differential run of 2026-10-05 measured 1,215 findings in `.rs` files

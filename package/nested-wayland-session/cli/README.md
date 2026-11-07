@@ -1846,6 +1846,20 @@ in-process features rather than external tools:
    and there is no `/dev/uinput` involvement.
 - The control API is a Unix socket whose blocking-IO thread forwards parsed commands to
   the render thread over a channel and returns each result.
+- Every D-Bus step on the private bus has a time bound.
+  zbus 6 has no blocking API,
+  so each synchronous thread drives zbus's async API with `zbus::block_on`,
+  which runs zbus's own `zruntime` on that thread,
+  and a helper thread of zbus keeps a live service connection answering between calls.
+  The compositor's Smithay loop stays synchronous,
+  and no second runtime runs beside it.
+  A connect,
+  a signal send
+  and a method call each end with an error after five seconds
+  (`BUS_STEP_BOUND` in `src/bus_step_bound.rs`),
+  and a whole accessibility tree read ends after five seconds.
+  The launcher listener alone waits without a bound,
+  because it waits for senders and ends when the bus closes.
 
 ## Frame pacing
 

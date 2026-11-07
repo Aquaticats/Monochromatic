@@ -526,7 +526,8 @@ you then open in Helium."
 The user withdrew the general visible-window requirement on 2026-09-09 because it was added in error.
 Window activation and monitor placement are not completion gates;
 headless browser verification is valid.
-The quoted request records what was asked in that incident, not a continuing requirement to open every HTML artifact.
+The quoted request records what was asked in that incident,
+not a continuing requirement to open every HTML artifact.
  Embed every visual candidate,
  option assessment,
  ranked recommendation and
@@ -661,18 +662,26 @@ checks must cover the bytes the viewer sees,
 ## 5n. A component was improvised without reading the spec page that owns it
 
 The picker trigger shipped as a 48dp outlined pill-ish box with a caret because the chips,
-menus, and sheets pages had been read but the text-field specs had not.
+menus,
+and sheets pages had been read but the text-field specs had not.
  The user asked
 plainly whether the archive had really been read.
  Against the text-field specs the field
-was wrong in four ways: container height 48dp instead of 56dp, no floating label on the
-outline, uniform 16dp padding instead of 12dp sides with icons plus 16dp between icon and
-text, and an untinted trailing icon.
+was wrong in four ways:
+container height 48dp instead of 56dp,
+no floating label on the
+outline,
+uniform 16dp padding instead of 12dp sides with icons plus 16dp between icon and
+text,
+and an untinted trailing icon.
 
 **The rule.**
- Before drawing any Material component, read that component's own specs and
-guidelines pages in the local archive (`~/Downloads/m3.material.io`, mirrored in
-`md3-tokens.md`), and list every deviation from the measured values in the form prose with
+ Before drawing any Material component,
+read that component's own specs and
+guidelines pages in the local archive (`~/Downloads/m3.material.io`,
+mirrored in
+`md3-tokens.md`),
+and list every deviation from the measured values in the form prose with
 its reason.
  Adjacent component pages are not evidence for the component being drawn.
 

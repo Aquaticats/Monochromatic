@@ -518,8 +518,10 @@ not source URLs.
 `src/backend/npm.rs:243-247` states this directly:
 
 ```rust
-/// NPM installs packages from npm registry using version specs (e.g., eslint@8.0.0).
-/// It doesn't support installing from direct URLs, so lockfile URLs are not applicable.
+/// NPM installs packages from npm registry using version specs (e.g.,
+/// eslint@8.0.0).
+/// It doesn't support installing from direct URLs,
+/// so lockfile URLs are not applicable.
 fn supports_lockfile_url(&self) -> bool {
     false
 }

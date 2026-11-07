@@ -2,7 +2,8 @@
 
 Status:
 decided and implemented on `feat/git-policy-cli-word-level-second-merge-pass` (see the last section,
-"Implemented: the word-level second merge pass").
+"Implemented:
+the word-level second merge pass").
 The first part of this document is the research that preceded the decisions and is kept as it was written;
 "Owner decisions of 2026-11-03" and the sections after "merge-code options measured" record what the owner chose.
 Scope:
@@ -1638,256 +1639,583 @@ arms `arm-a`,
 ## 2026-11-03T03:39:36-05:00: implemented, the word-level second merge pass
 
 Implemented in `package/git-policy/cli` on `feat/git-policy-cli-word-level-second-merge-pass` as the owner decided
-(question tool, 2026-11-03): the pass for merges a person runs, the same pass in the wrapper's unattended merges,
-the merge code of the wrapper's own on `similar` 3.2.1 with the Myers diff, and the `union` line of `doc/handover/*.md`
+(question tool,
+2026-11-03):
+the pass for merges a person runs,
+the same pass in the wrapper's unattended merges,
+the merge code of the wrapper's own on `similar` 3.2.1 with the Myers diff,
+and the `union` line of `doc/handover/*.md`
 applying in the merges from objects.
 The rules are in `SPEC.md` ("Word-level second merge pass") and the user's view in `README.md`.
 
 ### What was built
 
-- `src/native/word_merge.rs`: the prototype of the measurement (`arm-c-myers`) with the report of the merged regions
-  (line spans in base, ours and theirs, and the merged text).
-  The 41 inputs of the stored corpus (`src/native/word_merge_corpus/`: the 44 of the measurement without the three large
-  benchmark inputs `large_spec_*`, whose 520 KB of text a test does not need) get Jujutsu 0.46.0's verdict and, when resolved,
-  its bytes; the README conflict of merge `14601b28d3` resolves to the committed blob; both-append stays a conflict.
-  The 600 seeded random edit pairs of the measurement are not repeated: they compared two programs, and the `jj` binary is not
-  in the tests; a generated property (no inserted word and no base word is dropped, both verdicts occur) replaces them.
-- `src/native/merge_second_pass.rs`: which conflicted files may be re-merged (all three stages, one plain-file mode, no NUL
-  byte in the first 8000 bytes, at most 1 MiB, `merge` attribute unspecified, set or `text`), the re-merge, the blob and
-  tree writing, and the report words.
-  The 8000 bytes are Git's own binary probe; the 1 MiB is this implementation's bound on the cost of a diff of two
-  unrelated large files, not a measured value.
-- `src/native/merge_second_pass_worktree.rs`: merge, rebase, cherry-pick and revert forwarded to Git.
+- `src/native/word_merge.rs`:
+  the prototype of the measurement (`arm-c-myers`) with the report of the merged regions
+  (line spans in base,
+  ours and theirs,
+  and the merged text).
+  The 41 inputs of the stored corpus (`src/native/word_merge_corpus/`:
+  the 44 of the measurement without the three large
+  benchmark inputs `large_spec_*`,
+  whose 520 KB of text a test does not need) get Jujutsu 0.46.0's verdict and,
+  when resolved,
+  its bytes;
+  the README conflict of merge `14601b28d3` resolves to the committed blob;
+  both-append stays a conflict.
+  The 600 seeded random edit pairs of the measurement are not repeated:
+  they compared two programs,
+  and the `jj` binary is not
+  in the tests;
+  a generated property (no inserted word and no base word is dropped,
+  both verdicts occur) replaces them.
+- `src/native/merge_second_pass.rs`:
+  which conflicted files may be re-merged (all three stages,
+  one plain-file mode,
+  no NUL
+  byte in the first 8000 bytes,
+  at most 1 MiB,
+  `merge` attribute unspecified,
+  set or `text`),
+  the re-merge,
+  the blob and
+  tree writing,
+  and the report words.
+  The 8000 bytes are Git's own binary probe;
+  the 1 MiB is this implementation's bound on the cost of a diff of two
+  unrelated large files,
+  not a measured value.
+- `src/native/merge_second_pass_worktree.rs`:
+  merge,
+  rebase,
+  cherry-pick and revert forwarded to Git.
   `src/native/index_writer_forward.rs` reads the unmerged paths in process before Git starts and again when Git exits with
-  a status other than 0; the paths unmerged only afterwards are the pass's, so a file a person is resolving by hand is never replaced.
-- `src/native/merge_second_pass_tree.rs`: the pass for merges from objects, used by `merge_isolation.rs` (the isolated merge),
+  a status other than 0;
+  the paths unmerged only afterwards are the pass's,
+  so a file a person is resolving by hand is never replaced.
+- `src/native/merge_second_pass_tree.rs`:
+  the pass for merges from objects,
+  used by `merge_isolation.rs` (the isolated merge),
   `auto_push_reconcile.rs` (the reconcile merge) and `replay_merge.rs` with `service_replay.rs` (the commit replay),
   and the attribute source.
 
 ### Where the second pass runs, with file and function
 
-- A person's merge, rebase, cherry-pick, revert: `run_coordinated_forward` in `index_writer_forward.rs`, after Git's status
+- A person's merge,
+  rebase,
+  cherry-pick,
+  revert:
+  `run_coordinated_forward` in `index_writer_forward.rs`,
+  after Git's status
   is known (`watch_before` and `resolve_after`).
-  `git pull` is not included: its merge runs inside Git and the owner named four commands.
-- The isolated merge (`git merge` with another session's staged index): `merge_tree` in `merge_isolation.rs`.
-- The reconcile merge: `commit_merge` in `auto_push_reconcile.rs`.
-- The commit replay: `merge_captured` in `service_replay.rs`, last, after the subsumption rules and their second merge
-  (`word_pass`), so a captured file that already holds the landed edit is still settled by subsumption first.
+  `git pull` is not included:
+  its merge runs inside Git and the owner named four commands.
+- The isolated merge (`git merge` with another session's staged index):
+  `merge_tree` in `merge_isolation.rs`.
+- The reconcile merge:
+  `commit_merge` in `auto_push_reconcile.rs`.
+- The commit replay:
+  `merge_captured` in `service_replay.rs`,
+  last,
+  after the subsumption rules and their second merge
+  (`word_pass`),
+  so a captured file that already holds the landed edit is still settled by subsumption first.
 
 ### Which tree supplies the attributes
 
-`GIT_ATTR_SOURCE` is set to the first side's tip for the three merges from objects (the isolated merge's `HEAD`, the reconcile
-merge's branch tip, the landed tip of a replay), unless the environment already sets it.
-Reasons: the planning measurement showed that a bare or worktree-less `git merge-tree` reads no `.gitattributes` without a
-source; the first side is the branch whose checkout would apply its attributes; Git takes one tree only, so a `.gitattributes`
-that only the second side has is not read; the variable beats `attr.tree`, so a person's `attr.tree` is overridden (a person's own
+`GIT_ATTR_SOURCE` is set to the first side's tip for the three merges from objects (the isolated merge's `HEAD`,
+the reconcile
+merge's branch tip,
+the landed tip of a replay),
+unless the environment already sets it.
+Reasons:
+the planning measurement showed that a bare or worktree-less `git merge-tree` reads no `.gitattributes` without a
+source;
+the first side is the branch whose checkout would apply its attributes;
+Git takes one tree only,
+so a `.gitattributes`
+that only the second side has is not read;
+the variable beats `attr.tree`,
+so a person's `attr.tree` is overridden (a person's own
 `GIT_ATTR_SOURCE` is kept).
 The same source makes the second pass's `git check-attr` agree with the merge.
-The controls: a both-append in `doc/handover/log.md` merges by `union` in the reconcile merge and in the replay merge when the
-checkout holds no `.gitattributes`, which conflicts without the source.
+The controls:
+a both-append in `doc/handover/log.md` merges by `union` in the reconcile merge and in the replay merge when the
+checkout holds no `.gitattributes`,
+which conflicts without the source.
 
 ### Logging
 
-- Standard error: one line per part, `cli-git: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines>
-  became "<text>"`, and for a person's merge a closing line that names the staged files.
-- Journal: one `warning` entry per merged file (`SYSLOG_IDENTIFIER=cli-git`), fields `CLI_GIT_WORD_MERGE_FILE`,
+- Standard error:
+  one line per part,
+  `cli-git: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines>
+  became "<text>"`,
+  and for a person's merge a closing line that names the staged files.
+- Journal:
+  one `warning` entry per merged file (`SYSLOG_IDENTIFIER=cli-git`),
+  fields `CLI_GIT_WORD_MERGE_FILE`,
   `CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
-- "With the commit" for the unattended merges, as implemented: the reconcile merge commit's message ends with the part lines;
-  the replayed commit's message is the person's and is not changed, so the replay reports the parts in a new `word-merged` event
-  next to the commit's other events (`SPEC.md`, "Word merged event").
+- "With the commit" for the unattended merges,
+  as implemented:
+  the reconcile merge commit's message ends with the part lines;
+  the replayed commit's message is the person's and is not changed,
+  so the replay reports the parts in a new `word-merged` event
+  next to the commit's other events (`SPEC.md`,
+  "Word merged event").
 
 ### Measurements
 
-Method: the unchanged baseline executable (`e27dd206de`, built with `mise run //package/git-policy/cli:build`) and the new one
-(`5d7d068382`'s code; the executable is 224632 bytes larger, 12526832 against 12751464) run alternately, with a second copy of
-the baseline in every round as the same-binary control that gives the run-to-run spread (rule QNB), on the shared host at a load
+Method:
+the unchanged baseline executable (`e27dd206de`,
+built with `mise run //package/git-policy/cli:build`) and the new one
+(`5d7d068382`'s code;
+the executable is 224632 bytes larger,
+12526832 against 12751464) run alternately,
+with a second copy of
+the baseline in every round as the same-binary control that gives the run-to-run spread (rule QNB),
+on the shared host at a load
 average between 14 and 21 (nobody waits for a quiet host).
-Scratch scripts, not in the repository: `${HOME}/temp/agent/wlmp/merge-perf.ts` and the raw samples in `merge-perf-*.json`,
-`nperf-*.json`; they do not survive a reboot reliably.
+Scratch scripts,
+not in the repository:
+`${HOME}/temp/agent/wlmp/merge-perf.ts` and the raw samples in `merge-perf-*.json`,
+`nperf-*.json`;
+they do not survive a reboot reliably.
 
-- A merge Git completes by itself (`git merge --no-edit`, 400 tracked files, 60 rounds): medians 20.80 ms (baseline), 21.34 ms
-  (second baseline copy), 21.18 ms (new), 16.57 ms (real Git without the wrapper).
-  New minus baseline: +0.38 ms; baseline copy minus baseline: +0.54 ms; the interquartile range of one arm is about 1.7 ms.
+- A merge Git completes by itself (`git merge --no-edit`,
+  400 tracked files,
+  60 rounds):
+  medians 20.80 ms (baseline),
+  21.34 ms
+  (second baseline copy),
+  21.18 ms (new),
+  16.57 ms (real Git without the wrapper).
+  New minus baseline:
+  +0.38 ms;
+  baseline copy minus baseline:
+  +0.54 ms;
+  the interquartile range of one arm is about 1.7 ms.
   The difference is inside the spread.
-- The same with 20000 tracked files (30 rounds): 340.9, 360.2, 358.9 and 338.3 ms; new minus baseline +18.0 ms, baseline copy
-  minus baseline +19.3 ms, interquartile range about 100 ms.
-  The in-process read of the index before Git starts is inside the spread there too; it is not separated from it.
-- A merge Git stops on, with an edit and an insertion right after it (400 files, 60 rounds): the baseline stops with the conflict
-  at 18.44 ms; the new executable resolves it in 24.85 ms, +6.41 ms for the five Git starts of the pass (`check-attr`,
-  `cat-file --batch`, `hash-object`, `update-index`, `checkout-index`).
+- The same with 20000 tracked files (30 rounds):
+  340.9,
+  360.2,
+  358.9 and 338.3 ms;
+  new minus baseline +18.0 ms,
+  baseline copy
+  minus baseline +19.3 ms,
+  interquartile range about 100 ms.
+  The in-process read of the index before Git starts is inside the spread there too;
+  it is not separated from it.
+- A merge Git stops on,
+  with an edit and an insertion right after it (400 files,
+  60 rounds):
+  the baseline stops with the conflict
+  at 18.44 ms;
+  the new executable resolves it in 24.85 ms,
+  +6.41 ms for the five Git starts of the pass (`check-attr`,
+  `cat-file --batch`,
+  `hash-object`,
+  `update-index`,
+  `checkout-index`).
   At 20000 files the difference (+15.3 ms) is inside that run's spread (+7.7 ms between the two baseline copies).
-- `mise run //package/git-policy/cli:native:perf` (30 samples per scenario), eight runs of each executable, alternating
-  (baseline, new, baseline, new, then new, baseline, baseline, new, new, baseline, baseline, new, new, baseline, baseline, new):
-  commit through the service, paired delta median: baseline 41.3 ms (run medians 40.3 to 57.0), new 43.0 ms (40.5 to 76.2),
-  +1.7 ms; signed commit: baseline 51.4 ms, new 54.6 ms, +3.3 ms.
-  The forwarded commands' added p95 stays about 2 ms (baseline medians of the run p95s 1.8 to 2.1 ms, new 2.0 to 2.5 ms).
+- `mise run //package/git-policy/cli:native:perf` (30 samples per scenario),
+  eight runs of each executable,
+  alternating
+  (baseline,
+  new,
+  baseline,
+  new,
+  then new,
+  baseline,
+  baseline,
+  new,
+  new,
+  baseline,
+  baseline,
+  new,
+  new,
+  baseline,
+  baseline,
+  new):
+  commit through the service,
+  paired delta median:
+  baseline 41.3 ms (run medians 40.3 to 57.0),
+  new 43.0 ms (40.5 to 76.2),
+  +1.7 ms;
+  signed commit:
+  baseline 51.4 ms,
+  new 54.6 ms,
+  +3.3 ms.
+  The forwarded commands' added p95 stays about 2 ms (baseline medians of the run p95s 1.8 to 2.1 ms,
+  new 2.0 to 2.5 ms).
   The largest paired commit delta seen was 876 ms for the baseline and 3878 ms for the new executable (one loaded run),
-  against the bound of 5000 ms; the signed maximum was 1328 ms and 767 ms.
-  So a commit through the new executable is about 1.7 ms (4 percent) slower in the median in these runs, more than the 0.4 ms
-  between two baseline runs but inside the 40 to 45 ms range of the baseline's run medians; the cause was not isolated
-  (the commit path has no new code except one `Option` in the preparation; the executable is 1.8 percent larger).
+  against the bound of 5000 ms;
+  the signed maximum was 1328 ms and 767 ms.
+  So a commit through the new executable is about 1.7 ms (4 percent) slower in the median in these runs,
+  more than the 0.4 ms
+  between two baseline runs but inside the 40 to 45 ms range of the baseline's run medians;
+  the cause was not isolated
+  (the commit path has no new code except one `Option` in the preparation;
+  the executable is 1.8 percent larger).
   Every bound of the tool held.
-- Tests at `7b26167ecd` (the last code change; later commits add one control and remove a duplicate guard): the whole library
-  suite 3340 passed and 5 skipped, the whole binary suite 557 passed and 1 skipped, Clippy clean.
-- Guard removal (each guard removed in turn, the controls that must fail run, the file restored): every guard listed in the commit
-  messages failed at least one control, after two additions (the isolated merge refused whole, and the redundant early driver skip removed).
+- Tests at `7b26167ecd` (the last code change;
+  later commits add one control and remove a duplicate guard):
+  the whole library
+  suite 3340 passed and 5 skipped,
+  the whole binary suite 557 passed and 1 skipped,
+  Clippy clean.
+- Guard removal (each guard removed in turn,
+  the controls that must fail run,
+  the file restored):
+  every guard listed in the commit
+  messages failed at least one control,
+  after two additions (the isolated merge refused whole,
+  and the redundant early driver skip removed).
 
 
 ### Needs the owner's decision
 
-1. After a person's merge where every conflicted file resolved, the wrapper stages the files and keeps Git's exit status
-   (the operation is not finished: `git commit`, `--continue`). Finishing the operation itself (`git commit --no-edit`)
-   was not done; it is the broader reading of "accept a file".
+1. After a person's merge where every conflicted file resolved,
+   the wrapper stages the files and keeps Git's exit status
+   (the operation is not finished:
+   `git commit`,
+   `--continue`).
+   Finishing the operation itself (`git commit --no-edit`)
+   was not done;
+   it is the broader reading of "accept a file".
 2. `git pull` (its inner merge or rebase) is not covered.
-3. The attribute source is the first side's tip; a merged `.gitattributes` of both sides is not built, and `attr.tree` is overridden.
-4. The merged blobs and trees are written with `git hash-object`, `read-tree`, `update-index` and `write-tree` (the spawns the
-   crate already uses for this), not in process; that is only on the conflict path. Writing loose objects in process is possible
-   (the crate has an inflate and a SHA-1 and SHA-256 already, and `miniz_oxide` can deflate) and would remove those starts.
+3. The attribute source is the first side's tip;
+   a merged `.gitattributes` of both sides is not built,
+   and `attr.tree` is overridden.
+4. The merged blobs and trees are written with `git hash-object`,
+   `read-tree`,
+   `update-index` and `write-tree` (the spawns the
+   crate already uses for this),
+   not in process;
+   that is only on the conflict path.
+   Writing loose objects in process is possible
+   (the crate has an inflate and a SHA-1 and SHA-256 already,
+   and `miniz_oxide` can deflate) and would remove those starts.
 5. The 1 MiB and 8000-byte bounds of the candidate test are this implementation's choices.
-6. The replay's journal entries are sent when the merge is used, before the policies run again on the merged tree, so a commit
+6. The replay's journal entries are sent when the merge is used,
+   before the policies run again on the merged tree,
+   so a commit
    that a policy then refuses still has its entries.
-7. The entries carry the identifier `cli-git` (the wrapper's), also the ones the replay sends from inside `cli-git-service`;
+7. The entries carry the identifier `cli-git` (the wrapper's),
+   also the ones the replay sends from inside `cli-git-service`;
    the service's own entries carry its own identifier.
-8. A commit through the new executable is about 1.7 ms slower in the median (see "Measurements"); the owner's bound
-   (five seconds longer than native Git) holds by three orders of magnitude, but the cause of the 1.7 ms is not isolated.
+8. A commit through the new executable is about 1.7 ms slower in the median (see "Measurements");
+   the owner's bound
+   (five seconds longer than native Git) holds by three orders of magnitude,
+   but the cause of the 1.7 ms is not isolated.
 9. The corpus holds 41 of the 44 measured inputs and no random-edit comparison against the `jj` binary (see "What was built").
 
 ## 2026-11-03T04:16:06-05:00: the finish like a clean run, pull, the attribute tree precedence, Git's bounds, the service's identifier
 
-Follow-ups the owner asked for after the first implementation, on the same branch (merged with
-`integrate/git-policy-cli-conversion-and-lock-free-add` at `9f44842b11` first, with no conflict).
-The red controls came first (`ab31df93c5`: with the finish disabled 11 of the 19 binary controls failed); the code is `2373ad42bc`
+Follow-ups the owner asked for after the first implementation,
+on the same branch (merged with
+`integrate/git-policy-cli-conversion-and-lock-free-add` at `9f44842b11` first,
+with no conflict).
+The red controls came first (`ab31df93c5`:
+with the finish disabled 11 of the 19 binary controls failed);
+the code is `2373ad42bc`
 and `d5f0bae69a`.
 
 ### Finish like a clean merge
 
-The owner chose "Finish like a clean merge (Recommended)" on 2026-11-03: when every conflicted file resolves, the operation ends
-as Git ends it after a clean run, `--no-commit`, `--squash`, `--edit` and similar stop as Git would, and the continuing step goes
+The owner chose "Finish like a clean merge (Recommended)" on 2026-11-03:
+when every conflicted file resolves,
+the operation ends
+as Git ends it after a clean run,
+`--no-commit`,
+`--squash`,
+`--edit` and similar stop as Git would,
+and the continuing step goes
 through the wrapper's own command path.
-The Git 2.56.0 source says what a clean run does (file and line, in `SPEC.md`, "Word-level second merge pass"):
-a merge commits at `builtin/merge.c` line 1828 or, with `--no-commit`/`--squash`, prints "Automatic merge went well; stopped before
-committing as requested" and exits 0 (lines 1867 to 1873); cherry-pick and revert commit with the original message, edit only on
-request (and a revert on a terminal), and Git's own `--continue` is `git commit --no-edit --cleanup=strip` for a conflicted pick
-(`sequencer.c` lines 5354 to 5378); a rebase continues with `git rebase --continue`, which edits the message of the conflicted pick
-(`commit_staged_changes`, line 5381) where a clean pick does not.
-Built in `src/native/merge_second_pass_finish.rs`, called from `resolve_after` in `merge_second_pass_worktree.rs`:
-the continuing command is `run_process` of the same process (`entry.rs`), so a later conflicting pick of a rebase gets the pass again
-(controls: a rebase with two conflicting picks; a cherry-pick range) and the commit goes through the policies (control: a
+The Git 2.56.0 source says what a clean run does (file and line,
+in `SPEC.md`,
+"Word-level second merge pass"):
+a merge commits at `builtin/merge.c` line 1828 or,
+with `--no-commit`/`--squash`,
+prints "Automatic merge went well;
+stopped before
+committing as requested" and exits 0 (lines 1867 to 1873);
+cherry-pick and revert commit with the original message,
+edit only on
+request (and a revert on a terminal),
+and Git's own `--continue` is `git commit --no-edit --cleanup=strip` for a conflicted pick
+(`sequencer.c` lines 5354 to 5378);
+a rebase continues with `git rebase --continue`,
+which edits the message of the conflicted pick
+(`commit_staged_changes`,
+line 5381) where a clean pick does not.
+Built in `src/native/merge_second_pass_finish.rs`,
+called from `resolve_after` in `merge_second_pass_worktree.rs`:
+the continuing command is `run_process` of the same process (`entry.rs`),
+so a later conflicting pick of a rebase gets the pass again
+(controls:
+a rebase with two conflicting picks;
+a cherry-pick range) and the commit goes through the policies (control:
+a
 `forbidden-strings` policy rejects the ending commit and leaves the merge in progress).
 Findings from the work:
-- A plain `git commit` in a rebase conflict loses the original author (measured), so the rebase is continued with `git rebase --continue`
-  and its editor switched off by an in-process variable (`CLI_GIT_CHILD_SET_GIT_EDITOR`, `child_environment.rs`); a todo list with
-  `reword`, `squash` or `fixup -c` is not finished, because the same setting would switch off the editor those steps want.
+- A plain `git commit` in a rebase conflict loses the original author (measured),
+  so the rebase is continued with `git rebase --continue`
+  and its editor switched off by an in-process variable (`CLI_GIT_CHILD_SET_GIT_EDITOR`,
+  `child_environment.rs`);
+  a todo list with
+  `reword`,
+  `squash` or `fixup -c` is not finished,
+  because the same setting would switch off the editor those steps want.
 - The hint `# Conflicts:` that Git appends to `MERGE_MSG` is cut before a merge commit (`without_conflicts_hint`).
-- A concluding `git commit` runs `pre-commit` where a clean merge runs `pre-merge-commit`; external hooks are switched off in the
+- A concluding `git commit` runs `pre-commit` where a clean merge runs `pre-merge-commit`;
+  external hooks are switched off in the
   wrapper's Git starts either way (`external-hooks-unsupported`).
-- What Git printed when it stopped (`CONFLICT ...`, "Automatic merge failed") is already out; the final status and output are the
-  finishing command's, plus one line per part.
-- Options are read by exact spelling (Git takes abbreviations); an unknown option, `--autostash`, a `branch.<name>.mergeOptions` setting
-  or a nesting deeper than 64 finishes (this implementation's choice) leaves the operation stopped with the files staged, as before.
+- What Git printed when it stopped (`CONFLICT ...`,
+  "Automatic merge failed") is already out;
+  the final status and output are the
+  finishing command's,
+  plus one line per part.
+- Options are read by exact spelling (Git takes abbreviations);
+  an unknown option,
+  `--autostash`,
+  a `branch.<name>.mergeOptions` setting
+  or a nesting deeper than 64 finishes (this implementation's choice) leaves the operation stopped with the files staged,
+  as before.
 
 ### Pull
 
-`git pull` is covered: it is an index writer the wrapper already stays alive around, its merge or rebase is a child of Git
-(`builtin/pull.c` lines 525 and 750) that the wrapper never sees, and the state files left after its exit tell which one stopped.
-Impossible or declined modes, from the source: `--autostash` and `branch.<name>.mergeOptions` (the finish cannot see `--no-commit` or
-`--squash` in a setting); a pull whose options this reader does not know exactly.
+`git pull` is covered:
+it is an index writer the wrapper already stays alive around,
+its merge or rebase is a child of Git
+(`builtin/pull.c` lines 525 and 750) that the wrapper never sees,
+and the state files left after its exit tell which one stopped.
+Impossible or declined modes,
+from the source:
+`--autostash` and `branch.<name>.mergeOptions` (the finish cannot see `--no-commit` or
+`--squash` in a setting);
+a pull whose options this reader does not know exactly.
 
 ### The attribute tree
 
-Git's precedence is `--attr-source`, then `GIT_ATTR_SOURCE`, then the configuration `attr.tree`, and an `attr.tree` that is no tree is
-ignored (`attr.c` lines 1202 to 1231). The wrapper names the first side's tip only when none of the three applies
-(`attribute_tree_variables`). The configuration is read in process; the in-process readers decline an environment that holds a `GIT_*`
-variable they do not know (`GIT_EDITOR` is one), and then Git is asked once for `attr.tree`.
+Git's precedence is `--attr-source`,
+then `GIT_ATTR_SOURCE`,
+then the configuration `attr.tree`,
+and an `attr.tree` that is no tree is
+ignored (`attr.c` lines 1202 to 1231).
+The wrapper names the first side's tip only when none of the three applies
+(`attribute_tree_variables`).
+The configuration is read in process;
+the in-process readers decline an environment that holds a `GIT_*`
+variable they do not know (`GIT_EDITOR` is one),
+and then Git is asked once for `attr.tree`.
 
 ### The bounds
 
-- The binary probe is Git's `FIRST_FEW_BYTES`, 8000 (`xdiff-interface.c` line 197).
-- Git's size limit is `MAX_XDIFF_SIZE`, 1023 MiB (`xdiff-interface.h` line 14, `merge-ll.c` lines 117 to 122). It cannot bound this pass: texts that
-  share no line took 0.08 s and 45 MB at 1 MiB, 0.73 s and 352 MB at 8 MiB, 4.12 s and 1320 MB at 32 MiB (release build, one core).
-  The pass takes the smaller of Git's limit and 8 MiB, which is this implementation's choice backed by that measurement.
+- The binary probe is Git's `FIRST_FEW_BYTES`,
+  8000 (`xdiff-interface.c` line 197).
+- Git's size limit is `MAX_XDIFF_SIZE`,
+  1023 MiB (`xdiff-interface.h` line 14,
+  `merge-ll.c` lines 117 to 122).
+  It cannot bound this pass:
+  texts that
+  share no line took 0.08 s and 45 MB at 1 MiB,
+  0.73 s and 352 MB at 8 MiB,
+  4.12 s and 1320 MB at 32 MiB (release build,
+  one core).
+  The pass takes the smaller of Git's limit and 8 MiB,
+  which is this implementation's choice backed by that measurement.
 
 ### The service's journal identifier
 
-The auto-push runs inside `cli-git-service`; its entries carry `cli-git-service`. The commit replay and a push a person typed run
+The auto-push runs inside `cli-git-service`;
+its entries carry `cli-git-service`.
+The commit replay and a push a person typed run
 in the wrapper and keep `cli-git`.
 
 ### Tests and guards
 
-Full library suite 3442 passed and 5 skipped, full binary suite 595 passed and 1 skipped, Clippy clean, each run once.
-Guards removed in turn, each failing at least one control: unknown options, `--no-commit`/`--squash` stop, the rebase editor,
-the todo list that wants an editor, the conflict hint cut, the rest of a sequence, the `mergeOptions` decline, the nesting limit, the three
-attribute-tree precedences, the service identifier, the pull rebase state, and `--no-commit` of a pick.
+Full library suite 3442 passed and 5 skipped,
+full binary suite 595 passed and 1 skipped,
+Clippy clean,
+each run once.
+Guards removed in turn,
+each failing at least one control:
+unknown options,
+`--no-commit`/`--squash` stop,
+the rebase editor,
+the todo list that wants an editor,
+the conflict hint cut,
+the rest of a sequence,
+the `mergeOptions` decline,
+the nesting limit,
+the three
+attribute-tree precedences,
+the service identifier,
+the pull rebase state,
+and `--no-commit` of a pick.
 
 ### Needs the owner's decision
 
-1. The ending commit of a merge runs through `git commit`, so `pre-commit` is the hook name where a clean merge runs `pre-merge-commit`.
-2. The 8 MiB bound and the 64 nesting levels are this implementation's choices (measured for the first, not for the second).
+1. The ending commit of a merge runs through `git commit`,
+   so `pre-commit` is the hook name where a clean merge runs `pre-merge-commit`.
+2. The 8 MiB bound and the 64 nesting levels are this implementation's choices (measured for the first,
+   not for the second).
 3. One extra Git start for `attr.tree` in an environment the in-process readers decline.
 4. Declining the finish for `pull --autostash` and for `branch.<name>.mergeOptions`.
 
 ## 2026-11-03T04:45:20-05:00: hooks parity, autostash and mergeOptions, a derived nesting bound, plain environments
 
-Follow-ups on the same branch, after the container gate began on a copy. Red controls first (`e95e54d9a0`), code in `8bc4b70b7a`.
+Follow-ups on the same branch,
+after the container gate began on a copy.
+Red controls first (`e95e54d9a0`),
+code in `8bc4b70b7a`.
 
 ### Hooks
 
-The premise that a finished run must run the hooks a clean run runs does not change the code, because the wrapper runs none:
-every Git it starts has every hook event switched off (`hooks_off.rs`; `SPEC.md`, the hook section), so a user's hooks, traditional or
-configured, see nothing on a clean merge, rebase, cherry-pick or revert and nothing on a finished one.
-The control `user_hooks_see_the_same_on_a_finished_run_as_on_a_clean_run` records ten hook events for both, compares them, and has
-real Git run directly as the positive control (it fires them), so an empty log means something. It was green from the start; the
+The premise that a finished run must run the hooks a clean run runs does not change the code,
+because the wrapper runs none:
+every Git it starts has every hook event switched off (`hooks_off.rs`;
+`SPEC.md`,
+the hook section),
+so a user's hooks,
+traditional or
+configured,
+see nothing on a clean merge,
+rebase,
+cherry-pick or revert and nothing on a finished one.
+The control `user_hooks_see_the_same_on_a_finished_run_as_on_a_clean_run` records ten hook events for both,
+compares them,
+and has
+real Git run directly as the positive control (it fires them),
+so an empty log means something.
+It was green from the start;
+the
 only red it can show is a finish that bypasses the wrapper's Git starts.
-What Git would run if hooks were run, from the source: a clean merge `pre-merge-commit`, `prepare-commit-msg`, `commit-msg` (`builtin/merge.c`
-lines 931, 966 and 975) and `post-merge` (line 537); a concluding `git commit` `pre-commit`, `prepare-commit-msg`, `commit-msg` and
-`post-commit` (`builtin/commit.c` lines 780, 1116, 1133 and 1966); a clean pick `prepare-commit-msg` and `post-commit`
-(`sequencer.c` lines 1367 and 1699); a rebase `pre-rebase` (`builtin/rebase.c` line 1839) and `post-rewrite` (`sequencer.c` lines 1329
-and 5328). If hooks are ever supported, the finish would run `git commit` hooks where the clean merge runs the merge ones; that
-difference then needs a decision. The earlier SPEC sentence that a concluding commit "runs `pre-commit` where a clean merge runs
-`pre-merge-commit`" was true of Git and not of the wrapper, and is rewritten.
+What Git would run if hooks were run,
+from the source:
+a clean merge `pre-merge-commit`,
+`prepare-commit-msg`,
+`commit-msg` (`builtin/merge.c`
+lines 931,
+966 and 975) and `post-merge` (line 537);
+a concluding `git commit` `pre-commit`,
+`prepare-commit-msg`,
+`commit-msg` and
+`post-commit` (`builtin/commit.c` lines 780,
+1116,
+1133 and 1966);
+a clean pick `prepare-commit-msg` and `post-commit`
+(`sequencer.c` lines 1367 and 1699);
+a rebase `pre-rebase` (`builtin/rebase.c` line 1839) and `post-rewrite` (`sequencer.c` lines 1329
+and 5328).
+If hooks are ever supported,
+the finish would run `git commit` hooks where the clean merge runs the merge ones;
+that
+difference then needs a decision.
+The earlier SPEC sentence that a concluding commit "runs `pre-commit` where a clean merge runs
+`pre-merge-commit`" was true of Git and not of the wrapper,
+and is rewritten.
 
 ### Autostash and mergeOptions
 
-Nothing needs declining. A merge's `--autostash` and `merge.autoStash` are applied by the ending `git commit` (`builtin/commit.c` line 1982) as
-the clean merge's `finish` applies them (`builtin/merge.c` line 1848); a rebase's `--autostash` and `rebase.autoStash` by the continuing step
-(`sequencer.c` lines 4980 and 5330); a pull hands both to its child. Controls: merge flag and config, rebase flag and config, pull.
-The rebase pair was already green: `rebase --continue` does the work.
-One real defect was found by the merge control: the wrapper's commit builds the ending commit in a shadow repository that held a *link*
-to the real `MERGE_AUTOSTASH` pseudoref, so Git's removal after applying it removed only the link and the real pseudoref stayed; the
-next merge's concluding commit would have applied the stash again. `MERGE_AUTOSTASH` is now a conclusion state file with a private copy in the
-shadow, and landing removes the real one (`conclusion_cleanup.rs`). A stash whose apply conflicts is stored by Git in the shadow's refs
-and is not carried back; that is the wrapper's existing behaviour for a person's own `git commit` after `merge --autostash` too, and
+Nothing needs declining.
+A merge's `--autostash` and `merge.autoStash` are applied by the ending `git commit` (`builtin/commit.c` line 1982) as
+the clean merge's `finish` applies them (`builtin/merge.c` line 1848);
+a rebase's `--autostash` and `rebase.autoStash` by the continuing step
+(`sequencer.c` lines 4980 and 5330);
+a pull hands both to its child.
+Controls:
+merge flag and config,
+rebase flag and config,
+pull.
+The rebase pair was already green:
+`rebase --continue` does the work.
+One real defect was found by the merge control:
+the wrapper's commit builds the ending commit in a shadow repository that held a *link*
+to the real `MERGE_AUTOSTASH` pseudoref,
+so Git's removal after applying it removed only the link and the real pseudoref stayed;
+the
+next merge's concluding commit would have applied the stash again.
+`MERGE_AUTOSTASH` is now a conclusion state file with a private copy in the
+shadow,
+and landing removes the real one (`conclusion_cleanup.rs`).
+A stash whose apply conflicts is stored by Git in the shadow's refs
+and is not carried back;
+that is the wrapper's existing behaviour for a person's own `git commit` after `merge --autostash` too,
+and
 is not changed here.
 `branch.<name>.mergeoptions` is split as Git splits it (`alias.c` lines 126 to 180) and parsed before the command line
-(`builtin/merge.c` lines 1407 to 1409), for the branch that is checked out; controls: `--no-commit` there stops the finished merge, a quoted `-m` is its message.
+(`builtin/merge.c` lines 1407 to 1409),
+for the branch that is checked out;
+controls:
+`--no-commit` there stops the finished merge,
+a quoted `-m` is its message.
 
 ### The nesting bound
 
-The fixed 64 is gone. The budget is the remaining todo length plus one for a rebase; for a cherry-pick or revert the sequencer todo length
-(one for a single pick), because every pick of a range can conflict and each is one finish; one for a merge (the coordinator's "one
-finish"). The controls pin the three values and the comparison.
+The fixed 64 is gone.
+The budget is the remaining todo length plus one for a rebase;
+for a cherry-pick or revert the sequencer todo length
+(one for a single pick),
+because every pick of a range can conflict and each is one finish;
+one for a merge (the coordinator's "one
+finish").
+The controls pin the three values and the comparison.
 
 ### Variables the in-process readers tolerate
 
-`GIT_EDITOR` was already tolerated (`repo_read_layout.rs`); the decline seen in this shell's unit tests came from the real user-level
-configuration, not from it. The list now also tolerates the `GIT_` names that only trace, word output, reach a network or a tool, or set
-a limit or a write-time choice, each with the file and line of Git 2.56.0's reader in the comment above `PLAIN_ENVIRONMENT_PREFIXES`; every name that can
-move a configuration, attribute tree, layout, index, object, ref or pathspec answer, every `GIT_TEST_*` and any name not known stays a decline.
-The attribute-tree probe now reads with the variables its children get, so a person's usual environment costs no Git start (control with
+`GIT_EDITOR` was already tolerated (`repo_read_layout.rs`);
+the decline seen in this shell's unit tests came from the real user-level
+configuration,
+not from it.
+The list now also tolerates the `GIT_` names that only trace,
+word output,
+reach a network or a tool,
+or set
+a limit or a write-time choice,
+each with the file and line of Git 2.56.0's reader in the comment above `PLAIN_ENVIRONMENT_PREFIXES`;
+every name that can
+move a configuration,
+attribute tree,
+layout,
+index,
+object,
+ref or pathspec answer,
+every `GIT_TEST_*` and any name not known stays a decline.
+The attribute-tree probe now reads with the variables its children get,
+so a person's usual environment costs no Git start (control with
 a runner that refuses every start).
 
 ### Tests
 
-Clippy clean; library suite 3448 passed and 5 skipped; binary suite 598 passed, 1 failed, 1 skipped, the failure being
-`commit_timing::a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait`, a timing attribution that passed alone straight
-afterwards (14 of 14 of its module). Guards removed in turn, each failing a control: mergeOptions before the command line, its quoting,
-the three budget values and the comparison, `--autostash`, the landing removal of `MERGE_AUTOSTASH`, `GIT_TRACE` and a moving variable in the
-plain list, the in-process attribute probe.
+Clippy clean;
+library suite 3448 passed and 5 skipped;
+binary suite 598 passed,
+1 failed,
+1 skipped,
+the failure being
+`commit_timing::a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait`,
+a timing attribution that passed alone straight
+afterwards (14 of 14 of its module).
+Guards removed in turn,
+each failing a control:
+mergeOptions before the command line,
+its quoting,
+the three budget values and the comparison,
+`--autostash`,
+the landing removal of `MERGE_AUTOSTASH`,
+`GIT_TRACE` and a moving variable in the
+plain list,
+the in-process attribute probe.
 
 ### Needs the owner's decision
 
-1. If hooks are ever supported: the finished merge runs the hooks of `git commit`, a clean merge those of `git merge` (list above).
-2. The edit to `conclusion_cleanup.rs` is outside the merge paths (a commit-conclusion file); it is small and fixes a defect, but another agent may be editing near it.
+1. If hooks are ever supported:
+   the finished merge runs the hooks of `git commit`,
+   a clean merge those of `git merge` (list above).
+2. The edit to `conclusion_cleanup.rs` is outside the merge paths (a commit-conclusion file);
+   it is small and fixes a defect,
+   but another agent may be editing near it.
 3. A stash whose apply conflicts inside the shadow is not carried back to the real repository.
 
 ## 2026-11-03T11:45:26-05:00: the 0.5.28 base merged in, autostash and mergeOptions verified, a pull that merges in isolation
@@ -1895,155 +2223,269 @@ plain list, the in-process attribute probe.
 ### The merge of the 0.5.28 base
 
 `integrate/git-policy-cli-plain-commit-no-quiet-index-in-process` (tip `9763599f3a`) was merged into this branch.
-Six files conflicted; four were additive and kept both sides: the imports of `auto_push_reconcile.rs`,
+Six files conflicted;
+four were additive and kept both sides:
+the imports of `auto_push_reconcile.rs`,
  the test modules of
-`binary_tests.rs`, the tests of `auto_push_reconcile_tests.rs`, and this document
+`binary_tests.rs`,
+the tests of `auto_push_reconcile_tests.rs`,
+and this document
  (the base's decision bullet joined the list
-that ends in "every decision of this proposal is now made", and this branch's sections follow it).
+that ends in "every decision of this proposal is now made",
+and this branch's sections follow it).
 `README.md` kept this branch's "Word-level second merge pass" section between the base's merge subsections
  and its commit
-section, and the base's "A conflict" paragraph, which said the pass "would plug in" at `merge_tree`, now says
+section,
+and the base's "A conflict" paragraph,
+which said the pass "would plug in" at `merge_tree`,
+now says
  where it runs.
 The one semantic choice is in `merge_tree` of `src/native/merge_isolation.rs`:
  the base forwards a conflict with a clean index to
-native Git (`Some(1) if !staged_work`), this branch runs the pass on every conflict. Both are kept:
+native Git (`Some(1) if !staged_work`),
+this branch runs the pass on every conflict.
+Both are kept:
  with another session's staged
 work the pass runs from objects and the merge is refused whole if a file does not resolve;
  with a clean index the conflict stays
-native Git's, which stops and writes the markers, and the pass then runs on the stopped merge.
- The base's order was kept, not
-"resolve first, forward when unresolved", because the stopped path finishes through the wrapper's commit path,
+native Git's,
+which stops and writes the markers,
+and the pass then runs on the stopped merge.
+ The base's order was kept,
+not
+"resolve first,
+forward when unresolved",
+because the stopped path finishes through the wrapper's commit path,
  so the repository's
 commit policies judge the merge commit
  (the finish control `the_ending_commit_is_judged_by_the_repositorys_policies` pins
-that for the stopped path); whether a merge completed from objects is judged by the same policies was not measured.
+that for the stopped path);
+whether a merge completed from objects is judged by the same policies was not measured.
  Where the intents truly conflicted the base's behavior won;
 nothing else did.
-The merge left one duplicate import, removed in a separate commit; compile, library
+The merge left one duplicate import,
+removed in a separate commit;
+compile,
+library
  and binary controls of the touched modules passed.
 
 ### Autostash and mergeOptions, verified
 
-The controls from `8bc4b70b7a` were read and run: `a_merge_autostash_is_applied_by_the_ending_commit` (flag and
-`merge.autoStash`), `a_rebase_autostash_is_applied_when_the_rebase_ends` (flag and `rebase.autoStash`),
+The controls from `8bc4b70b7a` were read and run:
+`a_merge_autostash_is_applied_by_the_ending_commit` (flag and
+`merge.autoStash`),
+`a_rebase_autostash_is_applied_when_the_rebase_ends` (flag and `rebase.autoStash`),
 `a_pull_autostash_is_applied_by_the_ending_commit` and `a_merge_options_setting_is_applied_to_the_finish`
  (`--no-commit` and a
-quoted `-m` in `branch.<name>.mergeoptions`). They are sound for a stash that applies cleanly.
-One defect they do not reach: when the stash conflicts with the merged file,
- Git's apply runs in the commit's scratch repository, so
+quoted `-m` in `branch.<name>.mergeoptions`).
+They are sound for a stash that applies cleanly.
+One defect they do not reach:
+when the stash conflicts with the merged file,
+ Git's apply runs in the commit's scratch repository,
+so
 `stash store` writes the scratch repository's private `refs/stash` and the unmerged entries stay in the private index.
  The real
-repository ends with an empty stash list and the file marked modified, where Git ends with `stash@{0}: autostash`
+repository ends with an empty stash list and the file marked modified,
+where Git ends with `stash@{0}: autostash`
  and the file
-unmerged; Git's words, which the person sees, promise the stash. The conflict markers are in the worktree file,
+unmerged;
+Git's words,
+which the person sees,
+promise the stash.
+The conflict markers are in the worktree file,
  so the lines are not
-gone, but the stash entry is.
+gone,
+but the stash entry is.
  `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it` states Git's result (run
-against real Git on a twin repository) and is `#[ignore]`d with this reason; it fails when run with `--run-ignored all`.
-A fix has to copy the stash commit and its objects out of the scratch repository, store it in the real reflog,
+against real Git on a twin repository) and is `#[ignore]`d with this reason;
+it fails when run with `--run-ignored all`.
+A fix has to copy the stash commit and its objects out of the scratch repository,
+store it in the real reflog,
  and carry the unmerged
-entries into the real index under the landing's lock; that is the commit service's landing path,
+entries into the real index under the landing's lock;
+that is the commit service's landing path,
  which this branch does not touch.
-This is item 3 of the earlier "Needs the owner's decision" lists, now with a measured case.
+This is item 3 of the earlier "Needs the owner's decision" lists,
+now with a measured case.
 
 ### Pull
 
 A `git pull` that merges did not go through the isolated merge:
  `run_merge` in `builtin/pull.c` starts `git merge ... FETCH_HEAD` as
-a child of Git (`cmd.git_cmd = 1`), so the merge never reached the wrapper, and the control
+a child of Git (`cmd.git_cmd = 1`),
+so the merge never reached the wrapper,
+and the control
 `a_pull_that_merges_is_completed_over_staged_work_and_equals_native_gits` was red before the build (native Git:
  "Your local changes to
-the following files would be overwritten by merge ... Merge with strategy ort failed.", status 2).
+the following files would be overwritten by merge ... Merge with strategy ort failed.",
+status 2).
 `src/native/pull_isolation.rs` now splits a pull that is stated to merge and read exactly into the fetch and the merge
-(`pull_step`, called from `run_coordinated_forward`); the isolated merge reads `FETCH_HEAD` for its head and its message
-(`read_fetch_head` in `merge_isolation.rs`). The decisions of `cmd_pull` that are mirrored: the unmerged-index
+(`pull_step`,
+called from `run_coordinated_forward`);
+the isolated merge reads `FETCH_HEAD` for its head and its message
+(`read_fetch_head` in `merge_isolation.rs`).
+The decisions of `cmd_pull` that are mirrored:
+the unmerged-index
  and mid-operation
-refusals (left to native Git), `orig_head` against `curr_head` after the fetch (`read-tree -u -m`,
- as `checkout_fast_forward`), the
-head count of `FETCH_HEAD`, `rebase_unspecified` with no `--ff`/`--no-ff` (Git's advice stays Git's),
+refusals (left to native Git),
+`orig_head` against `curr_head` after the fetch (`read-tree -u -m`,
+ as `checkout_fast_forward`),
+the
+head count of `FETCH_HEAD`,
+`rebase_unspecified` with no `--ff`/`--no-ff` (Git's advice stays Git's),
  and `GIT_REFLOG_ACTION`.
-What is left to native Git's whole pull and why: a rebase (a separate machine, not in scope), `--ff-only`
- (its refusal text), `--autostash`
-and `pull.autostash` (the stash round trip around the merge), `pull.ff` (Git rewrites it when `--no-rebase` is typed),
+What is left to native Git's whole pull and why:
+a rebase (a separate machine,
+not in scope),
+`--ff-only`
+ (its refusal text),
+`--autostash`
+and `pull.autostash` (the stash round trip around the merge),
+`pull.ff` (Git rewrites it when `--no-rebase` is typed),
  submodules
-(`update_submodules` after the merge), a refspec with a destination, every option not spelled exactly, detached
+(`update_submodules` after the merge),
+a refspec with a destination,
+every option not spelled exactly,
+detached
  and unborn heads.
-Controls, each equal to native Git on a clean copy in output, diagnostics, tree, parents and message:
- over staged work, into a clean
-index, the pulls left to native Git (advice, `--ff-only`, `--rebase`, an abbreviation),
+Controls,
+each equal to native Git on a clean copy in output,
+diagnostics,
+tree,
+parents and message:
+ over staged work,
+into a clean
+index,
+the pulls left to native Git (advice,
+`--ff-only`,
+`--rebase`,
+an abbreviation),
  and a fetch that moves the checked-out branch.
-The guard that carries the working tree along was removed once and the last control failed, then restored.
-Not measured: the cost of the extra Git starts of the split (a `config`, a `symbolic-ref`, two `rev-parse`,
- an `ls-files`, the
-`fetch`), against one `git pull`; the held-lock wait of a pull is the typed merge's, tested for the typed merge only.
+The guard that carries the working tree along was removed once and the last control failed,
+then restored.
+Not measured:
+the cost of the extra Git starts of the split (a `config`,
+a `symbolic-ref`,
+two `rev-parse`,
+ an `ls-files`,
+the
+`fetch`),
+against one `git pull`;
+the held-lock wait of a pull is the typed merge's,
+tested for the typed merge only.
 
 ### Needs the owner's decision
 
 1. How the stash of a conflicted autostash apply and its unmerged entries are carried back (the ignored control above).
-2. Whether a pull with nothing stated, and `--ff-only`, should also merge in isolation.
+2. Whether a pull with nothing stated,
+   and `--ff-only`,
+   should also merge in isolation.
    Git refuses the first with advice and the
-   second with a status; the owner's rule "Auto merging should never fail." could be read to cover both,
+   second with a status;
+   the owner's rule "Auto merging should never fail."
+   could be read to cover both,
    but each refusal is a
-   deliberate Git choice, so they stay Git's here.
+   deliberate Git choice,
+   so they stay Git's here.
 
 ## 2026-11-03T11:59:41-05:00: the coordinator's picks built; the pull split measured
 
-Picks made by the coordinator under the owner's delegation, each open to the owner's veto.
+Picks made by the coordinator under the owner's delegation,
+each open to the owner's veto.
 
 ### Autostash that would conflict: decline the finish (pick B)
 
 `autostash_blocks_finish` (`merge_second_pass_finish.rs`) tries the apply before the finish commits:
  `write-tree` for the tree the
-ending commit will have, then `merge-tree --write-tree --merge-base=<stash>^1 <tree> <stash>`,
+ending commit will have,
+then `merge-tree --write-tree --merge-base=<stash>^1 <tree> <stash>`,
  the three-way merge `git stash apply`
-makes. A conflict, or any failure to try, leaves the merge stopped as Git leaves it, with the resolved files staged
+makes.
+A conflict,
+or any failure to try,
+leaves the merge stopped as Git leaves it,
+with the resolved files staged
  and the work in
-`MERGE_AUTOSTASH`. Red before the code: `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`
+`MERGE_AUTOSTASH`.
+Red before the code:
+`a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`
  (the wrapper
-finished and exited 0); green after, with the clean-apply controls (`a_merge_autostash_is_applied_by_the_ending_commit`,
-`a_pull_autostash_is_applied_by_the_ending_commit`) still green, and the unit control
-`an_autostash_that_would_conflict_or_cannot_be_tried_blocks_the_finish`. Carry-back A is not built
+finished and exited 0);
+green after,
+with the clean-apply controls (`a_merge_autostash_is_applied_by_the_ending_commit`,
+`a_pull_autostash_is_applied_by_the_ending_commit`) still green,
+and the unit control
+`an_autostash_that_would_conflict_or_cannot_be_tried_blocks_the_finish`.
+Carry-back A is not built
  (the commit service's landing code
-is being rewritten); its control
+is being rewritten);
+its control
 `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` failed on the empty
-stash list before it was ignored, with the reason "fixed by carry-back A, queued after the index writer's third round".
+stash list before it was ignored,
+with the reason "fixed by carry-back A,
+queued after the index writer's third round".
 The dry run is not exact where the working tree holds other unsaved changes to files the stash touches
  (Git's apply refuses
-those differently); that case is not covered.
+those differently);
+that case is not covered.
 
 ### The working tree update waits for the index lock (pick A)
 
-`pull_step` waits for the commit service's hold and for any holder of `index.lock` (bounded, naming it)
+`pull_step` waits for the commit service's hold and for any holder of `index.lock` (bounded,
+naming it)
  before `read-tree -u -m`.
-Red before: `a_pull_whose_fetch_moved_the_branch_waits_for_a_held_index_lock` ended with status 128.
+Red before:
+`a_pull_whose_fetch_moved_the_branch_waits_for_a_held_index_lock` ended with status 128.
  The lock harness moved from
 `binary_merge_never_fails_tests.rs` to the shared `binary_held_lock_support.rs`.
 
 ### Measurement of the split against native Git
 
-Debug build of the wrapper (the test profile), nine rounds in turns on fresh copies of one repository,
+Debug build of the wrapper (the test profile),
+nine rounds in turns on fresh copies of one repository,
  each with a remote of its own
-(a first run without that was wrong: the wrapper pushes a merge it completes,
- which turned the later pulls into fast-forwards), on a
-host with a load average of 9 to 11. Times in milliseconds, sorted; the median is the fifth.
-Merging pull: native first 13 to 16 (median 16), native second 14 to 16 (14), wrapper split 340 to 380 (367),
+(a first run without that was wrong:
+the wrapper pushes a merge it completes,
+ which turned the later pulls into fast-forwards),
+on a
+host with a load average of 9 to 11.
+Times in milliseconds,
+sorted;
+the median is the fifth.
+Merging pull:
+native first 13 to 16 (median 16),
+native second 14 to 16 (14),
+wrapper split 340 to 380 (367),
  wrapper leaving the
-pull to native Git (`--autostash`) 91 to 122 (105), the wrapper's typed `git merge origin/main` 223 to 493 (302).
-Fast-forwarding pull: native first 12 to 14 (12), native second 11 to 13 (11), wrapper split 118 to 140 (128),
+pull to native Git (`--autostash`) 91 to 122 (105),
+the wrapper's typed `git merge origin/main` 223 to 493 (302).
+Fast-forwarding pull:
+native first 12 to 14 (12),
+native second 11 to 13 (11),
+wrapper split 118 to 140 (128),
  wrapper leaving it to
-native 24 to 57 (42), the typed merge 72 to 106 (89).
+native 24 to 57 (42),
+the typed merge 72 to 106 (89).
 The spread of one arm on unchanged input (native first against native second) is 2 ms or less,
  so every difference above is real.
 The split costs about 350 ms more than native Git for a merging pull and about 115 ms more for a fast-forward,
- in a debug build, far
+ in a debug build,
+far
 under the 5 s bound the owner named but 20 and 10 times native Git's time.
  The merging pull's cost is the isolated merge itself
-(the typed merge costs 302 ms) plus about 65 ms for the fetch and the pull's queries; the fast-forward's 86 ms over the
-wrapper's native route is the queries (`config`, `symbolic-ref`, three `rev-parse`, `ls-files`, `merge-base`),
+(the typed merge costs 302 ms) plus about 65 ms for the fetch and the pull's queries;
+the fast-forward's 86 ms over the
+wrapper's native route is the queries (`config`,
+`symbolic-ref`,
+three `rev-parse`,
+`ls-files`,
+`merge-base`),
  which an in-process
-reader could answer without a Git start. A fast-forward or a merge of nothing now skips the isolated attempt
+reader could answer without a Git start.
+A fast-forward or a merge of nothing now skips the isolated attempt
  (it was 166 ms before
-`merge-base` told them apart). A release build was not measured.
+`merge-base` told them apart).
+A release build was not measured.
 
 ### Needs the owner's decision
 
@@ -2053,66 +2495,106 @@ reader could answer without a Git start. A fast-forward or a merge of nothing no
 
 ### The conflict-marker warning
 
-Seen live in the shipped 0.5.27: a path resolved by editing and not staged, committed by name during a merge,
+Seen live in the shipped 0.5.27:
+a path resolved by editing and not staged,
+committed by name during a merge,
  was reported as
-still holding conflict markers although the committed blob had none, and the remedy given (another commit of the path)
+still holding conflict markers although the committed blob had none,
+and the remedy given (another commit of the path)
  never
-finishes the merge. `conflict_markers.rs` now reads the committed blob and the `conflict-marker-size` attribute
+finishes the merge.
+`conflict_markers.rs` now reads the committed blob and the `conflict-marker-size` attribute
  (seven by
 default) and claims markers only for a blob that has a line of equal `<`
  or `>` characters of that size followed by white
-space, as Git's `is_conflict_marker` reads it (a line of `=` alone underlines a heading and is not a claim).
+space,
+as Git's `is_conflict_marker` reads it (a line of `=` alone underlines a heading and is not a claim).
  A commit of named
-paths that leaves a merge or a cherry-pick open now says so in one line with the commands that finish it, whether
+paths that leaves a merge or a cherry-pick open now says so in one line with the commands that finish it,
+whether
  or not markers
-were committed. Red before the code:
+were committed.
+Red before the code:
  `a_resolved_but_unstaged_path_committed_by_name_makes_no_marker_claim_and_says_how_to_finish`,
 `a_path_committed_by_name_with_marker_lines_keeps_the_claim_and_says_the_merge_is_open` and
-`the_claim_follows_the_conflict_marker_size_attribute`; green after, with the five existing controls of
+`the_claim_follows_the_conflict_marker_size_attribute`;
+green after,
+with the five existing controls of
 `binary_commit_during_merge_tests.rs` and four unit controls.
 
 ### Carry-back A
 
-Git's apply of a merge's autostash runs inside the commit's scratch repository. When it conflicts,
+Git's apply of a merge's autostash runs inside the commit's scratch repository.
+When it conflicts,
  its `git stash store` writes the
 scratch repository's `refs/stash` and the conflict stages stay in the commit's private index.
  The scratch repository writes its
-objects into the real object store, so nothing is copied: `autostash_carry.rs` stores the stash in the repository
- (once, with the
-`autostash` message) from `remove_conclusion_state`, and puts the stages into the index the landing installs,
- in `follow_up`, under
-the lock the landing holds. `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` was red
+objects into the real object store,
+so nothing is copied:
+`autostash_carry.rs` stores the stash in the repository
+ (once,
+with the
+`autostash` message) from `remove_conclusion_state`,
+and puts the stages into the index the landing installs,
+ in `follow_up`,
+under
+the lock the landing holds.
+`a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` was red
  (empty stash
-list, `M` for `UU`) and is green with its ignore removed; removing either half fails it (the stash list,
+list,
+`M` for `UU`) and is green with its ignore removed;
+removing either half fails it (the stash list,
  then the status).
-The finish's own decline of a conflicting autostash (pick B) is kept: with carry-back it could be retired,
+The finish's own decline of a conflicting autostash (pick B) is kept:
+with carry-back it could be retired,
  and the finish would
-then end like Git's, which is the owner's choice to make.
+then end like Git's,
+which is the owner's choice to make.
 
 ## 2026-11-03T12:28:44-05:00: option B retired, the finish applies a conflicting autostash as Git does
 
-The coordinator's pick under the owner's delegation (veto open), because of "Auto merging should never fail.":
+The coordinator's pick under the owner's delegation (veto open),
+because of "Auto merging should never fail.":
  with carry-back A
-the finish needs no dry run. `autostash_blocks_finish`
+the finish needs no dry run.
+`autostash_blocks_finish`
  and its unit control are removed from `merge_second_pass_finish.rs`,
-`merge_second_pass_worktree.rs` and `merge_second_pass_finish_tests.rs`; nothing else used the dry run.
-Red first, with B in place: `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it` and
+`merge_second_pass_worktree.rs` and `merge_second_pass_finish_tests.rs`;
+nothing else used the dry run.
+Red first,
+with B in place:
+`a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it` and
 `a_pull_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
  rewritten to compare the end state with a twin
-repository on which real Git stops, the resolution is made as the word pass makes it, and `git commit` concludes
+repository on which real Git stops,
+the resolution is made as the word pass makes it,
+and `git commit` concludes
  (stash list,
-status, merged file, the second file, and the commit's exit status); the wrapper had left the merge stopped (status 1,
+status,
+merged file,
+the second file,
+and the commit's exit status);
+the wrapper had left the merge stopped (status 1,
  not the
-commit's 0). Green after the removal,
+commit's 0).
+Green after the removal,
  with `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` and
 the clean-apply controls unchanged.
-The case B's dry run did not model, unsaved changes in the worktree to a file the stash touches, is compared with Git in
+The case B's dry run did not model,
+unsaved changes in the worktree to a file the stash touches,
+is compared with Git in
 `a_commit_over_unsaved_changes_to_a_stash_file_keeps_the_stash_as_git_keeps_it`:
  a file the stash touches is written again after
-the merge stopped, Git's apply refuses and keeps the whole stash, and the wrapper's commit ends identically.
+the merge stopped,
+Git's apply refuses and keeps the whole stash,
+and the wrapper's commit ends identically.
  That control passed
-before the removal too, because it goes through the person's commit, which carry-back A already covered;
+before the removal too,
+because it goes through the person's commit,
+which carry-back A already covered;
  the finish makes the same
-commit, so it is the same end.
+commit,
+so it is the same end.
  A finish cannot meet such unsaved changes unless another program writes the file in the moment
-between the pass and the commit; that interleaving is not constructed.
+between the pass and the commit;
+that interleaving is not constructed.

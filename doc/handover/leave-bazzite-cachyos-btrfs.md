@@ -63,7 +63,8 @@ The session configuration lives in <https://github.com/Aquaticat/labwc-config>.
   In the existing VM,
   a snapshot boot mounts the read-only snapshot under a throwaway overlayfs,
   and `limine-snapper-restore` makes it permanent
-  (`C:\Users\user\Documents\hyperv-cachyos\README.md`, section "Booting a snapshot").
+  (`C:\Users\user\Documents\hyperv-cachyos\README.md`,
+  section "Booting a snapshot").
 - **Timeline snapshots**:
   hourly,
   bounded retention,
@@ -203,7 +204,8 @@ the commit that closes each step is named.
   publishing to the `repo` release waits for the signing subkey secret.
   `packaging/assemble-repo.ts` produced a pacman-verified repository with a subkey-only keyring in the dev VM.
 - A real uwsm session in the dev VM ran every desktop entry and session unit from the packages
-  (labwc-config `doc/planning/launcher.md`, section "Verified in a real uwsm session on 2026-09-15").
+  (labwc-config `doc/planning/launcher.md`,
+  section "Verified in a real uwsm session on 2026-09-15").
 - The installer built the `CachyOS-Rehearsal` Hyper-V guest with Secure Boot enforcing through shim and MOK,
   LUKS unlocked by TPM2 plus PIN after first-boot enrollment,
   hourly Snapper snapshots listed in Limine,
@@ -238,7 +240,8 @@ is the rollback point.
 ## Next action
 
 1. The user creates the offline primary key and signing subkey
-   (labwc-config `doc/planning/pacman-repository.md`, section on the key ceremony),
+   (labwc-config `doc/planning/pacman-repository.md`,
+   section on the key ceremony),
    then sets the `PACMAN_SIGNING_SUBKEY` secret and `PACMAN_SIGNING_KEY_ID` variable.
 2. The user clears the desktop's Secure Boot keys in the firmware menu,
    keeping Secure Boot enabled,

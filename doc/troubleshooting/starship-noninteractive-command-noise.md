@@ -25,10 +25,12 @@ no upstream defect is established.
 Installed Starship was 1.26.0,
 commit `fca92d8`.
 
-- Before the stopgap, login-shell commands printed the diagnostic.
+- Before the stopgap,
+  login-shell commands printed the diagnostic.
 - `env STARSHIP_LOG=off starship prompt` still printed it.
 - A non-login command printed its intended output without that diagnostic.
-- After the stopgap, a fresh login-shell `pwd` printed only the working directory.
+- After the stopgap,
+  a fresh login-shell `pwd` printed only the working directory.
 
 The installed-binary probe can be repeated with:
 
@@ -54,7 +56,8 @@ PROMPT_COMMAND="starship_precmd 2>&${STARSHIP_CONTEXT_FILTER_FD}"
 
 Tradeoff:
 this also hides useful Starship shell-integration diagnostics.
-It is a stopgap, not a durable logging policy.
+It is a stopgap,
+not a durable logging policy.
 
 ## What does not work
 
@@ -64,12 +67,19 @@ The separate cli-git timeout incident does not establish a cause for this diagno
 
 ## Upstream filing decision
 
-- Upstream fault: not established.
-- Upstream fixability: not assessed.
-- Supported upstream use case: not assessed.
-- Contribution policy: not assessed.
-- Maintainer intent: not assessed.
-- Prototype: none; the user requested a stopgap without further investigation.
+- Upstream fault:
+  not established.
+- Upstream fixability:
+  not assessed.
+- Supported upstream use case:
+  not assessed.
+- Contribution policy:
+  not assessed.
+- Maintainer intent:
+  not assessed.
+- Prototype:
+  none;
+  the user requested a stopgap without further investigation.
 
 No upstream report is proposed.
 The user explicitly requested repository-local follow-up,

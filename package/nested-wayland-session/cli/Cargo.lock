@@ -988,12 +988,14 @@ dependencies = [
  "anyhow",
  "clap",
  "crossbeam-channel",
+ "futures-util",
  "image",
  "smithay",
  "tracing",
  "tracing-subscriber",
  "zbus",
  "zbus_xml",
+ "zruntime",
 ]
 
 [[package]]

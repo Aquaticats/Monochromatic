@@ -4,7 +4,9 @@
 
 The shadow log `doc/audit/standards-review-gate-shadow.md` records what independent reviews NAMED.
 (Since 2026-11-01 the service appends new entries to the untracked `<common dir>/cli-git/standards-review-shadow.md`
-instead; the tracked file is frozen history, and both use the same entry format.)
+instead;
+the tracked file is frozen history,
+and both use the same entry format.)
 The pre-registered rule scores naming only.
 
 This truth-check audits two questions so the graduation call rests on more than naming rates:

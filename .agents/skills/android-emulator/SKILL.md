@@ -23,11 +23,17 @@ EMB:
  `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
  a brief never permits `-no-window`.
 
-The launch form is the section "Working agent launch: headful, host GPU, no container" of that document:
+The launch form is the section "Working agent launch:
+headful,
+host GPU,
+no container" of that document:
 `systemd-run --user --unit=<name> --collect --property=MemoryMax=12G` with the display environment set,
-`-gpu host`, a private reflink copy of the owned AVD, and its own adb port.
+`-gpu host`,
+a private reflink copy of the owned AVD,
+and its own adb port.
 Read the section before writing the command;
-it lists the `HOME`, `ANDROID_USER_HOME` and `ANDROID_AVD_HOME` the copy needs.
+it lists the `HOME`,
+`ANDROID_USER_HOME` and `ANDROID_AVD_HOME` the copy needs.
 
 ## Use and shutdown
 

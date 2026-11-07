@@ -1,17 +1,22 @@
 # cli-git native policy engine
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
-Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
-`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
-name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+Note 2026-10-29:
+the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now.
+Read every `.mjs` file name here as the same
+name ending in `.ts`;
+the driver `old-format-fixtures` is `old-format-driver`.
 
 ## Authority and scope
 
@@ -78,7 +83,8 @@ Commit `329de1b97` implements this and corrects the corresponding passages of
 The root is the top level Git prints,
 not the nearest directory holding a marker file.
 The incumbent's nearest-marker walk is an intentional difference.
-The consequence for the read-only fast path is recorded under "Hazard 5, the read-only fast path".
+The consequence for the read-only fast path is recorded under "Hazard 5,
+the read-only fast path".
 
 ### A legacy configuration file is reported by check only
 
@@ -357,7 +363,9 @@ with a positive control showing that the neighbouring forwarded command really c
 Ledger sources:
 "Scope and applicability",
 "Post-commit lifecycle",
-"Trigger, skips, and push arguments",
+"Trigger,
+skips,
+and push arguments",
 "Candidate facts".
 The decision is made on the command word `commit` alone,
 then narrowed by Git's own option table:
@@ -369,7 +377,8 @@ Git makes `--short`,
 and `-z` dry runs by themselves,
 and the table follows it;
 those forms are forwarded.
-Test: `frontier::a_real_commit_is_refused`,
+Test:
+`frontier::a_real_commit_is_refused`,
 ten refused forms from the top level and one from a subdirectory,
 `HEAD` and the index unchanged,
 and five forwarded dry-run forms compared with real Git.
@@ -386,7 +395,8 @@ With default settings that policy is `final-newline`,
 so a plain `git add` is refused.
 `add-explicit` runs first,
 so a bulk add is rejected with exit 1 before any content policy is asked.
-Test: `frontier::add_is_refused_while_a_content_policy_cannot_read_what_it_would_stage`.
+Test:
+`frontier::add_is_refused_while_a_content_policy_cannot_read_what_it_would_stage`.
 Positive controls:
 `--no-enforce-final-newline`,
 and a configuration that turns the policy off,
@@ -394,20 +404,23 @@ stage the file.
 
 #### A push that may publish
 
-Ledger source: "Manual-push lifecycle".
+Ledger source:
+"Manual-push lifecycle".
 After the pre-forward pass,
 a push that Git's table does not read as a dry run asks whether any policy declares the `manual-push` trigger
 and is enabled.
 If one is,
 the engine's typed "unavailable" for that lifecycle becomes the refusal.
-Test: `frontier::a_real_push_is_refused_at_the_manual_push_gate`:
+Test:
+`frontier::a_real_push_is_refused_at_the_manual_push_gate`:
 three refused forms against a bare remote that stays empty,
 a forwarded dry run compared with real Git,
 and a positive control that publishes once the only such policy is escaped.
 
 #### Worktree creation from a linked worktree or a bare repository
 
-Ledger source: "Applicability and main-worktree bypass".
+Ledger source:
+"Applicability and main-worktree bypass".
 `git worktree add` and `git worktree move` are refused there unless `--no-worktree-copy` is given.
 From the main worktree,
 and outside a repository,
@@ -416,13 +429,15 @@ as the incumbent does.
 
 #### A possible alias from a linked worktree or a bare repository
 
-Ledger source: "Alias resolution and built-in command table".
+Ledger source:
+"Alias resolution and built-in command table".
 A command word that Git 2.56.0 does not build in may be an alias for a worktree creation.
 `git_builtins.rs` holds the 149 names of `git --list-cmds=builtins`,
 compared with real Git in the gate.
 `--no-worktree-copy` forwards such a command,
 because the incumbent skips the copy before it resolves any alias.
-Test for both: `frontier::worktree_creation_and_aliases_are_refused_from_a_linked_worktree`.
+Test for both:
+`frontier::worktree_creation_and_aliases_are_refused_from_a_linked_worktree`.
 
 #### Leftover durable state
 
@@ -440,7 +455,8 @@ A directory that cannot be listed counts as holding state.
 This executable cannot tell a dead owner from a live one,
 so it does not classify entries.
 Direct `check` and `fix` are refused beside transaction state only.
-Test: `frontier::leftover_state_and_leases_refuse_guarded_commands`
+Test:
+`frontier::leftover_state_and_leases_refuse_guarded_commands`
 and `management::direct_commands_validate_run_ported_policies_and_refuse_the_rest`.
 
 In a repository where the installed wrapper is in use,
@@ -480,7 +496,8 @@ open to veto.
 
 #### Index-writer coordination
 
-Ledger source: "Index-writer coordination and landing lease".
+Ledger source:
+"Index-writer coordination and landing lease".
 The incumbent makes a command that writes the index wait for the landing lock.
 The native executable does not take that lock.
 The leftover-state refusal stands in for it:
@@ -507,7 +524,8 @@ nothing here was changed for it.
 
 #### Post-command output
 
-Ledger source: "Post-command output".
+Ledger source:
+"Post-command output".
 The line after `git --version` and the note after `git status` are not printed:
 forwarding replaces the process,
 so nothing runs after Git.
@@ -561,7 +579,8 @@ and the tokens are deleted by position.
 The former `strip_escape_hatch` and its tests are deleted;
 `escape_hatch.rs` now holds only the three spellings.
 
-Test: `controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed`.
+Test:
+`controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed`.
 With a file named `--no-enforce-worktree` and a second file staged,
 `git reset --quiet -- --no-enforce-worktree` unstages only that file,
 so Git received the token.
@@ -609,7 +628,8 @@ What holds instead:
   The incumbent also starts one Git process on this path,
   to resolve the worktree identity.
 
-Test: `policy::read_only_commands_start_at_most_the_location_query`.
+Test:
+`policy::read_only_commands_start_at_most_the_location_query`.
 Real Git is a shim that appends its arguments to a log and then runs Git.
 Beside an invalid configuration file and a legacy file,
 four exempt commands log exactly the forwarded command,
@@ -639,7 +659,8 @@ and `git stash` is guarded in every form.
 A mistaken refusal by an option table therefore cannot forward a commit or a publishing push;
 it can still forward a command of another kind unguarded.
 
-Test: `controls::a_region_git_refuses_is_forwarded_unless_the_command_is_never_forwarded`:
+Test:
+`controls::a_region_git_refuses_is_forwarded_unless_the_command_is_never_forwarded`:
 six commands whose output and exit code 129 equal real Git's,
 then the three exceptions.
 Passes in the gate.
@@ -725,11 +746,13 @@ and the directory below it after every `-C`.
 
 ### The fast path asks Git one question
 
-Recorded under "Hazard 5, the read-only fast path".
+Recorded under "Hazard 5,
+the read-only fast path".
 
 ### A refused region forwards except for commit, push and stash
 
-Recorded under "Hazard 6, a region Git refuses".
+Recorded under "Hazard 6,
+a region Git refuses".
 
 ### The manual-push gate applies without a configuration file
 
@@ -1021,7 +1044,8 @@ and `real_git_candidate::same_inode`.
 cargo-mutants 27.1.0 skips an item only for `#[cfg(test)]`,
 a test attribute
 or `mutants::skip`
-(`src/visit.rs:861-865`, read in the v27.1.0 sources),
+(`src/visit.rs:861-865`,
+read in the v27.1.0 sources),
 so it mutates a function the Linux build never compiles,
 and such a mutant always passes.
 Two of them appeared again in evidence `native-mutation-YIs2yn`.
@@ -1569,10 +1593,14 @@ in the bounded container.
 Every target exited 0
 (evidence `package/git-policy/cli.fuzz/target/verification/campaign-PeWOk0`):
 
-- `global_arguments`: 834,636 executions.
-- `config_loading`: 268,902 executions.
-- `config_schema`: 29,924 executions.
-- `wrapper_controls`: 41,774 executions.
+- `global_arguments`:
+  834,636 executions.
+- `config_loading`:
+  268,902 executions.
+- `config_schema`:
+  29,924 executions.
+- `wrapper_controls`:
+  41,774 executions.
 
 The same task on the tree of commit `348d94cbe`,
 the final tree,
@@ -1580,10 +1608,14 @@ on a quieter host
 (evidence `package/git-policy/cli.fuzz/target/verification/campaign-ma0PAO`),
 again with every target exiting 0:
 
-- `global_arguments`: 1,448,046 executions.
-- `config_loading`: 511,433 executions.
-- `config_schema`: 60,003 executions.
-- `wrapper_controls`: 105,604 executions.
+- `global_arguments`:
+  1,448,046 executions.
+- `config_loading`:
+  511,433 executions.
+- `config_schema`:
+  60,003 executions.
+- `wrapper_controls`:
+  105,604 executions.
 
 The new target is slower per execution than the argument targets
 because each execution runs the whole lifecycle twice and removal three times.
@@ -1594,28 +1626,56 @@ not a campaign.
 
 In order:
 
-- `6b14f1249`: wrapper controls removed by position, one hatch mechanism.
-- `99646d0c6`: the stage, triggers, events and the bounded fix loop.
-- `329de1b97`: the three configuration decisions.
-- `a9010f435`: repository facts, rule cores, the shipped-policy adapter and the fixed transforms.
-- `9cc45dc2c`: tests pinning the linked sequencer head file.
-- `d86b7463c`: the two mutant exclusions and the listing task.
-- `d1c02273a`: the three loop rewrites.
-- `3836299a7`: the lifecycle, the refusal frontier and direct commands.
-- `d8adb6015`: the fuzz target and the status-format commit control.
-- `4bef275e6`: removal of a helper only tests called.
-- `24cfeaaee`: the classifier test that kills the surviving mutant.
-- `e0042aeda`: the command word and region read in one place, and the tool-cache test.
-- `37d362484`: single-body platform functions, the loop-free bounded read,
+- `6b14f1249`:
+  wrapper controls removed by position,
+  one hatch mechanism.
+- `99646d0c6`:
+  the stage,
+  triggers,
+  events and the bounded fix loop.
+- `329de1b97`:
+  the three configuration decisions.
+- `a9010f435`:
+  repository facts,
+  rule cores,
+  the shipped-policy adapter and the fixed transforms.
+- `9cc45dc2c`:
+  tests pinning the linked sequencer head file.
+- `d86b7463c`:
+  the two mutant exclusions and the listing task.
+- `d1c02273a`:
+  the three loop rewrites.
+- `3836299a7`:
+  the lifecycle,
+  the refusal frontier and direct commands.
+- `d8adb6015`:
+  the fuzz target and the status-format commit control.
+- `4bef275e6`:
+  removal of a helper only tests called.
+- `24cfeaaee`:
+  the classifier test that kills the surviving mutant.
+- `e0042aeda`:
+  the command word and region read in one place,
+  and the tool-cache test.
+- `37d362484`:
+  single-body platform functions,
+  the loop-free bounded read,
   the shared command split and the Windows type-check task.
-- `4133d2900`: a task that runs the repository's Rust linter over the native source.
-- `090c147e7`: the `policy-incomplete` failure code.
-- `08847be01`: option scanners that say whether they took the next token,
+- `4133d2900`:
+  a task that runs the repository's Rust linter over the native source.
+- `090c147e7`:
+  the `policy-incomplete` failure code.
+- `08847be01`:
+  option scanners that say whether they took the next token,
   and the status scan that visits each token once.
-- `66a3e9b9c`: removal of a wrapper-flag lookup only tests called.
-- `52cc1494b`: the test of the shortest answer the sequencer path reader accepts.
-- `5e5972f64`: removal of a length comparison the typo check already makes.
-- `348d94cbe`: the stash words without a dash,
+- `66a3e9b9c`:
+  removal of a wrapper-flag lookup only tests called.
+- `52cc1494b`:
+  the test of the shortest answer the sequencer path reader accepts.
+- `5e5972f64`:
+  removal of a length comparison the typo check already makes.
+- `348d94cbe`:
+  the stash words without a dash,
   and removal of the second detector of the commit-only hatch.
 
 Commits that only change this document are not listed.

@@ -40,14 +40,17 @@ Changing only the shell working directory did not constrain npm's installation r
 
 ## Verification
 
-- Failing case: child without a manifest beneath an existing `node_modules` directory.
+- Failing case:
+  child without a manifest beneath an existing `node_modules` directory.
   npm selected the parent,
   as recorded in `2026-10-16T01_46_29_297Z-debug-0.log`.
-- Working case: child with a private `package.json` before installation.
+- Working case:
+  child with a private `package.json` before installation.
   npm installed locally,
   and the verification read `node_modules/@monochromatic-dev/fs-path-core/package.json`
   before exercising root discovery and the Node helpers.
-- Recovery: npm's removal log identified 120 package paths.
+- Recovery:
+  npm's removal log identified 120 package paths.
   Cached archives were installed into a separate staging project with `--prefix`,
   `--offline`,
   and `--ignore-scripts`.
@@ -77,12 +80,18 @@ successful imports alone can resolve an ancestor's package.
 
 ## Upstream filing decision
 
-- Fault: the fixture omitted its installation boundary.
-- Upstream fixability: no npm defect was established.
-- Supported usage: explicit prefix and local project manifests are handled by the installed source.
-- Contribution acceptance: no upstream change is proposed.
-- Upstream direction: ancestor discovery is explicit in the installed implementation.
-- Prototype: the corrected consumer and staged recovery both ran successfully.
+- Fault:
+  the fixture omitted its installation boundary.
+- Upstream fixability:
+  no npm defect was established.
+- Supported usage:
+  explicit prefix and local project manifests are handled by the installed source.
+- Contribution acceptance:
+  no upstream change is proposed.
+- Upstream direction:
+  ancestor discovery is explicit in the installed implementation.
+- Prototype:
+  the corrected consumer and staged recovery both ran successfully.
 
 No upstream issue or comment is warranted.
 Nothing additive is proposed for upstream.

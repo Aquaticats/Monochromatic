@@ -1,6 +1,8 @@
 # netavark 1.17.2 masquerades any packet marked `0x2000`, so `ExemptMark = 8888` breaks IPv4 loopback
 
-`netavark`, the podman network backend, installs one unconditional postrouting
+`netavark`,
+the podman network backend,
+installs one unconditional postrouting
 masquerade rule keyed on the mark bit `0x2000`.
 `wg-quicker`'s documented application-exemption mark `8888` is `0x22b8` and carries that bit,
 so every socket the exemption watcher marks is source-NATed,
@@ -56,7 +58,10 @@ Three properties distinguish this from an ordinary Gradle or JVM fault:
 `wg-quicker` enables application exemptions with `ExemptMark` under `[Interface]`.
 `package/wg/cli-quicker/README.md` and the `up` warning both recommended `8888`.
 `wg-quicker-exempt` loads a `BPF_PROG_TYPE_CGROUP_SOCK_ADDR` program on the
-`connect4`, `connect6`, `udp4_sendmsg`, and `udp6_sendmsg` hooks of each watched
+`connect4`,
+`connect6`,
+`udp4_sendmsg`,
+and `udp6_sendmsg` hooks of each watched
 application cgroup;
 the program calls `bpf_setsockopt(SOL_SOCKET, SO_MARK, mark)` on every socket,
 with no destination test.
@@ -125,7 +130,9 @@ netavark defines the bit as a bare constant:
 const MASK: u32 = 0x2000;
 ```
 
-and installs a postrouting rule matching it with no interface, address, or
+and installs a postrouting rule matching it with no interface,
+address,
+or
 namespace restriction:
 
 ```rust
@@ -158,7 +165,8 @@ Any other subsystem that sets a mark sharing that bit is indistinguishable from
 netavark's own traffic at this rule.
 
 `8888` is `0x22b8`.
-`0x22b8 & 0x2000 == 0x2000`, so the rule matches,
+`0x22b8 & 0x2000 == 0x2000`,
+so the rule matches,
 `Masquerade(None)` rewrites the source to the address the outbound route selects,
 and a `127.0.0.1` listener reads `192.168.253.108`.
 
@@ -180,12 +188,16 @@ const HEXMARK: &str = "0x2000";
 
 Versions under test:
 
-- netavark `1.17.2-1.fc44.x86_64`, podman `5.8.4-1.fc44.x86_64`
-  (source read at upstream tag `v1.17.2`, commit `bd7a464`).
-- Gradle `9.5.1`, Temurin `21.0.12+8.0.LTS`.
+- netavark `1.17.2-1.fc44.x86_64`,
+  podman `5.8.4-1.fc44.x86_64`
+  (source read at upstream tag `v1.17.2`,
+  commit `bd7a464`).
+- Gradle `9.5.1`,
+  Temurin `21.0.12+8.0.LTS`.
 - Kernel `7.2.0-ogc6.1.fc44.x86_64`.
 
-Harness, which needs `CAP_NET_ADMIN` to set `SO_MARK`:
+Harness,
+which needs `CAP_NET_ADMIN` to set `SO_MARK`:
 
 ```python
 # ~/temp/agent/marked-loopback-probe.py
@@ -277,13 +289,15 @@ A future subsystem claiming low bits would need another change.
 
 ### Remove podman's nftables tables
 
-`podman network reload --all`, or stopping podman and deleting `table inet netavark`,
+`podman network reload --all`,
+or stopping podman and deleting `table inet netavark`,
 removes the masquerade rule and unblocks loopback without touching the tunnel.
 
 Tradeoffs:
 published container ports stop working,
 and netavark recreates the table on the next container start,
-so this is a diagnostic step, not a fix.
+so this is a diagnostic step,
+not a fix.
 
 ### Build inside a private network namespace
 
@@ -313,7 +327,8 @@ recorded so a rebuild does not pay them again:
   `Failed to find target with hash string`.
 - mise's rust backend syncs the nightly channel over the network;
   bypass mise inside the namespace and call `gradlew` directly with `--offline`.
-- Device-facing steps (`adb install`, captures) must run outside the namespace
+- Device-facing steps (`adb install`,
+  captures) must run outside the namespace
   because the adb server socket lives in the host namespace.
 
 ## What does not work
@@ -332,13 +347,18 @@ recorded so a rebuild does not pay them again:
   A shell under `app.slice/claude-code-bash` is not a watched cgroup,
   so its sockets carry no mark and the probe reports `127.0.0.1`.
   That null result says nothing about the failing terminal;
-  the mark has to be set explicitly, as the harness above does.
+  the mark has to be set explicitly,
+  as the harness above does.
 - **Listing marked sockets with `ss --extended`.**
-  iproute2 on this host prints `uid`, `ino`, `sk`, and `cgroup` but never a
+  iproute2 on this host prints `uid`,
+  `ino`,
+  `sk`,
+  and `cgroup` but never a
   `fwmark` field,
   so `ss --tcp --all --extended | grep fwmark` returns zero matches whether or
   not sockets carry a mark.
-  The zero is an artifact of the output format, not evidence.
+  The zero is an artifact of the output format,
+  not evidence.
 - **Waiting for the rule to disappear.**
   It is created with podman's tables and survives with no containers running.
 
@@ -346,7 +366,9 @@ recorded so a rebuild does not pay them again:
 
 1. **Is it really upstream's fault?**
    No.
-   netavark picks one bit, documents it in a named constant, and matches it.
+   netavark picks one bit,
+   documents it in a named constant,
+   and matches it.
    `wg-quicker` chose `8888` without checking whose bits it borrowed.
    The defect is in this repository's mark selection.
 2. **Can upstream fix it?**
@@ -361,13 +383,17 @@ recorded so a rebuild does not pay them again:
 5. **Will they likely fix it?**
    Not reached.
 6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Not reached, and not applicable:
+   Not reached,
+   and not applicable:
    the fix belongs on this side of the boundary.
 
-Constraint 1 fails, so nothing is filed against `containers/netavark`,
+Constraint 1 fails,
+so nothing is filed against `containers/netavark`,
 and no issue draft is kept.
 `.out-of-scope/` was read before this decision;
-it holds no entry for netavark, podman, or mark collisions,
+it holds no entry for netavark,
+podman,
+or mark collisions,
 so the exemption path did not apply either.
 No duplicate search was run against the netavark tracker,
 because there is no upstream behavior to report:
@@ -377,9 +403,13 @@ the rule works as its source says it does.
 
 `package/wg/cli-quicker/src/exempt-mark-reservation.ts` lists the masks other
 subsystems match on and rejects a colliding `ExemptMark` at config-parse time,
-naming the value, the mask, its owner, and the replacement.
+naming the value,
+the mask,
+its owner,
+and the replacement.
 `RECOMMENDED_EXEMPT_MARK` is `100`,
-and the `up` warning, `package/wg/cli-quicker/README.md`,
+and the `up` warning,
+`package/wg/cli-quicker/README.md`,
 and `doc/handover/wg-quicker.md` recommend it in place of `8888`.
 
 Loading a config that still carries `8888` now fails with:
@@ -393,7 +423,11 @@ Pick a mark sharing no bit with those masks, such as `ExemptMark = 100' (0x64), 
 ```
 
 On this host `/etc/wireguard/gb-lon-gb2.conf` and `/etc/wireguard/mx-que-mx1.conf`
-were changed to `ExemptMark = 100` in place, preserving inode, owner, mode, and
+were changed to `ExemptMark = 100` in place,
+preserving inode,
+owner,
+mode,
+and
 link count,
 and `gb-lon-gb2` was cycled.
 `ip rule` then shows `50: from all fwmark 0x64 lookup 52000 proto 201`,

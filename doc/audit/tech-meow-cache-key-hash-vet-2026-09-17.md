@@ -77,22 +77,27 @@ Related but incompatible:
 Measured or read on 2026-09-17:
 
 - meow is designed but not implemented
-   (`doc/planning/monorepo-manager-from-scratch-design.md`, "Status").
+   (`doc/planning/monorepo-manager-from-scratch-design.md`,
+  "Status").
   No code consumes a cache key hash yet,
    so the consumer boundary is exercised through a probe binary,
    not product code.
 - Planned incumbent:
    `gxhash` 3.5.0 `gxhash128` for cache keys
-   (design doc, "Cache").
+   (design doc,
+  "Cache").
   The user removed it on 2026-09-17:
    "Pick some other hash that has hardware acceleration on x86 and ARM instead"
-   (design doc, "Cache key hash after the collision findings").
+   (design doc,
+  "Cache key hash after the collision findings").
 - Reason for removal:
    seed-independent full-width `gxhash128` collisions on the one-byte keyset,
    reproduced locally
-   (1 collision on a random 4096-byte base, 2 on a zero base)
+   (1 collision on a random 4096-byte base,
+  2 on a zero base)
    and matching SMHasher3 and upstream issues #83 and #124
-   (`gxhash-owned.md`, "Quality and collision resistance").
+   (`gxhash-owned.md`,
+  "Quality and collision resistance").
 - Cache key contents:
    task definition,
    argument vector,
@@ -103,20 +108,24 @@ Measured or read on 2026-09-17:
    dependency outputs,
    platform,
    and a salt
-   (design doc, "Cache").
+   (design doc,
+  "Cache").
   Two input shapes follow:
    whole file contents,
    and short key material that concatenates metadata and per-file hashes.
 - Content hashing is the source of truth for change detection;
    the cache is local only,
    with no adversary,
-   so no cryptographic hash is needed (user, 2026-09-16).
+   so no cryptographic hash is needed (user,
+  2026-09-16).
 - Supported release-blocking targets:
    Linux x86_64 and aarch64,
    each glibc-linked and static musl;
    aarch64 musl is a custom static-pie target built with `-Z build-std` and `rust-lld`,
    with no C cross compiler
-   (design doc, "Platform probes", "Build matrix").
+   (design doc,
+  "Platform probes",
+  "Build matrix").
 - Toolchain:
    floating `nightly` in root `mise.toml`;
    the probes used `nightly-2026-09-12` (`rustc 1.100.0-nightly`).
@@ -144,24 +153,33 @@ The user's wording,
  has two readings.
 Both are recorded and applied to every candidate.
 
-- Reading R1, dedicated instructions:
+- Reading R1,
+  dedicated instructions:
    instructions that implement a specific primitive in silicon.
   On x86_64:
    AES-NI (`aesenc`),
-   carry-less multiply (`pclmulqdq`, `vpclmulqdq`),
+   carry-less multiply (`pclmulqdq`,
+  `vpclmulqdq`),
    SSE4.2 `crc32`,
    SHA extensions.
   On aarch64:
-   the Cryptography Extension (`aese`, `aesmc`, `pmull`, SHA)
+   the Cryptography Extension (`aese`,
+  `aesmc`,
+  `pmull`,
+  SHA)
    and the CRC32 extension.
-- Reading R2, SIMD vectorization:
+- Reading R2,
+  SIMD vectorization:
    general-purpose vector instructions used by a designed vector path.
   On x86_64:
    SSE2 through AVX-512.
   On aarch64:
    NEON (Advanced SIMD) and SVE.
 - Under neither reading:
-   scalar 64-bit multiply-and-fold designs (wyhash family, rapidhash, komihash, MuseAir)
+   scalar 64-bit multiply-and-fold designs (wyhash family,
+  rapidhash,
+  komihash,
+  MuseAir)
    and compiler auto-vectorization without a designed vector path.
   They use ordinary integer instructions every 64-bit CPU has.
 
@@ -191,7 +209,8 @@ For reference,
      identical output on x86_64 and aarch64 and across dispatch paths.
 - Not applicable:
    SaaS gates (no hosted component)
-   and the sensitive-data overlay (inputs are repository files already on the machine, and nothing leaves it).
+   and the sensitive-data overlay (inputs are repository files already on the machine,
+  and nothing leaves it).
 
 Scope boundary for cryptographic functions:
  the decision scope names a non-cryptographic hash,
@@ -263,7 +282,8 @@ What changed in this report:
 - No ranking existed yet,
    so no adjacent pair had been decided on fingerprint-sized inputs.
   The earlier gxhash study ranked on 70 to 242 byte material
-   (`gxhash-owned.md`, "Benchmarks");
+   (`gxhash-owned.md`,
+  "Benchmarks");
    none of its fingerprint-sized orderings is reused here.
 
 ## Frozen hard constraints
@@ -340,53 +360,65 @@ Maximum score:
  weights sum to 19,
  so 76 points.
 
-- S1 key-composition speed, weight 1:
+- S1 key-composition speed,
+  weight 1:
    x86_64 time per hash on short key material
    (70 to 242 byte fingerprint material and per-package key material of 50 bytes to 50 KiB),
    baseline x86-64 and x86-64-v3 builds,
    with differences counted only beyond the measured run-to-run band.
-- S2 whole-file throughput, KiB to tens of MiB, weight 5:
+- S2 whole-file throughput,
+  KiB to tens of MiB,
+  weight 5:
    x86_64 time over the contents of every git-tracked file,
    one-shot and streamed in 64 KiB chunks,
    plus a cache-resident 16 KiB buffer,
    both builds,
    same band rule.
-- S3 multi-GB throughput from disk, weight 5:
+- S3 multi-GB throughput from disk,
+  weight 5:
    streamed hashing of a 3.97 GB and a 663 MB file,
    page-cache cold and warm,
    in the bounded container,
    against read-only throughput of the same files,
    so the report states whether I/O or the hash limits.
-- S4 multi-core hashing of one large input with stable output, weight 1.
-- S5 aarch64 acceleration, weight 1:
+- S4 multi-core hashing of one large input with stable output,
+  weight 1.
+- S5 aarch64 acceleration,
+  weight 1:
    what the aarch64 path accelerates,
    from source,
    plus upstream-published aarch64 measurements;
    low-signal ranges,
    because no aarch64 hardware run happens here.
-- S6 quality evidence beyond HC8, weight 1:
+- S6 quality evidence beyond HC8,
+  weight 1:
    SMHasher3 results and their relevance to a fixed-seed local cache,
    design analysis,
    and additional local keysets.
-- S7 stability assurance, weight 1:
+- S7 stability assurance,
+  weight 1:
    documented freeze,
    upstream golden vectors,
    tests that compare dispatch paths,
    and local cross-architecture equality.
-- S8 CPU capability handling, weight 1:
+- S8 CPU capability handling,
+  weight 1:
    what meow must add to meet HC5,
    and whether build flags or run-time dispatch are needed.
-- S9 auditability and dependency surface, weight 1:
+- S9 auditability and dependency surface,
+  weight 1:
    non-test lines on the used path,
    `unsafe` occurrences,
    runtime dependencies.
-- S10 upstream verification, weight 1:
+- S10 upstream verification,
+  weight 1:
    tests,
    CI matrix,
    fuzzing,
    mutation testing,
    reference-vector comparisons.
-- S11 maintenance, weight 1:
+- S11 maintenance,
+  weight 1:
    releases,
    issue and pull request handling in the last 12 months,
    maintainer concentration.
@@ -398,7 +430,8 @@ Criteria removed from every denominator:
 - Binary size:
    no size limit is stated beyond rejecting a bundled Node runtime.
 - Platforms beyond Linux:
-   not release-blocking (user, 2026-09-16).
+   not release-blocking (user,
+  2026-09-16).
 - Adversarial resistance:
    the cache is local only.
 
@@ -499,7 +532,8 @@ The scan never builds or runs an archive.
 - GC03 code `__crc32cd _mm_crc32_u64 language:Rust`
 
 Hash-family indexes on repository hosts:
- the SMHasher3 results list (`gitlab.com/fwojcik/smhasher3`, `results/README.md`)
+ the SMHasher3 results list (`gitlab.com/fwojcik/smhasher3`,
+`results/README.md`)
  and the `rurban/smhasher` README,
  with every listed family screened at family level.
 
@@ -558,18 +592,36 @@ Raw pages:
 
 Every query used `per_page=100` and the User-Agent `hash-library-survey/1.0`.
 No result was filtered out before screening.
-A result counts as reviewed when it is a hash, checksum, MAC, or hash adapter crate;
+A result counts as reviewed when it is a hash,
+checksum,
+MAC,
+or hash adapter crate;
  every other result is screened by the source scan and listed in the appendix.
 
 Source-scan method and control:
 
-- Each result's newest stable `.crate` archive was downloaded from `static.crates.io` and extracted, never built.
-- Non-test Rust files were searched for x86 intrinsics (`_mm*_` calls, AES, CLMUL, CRC32, and SHA intrinsics),
-   aarch64 intrinsics (NEON `v*q` calls, `vaeseq_u8`, `vmull_p64`, `__crc32*`, SHA intrinsics),
-   SIMD abstractions (`std::simd`, `wide`, `safe_arch`, `pulp`, `multiversion`),
+- Each result's newest stable `.crate` archive was downloaded from `static.crates.io` and extracted,
+  never built.
+- Non-test Rust files were searched for x86 intrinsics (`_mm*_` calls,
+  AES,
+  CLMUL,
+  CRC32,
+  and SHA intrinsics),
+   aarch64 intrinsics (NEON `v*q` calls,
+  `vaeseq_u8`,
+  `vmull_p64`,
+  `__crc32*`,
+  SHA intrinsics),
+   SIMD abstractions (`std::simd`,
+  `wide`,
+  `safe_arch`,
+  `pulp`,
+  `multiversion`),
    128-bit outputs,
    build scripts,
-   and C, C++, or assembly files
+   and C,
+  C++,
+  or assembly files
    (`scripts/crates-scan.ts`).
 - Control:
    crates known to carry accelerated paths were flagged on both architectures
@@ -578,9 +630,17 @@ Source-scan method and control:
    `twox-hash` 16 and 27,
    `sha2` 58/4 and 178/72),
    and crates known to be scalar had zero matches
-   (`rapidhash`, `museair`, `komihash`, `wyhash`, `foldhash`, `seahash`, `siphasher`, `polymur-hash`).
+   (`rapidhash`,
+  `museair`,
+  `komihash`,
+  `wyhash`,
+  `foldhash`,
+  `seahash`,
+  `siphasher`,
+  `polymur-hash`).
   `blake3` 1.8.7 matched on x86 only,
-   consistent with its NEON path being C (`c/blake3_neon.c`, compiled in `build.rs`).
+   consistent with its NEON path being C (`c/blake3_neon.c`,
+  compiled in `build.rs`).
 - Limit:
    a crate that delegates acceleration to a dependency shows no matches of its own;
    dependents of the candidate crates were listed and are adapters or applications.
@@ -600,207 +660,331 @@ Query ledger,
    2 page(s) and 170 results read,
    exhausted;
    new reviewed candidates:
-   `noncrypto-digests`, `wyhash`, `gxhash`, `mwhash`, `fasthash`, `drtahash`, `ahash`,
-   `hashkit`, `polymur-hash`, `t1ha`, `tenthash`, `hashcrew`, `rscrypto`, `axhash-core`,
-   `foldhash`, `rapidhash`, `whasher`, `rotohash-rs`, `blazehash-core`;
-   new screening survivors: `hashcrew`.
+   `noncrypto-digests`,
+  `wyhash`,
+  `gxhash`,
+  `mwhash`,
+  `fasthash`,
+  `drtahash`,
+  `ahash`,
+   `hashkit`,
+  `polymur-hash`,
+  `t1ha`,
+  `tenthash`,
+  `hashcrew`,
+  `rscrypto`,
+  `axhash-core`,
+   `foldhash`,
+  `rapidhash`,
+  `whasher`,
+  `rotohash-rs`,
+  `blazehash-core`;
+   new screening survivors:
+  `hashcrew`.
 - CR02 `q=128-bit hash`:
    749 reported,
    5 page(s) and 500 results read,
    two-page rule met;
    new reviewed candidates:
-   `museair`, `siphasher`, `kangarootwelve`, `rustc-stable-hash`, `polyval`, `twox-hash`,
-   `lockstitch`, `highway`, `ghash`, `hashcodecs`, `argon2-rust`;
-   new screening survivors: `twox-hash`, `highway`.
+   `museair`,
+  `siphasher`,
+  `kangarootwelve`,
+  `rustc-stable-hash`,
+  `polyval`,
+  `twox-hash`,
+   `lockstitch`,
+  `highway`,
+  `ghash`,
+  `hashcodecs`,
+  `argon2-rust`;
+   new screening survivors:
+  `twox-hash`,
+  `highway`.
 - CR03 `q=simd hash`:
    724 reported,
    3 page(s) and 300 results read,
    two-page rule met;
    new reviewed candidates:
-   `seq-hash`, `cubehash`, `crc32fast`, `thread-utilities`, `keccak-batch`, `autobahn-hash`,
-   `gearhash`, `pocx_hashlib`, `simd-adler32`, `tape-sha256`, `blake3-std`, `adler32-simd`,
-   `mm3h`, `halftime`, `blake3`;
-   new screening survivors: `autobahn-hash`.
+   `seq-hash`,
+  `cubehash`,
+  `crc32fast`,
+  `thread-utilities`,
+  `keccak-batch`,
+  `autobahn-hash`,
+   `gearhash`,
+  `pocx_hashlib`,
+  `simd-adler32`,
+  `tape-sha256`,
+  `blake3-std`,
+  `adler32-simd`,
+   `mm3h`,
+  `halftime`,
+  `blake3`;
+   new screening survivors:
+  `autobahn-hash`.
 - CR04 `q=aes hash`:
    878 reported,
    3 page(s) and 300 results read,
    two-page rule met;
-   new reviewed candidates: `sponge-hash-aes256`, `purecrypto`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `sponge-hash-aes256`,
+  `purecrypto`;
+   new screening survivors:
+  none.
 - CR05 `q=neon hash`:
    243 reported,
    3 page(s) and 243 results read,
    exhausted;
-   new reviewed candidates: `sha3-selkie`, `xxh3`, `graviola`, `polyhash`, `xxhash-rust`;
-   new screening survivors: `xxhash-rust`.
+   new reviewed candidates:
+  `sha3-selkie`,
+  `xxh3`,
+  `graviola`,
+  `polyhash`,
+  `xxhash-rust`;
+   new screening survivors:
+  `xxhash-rust`.
 - CR06 `q=hardware accelerated hash`:
    266 reported,
    3 page(s) and 266 results read,
    exhausted;
-   new reviewed candidates: `verify-beacon`, `crc32c`, `lib-q-keccak`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `verify-beacon`,
+  `crc32c`,
+  `lib-q-keccak`;
+   new screening survivors:
+  none.
 - CR07 `q=fast hash function`:
    1,862 reported,
    3 page(s) and 300 results read,
    two-page rule met;
-   new reviewed candidates: `seahash`, `umash`, `hud-slice-by-8`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `seahash`,
+  `umash`,
+  `hud-slice-by-8`;
+   new screening survivors:
+  none.
 - CR08 `q=gxhash`:
    24 reported,
    1 page(s) and 24 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR09 `q=fingerprint hash`:
    1,117 reported,
    5 page(s) and 500 results read,
    two-page rule met;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR10 `q=crc simd checksum`:
    83 reported,
    1 page(s) and 83 results read,
    exhausted;
-   new reviewed candidates: `crc64fast`, `crc-fast`, `crc64fast-nvme`, `librscrc`, `oxiarc-core`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `crc64fast`,
+  `crc-fast`,
+  `crc64fast-nvme`,
+  `librscrc`,
+  `oxiarc-core`;
+   new screening survivors:
+  none.
 - CR11 `keyword=hash&sort=downloads`:
    919 reported,
    3 page(s) and 300 results read,
    two-page rule met;
-   new reviewed candidates: `sha2`, `sha1`, `bitcoin_hashes`, `k12`, `meowhash`, `sha2ni`, `xxhash-c-sys`, `cyfs-sha2`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `sha2`,
+  `sha1`,
+  `bitcoin_hashes`,
+  `k12`,
+  `meowhash`,
+  `sha2ni`,
+  `xxhash-c-sys`,
+  `cyfs-sha2`;
+   new screening survivors:
+  none.
 - CR12 `keyword=hasher&sort=downloads`:
    46 reported,
    1 page(s) and 46 results read,
    exhausted;
-   new reviewed candidates: `slice-by-8`, `axhash`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `slice-by-8`,
+  `axhash`;
+   new screening survivors:
+  none.
 - CR13 `keyword=non-cryptographic&sort=downloads`:
    6 reported,
    1 page(s) and 6 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-xxh3 `undefined`:
    115 reported,
    2 page(s) and 115 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-xxhash `undefined`:
    143 reported,
    2 page(s) and 143 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-highwayhash `undefined`:
    7 reported,
    1 page(s) and 7 results read,
    exhausted;
-   new reviewed candidates: `highwayhash`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `highwayhash`;
+   new screening survivors:
+  none.
 - CR14-museair `undefined`:
    3 reported,
    1 page(s) and 3 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-rapidhash `undefined`:
    36 reported,
    1 page(s) and 36 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-komihash `undefined`:
    3 reported,
    1 page(s) and 3 results read,
    exhausted;
-   new reviewed candidates: `komihash`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `komihash`;
+   new screening survivors:
+  none.
 - CR14-wyhash `undefined`:
    35 reported,
    1 page(s) and 35 results read,
    exhausted;
-   new reviewed candidates: `wyhash2`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `wyhash2`;
+   new screening survivors:
+  none.
 - CR14-t1ha `undefined`:
    4 reported,
    1 page(s) and 4 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-meowhash `undefined`:
    1 reported,
    1 page(s) and 1 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-ahash `undefined`:
    193 reported,
    2 page(s) and 193 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-foldhash `undefined`:
    30 reported,
    1 page(s) and 30 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-blake3 `undefined`:
    1,447 reported,
    3 page(s) and 300 results read,
    two-page rule met;
-   new reviewed candidates: `chacha20-blake3`, `spg-crypto`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `chacha20-blake3`,
+  `spg-crypto`;
+   new screening survivors:
+  none.
 - CR14-umash `undefined`:
    2 reported,
    1 page(s) and 2 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-clhash `undefined`:
    2 reported,
    1 page(s) and 2 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - CR14-crc32c `undefined`:
    176 reported,
    2 page(s) and 176 results read,
    exhausted;
-   new reviewed candidates: `bitcoin-crc32c`, `turbo_crc`;
-   new screening survivors: none.
+   new reviewed candidates:
+  `bitcoin-crc32c`,
+  `turbo_crc`;
+   new screening survivors:
+  none.
 - CR14-crc64 `undefined`:
    41 reported,
    1 page(s) and 41 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - XR01 `q=incremental hash simd`:
    144 reported,
    2 page(s) and 144 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - XR02 `q=high-bandwidth checksum`:
    12 reported,
    1 page(s) and 12 results read,
    exhausted;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - XR03 `q=parallel tree hash`:
    899 reported,
    3 page(s) and 300 results read,
    two-page rule met;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 - XR04 `q=universal hash`:
    931 reported,
    3 page(s) and 300 results read,
    two-page rule met;
-   new reviewed candidates: none;
-   new screening survivors: none.
+   new reviewed candidates:
+  none;
+   new screening survivors:
+  none.
 
 Pagination:
  CR02 and CR09 had a survivor on page 3,
@@ -830,32 +1014,49 @@ Result:
    `twox-hash`,
    `rapidhash`,
    `wyhash-rs`,
-   `metrohash-rs` (scalar, HC1),
-   `fastmurmur3` (scalar, HC1),
+   `metrohash-rs` (scalar,
+  HC1),
+   `fastmurmur3` (scalar,
+  HC1),
    `autobahn-hash`,
-   `cityhash-sys` (C bindings, HC4),
+   `cityhash-sys` (C bindings,
+  HC4),
    and applications;
    no new survivor.
 - GH03 `topic:non-cryptographic-hash-function`:
    0 results.
 - GH04 `hash simd neon language:Rust`:
    2 results
-   (a hash table and `keccak-batch`, cryptographic);
+   (a hash table and `keccak-batch`,
+  cryptographic);
    no survivor.
 - GH05 `aes hash neon language:Rust`:
    0 results.
 - GH06 `128-bit hash language:Rust`:
    1 result
-   (`forrus`, a fixed 128-bit-input function, category mismatch).
+   (`forrus`,
+  a fixed 128-bit-input function,
+  category mismatch).
 - GH07 `non-cryptographic hash in:name,description`:
    215 results over 3 pages,
    exhausted;
    families in other languages
-   (xxHash C, komihash, a5hash, pengyhash, SMHasher forks),
+   (xxHash C,
+  komihash,
+  a5hash,
+  pengyhash,
+  SMHasher forks),
    Rust repositories not published on crates.io
-   (`s0uthview/fernhash`, `hwadii/hache`, `yescallop/mixhash`, `AlyssaRoseDev/cmhash`, `101shaan/BlitzHash`;
-   crates.io API returned no crate for each, HC7),
-   and `meow-land/mwhash` and `cessen/tenthash` (published, scalar, HC1);
+   (`s0uthview/fernhash`,
+  `hwadii/hache`,
+  `yescallop/mixhash`,
+  `AlyssaRoseDev/cmhash`,
+  `101shaan/BlitzHash`;
+   crates.io API returned no crate for each,
+  HC7),
+   and `meow-land/mwhash` and `cessen/tenthash` (published,
+  scalar,
+  HC1);
    no new survivor.
 - GH08 `gxhash alternative`:
    0 results.
@@ -866,7 +1067,8 @@ Result:
    RandomX and proof-of-space application code,
    an AES random generator,
    and a MeowHash attack tool;
-   no hash library with both paths beyond `ahash` (HC2, HC3) and `gxhash` (HC9).
+   no hash library with both paths beyond `ahash` (HC2,
+  HC3) and `gxhash` (HC9).
 - GC02 code `vmull_p64 _mm_clmulepi64_si128 language:Rust`:
    97 results;
    carry-less multiply utilities,
@@ -880,38 +1082,60 @@ Result:
    no 128-bit hash library.
 - XG01 `rotohash` (expansion):
    2 results,
-   `jandrewrogers/RotoHash` (C++ reference, x86-64 only per its README, HC4 as a Rust candidate)
+   `jandrewrogers/RotoHash` (C++ reference,
+  x86-64 only per its README,
+  HC4 as a Rust candidate)
    and `int08h/rotohash-rs` (already in class 1).
 - XG02 `incremental hash simd language:Rust` (expansion):
    0 results.
 - XG03 `parallel hash tree language:Rust` (expansion):
    1 result
-   (`dupefind`, an application).
+   (`dupefind`,
+  an application).
 
 Hash-family indexes:
 
 - SMHasher3 `results/README.md`
-   (fetched 2026-09-17 from `gitlab.com/fwojcik/smhasher3/-/raw/main/results/README.md`, 546 lines).
+   (fetched 2026-09-17 from `gitlab.com/fwojcik/smhasher3/-/raw/main/results/README.md`,
+  546 lines).
   Families with hardware-specific paths:
-   XXH3 (vector, both architectures),
-   HighwayHash (vector, both),
-   UMASH (CLMUL and PMULL, C),
+   XXH3 (vector,
+  both architectures),
+   HighwayHash (vector,
+  both),
+   UMASH (CLMUL and PMULL,
+  C),
    MeowHash (x86 AES),
-   falkhash, aesnihash, and t1ha0.aes (x86 AES),
+   falkhash,
+  aesnihash,
+  and t1ha0.aes (x86 AES),
    CLhash (x86 CLMUL),
-   CityHashCrc and MetroHashCrc (CRC32 instructions, C++),
+   CityHashCrc and MetroHashCrc (CRC32 instructions,
+  C++),
    FARSH (x86 vector),
-   HalftimeHash, VHASH, NMHASH, khashv (outputs of 64 bits or fewer),
+   HalftimeHash,
+  VHASH,
+  NMHASH,
+  khashv (outputs of 64 bits or fewer),
    gxhash (HC9),
    and BLAKE3 (cryptographic).
   Pure-Rust implementations with streaming exist only for XXH3 and HighwayHash;
-   UMASH, CityHashCrc, and MetroHashCrc exist for Rust only as C or C++ bindings or scalar ports (HC4 or HC1),
+   UMASH,
+  CityHashCrc,
+  and MetroHashCrc exist for Rust only as C or C++ bindings or scalar ports (HC4 or HC1),
    and the x86-only families fail HC1.
 - `rurban/smhasher` README
-   (fetched 2026-09-17, 486 lines):
-   adds `crc32_hw`, `crc64_hw`, and `crc32_pclmul` (32 and 64-bit, HC2),
-   `metrohash128crc` (CRC32 instructions on SSE4.2 and NEON, C++, flagged "UB"),
-   and `pearsonhash128` (SSSE3 only, HC1).
+   (fetched 2026-09-17,
+  486 lines):
+   adds `crc32_hw`,
+  `crc64_hw`,
+  and `crc32_pclmul` (32 and 64-bit,
+  HC2),
+   `metrohash128crc` (CRC32 instructions on SSE4.2 and NEON,
+  C++,
+  flagged "UB"),
+   and `pearsonhash128` (SSSE3 only,
+  HC1).
 
 Result:
  source class 2 and the family indexes are saturated.
@@ -925,7 +1149,12 @@ Linkup search,
  each query returned one result list of about 10 to 20 entries.
 
 - W01 `non-cryptographic 128-bit hash with hardware acceleration on x86 and ARM`:
-   `JohanLindvall/haste` (Go XXH3 with generated SSE2, AVX2, AVX-512, NEON, and SVE2 kernels; not Rust),
+   `JohanLindvall/haste` (Go XXH3 with generated SSE2,
+  AVX2,
+  AVX-512,
+  NEON,
+  and SVE2 kernels;
+  not Rust),
    xxHash,
    SHA extension and AES instruction references,
    and a Cryptography Stack Exchange question "What is the fastest stable 128-bit non-cryptographic hash function?"
@@ -938,7 +1167,9 @@ Linkup search,
    `haste`,
    a Go XXH3 package,
    Ash Vardanian's post on AWS Graviton checksums
-   (StringZilla: 64-bit AES-based hashing in C, HC2 and HC4).
+   (StringZilla:
+  64-bit AES-based hashing in C,
+  HC2 and HC4).
 - W04 `AES-NI and ARMv8 crypto extensions based non-cryptographic hash function`:
    instruction-set references and the RustCrypto `aes` crate description;
    no new hash library.
@@ -963,12 +1194,17 @@ Linkup search,
    no new candidate.
 - W09 `RotoHash alternative high-throughput 128-bit checksum for large files` (expansion):
    RotoHash,
-   the XXH3 announcement ("Presenting XXH3", on UMAC's flaw for large checksums),
+   the XXH3 announcement ("Presenting XXH3",
+  on UMAC's flaw for large checksums),
    BLAKE3 articles;
    no new library.
 - W10 `multi-core parallel non-cryptographic hash with stable output for multi-gigabyte files` (expansion):
    Stack Overflow and Stack Exchange threads on parallel and tree hashing
-   (BLAKE3, Skein, KangarooTwelve, MD6, and chunk-then-hash constructions,
+   (BLAKE3,
+  Skein,
+  KangarooTwelve,
+  MD6,
+  and chunk-then-hash constructions,
    all cryptographic or consumer-built);
    no new non-cryptographic library.
 
@@ -1008,7 +1244,8 @@ Registry and repository enumeration,
    `rapidhash` 4.4.x and `ahash` 0.8.12 as transitive dependencies.
 - RP05 `blake3|siphash|siphasher|crc32|crc64|fnv`:
    an earlier all-Rust design that planned `blake3` 1.8.7 content hashes
-   (`doc/planning/monorepo-manager-route-research/stack-rust.md:201`, `:547`),
+   (`doc/planning/monorepo-manager-route-research/stack-rust.md:201`,
+  `:547`),
    later replaced by gxhash;
    a TypeScript CRC-32 in `package/module/zip-writer`;
    and transitive `siphasher`.
@@ -1024,14 +1261,17 @@ The gxhash reimplementation prototype lives in the session scratchpad only.
 New taxonomy terms from the ledger:
  incremental hashing,
  high-bandwidth checksum (RotoHash),
- tree or parallel hashing (BLAKE3, bao),
- universal hashing (HalftimeHash, POLYVAL).
+ tree or parallel hashing (BLAKE3,
+bao),
+ universal hashing (HalftimeHash,
+POLYVAL).
 One de-duplicated round ran:
  XR01 to XR04 on crates.io,
  XG01 to XG03 on GitHub,
  W09 and W10 on the web.
 The schedule is frozen;
- later terms (Merkle tree, KangarooTwelve) were recorded without new queries.
+ later terms (Merkle tree,
+KangarooTwelve) were recorded without new queries.
 
 ### Terminal discovery result
 
@@ -1058,15 +1298,19 @@ Unless stated otherwise,
 
 ### Result under each reading of hardware acceleration
 
-- R2, SIMD vectorization:
+- R2,
+  SIMD vectorization:
    five screening survivors,
    all XXH3-128 or HighwayHash implementations.
-- R1, dedicated instructions:
+- R1,
+  dedicated instructions:
    no non-cryptographic survivor.
   The functions that meet R1 on both architectures are
    `gxhash` (HC9),
-   `ahash` (HC2, HC3),
-   `rotohash-rs` (HC10, HC3),
+   `ahash` (HC2,
+  HC3),
+   `rotohash-rs` (HC10,
+  HC3),
    and the cryptographic `sha2` (SHA extensions) and AES-CMAC through `aes` (AES instructions),
    which are outside the decision scope and measured as controls.
 - R1 and R2 together:
@@ -1081,20 +1325,26 @@ So any recommendation relies on R2.
 
 - Discovery:
    CR05 first,
-   also CR11, CR12, CR14, W05.
+   also CR11,
+  CR12,
+  CR14,
+  W05.
 - Function:
    XXH3-128 one-shot `xxh3_128` and streaming `Xxh3::digest128` (`src/xxh3.rs:1228`).
 - R1:
    no.
 - R2:
    yes on both;
-   SSE2, AVX2, and AVX-512 paths on x86 and NEON on aarch64,
+   SSE2,
+  AVX2,
+  and AVX-512 paths on x86 and NEON on aarch64,
    chosen by `cfg(target_feature)` at compile time (`src/xxh3.rs:16-55`);
    the vector path covers inputs over 240 bytes.
 - Screening gates:
    HC2 pass (128-bit),
    HC3 pending targeted evidence (XXH3 output frozen upstream),
-   HC4 pending (no build script, no C),
+   HC4 pending (no build script,
+  no C),
    HC6 pending (BSL-1.0),
    HC10 pending (streaming API present).
 - Result:
@@ -1104,10 +1354,15 @@ So any recommendation relies on R2.
 
 - Discovery:
    CR02 first,
-   also CR11, CR12, CR14, GH02;
+   also CR11,
+  CR12,
+  CR14,
+  GH02;
    already a transitive dependency of two music-player lockfiles (2.1.2).
 - Function:
-   XXH3-128 `XxHash3_128::oneshot` and streaming `write`/`finish_128` (`src/xxhash3_128.rs:35`, `:132`, `:141`).
+   XXH3-128 `XxHash3_128::oneshot` and streaming `write`/`finish_128` (`src/xxhash3_128.rs:35`,
+  `:132`,
+  `:141`).
 - R1:
    no.
 - R2:
@@ -1115,7 +1370,8 @@ So any recommendation relies on R2.
    run-time AVX2 or SSE2 dispatch on x86 and NEON on aarch64 with the `std` feature (`src/xxhash3/large.rs:100-120`).
 - Screening gates:
    HC2 pass,
-   HC3 pending (README "Portability": output does not depend on the platform),
+   HC3 pending (README "Portability":
+  output does not depend on the platform),
    HC4 pending,
    HC6 pending (MIT),
    HC10 pending.
@@ -1126,15 +1382,21 @@ So any recommendation relies on R2.
 
 - Discovery:
    CR01 first,
-   also CR05, CR06, CR09, CR14.
+   also CR05,
+  CR06,
+  CR09,
+  CR14.
 - Function:
-   XXH3-128 `xxh3_128` and streaming `Xxh3_128` (`src/xxhash/xxh3.rs:190`, `:1082-1089`).
+   XXH3-128 `xxh3_128` and streaming `Xxh3_128` (`src/xxhash/xxh3.rs:190`,
+  `:1082-1089`).
 - R1:
    no for XXH3
    (its CRC family uses CRC and CLMUL instructions but outputs 32 bits).
 - R2:
    yes on both;
-   NEON, SSE2, and AVX2 kernels for inputs over 240 bytes,
+   NEON,
+  SSE2,
+  and AVX2 kernels for inputs over 240 bytes,
    run-time detection with `std` (`src/xxhash/kernel/mod.rs:58-90`).
 - Screening gates:
    HC2 pass,
@@ -1149,7 +1411,13 @@ So any recommendation relies on R2.
 
 - Discovery:
    CR02 first,
-   also CR03, CR05, CR07, CR11, CR12, CR14, W05.
+   also CR03,
+  CR05,
+  CR07,
+  CR11,
+  CR12,
+  CR14,
+  W05.
 - Function:
    HighwayHash-128 through `HighwayHasher::hash128` and streaming `append`/`finalize128` (`src/builder.rs:119-139`).
 - R1:
@@ -1160,7 +1428,10 @@ So any recommendation relies on R2.
    NEON on aarch64.
 - Screening gates:
    HC2 pass,
-   HC3 pending (README: "generate consistent 64, 128, and 256bit hashes across all hardware"),
+   HC3 pending (README:
+  "generate consistent 64,
+  128,
+  and 256bit hashes across all hardware"),
    HC4 pending,
    HC6 pending (MIT),
    HC10 pending.
@@ -1171,9 +1442,11 @@ So any recommendation relies on R2.
 
 - Discovery:
    CR03 first,
-   also CR14, GH02.
+   also CR14,
+  GH02.
 - Function:
-   HighwayHash `hash_128` through nightly `portable_simd` and `multiversion` (`src/lib.rs:1`, `:318`).
+   HighwayHash `hash_128` through nightly `portable_simd` and `multiversion` (`src/lib.rs:1`,
+  `:318`).
 - R2:
    yes on both through `core::simd`.
 - Result at screening:
@@ -1187,14 +1460,19 @@ So any recommendation relies on R2.
    HC9 (user decision of 2026-09-17).
   Also HC10:
    upstream closed #127 because `Hasher` output differs from the one-shot result and depends on write chunking
-   (`gxhash-owned.md`, "`Hasher` streaming API").
+   (`gxhash-owned.md`,
+  "`Hasher` streaming API").
 - `rotohash-rs` 0.1.2
-   (CR01, XR02, XG01),
-   RotoHash, 128-bit,
+   (CR01,
+  XR02,
+  XG01),
+   RotoHash,
+  128-bit,
    AES-NI with AVX2 or VAES with AVX-512 on x86 and NEON with the AES extension on aarch64:
    the only candidate meeting R1 and R2 on both architectures.
   HC10:
-   the crate offers one-shot `hash` and `hash_with_seed` only (`src/lib.rs:87`, `:158`),
+   the crate offers one-shot `hash` and `hash_with_seed` only (`src/lib.rs:87`,
+  `:158`),
    although the reference README says the algorithm "supports incremental hashing".
   HC3 not established:
    the reference README says "The baseline algorithm is unlikely to change
@@ -1204,14 +1482,17 @@ So any recommendation relies on R2.
    hashing multi-GB outputs through it would require memory-mapping whole files.
 - `hashcodecs` 1.4.1 (CR02):
    HC10 for its XXH3-128,
-   which has one-shot, prepared-seed, and batch APIs but no streaming state;
+   which has one-shot,
+  prepared-seed,
+  and batch APIs but no streaming state;
    HC1 for its MurmurHash3 x64-128,
    whose aarch64 body is the scalar path (`src/murmur3/x64_128.rs:175-176`).
 - `xxh3` 0.1.1 (CR05):
    HC10,
    one-shot `hash128_with_seed` only (`src/xxh3.rs:86`);
    last release 2022-05-20.
-- `museair` 0.6.0 (CR02, CR14):
+- `museair` 0.6.0 (CR02,
+  CR14):
    HC1,
    scalar multiply design with no intrinsics (source scan 0 and 0);
    it passes all SMHasher3 tests,
@@ -1228,14 +1509,16 @@ So any recommendation relies on R2.
    and HC3 (output not stable by design).
 - `ahash` 0.8.12:
    HC2 (64-bit `Hasher`)
-   and HC3 (README: output is not stable across versions or platforms).
+   and HC3 (README:
+  output is not stable across versions or platforms).
 - `drtahash` 0.0.17:
    HC3 (per-map keys) and HC2.
 - `t1ha` 0.1.2:
    HC1 (x86 intrinsics only)
    and HC3 (`t1ha0` output differs by platform).
 - `meowhash` 0.3.0:
-   HC1 ("aarch64 support has been disabled as of version 0.2", `src/arm.rs:9`)
+   HC1 ("aarch64 support has been disabled as of version 0.2",
+  `src/arm.rs:9`)
    and HC3 (MeowHash 0.5 not declared final).
 - `axhash-core` 1.0.0,
    `mm3h` 0.1.3:
@@ -1252,8 +1535,18 @@ So any recommendation relies on R2.
    `mwhash` 0.1.1:
    HC1 (scalar).
 - CRC and Adler crates
-   (`crc-fast` 1.10.0, `crc32fast` 1.5.2, `crc32c` 0.6.8, `crc64fast` 1.1.0, `crc64fast-nvme` 1.2.1,
-   `librscrc`, `turbo_crc`, `slice-by-8`, `hud-slice-by-8`, `bitcoin-crc32c`, `adler32-simd`, `simd-adler32`):
+   (`crc-fast` 1.10.0,
+  `crc32fast` 1.5.2,
+  `crc32c` 0.6.8,
+  `crc64fast` 1.1.0,
+  `crc64fast-nvme` 1.2.1,
+   `librscrc`,
+  `turbo_crc`,
+  `slice-by-8`,
+  `hud-slice-by-8`,
+  `bitcoin-crc32c`,
+  `adler32-simd`,
+  `simd-adler32`):
    HC2,
    outputs of 64 bits or fewer,
    although several meet R1 on both architectures.
@@ -1279,15 +1572,21 @@ So any recommendation relies on R2.
    adapters over other hash crates;
    their algorithms are screened through the underlying crates.
 - Repositories not on crates.io
-   (`fernhash`, `hache`, `mixhash`, `cmhash`, `BlitzHash`):
+   (`fernhash`,
+  `hache`,
+  `mixhash`,
+  `cmhash`,
+  `BlitzHash`):
    HC7.
 - Families available only in other languages or as bindings:
    RotoHash C++ reference (x86-64 only),
    UMASH (C),
    MetroHash128CRC and CityHashCrc (C++),
-   MeowHash (C, x86 AES),
+   MeowHash (C,
+  x86 AES),
    `haste` (Go),
-   StringZilla (C, 64-bit):
+   StringZilla (C,
+  64-bit):
    HC4,
    with HC1 or HC2 where noted.
 
@@ -1295,7 +1594,8 @@ So any recommendation relies on R2.
 
 - `blake3` 1.8.7:
    outside the decision scope.
-  On aarch64 its NEON implementation is C (`c/blake3_neon.c`, built in `build.rs` unless `pure`),
+  On aarch64 its NEON implementation is C (`c/blake3_neon.c`,
+  built in `build.rs` unless `pure`),
    so under HC4 its aarch64 path is portable code:
    it fails HC1 under both readings when no C toolchain is allowed.
   Kept as the requested control
@@ -1310,7 +1610,14 @@ So any recommendation relies on R2.
    meets R1 on both through AES instructions with run-time detection;
    measured as the AES control.
 - Other cryptographic crates
-   (`sha1`, `k12`, `kangarootwelve`, `blake3-std`, `cubehash`, `keccak-batch`, `graviola`, `rscrypto`,
+   (`sha1`,
+  `k12`,
+  `kangarootwelve`,
+  `blake3-std`,
+  `cubehash`,
+  `keccak-batch`,
+  `graviola`,
+  `rscrypto`,
    and others in the appendix):
    outside the decision scope,
    not measured.
@@ -1326,17 +1633,25 @@ Unless a record says otherwise:
 - Host:
    Fedora Atomic,
    kernel `7.2.0-ogc6.1.fc44.x86_64`,
-   AMD Ryzen 7 8700F (Zen 4, AVX-512, VAES, VPCLMULQDQ, SHA extensions),
+   AMD Ryzen 7 8700F (Zen 4,
+  AVX-512,
+  VAES,
+  VPCLMULQDQ,
+  SHA extensions),
    62 GiB RAM.
 - Scratch root:
    `~/temp/agent/hashvet-2026-09-17/`,
-   mode 700 (`scripts/`, `lab/`, `probe/`, `data/`).
+   mode 700 (`scripts/`,
+  `lab/`,
+  `probe/`,
+  `data/`).
 - Containers,
    every one started by `scripts/run-box.ts` with
    `podman run --rm --init --memory=2g --cpus=2 --pids-limit=512 --ulimit nofile=4096:4096 --network=none`:
   - `docker.io/library/rust:slim`,
      digest `sha256:a2de23e559fd8afd260d22beb00f3987073ea0dcc2ba2646cccdaeda6a62a095`
-     (Debian 13.6, image `cargo 1.98.1`).
+     (Debian 13.6,
+    image `cargo 1.98.1`).
   - `localhost/hashvet-rusttest:1`,
      digest `sha256:d06f70a8120a32de15a5e08634d84c7190a6e770a0895d6873b04cbf32f9213d`:
      `rust:slim` plus Debian `valgrind` 3.24.0,
@@ -1353,7 +1668,9 @@ Unless a record says otherwise:
      Fedora 44 with `qemu-user-static` 10.2.2 for x86_64 CPU models and aarch64.
 - Toolchains,
    mounted read-only at `/toolchain`:
-   `nightly-2026-09-12` (`rustc 1.100.0-nightly (0fc141305 2026-09-11)`) for the lab, the probe, and aarch64 suites;
+   `nightly-2026-09-12` (`rustc 1.100.0-nightly (0fc141305 2026-09-11)`) for the lab,
+  the probe,
+  and aarch64 suites;
    `nightly-2026-09-16` (`215a8af4b`) with its Miri sysroot for Miri suites.
 - Mounts:
    the scratch root read-write at `/w`,
@@ -1365,7 +1682,11 @@ Unless a record says otherwise:
 - Logs:
    `data/logs/<id>.log`,
    with one JSON line per execution in `data/logs/executions.jsonl`
-   (command, image digest, bounds, exit status, elapsed seconds).
+   (command,
+  image digest,
+  bounds,
+  exit status,
+  elapsed seconds).
 
 ### Identity, provenance, and license
 
@@ -1373,7 +1694,8 @@ Each crates.io archive was downloaded,
  its SHA-256 compared with the registry checksum in the lab lockfile,
  its `.cargo_vcs_info.json` commit fetched in the clone,
  and every archived file compared byte for byte with that commit
- (`scripts/provenance.ts`, output `data/provenance.txt`).
+ (`scripts/provenance.ts`,
+output `data/provenance.txt`).
 
 - `xxhash-rust` 0.8.18:
    archive SHA-256 `aee1b19627c7c60102ab80d3a9cbe18de90bfe03bfa6c3715447681f0e8c8af6`;
@@ -1381,7 +1703,8 @@ Each crates.io archive was downloaded,
    clone `~/temp/agent/xxhash-rust-2026-09-17` from `DoumanAsh/xxhash-rust`;
    18 files identical,
    none different.
-  License `BSL-1.0` (`LICENSE:1`, "Boost Software License - Version 1.0"):
+  License `BSL-1.0` (`LICENSE:1`,
+  "Boost Software License - Version 1.0"):
    pass for HC6.
 - `twox-hash` 2.1.4:
    `5283634e518fe9e82c7b20520bb4bc209009fd16c82077c802f8111ecbb0117a`;
@@ -1392,11 +1715,13 @@ Each crates.io archive was downloaded,
    pass.
 - `hashcrew` 0.3.0:
    `f73782af6df9e45939f4e6206b646f3cbab68c2cc5c0c375dab045800cafb018`;
-   commit `ff8860c72e3a` (2026-09-15), path `hashcrew/`;
+   commit `ff8860c72e3a` (2026-09-15),
+  path `hashcrew/`;
    clone `~/temp/agent/hashcrew-2026-09-17` from `fast/hashcrew`;
    20 files identical;
    `LICENSE` and `README.md` come from the workspace root
-   (`hashcrew/LICENSE` is a symlink, mode 120000)
+   (`hashcrew/LICENSE` is a symlink,
+  mode 120000)
    and are identical to the root files at that commit.
   License `Apache-2.0`,
    with incorporated xxHash code under BSD-2-Clause and `twox-hash` code under MIT
@@ -1411,7 +1736,8 @@ Each crates.io archive was downloaded,
    checked out at that commit because later commits are unreleased;
    19 files identical.
   License `MIT` (`Cargo.toml`);
-   the archive ships no license text (`Cargo.toml.orig:11`, `include = ["src/**/*.rs", "benches"]`),
+   the archive ships no license text (`Cargo.toml.orig:11`,
+  `include = ["src/**/*.rs", "benches"]`),
    so the notice must be taken from the repository:
    pass.
 - `autobahn-hash` 0.1.0:
@@ -1434,8 +1760,13 @@ None publishes from a release workflow,
 Every finalist passes under R2 and none under R1.
 
 - `xxhash-rust`:
-   compile-time selection among AVX-512, AVX2, SSE2, NEON, and scalar kernels
-   (`src/xxh3.rs:16-28`, `:43-55`);
+   compile-time selection among AVX-512,
+  AVX2,
+  SSE2,
+  NEON,
+  and scalar kernels
+   (`src/xxh3.rs:16-28`,
+  `:43-55`);
    a default x86_64 build uses SSE2,
    and AVX2 or AVX-512 needs `-Ctarget-cpu` or `-Ctarget-feature`.
   Upstream issue #48 "Dynamic CPU feature detection" is open since 2024-09-21.
@@ -1455,7 +1786,8 @@ Every finalist passes under R2 and none under R1.
 #### HC2 width
 
 Pass for all four:
- `xxh3_128` returns `u128` (`xxhash-rust` `src/xxh3.rs:1620`, `hashcrew` `src/xxhash/xxh3.rs:190`),
+ `xxh3_128` returns `u128` (`xxhash-rust` `src/xxh3.rs:1620`,
+`hashcrew` `src/xxhash/xxh3.rs:190`),
  `XxHash3_128::oneshot` returns `u128` (`twox-hash` `src/xxhash3_128.rs:35`),
  and `hash128` returns `[u64; 2]` (`highway` `src/traits.rs:12`),
  which meow must serialize in a fixed word and byte order.
@@ -1463,9 +1795,11 @@ Pass for all four:
 #### HC3 stability
 
 - XXH3-128 (three finalists):
-   'Starting from v0.8.0, it's also labelled "stable",
+   'Starting from v0.8.0,
+  it's also labelled "stable",
    meaning that any future version will also generate the same hash value'
-   (`xxhash.h:1094-1095` at xxHash 0.8.3, saved as `data/xxhash.h`).
+   (`xxhash.h:1094-1095` at xxHash 0.8.3,
+  saved as `data/xxhash.h`).
   `twox-hash` README "Portability":
    "The output does not depend on the platform ...
    The Rust implementation is verified against the reference C implementation"
@@ -1475,23 +1809,38 @@ Pass for all four:
   `xxhash-rust` states no separate promise;
    its tests compare with the C library.
 - HighwayHash-128:
-   "we have declared all (64/128/256 bit) variants of HighwayHash frozen, i.e. unchanging forever"
-   (`google/highwayhash` README "Versioning and stability", saved as `data/highwayhash-readme.md:146-147`);
+   "we have declared all (64/128/256 bit) variants of HighwayHash frozen,
+  i.e. unchanging forever"
+   (`google/highwayhash` README "Versioning and stability",
+  saved as `data/highwayhash-readme.md:146-147`);
    `highway` README:
-   "generate consistent 64, 128, and 256bit hashes across all hardware" (`README.md:11`).
+   "generate consistent 64,
+  128,
+  and 256bit hashes across all hardware" (`README.md:11`).
 - Local equality:
    the probe `meowprobe corpus` (`probe/src/main.rs:53-73`) hashes 1,106 inputs
-   (every length 0 to 1,100, plus 4,095, 4,096, 4,097, 65,536, and 1,048,583 bytes)
+   (every length 0 to 1,100,
+  plus 4,095,
+  4,096,
+  4,097,
+  65,536,
+  and 1,048,583 bytes)
    one-shot and streamed in random 1 to 777 byte chunks,
    and prints a digest of all one-shot outputs.
   XXH3-128 printed `ac8e3fece2937b39a5de424207c9cedf` for all three crates,
    and HighwayHash-128 printed `460c0924896da339c9e57da0ebf75500`,
    in all of these runs,
    each with `stream_mismatches=0`
-   (`scripts/probe-matrix.ts`, logs `probe-*.log`):
+   (`scripts/probe-matrix.ts`,
+  logs `probe-*.log`):
   - x86_64 glibc native;
-  - x86_64 musl native at the baseline, `x86-64-v3`, and `x86-64-v4` builds;
-  - QEMU CPU models `qemu64` (SSE2 only), `Nehalem` (SSE4.2, no AVX2), and `Haswell` (AVX2);
+  - x86_64 musl native at the baseline,
+    `x86-64-v3`,
+    and `x86-64-v4` builds;
+  - QEMU CPU models `qemu64` (SSE2 only),
+    `Nehalem` (SSE4.2,
+    no AVX2),
+    and `Haswell` (AVX2);
   - aarch64 musl under QEMU with CPU models `max` and `cortex-a53`.
   The empty-input value `99aa06d3014798d86001c324468d497f` equals the upstream vector
    asserted in `hashcrew` `tests-integration/tests/xxhash.rs:77`.
@@ -1544,7 +1893,8 @@ It exits before finalist validation,
 
 Measured:
  the `x86-64-v3` musl probe run under QEMU `qemu64` died with signal 4
- ("uncaught target signal 4 (Illegal instruction)", exit 132),
+ ("uncaught target signal 4 (Illegal instruction)",
+exit 132),
  while the baseline build ran on the same model.
 So any build that raises `-Ctarget-cpu` needs a startup feature check in meow before any hashing,
  whichever finalist it uses.
@@ -1564,7 +1914,9 @@ So any build that raises `-Ctarget-cpu` needs a startup feature check in meow be
 
 #### HC6, HC7, HC9
 
-Pass for all four ("Identity, provenance, and license").
+Pass for all four ("Identity,
+provenance,
+and license").
 None is `gxhash` or derived from it.
 
 #### HC8 one-byte collision gate
@@ -1573,20 +1925,27 @@ Harness:
  `lab/src/bin/onebyte.rs`,
  every single-byte variant of a 4096-byte base
  (1,044,480 keys),
- sorted and counted for full 128-bit, low 64-bit, and high 64-bit equality,
- seeds 0, 1, and 987654321,
+ sorted and counted for full 128-bit,
+low 64-bit,
+and high 64-bit equality,
+ seeds 0,
+1,
+and 987654321,
  zero base and xorshift random base.
 Command:
  `BASE=<zero|random> SEEDS=0,1,987654321 /w/target-gxref/release/onebyte 4096`
  in `rust:slim`
- (build `RUSTFLAGS=-Ctarget-feature=+aes`, feature `gxref`).
+ (build `RUSTFLAGS=-Ctarget-feature=+aes`,
+feature `gxref`).
 
 Positive control first:
  `gxhash` 3.5.0 `gxhash128` produced 2 full-width collisions on the zero base
- (positions 755 and 1785, 363 and 2923)
+ (positions 755 and 1785,
+363 and 2923)
  and 1 on the random base (positions 354 and 877)
  under every seed,
- matching `gxhash-owned.md`, "Quality and collision resistance".
+ matching `gxhash-owned.md`,
+"Quality and collision resistance".
 
 Results,
  exit 0,
@@ -1599,7 +1958,10 @@ Results,
  `hashcrew`,
  and `highway`
  under all six base and seed combinations,
- and likewise for the controls BLAKE3, SHA-256, AES-CMAC, and the scalar MuseAir.
+ and likewise for the controls BLAKE3,
+SHA-256,
+AES-CMAC,
+and the scalar MuseAir.
 
 Pass for all four.
 The three XXH3 crates produce identical outputs,
@@ -1610,9 +1972,27 @@ The three XXH3 crates produce identical outputs,
 Harness:
  `lab/src/bin/streamcheck.rs` compares each streaming API with its one-shot function
  over 612 inputs
- (every length 0 to 600, and lengths around 1 KiB, 4 KiB, 64 KiB, 1 MiB, and 5 MiB)
+ (every length 0 to 600,
+and lengths around 1 KiB,
+4 KiB,
+64 KiB,
+1 MiB,
+and 5 MiB)
  with 14 chunk plans
- (fixed 1, 7, 16, 32, 63, 64, 65, 240, 241, 256, 1,024, 4,096, and 65,536 bytes, and random sizes;
+ (fixed 1,
+7,
+16,
+32,
+63,
+64,
+65,
+240,
+241,
+256,
+1,024,
+4,096,
+and 65,536 bytes,
+and random sizes;
  inputs over 100 KiB use the first four plans):
  8,548 comparisons per function.
 
@@ -1625,17 +2005,21 @@ Positive control first:
 Results:
  0 mismatches for all four finalists and the controls
  in both the baseline and `x86-64-v3` builds
- (`streamcheck2-baseline.log`, `streamcheck2-v3.log`).
+ (`streamcheck2-baseline.log`,
+`streamcheck2-v3.log`).
 The consumer probe repeats the check on every platform in HC3.
 
 Bounded memory,
  from source:
  each streaming state is a fixed-size value
- (`xxhash-rust` `Xxh3`, `src/xxh3.rs:1117-1125`;
- `hashcrew` `StreamState`, `src/xxhash/xxh3.rs:701-709`;
+ (`xxhash-rust` `Xxh3`,
+`src/xxh3.rs:1117-1125`;
+ `hashcrew` `StreamState`,
+`src/xxhash/xxh3.rs:701-709`;
  `twox-hash` a fixed-size buffer plus the 192-byte default secret copied to the heap once,
  `src/xxhash3/streaming.rs:386-391`;
- `highway` a fixed-size union of state words, `src/builder.rs:144-198`),
+ `highway` a fixed-size union of state words,
+`src/builder.rs:144-198`),
  and peak resident memory over multi-GB files is reported in "Benchmarks".
 
 Pass for all four.
@@ -1653,19 +2037,29 @@ Pass for all four.
 Every finalist received the same validation:
  its upstream CI-equivalent jobs and relevant non-default suites,
  aarch64 suites under QEMU,
- the local reference, collision, streaming, and cross-dispatch checks,
+ the local reference,
+collision,
+streaming,
+and cross-dispatch checks,
  the consumer probe on every reachable target,
  benchmarks on the same workloads,
- and the same source, auditability, and maintenance audits.
+ and the same source,
+auditability,
+and maintenance audits.
 
 ### Execution manifest
 
 Shared by every execution in this audit:
 
 - Pinned inputs:
-   clone commits and archive checksums in "Identity, provenance, and license";
+   clone commits and archive checksums in "Identity,
+  provenance,
+  and license";
    lockfiles generated on 2026-09-17 with `cargo +nightly-2026-09-12 generate-lockfile`
-   where upstream ships none (`xxhash-rust`, `twox-hash`, `highway-rs`, `highway-rs/fuzz`),
+   where upstream ships none (`xxhash-rust`,
+  `twox-hash`,
+  `highway-rs`,
+  `highway-rs/fuzz`),
    upstream `Cargo.lock` for `hashcrew`.
 - Dependency-fetch phase:
    `cargo +nightly-2026-09-12 fetch` on the host,
@@ -1716,7 +2110,13 @@ Shared by every execution in this audit:
    `/w/cargo-home`,
    `/tmp` inside the container.
   Expected subprocesses:
-   `cargo`, `rustc`, build scripts, test binaries, `valgrind`, `qemu-aarch64-static`, `cc`/`c++` from build scripts.
+   `cargo`,
+  `rustc`,
+  build scripts,
+  test binaries,
+  `valgrind`,
+  `qemu-aarch64-static`,
+  `cc`/`c++` from build scripts.
   Network endpoints:
    none.
 - Success:
@@ -1735,20 +2135,31 @@ Shared by every execution in this audit:
    and every build script that ran is on the lists that follow.
 
 Build scripts and proc macros reachable from each upstream workspace with all features
- (`scripts/build-surface.ts`, `data/build-surface.txt`),
+ (`scripts/build-surface.ts`,
+`data/build-surface.txt`),
  and the ones that compiled native code in the suites (`targets/*/build/`):
 
 - `xxhash-rust`:
-   `getrandom`, `libc` (rustc cfg probes)
+   `getrandom`,
+  `libc` (rustc cfg probes)
    and `xxhash-c-sys` 0.8.7,
    which compiles vendored xxHash 0.8.3 `xxhash.c` with `cc` for the reference comparison.
 - `twox-hash`:
    30 build scripts or proc macros,
-   mostly rustc cfg probes of `serde`, `proc-macro2`, `crossbeam`, `rayon-core`, `zerocopy`, and `rustix`;
+   mostly rustc cfg probes of `serde`,
+  `proc-macro2`,
+  `crossbeam`,
+  `rayon-core`,
+  `zerocopy`,
+  and `rustix`;
    native code from the workspace member `xx_hash-sys`,
-   which compiles the xxHash submodule `xxhash.c` as scalar, SSE2, AVX2, and on aarch64 NEON variants
+   which compiles the xxHash submodule `xxhash.c` as scalar,
+  SSE2,
+  AVX2,
+  and on aarch64 NEON variants
    (`xx_hash-sys/build.rs:13-40`),
-   and from `alloca` 0.4.0 (`build.rs:2-12`, one small C file for a benchmark dependency).
+   and from `alloca` 0.4.0 (`build.rs:2-12`,
+  one small C file for a benchmark dependency).
 - `hashcrew`:
    17,
    mostly cfg probes;
@@ -1760,14 +2171,17 @@ Build scripts and proc macros reachable from each upstream workspace with all fe
    whose build script only queries `rustc --version`;
    no native code in the suites run.
 - `highway-rs/fuzz`:
-   `libfuzzer-sys` 0.4.13 compiles bundled libFuzzer C++ (`build.rs`, `CUSTOM_LIBFUZZER_PATH` unset),
+   `libfuzzer-sys` 0.4.13 compiles bundled libFuzzer C++ (`build.rs`,
+  `CUSTOM_LIBFUZZER_PATH` unset),
    and the fuzz crate compiles the `google/highwayhash` submodule `c/highwayhash.c` at `faca2cb`.
   `fuzz-control/` is a copy with one changed line for the positive control,
    built against the clone mounted read-only.
 - Local reference check `refcheck/`:
    `xxhash-c-sys` 0.8.7 and `c/highwayhash.c` copied from the same submodule commit.
 
-The wasm, Windows, and `winapi` build scripts in these graphs are cfg-gated to other targets
+The wasm,
+Windows,
+and `winapi` build scripts in these graphs are cfg-gated to other targets
  and did not run.
 
 ### Upstream CI inventory and suites run
@@ -1776,16 +2190,22 @@ Suites ran through `scripts/upstream-suites.ts` in `localhost/hashvet-rusttest:1
  with the clone at `/src`,
  image `cargo 1.98.1` unless a toolchain is named,
  and aarch64 test binaries linked by `aarch64-linux-gnu-gcc` and run by `qemu-aarch64-static -L /usr/aarch64-linux-gnu`.
-Totals come from every `test result` line in each log (`scripts/suite-totals.ts`, `data/suite-totals.txt`).
+Totals come from every `test result` line in each log (`scripts/suite-totals.ts`,
+`data/suite-totals.txt`).
 Every suite exited 0 with no failed test.
 
 #### `xxhash-rust` (`.github/workflows/rust.yml`)
 
 Upstream jobs:
  `min-rust-check`,
- `full-test` (check, test, three valgrind variants),
+ `full-test` (check,
+test,
+three valgrind variants),
  `wasm-platform-test`,
- `cross-platform-test` (arm, i586, powerpc, aarch64 musl).
+ `cross-platform-test` (arm,
+i586,
+powerpc,
+aarch64 musl).
 
 - xr1 `cargo test --offline --features xxh32,const_xxh32,xxh64,const_xxh64,xxh3,const_xxh3`:
    12 passed.
@@ -1814,8 +2234,15 @@ The XXH3 test compares one-shot and single-update streaming `xxh3_128` and `xxh3
 #### `twox-hash` (`.github/workflows/ci.yml`)
 
 Upstream jobs:
- `library` (unit and property tests on stable, beta, nightly, MSRV, macOS, Windows),
- `miri` (x86_64, i686, s390x),
+ `library` (unit and property tests on stable,
+beta,
+nightly,
+MSRV,
+macOS,
+Windows),
+ `miri` (x86_64,
+i686,
+s390x),
  `lints`,
  `no-std`,
  `features`,
@@ -1826,10 +2253,18 @@ Upstream jobs:
    1 ignored.
 - tw2 `cargo test --offline -p comparison --all-features`:
    34 passed;
-   proptests compare `XxHash3_128` one-shot, seeded, custom-secret, and chunked streaming output
-   with the C library built as scalar, SSE2, AVX2, and native variants
-   (`xx_hash-sys/build.rs:18-58`; `comparison/src/lib.rs:366-545`,
-   data up to 32 KiB, chunk vectors up to 100 × 100 bytes).
+   proptests compare `XxHash3_128` one-shot,
+  seeded,
+  custom-secret,
+  and chunked streaming output
+   with the C library built as scalar,
+  SSE2,
+  AVX2,
+  and native variants
+   (`xx_hash-sys/build.rs:18-58`;
+  `comparison/src/lib.rs:366-545`,
+   data up to 32 KiB,
+  chunk vectors up to 100 × 100 bytes).
 - tw3 `cargo miri test --offline --all-features` with `nightly-2026-09-16`
    and `MIRIFLAGS=--cfg _internal_xxhash3_force_scalar`:
    67 passed,
@@ -1841,16 +2276,26 @@ Upstream jobs:
    against the C scalar and NEON builds:
    34 passed.
 
-The ignored test is `xxhash32::test::length_overflows_32bit` in tw1, tw3, and tw4,
+The ignored test is `xxhash32::test::length_overflows_32bit` in tw1,
+tw3,
+and tw4,
  outside XXH3.
 
 #### `hashcrew` (`.github/workflows/ci.yml`, `xtask/src/main.rs`)
 
 Upstream jobs:
- `check` (`cargo x lint`, `cargo x check`),
- `test` (`cargo x build`, `cargo x test` on Linux, macOS, Windows, stable and 1.89.0),
+ `check` (`cargo x lint`,
+`cargo x check`),
+ `test` (`cargo x build`,
+`cargo x test` on Linux,
+macOS,
+Windows,
+stable and 1.89.0),
  `miri` (`cargo x miri`),
- `target` (check-only builds for x86_64 AVX2, aarch64 NEON, wasm32, thumbv7em).
+ `target` (check-only builds for x86_64 AVX2,
+aarch64 NEON,
+wasm32,
+thumbv7em).
 `cargo x test` runs three commands (`xtask/src/main.rs:201-213`),
  run here as hc1 to hc3.
 
@@ -1862,9 +2307,16 @@ Upstream jobs:
 - hc3 `cargo test --offline --package tests-integration --release`:
    43 passed;
    XXH3-128 one-shot and seeded outputs compared with `xxhash-rust` as the reference
-   (`tests-integration/tests/xxhash.rs:38`, `:81-107`, `:263-311`),
-   for lengths around every stripe and block boundary to 16,384 bytes and seeds 0, 1, `0x0123456789abcdef`, `u64::MAX`,
-   streaming compared with one-shot for many chunk sizes, random partitions, and every two-way partition
+   (`tests-integration/tests/xxhash.rs:38`,
+  `:81-107`,
+  `:263-311`),
+   for lengths around every stripe and block boundary to 16,384 bytes and seeds 0,
+  1,
+  `0x0123456789abcdef`,
+  `u64::MAX`,
+   streaming compared with one-shot for many chunk sizes,
+  random partitions,
+  and every two-way partition
    (`:314-450`),
    plus the official empty-input vectors;
    no direct C comparison.
@@ -1877,11 +2329,27 @@ Upstream jobs:
 #### `highway-rs` (`.github/workflows/main.yml`)
 
 Upstream jobs:
- `test` (build, docs, tests, no-std tests, release tests, `no_panic` example,
- bench compile, Miri, fuzz compile;
- on pinned 1.59, stable, 32-bit, big-endian, beta, nightly, macOS, Windows, aarch64 through `cross`),
+ `test` (build,
+docs,
+tests,
+no-std tests,
+release tests,
+`no_panic` example,
+ bench compile,
+Miri,
+fuzz compile;
+ on pinned 1.59,
+stable,
+32-bit,
+big-endian,
+beta,
+nightly,
+macOS,
+Windows,
+aarch64 through `cross`),
  `wasm`,
- `instructions` (four `-sse4.1`/`+sse4.1` × `-avx2`/`+avx2` builds, tests and no-std tests).
+ `instructions` (four `-sse4.1`/`+sse4.1` × `-avx2`/`+avx2` builds,
+tests and no-std tests).
 
 - hw1 `cargo test --offline`:
    47 passed.
@@ -1891,22 +2359,31 @@ Upstream jobs:
    47 passed.
 - hw4 `cargo build --offline --release --example no_panic`:
    exit 0;
-   `no_panic` makes the release build fail to link if `append`, `checkpoint`, or `finalize64` can panic
+   `no_panic` makes the release build fail to link if `append`,
+  `checkpoint`,
+  or `finalize64` can panic
    (`examples/no_panic.rs:6-12`);
    `finalize128` is not covered.
 - hw5 to hw8 `cargo test --offline` with `RUSTFLAGS=-C target-feature=` each of
-   `-sse4.1,-avx2`, `-sse4.1,+avx2`, `+sse4.1,+avx2`, `+sse4.1,-avx2`:
+   `-sse4.1,-avx2`,
+  `-sse4.1,+avx2`,
+  `+sse4.1,+avx2`,
+  `+sse4.1,-avx2`:
    47 passed each.
 - hw9 `cargo miri test --offline` on `nightly-2026-09-16`:
    40 passed,
    7 ignored by upstream `cfg_attr(miri, ignore)`
-   (`src/x86/v2x64u.rs` 6, `src/x86/sse.rs` 1).
+   (`src/x86/v2x64u.rs` 6,
+  `src/x86/sse.rs` 1).
 - hw10 `cargo test --offline --release --target aarch64-unknown-linux-gnu` under QEMU:
    36 passed
    (x86-only tests are compiled out).
 
-`tests/hash.rs:451-456` asserts reference 64, 128, and 256-bit vectors for input lengths 0 to 63;
- longer inputs are covered by cross-implementation equality (`tests/properties.rs`, quickcheck)
+`tests/hash.rs:451-456` asserts reference 64,
+128,
+and 256-bit vectors for input lengths 0 to 63;
+ longer inputs are covered by cross-implementation equality (`tests/properties.rs`,
+quickcheck)
  and by the fuzz target,
  which compares only the 64-bit output with C.
 
@@ -1915,18 +2392,34 @@ Upstream jobs:
 - Toolchain matrix entries (`xxhash-rust` MSRV 1.64 check,
    `twox-hash` MSRV 1.81 and minimal versions,
    `hashcrew` 1.89.0,
-   `highway-rs` pinned 1.59, beta, nightly builds):
+   `highway-rs` pinned 1.59,
+  beta,
+  nightly builds):
    purpose,
    older or other compilers.
   Cannot affect the consumed surface:
    meow builds with the repository's floating nightly,
    and the suites ran on stable 1.98.1 and nightly 2026-09-12 and 2026-09-16.
 - Non-target platforms
-   (32-bit x86, arm, powerpc, s390x, big-endian, thumb, wasm, macOS, Windows):
-   not release-blocking targets (user, 2026-09-16);
+   (32-bit x86,
+  arm,
+  powerpc,
+  s390x,
+  big-endian,
+  thumb,
+  wasm,
+  macOS,
+  Windows):
+   not release-blocking targets (user,
+  2026-09-16);
    their code paths are cfg-gated away from x86_64 and aarch64 Linux builds.
 - Lints and docs
-   (`twox-hash` `lints`, `hashcrew` `cargo x lint` with `hawkeye`, `taplo`, `typos`, `rustfmt`, `clippy`,
+   (`twox-hash` `lints`,
+  `hashcrew` `cargo x lint` with `hawkeye`,
+  `taplo`,
+  `typos`,
+  `rustfmt`,
+  `clippy`,
    `highway-rs` `cargo doc`):
    style and documentation,
    no runtime behavior.
@@ -1934,20 +2427,25 @@ Upstream jobs:
    (`twox-hash` `features` powerset `cargo check`,
    `hashcrew` `cargo x check` and `target`,
    `highway-rs` bench `--no-run`):
-   the feature sets meow would use were compiled and run in the lab, probe, and suites,
-   and `hashcrew`'s x86_64 AVX2 and aarch64 NEON checks are subsumed by hc3 and hc5, which run tests.
+   the feature sets meow would use were compiled and run in the lab,
+  probe,
+  and suites,
+   and `hashcrew`'s x86_64 AVX2 and aarch64 NEON checks are subsumed by hc3 and hc5,
+  which run tests.
 - `twox-hash` `no-std` on `thumbv6m-none-eabi` and `hashcrew` bare metal:
    not targets;
    hc2 and hw2 ran the no-std tests on x86_64.
 - `xxhash-rust` `cross-platform-test` for `aarch64-unknown-linux-musl`:
    replaced by xr5 on aarch64 glibc under QEMU plus the probe's aarch64 musl run;
-   the crate's kernels depend on `target_feature`, not on the C library.
+   the crate's kernels depend on `target_feature`,
+  not on the C library.
 
 ### Source quality and human auditability
 
 Measured with `scripts/audit-size.ts` (`data/audit-size.txt`)
  over each crates.io archive:
- non-blank, non-comment Rust lines outside `#[cfg(test)]` modules,
+ non-blank,
+non-comment Rust lines outside `#[cfg(test)]` modules,
  and `unsafe` occurrences,
  for the whole `src/` and for the modules meow's calls reach.
 
@@ -1955,14 +2453,20 @@ Measured with `scripts/audit-size.ts` (`data/audit-size.txt`)
    used path 4 files,
    1,413 code lines,
    29 `unsafe`
-   (whole crate 11 files, 2,327 lines, 31 `unsafe`);
+   (whole crate 11 files,
+  2,327 lines,
+  31 `unsafe`);
    largest file `src/xxh3.rs` at 1,649 lines.
   Lint policy:
    `#![warn(missing_docs)]` only (`src/lib.rs:79`);
    no `// SAFETY` comments.
-  Open issue #29 (2023-08-24, 15 comments):
+  Open issue #29 (2023-08-24,
+  15 comments):
    private functions dereference raw pointers without being `unsafe fn`;
-   the maintainer answered with coverage, valgrind, and Miri runs, and the issue stays open.
+   the maintainer answered with coverage,
+  valgrind,
+  and Miri runs,
+  and the issue stays open.
   Control flow:
    compile-time `cfg` selection,
    no run-time dispatch.
@@ -1970,7 +2474,9 @@ Measured with `scripts/audit-size.ts` (`data/audit-size.txt`)
    used path 10 files,
    1,662 lines,
    66 `unsafe`
-   (whole crate 13 files, 2,621 lines, 72);
+   (whole crate 13 files,
+  2,621 lines,
+  72);
    largest used file `src/xxhash3.rs` at 425 lines,
    one file per SIMD kernel under `src/xxhash3/large/`.
   Lint policy:
@@ -1982,7 +2488,14 @@ Measured with `scripts/audit-size.ts` (`data/audit-size.txt`)
    used path 8 files,
    1,440 lines,
    32 `unsafe`
-   (whole crate 19 files, 4,286 lines, 72, because it also ships CityHash, CRC, FNV, MD5, and Murmur families
+   (whole crate 19 files,
+  4,286 lines,
+  72,
+  because it also ships CityHash,
+  CRC,
+  FNV,
+  MD5,
+  and Murmur families
    behind opt-in features);
    largest used file `src/xxhash/xxh3.rs` at 1,429 lines.
   Lint policy,
@@ -2002,17 +2515,26 @@ Measured with `scripts/audit-size.ts` (`data/audit-size.txt`)
   Lint policy:
    `#![deny(unsafe_code)]` with `#[allow(unsafe_code)]` on six modules (`src/lib.rs:163-164`);
    no `// SAFETY` comments;
-   explicit per-instruction-set types (`PortableHash`, `SseHash`, `AvxHash`, `NeonHash`)
+   explicit per-instruction-set types (`PortableHash`,
+  `SseHash`,
+  `AvxHash`,
+  `NeonHash`)
    whose x86 SIMD constructors return `Option` (`src/x86/avx.rs:94`).
 
 Shared:
  no runtime dependencies,
  no same-author dependencies,
- no filesystem, network, process, or credential access,
+ no filesystem,
+network,
+process,
+or credential access,
  no generated code,
  no event bus or plugin boundary.
 The only high-trust boundary is `unsafe` SIMD code on untrusted input lengths,
- which valgrind (`xxhash-rust`), Miri on the scalar or portable paths (`twox-hash`, `hashcrew`, `highway`),
+ which valgrind (`xxhash-rust`),
+Miri on the scalar or portable paths (`twox-hash`,
+`hashcrew`,
+`highway`),
  and the local checks exercise.
 None has error paths on the hashing calls meow would use;
  `hashcrew` and `twox-hash` return errors only for undersized custom secrets.
@@ -2023,67 +2545,94 @@ Sample rule:
  issues and pull requests created or updated since 2025-09-17,
  all when at most 20,
  otherwise the 10 most recently updated
- (`scripts/gh-maint.ts`, `data/maint/*.json`,
+ (`scripts/gh-maint.ts`,
+`data/maint/*.json`,
  plus `gh pr list --json mergedBy,reviews` and `gh issue list --state open` on 2026-09-17).
-Releases from the crates.io API (`scripts/release-history.ts`, `data/release-history.txt`).
+Releases from the crates.io API (`scripts/release-history.ts`,
+`data/release-history.txt`).
 
 - `xxhash-rust` (`DoumanAsh/xxhash-rust`):
-  - Issues in window, all 4:
+  - Issues in window,
+    all 4:
      #53 and #54 (`Xxh3Builder` ignored a seed-derived or custom secret on inputs over 240 bytes,
      reported 2026-07-14 and 2026-07-15),
      first maintainer responses after about 3 hours and 13 minutes,
      4 and 2 maintainer comments,
      closed by the maintainer on 2026-07-15 and 2026-07-21,
      the publish dates of 0.8.17 and 0.8.18;
-     #52 (private security contact), answered in 26 minutes and closed;
-     #48 (run-time CPU detection), open since 2024-09-21 with 1 maintainer comment.
-  - Pull requests in window, all 3:
-     external #56, #55, #51,
-     merged by the maintainer after 1, 6, and 2 days,
+     #52 (private security contact),
+    answered in 26 minutes and closed;
+     #48 (run-time CPU detection),
+    open since 2024-09-21 with 1 maintainer comment.
+  - Pull requests in window,
+    all 3:
+     external #56,
+    #55,
+    #51,
+     merged by the maintainer after 1,
+    6,
+    and 2 days,
      1 recorded review;
      the maintainer pushes most work directly (122 of 136 contributor commits).
-     An older external PR, #47, waited from 2024-09-21 to 2025-09-06.
+     An older external PR,
+    #47,
+    waited from 2024-09-21 to 2025-09-06.
   - Releases in window:
-     0.8.16 (2026-07-01), 0.8.17 (2026-07-15), 0.8.18 (2026-07-21);
+     0.8.16 (2026-07-01),
+    0.8.17 (2026-07-15),
+    0.8.18 (2026-07-21);
      no git tags;
      0.8.18's commit `f93abc7` is the repository head.
   - Concentration:
-     one maintainer, 90% of commits.
+     one maintainer,
+    90% of commits.
   - Class:
      responsive single maintainer with fast bug turnaround;
      #53 shows that releases before 0.8.17 returned wrong XXH3 output from a seeded `Xxh3Builder`
      on inputs over 240 bytes,
      a path meow would not call.
 - `twox-hash` (`shepmaster/twox-hash`):
-  - Issues in window, all 5:
+  - Issues in window,
+    all 5:
      #123 (hashes differ across 32 and 64-bit through the `Hash` trait),
      answered in about 7 hours and closed by documentation PR #125;
-     #120 (`XxHash32` debug overflow panic), answered in about 3.5 hours,
+     #120 (`XxHash32` debug overflow panic),
+    answered in about 3.5 hours,
      fixed by #121 and released in 2.1.3;
      #81 (reproducibility question) closed by #125;
      #115 and #114 open feature or showcase threads with maintainer comments.
   - 10 most recently updated pull requests:
-     4 maintainer-authored (#121, #122, #125, #126), self-merged within 2 days, no reviews;
+     4 maintainer-authored (#121,
+    #122,
+    #125,
+    #126),
+    self-merged within 2 days,
+    no reviews;
      external #116 merged after about 5 months with 4 maintainer comments;
      external #124 closed unmerged after 2 maintainer comments;
      external #127 open 10 days without response;
      stale external #100 and #99 from 2024 closed unmerged on 2026-09-07;
      collaborator draft #52 from 2020 closed on 2026-08-27.
   - Releases in window:
-     2.1.3 (2026-07-19), 2.1.4 (2026-08-27);
+     2.1.3 (2026-07-19),
+    2.1.4 (2026-08-27);
      tag `v2.1.4` points at the release commit,
      with no commits after it.
   - Older open bugs #92 and #79 concern the 1.x `xxh3` module,
-     which 2.0.0 replaced ("a complete rewrite of the crate", `CHANGELOG.md:69`).
+     which 2.0.0 replaced ("a complete rewrite of the crate",
+    `CHANGELOG.md:69`).
   - Concentration:
-     one maintainer, 400 of 428 commits.
+     one maintainer,
+    400 of 428 commits.
   - Class:
      active releases,
      responsive on bugs,
      slower on external feature pull requests.
 - `hashcrew` (`fast/hashcrew`):
-  - Issues in window, all 1:
-     #17, filed and closed by the main author without comment.
+  - Issues in window,
+    all 1:
+     #17,
+    filed and closed by the main author without comment.
   - 10 most recently updated of 27 pull requests (#19 to #28):
      all authored by `tisonkun`;
      9 merged by the author after 7 minutes to 6 days,
@@ -2095,16 +2644,26 @@ Releases from the crates.io API (`scripts/release-history.ts`, `data/release-his
      tags signed (`v0.3.0` tag and commit `ff8860c` verified by GitHub);
      `RELEASE.md` documents the process.
   - Concentration:
-     2 contributors, 24 and 10 commits;
+     2 contributors,
+    24 and 10 commits;
      no external issue or pull request yet.
   - Class:
      low-signal tracker activity in a project two weeks old,
-     evaluated through source, tests, release, and signing evidence.
+     evaluated through source,
+    tests,
+    release,
+    and signing evidence.
 - `highway` (`nickbabcock/highway-rs`):
-  - Issues in window, all 1:
-     #103 (naming ambiguity), answered in about 4 hours and closed.
-  - Pull requests in window, all 9:
-     4 maintainer-authored and self-merged without review (#101, #104, #105, #106);
+  - Issues in window,
+    all 1:
+     #103 (naming ambiguity),
+    answered in about 4 hours and closed.
+  - Pull requests in window,
+    all 9:
+     4 maintainer-authored and self-merged without review (#101,
+    #104,
+    #105,
+    #106);
      maintainer draft #102 (loop unrolling) open since 2026-03-23;
      3 Dependabot updates open since 2026-07-23;
      Dependabot #86 from 2024 closed by the maintainer.
@@ -2115,7 +2674,8 @@ Releases from the crates.io API (`scripts/release-history.ts`, `data/release-his
      including wasm64 support,
      so maintenance merges have not reached a release in 20 months.
   - Concentration:
-     one maintainer, 348 of 362 commits.
+     one maintainer,
+    348 of 362 commits.
   - Class:
      maintained,
      slow release cadence;
@@ -2128,7 +2688,8 @@ None of the four has an open security report or abandonment statement in the sam
 - Incumbent paths consumed:
    meow is unimplemented,
    so the planned consumer is one-shot `gxhash128(bytes, seed)` for file contents and key material
-   (design doc, "Cache").
+   (design doc,
+  "Cache").
   The music player's `gxhash64` calls belong to another package and are outside this decision.
 - Incumbent defects:
    one-byte full-width collisions (reproduced in HC8),
@@ -2144,9 +2705,13 @@ None of the four has an open security report or abandonment statement in the sam
    no finalist has any in the feature sets meow would use.
 - Native boundary:
    `gxhash` requires AES and SSE2 or NEON at compile time and stops the build otherwise
-   (`src/gxhash/platform/x86.rs:2`, `src/gxhash/platform/arm.rs:2`, `compile_error!`);
+   (`src/gxhash/platform/x86.rs:2`,
+  `src/gxhash/platform/arm.rs:2`,
+  `compile_error!`);
    `xxhash-rust` is also compile-time;
-   `twox-hash`, `hashcrew`, and `highway` dispatch at run time ("HC5 CPU capabilities").
+   `twox-hash`,
+  `hashcrew`,
+  and `highway` dispatch at run time ("HC5 CPU capabilities").
 - Maintenance:
    the finalists' samples are in "Maintenance audit";
    `gxhash`'s trackers are reviewed in the gxhash study,
@@ -2160,9 +2725,14 @@ None of the four has an open security report or abandonment statement in the sam
 ### Native overlay
 
 - Source-to-artifact mapping:
-   byte-identical archive and commit comparison ("Identity, provenance, and license").
+   byte-identical archive and commit comparison ("Identity,
+  provenance,
+  and license").
 - Compiler and linker flags:
-   the lab and probe used `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`, `panic = "abort"`,
+   the lab and probe used `opt-level = 3`,
+  `lto = "fat"`,
+  `codegen-units = 1`,
+  `panic = "abort"`,
    with no `RUSTFLAGS` for baseline builds and `-Ctarget-cpu=x86-64-v3` or `x86-64-v4` for raised builds;
    aarch64 musl linked by `rust-lld`.
 - Imported and exported host functions:
@@ -2181,11 +2751,16 @@ None of the four has an open security report or abandonment statement in the sam
 
 ### Reference equality
 
-`refcheck/` (`src/main.rs`, `build.rs`) links the C references into one binary:
+`refcheck/` (`src/main.rs`,
+`build.rs`) links the C references into one binary:
  xxHash 0.8.3 `XXH3_128bits_withSeed` through `xxhash-c-sys` 0.8.7,
  and `HighwayHash128` from `google/highwayhash` `c/highwayhash.c` at `faca2cb`.
 For every length 0 to 4,100,
- plus 8,191 to 8,193, 65,535 to 65,537, 100,003, 1,048,583, and 16,777,219 bytes of random data,
+ plus 8,191 to 8,193,
+65,535 to 65,537,
+100,003,
+1,048,583,
+and 16,777,219 bytes of random data,
  it compares each finalist's one-shot output
  and its streaming output over random chunks of 1 to 70,000 bytes
  with C,
@@ -2205,7 +2780,8 @@ For every length 0 to 4,100,
    0 mismatches (`refcheck-aarch64-qemu.log`).
 
 The C code was compiled by `cc` in `localhost/hashvet-rusttest:1`
- (Debian GCC 14 for x86_64, `aarch64-linux-gnu-gcc` 14.2.0 for aarch64),
+ (Debian GCC 14 for x86_64,
+`aarch64-linux-gnu-gcc` 14.2.0 for aarch64),
  only for this check;
  no finalist needs it.
 
@@ -2218,21 +2794,36 @@ This closes the gap left by upstream `highway` tests,
 
 `refcheck/src/bin/backend.rs` prints `hashcrew::xxhash::kernel::selected_backend()`:
  `Avx2` in both the baseline and the `x86-64-v3` build on this host
- (`hashcrew-backend-baseline.log`, `hashcrew-backend-v3.log`).
+ (`hashcrew-backend-baseline.log`,
+`hashcrew-backend-v3.log`).
 So `hashcrew`'s slow baseline results are not a fallback to SSE2 or scalar code:
  the baseline build reaches its AVX2 kernel through a call per 64-byte stripe
  into a `#[target_feature(enable = "avx2")]` function
- (`src/xxhash/kernel/x86.rs:117`, `:139`),
+ (`src/xxhash/kernel/x86.rs:117`,
+`:139`),
  which the compiler cannot inline into a loop built without AVX2.
 
 ### Additional one-byte keysets
 
-The HC8 harness ran again at key lengths 8, 16, 64, 128, 240, 241, 1,024, and 2,048 bytes,
+The HC8 harness ran again at key lengths 8,
+16,
+64,
+128,
+240,
+241,
+1,024,
+and 2,048 bytes,
  zero and random bases,
- seeds 0, 1, and 987654321,
+ seeds 0,
+1,
+and 987654321,
  for the four finalists and `gxhash`
- (`onebyte-lengths-zero.log`, `onebyte-lengths-random.log`, 120 results each).
-Every finalist result has 0 full-width, 0 low-half, and 0 high-half collisions.
+ (`onebyte-lengths-zero.log`,
+`onebyte-lengths-random.log`,
+120 results each).
+Every finalist result has 0 full-width,
+0 low-half,
+and 0 high-half collisions.
 `gxhash` collided again:
  1 full-width collision at 2,048 bytes on the zero base,
  and 1 each at 1,024 and 2,048 bytes on the random base,
@@ -2243,9 +2834,20 @@ Every finalist result has 0 full-width, 0 low-half, and 0 high-half collisions.
 Search:
  `rg --files-with-matches --ignore-case --hidden` over the four clones
  (vendored C submodules excluded)
- for `cargo-mutants`, `mutants.toml`, `mutagen`, `proptest`, `quickcheck`, `libfuzzer`, `afl`, `honggfuzz`, and `bolero`
- matched only `highway-rs` (`Cargo.toml`, `tests/properties.rs`, `fuzz/`)
- and `twox-hash` (`comparison/Cargo.toml`, `comparison/src/lib.rs`).
+ for `cargo-mutants`,
+`mutants.toml`,
+`mutagen`,
+`proptest`,
+`quickcheck`,
+`libfuzzer`,
+`afl`,
+`honggfuzz`,
+and `bolero`
+ matched only `highway-rs` (`Cargo.toml`,
+`tests/properties.rs`,
+`fuzz/`)
+ and `twox-hash` (`comparison/Cargo.toml`,
+`comparison/src/lib.rs`).
 
 - `xxhash-rust`:
    no fuzz target,
@@ -2263,8 +2865,13 @@ Search:
    run as hc3 and hc5.
 - `highway`:
    `fuzz/fuzz_targets/fuzz_highway.rs` asserts that `PortableHash::hash64` equals the C `HighwayHash64`
-   and that the builder, SSE4.1, and AVX2 hashers equal `PortableHash` for 64, 128, and 256-bit output;
-   upstream CI only compiles it (`cargo fuzz build fuzz_highway`, nightly job);
+   and that the builder,
+  SSE4.1,
+  and AVX2 hashers equal `PortableHash` for 64,
+  128,
+  and 256-bit output;
+   upstream CI only compiles it (`cargo fuzz build fuzz_highway`,
+  nightly job);
    `tests/properties.rs` holds `quickcheck` properties.
 - Mutation testing:
    none in any finalist.
@@ -2276,15 +2883,22 @@ The `highway` fuzz target was run here,
    `cargo build --manifest-path /src/fuzz/Cargo.toml --target x86_64-unknown-linux-gnu --release`
    `--config profile.release.debug="line-tables-only" --bin fuzz_highway --offline --locked --jobs 4`
    with the `RUSTFLAGS` that `cargo fuzz build` sets by default
-   (sanitizer coverage, `--cfg fuzzing`, `-Zsanitizer=address`, `-Cdebug-assertions`, `-Ccodegen-units=1`,
+   (sanitizer coverage,
+  `--cfg fuzzing`,
+  `-Zsanitizer=address`,
+  `-Cdebug-assertions`,
+  `-Ccodegen-units=1`,
    read from `rust-fuzz/cargo-fuzz` `src/project.rs:150-300` at `bf2fc66`),
    in `localhost/hashvet-rusttest:2`;
    exit 0 (`fuzz-highway-build.log`).
 - Positive control,
    run after the campaign on a copy of the target whose C call receives a key with one bit flipped
-   (`fuzz-control/fuzz_targets/fuzz_highway.rs`, built the same way):
+   (`fuzz-control/fuzz_targets/fuzz_highway.rs`,
+  built the same way):
    the assertion failed after 3,086 executions
-   ("assertion `left == right` failed" at `fuzz_targets/fuzz_highway.rs:33:9`, exit 77, `fuzzcontrol-run.log`).
+   ("assertion `left == right` failed" at `fuzz_targets/fuzz_highway.rs:33:9`,
+  exit 77,
+  `fuzzcontrol-run.log`).
 - Campaign:
    `fuzz_highway -max_total_time=600 -rss_limit_mb=1536` from an empty corpus:
    23,513,644 executions in 601 seconds,
@@ -2308,14 +2922,21 @@ No aarch64 benchmark ran:
  QEMU user mode would measure the emulator,
  and `ssh m1` is powered off ("aarch64 and the m1 question").
 
-Builds of the lab crate (`lab/`, `nightly-2026-09-12`, `opt-level = 3`, fat LTO, one codegen unit):
+Builds of the lab crate (`lab/`,
+`nightly-2026-09-12`,
+`opt-level = 3`,
+fat LTO,
+one codegen unit):
 
 - baseline:
    no `RUSTFLAGS`,
    so the x86-64 baseline (SSE2) at compile time;
-   `twox-hash`, `hashcrew`, and `highway` may still select AVX2 at run time.
+   `twox-hash`,
+  `hashcrew`,
+  and `highway` may still select AVX2 at run time.
 - `x86-64-v3`:
-   `RUSTFLAGS=-Ctarget-cpu=x86-64-v3` (AVX2, BMI2).
+   `RUSTFLAGS=-Ctarget-cpu=x86-64-v3` (AVX2,
+  BMI2).
 
 Method:
 
@@ -2342,12 +2963,18 @@ Workloads,
 - S1 key composition:
   - `fp`:
      2,226 synthetic items of 70 to 242 bytes
-     (a random path of the music player's measured path lengths, 46 to 218 bytes, plus 24 bytes of numbers;
-     `data/fp-lengths.txt`, `lab/src/bin/bench.rs` `load_fp`).
+     (a random path of the music player's measured path lengths,
+    46 to 218 bytes,
+    plus 24 bytes of numbers;
+     `data/fp-lengths.txt`,
+    `lab/src/bin/bench.rs` `load_fp`).
   - `keymat`:
      222 key-material records of 50 to 50,206 bytes (median 1,349),
      one per package directory,
-     concatenating for each tracked file its path, a NUL, its 64-bit size, and a 16-byte content digest
+     concatenating for each tracked file its path,
+    a NUL,
+    its 64-bit size,
+    and a 16-byte content digest
      (`scripts/pack-data.ts`).
 - S2 whole files:
   - `files`:
@@ -2361,16 +2988,20 @@ Workloads,
   - `mem256m-stream1m`:
      one 256 MiB buffer fed in 1 MiB slices,
      the in-memory ceiling for large outputs (supporting S3).
-- S3 multi-GB from disk (`lab/src/bin/bigfile.rs`, `scripts/bench-b.ts`):
+- S3 multi-GB from disk (`lab/src/bin/bigfile.rs`,
+  `scripts/bench-b.ts`):
    reflink copies of `disk.qcow2` (3,966,238,720 bytes)
    and the 662,710,296-byte music player debug binary
    in `~/temp/agent/hashvet-2026-09-17/big/`,
    read in 1 MiB `read` calls and streamed into each hasher,
-   five repetitions per build, file, and cache mode,
+   five repetitions per build,
+  file,
+  and cache mode,
    with a read-only pass leading every rotation.
   - Cold:
      the container calls `posix_fadvise(POSIX_FADV_DONTNEED)` on the file before reading.
-    Positive control first (`scripts/cache-control.ts`, `data/bench/cache-control.txt`):
+    Positive control first (`scripts/cache-control.ts`,
+    `data/bench/cache-control.txt`):
      host `fincore` showed 0% resident,
      100% after a host `cat`,
      and 0% after the container's `fadvise`,
@@ -2379,7 +3010,9 @@ Workloads,
      the host reads the file first,
      and `fincore` confirms at least 99.9% residency before every run.
   - Storage:
-     btrfs (crc32c checksums, no compression, 588 and 114 extents) on LUKS on the NVMe drive.
+     btrfs (crc32c checksums,
+    no compression,
+    588 and 114 extents) on LUKS on the NVMe drive.
   - The container's 2 GiB limit also bounds its page cache,
      so a cold read of the 3.97 GB image runs under memory-cgroup reclaim.
 - S4 multi-core,
@@ -2397,45 +3030,70 @@ Workloads,
 
 Measured first on the unchanged baseline build (five container runs),
  then on the `x86-64-v3` build
- (`data/bench/summary-a.txt`, `scripts/bench-a-summary.ts`).
+ (`data/bench/summary-a.txt`,
+`scripts/bench-a-summary.ts`).
 Finalist bands on the baseline build:
- 0.2% to 2.6% for `twox-hash`, `xxhash-rust`, and `highway` on every in-memory workload,
+ 0.2% to 2.6% for `twox-hash`,
+`xxhash-rust`,
+and `highway` on every in-memory workload,
  and 0.8% to 8.3% for `hashcrew`,
- whose baseline results have one slow outlier run in `files`, `files-stream64k`, `keymat`, and `mem256m-stream1m`.
+ whose baseline results have one slow outlier run in `files`,
+`files-stream64k`,
+`keymat`,
+and `mem256m-stream1m`.
 On the `x86-64-v3` build the finalist bands are 0.3% to 4.5%.
 Multi-GB results have wider bands,
  given with each result.
 
-Values are the median of five runs in GiB/s with the [minimum, maximum] of the per-run medians.
+Values are the median of five runs in GiB/s with the [minimum,
+maximum] of the per-run medians.
 
 ### S2 whole files, KiB to tens of MiB (weight 5)
 
-- `files`, one call per tracked file:
+- `files`,
+  one call per tracked file:
   - baseline:
-     `twox-hash` 49.3 [49.0, 50.3],
-     `xxhash-rust` 29.1 [29.0, 29.3],
-     `hashcrew` 16.0 [15.9, 17.1],
-     `highway` 12.4 [12.4, 12.5];
+     `twox-hash` 49.3 [49.0,
+    50.3],
+     `xxhash-rust` 29.1 [29.0,
+    29.3],
+     `hashcrew` 16.0 [15.9,
+    17.1],
+     `highway` 12.4 [12.4,
+    12.5];
      every adjacent pair resolved beyond band.
   - `x86-64-v3`:
-     `xxhash-rust` 49.3 [48.8, 50.0],
-     `hashcrew` 47.2 [46.9, 48.2],
-     `twox-hash` 46.9 [45.8, 48.0],
-     `highway` 12.5 [12.5, 12.6];
+     `xxhash-rust` 49.3 [48.8,
+    50.0],
+     `hashcrew` 47.2 [46.9,
+    48.2],
+     `twox-hash` 46.9 [45.8,
+    48.0],
+     `highway` 12.5 [12.5,
+    12.6];
      `xxhash-rust` over `hashcrew` resolved (1.04×),
      `hashcrew` and `twox-hash` within band.
-- `files-stream64k`, a streaming hasher per file:
+- `files-stream64k`,
+  a streaming hasher per file:
   - baseline:
-     `twox-hash` 43.4 [43.0, 43.7],
-     `xxhash-rust` 26.2 [25.8, 26.4],
-     `hashcrew` 16.7 [15.4, 16.8],
-     `highway` 12.4 [12.4, 12.4];
+     `twox-hash` 43.4 [43.0,
+    43.7],
+     `xxhash-rust` 26.2 [25.8,
+    26.4],
+     `hashcrew` 16.7 [15.4,
+    16.8],
+     `highway` 12.4 [12.4,
+    12.4];
      all pairs resolved.
   - `x86-64-v3`:
-     `xxhash-rust` 45.5 [45.2, 46.0],
-     `twox-hash` 45.3 [45.1, 45.9],
-     `hashcrew` 43.9 [43.5, 44.6],
-     `highway` 12.6 [12.5, 12.6];
+     `xxhash-rust` 45.5 [45.2,
+    46.0],
+     `twox-hash` 45.3 [45.1,
+    45.9],
+     `hashcrew` 43.9 [43.5,
+    44.6],
+     `highway` 12.6 [12.5,
+    12.6];
      `xxhash-rust` and `twox-hash` within band,
      `twox-hash` over `hashcrew` resolved (1.03×).
   Against one-shot `files`,
@@ -2443,17 +3101,26 @@ Values are the median of five runs in GiB/s with the [minimum, maximum] of the p
    and 3% and 8% in the raised build;
    `hashcrew` streams 4% faster in the baseline build and 7% slower in the raised build;
    `highway` is unchanged.
-- `hot16k`, one cache-resident 16 KiB buffer:
+- `hot16k`,
+  one cache-resident 16 KiB buffer:
   - baseline:
-     `twox-hash` 56.5 [56.1, 56.9],
-     `xxhash-rust` 29.5 [29.2, 29.6],
-     `hashcrew` 16.0 [15.9, 16.0],
-     `highway` 12.4 [12.3, 12.4].
+     `twox-hash` 56.5 [56.1,
+    56.9],
+     `xxhash-rust` 29.5 [29.2,
+    29.6],
+     `hashcrew` 16.0 [15.9,
+    16.0],
+     `highway` 12.4 [12.3,
+    12.4].
   - `x86-64-v3`:
-     `xxhash-rust` 55.3 [55.2, 55.8],
-     `twox-hash` 54.5 [53.9, 54.7],
-     `hashcrew` 54.1 [54.0, 54.5],
-     `highway` 12.5 [12.4, 12.5];
+     `xxhash-rust` 55.3 [55.2,
+    55.8],
+     `twox-hash` 54.5 [53.9,
+    54.7],
+     `hashcrew` 54.1 [54.0,
+    54.5],
+     `highway` 12.5 [12.4,
+    12.5];
      `xxhash-rust` over `twox-hash` resolved (1.01×),
      `twox-hash` and `hashcrew` within band.
 
@@ -2463,24 +3130,38 @@ Values are the median of five runs in GiB/s with the [minimum, maximum] of the p
  one 256 MiB buffer in 1 MiB slices:
 
 - baseline:
-   `twox-hash` 52.8 [50.5, 52.9],
-   `xxhash-rust` 28.2 [28.1, 28.4],
-   `hashcrew` 17.7 [16.4, 17.7],
-   `highway` 12.9 [12.9, 12.9].
+   `twox-hash` 52.8 [50.5,
+  52.9],
+   `xxhash-rust` 28.2 [28.1,
+  28.4],
+   `hashcrew` 17.7 [16.4,
+  17.7],
+   `highway` 12.9 [12.9,
+  12.9].
 - `x86-64-v3`:
-   `hashcrew` 52.6 [52.1, 53.0],
-   `xxhash-rust` 52.4 [51.4, 52.6],
-   `twox-hash` 51.8 [51.4, 52.2]
+   `hashcrew` 52.6 [52.1,
+  53.0],
+   `xxhash-rust` 52.4 [51.4,
+  52.6],
+   `twox-hash` 51.8 [51.4,
+  52.2]
    (all within band of each other),
-   `highway` 12.9 [12.8, 12.9].
+   `highway` 12.9 [12.8,
+  12.9].
 
 ### S3 multi-GB from disk (weight 5)
 
 Every run exited 0;
  400 runs,
- 5 per build, file, mode, and algorithm
- (`data/bench/bigfile.jsonl`, `data/bench/summary-b.txt`).
-Every algorithm produced one digest per file across builds, modes, and repetitions,
+ 5 per build,
+file,
+mode,
+and algorithm
+ (`data/bench/bigfile.jsonl`,
+`data/bench/summary-b.txt`).
+Every algorithm produced one digest per file across builds,
+modes,
+and repetitions,
  and the three XXH3 crates produced the same digest
  (`47e66eee4ae2143c1071a33f1f301dbd` for the debug binary,
  `da7085172f72b431cb3efca3af95eb7e` for the image).
@@ -2488,14 +3169,20 @@ Every algorithm produced one digest per file across builds, modes, and repetitio
 - Page-cache cold,
    662,710,296-byte debug binary:
   - read only:
-     baseline 1.42 [0.17, 1.48],
-     `x86-64-v3` 1.58 [0.80, 1.59].
+     baseline 1.42 [0.17,
+    1.48],
+     `x86-64-v3` 1.58 [0.80,
+    1.59].
   - finalists,
      baseline:
-     `xxhash-rust` 1.45 [1.29, 1.48],
-     `highway` 1.42 [1.02, 1.43],
-     `hashcrew` 1.41 [1.25, 1.44],
-     `twox-hash` 1.28 [1.19, 1.49];
+     `xxhash-rust` 1.45 [1.29,
+    1.48],
+     `highway` 1.42 [1.02,
+    1.43],
+     `hashcrew` 1.41 [1.25,
+    1.44],
+     `twox-hash` 1.28 [1.19,
+    1.49];
      `x86-64-v3`:
      1.53 to 1.57,
      all within band of each other and of the read-only pass.
@@ -2505,8 +3192,10 @@ Every algorithm produced one digest per file across builds, modes, and repetitio
 - Page-cache cold,
    3,966,238,720-byte image:
   - read only:
-     baseline 0.30 [0.26, 0.37],
-     `x86-64-v3` 0.39 [0.29, 0.40].
+     baseline 0.30 [0.26,
+    0.37],
+     `x86-64-v3` 0.39 [0.29,
+    0.40].
   - finalists,
      both builds:
      0.36 to 0.39,
@@ -2515,42 +3204,63 @@ Every algorithm produced one digest per file across builds, modes, and repetitio
   - The single host `cat` of the same file in the eviction control took 14 seconds (about 0.26 GiB/s)
      outside any container,
      which points at the storage path rather than the container's memory limit
-     (one unbanded host measurement, taken while upstream suites were running).
+     (one unbanded host measurement,
+    taken while upstream suites were running).
 - Page-cache warm,
    debug binary:
   - read only:
-     baseline 15.3 [15.1, 15.6],
-     `x86-64-v3` 15.3 [14.5, 15.7].
+     baseline 15.3 [15.1,
+    15.6],
+     `x86-64-v3` 15.3 [14.5,
+    15.7].
   - baseline:
-     `twox-hash` 11.2 [11.0, 11.4],
-     `xxhash-rust` 8.6 [8.3, 8.7],
-     `hashcrew` 6.8 [6.8, 7.1],
-     `highway` 6.0 [5.9, 6.4];
+     `twox-hash` 11.2 [11.0,
+    11.4],
+     `xxhash-rust` 8.6 [8.3,
+    8.7],
+     `hashcrew` 6.8 [6.8,
+    7.1],
+     `highway` 6.0 [5.9,
+    6.4];
      all pairs resolved.
   - `x86-64-v3`:
-     `hashcrew` 11.3 [10.8, 11.4],
-     `twox-hash` 11.2 [11.0, 11.3],
-     `xxhash-rust` 11.0 [10.5, 11.9]
+     `hashcrew` 11.3 [10.8,
+    11.4],
+     `twox-hash` 11.2 [11.0,
+    11.3],
+     `xxhash-rust` 11.0 [10.5,
+    11.9]
      (within band of each other),
-     `highway` 5.9 [5.9, 6.1].
+     `highway` 5.9 [5.9,
+    6.1].
 - Page-cache warm,
    image:
   - read only:
-     baseline 13.7 [13.6, 14.7],
-     `x86-64-v3` 15.0 [14.0, 15.7].
+     baseline 13.7 [13.6,
+    14.7],
+     `x86-64-v3` 15.0 [14.0,
+    15.7].
   - baseline:
-     `twox-hash` 11.5 [10.4, 12.4],
-     `xxhash-rust` 8.5 [8.4, 9.5],
-     `hashcrew` 7.2 [6.9, 8.3],
-     `highway` 6.8 [6.5, 7.1];
+     `twox-hash` 11.5 [10.4,
+    12.4],
+     `xxhash-rust` 8.5 [8.4,
+    9.5],
+     `hashcrew` 7.2 [6.9,
+    8.3],
+     `highway` 6.8 [6.5,
+    7.1];
      `twox-hash` over `xxhash-rust` and `xxhash-rust` over `hashcrew` resolved,
      `hashcrew` and `highway` within band.
   - `x86-64-v3`:
-     `twox-hash` 11.7 [10.7, 13.0],
-     `xxhash-rust` 11.3 [10.6, 12.8],
-     `hashcrew` 11.3 [11.2, 13.2]
+     `twox-hash` 11.7 [10.7,
+    13.0],
+     `xxhash-rust` 11.3 [10.6,
+    12.8],
+     `hashcrew` 11.3 [11.2,
+    13.2]
      (within band),
-     `highway` 6.4 [6.2, 7.4].
+     `highway` 6.4 [6.2,
+    7.4].
 - Peak resident memory:
    3.2 to 3.4 MiB for every single-threaded run on both files
    (the harness's 1 MiB buffer included),
@@ -2599,9 +3309,11 @@ No finalist offers a library tree mode,
 
 ### S1 key composition (weight 1)
 
-- `keymat`, 50 bytes to 50 KiB:
+- `keymat`,
+  50 bytes to 50 KiB:
   - baseline:
-     `twox-hash` 60.5 ns per record [60.3, 61.8],
+     `twox-hash` 60.5 ns per record [60.3,
+    61.8],
      `xxhash-rust` 101.1,
      `hashcrew` 173.3,
      `highway` 259.7;
@@ -2612,7 +3324,8 @@ No finalist offers a library tree mode,
      `hashcrew` 58.6
      (within band of each other),
      `highway` 243.5.
-- `fp`, 70 to 242 bytes:
+- `fp`,
+  70 to 242 bytes:
   - baseline:
      `xxhash-rust` 10.8 ns per item,
      `twox-hash` 11.9,
@@ -2632,7 +3345,8 @@ Beyond band for the finalists on file contents (`files`):
  `hashcrew` 2.95×,
  `xxhash-rust` 1.69×,
  `highway` 1.01×,
- and `twox-hash` 0.95× (slower in the raised build, also on `hot16k` at 0.96×).
+ and `twox-hash` 0.95× (slower in the raised build,
+also on `hot16k` at 0.96×).
 On `mem256m-stream1m`,
  `twox-hash` and `highway` are within band,
  `xxhash-rust` 1.86× and `hashcrew` 2.98×.
@@ -2651,7 +3365,8 @@ BLAKE3,
 S1,
  S2,
  and S3 ratings follow one rule for every finalist
- (`scripts/speed-ratings.ts`, `data/speed-ratings.txt`):
+ (`scripts/speed-ratings.ts`,
+`data/speed-ratings.txt`):
  in each workload and build cell (and file and cache mode for S3),
  a finalist's ratio is its median over the best finalist's median,
  or 1 when its five-run range overlaps the best finalist's range;
@@ -2676,7 +3391,8 @@ The rule was fixed after the in-memory results and before the multi-GB results w
    `xxhash-rust` 0.756 → 3,
    `hashcrew` 0.564 → 2,
    `highway` 0.251 → 1 (medium).
-- S3 (8 cells, 4 of them cold and within band for everyone):
+- S3 (8 cells,
+  4 of them cold and within band for everyone):
    `twox-hash` 1.000 → 4,
    `xxhash-rust` 0.932 → 4,
    `hashcrew` 0.887 → 3 (medium),
@@ -2690,22 +3406,30 @@ Source:
  SMHasher3 results summary and raw logs
  (`https://gitlab.com/fwojcik/smhasher3/-/blob/main/results/README.md` and `results/raw/`),
  accessed 2026-09-17,
- saved as `data/smhasher3-results-readme.md`, `data/smh3-XXH3-128.txt`, `data/smh3-XXH3-128.regen.txt`,
+ saved as `data/smhasher3-results-readme.md`,
+`data/smh3-XXH3-128.txt`,
+`data/smh3-XXH3-128.regen.txt`,
  and `data/smh3-HighwayHash-128.txt`.
 SMHasher3 tests the algorithms through its own C and C++ implementations,
  not through the Rust crates;
  HC3 equality ties the crates to the same outputs.
 
 - HighwayHash-128:
-   "Overall result: pass ( 238 / 238 passed)" (`smh3-HighwayHash-128.txt:3733`),
+   "Overall result:
+  pass ( 238 / 238 passed)" (`smh3-HighwayHash-128.txt:3733`),
    listed among passing hashes (`smhasher3-results-readme.md:63`).
   SMHasher3 applies 238 tests to it and 250 to XXH3-128.
 - XXH3-128:
-   "Overall result: FAIL ( 214 / 250 passed)" (`smh3-XXH3-128.txt:3820`),
+   "Overall result:
+  FAIL ( 214 / 250 passed)" (`smh3-XXH3-128.txt:3820`),
    listed among failing hashes with 36 failed tests (`smhasher3-results-readme.md:209`).
   The failures split into two groups:
   - Tests that vary the seed
-     (`SeedZeroes`, `SeedSparse`, `SeedBlockLen`, `SeedBlockOffset`, `SeedBIC`).
+     (`SeedZeroes`,
+    `SeedSparse`,
+    `SeedBlockLen`,
+    `SeedBlockOffset`,
+    `SeedBIC`).
     Full-width 128-bit collisions appear only here:
      for example 534,343 among 2,196,480 hashes of 8-byte keys
      when seeds and one 4-byte block each have up to 2 set bits
@@ -2714,15 +3438,22 @@ SMHasher3 tests the algorithms through its own C and C++ implementations,
     Different seeds with related keys collide,
      so XXH3's seed is not a safe domain separator for short inputs.
   - Tests at a fixed seed
-     (`BIC` for 3 to 15-byte keys, `Sparse` 3-byte keys with up to 20 set bits,
-     `PerlinNoise`, `Bitflip` for 3, 4, and 8-byte keys).
+     (`BIC` for 3 to 15-byte keys,
+    `Sparse` 3-byte keys with up to 20 set bits,
+     `PerlinNoise`,
+    `Bitflip` for 3,
+    4,
+    and 8-byte keys).
     These report bias or collisions in 40-bit or narrower slices
      (for example "high 40-bit ... actual 470 (3.673x)" at `smh3-XXH3-128.txt:606`),
      with no nonzero 128-bit collision count.
 - XXH3-128 with the secret regenerated per seed (`XXH3-128.regen`):
    231 of 250,
    with the `SeedBlockLen` and `SeedBlockOffset` failures gone,
-   other seed tests still failing (`SeedZeroes`, `SeedSparse`, `Seed`, `SeedBitflip`),
+   other seed tests still failing (`SeedZeroes`,
+  `SeedSparse`,
+  `Seed`,
+  `SeedBitflip`),
    and the fixed-seed failures the same except one more `BIC` length (11 bytes)
    (`smh3-XXH3-128.regen.txt:3818-3827`).
   None of the Rust finalists exposes this variant as its default.
@@ -2760,35 +3491,43 @@ Relevance to meow:
 
 - `xxhash-rust`:
    a NEON stripe accumulator selected by `cfg(target_feature = "neon")`,
-   which every `aarch64-unknown-linux-*` target enables (`src/xxh3.rs:55`, `:252-268`).
+   which every `aarch64-unknown-linux-*` target enables (`src/xxh3.rs:55`,
+  `:252-268`).
   No published aarch64 throughput.
   xr5 ran its C comparison on the NEON kernel under QEMU.
 - `twox-hash`:
-   NEON accumulate and scramble kernels (`src/xxhash3/large/neon.rs`, 210 lines),
+   NEON accumulate and scramble kernels (`src/xxhash3/large/neon.rs`,
+  210 lines),
    selected at run time with `std`.
   Published by upstream on an Apple M1 Max
-   (`comparison/README.md`, "xxHash3 (128-bit)", "Oneshot hashing"):
+   (`comparison/README.md`,
+  "xxHash3 (128-bit)",
+  "Oneshot hashing"):
    Rust 34.4 GiB/s,
    C with NEON 34.6 GiB/s,
    C scalar 21.3 GiB/s,
    for 256 KiB to 4 MiB buffers.
   tw5 compared the NEON kernel with the C NEON and scalar builds under QEMU.
 - `hashcrew`:
-   NEON kernels (`src/xxhash/kernel/neon.rs`, 130 lines),
+   NEON kernels (`src/xxhash/kernel/neon.rs`,
+  130 lines),
    selected at compile time on aarch64 because the target enables NEON
    (`src/xxhash/kernel/mod.rs:98-104`),
    so the run-time dispatch cost measured on x86_64 ("Benchmarks") does not apply there.
   No published aarch64 throughput.
 - `highway`:
-   a NEON implementation of the four-lane update with `vmull_u32` multiplies (`src/aarch64.rs`, 551 lines),
+   a NEON implementation of the four-lane update with `vmull_u32` multiplies (`src/aarch64.rs`,
+  551 lines),
    used unconditionally on aarch64.
-  The README claims "> 10 GB/s with SIMD (SSE 4.1 AVX 2, NEON)" without naming a machine or input size (`README.md:12`);
+  The README claims "> 10 GB/s with SIMD (SSE 4.1 AVX 2,
+  NEON)" without naming a machine or input size (`README.md:12`);
    `assets/highway.csv` has x86 results only.
 
 Ratings for S5 are ranges,
  because no aarch64 hardware ran:
  `twox-hash` 3 to 4 (published NEON parity with C),
- `xxhash-rust` and `hashcrew` 2 to 4 (same algorithm and NEON kernels, no published numbers),
+ `xxhash-rust` and `hashcrew` 2 to 4 (same algorithm and NEON kernels,
+no published numbers),
  `highway` 1 to 3 (its x86 vector paths run at about a quarter of XXH3's speed on this host,
  and nothing published shows a different ratio on aarch64).
 
@@ -2796,7 +3535,9 @@ Ratings for S5 are ranges,
 
 `ssh m1` is a macOS machine
  (`AGENTS.md` rule `HRM` points write-heavy work at `/Volumes/MacData` on it),
- by its name an Apple M1 (inferred, not probed, because it is powered off),
+ by its name an Apple M1 (inferred,
+not probed,
+because it is powered off),
  so a run there would cover the NEON kernels on real silicon
  through `aarch64-apple-darwin`,
  not the Linux aarch64 targets themselves.
@@ -2829,12 +3570,14 @@ A hard-gate failure would require QEMU's NEON emulation to differ from silicon o
 
 ## Reliance on the readings
 
-- R1, dedicated instructions:
+- R1,
+  dedicated instructions:
    no non-cryptographic library passes every hard gate
    ("Result under each reading of hardware acceleration" in "Screening").
   Under R1 alone the terminal result would be "No serious alternative":
    the candidates that meet R1 on both architectures fail HC9 (`gxhash`),
-   HC2 and HC3 (`ahash`, CRC crates),
+   HC2 and HC3 (`ahash`,
+  CRC crates),
    or HC10 and HC3 (`rotohash-rs`),
    and SHA-256 and AES-CMAC,
    which meet R1,
@@ -2842,7 +3585,8 @@ A hard-gate failure would require QEMU's NEON emulation to differ from silicon o
   The R1 controls are also far slower than every finalist on file contents
    ("Benchmarks"),
    so dedicated instructions buy no speed for this workload on this host.
-- R2, SIMD vectorization:
+- R2,
+  SIMD vectorization:
    four finalists,
    all with designed vector kernels on x86_64 and aarch64.
 
@@ -2902,15 +3646,20 @@ They are not ranked.
    3.9 GiB/s on file contents and 5.6 GiB/s on the 256 MiB buffer in one thread;
    warm multi-GB streaming 3.7 to 4.5 GiB/s in one thread and 4.6 to 5.4 with `update_rayon` on 2 threads.
   The lab build compiled BLAKE3's upstream x86 assembly
-   (build script output `blake3_sse2_ffi`, `blake3_sse41_ffi`, `blake3_avx2_ffi`, `blake3_avx512_ffi`),
+   (build script output `blake3_sse2_ffi`,
+  `blake3_sse41_ffi`,
+  `blake3_avx2_ffi`,
+  `blake3_avx512_ffi`),
    which needs a C toolchain;
    a rustc-only build (`pure` feature) was not measured.
-- SHA-256 (`sha2` 0.11.0, SHA extensions),
+- SHA-256 (`sha2` 0.11.0,
+  SHA extensions),
    the R1 control:
    1.86 GiB/s on file contents,
    1.4 to 1.7 GiB/s warm multi-GB,
    and the only algorithm below the read ceiling on the cold debug binary (0.96 against 1.42).
-- AES-CMAC (`cmac` 0.8.0 with `aes` 0.9.3, AES-NI),
+- AES-CMAC (`cmac` 0.8.0 with `aes` 0.9.3,
+  AES-NI),
    the AES control:
    1.43 GiB/s on file contents.
 
@@ -2919,22 +3668,26 @@ Every control produced 0 streaming mismatches in HC10 except `gxhash` and MuseAi
 
 ## Ratings for S4 to S11
 
-- S4 multi-core hashing of one large input, weight 1:
+- S4 multi-core hashing of one large input,
+  weight 1:
    no finalist offers a parallel or tree mode;
    any of them can sit under a meow-defined chunk tree,
-   which is a new output format meow would own ("Benchmarks", S4 results).
+   which is a new output format meow would own ("Benchmarks",
+  S4 results).
   All four:
    1,
    high confidence,
    because the structure is identical and the measured two-thread composition did not beat one thread
    on warm or cold reads on this host.
-- S5 aarch64 acceleration, weight 1,
+- S5 aarch64 acceleration,
+  weight 1,
    low-signal ranges ("aarch64 and the m1 question"):
    `twox-hash` 3 to 4 (midpoint 3.5),
    `xxhash-rust` 2 to 4 (3),
    `hashcrew` 2 to 4 (3),
    `highway` 1 to 3 (2).
-- S6 quality beyond HC8, weight 1 ("Quality evidence"):
+- S6 quality beyond HC8,
+  weight 1 ("Quality evidence"):
    the three XXH3 crates compute one function,
    so they share one rating:
    2,
@@ -2945,91 +3698,122 @@ Every control produced 0 streaming mismatches in HC10 except `gxhash` and MuseAi
    4,
    medium confidence,
    for 238 of 238 SMHasher3 tests and no local collision.
-- S7 stability assurance, weight 1:
-  - `twox-hash` 4, high:
+- S7 stability assurance,
+  weight 1:
+  - `twox-hash` 4,
+    high:
      frozen XXH3 specification,
      README portability promise,
-     CI proptests against the C library for scalar, SSE2, AVX2, and NEON kernels (tw2, tw5),
-     and local equality across every dispatch path, aarch64, and the C reference.
-  - `xxhash-rust` 3, medium:
+     CI proptests against the C library for scalar,
+    SSE2,
+    AVX2,
+    and NEON kernels (tw2,
+    tw5),
+     and local equality across every dispatch path,
+    aarch64,
+    and the C reference.
+  - `xxhash-rust` 3,
+    medium:
      frozen specification and C comparison for lengths 0 to 4,095 on every kernel it compiles,
      local equality everywhere;
      but no written stability promise of its own,
      and #53 shipped wrong seeded-builder output until 0.8.17.
-  - `hashcrew` 3, medium:
+  - `hashcrew` 3,
+    medium:
      frozen specification,
      README stability promise,
      tests against `xxhash-rust` rather than C,
      local equality everywhere and against C;
      two weeks of release history.
-  - `highway` 3, medium:
+  - `highway` 3,
+    medium:
      the algorithm is frozen "unchanging forever",
      README promise,
      reference 128-bit vectors only up to 63 bytes upstream,
      64-bit fuzzing against C;
      local 128-bit equality against C on long inputs ("Reference equality") closes most of that gap.
-- S8 CPU capability handling, weight 1 ("HC5 CPU capabilities"):
-  - `twox-hash`, `hashcrew`, `highway` 4, high:
+- S8 CPU capability handling,
+  weight 1 ("HC5 CPU capabilities"):
+  - `twox-hash`,
+    `hashcrew`,
+    `highway` 4,
+    high:
      run-time selection in a default build;
      meow adds nothing.
-  - `xxhash-rust` 2, high:
+  - `xxhash-rust` 2,
+    high:
      compile-time only;
      AVX2 requires meow to ship a raised build with its own startup check and diagnostic,
      and upstream's run-time detection request (#48) is open.
   Speed differences between dispatch styles count under S2 and S3 only.
-- S9 auditability and dependency surface, weight 1 ("Source quality and human auditability"):
-  - `hashcrew` 4, medium:
+- S9 auditability and dependency surface,
+  weight 1 ("Source quality and human auditability"):
+  - `hashcrew` 4,
+    medium:
      1,440 used-path lines,
      32 `unsafe`,
      forbidden `unsafe_op_in_unsafe_fn` and denied undocumented `unsafe` blocks.
-  - `twox-hash` 3, medium:
+  - `twox-hash` 3,
+    medium:
      1,662 lines,
      66 `unsafe`,
      52 safety comments,
      strict lints.
-  - `xxhash-rust` 3, medium:
+  - `xxhash-rust` 3,
+    medium:
      1,413 lines,
      29 `unsafe`,
      but no safety comments and an open report of raw-pointer functions not marked `unsafe` (#29).
-  - `highway` 2, medium:
+  - `highway` 2,
+    medium:
      2,646 lines,
      196 `unsafe`,
      no safety comments.
   All four have zero runtime dependencies.
-- S10 upstream verification, weight 1 ("Upstream CI inventory and suites run"):
-  - `twox-hash` 4, high:
+- S10 upstream verification,
+  weight 1 ("Upstream CI inventory and suites run"):
+  - `twox-hash` 4,
+    high:
      C comparison proptests for every kernel,
      Miri,
      CI on x86_64 and macOS aarch64.
-  - `hashcrew` 3, medium:
+  - `hashcrew` 3,
+    medium:
      broad boundary and partition tests,
      Miri with strict provenance,
      CI on three operating systems;
      reference is another Rust crate.
-  - `xxhash-rust` 3, medium:
+  - `xxhash-rust` 3,
+    medium:
      C comparison with valgrind on three kernels and cross-architecture tests;
      no Miri or property tests in CI.
-  - `highway` 3, medium:
+  - `highway` 3,
+    medium:
      reference vectors,
      quickcheck cross-implementation properties,
      an instruction-set matrix,
      Miri,
      a fuzz target that CI only compiles ("Fuzzing and mutation").
   No finalist has mutation testing.
-- S11 maintenance, weight 1 ("Maintenance audit"):
-  - `twox-hash` 3, medium:
+- S11 maintenance,
+  weight 1 ("Maintenance audit"):
+  - `twox-hash` 3,
+    medium:
      releases in the last 2 months,
      bugs answered within hours,
      one maintainer.
-  - `xxhash-rust` 3, medium:
+  - `xxhash-rust` 3,
+    medium:
      three releases in July 2026,
      bugs fixed within a week,
      one maintainer,
      slow external pull requests in the past.
-  - `highway` 2, medium:
+  - `highway` 2,
+    medium:
      responsive to its one issue,
      but no release for 20 months with 16 unreleased commits.
-  - `hashcrew` 1 to 3 (midpoint 2), low:
+  - `hashcrew` 1 to 3 (midpoint 2),
+    low:
      active and signed releases,
      but two weeks old,
      self-merged,
@@ -3048,7 +3832,8 @@ Inputs are in `data/ratings.json`
  arithmetic and sensitivity by `scripts/score.ts`,
  output `data/score.txt`.
 
-Ratings (value, confidence):
+Ratings (value,
+confidence):
 
 - `twox-hash`:
    S1 4 medium,
@@ -3127,7 +3912,10 @@ Provisional order:
 S1 is the only criterion measured on fingerprint-sized material,
  and it carries weight 1.
 With S1 removed from every total,
- the scores are 64.5, 55, 47, and 41 of 72:
+ the scores are 64.5,
+55,
+47,
+and 41 of 72:
  the same order.
 No adjacent pair is decided by fingerprint-sized or key-material benchmarks;
  each is decided on file-sized and multi-GB inputs ("Ranking").
@@ -3137,8 +3925,15 @@ No adjacent pair is decided by fingerprint-sized or key-material benchmarks;
 One input at a time,
  94 tests:
 
-- each weight-1 criterion (S1, S4 to S11) raised to 2, 3, 4, and 5;
-- S2 and S3 each lowered to 4, 3, 2, and 1;
+- each weight-1 criterion (S1,
+  S4 to S11) raised to 2,
+  3,
+  4,
+  and 5;
+- S2 and S3 each lowered to 4,
+  3,
+  2,
+  and 1;
 - every medium-confidence exact rating moved one step down and one step up within 0 to 4;
 - both endpoints of every low-signal range.
 
@@ -3149,18 +3944,22 @@ Results:
 - One test,
    S6 quality at weight 5,
    ties `hashcrew` and `highway` at 62.0
-   (`twox-hash` 83.2, `xxhash-rust` 71.7),
+   (`twox-hash` 83.2,
+  `xxhash-rust` 71.7),
    and no test puts `highway` above `hashcrew`.
 - Closest margin per adjacent pair across all tests,
    normalized to the 76-point scale:
   - `twox-hash` over `xxhash-rust`:
-     8.23 points, with S2 lowered to weight 1.
+     8.23 points,
+    with S2 lowered to weight 1.
   - `xxhash-rust` over `hashcrew`:
-     0.83 points, with S8 CPU capability handling raised to weight 5;
+     0.83 points,
+    with S8 CPU capability handling raised to weight 5;
      the order holds,
      but a user who weighs run-time dispatch heavily is close to indifferent between them.
   - `hashcrew` over `highway`:
-     0.00 points, the S6 tie.
+     0.00 points,
+    the S6 tie.
 
 Treatment of the tie:
  it concerns only the order of third and fourth place,
@@ -3186,7 +3985,10 @@ Pros:
    because it selects AVX2 at run time around the whole long-input loop.
 - No build flag and no startup check needed for full speed or for older CPUs.
 - The strongest upstream verification:
-   CI proptests against the C library for scalar, SSE2, AVX2, and NEON,
+   CI proptests against the C library for scalar,
+  SSE2,
+  AVX2,
+  and NEON,
    Miri,
    and a written portability promise.
 - Published NEON parity with C on Apple silicon.
@@ -3200,7 +4002,8 @@ Cons:
 - Single maintainer (400 of 428 commits);
    external feature pull requests can wait months.
 - In the `x86-64-v3` build it is slightly slower than `xxhash-rust` on file contents
-   (46.9 against 49.3 GiB/s, beyond the band).
+   (46.9 against 49.3 GiB/s,
+  beyond the band).
 - XXH3-128 fails 36 SMHasher3 tests,
    and its seed must not be used for domain separation.
 
@@ -3210,7 +4013,8 @@ Pros:
 
 - Fastest finalist on fingerprint-sized material (10.8 ns per item baseline)
    and fastest or within band of the fastest on every workload in the `x86-64-v3` build.
-- Smallest used path (1,413 lines, 29 `unsafe`),
+- Smallest used path (1,413 lines,
+  29 `unsafe`),
    valgrind-checked C comparison on every kernel,
    and an AVX-512 kernel for `x86-64-v4` builds.
 - Responsive maintainer with three releases in July 2026.
@@ -3233,11 +4037,14 @@ Pros:
 
 - Strictest `unsafe` policy of the four,
    with documented safety for every block,
-   and a small used path (1,440 lines, 32 `unsafe`).
+   and a small used path (1,440 lines,
+  32 `unsafe`).
 - Signed tags and commits.
 - Run-time dispatch with a public backend API,
    and full AVX2 speed in the `x86-64-v3` build (47.2 GiB/s on file contents).
-- Extensive boundary, partition, and streaming tests,
+- Extensive boundary,
+  partition,
+  and streaming tests,
    and Miri with strict provenance.
 
 Cons:
@@ -3246,11 +4053,13 @@ Cons:
    16.0 GiB/s on file contents in the default build,
    below `xxhash-rust`'s SSE2 path,
    because the dispatch sits at each 64-byte stripe (`#[target_feature]` per-stripe kernels,
-   `src/xxhash/kernel/x86.rs:117`, `:139`) and cannot inline into the loop.
+   `src/xxhash/kernel/x86.rs:117`,
+  `:139`) and cannot inline into the loop.
 - Two weeks old,
    one main author who self-merges,
    no external users on the tracker.
-- Tests compare with another Rust crate, not C.
+- Tests compare with another Rust crate,
+  not C.
 - Same XXH3 quality caveats.
 
 ### `highway` 1.3.0 (HighwayHash-128)
@@ -3260,7 +4069,10 @@ Pros:
 - Passes every SMHasher3 test,
    with an algorithm frozen "unchanging forever" and a keyed design.
 - Run-time dispatch to AVX2 or SSE4.1 at full speed in the default build.
-- Instruction-set CI matrix, Miri, quickcheck properties, and a fuzz target against C.
+- Instruction-set CI matrix,
+  Miri,
+  quickcheck properties,
+  and a fuzz target against C.
 
 Cons:
 
@@ -3281,7 +4093,10 @@ Ranking:
 - `twox-hash` over `xxhash-rust` (68.5 against 58):
    decided by S2 whole-file throughput (5 points)
    and S8 CPU capability handling (2 points),
-   with S7, S10, S1, and S5 adding 3.5.
+   with S7,
+  S10,
+  S1,
+  and S5 adding 3.5.
   In the default build `twox-hash` selects AVX2 at run time and hashes the tracked tree at 49.3 GiB/s,
    against `xxhash-rust`'s compile-time SSE2 path at 29.1,
    and streams warm multi-GB files at 11.2 to 11.5 against 8.5 to 8.6;
@@ -3358,7 +4173,8 @@ Material risks,
  stated with the recommendation:
 
 - XXH3's seed is not a safe domain separator
-   (SMHasher3 full-width collisions when seeds vary, "Quality evidence").
+   (SMHasher3 full-width collisions when seeds vary,
+  "Quality evidence").
   meow must hash with the default seed and put its salt and any domain tags into the hashed bytes.
 - XXH3-128 fails 36 SMHasher3 tests at partial width or with varying seeds;
    `highway` is the only finalist that passes all,

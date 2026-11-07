@@ -126,21 +126,27 @@ No rule is disabled or weakened.
 
 ## Upstream filing decision
 
-- Fault: the actual safe fix inserts a modifier forbidden by the input file's grammar.
-- Fixability: the compiler already supplies a JavaScript-file predicate.
-- Supported use: the upstream rule harness accepts explicit JavaScript filenames and provides
+- Fault:
+  the actual safe fix inserts a modifier forbidden by the input file's grammar.
+- Fixability:
+  the compiler already supplies a JavaScript-file predicate.
+- Supported use:
+  the upstream rule harness accepts explicit JavaScript filenames and provides
   `tsconfig.checkJs.json` with `allowJs` and `checkJs` enabled.
-- Contribution policy: `README.md`,
+- Contribution policy:
+  `README.md`,
   `CONTRIBUTING.md` and `.github/SECURITY.md` are read.
   The contribution guide welcomes external work;
   searches of those files find no AI-filing prohibition.
-- Maintainer disposition: implementation issue 193 and merged implementation pull request 654 are read in full.
+- Maintainer disposition:
+  implementation issue 193 and merged implementation pull request 654 are read in full.
   They establish implementation support,
   not a decision about this JavaScript case.
   Tracker searches for `readonly JavaScript` return no issue or pull request.
   Broader `prefer-readonly` searches find implementation and maintenance work,
   including merged pull request 1149.
-- Prototype: all added JavaScript cases fail before the guard and pass after it.
+- Prototype:
+  all added JavaScript cases fail before the guard and pass after it.
   The complete rule catalog passes and the standalone helper builds.
   The real formatter preserves JavaScript grammar with the private helper,
   and Node accepts the resulting file.

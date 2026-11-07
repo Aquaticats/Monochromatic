@@ -58,7 +58,8 @@ Its manually ordered lists cannot validate any of those matching rules.
 
 ## Independent membership choice
 
-- **D: direct names only.**
+- **D:
+  direct names only.**
   Folder names and track filenames can contribute hits;
   parent names stay visible as disambiguating context but do not themselves
   expand into track hits.
@@ -67,7 +68,8 @@ Its manually ordered lists cannot validate any of those matching rules.
   but a track whose own filename lacks the query is not a separate hit.
   Whether activating the folder can lead to its contents remains open
   under review task 129.
-- **P: include immediate-parent-only track hits.**
+- **P:
+  include immediate-parent-only track hits.**
   The sample adds `Another Xronixle` with
   `Track · Camellia · parent-only match`.
   It can surface a relevant track directly,

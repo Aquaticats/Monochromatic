@@ -3,7 +3,8 @@
 ## Decision
 
 On 2026-10-05 the user questioned the planned matcher vetting:
-"why would we need to vet a find matcher? Isn't it just substring match?"
+"why would we need to vet a find matcher?
+Isn't it just substring match?"
 In-file find therefore uses plain literal,
 case-insensitive substring matching with the `regex` crate that `helix-core` already re-exports.
 No new matching dependency is adopted,
@@ -142,17 +143,31 @@ and half-expansion negatives.
 
 They differ on 13 cases:
 
-- `canonical-accent`, `plain-accent`: browser folds decomposed accents.
-- `case-expansion`: `STRASSE` matches `Straße`.
-- `compatibility-ligature`: `office` matches `oﬃce`.
-- `dotted-i`: `i` matches `İ`.
-- `nbsp-as-space`: ordinary space matches NBSP.
-- `kana-script`, `kana-width`, `kana-composed`: browser folds kana
+- `canonical-accent`,
+  `plain-accent`:
+  browser folds decomposed accents.
+- `case-expansion`:
+  `STRASSE` matches `Straße`.
+- `compatibility-ligature`:
+  `office` matches `oﬃce`.
+- `dotted-i`:
+  `i` matches `İ`.
+- `nbsp-as-space`:
+  ordinary space matches NBSP.
+- `kana-script`,
+  `kana-width`,
+  `kana-composed`:
+  browser folds kana
   script/width and composed versus combining voicing marks.
-- `single-quote`, `double-quote`: browser folds curly and straight quotes.
-- `soft-hyphen`: browser makes soft hyphen ignorable inside a word.
-- `combining-mark-only`: browser rejects a lone combining mark while
-  regex matches it, so this is a false positive in the incumbent.
+- `single-quote`,
+  `double-quote`:
+  browser folds curly and straight quotes.
+- `soft-hyphen`:
+  browser makes soft hyphen ignorable inside a word.
+- `combining-mark-only`:
+  browser rejects a lone combining mark while
+  regex matches it,
+  so this is a false positive in the incumbent.
 
 Conclusion:
 literal escaping plus Unicode case folding does not reproduce

@@ -159,12 +159,18 @@ The type's own doc comment states the tradeoff:
 
 ```rust
 // pnpm/crates/cli/src/config_overrides.rs:93
-/// Unknown keys are accepted silently: pnpm exposes a long tail of config
-/// keys, and erroring on an unrecognized one would break the moment pnpm
-/// adds a new key that pacquet hasn't ported yet. Dropping one is only
-/// harmless when pnpm parsed the token first and delegated, leaving the
-/// pacquet leg to fall back to the yaml value. When the binary runs
-/// standalone there is no other leg, so a setting that changes what gets
+/// Unknown keys are accepted silently:
+/// pnpm exposes a long tail of config
+/// keys,
+/// and erroring on an unrecognized one would break the moment pnpm
+/// adds a new key that pacquet hasn't ported yet.
+/// Dropping one is only
+/// harmless when pnpm parsed the token first and delegated,
+/// leaving the
+/// pacquet leg to fall back to the yaml value.
+/// When the binary runs
+/// standalone there is no other leg,
+/// so a setting that changes what gets
 /// installed has to be ported here.
 ```
 
@@ -187,17 +193,20 @@ The module header explains both the precedence and why `npm_config_dedupe_direct
 // pnpm/crates/config/src/env_overlay.rs:4
 //! Reads `pnpm_config_<key>` (or its `PNPM_CONFIG_<KEY>` uppercase form)
 //! for every key in the schema and applies it to the config *after*
-//! `pnpm-workspace.yaml`. That ordering means env vars override yaml.
+//! `pnpm-workspace.yaml`.
+//! That ordering means env vars override yaml.
 //!
 //! Pacquet does NOT read `npm_config_*` / `NPM_CONFIG_*` env vars (with
-//! the exception of `NPM_CONFIG_WORKSPACE_DIR`, which has its own narrow
+//! the exception of `NPM_CONFIG_WORKSPACE_DIR`,
+//! which has its own narrow
 //! handler in [`crate::Config::current`]).
 ```
 
 pnpm 11.10.0 honored the flag (the top-level "Verification" section),
  so this is a pnpm 12 regression.
 pnpm.io still documents the form on its CLI page
- ([pnpm CLI][pnpm-cli], `pnpm/pnpm.io` `docs/pnpm-cli.md:29` and `:42` at `3ee793826`),
+ ([pnpm CLI][pnpm-cli],
+`pnpm/pnpm.io` `docs/pnpm-cli.md:29` and `:42` at `3ee793826`),
  and the v12.0.0 release notes do not mention removing it.
 pnpm/pnpm `main` at `8f20a3fd69748b1f6eb5c6a7c54d5917456a2013` (after 12.4.1)
  still has no `dedupe` match in `pnpm/crates/cli/src/config_overrides.rs`.

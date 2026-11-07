@@ -78,7 +78,8 @@ This test does not assert identical icon shapes or enforce alignment of
 every future icon asset.
 
 The header's Back `IconButton` remains sized to 48dp in the debug source.
-The 48dp result slot is **decorative layout**, not proof of an interactive
+The 48dp result slot is **decorative layout**,
+not proof of an interactive
 result target:
 `PersistentResultLine` has no click handler.
 On the inner panel,

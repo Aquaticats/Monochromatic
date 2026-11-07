@@ -83,7 +83,8 @@ $ md5sum ".../Proton - Experimental/files/lib/wine/x86_64-windows/icu.dll" \
     (`proton` in the `Proton - Experimental` directory).
     That script never ran,
     so `system32` holds the forwarder without its sibling modules.
-4.  Wine's forwarded-export resolution then fails to load the target
+4.
+ Wine's forwarded-export resolution then fails to load the target
     module
     (`dlls/ntdll/loader.c:965` in tag `wine-11.0`):
 
@@ -101,11 +102,13 @@ $ md5sum ".../Proton - Experimental/files/lib/wine/x86_64-windows/icu.dll" \
     (`git ls-tree wine-11.0 dlls/` shows none),
     and Proton's `files/lib/wine/icu` directory is not on this Wine's dll
     path.
-5.  The symbol lookup returns nothing,
+5.
+ The symbol lookup returns nothing,
     CoreCLR prints `Cannot get symbol u_charsToUChars from libicuuc`
     plus `Error: 127`,
     and the tool exits or stalls before doing any work.
-6.  The presence of a loadable-but-forward-broken `icu.dll` is worse than
+6.
+ The presence of a loadable-but-forward-broken `icu.dll` is worse than
     absence:
     with no `icu.dll` at all CoreCLR falls back to NLS silently,
     but a broken forwarder turns that fallback into a hard failure
@@ -243,7 +246,8 @@ Searched on 2026-10-26:
 
 Matching report:
  WineHQ bug 58661,
- "Visual apps, specifically with .NET won't work correctly",
+ "Visual apps,
+specifically with .NET won't work correctly",
  which quotes the identical `find_forwarded_export ... icuuc68`
  line and covers ILSpy and other .NET apps
  (comment 10,

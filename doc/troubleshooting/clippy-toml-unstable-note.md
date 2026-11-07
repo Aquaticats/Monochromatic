@@ -251,7 +251,8 @@ Clippy's `disallowed-methods` option is one of those config-file values.
 `rust-clippy/clippy_config/src/conf.rs:640`
 
 ```rust
-/// The list of disallowed methods, written as fully qualified paths.
+/// The list of disallowed methods,
+/// written as fully qualified paths.
 ```
 
 `rust-clippy/clippy_config/src/conf.rs:648`
@@ -270,7 +271,9 @@ The lint itself says it is driven by `clippy.toml`.
 /// ### What it does
 /// Denies the configured methods and functions in clippy.toml
 ///
-/// Note: Even though this lint is warn-by-default, it will only trigger if
+/// Note:
+/// Even though this lint is warn-by-default,
+/// it will only trigger if
 /// methods are defined in the clippy.toml file.
 ```
 

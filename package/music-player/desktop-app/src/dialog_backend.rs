@@ -43,7 +43,10 @@ pub fn executable_on_path(program: &str, path_variable: &OsStr) -> bool {
 #[cfg(target_os = "linux")]
 fn portal_is_available() -> bool {
     const PORTAL: &str = "org.freedesktop.portal.Desktop";
-    let connection = match zbus::blocking::Connection::session() {
+    let connection = match crate::dbus_step_bound::connect(
+        zbus::connection::Builder::session(),
+        crate::dbus_step_bound::DBUS_STEP_BOUND,
+    ) {
         Ok(connection) => connection,
         Err(error) => {
             tracing::debug!(%error, "no session bus, so no desktop portal");
@@ -53,11 +56,10 @@ fn portal_is_available() -> bool {
     if crate::analysis_notification_wire::has_owner(&connection, PORTAL).unwrap_or(false) {
         return true;
     }
-    let Ok(bus) = zbus::blocking::fdo::DBusProxy::new(&connection) else {
+    let Ok(bus) = crate::dbus_step_bound::step(zbus::fdo::DBusProxy::new(&connection)) else {
         return false;
     };
-    return bus
-        .list_activatable_names()
+    return crate::dbus_step_bound::step(async { return Ok(bus.list_activatable_names().await?) })
         .map(|names| return names.iter().any(|name| return name.as_str() == PORTAL))
         .unwrap_or(false);
 }

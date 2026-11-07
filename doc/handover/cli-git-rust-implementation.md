@@ -4244,6 +4244,35 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     the agent proposes the smallest shared piece,
     keeps a red-first guard against reaching the owner's bus,
     and limits a real run to one summary notification.
+- `monochromatic-lint` package clean on its own gates
+  (rustfmt,
+  README line breaks,
+  71 repository-lint findings,
+  merge `b75b3755ea`)
+  and released as `0.5.2-alpha.1`,
+  locked `86ce4da394`,
+  installed.
+  Fixer output measured unchanged on all 3051 Markdown files with three binaries.
+  `mutation:coverage` passes:
+  new scopes `--layout` (415 mutants) and `--workflow-shell` (741),
+  two files added to `--semantic`.
+  Campaigns over those three running (`test/monochromatic-lint-layout-and-workflow-mutants`).
+- zbus 6:
+  `package/nested-wayland-session/cli` and `package/music-player/desktop-app` ported to zbus 6 async
+  (`zbus::block_on` on zbus's own runtime;
+  every D-Bus step bounded,
+  5 s and 3 s,
+  measured connect 1.2 to 1.4 ms)
+  and merged into main `83b7328102` (293 and 1600 tests);
+  the `zbus-5` hold is gone.
+  Commit `566c50665d` over-claims its subject;
+  corrected by commit comment 208708911.
+  Found on main and given to an agent (`fix/three-packages-red-after-the-daily-update`):
+  `package/ide/app` Clippy `E0308` at `src/tile_scene.rs:141` after a `parley` API change;
+  `package/terminal/app` lint fails in the `libghostty-vt-sys` build script fetching Ghostty;
+  `cargo-shadow install` offline fails on the music player because the cached index marks `clipboard-win` 5.4.1 yanked.
+  The music-player ellipsis test passed three times for the zbus agent;
+  its cause is still unmeasured.
 - Held settle message:
   merged into main `66dbb1ca27` (gate 5194 of 5194,
   lint clean).

@@ -343,7 +343,8 @@ Patterns that work:
    the rerun of 34228368589 at 13:57Z installed `2026.9.3`).
 - Every `jdx/mise-action` step at `v4.3.0` with `minimum_release_age: 1d`:
    commit `02fe85b3d` (2026-09-08) triggered `npm-release.yml`,
-   `cli-git-trust.yml` (Linux and Windows; deleted on 2026-10-13 in commit `642b6d72cb`),
+   `cli-git-trust.yml` (Linux and Windows;
+  deleted on 2026-10-13 in commit `642b6d72cb`),
    `readonly-semantic-bridge.yml` (Linux and Windows),
    `logger-fuzz.yml`,
    and `toml-edit-fuzz.yml`.

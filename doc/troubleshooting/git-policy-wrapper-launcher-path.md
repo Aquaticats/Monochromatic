@@ -1,9 +1,11 @@
 # Git policy wrapper disappears from a replacement launcher PATH
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -131,20 +133,31 @@ The wrapper's shadow repository links its `lfs` entry to the real `.git/lfs`
 so the failing path is the shadow path while the directory that must exist and be writable is the real one.
 When `.git/lfs/tmp` is absent and `.git/lfs` cannot be written to,
 Git LFS cannot create it and reports `no such file or directory` on the temporary file.
-In the failing probes the clean filter ran for the unrelated modified asset, not for the named files.
+In the failing probes the clean filter ran for the unrelated modified asset,
+not for the named files.
 
 ### Controlled verification
 
 The probes used disposable repositories with an LFS-tracked PNG modified in the worktree and an explicit ordinary-file
-commit pathspec, with the installed `0.1.6` wrapper and Git `2.56.0`.
+commit pathspec,
+with the installed `0.1.6` wrapper and Git `2.56.0`.
 
-- A writable `.git/lfs`, with or without `tmp`: the wrapper commits only the named file.
-  A Fedora 44 container limited to 2 GiB and 2 CPUs, with a disposable `HOME` and no network, behaves the same.
-- `.git/lfs` read-only and `tmp` absent: the wrapper fails with the message above, and raw Git fails with the same
-  message naming `.git/lfs/tmp`, so the wrapper does not cause it.
-- `.git/lfs` read-only and `tmp` present and writable: the wrapper commits only the named file.
+- A writable `.git/lfs`,
+  with or without `tmp`:
+  the wrapper commits only the named file.
+  A Fedora 44 container limited to 2 GiB and 2 CPUs,
+  with a disposable `HOME` and no network,
+  behaves the same.
+- `.git/lfs` read-only and `tmp` absent:
+  the wrapper fails with the message above,
+  and raw Git fails with the same
+  message naming `.git/lfs/tmp`,
+  so the wrapper does not cause it.
+- `.git/lfs` read-only and `tmp` present and writable:
+  the wrapper commits only the named file.
 
-The consumer's mount permissions were not inspected, so that the consumer's `.git/lfs` was read-only is consistent
+The consumer's mount permissions were not inspected,
+so that the consumer's `.git/lfs` was read-only is consistent
 with the evidence but not confirmed.
 
 ### Remedy and ownership
@@ -152,5 +165,6 @@ with the evidence but not confirmed.
 The environment that runs the child (container mounts or ownership) must leave `.git/lfs` writable,
 or create `.git/lfs/tmp` with write access before the child starts.
 Launch acceptance should run a scoped commit of an ordinary file in a repository that tracks LFS files.
-The wrapper cannot supply the directory: it runs with the child's permissions,
+The wrapper cannot supply the directory:
+it runs with the child's permissions,
 and redirecting storage with `lfs.storage` would discard LFS objects of an owned asset when the shadow is removed.

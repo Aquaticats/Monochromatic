@@ -320,5 +320,3 @@ A human is responsible for reviewing the Oxc 1.78.0 source trace,
 running the reproduction,
 and validating any proposed upstream change before filing.
 ~~~
-
-[js-plugin-docs]: https://oxc.rs/docs/guide/usage/linter/js-plugins.html

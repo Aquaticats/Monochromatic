@@ -25,9 +25,12 @@ No release was deleted during this refresh.
 
 The independent installed dependency scopes now report:
 
-- `all-installed`: 96 package directories and 255,684,429 unique regular-file bytes.
-- `host-required`: 81 directories and 120,136,973 unique regular-file bytes.
-- `dependencies-only`: 28 directories and 35,485,785 unique regular-file bytes.
+- `all-installed`:
+  96 package directories and 255,684,429 unique regular-file bytes.
+- `host-required`:
+  81 directories and 120,136,973 unique regular-file bytes.
+- `dependencies-only`:
+  28 directories and 35,485,785 unique regular-file bytes.
   Required host peers remain excluded from this last scope,
   so it is not runnable deployment evidence.
 
@@ -103,14 +106,22 @@ It is an executed module set rather than a runnable deployment closure or a pack
 
 The largest observed source owners are:
 
-- Auto-mode: 332 files and 2,219,293 bytes.
-- Pi coding agent: 224 files and 1,983,231 bytes.
-- Jiti: three files and 1,717,397 bytes.
-- Pi AI: 206 files and 1,409,467 bytes.
-- TypeBox: 1,039 files and 1,364,953 bytes.
-- Undici: 108 files and 1,187,480 bytes.
-- OpenAI: 199 files and 982,350 bytes.
-- Pi TUI: 45 files and 653,011 bytes.
+- Auto-mode:
+  332 files and 2,219,293 bytes.
+- Pi coding agent:
+  224 files and 1,983,231 bytes.
+- Jiti:
+  three files and 1,717,397 bytes.
+- Pi AI:
+  206 files and 1,409,467 bytes.
+- TypeBox:
+  1,039 files and 1,364,953 bytes.
+- Undici:
+  108 files and 1,187,480 bytes.
+- OpenAI:
+  199 files and 982,350 bytes.
+- Pi TUI:
+  45 files and 653,011 bytes.
 
 These owners belong to the complete configured host,
 including its user extensions.

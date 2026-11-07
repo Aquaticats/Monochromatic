@@ -1,17 +1,22 @@
 # cargo-mutants 27.1.0 exits 3 when any mutant times out, so one stalled loop counter fails a mutation gate
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
-Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
-`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
-name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+Note 2026-10-29:
+the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now.
+Read every `.mjs` file name here as the same
+name ending in `.ts`;
+the driver `old-format-fixtures` is `old-format-driver`.
 
 ## Status
 
@@ -37,7 +42,8 @@ TIMEOUT  src/lib.rs:6:15: replace += with *= in sum_below in 0s build + 10s test
 
 Surface patterns that produced it in this repository:
 
-- A hand-stepped loop counter or offset (`index += 1`, `offset += length`).
+- A hand-stepped loop counter or offset (`index += 1`,
+  `offset += length`).
   `+=` replaced by `*=` multiplies instead:
   a step of one never moves the counter,
   and an offset at zero never leaves zero,
@@ -99,14 +105,17 @@ so nothing on the command line or in the config file reaches it.
 ```
 
 The timeout branch comes before the missed branch,
-so a campaign with both timeouts and missed mutants exits 3, not 2.
+so a campaign with both timeouts and missed mutants exits 3,
+not 2.
 A runner that treated status 3 as a pass would therefore also pass missed mutants.
 
 `src/exit_code.rs:26` defines the status and matches the book (`book/src/exit-codes.md`):
 
 ```rust
 // src/exit_code.rs (cargo-mutants v27.1.0)
-    /// One or more tests timed out: probably the mutant caused an infinite loop, or the timeout is too low.
+    /// One or more tests timed out:
+    /// probably the mutant caused an infinite loop,
+    /// or the timeout is too low.
     Timeout = 3,
 ```
 
@@ -177,7 +186,8 @@ without naming files or functions.
 - cargo-mutants 27.1.0,
   the host binary at `~/.cargo/bin/cargo-mutants`,
   SHA-256 `f985f265ee3ea3e453aa98b04c52134953911f692f8ce8abf137f3873202a2d0`.
-- rustc 1.97.0 (`2d8144b78`, 2026-07-07) inside the image `localhost/monochromatic-lint-test:development`,
+- rustc 1.97.0 (`2d8144b78`,
+  2026-07-07) inside the image `localhost/monochromatic-lint-test:development`,
   image ID `c778147e8c842e6c53108c9027a691e353c8672986115215d80b2c94027bf389`,
   built by `mise run //package/linter/monochromatic-lint:test:container`.
 - Every run:
@@ -272,13 +282,16 @@ cargo mutants --list --no-config \
 
 Measured on 2026-10-05:
 
-- `package/linter/monochromatic-lint`, source at `08b561920`:
+- `package/linter/monochromatic-lint`,
+  source at `08b561920`:
   1,672 mutants without the patterns and 1,640 with them.
   The 32 removed are 31 `+=` replaced by `*=` and 1 `-=` replaced by `/=`.
-- `package/git-policy/cli`, source at `d1c02273a`:
+- `package/git-policy/cli`,
+  source at `d1c02273a`:
   1,230 and 1,196.
   The 34 removed are 33 `+=` replaced by `*=` and 1 `-=` replaced by `/=`.
-- `package/forbidden-strings/cli` with `--all-features`, source at `fe805727c`:
+- `package/forbidden-strings/cli` with `--all-features`,
+  source at `fe805727c`:
   526 and 521.
   The 5 removed are 2 `+=` replaced by `*=` and 3 `-=` replaced by `/=`.
 
@@ -286,7 +299,8 @@ For the linter,
 a comparison of the two listings line by line showed that
 only names containing one of the two replacements disappeared,
 nothing was added,
-and all 32 sibling mutants (`+=` replaced by `-=`, `-=` replaced by `+=`) remained.
+and all 32 sibling mutants (`+=` replaced by `-=`,
+`-=` replaced by `+=`) remained.
 
 ## Verified workarounds
 
@@ -307,14 +321,17 @@ They pass arguments rather than an `exclude_re` config key because they also pas
 
 Tradeoffs:
 
-- The exclusion is by kind, not by mutant.
+- The exclusion is by kind,
+  not by mutant.
   It also removes the replacements that would not have stalled,
   such as the accumulator mutant in the fixture.
   The counts under `What the patterns remove in this repository` are the whole cost;
-  how many of those mutants would have been caught, missed or timed out was not measured one by one.
+  how many of those mutants would have been caught,
+  missed or timed out was not measured one by one.
 - Each excluded position keeps its sibling replacement,
   so a statement that no test exercises is still reported through `+=` replaced by `-=`.
-  What is lost is the second, weaker check on the same statement.
+  What is lost is the second,
+  weaker check on the same statement.
 - The patterns do not cover other stalling mutants.
   In this repository,
   `+=` replaced by `-=` stalled three index-stepping scanners in `package/git-policy/cli`,
@@ -396,7 +413,8 @@ for `timeout` and `accept` on 2026-10-05.
   The maintainer proposed `--accept=timeout`,
   extensible to `--accept=timeouts,missed`,
   and listed the implementation steps
-  (`accept: Vec<SummaryOutcome>` in `Options`, `Args` and `Config`,
+  (`accept: Vec<SummaryOutcome>` in `Options`,
+  `Args` and `Config`,
   use in `LabOutcome::exit_code`,
   book entry,
   unit and integration tests).
@@ -407,7 +425,9 @@ for `timeout` and `accept` on 2026-10-05.
   "Add more guidance on handling timeouts",
   open:
   a note to move discussion [#490][discussion-490] into the book.
-- Issues #423 ("Notice test failures that accompany hangs") and #194 ("Run one, or a few, tests per subprocess"),
+- Issues #423 ("Notice test failures that accompany hangs") and #194 ("Run one,
+  or a few,
+  tests per subprocess"),
   both open:
   they would let a failing test end a mutant before another test stalls.
   They do not help when the stalled test is the only one that reaches the loop.
@@ -430,7 +450,8 @@ so none is drafted.
     Yes.
     The maintainer named continuous integration as the case for the option.
 4.  Would the repository welcome a contribution?
-    Yes, as far as its files show.
+    Yes,
+    as far as its files show.
     `CONTRIBUTING.md` asks for a discussion or bug first (#545 is that),
     `AGENTS.md` gives instructions to coding agents,
     and pull request #559,
@@ -449,7 +470,8 @@ so none is drafted.
     Yes.
     The patch exists,
     its exit-status cases are measured against a pristine build,
-    and its test, format and Clippy results are compared with the pristine tree.
+    and its test,
+    format and Clippy results are compared with the pristine tree.
     `Prototype` names the one check that was not run.
 
 ### Prototype
@@ -478,15 +500,39 @@ with a pristine `v27.1.0` build and the patched build side by side
 (the fixture of `Verification`,
 plus a variant with an untested function for missed mutants):
 
-- Pristine, timeout only: exit 3.
-- Patched, timeout only, no option: exit 3.
-- Patched, timeout only, `--accept=timeout`: exit 0.
-- Patched, timeout and missed, `--accept=timeout`: exit 2.
-- Patched, timeout and missed, `--accept=timeout,missed`: exit 0.
-- Patched, timeout only, `accept = ["timeout"]` in `.cargo/mutants.toml`: exit 0.
-- Patched, timeout and missed, `--accept=missed`: exit 3.
-- Pristine with `--accept=timeout`: usage error, exit 1.
-- Pristine with the configuration key: `unknown field`, exit 1.
+- Pristine,
+  timeout only:
+  exit 3.
+- Patched,
+  timeout only,
+  no option:
+  exit 3.
+- Patched,
+  timeout only,
+  `--accept=timeout`:
+  exit 0.
+- Patched,
+  timeout and missed,
+  `--accept=timeout`:
+  exit 2.
+- Patched,
+  timeout and missed,
+  `--accept=timeout,missed`:
+  exit 0.
+- Patched,
+  timeout only,
+  `accept = ["timeout"]` in `.cargo/mutants.toml`:
+  exit 0.
+- Patched,
+  timeout and missed,
+  `--accept=missed`:
+  exit 3.
+- Pristine with `--accept=timeout`:
+  usage error,
+  exit 1.
+- Pristine with the configuration key:
+  `unknown field`,
+  exit 1.
 
 Also measured on the patched tree:
 the new end-to-end test and two neighbouring upstream tests passed
@@ -496,7 +542,9 @@ the new end-to-end test and two neighbouring upstream tests passed
 and 270 of 272 unit tests passed.
 
 A second run on an image rebuilt from the saved patch compared both trees with the same toolchain
-(rustfmt 1.9.0, clippy 0.1.97, user ID 0):
+(rustfmt 1.9.0,
+clippy 0.1.97,
+user ID 0):
 
 - The nine cases gave the same exit statuses again.
 - `cargo fmt --check` exits 0 on the patched tree and on the pristine tree.
@@ -511,7 +559,8 @@ A second run on an image rebuilt from the saved patch compared both trees with t
 - `cargo clippy --all-targets --all-features -- -D warnings` exits 101 on both trees
   with the same 6 errors at the same positions
   (`redundant reference in format! argument` at `src/mutant.rs:144:31`
-  and five positions in `src/output.rs`, lines 130 to 140).
+  and five positions in `src/output.rs`,
+  lines 130 to 140).
   The patch adds none;
   upstream's own sources do not pass this Clippy version.
 
@@ -527,7 +576,8 @@ among them `show_help`,
 No snapshot under `tests/snapshots/` captures the help text;
 `show_help` asserts one substring.
 
-Open, not measured:
+Open,
+not measured:
 
 - The rest of the upstream integration suite (114 of its 140 tests) was not run,
   and no test runs a timing-out tree through the command line with `--accept=timeout`

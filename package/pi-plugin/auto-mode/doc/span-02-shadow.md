@@ -6,7 +6,10 @@ The user requested running `respan/span-02` as a production shadow on 2026-10-19
 including the supervised Pi MiMo sessions.
 The shadow observes their actual Decisions requests and sends the same inputs through platform `fetch`.
 It records model scores and comparisons;
-it cannot authorize tools, deny tools, answer approval dialogs, or replace Luna responses.
+it cannot authorize tools,
+deny tools,
+answer approval dialogs,
+or replace Luna responses.
 
 The runner is a separate Podman process with read-only mounts for both live worker fixtures
 and the repository.
@@ -20,7 +23,8 @@ changing their loaded transport would couple the experiment to the primary decis
 Existing capture files contain the actual serialized Gateway Decisions requests.
 The shadow preserves the complete `input` string and question instruction strings.
 It maps choice descriptions to OpenRouter categorical criteria without changing their wording.
-Old captures are baseline inventory, not new shadow traffic.
+Old captures are baseline inventory,
+not new shadow traffic.
 
 The diagnostic reader starts at the current end of each existing log.
 It reads only subsequently appended records,

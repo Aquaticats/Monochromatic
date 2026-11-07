@@ -50,9 +50,11 @@ and can evaluate a predicate through the same attached session before detaching.
 Working catalog:
 
 - Set the `forced-colors` feature to `active` and inspect it in that session.
-- In the same inspection, verify that colored mirrors are hidden
+- In the same inspection,
+  verify that colored mirrors are hidden
   and the native textareas have a non-transparent foreground.
-- `mise run test:presentation`, from `~/temp/agent/promises-revision/`,
+- `mise run test:presentation`,
+  from `~/temp/agent/promises-revision/`,
   passed this positive control in processes `proc_ee8b` and `proc_cc0f`.
 
 Failing catalog:
@@ -79,12 +81,21 @@ It does not prove persistence across client detachment or subsequent automation 
 
 Nothing is proposed for upstream filing.
 
-1.  Upstream fault: unproven; the original assertion did not inspect the applying session.
-2.  Fixability: no upstream change is identified.
-3.  Supported use: the running protocol exposes media emulation; cross-client persistence is not established.
-4.  Contribution policy: not assessed because no upstream contribution is proposed.
-5.  Maintainer intent: not assessed; no willingness or impossibility claim is made.
-6.  Prototype: the verified change is confined to our inspection helper and test.
+1.  Upstream fault:
+    unproven;
+    the original assertion did not inspect the applying session.
+2.  Fixability:
+    no upstream change is identified.
+3.  Supported use:
+    the running protocol exposes media emulation;
+    cross-client persistence is not established.
+4.  Contribution policy:
+    not assessed because no upstream contribution is proposed.
+5.  Maintainer intent:
+    not assessed;
+    no willingness or impossibility claim is made.
+6.  Prototype:
+    the verified change is confined to our inspection helper and test.
 
 The skill-relative `.out-of-scope/` directory was absent.
 No duplicate search or filing was performed because there is no established upstream defect or additive report.
