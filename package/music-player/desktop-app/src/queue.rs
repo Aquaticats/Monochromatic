@@ -256,37 +256,13 @@ impl Queue {
         // ```ts
         // const seed = BigInt(Date.now());
         // ```
-        let seed = std::time::SystemTime::now()
-            // What:     `.duration_since(std::time::UNIX_EPOCH)` returns `Result<Duration, _>`
-            //           (Ok with the elapsed time since 1970, or Err if the clock is before
-            //           1970).
-            // Why:      Turns "now" into "nanoseconds since 1970".
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // // Date.now() is already ms since 1970
-            // ```
-            .duration_since(std::time::UNIX_EPOCH)
-            // What:     `.map(|d| d.as_nanos() as u64)` transforms the Ok value if present.
-            //           `|d| ...` is a closure taking the `Duration` `d`. `d.as_nanos()` is a
-            //           `u128`; `as u64` truncates it to 64 bits.
-            // Why:      We only need 64 bits of entropy for the PRNG seed.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // // ...mapped to a 64-bit number
-            // ```
-            .map(|d| return d.as_nanos() as u64)
-            // What:     `.unwrap_or(0x9e3779b97f4a7c15)` extracts the Ok number, or
-            //           substitutes this constant (a well-known mixing constant) if the
-            //           clock was weird. `_or` DROPS the error.
-            // Why:      A non-zero fallback seed; xorshift must never start at 0.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // // ?? 0x9e3779b97f4a7c15n
-            // ```
-            .unwrap_or(0x9e3779b97f4a7c15);
+        // Gotcha:   A clock before the epoch gives the fixed non-zero constant `0x9e3779b97f4a7c15`, because xorshift must never
+        //           start at 0; otherwise the seed is the nanoseconds since the epoch truncated to 64 bits.
+        let since_epoch = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+        let seed: u64 = match since_epoch {
+            Ok(elapsed) => elapsed.as_nanos() as u64,
+            Err(_clock_before_epoch) => 0x9e3779b97f4a7c15,
+        };
         // What:     `Queue::with_rng_seed(seed)` calls the seeded constructor. No trailing
         //           `;`, so it is the tail expression / return.
         // Why:      Share construction logic with the test constructor.
@@ -549,6 +525,27 @@ impl Queue {
     }
 
     /// What:
+    ///      `fn order_position_of(&self, track: usize) -> Option<usize>`.
+    ///  The position of a track in the play order,
+    /// or nothing when the order does not hold it.
+    /// Why:
+    ///       Playing a track inside the current scope moves the cursor to its place in the order,
+    /// and a track outside the scope rebuilds the order.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// orderPositionOf(track: number): number | null { const i = this.order.indexOf(track); return i < 0 ? null : i; }
+    /// ```
+    fn order_position_of(&self, track: usize) -> Option<usize> {
+        for (position, candidate) in self.order.iter().enumerate() {
+            if *candidate == track {
+                return Some(position);
+            }
+        }
+        return None;
+    }
+
+    /// What:
     /// `position_of_path` gives the load-order index of the track with this path,
     /// or nothing when the queue does not hold it.
     /// Why:
@@ -591,7 +588,10 @@ impl Queue {
         // ```ts
         // return this.pos === null ? null : this.order[this.pos];
         // ```
-        return self.pos.map(|p| return self.order[p])
+        return match self.pos {
+            Some(position) => Some(self.order[position]),
+            None => None,
+        }
     }
 
     /// What:
@@ -621,7 +621,10 @@ impl Queue {
         // ```ts
         // const i = this.currentIndex(); return i === null ? null : this.tracks[i];
         // ```
-        return self.current_index().map(|i| return &self.tracks[i])
+        return match self.current_index() {
+            Some(index) => Some(&self.tracks[index]),
+            None => None,
+        }
     }
 
     /// What:
@@ -649,35 +652,44 @@ impl Queue {
             return;
         }
         let previous_pages = crate::page_index::PageIndex::build(&self.display_paths());
-        let previous_page = self
-            .page_scope
-            .first()
-            .and_then(|index| return previous_pages.page_of_index(*index));
-        let previous_page_identity = previous_page
-            .and_then(|page| return previous_pages.page(page))
-            .map(|page| return page.identity.clone());
-        // What:     `self.tracks = tracks;` moves the new vector in, dropping (freeing) the
-        //           old one.
-        // Why:      Adopt the new track list.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // this.tracks = tracks;
-        // ```
+        let previous_page: Option<usize> = match self.page_scope.first() {
+            Some(index) => previous_pages.page_of_index(*index),
+            None => None,
+        };
+        let previous_page_identity: Option<String> = match previous_page {
+            Some(page) => match previous_pages.page(page) {
+                Some(group) => Some(group.identity.clone()),
+                None => None,
+            },
+            None => None,
+        };
         self.tracks = tracks;
         let rebuilt_pages = crate::page_index::PageIndex::build(&self.display_paths());
-        let rebuilt_page = previous_page_identity
-            .and_then(|identity| return rebuilt_pages.position_of_identity(&identity))
-            .or_else(|| {
-                return previous_page.and_then(|page| {
-                    let fallback = page.min(rebuilt_pages.page_count().saturating_sub(1));
-                    return (fallback < rebuilt_pages.page_count()).then_some(fallback);
-                });
-            });
-        self.page_scope = rebuilt_page
-            .and_then(|position| return rebuilt_pages.page(position))
-            .map(|page| return page.indices().iter().map(|index| return *index as usize).collect())
-            .unwrap_or_default();
+        let found_by_identity: Option<usize> = match previous_page_identity {
+            Some(identity) => rebuilt_pages.position_of_identity(&identity),
+            None => None,
+        };
+        let rebuilt_page: Option<usize> = match (found_by_identity, previous_page) {
+            (Some(position), _) => Some(position),
+            (None, Some(page)) => {
+                let fallback = page.min(rebuilt_pages.page_count().saturating_sub(1));
+                if fallback < rebuilt_pages.page_count() { Some(fallback) } else { None }
+            }
+            (None, None) => None,
+        };
+        self.page_scope = match rebuilt_page {
+            Some(position) => match rebuilt_pages.page(position) {
+                Some(group) => {
+                    let mut scope: Vec<usize> = Vec::with_capacity(group.indices().len());
+                    for index in group.indices() {
+                        scope.push(*index as usize);
+                    }
+                    scope
+                }
+                None => Vec::new(),
+            },
+            None => Vec::new(),
+        };
         // What:     `self.rebuild_scope_order(Some(0));` builds the scope order around the
         //           first track. `Some(0)` wraps index 0; the helper handles the empty queue
         //           (order empty, cursor None).
@@ -821,10 +833,12 @@ impl Queue {
 
     /// Updates the displayed page's load-order scope while retaining current audio.
     pub fn set_page_scope(&mut self, indices: Vec<usize>) {
-        let valid: Vec<usize> = indices
-            .into_iter()
-            .filter(|index| return *index < self.tracks.len())
-            .collect();
+        let mut valid: Vec<usize> = Vec::new();
+        for index in indices {
+            if index < self.tracks.len() {
+                valid.push(index);
+            }
+        }
         if valid == self.page_scope {
             return;
         }
@@ -895,7 +909,7 @@ impl Queue {
             // ```ts
             // const p = this.order.indexOf(track);
             // ```
-            match self.order.iter().position(|&x| return x == track) {
+            match self.order_position_of(track) {
                 // What:     `Some(p) => self.pos = Some(p)`. Already in scope: move the cursor.
                 // Why:      Clicking another track on the same page keeps the scope intact.
                 //

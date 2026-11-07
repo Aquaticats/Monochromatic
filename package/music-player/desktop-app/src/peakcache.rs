@@ -316,7 +316,10 @@ fn db_path() -> Option<PathBuf> {
     // const dir = configDir();
     // return dir ? join(dir, "decisions.db") : null;
     // ```
-    return identity::config_dir().map(|dir| return dir.join("decisions.db"))
+    return match identity::config_dir() {
+        Some(dir) => Some(dir.join("decisions.db")),
+        None => None,
+    }
 }
 
 /// What:

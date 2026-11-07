@@ -171,13 +171,24 @@ pub fn build_player_content(input: &PlayerContentInput, supporting_line: &dyn Fn
     let folder_title: String = current_folder.clone().unwrap_or_default();
     let folder: FolderEntry = page_folder_for(&folder_title, &input.page_items);
     let entries: Vec<TrackListEntry> = track_list_entries(&folder, input.current_index, &input.measures, supporting_line);
-    let row_position: Option<usize> = entries.iter().filter_map(row_entry).position(|row| return row.is_current);
-    let playing_title: String = input
-        .page_items
-        .iter()
-        .find(|item| return Some(item.index) == input.current_index)
-        .map(|item| return track_title_for(&item.name))
-        .unwrap_or_default();
+    let mut row_position: Option<usize> = None;
+    let mut rows_seen: usize = 0;
+    for entry in &entries {
+        if let Some(row) = row_entry(entry) {
+            if row.is_current {
+                row_position = Some(rows_seen);
+                break;
+            }
+            rows_seen += 1;
+        }
+    }
+    let mut playing_title: String = String::new();
+    for item in &input.page_items {
+        if Some(item.index) == input.current_index {
+            playing_title = track_title_for(&item.name);
+            break;
+        }
+    }
     let deck = TransportDeckModel {
         title: playing_title,
         subtitle: subtitle_for(row_position, input.page_items.len()),
@@ -211,17 +222,17 @@ pub fn build_player_content(input: &PlayerContentInput, supporting_line: &dyn Fn
 /// const tracks = pageItems.map((item) => ({ uri: "", displayPath: item.name }));
 /// ```
 pub fn page_folder_for(folder_title: &str, page_items: &[PageEntry]) -> FolderEntry {
-    let tracks: Vec<Track> = page_items
-        .iter()
-        .map(|item| return Track {
+    let mut tracks: Vec<Track> = Vec::with_capacity(page_items.len());
+    for item in page_items {
+        tracks.push(Track {
             uri: String::new(),
             display_path: item.name.clone(),
-        })
-        .collect();
-    let items: Vec<FolderListItem> = folder_index(&tracks)
-        .into_iter()
-        .flat_map(|folder| return folder.items)
-        .collect();
+        });
+    }
+    let mut items: Vec<FolderListItem> = Vec::new();
+    for folder in folder_index(&tracks) {
+        items.extend(folder.items);
+    }
     return FolderEntry {
         name: folder_title.to_string(),
         items: with_load_indices(items, page_items),
@@ -242,10 +253,11 @@ pub fn page_folder_for(folder_title: &str, page_items: &[PageEntry]) -> FolderEn
 /// items.map((item) => item.kind === "track" ? { ...item, row: { ...item.row, indexInLibrary: pageItems[item.row.indexInLibrary].index } } : item);
 /// ```
 pub fn with_load_indices(items: Vec<FolderListItem>, page_items: &[PageEntry]) -> Vec<FolderListItem> {
-    return items
-        .into_iter()
-        .map(|item| return with_load_index(item, page_items))
-        .collect();
+    let mut indexed: Vec<FolderListItem> = Vec::with_capacity(items.len());
+    for item in items {
+        indexed.push(with_load_index(item, page_items));
+    }
+    return indexed;
 }
 
 /// What:

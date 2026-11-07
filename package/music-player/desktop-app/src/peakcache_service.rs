@@ -303,11 +303,11 @@ pub(super) fn spawn(path: Option<PathBuf>) -> (UnboundedSender<Read>, UnboundedS
     // startWorker(() => runtime.blockOn(run(path, readRx, writeRx)));
     // ```
     thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .inspect_err(|error| tracing::error!(error = %error, "could not build cache runtime"))
-            .expect("music-player: build cache runtime");
+        let built = tokio::runtime::Builder::new_current_thread().enable_all().build();
+        if let Err(error) = &built {
+            tracing::error!(error = %error, "could not build cache runtime");
+        }
+        let runtime = built.expect("music-player: build cache runtime");
         runtime.block_on(run(path, read_rx, write_rx));
     });
     // What:     Return both senders. Tail -> return.
@@ -432,8 +432,9 @@ async fn open_cache(path: Option<PathBuf>) -> Option<DecisionCache> {
     // mkdirSync(dirname(path), { recursive: true });
     // ```
     if let Some(parent) = cache_path.parent() {
-        let _ = std::fs::create_dir_all(parent)
-            .inspect_err(|error| tracing::debug!(error = %error, "could not create cache parent dir; open may still succeed"));
+        if let Err(error) = std::fs::create_dir_all(parent) {
+            tracing::debug!(error = %error, "could not create cache parent dir; open may still succeed");
+        }
     }
     // What:     `let Some(path_str) = path.to_str() else { ...; return None; };`. The path as
     //           UTF-8; degrade on non-UTF-8, logging the path.
@@ -688,7 +689,10 @@ async fn write_batch(cache: Option<&DecisionCache>, identity: CacheIdentity, bat
     // ```ts
     // const entries = batch.map((upsert) => [upsert.fingerprint, upsert.decision]);
     // ```
-    let entries: Vec<(u64, Decision)> = batch.iter().map(|upsert| return (upsert.fingerprint, upsert.decision)).collect();
+    let mut entries: Vec<(u64, Decision)> = Vec::with_capacity(batch.len());
+    for upsert in batch {
+        entries.push((upsert.fingerprint, upsert.decision));
+    }
     // What:     `if let Err(error) = decision_cache.put_batch(identity, &entries).await { ... }`. Store the batch;
     //           `&entries` lends the list read-only; log on error.
     // Why:      Persistence is best-effort; the error names how many rows were dropped.

@@ -77,8 +77,30 @@ pub(crate) fn pause_from_environment() -> Duration {
 /// Why:
 ///       Kept apart from the environment read so the rule can be tested without touching the process environment.
 fn parse_pause(text: Option<&str>) -> Duration {
-    let milliseconds: u64 = text.and_then(|value| return value.trim().parse::<u64>().ok()).unwrap_or(0);
+    let milliseconds: u64 = match text {
+        Some(value) => value.trim().parse::<u64>().unwrap_or(0),
+        None => 0,
+    };
     return Duration::from_millis(milliseconds);
+}
+
+/// What:
+/// `by_natural_name` orders two `(name, path)` pairs by natural name order,
+/// then by path.
+/// Why:
+/// the entries of a folder are sorted by this comparison,
+/// and a sort comparison is a function of the two pairs alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const byNaturalName = (left: [string, string], right: [string, string]): number => naturalCmp(left[0], right[0]) || compare(left[1], right[1]);
+/// ```
+fn by_natural_name(left: &(String, PathBuf), right: &(String, PathBuf)) -> std::cmp::Ordering {
+    let by_name = natural_cmp(&left.0, &right.0);
+    if by_name != std::cmp::Ordering::Equal {
+        return by_name;
+    }
+    return left.1.cmp(&right.1);
 }
 
 /// What:
@@ -102,15 +124,18 @@ fn parse_pause(text: Option<&str>) -> Duration {
 /// paths.sort((a, b) => naturalCmp(basename(a), basename(b)) || (a < b ? -1 : 1));
 /// ```
 fn sort_naturally(paths: &mut Vec<PathBuf>) {
-    let mut keyed: Vec<(String, PathBuf)> = std::mem::take(paths)
-        .into_iter()
-        .map(|path| {
-            let name: String = path.file_name().map_or_else(String::new, |name| return name.to_string_lossy().into_owned());
-            return (name, path);
-        })
-        .collect();
-    keyed.sort_by(|left, right| return natural_cmp(&left.0, &right.0).then_with(|| return left.1.cmp(&right.1)));
-    paths.extend(keyed.into_iter().map(|(_name, path)| return path));
+    let mut keyed: Vec<(String, PathBuf)> = Vec::new();
+    for path in std::mem::take(paths) {
+        let name: String = match path.file_name() {
+            Some(name) => name.to_string_lossy().into_owned(),
+            None => String::new(),
+        };
+        keyed.push((name, path));
+    }
+    keyed.sort_by(by_natural_name);
+    for (_name, path) in keyed {
+        paths.push(path);
+    }
 }
 
 /// What:
@@ -196,17 +221,16 @@ pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut
 ///  these equal the queue's display names;
 /// the final queue replaces them if they differ.
 pub(crate) fn batch_names(root: &Path, paths: &[PathBuf]) -> Vec<String> {
-    return paths
-        .iter()
-        .map(|path| {
-            let relative: &Path = path.strip_prefix(root).unwrap_or(path);
-            return relative
-                .components()
-                .map(|component| return component.as_os_str().to_string_lossy())
-                .collect::<Vec<_>>()
-                .join("/");
-        })
-        .collect();
+    let mut names: Vec<String> = Vec::with_capacity(paths.len());
+    for path in paths {
+        let relative: &Path = path.strip_prefix(root).unwrap_or(path);
+        let mut parts: Vec<std::borrow::Cow<str>> = Vec::new();
+        for component in relative.components() {
+            parts.push(component.as_os_str().to_string_lossy());
+        }
+        names.push(parts.join("/"));
+    }
+    return names;
 }
 
 /// Unit tests in `scan_stream_tests.rs`,

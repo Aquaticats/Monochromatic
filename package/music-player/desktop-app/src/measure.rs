@@ -261,12 +261,12 @@ fn run_sweep(job: SweepJob) {
     // ```ts
     // const measureTracks = job.tracks.filter((p) => p !== job.current);
     // ```
-    let measure_tracks: Vec<PathBuf> = job
-        .tracks
-        .iter()
-        .filter(|path| return job.current.as_ref() != Some(*path))
-        .cloned()
-        .collect();
+    let mut measure_tracks: Vec<PathBuf> = Vec::new();
+    for path in &job.tracks {
+        if job.current.as_ref() != Some(path) {
+            measure_tracks.push(path.clone());
+        }
+    }
     // What:     `let shared = Arc::new(SweepShared { ... })`. Snapshot the known set and build the shared state.
     // Why:      One snapshot serves every worker; the cursor and visit counter start at zero.
     //
@@ -315,12 +315,11 @@ fn run_sweep(job: SweepJob) {
     // ```ts
     // const handles = range(workers).map(() => startWorker(() => runWorker(shared)));
     // ```
-    let handles: Vec<_> = (0..workers)
-        .map(|_| {
-            let worker_shared = Arc::clone(&shared);
-            return thread::spawn(move || run_worker(worker_shared));
-        })
-        .collect();
+    let mut handles: Vec<thread::JoinHandle<()>> = Vec::with_capacity(workers);
+    for _worker in 0..workers {
+        let worker_shared = Arc::clone(&shared);
+        handles.push(thread::spawn(move || run_worker(worker_shared)));
+    }
     // What:     join every worker, logging a panicked one.
     // Why:      One bad thread must not poison the sweep; the final progress report runs after all joins.
     //
@@ -629,9 +628,10 @@ fn worker_count(track_count: usize) -> usize {
     // ```ts
     // const cores = navigator.hardwareConcurrency ?? 1;
     // ```
-    let cores = thread::available_parallelism()
-        .map(|n| return n.get())
-        .unwrap_or(1);
+    let cores = match thread::available_parallelism() {
+        Ok(count) => count.get(),
+        Err(_error) => 1,
+    };
     // What:     `cores.min(track_count)`. Never more workers than tracks. Tail -> return.
     // Why:      Extra threads beyond the work would just exit immediately.
     //
@@ -808,7 +808,10 @@ fn measure_one(path: &Path, shared: &SweepShared) {
 /// ```
 fn already_exact(shared: &SweepShared, key: u64) -> bool {
     if shared.listed {
-        return shared.cache.get(key).is_some_and(|decision| return decision.kind != DecisionKind::ProbeEstimate);
+        return match shared.cache.get(key) {
+            Some(decision) => decision.kind != DecisionKind::ProbeEstimate,
+            None => false,
+        };
     }
     return shared.known.contains(&key);
 }

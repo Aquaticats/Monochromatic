@@ -209,6 +209,57 @@ pub(crate) fn xdg_user_dir_music() -> Option<PathBuf> {
 }
 
 /// What:
+/// `user_dirs_music` gives the audio folder that the desktop's user-dirs file names,
+/// or nothing when it names none.
+/// Why:
+/// it is the second candidate of the music folder lookup and is read only when the first gave nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const userDirsMusic = (): string | null => userDirs()?.audioDir ?? null;
+/// ```
+fn user_dirs_music() -> Option<PathBuf> {
+    return match directories::UserDirs::new() {
+        Some(dirs) => match dirs.audio_dir() {
+            Some(audio) => Some(audio.to_path_buf()),
+            None => None,
+        },
+        None => None,
+    };
+}
+
+/// What:
+/// `home_music_candidate` gives the conventional music folder under the user's home folder,
+/// or nothing when the home folder is unknown.
+/// Why:
+/// it is the last candidate of the music folder lookup,
+/// so it is built only when every other candidate failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const homeMusicCandidate = (): string | null => home() ? homeMusicFolder(home()) : null;
+/// ```
+fn home_music_candidate() -> Option<PathBuf> {
+    return match directories::BaseDirs::new() {
+        Some(dirs) => Some(music_player::default_library::home_music_folder(dirs.home_dir())),
+        None => None,
+    };
+}
+
+/// What:
+/// `set_sweep_paused` pauses or resumes the true-peak sweep through the shared gate.
+/// Why:
+/// the analysis indicator's Pause button needs a plain callback that reaches the gate.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const setSweepPaused = (paused: boolean): void => sweepGate.setPaused(paused);
+/// ```
+fn set_sweep_paused(paused: bool) {
+    SweepGate::shared().set_paused(paused);
+}
+
+/// What:
 ///      `fn music_dir() -> Option<PathBuf>`.
 ///  Find the user's music directory:
 ///           the `XDG_MUSIC_DIR` environment variable first,
@@ -247,13 +298,9 @@ pub(crate) fn music_dir() -> Option<PathBuf> {
     // return [process.env.XDG_MUSIC_DIR, userDirs()?.audioDir, xdgUserDirMusic(), join(homedir(), "Music")].find(isDir) ?? null;
     // ```
     let from_environment = std::iter::once(std::env::var_os("XDG_MUSIC_DIR").map(PathBuf::from));
-    let from_user_dirs = std::iter::once_with(|| {
-        return directories::UserDirs::new().and_then(|dirs| return dirs.audio_dir().map(|p| return p.to_path_buf()));
-    });
+    let from_user_dirs = std::iter::once_with(user_dirs_music);
     let from_tool = std::iter::once_with(xdg_user_dir_music);
-    let from_home = std::iter::once_with(|| {
-        return directories::BaseDirs::new().map(|dirs| return music_player::default_library::home_music_folder(dirs.home_dir()));
-    });
+    let from_home = std::iter::once_with(home_music_candidate);
     return music_player::default_library::first_existing_dir(
         from_environment.chain(from_user_dirs).chain(from_tool).chain(from_home),
     );
@@ -305,7 +352,7 @@ pub(crate) fn start_analysis_notifier() -> AnalysisNotifier {
     return AnalysisNotifier::spawn(NotifierConfig::session(
         app_identity(),
         true,
-        Box::new(|paused| SweepGate::shared().set_paused(paused)),
+        Box::new(set_sweep_paused),
     ))
 }
 
