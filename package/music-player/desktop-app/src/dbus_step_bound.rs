@@ -23,9 +23,12 @@ use zruntime::SharedRuntime;
 use crate::analysis_notification::METHOD_TIMEOUT;
 
 /// What: `DBUS_STEP_BOUND` is the longest one D-Bus step may take: a connect, a signal send, a call or a registration.
-/// Why: it is `METHOD_TIMEOUT`, the bound the notifiers already put on every call that waits for a reply; a private
-/// bus answers each step in about a millisecond (`dbus_step_times_are_far_inside_the_bound` prints them), so three
-/// seconds ends a stalled peer and leaves a loaded host room.
+/// Why: it is `METHOD_TIMEOUT`, the bound the notifiers already put on every call that waits for a reply. On a private
+/// bus the whole of `a_connect_and_a_call_on_a_private_bus_finish_far_inside_the_bound` (start the daemon, connect,
+/// one `Notify` call) took 0.043 s under nextest on a host at a load average of 12 to 49, and the test fails when
+/// the connect or the call alone takes a tenth of the bound; the sibling crate `nested-wayland-session` measured a
+/// connect at 1.2 to 1.4 ms and a call at 0.19 to 0.26 ms over six runs. Three seconds ends a stalled peer and
+/// leaves a loaded host room.
 pub(crate) const DBUS_STEP_BOUND: Duration = METHOD_TIMEOUT;
 
 /// What: `within` awaits `work` and ends it with a `TimedOut` error after `bound`.
