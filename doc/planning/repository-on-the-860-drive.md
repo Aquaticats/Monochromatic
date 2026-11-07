@@ -467,7 +467,8 @@ programs that call `realpath` or `canonicalize` see the first.
 
 ### What happens when the repository is unreachable at the moment the item runs
 
-This section was written for the first version.
+This section was written for the first version;
+its mentions of "the runbook" and "the stub" mean the first version at commit `93fec99100`.
 The behavior under the symlink design,
 with measurements,
 is in the section "Work items per tool".
@@ -544,6 +545,12 @@ is in the section "Work items per tool".
 
 This section and the next are the first version's analysis,
 kept as the record of what was weighed.
+References in the history sections to "the runbook",
+"Undo",
+"the stub",
+"the root commands" and "the first open
+question" mean the first version's runbook and open questions at commit `93fec99100`;
+those headings no longer exist in this file.
 The owner picked option B ("Symlink at the old path.
 You're supposed to take care of dangling links.").
 The sentences that call B a hazard describe what a bare link does;
@@ -1079,7 +1086,12 @@ mountpoint not guarded (owned by the user)
   (measured:
   `ENOENT` and `No such file or directory`).
   `git grep` over tracked code outside `doc/` finds no use of `realpath -m`,
-  `readlink -f` or `canonicalize-missing`.
+  `readlink -f` or `canonicalize-missing`
+  (positive control:
+  `git grep -c realpath` outside `doc/` does match three files,
+  so the search ran;
+  the first attempt died with "failed to create thread" under a small task limit and was rerun with
+  `grep.threads=2` and `TasksMax=128`).
 
 #### State 2: 860 not mounted,
 mountpoint root-owned 0755
@@ -1497,6 +1509,11 @@ or waits.
     size and modification time,
     so btrfs send and receive (which keeps modification times) should keep it incremental [inferred,
     check the first run's upload size].
+    The ten kopia sources do not include `/home/user` or `/var/home/user`
+    (`kopia snapshot list --all`,
+    2026-11-07T06:50:00-05:00),
+    so the renamed old tree `Monochromatic.nvme-before-860-...` beside the link is not backed up
+    and is not uploaded by the hourly job.
     Tests:
     a post-cut-over `kopia snapshot create` of the repository source,
     comparing uploaded bytes with the previous snapshot.
@@ -1629,9 +1646,12 @@ That pair is the source of every two-spelling effect below.
   Git writes the physical spelling for every new `worktree add`.
 - Harness project folders.
   Claude Code keys `~/.claude/projects/<folder>` by the working directory;
-  the existing folders `-var-mnt-encrypted-temp-agent-...` for sessions started from `~/temp/...` prove it uses the
-  physical path (`~/temp` is a link),
-  so new sessions in the repository key as `-var-mnt-encrypted-repository-Monochromatic`.
+  Node's `process.cwd()` returns the physical path (measured in the fixture),
+  and Claude Code is a Node program,
+  so new sessions in the repository are expected to key as `-var-mnt-encrypted-repository-Monochromatic`;
+  the first session after cut-over confirms it.
+  (Existing folders named `-var-mnt-encrypted-temp-agent-...` fit the same rule but may also come from sessions
+  started at the physical path.)
   The old folder `-var-home-user-Monochromatic` holds the history (10716 entries).
   `~/.claude.json` has a `projects` entry for `/var/home/user/Monochromatic` with trust and MCP settings;
   `~/.pi/agent/sessions/--var-home-user-Monochromatic--` is keyed the same way.
@@ -1674,7 +1694,7 @@ Agents are not killed.
 
     ```bash
     # Holders by working folder and open file, repository and every nested worktree.
-    find /proc -maxdepth 3 \( -name cwd -o -path '/proc/*/fd/*' \) -lname '/var/home/user/Monochromatic*' -printf '%p %l\n'
+    /usr/bin/find /proc -maxdepth 3 \( -name cwd -o -path '/proc/*/fd/*' \) -lname '/var/home/user/Monochromatic*' -printf '%p %l\n'
     ```
 
     Processes of other users (rootless containers run under subuids) are listed by root with the same command.
@@ -2030,12 +2050,17 @@ so steps 1 to 7 need no undo for the repository itself.
     a fresh worktree's `pnpm install` and `find node_modules -xtype l` (nothing);
     the harness lists the old sessions.
 12. Reboot test after step 11 (commit and push first):
-    log in and wait for `mount-860.service`;
-    with the 860 still locked (rename the key path in a drop-in once) open a terminal in the repository and run `git
-    status`,
+    log in and wait for `mount-860.service` to finish,
+    then before opening the repository run `sudo systemctl stop mount-860.service`
+    (nothing holds the 860 yet,
+    so the plain `umount` in its stop path succeeds;
+    pcloud stops with it).
+    With the 860 locked,
+    open a terminal in the repository and run `git status`,
     which must print the plain message in well under a second,
-    and `systemctl --user status claude-cpu-watch.service` must show `activating (auto-restart)`;
-    restore the key path and confirm the unit becomes active within one retry delay.
+    and `systemctl --user status claude-cpu-watch.service` must show `activating (auto-restart)`.
+    Then run `sudo systemctl start mount-860.service` and confirm the unit becomes active within one retry delay
+    and `repository-link-check` prints ready.
 
 ## Rollback
 
