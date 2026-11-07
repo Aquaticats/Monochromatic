@@ -42,6 +42,7 @@ import {
   noticeGraceMs,
   slotConflictExitCode,
 } from './constants.ts';
+import { CargoMutantsToolingError } from './error.ts';
 import { liveOwnerOf } from './owner-claim.ts';
 import { readBootId } from './process-identity.ts';
 
@@ -332,6 +333,48 @@ await describe({
             expect((await readdir(directory.path)).includes('slot-1.lock')).toBe(true);
           },
         }),
+        ...[
+          [
+            'a directory',
+            async (path: string): Promise<void> => {
+              await mkdir(path);
+            },
+          ],
+          [
+            'a named pipe',
+            async (path: string): Promise<void> => {
+              if (spawnSync(
+                'mkfifo',
+                [path],
+              ).status !== 0)
+                throw new Error('mkfifo failed.');
+            },
+          ],
+        ].map(([kind, plant]) => it({
+          name: `stops with an error naming the path, and holds no claim, where ${String(kind)} stands in place of a slot file, which no gate of the earlier release makes and so no such gate can hold`,
+          fn: async () => {
+            await using directory = await gateDirectory('gate-not-a-file-');
+            const options = gateOptions({ lockDirectory: directory.path });
+            const lockFile = slotLockPath({
+              lockDirectory: directory.path,
+              slot: 1,
+            });
+            await (plant as (path: string) => Promise<void>)(lockFile);
+            let caught: unknown;
+            try {
+              await takeAnySlot({ options });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught).toBeInstanceOf(CargoMutantsToolingError);
+            expect((caught as Error).message).toContain(lockFile);
+            expect(await liveOwnerOf({
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+            })).toBe(noLiveOwner);
+          },
+        })),
       ],
     }),
     describe({
