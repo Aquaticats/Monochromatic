@@ -263,8 +263,8 @@
       }
     },
     // The postinstall links `monochromatic-git-policy-cli` (named `cli-git-native` before 0.6.0) as `git` under
-    // `.cache/cli-git-bin` with a temporary name plus rename (doc/planning/cli-git-native-cutover.md,
-    // doc/planning/git-policy-cli-program-rename.md). The link folder keeps its old name until step 3 of the rename.
+    // `.cache/monochromatic-git-policy-cli-bin` with a temporary name plus rename (doc/planning/cli-git-native-cutover.md,
+    // doc/planning/git-policy-cli-program-rename.md). The link folder was named `.cache/cli-git-bin` before step 3 of the rename.
     "cargo:monochromatic-git-policy-cli": {
       "request": "github:Aquaticats/Monochromatic@latest",
       "route": "archive",
@@ -281,7 +281,7 @@
           "link": {
             "sourceBin": "monochromatic-git-policy-cli",
             "linkName": "git",
-            "linkDir": ".cache/cli-git-bin"
+            "linkDir": ".cache/monochromatic-git-policy-cli-bin"
           }
         }
       }
