@@ -1081,7 +1081,7 @@ Every other pull is native Git's whole (a rebase, `--ff-only`, `--autostash`, `p
 
 Before Git's fast-forward changes anything, the merge waits for any program's hold on `index.lock`
  (the commit service's, a foreign `git`'s, or a lock nothing proves held):
- until `LOCK_CEILING` (10 minutes), whether its owner is proven alive or not
+ until `MERGE_LOCK_CEILING` (1 minute), whether its owner is proven alive or not
  (the line for an unproven owner says what is known and how to remove the lock if no program uses the repository);
  at the bound it names the holder and the merge ends with Git's refusal, non-zero, with nothing changed.
 The notice names the merge, says it has changed nothing yet, names the lock and the holder with its proof

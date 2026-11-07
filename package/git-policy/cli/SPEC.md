@@ -1643,12 +1643,20 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   1.04 s).
 - `LANDING_LOCK_CEILING` 1 minute: the landing waits for a foreign `index.lock` this long.
   It is five times the longest wait for a foreign lock that ended because the holder let go (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
-  8 s of three such waits in the journal since 2026-11-01), in whole minutes. The only longer waits in that journal were
-  five waits of one lock that a live `git commit` held for 62 minutes (2026-11-07). The lock that outlasts one commit's wait is
-  remembered by its file identity, and the commits queued behind it are refused at once instead of each waiting a ceiling
-  (`src/native/landing/service_index_refused_lock.rs`).
-- `LOCK_CEILING` 10 minutes, unmeasured: the merge, the settling of an earlier service's batches and the index reconciliation after a
-  landing wait for a foreign `index.lock` this long. It is below `ANSWER_CEILING` so the service answers first.
+  8 s, the longest of ten landings that waited over a second in the `lock_wait_ms` of 3,634 answers since 2026-11-01), in whole
+  minutes. The only longer waits in that journal were one lock that a live or killed `git commit` left for 62 minutes (2026-11-07).
+  The lock that outlasts one commit's wait is remembered by its file identity, and the commits queued behind it are refused at once
+  instead of each waiting a ceiling (`src/native/landing/service_index_refused_lock.rs`).
+- `MERGE_LOCK_CEILING` and `RECONCILE_LOCK_CEILING` 1 minute each: the merge's wait for a foreign `index.lock` before it changes
+  anything, and the wait of the index reconciliation after a commit's corrections removed every change. Neither wait is logged
+  (they run in the client, on the person's terminal), so each takes the landing's measured ceiling: the same kind of holder, the only
+  sample there is. The memory of a lock that outlasted a wait is per process and the service lands every batch of a worktree on one
+  thread, so only the landing has queued commits to spare it for; each client command waits at most this long on its own.
+- `SETTLE_LOCK_CEILING` 1 minute: the settling of an earlier service's open batches. Five times the longest settle in the journal
+  since 2026-11-01 (`LONGEST_SETTLE_WAIT`, 172 ms of 3,630 settles, 99th percentile 20 ms), in whole minutes. The settle's whole time
+  holds any wait it made, so the figure can only overstate it.
+- `LOCK_CEILING` 10 minutes, unmeasured: no wait takes it. It stays as the basis of `FOREIGN_OWNER_PATIENCE`
+  (`src/native/process/pid_namespace.rs`, twice this), which another change owns.
 - `SERVICE_HOLD_CEILING` 10 minutes: a forwarded `git add`, `rm` or `mv` waits for the service's hold,
   and its whole series of
   reruns ends, at this (five times the longest of 715 logged holds, 119.7 s).
@@ -1785,7 +1793,7 @@ What happens at the bound, on the commit path:
   Protocol messages are unchanged.
   A client that waits behind a hung write keeps the service busy only as long as the write lasts;
   nothing in the wrapper ends it.
-- A merge waits for a foreign `index.lock` until `LOCK_CEILING`;
+- A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`;
   at the bound it names the holder and ends the wait,
   and Git's own
   refusal ends the merge non-zero with nothing changed.
