@@ -135,7 +135,8 @@ export async function addWorktree(
         name,
       ),
       '-b',
-      name,
+      `branch-${Buffer.from(name,)
+        .toString('hex',)}`,
     ],
     cwd: fixture.main,
   },);
@@ -406,6 +407,7 @@ export async function makeFixture(
     },
   };
   for (const name of names) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- git worktree add holds a lock on the repository, so test worktrees are added one at a time; see doc/lint/sequential-awaits.md
     await addWorktree({
       fixture,
       name,
