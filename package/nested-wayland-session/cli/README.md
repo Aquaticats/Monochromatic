@@ -111,7 +111,8 @@ At build time (supplied by the CachyOS build container,
 `wayland`,
  `libxkbcommon`,
  `libdrm`
- (on Fedora, `wayland-devel`,
+ (on Fedora,
+`wayland-devel`,
  `libxkbcommon-devel`,
  and `libdrm-devel`),
  plus a Rust toolchain.
@@ -1946,10 +1947,13 @@ holds even when the hosted app is laggy or greedy.
   is reported.
 - A greedy app is contained with systemd.
    Under `--isolate` the app runs in a transient
-  systemd scope with a `CPUQuota` (hard cap), a low `CPUWeight`,
-   a `MemoryMax`, a `TasksMax` and an `IOWeight` of 10,
+  systemd scope with a `CPUQuota` (hard cap),
+  a low `CPUWeight`,
+   a `MemoryMax`,
+  a `TasksMax` and an `IOWeight` of 10,
    reserving CPU for the
-  capture pipeline and keeping a runaway app from exhausting memory, tasks or disk time.
+  capture pipeline and keeping a runaway app from exhausting memory,
+  tasks or disk time.
    When systemd is unavailable this degrades to a direct launch with a
   warning;
    isolation is a robustness enhancement,
@@ -1981,8 +1985,11 @@ The host usually lacks the development headers Smithay links against,
 in a CachyOS build container (see `Containerfile`);
  the resulting binary runs on the host.
 Tasks fall back to the host automatically when the development libraries are present.
-The container runs with 2 GiB, 2 CPUs, 512 processes and the lowest disk weight
-(`--blkio-weight=10` and `--cgroup-conf=io.weight=10`, so both the BFQ and the other I/O schedulers see it).
+The container runs with 2 GiB,
+2 CPUs,
+512 processes and the lowest disk weight
+(`--blkio-weight=10` and `--cgroup-conf=io.weight=10`,
+so both the BFQ and the other I/O schedulers see it).
 
 - `mise run //package/nested-wayland-session/cli:build` builds the release binary.
 - `mise run //package/nested-wayland-session/cli:test` runs the unit tests.
