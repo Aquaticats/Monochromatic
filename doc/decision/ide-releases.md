@@ -944,8 +944,12 @@ and the host is not Ubuntu.
   and a day's change in the Ubuntu 24.04 packages (the `ubuntu:24.04` tag follows point releases)
   or the `cargo-nextest` `latest` download can fail or alter a build with no repository change.
   The release image installs them unpinned (`package/terminal/app/Containerfile.release`).
-  The Rust toolchain is pinned to the nightly of `toolchain.lock.json` (`ARG RUST_TOOLCHAIN`, kept in step by hand),
-  and Zig by version and SHA-256, so those two no longer move on their own.
+  The Rust toolchain is pinned to the nightly of `toolchain.lock.json` (`ARG RUST_TOOLCHAIN`, kept in step by hand).
+  Zig tracks the newest release: the image takes the archive URL and SHA-256 of Zig's `toolchain.lock.json` row as
+  build arguments and checks the SHA-256, so Zig moves with the lock's daily update and never by itself
+  (owner, 2026-11-07T10:15:54-05:00: "Please track latest zig and edit the decision records.").
+  Amended note: until then this record said "and Zig by version and SHA-256, so those two no longer move on their own",
+  with the version written into the Containerfile (0.15.2).
   Pinning the rest changes what developers build with and is a separate decision.
   (Until 2026-10-29 the list also named Fedora 41 and floating `stable` Rust.)
 - The Rust toolchain of a release is not the `mise.lock` nightly.
