@@ -353,6 +353,39 @@ const F32_BYTES: usize = size_of::<f32>();
 pub const FILL_FRAMES_FLOOR: usize = 2_048;
 
 /// What:
+/// `AtStep` adds the failing PipeWire step to an error.
+/// Why:
+/// every setup call can fail for its own reason,
+/// and the user-facing error names which call it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface AtStep<T> { atStep(step: string): T }
+/// ```
+trait AtStep<T> {
+    /// What:
+    /// `at_step` turns a failure into the audio error that names `step`.
+    /// Why:
+    /// the message shows the step and the debug text of the cause.
+    fn at_step(self, step: &str) -> Result<T, PlayerError>;
+}
+
+/// Failures of any debuggable type become audio errors.
+impl<T, E: std::fmt::Debug> AtStep<T> for Result<T, E> {
+    /// What:
+    /// `at_step` keeps a success and wraps a failure as `PlayerError::Audio`.
+    /// Why:
+    /// one place spells the message,
+    /// so the call sites stay one line each.
+    fn at_step(self, step: &str) -> Result<T, PlayerError> {
+        return match self {
+            Ok(value) => Ok(value),
+            Err(error) => Err(PlayerError::Audio(format!("{step}: {error:?}"))),
+        };
+    }
+}
+
+/// What:
 ///      `struct ProcessData { ... }`.
 ///  The state the realtime callback owns.
 ///  It is
@@ -676,7 +709,7 @@ impl Output {
             // ```ts
             // // throws new PlayerError.Audio(`thread loop: ${e}`) on failure
             // ```
-            .map_err(|e| return PlayerError::Audio(format!("thread loop: {e:?}")))?;
+            .at_step("thread loop")?;
 
         // What:     `let context = ContextRc::new(&thread_loop, None).map_err(...)?`.
         //           `ContextRc::new` takes a reference to anything loop-like
@@ -689,7 +722,7 @@ impl Output {
         // const context = new Context(threadLoop);
         // ```
         let context = ContextRc::new(&thread_loop, None)
-            .map_err(|e| return PlayerError::Audio(format!("context: {e:?}")))?;
+            .at_step("context")?;
 
         // What:     `let core = context.connect_rc(None).map_err(...)?`. `connect_rc` opens
         //           the session; `None` = default connection properties.
@@ -701,7 +734,7 @@ impl Output {
         // ```
         let core = context
             .connect_rc(None)
-            .map_err(|e| return PlayerError::Audio(format!("core connect: {e:?}")))?;
+            .at_step("core connect")?;
 
         // What:     `thread_loop.start();`. Spawns the loop's OS thread and begins
         //           processing. After this, callbacks can fire on that thread.
@@ -898,7 +931,7 @@ impl Output {
                 *pw::keys::MEDIA_ROLE => "Music",
             },
         )
-        .map_err(|e| return PlayerError::Audio(format!("stream new: {e:?}")))?;
+        .at_step("stream new")?;
 
         // What:     `let listener = stream.add_local_listener_with_user_data(process_data).process(|stream_ref, pd| { ... }).register().map_err(...)?`.
         //           Attach our state as the callback's user data, set the `process`
@@ -923,376 +956,7 @@ impl Output {
             // ```ts
             // (stream, pd) => { ... }
             // ```
-            .process(|stream_ref, pd| {
-                // What:     `match stream_ref.dequeue_buffer() { ... }`. Ask the stream for a
-                //           buffer to fill. Returns `Option<Buffer>`: `Some(buffer)` if one
-                //           is available, else `None`.
-                // Why:      We can only write when PipeWire gives us a buffer.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const buffer = stream.dequeueBuffer(); if (!buffer) return;
-                // ```
-                match stream_ref.dequeue_buffer() {
-                    // What:     `None => {}`. No buffer right now: do nothing.
-                    // Why:      Skip this cycle.
-                    //
-                    // In TS you'd write (pseudocode):
-                    // ```ts
-                    // // no buffer: skip
-                    // ```
-                    None => {}
-                    // What:     `Some(mut buffer) => { ... }`. We got a buffer; `mut` because
-                    //           we write into it.
-                    // Why:      Fill it with samples.
-                    //
-                    // In TS you'd write (pseudocode):
-                    // ```ts
-                    // else { ... }
-                    // ```
-                    Some(mut buffer) => {
-                        // What:     `let requested_frames = buffer.requested();`. The frame count
-                        //           the graph asks for in this cycle (0 when it has not set one).
-                        // Why:      Recorded with the buffer size so the log shows the quantum.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // const requestedFrames = buffer.requested;
-                        // ```
-                        let requested_frames = buffer.requested();
-
-                        // What:     `let datas = buffer.datas_mut();`. A buffer can hold
-                        //           several data planes; `datas_mut()` borrows them mutably
-                        //           as a slice.
-                        // Why:      Interleaved audio uses plane 0.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // const datas = buffer.datas;
-                        // ```
-                        let datas = buffer.datas_mut();
-
-                        // What:     `if datas.is_empty() { return; }`. Defensive: no planes
-                        //           means nothing to fill. `return` exits the closure (the
-                        //           buffer is queued back on drop).
-                        // Why:      Avoid indexing an empty slice.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // if (datas.length === 0) return;
-                        // ```
-                        if datas.is_empty() {
-                            return;
-                        }
-
-                        // What:     `let bdata = &mut datas[0];`. Mutable reference to the
-                        //           first data plane.
-                        // Why:      The interleaved samples go here.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // const bdata = datas[0];
-                        // ```
-                        let bdata = &mut datas[0];
-
-                        // What:     `let stride = F32_BYTES * pd.channels;`. Bytes per audio
-                        //           frame (one sample per channel).
-                        // Why:      Used to size and tag the chunk.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // const stride = 4 * pd.channels;
-                        // ```
-                        let stride = F32_BYTES * pd.channels;
-
-                        // What:     `let n_frames = match bdata.data() { ... };`.
-                        //           `bdata.data()` returns `Option<&mut [u8]>`: the mapped
-                        //           byte buffer to write, or `None`.
-                        // Why:      Fill the bytes and report how many frames we wrote.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // const slice = bdata.data; const nFrames = slice ? fill(slice) : 0;
-                        // ```
-                        let n_frames = match bdata.data() {
-                            // What:     `Some(slice) => { ... }`. `slice: &mut [u8]` is the
-                            //           writable hardware buffer bytes.
-                            // Why:      Copy decoded samples into it.
-                            //
-                            // In TS you'd write (pseudocode):
-                            // ```ts
-                            // if (slice) { ... }
-                            // ```
-                            Some(slice) => {
-                                // What:     `let avail_frames = slice.len() / stride;`. How
-                                //           many whole frames fit in this buffer.
-                                // Why:      The upper bound for the frames this callback fills.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // const availFrames = Math.floor(slice.length / stride);
-                                // ```
-                                let avail_frames = slice.len() / stride;
-
-                                // What:     `let wanted_frames = usize::try_from(requested_frames).map_or(FILL_FRAMES_FLOOR, |requested| return requested.max(FILL_FRAMES_FLOOR));`
-                                //           then `let fill_frames = avail_frames.min(wanted_frames);`. Fill what the graph
-                                //           asks for this cycle, but at least `FILL_FRAMES_FLOOR` frames, and never more than
-                                //           fits in the buffer.
-                                // Why:      The buffer PipeWire hands over holds about a quarter of a second.
-                                //           Filling all of it moved that much audio out of the ring in one
-                                //           callback, so the audible position trailed what was taken from
-                                //           the ring by up to that much, and a stream that started with an
-                                //           empty ring committed a quarter second of silence at once.
-                                //           Filling only one graph cycle would make every missed deadline of
-                                //           this thread an audible skip; the floor keeps tens of milliseconds
-                                //           of margin while the position error stays below the floor.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // const fillFrames = Math.min(availFrames, Math.max(requestedFrames, FILL_FRAMES_FLOOR));
-                                // ```
-                                let wanted_frames =
-                                    usize::try_from(requested_frames).map_or(FILL_FRAMES_FLOOR, |requested| return requested.max(FILL_FRAMES_FLOOR));
-                                let fill_frames = avail_frames.min(wanted_frames);
-
-                                // What:     `let want = fill_frames * pd.channels;`.
-                                //           Interleaved sample count to produce.
-                                // Why:      Total f32 values to pop/convert.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // const want = fillFrames * pd.channels;
-                                // ```
-                                let want = fill_frames * pd.channels;
-
-                                // What:     `pd.meter.record_buffer(requested_frames, fill_frames as u64);`.
-                                //           Store the requested and filled frame counts.
-                                // Why:      The engine thread logs them, so the quantum and the
-                                //           frames actually filled can be checked against each other.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // meter.recordBuffer(requestedFrames, fillFrames);
-                                // ```
-                                pd.meter.record_buffer(requested_frames, fill_frames as u64);
-
-                                // What:     `if pd.scratch.len() < want { pd.scratch.resize(want, 0.0); }`.
-                                //           Grow the scratch buffer if needed, filling new
-                                //           slots with `0.0`.
-                                // Why:      Have room to pop `want` samples (grows at most
-                                //           once after sizes stabilise).
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // if (pd.scratch.length < want) pd.scratch = new Float32Array(want);
-                                // ```
-                                if pd.scratch.len() < want {
-                                    pd.scratch.resize(want, 0.0);
-                                }
-
-                                // What:     `let playing = pd.playing.load(Ordering::Relaxed);`.
-                                //           Read the shared pause/play flag. `.load(...)` is
-                                //           the atomic READ; `Relaxed` is the loosest
-                                //           ordering (we only need the value itself to be
-                                //           read indivisibly, with no ordering guarantee
-                                //           against other memory, which is correct for a lone
-                                //           flag).
-                                // Why:      Decide, on the realtime thread, whether to feed
-                                //           real audio or silence this cycle.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // const playing = Atomics.load(playingFlag, 0) !== 0;
-                                // ```
-                                let playing = pd.playing.load(Ordering::Relaxed);
-
-                                // What:     `let got = if playing { pd.consumer.pop_slice(&mut pd.scratch[..want]) } else { 0 };`.
-                                //           When playing, pop up to `want` samples from the
-                                //           ring buffer (returns how many were available, a
-                                //           `usize`). When paused, pop NOTHING (`0`) so the
-                                //           buffered audio is preserved for a seamless
-                                //           resume.
-                                // Why:      Pausing must stop draining the buffer at once;
-                                //           otherwise the ~1 second already queued keeps
-                                //           playing (the pause-delay bug).
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // const got = playing ? pd.consumer.popSlice(pd.scratch.subarray(0, want)) : 0;
-                                // ```
-                                let got = if playing {
-                                    pd.consumer.pop_slice(&mut pd.scratch[..want])
-                                } else {
-                                    0
-                                };
-
-                                // What:     `if got > 0 { pd.worker.unpark(); }`. When we
-                                //           popped at least one sample we freed space in the
-                                //           ring buffer; `unpark()` wakes the engine worker
-                                //           (or leaves a one-shot permit if it is not parked
-                                //           yet) so it decodes more to refill that space.
-                                // Why:      This is the backpressure signal that lets the
-                                //           worker BLOCK when the buffer is full instead of
-                                //           busy-looping. `unpark` is wait-free (an atomic
-                                //           plus a futex wake on Linux): no lock, no
-                                //           allocation, so it is safe to call from this
-                                //           realtime callback.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // if (got > 0) worker.postWakeUp();
-                                // ```
-                                if got > 0 {
-                                    pd.worker.unpark();
-                                }
-
-                                // What:     `if playing && got < want { pd.meter.record_short(...); }`.
-                                //           When audio should be flowing but the ring buffer held
-                                //           fewer samples than this buffer needs, count the callback
-                                //           and the silent frames that will be written below.
-                                // Why:      This is the ring-buffer underrun that the stutter
-                                //           analysis is built on.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // if (playing && got < want) meter.recordShort((want - got) / channels);
-                                // ```
-                                //
-                                // What:     `&& !pd.draining.load(Ordering::Relaxed)`. After the engine
-                                //           pushed the last frame of the track, a short buffer is the end
-                                //           of the music, so it is not counted.
-                                // Why:      Otherwise every track end would log "audio output underran".
-                                if playing && got < want && !pd.draining.load(Ordering::Relaxed) {
-                                    pd.meter.record_short(((want - got) / pd.channels) as u64);
-                                }
-
-                                // What:     `for s in pd.scratch[got..want].iter_mut() { *s = 0.0; }`.
-                                //           Zero every sample we did NOT fill. `iter_mut`
-                                //           yields mutable references `s`; `*s` writes
-                                //           through the reference. When paused `got` is `0`,
-                                //           so this zeroes the WHOLE range: the callback
-                                //           emits pure silence.
-                                // Why:      Output silence on underrun (and while paused)
-                                //           instead of stale/garbage data.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // for (let i = got; i < want; i++) pd.scratch[i] = 0;
-                                // ```
-                                for s in pd.scratch[got..want].iter_mut() {
-                                    *s = 0.0;
-                                }
-
-                                // What:     `for (i, sample) in pd.scratch[..want].iter().enumerate() { ... }`.
-                                //           Iterate the samples with their index `i`.
-                                //           `.iter()` borrows them read-only; `.enumerate()`
-                                //           pairs each with its index.
-                                // Why:      Write each f32 as 4 little-endian bytes into the
-                                //           hardware buffer.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // pd.scratch.slice(0, want).forEach((sample, i) => { ... });
-                                // ```
-                                for (i, sample) in pd.scratch[..want].iter().enumerate() {
-                                    // What:     `let bytes = sample.to_le_bytes();`.
-                                    //           `to_le_bytes()` converts the `f32` into a
-                                    //           `[u8; 4]` in little-endian order.
-                                    // Why:      The buffer format is F32LE bytes.
-                                    //
-                                    // In TS you'd write (pseudocode):
-                                    // ```ts
-                                    // dataView.setFloat32(off, sample, true);
-                                    // ```
-                                    let bytes = sample.to_le_bytes();
-
-                                    // What:     `let off = i * F32_BYTES;`. Byte offset of
-                                    //           this sample in the buffer.
-                                    // Why:      Where to write the 4 bytes.
-                                    //
-                                    // In TS you'd write (pseudocode):
-                                    // ```ts
-                                    // const off = i * 4;
-                                    // ```
-                                    let off = i * F32_BYTES;
-
-                                    // What:     `slice[off..off + F32_BYTES].copy_from_slice(&bytes);`.
-                                    //           Copy the 4 bytes into the buffer at `off`.
-                                    //           `&bytes` lends the array.
-                                    // Why:      Place the sample.
-                                    //
-                                    // In TS you'd write (pseudocode):
-                                    // ```ts
-                                    // slice.set(bytes, off);
-                                    // ```
-                                    slice[off..off + F32_BYTES].copy_from_slice(&bytes);
-                                }
-
-                                // What:     `fill_frames`. Tail of the arm: the number of
-                                //           frames we filled becomes `n_frames`.
-                                // Why:      Report the frame count.
-                                //
-                                // In TS you'd write (pseudocode):
-                                // ```ts
-                                // return fillFrames;
-                                // ```
-                                fill_frames
-                            }
-                            // What:     `None => 0`. No mapped buffer: zero frames.
-                            // Why:      Nothing written.
-                            //
-                            // In TS you'd write (pseudocode):
-                            // ```ts
-                            // else nFrames = 0;
-                            // ```
-                            None => 0,
-                        };
-
-                        // What:     `let chunk = bdata.chunk_mut();`. The "chunk" is the
-                        //           metadata describing the valid region of the buffer;
-                        //           `chunk_mut()` borrows it mutably.
-                        // Why:      We must tell PipeWire how much we wrote.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // const chunk = bdata.chunk;
-                        // ```
-                        let chunk = bdata.chunk_mut();
-
-                        // What:     `*chunk.offset_mut() = 0;`. `offset_mut()` returns a
-                        //           mutable reference to the offset field; `*... =` writes
-                        //           through it. Data starts at byte 0.
-                        // Why:      No leading padding.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // chunk.offset = 0;
-                        // ```
-                        *chunk.offset_mut() = 0;
-
-                        // What:     `*chunk.stride_mut() = stride as _;`. Set the per-frame
-                        //           byte stride. `as _` lets the compiler infer the exact
-                        //           integer type the field needs.
-                        // Why:      PipeWire needs the frame size.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // chunk.stride = stride;
-                        // ```
-                        *chunk.stride_mut() = stride as _;
-
-                        // What:     `*chunk.size_mut() = (stride * n_frames) as _;`. Total
-                        //           valid bytes = stride times frames written.
-                        // Why:      Tells PipeWire how many bytes to play.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // chunk.size = stride * nFrames;
-                        // ```
-                        *chunk.size_mut() = (stride * n_frames) as _;
-                    }
-                }
-            })
+            .process(process_stream_buffer)
             // What:     `.register()`. Finish building and register the listener; returns
             //           `Result<StreamListener<ProcessData>, pw::Error>`.
             // Why:      Activate the callbacks on the stream.
@@ -1302,7 +966,7 @@ impl Output {
             // .register()
             // ```
             .register()
-            .map_err(|e| return PlayerError::Audio(format!("listener: {e:?}")))?;
+            .at_step("listener")?;
 
         // What:     `let mut info = AudioInfoRaw::new();`. Build the format descriptor. `mut`
         //           because we set fields next.
@@ -1388,7 +1052,7 @@ impl Output {
                 properties: info.into(),
             }),
         )
-        .map_err(|e| return PlayerError::Audio(format!("pod serialize: {e:?}")))?
+        .at_step("pod serialize")?
         .0
         .into_inner();
 
@@ -1401,8 +1065,9 @@ impl Output {
         // ```ts
         // const pod = Pod.fromBytes(values); if (!pod) throw new PlayerError("invalid format pod");
         // ```
-        let pod = Pod::from_bytes(&values)
-            .ok_or_else(|| return PlayerError::Audio("invalid format pod".to_string()))?;
+        let Some(pod) = Pod::from_bytes(&values) else {
+            return Err(PlayerError::Audio("invalid format pod".to_string()));
+        };
 
         // What:     `let mut params = [pod];`. A fixed array of one pod reference; `mut`
         //           because `connect` takes `&mut [&Pod]`.
@@ -1433,7 +1098,7 @@ impl Output {
                 StreamFlags::AUTOCONNECT | StreamFlags::MAP_BUFFERS | StreamFlags::RT_PROCESS,
                 &mut params,
             )
-            .map_err(|e| return PlayerError::Audio(format!("connect: {e:?}")))?;
+            .at_step("connect")?;
 
         // What:     `self.stream = Some(stream);`. Store the new stream (moves it into the
         //           struct; the C object it points to stays put, so the listener's pointer
@@ -1581,5 +1246,392 @@ impl Drop for Output {
         self.thread_loop.stop();
         // After this method returns, the struct fields drop in declaration order:
         // listener (unregister) -> stream (destroy) -> core -> context -> loop.
+    }
+}
+
+/// What:
+/// `process_stream_buffer` is the realtime callback that fills PipeWire's buffer from the ring buffer.
+/// Why:
+/// PipeWire pulls samples from this callback on its own thread,
+/// so it must not block or allocate;
+/// the callback keeps all its state in `ProcessData`,
+/// which the stream hands back on every call.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const processStreamBuffer = (stream: Stream, pd: ProcessData): void => { /* fill the buffer */ };
+/// ```
+fn process_stream_buffer(stream_ref: &pw::stream::Stream, pd: &mut ProcessData) {
+
+    // What:     `match stream_ref.dequeue_buffer() { ... }`. Ask the stream for a
+    //           buffer to fill. Returns `Option<Buffer>`: `Some(buffer)` if one
+    //           is available, else `None`.
+    // Why:      We can only write when PipeWire gives us a buffer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const buffer = stream.dequeueBuffer(); if (!buffer) return;
+    // ```
+    match stream_ref.dequeue_buffer() {
+        // What:     `None => {}`. No buffer right now: do nothing.
+        // Why:      Skip this cycle.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // no buffer: skip
+        // ```
+        None => {}
+        // What:     `Some(mut buffer) => { ... }`. We got a buffer; `mut` because
+        //           we write into it.
+        // Why:      Fill it with samples.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // else { ... }
+        // ```
+        Some(mut buffer) => {
+            // What:     `let requested_frames = buffer.requested();`. The frame count
+            //           the graph asks for in this cycle (0 when it has not set one).
+            // Why:      Recorded with the buffer size so the log shows the quantum.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const requestedFrames = buffer.requested;
+            // ```
+            let requested_frames = buffer.requested();
+
+            // What:     `let datas = buffer.datas_mut();`. A buffer can hold
+            //           several data planes; `datas_mut()` borrows them mutably
+            //           as a slice.
+            // Why:      Interleaved audio uses plane 0.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const datas = buffer.datas;
+            // ```
+            let datas = buffer.datas_mut();
+
+            // What:     `if datas.is_empty() { return; }`. Defensive: no planes
+            //           means nothing to fill. `return` exits the closure (the
+            //           buffer is queued back on drop).
+            // Why:      Avoid indexing an empty slice.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // if (datas.length === 0) return;
+            // ```
+            if datas.is_empty() {
+                return;
+            }
+
+            // What:     `let bdata = &mut datas[0];`. Mutable reference to the
+            //           first data plane.
+            // Why:      The interleaved samples go here.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const bdata = datas[0];
+            // ```
+            let bdata = &mut datas[0];
+
+            // What:     `let stride = F32_BYTES * pd.channels;`. Bytes per audio
+            //           frame (one sample per channel).
+            // Why:      Used to size and tag the chunk.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const stride = 4 * pd.channels;
+            // ```
+            let stride = F32_BYTES * pd.channels;
+
+            // What:     `let n_frames = match bdata.data() { ... };`.
+            //           `bdata.data()` returns `Option<&mut [u8]>`: the mapped
+            //           byte buffer to write, or `None`.
+            // Why:      Fill the bytes and report how many frames we wrote.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const slice = bdata.data; const nFrames = slice ? fill(slice) : 0;
+            // ```
+            let n_frames = match bdata.data() {
+                // What:     `Some(slice) => { ... }`. `slice: &mut [u8]` is the
+                //           writable hardware buffer bytes.
+                // Why:      Copy decoded samples into it.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // if (slice) { ... }
+                // ```
+                Some(slice) => {
+                    // What:     `let avail_frames = slice.len() / stride;`. How
+                    //           many whole frames fit in this buffer.
+                    // Why:      The upper bound for the frames this callback fills.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // const availFrames = Math.floor(slice.length / stride);
+                    // ```
+                    let avail_frames = slice.len() / stride;
+
+                    // What:     `let wanted_frames = usize::try_from(requested_frames).map_or(FILL_FRAMES_FLOOR, |requested| return requested.max(FILL_FRAMES_FLOOR));`
+                    //           then `let fill_frames = avail_frames.min(wanted_frames);`. Fill what the graph
+                    //           asks for this cycle, but at least `FILL_FRAMES_FLOOR` frames, and never more than
+                    //           fits in the buffer.
+                    // Why:      The buffer PipeWire hands over holds about a quarter of a second.
+                    //           Filling all of it moved that much audio out of the ring in one
+                    //           callback, so the audible position trailed what was taken from
+                    //           the ring by up to that much, and a stream that started with an
+                    //           empty ring committed a quarter second of silence at once.
+                    //           Filling only one graph cycle would make every missed deadline of
+                    //           this thread an audible skip; the floor keeps tens of milliseconds
+                    //           of margin while the position error stays below the floor.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // const fillFrames = Math.min(availFrames, Math.max(requestedFrames, FILL_FRAMES_FLOOR));
+                    // ```
+                    let wanted_frames =
+                        match usize::try_from(requested_frames) {
+                            Ok(requested) => requested.max(FILL_FRAMES_FLOOR),
+                            Err(_error) => FILL_FRAMES_FLOOR,
+                        };
+                    let fill_frames = avail_frames.min(wanted_frames);
+
+                    // What:     `let want = fill_frames * pd.channels;`.
+                    //           Interleaved sample count to produce.
+                    // Why:      Total f32 values to pop/convert.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // const want = fillFrames * pd.channels;
+                    // ```
+                    let want = fill_frames * pd.channels;
+
+                    // What:     `pd.meter.record_buffer(requested_frames, fill_frames as u64);`.
+                    //           Store the requested and filled frame counts.
+                    // Why:      The engine thread logs them, so the quantum and the
+                    //           frames actually filled can be checked against each other.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // meter.recordBuffer(requestedFrames, fillFrames);
+                    // ```
+                    pd.meter.record_buffer(requested_frames, fill_frames as u64);
+
+                    // What:     `if pd.scratch.len() < want { pd.scratch.resize(want, 0.0); }`.
+                    //           Grow the scratch buffer if needed, filling new
+                    //           slots with `0.0`.
+                    // Why:      Have room to pop `want` samples (grows at most
+                    //           once after sizes stabilise).
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // if (pd.scratch.length < want) pd.scratch = new Float32Array(want);
+                    // ```
+                    if pd.scratch.len() < want {
+                        pd.scratch.resize(want, 0.0);
+                    }
+
+                    // What:     `let playing = pd.playing.load(Ordering::Relaxed);`.
+                    //           Read the shared pause/play flag. `.load(...)` is
+                    //           the atomic READ; `Relaxed` is the loosest
+                    //           ordering (we only need the value itself to be
+                    //           read indivisibly, with no ordering guarantee
+                    //           against other memory, which is correct for a lone
+                    //           flag).
+                    // Why:      Decide, on the realtime thread, whether to feed
+                    //           real audio or silence this cycle.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // const playing = Atomics.load(playingFlag, 0) !== 0;
+                    // ```
+                    let playing = pd.playing.load(Ordering::Relaxed);
+
+                    // What:     `let got = if playing { pd.consumer.pop_slice(&mut pd.scratch[..want]) } else { 0 };`.
+                    //           When playing, pop up to `want` samples from the
+                    //           ring buffer (returns how many were available, a
+                    //           `usize`). When paused, pop NOTHING (`0`) so the
+                    //           buffered audio is preserved for a seamless
+                    //           resume.
+                    // Why:      Pausing must stop draining the buffer at once;
+                    //           otherwise the ~1 second already queued keeps
+                    //           playing (the pause-delay bug).
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // const got = playing ? pd.consumer.popSlice(pd.scratch.subarray(0, want)) : 0;
+                    // ```
+                    let got = if playing {
+                        pd.consumer.pop_slice(&mut pd.scratch[..want])
+                    } else {
+                        0
+                    };
+
+                    // What:     `if got > 0 { pd.worker.unpark(); }`. When we
+                    //           popped at least one sample we freed space in the
+                    //           ring buffer; `unpark()` wakes the engine worker
+                    //           (or leaves a one-shot permit if it is not parked
+                    //           yet) so it decodes more to refill that space.
+                    // Why:      This is the backpressure signal that lets the
+                    //           worker BLOCK when the buffer is full instead of
+                    //           busy-looping. `unpark` is wait-free (an atomic
+                    //           plus a futex wake on Linux): no lock, no
+                    //           allocation, so it is safe to call from this
+                    //           realtime callback.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // if (got > 0) worker.postWakeUp();
+                    // ```
+                    if got > 0 {
+                        pd.worker.unpark();
+                    }
+
+                    // What:     `if playing && got < want { pd.meter.record_short(...); }`.
+                    //           When audio should be flowing but the ring buffer held
+                    //           fewer samples than this buffer needs, count the callback
+                    //           and the silent frames that will be written below.
+                    // Why:      This is the ring-buffer underrun that the stutter
+                    //           analysis is built on.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // if (playing && got < want) meter.recordShort((want - got) / channels);
+                    // ```
+                    //
+                    // What:     `&& !pd.draining.load(Ordering::Relaxed)`. After the engine
+                    //           pushed the last frame of the track, a short buffer is the end
+                    //           of the music, so it is not counted.
+                    // Why:      Otherwise every track end would log "audio output underran".
+                    if playing && got < want && !pd.draining.load(Ordering::Relaxed) {
+                        pd.meter.record_short(((want - got) / pd.channels) as u64);
+                    }
+
+                    // What:     `for s in pd.scratch[got..want].iter_mut() { *s = 0.0; }`.
+                    //           Zero every sample we did NOT fill. `iter_mut`
+                    //           yields mutable references `s`; `*s` writes
+                    //           through the reference. When paused `got` is `0`,
+                    //           so this zeroes the WHOLE range: the callback
+                    //           emits pure silence.
+                    // Why:      Output silence on underrun (and while paused)
+                    //           instead of stale/garbage data.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // for (let i = got; i < want; i++) pd.scratch[i] = 0;
+                    // ```
+                    for s in pd.scratch[got..want].iter_mut() {
+                        *s = 0.0;
+                    }
+
+                    // What:     `for (i, sample) in pd.scratch[..want].iter().enumerate() { ... }`.
+                    //           Iterate the samples with their index `i`.
+                    //           `.iter()` borrows them read-only; `.enumerate()`
+                    //           pairs each with its index.
+                    // Why:      Write each f32 as 4 little-endian bytes into the
+                    //           hardware buffer.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // pd.scratch.slice(0, want).forEach((sample, i) => { ... });
+                    // ```
+                    for (i, sample) in pd.scratch[..want].iter().enumerate() {
+                        // What:     `let bytes = sample.to_le_bytes();`.
+                        //           `to_le_bytes()` converts the `f32` into a
+                        //           `[u8; 4]` in little-endian order.
+                        // Why:      The buffer format is F32LE bytes.
+                        //
+                        // In TS you'd write (pseudocode):
+                        // ```ts
+                        // dataView.setFloat32(off, sample, true);
+                        // ```
+                        let bytes = sample.to_le_bytes();
+
+                        // What:     `let off = i * F32_BYTES;`. Byte offset of
+                        //           this sample in the buffer.
+                        // Why:      Where to write the 4 bytes.
+                        //
+                        // In TS you'd write (pseudocode):
+                        // ```ts
+                        // const off = i * 4;
+                        // ```
+                        let off = i * F32_BYTES;
+
+                        // What:     `slice[off..off + F32_BYTES].copy_from_slice(&bytes);`.
+                        //           Copy the 4 bytes into the buffer at `off`.
+                        //           `&bytes` lends the array.
+                        // Why:      Place the sample.
+                        //
+                        // In TS you'd write (pseudocode):
+                        // ```ts
+                        // slice.set(bytes, off);
+                        // ```
+                        slice[off..off + F32_BYTES].copy_from_slice(&bytes);
+                    }
+
+                    // What:     `fill_frames`. Tail of the arm: the number of
+                    //           frames we filled becomes `n_frames`.
+                    // Why:      Report the frame count.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // return fillFrames;
+                    // ```
+                    fill_frames
+                }
+                // What:     `None => 0`. No mapped buffer: zero frames.
+                // Why:      Nothing written.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // else nFrames = 0;
+                // ```
+                None => 0,
+            };
+
+            // What:     `let chunk = bdata.chunk_mut();`. The "chunk" is the
+            //           metadata describing the valid region of the buffer;
+            //           `chunk_mut()` borrows it mutably.
+            // Why:      We must tell PipeWire how much we wrote.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const chunk = bdata.chunk;
+            // ```
+            let chunk = bdata.chunk_mut();
+
+            // What:     `*chunk.offset_mut() = 0;`. `offset_mut()` returns a
+            //           mutable reference to the offset field; `*... =` writes
+            //           through it. Data starts at byte 0.
+            // Why:      No leading padding.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // chunk.offset = 0;
+            // ```
+            *chunk.offset_mut() = 0;
+
+            // What:     `*chunk.stride_mut() = stride as _;`. Set the per-frame
+            //           byte stride. `as _` lets the compiler infer the exact
+            //           integer type the field needs.
+            // Why:      PipeWire needs the frame size.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // chunk.stride = stride;
+            // ```
+            *chunk.stride_mut() = stride as _;
+
+            // What:     `*chunk.size_mut() = (stride * n_frames) as _;`. Total
+            //           valid bytes = stride times frames written.
+            // Why:      Tells PipeWire how many bytes to play.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // chunk.size = stride * nFrames;
+            // ```
+            *chunk.size_mut() = (stride * n_frames) as _;
+        }
     }
 }
