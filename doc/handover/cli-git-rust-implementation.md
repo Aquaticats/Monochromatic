@@ -3729,7 +3729,9 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   index-lock fallback (`fix/git-policy-cli-index-lock-without-links`) and the mutation campaign over the merged tokio files.
 - Left for later: the old `cli-git@` units of each worktree still run 0.5.34 until their three-hour idle exit (0.6.0 neither
   stops nor removes them, `package/git-policy/cli/README.md` lines 40 to 41); old `cargo/<crate>/<version>` install folders
-  stay on disk; `toolchain:install:global` and `toolchain:list:global` disagree on 12 npm-routed tools (not investigated).
+  stay on disk; `toolchain:install:global` and `toolchain:list:global` disagreed on npm-routed tools (eleven measured at
+  2026-11-07T10:46-05:00): cause and fix in `doc/troubleshooting/pnpm-symlinked-store-path.md`, section "Global installs";
+  the fix ships with the next `mpm-shadow` release, and the first `install --global` after it rewrites those eleven.
 
 ### Release batch finished (2026-11-07T13:10:36Z, wrapper 0.6.0 last)
 

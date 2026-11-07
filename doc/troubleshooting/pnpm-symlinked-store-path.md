@@ -661,3 +661,69 @@ The other jobs use `macos-14` and `windows-latest`.
 
 Written by an agent (Codex, GPT-6).
 ~~~
+
+## Global installs: `toolchain:install:global` and `toolchain:list:global` disagree
+
+Recorded at 2026-11-07T10:55:00-05:00 by the `mpm-shadow` fix branch
+`fix/mpm-shadow-cli-global-list-sees-npm-installs`.
+
+### Symptom
+
+`mise run toolchain:list:global` printed `drift ... observed=(absent)` for eleven npm-routed tools
+(`mpm-shadow 0.2.7-alpha.1`, sixty-two tools in the global lock),
+while `toolchain:install:global` reported them installed.
+The handover counted twelve; one run of the list measured eleven.
+The twelfth is unexplained (a guess: a tool a later hand-run `pnpm add --global` repaired).
+
+### Root cause
+
+Neither task reads the wrong place.
+Both ask the same `pnpm list --global --depth=0 --json` (`package/mpm-shadow/cli/src/toolchain/observe.rs`),
+and `pnpm add --global` (`install_managers.rs`) exited 0.
+The group directories under `~/.local/share/pnpm/global/v11` existed with the right `package.json`,
+but each group's `node_modules/<package>` link was written with ten `..` components
+followed by `var/home/user/...`.
+Read from the physical parent directory (`/var/home/user/...`, eleven components deep),
+ten `..` end in `/var`, so the link points at `/var/var/home/user/...`, which does not exist.
+The groups that `pnpm list --global` did see carry the short in-tree form.
+
+This is the mechanism of the sections above, reached through the global scope:
+`mpm-shadow` gave pnpm `HOME=/home/user` (taken from `$HOME`, `scope.rs`) and never set `PNPM_HOME`,
+so the pnpm home was spelled through the `/home` link,
+while the shared store came from `PNPM_CONFIG_STORE_DIR`, which mise canonicalizes to `/var/home/...`.
+pnpm computes the relative link from the home's spelling to the store's spelling.
+
+### Probes
+
+Each probe ran `pnpm add --global is-odd@3.0.1` with pnpm `12.18.0`, a disposable `PNPM_HOME` and,
+except the first, a disposable store, then `pnpm list --global --depth=0 --json`.
+The scratch directory itself sits behind a symbolic link, so it has a logical and a physical spelling.
+
+- Logical home, default store under that home: listed.
+- Logical home, store spelled physically: add exit 0, listing empty.
+- Physical home, store spelled physically: listed.
+- Logical home, store spelled logically: listed.
+
+Adding the same package again with a physical `PNPM_HOME` to the home that held the dangling links
+wrote fresh links and `pnpm list --global` then listed it.
+The first probe ran before the store was disposable and added `is-odd` to the shared store once.
+
+### Fix
+
+`mpm-shadow` runs every pnpm child with `PNPM_HOME` set to the physical spelling of the pnpm home
+(`runner.rs`, `pnpm_env`; the spelling comes from `layout.rs`, `physical_pnpm_home`)
+and puts that home's `bin` directory first on `PATH`,
+because pnpm refuses a global bin directory that `PATH` holds in another spelling than `PNPM_HOME`
+(`ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH`, observed in the first probe).
+
+### Effect on a machine with broken groups
+
+`list` keeps reading the broken groups as absent until `install --global` runs again;
+that run observes the tools absent, runs `pnpm add --global` for each with the physical home,
+and the links are rewritten, after which `list` agrees.
+The abandoned group directories of the earlier installs stay on disk.
+
+### Not fixed here
+
+`install` still trusts pnpm's exit status and does not look the package up again afterwards,
+so a different pnpm link defect would again read as installed until the next `list`.
