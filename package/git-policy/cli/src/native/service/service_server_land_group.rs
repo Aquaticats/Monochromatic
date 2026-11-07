@@ -78,6 +78,11 @@ impl BatchTimes {
     }
 }
 
+/// The repository-relative path a change names.
+fn path_of_change(change: &crate::service_protocol::Change) -> String {
+    return change.path.clone();
+}
+
 /// Writes the log line for an answered request:
 /// the phases of its wait,
 /// from the acceptance of its connection to the answer.
@@ -234,6 +239,9 @@ pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mu
             for (position, ((request, stream, arrival), outcome)) in fresh.iter().zip(outcomes).enumerate() {
                 let word: &str = match outcome {
                     Outcome::Landed { commit } => {
+                        // The compiled rules of the repository are warmed on the blocking pool, off this thread and off the answer's path.
+                        let paths: Vec<String> = request.changes.iter().map(path_of_change).collect();
+                        crate::service_rules_precompile::after_landing(context.journal.as_path(), request.repository.as_path(), paths.as_slice());
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                         "landed"

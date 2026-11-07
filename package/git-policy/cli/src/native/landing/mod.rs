@@ -92,7 +92,8 @@ pub mod service_index_lock;
 /// The attempts and the wait of an acquisition of the index lock.
 pub mod service_index_attempts;
 
-/// The service's warm of the compiled forbidden-strings rules, off the commit's path.
+/// The service's warm of the compiled forbidden-strings rules,
+/// off the commit's path.
 pub mod service_rules_precompile;
 
 /// The foreign index lock that already outlasted a commit's wait,

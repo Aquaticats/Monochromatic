@@ -1,5 +1,9 @@
-//! Controls for the service's warm of the compiled forbidden-strings rules: it publishes what the client would look for, on the
-//!  first landing of a repository and when a landing changes a rules path, remembers the repository for the next start, and
+//! Controls for the service's warm of the compiled forbidden-strings rules:
+//! it publishes what the client would look for,
+//! on the
+//!  first landing of a repository and when a landing changes a rules path,
+//! remembers the repository for the next start,
+//! and
 //!  does nothing for a landing that changes no rules path.
 #![cfg(unix)]
 
@@ -7,7 +11,8 @@ use super::*;
 use crate::scanner_test_support::{needle, run_isolated};
 use std::time::Instant;
 
-/// How long a control waits for the compile of a background warm: the longest compile measured on 2026-11-07 (about 20 s on the
+/// How long a control waits for the compile of a background warm:
+/// the longest compile measured on 2026-11-07 (about 20 s on the
 ///  first commit of a fresh cache under load) with a margin.
 const WARM_PATIENCE: Duration = Duration::from_secs(120);
 
@@ -45,7 +50,8 @@ fn is_artifact_name(name: &std::ffi::OsStr) -> bool {
     return name == "rules.bin";
 }
 
-/// Waits until an artifact exists, at most `WARM_PATIENCE`.
+/// Waits until an artifact exists,
+/// at most `WARM_PATIENCE`.
 fn wait_for_artifact() -> bool {
     let began: Instant = Instant::now();
     while began.elapsed() < WARM_PATIENCE {
@@ -65,7 +71,8 @@ fn repository_in(directory: &Path) -> PathBuf {
     return repository;
 }
 
-/// Body: the precompile publishes the compiled rules.
+/// Body:
+/// the precompile publishes the compiled rules.
 fn precompile_publishes_body(directory: &Path) {
     let repository: PathBuf = repository_in(directory);
     assert!(artifacts().is_empty());
@@ -83,7 +90,10 @@ fn the_precompile_publishes_the_compiled_rules() {
     run_isolated("landing::service_rules_precompile::tests::the_precompile_publishes_the_compiled_rules", "rules-precompile", precompile_publishes_body);
 }
 
-/// Body: the first landing of a repository warms and remembers it; one that changes no rules path leaves the cache alone; one that
+/// Body:
+/// the first landing of a repository warms and remembers it;
+/// one that changes no rules path leaves the cache alone;
+/// one that
 ///  changes a rules path warms again.
 fn landing_triggers_body(directory: &Path) {
     let repository: PathBuf = repository_in(directory);
@@ -109,7 +119,8 @@ fn a_landing_warms_the_first_time_and_when_the_rules_change() {
     run_isolated("landing::service_rules_precompile::tests::a_landing_warms_the_first_time_and_when_the_rules_change", "rules-landing", landing_triggers_body);
 }
 
-/// Body: a restarted service warms the repository it remembers.
+/// Body:
+/// a restarted service warms the repository it remembers.
 fn restart_warms_body(directory: &Path) {
     let repository: PathBuf = repository_in(directory);
     let journal: PathBuf = directory.join("journal");

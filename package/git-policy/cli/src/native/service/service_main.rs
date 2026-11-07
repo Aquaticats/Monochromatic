@@ -265,6 +265,9 @@ pub fn run(arguments: &[String]) -> i32 {
         let _pruned = prune_done(shared, DONE_RETAINED);
     }
     crate::service_log!("ready");
+    // The repository this service served before warms its compiled rules now, on the blocking pool, so an upgrade's new cache is
+    //  filled before the first commit that would compile it.
+    crate::service_rules_precompile::warm_remembered(context.journal.as_path());
     serve(listener, &context, &settings);
     return 0;
 }

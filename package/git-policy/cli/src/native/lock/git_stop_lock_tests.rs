@@ -74,7 +74,10 @@ enum Holder {
     /// a `SIGKILL` at the end of the grace then
     ///  falls between the removal of the pid file and the removal of the lock.
     SlowToFinishCleanup,
-    /// As `SlowToFinishCleanup`, held for twice `STOP_GRACE`: the watched stop's grace is that constant, and the kill at its end falls
+    /// As `SlowToFinishCleanup`,
+    /// held for twice `STOP_GRACE`:
+    /// the watched stop's grace is that constant,
+    /// and the kill at its end falls
     ///  inside the hold.
     HeldPastTheStopGrace,
 }
@@ -315,14 +318,25 @@ fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup");
 }
 
-/// A kill that falls between Git's two unlinks leaves no lock either, whatever the load.
+/// A kill that falls between Git's two unlinks leaves no lock either,
+/// whatever the load.
 /// Why:
-///  Git's handler removes the pid file of a lock and then the lock; a stop whose kill arrives between the two leaves the lock with
-///  no pid file, and the sweep, which had only that pid file to name the holder, left it as unproven (the container gate of 2026-11-07
-///  left `refs/remotes/origin/main.lock` after 29.9 s while the host was loaded). The stop that waits while a member cannot be
-///  interrupted only makes the cut rarer. The holder here is held after its first unlink by a traced stop, which the production rule
-///  does not count as a wait, so the kill at the end of the grace falls exactly between the two. The wrapper saw the pid file name the
-///  holder before it signalled it, so the lock is the holder's by its own observation.
+///  Git's handler removes the pid file of a lock and then the lock;
+/// a stop whose kill arrives between the two leaves the lock with
+///  no pid file,
+/// and the sweep,
+/// which had only that pid file to name the holder,
+/// left it as unproven (the container gate of 2026-11-07
+///  left `refs/remotes/origin/main.lock` after 29.9 s while the host was loaded).
+/// The stop that waits while a member cannot be
+///  interrupted only makes the cut rarer.
+/// The holder here is held after its first unlink by a traced stop,
+/// which the production rule
+///  does not count as a wait,
+/// so the kill at the end of the grace falls exactly between the two.
+/// The wrapper saw the pid file name the
+///  holder before it signalled it,
+/// so the lock is the holder's by its own observation.
 #[test]
 fn a_kill_between_the_pid_file_and_the_lock_still_leaves_no_lock() {
     let stage: Stage = stage("stop-lock-push-cut-cleanup");

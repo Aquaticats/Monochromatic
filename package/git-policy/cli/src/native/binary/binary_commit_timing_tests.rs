@@ -1088,7 +1088,8 @@ fn compiled_rules_in(cache: &Path) -> usize {
     return found;
 }
 
-/// Waits until the cache holds a compiled artifact, at most `WARM_WAIT`.
+/// Waits until the cache holds a compiled artifact,
+/// at most `WARM_WAIT`.
 fn artifact_appears(cache: &Path) -> bool {
     let began: Instant = Instant::now();
     while began.elapsed() < WARM_WAIT {
@@ -1100,8 +1101,10 @@ fn artifact_appears(cache: &Path) -> bool {
     return false;
 }
 
-/// A repository whose `main` holds one text of the rules file and whose branch `other` holds another; the worktree is on `main`,
-///  and no commit has been made through the wrapper, so no compiled form of either text is anywhere.
+/// A repository whose `main` holds one text of the rules file and whose branch `other` holds another;
+/// the worktree is on `main`,
+///  and no commit has been made through the wrapper,
+/// so no compiled form of either text is anywhere.
 fn repository_with_two_rules_texts(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = base_repository(fixture);
     std::fs::write(repo.join(WARM_RULES_FILE), "FIRST_PLANTED_RULE_TEXT\n").expect("rules text");
@@ -1114,7 +1117,8 @@ fn repository_with_two_rules_texts(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// A service with its own cache directory in the environment, serving `repo`.
+/// A service with its own cache directory in the environment,
+/// serving `repo`.
 fn service_with_cache(fixture: &Fixture, repo: &Path, name: &str, cache: &Path) -> (Held, PathBuf) {
     let places: Places = places_for(fixture, name, repo);
     let instance: String = instance_argument(repo);
@@ -1131,7 +1135,9 @@ fn service_with_cache(fixture: &Fixture, repo: &Path, name: &str, cache: &Path) 
 /// A `warm` message makes the running service compile the repository's rules.
 /// Why:
 ///  The client that sees a checkout or a merge change the rules text cannot compile it itself without making the next command wait;
-///  it asks the service that already runs, once, and the service compiles on its own time.
+///  it asks the service that already runs,
+/// once,
+/// and the service compiles on its own time.
 #[test]
 fn a_warm_message_makes_the_running_service_compile_the_rules() {
     let fixture: Fixture = fixture("warm-message");
@@ -1148,7 +1154,10 @@ fn a_warm_message_makes_the_running_service_compile_the_rules() {
     remove_settled(&fixture);
 }
 
-/// A checkout that changes the rules text asks the running service to compile it; one that does not, asks nothing; and with no
+/// A checkout that changes the rules text asks the running service to compile it;
+/// one that does not,
+/// asks nothing;
+/// and with no
 ///  service running the checkout succeeds and starts none.
 #[test]
 fn a_checkout_that_changes_the_rules_text_asks_the_running_service_to_compile_it() {
