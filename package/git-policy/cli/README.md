@@ -1207,6 +1207,10 @@ Real Git keeps the normal standard streams.
    its exit status is preserved.
   A landed commit that a post-commit policy then blocks exits `2` and stays local.
 
+The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MONOCHROMATIC_VERBOSE=true`,
+ and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words, which can name a remote.
+ The userinfo of any URL in such a line is replaced by `<credentials>`, and every control character by a space.
+
 ## Configuration
 
 The wrapper reads `monochromatic-git-policy-cli.config.jsonc` at the repository top level.

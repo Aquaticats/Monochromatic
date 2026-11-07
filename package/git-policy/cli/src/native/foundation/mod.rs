@@ -83,3 +83,18 @@ pub mod earlier_folder_entries_moved_into_current_folder;
 
 /// Every kept name that exists under both spellings folded into the current one when no earlier program writes it.
 pub mod earlier_names_folded_into_current;
+
+/// What is left of the limits a process that starts threads lives under: address space, `RLIMIT_NPROC` and `pids.max`.
+pub mod runtime_limits;
+
+/// How many workers and blocking threads a runtime gets from the budget and the limits.
+pub mod runtime_plan;
+
+/// The process's one tokio runtime: built on the first need, sized from the budget and the limits, bounded by a deadline.
+pub mod lazy_runtime;
+
+/// A blocking call on tokio's blocking pool, with "no thread to start" as an error value instead of a panic.
+pub mod blocking_job;
+
+/// The test-only entry that builds the runtime and runs a blocking job, for the controls that start the executable under limits.
+pub mod runtime_probe;

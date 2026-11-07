@@ -11,8 +11,9 @@
 //!  the client what the service is stuck in, and (b) answer the withdrawal of a request that has not begun to land.
 //!  The record holds no lock (the owner: "Use as few locks as possible."; the lock inventory guard,
 //!  `source_guard/service_lock_inventory_tests.rs`): one owner per item and exclusive creation, in a directory of the journal.
-//!  Admission and cancellation are one decision per request, made by creating the file `<id>.decision` with `link(2)`, which fails
-//!  when the name exists and which shows the file whole: the landing thread tries to create it with the content `landing` before it
+//!  Admission and cancellation are one decision per request, made by publishing the file `<id>.decision` without replacing (`private_storage`:
+//!  `renameat2` with `RENAME_NOREPLACE`, or a hard link, either of which fails when the name exists and shows the file whole; on a
+//!  filesystem with neither, a checked rename, which is atomic but not exclusive): the landing thread tries to create it with the content `landing` before it
 //!  lands the request, a connection thread tries to create it with `withdrawn` before it answers a withdrawal, and exactly one
 //!  creation succeeds. The loser reads what the winner wrote. A request that is `landing` is the landing thread's to answer; a
 //!  request that is `withdrawn` is dropped whenever a copy of it reaches a group, as often as it comes, until the retention forgets it
@@ -36,7 +37,7 @@ use crate::service_busy_answers_and_name_checks::{CANCELLED_EXTENSION, Decision,
 use std::cell::RefCell;
 use crate::service_journal::{DONE_EXTENSION, DONE_RETAINED, OPEN_EXTENSION, parse_intent};
 use crate::service_messages::RESTART_COMMAND;
-use std::io::Write;
+use crate::private_storage::write_private_file_unsynced;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -73,16 +74,7 @@ pub(crate) fn now_millis() -> u128 {
     };
 }
 
-/// A temporary file that is removed when it goes out of scope.
-struct TemporaryFile(PathBuf);
-
-impl Drop for TemporaryFile {
-    fn drop(&mut self) {
-        let _removed = std::fs::remove_file(self.0.as_path());
-    }
-}
-
-/// Distinguishes the temporary files of concurrent decisions, and the tokens of withdrawals.
+/// Distinguishes the tokens of withdrawals.
 static TEMPORARY_NUMBER: AtomicU64 = AtomicU64::new(0);
 
 /// A token no other withdrawal in any service has, made of letters, digits and hyphens so it can stand in a file name.
@@ -132,24 +124,22 @@ impl LandingBoard {
     /// What:
     ///  Try to make the decision of `id` with the content `outcome`.
     /// Why:
-    ///   The file is written whole beside its name and then linked to it, so it never shows partly written, and `link(2)` fails when
-    ///  the name exists, so exactly one side makes the decision. Any other failure is an error: nothing was decided.
+    ///   The file is written whole beside its name and then published without replacing it, so it never shows partly written, and
+    ///  the publish fails when the name exists, so exactly one side makes the decision (on a filesystem that has neither an exclusive
+    ///  rename nor hard links, the check then rename can let both sides think they won, as the owner was told when he kept that
+    ///  fallback, 2026-11-07). Any other failure is an error: nothing was decided.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// try { link(temporary, decisionPath); return 'won'; } catch (exists) { return { lost: read(decisionPath) }; }
+    /// try { publishWithoutReplacing(temporary, decisionPath); return 'won'; } catch (exists) { return { lost: read(decisionPath) }; }
     /// ```
     fn decide(&self, id: &str, outcome: &str) -> std::io::Result<Decision> {
-        // Removed whichever way this function leaves, a failed write included (a leaked file is an inode the recovery needs).
-        let beside: TemporaryFile = TemporaryFile(self.directory.join(format!("{id}.{}.{}.tmp", std::process::id(), TEMPORARY_NUMBER.fetch_add(1, Ordering::Relaxed))));
-        let mut file: std::fs::File = std::fs::File::create(beside.0.as_path())?;
-        file.write_all(outcome.as_bytes())?;
-        #[cfg(test)]
-        AFTER_THE_TEMPORARY_IS_WRITTEN.with(|hook| { return hook.borrow().as_ref().map_or(Ok(()), |fail| { return fail(); }); })?;
-        let linked: std::io::Result<()> = std::fs::hard_link(beside.0.as_path(), self.decision_path(id));
-        return match linked {
+        let decision: PathBuf = self.decision_path(id);
+        // Written whole beside its name and published without replacing (`private_storage`: the exclusive publish of the `tempfile`
+        //  crate, the checked rename where the filesystem has neither that nor hard links), removed whichever way it ends.
+        return match write_private_file_unsynced(decision.as_path(), outcome.as_bytes()) {
             Ok(()) => Ok(Decision::Won),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Decision::Lost(std::fs::read_to_string(self.decision_path(id))?)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Decision::Lost(std::fs::read_to_string(decision.as_path())?)),
             Err(error) => Err(error),
         };
     }
@@ -425,8 +415,6 @@ impl LandingBoard {
 
 #[cfg(test)]
 thread_local! {
-    /// A control may fail a decision on this thread after its temporary file was made and written, which is where the real write fails.
-    pub(crate) static AFTER_THE_TEMPORARY_IS_WRITTEN: RefCell<Option<Box<dyn Fn() -> std::io::Result<()>>>> = const { RefCell::new(None) };
     /// A control may stop the retention on this thread between its listing and its removals, where another decision can replace one.
     pub(crate) static AFTER_THE_LISTING: RefCell<Option<Box<dyn Fn()>>> = const { RefCell::new(None) };
     /// A control may stop a withdrawal on this thread between the moment it wins the decision and the moment it asks the journal again,

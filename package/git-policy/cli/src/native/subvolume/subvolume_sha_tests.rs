@@ -108,3 +108,14 @@ fn sha1_of_more_than_512_mib_equals_the_reference() {
     let message: Vec<u8> = pseudo_random((512usize << 20) + 1, 5);
     assert_eq!(hex(&sha1(message.as_slice())), reference_sha1(message));
 }
+
+/// The owner's ruling of 2026-11-07 ("Digests: sha1 + sha2") replaces the hand-written compression functions with the published
+///  crates, so the module holds none: no round constant, no rotation, no wrapping addition of words.
+#[test]
+fn the_module_holds_no_hand_written_compression_function() {
+    let source: &str = include_str!("subvolume_sha.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    for needle in ["rotate_left", "rotate_right", "wrapping_add", "0x428a2f98", "0x67452301"] {
+        assert!(!code.contains(needle), "subvolume_sha.rs still holds `{needle}`: the digests come from the sha1 and sha2 crates");
+    }
+}

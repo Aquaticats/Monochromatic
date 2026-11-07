@@ -38,12 +38,10 @@ use std::io::Read;
 use std::io::Write;
 /// Owned operating-system text for the staging name.
 use std::ffi::OsString;
-/// `Path` is a borrowed filesystem path of raw bytes; `PathBuf` is the owned one.
-use std::path::{Path, PathBuf};
+/// `Path` is a borrowed filesystem path of raw bytes.
+use std::path::Path;
 /// Diagnostics for a decision no failure reports.
 use crate::diagnostic_log::debug;
-/// Unguessable staging names.
-use crate::random_id::random_uuid;
 
 /// Mode of every private directory the wrapper creates:
 ///  owner only.
@@ -150,59 +148,94 @@ pub fn protect_path(path: &Path, mode: u32) -> std::io::Result<()> {
 }
 
 /// What:
-///  The name of the staging file beside `path`: hidden, unique, ending in `.partial`.
+///  A new staging file beside `path`: hidden, unique, private (mode `0600`), named `.<name>.<random>.partial`.
 /// Why:
-///   Recovery finds records by their exact names, so a staging file never looks like one.
+///   Recovery finds records by their exact names, so a staging file never looks like one; the file is made with
+///  `O_EXCL` and `O_NOFOLLOW`, so a second writer never shares it and a planted link is never written through, and the
+///  `tempfile` crate removes it when the value is dropped before it was published.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// join(dirname(path), `.${basename(path)}.${randomUUID()}.partial`)
+/// await open(join(dirname(path), `.${basename(path)}.${random()}.partial`), O_CREAT | O_EXCL | O_RDWR, 0o600);
 /// ```
-fn staging_path(path: &Path) -> std::io::Result<PathBuf> {
+fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTempFile> {
     let Some(name) = path.file_name() else {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             format!("{} names no file", path.display()),
         ));
     };
-    let unique: String = match random_uuid() {
-        Ok(found) => found,
-        Err(error) => return Err(std::io::Error::other(error.0)),
+    let mut prefix: OsString = OsString::from(".");
+    prefix.push(name);
+    prefix.push(".");
+    // A bare file name has an empty parent; the staging file then goes in the current directory like the record.
+    let directory: &Path = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
     };
-    let mut staged: OsString = OsString::from(".");
-    staged.push(name);
-    staged.push(".");
-    staged.push(unique);
-    staged.push(".partial");
-    return Ok(path.with_file_name(staged));
+    // The file is made by `exclusive_options` (exclusive, no-follow, mode 0600) and handed to the crate, which names it and removes
+    //  it when dropped; the crate's own file-making call wraps the system error with the staging path, which hides the error code.
+    return tempfile::Builder::new()
+        .prefix(prefix.as_os_str())
+        .suffix(".partial")
+        .make_in(directory, |staged| { return exclusive_options().open(staged); });
 }
 
 /// What:
-///  Make `staged` appear at `path` in one step, failing with `AlreadyExists` when `path` is taken.
+///  Make `staged` appear at `path` when the filesystem answered neither `renameat2` with `RENAME_NOREPLACE` nor a hard link:
+///  `AlreadyExists` when `path` is taken, the rename otherwise.
 /// Why:
-///   A hard link is atomic and exclusive. A filesystem that refuses hard links (`EPERM`, `ENOTSUP`, `EXDEV`) gets the
-///  rename after a check that nothing is at `path`, which is atomic and, with the writers of one record being
-///  one process, as exclusive as the callers need.
+///   The owner, 2026-11-07, on a filesystem such as an S3 bucket through `s3fs-fuse` that has neither: "Keep the fallback
+///  (Recommended)", after being told that "Commits keep working on those disks. We own 10 lines plus a 15-line test. On those
+///  disks only, two programs saving the same file at the same instant could overwrite one another." The check then rename is
+///  atomic but not exclusive: a name taken between the two is replaced without an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// try { await link(staged, path); } catch (error) { if (error.code === 'EEXIST') throw error; await rename(staged, path); }
+/// if (await exists(path)) throw alreadyExists(path); await rename(staged, path);
 /// ```
-fn publish_exclusive(staged: &Path, path: &Path) -> std::io::Result<()> {
-    match std::fs::hard_link(staged, path) {
-        Ok(()) => return Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(error),
-        Err(error) => {
-            debug(
-                "publishExclusive",
-                format!("the filesystem refused the link of {} ({error}); publishing by rename", path.display()).as_str(),
-            );
-        }
-    }
+fn publish_by_checked_rename(staged: &Path, path: &Path) -> std::io::Result<()> {
     if std::fs::symlink_metadata(path).is_ok() {
         return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
     }
     return std::fs::rename(staged, path);
+}
+
+/// What:
+///  The outcome of the exclusive publish `persist_noclobber` made: a taken name is the operating system's own `EEXIST`, and
+///  any other refusal publishes the staged file by the checked rename.
+/// Why:
+///   `persist_noclobber` tries `renameat2` with `RENAME_NOREPLACE`, then a hard link; a filesystem that answers neither
+///  leaves the staged file where it was, and "Commits should never fail" asks for the rename there. A function of the result
+///  lets a test feed the refusal that no filesystem on a test host produces.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { await publishNoReplace(staged, path); } catch (error) { if (error.code === 'EEXIST') throw error; await renameIfFree(staged, path); }
+/// ```
+fn settle_exclusive_publish(
+    path: &Path,
+    outcome: Result<File, tempfile::PersistError>,
+) -> std::io::Result<()> {
+    let refused: tempfile::PersistError = match outcome {
+        Ok(_published) => return Ok(()),
+        Err(refusal) => refusal,
+    };
+    if refused.error.kind() == std::io::ErrorKind::AlreadyExists {
+        // The staged file is removed when `refused.file` drops here.
+        return Err(refused.error);
+    }
+    debug(
+        "publishExclusive",
+        format!("the filesystem refused the exclusive publish of {} ({}); publishing by rename", path.display(), refused.error).as_str(),
+    );
+    let mut staged: tempfile::NamedTempFile = refused.file;
+    let renamed: std::io::Result<()> = publish_by_checked_rename(staged.path(), path);
+    // After the rename the staging name is gone, and whatever later takes that random name is not ours to remove.
+    if renamed.is_ok() {
+        staged.disable_cleanup(true);
+    }
+    return renamed;
 }
 
 /// What:
@@ -250,55 +283,24 @@ fn protect_when_asked(staged: &Path, mode: Option<u32>) -> std::io::Result<()> {
 /// Why:
 ///   A file created at its final name and then written is a record that a kill, or a full disk, between the two
 ///  steps leaves empty or cut: recovery then stops every guarded command until a person removes it. Publishing a
-///  complete file by link makes the record appear whole or not at all, whether or not its bytes are synced; a record
-///  that the tearing table shows to be benign when a power loss tears it skips the sync.
+///  complete file with `persist_noclobber` makes the record appear whole or not at all, whether or not its bytes are
+///  synced; a record that the tearing table shows to be benign when a power loss tears it skips the sync.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const staged = stagingPath(path); try { await writeAndSync(staged, bytes); await publishExclusive(staged, path); } finally { await rm(staged, { force: true }); }
+/// const staged = await stagingBeside(path); await writeAndSync(staged, bytes); await publishExclusive(staged, path);
 /// ```
 fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: bool) -> std::io::Result<()> {
-    let staged: PathBuf = staging_path(path)?;
-    let mut file: File = exclusive_options().open(staged.as_path())?;
-    // Each step runs only when the one before it succeeded, and the first failure is the result.
-    let written: std::io::Result<()> = file.write_all(bytes);
-    let filled: std::io::Result<()> = match written {
-        Ok(()) => sync_when_durable(&file, path, durable),
-        Err(error) => Err(error),
-    };
-    drop(file);
-    let protected: std::io::Result<()> = match filled {
-        Ok(()) => protect_when_asked(staged.as_path(), mode),
-        Err(error) => Err(error),
-    };
-    let published: std::io::Result<()> = match protected {
-        Ok(()) => publish_exclusive(staged.as_path(), path),
-        Err(error) => Err(error),
-    };
-    if let Some(message) = staging_removal_report(staged.as_path(), std::fs::remove_file(staged.as_path())) {
-        debug("writeThenPublish", message.as_str());
-    }
-    return published;
-}
-
-/// What:
-///  The diagnostic that the removal of a staging file calls for, or `None` when nothing needs saying.
-/// Why:
-///   The rename fallback already moved the staging file, so its absence is the expected end state, while any other
-///  failure leaves a stray `.partial` file that a person may want to know about; a function of the removal result
-///  lets a test see that choice, which no file on disk shows.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// error === undefined || error.code === 'ENOENT' ? undefined : `removing the staging file ${staged} failed: ${error}`
-/// ```
-fn staging_removal_report(staged: &Path, removal: std::io::Result<()>) -> Option<String> {
-    return match removal {
-        Ok(()) => None,
-        // The rename fallback already moved it.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => Some(format!("removing the staging file {} failed: {error}", staged.display())),
-    };
+    let mut staged: tempfile::NamedTempFile = staging_beside(path)?;
+    // Each step runs only when the one before it succeeded, and the first failure is the result; a failure drops `staged`,
+    //  which removes the staging file.
+    staged.as_file_mut().write_all(bytes)?;
+    sync_when_durable(staged.as_file(), path, durable)?;
+    protect_when_asked(staged.path(), mode)?;
+    #[cfg(test)]
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { return hook.borrow().as_ref().map_or(Ok(()), |fail| { return fail(); }); })?;
+    let outcome: Result<File, tempfile::PersistError> = staged.persist_noclobber(path);
+    return settle_exclusive_publish(path, outcome);
 }
 
 /// What:
@@ -514,12 +516,19 @@ pub fn sync_directory(path: &Path) -> std::io::Result<()> {
     {
         // Opening a directory read-only and syncing it is the POSIX way to flush its entries.
         let directory: File = File::open(path)?;
-        settle_directory_sync(path, directory.sync_all())?;
+        settle_directory_sync(path, rustix::fs::fsync(&directory).map_err(std::io::Error::from))?;
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]
     let _ = path;
     return Ok(());
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may fail a publish on this thread after the staging file was made and written, which is where a full disk or a
+    ///  kill ends one.
+    pub(crate) static AFTER_THE_STAGING_FILE_IS_WRITTEN: std::cell::RefCell<Option<Box<dyn Fn() -> std::io::Result<()>>>> = const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(test)]
