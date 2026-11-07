@@ -21,6 +21,7 @@ import type {
   LinkIdentity,
   Probe,
 } from './link-types.ts';
+import { errorNameOf, } from './error-code-of.ts';
 
 /**
  Builds an answer that is not ready.
@@ -346,7 +347,7 @@ async function waitForDeadline(
     );
   }
   catch (error) {
-    if ((error as Error).name === 'AbortError') {
+    if (errorNameOf(error,) === 'AbortError') {
       return answer;
     }
     throw error;
@@ -364,6 +365,13 @@ async function waitForDeadline(
  @param deadlineSeconds - how long to wait for the filesystem
  
  @returns the answer
+
+ @example
+ ```ts
+ import { checkRepositoryLink, } from '\@monochromatic-dev/repository-link-check';
+ 
+ const result = await checkRepositoryLink({ read, probe, deadlineSeconds, },);
+ ```
  */
 export async function checkRepositoryLink(
   {

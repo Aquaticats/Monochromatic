@@ -31,6 +31,13 @@ export type BinOptions = {
  @param home - the home folder for the default identity file
  
  @returns the options and the rest
+
+ @example
+ ```ts
+ import { parseBinOptions, } from '\@monochromatic-dev/repository-link-check';
+ 
+ const result = parseBinOptions({ argv, home, },);
+ ```
  */
 export function parseBinOptions(
   {
