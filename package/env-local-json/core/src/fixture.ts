@@ -335,7 +335,12 @@ export async function createRepositoryOnGoneDrive({
   root,
 }: {
   readonly root: string;
-},): Promise<{ readonly home: string; readonly link: string; readonly store: string; readonly mountPoint: string; }> {
+},): Promise<{
+  readonly home: string;
+  readonly link: string;
+  readonly store: string;
+  readonly mountPoint: string
+}> {
   /**
    Stand-in for the mount point of a drive that is not mounted.
    */
