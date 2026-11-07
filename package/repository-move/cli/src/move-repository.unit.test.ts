@@ -166,24 +166,26 @@ await describe({
               mainPath: join(linked.path, 'main',),
               inventoryBase: linked.path,
             },);
-            expect(result.stderr,).toBe('',);
-            expect(result.stdout,).toContain('inventory agrees: 2 nested subvolumes',);
+            expect(result.stderr,).toContain('inventory agrees: 2 nested subvolumes',);
+            expect(result.status,).toBe(0,);
           },
         },),
         it({
           name: 'agrees when only the inventory mapping goes through a link, or the main path has a trailing slash or a dot-dot segment',
           fn: async () => {
-            await using fixture = await makeFixture({ names: ['a',], },);
-            await using linked = await linkTo(fixture.base,);
-            await writeInventory({ fixture, rows: [['a', 'u-a',],], },);
-            const spellings = [
-              { mainPath: fixture.main, inventoryBase: linked.path, },
-              { mainPath: `${fixture.main}/`, inventoryBase: fixture.base, },
-              { mainPath: join(fixture.base, 'main', 'wt', '..',), inventoryBase: fixture.base, },
+            const spellings: readonly ((fixture: Fixture, linked: string,) => { mainPath: string; inventoryBase: string; })[] = [
+              (fixture, linked,) => ({ mainPath: fixture.main, inventoryBase: linked, }),
+              (fixture,) => ({ mainPath: `${fixture.main}/`, inventoryBase: fixture.base, }),
+              (fixture,) => ({ mainPath: join(fixture.base, 'main', 'wt', '..',), inventoryBase: fixture.base, }),
             ];
-            const results = await Promise.all(spellings.map(async (spelling,) => await runCopyTool({ fixture, pass: 'first', ...spelling, },),),);
-            expect(results.map((result,) => result.stderr,),).toEqual(spellings.map(() => '',),);
-            expect(results.every((result,) => result.stdout.includes('inventory agrees: 1 nested subvolumes',),),).toBe(true,);
+            const outcomes = await Promise.all(spellings.map(async (spell,) => {
+              await using fixture = await makeFixture({ names: ['a',], },);
+              await using linked = await linkTo(fixture.base,);
+              await writeInventory({ fixture, rows: [['a', 'u-a',],], },);
+              const result = await runCopyTool({ fixture, pass: 'first', ...spell(fixture, linked.path,), },);
+              return { status: result.status, agrees: result.stderr.includes('inventory agrees: 1 nested subvolumes',), };
+            },),);
+            expect(outcomes,).toEqual(spellings.map(() => ({ status: 0, agrees: true, }),),);
           },
         },),
         it({
@@ -196,8 +198,8 @@ await describe({
             await writeFile(join(fixture.main, 'wt', 'x', '.stub-subvolume',), 'u-x\n',);
             await writeInventory({ fixture, rows: [['x', 'u-x',],], },);
             const result = await runCopyTool({ fixture, pass: 'first', mainPath: join(linked.path, 'main',), inventoryBase: linked.path, },);
-            expect(result.stderr,).toBe('',);
-            expect(result.stdout,).toContain('inventory agrees: 1 nested subvolumes',);
+            expect(result.stderr,).toContain('inventory agrees: 1 nested subvolumes',);
+            expect(result.status,).toBe(0,);
           },
         },),
         it({
