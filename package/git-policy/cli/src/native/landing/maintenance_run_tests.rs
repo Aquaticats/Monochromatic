@@ -1,5 +1,8 @@
 //! Controls for running automatic maintenance:
-//!  the config read, the Git invocations and their order, the pre-2.47 retry, and the failure paths.
+//!  the config read,
+//! the Git invocations and their order,
+//! the pre-2.47 retry,
+//! and the failure paths.
 
 use super::*;
 use crate::test_support::{executable, fixture, git, git_context, remove, repository};
@@ -58,7 +61,8 @@ fn stand_context(path: PathBuf, global_prefix: &[&str]) -> GitContext {
     };
 }
 
-/// An unset configuration runs detached maintenance after the config read, both with the caller's global options.
+/// An unset configuration runs detached maintenance after the config read,
+/// both with the caller's global options.
 #[test]
 fn unset_configuration_runs_detached_maintenance_with_the_global_prefix() {
     let root: PathBuf = fixture("maintenance-unset");
@@ -79,7 +83,8 @@ fn unset_configuration_runs_detached_maintenance_with_the_global_prefix() {
     remove(root.as_path());
 }
 
-/// Git before 2.47 rejects `--detach` with 129, and the step retries without it.
+/// Git before 2.47 rejects `--detach` with 129,
+/// and the step retries without it.
 #[test]
 fn rejected_detach_retries_without_the_flag() {
     let root: PathBuf = fixture("maintenance-retry");
@@ -139,7 +144,9 @@ fn failing_config_read_skips_maintenance_and_reports_its_status() {
     remove(root.as_path());
 }
 
-/// A config read ended by a signal counts as exit 1, so maintenance still runs, as `exitCode ?? 1` does.
+/// A config read ended by a signal counts as exit 1,
+/// so maintenance still runs,
+/// as `exitCode ?? 1` does.
 #[test]
 fn signaled_config_read_counts_as_unset() {
     let root: PathBuf = fixture("maintenance-config-signal");
@@ -191,7 +198,8 @@ fn disabled_configuration_runs_no_maintenance() {
     remove(root.as_path());
 }
 
-/// Real Git: a repository with `maintenance.auto` false reports the disabled outcome.
+/// Real Git:
+/// a repository with `maintenance.auto` false reports the disabled outcome.
 #[test]
 fn real_repository_with_maintenance_disabled_reports_disabled() {
     let root: PathBuf = fixture("maintenance-real-disabled");
@@ -204,7 +212,8 @@ fn real_repository_with_maintenance_disabled_reports_disabled() {
     remove(root.as_path());
 }
 
-/// Real Git: an empty repository runs `git maintenance run --auto` and exits 0.
+/// Real Git:
+/// an empty repository runs `git maintenance run --auto` and exits 0.
 #[test]
 fn real_repository_runs_maintenance_and_exits_zero() {
     let root: PathBuf = fixture("maintenance-real-run");
@@ -216,7 +225,9 @@ fn real_repository_runs_maintenance_and_exits_zero() {
     remove(root.as_path());
 }
 
-/// Real Git: a damaged configuration makes the config read fail with its own status, and maintenance is skipped.
+/// Real Git:
+/// a damaged configuration makes the config read fail with its own status,
+/// and maintenance is skipped.
 #[test]
 fn real_damaged_configuration_skips_maintenance() {
     let root: PathBuf = fixture("maintenance-real-damaged");
@@ -228,7 +239,8 @@ fn real_damaged_configuration_skips_maintenance() {
     remove(root.as_path());
 }
 
-/// A snapshot parsed from `(scope, record)` pairs, read with or without global options.
+/// A snapshot parsed from `(scope, record)` pairs,
+/// read with or without global options.
 fn listing_snapshot(records: &[(&str, &str)], without_global_options: bool) -> ConfigSnapshot {
     let mut bytes: Vec<u8> = Vec::new();
     for (scope, record) in records {
@@ -265,7 +277,9 @@ fn a_snapshot_decides_without_starting_the_config_read() {
     remove(root.as_path());
 }
 
-/// A snapshot with a value it does not model, or one read with global options, leaves the read to Git.
+/// A snapshot with a value it does not model,
+/// or one read with global options,
+/// leaves the read to Git.
 #[test]
 fn a_snapshot_that_cannot_decide_starts_the_config_read() {
     let root: PathBuf = fixture("maintenance-snapshot-declines");
@@ -287,7 +301,9 @@ fn a_snapshot_that_cannot_decide_starts_the_config_read() {
     remove(root.as_path());
 }
 
-/// Real Git: the decision from a real snapshot equals the decision from Git's own read, for each spelling.
+/// Real Git:
+/// the decision from a real snapshot equals the decision from Git's own read,
+/// for each spelling.
 #[test]
 fn real_snapshot_decisions_equal_the_decisions_from_the_config_read() {
     let root: PathBuf = fixture("maintenance-snapshot-real");
@@ -321,7 +337,8 @@ fn real_snapshot_decisions_equal_the_decisions_from_the_config_read() {
     remove(root.as_path());
 }
 
-/// What Git says while automatic maintenance runs is kept in the service's log, in one entry that names the command.
+/// What Git says while automatic maintenance runs is kept in the service's log,
+/// in one entry that names the command.
 #[test]
 fn what_maintenance_says_is_kept_in_the_journal() {
     let root: PathBuf = fixture("maintenance-words");

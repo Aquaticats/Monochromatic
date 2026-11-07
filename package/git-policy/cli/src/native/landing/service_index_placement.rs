@@ -132,16 +132,22 @@ pub fn links_unsupported(error: &std::io::Error) -> bool {
 
 /// What the filesystem answered when the lock was asked to be placed whole.
 enum Atomic {
-    /// Neither a rename that does not replace nor a hard link can be made there; the error names both refusals.
+    /// Neither a rename that does not replace nor a hard link can be made there;
+    /// the error names both refusals.
     Refused(std::io::Error),
-    /// Any other failure: the lock exists, or storage failed.
+    /// Any other failure:
+    /// the lock exists,
+    /// or storage failed.
     Failed(std::io::Error),
 }
 
 /// What:
-///  Places `staged` as `lock` in one step: a rename that does not replace, else a hard link.
+///  Places `staged` as `lock` in one step:
+/// a rename that does not replace,
+/// else a hard link.
 /// Why:
-///   Both are exclusive and atomic, so the lock carries its marker from the instant it exists.
+///   Both are exclusive and atomic,
+/// so the lock carries its marker from the instant it exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -169,7 +175,8 @@ fn place_whole(platform: &Platform, staged: &Path, lock: &Path) -> Result<(), At
 }
 
 /// What:
-///  Makes the marked `staged` file the file at `lock`, whole;
+///  Makes the marked `staged` file the file at `lock`,
+/// whole;
 /// `AlreadyExists` when it exists,
 /// and `staged` then stays for the next attempt.
 /// Why:
@@ -202,16 +209,19 @@ pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io:
 /// How a lock came to be placed.
 #[derive(Debug)]
 pub enum Placed {
-    /// The staged file is the lock: the holder keeps its descriptor.
+    /// The staged file is the lock:
+    /// the holder keeps its descriptor.
     Whole,
     /// The lock was created by exclusive creation and given its marker afterwards;
-    /// this descriptor is the lock's own inode, and the holder keeps it instead of the staged file's.
+    /// this descriptor is the lock's own inode,
+    /// and the holder keeps it instead of the staged file's.
     Created(std::fs::File),
 }
 
 impl Placed {
     /// The descriptor that names the lock's inode:
-    /// the one the lock was created with, else the staged file's.
+    /// the one the lock was created with,
+    /// else the staged file's.
     pub fn held_or(self, staged: std::fs::File) -> std::fs::File {
         return match self {
             Placed::Whole => staged,
@@ -225,7 +235,8 @@ impl Placed {
 /// whole where the filesystem has a rename that does not replace or a hard link,
 /// else by exclusive creation with `marker` written afterwards.
 /// Why:
-///   Git's own lock is taken by exclusive creation (`open` with `O_CREAT | O_EXCL`, `lockfile.c` `lock_file`),
+///   Git's own lock is taken by exclusive creation (`open` with `O_CREAT | O_EXCL`,
+/// `lockfile.c` `lock_file`),
 /// which needs neither call,
 /// so a filesystem that refuses both still lets Git commit and must let this service land a commit too ("Commits should never fail.").
 /// The two steps leave a window:

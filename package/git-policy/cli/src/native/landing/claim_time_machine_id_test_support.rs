@@ -1,8 +1,11 @@
 //! What:
-//!  Test-only machine ID: a control gives its thread a machine ID in place of the host's, so the control does not depend on the host having one.
+//!  Test-only machine ID:
+//! a control gives its thread a machine ID in place of the host's,
+//! so the control does not depend on the host having one.
 //! Why:
 //!  Kept in a file of its own so the shipped `claim_time.rs` holds no inline test module (`rust/tests-in-sidecars`);
-//!  it is declared there under `#[cfg(test)]`, so the release executable never contains it.
+//!  it is declared there under `#[cfg(test)]`,
+//! so the release executable never contains it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +18,9 @@ thread_local! {
     static INJECTED: Cell<Option<&'static str>> = const { Cell::new(None) };
 }
 
-/// What this thread's machine ID is: the injected text (empty for a host with none), or nothing injected.
+/// What this thread's machine ID is:
+/// the injected text (empty for a host with none),
+/// or nothing injected.
 pub(crate) fn injected() -> Option<&'static str> {
     return INJECTED.with(Cell::get);
 }

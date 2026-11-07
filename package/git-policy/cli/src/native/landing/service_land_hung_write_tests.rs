@@ -1,7 +1,15 @@
-//! Controls for a service whose branch write does not return: the owner, 2026-11-04, "Never cut a branch write (Recommended)", whose
-//!  option read "a truly hung write keeps the service busy, and later commits fail at their own 20-minute ceiling with an error
-//!  naming it". The write here waits for a release file instead of hanging for good, so every control ends in seconds and leaves
-//!  no process behind; the ceilings of the clients are seconds too.
+//! Controls for a service whose branch write does not return:
+//! the owner,
+//! 2026-11-04,
+//! "Never cut a branch write (Recommended)",
+//! whose
+//!  option read "a truly hung write keeps the service busy,
+//! and later commits fail at their own 20-minute ceiling with an error
+//!  naming it".
+//! The write here waits for a release file instead of hanging for good,
+//! so every control ends in seconds and leaves
+//!  no process behind;
+//! the ceilings of the clients are seconds too.
 
 use super::tests::{World, land_with_failed_index, request, world};
 use super::*;
@@ -12,25 +20,39 @@ use crate::test_support::{git_text, remove, while_test_lives};
 use std::os::unix::net::UnixListener;
 use std::time::{Duration, Instant};
 
-/// The most a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
+/// The most a control waits for anything:
+/// far beyond what a healthy run needs,
+/// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// How long the service's write runs before the service calls it stuck: short, so the controls need not wait a minute.
+/// How long the service's write runs before the service calls it stuck:
+/// short,
+/// so the controls need not wait a minute.
 const STUCK_AFTER: Duration = Duration::from_secs(1);
 
-/// The ceiling the second client gives the service's answer: short, so the control ends in moments.
+/// The ceiling the second client gives the service's answer:
+/// short,
+/// so the control ends in moments.
 const SECOND_CEILING: Duration = Duration::from_secs(2);
 
-/// The ceiling the client inside the write gives the service's answer: past the moment the service tells it, which is the stuck
+/// The ceiling the client inside the write gives the service's answer:
+/// past the moment the service tells it,
+/// which is the stuck
 /// threshold of the control plus up to one beat after the write began.
 const INSIDE_CEILING: Duration = Duration::from_secs(5);
 
-/// The ceiling the second client gives the service's answer to its withdrawal: far past the control's own length, so an answer
-/// that arrives in seconds is the early answer, not the ceiling.
+/// The ceiling the second client gives the service's answer to its withdrawal:
+/// far past the control's own length,
+/// so an answer
+/// that arrives in seconds is the early answer,
+/// not the ceiling.
 const SECOND_WITHDRAWAL: Duration = Duration::from_secs(45);
 
-/// A Git whose reference update of the landing (`update-ref --stdin`) touches `entered`, then waits until `release` exists, then does
-/// what the real one does. It gives up on its own when the test is gone.
+/// A Git whose reference update of the landing (`update-ref --stdin`) touches `entered`,
+/// then waits until `release` exists,
+/// then does
+/// what the real one does.
+/// It gives up on its own when the test is gone.
 fn git_that_holds_the_branch_write(world: &World) -> (PathBuf, PathBuf, PathBuf) {
     let entered: PathBuf = world.root.join("write-entered");
     let release: PathBuf = world.root.join("write-release");
@@ -56,9 +78,11 @@ fn short_directory(name: &str) -> PathBuf {
     return directory;
 }
 
-/// A service on a socket of its own, serving on a thread until the control ends.
+/// A service on a socket of its own,
+/// serving on a thread until the control ends.
 struct Serving {
-    /// The socket directory, removed at the end.
+    /// The socket directory,
+    /// removed at the end.
     directory: PathBuf,
     /// Where the clients connect.
     socket: PathBuf,
@@ -101,7 +125,9 @@ fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_
     };
 }
 
-/// A client running on a thread of its own, which is waited for no longer than `PATIENCE`, so a regression that waits for ever
+/// A client running on a thread of its own,
+/// which is waited for no longer than `PATIENCE`,
+/// so a regression that waits for ever
 /// fails the control and does not hang it.
 struct Submitting {
     /// Where the client sends what it ended with and printed.
@@ -109,7 +135,8 @@ struct Submitting {
 }
 
 impl Submitting {
-    /// What the client ended with and printed, or an error when it was still waiting after `PATIENCE`.
+    /// What the client ended with and printed,
+    /// or an error when it was still waiting after `PATIENCE`.
     fn join(self) -> Result<(Result<Submitted, ClientFailure>, String), String> {
         return self.ended.recv_timeout(PATIENCE).map_err(|_| { return String::from("the client was still waiting after the longest a control waits"); });
     }
@@ -135,8 +162,13 @@ fn wait_for(path: &Path) {
     }
 }
 
-/// Waits until the service has finished with the batches it landed: none is open, its markers are gone and the index lock is given up. The service goes on
-/// working in the fixture after the answer (the index build, the records), and a fixture removed under it is not empty when the
+/// Waits until the service has finished with the batches it landed:
+/// none is open,
+/// its markers are gone and the index lock is given up.
+/// The service goes on
+/// working in the fixture after the answer (the index build,
+/// the records),
+/// and a fixture removed under it is not empty when the
 /// removal reaches it.
 fn wait_until_settled(world: &World) {
     let began: Instant = Instant::now();
@@ -157,13 +189,19 @@ fn wait_until_settled(world: &World) {
     std::thread::sleep(Duration::from_millis(500));
 }
 
-/// The subjects on the branch after `base`, oldest first.
+/// The subjects on the branch after `base`,
+/// oldest first.
 fn subjects_since(world: &World, base: &str) -> String {
     return git_text(world.repo.as_path(), &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]);
 }
 
-/// A commit queued behind a branch write that does not return is withdrawn at its own ceiling, in seconds and not after the
-/// withdrawal ceiling, with the error naming the write; the write is never ended; when it returns, the commit that was in it lands
+/// A commit queued behind a branch write that does not return is withdrawn at its own ceiling,
+/// in seconds and not after the
+/// withdrawal ceiling,
+/// with the error naming the write;
+/// the write is never ended;
+/// when it returns,
+/// the commit that was in it lands
 /// and the withdrawn one never does.
 #[test]
 fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_its_ceiling_naming_the_write() {
@@ -200,8 +238,14 @@ fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_it
     remove(world.root.as_path());
 }
 
-/// The commit whose own branch write does not return: its client reaches its ceiling, asks to be withdrawn, and the service cannot
-/// say whether it landed, so the error says the result is not known, names the write and where the commit is, and the commit lands
+/// The commit whose own branch write does not return:
+/// its client reaches its ceiling,
+/// asks to be withdrawn,
+/// and the service cannot
+/// say whether it landed,
+/// so the error says the result is not known,
+/// names the write and where the commit is,
+/// and the commit lands
 /// when the write returns.
 #[test]
 fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_known_and_lands_when_the_write_returns() {
@@ -235,7 +279,8 @@ fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_know
     remove(world.root.as_path());
 }
 
-/// The error for a commit withdrawn behind a hung write names the log and the restart, the way out when the write never returns.
+/// The error for a commit withdrawn behind a hung write names the log and the restart,
+/// the way out when the write never returns.
 #[test]
 fn the_error_for_a_commit_behind_a_hung_write_names_the_way_out() {
     let failure: ClientFailure = ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("monochromatic-git-policy-cli: the commit service has been inside a write for 21 minutes")) };
@@ -243,10 +288,16 @@ fn the_error_for_a_commit_behind_a_hung_write_names_the_way_out() {
     assert!(text.contains("21 minutes") && text.contains(crate::service_messages::RESTART_COMMAND) && text.contains(crate::service_messages::LOG_COMMAND), "{text}");
 }
 
-/// A request whose commit is on the branch but whose batch is still open (the index update did not install, so the batch waits for a
-/// restart to finish it) is never answered "withdrawn" by a connection thread, whatever the landing thread is stuck in: the landing
-/// thread knows the commit landed and answers "already" when the write returns. The finished batches are not enough to tell it:
-/// this one is open. A request that is neither in flight nor named by any batch is withdrawn, as the control that must move.
+/// A request whose commit is on the branch but whose batch is still open (the index update did not install,
+/// so the batch waits for a
+/// restart to finish it) is never answered "withdrawn" by a connection thread,
+/// whatever the landing thread is stuck in:
+/// the landing
+/// thread knows the commit landed and answers "already" when the write returns.
+/// The finished batches are not enough to tell it:
+/// this one is open.
+/// A request that is neither in flight nor named by any batch is withdrawn,
+/// as the control that must move.
 #[test]
 fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_early() {
     let world: World = world("service-hung-write-open-batch");
@@ -262,9 +313,13 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
     remove(world.root.as_path());
 }
 
-/// The client whose request is inside the write is told so when the write starts, not after the write has been stuck for the
-/// service's threshold (sol-1: the seven-second path was missed when the write began near the ceiling): the control makes that
-/// threshold an hour, and the client still ends at its ceiling plus the extra wait.
+/// The client whose request is inside the write is told so when the write starts,
+/// not after the write has been stuck for the
+/// service's threshold (sol-1:
+/// the seven-second path was missed when the write began near the ceiling):
+/// the control makes that
+/// threshold an hour,
+/// and the client still ends at its ceiling plus the extra wait.
 #[test]
 fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
     let world: World = world("service-hung-write-told-at-start");

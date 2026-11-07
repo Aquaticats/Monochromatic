@@ -1,27 +1,64 @@
 //! What:
-//!  The look that tells whether the commit service of an earlier release may still run, or may start, for a worktree: the
-//!  sockets the earlier units listen on (`/proc/net/unix`), then `/proc/<pid>/cmdline` of every process of the same user,
+//!  The look that tells whether the commit service of an earlier release may still run,
+//! or may start,
+//! for a worktree:
+//! the
+//!  sockets the earlier units listen on (`/proc/net/unix`),
+//! then `/proc/<pid>/cmdline` of every process of the same user,
 //!  compared with the service's start arguments.
 //! Why:
-//!  A running service finishes its own batches, and two services must never settle one batch, so the adoption of an earlier
-//!  journal (`earlier_service_journal_adopted.rs`) starts only when this look finds none. The earlier helper holds no lock on
-//!  its journal (it creates the folder, binds, recovers and serves; read at tag `monochromatic-git-policy-cli-v0.5.34`,
-//!  `service_main.rs`), so there is no exclusion this program could also take; the look is the whole protection, and it errs
-//!  toward "may be running". A look that cannot be made counts as "may be running": the batches are left, and the adoption is
+//!  A running service finishes its own batches,
+//! and two services must never settle one batch,
+//! so the adoption of an earlier
+//!  journal (`earlier_service_journal_adopted.rs`) starts only when this look finds none.
+//! The earlier helper holds no lock on
+//!  its journal (it creates the folder,
+//! binds,
+//! recovers and serves;
+//! read at tag `monochromatic-git-policy-cli-v0.5.34`,
+//!  `service_main.rs`),
+//! so there is no exclusion this program could also take;
+//! the look is the whole protection,
+//! and it errs
+//!  toward "may be running".
+//! A look that cannot be made counts as "may be running":
+//! the batches are left,
+//! and the adoption is
 //!  tried again at the next start.
-//!  - The earlier socket unit (`cli-git@<instance>.socket`, `ListenStream=%t/cli-git/%i.sock`) starts the helper on the first
-//!    connection, so a helper can appear at any moment after a scan found none. A listening socket of that name is therefore a
-//!    reason to wait, whoever holds it; the table of sockets lists only sockets that listen when the flags column says so, and
-//!    the file of a socket whose unit stopped stays behind, so the table is read, never the file system.
-//!  - A process is a service of the worktree by its start arguments. A journal argument is compared by the folder it names
-//!    (device and inode), because the same folder has several spellings (a symbolic link such as `/home` for `/var/home`, a
-//!    relative path); a spelling that cannot be resolved proves nothing, so it counts as "may be running".
-//!  - A command line is read up to a limit; one that fills it has words that were not looked at, so it counts as "may be
+//!  - The earlier socket unit (`cli-git@<instance>.socket`,
+//!    `ListenStream=%t/cli-git/%i.sock`) starts the helper on the first
+//!    connection,
+//!    so a helper can appear at any moment after a scan found none.
+//!    A listening socket of that name is therefore a
+//!    reason to wait,
+//!    whoever holds it;
+//!    the table of sockets lists only sockets that listen when the flags column says so,
+//!    and
+//!    the file of a socket whose unit stopped stays behind,
+//!    so the table is read,
+//!    never the file system.
+//!  - A process is a service of the worktree by its start arguments.
+//!    A journal argument is compared by the folder it names
+//!    (device and inode),
+//!    because the same folder has several spellings (a symbolic link such as `/home` for `/var/home`,
+//!    a
+//!    relative path);
+//!    a spelling that cannot be resolved proves nothing,
+//!    so it counts as "may be running".
+//!  - A command line is read up to a limit;
+//!    one that fills it has words that were not looked at,
+//!    so it counts as "may be
 //!    running".
 //!
-//!  The look is bounded in time (`crate::wait_ceilings::PROCESS_LOOK_CEILING`), because reading another process's command line
-//!  takes that process's address-space lock, which a process stuck in the kernel can hold for good
-//!  (Linux `mm/memory.c`, `__access_remote_vm`: `mmap_read_lock_killable`, reached from `fs/proc/base.c`, `get_mm_cmdline`).
+//!  The look is bounded in time (`crate::wait_ceilings::PROCESS_LOOK_CEILING`),
+//!  because reading another process's command line
+//!  takes that process's address-space lock,
+//!  which a process stuck in the kernel can hold for good
+//!  (Linux `mm/memory.c`,
+//!  `__access_remote_vm`:
+//!  `mmap_read_lock_killable`,
+//!  reached from `fs/proc/base.c`,
+//!  `get_mm_cmdline`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,48 +70,68 @@ use crate::wrapper_names_old_and_new::{COMMAND_WORD, DATA_FOLDER};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// The words that start the service mode after the program name, and the option that names the worktree's instance.
+/// The words that start the service mode after the program name,
+/// and the option that names the worktree's instance.
 const SERVICE_MODE_WORDS: [&str; 2] = ["service", "run"];
 
 /// The option that names the instance a service is for.
 const INSTANCE_OPTION: &str = "--instance";
 
-/// The option that names the folder a service keeps its journal in. Every unit of an earlier release passed it as a word of its
-///  own, followed by the folder.
+/// The option that names the folder a service keeps its journal in.
+/// Every unit of an earlier release passed it as a word of its
+///  own,
+/// followed by the folder.
 const JOURNAL_OPTION: &str = "--journal";
 
 /// Most bytes of one process's command line that are looked at;
 ///  the options of the service are in the first few hundred bytes.
-///  One byte more is read, to tell a command line that ends at the limit from one that goes on.
+///  One byte more is read,
+/// to tell a command line that ends at the limit from one that goes on.
 pub const COMMAND_LINE_BYTES: u64 = 65_536;
 
-/// The folder below the user's runtime directory that holds the sockets of the earlier units: the earlier data folder's name
-///  (`ListenStream=%t/cli-git/%i.sock`, and `cli-git/service.sock` for the single service of the first releases; tag
-///  `monochromatic-git-policy-cli-v0.5.34`, `service_instance.rs`, `SOCKET_DIRECTORY` and `LEGACY_SOCKET_RELATIVE`).
+/// The folder below the user's runtime directory that holds the sockets of the earlier units:
+/// the earlier data folder's name
+///  (`ListenStream=%t/cli-git/%i.sock`,
+/// and `cli-git/service.sock` for the single service of the first releases;
+/// tag
+///  `monochromatic-git-policy-cli-v0.5.34`,
+/// `service_instance.rs`,
+/// `SOCKET_DIRECTORY` and `LEGACY_SOCKET_RELATIVE`).
 const EARLIER_SOCKET_FOLDER: &str = DATA_FOLDER.earlier;
 
-/// The file name of the socket the single service of the first releases listened on, in the earlier socket folder.
+/// The file name of the socket the single service of the first releases listened on,
+/// in the earlier socket folder.
 const EARLIER_SHARED_SOCKET_FILE: &str = "service.sock";
 
-/// Why the look cannot promise that no service of the worktree runs or will start, and which one it is.
+/// Why the look cannot promise that no service of the worktree runs or will start,
+/// and which one it is.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Hold {
-    /// The earlier release's socket of this worktree (`cli-git/<instance>.sock`) listens: a connection to it starts the helper.
+    /// The earlier release's socket of this worktree (`cli-git/<instance>.sock`) listens:
+    /// a connection to it starts the helper.
     InstanceSocketListens,
-    /// The socket of the single service of the first releases (`cli-git/service.sock`) listens; that service serves every worktree.
+    /// The socket of the single service of the first releases (`cli-git/service.sock`) listens;
+    /// that service serves every worktree.
     SharedSocketListens,
-    /// A process runs as the earlier helper of this worktree: its journal is this worktree's, or its mode words and instance are.
+    /// A process runs as the earlier helper of this worktree:
+    /// its journal is this worktree's,
+    /// or its mode words and instance are.
     InstanceHelperRuns,
-    /// A process runs as the single service of the first releases: its journal is the shared one; it serves every worktree.
+    /// A process runs as the single service of the first releases:
+    /// its journal is the shared one;
+    /// it serves every worktree.
     SharedHelperRuns,
-    /// A process has a journal option whose folder could not be resolved, so it may be an earlier helper of either kind.
+    /// A process has a journal option whose folder could not be resolved,
+    /// so it may be an earlier helper of either kind.
     HelperUnsure,
-    /// The sockets or the processes could not be looked at (a table or a command line that cannot be read, a look that ran out of time).
+    /// The sockets or the processes could not be looked at (a table or a command line that cannot be read,
+    /// a look that ran out of time).
     CannotLook,
 }
 
 impl Hold {
-    /// The reason in plain words, as a sentence part that follows "because".
+    /// The reason in plain words,
+    /// as a sentence part that follows "because".
     pub fn words(self) -> &'static str {
         return match self {
             Hold::InstanceSocketListens => "the socket of the earlier release's commit service for this worktree listens, and a connection to it starts that service at any moment",
@@ -92,11 +149,16 @@ impl Hold {
 pub struct ServiceLook {
     /// The worktree's instance name.
     pub instance: String,
-    /// The folders an earlier release's service of the worktree kept its journal in: the instance's own first, the shared one
-    ///  second. A process that was started with one of them as its journal is a service of the worktree, and which one it is
+    /// The folders an earlier release's service of the worktree kept its journal in:
+    /// the instance's own first,
+    /// the shared one
+    ///  second.
+    /// A process that was started with one of them as its journal is a service of the worktree,
+    /// and which one it is
     ///  tells the person what to stop.
     pub journals: Vec<PathBuf>,
-    /// This process, which is never another service.
+    /// This process,
+    /// which is never another service.
     pub own_pid: u32,
     /// The user whose processes are looked at.
     pub own_user: u32,
@@ -107,9 +169,13 @@ pub struct ServiceLook {
 /// What:
 ///  Whether the service mode words start at position `at` of the command line and are not behind the current command word.
 /// Why:
-///   The service of this release starts as `<program> monochromatic-git-policy-cli service run ...`, with the same mode words
-///  and the same instance option as the earlier units that name the earlier command word, and it is no earlier helper: it
-///  writes its own journal, and it is the service a person usually has running when they ask for the earlier batches to be
+///   The service of this release starts as `<program> monochromatic-git-policy-cli service run ...`,
+/// with the same mode words
+///  and the same instance option as the earlier units that name the earlier command word,
+/// and it is no earlier helper:
+/// it
+///  writes its own journal,
+/// and it is the service a person usually has running when they ask for the earlier batches to be
 ///  settled.
 ///
 /// In TS you'd write (pseudocode):
@@ -129,41 +195,61 @@ fn is_word_end(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// The bytes of a path, as a command line word spells it.
+/// The bytes of a path,
+/// as a command line word spells it.
 #[cfg(unix)]
 fn path_word(path: &Path) -> Vec<u8> {
     use std::os::unix::ffi::OsStrExt;
     return path.as_os_str().as_bytes().to_vec();
 }
 
-/// The bytes of a path, as a command line word spells it, for a platform whose paths are not bytes.
+/// The bytes of a path,
+/// as a command line word spells it,
+/// for a platform whose paths are not bytes.
 #[cfg(not(unix))]
 fn path_word(path: &Path) -> Vec<u8> {
     return path.to_string_lossy().into_owned().into_bytes();
 }
 
-/// The identity of a folder or file: the device it is on and its inode, which every spelling of one folder shares.
+/// The identity of a folder or file:
+/// the device it is on and its inode,
+/// which every spelling of one folder shares.
 #[cfg(unix)]
 type FileIdentity = (u64, u64);
 
-/// The folders of the earlier journals as the look knows them, and where the process that is looked at keeps its files.
+/// The folders of the earlier journals as the look knows them,
+/// and where the process that is looked at keeps its files.
 #[cfg(unix)]
 struct JournalNames<'a> {
-    /// The earlier journals, as the service spells them.
+    /// The earlier journals,
+    /// as the service spells them.
     spellings: &'a [PathBuf],
-    /// `<proc root>/<pid>` of the process, whose `cwd` is the folder a relative word is resolved in.
+    /// `<proc root>/<pid>` of the process,
+    /// whose `cwd` is the folder a relative word is resolved in.
     process: &'a Path,
 }
 
 /// What:
-///  Which earlier journal a journal word of a command line names: the instance's own (the first of the look's journals), the
-///  shared one (the second), or one that cannot be resolved; nothing when it names another folder.
+///  Which earlier journal a journal word of a command line names:
+/// the instance's own (the first of the look's journals),
+/// the
+///  shared one (the second),
+/// or one that cannot be resolved;
+/// nothing when it names another folder.
 /// Why:
-///   The word is compared as it is spelled, then by the folder it resolves to (device and inode): the service derives
-///  `/var/home/user/...`, and an earlier helper started with `/home/user/...` names the same folder through the link `/home`; a
-///  relative word means the folder in the working directory of the process that was started with it, which `/proc/<pid>/cwd`
-///  gives (the kernel follows it). A stat that fails says nothing about which folder the word names, and an open question must
-///  not start a second service on the journal. Which journal it is decides what the person is told to stop.
+///   The word is compared as it is spelled,
+/// then by the folder it resolves to (device and inode):
+/// the service derives
+///  `/var/home/user/...`,
+/// and an earlier helper started with `/home/user/...` names the same folder through the link `/home`;
+/// a
+///  relative word means the folder in the working directory of the process that was started with it,
+/// which `/proc/<pid>/cwd`
+///  gives (the kernel follows it).
+/// A stat that fails says nothing about which folder the word names,
+/// and an open question must
+///  not start a second service on the journal.
+/// Which journal it is decides what the person is told to stop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,12 +281,20 @@ fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<Hold> {
 /// What:
 ///  Whether one command line (words split at NUL bytes) is a service of the worktree.
 /// Why:
-///   Two shapes of start arguments exist. The units written before the service became a mode of the program started it as
-///  `<program> --journal <state>/cli-git/service/<instance> --git <git> --instance <instance>`, and the first releases' single
-///  service as `<program> --journal <state>/cli-git/service --git <git>`; neither has the mode words. The later units start
-///  `<program> cli-git service run --journal <folder> --instance <instance>`. A process keeps the arguments it was started
-///  with, so helpers of every shape can be alive. A process with the journal option followed by a word that may name one of the
-///  earlier folders is a service of the worktree; so is one with the mode words and the instance option followed by the instance.
+///   Two shapes of start arguments exist.
+/// The units written before the service became a mode of the program started it as
+///  `<program> --journal <state>/cli-git/service/<instance> --git <git> --instance <instance>`,
+/// and the first releases' single
+///  service as `<program> --journal <state>/cli-git/service --git <git>`;
+/// neither has the mode words.
+/// The later units start
+///  `<program> cli-git service run --journal <folder> --instance <instance>`.
+/// A process keeps the arguments it was started
+///  with,
+/// so helpers of every shape can be alive.
+/// A process with the journal option followed by a word that may name one of the
+///  earlier folders is a service of the worktree;
+/// so is one with the mode words and the instance option followed by the instance.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -230,21 +324,33 @@ fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> O
     return if mode_in_a_row && instance_named { Some(Hold::InstanceHelperRuns) } else { None };
 }
 
-/// Whether an error says the process ended while it was looked at: its entry is gone (`ENOENT`) or `read` found no process
-///  (`ESRCH`). Any other error says nothing about the process.
+/// Whether an error says the process ended while it was looked at:
+/// its entry is gone (`ENOENT`) or `read` found no process
+///  (`ESRCH`).
+/// Any other error says nothing about the process.
 #[cfg(unix)]
 fn process_is_gone(error: &std::io::Error) -> bool {
     return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
 }
 
 /// What:
-///  Which socket of the earlier units listens, if one does: this worktree's own first, then the single service's of the first
-///  releases. A table of sockets that cannot be read is told apart.
+///  Which socket of the earlier units listens,
+/// if one does:
+/// this worktree's own first,
+/// then the single service's of the first
+///  releases.
+/// A table of sockets that cannot be read is told apart.
 /// Why:
-///   A connection to such a socket starts the earlier helper at once, with no process to be seen before, so no look at the
-///  processes can prove that none will start. The table lists the sockets that exist now and says which of them listen; the
-///  file of a socket whose unit stopped stays in the runtime directory, and a connection to test it would start the helper.
-///  The two sockets are told apart because stopping them takes different units, and the shared one serves every worktree.
+///   A connection to such a socket starts the earlier helper at once,
+/// with no process to be seen before,
+/// so no look at the
+///  processes can prove that none will start.
+/// The table lists the sockets that exist now and says which of them listen;
+/// the
+///  file of a socket whose unit stopped stays in the runtime directory,
+/// and a connection to test it would start the helper.
+///  The two sockets are told apart because stopping them takes different units,
+/// and the shared one serves every worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -267,19 +373,26 @@ fn earlier_socket_that_listens(look: &ServiceLook, proc_root: &Path) -> Option<H
 /// What a look at one process found.
 #[cfg(unix)]
 enum CommandLine {
-    /// The words of the command line, split at NUL bytes.
+    /// The words of the command line,
+    /// split at NUL bytes.
     Words(Vec<u8>),
-    /// The process ended while it was looked at, or belongs to another user.
+    /// The process ended while it was looked at,
+    /// or belongs to another user.
     Skipped,
-    /// The command line cannot be read whole: any reason but the process having ended, or more bytes than the limit.
+    /// The command line cannot be read whole:
+    /// any reason but the process having ended,
+    /// or more bytes than the limit.
     Unproven,
 }
 
 /// What:
-///  Reads the command line of one entry of the process table, up to the limit and one byte more.
+///  Reads the command line of one entry of the process table,
+/// up to the limit and one byte more.
 /// Why:
-///   The limit keeps one process from filling memory; the extra byte tells a line that ends at the limit from a line that
-///  goes on, whose later words were not looked at and may be the service's options.
+///   The limit keeps one process from filling memory;
+/// the extra byte tells a line that ends at the limit from a line that
+///  goes on,
+/// whose later words were not looked at and may be the service's options.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -314,7 +427,8 @@ fn command_line_of(entry: &std::fs::DirEntry, own_user: u32) -> CommandLine {
     return CommandLine::Words(bytes);
 }
 
-/// The identity of each earlier journal that exists, or `None` when one cannot be looked at for a reason other than its absence.
+/// The identity of each earlier journal that exists,
+/// or `None` when one cannot be looked at for a reason other than its absence.
 #[cfg(unix)]
 fn journal_identities(journals: &[PathBuf]) -> Option<Vec<FileIdentity>> {
     use std::os::unix::fs::MetadataExt;
@@ -330,14 +444,28 @@ fn journal_identities(journals: &[PathBuf]) -> Option<Vec<FileIdentity>> {
 }
 
 /// What:
-///  The scan itself: a socket that listens where an earlier unit's socket does, then every process of the user other than this
-///  one, until one is a service of the worktree.
-///  Whether a service may be running or start: it is, when such a socket exists, when a process is one, and when a process cannot
+///  The scan itself:
+/// a socket that listens where an earlier unit's socket does,
+/// then every process of the user other than this
+///  one,
+/// until one is a service of the worktree.
+///  Whether a service may be running or start:
+/// it is,
+/// when such a socket exists,
+/// when a process is one,
+/// and when a process cannot
 ///  be looked at for any reason but having ended.
 /// Why:
-///   Only "the process ended" proves nothing is there; a descriptor shortage, an I/O error or a refused read leaves the
-///  question open, and an open question must not start a second service on the journal. The sockets come first: once none
-///  listens, no helper can be started by a connection, so the processes seen afterwards are all there can be.
+///   Only "the process ended" proves nothing is there;
+/// a descriptor shortage,
+/// an I/O error or a refused read leaves the
+///  question open,
+/// and an open question must not start a second service on the journal.
+/// The sockets come first:
+/// once none
+///  listens,
+/// no helper can be started by a connection,
+/// so the processes seen afterwards are all there can be.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -353,9 +481,12 @@ fn scan(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
 }
 
 /// What:
-///  The processes half of `scan`: every process of the user other than this one, until one is a service of the worktree.
+///  The processes half of `scan`:
+/// every process of the user other than this one,
+/// until one is a service of the worktree.
 /// Why:
-///   A caller that only needs to know whether an earlier program is running now (the fold of the earlier data names, which a
+///   A caller that only needs to know whether an earlier program is running now (the fold of the earlier data names,
+/// which a
 ///  socket that listens cannot write to) must not be held back by a socket whose unit stays active for good.
 ///
 /// In TS you'd write (pseudocode):
@@ -398,39 +529,51 @@ fn scan_processes(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
     return None;
 }
 
-/// Without `/proc` and Unix users there is no look to make, so a service may be running.
+/// Without `/proc` and Unix users there is no look to make,
+/// so a service may be running.
 #[cfg(not(unix))]
 fn scan(_look: &ServiceLook, _proc_root: &Path) -> Option<Hold> {
     return Some(Hold::CannotLook);
 }
 
-/// Without `/proc` and Unix users there is no look to make, so a service may be running.
+/// Without `/proc` and Unix users there is no look to make,
+/// so a service may be running.
 #[cfg(not(unix))]
 fn scan_processes(_look: &ServiceLook, _proc_root: &Path) -> Option<Hold> {
     return Some(Hold::CannotLook);
 }
 
-/// The user this process runs as, whose processes are looked at.
+/// The user this process runs as,
+/// whose processes are looked at.
 #[cfg(unix)]
 pub fn effective_user() -> u32 {
     // SAFETY: `geteuid` has no preconditions and cannot fail.
     return unsafe { libc::geteuid() };
 }
 
-/// A platform without Unix users has no process owners to compare, so none is another's.
+/// A platform without Unix users has no process owners to compare,
+/// so none is another's.
 #[cfg(not(unix))]
 pub fn effective_user() -> u32 {
     return 0;
 }
 
 /// What:
-///  Why a service of the worktree may be running or may start, or nothing when the look can promise neither: a socket of an
-///  earlier unit listens, a process other than this one has the start arguments of one, or the sockets or the processes cannot
+///  Why a service of the worktree may be running or may start,
+/// or nothing when the look can promise neither:
+/// a socket of an
+///  earlier unit listens,
+/// a process other than this one has the start arguments of one,
+/// or the sockets or the processes cannot
 ///  be looked at within the look's ceiling.
 /// Why:
-///   The scan runs on a thread of its own and is waited for up to the ceiling, because one read of a command line can wait for
-///  a process stuck in the kernel. A scan that does not answer in time counts as "cannot look"; its thread is left behind (it
-///  ends when the kernel lets the read go), and whoever asked is told to try again.
+///   The scan runs on a thread of its own and is waited for up to the ceiling,
+/// because one read of a command line can wait for
+///  a process stuck in the kernel.
+/// A scan that does not answer in time counts as "cannot look";
+/// its thread is left behind (it
+///  ends when the kernel lets the read go),
+/// and whoever asked is told to try again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -441,12 +584,17 @@ pub fn earlier_service_hold(look: ServiceLook, proc_root: &Path) -> Option<Hold>
 }
 
 /// What:
-///  Why a service of the worktree is running now, or nothing when no process has a service's start arguments: the sockets of the
+///  Why a service of the worktree is running now,
+/// or nothing when no process has a service's start arguments:
+/// the sockets of the
 ///  earlier units are not looked at.
 /// Why:
-///   A socket that listens starts a service only when a program connects to it; for the fold of the earlier data names the
-///  question is whether a program that writes them runs, and the sockets of a worktree's earlier units stay listening for good.
-///  The same ceiling applies, and a look that cannot be made counts as a hold.
+///   A socket that listens starts a service only when a program connects to it;
+/// for the fold of the earlier data names the
+///  question is whether a program that writes them runs,
+/// and the sockets of a worktree's earlier units stay listening for good.
+///  The same ceiling applies,
+/// and a look that cannot be made counts as a hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,10 +1,14 @@
-//! Controls for the queue of the landing's syncs: what a publishing landing queues, what a landing that publishes nothing makes
-//! at once, and the flush of the index that follows `core.fsync`.
+//! Controls for the queue of the landing's syncs:
+//! what a publishing landing queues,
+//! what a landing that publishes nothing makes
+//! at once,
+//! and the flush of the index that follows `core.fsync`.
 
 use super::*;
 use crate::test_support::{fixture, remove};
 
-/// The names of the syncs a closure's landing queued or waited for, from the events of this thread.
+/// The names of the syncs a closure's landing queued or waited for,
+/// from the events of this thread.
 fn events_of(run: impl FnOnce()) -> Vec<String> {
     crate::service_fault::hooks::take_events();
     run();
@@ -20,7 +24,8 @@ fn record(name: &str) -> (std::path::PathBuf, File) {
     return (root, file);
 }
 
-/// A landing that publishes queues its flush and the background thread makes it; nothing is made on the caller's thread.
+/// A landing that publishes queues its flush and the background thread makes it;
+/// nothing is made on the caller's thread.
 #[test]
 fn a_published_landing_queues_and_the_background_thread_flushes() {
     let (root, file) = record("durable-published");
@@ -49,7 +54,8 @@ fn an_unpublished_landing_forces_what_it_queued() {
     remove(root.as_path());
 }
 
-/// A deferral dropped without settling (a panic in the landing) forces its queue too, and ends the deferral.
+/// A deferral dropped without settling (a panic in the landing) forces its queue too,
+/// and ends the deferral.
 #[test]
 fn a_dropped_deferral_forces_and_ends() {
     let (root, file) = record("durable-dropped");
@@ -63,7 +69,8 @@ fn a_dropped_deferral_forces_and_ends() {
     remove(root.as_path());
 }
 
-/// Outside a landing a flush is made where it is asked for, as recovery needs it.
+/// Outside a landing a flush is made where it is asked for,
+/// as recovery needs it.
 #[test]
 fn a_flush_outside_a_landing_is_made_now() {
     let (root, file) = record("durable-outside");
@@ -89,12 +96,16 @@ fn the_index_is_flushed_only_when_it_is_hardened() {
 }
 
 /// What:
-///  A control that reads the landing's answer to "is the index flushed before it is installed?" after the landing began
+///  A control that reads the landing's answer to "is the index flushed before it is installed?"
+/// after the landing began
 ///  without `core.fsync` naming the index.
-///  `begin(false)` starts a landing and returns a `Deferral` (a handle that must be settled); `index_is_hardened()` reads
+///  `begin(false)` starts a landing and returns a `Deferral` (a handle that must be settled);
+/// `index_is_hardened()` reads
 ///  the answer.
 /// Why:
-///  The answer must follow what the landing was told, so a landing begun with `false` reports `false`; a function that always
+///  The answer must follow what the landing was told,
+/// so a landing begun with `false` reports `false`;
+/// a function that always
 ///  said `true` would have the index flushed where native Git does not flush it.
 ///
 /// In TS you'd write (pseudocode):
@@ -114,11 +125,16 @@ fn a_landing_begun_without_the_index_named_reports_it_unhardened() {
 }
 
 /// What:
-///  A control that reads the same answer after the landing began with `core.fsync` naming the index, again after it
-///  settled, and again after a landing that was dropped.
+///  A control that reads the same answer after the landing began with `core.fsync` naming the index,
+/// again after it
+///  settled,
+/// and again after a landing that was dropped.
 /// Why:
-///  A landing told `true` reports `true` (a function that always said `false` would leave the hardened index unflushed), and
-///  the thread's answer returns to its default of `true` when a landing ends, however it ends, so the next landing starts
+///  A landing told `true` reports `true` (a function that always said `false` would leave the hardened index unflushed),
+/// and
+///  the thread's answer returns to its default of `true` when a landing ends,
+/// however it ends,
+/// so the next landing starts
 ///  from the default and not from the last landing's answer.
 ///
 /// In TS you'd write (pseudocode):
@@ -146,10 +162,12 @@ fn a_landing_begun_with_the_index_named_reports_it_hardened_and_the_default_retu
     assert!(index_is_hardened(), "a dropped landing leaves the default behind");
 }
 
-/// The variable that names the directory the helper below works in; a test run without it does nothing.
+/// The variable that names the directory the helper below works in;
+/// a test run without it does nothing.
 const HELPER_DIRECTORY: &str = "CLI_GIT_DURABLE_HELPER_DIRECTORY";
 
-/// Says whether one thread can start in this process. A test run without the variable does nothing.
+/// Says whether one thread can start in this process.
+/// A test run without the variable does nothing.
 #[test]
 fn thread_probe() {
     if std::env::var_os(HELPER_DIRECTORY).is_none() {
@@ -159,8 +177,11 @@ fn thread_probe() {
     println!("{}", if started { "thread-started" } else { "thread-refused" });
 }
 
-/// Makes the syncs of a landing, both ways (`force` as a landing that publishes nothing does, `sync_batch` as the background thread does),
-/// in a process of its own that the control below gives no thread to start. A test run without the variable does nothing.
+/// Makes the syncs of a landing,
+/// both ways (`force` as a landing that publishes nothing does,
+/// `sync_batch` as the background thread does),
+/// in a process of its own that the control below gives no thread to start.
+/// A test run without the variable does nothing.
 #[test]
 fn durable_helper() {
     let Some(named) = std::env::var_os(HELPER_DIRECTORY) else { return };
@@ -175,10 +196,18 @@ fn durable_helper() {
     std::fs::write(directory.join("done"), made.to_string()).expect("the helper says it finished");
 }
 
-/// A landing whose syncs cannot start a thread makes them on its own thread and does not panic (shipped since 0.5.28: `Scope::spawn`
-/// panics when the system refuses the thread, and the panic on the service's thread took the service down, so the commit could not
-/// land: `a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`, gate of 2026-11-04). The helper runs with
-/// a process limit of one, under which every start of a thread is refused. The control skips where the user may exceed the limit.
+/// A landing whose syncs cannot start a thread makes them on its own thread and does not panic (shipped since 0.5.28:
+/// `Scope::spawn`
+/// panics when the system refuses the thread,
+/// and the panic on the service's thread took the service down,
+/// so the commit could not
+/// land:
+/// `a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+/// gate of 2026-11-04).
+/// The helper runs with
+/// a process limit of one,
+/// under which every start of a thread is refused.
+/// The control skips where the user may exceed the limit.
 #[test]
 fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_not_panic() {
     use std::os::unix::process::CommandExt;

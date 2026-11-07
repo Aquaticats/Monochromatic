@@ -49,10 +49,17 @@ pub struct IndexLock {
 }
 
 /// What:
-///  What a caller records, durably, between the installation of the index and the giving up of the lock.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  What a caller records,
+/// durably,
+/// between the installation of the index and the giving up of the lock.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The record runs once, while the lock still keeps every other writer out. The state it needs (the journal, the batch, the new
+///   The record runs once,
+/// while the lock still keeps every other writer out.
+/// The state it needs (the journal,
+/// the batch,
+/// the new
 ///  commit) is a small struct that implements this.
 ///
 /// In TS you'd write (pseudocode):
@@ -95,7 +102,8 @@ impl IndexLock {
     }
 
     /// The live index this lock guards.
-    ///  A function that takes a borrow of the lock can only be called by the holder, and works on files beside this index.
+    ///  A function that takes a borrow of the lock can only be called by the holder,
+    /// and works on files beside this index.
     pub fn index(&self) -> &Path {
         return self.index.as_path();
     }
@@ -182,14 +190,23 @@ impl IndexLock {
     }
 
     /// What:
-    ///  `release_with`, calling `record` after the index is installed and before the lock is given up.
+    ///  `release_with`,
+    /// calling `record` after the index is installed and before the lock is given up.
     /// Why:
-    ///   Once the lock is gone another program may stage into the installed index, so a restart that would replay the
-    ///  installation then loses what it staged. The caller records in `record` (durably) that the installation is done, while the
-    ///  lock still keeps every other writer out: a death before the record leaves the lock for the restart to reclaim, and the
-    ///  replay it does is of an index nobody could have changed; a death after it leaves a record that stops the replay.
-    ///  A record that cannot be made keeps the lock in place and ends the service after its batch, as an unanswerable ownership
-    ///  question does, so an installed index is never left unlocked and replayable.
+    ///   Once the lock is gone another program may stage into the installed index,
+    /// so a restart that would replay the
+    ///  installation then loses what it staged.
+    /// The caller records in `record` (durably) that the installation is done,
+    /// while the
+    ///  lock still keeps every other writer out:
+    /// a death before the record leaves the lock for the restart to reclaim,
+    /// and the
+    ///  replay it does is of an index nobody could have changed;
+    /// a death after it leaves a record that stops the replay.
+    ///  A record that cannot be made keeps the lock in place and ends the service after its batch,
+    /// as an unanswerable ownership
+    ///  question does,
+    /// so an installed index is never left unlocked and replayable.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -198,7 +215,9 @@ impl IndexLock {
     ///
     /// # Errors
     ///
-    /// As `release_with`, and the error of `record`, with the lock left in place.
+    /// As `release_with`,
+    /// and the error of `record`,
+    /// with the lock left in place.
     pub fn release_with_record(self, built: &Path, record: &dyn Record) -> Result<(), std::io::Error> {
         return self.release_flushed_with_record(built, false, record);
     }
@@ -206,7 +225,9 @@ impl IndexLock {
     /// What:
     ///  `release_with_record` for a `built` the caller knows is already on the disk as it is.
     /// Why:
-    ///   The in-process update flushes its file before it renames it into place, and nothing writes to it after. Flushing it
+    ///   The in-process update flushes its file before it renames it into place,
+    /// and nothing writes to it after.
+    /// Flushing it
     ///  again would cost a flush on the landing's path for no guarantee.
     ///
     /// In TS you'd write (pseudocode):

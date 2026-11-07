@@ -1,13 +1,25 @@
 //! What:
-//!  The commits real Git builds for the commit service: an editor, a signature, and every command line the service does
+//!  The commits real Git builds for the commit service:
+//! an editor,
+//! a signature,
+//! and every command line the service does
 //!  not build itself.
 //! Why:
-//!  Git owns the editor, the signer and the message semantics of whatever the service cannot embed, so this module points
-//!  real `git commit` at a thin scratch repository (its `HEAD` and branch at the base, the policy-settled private index,
-//!  the real configuration included, every hook off) whose new objects go straight into the real object store. Nothing is
-//!  locked and nothing is registered: the scratch repository sits inside the commit's own scratch directory, is removed
-//!  with it, and the commit it makes is only an object until the service moves the branch to it by compare-and-swap
-//!  (`doc/planning/cli-git-resident-service.md`, "Commits Git builds").
+//!  Git owns the editor,
+//! the signer and the message semantics of whatever the service cannot embed,
+//! so this module points
+//!  real `git commit` at a thin scratch repository (its `HEAD` and branch at the base,
+//! the policy-settled private index,
+//!  the real configuration included,
+//! every hook off) whose new objects go straight into the real object store.
+//! Nothing is
+//!  locked and nothing is registered:
+//! the scratch repository sits inside the commit's own scratch directory,
+//! is removed
+//!  with it,
+//! and the commit it makes is only an object until the service moves the branch to it by compare-and-swap
+//!  (`doc/planning/cli-git-resident-service.md`,
+//! "Commits Git builds").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,16 +40,20 @@ use std::path::Path;
 /// What the scratch repository's `git commit` made.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GitBuilt {
-    /// The commit, already in the real object store.
+    /// The commit,
+    /// already in the real object store.
     pub commit: String,
     /// Its parents in order.
     pub parents: Vec<String>,
-    /// Its message as stored: what the person typed, after Git's clean-up.
+    /// Its message as stored:
+    /// what the person typed,
+    /// after Git's clean-up.
     pub message: String,
 }
 
 /// What:
-///  Where the first blank line of a stored commit starts, nothing when there is none.
+///  Where the first blank line of a stored commit starts,
+/// nothing when there is none.
 /// Why:
 ///  The header block of a stored commit ends at it and the message follows.
 ///
@@ -55,7 +71,8 @@ fn blank_line_at(raw: &[u8]) -> Option<usize> {
 }
 
 /// What:
-///  The parent a header line names, nothing for any other line.
+///  The parent a header line names,
+/// nothing for any other line.
 /// Why:
 ///  `parents_of` lists the parents of a stored commit.
 ///
@@ -68,7 +85,8 @@ fn parent_of_line(line: &str) -> Option<String> {
 }
 
 /// What:
-///  An argument as text, with bytes that are not valid text replaced.
+///  An argument as text,
+/// with bytes that are not valid text replaced.
 /// Why:
 ///  The commit options are read as text.
 ///
@@ -96,21 +114,29 @@ pub struct BuildInput<'a> {
     pub context: &'a GitContext,
     /// The directory the command was given in.
     pub cwd: &'a Path,
-    /// The invocation capture: the branch, the base, the object directory.
+    /// The invocation capture:
+    /// the branch,
+    /// the base,
+    /// the object directory.
     pub capture: &'a InvocationCapture,
-    /// The commit's own scratch directory, which holds the scratch repository and is removed with it.
+    /// The commit's own scratch directory,
+    /// which holds the scratch repository and is removed with it.
     pub scratch: &'a Path,
     /// The private index the policies settled.
     pub commit_index: &'a Path,
-    /// The arguments after the policies' fixed transforms, global options included.
+    /// The arguments after the policies' fixed transforms,
+    /// global options included.
     pub arguments: &'a [OsString],
-    /// The positional pathspecs of the command line, which the private index already holds.
+    /// The positional pathspecs of the command line,
+    /// which the private index already holds.
     pub pathspecs: &'a [String],
     /// Whether the line commits named paths or the index.
     pub mode: TransactionMode,
     /// Whether `-a` staged tracked changes into the private index.
     pub staged_all: bool,
-    /// Whether the private index already holds a selection made with `--include`, `--patch` or `--interactive`, so that Git
+    /// Whether the private index already holds a selection made with `--include`,
+    /// `--patch` or `--interactive`,
+    /// so that Git
     ///  is not given those options again.
     pub selected_privately: bool,
 }
@@ -125,10 +151,12 @@ pub fn parents_of(raw: &[u8]) -> Vec<String> {
 }
 
 /// What:
-///  The kept global options and the commit options of the arguments, with the pathspecs and the selection options the
+///  The kept global options and the commit options of the arguments,
+/// with the pathspecs and the selection options the
 ///  private index already holds removed.
 /// Why:
-///   Real `git commit` must commit the private index as it stands, so it is given neither the paths nor `-a`.
+///   Real `git commit` must commit the private index as it stands,
+/// so it is given neither the paths nor `-a`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -152,7 +180,9 @@ pub fn private_invocation(
 /// What:
 ///  Runs real `git commit` against the scratch repository and reads the commit it made.
 /// Why:
-///   Git's own output, editor and signer reach the person's terminal as they would from a plain `git commit`; a nonzero
+///   Git's own output,
+/// editor and signer reach the person's terminal as they would from a plain `git commit`;
+/// a nonzero
 ///  status of Git is the command's status and nothing lands.
 ///
 /// In TS you'd write (pseudocode):
@@ -162,8 +192,11 @@ pub fn private_invocation(
 ///
 /// # Errors
 ///
-/// `TransactionStop::NativeExit` with Git's status when Git declined or was aborted (an empty message, an editor that
-///  failed, a signer that failed); `TransactionStop::Message` when Git could not be started.
+/// `TransactionStop::NativeExit` with Git's status when Git declined or was aborted (an empty message,
+/// an editor that
+///  failed,
+/// a signer that failed);
+/// `TransactionStop::Message` when Git could not be started.
 pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionStop> {
     let shadow = input.scratch.join("shadow");
     // Named paths while another session's merge, cherry-pick or revert is unfinished: real Git refuses that as a partial commit,
