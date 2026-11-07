@@ -35,6 +35,8 @@ use crate::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
 use crate::wait_ceilings::OBJECT_STEP_CEILING;
 /// The captured output of a step that is never ended, in files that outlive the command.
 use crate::output_capture::Capture;
+/// The pipes a step that is ended at its ceiling is read through, whole, on the runtime.
+use crate::step_output_read_whole_through_pipes::{StepPipes, attach_pipes, release_write_ends};
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::RetryStart;
 /// The notice cadence, its ticker and the child-wait line.
@@ -46,7 +48,7 @@ use crate::push_progress::{Clock, SAMPLE_INTERVAL};
 /// The longest quiet gap of each step, kept for the timing records.
 use crate::quiet_ledger;
 /// The child and command types of the one-shot run.
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, Output};
 /// The sink a notice goes to.
 use std::io::Write;
 /// The flag the watcher raises when a wait crossed the bound, read by the waiting thread.
@@ -441,20 +443,25 @@ pub fn output_watched_within(
         StepBound::LeaveRunning { .. } | StepBound::Unbounded => None,
     };
     // A step that is never ended writes into files that outlive this command, not into pipes this command holds: when the command
-    // stops waiting and exits, the step must find its output open, or it dies of SIGPIPE at its next write, which is a cut.
-    let captured: Option<Capture> = if matches!(bound, StepBound::EndAt(_)) { None } else { Some(Capture::new()?) };
-    match captured.as_ref() {
-        Some(files) => {
-            let (out, err) = files.stdio()?;
-            command.stdout(out).stderr(err);
-        }
-        None => {
-            command.stdout(Stdio::piped()).stderr(Stdio::piped());
-        }
+    // stops waiting and exits, the step must find its output open, or it dies of SIGPIPE at its next write, which is a cut. A step
+    // that is ended at its ceiling is read to its end by this command through pipes on the runtime, every byte of it; the pipes are
+    // made before the child starts, so a refusal starts nothing.
+    let (captured, pipes): (Option<Capture>, Option<StepPipes>) = match bound {
+        StepBound::EndAt(_) => (None, Some(attach_pipes(command)?)),
+        StepBound::LeaveRunning { .. } | StepBound::Unbounded => (Some(Capture::new()?), None),
+    };
+    if let Some(files) = captured.as_ref() {
+        let (out, err) = files.stdio()?;
+        command.stdout(out).stderr(err);
     }
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
-    let child: Child = command.spawn_retrying()?;
+    let started: std::io::Result<Child> = command.spawn_retrying();
+    // The command holds the write ends of the pipes until they are replaced, and the readers see no end of output while it does.
+    if pipes.is_some() {
+        release_write_ends(command);
+    }
+    let child: Child = started?;
     let started: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step);
     // A step with no ceiling is waited for as long as it lives: the watch starts without one.
     let watch: ChildWatch = match ceiling {
@@ -494,7 +501,10 @@ pub fn output_watched_within(
                 }
             }
         }
-        StepBound::EndAt(_) => child.wait_with_output(),
+        StepBound::EndAt(_) => match pipes {
+            Some(open) => open.read_until_the_child_ends(child),
+            None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
+        },
         StepBound::Unbounded => {
             let mut waited_for: Child = child;
             match waited_for.wait() {

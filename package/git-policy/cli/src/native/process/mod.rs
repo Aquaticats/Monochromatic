@@ -46,3 +46,6 @@ pub mod child_awaited_through_a_pidfd;
 
 /// A command run to its end like `Command::output`, awaited on the runtime through a pidfd, with its output read from anonymous files.
 pub mod captured_child_run_to_its_end;
+
+/// The output of a child the caller started, read whole through pipes on the runtime while the child's exit is awaited through its pidfd.
+pub mod step_output_read_whole_through_pipes;

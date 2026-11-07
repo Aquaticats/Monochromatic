@@ -8,6 +8,7 @@ use crate::wait_progress::Cadence;
 use crate::test_support::{ActionSink, SharedSink};
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
+use std::process::Stdio;
 
 /// A cadence of a 60 ms grace and a 60 ms interval, so a notice comes fast.
 const QUICK: Cadence = Cadence {

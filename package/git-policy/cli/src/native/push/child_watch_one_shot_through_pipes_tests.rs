@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::output_capture::STEP_OUTPUT_LIMIT;
+use std::process::Stdio;
 
 /// More bytes than the captured steps keep (`STEP_OUTPUT_LIMIT` is the tail they keep), so a run that kept only a tail would show.
 const BEYOND_THE_KEPT_TAIL: usize = STEP_OUTPUT_LIMIT + STEP_OUTPUT_LIMIT / 4;
