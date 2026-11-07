@@ -209,7 +209,11 @@ pub fn run_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> Result<Vec
     if let Some(error) = outcome.error {
         return Err(error);
     }
-    return Ok(outcome.made.into_iter().map(|link| return link.name).collect());
+    let mut names: Vec<String> = Vec::with_capacity(outcome.made.len());
+    for link in outcome.made {
+        names.push(link.name);
+    }
+    return Ok(names);
 }
 
 /// The postinstall commands' outcome:

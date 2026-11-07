@@ -1,11 +1,20 @@
 //! What:
-//!  The built wrapper on a machine where no commit service can be reached or started, and in a directory that belongs to no
+//!  The built wrapper on a machine where no commit service can be reached or started,
+//! and in a directory that belongs to no
 //!  repository.
 //! Why:
-//!  The service is the only writer of a commit (`doc/planning/cli-git-resident-service.md`, "Provisioning"). With no runtime
-//!  directory, no socket and no session bus the commit stops with the plain message of its platform, names the remedy,
-//!  and changes nothing; the wrapper never lands a commit by another way, and never starts the service itself. Outside a
-//!  repository there is no worktree to send a commit for, and the person is told what native Git tells them there.
+//!  The service is the only writer of a commit (`doc/planning/cli-git-resident-service.md`,
+//! "Provisioning").
+//! With no runtime
+//!  directory,
+//! no socket and no session bus the commit stops with the plain message of its platform,
+//! names the remedy,
+//!  and changes nothing;
+//! the wrapper never lands a commit by another way,
+//! and never starts the service itself.
+//! Outside a
+//!  repository there is no worktree to send a commit for,
+//! and the person is told what native Git tells them there.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{Fixture, Observed, fixture, git, observe, repository, run_direct, stderr_of};
@@ -30,8 +39,12 @@ fn newest_subject(fixture: &Fixture, repo: &Path) -> String {
     return git_text(fixture, repo, &["log", "-1", "--format=%s"]).trim().to_string();
 }
 
-/// A commit run with no runtime directory and no session bus stops with the platform's message, names the way out, says that
-///  nothing changed, and leaves the commit unmade, the edit in place and no record of an unfinished commit behind.
+/// A commit run with no runtime directory and no session bus stops with the platform's message,
+/// names the way out,
+/// says that
+///  nothing changed,
+/// and leaves the commit unmade,
+/// the edit in place and no record of an unfinished commit behind.
 #[test]
 fn a_commit_with_no_service_manager_stops_plainly_and_changes_nothing() {
     let (fixture, repo) = edited("no-manager-plain");
@@ -59,7 +72,8 @@ fn a_commit_with_no_service_manager_stops_plainly_and_changes_nothing() {
     remove_settled(&fixture);
 }
 
-/// A commit run outside any repository ends with Git's own words and status for it, as native `git commit` does.
+/// A commit run outside any repository ends with Git's own words and status for it,
+/// as native `git commit` does.
 #[test]
 fn a_commit_outside_a_repository_says_what_native_git_says() {
     let fixture: Fixture = fixture("no-manager-outside");

@@ -1,8 +1,13 @@
 //! What:
-//!  The harness of the controls that start a command, wait until its standard error shows a line, and act on the repository
-//!  at that moment (remove a held `index.lock`, move a branch), shared by the merge and pull controls.
+//!  The harness of the controls that start a command,
+//! wait until its standard error shows a line,
+//! and act on the repository
+//!  at that moment (remove a held `index.lock`,
+//! move a branch),
+//! shared by the merge and pull controls.
 //! Why:
-//!  A control about a held lock needs the command to be provably waiting before the lock goes, and a broken wrapper must fail
+//!  A control about a held lock needs the command to be provably waiting before the lock goes,
+//! and a broken wrapper must fail
 //!  the control instead of holding it.
 //!
 //! In TS you'd write (pseudocode):
@@ -15,18 +20,22 @@ use std::io::{BufRead, Read};
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Stdio};
 
-/// How long a control waits for something that must happen, so a broken wrapper fails it and never holds it.
+/// How long a control waits for something that must happen,
+/// so a broken wrapper fails it and never holds it.
 pub(super) const PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// What a merge printed and how it ended.
 pub(super) struct Ended {
     /// Exit status.
     pub(super) code: Option<i32>,
-    /// Standard error, without hint fields.
+    /// Standard error,
+    /// without hint fields.
     pub(super) stderr: String,
 }
 
-/// Run `command` to its end, and run `act` once, when a line of standard error contains `needle`.
+/// Run `command` to its end,
+/// and run `act` once,
+/// when a line of standard error contains `needle`.
 pub(super) fn run_acting_on_line(command: &mut Command, needle: &str, act: &mut dyn FnMut()) -> Ended {
     let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("process starts");
     let mut standard_output = child.stdout.take().expect("piped stdout");

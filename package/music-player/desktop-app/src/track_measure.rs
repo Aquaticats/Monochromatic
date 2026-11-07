@@ -13,11 +13,16 @@
 //! peaks,
 //! so the rule lives in one pure module that the window glue calls.
 
+/// Imports the map type that looks measures up by path.
 use std::collections::HashMap;
+/// Imports the path type that keys the measures.
 use std::path::PathBuf;
 
+/// Imports the cached decision,
+/// the peak kind and the peak conversion that a measure is read from.
 use truepeak_core::{Decision, PeakKind, peak_dbtp};
 
+/// Imports the fields that a measure fills in for the templates.
 use crate::template_model::TrackFields;
 
 /// The in-place writer and the page lookup,
@@ -292,6 +297,11 @@ pub fn lookup_by_name(
         .collect();
 }
 
+/// Unit tests of `track_measure`,
+/// in the sidecar file `track_measure_tests.rs`.
+/// Role of the module:
+/// per-track measures for the library rows and the deck subtitle:
+/// the duration and the true peak.
 #[cfg(test)]
 #[path = "track_measure_tests.rs"]
 mod tests;

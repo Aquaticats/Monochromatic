@@ -1,20 +1,32 @@
 //! What:
-//!  Run one bounded `git push` of the auto-push, preceded by the Git LFS upload when the repository has one.
+//!  Run one bounded `git push` of the auto-push,
+//! preceded by the Git LFS upload when the repository has one.
 //! Why:
-//!  The auto-push and its reconcile pushes publish refs, so they upload the LFS objects the pushed commits point to
-//!  exactly as a typed `git push` does. The wrapper is the parent of both children and captures their output, so it
-//!  owns the explanation: a missing `git-lfs` is refused before anything starts, a failed upload ends the attempt with
-//!  the full explanation after the program's own output, and the push is not started. The push carries no hook, and no
-//!  process other than Git and `git-lfs` is started for this, none of them the wrapper.
+//!  The auto-push and its reconcile pushes publish refs,
+//! so they upload the LFS objects the pushed commits point to
+//!  exactly as a typed `git push` does.
+//! The wrapper is the parent of both children and captures their output,
+//! so it
+//!  owns the explanation:
+//! a missing `git-lfs` is refused before anything starts,
+//! a failed upload ends the attempt with
+//!  the full explanation after the program's own output,
+//! and the push is not started.
+//! The push carries no hook,
+//! and no
+//!  process other than Git and `git-lfs` is started for this,
+//! none of them the wrapper.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const failed = plan && await uploadBounded(plan); if (failed) return failed; return await runBoundedPush(pushCommand(git, args));
 //! ```
 
-/// The attempt record, the coordinator's Git and its error type.
+/// The attempt record,
+/// the coordinator's Git and its error type.
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_command, run_query};
-/// The patience, the grace and the push itself.
+/// The patience,
+/// the grace and the push itself.
 use crate::bounded_push::{STOP_GRACE, push_patience, run_bounded_push, strip_one_line_break};
 /// The check that the program can start.
 use crate::lfs_push_precheck::lfs_refusal;
@@ -34,18 +46,24 @@ use std::ffi::OsString;
 const REFUSED_EXIT_CODE: i64 = 1;
 
 /// What:
-///  The read-only Git questions of the upload plan, asked through the coordinator's own bounded queries.
+///  The read-only Git questions of the upload plan,
+/// asked through the coordinator's own bounded queries.
 ///  `&'a PushGit` lends the coordinator's Git for as long as this value lives.
 /// Why:
-///   The plan asks through the `GitQuery` trait, and the state a question needs (the real Git, the directory, the
-///  environment) is one borrowed value, so a struct stands where a closure that captured it stood.
+///   The plan asks through the `GitQuery` trait,
+/// and the state a question needs (the real Git,
+/// the directory,
+/// the
+///  environment) is one borrowed value,
+/// so a struct stands where a closure that captured it stood.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class PushQuery implements GitQuery { constructor(readonly git: PushGit) {} ask(args: string[]): string {} }
 /// ```
 struct PushQuery<'a> {
-    /// The coordinator's Git, whose queries are bounded.
+    /// The coordinator's Git,
+    /// whose queries are bounded.
     git: &'a PushGit,
 }
 
@@ -66,9 +84,12 @@ impl GitQuery for PushQuery<'_> {
 }
 
 /// What:
-///  Run `git <arguments>` (a `push`) as a bounded child, after the upload when the repository has LFS keys.
+///  Run `git <arguments>` (a `push`) as a bounded child,
+/// after the upload when the repository has LFS keys.
 /// Why:
-///   `arguments[0]` is `push`; what follows is its option region, which the pre-check and the plan read.
+///   `arguments[0]` is `push`;
+/// what follows is its option region,
+/// which the pre-check and the plan read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

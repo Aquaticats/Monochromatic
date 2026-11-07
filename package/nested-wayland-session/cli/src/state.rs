@@ -45,7 +45,7 @@
 /// ```ts
 /// // OsString ~ string; Child ~ a Node ChildProcess handle; Arc<T> ~ a shared ref.
 /// ```
-use std::{ffi::OsString, process::Child, sync::Arc};
+use std::{ffi::OsString, os::unix::net::UnixStream, process::Child, sync::Arc};
 
 /// Context turns a failed startup step into an error that names the step,
 ///  so the process reports it and exits nonzero instead of panicking.
@@ -90,7 +90,10 @@ use smithay::{
     input::{Seat, SeatState},
     output::Output,
     reexports::{
-        calloop::{generic::Generic, EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction},
+        calloop::{
+            generic::{Generic, NoIoDrop},
+            EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction, Readiness,
+        },
         wayland_server::{
             backend::{ClientData, ClientId, DisconnectReason},
             Display, DisplayHandle,
@@ -891,25 +894,7 @@ impl Compositor {
         // });
         // ```
         handle
-            .insert_source(source, move |stream, _, state: &mut Compositor| {
-                // What:     `state.display_handle.insert_client(stream,
-                //           Arc::new(ClientState::default())).unwrap();`. Registers the
-                //           new client. `Arc::new(...)` puts the per-client data on the
-                //           heap behind a shared, thread-safe pointer (wayland-server
-                //           requires `Arc`, not `Box`, because it may access the data
-                //           from its own threads). A failure goes to `fail`, which ends the
-                //           session with an error.
-                // Why:      Give the client a place to keep its compositor-side state.
-                let inserted = state
-                    .display_handle
-                    .insert_client(stream, Arc::new(ClientState::default()));
-                if let Err(error) = inserted {
-                    state.fail(
-                        anyhow::Error::new(error)
-                            .context("registering a connecting Wayland client with the nested display failed"),
-                    );
-                }
-            })
+            .insert_source(source, on_new_client)
             .expect("failed to register the Wayland listening socket");
 
         // What:     `handle.insert_source(Generic::new(display, Interest::READ,
@@ -926,32 +911,7 @@ impl Compositor {
         // });
         // ```
         handle
-            .insert_source(
-                Generic::new(display, Interest::READ, Mode::Level),
-                |_, pending_display, state: &mut Compositor| {
-                    // What:     `unsafe { display.get_mut().dispatch_clients(state)...?; }`.
-                    //           `unsafe` marks a block whose safety the compiler cannot
-                    //           check: here it is sound because we never drop the display
-                    //           while dispatching. `get_mut` yields the inner `Display`;
-                    //           `dispatch_clients` runs queued requests against `state`.
-                    // Why:      Advance every connected client's protocol state.
-                    // Gotcha:   `unsafe` in Rust does not mean "wrong"; it means the
-                    //           caller vouches for an invariant (display stays alive).
-                    // A failure ends the event loop; `run` reports it as "event loop failed".
-                    unsafe {
-                        pending_display.get_mut().dispatch_clients(state).map_err(|error| {
-                            return std::io::Error::new(
-                                error.kind(),
-                                format!("dispatching Wayland client requests failed: {error}"),
-                            )
-                        })?;
-                    }
-                    // What:     `Ok(PostAction::Continue)`. Tell calloop the source is
-                    //           healthy and should keep listening. Tail expression.
-                    // Why:      Keep dispatching on future readiness.
-                    return Ok(PostAction::Continue)
-                },
-            )
+            .insert_source(Generic::new(display, Interest::READ, Mode::Level), dispatch_display_clients)
             .expect("failed to register the Wayland display source");
 
         // What:     `Ok(socket_name)`. Tail expression returning the owned name.
@@ -997,23 +957,73 @@ impl Compositor {
         // const [window, location] = hit;
         // ...
         // ```
-        return self.space.element_under(pos).and_then(|(window, location)| {
-            // What:     `window.surface_under(pos - location.to_f64(),
-            //           WindowSurfaceType::ALL).map(|(s, p)| (s, (p + location).to_f64()))`.
-            //           `location.to_f64()` converts the integer point to floating so it
-            //           can be subtracted from `pos`. `surface_under` returns the surface
-            //           under that window-local point. `.map(closure)` rewrites the
-            //           found `(surface, point)` back into plane coordinates by adding
-            //           `location`.
-            // Why:      Translate between plane and window-local coordinates for the hit.
-            return window
-                .surface_under(
-                    pos - location.to_f64(),
-                    smithay::desktop::WindowSurfaceType::ALL,
-                )
-                .map(|(surface, point)| return (surface, (point + location).to_f64()))
-        })
+        let (window, location) = self.space.element_under(pos)?;
+        // What:     `window.surface_under(pos - location.to_f64(), WindowSurfaceType::ALL)?`.
+        //           `location.to_f64()` converts the integer point to floating so it
+        //           can be subtracted from `pos`. `surface_under` returns the surface
+        //           under that window-local point; `?` returns `None` when there is none.
+        // Why:      Translate between plane and window-local coordinates for the hit.
+        let (surface, point) = window.surface_under(
+            pos - location.to_f64(),
+            smithay::desktop::WindowSurfaceType::ALL,
+        )?;
+        return Some((surface, (point + location).to_f64()))
     }
+}
+
+/// The listening socket's callback:
+///  register each new client with the display.
+///
+/// What:
+///      `fn on_new_client(stream: UnixStream, _metadata: &mut (), state: &mut Compositor)`.
+///  `insert_client` registers the connection with `Arc::new(ClientState::default())` as its per-client data
+///  (wayland-server requires `Arc`,
+///  not `Box`,
+///  because it may access the data from its own threads).
+///  A failure goes to `fail`,
+///  which ends the session with an error.
+///  The unit-typed `_metadata` is the socket source's metadata slot,
+///  which it leaves empty.
+/// Why:
+///       Give each client a place to keep its compositor-side state.
+///  A named function replaces the closure the socket source took.
+fn on_new_client(stream: UnixStream, _metadata: &mut (), state: &mut Compositor) {
+    let inserted = state
+        .display_handle
+        .insert_client(stream, Arc::new(ClientState::default()));
+    if let Err(error) = inserted {
+        state.fail(
+            anyhow::Error::new(error)
+                .context("registering a connecting Wayland client with the nested display failed"),
+        );
+    }
+}
+
+/// The display source's callback:
+///  dispatch the queued requests of every connected client.
+///
+/// What:
+///      `fn dispatch_display_clients(_readiness: Readiness, pending_display: &mut NoIoDrop<Display<Compositor>>, state: &mut Compositor) -> std::io::Result<PostAction>`.
+///  A failure ends the event loop;
+///  `run` reports it as "event loop failed".
+///  `Ok(PostAction::Continue)` tells calloop the source is healthy and should keep listening.
+/// Why:
+///       This is what actually processes client protocol messages.
+///  A named function replaces the closure the display source took.
+fn dispatch_display_clients(
+    _readiness: Readiness,
+    pending_display: &mut NoIoDrop<Display<Compositor>>,
+    state: &mut Compositor,
+) -> std::io::Result<PostAction> {
+    // SAFETY: the display is never dropped while dispatching.
+    let dispatched = unsafe { pending_display.get_mut().dispatch_clients(state) };
+    if let Err(error) = dispatched {
+        return Err(std::io::Error::new(
+            error.kind(),
+            format!("dispatching Wayland client requests failed: {error}"),
+        ))
+    }
+    return Ok(PostAction::Continue)
 }
 
 /// Per-client compositor-side state stored behind an `Arc` for each Wayland client.

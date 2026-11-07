@@ -1,4 +1,5 @@
-//! Controls for which command lines the service covers, and a differential check of the message clean-up against the
+//! Controls for which command lines the service covers,
+//! and a differential check of the message clean-up against the
 //!  message real `git commit -m` stores.
 
 use super::*;
@@ -8,7 +9,8 @@ fn args(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(OsString::from).collect();
 }
 
-/// The plain scoped commit is covered, in each spelling of the message and the quiet flag.
+/// The plain scoped commit is covered,
+/// in each spelling of the message and the quiet flag.
 #[test]
 fn plain_scoped_commits_are_covered() {
     let one = ServiceCommitArgs { messages: vec![String::from("subject")], ..ServiceCommitArgs::default() };
@@ -21,7 +23,8 @@ fn plain_scoped_commits_are_covered() {
     assert_eq!(parse_service_commit(&args(&["--quiet", "--no-verify", "-m", "s", "-m", "body", "-o", "--", "a.txt"])), Some(quiet));
 }
 
-/// The options that only shape the message or the identity are covered, in each spelling.
+/// The options that only shape the message or the identity are covered,
+/// in each spelling.
 #[test]
 fn message_and_identity_options_are_covered() {
     let file = parse_service_commit(&args(&["-F", "m.txt", "--", "a.txt"])).expect("covered");
@@ -42,7 +45,9 @@ fn message_and_identity_options_are_covered() {
     assert!(!whitespace.verbatim);
 }
 
-/// `-a` and `--all` only widen what the selection takes, which the preparation decides; the command line is covered.
+/// `-a` and `--all` only widen what the selection takes,
+/// which the preparation decides;
+/// the command line is covered.
 #[test]
 fn all_is_covered() {
     for option in ["-a", "--all", "-qa", "-am"] {
@@ -51,7 +56,11 @@ fn all_is_covered() {
     }
 }
 
-/// Sign-off, empty commits, reused messages, fixups and the strip clean-up are covered, with their values.
+/// Sign-off,
+/// empty commits,
+/// reused messages,
+/// fixups and the strip clean-up are covered,
+/// with their values.
 #[test]
 fn text_arithmetic_options_are_covered() {
     assert!(parse_service_commit(&args(&["-m", "s", "-s", "--", "a"])).expect("covered").signoff);
@@ -66,7 +75,9 @@ fn text_arithmetic_options_are_covered() {
     assert!(parse_service_commit(&args(&["-m", "s", "--cleanup=strip", "--cleanup=whitespace", "--", "a"])).is_some_and(|parsed| { return !parsed.strip; }));
 }
 
-/// A message from two places, or a reused commit with an author of its own, is Git's to refuse or answer.
+/// A message from two places,
+/// or a reused commit with an author of its own,
+/// is Git's to refuse or answer.
 #[test]
 fn conflicting_sources_are_not_covered() {
     for words in [
@@ -80,8 +91,15 @@ fn conflicting_sources_are_not_covered() {
     }
 }
 
-/// Everything else is left to the transaction: editor, standard input, a message from two places, signing, sign-off,
-///  an author Git would have to look up, an unknown clean-up mode, `-a`.
+/// Everything else is left to the transaction:
+/// editor,
+/// standard input,
+/// a message from two places,
+/// signing,
+/// sign-off,
+///  an author Git would have to look up,
+/// an unknown clean-up mode,
+/// `-a`.
 #[test]
 fn other_options_are_not_covered() {
     for option in ["-c", "-S", "-e", "--edit", "-t", "-v", "-u", "--author=somebody", "--cleanup=scissors", "--reset-author", "-F-",
@@ -137,7 +155,8 @@ fn a_blank_message_is_no_message() {
     assert_eq!(cleanup_message(&[]), None);
 }
 
-/// An amend is covered with a message option, and without one only when `--no-edit` says no editor opens.
+/// An amend is covered with a message option,
+/// and without one only when `--no-edit` says no editor opens.
 #[test]
 fn an_amend_is_covered_with_a_message_or_no_edit() {
     let with_message = parse_service_commit(&args(&["--amend", "-m", "again", "--", "a.txt"])).expect("covered");
@@ -150,8 +169,11 @@ fn an_amend_is_covered_with_a_message_or_no_edit() {
     assert!(parse_service_commit(&args(&["--amend", "-C", "HEAD~1", "--", "a.txt"])).is_some_and(|parsed| { return parsed.amend && parsed.reuse.is_some(); }));
 }
 
-/// A line with a message and nothing that asks for an editor opens none; every way of asking for one, and every option this
-///  reading does not know, counts as an editor.
+/// A line with a message and nothing that asks for an editor opens none;
+/// every way of asking for one,
+/// and every option this
+///  reading does not know,
+/// counts as an editor.
 #[test]
 fn the_editor_is_predicted_from_the_message_source_and_errs_towards_opening() {
     for words in [
@@ -188,8 +210,11 @@ fn the_editor_is_predicted_from_the_message_source_and_errs_towards_opening() {
     }
 }
 
-/// The options that choose what to commit (a selection, a pathspec file) do not change the message, so a line that also has
-///  a message is covered, and none of them makes the editor open.
+/// The options that choose what to commit (a selection,
+/// a pathspec file) do not change the message,
+/// so a line that also has
+///  a message is covered,
+/// and none of them makes the editor open.
 #[test]
 fn selection_options_are_covered_and_open_no_editor() {
     let message = ServiceCommitArgs { messages: vec![String::from("s")], ..ServiceCommitArgs::default() };
@@ -209,8 +234,11 @@ fn selection_options_are_covered_and_open_no_editor() {
     }
 }
 
-/// A commit whose message is fixed is rebuilt from the saved message: every message source and the editor options go, the
-///  rest of the line stays, and the pathspecs after the separator are untouched.
+/// A commit whose message is fixed is rebuilt from the saved message:
+/// every message source and the editor options go,
+/// the
+///  rest of the line stays,
+/// and the pathspecs after the separator are untouched.
 #[test]
 fn a_fixed_message_replaces_every_message_option_and_keeps_the_rest() {
     let file = std::path::Path::new("/saved/message");
@@ -245,7 +273,8 @@ fn a_fixed_message_replaces_every_message_option_and_keeps_the_rest() {
     }
 }
 
-/// `--reset-author` is covered only for an amend that names no author, no date and no reused commit.
+/// `--reset-author` is covered only for an amend that names no author,
+/// no date and no reused commit.
 #[test]
 fn reset_author_is_covered_only_for_a_plain_amend() {
     assert!(parse_service_commit(&args(&["--amend", "--reset-author", "--no-edit", "--", "a.txt"])).is_some_and(|parsed| { return parsed.reset_author; }));

@@ -18,8 +18,10 @@
 //! const offset = anchoredOffset(oldKeys, newKeys, scrollTop, rowHeight); // like CSS overflow-anchor
 //! ```
 
+/// Imports the map type that maps each result key to its row position.
 use std::collections::HashMap;
 
+/// Imports the result types that are anchored.
 use music_player::search_results::{SearchResult, SearchResultKind};
 
 /// What:

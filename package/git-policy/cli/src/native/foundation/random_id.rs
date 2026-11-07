@@ -5,7 +5,8 @@
 //! Why:
 //!  A lock token must be unguessable and unique per acquisition,
 //!  and the startup step recognizes the directories an earlier release named with a transaction ID in the same canonical
-//!  layout (`is_canonical_uuid`, `startup_gate.rs`).
+//!  layout (`is_canonical_uuid`,
+//! `startup_gate.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -96,9 +97,11 @@ fn random_source_error(error: getrandom::Error) -> RandomSourceError {
 }
 
 /// What:
-///  Whether a name is exactly one canonical lowercase UUID, as `randomUUID` prints it.
+///  Whether a name is exactly one canonical lowercase UUID,
+/// as `randomUUID` prints it.
 /// Why:
-///   The scratch directories of a commit are named by such an identifier, and a path is recognized as one of them only by that
+///   The scratch directories of a commit are named by such an identifier,
+/// and a path is recognized as one of them only by that
 ///  layout.
 ///
 /// In TS you'd write (pseudocode):

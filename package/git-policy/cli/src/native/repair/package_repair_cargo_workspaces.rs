@@ -1,16 +1,22 @@
 //! What:
-//!  The Cargo workspaces of a new worktree: what `cargo metadata --no-deps` says about one, the tracked manifests that
-//!  lead to them, and the order and uniqueness of the workspaces found.
+//!  The Cargo workspaces of a new worktree:
+//! what `cargo metadata --no-deps` says about one,
+//! the tracked manifests that
+//!  lead to them,
+//! and the order and uniqueness of the workspaces found.
 //! Why:
-//!  `package_repair_cargo.rs` decides what each workspace's build state needs and stays under the file-size limit; the
-//!  discovery of workspaces needs nothing from it, so it lives in a file of its own that the repair imports.
+//!  `package_repair_cargo.rs` decides what each workspace's build state needs and stays under the file-size limit;
+//! the
+//!  discovery of workspaces needs nothing from it,
+//! so it lives in a file of its own that the repair imports.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const workspaces = distinctWorkspaces(await Promise.all(manifestDirectories(request).map(readWorkspace)));
 //! ```
 
-/// The request of one repair, whose Git lists the tracked manifests.
+/// The request of one repair,
+/// whose Git lists the tracked manifests.
 use crate::package_repair_request::RepairRequest;
 /// The tool runner and its result words.
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, run_tool};
@@ -24,22 +30,29 @@ use std::path::{Path, PathBuf};
 /// The manifest file that makes a directory a Cargo package or workspace root.
 pub const MANIFEST: &str = "Cargo.toml";
 
-/// Whether one byte is the NUL byte that ends each path of `git ls-files -z`. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the NUL byte that ends each path of `git ls-files -z`.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// Order two workspaces by their root directory. `sort_by` takes this function by path; the sort stays stable.
+/// Order two workspaces by their root directory.
+/// `sort_by` takes this function by path;
+/// the sort stays stable.
 fn compare_by_root(left: &Workspace, right: &Workspace) -> std::cmp::Ordering {
     return left.root.cmp(&right.root);
 }
 
-/// Whether two workspaces have the same root. `dedup_by` hands the later one first, and drops it when this is true.
+/// Whether two workspaces have the same root.
+/// `dedup_by` hands the later one first,
+/// and drops it when this is true.
 fn same_root(later: &mut Workspace, earlier: &mut Workspace) -> bool {
     return later.root == earlier.root;
 }
 
-/// One text field of the metadata as a path; nothing when the field is missing or is not text.
+/// One text field of the metadata as a path;
+/// nothing when the field is missing or is not text.
 fn text_field(metadata: &serde_json::Value, key: &str) -> Option<PathBuf> {
     return metadata.get(key).and_then(serde_json::Value::as_str).map(PathBuf::from);
 }
@@ -47,7 +60,9 @@ fn text_field(metadata: &serde_json::Value, key: &str) -> Option<PathBuf> {
 /// What:
 ///  One Cargo workspace as `cargo metadata --no-deps` describes it.
 /// Why:
-///   The root identifies the workspace, the two directories say where its state lives, and the members are what gets cleaned.
+///   The root identifies the workspace,
+/// the two directories say where its state lives,
+/// and the members are what gets cleaned.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,7 +83,8 @@ pub struct Workspace {
 /// What:
 ///  Read the workspace out of `cargo metadata --no-deps --format-version 1` output.
 /// Why:
-///   Only these four facts are used, and any other shape is an error that names what is missing.
+///   Only these four facts are used,
+/// and any other shape is an error that names what is missing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,9 +119,11 @@ pub fn parse_metadata(text: &str) -> Result<Workspace, String> {
 }
 
 /// What:
-///  The workspaces once each, in root order.
+///  The workspaces once each,
+/// in root order.
 /// Why:
-///   Cargo describes a workspace the same way from any of its members' manifests, so several manifests of one workspace
+///   Cargo describes a workspace the same way from any of its members' manifests,
+/// so several manifests of one workspace
 ///  must not be repaired several times.
 ///
 /// In TS you'd write (pseudocode):
@@ -121,7 +139,8 @@ pub fn distinct_workspaces(mut found: Vec<Workspace>) -> Vec<Workspace> {
 /// What:
 ///  The directories of the worktree's tracked `Cargo.toml` files.
 /// Why:
-///   Git knows which manifests belong to the checkout, so no walk reads `node_modules` or build output.
+///   Git knows which manifests belong to the checkout,
+/// so no walk reads `node_modules` or build output.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -160,9 +179,12 @@ pub fn manifest_directories(request: &RepairRequest<'_>) -> Result<Vec<PathBuf>,
 }
 
 /// What:
-///  `cargo metadata` in a directory, as a workspace.
+///  `cargo metadata` in a directory,
+/// as a workspace.
 /// Why:
-///   `--no-deps` resolves nothing, so it needs no network and writes no lock; `--locked` makes that a promise.
+///   `--no-deps` resolves nothing,
+/// so it needs no network and writes no lock;
+/// `--locked` makes that a promise.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

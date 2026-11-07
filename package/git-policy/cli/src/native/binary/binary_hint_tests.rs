@@ -1,9 +1,14 @@
 //! What:
-//!  The hints a caller sees from the built executable for blocks outside the discard guard: a bulk add, an invalid
-//!  configuration, and the forbidden root context file.
+//!  The hints a caller sees from the built executable for blocks outside the discard guard:
+//! a bulk add,
+//! an invalid
+//!  configuration,
+//! and the forbidden root context file.
 //! Why:
-//!  Every block must say what the person was probably doing and the next step; the unit guard proves each code has a
-//!  hint, and these prove the hint reaches the caller beside an unchanged message.
+//!  Every block must say what the person was probably doing and the next step;
+//! the unit guard proves each code has a
+//!  hint,
+//! and these prove the hint reaches the caller beside an unchanged message.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,7 +28,8 @@ fn streams(observed: &Observed) -> String {
     );
 }
 
-/// A bulk add is rejected with its own alternatives in the message, and the hint field adds the intent guess.
+/// A bulk add is rejected with its own alternatives in the message,
+/// and the hint field adds the intent guess.
 #[test]
 fn a_bulk_add_carries_an_intent_hint() {
     let fixture: Fixture = fixture("hint-bulk-add");

@@ -206,7 +206,10 @@ impl SeatHandler for Compositor {
         // ```ts
         // const client = focused ? tryGetClient(dh, focused.id()) : undefined;
         // ```
-        let client = focused.and_then(|s| return dh.get_client(s.id()).ok());
+        let client = match focused {
+            Some(surface) => dh.get_client(surface.id()).ok(),
+            None => None,
+        };
 
         // What:     `set_data_device_focus(dh, seat, client);`. Free function that
         //           points the seat's data device at that client.

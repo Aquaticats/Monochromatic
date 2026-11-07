@@ -18,6 +18,116 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Coordinator picks made 2026-11-07 with your veto open (not asked yet)
+
+Each is built and in main;
+saying nothing keeps it.
+- How the 860 move copies each subvolume:
+  every first-pass copy is sent against one empty read-only snapshot,
+  with every earlier copy as a clone source,
+  and only the final pass sends a subvolume as an increment on its own first-pass snapshot.
+  The plan it replaced sent a worktree as an increment on a snapshot of `main`,
+  which the kernel's send code can pair with the wrong file
+  (it treats two inodes as one when their number and creating transaction match,
+  `fs/btrfs/send.c` `changed_inode`);
+  on the throwaway fixture that plan failed,
+  and the new one copied every file exactly and kept sharing.
+  Record:
+  `doc/troubleshooting/btrfs-send-clone-sources-need-a-parent.md`
+  and `doc/planning/repository-on-the-860-drive.md`.
+- `monochromatic-lint --fix` now applies only whitespace fixes,
+  and content-changing fixes need `--fix-content`
+  (0.5.2-alpha.5);
+  the repository's `format:monochromatic-lint` task therefore changes no word.
+- When the fixer breaks a line inside a blockquote,
+  the new line carries no `>`
+  (a lazy continuation that renders the same under CommonMark 0.31.2,
+  section 5.1,
+  rule 2),
+  so the fixer never adds a character to your text.
+- The wrapper's own `markdown/autofix` commit policy keeps applying its one content fix
+  (the LFS image link rewrite),
+  since that rewrite is the policy's whole purpose.
+
+## Open: how long may a commit's own signed `git commit` step run? (not asked yet)
+
+Your global config signs every commit,
+so the wrapper builds each commit with a real `git commit` in a scratch repository
+(branch `feat/git-policy-cli-commit-timing-names-every-step`,
+not merged yet).
+That step runs with the terminal attached,
+unwatched and with no ceiling.
+That is why the commit that took 248 s on 2026-11-07 showed no waiting notice.
+Your rule says "nothing should ever wait forever or indefinitely",
+but an editor can legitimately stay open in that step when no message was given.
+The coordinator will add a waiting notice that names the step either way;
+the question is the ceiling.
+- A:
+  when the message came with the command (`-m`,
+  `-F`,
+  `-C`),
+  a ceiling from measured signing times (three times the worst seen);
+  with an editor,
+  no ceiling,
+  only the waiting notice.
+- B:
+  a ceiling in both cases,
+  generous for the editor case.
+- C:
+  no ceiling;
+  the waiting notice only.
+
+## Open: may the repository's own lint run fail when the closure check skips a package? (not asked yet)
+
+Your decision record says
+"A package whose prerequisites are missing on the machine is skipped,
+and the linter says so."
+(`doc/decision/rust-closure-lint-dylint.md:150`).
+In practice,
+on 2026-11-07,
+that skip hid five packages' closure findings (a cold cargo cache),
+and the run still exited 0,
+so a green lint did not mean "no findings".
+`monochromatic-lint` 0.5.2-alpha.5 already fails a run whose cargo is stale or broken;
+the skips for a cold cargo cache,
+missing `rustc-dev`,
+a driver gap,
+or a missing package prerequisite are unchanged.
+The new root task `mise run fetch:rust-dependencies` warms the cache.
+- A:
+  keep the decision as written (skip with a message,
+  exit 0).
+- B:
+  keep skipping on other machines,
+  but the repository's own lint tasks fetch first and then fail on any skip,
+  naming the package and the command that fixes it.
+- C:
+  fail on every skip everywhere.
+
+## Open: must fenced Rust examples inside docs carry rustdoc? (not asked yet)
+
+The linter's `rust/require-rustdoc` also checks Rust in fenced code blocks inside Markdown,
+and 200 such warnings remain
+(per-file list `~/temp/agent/lint2/fenced-rustdoc-warnings.txt`):
+`doc/audit` 133 (mostly fuzz reproductions),
+`doc/planning` 41 (design sketches),
+`.agents/skills/dum-dum-non-ts/SKILL.md` 24 (deliberately undocumented "Bad" examples,
+whose lesson documenting would break),
+`doc/research` 2.
+Exempting any of them loosens a lint rule,
+which needs your approval.
+- A:
+  exempt fenced Rust in Markdown from `rust/require-rustdoc` everywhere
+  (code files keep the rule).
+- B:
+  exempt only the "Bad" examples
+  (a marker on those fences),
+  and document the other 176 by hand.
+- C:
+  no exemption;
+  document all 200,
+  including the "Bad" examples.
+
 ## Open: may an agent time a signed commit with your real signing setup? (not asked yet)
 
 A commit on 2026-11-07 (request `72c24f69`) spent 241 s in its build step,

@@ -1,10 +1,15 @@
 //! What:
-//!  Reading one file's changed new-side line spans out of a `git show --patch` text, so the review needs no
+//!  Reading one file's changed new-side line spans out of a `git show --patch` text,
+//! so the review needs no
 //!  `git diff -U0` start per excerpted file.
 //! Why:
-//!  The script runs `git diff -U0 <sha>^ <sha> -- <name>` for each of up to eight files. A hunk of the three-line-context
-//!  patch is a list of change runs, and each run is one zero-context hunk, so the same spans follow from the patch the
-//!  review already holds. The spans are on the new side because the excerpt is cut from the new-side file.
+//!  The script runs `git diff -U0 <sha>^ <sha> -- <name>` for each of up to eight files.
+//! A hunk of the three-line-context
+//!  patch is a list of change runs,
+//! and each run is one zero-context hunk,
+//! so the same spans follow from the patch the
+//!  review already holds.
+//! The spans are on the new side because the excerpt is cut from the new-side file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,12 +23,17 @@ const SECTION_PREFIX: &str = "diff --git ";
 const HUNK_PREFIX: &str = "@@ ";
 
 /// What:
-///  One run of changed lines on the new side of a file: the first new line the change touches and the last.
+///  One run of changed lines on the new side of a file:
+/// the first new line the change touches and the last.
 ///  A pure deletion touches the new line that now stands where the removed lines were.
 /// Why:
-///   The excerpt window is the union of these spans over the file's runs, cut from the new-side file the commit
-///   produced. The script applied the old-side numbers to the new-side file, which shifts the window after an earlier
-///   insertion; this port uses the new side on both ends.
+///   The excerpt window is the union of these spans over the file's runs,
+/// cut from the new-side file the commit
+///   produced.
+/// The script applied the old-side numbers to the new-side file,
+/// which shifts the window after an earlier
+///   insertion;
+/// this port uses the new side on both ends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,7 +51,8 @@ pub struct NewSpan {
 ///  Whether one of the extended header lines is exactly `rename`.
 ///  `&[&str]` borrows a list of borrowed lines.
 /// Why:
-///   `section_is_for` asks it of the lines after a section header, and a loop with an early return stands where
+///   `section_is_for` asks it of the lines after a section header,
+/// and a loop with an early return stands where
 ///  a closure given to `any` stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -59,9 +70,11 @@ fn lists_rename_to(extended: &[&str], rename: &str) -> bool {
 
 /// What:
 ///  Whether a patch line starts a hunk or starts the next file section.
-///  `&&str` is a borrow of an element of a list of borrowed lines, as `position` hands it over.
+///  `&&str` is a borrow of an element of a list of borrowed lines,
+/// as `position` hands it over.
 /// Why:
-///   The extended header lines of a section end at the first such line, and `position` takes this function by path
+///   The extended header lines of a section end at the first such line,
+/// and `position` takes this function by path
 ///  where a closure would otherwise stand.
 ///
 /// In TS you'd write (pseudocode):
@@ -73,10 +86,13 @@ fn is_hunk_or_section_line(line: &&str) -> bool {
 }
 
 /// What:
-///  Whether `header` and the extended lines after it describe `name` as the section's new path: either both sides
-///  name it, or a `rename to` line does.
+///  Whether `header` and the extended lines after it describe `name` as the section's new path:
+/// either both sides
+///  name it,
+/// or a `rename to` line does.
 /// Why:
-///   A renamed file is excerpted under its new name, like any other changed file.
+///   A renamed file is excerpted under its new name,
+/// like any other changed file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -90,7 +106,8 @@ fn section_is_for(header: &str, extended: &[&str], name: &str) -> bool {
 /// What:
 ///  Parse the new side of `@@ -a[,b] +c[,d] @@` into the first new line the hunk consumes.
 /// Why:
-///   A zero new length means the hunk sits after line `c`, so the first new line it reaches is `c + 1`.
+///   A zero new length means the hunk sits after line `c`,
+/// so the first new line it reaches is `c + 1`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,10 +124,14 @@ fn parse_new_start(line: &str) -> Option<u64> {
 }
 
 /// What:
-///  The new-side spans of `name` in `patch_lines`, in file order; empty when the patch holds no section for the path
-///  or a section without hunks (a binary file, a mode change or a pure rename).
+///  The new-side spans of `name` in `patch_lines`,
+/// in file order;
+/// empty when the patch holds no section for the path
+///  or a section without hunks (a binary file,
+/// a mode change or a pure rename).
 /// Why:
-///   These replace the script's per-file `git diff -U0` start, and `standards_review_patch_tests.rs` checks them
+///   These replace the script's per-file `git diff -U0` start,
+/// and `standards_review_patch_tests.rs` checks them
 ///   against that command's new-side headers.
 ///
 /// In TS you'd write (pseudocode):
@@ -141,9 +162,11 @@ pub fn new_spans(patch_lines: &[&str], name: &str) -> Vec<NewSpan> {
 }
 
 /// What:
-///  Walk the hunks that start at `index` until the next section, appending one span per run of changed lines.
+///  Walk the hunks that start at `index` until the next section,
+/// appending one span per run of changed lines.
 /// Why:
-///   Context lines separate runs, and each run is what a zero-context diff would print as one hunk.
+///   Context lines separate runs,
+/// and each run is what a zero-context diff would print as one hunk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -183,7 +206,9 @@ fn read_hunks(patch_lines: &[&str], index: &mut usize, spans: &mut Vec<NewSpan>)
 }
 
 /// What:
-///  Move an open run, if any, into the finished spans.
+///  Move an open run,
+/// if any,
+/// into the finished spans.
 /// Why:
 ///   Both a context line and the end of a hunk finish a run.
 ///

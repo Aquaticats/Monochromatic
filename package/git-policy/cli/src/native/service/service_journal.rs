@@ -1,11 +1,19 @@
 //! What:
-//!  The resident service's journal: one file per batch of commits, with the one durable write the batch needs, and the
+//!  The resident service's journal:
+//! one file per batch of commits,
+//! with the one durable write the batch needs,
+//! and the
 //!  decision a restart makes about a batch it finds open.
 //! Why:
-//!  The branch moves only after the intent is on disk, so after any kill the journal and the branch say whether the
-//!  batch landed; a restart finishes the one step that may be missing (the index update) or drops the intent, and a
-//!  request that landed is remembered by its identity so a retry is answered, not landed twice
-//!  (`doc/planning/cli-git-resident-service.md`, "Durability and crash recovery").
+//!  The branch moves only after the intent is on disk,
+//! so after any kill the journal and the branch say whether the
+//!  batch landed;
+//! a restart finishes the one step that may be missing (the index update) or drops the intent,
+//! and a
+//!  request that landed is remembered by its identity so a retry is answered,
+//! not landed twice
+//!  (`doc/planning/cli-git-resident-service.md`,
+//! "Durability and crash recovery").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,36 +30,56 @@ use std::path::{Path, PathBuf};
 /// Extension of an intent whose batch may be unfinished.
 pub const OPEN_EXTENSION: &str = "intent";
 
-/// Extension of a finished batch, kept so its request identities are remembered.
+/// Extension of a finished batch,
+/// kept so its request identities are remembered.
 pub const DONE_EXTENSION: &str = "done";
 
-/// Extension of a file being written; never read as an intent.
+/// Extension of a file being written;
+/// never read as an intent.
 const TEMPORARY_EXTENSION: &str = "tmp";
 
-/// Extension of the empty file that holds a batch number for the service landing it, from the moment the number is taken until
-///  the landing ends; never read as an intent.
+/// Extension of the empty file that holds a batch number for the service landing it,
+/// from the moment the number is taken until
+///  the landing ends;
+/// never read as an intent.
 pub const CLAIM_EXTENSION: &str = "claim";
 
-/// How old a temporary file must be before a listing treats it as the remains of a killed write and removes it. A write takes
-///  milliseconds; the grace covers a writer stalled on a slow disk or a loaded host. Measured: the longest journal write step of
-///  1,302 landings in the service journal (`journal_ms`, 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) was 40,188 ms, the 99th
-///  percentile 3,792 ms, so ten minutes is fifteen times the longest. Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
+/// How old a temporary file must be before a listing treats it as the remains of a killed write and removes it.
+/// A write takes
+///  milliseconds;
+/// the grace covers a writer stalled on a slow disk or a loaded host.
+/// Measured:
+/// the longest journal write step of
+///  1,302 landings in the service journal (`journal_ms`,
+/// 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) was 40,188 ms,
+/// the 99th
+///  percentile 3,792 ms,
+/// so ten minutes is fifteen times the longest.
+/// Kept as the coordinator's pick under the owner's delegation,
+/// open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Sizes and ages of the service's own housekeeping").
 pub const TEMPORARY_GRACE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 
 /// What a restart does with an open intent.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Recovery {
-    /// The batch never landed; forget the intent.
+    /// The batch never landed;
+    /// forget the intent.
     Drop,
-    /// The batch landed; make sure the index shows it, then remember the identities.
+    /// The batch landed;
+    /// make sure the index shows it,
+    /// then remember the identities.
     Finish,
 }
 
 /// What:
 ///  The decision for an open intent from the branch's current value.
 /// Why:
-///   The branch is the commit point: still at the old value means nothing happened, at the new value or past it
-///  (`new_is_ancestor_of_current`) means the batch landed, anywhere else means it cannot land now.
+///   The branch is the commit point:
+/// still at the old value means nothing happened,
+/// at the new value or past it
+///  (`new_is_ancestor_of_current`) means the batch landed,
+/// anywhere else means it cannot land now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,7 +97,8 @@ pub fn batch_path(dir: &Path, seq: u64, extension: &str) -> PathBuf {
     return dir.join(format!("{seq}.{extension}"));
 }
 
-/// A batch number held for one landing; the number is free to take again when this goes out of scope.
+/// A batch number held for one landing;
+/// the number is free to take again when this goes out of scope.
 #[derive(Debug)]
 pub struct BatchClaim {
     seq: u64,
@@ -83,26 +112,40 @@ impl BatchClaim {
     }
 }
 
-/// The claim file goes with the landing, whichever way it ended; the intent (or the finished batch) keeps the number taken.
+/// The claim file goes with the landing,
+/// whichever way it ended;
+/// the intent (or the finished batch) keeps the number taken.
 impl Drop for BatchClaim {
     fn drop(&mut self) {
         let _removed = fs::remove_file(&self.path);
     }
 }
 
-/// Whether the journal already holds a record under the number: an open intent or a finished batch.
+/// Whether the journal already holds a record under the number:
+/// an open intent or a finished batch.
 fn number_has_record(dir: &Path, seq: u64) -> bool {
     return batch_path(dir, seq, OPEN_EXTENSION).exists() || batch_path(dir, seq, DONE_EXTENSION).exists();
 }
 
 /// What:
-///  Takes the first batch number from `first` up that no landing in the journal holds or has held, and holds it.
+///  Takes the first batch number from `first` up that no landing in the journal holds or has held,
+/// and holds it.
 /// Why:
-///   Services that share a journal count from clock readings, which can be equal, and a count that starts a few microseconds
-///  behind another's reaches the other's numbers after a few batches. A batch's files are named by its number, so two landings
-///  with one number would write one intent over the other and one finished record over the other, and a request that landed
-///  would be forgotten. The file is created with `O_EXCL`, so exactly one service owns a number; a number with an intent or a
-///  finished batch is skipped too, as the claim of a landing that has ended is gone while its record stays. The loop ends
+///   Services that share a journal count from clock readings,
+/// which can be equal,
+/// and a count that starts a few microseconds
+///  behind another's reaches the other's numbers after a few batches.
+/// A batch's files are named by its number,
+/// so two landings
+///  with one number would write one intent over the other and one finished record over the other,
+/// and a request that landed
+///  would be forgotten.
+/// The file is created with `O_EXCL`,
+/// so exactly one service owns a number;
+/// a number with an intent or a
+///  finished batch is skipped too,
+/// as the claim of a landing that has ended is gone while its record stays.
+/// The loop ends
 ///  because the journal holds finitely many files and each pass moves to a number past one it holds.
 ///
 /// In TS you'd write (pseudocode):
@@ -139,9 +182,13 @@ pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
 }
 
 /// What:
-///  Writes an intent durably: the file is synced, renamed into place, and the directory is synced.
+///  Writes an intent durably:
+/// the file is synced,
+/// renamed into place,
+/// and the directory is synced.
 /// Why:
-///   This is the only synchronous write of a batch, whatever its size.
+///   This is the only synchronous write of a batch,
+/// whatever its size.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -160,11 +207,16 @@ pub fn write_intent(dir: &Path, intent: &Intent) -> std::io::Result<()> {
 pub const INDEXED_EXTENSION: &str = "indexed";
 
 /// What:
-///  Records durably that the index update of the open batch `seq`, which landed the commit `new`, is installed.
+///  Records durably that the index update of the open batch `seq`,
+/// which landed the commit `new`,
+/// is installed.
 /// Why:
-///   The service writes it while it still holds the index lock, so no other program can have changed the installed index when
-///  the record exists, and a restart that finds it does not replay the update over what was staged after the lock was given up.
-///  The record names the commit, so a record left behind by a batch number that is used again does not stop another batch.
+///   The service writes it while it still holds the index lock,
+/// so no other program can have changed the installed index when
+///  the record exists,
+/// and a restart that finds it does not replay the update over what was staged after the lock was given up.
+///  The record names the commit,
+/// so a record left behind by a batch number that is used again does not stop another batch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -186,10 +238,17 @@ pub const START_EXTENSION: &str = "start";
 /// What:
 ///  Records the witness of the live index file as the landing found it under the index lock.
 /// Why:
-///   A replay of the batch is made only over an index that is still this file (`service_land_start.rs`), so what another session
-///  staged since is never overwritten. It is written after the lock is held and before the branch moves. It is not synced: a
-///  power loss that loses it leaves a batch with no record, which no replay is made for, and a record that is lost is the safe
-///  side, so the landing does not wait for the disk for it.
+///   A replay of the batch is made only over an index that is still this file (`service_land_start.rs`),
+/// so what another session
+///  staged since is never overwritten.
+/// It is written after the lock is held and before the branch moves.
+/// It is not synced:
+/// a
+///  power loss that loses it leaves a batch with no record,
+/// which no replay is made for,
+/// and a record that is lost is the safe
+///  side,
+/// so the landing does not wait for the disk for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -205,15 +264,22 @@ pub fn write_start(dir: &Path, seq: u64, witness: &IndexWitness) -> std::io::Res
 /// What a batch's start record says.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Started {
-    /// No usable record: an older batch, a landing that could not write one, or a record that is damaged. No replay is made.
+    /// No usable record:
+    /// an older batch,
+    /// a landing that could not write one,
+    /// or a record that is damaged.
+    /// No replay is made.
     Absent,
     /// The index file the landing started from.
     Recorded(IndexWitness),
-    /// A record exists and cannot be read now, so nothing is decided.
+    /// A record exists and cannot be read now,
+    /// so nothing is decided.
     Unreadable,
 }
 
-/// The start record of the batch `seq`; a missing file or damaged text is no record, and a file that cannot be read now is
+/// The start record of the batch `seq`;
+/// a missing file or damaged text is no record,
+/// and a file that cannot be read now is
 ///  unreadable.
 pub fn read_start(dir: &Path, seq: u64) -> Started {
     return match fs::read_to_string(batch_path(dir, seq, START_EXTENSION)) {
@@ -232,19 +298,26 @@ pub fn remove_start(dir: &Path, seq: u64) {
 /// What a batch's completion record says about its index update.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Indexed {
-    /// No record: the update was not recorded as installed.
+    /// No record:
+    /// the update was not recorded as installed.
     Absent,
-    /// The record names the commit: the update was installed.
+    /// The record names the commit:
+    /// the update was installed.
     Installed,
-    /// A record exists and cannot be read, or names another commit: nothing can be said about the index.
+    /// A record exists and cannot be read,
+    /// or names another commit:
+    /// nothing can be said about the index.
     Unreadable,
 }
 
 /// What:
 ///  What the completion record of the open batch `seq` that landed `new` says.
 /// Why:
-///   Only a missing record means the update was not installed. A record that is there and cannot be read says nothing, and a
-///  restart that took it for none would replay the update over whatever was staged since, so the caller stops on it.
+///   Only a missing record means the update was not installed.
+/// A record that is there and cannot be read says nothing,
+/// and a
+///  restart that took it for none would replay the update over whatever was staged since,
+/// so the caller stops on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -262,8 +335,10 @@ pub fn indexed_state(dir: &Path, seq: u64, new: &str) -> Indexed {
 /// What:
 ///  Marks a batch finished and drops its record of the index update.
 /// Why:
-///   The rename is made durable before the record goes: a lost rename with the record already gone would let a restart replay
-///  an index update that was installed. A sync that fails keeps the record and the error says so.
+///   The rename is made durable before the record goes:
+/// a lost rename with the record already gone would let a restart replay
+///  an index update that was installed.
+/// A sync that fails keeps the record and the error says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -281,7 +356,9 @@ pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
 /// What:
 ///  Whether a leftover temporary or claim file is old enough to be the remains of a write that was killed.
 /// Why:
-///  `list_intents` removes only such files; a younger one may be another instance's write in progress. A file whose age cannot be
+///  `list_intents` removes only such files;
+/// a younger one may be another instance's write in progress.
+/// A file whose age cannot be
 ///  read is not abandoned.
 ///
 /// In TS you'd write (pseudocode):
@@ -302,9 +379,12 @@ fn is_abandoned(entry: &fs::DirEntry) -> bool {
 }
 
 /// What:
-///  The number a listed intent sorts by: its batch number, or the length of its path when it could not be read.
+///  The number a listed intent sorts by:
+/// its batch number,
+/// or the length of its path when it could not be read.
 /// Why:
-///  `list_intents` sorts so the batches come in their order and the damaged ones sort apart; the sort is stable.
+///  `list_intents` sorts so the batches come in their order and the damaged ones sort apart;
+/// the sort is stable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -319,7 +399,8 @@ fn sort_key_of_found(listed: &(PathBuf, Option<Intent>)) -> u64 {
 }
 
 /// What:
-///  The batch number and path of a directory entry that is a finished batch file, nothing for any other entry.
+///  The batch number and path of a directory entry that is a finished batch file,
+/// nothing for any other entry.
 /// Why:
 ///  `prune_done` touches only files named as a batch number with the finished extension.
 ///
@@ -339,7 +420,8 @@ fn finished_batch_of_entry(entry: fs::DirEntry) -> Option<(u64, PathBuf)> {
 /// What:
 ///  The sort key that puts the newest finished batch first.
 /// Why:
-///  `prune_done` keeps the newest batches and removes the rest, so it lists them newest first.
+///  `prune_done` keeps the newest batches and removes the rest,
+/// so it lists them newest first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -350,10 +432,15 @@ fn newest_first_key(finished: &(u64, PathBuf)) -> std::cmp::Reverse<u64> {
 }
 
 /// What:
-///  The intents in the journal with an extension, in batch order, and the abandoned temporary files removed on the way.
+///  The intents in the journal with an extension,
+/// in batch order,
+/// and the abandoned temporary files removed on the way.
 /// Why:
-///   Recovery reads the open ones; startup reads the done ones for the request identities. A temporary file younger than the
-///  grace may be another instance's write in progress, so it stays.
+///   Recovery reads the open ones;
+/// startup reads the done ones for the request identities.
+/// A temporary file younger than the
+///  grace may be another instance's write in progress,
+/// so it stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -366,8 +453,12 @@ pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>
 /// What:
 ///  `list_intents` that removes nothing from the journal.
 /// Why:
-///   A journal another service may still be writing (an earlier helper's) is read, never tidied: its temporary and claim files
-///  are that service's, however old they look, and removing one fails its rename or hands its batch number to a second landing.
+///   A journal another service may still be writing (an earlier helper's) is read,
+/// never tidied:
+/// its temporary and claim files
+///  are that service's,
+/// however old they look,
+/// and removing one fails its rename or hands its batch number to a second landing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -377,7 +468,8 @@ pub fn list_intents_read_only(dir: &Path, extension: &str) -> Vec<(PathBuf, Opti
     return list_intents_removing_abandoned(dir, extension, false);
 }
 
-/// `list_intents`, with the removal of abandoned temporary and claim files chosen by the caller.
+/// `list_intents`,
+/// with the removal of abandoned temporary and claim files chosen by the caller.
 fn list_intents_removing_abandoned(dir: &Path, extension: &str, remove_abandoned: bool) -> Vec<(PathBuf, Option<Intent>)> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
@@ -409,22 +501,42 @@ fn list_intents_removing_abandoned(dir: &Path, extension: &str, remove_abandoned
     return found;
 }
 
-/// How many finished batches a journal keeps. A request is answered as already landed only when its own client sends it again
-///  after a broken connection: at most `RECONNECTS` times, each after a pause of milliseconds and a wait for a service to
-///  start of at most `START_WAIT` (`service_client.rs`), so the resend of a landed request arrives within seconds of the
-///  landing. A service lands a batch in the time of a few Git processes, so this many batches reach back past any such resend.
-///  Measured: in the service journal (1,085 landings of the `cli-git@` units, 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) the busiest
-///  unit landed 4 batches in its busiest 10 seconds, 4 in its busiest minute and 15 in its busiest ten minutes, and 349 in all, so
-///  this many reach back over sixty times the busiest ten minutes. Kept as the coordinator's pick under the owner's delegation,
-///  open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
+/// How many finished batches a journal keeps.
+/// A request is answered as already landed only when its own client sends it again
+///  after a broken connection:
+/// at most `RECONNECTS` times,
+/// each after a pause of milliseconds and a wait for a service to
+///  start of at most `START_WAIT` (`service_client.rs`),
+/// so the resend of a landed request arrives within seconds of the
+///  landing.
+/// A service lands a batch in the time of a few Git processes,
+/// so this many batches reach back past any such resend.
+///  Measured:
+/// in the service journal (1,085 landings of the `cli-git@` units,
+/// 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) the busiest
+///  unit landed 4 batches in its busiest 10 seconds,
+/// 4 in its busiest minute and 15 in its busiest ten minutes,
+/// and 349 in all,
+/// so
+///  this many reach back over sixty times the busiest ten minutes.
+/// Kept as the coordinator's pick under the owner's delegation,
+///  open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Sizes and ages of the service's own housekeeping").
 pub const DONE_RETAINED: usize = 1024;
 
 /// What:
-///  Removes the files of the oldest finished batches, keeping the newest `retained`, and gives how many it removed.
+///  Removes the files of the oldest finished batches,
+/// keeping the newest `retained`,
+/// and gives how many it removed.
 /// Why:
-///   A finished batch's file is only memory of the request identities it landed. Nothing else removed them, so a journal grew by
-///  a file per batch for as long as the worktree lived. Batch numbers increase with time, so the oldest are the smallest.
-///  Only files named as a batch number with the finished extension are touched, and a file that cannot be removed is left.
+///   A finished batch's file is only memory of the request identities it landed.
+/// Nothing else removed them,
+/// so a journal grew by
+///  a file per batch for as long as the worktree lived.
+/// Batch numbers increase with time,
+/// so the oldest are the smallest.
+///  Only files named as a batch number with the finished extension are touched,
+/// and a file that cannot be removed is left.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -449,17 +561,20 @@ pub fn prune_done(dir: &Path, retained: usize) -> usize {
     return removed;
 }
 
-/// The request identities of every finished batch, each with the commit it became.
+/// The request identities of every finished batch,
+/// each with the commit it became.
 pub fn landed_commits(dir: &Path) -> HashMap<String, String> {
     return landed_in(list_intents(dir, DONE_EXTENSION));
 }
 
-/// The request identities of every finished batch of a journal another service may still write, read without removing anything.
+/// The request identities of every finished batch of a journal another service may still write,
+/// read without removing anything.
 pub fn landed_commits_read_only(dir: &Path) -> HashMap<String, String> {
     return landed_in(list_intents_read_only(dir, DONE_EXTENSION));
 }
 
-/// The identities of the finished batches listed, each with the commit it became.
+/// The identities of the finished batches listed,
+/// each with the commit it became.
 fn landed_in(listed: Vec<(PathBuf, Option<Intent>)>) -> HashMap<String, String> {
     let mut landed: HashMap<String, String> = HashMap::new();
     for (_, intent) in listed {

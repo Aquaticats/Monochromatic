@@ -1,10 +1,12 @@
 //! What:
 //!  Installation of one validated stage into a newly registered worktree:
-//!  preflight of every existing destination entry, batched creation with its durable records,
+//!  preflight of every existing destination entry,
+//! batched creation with its durable records,
 //!  mode application and rollback of this installation's own paths when it fails.
 //! Why:
 //!  A destination that already holds an identical entry is accepted,
-//!  and a differing entry is never overwritten, so the copy cannot destroy user state.
+//!  and a differing entry is never overwritten,
+//! so the copy cannot destroy user state.
 //!  Recording each batch before and after it runs bounds the work an interrupted run leaves unrecorded.
 //!
 //! In TS you'd write (pseudocode):
@@ -30,12 +32,32 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The number of manifest entries claimed by one durable intent record and settled by one creation record.
 /// Why:
-///   Bounds both the number of journal appends and the work an interrupted owner can leave unrecorded. Measured with
-///  `install_snapshot` and a recorder that appends each batch to a file and syncs it twice, on a tree of 22,717 entries (2026-11-03,
-///  five runs each in alternating orders, other sessions running, a debug build): medians 6,542, 2,265, 983, 746, 688 and 663 ms
-///  for batches of 64, 256, 1,024, 4,096, 16,384 and one batch, so a batch costs about 16 ms of syncs and 4,096 entries add 12
-///  percent to the install and 16,384 add 4 percent. The real journal's append was not run; its cost per batch may differ. Kept at
-///  4096 as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
+///   Bounds both the number of journal appends and the work an interrupted owner can leave unrecorded.
+/// Measured with
+///  `install_snapshot` and a recorder that appends each batch to a file and syncs it twice,
+/// on a tree of 22,717 entries (2026-11-03,
+///  five runs each in alternating orders,
+/// other sessions running,
+/// a debug build):
+/// medians 6,542,
+/// 2,265,
+/// 983,
+/// 746,
+/// 688 and 663 ms
+///  for batches of 64,
+/// 256,
+/// 1,024,
+/// 4,096,
+/// 16,384 and one batch,
+/// so a batch costs about 16 ms of syncs and 4,096 entries add 12
+///  percent to the install and 16,384 add 4 percent.
+/// The real journal's append was not run;
+/// its cost per batch may differ.
+/// Kept at
+///  4096 as the coordinator's pick under the owner's delegation,
+/// open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Picked for these follow-ups",
+/// option A).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,7 +77,8 @@ pub const INSTALL_BATCH_ENTRIES: usize = 4096;
 /// recordIntents({ state, relativePaths }); recordCreations({ state, entries });
 /// ```
 pub trait InstallRecorder {
-    /// Records the absent paths one batch is about to create, before any of them exists.
+    /// Records the absent paths one batch is about to create,
+    /// before any of them exists.
     fn record_intents(&mut self, relative_paths: &[String]) -> Result<(), WorktreeCopyError>;
 
     /// Records the identities of the paths one batch created.
@@ -63,9 +86,11 @@ pub trait InstallRecorder {
 }
 
 /// What:
-///  A recorder that writes nothing, for installations whose caller keeps no durable state.
+///  A recorder that writes nothing,
+/// for installations whose caller keeps no durable state.
 /// Why:
-///   Such an installation is not crash-safe; it exists so the installer can be exercised before the journal lands.
+///   Such an installation is not crash-safe;
+/// it exists so the installer can be exercised before the journal lands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,9 +112,11 @@ impl InstallRecorder for NoRecord {
 }
 
 /// What:
-///  The selected paths absent from the destination, after every existing entry has been proven identical.
+///  The selected paths absent from the destination,
+/// after every existing entry has been proven identical.
 /// Why:
-///   An existing entry that differs stops the installation before any mutation, and an identical one is accepted without being overwritten.
+///   An existing entry that differs stops the installation before any mutation,
+/// and an identical one is accepted without being overwritten.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,9 +159,11 @@ pub fn preflight_destination(
 }
 
 /// What:
-///  Creates one batch's absent entries in manifest order, recording the claim before and the identities after.
+///  Creates one batch's absent entries in manifest order,
+/// recording the claim before and the identities after.
 /// Why:
-///   The claim is durable before the first path exists, so an interruption leaves a record of every path that might be partial.
+///   The claim is durable before the first path exists,
+/// so an interruption leaves a record of every path that might be partial.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -184,14 +213,31 @@ fn install_batch(
 }
 
 /// What:
-///  The leaves below which a batch's files and links are created on one thread: `PARALLEL_BREAK_EVEN_ENTRIES`.
+///  The leaves below which a batch's files and links are created on one thread:
+/// `PARALLEL_BREAK_EVEN_ENTRIES`.
 /// Why:
-///   A large batch spends its time in independent link calls; a very small one is faster without the thread start. Measured with
-///  `install_snapshot` itself forced to 1, 2, 4 and 8 workers on reflinked trees of this repository (2026-11-03, five runs each in
-///  alternating orders, other sessions running, a debug build): 8 workers took 1.3 ms against 1.6 ms for 30 entries, 8.9 ms
-///  against 14.8 ms for 296, 49.2 ms against 107.7 ms for 2,119, and 244.9 ms against 500.2 ms for 9,301, so the old threshold of
-///  1024 left batches of up to 1,023 leaves on one thread for up to 50 ms more. Picked by the coordinator under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
+///   A large batch spends its time in independent link calls;
+/// a very small one is faster without the thread start.
+/// Measured with
+///  `install_snapshot` itself forced to 1,
+/// 2,
+/// 4 and 8 workers on reflinked trees of this repository (2026-11-03,
+/// five runs each in
+///  alternating orders,
+/// other sessions running,
+/// a debug build):
+/// 8 workers took 1.3 ms against 1.6 ms for 30 entries,
+/// 8.9 ms
+///  against 14.8 ms for 296,
+/// 49.2 ms against 107.7 ms for 2,119,
+/// and 244.9 ms against 500.2 ms for 9,301,
+/// so the old threshold of
+///  1024 left batches of up to 1,023 leaves on one thread for up to 50 ms more.
+/// Picked by the coordinator under the owner's delegation,
+/// open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Picked for these follow-ups",
+/// option A).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,7 +248,8 @@ const PARALLEL_INSTALL_MIN_LEAVES: usize = crate::parallel_budget::PARALLEL_BREA
 /// What:
 ///  Install one staged entry unless something is already at its destination.
 /// Why:
-///   A path that appeared since the preflight is never created over; the next settle step decides what it is.
+///   A path that appeared since the preflight is never created over;
+/// the next settle step decides what it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,9 +265,13 @@ fn install_one(stage_root: &Path, destination_root: &Path, entry: &WorktreeCopyE
 }
 
 /// What:
-///  Creates one slice of files and links, stopping at the first failure, and returns what it created with that failure.
+///  Creates one slice of files and links,
+/// stopping at the first failure,
+/// and returns what it created with that failure.
 /// Why:
-///   Rollback must know every path that exists, including those created before a failure, so the slice never discards
+///   Rollback must know every path that exists,
+/// including those created before a failure,
+/// so the slice never discards
 ///  its record when it stops.
 ///
 /// In TS you'd write (pseudocode):
@@ -243,9 +294,12 @@ fn install_slice(
 }
 
 /// What:
-///  Creates the files and links of one batch, in parallel slices when the batch is large.
+///  Creates the files and links of one batch,
+/// in parallel slices when the batch is large.
 /// Why:
-///   Their parents exist already, so the creations are independent; every created path is recorded for rollback
+///   Their parents exist already,
+/// so the creations are independent;
+/// every created path is recorded for rollback
 ///  before the first failure is returned.
 ///
 /// In TS you'd write (pseudocode):
@@ -287,9 +341,11 @@ fn install_leaves(
 }
 
 /// What:
-///  Installs a whole stage into the destination, or rolls back its own paths and reports what it kept.
+///  Installs a whole stage into the destination,
+/// or rolls back its own paths and reports what it kept.
 /// Why:
-///   A failed installation ends with the destination as it was before, apart from paths the rollback could not prove were its own.
+///   A failed installation ends with the destination as it was before,
+/// apart from paths the rollback could not prove were its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -332,7 +388,10 @@ pub fn install_snapshot(
 }
 
 /// What:
-///  The installation steps that run before rollback can apply: preflight, batches, and modes.
+///  The installation steps that run before rollback can apply:
+/// preflight,
+/// batches,
+/// and modes.
 /// Why:
 ///   Separating them lets one rollback cover every failure after the first mutation.
 ///

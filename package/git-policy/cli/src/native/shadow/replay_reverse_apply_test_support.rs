@@ -23,9 +23,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// How many `git apply` checks run at the same time.
 const WORKERS: usize = 4;
 
-/// One seeded case: the text before the landed edit, after it, and the prepared text the strict check is asked about.
+/// One seeded case:
+/// the text before the landed edit,
+/// after it,
+/// and the prepared text the strict check is asked about.
 pub(super) struct ReverseCase {
-    /// The case number in the seeded run, used in failure messages and directory names.
+    /// The case number in the seeded run,
+    /// used in failure messages and directory names.
     pub(super) number: usize,
     /// The text before the landed edit.
     pub(super) base: Vec<u8>,
@@ -35,7 +39,8 @@ pub(super) struct ReverseCase {
     pub(super) prepared: Vec<u8>,
 }
 
-/// Run real Git in a fixture with `input` on its standard input, and require success.
+/// Run real Git in a fixture with `input` on its standard input,
+/// and require success.
 fn git_with_input(directory: &Path, arguments: &[&str], input: &[u8]) -> Output {
     let mut child: std::process::Child = Command::new(REAL_GIT)
         .current_dir(directory)
@@ -81,7 +86,9 @@ fn import_stream(pairs: &[(&[u8], &[u8])]) -> Vec<u8> {
     return stream;
 }
 
-/// The commit ids of the landed commits, in pair order, from the marks file `git fast-import` exported.
+/// The commit ids of the landed commits,
+/// in pair order,
+/// from the marks file `git fast-import` exported.
 fn landed_commits(marks: &str, count: usize) -> Vec<String> {
     let all: std::collections::HashMap<usize, &str> = marks
         .lines()
@@ -95,7 +102,8 @@ fn landed_commits(marks: &str, count: usize) -> Vec<String> {
 
 /// The raw patch `git diff-tree -p --text` prints for each pair between the trees of its base and landed commits,
 ///  each as the repository of the pair alone would print it.
-/// One repository named `batch` is made in `directory`; the pairs are committed by one `git fast-import`
+/// One repository named `batch` is made in `directory`;
+/// the pairs are committed by one `git fast-import`
 ///  and diffed by one `git diff-tree --stdin`.
 pub(super) fn patches_between_all(directory: &Path, pairs: &[(&[u8], &[u8])], context: u32) -> Vec<Vec<u8>> {
     let repo: PathBuf = directory.join("batch");
@@ -160,9 +168,13 @@ fn git_accepts(root: &Path, case: &ReverseCase, patch: &[u8]) -> bool {
     .success();
 }
 
-/// Whether Git accepts each case's patch reversed against its prepared text, in case order.
-/// At most four checks run at once, each in its own directory under `root`.
-/// A panic in a worker, which names its case, ends the run with the same message.
+/// Whether Git accepts each case's patch reversed against its prepared text,
+/// in case order.
+/// At most four checks run at once,
+/// each in its own directory under `root`.
+/// A panic in a worker,
+/// which names its case,
+/// ends the run with the same message.
 pub(super) fn git_verdicts(root: &Path, cases: &[ReverseCase], patches: &[Vec<u8>]) -> Vec<bool> {
     let next: AtomicUsize = AtomicUsize::new(0);
     // `mut` lets each finished worker fill in the verdicts it reached.

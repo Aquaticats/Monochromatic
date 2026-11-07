@@ -16,11 +16,16 @@
 //! so a
 //! scheme change needs no Rust round trip.
 
+/// Imports the accent environment variable and its parser.
 use music_player::accent_override::{ACCENT_ENV, accent_override};
+/// Imports the sRGB color type of the accent.
 use music_player::oklch::Srgb8;
+/// Imports the theme role derivation and the palette it returns.
 use music_player::theme_roles::{self, ThemePalette};
+/// Imports the color type and the component handle that fill the window's roles.
 use slint::{Color, ComponentHandle};
 
+/// Imports the window and the generated role set and theme global.
 use crate::{AppWindow, RoleSet, Theme};
 
 /// What:
@@ -182,6 +187,10 @@ pub(crate) fn install_accent_tracking(app: &AppWindow) {
     });
 }
 
+/// Unit tests of `ui_theme`,
+/// in the sidecar file `ui_theme_tests.rs`.
+/// Role of the module:
+/// pushes the derived theme roles into the window and keeps them current when the accent changes.
 #[cfg(test)]
 #[path = "ui_theme_tests.rs"]
 mod tests;

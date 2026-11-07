@@ -11,12 +11,19 @@
 //! header holds it for most formats.
 //! Formats whose header omits the frame count give `None`.
 
+/// Imports the file type that the probe opens.
 use std::fs::File;
+/// Imports the path type that names the probed file.
 use std::path::Path;
 
+/// Imports the hint that tells the format probe the file extension.
 use symphonia::core::formats::probe::Hint;
+/// Imports the format options,
+/// the reader trait and the track type that read the container header.
 use symphonia::core::formats::{FormatOptions, FormatReader, TrackType};
+/// Imports the media source stream that wraps the file for the probe.
 use symphonia::core::io::MediaSourceStream;
+/// Imports the metadata options that the probe is called with.
 use symphonia::core::meta::MetadataOptions;
 
 /// What:
@@ -103,6 +110,11 @@ fn frames_to_secs(frames: u64, rate: u32) -> Option<f64> {
     return Some(frames as f64 / f64::from(rate));
 }
 
+/// Unit tests of `duration_probe`,
+/// in the sidecar file `duration_probe_tests.rs`.
+/// Role of the module:
+/// reads one file's length from its container header,
+/// without decoding any audio.
 #[cfg(test)]
 #[path = "duration_probe_tests.rs"]
 mod tests;

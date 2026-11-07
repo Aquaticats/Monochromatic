@@ -10,18 +10,28 @@
 //! `main` stays a startup sequence,
 //! and the mapping from user action to `Command` lives in one place.
 
+/// Imports the shared ownership type that shares the engine and host with the callbacks.
 use std::rc::Rc;
 
+/// Imports the command that callbacks send to the engine.
 use music_player::command::Command;
+/// Imports the engine that receives the commands.
 use music_player::engine::Engine;
+/// Imports the row activation rule.
 use music_player::row_activation::{RowActivation, row_activation_for};
+/// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
+/// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
 
+/// Imports the window that the callbacks are registered on.
 use crate::AppWindow;
+/// Imports the conversion of the window's integer to a playback mode.
 use crate::ui_playback::int_to_playback_mode;
+/// Imports the projection and the state accessors of the screen.
 use crate::ui_screen::{project, read_state, update_state};
+/// Imports the folder selection and the page scope lookup.
 use crate::ui_screen_view::{select_folder_label, selected_page_scope};
 
 thread_local! {

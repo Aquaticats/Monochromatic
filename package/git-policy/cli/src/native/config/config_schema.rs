@@ -32,7 +32,8 @@ use crate::policy_registry::{
 /// Why:
 ///   Milliseconds up to 2^53 - 1 are accepted,
 ///  which `u32` cannot hold.
-///       This was the incumbent's default patience for an unproven `index.lock` owner; nothing reads it now.
+///       This was the incumbent's default patience for an unproven `index.lock` owner;
+/// nothing reads it now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,7 +42,8 @@ use crate::policy_registry::{
 pub const DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS: u64 = 1_000;
 
 /// Incumbent default:
-///  reserve the next landing slot after one lost landing race; nothing reads it now.
+///  reserve the next landing slot after one lost landing race;
+/// nothing reads it now.
 pub const DEFAULT_RESERVE_AFTER_LOST_RACES: u64 = 1;
 
 /// What:
@@ -120,7 +122,8 @@ pub struct MarkdownAutofixOptions {
 ///   The configuration names several files as an array,
 ///  and a gitignored local file must be allowed to be missing
 ///       on a fresh clone while a committed shared file must not.
-///       The path is the configuration's own text, with no comma or `?` syntax,
+///       The path is the configuration's own text,
+/// with no comma or `?` syntax,
 ///  because JSON can already say which file is meant.
 ///
 /// In TS you'd write (pseudocode):
@@ -193,9 +196,13 @@ pub struct PolicyConfig {
 /// What:
 ///  The retired `hooks` key.
 /// Why:
-///   `hooks.concurrentCommits` tuned the hook lock, and the wrapper runs no external hook, so there is no lock to
+///   `hooks.concurrentCommits` tuned the hook lock,
+/// and the wrapper runs no external hook,
+/// so there is no lock to
 ///  tune.
-///  Older files that set it still load: the value is checked and ignored, and `git monochromatic-git-policy-cli doctor` says so.
+///  Older files that set it still load:
+/// the value is checked and ignored,
+/// and `git monochromatic-git-policy-cli doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,7 +210,8 @@ pub struct PolicyConfig {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HooksConfig {
-    /// The value the file gave; never used.
+    /// The value the file gave;
+    /// never used.
     pub concurrent_commits: bool,
     /// Whether the file states `hooks.concurrentCommits`.
     pub present: bool,
@@ -213,9 +221,15 @@ pub struct HooksConfig {
 ///  The retired `indexLock` key.
 /// Why:
 ///   `indexLock.unprovenOwnerTimeoutMs` was how long the wrapper backed off for an `index.lock` whose owner is dead or
-///  unproven. The commit service waits for a foreign `index.lock` for as long as the lock stays there, whether its owner is
-///  proven to hold it or not, and reads no such value, so the key does nothing.
-///  Older files that set it still load: the value is checked and ignored, and `git monochromatic-git-policy-cli doctor` says so.
+///  unproven.
+/// The commit service waits for a foreign `index.lock` for as long as the lock stays there,
+/// whether its owner is
+///  proven to hold it or not,
+/// and reads no such value,
+/// so the key does nothing.
+///  Older files that set it still load:
+/// the value is checked and ignored,
+/// and `git monochromatic-git-policy-cli doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -223,7 +237,9 @@ pub struct HooksConfig {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct IndexLockConfig {
-    /// The value the file gave, a whole number of at least 0; never used.
+    /// The value the file gave,
+    /// a whole number of at least 0;
+    /// never used.
     pub unproven_owner_timeout_ms: u64,
     /// Whether the file states `indexLock.unprovenOwnerTimeoutMs`.
     pub present: bool,
@@ -233,8 +249,12 @@ pub struct IndexLockConfig {
 ///  The retired `landing` key.
 /// Why:
 ///   `landing.reserveAfterLostRaces` was how many lost landing races passed before a commit asked for the landing
-///  reservation. The commit service lands in arrival order and bounds the retries of a commit itself, so the key does nothing.
-///  Older files that set it still load: the value is checked and ignored, and `git monochromatic-git-policy-cli doctor` says so.
+///  reservation.
+/// The commit service lands in arrival order and bounds the retries of a commit itself,
+/// so the key does nothing.
+///  Older files that set it still load:
+/// the value is checked and ignored,
+/// and `git monochromatic-git-policy-cli doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -242,7 +262,9 @@ pub struct IndexLockConfig {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LandingConfig {
-    /// The value the file gave, a whole number of at least 1; never used.
+    /// The value the file gave,
+    /// a whole number of at least 1;
+    /// never used.
     pub reserve_after_lost_races: u64,
     /// Whether the file states `landing.reserveAfterLostRaces`.
     pub present: bool,
@@ -251,7 +273,10 @@ pub struct LandingConfig {
 /// What:
 ///  The three retired concurrent-commit tuning groups together.
 /// Why:
-///   Concurrent commits cannot be turned off or tuned: every group is read, checked and ignored, so that an older
+///   Concurrent commits cannot be turned off or tuned:
+/// every group is read,
+/// checked and ignored,
+/// so that an older
 ///  file still loads.
 ///
 /// In TS you'd write (pseudocode):
@@ -285,7 +310,8 @@ pub struct CliGitConfig {
     pub policies: PolicyConfig,
     /// Concurrent-commit tuning.
     pub concurrency: ConcurrencyConfig,
-    /// The limits of the folder of saved copies of conflicted files (`discardedCopies`), defaults applied.
+    /// The limits of the folder of saved copies of conflicted files (`discardedCopies`),
+    /// defaults applied.
     pub discarded: Limits,
 }
 
@@ -333,7 +359,9 @@ impl ConcurrencyConfig {
 /// Why:
 ///   The five built-in policies run everywhere at their default severity.
 ///  The four
-///       policies that plugins used to provide, and `mono/catalog-specifiers`, run only where
+///       policies that plugins used to provide,
+/// and `mono/catalog-specifiers`,
+/// run only where
 ///       `monochromatic-git-policy-cli.config.jsonc` names them,
 ///  whether or not a file exists,
 ///  so an empty file and no file behave alike.

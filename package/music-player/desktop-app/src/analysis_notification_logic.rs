@@ -23,8 +23,10 @@
 //! - A user dismissal,
 //!   an engine failure or a dead bus end the indicator and always release a pause.
 
+/// Imports the duration and instant types with which the machine rate-limits updates.
 use std::time::{Duration, Instant};
 
+/// Imports the text of the scan count that the indicator shows.
 use crate::scan_indicator::scan_indicator_count_text;
 
 /// What:
@@ -84,7 +86,10 @@ pub enum Outcome {
     Stopped,
     /// The engine failed;
     /// the message is shown to the user.
-    Failed(String),
+    Failed(
+        /// The plain sentence that tells the user what failed.
+        String,
+    ),
 }
 
 /// What:
@@ -96,13 +101,26 @@ pub enum Outcome {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Effect {
     /// Create the indicator showing this view.
-    Open(IndicatorView),
+    Open(
+        /// The view to show.
+        IndicatorView,
+    ),
     /// Change the open indicator to this view.
-    Update(IndicatorView),
+    Update(
+        /// The view to show instead.
+        IndicatorView,
+    ),
     /// Remove the indicator for this reason.
-    Close(Outcome),
+    Close(
+        /// Why the indicator closes.
+        Outcome,
+    ),
     /// Tell the engine to pause (`true`) or resume (`false`) the analysis.
-    SetEnginePause(bool),
+    SetEnginePause(
+        /// `true` to pause,
+        /// `false` to resume.
+        bool,
+    ),
 }
 
 /// What:
@@ -132,7 +150,10 @@ enum Phase {
 /// the dedupe compares against the view and the rate limit measures from the time.
 #[derive(Clone, Debug)]
 struct Sent {
+    /// The view that went to the bus.
     view: IndicatorView,
+    /// When that view was sent,
+    /// which the rate limit measures from.
     at: Instant,
 }
 
@@ -146,10 +167,21 @@ struct Sent {
 /// returns the effects it causes.
 #[derive(Debug)]
 pub struct Machine {
+    /// Where the indicator is in its life:
+    /// idle,
+    /// active,
+    /// dismissed or disabled.
     phase: Phase,
+    /// Whether the app has a pause to offer;
+    /// without one the machine never asks for a pause.
     suspendable: bool,
+    /// Whether the analysis is paused now.
     paused: bool,
+    /// The last view that went to the bus,
+    /// which the dedupe and the rate limit compare against.
     sent: Option<Sent>,
+    /// The newest view that the rate limit held back,
+    /// sent when the interval has passed.
     pending: Option<IndicatorView>,
 }
 

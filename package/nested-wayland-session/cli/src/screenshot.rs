@@ -20,6 +20,8 @@
 //! thread,
 //!  so the recorder's per-tick cost stays minimal.
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::{failed_debug_error, with_message};
 /// What:
 ///      `use std::path::Path;`.
 ///  Borrowed filesystem path.
@@ -171,8 +173,8 @@ pub fn read_frame(state: &mut Compositor, buffer: &mut Vec<u8>) -> Result<(u32, 
             // What:     `Offscreen::<GlesTexture>::create_buffer(renderer, format, size)` allocates
             //           a GPU texture the renderer can draw into; `Some(...)` stores it.
             // Why:      A new frame size needs a texture of that size.
-            let texture: GlesTexture = Offscreen::<GlesTexture>::create_buffer(renderer, Fourcc::Abgr8888, texture_size)
-                .map_err(|err| anyhow::anyhow!("creating the capture texture failed: {err:?}"))?;
+            let created = Offscreen::<GlesTexture>::create_buffer(renderer, Fourcc::Abgr8888, texture_size);
+            let texture: GlesTexture = failed_debug_error(created, "creating the capture texture failed")?;
             state.capture_texture = Some(texture);
         }
 
@@ -187,14 +189,12 @@ pub fn read_frame(state: &mut Compositor, buffer: &mut Vec<u8>) -> Result<(u32, 
         // What:     `let mut framebuffer = renderer.bind(texture).map_err(...)?;`. Binds the
         //           texture as the draw target; the returned target borrows the texture.
         // Why:      Need a target to draw and then read back.
-        let mut framebuffer = renderer
-            .bind(texture)
-            .map_err(|err| anyhow::anyhow!("binding the capture texture failed: {err:?}"))?;
+        let mut framebuffer = failed_debug_error(renderer.bind(texture), "binding the capture texture failed")?;
 
         // What:     `render_output::<_, WaylandSurfaceRenderElement<GlesRenderer>, _, _>(...)
         //           .map_err(...)?;`. Composite the current committed client content.
         // Why:      The readback should reflect the latest frame.
-        render_output::<_, WaylandSurfaceRenderElement<GlesRenderer>, _, _>(
+        let rendered = render_output::<_, WaylandSurfaceRenderElement<GlesRenderer>, _, _>(
             &state.output,
             renderer,
             &mut framebuffer,
@@ -204,8 +204,8 @@ pub fn read_frame(state: &mut Compositor, buffer: &mut Vec<u8>) -> Result<(u32, 
             &[],
             &mut state.damage_tracker,
             CLEAR_COLOR,
-        )
-        .map_err(|err| anyhow::anyhow!("rendering the frame for readback failed: {err:?}"))?;
+        );
+        failed_debug_error(rendered, "rendering the frame for readback failed")?;
 
         // What:     `let region: Rectangle<i32, Buffer> = Rectangle::from_size((size.w,
         //           size.h).into());`. The whole framebuffer in BUFFER coordinates.
@@ -216,16 +216,13 @@ pub fn read_frame(state: &mut Compositor, buffer: &mut Vec<u8>) -> Result<(u32, 
         //           Fourcc::Abgr8888).map_err(...)?;`. Copy into a CPU-readable mapping in
         //           `Abgr8888` (memory order R, G, B, A on little-endian, i.e. RGBA).
         // Why:      Move GPU pixels somewhere readable.
-        let mapping = renderer
-            .copy_framebuffer(&framebuffer, region, Fourcc::Abgr8888)
-            .map_err(|err| anyhow::anyhow!("copy_framebuffer failed: {err:?}"))?;
+        let copied = renderer.copy_framebuffer(&framebuffer, region, Fourcc::Abgr8888);
+        let mapping = failed_debug_error(copied, "copy_framebuffer failed")?;
 
         // What:     `let pixels = renderer.map_texture(&mapping).map_err(...)?;`. A
         //           read-only byte slice of the mapping (borrows the renderer).
         // Why:      Access the pixel bytes.
-        let pixels = renderer
-            .map_texture(&mapping)
-            .map_err(|err| anyhow::anyhow!("map_texture failed: {err:?}"))?;
+        let pixels = failed_debug_error(renderer.map_texture(&mapping), "map_texture failed")?;
 
         // What:     `buffer.clear(); buffer.extend_from_slice(pixels);`. Empty the target
         //           buffer, then copy every pixel byte into it.
@@ -285,8 +282,8 @@ pub fn capture(state: &mut Compositor, path: &Path) -> Result<()> {
     //           flip+encode helper (the same flip the recorder's workers apply) to write an
     //           upright PNG.
     // Why:      Single screenshots must be upright, matching the recorded frames.
-    encoder::write_flipped(&pixels, width, height, path, encoder::Format::Png)
-        .with_context(|| format!("writing screenshot to {}", path.display()))?;
+    let written = encoder::write_flipped(&pixels, width, height, path, encoder::Format::Png);
+    with_message(written, format_args!("writing screenshot to {}", path.display()))?;
 
     // What:     `Ok(())`. Success.
     // Why:      Signal the screenshot was written.

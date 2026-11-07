@@ -1,7 +1,12 @@
 //! What:
-//!  How the word-level second pass starts Git: what a start gave back, the thing that runs a start, and the one that runs it in the invocation's context.
+//!  How the word-level second pass starts Git:
+//! what a start gave back,
+//! the thing that runs a start,
+//! and the one that runs it in the invocation's context.
 //! Why:
-//!  `merge_second_pass.rs` runs the pass and stays under the file-size limit; the way Git is started needs nothing from it, so it lives in a file of its own that the pass imports.
+//!  `merge_second_pass.rs` runs the pass and stays under the file-size limit;
+//! the way Git is started needs nothing from it,
+//! so it lives in a file of its own that the pass imports.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +20,8 @@ use std::path::{Path, PathBuf};
 /// What a Git start gave back.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GitReply {
-    /// The exit status, or nothing when a signal ended Git.
+    /// The exit status,
+    /// or nothing when a signal ended Git.
     pub code: Option<i32>,
     /// Standard output.
     pub stdout: Vec<u8>,
@@ -23,22 +29,31 @@ pub struct GitReply {
     pub stderr: Vec<u8>,
 }
 
-/// How a caller starts Git for the second pass: in the repository it works in, with its environment and global options.
+/// How a caller starts Git for the second pass:
+/// in the repository it works in,
+/// with its environment and global options.
 pub trait GitRunner {
-    /// Start Git with `arguments`, `input` on standard input and `index_file` as the index when given. `Err` means Git could
-    /// not be started; an exit status other than 0 is a reply.
+    /// Start Git with `arguments`,
+    /// `input` on standard input and `index_file` as the index when given.
+    /// `Err` means Git could
+    /// not be started;
+    /// an exit status other than 0 is a reply.
     fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String>;
 }
 
-/// The runner for callers that start Git through `run_git`: one context, one directory and a fixed set of request options.
+/// The runner for callers that start Git through `run_git`:
+/// one context,
+/// one directory and a fixed set of request options.
 pub struct ContextRunner<'a> {
-    /// The real Git, its overlay and the global options of the invocation.
+    /// The real Git,
+    /// its overlay and the global options of the invocation.
     pub context: &'a GitContext,
     /// The directory every start runs in.
     pub cwd: &'a Path,
     /// Whether the invocation's global options are left out (the commit replay's private runs).
     pub without_prefix: bool,
-    /// The object store that receives written objects, when it is not the repository's own.
+    /// The object store that receives written objects,
+    /// when it is not the repository's own.
     pub object_directory: Option<&'a Path>,
     /// Variables added to every start.
     pub environment: Vec<(OsString, OsString)>,
@@ -62,11 +77,16 @@ impl GitRunner for ContextRunner<'_> {
 }
 
 /// What:
-///  The configuration options (`-c <name>=<value>`) among an invocation's global options, and nothing else.
+///  The configuration options (`-c <name>=<value>`) among an invocation's global options,
+/// and nothing else.
 /// Why:
-///   The second pass runs from the top of the worktree, because `git check-attr` and `git checkout-index` read the paths
-///  they are given relative to the directory they run in; `-C` and `--git-dir` would move them again. The settings that change
-///  what a checkout writes (`core.autocrlf`, filters) still apply.
+///   The second pass runs from the top of the worktree,
+/// because `git check-attr` and `git checkout-index` read the paths
+///  they are given relative to the directory they run in;
+/// `-C` and `--git-dir` would move them again.
+/// The settings that change
+///  what a checkout writes (`core.autocrlf`,
+/// filters) still apply.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

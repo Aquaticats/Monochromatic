@@ -1,10 +1,16 @@
 //! What:
-//!  The repositories the service must look at again, and when: those with a claim that another instance holds and that may run
+//!  The repositories the service must look at again,
+//! and when:
+//! those with a claim that another instance holds and that may run
 //!  out its lease while this service sits idle.
 //! Why:
-//!  A restarted service that finds the claims of the instance it replaces cannot take them before their lease is over, and
-//!  nothing wakes it when the lease is: the next commit might be hours away, and the work would sit claimed by a holder that
-//!  died. The work loop asks this schedule how long to wait for a wake before it looks again.
+//!  A restarted service that finds the claims of the instance it replaces cannot take them before their lease is over,
+//! and
+//!  nothing wakes it when the lease is:
+//! the next commit might be hours away,
+//! and the work would sit claimed by a holder that
+//!  died.
+//! The work loop asks this schedule how long to wait for a wake before it looks again.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,13 +20,16 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-/// Added to a wait so that the lease is over when the service looks, not exactly at its edge.
+/// Added to a wait so that the lease is over when the service looks,
+/// not exactly at its edge.
 pub const RETRY_SLACK: Duration = Duration::from_secs(1);
 
 /// What:
-///  The repositories to look at again, each with the time to do it.
+///  The repositories to look at again,
+/// each with the time to do it.
 /// Why:
-///   One entry per repository, replaced by the newest answer of a round that looked at it.
+///   One entry per repository,
+/// replaced by the newest answer of a round that looked at it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,7 +48,8 @@ impl RetrySchedule {
         return self.due.is_empty();
     }
 
-    /// How long until the first entry is due (nothing at all when the schedule is empty, zero for one already due).
+    /// How long until the first entry is due (nothing at all when the schedule is empty,
+    /// zero for one already due).
     pub fn next_wait(&self, now: Instant) -> Option<Duration> {
         let mut least: Option<Duration> = None;
         for (_directory, when) in &self.due {
@@ -68,7 +78,8 @@ impl RetrySchedule {
         return due;
     }
 
-    /// Forgets what was scheduled for the repositories a round just ran, and schedules what that round asked for.
+    /// Forgets what was scheduled for the repositories a round just ran,
+    /// and schedules what that round asked for.
     pub fn replace(&mut self, ran: &[PathBuf], retries: Vec<(PathBuf, Duration)>, now: Instant) {
         let mut kept: Vec<(PathBuf, Instant)> = Vec::new();
         for entry in std::mem::take(&mut self.due) {

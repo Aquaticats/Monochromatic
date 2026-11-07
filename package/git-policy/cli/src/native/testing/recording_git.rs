@@ -62,16 +62,24 @@ pub(crate) fn recorded_starts(log: &Path) -> Vec<String> {
     return starts;
 }
 
-/// The commands whose `--quiet` changes the exit status or what is computed, so a start of one keeps it.
-///  Git 2.56.0: `builtin/rev-parse.c` `die_no_single_rev` exits 1 where it dies with 128; `builtin/symbolic-ref.c`
-///  `check_symref` returns 1 where it dies; `diff.c` sets `exit_with_status`, no renames and an early quit for `--quiet`.
+/// The commands whose `--quiet` changes the exit status or what is computed,
+/// so a start of one keeps it.
+///  Git 2.56.0:
+/// `builtin/rev-parse.c` `die_no_single_rev` exits 1 where it dies with 128;
+/// `builtin/symbolic-ref.c`
+///  `check_symref` returns 1 where it dies;
+/// `diff.c` sets `exit_with_status`,
+/// no renames and an early quit for `--quiet`.
 const RESULT_CHANGING_COMMANDS: [&str; 4] = ["rev-parse", "symbolic-ref", "diff-index", "diff-files"];
 
 /// What:
-///  The recorded starts that carry `--quiet` or `-q` as a whole argument, other than the probes whose option changes the answer.
+///  The recorded starts that carry `--quiet` or `-q` as a whole argument,
+/// other than the probes whose option changes the answer.
 /// Why:
-///   The owner's rule is that no Git start of the wrapper or the service gets either option when it only hides messages, so
-///  a control names the starts that did, and an empty answer is only worth something next to a check that the start it looks
+///   The owner's rule is that no Git start of the wrapper or the service gets either option when it only hides messages,
+/// so
+///  a control names the starts that did,
+/// and an empty answer is only worth something next to a check that the start it looks
 ///  for happened.
 ///
 /// In TS you'd write (pseudocode):

@@ -77,15 +77,33 @@ static LOGGING: OnceLock<()> = OnceLock::new();
 /// logging.init(); // first JNI entry installs the logcat sink
 /// ```
 pub fn init() {
-    LOGGING.get_or_init(|| {
-        // The level filter from RUST_LOG, or `info` when unset or malformed.
-        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| return EnvFilter::new("info"));
-        // Compose the env-filter with the logcat layer under a fixed tag; `with_ansi(false)`
-        // drops the color escapes that would otherwise clutter logcat. Ignore an error when a
-        // global subscriber is already set (the OnceLock already prevents our own reruns).
-        let _ = tracing_subscriber::registry()
-            .with(filter)
-            .with(paranoid_android::layer("MusicPlayer").with_ansi(false))
-            .try_init();
-    });
+    LOGGING.get_or_init(install_subscriber);
+}
+
+/// What:
+///      `fn install_subscriber()`.
+///  Compose the env-filter with the logcat layer and install it as the global tracing subscriber.
+///  Called at most once,
+///  by `init` through its `OnceLock`.
+/// Why:
+///       `OnceLock::get_or_init` takes it by path,
+///  so no closure is needed for the one-time work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function installSubscriber(): void { tracing.install(envFilter(), logcatLayer("MusicPlayer")); }
+/// ```
+fn install_subscriber() {
+    // The level filter from RUST_LOG, or `info` when unset or malformed.
+    let filter = match EnvFilter::try_from_default_env() {
+        Ok(filter) => filter,
+        Err(_) => EnvFilter::new("info"),
+    };
+    // Compose the env-filter with the logcat layer under a fixed tag; `with_ansi(false)`
+    // drops the color escapes that would otherwise clutter logcat. Ignore an error when a
+    // global subscriber is already set (the OnceLock already prevents our own reruns).
+    let _ = tracing_subscriber::registry()
+        .with(filter)
+        .with(paranoid_android::layer("MusicPlayer").with_ansi(false))
+        .try_init();
 }

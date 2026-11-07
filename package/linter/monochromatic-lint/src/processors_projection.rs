@@ -162,8 +162,17 @@ pub(crate) fn project(mapping: &Mapping, fix: &Fix) -> Result<Fix, ProcessorErro
         projected.push(host_edit);
         normalized.push(virtual_edit);
     }
-    let group: Fix = Fix { edits: projected };
-    let expected: String = rewrite(mapping, &Fix { edits: normalized })?;
+    let group: Fix = Fix {
+        class: fix.class,
+        edits: projected,
+    };
+    let expected: String = rewrite(
+        mapping,
+        &Fix {
+            class: fix.class,
+            edits: normalized,
+        },
+    )?;
     let changed: String = rewrite(parent, &group)?;
     // Clone map facts only for re-extraction; further projection uses original parent offsets.
     let mut candidate: Mapping = parent.as_ref().clone();

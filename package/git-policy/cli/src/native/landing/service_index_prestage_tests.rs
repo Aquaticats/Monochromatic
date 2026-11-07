@@ -65,7 +65,9 @@ fn until_staged(index: &Path) {
 }
 
 /// A marker made ahead and finished while the service was idle is placed without a flush on the commit's path:
-/// the commit asked for no flush (the count of flushes, not a clock, says so),
+/// the commit asked for no flush (the count of flushes,
+/// not a clock,
+/// says so),
 /// the notes say the file came from the idle time,
 /// and its text is the batch's.
 #[test]
@@ -95,7 +97,8 @@ fn a_marker_made_ahead_is_placed_without_a_flush_at_the_commit() {
 /// Set when the gated flush has finished.
 static GATED_FLUSH_DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Holds the flush until a commit is waiting for the marker, so the commit comes during the flush on any host.
+/// Holds the flush until a commit is waiting for the marker,
+/// so the commit comes during the flush on any host.
 fn until_a_commit_waits() {
     let began: Instant = Instant::now();
     while !COMMIT_WAITING.load(Ordering::SeqCst) {
@@ -114,7 +117,9 @@ fn gated_flush(file: &std::fs::File) -> std::io::Result<()> {
     return flushed;
 }
 
-/// A flush that, once a commit is waiting for the marker, takes as long as a loaded disk makes it take.
+/// A flush that,
+/// once a commit is waiting for the marker,
+/// takes as long as a loaded disk makes it take.
 fn gated_slow_flush(file: &std::fs::File) -> std::io::Result<()> {
     FLUSHES.fetch_add(1, Ordering::SeqCst);
     until_a_commit_waits();
@@ -123,7 +128,8 @@ fn gated_slow_flush(file: &std::fs::File) -> std::io::Result<()> {
 }
 
 /// A commit that comes while the marker is still being flushed waits for that flush and starts no second one:
-/// the flush is held until the commit is waiting for it, so the commit provably came during the flush,
+/// the flush is held until the commit is waiting for it,
+/// so the commit provably came during the flush,
 /// it returns only after the flush has finished,
 /// and the flush ran once.
 #[test]
@@ -249,7 +255,9 @@ fn the_marker_made_ahead_names_this_process_and_the_batch() {
     remove(root.as_path());
 }
 
-/// A flush that, once a commit is waiting for the marker, takes as long as a loaded disk makes it take and then fails.
+/// A flush that,
+/// once a commit is waiting for the marker,
+/// takes as long as a loaded disk makes it take and then fails.
 fn failing_flush(_: &std::fs::File) -> std::io::Result<()> {
     FLUSHES.fetch_add(1, Ordering::SeqCst);
     until_a_commit_waits();

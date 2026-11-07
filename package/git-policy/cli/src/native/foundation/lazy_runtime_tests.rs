@@ -1,10 +1,14 @@
-//! The lazy runtime: one runtime for the process, a build that ends by its deadline whatever the multi-thread build does, and a
+//! The lazy runtime:
+//! one runtime for the process,
+//! a build that ends by its deadline whatever the multi-thread build does,
+//! and a
 //! refusal instead of a panic when called from inside the runtime.
 
 use super::*;
 use std::time::Instant;
 
-/// A multi-thread builder as production writes it, with a small pool.
+/// A multi-thread builder as production writes it,
+/// with a small pool.
 fn real_multi_thread(workers: usize, blocking: usize) -> std::io::Result<Runtime> {
     return tokio::runtime::Builder::new_multi_thread().worker_threads(workers).max_blocking_threads(blocking).enable_all().build();
 }
@@ -30,7 +34,8 @@ fn a_multi_thread_plan_that_builds_in_time_gives_the_multi_thread_runtime() {
     assert_eq!(built.runtime.block_on(async { return 7; }), 7);
 }
 
-/// A build that outlasts the deadline is left running and the current-thread runtime stands in, by the deadline.
+/// A build that outlasts the deadline is left running and the current-thread runtime stands in,
+/// by the deadline.
 #[test]
 fn a_build_that_outlasts_the_deadline_is_replaced_by_the_current_thread_runtime() {
     let deadline: Duration = Duration::from_millis(200);
@@ -47,7 +52,9 @@ fn a_build_that_outlasts_the_deadline_is_replaced_by_the_current_thread_runtime(
     assert_eq!(built.runtime.block_on(async { return 7; }), 7);
 }
 
-/// A build that panics, as tokio's does when the system refuses a thread, is replaced at once.
+/// A build that panics,
+/// as tokio's does when the system refuses a thread,
+/// is replaced at once.
 #[test]
 fn a_build_that_panics_is_replaced_by_the_current_thread_runtime() {
     let built: BuiltRuntime = build_with_deadline(TWO, BUILD_DEADLINE, |_workers, _blocking| { panic!("OS can't spawn worker thread") })
@@ -64,7 +71,8 @@ fn a_build_that_fails_is_replaced_by_the_current_thread_runtime() {
     assert_eq!(built.flavor, BuiltFlavor::CurrentThreadAfterFailure);
 }
 
-/// The one runtime serves every call: a second call sees the flavor the first built.
+/// The one runtime serves every call:
+/// a second call sees the flavor the first built.
 #[test]
 fn every_call_runs_on_the_same_runtime() {
     assert_eq!(built_flavor(), None, "nothing is built before the first need");
@@ -83,8 +91,10 @@ fn a_call_from_inside_the_runtime_is_refused() {
     assert_eq!(inner, Err(true));
 }
 
-/// A task spawned on the runtime runs while the thread that spawned it is blocked in a plain wait, which is what a watcher does
-///  beside a blocked reader; the control would fail if the task ran only when the caller drove the runtime.
+/// A task spawned on the runtime runs while the thread that spawned it is blocked in a plain wait,
+/// which is what a watcher does
+///  beside a blocked reader;
+/// the control would fail if the task ran only when the caller drove the runtime.
 #[test]
 fn a_spawned_task_runs_while_the_caller_is_blocked() {
     let (sender, receiver) = std::sync::mpsc::channel::<u8>();

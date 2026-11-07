@@ -1,8 +1,10 @@
-//! Controls for the automatic-maintenance decision: config record parsing and the enable and detach rules.
+//! Controls for the automatic-maintenance decision:
+//! config record parsing and the enable and detach rules.
 
 use super::*;
 
-/// Build the decision's input from `(key, value)` pairs, as `parse_config_records` returns them.
+/// Build the decision's input from `(key, value)` pairs,
+/// as `parse_config_records` returns them.
 fn config(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
     return pairs
         .iter()
@@ -30,14 +32,16 @@ fn config_records_keep_the_last_value_and_read_a_bare_key_as_true() {
     ]));
 }
 
-/// Empty config output parses to no keys, and empty records between NULs are skipped.
+/// Empty config output parses to no keys,
+/// and empty records between NULs are skipped.
 #[test]
 fn empty_config_output_parses_to_no_keys() {
     assert_eq!(parse_config_records(b"").expect("empty"), BTreeMap::new());
     assert_eq!(parse_config_records(b"\0\0").expect("only separators"), BTreeMap::new());
 }
 
-/// Config output that is not UTF-8 is refused, as the incumbent's strict decoder throws.
+/// Config output that is not UTF-8 is refused,
+/// as the incumbent's strict decoder throws.
 #[test]
 fn config_records_that_are_not_utf8_are_refused() {
     assert_eq!(
@@ -77,7 +81,8 @@ fn explicit_maintenance_auto_overrides_gc_auto() {
     );
 }
 
-/// Without `maintenance.auto`, a zero or negative `gc.auto` disables maintenance.
+/// Without `maintenance.auto`,
+/// a zero or negative `gc.auto` disables maintenance.
 #[test]
 fn non_positive_gc_auto_disables() {
     assert_eq!(
@@ -99,7 +104,8 @@ fn positive_gc_auto_enables() {
     );
 }
 
-/// A `gc.auto` value that is not a number is never positive, as `Number("true") > 0` is false.
+/// A `gc.auto` value that is not a number is never positive,
+/// as `Number("true") > 0` is false.
 #[test]
 fn boolean_gc_auto_disables() {
     assert_eq!(
@@ -112,7 +118,8 @@ fn boolean_gc_auto_disables() {
     );
 }
 
-/// A `maintenance.auto` value that is neither a boolean nor a number counts as enabled, as `NaN !== 0` is true.
+/// A `maintenance.auto` value that is neither a boolean nor a number counts as enabled,
+/// as `NaN !== 0` is true.
 #[test]
 fn unparsable_maintenance_auto_enables() {
     assert_eq!(
@@ -151,7 +158,8 @@ fn gc_autodetach_false_runs_in_the_foreground() {
     );
 }
 
-/// Non-zero integers count as true for the detach settings, as `boolOrIntTrue` does.
+/// Non-zero integers count as true for the detach settings,
+/// as `boolOrIntTrue` does.
 #[test]
 fn integer_detach_settings_are_true_when_nonzero() {
     assert_eq!(
@@ -164,7 +172,8 @@ fn integer_detach_settings_are_true_when_nonzero() {
     );
 }
 
-/// Each failure prints its own diagnostic, so a failed maintenance decision names its cause.
+/// Each failure prints its own diagnostic,
+/// so a failed maintenance decision names its cause.
 #[test]
 fn the_maintenance_errors_display_their_causes() {
     assert_eq!(

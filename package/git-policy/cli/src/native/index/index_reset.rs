@@ -1,14 +1,28 @@
 //! What:
-//!  `git reset <tree> -- <paths>` on an index held in memory: for every path the literal pathspecs name, the entries of the
-//!  index become the entries of the tree, as `update_index_from_diff` in `builtin/reset.c` leaves them.
+//!  `git reset <tree> -- <paths>` on an index held in memory:
+//! for every path the literal pathspecs name,
+//! the entries of the
+//!  index become the entries of the tree,
+//! as `update_index_from_diff` in `builtin/reset.c` leaves them.
 //! Why:
-//!  A mixed reset with paths compares the tree with the index (`diff_cache` in `diff-lib.c`) and, for each difference,
+//!  A mixed reset with paths compares the tree with the index (`diff_cache` in `diff-lib.c`) and,
+//! for each difference,
 //!  removes the index entry (`remove_file_from_index`) or adds an entry made from the tree's mode and object name with
-//!  all-zero stat data (`make_cache_entry`, `add_index_entry` in `read-cache.c`), so the next `git status` hashes the file.
-//!  Every extension a change touches follows Git: the cache-tree is invalidated, the untracked cache is cleared for the
-//!  path, removed unmerged entries go to resolve-undo, and the fsmonitor bitmap lists the new entries as dirty. A form whose
-//!  result depends on more than that (a file-directory conflict between the tree and the index, a name Git refuses, a racily
-//!  clean entry that Git would hash from the worktree) returns `None`, so Git answers.
+//!  all-zero stat data (`make_cache_entry`,
+//! `add_index_entry` in `read-cache.c`),
+//! so the next `git status` hashes the file.
+//!  Every extension a change touches follows Git:
+//! the cache-tree is invalidated,
+//! the untracked cache is cleared for the
+//!  path,
+//! removed unmerged entries go to resolve-undo,
+//! and the fsmonitor bitmap lists the new entries as dirty.
+//! A form whose
+//!  result depends on more than that (a file-directory conflict between the tree and the index,
+//! a name Git refuses,
+//! a racily
+//!  clean entry that Git would hash from the worktree) returns `None`,
+//! so Git answers.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,7 +55,8 @@ fn index_mode(mode: u32) -> u32 {
     return if mode & 0o100 != 0 { MODE_EXECUTABLE } else { MODE_FILE };
 }
 
-/// Whether `byte` is a space or a dot, the two characters NTFS drops from the end of a name.
+/// Whether `byte` is a space or a dot,
+/// the two characters NTFS drops from the end of a name.
 fn is_space_or_dot(byte: &u8) -> bool {
     return *byte == b' ' || *byte == b'.';
 }
@@ -51,7 +66,9 @@ fn only_spaces_and_dots(rest: &[u8]) -> bool {
     return rest.iter().all(is_space_or_dot);
 }
 
-/// The byte of `name` at `index`; a position past the end reads as the terminating NUL, as Git's string would.
+/// The byte of `name` at `index`;
+/// a position past the end reads as the terminating NUL,
+/// as Git's string would.
 fn byte_at(name: &[u8], index: usize) -> u8 {
     return name.get(index).copied().unwrap_or(0);
 }
@@ -81,11 +98,17 @@ fn is_ignorable_triple(triple: &[u8]) -> bool {
 }
 
 /// What:
-///  Git's `is_ntfs_dotgitmodules` (`path.c:1451-1522`, `is_ntfs_dot_generic` with the name `gitmodules` and the hashed short-name
-///  prefix `gi7eba`) for one path component: `.gitmodules`, its short form `gitmod~1` to `gitmod~4`, and the fall-back short name
-///  NTFS makes from the hash (`GI7EBA~1`), each followed only by spaces and dots or a stream.
+///  Git's `is_ntfs_dotgitmodules` (`path.c:1451-1522`,
+/// `is_ntfs_dot_generic` with the name `gitmodules` and the hashed short-name
+///  prefix `gi7eba`) for one path component:
+/// `.gitmodules`,
+/// its short form `gitmod~1` to `gitmod~4`,
+/// and the fall-back short name
+///  NTFS makes from the hash (`GI7EBA~1`),
+/// each followed only by spaces and dots or a stream.
 /// Why:
-///   A link with any of these names is refused by Git with the NTFS protection on, so the update must decline it.
+///   A link with any of these names is refused by Git with the NTFS protection on,
+/// so the update must decline it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,13 +146,27 @@ fn is_ntfs_dotgitmodules(name: &[u8]) -> bool {
 
 /// What:
 ///  Whether one path component is one Git's name checks (`verify_path_internal` in `read-cache.c` with `core.protectNTFS`,
-///  which is on by default, and `core.protectHFS`) cannot refuse or alias to a refused name.
+///  which is on by default,
+/// and `core.protectHFS`) cannot refuse or alias to a refused name.
 /// Why:
-///   Git refuses `.`, `..` and `.git` in any case; with the protections on it also refuses the spellings a file system folds
-///  to `.git` (trailing spaces and dots, the `::$INDEX_ALLOCATION` stream, `git~1`, the ignorable characters of a case-folding
-///  disk) and, for a link, the same spellings of `.gitmodules` (`is_ntfs_dotgit`, `is_ntfs_dotgitmodules`, `is_hfs_dotgit`,
-///  `is_hfs_dotgitmodules` in `path.c` and `utf8.c`). A backslash and a colon separate or open a stream on those disks. This
-///  declines every such spelling whatever the settings say, which is a superset of what Git refuses with them on, so the
+///   Git refuses `.`,
+/// `..` and `.git` in any case;
+/// with the protections on it also refuses the spellings a file system folds
+///  to `.git` (trailing spaces and dots,
+/// the `::$INDEX_ALLOCATION` stream,
+/// `git~1`,
+/// the ignorable characters of a case-folding
+///  disk) and,
+/// for a link,
+/// the same spellings of `.gitmodules` (`is_ntfs_dotgit`,
+/// `is_ntfs_dotgitmodules`,
+/// `is_hfs_dotgit`,
+///  `is_hfs_dotgitmodules` in `path.c` and `utf8.c`).
+/// A backslash and a colon separate or open a stream on those disks.
+/// This
+///  declines every such spelling whatever the settings say,
+/// which is a superset of what Git refuses with them on,
+/// so the
 ///  update never writes a name Git would not and Git answers the rest.
 ///
 /// In TS you'd write (pseudocode):
@@ -146,7 +183,8 @@ fn component_is_plain(component: &[u8], is_link: bool) -> bool {
     return !component.is_empty() && component != b"." && component != b".." && !separators && !dot_git_like && !dot_gitmodules_like && !lowered.starts_with(b"git~") && !ignorable;
 }
 
-/// Whether Git could refuse the path or treat it specially on a file system that folds names; those paths are left to Git.
+/// Whether Git could refuse the path or treat it specially on a file system that folds names;
+/// those paths are left to Git.
 fn path_is_plain(path: &[u8], mode: u32) -> bool {
     if path.is_empty() {
         return false;
@@ -160,7 +198,8 @@ fn path_is_plain(path: &[u8], mode: u32) -> bool {
     return true;
 }
 
-/// Whether the path is one a literal pathspec `name` selects: the name itself or anything below it.
+/// Whether the path is one a literal pathspec `name` selects:
+/// the name itself or anything below it.
 fn selected(path: &[u8], names: &[Vec<u8>]) -> bool {
     for name in names {
         if path == name.as_slice() || (path.starts_with(name.as_slice()) && path.get(name.len()) == Some(&b'/')) {
@@ -193,7 +232,8 @@ fn has_path_at(entries: &[FullEntry], position: usize, path: &[u8]) -> bool {
     };
 }
 
-/// The entry of `tree` (sorted by path, one entry per path) with exactly the path `path`.
+/// The entry of `tree` (sorted by path,
+/// one entry per path) with exactly the path `path`.
 fn find_in_tree<'a>(tree: &'a [FlatEntry], path: &[u8]) -> Option<&'a FlatEntry> {
     let (mut low, mut high): (usize, usize) = (0, tree.len());
     while low < high {
@@ -239,14 +279,16 @@ struct Edit<'a> {
 }
 
 impl Edit<'_> {
-    /// Clear the untracked cache for `path`, if there is one (`untracked_cache_invalidate_path`).
+    /// Clear the untracked cache for `path`,
+    /// if there is one (`untracked_cache_invalidate_path`).
     fn forget_untracked(&mut self, path: &[u8]) {
         if let Some(cache) = self.index.untracked.as_mut() {
             cache.invalidate_path(path);
         }
     }
 
-    /// Take the entries named `path` out of the index, remembering unmerged ones for resolve-undo (`remove_index_entry_at`).
+    /// Take the entries named `path` out of the index,
+    /// remembering unmerged ones for resolve-undo (`remove_index_entry_at`).
     fn take_entries(&mut self, path: &[u8]) {
         let start: usize = first_at(self.index.entries.as_slice(), path);
         while has_path_at(self.index.entries.as_slice(), start, path) {
@@ -266,7 +308,8 @@ impl Edit<'_> {
         self.take_entries(path);
     }
 
-    /// `add_index_entry` with the add and replace options, for an entry made from the tree.
+    /// `add_index_entry` with the add and replace options,
+    /// for an entry made from the tree.
     fn put(&mut self, wanted: &FlatEntry) {
         let path: &[u8] = wanted.path.as_slice();
         if let Some(tree) = self.index.cache_tree.as_mut() {
@@ -310,8 +353,10 @@ impl Edit<'_> {
     }
 }
 
-/// What the reader of the extensions must settle before the entries change: fsmonitor and the untracked cache as Git's read
-/// leaves them. `None` for a combination this update does not reproduce.
+/// What the reader of the extensions must settle before the entries change:
+/// fsmonitor and the untracked cache as Git's read
+/// leaves them.
+/// `None` for a combination this update does not reproduce.
 fn prepare_extensions(index: &mut FullIndex, settings: IndexSettings) -> Option<()> {
     if settings.monitor {
         let dirty: Vec<usize> = index.fsmonitor.as_ref()?.dirty.clone();
@@ -340,12 +385,19 @@ fn prepare_extensions(index: &mut FullIndex, settings: IndexSettings) -> Option<
 }
 
 /// What:
-///  Make the entries of `names` (and below) equal to `tree`'s, as `git reset <tree> -- <names>` does; `tree` holds the
-///  tree's entries under those names in path order. `None` when the result is not the plain case described above, with the
+///  Make the entries of `names` (and below) equal to `tree`'s,
+/// as `git reset <tree> -- <names>` does;
+/// `tree` holds the
+///  tree's entries under those names in path order.
+/// `None` when the result is not the plain case described above,
+/// with the
 ///  index then in an unspecified state.
 /// Why:
-///   `timestamp_seconds` is the index file's modification time: an entry that stays and was recorded in that second or later
-///  is racily clean, and Git would compare it with the worktree while writing, which this update does not.
+///   `timestamp_seconds` is the index file's modification time:
+/// an entry that stays and was recorded in that second or later
+///  is racily clean,
+/// and Git would compare it with the worktree while writing,
+/// which this update does not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

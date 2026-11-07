@@ -1,8 +1,13 @@
 //! What:
-//!  Small questions about a path or a byte that the `git worktree add` plans ask: whether it is a slash, a link, a `..`
-//!  component, and which ancestor exists.
+//!  Small questions about a path or a byte that the `git worktree add` plans ask:
+//! whether it is a slash,
+//! a link,
+//! a `..`
+//!  component,
+//! and which ancestor exists.
 //! Why:
-//!  The plans of the ladder and of the ignored-state copy read the same arguments with the same path rules, and the rules
+//!  The plans of the ladder and of the ignored-state copy read the same arguments with the same path rules,
+//! and the rules
 //!  stand alone as functions of a path or a byte.
 //!
 //! In TS you'd write (pseudocode):
@@ -26,9 +31,12 @@ pub fn is_slash(byte: &u8) -> bool {
 }
 
 /// What:
-///  Whether a path is a symbolic link, without following it; a path that cannot be examined is not one.
+///  Whether a path is a symbolic link,
+/// without following it;
+/// a path that cannot be examined is not one.
 /// Why:
-///   Git records the resolved path of a destination that is a link, so the ladder declines such a destination.
+///   Git records the resolved path of a destination that is a link,
+/// so the ladder declines such a destination.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,7 +52,8 @@ pub fn is_symbolic_link(path: &Path) -> bool {
 /// What:
 ///  Whether a path has a `..` component.
 /// Why:
-///   A `-C` directory with `..` cannot be resolved without the directories it leaves, so the plan declines it.
+///   A `-C` directory with `..` cannot be resolved without the directories it leaves,
+/// so the plan declines it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,7 +69,9 @@ pub fn names_parent_directory(path: &Path) -> bool {
 }
 
 /// What:
-///  The first of a path and its ancestors, nearest first, that exists.
+///  The first of a path and its ancestors,
+/// nearest first,
+/// that exists.
 /// Why:
 ///   A destination's missing parents are appended as written to the nearest one that can be resolved.
 ///

@@ -11,7 +11,7 @@
 //! ```
 
 /// Import the consumer helpers and atomic fix models shared by every processor test module.
-use super::{Edit, Fix, ProcessorLanguage, VirtualSource, fixed, inputs};
+use super::{Edit, Fix, FixClass, ProcessorLanguage, VirtualSource, fixed, inputs};
 /// Typed refusals carry the explanation under test.
 use crate::processors::ProcessorError;
 
@@ -26,6 +26,7 @@ const CHANGED_CONTAINER: &str = "Projected fix changes its Markdown/Rust contain
 /// Build a one-edit group.
 fn group(start: usize, end: usize, replacement: &str) -> Fix {
     return Fix {
+        class: FixClass::Content,
         edits: vec![Edit {
             start,
             end,
@@ -46,6 +47,7 @@ fn processors_project_groups_supplied_in_descending_order() {
     let virtuals: Vec<VirtualSource> = inputs(host, ProcessorLanguage::Rust);
     assert_eq!(virtuals[0].source(), "First.\nLast.\n");
     let descending: Fix = Fix {
+        class: FixClass::Content,
         edits: vec![
             Edit {
                 start: 7,

@@ -9,12 +9,16 @@
 //! emphasis spans and the status claim are decided here,
 //! so the window only places text.
 
+/// Imports the search page text and emphasis helpers.
 use music_player::search_page_model::{
     is_current_track_result, search_emphasis_spans, search_row_kind_label, search_row_second_line, search_status_line,
 };
+/// Imports the result and state types that the view shows.
 use music_player::search_results::{SearchResult, SearchResultKind, SearchState};
+/// Imports the library search that the tests drive.
 #[cfg(test)]
 use music_player::search_results::search_library;
+/// Imports the track type that the tests search.
 #[cfg(test)]
 use music_player::track::Track;
 
@@ -257,6 +261,12 @@ pub fn search_view(query: &str, tracks: &[Track], current_index: Option<usize>, 
     return search_view_of(&search_library(query, tracks, true), current_index, playing, true);
 }
 
+/// Unit tests of `ui_search_model`,
+/// in the sidecar file `ui_search_model_tests.rs`.
+/// Role of the module:
+/// pure Search page model:
+/// the rows,
+/// emphasis segments and status text for one query.
 #[cfg(test)]
 #[path = "ui_search_model_tests.rs"]
 mod tests;

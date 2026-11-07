@@ -1,8 +1,12 @@
-//! Controls for reading a worktree's head: what a `HEAD` file can and cannot say.
+//! Controls for reading a worktree's head:
+//! what a `HEAD` file can and cannot say.
 
 use super::*;
 
-/// A symbolic head names its branch; the text after the prefix, up to the line end, is the reference.
+/// A symbolic head names its branch;
+/// the text after the prefix,
+/// up to the line end,
+/// is the reference.
 #[test]
 fn a_symbolic_head_names_its_branch() {
     assert_eq!(interpret("ref: refs/heads/main\n"), HeadFile::Branch(String::from("refs/heads/main")));
@@ -15,14 +19,16 @@ fn an_object_name_is_a_detached_head() {
     assert_eq!(interpret("0123456789abcdef0123456789abcdef01234567\n"), HeadFile::Detached(String::from("0123456789abcdef0123456789abcdef01234567")));
 }
 
-/// The reftable placeholder and an empty file say nothing, so Git is asked.
+/// The reftable placeholder and an empty file say nothing,
+/// so Git is asked.
 #[test]
 fn the_reftable_placeholder_and_an_empty_file_cannot_answer() {
     assert_eq!(interpret(format!("ref: {REFTABLE_PLACEHOLDER}\n").as_str()), HeadFile::Unreadable);
     assert_eq!(interpret(""), HeadFile::Unreadable);
 }
 
-/// A directory that is not a Git directory of the repository is not trusted, so a `HEAD` file there is never read.
+/// A directory that is not a Git directory of the repository is not trusted,
+/// so a `HEAD` file there is never read.
 #[test]
 fn a_directory_of_another_repository_is_not_trusted() {
     let root = crate::test_support::fixture("head-foreign");
@@ -37,8 +43,10 @@ fn a_directory_of_another_repository_is_not_trusted() {
     crate::test_support::remove(root.as_path());
 }
 
-/// A detached head is what a commit on `HEAD` needs and a branch is what a commit on that branch needs; each is read from the
-/// `HEAD` file without starting Git, and the other answer is the opposite.
+/// A detached head is what a commit on `HEAD` needs and a branch is what a commit on that branch needs;
+/// each is read from the
+/// `HEAD` file without starting Git,
+/// and the other answer is the opposite.
 #[test]
 fn the_checked_out_state_is_read_for_a_branch_and_for_a_detached_head() {
     use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
@@ -57,8 +65,11 @@ fn the_checked_out_state_is_read_for_a_branch_and_for_a_detached_head() {
     remove(root.as_path());
 }
 
-/// A linked worktree whose index file sits in the main worktree's Git directory (an alternate index) still has its own head: the
-/// head is read from the Git directory of the worktree that asked, not from the directory the index is in, so the main worktree's
+/// A linked worktree whose index file sits in the main worktree's Git directory (an alternate index) still has its own head:
+/// the
+/// head is read from the Git directory of the worktree that asked,
+/// not from the directory the index is in,
+/// so the main worktree's
 /// branch is never taken for the linked worktree's.
 #[test]
 fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {

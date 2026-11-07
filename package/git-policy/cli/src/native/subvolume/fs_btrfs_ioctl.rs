@@ -1,19 +1,40 @@
 //! What:
-//!  The three btrfs ioctls the wrapper needs, called in process: create an empty subvolume, snapshot a subvolume,
+//!  The three btrfs ioctls the wrapper needs,
+//! called in process:
+//! create an empty subvolume,
+//! snapshot a subvolume,
 //!  and destroy a subvolume.
 //! Why:
-//!  `libc` has `FICLONE` and the filesystem magic numbers but no `BTRFS_IOC_*` constants, and the wrapper never starts
-//!  the `btrfs` program (the repository's rule: embed instead of spawning). The request numbers and the 4096-byte
+//!  `libc` has `FICLONE` and the filesystem magic numbers but no `BTRFS_IOC_*` constants,
+//! and the wrapper never starts
+//!  the `btrfs` program (the repository's rule:
+//! embed instead of spawning).
+//! The request numbers and the 4096-byte
 //!  argument structures are taken from the kernel header `include/uapi/linux/btrfs.h` (the host copy is
-//!  `/usr/include/linux/btrfs.h`): `BTRFS_IOCTL_MAGIC` is 0x94; `BTRFS_IOC_SUBVOL_CREATE` is `_IOW(0x94, 14,
-//!  struct btrfs_ioctl_vol_args)`; `BTRFS_IOC_SNAP_DESTROY` is `_IOW(0x94, 15, struct btrfs_ioctl_vol_args)`;
-//!  `BTRFS_IOC_SNAP_CREATE_V2` is `_IOW(0x94, 23, struct btrfs_ioctl_vol_args_v2)`. Both structures are 4096 bytes:
-//!  `vol_args` is an `s64` fd and 4088 name bytes; `vol_args_v2` is an `s64` fd, `u64` transid, `u64` flags, a
-//!  32-byte union and 4040 name bytes. `strace` of `btrfs subvolume snapshot` and `btrfs subvolume delete` shows the
-//!  same shapes (`doc/planning/cli-git-btrfs-worktree.md`, "Facts"). Each call is proven by one real call in a test on
-//!  a btrfs fixture, and the encoding of the request numbers is proven against `libc::FICLONE`.
-//!  Permissions (kernel `fs/btrfs/ioctl.c`): creating a subvolume is unrestricted; a snapshot needs ownership of the
-//!  source; destroying one needs the `user_subvol_rm_allowed` mount option for an unprivileged user.
+//!  `/usr/include/linux/btrfs.h`):
+//! `BTRFS_IOCTL_MAGIC` is 0x94;
+//! `BTRFS_IOC_SUBVOL_CREATE` is `_IOW(0x94, 14,
+//!  struct btrfs_ioctl_vol_args)`;
+//! `BTRFS_IOC_SNAP_DESTROY` is `_IOW(0x94, 15, struct btrfs_ioctl_vol_args)`;
+//!  `BTRFS_IOC_SNAP_CREATE_V2` is `_IOW(0x94, 23, struct btrfs_ioctl_vol_args_v2)`.
+//! Both structures are 4096 bytes:
+//!  `vol_args` is an `s64` fd and 4088 name bytes;
+//! `vol_args_v2` is an `s64` fd,
+//! `u64` transid,
+//! `u64` flags,
+//! a
+//!  32-byte union and 4040 name bytes.
+//! `strace` of `btrfs subvolume snapshot` and `btrfs subvolume delete` shows the
+//!  same shapes (`doc/planning/cli-git-btrfs-worktree.md`,
+//! "Facts").
+//! Each call is proven by one real call in a test on
+//!  a btrfs fixture,
+//! and the encoding of the request numbers is proven against `libc::FICLONE`.
+//!  Permissions (kernel `fs/btrfs/ioctl.c`):
+//! creating a subvolume is unrestricted;
+//! a snapshot needs ownership of the
+//!  source;
+//! destroying one needs the `user_subvol_rm_allowed` mount option for an unprivileged user.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,19 +51,34 @@ use std::path::Path;
 /// `BTRFS_IOCTL_MAGIC`.
 const BTRFS_IOCTL_MAGIC: u32 = 0x94;
 
-/// Bits the request number gives to the argument size, after the type and number fields (`_IOC_SIZESHIFT`).
+/// Bits the request number gives to the argument size,
+/// after the type and number fields (`_IOC_SIZESHIFT`).
 const IOC_SIZE_SHIFT: u32 = 16;
 
 /// Bits to the type field (`_IOC_TYPESHIFT`).
 const IOC_TYPE_SHIFT: u32 = 8;
 
 /// What:
-///  How an architecture encodes the direction of an ioctl request: the value of `_IOC_WRITE` and where the field sits.
+///  How an architecture encodes the direction of an ioctl request:
+/// the value of `_IOC_WRITE` and where the field sits.
 /// Why:
-///   Linux has three encodings, not one. `include/uapi/asm-generic/ioctl.h` (x86, arm, arm64, riscv, s390, loongarch)
-///  gives the direction 2 bits at shift 30 with `_IOC_WRITE` 1; `arch/powerpc`, `arch/mips`, `arch/sparc` and
-///  `arch/alpha` define `_IOC_SIZEBITS` 13, `_IOC_DIRBITS` 3 and `_IOC_WRITE` 4, which puts the field at shift 29;
-///  `arch/parisc` keeps 14 size bits and defines `_IOC_WRITE` 2. A request number built with the wrong one reaches the
+///   Linux has three encodings,
+/// not one.
+/// `include/uapi/asm-generic/ioctl.h` (x86,
+/// arm,
+/// arm64,
+/// riscv,
+/// s390,
+/// loongarch)
+///  gives the direction 2 bits at shift 30 with `_IOC_WRITE` 1;
+/// `arch/powerpc`,
+/// `arch/mips`,
+/// `arch/sparc` and
+///  `arch/alpha` define `_IOC_SIZEBITS` 13,
+/// `_IOC_DIRBITS` 3 and `_IOC_WRITE` 4,
+/// which puts the field at shift 29;
+///  `arch/parisc` keeps 14 size bits and defines `_IOC_WRITE` 2.
+/// A request number built with the wrong one reaches the
 ///  kernel as a different request and fails.
 ///
 /// In TS you'd write (pseudocode):
@@ -51,21 +87,28 @@ const IOC_TYPE_SHIFT: u32 = 8;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct IocLayout {
-    /// `_IOC_WRITE`: the direction value for an argument user space writes.
+    /// `_IOC_WRITE`:
+    /// the direction value for an argument user space writes.
     pub write: u32,
-    /// `_IOC_READ`: the direction value for an argument the kernel fills in.
+    /// `_IOC_READ`:
+    /// the direction value for an argument the kernel fills in.
     pub read: u32,
-    /// `_IOC_DIRSHIFT`: where the direction field starts.
+    /// `_IOC_DIRSHIFT`:
+    /// where the direction field starts.
     pub direction_shift: u32,
 }
 
 /// The asm-generic encoding.
 pub const GENERIC_IOC_LAYOUT: IocLayout = IocLayout { write: 1, read: 2, direction_shift: 30 };
 
-/// The encoding of powerpc, mips, sparc and alpha: a 3-bit direction field with `_IOC_WRITE` 4.
+/// The encoding of powerpc,
+/// mips,
+/// sparc and alpha:
+/// a 3-bit direction field with `_IOC_WRITE` 4.
 pub const WIDE_DIRECTION_IOC_LAYOUT: IocLayout = IocLayout { write: 4, read: 2, direction_shift: 29 };
 
-/// The encoding of parisc: `_IOC_WRITE` 2 with the generic field width.
+/// The encoding of parisc:
+/// `_IOC_WRITE` 2 with the generic field width.
 pub const PARISC_IOC_LAYOUT: IocLayout = IocLayout { write: 2, read: 1, direction_shift: 30 };
 
 /// The encoding of the architecture this code is built for.
@@ -76,24 +119,33 @@ pub const HOST_IOC_LAYOUT: IocLayout = WIDE_DIRECTION_IOC_LAYOUT;
 #[cfg(not(any(target_arch = "powerpc", target_arch = "powerpc64", target_arch = "mips", target_arch = "mips32r6", target_arch = "mips64", target_arch = "mips64r6", target_arch = "sparc", target_arch = "sparc64")))]
 pub const HOST_IOC_LAYOUT: IocLayout = GENERIC_IOC_LAYOUT;
 
-/// The size of `struct btrfs_ioctl_vol_args` and `struct btrfs_ioctl_vol_args_v2`, both 4096 bytes.
+/// The size of `struct btrfs_ioctl_vol_args` and `struct btrfs_ioctl_vol_args_v2`,
+/// both 4096 bytes.
 pub const VOLUME_ARGUMENT_BYTES: usize = 4096;
 
-/// The longest name `BTRFS_IOC_SNAP_CREATE_V2` takes: `BTRFS_SUBVOL_NAME_MAX` (4039) plus its NUL, in the header.
+/// The longest name `BTRFS_IOC_SNAP_CREATE_V2` takes:
+/// `BTRFS_SUBVOL_NAME_MAX` (4039) plus its NUL,
+/// in the header.
 const V2_NAME_CAPACITY: usize = 4040;
 
-/// The longest name the version 1 argument takes: `BTRFS_PATH_NAME_MAX + 1`, in the header.
+/// The longest name the version 1 argument takes:
+/// `BTRFS_PATH_NAME_MAX + 1`,
+/// in the header.
 const V1_NAME_CAPACITY: usize = 4088;
 
-/// The longest file name any Linux directory entry has (`NAME_MAX`); btrfs accepts nothing longer for a subvolume.
+/// The longest file name any Linux directory entry has (`NAME_MAX`);
+/// btrfs accepts nothing longer for a subvolume.
 const NAME_MAX: usize = 255;
 
 /// What:
 ///  The request number `_IOW(magic, number, size)` the C macro computes under a given architecture's encoding.
-///  `u32` is an unsigned 32-bit integer (siblings `u64` and `i32`); the macro's result fits 32 bits.
+///  `u32` is an unsigned 32-bit integer (siblings `u64` and `i32`);
+/// the macro's result fits 32 bits.
 /// Why:
-///   The numbers are computed from the header's definition instead of typed in as magic constants, so a test can check
-///  the encoding against `libc::FICLONE`, which `libc` already defines as `_IOW(0x94, 9, int)` for each architecture.
+///   The numbers are computed from the header's definition instead of typed in as magic constants,
+/// so a test can check
+///  the encoding against `libc::FICLONE`,
+/// which `libc` already defines as `_IOW(0x94, 9, int)` for each architecture.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,10 +156,12 @@ pub const fn ioc_write_with(layout: IocLayout, number: u32, size: usize) -> u32 
 }
 
 /// What:
-///  The request number `_IOWR(magic, number, size)` the C macro computes under a given architecture's encoding, for an
+///  The request number `_IOWR(magic, number, size)` the C macro computes under a given architecture's encoding,
+/// for an
 ///  argument that user space fills in and the kernel fills in again.
 /// Why:
-///   See `ioc_write_with`; the direction field holds both bits.
+///   See `ioc_write_with`;
+/// the direction field holds both bits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -131,32 +185,44 @@ pub const fn ioc_write(number: u32, size: usize) -> libc::Ioctl {
     return ioc_write_with(HOST_IOC_LAYOUT, number, size) as libc::Ioctl;
 }
 
-/// `BTRFS_IOC_SUBVOL_CREATE`: `_IOW(0x94, 14, struct btrfs_ioctl_vol_args)`.
+/// `BTRFS_IOC_SUBVOL_CREATE`:
+/// `_IOW(0x94, 14, struct btrfs_ioctl_vol_args)`.
 pub const BTRFS_IOC_SUBVOL_CREATE: libc::Ioctl = ioc_write(14, VOLUME_ARGUMENT_BYTES);
 
-/// `BTRFS_IOC_SNAP_DESTROY`: `_IOW(0x94, 15, struct btrfs_ioctl_vol_args)`.
+/// `BTRFS_IOC_SNAP_DESTROY`:
+/// `_IOW(0x94, 15, struct btrfs_ioctl_vol_args)`.
 pub const BTRFS_IOC_SNAP_DESTROY: libc::Ioctl = ioc_write(15, VOLUME_ARGUMENT_BYTES);
 
-/// `BTRFS_IOC_SNAP_CREATE_V2`: `_IOW(0x94, 23, struct btrfs_ioctl_vol_args_v2)`.
+/// `BTRFS_IOC_SNAP_CREATE_V2`:
+/// `_IOW(0x94, 23, struct btrfs_ioctl_vol_args_v2)`.
 pub const BTRFS_IOC_SNAP_CREATE_V2: libc::Ioctl = ioc_write(23, VOLUME_ARGUMENT_BYTES);
 
-/// `BTRFS_IOC_SNAP_DESTROY_V2`: `_IOW(0x94, 63, struct btrfs_ioctl_vol_args_v2)`.
+/// `BTRFS_IOC_SNAP_DESTROY_V2`:
+/// `_IOW(0x94, 63, struct btrfs_ioctl_vol_args_v2)`.
 pub const BTRFS_IOC_SNAP_DESTROY_V2: libc::Ioctl = ioc_write(63, VOLUME_ARGUMENT_BYTES);
 
-/// `BTRFS_IOC_INO_LOOKUP`: `_IOWR(0x94, 18, struct btrfs_ioctl_ino_lookup_args)`, 4096 bytes.
+/// `BTRFS_IOC_INO_LOOKUP`:
+/// `_IOWR(0x94, 18, struct btrfs_ioctl_ino_lookup_args)`,
+/// 4096 bytes.
 pub const BTRFS_IOC_INO_LOOKUP: libc::Ioctl = ioc_read_write_with(HOST_IOC_LAYOUT, 18, VOLUME_ARGUMENT_BYTES) as libc::Ioctl;
 
-/// `BTRFS_SUBVOL_SPEC_BY_ID`: the destroy names the subvolume by its id, in the place of the name.
+/// `BTRFS_SUBVOL_SPEC_BY_ID`:
+/// the destroy names the subvolume by its id,
+/// in the place of the name.
 const BTRFS_SUBVOL_SPEC_BY_ID: u64 = 1 << 4;
 
-/// `BTRFS_FIRST_FREE_OBJECTID`: the inode number of the root directory of every subvolume.
+/// `BTRFS_FIRST_FREE_OBJECTID`:
+/// the inode number of the root directory of every subvolume.
 const BTRFS_FIRST_FREE_OBJECTID: u64 = 256;
 
 /// What:
-///  `struct btrfs_ioctl_vol_args`: a source descriptor and a name.
-///  `#[repr(C)]` keeps the C field order and padding, which the kernel reads.
+///  `struct btrfs_ioctl_vol_args`:
+/// a source descriptor and a name.
+///  `#[repr(C)]` keeps the C field order and padding,
+/// which the kernel reads.
 /// Why:
-///   The subvolume create and destroy ioctls take only a name; the kernel ignores `fd` for them.
+///   The subvolume create and destroy ioctls take only a name;
+/// the kernel ignores `fd` for them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -166,12 +232,15 @@ const BTRFS_FIRST_FREE_OBJECTID: u64 = 256;
 pub struct VolArgs {
     /// `__s64 fd`.
     pub fd: i64,
-    /// `char name[BTRFS_PATH_NAME_MAX + 1]`, NUL terminated.
+    /// `char name[BTRFS_PATH_NAME_MAX + 1]`,
+    /// NUL terminated.
     pub name: [u8; V1_NAME_CAPACITY],
 }
 
 /// What:
-///  `struct btrfs_ioctl_vol_args_v2`: a source descriptor, flags and a name.
+///  `struct btrfs_ioctl_vol_args_v2`:
+/// a source descriptor,
+/// flags and a name.
 /// Why:
 ///   The snapshot ioctl takes the source subvolume as `fd` and the new name in the parent directory.
 ///
@@ -181,25 +250,39 @@ pub struct VolArgs {
 /// ```
 #[repr(C)]
 pub struct VolArgsV2 {
-    /// `__s64 fd`: the source subvolume's descriptor for a snapshot.
+    /// `__s64 fd`:
+    /// the source subvolume's descriptor for a snapshot.
     pub fd: i64,
-    /// `__u64 transid`: output, the transaction that made the snapshot.
+    /// `__u64 transid`:
+    /// output,
+    /// the transaction that made the snapshot.
     pub transid: u64,
-    /// `__u64 flags`: 0 for a writable snapshot (`BTRFS_SUBVOL_RDONLY` makes a read-only one).
+    /// `__u64 flags`:
+    /// 0 for a writable snapshot (`BTRFS_SUBVOL_RDONLY` makes a read-only one).
     pub flags: u64,
-    /// The 32-byte union (`size` and `qgroup_inherit`, or `unused[4]`), zero for no qgroup inheritance.
+    /// The 32-byte union (`size` and `qgroup_inherit`,
+    /// or `unused[4]`),
+    /// zero for no qgroup inheritance.
     pub union_bytes: [u8; 32],
-    /// `char name[BTRFS_SUBVOL_NAME_MAX + 1]`, NUL terminated.
+    /// `char name[BTRFS_SUBVOL_NAME_MAX + 1]`,
+    /// NUL terminated.
     pub name: [u8; V2_NAME_CAPACITY],
 }
 
 /// What:
-///  Check one name for a subvolume entry and copy it, NUL terminated, into a fixed buffer.
-///  `const N: usize` is the buffer length (a TS tuple length is not a type parameter, so this is a generic over a
+///  Check one name for a subvolume entry and copy it,
+/// NUL terminated,
+/// into a fixed buffer.
+///  `const N: usize` is the buffer length (a TS tuple length is not a type parameter,
+/// so this is a generic over a
 ///  number).
 /// Why:
-///   The kernel takes one path component: a slash, an empty name, `.` or `..` would be a different request than the
-///  caller meant, so they fail with `EINVAL` here before any call.
+///   The kernel takes one path component:
+/// a slash,
+/// an empty name,
+/// `.` or `..` would be a different request than the
+///  caller meant,
+/// so they fail with `EINVAL` here before any call.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -224,7 +307,8 @@ fn fill_name<const N: usize>(buffer: &mut [u8; N], name: &OsStr, operation: &'st
 /// What:
 ///  Open a directory for an ioctl on it.
 /// Why:
-///   The ioctls act on the directory descriptor; the kernel checks write and search permission on it itself.
+///   The ioctls act on the directory descriptor;
+/// the kernel checks write and search permission on it itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -240,7 +324,9 @@ fn open_directory(directory: &Path, operation: &'static str) -> Result<File, Pri
 /// What:
 ///  Create an empty subvolume named `name` inside `parent` (`BTRFS_IOC_SUBVOL_CREATE`).
 /// Why:
-///   Creation is not restricted to privileged users. An empty subvolume is an empty directory to Git, so
+///   Creation is not restricted to privileged users.
+/// An empty subvolume is an empty directory to Git,
+/// so
 ///  `git worktree add` accepts it as a destination.
 ///
 /// In TS you'd write (pseudocode):
@@ -262,11 +348,14 @@ pub fn subvolume_create(parent: &Path, name: &OsStr) -> Result<(), PrimitiveErro
 }
 
 /// What:
-///  Snapshot the subvolume at `source` as a new subvolume `name` inside `parent` (`BTRFS_IOC_SNAP_CREATE_V2`, flags 0,
+///  Snapshot the subvolume at `source` as a new subvolume `name` inside `parent` (`BTRFS_IOC_SNAP_CREATE_V2`,
+/// flags 0,
 ///  so the snapshot is writable).
 /// Why:
 ///   The kernel requires the source to be a subvolume root on the same filesystem and owned by the caller
-///  (`EINVAL`, `EXDEV` and `EPERM` otherwise), and shares every data block with the source.
+///  (`EINVAL`,
+/// `EXDEV` and `EPERM` otherwise),
+/// and shares every data block with the source.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -291,9 +380,13 @@ pub fn snapshot_create(source: &Path, parent: &Path, name: &OsStr) -> Result<(),
 /// What:
 ///  Destroy the subvolume `name` inside `parent` (`BTRFS_IOC_SNAP_DESTROY`).
 /// Why:
-///   For an unprivileged user the kernel needs the `user_subvol_rm_allowed` mount option (`EPERM` otherwise), write
-///  and search permission on the subvolume root, and no nested subvolume inside (`ENOTEMPTY`). Without the option an
-///  empty subvolume is removed by `rmdir`, which `btrfs_rmdir` allows for an empty subvolume root.
+///   For an unprivileged user the kernel needs the `user_subvol_rm_allowed` mount option (`EPERM` otherwise),
+/// write
+///  and search permission on the subvolume root,
+/// and no nested subvolume inside (`ENOTEMPTY`).
+/// Without the option an
+///  empty subvolume is removed by `rmdir`,
+/// which `btrfs_rmdir` allows for an empty subvolume root.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -315,9 +408,12 @@ pub fn snapshot_destroy(parent: &Path, name: &OsStr) -> Result<(), PrimitiveErro
 
 /// What:
 ///  The id of the subvolume that holds the open file or directory (`BTRFS_IOC_INO_LOOKUP` with the root directory's inode
-///  number, the query the kernel answers for any user).
+///  number,
+/// the query the kernel answers for any user).
 /// Why:
-///   An id names one subvolume for good, while a path names whatever is there when the call runs; the destroy by id
+///   An id names one subvolume for good,
+/// while a path names whatever is there when the call runs;
+/// the destroy by id
 ///  therefore removes the subvolume that was looked at.
 ///
 /// In TS you'd write (pseudocode):
@@ -338,11 +434,14 @@ pub fn subvolume_id(held: &File, path: &Path) -> Result<u64, PrimitiveError> {
 }
 
 /// What:
-///  Destroy the subvolume with id `subvolume` (`BTRFS_IOC_SNAP_DESTROY_V2` with `BTRFS_SUBVOL_SPEC_BY_ID`), through any
+///  Destroy the subvolume with id `subvolume` (`BTRFS_IOC_SNAP_DESTROY_V2` with `BTRFS_SUBVOL_SPEC_BY_ID`),
+/// through any
 ///  open directory of the same filesystem.
 /// Why:
-///   The kernel looks the subvolume up by id, so a rename or a replacement of its path after the id was read cannot redirect
-///  the call to another subvolume. An unprivileged user needs the same mount option as for the destroy by name.
+///   The kernel looks the subvolume up by id,
+/// so a rename or a replacement of its path after the id was read cannot redirect
+///  the call to another subvolume.
+/// An unprivileged user needs the same mount option as for the destroy by name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -366,8 +465,11 @@ pub fn snapshot_destroy_by_id(directory: &File, subvolume: u64, path: &Path) -> 
 /// What:
 ///  Destroy the subvolume `name` inside the open directory `parent` (`BTRFS_IOC_SNAP_DESTROY`).
 /// Why:
-///   The call acts on the directory that is held, not on a path that can be resolved again, so a replaced ancestor cannot
-///  redirect it. `parent_path` is only the text of the error.
+///   The call acts on the directory that is held,
+/// not on a path that can be resolved again,
+/// so a replaced ancestor cannot
+///  redirect it.
+/// `parent_path` is only the text of the error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -389,8 +491,11 @@ pub fn snapshot_destroy_in(parent: &File, name: &OsStr, parent_path: &Path) -> R
 /// What:
 ///  Split a path into its parent directory and last component.
 /// Why:
-///   The ioctls take the parent and a one-component name; callers hold whole paths. A path with no parent or no last
-///  component (`/`, `..`) fails with `EINVAL`.
+///   The ioctls take the parent and a one-component name;
+/// callers hold whole paths.
+/// A path with no parent or no last
+///  component (`/`,
+/// `..`) fails with `EINVAL`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -7,6 +7,8 @@
 //! the peek only reads,
 //! and the invalidate only removes.
 
+/// The `Result` a body returns when a call into the host runtime fails.
+use jni::errors::Result as JniResult;
 /// The class and float-array references the entry points receive from the host runtime.
 use jni::objects::{JClass, JFloatArray};
 /// The raw boolean,
@@ -20,7 +22,7 @@ use truepeak_core::{PeakKind, peak_dbtp};
 
 /// Runs a body with the call's `Env`,
 /// catching a panic and logging it.
-use crate::jni_call::run_with_env;
+use crate::jni_call::{JniBody, run_with_env};
 /// The handle to the decision cache service the entry points read and clear.
 use crate::service::service_ref;
 
@@ -80,6 +82,53 @@ fn kind_code(kind: PeakKind) -> f32 {
     match kind {
         PeakKind::Exact => return KIND_CODE_EXACT,
         PeakKind::Sampled => return KIND_CODE_SAMPLED,
+    }
+}
+
+/// What:
+///      `struct PeakReplyBody<'a> { slots }`.
+///  A body that builds the reply array from the two reply slots.
+///  `slots` is a borrowed fixed-size array
+///  (`&[f32; PEAK_READING_LEN]`;
+///  sibling `&[f32]` would not fix the length).
+/// Why:
+///       `run_with_env` takes its work as a value;
+///  this one carries the slots that the reply copies into the Java array.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class PeakReplyBody { constructor(readonly slots: number[]) {} }
+/// ```
+struct PeakReplyBody<'a> {
+    /// The `[peakDbtp, kindCode]` pair the reply carries.
+    slots: &'a [f32; PEAK_READING_LEN],
+}
+
+/// What:
+///      `impl JniBody<'local, JFloatArray<'local>> for PeakReplyBody`.
+///  Makes the reply builder a body that `run_with_env` can run.
+/// Why:
+///       `run_with_env` accepts any `JniBody`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class PeakReplyBody implements JniBody<Float32Array | null> { ... }
+/// ```
+impl<'local> JniBody<'local, JFloatArray<'local>> for PeakReplyBody<'_> {
+    /// What:
+    ///      `fn run(self, env) -> JniResult<JFloatArray<'local>>`.
+    ///  Build the reply array;
+    ///  `peak_array` maps its own JNI failures to a null array,
+    ///  so this never returns an error.
+    /// Why:
+    ///       A failed allocation must not throw across JNI.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// run(env: Env): Float32Array | null { return peakArray(env, this.slots); }
+    /// ```
+    fn run(self, env: &mut Env<'local>) -> JniResult<JFloatArray<'local>> {
+        return Ok(peak_array(env, self.slots))
     }
 }
 
@@ -144,10 +193,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativePee
         kind_code(decision.peak_kind()),
     ];
     // `peak_array` handles its own JNI failures (null array); `run_with_env` only adds the lent `Env`.
-    let reply = run_with_env(&mut env, "nativePeekPeak reply", |jni_env| {
-        return Ok(peak_array(jni_env, &slots));
-    })
-    .unwrap_or_default();
+    let reply = run_with_env(&mut env, "nativePeekPeak reply", PeakReplyBody { slots: &slots }).unwrap_or_default();
     return reply.into_raw()
 }
 

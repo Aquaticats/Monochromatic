@@ -1,14 +1,28 @@
 //! What:
-//!  The empty btrfs subvolume the wrapper makes at the destination of a `git worktree add`, before real Git runs, and
+//!  The empty btrfs subvolume the wrapper makes at the destination of a `git worktree add`,
+//! before real Git runs,
+//! and
 //!  the cleanup of it when Git leaves it empty.
 //! Why:
-//!  A worktree that is a subvolume is a source of a later snapshot with no migration, and it is removed in one
-//!  call. Git accepts an existing empty directory as the destination and fills it, and an empty subvolume is an
-//!  empty directory (`doc/planning/cli-git-btrfs-worktree.md`, "Creating new worktrees as subvolumes"). Git removes the
-//!  destination again only when it created it and failed late; a failure before that point (a branch that exists, a
-//!  name Git rejects) leaves the directory, so the wrapper removes the empty subvolume itself. A destination that is
-//!  not on btrfs, or a subvolume the kernel refuses, leaves Git to make its ordinary directory without a word to the
-//!  person, with one diagnostic line for the log.
+//!  A worktree that is a subvolume is a source of a later snapshot with no migration,
+//! and it is removed in one
+//!  call.
+//! Git accepts an existing empty directory as the destination and fills it,
+//! and an empty subvolume is an
+//!  empty directory (`doc/planning/cli-git-btrfs-worktree.md`,
+//! "Creating new worktrees as subvolumes").
+//! Git removes the
+//!  destination again only when it created it and failed late;
+//! a failure before that point (a branch that exists,
+//! a
+//!  name Git rejects) leaves the directory,
+//! so the wrapper removes the empty subvolume itself.
+//! A destination that is
+//!  not on btrfs,
+//! or a subvolume the kernel refuses,
+//! leaves Git to make its ordinary directory without a word to the
+//!  person,
+//! with one diagnostic line for the log.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,19 +52,26 @@ const TAG: &str = "worktreeSubvolume";
 /// ```
 #[derive(Debug, Eq, PartialEq)]
 pub struct CreatedSubvolume {
-    /// The destination, an empty subvolume when it was created.
+    /// The destination,
+    /// an empty subvolume when it was created.
     pub path: PathBuf,
-    /// What the created subvolume was when it was looked at right after its creation: a path proves nothing about which
-    ///  object it names later. Absent when it could not be looked at, in which case settlement leaves it alone.
+    /// What the created subvolume was when it was looked at right after its creation:
+    /// a path proves nothing about which
+    ///  object it names later.
+    /// Absent when it could not be looked at,
+    /// in which case settlement leaves it alone.
     pub identity: Option<ObjectId>,
 }
 
 /// What:
-///  Create the destination of a planned `git worktree add` as an empty subvolume, when it can be one.
+///  Create the destination of a planned `git worktree add` as an empty subvolume,
+/// when it can be one.
 ///  `Option<CreatedSubvolume>` is the created subvolume or nothing.
 /// Why:
-///   The destination must be absent (an existing one is Git's to accept or refuse) and its parent must be on btrfs. The
-///  creation ioctl is unrestricted for a regular user, so a refusal is a fault the log keeps and Git's ordinary directory
+///   The destination must be absent (an existing one is Git's to accept or refuse) and its parent must be on btrfs.
+/// The
+///  creation ioctl is unrestricted for a regular user,
+/// so a refusal is a fault the log keeps and Git's ordinary directory
 ///  replaces.
 ///
 /// In TS you'd write (pseudocode):
@@ -92,15 +113,25 @@ pub fn prepare_subvolume_destination(plan: &AddPlan) -> Option<CreatedSubvolume>
 }
 
 /// What:
-///  After Git ended, remove the created subvolume if it is still the one this process created and still empty.
+///  After Git ended,
+/// remove the created subvolume if it is still the one this process created and still empty.
 ///  `rmdir` deletes an empty subvolume without the `user_subvol_rm_allowed` mount option.
 /// Why:
-///   Git leaves an empty destination when it failed before it started to fill it, and a leftover empty subvolume would
-///  make the next attempt at the same path look like an accepted empty directory. A destination that holds anything
-///  is Git's result (or its late failure's) and stays, and so does an object that another process put at the path: the
-///  identity recorded at creation must still be the identity of what the name leads to, and the emptiness is read through
-///  the descriptor of that object. The last step names the entry in the held parent, and `rmdir` removes only an empty
-///  directory, so a swap in that instant could remove only an empty directory, never data.
+///   Git leaves an empty destination when it failed before it started to fill it,
+/// and a leftover empty subvolume would
+///  make the next attempt at the same path look like an accepted empty directory.
+/// A destination that holds anything
+///  is Git's result (or its late failure's) and stays,
+/// and so does an object that another process put at the path:
+/// the
+///  identity recorded at creation must still be the identity of what the name leads to,
+/// and the emptiness is read through
+///  the descriptor of that object.
+/// The last step names the entry in the held parent,
+/// and `rmdir` removes only an empty
+///  directory,
+/// so a swap in that instant could remove only an empty directory,
+/// never data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

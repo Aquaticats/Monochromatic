@@ -1,9 +1,13 @@
 //! What:
-//!  The messages between the wrapper and the resident commit service as typed values, and the checks on the names they carry:
-//!  object names, plain paths, identities and scratch directories.
+//!  The messages between the wrapper and the resident commit service as typed values,
+//! and the checks on the names they carry:
+//!  object names,
+//! plain paths,
+//! identities and scratch directories.
 //! Why:
 //!  The encoder and the decoder of the one-JSON-object-per-line protocol (`doc/planning/cli-git-resident-service.md`,
-//!  "Protocol and request identity") both speak in these types and use these checks, so they sit in a file that uses neither.
+//!  "Protocol and request identity") both speak in these types and use these checks,
+//! so they sit in a file that uses neither.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,55 +18,97 @@ use serde_json::Value;
 use crate::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
 
-/// The protocol version this build speaks; a service and a client agree when their versions are equal.
+/// The protocol version this build speaks;
+/// a service and a client agree when their versions are equal.
 pub const PROTOCOL_VERSION: u32 = 7;
 
-/// The release of this build: the crate version, which the wrapper and the service program share because they are built
-///  and installed together. A service from another release is retired even when it speaks the same protocol, since the
-///  program its unit names, and the behavior behind the same messages, may differ.
+/// The release of this build:
+/// the crate version,
+/// which the wrapper and the service program share because they are built
+///  and installed together.
+/// A service from another release is retired even when it speaks the same protocol,
+/// since the
+///  program its unit names,
+/// and the behavior behind the same messages,
+/// may differ.
 pub const RELEASE: &str = env!("CARGO_PKG_VERSION");
 
-/// How often the service tells each waiting client that it is alive, while the client's request is queued or landing.
-///  One second is the pace of the other waiting notices (`service_client::START_NOTICE_GRACE`), so a client that waits sees
-///  proof of life as often as it sees any other line. Measured on 2026-11-03 on this host: 300 timers of one second fired a
-///  median of 1.0 ms and at most 2.2 ms late (`doc/planning/cli-git-shipped-limits-audit.md`, "Waits on the commit service
-///  itself"), so a beat is never missed by the clock alone.
+/// How often the service tells each waiting client that it is alive,
+/// while the client's request is queued or landing.
+///  One second is the pace of the other waiting notices (`service_client::START_NOTICE_GRACE`),
+/// so a client that waits sees
+///  proof of life as often as it sees any other line.
+/// Measured on 2026-11-03 on this host:
+/// 300 timers of one second fired a
+///  median of 1.0 ms and at most 2.2 ms late (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Waits on the commit service
+///  itself"),
+/// so a beat is never missed by the clock alone.
 pub const HEARTBEAT_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// How long a client hears nothing from the service, heartbeats included, before it takes the service for stopped.
-///  Five beats: the measured lateness of a beat is a few milliseconds, so five missing beats are a stopped or frozen
-///  process and not a late timer, and a wrong call costs one resend of the same request, which the service recognizes by
+/// How long a client hears nothing from the service,
+/// heartbeats included,
+/// before it takes the service for stopped.
+///  Five beats:
+/// the measured lateness of a beat is a few milliseconds,
+/// so five missing beats are a stopped or frozen
+///  process and not a late timer,
+/// and a wrong call costs one resend of the same request,
+/// which the service recognizes by
 ///  its identity and answers without landing it twice.
 pub const HEARTBEAT_SILENCE: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// The 99th percentile of the lengths of the paths changed by the 21,696 non-merge commits of this repository since 2026-09-01
-///  (176,042 changed paths read with `git log --no-merges --format=@%H --name-only --all`): 118 characters. The median was 58, the
-///  90th percentile 86, the 99.9th percentile 159 and the longest 189.
+///  (176,042 changed paths read with `git log --no-merges --format=@%H --name-only --all`):
+/// 118 characters.
+/// The median was 58,
+/// the
+///  90th percentile 86,
+/// the 99.9th percentile 159 and the longest 189.
 pub const P99_CHANGED_PATH_CHARACTERS: usize = 118;
 
-/// The longest line either side accepts, in bytes: one mebibyte, the size at which a request of `MAX_CHANGES` changes of the
+/// The longest line either side accepts,
+/// in bytes:
+/// one mebibyte,
+/// the size at which a request of `MAX_CHANGES` changes of the
 ///  99th-percentile path length (`P99_CHANGED_PATH_CHARACTERS`) still fits (a control in `service_protocol_tests.rs` encodes
-///  one). A request with 4,096 paths of the longest length seen (189) would need about
-///  1.06 MB and is refused as a decode failure. The coordinator's pick under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
+///  one).
+/// A request with 4,096 paths of the longest length seen (189) would need about
+///  1.06 MB and is refused as a decode failure.
+/// The coordinator's pick under the owner's delegation,
+/// open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Sizes and ages of the service's own housekeeping").
 pub const MAX_LINE_BYTES: usize = 1 << 20;
 
-/// The most paths one request may change: 4,096. Of the 21,696 non-merge commits of this repository since 2026-09-01 (median 2
-///  changed paths, 99th percentile 38, 99.9th percentile 377) 10 changed more than 4,096 paths (0.05 percent; the largest 8,178),
-///  and those commits take the native path instead of the service. The coordinator's pick under the owner's delegation, open to
+/// The most paths one request may change:
+/// 4,096.
+/// Of the 21,696 non-merge commits of this repository since 2026-09-01 (median 2
+///  changed paths,
+/// 99th percentile 38,
+/// 99.9th percentile 377) 10 changed more than 4,096 paths (0.05 percent;
+/// the largest 8,178),
+///  and those commits take the native path instead of the service.
+/// The coordinator's pick under the owner's delegation,
+/// open to
 ///  the owner's veto.
 pub const MAX_CHANGES: usize = 4096;
 
-/// The longest request identity either side accepts, in bytes (a random identity is 36 bytes). A display and input cap.
+/// The longest request identity either side accepts,
+/// in bytes (a random identity is 36 bytes).
+/// A display and input cap.
 pub const MAX_ID_BYTES: usize = 128;
 
 /// Modes a change may give a file.
 pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
 
 /// What:
-///  One path a commit changes: a file to set, or a file to delete.
+///  One path a commit changes:
+/// a file to set,
+/// or a file to delete.
 /// Why:
-///   The client has already written the file's content into the repository's object store, so the service names the
+///   The client has already written the file's content into the repository's object store,
+/// so the service names the
 ///  object and never reads the user's worktree.
 ///
 /// In TS you'd write (pseudocode):
@@ -73,19 +119,25 @@ pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
 pub struct Change {
     /// Repository-relative path with `/` separators.
     pub path: String,
-    /// File mode, one of `ALLOWED_MODES`.
+    /// File mode,
+    /// one of `ALLOWED_MODES`.
     pub mode: u32,
-    /// Object name of the content, or nothing for a deletion.
+    /// Object name of the content,
+    /// or nothing for a deletion.
     pub blob: Option<String>,
 }
 
 /// What:
-///  What the landing of a merge, cherry-pick or revert conclusion removes from the worktree's Git directory once the
+///  What the landing of a merge,
+/// cherry-pick or revert conclusion removes from the worktree's Git directory once the
 ///  commit is on the branch.
 /// Why:
-///   Native `git commit` removes `MERGE_HEAD` and its siblings when it concludes; the client built the commit with real
-///  Git in a scratch repository that holds the state it was given, so the entries real Git removed there are the ones the
-///  landing removes here, each only while it still holds the bytes copied at preparation.
+///   Native `git commit` removes `MERGE_HEAD` and its siblings when it concludes;
+/// the client built the commit with real
+///  Git in a scratch repository that holds the state it was given,
+/// so the entries real Git removed there are the ones the
+///  landing removes here,
+/// each only while it still holds the bytes copied at preparation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -95,9 +147,11 @@ pub struct Change {
 pub struct Cleanup {
     /// The Git directory of the worktree the commit is made in.
     pub git_dir: PathBuf,
-    /// The commit's scratch directory, which holds the conclusion copies and the scratch repository Git committed in.
+    /// The commit's scratch directory,
+    /// which holds the conclusion copies and the scratch repository Git committed in.
     pub scratch: PathBuf,
-    /// Whether the repository stores references in reftable tables, which hold three of the entries in the ref store.
+    /// Whether the repository stores references in reftable tables,
+    /// which hold three of the entries in the ref store.
     pub reftable: bool,
 }
 
@@ -112,14 +166,18 @@ pub struct Cleanup {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommitRequest {
-    /// Random identity of this invocation, kept across reconnects.
+    /// Random identity of this invocation,
+    /// kept across reconnects.
     pub id: String,
     /// Worktree root whose index is updated.
     pub repository: PathBuf,
     /// Common git directory shared by the worktrees.
     pub common_dir: PathBuf,
-    /// The worktree's own Git directory (`.git` of the main worktree, `.git/worktrees/<id>` of a linked one): the key of the
-    ///  service instance that lands the commit, which refuses a request that names another worktree's.
+    /// The worktree's own Git directory (`.git` of the main worktree,
+    /// `.git/worktrees/<id>` of a linked one):
+    /// the key of the
+    ///  service instance that lands the commit,
+    /// which refuses a request that names another worktree's.
     pub git_dir: PathBuf,
     /// Full name of the branch the commit goes on.
     pub reference: String,
@@ -127,33 +185,54 @@ pub struct CommitRequest {
     pub base: String,
     /// The paths to change.
     pub changes: Vec<Change>,
-    /// The commit message, exact bytes.
+    /// The commit message,
+    /// exact bytes.
     pub message: String,
-    /// `Name <email> seconds zone`, or nothing to use the committer.
+    /// `Name <email> seconds zone`,
+    /// or nothing to use the committer.
     pub author: Option<String>,
     /// `Name <email> seconds zone`.
     pub committer: String,
-    /// Whether the commit replaces the branch tip: its parents are the base commit's parents, and it lands only while
+    /// Whether the commit replaces the branch tip:
+    /// its parents are the base commit's parents,
+    /// and it lands only while
     ///  the branch tip is still the base.
     pub amend: bool,
-    /// The tree of an amend, which the client wrote into the repository's object store; nothing for any other request,
+    /// The tree of an amend,
+    /// which the client wrote into the repository's object store;
+    /// nothing for any other request,
     ///  whose tree the service makes from the base and the changes.
     pub tree: Option<String>,
-    /// A commit Git built in a scratch repository (an editor, a signature), already in the repository's object store. The
-    ///  service lands it as it is, only while the branch tip is still the base, and ignores the message, the identities
+    /// A commit Git built in a scratch repository (an editor,
+    /// a signature),
+    /// already in the repository's object store.
+    /// The
+    ///  service lands it as it is,
+    /// only while the branch tip is still the base,
+    /// and ignores the message,
+    /// the identities
     ///  and the tree of the request.
     pub commit: Option<String>,
-    /// The state files a conclusion removes once the commit has landed; only with a commit built elsewhere.
+    /// The state files a conclusion removes once the commit has landed;
+    /// only with a commit built elsewhere.
     pub cleanup: Option<Cleanup>,
-    /// The real index of the worktree, whose lock the landing holds from before the branch moves until the new index is in place.
+    /// The real index of the worktree,
+    /// whose lock the landing holds from before the branch moves until the new index is in place.
     pub index: PathBuf,
-    /// When the client finished capturing the worktree's bytes: nanoseconds of `CLOCK_MONOTONIC`, which one clock gives every
-    ///  process of the host, so two captures of one worktree compare whichever process made them; zero when unknown. The
-    ///  service keeps it with the commit it lands, and a retry uses it to tell which of two overlapping captures is the later.
+    /// When the client finished capturing the worktree's bytes:
+    /// nanoseconds of `CLOCK_MONOTONIC`,
+    /// which one clock gives every
+    ///  process of the host,
+    /// so two captures of one worktree compare whichever process made them;
+    /// zero when unknown.
+    /// The
+    ///  service keeps it with the commit it lands,
+    /// and a retry uses it to tell which of two overlapping captures is the later.
     pub captured: u64,
 }
 
-/// A commit the service landed and when its bytes were captured, as the service tells a client whose commit it sends back.
+/// A commit the service landed and when its bytes were captured,
+/// as the service tells a client whose commit it sends back.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LandedCapture {
     /// The landed commit.
@@ -162,13 +241,16 @@ pub struct LandedCapture {
     pub captured: u64,
 }
 
-/// Whether `name` is the all-zero object name, which stands for a branch that does not exist yet.
+/// Whether `name` is the all-zero object name,
+/// which stands for a branch that does not exist yet.
 pub fn is_zero_object(name: &str) -> bool {
     return is_object_name(name) && name.trim_start_matches('0').is_empty();
 }
 
 impl CommitRequest {
-    /// Whether the request lands alone and only while the branch tip equals its base: an amend, or a commit built elsewhere.
+    /// Whether the request lands alone and only while the branch tip equals its base:
+    /// an amend,
+    /// or a commit built elsewhere.
     pub fn lands_alone(&self) -> bool {
         return self.amend || self.commit.is_some();
     }
@@ -187,9 +269,11 @@ pub enum FailureCode {
     Rejected,
     /// The branch moved too often while the request waited.
     BranchKeepsChanging,
-    /// The branch is no longer where the commit was prepared, and the commit cannot be made again on another tip.
+    /// The branch is no longer where the commit was prepared,
+    /// and the commit cannot be made again on another tip.
     BranchMoved,
-    /// A Git step of the landing ran longer than the wrapper lets one step run and was ended; the batch was withdrawn.
+    /// A Git step of the landing ran longer than the wrapper lets one step run and was ended;
+    /// the batch was withdrawn.
     StepTooSlow,
     /// Anything else the service could not resolve.
     Unavailable,
@@ -210,7 +294,8 @@ impl FailureCode {
         };
     }
 
-    /// Every code, so a test reaches all of them.
+    /// Every code,
+    /// so a test reaches all of them.
     pub const ALL: [Self; 8] = [
         Self::RepositoryFull,
         Self::RepositoryReadOnly,
@@ -222,7 +307,8 @@ impl FailureCode {
         Self::Unavailable,
     ];
 
-    /// The code for a word, nothing for an unknown word.
+    /// The code for a word,
+    /// nothing for an unknown word.
     pub fn from_word(word: &str) -> Option<Self> {
         for code in Self::ALL {
             if code.word() == word {
@@ -238,28 +324,40 @@ impl FailureCode {
 pub enum ClientMessage {
     /// Land this commit.
     Commit(Box<CommitRequest>),
-    /// Finish the queue and exit, so the manager starts the current binary.
+    /// Finish the queue and exit,
+    /// so the manager starts the current binary.
     Retire,
-    /// The sender stopped waiting for the commit of this identity (its ceiling passed): the service answers `Landed` when the
-    ///  commit is on the branch, and otherwise withdraws it so it can never land, and answers `Withdrawn`.
+    /// The sender stopped waiting for the commit of this identity (its ceiling passed):
+    /// the service answers `Landed` when the
+    ///  commit is on the branch,
+    /// and otherwise withdraws it so it can never land,
+    /// and answers `Withdrawn`.
     Withdraw {
-        /// The identity of the request, as the client sent it.
+        /// The identity of the request,
+        /// as the client sent it.
         id: String,
     },
-    /// The sender keeps this scratch directory of a commit in preparation for as long as the connection stays open; the
-    ///  service removes the directory when the connection closes, whatever closed it.
+    /// The sender keeps this scratch directory of a commit in preparation for as long as the connection stays open;
+    /// the
+    ///  service removes the directory when the connection closes,
+    /// whatever closed it.
     Scratch {
-        /// The worktree's own Git directory, which holds the directory and names the instance that removes it.
+        /// The worktree's own Git directory,
+        /// which holds the directory and names the instance that removes it.
         git_dir: PathBuf,
         /// The scratch directory (`monochromatic-git-policy-cli-service-<id>` in a Git directory of that repository).
         path: PathBuf,
     },
-    /// Work items were written for this repository; run what is pending.
+    /// Work items were written for this repository;
+    /// run what is pending.
     Work {
-        /// The worktree's own Git directory, which holds the work directory.
+        /// The worktree's own Git directory,
+        /// which holds the work directory.
         git_dir: PathBuf,
-        /// The gateway credential for the standards review of the commits this message announces. It lives only in this
-        /// message and in the service's memory, never in a work item or on disk.
+        /// The gateway credential for the standards review of the commits this message announces.
+        /// It lives only in this
+        /// message and in the service's memory,
+        /// never in a work item or on disk.
         review_key: Option<ReviewKey>,
     },
 }
@@ -267,30 +365,46 @@ pub enum ClientMessage {
 /// What the service sends.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ServiceMessage {
-    /// First line of every connection: the service's protocol version and the release it was built from. Services of
-    ///  releases before the field existed send none, which reads as a release that is not this one.
+    /// First line of every connection:
+    /// the service's protocol version and the release it was built from.
+    /// Services of
+    ///  releases before the field existed send none,
+    /// which reads as a release that is not this one.
     Welcome { version: u32, release: Option<String> },
     /// The request is queued behind others.
     Position { number: usize, of: usize },
-    /// The commit is on the branch; `already` when an earlier request with the same identity landed it.
+    /// The commit is on the branch;
+    /// `already` when an earlier request with the same identity landed it.
     Landed { id: String, commit: String, already: bool },
-    /// A named path changed on the branch since the base; prepare again from `base`.
+    /// A named path changed on the branch since the base;
+    /// prepare again from `base`.
     RetryPrepare { id: String, base: String, landed: Vec<LandedCapture> },
     /// The request was not landed.
     Failed { id: String, code: FailureCode },
-    /// The landing waits for another program that holds the repository's index: a line for the person's terminal.
+    /// The landing waits for another program that holds the repository's index:
+    /// a line for the person's terminal.
     Waiting { text: String },
-    /// A `waiting` line that also says this client's own request is inside the service's stuck branch write, so the commit may
-    ///  already be on the branch. On the wire it is the `waiting` message with the extra field `inside_write` set to true, so a client
-    ///  that does not know the field reads it as the `waiting` line it is (a notice, and the blocker its error names), and a service that
-    ///  does not send it leaves a client that does on its older path: nothing in the protocol changes for either, and the version stays.
+    /// A `waiting` line that also says this client's own request is inside the service's stuck branch write,
+    /// so the commit may
+    ///  already be on the branch.
+    /// On the wire it is the `waiting` message with the extra field `inside_write` set to true,
+    /// so a client
+    ///  that does not know the field reads it as the `waiting` line it is (a notice,
+    /// and the blocker its error names),
+    /// and a service that
+    ///  does not send it leaves a client that does on its older path:
+    /// nothing in the protocol changes for either,
+    /// and the version stays.
     InsideWrite { text: String },
     /// The request of this identity was withdrawn at the client's asking and will never land.
     Withdrawn { id: String },
-    /// Who held the index when the wait ran out, in words that fit "... is using this repository's index".
+    /// Who held the index when the wait ran out,
+    /// in words that fit "... is using this repository's index".
     Holder { who: String },
-    /// The service is alive and the request is still waiting for its answer: sent on a fixed beat while a request is queued
-    ///  or landing, so the client can wait for the answer with no clock of its own and end the wait on silence alone.
+    /// The service is alive and the request is still waiting for its answer:
+    /// sent on a fixed beat while a request is queued
+    ///  or landing,
+    /// so the client can wait for the answer with no clock of its own and end the wait on silence alone.
     Heartbeat,
 }
 
@@ -307,9 +421,13 @@ pub fn is_object_name(text: &str) -> bool {
 }
 
 /// What:
-///  Whether one part of a repository-relative path is a plain name: not empty, not `.`, `..` or `.git`.
+///  Whether one part of a repository-relative path is a plain name:
+/// not empty,
+/// not `.`,
+/// `..` or `.git`.
 /// Why:
-///  `is_plain_path` checks every part, so no path can leave the repository or reach Git's own directory.
+///  `is_plain_path` checks every part,
+/// so no path can leave the repository or reach Git's own directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -320,9 +438,12 @@ fn is_plain_part(part: &str) -> bool {
 }
 
 /// What:
-///  Whether a byte may appear in a request identity or a scratch directory identity: an ASCII letter or digit, or a hyphen.
+///  Whether a byte may appear in a request identity or a scratch directory identity:
+/// an ASCII letter or digit,
+/// or a hyphen.
 /// Why:
-///  Both are used in file names, so no identity can name a path.
+///  Both are used in file names,
+/// so no identity can name a path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -333,7 +454,8 @@ pub(crate) fn is_identity_byte(byte: &u8) -> bool {
 }
 
 /// What:
-///  Whether one component of a directory path is a normal step: not `..` and not `.`.
+///  Whether one component of a directory path is a normal step:
+/// not `..` and not `.`.
 /// Why:
 ///  `is_scratch_path` refuses a Git directory that climbs or stands still.
 ///
@@ -345,7 +467,11 @@ fn is_plain_component(part: std::path::Component<'_>) -> bool {
     return !matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir);
 }
 
-/// Whether `path` is a plain repository-relative path: no leading slash, no empty, `.` or `..` part, no NUL or newline.
+/// Whether `path` is a plain repository-relative path:
+/// no leading slash,
+/// no empty,
+/// `.` or `..` part,
+/// no NUL or newline.
 pub fn is_plain_path(path: &str) -> bool {
     return !path.is_empty()
         && !path.starts_with('/')
@@ -359,9 +485,12 @@ pub const SCRATCH_PREFIX: &str = "monochromatic-git-policy-cli-service-";
 /// What:
 ///  Whether `path` is the scratch directory of a commit in the worktree whose own Git directory is `git_dir`.
 /// Why:
-///   The service removes whatever a client names when the client's connection closes, so the name must be one only the
-///  wrapper makes (the prefix and an identity of letters, digits and dashes) and the place must be directly inside the
-///  worktree's own Git directory, with no relative part that could lead elsewhere.
+///   The service removes whatever a client names when the client's connection closes,
+/// so the name must be one only the
+///  wrapper makes (the prefix and an identity of letters,
+/// digits and dashes) and the place must be directly inside the
+///  worktree's own Git directory,
+/// with no relative part that could lead elsewhere.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

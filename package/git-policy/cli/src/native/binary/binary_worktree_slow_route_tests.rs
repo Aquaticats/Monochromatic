@@ -1,23 +1,33 @@
 //! What:
-//!  The line that tells the person why `git worktree add` took the slow way, through the built executable: a source that
-//!  cannot be snapshotted gets a plain line on standard error naming the cause and what makes the next add quick, `--quiet`
-//!  silences it, a clean source and a failed add print none, and the journal receives an entry either way.
+//!  The line that tells the person why `git worktree add` took the slow way,
+//! through the built executable:
+//! a source that
+//!  cannot be snapshotted gets a plain line on standard error naming the cause and what makes the next add quick,
+//! `--quiet`
+//!  silences it,
+//! a clean source and a failed add print none,
+//! and the journal receives an entry either way.
 //! Why:
-//!  Two adds from the main checkout once took minutes through Git's checkout and the ignored-state copy and said nothing, so
-//!  nobody could tell the cause afterwards. The sign of the slow way is the ignored-state copy summary (a snapshot prints a
-//!  different note), and the line under test is found by the words that say the worktree was not made as a snapshot.
+//!  Two adds from the main checkout once took minutes through Git's checkout and the ignored-state copy and said nothing,
+//! so
+//!  nobody could tell the cause afterwards.
+//! The sign of the slow way is the ignored-state copy summary (a snapshot prints a
+//!  different note),
+//! and the line under test is found by the words that say the worktree was not made as a snapshot.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect(stderr).toContain('uncommitted changes in 1 path (for example shared.txt)');
 //! ```
 
-/// Import the shared fixtures, and the helpers of the snapshot controls.
+/// Import the shared fixtures,
+/// and the helpers of the snapshot controls.
 use super::support::{Fixture, Observed, fixture, git, observe, remove, run_wrapped, stderr_of, wrapped};
 use super::worktree_snapshot::{on_btrfs_or_acknowledged, subvolume_repository};
 use std::path::{Path, PathBuf};
 
-/// The words that mark the line under test: the worktree was not made as a snapshot.
+/// The words that mark the line under test:
+/// the worktree was not made as a snapshot.
 const SLOW_MARK: &str = "not made as a snapshot";
 
 /// The lines of standard error that say the add took the slow way.
@@ -25,7 +35,9 @@ fn slow_lines(observed: &Observed) -> Vec<String> {
     return stderr_of(observed).lines().filter(|line: &&str| { return line.contains(SLOW_MARK); }).map(str::to_string).collect();
 }
 
-/// Run `git worktree add` through the wrapper from `repo`, with extra words before the destination, and the journal pointed at
+/// Run `git worktree add` through the wrapper from `repo`,
+/// with extra words before the destination,
+/// and the journal pointed at
 ///  nobody so no run reaches the host's journal.
 fn add(fixture: &Fixture, repo: &Path, name: &str, extra: &[&str]) -> Observed {
     let mut arguments: Vec<String> = vec![String::from("worktree"), String::from("add")];
@@ -40,8 +52,10 @@ fn add(fixture: &Fixture, repo: &Path, name: &str, extra: &[&str]) -> Observed {
     );
 }
 
-/// A linked worktree that a snapshot made from the main checkout (so it is a subvolume) with one file edited: a source whose
-///  changes are not restored by a snapshot, because only the main checkout is.
+/// A linked worktree that a snapshot made from the main checkout (so it is a subvolume) with one file edited:
+/// a source whose
+///  changes are not restored by a snapshot,
+/// because only the main checkout is.
 fn dirty_linked_worktree(fixture: &Fixture, repo: &Path) -> PathBuf {
     let made: Observed = run_wrapped(fixture, repo, &["worktree", "add", "--quiet", "-b", "linked", "../linked"]);
     assert_eq!(made.code, Some(0), "{}", stderr_of(&made));
@@ -50,7 +64,10 @@ fn dirty_linked_worktree(fixture: &Fixture, repo: &Path) -> PathBuf {
     return linked;
 }
 
-/// A source with an uncommitted change says so: one line, the cause with the count and a path, and what makes the next add quick.
+/// A source with an uncommitted change says so:
+/// one line,
+/// the cause with the count and a path,
+/// and what makes the next add quick.
 #[test]
 fn a_dirty_source_says_why_the_add_was_not_a_snapshot() {
     let fixture: Fixture = fixture("slow-route-dirty");
@@ -72,7 +89,8 @@ fn a_dirty_source_says_why_the_add_was_not_a_snapshot() {
     remove(&fixture);
 }
 
-/// `--quiet` silences the line, and the add still succeeds the slow way.
+/// `--quiet` silences the line,
+/// and the add still succeeds the slow way.
 #[test]
 fn quiet_silences_the_slow_route_line() {
     let fixture: Fixture = fixture("slow-route-quiet");
@@ -90,7 +108,8 @@ fn quiet_silences_the_slow_route_line() {
     remove(&fixture);
 }
 
-/// A Git command running in the source (its `index.lock`) is named as the cause, with the wait as the remedy.
+/// A Git command running in the source (its `index.lock`) is named as the cause,
+/// with the wait as the remedy.
 #[test]
 fn a_running_git_command_in_the_source_is_named() {
     let fixture: Fixture = fixture("slow-route-lock");
@@ -109,7 +128,8 @@ fn a_running_git_command_in_the_source_is_named() {
     remove(&fixture);
 }
 
-/// A clean source is snapshotted and says nothing about a slow route; an add Git refuses says nothing either.
+/// A clean source is snapshotted and says nothing about a slow route;
+/// an add Git refuses says nothing either.
 #[test]
 fn a_snapshot_and_a_failed_add_print_no_slow_route_line() {
     let fixture: Fixture = fixture("slow-route-silent");
@@ -130,7 +150,9 @@ fn a_snapshot_and_a_failed_add_print_no_slow_route_line() {
     remove(&fixture);
 }
 
-/// The journal receives one warning entry with the same words, the worktree and the cause as fields, also under `--quiet`.
+/// The journal receives one warning entry with the same words,
+/// the worktree and the cause as fields,
+/// also under `--quiet`.
 #[test]
 fn the_journal_receives_the_slow_route_entry_even_when_quiet() {
     use std::os::linux::net::SocketAddrExt;

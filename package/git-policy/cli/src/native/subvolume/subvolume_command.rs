@@ -1,12 +1,26 @@
 //! What:
-//!  `git monochromatic-git-policy-cli migrate-to-subvolume`: find the repository's main checkout from the working directory, run the
-//!  requested mode (migrate, rollback, remove the old tree) and turn the result into an exit status and text.
+//!  `git monochromatic-git-policy-cli migrate-to-subvolume`:
+//! find the repository's main checkout from the working directory,
+//! run the
+//!  requested mode (migrate,
+//! rollback,
+//! remove the old tree) and turn the result into an exit status and text.
 //! Why:
-//!  The command runs for minutes (the real checkout took about sixteen minutes of passes), so progress lines go to
-//!  standard error as they happen; refusals and failures end with the cause and every way forward. Exit status 0 means
-//!  done, already done or previewed, 1 means a condition refused it before anything changed, and 2 means a step
-//!  failed after the journal began, with the instruction to run the command again or to roll back. The main checkout is
-//!  found by reading `.git` in process (a directory, or a gitfile naming the common directory), never by asking Git.
+//!  The command runs for minutes (the real checkout took about sixteen minutes of passes),
+//! so progress lines go to
+//!  standard error as they happen;
+//! refusals and failures end with the cause and every way forward.
+//! Exit status 0 means
+//!  done,
+//! already done or previewed,
+//! 1 means a condition refused it before anything changed,
+//! and 2 means a step
+//!  failed after the journal began,
+//! with the instruction to run the command again or to roll back.
+//! The main checkout is
+//!  found by reading `.git` in process (a directory,
+//! or a gitfile naming the common directory),
+//! never by asking Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,16 +39,25 @@ use crate::subvolume_run::Run;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// The exit status of a refusal: a condition stood in the way and nothing was changed.
+/// The exit status of a refusal:
+/// a condition stood in the way and nothing was changed.
 pub const REFUSED_EXIT_CODE: i32 = 1;
 
 /// What:
-///  The main checkout of the repository that contains `start`, found without starting Git.
+///  The main checkout of the repository that contains `start`,
+/// found without starting Git.
 /// Why:
-///   Walk up to the first `.git`. A directory there marks the main checkout. A file there is a linked worktree's
-///  gitfile (`gitdir: <admin directory>`); the administrative directory's `commondir` names the common directory,
-///  whose parent is the main checkout when the common directory is called `.git`. Anything else (a bare repository, a
-///  submodule, an unreadable gitfile) is reported, because converting the wrong directory would be harmful.
+///   Walk up to the first `.git`.
+/// A directory there marks the main checkout.
+/// A file there is a linked worktree's
+///  gitfile (`gitdir: <admin directory>`);
+/// the administrative directory's `commondir` names the common directory,
+///  whose parent is the main checkout when the common directory is called `.git`.
+/// Anything else (a bare repository,
+/// a
+///  submodule,
+/// an unreadable gitfile) is reported,
+/// because converting the wrong directory would be harmful.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,7 +112,9 @@ fn common_root_of_gitfile(gitfile: &Path) -> Result<PathBuf, String> {
     };
 }
 
-/// Write one line to standard error; a failed write is ignored, as the command's report must not fail on a closed terminal.
+/// Write one line to standard error;
+/// a failed write is ignored,
+/// as the command's report must not fail on a closed terminal.
 fn say_on_standard_error(text: &str) {
     let mut stderr = std::io::stderr().lock();
     let _written = writeln!(stderr, "{text}");
@@ -106,9 +131,11 @@ fn say_refusals(say: &mut dyn FnMut(&str), refusals: &[Refusal]) {
 
 /// What:
 ///  Run the requested mode against a root and return the exit status.
-///  `say` receives every line; the platform and interrupt are injected so controls run it on any filesystem.
+///  `say` receives every line;
+/// the platform and interrupt are injected so controls run it on any filesystem.
 /// Why:
-///   One function holds the status mapping, so the controls check the real command's behavior.
+///   One function holds the status mapping,
+/// so the controls check the real command's behavior.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,7 +157,8 @@ pub fn execute(platform: &dyn Platform, arguments: &MigrateArguments, root: &Pat
     }
 }
 
-/// The three modes, as a result so `execute` maps every error the same way.
+/// The three modes,
+/// as a result so `execute` maps every error the same way.
 fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> Result<i32, MigrateError> {
     let Some(layout) = layout_of(root) else {
         return Err(MigrateError::Journal(format!("{} has no parent directory", root.display())));
@@ -176,9 +204,12 @@ fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, 
 }
 
 /// What:
-///  The action of `git monochromatic-git-policy-cli migrate-to-subvolume`: help, or the run from the working directory's repository.
+///  The action of `git monochromatic-git-policy-cli migrate-to-subvolume`:
+/// help,
+/// or the run from the working directory's repository.
 /// Why:
-///   Progress goes to standard error live; the action carries only the exit status.
+///   Progress goes to standard error live;
+/// the action carries only the exit status.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

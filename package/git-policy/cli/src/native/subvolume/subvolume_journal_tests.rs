@@ -1,5 +1,10 @@
-//! Controls for the migration journal: an empty start, the states and their predicates, the atomic write, the reload,
-//!  every shape of a file that is not a journal, and the deletion.
+//! Controls for the migration journal:
+//! an empty start,
+//! the states and their predicates,
+//! the atomic write,
+//! the reload,
+//!  every shape of a file that is not a journal,
+//! and the deletion.
 
 use super::*;
 use crate::test_support::{fixture, remove};
@@ -22,7 +27,9 @@ fn a_missing_file_is_an_empty_journal() {
     remove(parent.as_path());
 }
 
-/// `started` has begun but is not done; `done` is both; `rolled-back` is neither.
+/// `started` has begun but is not done;
+/// `done` is both;
+/// `rolled-back` is neither.
 #[test]
 fn the_states_answer_the_predicates() {
     let (parent, path) = journal_path("journal-states");
@@ -38,7 +45,8 @@ fn the_states_answer_the_predicates() {
     remove(parent.as_path());
 }
 
-/// What was marked is read back by a new load, and no temporary file stays beside the journal.
+/// What was marked is read back by a new load,
+/// and no temporary file stays beside the journal.
 #[test]
 fn a_marked_step_survives_a_reload_and_leaves_no_temporary_file() {
     let (parent, path) = journal_path("journal-reload");
@@ -53,7 +61,8 @@ fn a_marked_step_survives_a_reload_and_leaves_no_temporary_file() {
     remove(parent.as_path());
 }
 
-/// Every file that is not a journal of this format is an error that names the file; nothing is guessed.
+/// Every file that is not a journal of this format is an error that names the file;
+/// nothing is guessed.
 #[test]
 fn a_file_that_is_not_a_journal_is_refused_by_name() {
     let (parent, path) = journal_path("journal-broken");
@@ -74,7 +83,8 @@ fn a_file_that_is_not_a_journal_is_refused_by_name() {
     remove(parent.as_path());
 }
 
-/// A path that cannot be read as a file (a directory) is an input and output error, not an empty journal.
+/// A path that cannot be read as a file (a directory) is an input and output error,
+/// not an empty journal.
 #[test]
 fn an_unreadable_journal_is_an_error_not_an_empty_one() {
     let (parent, path) = journal_path("journal-directory");
@@ -96,7 +106,8 @@ fn a_journal_that_cannot_be_written_is_reported() {
     remove(parent.as_path());
 }
 
-/// Deleting removes the file and forgets the steps; deleting twice is not an error.
+/// Deleting removes the file and forgets the steps;
+/// deleting twice is not an error.
 #[test]
 fn delete_forgets_the_steps_and_is_repeatable() {
     let (parent, path) = journal_path("journal-delete");
@@ -108,7 +119,8 @@ fn delete_forgets_the_steps_and_is_repeatable() {
     remove(parent.as_path());
 }
 
-/// A path that is a non-empty directory cannot be deleted as a file, and the error names it.
+/// A path that is a non-empty directory cannot be deleted as a file,
+/// and the error names it.
 #[test]
 fn a_journal_path_that_cannot_be_removed_is_reported() {
     let (parent, path) = journal_path("journal-undeletable");
@@ -120,7 +132,8 @@ fn a_journal_path_that_cannot_be_removed_is_reported() {
     remove(parent.as_path());
 }
 
-/// Each step keeps the time it was recorded at when a later step is marked, and a record written without a time reads as
+/// Each step keeps the time it was recorded at when a later step is marked,
+/// and a record written without a time reads as
 ///  having none.
 #[test]
 fn a_step_keeps_its_own_time_and_an_old_record_has_none() {
@@ -140,8 +153,11 @@ fn a_step_keeps_its_own_time_and_an_old_record_has_none() {
     crate::test_support::remove(directory.as_path());
 }
 
-/// The start time is the one the journal file recorded, a resumed run keeps it, and a fresh journal has a time of its own
-///  (ISO text), not an empty or a placeholder one.
+/// The start time is the one the journal file recorded,
+/// a resumed run keeps it,
+/// and a fresh journal has a time of its own
+///  (ISO text),
+/// not an empty or a placeholder one.
 #[test]
 fn the_start_time_is_the_recorded_one_and_a_fresh_journal_has_its_own() {
     let (parent, path) = journal_path("journal-started");
@@ -157,14 +173,18 @@ fn the_start_time_is_the_recorded_one_and_a_fresh_journal_has_its_own() {
     remove(parent.as_path());
 }
 
-/// The fixed sibling name that releases up to 0.5.20 wrote the journal through: the journal's path with `.tmp` appended.
+/// The fixed sibling name that releases up to 0.5.20 wrote the journal through:
+/// the journal's path with `.tmp` appended.
 fn old_fixed_sibling(journal: &Path) -> PathBuf {
     let mut name: std::ffi::OsString = journal.as_os_str().to_os_string();
     name.push(".tmp");
     return PathBuf::from(name);
 }
 
-/// A leftover of a killed run in the shape the writer names its temporary files: the journal's path, `.tmp.`, a process
+/// A leftover of a killed run in the shape the writer names its temporary files:
+/// the journal's path,
+/// `.tmp.`,
+/// a process
 ///  number and a clock reading.
 fn leftover_sibling(journal: &Path, process: &str, clock: &str) -> PathBuf {
     let mut name: std::ffi::OsString = journal.as_os_str().to_os_string();
@@ -172,7 +192,9 @@ fn leftover_sibling(journal: &Path, process: &str, clock: &str) -> PathBuf {
     return PathBuf::from(name);
 }
 
-/// Red until the write is exclusive: a symbolic link planted at the old fixed sibling name must not be followed, so the
+/// Red until the write is exclusive:
+/// a symbolic link planted at the old fixed sibling name must not be followed,
+/// so the
 ///  file it points at keeps its bytes and the journal still lands.
 #[test]
 fn a_link_planted_at_the_old_sibling_name_is_not_written_through() {
@@ -190,7 +212,8 @@ fn a_link_planted_at_the_old_sibling_name_is_not_written_through() {
     remove(parent.as_path());
 }
 
-/// Red until the write is exclusive: a dangling link planted at the old fixed sibling name must not make the write create
+/// Red until the write is exclusive:
+/// a dangling link planted at the old fixed sibling name must not make the write create
 ///  the file it points at.
 #[test]
 fn a_dangling_link_planted_at_the_old_sibling_name_creates_nothing() {
@@ -205,8 +228,11 @@ fn a_dangling_link_planted_at_the_old_sibling_name_creates_nothing() {
     remove(parent.as_path());
 }
 
-/// Red until leftovers are swept: the plain files a killed run left under the writer's own temporary names are removed once
-///  a later write lands, while a file under any other name, a directory under a temporary name and a link under one stay.
+/// Red until leftovers are swept:
+/// the plain files a killed run left under the writer's own temporary names are removed once
+///  a later write lands,
+/// while a file under any other name,
+/// a directory under a temporary name and a link under one stay.
 #[test]
 fn leftovers_of_a_killed_run_are_swept_and_nothing_else_is() {
     let (parent, path) = journal_path("journal-leftovers");
@@ -230,8 +256,11 @@ fn leftovers_of_a_killed_run_are_swept_and_nothing_else_is() {
     remove(parent.as_path());
 }
 
-/// The exclusive write refuses every kind of path that already exists, and leaves it as it was: a plain file keeps its
-///  bytes, a link is not followed and a dangling link creates nothing.
+/// The exclusive write refuses every kind of path that already exists,
+/// and leaves it as it was:
+/// a plain file keeps its
+///  bytes,
+/// a link is not followed and a dangling link creates nothing.
 #[test]
 fn the_exclusive_write_refuses_anything_already_there() {
     let (parent, _path) = journal_path("journal-exclusive");
@@ -254,8 +283,12 @@ fn the_exclusive_write_refuses_anything_already_there() {
     remove(parent.as_path());
 }
 
-/// The temporary file is private to its owner, and the names of the writer's leftovers are recognized exactly: the old fixed
-///  name and the name with a process number and a clock reading, nothing longer, shorter or non-numeric.
+/// The temporary file is private to its owner,
+/// and the names of the writer's leftovers are recognized exactly:
+/// the old fixed
+///  name and the name with a process number and a clock reading,
+/// nothing longer,
+/// shorter or non-numeric.
 #[test]
 fn the_temporary_file_is_private_and_only_the_writers_own_names_are_leftovers() {
     let (parent, _path) = journal_path("journal-shapes");

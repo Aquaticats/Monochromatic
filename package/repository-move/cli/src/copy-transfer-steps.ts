@@ -11,6 +11,7 @@ import {
 } from 'node:path';
 import { pathExists, } from './completion-records.ts';
 import { MoveStopError, } from './errors.ts';
+import { preparePlacementTarget, } from './placement-path.ts';
 import {
   showField,
   type StepContext,
@@ -199,10 +200,10 @@ export async function placeStep(
     ),
   );
   if (!isMain) {
-    // The stub of a nested subvolume in the received parent is an empty directory of inode 2 (measured on the 860).
-    await runner.exec({
-      command: 'rmdir',
-      args: [target,],
+    await preparePlacementTarget({
+      options,
+      runner,
+      target,
     },);
   }
   await runner.exec({

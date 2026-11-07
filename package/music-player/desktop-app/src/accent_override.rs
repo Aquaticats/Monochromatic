@@ -10,8 +10,10 @@
 //! renders and verification runs need a deterministic accent;
 //! unset follows the system.
 
+/// Imports the formatting traits that render `AccentError` as text.
 use std::fmt;
 
+/// Imports the 8-bit sRGB color that a valid accent value becomes.
 use crate::oklch::Srgb8;
 
 /// What:
@@ -42,10 +44,19 @@ pub const ACCENT_ENV: &str = "MUSIC_PLAYER_ACCENT";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AccentError {
     /// The value that was given.
-    Malformed(String),
+    Malformed(
+        /// The variable's text,
+        /// as it was given.
+        String,
+    ),
 }
 
+/// Text of an `AccentError` for the log and for the startup message.
 impl fmt::Display for AccentError {
+    /// What:
+    /// Writes the sentence that names the rejected value and the accepted forms.
+    /// Why:
+    /// The startup message and the log show this text.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         return match self {
             Self::Malformed(value) => formatter.write_str(&format!(
@@ -56,6 +67,7 @@ impl fmt::Display for AccentError {
     }
 }
 
+/// Lets `AccentError` travel as a standard error value.
 impl std::error::Error for AccentError {}
 
 /// What:
@@ -102,6 +114,10 @@ pub fn accent_override(value: Option<&str>) -> Result<Option<Srgb8>, AccentError
     return Ok(Some(Srgb8 { red: channel(0)?, green: channel(2)?, blue: channel(4)? }));
 }
 
+/// Unit tests of `accent_override`,
+/// in the sidecar file `accent_override_tests.rs`.
+/// Role of the module:
+/// the accent override that the environment variable `MUSIC_PLAYER_ACCENT` selects.
 #[cfg(test)]
 #[path = "accent_override_tests.rs"]
 mod tests;

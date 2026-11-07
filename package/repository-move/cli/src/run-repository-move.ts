@@ -17,10 +17,8 @@ import {
   stdout,
 } from 'node:process';
 import { createGuidedConfig, } from './guided-config.ts';
-import {
-  parseGuidedFlags,
-  runGuided,
-} from './guided-runner.ts';
+import { parseGuidedFlags, } from './guided-flags.ts';
+import { runGuided, } from './guided-runner.ts';
 import { GuidedStopError, } from './guided-stop.ts';
 
 /**

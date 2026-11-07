@@ -293,9 +293,14 @@ fn trimmed(text: String) -> String {
 
 /// How long the commit service's scan for the processes that have a lock open may take.
 ///
-/// Measured on 2026-11-03 on this host with 858 processes: listing every process's open descriptors (`ls -l /proc/[0-9]*/fd`,
-///  the same walk) took 0.10 s in each of three runs, so the budget is two and a half times a whole walk. A scan that runs
-///  out returns what it found; the holder then reads as one nothing proves alive, which is waited for the short backoff.
+/// Measured on 2026-11-03 on this host with 858 processes:
+/// listing every process's open descriptors (`ls -l /proc/[0-9]*/fd`,
+///  the same walk) took 0.10 s in each of three runs,
+/// so the budget is two and a half times a whole walk.
+/// A scan that runs
+///  out returns what it found;
+/// the holder then reads as one nothing proves alive,
+/// which is waited for the short backoff.
 pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// The scan for open holders that the commit service makes:

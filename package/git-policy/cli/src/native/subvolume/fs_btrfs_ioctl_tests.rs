@@ -1,5 +1,8 @@
-//! Controls for the btrfs ioctl wrappers: the request-number encoding and structure sizes (everywhere), and one real
-//!  call of each ioctl on a btrfs fixture (where btrfs exists; elsewhere reported by the fixture helper).
+//! Controls for the btrfs ioctl wrappers:
+//! the request-number encoding and structure sizes (everywhere),
+//! and one real
+//!  call of each ioctl on a btrfs fixture (where btrfs exists;
+//! elsewhere reported by the fixture helper).
 
 use super::*;
 use crate::fs_btrfs_test_support::{btrfs_fixture, removal_allowed};
@@ -8,22 +11,38 @@ use crate::test_support::{fixture, remove};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
-/// The three requests as `_IOW` computes them (`include/uapi/linux/btrfs.h`: type 0x94, numbers 14, 15 and 23, a 4096-byte
-///  argument) under the asm-generic encoding that x86, arm, arm64, riscv, s390 and loongarch use: direction 1 at bit 30.
+/// The three requests as `_IOW` computes them (`include/uapi/linux/btrfs.h`:
+/// type 0x94,
+/// numbers 14,
+/// 15 and 23,
+/// a 4096-byte
+///  argument) under the asm-generic encoding that x86,
+/// arm,
+/// arm64,
+/// riscv,
+/// s390 and loongarch use:
+/// direction 1 at bit 30.
 const GENERIC_VALUES: [u64; 3] = [0x5000_940e, 0x5000_940f, 0x5000_9417];
 
-/// The same requests under the encoding of powerpc, mips, sparc and alpha (direction 4 at bit 29) and of parisc
-///  (direction 2 at bit 30): both give the value the kernel reports for `BTRFS_IOC_SUBVOL_CREATE` on powerpc64le.
+/// The same requests under the encoding of powerpc,
+/// mips,
+/// sparc and alpha (direction 4 at bit 29) and of parisc
+///  (direction 2 at bit 30):
+/// both give the value the kernel reports for `BTRFS_IOC_SUBVOL_CREATE` on powerpc64le.
 const WIDE_VALUES: [u64; 3] = [0x9000_940e, 0x9000_940f, 0x9000_9417];
 
-/// The positive control of the encoding: the same function reproduces `libc::FICLONE`, which `libc` defines as
-///  `_IOW(0x94, 9, int)` for each architecture, before the btrfs numbers are trusted.
+/// The positive control of the encoding:
+/// the same function reproduces `libc::FICLONE`,
+/// which `libc` defines as
+///  `_IOW(0x94, 9, int)` for each architecture,
+/// before the btrfs numbers are trusted.
 #[test]
 fn the_encoding_reproduces_the_clone_request() {
     assert_eq!(ioc_write(9, std::mem::size_of::<libc::c_int>()), libc::FICLONE);
 }
 
-/// Each encoding gives the numbers the kernel headers give under it, and the one for the architecture this is built for
+/// Each encoding gives the numbers the kernel headers give under it,
+/// and the one for the architecture this is built for
 ///  gives the constants the code uses.
 #[test]
 fn the_request_numbers_equal_the_header_values_of_every_encoding() {
@@ -40,7 +59,9 @@ fn the_request_numbers_equal_the_header_values_of_every_encoding() {
     assert_eq!(on_this_architecture, if wide { WIDE_VALUES } else { GENERIC_VALUES });
 }
 
-/// Both argument structures are 4096 bytes, as the request numbers state, and the name starts where the header says.
+/// Both argument structures are 4096 bytes,
+/// as the request numbers state,
+/// and the name starts where the header says.
 #[test]
 fn the_argument_structures_have_the_size_the_requests_state() {
     assert_eq!(std::mem::size_of::<VolArgs>(), VOLUME_ARGUMENT_BYTES);
@@ -49,7 +70,8 @@ fn the_argument_structures_have_the_size_the_requests_state() {
     assert_eq!(std::mem::offset_of!(VolArgsV2, name), 8 + 8 + 8 + 32);
 }
 
-/// A name that is not one plain component is refused with `EINVAL` before any call, for every wrapper.
+/// A name that is not one plain component is refused with `EINVAL` before any call,
+/// for every wrapper.
 #[test]
 fn a_name_that_is_not_one_component_is_refused_before_any_call() {
     let root: PathBuf = fixture("fs-ioctl-names");
@@ -67,7 +89,8 @@ fn a_name_that_is_not_one_component_is_refused_before_any_call() {
     remove(root.as_path());
 }
 
-/// A parent that does not exist is a typed error with the missing parent's error number, never a panic.
+/// A parent that does not exist is a typed error with the missing parent's error number,
+/// never a panic.
 #[test]
 fn a_missing_parent_is_a_typed_error() {
     let root: PathBuf = fixture("fs-ioctl-parent");
@@ -85,7 +108,8 @@ fn a_path_without_a_name_cannot_be_split() {
     assert_eq!((parent, name), (PathBuf::from("."), std::ffi::OsString::from("relative")));
 }
 
-/// On a filesystem that is not btrfs the ioctls answer with a feature-missing error, which a ladder falls through on.
+/// On a filesystem that is not btrfs the ioctls answer with a feature-missing error,
+/// which a ladder falls through on.
 #[test]
 fn off_btrfs_the_ioctls_report_a_missing_feature() {
     let root: PathBuf = fixture("fs-ioctl-off");
@@ -98,8 +122,12 @@ fn off_btrfs_the_ioctls_report_a_missing_feature() {
     remove(root.as_path());
 }
 
-/// One real call of each ioctl: create makes a subvolume root, snapshot makes a second one that holds the source's
-///  files and shares its data, and destroy removes it (by the ioctl where the mount allows it, else the ioctl is refused
+/// One real call of each ioctl:
+/// create makes a subvolume root,
+/// snapshot makes a second one that holds the source's
+///  files and shares its data,
+/// and destroy removes it (by the ioctl where the mount allows it,
+/// else the ioctl is refused
 ///  with `EPERM` and `rmdir` removes the empty subvolume).
 #[test]
 fn btrfs_create_snapshot_and_destroy_each_work_once() {
@@ -133,7 +161,8 @@ fn btrfs_create_snapshot_and_destroy_each_work_once() {
     remove(root.as_path());
 }
 
-/// The destroy ioctl on a subvolume that holds a nested subvolume is refused, so removal goes deepest first.
+/// The destroy ioctl on a subvolume that holds a nested subvolume is refused,
+/// so removal goes deepest first.
 #[test]
 fn btrfs_a_subvolume_with_a_nested_subvolume_is_not_destroyed_in_one_step() {
     let Some(root) = btrfs_fixture("fs-ioctl-nested") else { return };
@@ -151,8 +180,14 @@ fn btrfs_a_subvolume_with_a_nested_subvolume_is_not_destroyed_in_one_step() {
     remove(root.as_path());
 }
 
-/// The two requests added for the destroy by id, as `_IOW` and `_IOWR` compute them under each encoding (type 0x94, numbers
-///  63 and 18, a 4096-byte argument): the asm-generic encoding, the wide one, and parisc's.
+/// The two requests added for the destroy by id,
+/// as `_IOW` and `_IOWR` compute them under each encoding (type 0x94,
+/// numbers
+///  63 and 18,
+/// a 4096-byte argument):
+/// the asm-generic encoding,
+/// the wide one,
+/// and parisc's.
 #[test]
 fn the_requests_for_the_destroy_by_id_equal_the_header_values_of_every_encoding() {
     const GENERIC_DESTROY_V2: u32 = 0x5000_943f;
@@ -167,9 +202,14 @@ fn the_requests_for_the_destroy_by_id_equal_the_header_values_of_every_encoding(
     assert_eq!(BTRFS_IOC_SNAP_DESTROY_V2 as u64, u64::from(if wide { WIDE_DESTROY_V2 } else { GENERIC_DESTROY_V2 }));
 }
 
-/// A subvolume's id names it for good: two subvolumes have two ids; the destroy by id removes the one whose id it is given,
-///  through a directory of the filesystem that is not its parent, and leaves the other (where the mount allows it; else
-///  the kernel refuses with `EPERM`, which also shows the request was understood and the id resolved).
+/// A subvolume's id names it for good:
+/// two subvolumes have two ids;
+/// the destroy by id removes the one whose id it is given,
+///  through a directory of the filesystem that is not its parent,
+/// and leaves the other (where the mount allows it;
+/// else
+///  the kernel refuses with `EPERM`,
+/// which also shows the request was understood and the id resolved).
 #[test]
 fn btrfs_the_destroy_by_id_removes_the_subvolume_whose_id_it_is_given() {
     let Some(root) = btrfs_fixture("fs-ioctl-by-id") else { return };

@@ -36,6 +36,7 @@ use std::time::{Duration, Instant};
 /// a shared counter with its wake-up,
 /// and the two threads.
 use std::sync::{Arc, Condvar, Mutex, mpsc};
+/// Imports the thread module that runs the watcher.
 use std::thread;
 
 /// What:
@@ -73,7 +74,10 @@ const MAX_DEBOUNCE_MS: u64 = 5_000;
 enum WatchRequest {
     /// Watch this root recursively,
     /// after unwatching the previous one.
-    Watch(PathBuf),
+    Watch(
+        /// The new Source Root.
+        PathBuf,
+    ),
     /// Stop the thread.
     Stop,
 }

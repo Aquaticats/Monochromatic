@@ -1,5 +1,8 @@
-//! Controls for the restore of a snapshot of a main checkout with changes: the proof accepts what Git's checkout leaves and
-//! names what it does not, the Git runs are exactly the two the design lists, and a restore never runs in the source.
+//! Controls for the restore of a snapshot of a main checkout with changes:
+//! the proof accepts what Git's checkout leaves and
+//! names what it does not,
+//! the Git runs are exactly the two the design lists,
+//! and a restore never runs in the source.
 
 use super::*;
 use crate::test_support::{git, git_context, remove, repository};
@@ -7,10 +10,12 @@ use crate::worktree_copy::{GitStatus, GitStep};
 use crate::worktree_copy_error::WorktreeCopyError;
 use std::path::PathBuf;
 
-/// The words every step starts with: `-C` and the stage.
+/// The words every step starts with:
+/// `-C` and the stage.
 const LEADING_WORDS: usize = 2;
 
-/// A target for the commit `HEAD` names in `repo`, whose Git directory is its own.
+/// A target for the commit `HEAD` names in `repo`,
+/// whose Git directory is its own.
 fn target_of(repo: &Path) -> Target {
     let commit: String = String::from_utf8_lossy(&git(repo, &["rev-parse", "HEAD"]).stdout).trim().to_string();
     return Target { admin: repo.join(".git"), pointer: Vec::new(), commit, differs: false, line: String::new() };
@@ -45,8 +50,12 @@ fn the_proof_accepts_what_gits_checkout_leaves_and_names_what_it_does_not() {
     remove(root.as_path());
 }
 
-/// The restore runs `read-tree --reset -u <commit>` through the lifecycle's runner and then a captured `clean --force -d`, in that
-///  order, each in the stage under the new worktree's Git directory; nothing else is run through the runner, and the `clean`
+/// The restore runs `read-tree --reset -u <commit>` through the lifecycle's runner and then a captured `clean --force -d`,
+/// in that
+///  order,
+/// each in the stage under the new worktree's Git directory;
+/// nothing else is run through the runner,
+/// and the `clean`
 ///  carries neither `--quiet` nor `-q`.
 #[test]
 fn the_restore_runs_read_tree_through_the_runner_and_a_clean_without_quiet_in_the_stage() {
@@ -117,7 +126,8 @@ fn a_restore_never_runs_in_the_source() {
     remove(root.as_path());
 }
 
-/// A failing step or a failing proof is an error, so the rung ends and Git's checkout makes the worktree.
+/// A failing step or a failing proof is an error,
+/// so the rung ends and Git's checkout makes the worktree.
 #[test]
 fn a_failed_step_or_a_failed_proof_is_an_error() {
     let root: PathBuf = crate::test_support::fixture("restore-failure");

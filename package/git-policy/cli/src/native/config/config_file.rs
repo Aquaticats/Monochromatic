@@ -159,12 +159,14 @@ fn entry_exists(path: &Path) -> Result<bool, ConfigError> {
 }
 
 /// What:
-///  The settings file of the repository whose top level is `repository_root`, found the way the loader finds it:
+///  The settings file of the repository whose top level is `repository_root`,
+/// found the way the loader finds it:
 ///  the current name when it exists,
 ///  else the earlier name when only that exists,
 ///  else the current name.
 /// Why:
-///   A control or tool that must read a repository's own file asks this, so it works before and after that file is renamed.
+///   A control or tool that must read a repository's own file asks this,
+/// so it works before and after that file is renamed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,9 +1,18 @@
 //! What:
-//!  The files ref storage read in process: one ref by exact name, the symbolic chain behind it, and the list of every ref.
+//!  The files ref storage read in process:
+//! one ref by exact name,
+//! the symbolic chain behind it,
+//! and the list of every ref.
 //! Why:
-//!  A loose file wins over `packed-refs`; a symbolic file names another ref; both are plain text.
-//!  Every spelling the reader is not sure of (a link, a name outside a plain alphabet, a damaged value, a linked
-//!  worktree's split of per-worktree and shared refs) is `Unsure`, which sends the caller to Git.
+//!  A loose file wins over `packed-refs`;
+//! a symbolic file names another ref;
+//! both are plain text.
+//!  Every spelling the reader is not sure of (a link,
+//! a name outside a plain alphabet,
+//! a damaged value,
+//! a linked
+//!  worktree's split of per-worktree and shared refs) is `Unsure`,
+//! which sends the caller to Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,23 +25,44 @@ use crate::private_storage::read_regular_file;
 use std::path::{Path, PathBuf};
 
 /// The longest loose ref file or `packed-refs` line this reader looks at.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const LOOSE_LIMIT: u64 = 4096;
 
 /// The largest `packed-refs` file this reader looks at.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const PACKED_LIMIT: u64 = 256 << 20;
 
 /// How many symbolic ref hops are followed.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const SYMBOLIC_DEPTH_LIMIT: usize = 5;
 
@@ -58,13 +88,16 @@ pub enum Lookup {
 
 /// The shared refs of one repository whose worktree owns its Git directory.
 pub struct Refs {
-    /// The common directory, which holds `refs/` and `packed-refs`.
+    /// The common directory,
+    /// which holds `refs/` and `packed-refs`.
     directory: PathBuf,
     /// The number of hexadecimal digits of an object name.
     hex_length: usize,
 }
 
-/// Whether `name` is a ref name of a plain alphabet: `refs/` and components of ASCII letters, digits and `._-`
+/// Whether `name` is a ref name of a plain alphabet:
+/// `refs/` and components of ASCII letters,
+/// digits and `._-`
 /// that Git always accepts.
 pub fn is_plain_ref_name(name: &str) -> bool {
     let Some(rest) = name.strip_prefix("refs/") else {
@@ -85,7 +118,11 @@ pub fn is_plain_ref_name(name: &str) -> bool {
     return true;
 }
 
-/// Whether `byte` may appear in a component of a reference name this reader takes: a letter, a digit, `.`, `_` or `-`.
+/// Whether `byte` may appear in a component of a reference name this reader takes:
+/// a letter,
+/// a digit,
+/// `.`,
+/// `_` or `-`.
 fn is_reference_name_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-');
 }
@@ -100,18 +137,23 @@ fn is_zero_digit(byte: u8) -> bool {
     return byte == b'0';
 }
 
-/// Whether `byte` is a control byte (below space, or DEL), which a packed ref name cannot hold.
+/// Whether `byte` is a control byte (below space,
+/// or DEL),
+/// which a packed ref name cannot hold.
 fn is_control_byte(byte: u8) -> bool {
     return byte < 0x20 || byte == 0x7f;
 }
 
 impl Refs {
-    /// Readers for the refs under `directory`, with object names of `hex_length` digits.
+    /// Readers for the refs under `directory`,
+    /// with object names of `hex_length` digits.
     pub fn new(directory: &Path, hex_length: usize) -> Refs {
         return Refs { directory: directory.to_path_buf(), hex_length };
     }
 
-    /// Whether `text` is a plain, non-null, lower-case object name.
+    /// Whether `text` is a plain,
+    /// non-null,
+    /// lower-case object name.
     fn is_name(&self, text: &str) -> bool {
         return text.len() == self.hex_length
             && text.bytes().all(is_lower_hex_digit)
@@ -133,15 +175,20 @@ impl Refs {
         return None;
     }
 
-    /// The packed lines as `(name, object name)`, or `None` when the file is not a plain `packed-refs`.
+    /// The packed lines as `(name, object name)`,
+    /// or `None` when the file is not a plain `packed-refs`.
     fn packed(&self) -> Option<Vec<(String, String)>> {
         return self.packed_named(false);
     }
 
-    /// The packed lines as `(name, object name)`; with `skip_unplain` a well-formed line whose name is outside the plain
+    /// The packed lines as `(name, object name)`;
+    /// with `skip_unplain` a well-formed line whose name is outside the plain
     ///  alphabet (a tag like `@scope/package@1.0.0`) is left out instead of making the whole file unreadable.
-    /// Why: a lookup of one plain name cannot be answered by a line it leaves out, and a repository with scoped tags would
-    ///  otherwise have no branch the in-process reader can resolve. A line with a damaged object name still ends the read.
+    /// Why:
+    /// a lookup of one plain name cannot be answered by a line it leaves out,
+    /// and a repository with scoped tags would
+    ///  otherwise have no branch the in-process reader can resolve.
+    /// A line with a damaged object name still ends the read.
     fn packed_named(&self, skip_unplain: bool) -> Option<Vec<(String, String)>> {
         let bytes: Vec<u8> = match read_regular_file(self.directory.join("packed-refs").as_path(), PACKED_LIMIT) {
             Ok(bytes) => bytes,
@@ -182,13 +229,15 @@ impl Refs {
         return Some(packed);
     }
 
-    /// What the `HEAD` file of `git_dir` holds, when it is a plain symbolic or direct spelling.
+    /// What the `HEAD` file of `git_dir` holds,
+    /// when it is a plain symbolic or direct spelling.
     pub fn lookup_head(&self, git_dir: &Path) -> Option<RefValue> {
         let bytes: Vec<u8> = read_regular_file(git_dir.join("HEAD").as_path(), LOOSE_LIMIT).ok()?;
         return self.parse_loose(std::str::from_utf8(bytes.as_slice()).ok()?);
     }
 
-    /// What ref `name` holds, loose first.
+    /// What ref `name` holds,
+    /// loose first.
     pub fn lookup(&self, name: &str) -> Lookup {
         if !is_plain_ref_name(name) {
             return Lookup::Unsure;
@@ -224,7 +273,8 @@ impl Refs {
         return Lookup::Missing;
     }
 
-    /// The object name `name` resolves to through symbolic refs; `None` when it is missing or unsure.
+    /// The object name `name` resolves to through symbolic refs;
+    /// `None` when it is missing or unsure.
     pub fn resolve(&self, name: &str) -> Option<String> {
         let mut current: String = name.to_string();
         for _ in 0..SYMBOLIC_DEPTH_LIMIT {
@@ -237,7 +287,10 @@ impl Refs {
         return None;
     }
 
-    /// Every ref under `refs/`, sorted by name, loose over packed; `None` when anything is not plain.
+    /// Every ref under `refs/`,
+    /// sorted by name,
+    /// loose over packed;
+    /// `None` when anything is not plain.
     pub fn list(&self) -> Option<Vec<(String, RefValue)>> {
         let mut found: std::collections::BTreeMap<String, RefValue> = std::collections::BTreeMap::new();
         for (name, object) in self.packed()? {

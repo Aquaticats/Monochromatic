@@ -1,10 +1,12 @@
-//! Controls for the one-sided extension check, on zero-context hunks built by hand
+//! Controls for the one-sided extension check,
+//! on zero-context hunks built by hand
 //!  over the base lines `a b c d e`.
 
 use super::*;
 use crate::replay_patch::PatchLine;
 
-/// The base lines of every case, each with its newline.
+/// The base lines of every case,
+/// each with its newline.
 fn base() -> Vec<Vec<u8>> {
     return ["a\n", "b\n", "c\n", "d\n", "e\n"]
         .iter()
@@ -12,7 +14,8 @@ fn base() -> Vec<Vec<u8>> {
         .collect();
 }
 
-/// A zero-context hunk from `(marker, text)` lines, each text with its newline.
+/// A zero-context hunk from `(marker, text)` lines,
+/// each text with its newline.
 fn hunk(old_start: i64, new_start: i64, lines: &[(u8, &str)]) -> PatchHunk {
     return PatchHunk {
         old_start,
@@ -39,14 +42,18 @@ fn an_exact_match_is_contained() {
     assert!(contains_landed_change(&landed_b(), &prepared, &base()));
 }
 
-/// An own line after the landed line, on one side only, is a one-sided extension.
+/// An own line after the landed line,
+/// on one side only,
+/// is a one-sided extension.
 #[test]
 fn an_own_line_after_the_landed_line_is_contained() {
     let prepared: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'+', "B\n"), (b'+', "X\n")])];
     assert!(contains_landed_change(&landed_b(), &prepared, &base()));
 }
 
-/// An own line before the landed line, on one side only, is a one-sided extension too.
+/// An own line before the landed line,
+/// on one side only,
+/// is a one-sided extension too.
 #[test]
 fn an_own_line_before_the_landed_line_is_contained() {
     let prepared: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'+', "X\n"), (b'+', "B\n")])];
@@ -60,14 +67,16 @@ fn own_lines_on_both_sides_are_not_contained() {
     assert!(!contains_landed_change(&landed_b(), &prepared, &base()));
 }
 
-/// A prepared change elsewhere does not cover the landed change, so the path merges three-way.
+/// A prepared change elsewhere does not cover the landed change,
+/// so the path merges three-way.
 #[test]
 fn a_far_apart_prepared_change_does_not_contain_the_landed_change() {
     let prepared: Vec<PatchHunk> = vec![hunk(4, 4, &[(b'-', "d\n"), (b'+', "D\n")])];
     assert!(!contains_landed_change(&landed_b(), &prepared, &base()));
 }
 
-/// A prepared hunk that replaces the landed lines with other text is a rewrite, not an extension.
+/// A prepared hunk that replaces the landed lines with other text is a rewrite,
+/// not an extension.
 #[test]
 fn a_prepared_rewrite_of_a_landed_line_is_not_contained() {
     let prepared: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'+', "Z\n")])];
@@ -154,14 +163,16 @@ fn a_landed_insertion_is_contained_by_a_prepared_hunk_ending_at_it() {
     assert!(contains_landed_change(&landed, &prepared, &base()));
 }
 
-/// No landed change is trivially contained, and a non-covering landed change is not.
+/// No landed change is trivially contained,
+/// and a non-covering landed change is not.
 #[test]
 fn no_landed_change_is_contained() {
     assert!(contains_landed_change(&[], &landed_b(), &base()));
     assert!(!contains_landed_change(&landed_b(), &[], &base()));
 }
 
-/// A suffix match needs the prepared hunk to end where the landed change ends; a prepared hunk ending later does not qualify.
+/// A suffix match needs the prepared hunk to end where the landed change ends;
+/// a prepared hunk ending later does not qualify.
 #[test]
 fn a_suffix_match_needs_the_prepared_hunk_to_end_at_the_landed_end() {
     let landed: Vec<PatchHunk> = vec![hunk(2, 2, &[(b'-', "b\n"), (b'-', "c\n"), (b'+', "B\n"), (b'+', "C\n")])];
@@ -192,7 +203,8 @@ fn a_prepared_change_shorter_than_the_landed_range_does_not_cover_it() {
     assert!(!contains_landed_change(&landed, &prepared, &base()));
 }
 
-/// With only the start shared, own lines between the landed lines are not a one-sided extension:
+/// With only the start shared,
+/// own lines between the landed lines are not a one-sided extension:
 ///  the exact-range allowance needs both ends of the landed range.
 #[test]
 fn own_lines_between_landed_lines_need_both_ends_anchored() {

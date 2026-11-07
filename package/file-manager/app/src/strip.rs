@@ -43,7 +43,7 @@ use gtk4::{Label, Widget};
 ///  imports the layout adapter and its placement snapshot type.
 /// Why:
 ///  this controller delegates GTK reconciliation and scrolling to a deep layout module.
-use crate::layout::{PanePlacement, StripLayout};
+use crate::layout::{PanePlacement, PaneWidgetBuilder, StripLayout};
 /// What:
 ///  imports the pane-strip state machine.
 /// Why:
@@ -159,9 +159,12 @@ impl StripController {
         let Ok(snapshot) = crate::fs::read_directory(&path, generation) else {
             return;
         };
-        if let Some(entry) = snapshot.entries.iter().find(|entry| return entry.path.is_dir()) {
-            let child = spawn_from(inner, root_id, entry, false);
-            close_pane(inner, child);
+        for entry in &snapshot.entries {
+            if entry.path.is_dir() {
+                let child = spawn_from(inner, root_id, entry, false);
+                close_pane(inner, child);
+                break;
+            }
         }
     }
 
@@ -180,12 +183,11 @@ impl StripController {
         let Ok(snapshot) = crate::fs::read_directory(&path, generation) else {
             return;
         };
-        if let Some(entry) = snapshot
-            .entries
-            .iter()
-            .find(|entry| return !entry.path.is_dir() && is_image(&entry.path))
-        {
-            spawn_from(inner, root_id, entry, false);
+        for entry in &snapshot.entries {
+            if !entry.path.is_dir() && is_image(&entry.path) {
+                spawn_from(inner, root_id, entry, false);
+                break;
+            }
         }
     }
 }
@@ -198,10 +200,28 @@ impl StripController {
 fn root_directory(inner: &Rc<StripInner>) -> Option<(PaneId, std::path::PathBuf)> {
     let state = inner.state.borrow();
     let id = state.active()?;
-    match state.pane(id).map(|pane| return pane.location.clone()) {
+    match location_of(&state, id) {
         Some(PaneLocation::Directory(path)) => return Some((id, path)),
         _ => return None,
     }
+}
+
+/// What:
+///  a clone of pane `id`'s location,
+///  or nothing when the pane is not live.
+/// Why:
+///  callers release the state borrow before building widgets from the location.
+fn location_of(state: &PaneStripState, id: PaneId) -> Option<PaneLocation> {
+    return Some(state.pane(id)?.location.clone())
+}
+
+/// What:
+///  pane `id`'s column,
+///  or nothing when the pane is not live.
+/// Why:
+///  a spawn focuses the column of the pane it just created.
+fn column_of(state: &PaneStripState, id: PaneId) -> Option<usize> {
+    return Some(state.pane(id)?.column)
 }
 
 /// What:
@@ -221,20 +241,31 @@ fn next_generation(inner: &Rc<StripInner>) -> u64 {
 ///  after any model mutation,
 ///  GTK placement updates through one narrow `StripLayout` interface.
 fn reconcile(inner: &Rc<StripInner>) {
-    let placements = inner
-        .state
-        .borrow()
-        .panes()
-        .map(|pane| return PanePlacement {
+    let mut placements = Vec::new();
+    for pane in inner.state.borrow().panes() {
+        placements.push(PanePlacement {
             id: pane.id,
             column: pane.column,
             row: pane.row,
             parent: pane.parent,
-        })
-        .collect();
-    inner
-        .layout
-        .reconcile(placements, |id| return build_pane_widget(inner, id));
+        });
+    }
+    inner.layout.reconcile(placements, inner);
+}
+
+/// What:
+///  lets the layout build missing pane widgets through the strip's state.
+/// Why:
+///  `reconcile` takes the strip as data instead of a closure that captured it.
+impl PaneWidgetBuilder for Rc<StripInner> {
+    /// What:
+    ///  build the widget for pane `id` from its location.
+    /// Why:
+    ///  forwards to `build_pane_widget`,
+    ///  which owns the per-location construction.
+    fn build_widget(&self, id: PaneId) -> Widget {
+        return build_pane_widget(self, id)
+    }
 }
 
 /// What:
@@ -245,7 +276,7 @@ fn reconcile(inner: &Rc<StripInner>) {
 ///  a
 ///      missing pane degrades to a label.
 fn build_pane_widget(inner: &Rc<StripInner>, id: PaneId) -> Widget {
-    let location = inner.state.borrow().pane(id).map(|pane| return pane.location.clone());
+    let location = location_of(&inner.state.borrow(), id);
     match location {
         Some(PaneLocation::Directory(path)) => return build_directory_pane(inner, id, &path),
         Some(PaneLocation::Preview(path)) => {
@@ -324,7 +355,7 @@ fn spawn_from(
         .state
         .borrow_mut()
         .spawn_child(source, location, force_duplicate);
-    if let Some(column) = inner.state.borrow().pane(spawned).map(|pane| return pane.column) {
+    if let Some(column) = column_of(&inner.state.borrow(), spawned) {
         inner.layout.set_focused_column(column);
     }
     reconcile(inner);

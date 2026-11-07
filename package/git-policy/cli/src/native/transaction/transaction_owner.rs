@@ -54,8 +54,10 @@ pub struct TransactionOwner {
     pub owner_identity: String,
     /// ISO-8601 invocation start time.
     pub created_at: String,
-    /// PID namespace of the owner, or nothing for a record written before the field existed.
-    ///  Optional on disk; readers that do not know the field ignore it.
+    /// PID namespace of the owner,
+    /// or nothing for a record written before the field existed.
+    ///  Optional on disk;
+    /// readers that do not know the field ignore it.
     pub owner_pid_namespace: Option<String>,
 }
 
@@ -80,7 +82,8 @@ pub enum OwnerLiveness {
 ///  Why an owner's liveness could not be decided.
 /// Why:
 ///   A refused probe (for example another account's process) must not let recovery touch a transaction that may be
-///  live; the caller decides whether the refusal means "alive" (permission) or stops recovery (anything else).
+///  live;
+/// the caller decides whether the refusal means "alive" (permission) or stops recovery (anything else).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -92,8 +95,11 @@ pub enum OwnerLivenessError {
     Probe(std::io::Error),
     /// The birth identity could not be read.
     Identity(ProcessIdentityError),
-    /// The record names another PID namespace and is older than the patience: neither alive nor dead. The text is the error to
-    ///  stop with (`pid_namespace.rs`, `ExpiredForeignRecord`).
+    /// The record names another PID namespace and is older than the patience:
+    /// neither alive nor dead.
+    /// The text is the error to
+    ///  stop with (`pid_namespace.rs`,
+    /// `ExpiredForeignRecord`).
     ExpiredForeign(String),
 }
 
@@ -238,10 +244,14 @@ pub fn classify_transaction_owner(
 }
 
 /// What:
-///  Classify a parsed owner record, trusting its PID only inside the PID namespace that wrote it.
+///  Classify a parsed owner record,
+/// trusting its PID only inside the PID namespace that wrote it.
 /// Why:
-///   An owner of another namespace has a PID this process cannot interpret (issues 1781 and 1784), so it counts as
-///  alive until its record file `owner_path` outlives the patience; the same rule serves recovery, the lease check
+///   An owner of another namespace has a PID this process cannot interpret (issues 1781 and 1784),
+/// so it counts as
+///  alive until its record file `owner_path` outlives the patience;
+/// the same rule serves recovery,
+/// the lease check
 ///  and the reservation queue.
 ///
 /// In TS you'd write (pseudocode):

@@ -12,7 +12,7 @@
 /// ```
 use smithay::{
     delegate_data_control, delegate_ext_data_control,
-    reexports::wayland_server::DisplayHandle,
+    reexports::wayland_server::{Client, DisplayHandle},
     wayland::selection::{ext_data_control, wlr_data_control},
 };
 /// Protocol callbacks operate on the compositor's existing owning state.
@@ -26,11 +26,29 @@ pub struct ClipboardProtocols {
     ext: ext_data_control::DataControlState,
 }
 
+/// The client filter of both clipboard-manager globals:
+///  every client of this private nested socket may use them.
+///
+/// What:
+///      `fn allow_every_client(_client: &Client) -> bool`.
+///  Always `true`.
+/// Why:
+///       Smithay's data-control state takes a filter callable;
+///  a named function replaces the closure that captured nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const allowEveryClient = (_client: Client): boolean => true;
+/// ```
+fn allow_every_client(_client: &Client) -> bool {
+    return true
+}
+
 /// Construct both clipboard-manager globals together so neither exists without the other.
 impl ClipboardProtocols {
     /// Register clipboard management only on the supplied nested display.
     pub fn new(display: &DisplayHandle) -> Self {
-        // What: None disables primary-selection advertising; |_client| is a callback.
+        // What: None disables primary-selection advertising; `allow_every_client` is the filter callback.
         // Why: All clients admitted to this private nested socket may exchange its clipboard,
         // but no unsupported primary-selection or host-clipboard bridge is advertised.
         //
@@ -39,11 +57,11 @@ impl ClipboardProtocols {
         // const wlr = new WlrDataControl(display, undefined, client => true);
         // ```
         let wlr = wlr_data_control::DataControlState::new::<Compositor, _>(
-            display, None, |_client| return true,
+            display, None, allow_every_client,
         );
         // Enable the successor protocol with identical nested-only permissions.
         let ext = ext_data_control::DataControlState::new::<Compositor, _>(
-            display, None, |_client| return true,
+            display, None, allow_every_client,
         );
         tracing::info!("nested clipboard protocols ready: wlr-data-control and ext-data-control");
         return Self { wlr, ext };

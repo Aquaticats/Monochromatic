@@ -13,6 +13,7 @@ import {
 import { join, } from 'node:path';
 import { pathExists, } from './completion-records.ts';
 import { cutoverStages, } from './guided-cutover-stages.data.ts';
+import { requireKnownStages, } from './guided-flags.ts';
 import { canonicalPath, } from './canonical-path.ts';
 import { runPhase, } from './guided-engine.ts';
 import {
@@ -32,7 +33,6 @@ import {
   GuidedStopError,
 } from './guided-stop.ts';
 import type {
-  GuidedCommand,
   GuidedConfig,
   GuidedFlags,
   Stage,
@@ -43,102 +43,47 @@ import {
 } from './guided-undo-stages.data.ts';
 
 /**
- The commands, for validating the first argument.
- */
-const COMMANDS: readonly GuidedCommand[] = [
-  'prepare',
-  'cutover',
-  'thaw',
-  'rollback',
-  'status',
-];
-
-/**
- The usage line.
- */
-const USAGE =
-  'Usage: run-repository-move prepare | cutover | thaw | rollback | status [--dry-run] [--redo=<stage id>] [--assert=<stage id>]';
-
-/**
- Collects every `--name=value` among the arguments.
-
- @param argv - the arguments
- 
- @param name - the flag name
- 
- @returns the values
- */
-function valuesOf(
-  {
-    argv,
-    name,
-  }: {
-    readonly argv: readonly string[];
-    readonly name: string;
-  },
-): readonly string[] {
-  /**
-   The flag prefix searched for.
-   */
-  const lead = `--${name}=`;
-  return argv.filter(function startsWithLead(argument,) {
-    return argument.startsWith(lead,);
-  },)
-    .map(function valueOf(argument,) {
-      return argument.slice(lead.length,);
-    },);
-}
-
-/**
- Reads the command and flags from the arguments.
-
- @param argv - arguments after the program name
- 
- @returns the flags
- 
- @throws GuidedStopError with the precondition status when the command is unknown
-
- @example
- ```ts
- import { parseGuidedFlags, } from '\@monochromatic-dev/repository-move-cli';
- 
- const result = parseGuidedFlags(argv,);
- ```
- */
-export function parseGuidedFlags(argv: readonly string[],): GuidedFlags {
-  /**
-   The command text.
-   */
-  const command = COMMANDS.find(function isNamed(name,) {
-    return name === argv[0];
-  },);
-  if (command === undefined) {
-    throw new GuidedStopError({
-      status: EXIT_PRECONDITION,
-      message: USAGE,
-    },);
-  }
-  return {
-    command,
-    dryRun: argv.includes('--dry-run',),
-    redo: valuesOf({
-      argv,
-      name: 'redo',
-    },),
-    asserted: valuesOf({
-      argv,
-      name: 'assert',
-    },),
-  };
-}
-
-/**
- Prints the progress of one phase.
+ Builds the text that says what a phase completed.
 
  @param config - the configuration
- 
+
  @param phase - the phase
- 
+
+ @returns the text, ending in a newline
+ */
+async function progressText(
+  {
+    config,
+    phase,
+  }: {
+    readonly config: GuidedConfig;
+    readonly phase: string;
+  },
+): Promise<string> {
+  /**
+   The lines of text this step works on.
+   */
+  const lines = await listProgress({
+    config,
+    phase,
+  },);
+  return lines.length === 0
+    ? `Nothing in phase ${phase} has completed yet.\n`
+    : `Completed so far (phase ${phase}):\n${
+      lines.map(function indent(line,) {
+        return `  - ${line}`;
+      },)
+        .join('\n',)
+    }\n`;
+}
+
+/**
+ Prints what a phase completed.
+
+ @param config - the configuration
+
+ @param phase - the phase
+
  @param out - the output
  */
 async function printProgress(
@@ -152,23 +97,10 @@ async function printProgress(
     readonly out: (text: string,) => void;
   },
 ): Promise<void> {
-  /**
-   The lines of text this step works on.
-   */
-  const lines = await listProgress({
+  out(await progressText({
     config,
     phase,
-  },);
-  out(
-    lines.length === 0
-      ? `Nothing in phase ${phase} has completed yet.\n`
-      : `Completed so far (phase ${phase}):\n${
-        lines.map(function indent(line,) {
-          return `  - ${line}`;
-        },)
-          .join('\n',)
-      }\n`,
-  );
+  },),);
 }
 
 /**
@@ -275,6 +207,45 @@ async function thawAftermath(
 }
 
 /**
+ Says whether the old tree may be deleted: after the swap it stays until the checksum verification of the final copies is
+ recorded done.
+
+ @param config - the configuration
+
+ @param out - the output
+ */
+async function printOldCopyGate(
+  {
+    config,
+    out,
+  }: {
+    readonly config: GuidedConfig;
+    readonly out: (text: string,) => void;
+  },
+): Promise<void> {
+  if (!await pathExists(join(
+    config.wiz,
+    'swap-timestamp',
+  ),)) {
+    return;
+  }
+  /**
+   Whether the checksum verification of the final copies is recorded done.
+   */
+  const verified = await pathExists(join(
+    config.wiz,
+    'done',
+    'cutover',
+    'c22-verify-final-checksum',
+  ),);
+  out(
+    verified
+      ? 'The checksum verification of the final copies is done: the old tree kept for the rollback may be deleted by you.\n'
+      : 'DO NOT DELETE the old tree kept for the rollback (the .nvme-before-860 folders): stage c22-verify-final-checksum is not done.\n',
+  );
+}
+
+/**
  Prints the state of every phase.
 
  @param config - the configuration
@@ -291,18 +262,25 @@ async function printStatus(
   },
 ): Promise<void> {
   out(`State folder: ${config.wiz}\n`,);
-  for (const phase of [
-    'prepare',
-    'cutover',
-    'thaw',
-    'rollback',
-  ]) {
-    await printProgress({
-      config,
-      phase,
-      out,
-    },);
+  for (
+    const text of await Promise.all([
+      'prepare',
+      'cutover',
+      'thaw',
+      'rollback',
+    ].map(async function textOf(phase,) {
+      return await progressText({
+        config,
+        phase,
+      },);
+    },),)
+  ) {
+    out(text,);
   }
+  await printOldCopyGate({
+    config,
+    out,
+  },);
   if (await windowRunning(config,)) {
     out(`window running; remaining ${String(await windowRemaining(config,),)} s\n`,);
   }
@@ -383,6 +361,17 @@ export async function runGuided(
       },);
       return 0;
     }
+    /**
+     The stages of the command, built before anything runs so a flag naming a stage that does not exist is refused.
+     */
+    const stages = await stagesFor({
+      config,
+      flags,
+    },);
+    requireKnownStages({
+      stages,
+      flags,
+    },);
     if (!flags.dryRun) {
       await requirePreconditions({
         config,
@@ -402,10 +391,7 @@ export async function runGuided(
       config,
       flags,
       phase: flags.command,
-      stages: await stagesFor({
-        config,
-        flags,
-      },),
+      stages,
       restage: async function restage() {
         return await stagesFor({
           config,

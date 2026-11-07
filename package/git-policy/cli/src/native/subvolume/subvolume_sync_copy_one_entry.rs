@@ -1,8 +1,13 @@
 //! What:
-//!  The copying of one source entry (a file, a symbolic link or a named pipe) into the destination, as methods of `Pass`.
+//!  The copying of one source entry (a file,
+//! a symbolic link or a named pipe) into the destination,
+//! as methods of `Pass`.
 //! Why:
-//!  The walk in `subvolume_sync.rs` decides what to copy; this file does the copying of one entry, with the recopy loop for
-//!  a file that changes under the copy and the link bookkeeping for files with several names. It depends on the shared pieces
+//!  The walk in `subvolume_sync.rs` decides what to copy;
+//! this file does the copying of one entry,
+//! with the recopy loop for
+//!  a file that changes under the copy and the link bookkeeping for files with several names.
+//! It depends on the shared pieces
 //!  in `subvolume_sync_pass_state_and_checks.rs` and nothing from the walk's file.
 //!
 //! In TS you'd write (pseudocode):
@@ -77,7 +82,8 @@ impl Pass<'_> {
         return Ok(());
     }
 
-    /// Whether the destination file is one of the recorded copies of this source file, or none is recorded yet.
+    /// Whether the destination file is one of the recorded copies of this source file,
+    /// or none is recorded yet.
     pub(crate) fn is_linked_as_recorded(&self, key: (u64, u64), found: &Metadata) -> bool {
         let Some(copies) = self.links.get(&key) else { return true };
         for copy in copies {
@@ -105,7 +111,8 @@ impl Pass<'_> {
         }
     }
 
-    /// Try to make the destination another name of an earlier copy. True when it was done.
+    /// Try to make the destination another name of an earlier copy.
+    /// True when it was done.
     pub(crate) fn link_to_earlier_copy(&mut self, directory: &Directory, relative: &Path, key: (u64, u64), existing: Option<&Metadata>) -> Result<bool, MigrateError> {
         for copy in self.links.get(&key).cloned().unwrap_or_default() {
             let Ok(earlier) = Anchor::open_below(self.destination, copy.parent().unwrap_or(Path::new(""))) else { continue };

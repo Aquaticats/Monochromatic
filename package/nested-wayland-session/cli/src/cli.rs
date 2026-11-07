@@ -25,6 +25,26 @@ use crate::screen_geometry::OutputScale;
 /// The device choice produced by the `--gpu` value parser.
 use crate::gpu_choice::GpuChoice;
 
+/// Whether a character may appear in a systemd size such as `4G`,
+/// `512M`,
+/// `50%` or `infinity`.
+///
+/// What:
+///      `fn is_size_character(character: char) -> bool`.
+///  `true` for a letter,
+///  a digit,
+///  `.` or `%`.
+/// Why:
+///       `str::chars().all` takes it by path instead of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSizeCharacter = (c: string): boolean => /[A-Za-z0-9.%]/.test(c);
+/// ```
+fn is_size_character(character: char) -> bool {
+    return character.is_ascii_alphanumeric() || character == '.' || character == '%'
+}
+
 /// Parse arguments excluding the executable name without starting application work.
 ///
 /// What:
@@ -136,7 +156,7 @@ pub fn parse_args(args: &[String]) -> Result<Config> {
     // if (appMemoryMax !== undefined && !/^[A-Za-z0-9.%]+$/.test(appMemoryMax)) throw new Error(`--app-memory-max ...`);
     // ```
     if let Some(text) = &app_memory_max
-        && !text.chars().all(|character| return character.is_ascii_alphanumeric() || character == '.' || character == '%')
+        && !text.chars().all(is_size_character)
     {
         anyhow::bail!("--app-memory-max {text:?} is not a systemd size such as 4G, 512M, 50% or infinity");
     }

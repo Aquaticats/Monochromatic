@@ -18,14 +18,23 @@
 //! worker.onmessage = (m) => m.kind === "query" ? answer(m) : scheduleRefresh();
 //! ```
 
+/// Imports the atomic flag,
+/// counter and ordering that signal the workers.
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+/// Imports the channel ends and errors through which the worker takes requests.
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, TryRecvError};
+/// Imports the shared ownership and lock types that guard the index.
 use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockError};
+/// Imports the thread module that runs the workers.
 use std::thread;
+/// Imports the duration and instant types that schedule refreshes and warm-ups.
 use std::time::{Duration, Instant};
 
+/// Imports the index that the workers query.
 use crate::search_index::SearchIndex;
+/// Imports the warm-up of the single-character answers.
 use crate::search_index_top::warm_characters;
+/// Imports the search state that an answer carries.
 use crate::search_results::SearchState;
 
 /// What:
@@ -94,7 +103,12 @@ pub struct SearchAnswer {
 /// refresh signals and stop all arrive on one queue so the worker can coalesce them.
 pub(crate) enum Request {
     /// A new query with its sequence number.
-    Query(u64, String),
+    Query(
+        /// Sequence number of the query.
+        u64,
+        /// The text that was typed.
+        String,
+    ),
     /// Tracks were appended or the scan finished.
     Refresh,
     /// Stop the worker.

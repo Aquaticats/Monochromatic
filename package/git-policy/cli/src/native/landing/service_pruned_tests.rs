@@ -11,8 +11,11 @@ fn failure(code: EngineFailureCode, message: &str) -> PolicyEvent {
     return PolicyEvent::EngineFailure { code, hint: crate::policy_events::EngineFailureHint::OfCode, message: message.to_string(), trigger: None, policy: None, path: None };
 }
 
-/// The failure a policy raises for a missing object is the removed-content signal; the same code with another cause, and
-///  other codes, are not.
+/// The failure a policy raises for a missing object is the removed-content signal;
+/// the same code with another cause,
+/// and
+///  other codes,
+/// are not.
 #[test]
 fn only_a_missing_object_is_removed_content() {
     let missing: String = format!("{OBJECT_MISSING_PREFIX}{NAME}. Run `git fsck` to check the object store.");
@@ -60,7 +63,8 @@ fn a_named_object_is_missing_once_its_loose_file_is_gone() {
     remove(root.as_path());
 }
 
-/// Each numbered phase file answers one occurrence: the marker counts how often the phase was reached.
+/// Each numbered phase file answers one occurrence:
+/// the marker counts how often the phase was reached.
 #[test]
 fn the_service_phases_are_numbered_by_occurrence() {
     let before: u64 = STAGED_REACHED.load(Ordering::SeqCst);
@@ -70,7 +74,9 @@ fn the_service_phases_are_numbered_by_occurrence() {
     assert_eq!(STAGED_REACHED.load(Ordering::SeqCst), before + 2);
 }
 
-/// A fixture repository holding `d/a.txt`, its trees, and an amendment-shaped request that names only the root tree.
+/// A fixture repository holding `d/a.txt`,
+/// its trees,
+/// and an amendment-shaped request that names only the root tree.
 struct TreeFixture {
     root: PathBuf,
     blob: String,
@@ -99,8 +105,10 @@ fn remove_loose(root: &Path, name: &str) {
     std::fs::remove_file(root.join(".git").join("objects").join(&name[..2]).join(&name[2..])).expect("the object is loose");
 }
 
-/// An amendment that embeds a whole tree is intact only while every blob and tree below it is: a blob removed from under a
-///  surviving tree is removed content, found before the branch moves.
+/// An amendment that embeds a whole tree is intact only while every blob and tree below it is:
+/// a blob removed from under a
+///  surviving tree is removed content,
+/// found before the branch moves.
 #[test]
 fn a_blob_removed_from_under_an_embedded_tree_is_removed_content() {
     let fixed = tree_fixture("pruned-tree-blob");
@@ -126,7 +134,9 @@ fn a_subtree_removed_from_under_an_embedded_tree_is_removed_content() {
 /// How many files the shared tree of the batch tests holds below its directory.
 const SHARED_FILES: usize = 12;
 
-/// A repository whose root tree holds a directory of `SHARED_FILES` files, with the root tree, and a second root tree that
+/// A repository whose root tree holds a directory of `SHARED_FILES` files,
+/// with the root tree,
+/// and a second root tree that
 /// shares that directory and adds one file of its own.
 struct SharedTrees {
     root: PathBuf,
@@ -157,7 +167,8 @@ fn walk_of(fixed: &SharedTrees, roots: &[&str], budget: usize) -> ClosureWalk {
     return walk_tree_closures(&database, roots, ObjectFormat::Sha1, budget);
 }
 
-/// A tree that every request of a batch embeds is walked once: the work of a batch of identical roots is the work of one.
+/// A tree that every request of a batch embeds is walked once:
+/// the work of a batch of identical roots is the work of one.
 #[test]
 fn requests_that_share_a_tree_walk_it_once() {
     let fixed = shared_trees("pruned-batch-shared");
@@ -169,7 +180,8 @@ fn requests_that_share_a_tree_walk_it_once() {
     remove(fixed.root.as_path());
 }
 
-/// Two roots that share a directory cost less together than apart, because the shared directory is walked once.
+/// Two roots that share a directory cost less together than apart,
+/// because the shared directory is walked once.
 #[test]
 fn roots_that_share_a_subtree_cost_less_together_than_apart() {
     let fixed = shared_trees("pruned-batch-subtree");
@@ -181,7 +193,8 @@ fn roots_that_share_a_subtree_cost_less_together_than_apart() {
     remove(fixed.root.as_path());
 }
 
-/// Sharing what was examined never hides a loss: a blob only the second root lists is found missing after the first root
+/// Sharing what was examined never hides a loss:
+/// a blob only the second root lists is found missing after the first root
 /// was found intact.
 #[test]
 fn a_loss_below_the_second_root_of_a_batch_is_found() {
@@ -199,8 +212,12 @@ fn a_loss_below_the_second_root_of_a_batch_is_found() {
     remove(fixed.root.as_path());
 }
 
-/// The budget counts every tree and entry examined: exactly the work of the walk is allowed, one unit less is not, and the
-/// walk then says it does not know instead of answering that something is missing. Past the budget it examines nothing more.
+/// The budget counts every tree and entry examined:
+/// exactly the work of the walk is allowed,
+/// one unit less is not,
+/// and the
+/// walk then says it does not know instead of answering that something is missing.
+/// Past the budget it examines nothing more.
 #[test]
 fn a_walk_over_its_budget_says_it_does_not_know() {
     let fixed = shared_trees("pruned-batch-budget");
@@ -212,7 +229,8 @@ fn a_walk_over_its_budget_says_it_does_not_know() {
     remove(fixed.root.as_path());
 }
 
-/// A submodule commit below the embedded tree lives in another repository, so its absence here is not removed content.
+/// A submodule commit below the embedded tree lives in another repository,
+/// so its absence here is not removed content.
 #[test]
 fn a_submodule_entry_below_an_embedded_tree_is_not_removed_content() {
     let fixed = tree_fixture("pruned-tree-gitlink");

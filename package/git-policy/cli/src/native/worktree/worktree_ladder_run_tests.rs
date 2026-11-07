@@ -1,5 +1,9 @@
-//! Controls for the choice of rung: a plan on an eligible source claims a stage and runs Git without a checkout; a plan on
-//!  any other source prepares an empty subvolume; no plan prepares nothing; and a failed Git is settled quietly.
+//! Controls for the choice of rung:
+//! a plan on an eligible source claims a stage and runs Git without a checkout;
+//! a plan on
+//!  any other source prepares an empty subvolume;
+//! no plan prepares nothing;
+//! and a failed Git is settled quietly.
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
@@ -8,7 +12,8 @@ use crate::test_support::{git_context, remove, repository};
 use crate::worktree_copy_stage_claim::stage_claims_exist;
 use crate::worktree_ladder_test_support::{main_identity, plan_to, subvolume_repository};
 
-/// A failed Git run, as the lifecycle reports it.
+/// A failed Git run,
+/// as the lifecycle reports it.
 const FAILED: GitStatus = GitStatus { code: Some(128) };
 
 /// A runner that must not be called.
@@ -26,7 +31,8 @@ fn no_plan_means_the_persons_run() {
     assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None });
 }
 
-/// A source that cannot be snapshotted gets an empty subvolume at the destination, removed again when Git failed.
+/// A source that cannot be snapshotted gets an empty subvolume at the destination,
+/// removed again when Git failed.
 #[test]
 fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of() {
     let Some(root) = btrfs_fixture("run-bootstrap") else { return };
@@ -44,7 +50,9 @@ fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of(
     remove(root.as_path());
 }
 
-/// A clean source that is an ordinary directory gets the clone rung: Git runs without a checkout, into an empty subvolume.
+/// A clean source that is an ordinary directory gets the clone rung:
+/// Git runs without a checkout,
+/// into an empty subvolume.
 #[test]
 fn btrfs_a_clean_ordinary_source_gets_the_clone_rung_and_a_subvolume() {
     let Some(root) = btrfs_fixture("run-clone") else { return };
@@ -63,7 +71,8 @@ fn btrfs_a_clean_ordinary_source_gets_the_clone_rung_and_a_subvolume() {
     remove(root.as_path());
 }
 
-/// An eligible source claims its stage name and runs Git without a checkout; a failed Git releases the claim and leaves
+/// An eligible source claims its stage name and runs Git without a checkout;
+/// a failed Git releases the claim and leaves
 ///  the destination as Git left it.
 #[test]
 fn btrfs_an_eligible_source_runs_git_without_a_checkout_and_a_failure_releases_the_claim() {
@@ -109,8 +118,11 @@ fn btrfs_a_dirty_subvolume_source_is_snapshotted_and_a_merging_one_keeps_its_rea
     remove(root.as_path());
 }
 
-/// A stage is destroyed only while the name still holds the object this process made: another directory at the name, and a
-///  stage that was never identified, are left in place.
+/// A stage is destroyed only while the name still holds the object this process made:
+/// another directory at the name,
+/// and a
+///  stage that was never identified,
+/// are left in place.
 #[test]
 fn btrfs_a_stage_is_discarded_only_while_it_is_the_one_that_was_made() {
     let Some(root) = btrfs_fixture("run-discard-identity") else { return };

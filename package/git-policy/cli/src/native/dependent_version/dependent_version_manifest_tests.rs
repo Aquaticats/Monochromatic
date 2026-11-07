@@ -1,13 +1,18 @@
-//! What: Strict decoding, strict JSON and fact extraction, with every case of
+//! What:
+//! Strict decoding,
+//! strict JSON and fact extraction,
+//! with every case of
 //!       `manifest-text.unit.test.ts` for `readManifestDependencyFacts`.
-//! Why: The planner must accept exactly what `JSON.parse` accepts and read the same facts.
+//! Why:
+//! The planner must accept exactly what `JSON.parse` accepts and read the same facts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect(readManifestDependencyFacts({ path, text })).toEqual({ name, version, ... });
 //! ```
 
-/// The reader, the decoder and the failure type.
+/// The reader,
+/// the decoder and the failure type.
 use super::{ManifestFacts, read_manifest_facts, shape, strict_text};
 use crate::dependent_version_content::PolicyIncomplete;
 
@@ -66,7 +71,11 @@ fn decodes_strict_utf8_without_one_byte_order_mark() {
     );
 }
 
-/// Ported: name, version, runtime fields in order, and development names.
+/// Ported:
+/// name,
+/// version,
+/// runtime fields in order,
+/// and development names.
 #[test]
 fn reads_name_version_runtime_fields_in_order_and_development_names() {
     assert_eq!(
@@ -82,7 +91,8 @@ fn reads_name_version_runtime_fields_in_order_and_development_names() {
     );
 }
 
-/// Ported: an absent version is omitted and non-object dependency fields are empty.
+/// Ported:
+/// an absent version is omitted and non-object dependency fields are empty.
 #[test]
 fn omits_an_absent_version_and_reads_non_object_fields_as_empty() {
     assert_eq!(
@@ -96,7 +106,10 @@ fn omits_an_absent_version_and_reads_non_object_fields_as_empty() {
     );
 }
 
-/// Ported: a manifest that is not an object, has no string name, or a non-string version.
+/// Ported:
+/// a manifest that is not an object,
+/// has no string name,
+/// or a non-string version.
 #[test]
 fn rejects_the_incumbent_shapes() {
     assert_eq!(failure("[]"), shape(PATH, "is not a JSON object"));
@@ -125,7 +138,9 @@ fn rejects_the_incumbent_shapes() {
     );
 }
 
-/// A scalar root is JSON, so it fails as a shape, as under `JSON.parse`.
+/// A scalar root is JSON,
+/// so it fails as a shape,
+/// as under `JSON.parse`.
 #[test]
 fn reads_a_scalar_root_as_a_shape_problem() {
     assert_eq!(failure("\"x\""), shape(PATH, "is not a JSON object"));
@@ -133,7 +148,9 @@ fn reads_a_scalar_root_as_a_shape_problem() {
     assert_eq!(failure("null"), shape(PATH, "is not a JSON object"));
 }
 
-/// Comments and trailing commas, which JSONC allows and JSON does not, are refused.
+/// Comments and trailing commas,
+/// which JSONC allows and JSON does not,
+/// are refused.
 #[test]
 fn refuses_comments_and_trailing_commas() {
     assert_eq!(
@@ -162,7 +179,10 @@ fn refuses_comments_and_trailing_commas() {
     );
 }
 
-/// Slashes and commas inside strings, also after escaped quotes, are text, not syntax.
+/// Slashes and commas inside strings,
+/// also after escaped quotes,
+/// are text,
+/// not syntax.
 #[test]
 fn reads_slashes_and_commas_inside_strings_as_text() {
     assert_eq!(facts(r#"{"name":"a/b,}"}"#).name, "a/b,}");
@@ -197,7 +217,8 @@ fn refuses_text_that_is_not_one_value() {
     ));
 }
 
-/// The last duplicate of a key wins, as under `JSON.parse`.
+/// The last duplicate of a key wins,
+/// as under `JSON.parse`.
 #[test]
 fn takes_the_last_duplicate_key() {
     let read: ManifestFacts = facts(
@@ -222,7 +243,10 @@ fn keeps_dependency_names_unique_within_a_field() {
     assert_eq!(read.dev_dependency_names, names(&["d"]));
 }
 
-/// Escaped unpaired surrogates: refused in the name, dropped in dependency keys, kept in
+/// Escaped unpaired surrogates:
+/// refused in the name,
+/// dropped in dependency keys,
+/// kept in
 /// the version.
 #[test]
 fn handles_unpaired_surrogates_by_field() {

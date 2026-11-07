@@ -14,7 +14,9 @@
 /// The three-way merge by line and by word that resolves a conflict Git's line merge reports.
 pub mod word_merge;
 
-/// The conflicted files a merge left, which of them the word pass may re-merge, and the lines that list each merged part.
+/// The conflicted files a merge left,
+/// which of them the word pass may re-merge,
+/// and the lines that list each merged part.
 pub mod merge_second_pass;
 
 /// The conflicted files of a merge tree and the reading of `git merge-tree` output into conflicts.
@@ -23,19 +25,25 @@ pub mod merge_second_pass_conflicts;
 /// How the word-level second pass starts Git.
 pub mod merge_second_pass_git_runner;
 
-/// The word-level second pass for merges computed from objects, and the attribute tree those merges read.
+/// The word-level second pass for merges computed from objects,
+/// and the attribute tree those merges read.
 pub mod merge_second_pass_tree;
 
-/// The word-level second pass after a forwarded merge, rebase, cherry-pick or revert that Git stopped with a conflict.
+/// The word-level second pass after a forwarded merge,
+/// rebase,
+/// cherry-pick or revert that Git stopped with a conflict.
 pub mod merge_second_pass_worktree;
 
-/// The finish of a stopped operation, like a clean run, after the second pass resolved every conflicted file.
+/// The finish of a stopped operation,
+/// like a clean run,
+/// after the second pass resolved every conflicted file.
 pub mod merge_second_pass_finish;
 
 /// Which options make the finish of a stopped operation stop where Git would stop.
 pub mod merge_second_pass_finish_stops;
 
-/// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
+/// The `git merge` command lines the wrapper completes in isolation,
+/// and those it leaves to native Git.
 pub mod merge_options;
 
 /// The settling of an isolated merge whose branch moved while it was prepared or applied.
@@ -56,7 +64,8 @@ pub mod merge_isolation_recovery_steps;
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 
-/// A pull that merges, read as its fetch and its merge of `FETCH_HEAD`.
+/// A pull that merges,
+/// read as its fetch and its merge of `FETCH_HEAD`.
 pub mod pull_isolation;
 
 /// The refusal findings of an isolated merge.
@@ -65,7 +74,9 @@ pub mod merge_isolation_report;
 /// A true merge completed in isolation while the index holds staged changes.
 pub mod merge_isolation;
 
-/// The writing half of an isolated merge: the merge tree, the commit and the two-way update.
+/// The writing half of an isolated merge:
+/// the merge tree,
+/// the commit and the two-way update.
 pub mod merge_isolation_apply;
 
 /// The questions an isolated merge asks Git and the terminal.

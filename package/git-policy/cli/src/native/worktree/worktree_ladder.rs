@@ -1,10 +1,18 @@
 //! What:
-//!  The cheap-worktree ladder around one `git worktree add`: what runs before real Git and after it, on Linux; on other
+//!  The cheap-worktree ladder around one `git worktree add`:
+//! what runs before real Git and after it,
+//! on Linux;
+//! on other
 //!  systems the ladder does nothing and Git's own checkout stands.
 //! Why:
-//!  `doc/planning/cli-git-btrfs-worktree.md` designs the ladder and measures it: a snapshot of a clean subvolume
-//!  worktree, then clones of its tracked files, then Git's own checkout. The lifecycle of the copy
-//!  (`worktree_copy.rs`) calls this one module, so the rungs stay out of its settlement and recovery code.
+//!  `doc/planning/cli-git-btrfs-worktree.md` designs the ladder and measures it:
+//! a snapshot of a clean subvolume
+//!  worktree,
+//! then clones of its tracked files,
+//! then Git's own checkout.
+//! The lifecycle of the copy
+//!  (`worktree_copy.rs`) calls this one module,
+//! so the rungs stay out of its settlement and recovery code.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,9 +25,11 @@
 pub use crate::worktree_ladder_run::{Ladder, LadderResult, begin_ladder};
 
 /// What:
-///  The ladder on a system without btrfs subvolumes and snapshots: nothing is prepared and nothing is settled.
+///  The ladder on a system without btrfs subvolumes and snapshots:
+/// nothing is prepared and nothing is settled.
 /// Why:
-///   Git's own checkout stands there, and the lifecycle calls the same four names.
+///   Git's own checkout stands there,
+/// and the lifecycle calls the same four names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

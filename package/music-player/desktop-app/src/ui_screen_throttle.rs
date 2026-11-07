@@ -18,12 +18,18 @@
 //! const projectSoon = throttle(project, 250);
 //! ```
 
+/// Imports the cell that holds the time of the last projection.
 use std::cell::Cell;
+/// Imports the duration and instant types that space the projections.
 use std::time::{Duration, Instant};
 
+/// Imports the component handle,
+/// the timer and its mode that run the delayed projection.
 use slint::{ComponentHandle, Timer, TimerMode};
 
+/// Imports the window that is projected.
 use crate::AppWindow;
+/// Imports the projection that the throttle schedules.
 use crate::ui_screen::project;
 
 /// What:

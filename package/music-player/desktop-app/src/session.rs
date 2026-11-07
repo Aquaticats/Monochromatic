@@ -431,6 +431,7 @@ fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// or a power loss after the
 /// rename could leave the new name on an empty file.
 fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    /// Imports the write trait that the synced file write needs.
     use std::io::Write;
     let mut file = std::fs::File::create(path)?;
     file.write_all(bytes)?;

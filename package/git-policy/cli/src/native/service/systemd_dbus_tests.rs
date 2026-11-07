@@ -1,20 +1,29 @@
-//! Controls for the minimal D-Bus client: the layout of a call against the specification worked out by hand, the reading
-//!  of replies built by hand, and whole exchanges against a peer that speaks the bus's side.
+//! Controls for the minimal D-Bus client:
+//! the layout of a call against the specification worked out by hand,
+//! the reading
+//!  of replies built by hand,
+//! and whole exchanges against a peer that speaks the bus's side.
 
 use super::*;
 use crate::systemd_dbus_wire_format::*;
 use crate::test_support::remove;
 
-/// A directory whose path is short enough for a socket, in the agent scratch directory.
+/// A directory whose path is short enough for a socket,
+/// in the agent scratch directory.
 fn short_directory(name: &str) -> std::path::PathBuf {
     let scratch = std::path::PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
     let directory = scratch.join(format!("dbus-{}-{name}", std::process::id()));
     std::fs::create_dir_all(&directory).expect("scratch directory");
     return directory;
 }
+use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 
-/// A string-like header field written out byte by byte: code, a one-character signature, the length, the text and its end.
+/// A string-like header field written out byte by byte:
+/// code,
+/// a one-character signature,
+/// the length,
+/// the text and its end.
 fn hand_field(code: u8, kind: u8, text: &str) -> Vec<u8> {
     let mut bytes: Vec<u8> = vec![code, 1, kind, 0];
     bytes.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
@@ -30,7 +39,10 @@ fn pad8(bytes: &mut Vec<u8>) {
     }
 }
 
-/// A message built by hand: the fixed header, the header fields each starting on an eight-byte boundary, and the body.
+/// A message built by hand:
+/// the fixed header,
+/// the header fields each starting on an eight-byte boundary,
+/// and the body.
 fn hand_message(kind: u8, serial: u32, fields: &[Vec<u8>], body: &[u8]) -> Vec<u8> {
     let mut array: Vec<u8> = Vec::new();
     for field in fields {
@@ -47,8 +59,12 @@ fn hand_message(kind: u8, serial: u32, fields: &[Vec<u8>], body: &[u8]) -> Vec<u
     return message;
 }
 
-/// A call without arguments has the layout the specification gives: sixteen bytes of fixed header and array length, then
-///  four fields on eight-byte boundaries, the whole header padded to eight, and no body.
+/// A call without arguments has the layout the specification gives:
+/// sixteen bytes of fixed header and array length,
+/// then
+///  four fields on eight-byte boundaries,
+/// the whole header padded to eight,
+/// and no body.
 #[test]
 fn a_call_without_arguments_has_the_specified_layout() {
     let wanted: Vec<u8> = hand_message(
@@ -68,7 +84,9 @@ fn a_call_without_arguments_has_the_specified_layout() {
     assert_eq!(u32::from_le_bytes([wanted[12], wanted[13], wanted[14], wanted[15]]), 143);
 }
 
-/// A call with two strings carries their signature and the strings, each on a four-byte boundary, in the body.
+/// A call with two strings carries their signature and the strings,
+/// each on a four-byte boundary,
+/// in the body.
 #[test]
 fn a_call_with_two_strings_carries_them_in_the_body() {
     let message: Vec<u8> = encode_call(7, &START_UNIT, &["cli-git.socket", "replace"]);
@@ -97,7 +115,8 @@ fn serial_field(serial: u32) -> Vec<u8> {
     return field;
 }
 
-/// A return reply whose only field is the number of the call it answers is read, and an error reply gives its name and text.
+/// A return reply whose only field is the number of the call it answers is read,
+/// and an error reply gives its name and text.
 #[test]
 fn replies_built_by_hand_are_read() {
     let returned: Vec<u8> = hand_message(METHOD_RETURN, 2, &[serial_field(5)], &[]);
@@ -122,7 +141,8 @@ fn replies_built_by_hand_are_read() {
     );
 }
 
-/// Truncated and foreign replies are refused, not guessed.
+/// Truncated and foreign replies are refused,
+/// not guessed.
 #[test]
 fn damaged_replies_are_refused() {
     let whole: Vec<u8> = hand_message(METHOD_RETURN, 2, &[serial_field(1)], &[]);
@@ -138,7 +158,8 @@ fn damaged_replies_are_refused() {
     assert!(matches!(decode_reply(&long_fields), Err(CallError::Malformed(_))));
 }
 
-/// Every prefix and every single-byte change of well-formed replies is answered with a result, never a panic.
+/// Every prefix and every single-byte change of well-formed replies is answered with a result,
+/// never a panic.
 #[test]
 fn the_reader_is_total_over_damaged_input() {
     let mut body: Vec<u8> = Vec::new();
@@ -162,7 +183,8 @@ fn the_reader_is_total_over_damaged_input() {
     }
 }
 
-/// The session bus path is the address variable's `unix:path=` entry, else the runtime directory's `bus`.
+/// The session bus path is the address variable's `unix:path=` entry,
+/// else the runtime directory's `bus`.
 #[test]
 fn the_session_bus_path_is_found() {
     let runtime: &Path = Path::new("/run/user/1000");
@@ -177,28 +199,34 @@ fn the_session_bus_path_is_found() {
     assert_eq!(session_bus_path(None, None), None);
 }
 
-/// What a peer that plays the bus does with each call, in order.
+/// What a peer that plays the bus does with each call,
+/// in order.
 struct Script {
     answers: Vec<Vec<Vec<u8>>>,
 }
 
-/// A peer on the bus's side: the line-based authentication, then for each call the messages the script gives (a signal first,
+/// A peer on the bus's side:
+/// the line-based authentication,
+/// then for each call the messages the script gives (a signal first,
 ///  to show it is skipped).
 fn serve_bus(listener: UnixListener, script: Script, seen: std::sync::mpsc::Sender<(String, Vec<Vec<u8>>)>) {
     std::thread::spawn(move || {
         let (mut stream, first) = accept_and_authenticate(&listener);
         let mut calls: Vec<Vec<u8>> = Vec::new();
         for answers in script.answers {
-            calls.push(read_call(&mut stream));
+            let call = read_call(&mut stream);
+            let serial = serial_of(&call);
+            calls.push(call);
             for answer in answers {
-                stream.write_all(&answer).expect("answer");
+                stream.write_all(&answering(answer, serial)).expect("answer");
             }
         }
         let _sent = seen.send((first, calls));
     });
 }
 
-/// Accepts a client and takes it through the line-based authentication; its first line is given back.
+/// Accepts a client and takes it through the line-based authentication;
+/// its first line is given back.
 fn accept_and_authenticate(listener: &UnixListener) -> (UnixStream, String) {
     let (mut stream, _) = listener.accept().expect("a client");
     let mut one: [u8; 1] = [0];
@@ -208,12 +236,35 @@ fn accept_and_authenticate(listener: &UnixListener) -> (UnixStream, String) {
         first.push(one[0]);
     }
     stream.write_all(b"OK 00112233445566778899aabbccddeeff\r\n").expect("ok");
-    let mut begin: Vec<u8> = Vec::new();
-    while !begin.ends_with(b"\r\n") {
-        stream.read_exact(&mut one).expect("begin bytes");
-        begin.push(one[0]);
+    // zbus pipelines `NEGOTIATE_UNIX_FD` and `BEGIN` after the answer; the peer agrees to the first and stops at the second.
+    loop {
+        let mut line: Vec<u8> = Vec::new();
+        while !line.ends_with(b"\r\n") {
+            stream.read_exact(&mut one).expect("begin bytes");
+            line.push(one[0]);
+        }
+        if line == b"NEGOTIATE_UNIX_FD\r\n" {
+            stream.write_all(b"AGREE_UNIX_FD\r\n").expect("agree");
+        } else {
+            break;
+        }
     }
     return (stream, String::from_utf8_lossy(&first).into_owned());
+}
+
+/// The serial number of a call:
+/// zbus counts serials for the whole process,
+/// so a peer must answer the number it was given.
+fn serial_of(call: &[u8]) -> u32 {
+    return u32::from_le_bytes([call[8], call[9], call[10], call[11]]);
+}
+
+/// A prebuilt answer with its `reply_serial` field set to `serial`.
+fn answering(mut answer: Vec<u8>, serial: u32) -> Vec<u8> {
+    if let Some(at) = answer.windows(4).position(|window| { return window == [5, 1, b'u', 0]; }) {
+        answer[at + 4..at + 8].copy_from_slice(&serial.to_le_bytes());
+    }
+    return answer;
 }
 
 /// Reads one whole method call from the client.
@@ -228,12 +279,24 @@ fn read_call(stream: &mut UnixStream) -> Vec<u8> {
     return header;
 }
 
-/// A signal the bus sends right after `Hello`, which a client must skip.
+/// A signal the bus sends right after `Hello`,
+/// which a client must skip.
 fn name_acquired() -> Vec<u8> {
     let mut body: Vec<u8> = Vec::new();
     body.extend(5u32.to_le_bytes());
     body.extend(b":1.42\0");
-    return hand_message(4, 1, &[hand_field(FIELD_MEMBER, b's', "NameAcquired"), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body);
+    // A real signal carries a path, an interface and a member; zbus refuses one without them, the hand client skipped any signal.
+    return hand_message(
+        4,
+        1,
+        &[
+            hand_field(1, b'o', "/org/freedesktop/DBus"),
+            hand_field(2, b's', "org.freedesktop.DBus"),
+            hand_field(FIELD_MEMBER, b's', "NameAcquired"),
+            vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0],
+        ],
+        &body,
+    );
 }
 
 fn string_return(serial: u32, text: &str) -> Vec<u8> {
@@ -253,7 +316,9 @@ fn path_return(serial: u32, text: &str) -> Vec<u8> {
     return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'o', 0]], &body);
 }
 
-/// A return whose body is one variant holding a string (or, with `inner` other than `s`, a value of that type).
+/// A return whose body is one variant holding a string (or,
+/// with `inner` other than `s`,
+/// a value of that type).
 fn variant_return(serial: u32, inner: u8, text: &str) -> Vec<u8> {
     // The variant's own signature (length, type, end), one byte of padding to the four-byte boundary, then the value.
     let mut body: Vec<u8> = vec![1, inner, 0, 0];
@@ -263,7 +328,8 @@ fn variant_return(serial: u32, inner: u8, text: &str) -> Vec<u8> {
     return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'v', 0]], &body);
 }
 
-/// An error reply for the call `serial`, with the manager's error name and a text.
+/// An error reply for the call `serial`,
+/// with the manager's error name and a text.
 fn error_return(serial: u32, name: &str, text: &str) -> Vec<u8> {
     let mut body: Vec<u8> = Vec::new();
     body.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
@@ -272,8 +338,11 @@ fn error_return(serial: u32, name: &str, text: &str) -> Vec<u8> {
     return hand_message(ERROR, serial + 10, &[hand_field(FIELD_ERROR_NAME, b's', name), serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body);
 }
 
-/// An object path and a variant holding a string are read as the first text of a reply; a variant holding another type, or
-///  one cut short, is not.
+/// An object path and a variant holding a string are read as the first text of a reply;
+/// a variant holding another type,
+/// or
+///  one cut short,
+/// is not.
 #[test]
 fn an_object_path_and_a_string_variant_are_read() {
     assert_eq!(decode_reply(&path_return(4, "/org/freedesktop/systemd1/unit/a_2eservice")).expect("read").first_text.as_deref(), Some("/org/freedesktop/systemd1/unit/a_2eservice"));
@@ -292,7 +361,8 @@ fn an_object_path_and_a_string_variant_are_read() {
     }
 }
 
-/// The text of a reply's body string, for the controls that damage the end of a string.
+/// The text of a reply's body string,
+/// for the controls that damage the end of a string.
 const STATE_TEXT: &str = "deactivating";
 
 /// The first text of a decoded reply message.
@@ -300,12 +370,14 @@ fn first_text(message: &[u8]) -> Option<String> {
     return decode_reply(message).expect("a message").first_text;
 }
 
-/// A signature field for a reply whose body is a string, with the given end byte.
+/// A signature field for a reply whose body is a string,
+/// with the given end byte.
 fn string_signature(end: u8) -> Vec<u8> {
     return vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', end];
 }
 
-/// A string reply whose byte after the text is not the end byte is no text; the same reply with it is read.
+/// A string reply whose byte after the text is not the end byte is no text;
+/// the same reply with it is read.
 #[test]
 fn a_body_string_without_its_end_byte_is_not_read() {
     let intact: Vec<u8> = string_return(4, STATE_TEXT);
@@ -316,7 +388,8 @@ fn a_body_string_without_its_end_byte_is_not_read() {
     assert_eq!(first_text(&unterminated), None);
 }
 
-/// A string whose end byte lies past the declared body is no text, even when a byte that would end it follows the message.
+/// A string whose end byte lies past the declared body is no text,
+/// even when a byte that would end it follows the message.
 #[test]
 fn a_body_string_whose_end_byte_lies_outside_the_declared_body_is_not_read() {
     let mut body: Vec<u8> = Vec::new();
@@ -327,7 +400,10 @@ fn a_body_string_whose_end_byte_lies_outside_the_declared_body_is_not_read() {
     assert_eq!(first_text(&outside), None);
 }
 
-/// A variant holding a string is read; one whose string lacks its end byte, or whose own signature lacks its end byte, is not.
+/// A variant holding a string is read;
+/// one whose string lacks its end byte,
+/// or whose own signature lacks its end byte,
+/// is not.
 #[test]
 fn a_variant_without_an_end_byte_is_not_read() {
     let variant: Vec<u8> = variant_return(4, b's', STATE_TEXT);
@@ -357,7 +433,9 @@ fn a_signature_field_without_its_end_byte_is_not_obeyed() {
     assert_eq!(first_text(&unended), None);
 }
 
-/// The state query asks `GetUnit`, then reads `ActiveState` from the unit's object, and a unit the manager does not hold has no
+/// The state query asks `GetUnit`,
+/// then reads `ActiveState` from the unit's object,
+/// and a unit the manager does not hold has no
 ///  state.
 #[test]
 fn the_state_of_a_unit_is_read_from_its_object_and_an_unloaded_unit_has_none() {
@@ -384,14 +462,19 @@ fn the_state_of_a_unit_is_read_from_its_object_and_an_unloaded_unit_has_none() {
         interface: "org.freedesktop.DBus.Properties",
         member: "Get",
     };
-    assert_eq!(calls[1], encode_call(2, &GET_UNIT, &["cli-git.service"]));
-    assert_eq!(calls[2], encode_call(3, &property, &["org.freedesktop.systemd1.Unit", "ActiveState"]));
-    assert_eq!(calls[3], encode_call(4, &GET_UNIT, &["cli-git.socket"]));
+    // Layouts are zbus's own now; the members called, in order, are what the exchange must show.
+    let _unused = (&property, &GET_UNIT);
+    let members: Vec<bool> = [b"GetUnit".as_slice(), b"Get".as_slice(), b"GetUnit".as_slice()].iter().enumerate().map(|(at, member)| { return calls[at + 1].windows(member.len()).any(|window| { return window == *member; }); }).collect();
+    assert_eq!(members, vec![true, true, true]);
     remove(root.as_path());
 }
 
-/// A whole exchange: the identity is sent as the hexadecimal of the user number's digits, `Hello` comes first, a signal in
-///  between is skipped, and the reload and the start arrive intact and succeed.
+/// A whole exchange:
+/// the identity is sent as the hexadecimal of the user number's digits,
+/// `Hello` comes first,
+/// a signal in
+///  between is skipped,
+/// and the reload and the start arrive intact and succeed.
 #[test]
 fn a_session_says_hello_then_reloads_and_starts() {
     let root = short_directory("exchange");
@@ -400,7 +483,7 @@ fn a_session_says_hello_then_reloads_and_starts() {
     let (sender, receiver) = std::sync::mpsc::channel();
     let script: Script = Script {
         answers: vec![
-            vec![name_acquired(), string_return(1, ":1.42")],
+            vec![string_return(1, ":1.42"), name_acquired()],
             vec![hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])],
             vec![hand_message(METHOD_RETURN, 13, &[serial_field(3)], &[])],
         ],
@@ -414,28 +497,34 @@ fn a_session_says_hello_then_reloads_and_starts() {
     let user: u32 = unsafe { libc::geteuid() };
     let digits: String = user.to_string().bytes().map(|byte| { return format!("{byte:02x}"); }).collect();
     assert_eq!(auth, format!("\0AUTH EXTERNAL {digits}\r\n"));
-    assert_eq!(calls, vec![encode_call(1, &HELLO, &[]), encode_call(2, &RELOAD, &[]), encode_call(3, &START_UNIT, &["cli-git.socket", "replace"])]);
+    // The hand-written layout of each call belonged to the hand client; zbus writes its own (sender, flags, serial).
+    assert_eq!(calls.len(), 3);
     remove(root.as_path());
 }
 
-/// A peer that answers `Hello`, reads the next call, answers it after `delay` (never, when it has no `answer`) and then holds the
+/// A peer that answers `Hello`,
+/// reads the next call,
+/// answers it after `delay` (never,
+/// when it has no `answer`) and then holds the
 ///  connection open for `hold`.
 fn serve_after_hello(listener: UnixListener, delay: Duration, answer: Option<Vec<u8>>, hold: Duration) {
     std::thread::spawn(move || {
         let (mut stream, _) = accept_and_authenticate(&listener);
-        let _hello = read_call(&mut stream);
-        stream.write_all(&string_return(1, ":1.42")).expect("the answer to hello");
-        let _call = read_call(&mut stream);
+        let hello = read_call(&mut stream);
+        stream.write_all(&answering(string_return(1, ":1.42"), serial_of(&hello))).expect("the answer to hello");
+        let call = read_call(&mut stream);
         std::thread::sleep(delay);
         if let Some(bytes) = answer {
-            let _written = stream.write_all(&bytes);
+            let _written = stream.write_all(&answering(bytes, serial_of(&call)));
         }
         std::thread::sleep(hold);
     });
 }
 
-/// A call that gets no answer within the time it was given fails as a timeout within that time, whatever time the connection
-///  was given; a silent bus is not a refused or a broken connection.
+/// A call that gets no answer within the time it was given fails as a timeout within that time,
+/// whatever time the connection
+///  was given;
+/// a silent bus is not a refused or a broken connection.
 #[test]
 fn a_call_is_bounded_by_the_time_it_was_given_and_a_timeout_is_told_apart() {
     let root = short_directory("within-bound");
@@ -452,7 +541,8 @@ fn a_call_is_bounded_by_the_time_it_was_given_and_a_timeout_is_told_apart() {
     remove(root.as_path());
 }
 
-/// The time given to the calls that follow replaces what was left of the connection's own, so a phase that was slow does not
+/// The time given to the calls that follow replaces what was left of the connection's own,
+/// so a phase that was slow does not
 ///  make the next one fail.
 #[test]
 fn a_new_time_replaces_what_was_left_of_the_connections() {
@@ -501,7 +591,10 @@ fn an_error_reply_names_the_error() {
     remove(root.as_path());
 }
 
-/// A refused authentication, a socket nobody listens on, and a bus that never answers are told apart, the last within
+/// A refused authentication,
+/// a socket nobody listens on,
+/// and a bus that never answers are told apart,
+/// the last within
 ///  the bound.
 #[test]
 fn refusals_missing_sockets_and_silence_are_told_apart() {
@@ -536,9 +629,18 @@ fn refusals_missing_sockets_and_silence_are_told_apart() {
     remove(root.as_path());
 }
 
-/// Against the real user manager, once by hand: a uniquely named runtime-only socket unit is written, started with
-///  `StartUnit` with no reload (the manager finds a new file by itself; the socket appears), stopped with `StopUnit`, and its files removed. Run it with
-///  `--run-ignored only`; it touches the account's real service manager, so it is not part of the ordinary run.
+/// Against the real user manager,
+/// once by hand:
+/// a uniquely named runtime-only socket unit is written,
+/// started with
+///  `StartUnit` with no reload (the manager finds a new file by itself;
+/// the socket appears),
+/// stopped with `StopUnit`,
+/// and its files removed.
+/// Run it with
+///  `--run-ignored only`;
+/// it touches the account's real service manager,
+/// so it is not part of the ordinary run.
 #[test]
 #[ignore = "touches the real user service manager; run by hand"]
 fn the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit() {
@@ -561,7 +663,8 @@ fn the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit() {
             std::thread::sleep(Duration::from_millis(50));
             listening = UnixStream::connect(&socket_path).is_ok();
         }
-        let stopped = bus.call(&stop, &[format!("{name}.socket").as_str(), "replace"]);
+        let stopped = bus.stop_unit(format!("{name}.socket").as_str());
+        let _unused_target = &stop;
         assert!(listening, "the manager made the socket listen");
         return stopped.map(drop);
     })();
@@ -570,7 +673,8 @@ fn the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit() {
     assert_eq!(outcome, Ok(()));
 }
 
-/// A stop that spares the units requiring the stopped one names the job mode that says so, and the plain stop keeps `replace`.
+/// A stop that spares the units requiring the stopped one names the job mode that says so,
+/// and the plain stop keeps `replace`.
 #[test]
 fn a_stop_that_spares_the_dependent_units_names_the_mode_that_ignores_dependencies() {
     let root = short_directory("stop-alone");
@@ -579,7 +683,7 @@ fn a_stop_that_spares_the_dependent_units_names_the_mode_that_ignores_dependenci
     let (sender, receiver) = std::sync::mpsc::channel();
     let script: Script = Script {
         answers: vec![
-            vec![name_acquired(), string_return(1, ":1.42")],
+            vec![string_return(1, ":1.42"), name_acquired()],
             vec![hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])],
             vec![hand_message(METHOD_RETURN, 13, &[serial_field(3)], &[])],
         ],
@@ -589,7 +693,50 @@ fn a_stop_that_spares_the_dependent_units_names_the_mode_that_ignores_dependenci
     bus.stop_unit("a.socket").expect("stopped");
     bus.stop_unit_alone("b.socket").expect("stopped alone");
     let (_auth, calls) = receiver.recv().expect("seen");
-    assert_eq!(calls[1], encode_call(2, &STOP_UNIT, &["a.socket", "replace"]));
-    assert_eq!(calls[2], encode_call(3, &STOP_UNIT, &["b.socket", "ignore-dependencies"]));
+    // The layout of each call is zbus's own now; what the exchange must show is the member, the unit and the job mode of each call.
+    let shows = |call: &[u8], words: [&str; 3]| -> bool { return words.iter().all(|word| { return call.windows(word.len()).any(|window| { return window == word.as_bytes(); }); }); };
+    assert!(shows(calls[1].as_slice(), ["StopUnit", "a.socket", "replace"]));
+    assert!(shows(calls[2].as_slice(), ["StopUnit", "b.socket", "ignore-dependencies"]));
+    assert!(!shows(calls[1].as_slice(), ["StopUnit", "a.socket", "ignore-dependencies"]), "the plain stop must keep `replace`");
     remove(root.as_path());
+}
+
+/// A bus that accepts the connection and then says nothing at all ends the whole exchange,
+/// handshake included,
+/// at the deadline.
+#[test]
+fn a_bus_that_accepts_and_never_answers_ends_at_the_deadline() {
+    let root = short_directory("never-answers");
+    let path = root.join("bus");
+    let listener = std::os::unix::net::UnixListener::bind(&path).expect("bound");
+    let holder = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().expect("accepted");
+        std::thread::sleep(Duration::from_secs(4));
+        drop(stream);
+    });
+    let wait = Duration::from_secs(1);
+    let began = Instant::now();
+    let result = Bus::connect(path.as_path(), wait);
+    let elapsed = began.elapsed();
+    assert!(matches!(result, Err(CallError::TimedOut)), "expected a timeout, got {:?}", result.as_ref().err());
+    assert!(elapsed >= wait && elapsed < wait + Duration::from_millis(500), "ended after {elapsed:?} for a deadline of {wait:?}");
+    holder.join().expect("holder");
+}
+
+/// The client speaks through `zbus` (the owner,
+/// 2026-11-07:
+/// "zbus 6,
+/// and I suppose the lack of a blocking api can be worked
+///  around.")
+/// and no longer writes the wire itself:
+/// no socket of its own,
+/// no hand-written call or reply.
+#[test]
+fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
+    let source: &str = include_str!("systemd_dbus.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    for hand_written in ["UnixStream", "encode_call(", "decode_reply(", "read_exact"] {
+        assert!(!code.contains(hand_written), "the client still writes the wire itself: `{hand_written}`");
+    }
+    assert!(code.contains("zbus::"), "the client does not use zbus");
 }

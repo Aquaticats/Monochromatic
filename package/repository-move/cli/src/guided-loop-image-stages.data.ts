@@ -102,7 +102,7 @@ for name in source dest; do findmnt --noheadings --output SOURCE,TARGET --mountp
     {
       id: 'f2-populate',
       title: 'Fixture: source tree',
-      says: 'Fixture F2: a main checkout that is a subvolume with a Git repository and two worktree subvolumes: a is a snapshot of main (its parent UUID is that of the main checkout, so its send is an increment on the copy of the main checkout) and b is made fresh (no parent, a full send); each shares a 300 MiB extent with its own copy by reflink; the filesystem list is taken with UUIDs and parent UUIDs (list -u -q).',
+      says: 'Fixture F2: a main checkout that is a subvolume with a Git repository and two worktree subvolumes: a is a snapshot of main and b is made fresh; each shares a 300 MiB extent with its own copy by reflink. Then the same inode number is given to a folder in main and a file in a, back to back with no sync, so both fall in one transaction (the 30 s commit may split them, which the check below cannot see): the kernel pairs inodes by number and generation, so a send of a on a snapshot of main would pair them (measured on the first real fixture: link to a directory, Operation not permitted). A send on an empty parent cannot. the filesystem list is taken with UUIDs and parent UUIDs (list -u -q).',
       command: `sudo btrfs subvolume create ${fx}/source/main
 sudo chown ${c.userName}:${c.groupName} ${fx}/source/main
 /usr/bin/git -C ${fx}/source/main init --quiet
@@ -118,6 +118,23 @@ rm --recursive --force ${fx}/source/main/.claude/worktrees/a/.git ${fx}/source/m
 /usr/bin/git -C ${fx}/source/main worktree add --force --quiet ${fx}/source/main/.claude/worktrees/b -b b
 cp --reflink=always ${fx}/source/main/big ${fx}/source/main/.claude/worktrees/a/big.copy
 cp --reflink=always ${fx}/source/main/big ${fx}/source/main/.claude/worktrees/b/big.copy
+mkdir ${fx}/source/main/collide-m0
+main_inode=$(stat --format=%i ${fx}/source/main/collide-m0)
+: > ${fx}/source/main/.claude/worktrees/a/collide-a0
+worktree_inode=$(stat --format=%i ${fx}/source/main/.claude/worktrees/a/collide-a0)
+step=1
+while [ "$main_inode" != "$worktree_inode" ] && [ "$step" -lt 5000 ]; do
+  if [ "$main_inode" -lt "$worktree_inode" ]; then
+    mkdir ${fx}/source/main/collide-m$step
+    main_inode=$(stat --format=%i ${fx}/source/main/collide-m$step)
+  else
+    : > ${fx}/source/main/.claude/worktrees/a/collide-a$step
+    worktree_inode=$(stat --format=%i ${fx}/source/main/.claude/worktrees/a/collide-a$step)
+  fi
+  step=$((step + 1))
+done
+test "$main_inode" = "$worktree_inode"
+echo "inode $main_inode is a folder in main and a file in worktree a"
 sudo btrfs filesystem du --summarize ${fx}/source/main | tee ${fx}/source-baseline.txt
 sudo btrfs subvolume list -u -q ${fx}/source > ${fx}/inventory.txt`,
       check: `test "$(grep --count -E ' uuid [0-9a-f-]+ path (main|(main/)?\\.claude/worktrees/[ab])$' ${fx}/inventory.txt)" = 3`,
@@ -146,8 +163,8 @@ findmnt --noheadings --output SOURCE --mountpoint ${fx}/source`,
       title: 'Fixture F3a: print mode',
       says: 'Fixture F3a: the copy tool in print mode against the fixture. It runs nothing; it proves the inventory path rebuild.',
       command: `${copy} --pass=first ${args} > ${fx}/print-first.txt`,
-      check: `test "$(grep --count '^btrfs subvolume snapshot -r' ${fx}/print-first.txt)" = 3 && grep --fixed-strings 'inventory agrees: 2 nested subvolumes' "$OUTPUT_FILE" && grep --fixed-strings 's001: incremental on s000' "$OUTPUT_FILE" && grep --fixed-strings 's002: full send' "$OUTPUT_FILE"`,
-      checkText: 'three snapshots printed, the inventory agrees with Git (main, a, b), a is an increment on the main copy and b is a full send',
+      check: `test "$(grep --count '^btrfs subvolume snapshot -r' ${fx}/print-first.txt)" = 4 && grep --fixed-strings 'inventory agrees: 2 nested subvolumes' "$OUTPUT_FILE" && grep --fixed-strings 's001: full send on the empty parent' "$OUTPUT_FILE" && grep --fixed-strings 's002: full send on the empty parent' "$OUTPUT_FILE"`,
+      checkText: 'four snapshots printed (the empty parent, main, a, b), the inventory agrees with Git, and every send is on the empty parent',
       rollback: 'nothing ran',
       root: 'no',
       unprivileged: 'not needed: print mode runs as the user',
@@ -163,6 +180,19 @@ findmnt --noheadings --output SOURCE --mountpoint ${fx}/source`,
       timeoutSeconds: timeout,
       root: 'yes',
       unprivileged: 'none for send and receive (they need CAP_SYS_ADMIN); the plan\'s method M2 (unprivileged copy plus per-worktree snapshots) loses extent sharing and is the fallback if the root fixture shows sending does not work',
+    },
+    {
+      id: 'f3b2-verify-first',
+      title: 'Fixture F3b2: verify the first pass',
+      says: 'Fixture F3b2: every first-pass copy against its read-only snapshot with rsync --dry-run, first by path, type, size, time and mode, then by checksum. The nested subvolume folders a snapshot shows empty are the only excused differences.',
+      command: `${rootCopy} --run --pass=verify-first ${args}
+${rootCopy} --run --pass=verify-first --checksum ${args}`,
+      check: `test "$(grep --count 'verify-first finished' "$OUTPUT_FILE")" = 2`,
+      checkText: 'both verifications finished',
+      rollback: 'read-only comparison; nothing changed',
+      timeoutSeconds: timeout,
+      root: 'yes',
+      unprivileged: 'none: the copies and snapshots hold root-readable files only through root, and the fixture copy tool runs as root for send and receive',
     },
     {
       id: 'f3c-change',
@@ -224,14 +254,18 @@ df --block-size=1M ${fx}/source ${fx}/dest`,
       id: 'f5a-deadline',
       title: 'Fixture F5a: deadline',
       says: 'Fixture F5a: a first pass with a one-second per-transfer deadline on fresh folders. It is expected to stop; a copy that finishes inside a second is also accepted, because F5b makes the interrupted case deterministically.',
-      command: `sudo mkdir ${fx}/dest/recv-f5a
-sudo mkdir --parents ${fx}/source/snap-f5a
-sudo chown ${c.userName}:${c.groupName} ${fx}/source/snap-f5a
-mkdir ${fx}/state-f5a
-${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/source/snap-f5a --received=${fx}/dest/recv-f5a --final=${fx}/dest/final-f5a --state=${fx}/state-f5a --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=1 --min-free-gib=1; echo "script exit status: $?"`,
-      check: `grep --extended-regexp 'script exit status: [01]' "$OUTPUT_FILE"`,
-      checkText: 'the run ended with status 0 (finished) or 1 (stopped at the deadline)',
-      rollback: `a partial copy in ${fx}/dest/recv-f5a, if any, goes with the images`,
+      command: `recv=$(sudo mktemp --directory ${fx}/dest/recv-f5a.XXXXXX)
+snap=$(sudo mktemp --directory ${fx}/source/snap-f5a.XXXXXX)
+sudo chown ${c.userName}:${c.groupName} "$snap"
+state=$(mktemp --directory ${fx}/state-f5a.XXXXXX)
+${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots="$snap" --received="$recv" --final=${fx}/dest/final-f5a --state="$state" --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=1 --min-free-gib=1`,
+      okCodes: [
+        0,
+        1,
+      ],
+      check: `grep --extended-regexp 'pass first finished|exited 124' "$OUTPUT_FILE"`,
+      checkText: 'the run finished (status 0) or stopped at the deadline (status 1 with the send exited 124); any other status or message fails the stage',
+      rollback: `fresh folders ${fx}/dest/recv-f5a.*, ${fx}/source/snap-f5a.* and ${fx}/state-f5a.* belong to this run; a partial copy in the first goes with the images, and a rerun makes new folders, so it never meets this run's partial receive`,
       timeoutSeconds: timeout,
       root: 'yes',
       unprivileged: 'none for send and receive',

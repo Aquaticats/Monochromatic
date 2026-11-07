@@ -58,11 +58,15 @@ pub const STAGE: u16 = 8;
 /// `checkout --overlay`,
 ///  `--no-overlay`.
 pub const OVERLAY: u16 = 9;
-/// `-f`/`--force`: throw away local changes.
+/// `-f`/`--force`:
+/// throw away local changes.
 pub const FORCE: u16 = 10;
-/// `switch --discard-changes`: throw away local changes.
+/// `switch --discard-changes`:
+/// throw away local changes.
 pub const DISCARD_CHANGES: u16 = 11;
-/// `--pathspec-from-file`: the paths come from a file, so the command is the path form.
+/// `--pathspec-from-file`:
+/// the paths come from a file,
+/// so the command is the path form.
 pub const PATHSPEC_FROM_FILE: u16 = 12;
 
 /// What:

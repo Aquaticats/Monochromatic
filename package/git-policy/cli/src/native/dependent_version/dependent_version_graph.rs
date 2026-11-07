@@ -1,19 +1,29 @@
-//! What: Walk the workspace dependency graph from the packages whose version was raised and
+//! What:
+//! Walk the workspace dependency graph from the packages whose version was raised and
 //!       plan a patch bump for every publishable package that reaches one of them.
-//! Why: A dependent's published contents change when a dependency it ships with changes,
-//!      so its version must move too. This is the incumbent's closure and filter
-//!      (`dependent-version-bump.ts:183-350`): edges to names outside the workspace and
-//!      self edges are ignored, the walk passes through unpublished packages and cycles,
-//!      and only publishable, versioned, not-yet-raised packages are bumped.
+//! Why:
+//! A dependent's published contents change when a dependency it ships with changes,
+//!      so its version must move too.
+//! This is the incumbent's closure and filter
+//!      (`dependent-version-bump.ts:183-350`):
+//! edges to names outside the workspace and
+//!      self edges are ignored,
+//! the walk passes through unpublished packages and cycles,
+//!      and only publishable,
+//! versioned,
+//! not-yet-raised packages are bumped.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // planDependentBumps({ manifests, bumpedNames, publishableNames });
 //! ```
 
-/// What: `use` brings names from sibling files and the standard library into this file.
+/// What:
+/// `use` brings names from sibling files and the standard library into this file.
 ///       `HashMap`/`HashSet` are hash-based map and set types.
-/// Why:  The plan bumps release versions; edges and visits are looked up by name.
+/// Why:
+///  The plan bumps release versions;
+/// edges and visits are looked up by name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -23,10 +33,15 @@ use crate::dependent_version_release::{ReleaseBump, UnsupportedVersion, patch_bu
 /// Hash-based maps and sets for edges and visits.
 use std::collections::{HashMap, HashSet};
 
-/// What: One workspace package as the walk sees it. `Option<Vec<u16>>` is the version as
-///       JavaScript code units, or nothing.
-/// Why:  Edges are the names this package reaches through runtime fields or bundled
-///       development imports; which ones count is decided before the walk.
+/// What:
+/// One workspace package as the walk sees it.
+/// `Option<Vec<u16>>` is the version as
+///       JavaScript code units,
+/// or nothing.
+/// Why:
+///  Edges are the names this package reaches through runtime fields or bundled
+///       development imports;
+/// which ones count is decided before the walk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -36,7 +51,9 @@ use std::collections::{HashMap, HashSet};
 pub struct WorkspaceNode {
     /// The package name.
     pub name: String,
-    /// The package directory, repository-relative, without a trailing slash.
+    /// The package directory,
+    /// repository-relative,
+    /// without a trailing slash.
     pub directory: Vec<u8>,
     /// The current version.
     pub version: Option<Vec<u16>>,
@@ -44,8 +61,10 @@ pub struct WorkspaceNode {
     pub edge_names: Vec<String>,
 }
 
-/// What: One planned dependent bump.
-/// Why:  The plan turns each into a manifest text edit and a finding.
+/// What:
+/// One planned dependent bump.
+/// Why:
+///  The plan turns each into a manifest text edit and a finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,11 +80,17 @@ pub struct PlannedBump {
     pub bump: ReleaseBump,
 }
 
-/// What: Every package that transitively depends on one of `bumped_names`.
-///       `&[String]` borrows a list of names; the result owns its names.
-/// Why:  The walk keeps a work stack of names whose dependents still need visiting, so it
-///       ends on cycles and never recurses. A raised package reached from another raised
-///       package is in the result; the caller decides what that means.
+/// What:
+/// Every package that transitively depends on one of `bumped_names`.
+///       `&[String]` borrows a list of names;
+/// the result owns its names.
+/// Why:
+///  The walk keeps a work stack of names whose dependents still need visiting,
+/// so it
+///       ends on cycles and never recurses.
+/// A raised package reached from another raised
+///       package is in the result;
+/// the caller decides what that means.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,9 +130,14 @@ pub fn transitive_dependent_names(
     return reached;
 }
 
-/// What: Order names as JavaScript's `<` does, by UTF-16 code units.
-///       `std::cmp::Ordering` is less, equal or greater.
-/// Why:  Rust compares `String`s by UTF-8 bytes, which orders characters above U+FFFF
+/// What:
+/// Order names as JavaScript's `<` does,
+/// by UTF-16 code units.
+///       `std::cmp::Ordering` is less,
+/// equal or greater.
+/// Why:
+///  Rust compares `String`s by UTF-8 bytes,
+/// which orders characters above U+FFFF
 ///       differently from characters between U+E000 and U+FFFF.
 ///
 /// In TS you'd write (pseudocode):
@@ -118,8 +148,12 @@ pub fn utf16_order(left: &str, right: &str) -> std::cmp::Ordering {
     return left.encode_utf16().cmp(right.encode_utf16());
 }
 
-/// What: Order two planned bumps by package name in UTF-16 order, so `sort_by` can take this function by path.
-/// Why:  The plan is sorted by name, and a named function replaces the closure that only called `utf16_order`.
+/// What:
+/// Order two planned bumps by package name in UTF-16 order,
+/// so `sort_by` can take this function by path.
+/// Why:
+///  The plan is sorted by name,
+/// and a named function replaces the closure that only called `utf16_order`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,11 +163,17 @@ fn compare_bumps_by_name(left: &PlannedBump, right: &PlannedBump) -> std::cmp::O
     return utf16_order(&left.name, &right.name);
 }
 
-/// What: The patch bumps for publishable dependents of the raised packages, sorted by name.
-///       `Result<T, UnsupportedVersion>` is the plan, or the first dependent (in node order)
+/// What:
+/// The patch bumps for publishable dependents of the raised packages,
+/// sorted by name.
+///       `Result<T, UnsupportedVersion>` is the plan,
+/// or the first dependent (in node order)
 ///       whose version cannot be bumped automatically.
-/// Why:  Raised packages already moved; a package without a version has nothing to bump;
-///       an unpublished package is never released, though the walk passes through it.
+/// Why:
+///  Raised packages already moved;
+/// a package without a version has nothing to bump;
+///       an unpublished package is never released,
+/// though the walk passes through it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,7 +204,8 @@ pub fn plan_dependent_bumps(
     return Ok(bumps);
 }
 
-/// The closure and plan, including every case of the incumbent's unit tests.
+/// The closure and plan,
+/// including every case of the incumbent's unit tests.
 #[cfg(test)]
 #[path = "dependent_version_graph_tests.rs"]
 mod tests;

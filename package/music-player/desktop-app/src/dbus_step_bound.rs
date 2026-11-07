@@ -24,14 +24,21 @@
 //! which waits for senders and ends
 //! when the connection closes.
 
+/// Imports the future trait that a bounded step drives to completion.
 use std::future::Future;
+/// Imports the I/O error type and its kind that report a step that ran out of time.
 use std::io::{Error as IoError, ErrorKind};
+/// Imports the duration type that bounds each step.
 use std::time::Duration;
 
+/// Imports the connection type that the bounded connect returns.
 use zbus::Connection;
+/// Imports the connection builder that opens a bus connection.
 use zbus::connection::Builder;
+/// Imports the shared runtime on which the synchronous threads drive the async calls.
 use zruntime::SharedRuntime;
 
+/// Imports the method timeout that every bounded call uses.
 use crate::analysis_notification::METHOD_TIMEOUT;
 
 /// What:
@@ -109,6 +116,12 @@ pub(crate) fn connect(builder: Builder<'_>, timeout: Duration) -> zbus::Result<C
     return zbus::block_on(within(timeout, builder.method_timeout(timeout).build()));
 }
 
+/// Unit tests of `dbus_step_bound`,
+/// in the sidecar file `dbus_step_bound_tests.rs`.
+/// Role of the module:
+/// time-bounded D-Bus steps for the synchronous threads of the player,
+/// Linux only.
+/// They run on Linux only.
 #[cfg(all(test, target_os = "linux"))]
 #[path = "dbus_step_bound_tests.rs"]
 mod tests;

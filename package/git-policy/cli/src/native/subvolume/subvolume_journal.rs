@@ -1,14 +1,27 @@
 //! What:
-//!  The journal of a subvolume migration: a small JSON file beside the checkout that records which steps finished,
+//!  The journal of a subvolume migration:
+//! a small JSON file beside the checkout that records which steps finished,
 //!  written atomically after each step.
 //! Why:
-//!  A rerun after a kill at any instant resumes from it: a step marked `done` is skipped, a step marked `started` is
-//!  repeated (every step is idempotent), and a step with no entry has not begun. The file lives in the checkout's
-//!  parent directory (`.cli-git-migrate-<name>.journal.json`), outside the tree that is copied and exchanged, so it
-//!  survives the exchange. It is replaced by writing a sibling file, created exclusively under a name no other file has
-//!  (so nothing planted or left at a fixed name is truncated or followed), and renaming it, so a kill never leaves half a
-//!  journal. The plain files a killed run left under the writer's own temporary names are removed by the next write that
-//!  lands. `serde_json` is already a dependency of the crate.
+//!  A rerun after a kill at any instant resumes from it:
+//! a step marked `done` is skipped,
+//! a step marked `started` is
+//!  repeated (every step is idempotent),
+//! and a step with no entry has not begun.
+//! The file lives in the checkout's
+//!  parent directory (`.cli-git-migrate-<name>.journal.json`),
+//! outside the tree that is copied and exchanged,
+//! so it
+//!  survives the exchange.
+//! It is replaced by writing a sibling file,
+//! created exclusively under a name no other file has
+//!  (so nothing planted or left at a fixed name is truncated or followed),
+//! and renaming it,
+//! so a kill never leaves half a
+//!  journal.
+//! The plain files a killed run left under the writer's own temporary names are removed by the next write that
+//!  lands.
+//! `serde_json` is already a dependency of the crate.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,16 +39,24 @@ use std::path::{Path, PathBuf};
 /// The journal format version this code writes and reads.
 const SCHEMA: u64 = 1;
 
-/// The permissions of the journal: its owner reads and writes it.
+/// The permissions of the journal:
+/// its owner reads and writes it.
 const PRIVATE_FILE_MODE: u32 = 0o600;
 
-/// What follows the journal's file name in the name of a temporary file: releases up to 0.5.20 wrote exactly this suffix, and
+/// What follows the journal's file name in the name of a temporary file:
+/// releases up to 0.5.20 wrote exactly this suffix,
+/// and
 ///  now a process number and a clock reading follow it.
 const TEMPORARY_SUFFIX: &str = ".tmp";
 
 /// What:
-///  Whether `candidate` is a name under which a writer of the journal `journal_name` leaves a temporary file: the journal's
-///  name, `.tmp`, and either nothing (the name of releases up to 0.5.20) or a dot, a process number, a dot and a clock reading.
+///  Whether `candidate` is a name under which a writer of the journal `journal_name` leaves a temporary file:
+/// the journal's
+///  name,
+/// `.tmp`,
+/// and either nothing (the name of releases up to 0.5.20) or a dot,
+/// a process number,
+/// a dot and a clock reading.
 /// Why:
 ///   Any other name beside the journal is not this writer's to remove.
 ///
@@ -56,7 +77,8 @@ fn is_leftover_name(candidate: &[u8], journal_name: &[u8]) -> bool {
     return is_number(process) && is_number(clock) && parts.next().is_none();
 }
 
-/// Whether `byte` is a dot, the separator inside the numbers of a temporary name.
+/// Whether `byte` is a dot,
+/// the separator inside the numbers of a temporary name.
 fn is_dot(byte: &u8) -> bool {
     return *byte == b'.';
 }
@@ -69,12 +91,15 @@ fn is_number(part: Option<&[u8]>) -> bool {
     };
 }
 
-/// The error for a journal file that cannot be understood: it says what is wrong with the file at `path`.
+/// The error for a journal file that cannot be understood:
+/// it says what is wrong with the file at `path`.
 fn broken_journal(path: &Path, why: &str) -> MigrateError {
     return MigrateError::Journal(format!("the journal {} {why}; read it, and delete it only if no migration is in progress", path.display()));
 }
 
-/// Write `bytes` to a new file at `sibling`, rename it over `target`, and make the rename durable with the directory that holds the new name.
+/// Write `bytes` to a new file at `sibling`,
+/// rename it over `target`,
+/// and make the rename durable with the directory that holds the new name.
 fn write_and_rename(sibling: &Path, target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     write_exclusively(sibling, bytes)?;
     if let Err(error) = std::fs::rename(sibling, target) {
@@ -89,8 +114,13 @@ fn write_and_rename(sibling: &Path, target: &Path, bytes: &[u8]) -> std::io::Res
 }
 
 /// What:
-///  Write `bytes` to a file made for them alone at `path`: created exclusively, so a path that already exists (a plain file,
-///  a link, a dangling link) is refused and never truncated or followed; synchronized; removed again when the write fails.
+///  Write `bytes` to a file made for them alone at `path`:
+/// created exclusively,
+/// so a path that already exists (a plain file,
+///  a link,
+/// a dangling link) is refused and never truncated or followed;
+/// synchronized;
+/// removed again when the write fails.
 /// Why:
 ///   A fixed temporary name that an earlier run or another user left or planted must not redirect the write.
 ///
@@ -122,9 +152,11 @@ fn write_exclusively(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 pub struct Journal {
     /// Where the file is (or will be).
     path: PathBuf,
-    /// When the migration began, as `toISOString` text.
+    /// When the migration began,
+    /// as `toISOString` text.
     started: String,
-    /// Step name to state (`started`, `done` or `rolled-back`).
+    /// Step name to state (`started`,
+    /// `done` or `rolled-back`).
     states: BTreeMap<String, String>,
     /// Step name to the time in milliseconds after the epoch at which it got its current state.
     times: BTreeMap<String, i64>,
@@ -134,9 +166,11 @@ pub struct Journal {
 
 impl Journal {
     /// What:
-    ///  Load the journal at `path`, or start an empty one when there is no file.
+    ///  Load the journal at `path`,
+    /// or start an empty one when there is no file.
     /// Why:
-    ///   A file that exists but is not a journal of this format is an error naming the file: guessing would resume
+    ///   A file that exists but is not a journal of this format is an error naming the file:
+    /// guessing would resume
     ///  or skip steps on a false record.
     ///
     /// In TS you'd write (pseudocode):
@@ -179,7 +213,9 @@ impl Journal {
         return Ok(Journal { path: path.to_path_buf(), started, states, times, persisted: true });
     }
 
-    /// When the migration began, as `toISOString` text; unique to the migration and kept by a resumed run.
+    /// When the migration began,
+    /// as `toISOString` text;
+    /// unique to the migration and kept by a resumed run.
     pub fn started(&self) -> &str {
         return self.started.as_str();
     }
@@ -194,14 +230,18 @@ impl Journal {
         return self.persisted;
     }
 
-    /// The time, in whole seconds after the epoch, at which the step got its current state; nothing for a step with no
+    /// The time,
+    /// in whole seconds after the epoch,
+    /// at which the step got its current state;
+    /// nothing for a step with no
     ///  record or a record written without a time.
     pub fn seconds_of(&self, step: &str) -> Option<i64> {
         let milliseconds: &i64 = self.times.get(step)?;
         return Some(milliseconds.div_euclid(1000));
     }
 
-    /// The recorded state of a step, if any.
+    /// The recorded state of a step,
+    /// if any.
     pub fn state(&self, step: &str) -> Option<&str> {
         return self.states.get(step).map(String::as_str);
     }
@@ -219,8 +259,11 @@ impl Journal {
     /// What:
     ///  Record a step's state and write the file.
     /// Why:
-    ///   The file is written to a sibling created exclusively (under a name of its own, never one an earlier run or another
-    ///  user could have planted a link at) and renamed over the journal, with the data synced first, so a kill leaves either
+    ///   The file is written to a sibling created exclusively (under a name of its own,
+    /// never one an earlier run or another
+    ///  user could have planted a link at) and renamed over the journal,
+    /// with the data synced first,
+    /// so a kill leaves either
     ///  the old or the new journal.
     ///
     /// In TS you'd write (pseudocode):
@@ -256,7 +299,9 @@ impl Journal {
         return Ok(());
     }
 
-    /// A name for this write's temporary file that no other file has: this process and the clock make it, and the
+    /// A name for this write's temporary file that no other file has:
+    /// this process and the clock make it,
+    /// and the
     ///  creation is exclusive.
     fn temporary_path(&self) -> PathBuf {
         let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
@@ -271,10 +316,15 @@ impl Journal {
     /// What:
     ///  Remove the plain files a killed run left beside the journal under the writer's own temporary names.
     /// Why:
-    ///   Only the writer's own shapes are removed, and only plain files as the directory entry itself says (a link, a
-    ///  directory or any other name is somebody else's and stays), so nothing is followed and nothing foreign is discarded.
-    ///  One command at a time works on a checkout (a numbered claim file), so no live writer's temporary file is among them.
-    ///  A failure to list or remove is not an error: a leftover costs only space.
+    ///   Only the writer's own shapes are removed,
+    /// and only plain files as the directory entry itself says (a link,
+    /// a
+    ///  directory or any other name is somebody else's and stays),
+    /// so nothing is followed and nothing foreign is discarded.
+    ///  One command at a time works on a checkout (a numbered claim file),
+    /// so no live writer's temporary file is among them.
+    ///  A failure to list or remove is not an error:
+    /// a leftover costs only space.
     fn remove_leftovers(&self) {
         let (Some(directory), Some(journal_name)) = (self.path.parent(), self.path.file_name()) else { return };
         let Ok(listing) = std::fs::read_dir(directory) else { return };
@@ -296,7 +346,8 @@ impl Journal {
     /// What:
     ///  Delete the journal file.
     /// Why:
-    ///   A rolled-back or fully removed migration leaves no record, so the next migration starts clean.
+    ///   A rolled-back or fully removed migration leaves no record,
+    /// so the next migration starts clean.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

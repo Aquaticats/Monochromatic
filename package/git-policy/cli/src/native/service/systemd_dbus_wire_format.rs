@@ -1,8 +1,16 @@
 //! What:
-//!  The D-Bus wire format the client speaks to the user manager: how a method call is written (header fields, strings,
-//!  alignment) and how a reply is read (kind, serial, error name, first text), with the error type of a call.
+//!  The D-Bus wire format the client speaks to the user manager:
+//! how a method call is written (header fields,
+//! strings,
+//!  alignment) and how a reply is read (kind,
+//! serial,
+//! error name,
+//! first text),
+//! with the error type of a call.
 //! Why:
-//!  The connection code in `systemd_dbus.rs` sends and receives bytes through it; the format needs no socket, so it stays
+//!  The connection code in `systemd_dbus.rs` sends and receives bytes through it;
+//! the format needs no socket,
+//! so it stays
 //!  testable by bytes alone and is a file `systemd_dbus.rs` uses.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,10 +21,14 @@
 /// Message type of a method call.
 pub(crate) const METHOD_CALL: u8 = 1;
 
-/// Message type of a successful reply.
+/// Message type of a successful reply;
+/// only the controls' fake bus and the reader's controls use it now.
+#[cfg(test)]
 pub(crate) const METHOD_RETURN: u8 = 2;
 
-/// Message type of an error reply.
+/// Message type of an error reply;
+/// only the controls' fake bus and the reader's controls use it now.
+#[cfg(test)]
 pub(crate) const ERROR: u8 = 3;
 
 /// Header field code of the number of the call a reply answers.
@@ -37,13 +49,16 @@ pub enum CallError {
     Connection(String),
     /// The manager refused the authentication.
     Authentication(String),
-    /// The bus did not answer within the time the exchange was given, which says nothing about whether the manager is there.
+    /// The bus did not answer within the time the exchange was given,
+    /// which says nothing about whether the manager is there.
     TimedOut,
     /// The manager answered with an error.
     Manager {
-        /// The error's name, for example `org.freedesktop.systemd1.NoSuchUnit`.
+        /// The error's name,
+        /// for example `org.freedesktop.systemd1.NoSuchUnit`.
         name: String,
-        /// The error's text, when it gave one.
+        /// The error's text,
+        /// when it gave one.
         text: String,
     },
     /// The reply was not a message this client reads.
@@ -79,7 +94,9 @@ impl Writer {
         self.bytes.push(0);
     }
 
-    /// One header field: its code, then a variant holding a string-like or signature value.
+    /// One header field:
+    /// its code,
+    /// then a variant holding a string-like or signature value.
     fn field(&mut self, code: u8, kind: char, value: &str) {
         self.align(8);
         self.bytes.push(code);
@@ -142,16 +159,23 @@ pub fn encode_call(serial: u32, target: &Target<'_>, arguments: &[&str]) -> Vec<
     return message;
 }
 
-/// A reply: its type, the error name its header carries, and the first string of its body.
+/// A reply:
+/// its type,
+/// the error name its header carries,
+/// and the first string of its body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Reply {
-    /// Message type: 2 for a return, 3 for an error, 4 for a signal.
+    /// Message type:
+    /// 2 for a return,
+    /// 3 for an error,
+    /// 4 for a signal.
     pub kind: u8,
     /// The number of the call this message answers.
     pub reply_serial: Option<u32>,
     /// The error name of an error reply.
     pub error_name: Option<String>,
-    /// The first string argument of the body, which an error reply uses for its text.
+    /// The first string argument of the body,
+    /// which an error reply uses for its text.
     pub first_text: Option<String>,
 }
 
@@ -162,7 +186,8 @@ pub(crate) fn read_u32(bytes: &[u8], at: usize) -> Option<u32> {
 /// What:
 ///  The little-endian number in four bytes.
 /// Why:
-///  `read_u32` has already cut the slice to four bytes, so the indexing cannot go out of range.
+///  `read_u32` has already cut the slice to four bytes,
+/// so the indexing cannot go out of range.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -173,7 +198,8 @@ fn u32_of_four_bytes(slice: &[u8]) -> u32 {
 }
 
 /// What:
-///  The text of a string read together with the offset after it, without the offset.
+///  The text of a string read together with the offset after it,
+/// without the offset.
 /// Why:
 ///  A reply keeps the text and has no use for where it ended.
 ///
@@ -185,8 +211,11 @@ fn text_of(read: (String, usize)) -> String {
     return read.0;
 }
 
-/// The string at `at` and the offset after its end byte, or nothing when it is cut short or the byte after the text is not
-///  the end byte a D-Bus string carries. Callers pass only the bytes of the region the string must lie in, so an end byte
+/// The string at `at` and the offset after its end byte,
+/// or nothing when it is cut short or the byte after the text is not
+///  the end byte a D-Bus string carries.
+/// Callers pass only the bytes of the region the string must lie in,
+/// so an end byte
 ///  beyond that region is not found.
 pub(crate) fn read_text(bytes: &[u8], at: usize) -> Option<(String, usize)> {
     let length: usize = usize::try_from(read_u32(bytes, at)?).ok()?;
@@ -199,7 +228,10 @@ pub(crate) fn read_text(bytes: &[u8], at: usize) -> Option<(String, usize)> {
     return Some((String::from_utf8_lossy(text).into_owned(), end.saturating_add(1)));
 }
 
-/// The string a variant at `at` holds, or nothing when it holds another type, is cut short, or has a signature that does
+/// The string a variant at `at` holds,
+/// or nothing when it holds another type,
+/// is cut short,
+/// or has a signature that does
 ///  not end with its end byte.
 fn read_variant_text(bytes: &[u8], at: usize) -> Option<String> {
     let length: usize = usize::from(*bytes.get(at)?);
@@ -223,8 +255,11 @@ pub(crate) fn aligned(offset: usize, boundary: usize) -> usize {
 /// What:
 ///  Reads a complete reply message.
 /// Why:
-///   Only the type, the error name and the first string of the body matter; a header field of a kind this reader does not
-///  know ends the walk of the header, which is safe because the fields it needs come first in what the manager sends or
+///   Only the type,
+/// the error name and the first string of the body matter;
+/// a header field of a kind this reader does not
+///  know ends the walk of the header,
+/// which is safe because the fields it needs come first in what the manager sends or
 ///  are looked for before any unknown kind.
 ///
 /// In TS you'd write (pseudocode):
@@ -303,7 +338,8 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {
 }
 
 /// What:
-///  A reply that is cut short or wrongly formed, named by what is wrong with it.
+///  A reply that is cut short or wrongly formed,
+/// named by what is wrong with it.
 /// Why:
 ///  `decode_reply` refuses at several points with the same kind of error.
 ///

@@ -1,12 +1,19 @@
 [Unit]
 Description=Claude session CPU cap reconciler and system degradation watcher
 Documentation=file://%h/Monochromatic/package/claude-cpu-cap/daemon/README.md
+# No start limit: while the repository is on the 860 drive and the drive is not mounted yet, every start fails by design,
+# and the unit retries every thirty seconds until the mount is there instead of ending in a failed state.
+StartLimitIntervalSec=0
 
 [Service]
+# The installed repository link check (outside the repository, so it never dangles) names the plain cause and exits 75
+# when the repository is not reachable. The manager does not read the shell's PATH, so both programs are absolute.
+ExecStartPre=%h/.local/share/mise/installs/node/latest/bin/node %h/.local/share/monochromatic-dev/repository-link/check.mjs
+TimeoutStartSec=20s
 # `latest` follows mise upgrades, so the unit never points at a removed node version.
 ExecStart=%h/.local/share/mise/installs/node/latest/bin/node %h/Monochromatic/package/claude-cpu-cap/daemon/src/cpu-watch.ts
-Restart=always
-RestartSec=2
+Restart=on-failure
+RestartSec=30
 MemoryMax=256M
 
 [Install]

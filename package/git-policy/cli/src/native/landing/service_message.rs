@@ -1,10 +1,17 @@
 //! What:
-//!  The message and the identities of a commit the service lands, made from the command line the way native
+//!  The message and the identities of a commit the service lands,
+//! made from the command line the way native
 //!  `git commit` makes them when no editor opens.
 //! Why:
-//!  Everything here is text arithmetic that Git itself defines (clean-up, sign-off, trailers, the subject of a fixup,
-//!  the message and authorship of a reused commit), so the wrapper embeds it instead of starting `git commit`; each
-//!  rule is compared field by field with the native commit in `binary_service_options_tests.rs`. Whatever cannot be
+//!  Everything here is text arithmetic that Git itself defines (clean-up,
+//! sign-off,
+//! trailers,
+//! the subject of a fixup,
+//!  the message and authorship of a reused commit),
+//! so the wrapper embeds it instead of starting `git commit`;
+//! each
+//!  rule is compared field by field with the native commit in `binary_service_options_tests.rs`.
+//! Whatever cannot be
 //!  made without guessing returns nothing and native `git commit` handles the line.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,12 +30,15 @@ use std::path::Path;
 pub struct Built {
     /// The whole commit message.
     pub message: String,
-    /// The author line a reused commit supplies, `Name <email> seconds zone`.
+    /// The author line a reused commit supplies,
+    /// `Name <email> seconds zone`.
     pub reused_author: Option<String>,
 }
 
-/// One identity line (`Name <email> seconds zone`) from Git's own resolution of the variable, with the given overrides;
-///  nothing when Git cannot make one (a date it does not read), so native `git commit` gives its own message.
+/// One identity line (`Name <email> seconds zone`) from Git's own resolution of the variable,
+/// with the given overrides;
+///  nothing when Git cannot make one (a date it does not read),
+/// so native `git commit` gives its own message.
 pub fn identity(context: &GitContext, cwd: &Path, variable: &str, overrides: &[(&str, String)]) -> Result<Option<String>, TransactionStop> {
     let mut request: GitRequest = GitRequest::new(cwd, &["var", variable]);
     for (name, value) in overrides {
@@ -67,7 +77,8 @@ fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<
     return Ok(if output.code == Some(0) { Some(output.stdout) } else { None });
 }
 
-/// The raw object of a commit named by the person: its author line and its message.
+/// The raw object of a commit named by the person:
+/// its author line and its message.
 fn reused_commit(context: &GitContext, cwd: &Path, revision: &str) -> Result<Option<(String, String)>, TransactionStop> {
     if revision.starts_with('-') {
         return Ok(None);
@@ -96,7 +107,8 @@ fn subject_of(context: &GitContext, cwd: &Path, revision: &str) -> Result<Option
 /// What:
 ///  Whether a header line of a raw commit names an encoding.
 /// Why:
-///  A commit in another encoding is Git's to reuse, so `reused_commit` gives it up.
+///  A commit in another encoding is Git's to reuse,
+/// so `reused_commit` gives it up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,7 +119,8 @@ fn is_encoding_header(line: &str) -> bool {
 }
 
 /// What:
-///  The author line a raw commit header line carries, nothing for any other line.
+///  The author line a raw commit header line carries,
+/// nothing for any other line.
 /// Why:
 ///  `reused_commit` takes the first such line as the author.
 ///
@@ -133,7 +146,8 @@ fn without_final_line_breaks(text: String) -> String {
 }
 
 /// What:
-///  Whether a line is not a comment: it does not start with `#`.
+///  Whether a line is not a comment:
+/// it does not start with `#`.
 /// Why:
 ///  `strip_comment_lines` keeps these lines.
 ///
@@ -146,9 +160,11 @@ fn is_not_comment_line(line: &&str) -> bool {
 }
 
 /// What:
-///  A text with a line break at its end, added when it has none.
+///  A text with a line break at its end,
+/// added when it has none.
 /// Why:
-///  A verbatim message keeps every text as given, each ending in a line break.
+///  A verbatim message keeps every text as given,
+/// each ending in a line break.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -158,18 +174,30 @@ fn with_final_line_break(text: &String) -> String {
     return if text.ends_with('\n') { text.clone() } else { format!("{text}\n") };
 }
 
-/// The lines of a message without those that start with the comment character, as `--cleanup=strip` drops them.
+/// The lines of a message without those that start with the comment character,
+/// as `--cleanup=strip` drops them.
 pub fn strip_comment_lines(text: &str) -> String {
     return text.split('\n').filter(is_not_comment_line).collect::<Vec<&str>>().join("\n");
 }
 
 /// What:
-///  The message the command line stands for: `-m` texts, the `-F` file, the message of the `-C` commit or the subject
-///  line of a fixup (or, for an amend with no message option, the message of the commit it replaces), cleaned as Git cleans it when no editor opens (or kept as given for `--cleanup=verbatim`), then
+///  The message the command line stands for:
+/// `-m` texts,
+/// the `-F` file,
+/// the message of the `-C` commit or the subject
+///  line of a fixup (or,
+/// for an amend with no message option,
+/// the message of the commit it replaces),
+/// cleaned as Git cleans it when no editor opens (or kept as given for `--cleanup=verbatim`),
+/// then
 ///  given the sign-off and the `--trailer` lines by Git's own trailer interpreter.
 /// Why:
-///   Nothing here guesses: an empty message without `--allow-empty-message`, an unreadable file, a commit Git cannot
-///  resolve or a trailer Git refuses returns nothing, and native `git commit` then gives the person its own message.
+///   Nothing here guesses:
+/// an empty message without `--allow-empty-message`,
+/// an unreadable file,
+/// a commit Git cannot
+///  resolve or a trailer Git refuses returns nothing,
+/// and native `git commit` then gives the person its own message.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,8 +1,12 @@
-//! The limits a runtime build reads: what each source's text says, and that an unset limit never bounds the build.
+//! The limits a runtime build reads:
+//! what each source's text says,
+//! and that an unset limit never bounds the build.
 
 use super::*;
 
-/// The mappings come from the `VmSize` line, in bytes, and a text without it gives no figure.
+/// The mappings come from the `VmSize` line,
+/// in bytes,
+/// and a text without it gives no figure.
 #[test]
 fn the_mapped_bytes_come_from_the_vm_size_line() {
     let status: &str = "Name:\tcli\nVmPeak:\t  9000 kB\nVmSize:\t  2048 kB\nVmRSS:\t 100 kB\n";
@@ -19,7 +23,9 @@ fn the_system_threads_come_from_the_fourth_load_field() {
     assert_eq!(system_threads_from("0.10 0.20 0.30 three 9\n"), None);
 }
 
-/// A limit that is set leaves what the use has not taken, never below zero; a limit that is not set leaves nothing to bound by.
+/// A limit that is set leaves what the use has not taken,
+/// never below zero;
+/// a limit that is not set leaves nothing to bound by.
 #[test]
 fn a_set_limit_leaves_the_rest_and_an_unset_limit_bounds_nothing() {
     assert_eq!(left_under(Some(100), 30), Some(70));
@@ -27,7 +33,8 @@ fn a_set_limit_leaves_the_rest_and_an_unset_limit_bounds_nothing() {
     assert_eq!(left_under(None, 300), None);
 }
 
-/// A control group's thread room is `pids.max` minus `pids.current`, and `max` is no limit.
+/// A control group's thread room is `pids.max` minus `pids.current`,
+/// and `max` is no limit.
 #[test]
 fn a_groups_thread_room_is_its_maximum_less_its_use() {
     assert_eq!(group_threads_left_from("512\n", "12\n"), Some(500));
@@ -44,7 +51,8 @@ fn the_least_of_two_figures_ignores_an_unlimited_one() {
     assert_eq!(least_of(None, None), None);
 }
 
-/// The smallest room up the hierarchy wins, and a hierarchy with no `pids.max` has none.
+/// The smallest room up the hierarchy wins,
+/// and a hierarchy with no `pids.max` has none.
 #[test]
 fn the_least_thread_room_up_the_hierarchy_wins() {
     let root: PathBuf = crate::test_support::fixture("runtime-limits-groups");
@@ -62,7 +70,8 @@ fn the_least_thread_room_up_the_hierarchy_wins() {
     crate::test_support::remove(root.as_path());
 }
 
-/// The real process reports an address-space figure no larger than its own limit, and the read does not panic.
+/// The real process reports an address-space figure no larger than its own limit,
+/// and the read does not panic.
 #[test]
 fn this_process_reads_its_own_limits() {
     let limits: RuntimeLimits = RuntimeLimits::read();

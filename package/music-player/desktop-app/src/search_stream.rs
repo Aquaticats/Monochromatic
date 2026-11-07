@@ -24,13 +24,20 @@
 //! streamWorker.onmessage = ({ firstIndex, names }) => index.append(prepare(names)); // off the walk's thread
 //! ```
 
+/// Imports the atomic ordering that publishes the stream's progress.
 use std::sync::atomic::Ordering;
+/// Imports the channel ends through which the stream thread takes requests and answers flushes.
 use std::sync::mpsc::{Receiver, Sender};
+/// Imports the shared ownership and poison types that reach the guarded index.
 use std::sync::{Arc, PoisonError};
+/// Imports the duration type that bounds each wait for a flush.
 use std::time::Duration;
 
+/// Imports the index that the stream appends to.
 use crate::search_index::SearchIndex;
+/// Imports the prepared batch and the function that prepares it.
 use crate::search_index_batch::{PreparedBatch, prepare_batch};
+/// Imports the shared state and the lock helpers that the stream thread uses.
 use crate::search_worker::{Shared, read_index, write_when_free};
 
 /// What:
@@ -65,9 +72,17 @@ pub(crate) const FLUSH_PATIENCE: Duration = Duration::from_secs(120);
 /// a flush answers once everything sent before it has been appended.
 pub(crate) enum StreamRequest {
     /// A batch with the queue position of its first name.
-    Batch(usize, Vec<String>),
+    Batch(
+        /// Queue position of the first name.
+        usize,
+        /// The names of the batch.
+        Vec<String>,
+    ),
     /// Answer on the sender once every earlier batch is appended.
-    Flush(Sender<()>),
+    Flush(
+        /// Where to send the answer.
+        Sender<()>,
+    ),
     /// Stop the thread.
     Stop,
 }

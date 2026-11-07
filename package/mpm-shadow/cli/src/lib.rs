@@ -116,6 +116,7 @@ mod prune_tests;
 #[cfg(test)]
 mod shadow_identity_tests;
 
+/// The unit tests of the PATH lookup's real-binary rules.
 #[cfg(test)]
 mod real_binary_tests;
 

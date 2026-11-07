@@ -1,9 +1,18 @@
-//! What: Which repository paths the dependent-version planner reads: workspace manifests,
-//!       the registry configuration, and a package's non-test source files.
-//! Why: The planner selects these from the tracked-path list itself, so the provider needs
-//!      no pathspec support. The rules are the incumbent's: `isWorkspaceManifestPath`
-//!      (`dependent-version-bump-policy.ts:66-73`), the manifest pathspec
-//!      `:(glob)package/*/*/package.json`, `PNPR_CONFIG_PATH`
+//! What:
+//! Which repository paths the dependent-version planner reads:
+//! workspace manifests,
+//!       the registry configuration,
+//! and a package's non-test source files.
+//! Why:
+//! The planner selects these from the tracked-path list itself,
+//! so the provider needs
+//!      no pathspec support.
+//! The rules are the incumbent's:
+//! `isWorkspaceManifestPath`
+//!      (`dependent-version-bump-policy.ts:66-73`),
+//! the manifest pathspec
+//!      `:(glob)package/*/*/package.json`,
+//! `PNPR_CONFIG_PATH`
 //!      (`publishable-names.ts:10`) and `isNonTestSourcePath` (`source-imports.ts:38-55`).
 //!
 //! In TS you'd write (pseudocode):
@@ -11,9 +20,11 @@
 //! // isWorkspaceManifestPath(path); packageDirectory(manifestPath); isNonTestSourcePath({ directory, path });
 //! ```
 
-/// What: The generated registry configuration whose OIDC package list is the publish set.
+/// What:
+/// The generated registry configuration whose OIDC package list is the publish set.
 ///       `&[u8]` is a borrowed list of bytes baked into the program.
-/// Why:  Only packages listed there receive a dependent bump.
+/// Why:
+///  Only packages listed there receive a dependent bump.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -21,8 +32,11 @@
 /// ```
 pub const PNPR_CONFIG_PATH: &[u8] = b"package/config/pnpr/config.yaml";
 
-/// What: The file name every workspace manifest has, with the separator before it.
-/// Why:  A package's directory is its manifest path without this suffix.
+/// What:
+/// The file name every workspace manifest has,
+/// with the separator before it.
+/// Why:
+///  A package's directory is its manifest path without this suffix.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,8 +44,10 @@ pub const PNPR_CONFIG_PATH: &[u8] = b"package/config/pnpr/config.yaml";
 /// ```
 const MANIFEST_SUFFIX: &[u8] = b"/package.json";
 
-/// What: Extensions of source files a bundler follows imports from.
-/// Why:  A development dependency counts as bundled only when such a file imports it.
+/// What:
+/// Extensions of source files a bundler follows imports from.
+/// Why:
+///  A development dependency counts as bundled only when such a file imports it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,8 +57,11 @@ const SOURCE_EXTENSIONS: &[&[u8]] = &[
     b".ts", b".tsx", b".mts", b".cts", b".js", b".jsx", b".mjs", b".cjs",
 ];
 
-/// What: The file-name segment that marks a test file.
-/// Why:  Test files are not bundled, so their imports decide nothing.
+/// What:
+/// The file-name segment that marks a test file.
+/// Why:
+///  Test files are not bundled,
+/// so their imports decide nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,8 +69,12 @@ const SOURCE_EXTENSIONS: &[&[u8]] = &[
 /// ```
 const TEST_MARKER: &[u8] = b".test.";
 
-/// What: Whether one byte is the path separator `/`. `&u8` borrows the byte, as `split` hands it over.
-/// Why:  `split` and `rsplit` take this function by path where a closure would otherwise stand.
+/// What:
+/// Whether one byte is the path separator `/`.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
+/// Why:
+///  `split` and `rsplit` take this function by path where a closure would otherwise stand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,9 +84,14 @@ fn is_slash_byte(byte: &u8) -> bool {
     return *byte == b'/';
 }
 
-/// What: Whether a path is `package/<category>/<name>/package.json`. `.split(...)` yields the
-///       `/`-separated segments; `Vec<&[u8]>` collects borrowed views of them.
-/// Why:  Only such a manifest is a workspace package; the incumbent's candidate test and
+/// What:
+/// Whether a path is `package/<category>/<name>/package.json`.
+/// `.split(...)` yields the
+///       `/`-separated segments;
+/// `Vec<&[u8]>` collects borrowed views of them.
+/// Why:
+///  Only such a manifest is a workspace package;
+/// the incumbent's candidate test and
 ///       its tracked-file pathspec both select exactly these paths.
 ///
 /// In TS you'd write (pseudocode):
@@ -76,9 +104,13 @@ pub fn is_workspace_manifest_path(path: &[u8]) -> bool {
     return matches!(segments.as_slice(), [b"package", _, _, b"package.json"]);
 }
 
-/// What: The package directory of a workspace manifest path. `.strip_suffix(...)` returns
-///       the bytes before the suffix, or nothing when the path does not end with it.
-/// Why:  Source files are looked up under `<directory>/src/`.
+/// What:
+/// The package directory of a workspace manifest path.
+/// `.strip_suffix(...)` returns
+///       the bytes before the suffix,
+/// or nothing when the path does not end with it.
+/// Why:
+///  Source files are looked up under `<directory>/src/`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -90,9 +122,14 @@ pub fn package_directory(manifest_path: &[u8]) -> &[u8] {
         .unwrap_or(manifest_path);
 }
 
-/// What: Whether a path is non-test source of the package in `directory`.
-/// Why:  The file must sit under the package's `src/`, end with a source extension, and
-///       its name must not contain `.test.`. A sibling directory sharing a prefix
+/// What:
+/// Whether a path is non-test source of the package in `directory`.
+/// Why:
+///  The file must sit under the package's `src/`,
+/// end with a source extension,
+/// and
+///       its name must not contain `.test.`.
+/// A sibling directory sharing a prefix
 ///       (`package/module/ab` for `package/module/a`) does not count.
 ///
 /// In TS you'd write (pseudocode):
@@ -128,7 +165,8 @@ pub fn is_non_test_source_path(directory: &[u8], path: &[u8]) -> bool {
     return has_extension && !is_test;
 }
 
-/// Manifest, configuration and source path selection.
+/// Manifest,
+/// configuration and source path selection.
 #[cfg(test)]
 #[path = "dependent_version_paths_tests.rs"]
 mod tests;

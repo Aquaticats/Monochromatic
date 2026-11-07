@@ -74,6 +74,7 @@ use tracing::warn;
 /// ```
 use crate::{
     child, control_socket::bind_listener, dnd, encoder, input,
+    lazy_error_text::failed_error,
     protocol::{format_response, parse_command, Command, Response},
     recorder, screenshot,
     state::Compositor,
@@ -99,6 +100,33 @@ pub struct ControlRequest {
     pub command: Command,
     /// One-shot channel the main thread sends the response back on.
     pub reply: SyncSender<Response>,
+}
+
+/// The channel source's callback:
+///  run each forwarded command on the main thread.
+///
+/// What:
+///      `fn on_control_event(event: Event<ControlRequest>, _metadata: &mut (), state: &mut Compositor)`.
+///  The channel yields `Event::Msg(request)` for each item (and `Event::Closed` at the end);
+///  only messages are acted on.
+///  The command runs against the live state,
+///  and the timed commands (hold,
+///  drag,
+///  double click) answer later from the timeline.
+///  The unit-typed `_metadata` is the channel source's metadata slot,
+///  which it leaves empty.
+/// Why:
+///       Execute forwarded commands where the GL context and seat live.
+///  A named function replaces the closure the channel source took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function onControlEvent(event, _metadata, state) { if (event.kind === "msg") run(state, event.request); }
+/// ```
+fn on_control_event(event: Event<ControlRequest>, _metadata: &mut (), state: &mut Compositor) {
+    if let Event::Msg(request) = event {
+        crate::control_run::run(state, request.command, request.reply);
+    }
 }
 
 /// Bind the control socket,
@@ -133,21 +161,8 @@ pub fn start(loop_handle: &LoopHandle<Compositor>, socket_path: &Path) -> Result
     // What:     `loop_handle.insert_source(channel, |event, _, state| { ... }).map_err(...)?;`.
     //           Register the channel; the callback runs on the main thread for each message.
     // Why:      Execute forwarded commands where the GL context and seat live.
-    loop_handle
-        .insert_source(channel, |event, _, state: &mut Compositor| {
-            // What:     `if let Event::Msg(request) = event { ... }`. The channel yields
-            //           `Event::Msg(T)` for each item (and `Event::Closed` at the end); we
-            //           only act on messages.
-            // Why:      Ignore the close notification; there is nothing to do on it.
-            if let Event::Msg(request) = event {
-                // What:     `let response = execute(state, request.command);`. Run the
-                //           command against the live state on the main thread.
-                // Why:      Produce the result to send back.
-                // The timed commands (hold, drag, double click) answer later from the timeline.
-                crate::control_run::run(state, request.command, request.reply);
-            }
-        })
-        .map_err(|err| anyhow::anyhow!("registering the control channel source failed: {err}"))?;
+    let inserted = loop_handle.insert_source(channel, on_control_event);
+    failed_error(inserted, "registering the control channel source failed")?;
 
     // What:     `std::thread::Builder::new().name("nws-control".to_string()).spawn(move ||
     //           control_thread(listener, sender)).context(...)?;`. Spawn the named control

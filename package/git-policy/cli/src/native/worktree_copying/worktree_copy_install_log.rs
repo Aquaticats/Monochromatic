@@ -2,7 +2,8 @@
 //!  The append-only install log inside one transaction's private stage:
 //!  one synced JSON line per batch of intents and one per batch of proven creations.
 //! Why:
-//!  The journal header changes only with the phase, so the per-batch records live here;
+//!  The journal header changes only with the phase,
+//! so the per-batch records live here;
 //!  bytes written then grow with the entry count instead of with the square of it.
 //!
 //! In TS you'd write (pseudocode):
@@ -25,7 +26,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The install-log file name inside a stage container.
 /// Why:
-///   Recovery finds the log by this name, so both wrappers must agree on it.
+///   Recovery finds the log by this name,
+/// so both wrappers must agree on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,16 +46,19 @@ pub const INSTALL_LOG_NAME: &str = "install-log.jsonl";
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct InstallLogRecords {
-    /// Selected paths claimed before destination mutation, in claim order.
+    /// Selected paths claimed before destination mutation,
+    /// in claim order.
     pub intended: Vec<String>,
-    /// Paths proven created, in creation order.
+    /// Paths proven created,
+    /// in creation order.
     pub created: Vec<InstalledPath>,
 }
 
 /// What:
 ///  The append handle of one log.
 /// Why:
-///   Each append is synced before the caller mutates the destination, so a crash leaves the claim on disk.
+///   Each append is synced before the caller mutates the destination,
+/// so a crash leaves the claim on disk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,9 +66,11 @@ pub struct InstallLogRecords {
 /// ```
 #[derive(Debug)]
 pub struct InstallLog {
-    /// The log file, opened for appending without following links.
+    /// The log file,
+    /// opened for appending without following links.
     file: std::fs::File,
-    /// The log's path, named in every diagnostic.
+    /// The log's path,
+    /// named in every diagnostic.
     path: PathBuf,
 }
 
@@ -87,7 +94,8 @@ pub struct OpenedLog {
 /// What:
 ///  The error for an install log with a line that is not what the writer wrote.
 /// Why:
-///   A log that cannot be read in full cannot say which paths the install touched, so recovery refuses it.
+///   A log that cannot be read in full cannot say which paths the install touched,
+/// so recovery refuses it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -101,7 +109,8 @@ fn corrupt_install_log(path: &Path) -> WorktreeCopyError {
 }
 
 /// What:
-///  A JSON value as text, when it is a string.
+///  A JSON value as text,
+/// when it is a string.
 /// Why:
 ///   Every path in an install log must be a string.
 ///
@@ -129,7 +138,8 @@ fn is_line_feed(byte: &u8) -> bool {
 /// What:
 ///  One line's records.
 /// Why:
-///   A line carries either intents or creations, never both.
+///   A line carries either intents or creations,
+/// never both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -170,9 +180,11 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
 }
 
 /// What:
-///  The records of every complete line, and the byte length those lines span.
+///  The records of every complete line,
+/// and the byte length those lines span.
 /// Why:
-///   A trailing fragment without its line feed is an append the owner never finished; it is not a record.
+///   A trailing fragment without its line feed is an append the owner never finished;
+/// it is not a record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,9 +211,11 @@ fn read_complete_records(path: &Path) -> Result<(InstallLogRecords, u64, u64), W
 }
 
 /// What:
-///  Opens the log of one stage, returning what it already records and truncating any unfinished append.
+///  Opens the log of one stage,
+/// returning what it already records and truncating any unfinished append.
 /// Why:
-///   Resumption must see every claim and creation, and new records must start on a fresh line.
+///   Resumption must see every claim and creation,
+/// and new records must start on a fresh line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -247,7 +261,8 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
 }
 
 impl InstallLog {
-    /// Appends one line and waits until it is durable; an empty batch writes nothing.
+    /// Appends one line and waits until it is durable;
+    /// an empty batch writes nothing.
     fn append_line(&mut self, line: &str) -> Result<(), WorktreeCopyError> {
         let written: std::io::Result<()> = match self.file.write_all(line.as_bytes()) {
             Ok(()) => self.file.sync_all(),

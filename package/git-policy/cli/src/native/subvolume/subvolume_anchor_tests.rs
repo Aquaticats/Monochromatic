@@ -1,11 +1,15 @@
-//! Controls for the anchored directory: components opened without following links, children addressed through the
-//!  descriptor, and a directory that was replaced after it was opened.
+//! Controls for the anchored directory:
+//! components opened without following links,
+//! children addressed through the
+//!  descriptor,
+//! and a directory that was replaced after it was opened.
 
 use super::*;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
-/// A directory is opened below a root, and a child path made from it reaches the real directory.
+/// A directory is opened below a root,
+/// and a child path made from it reaches the real directory.
 #[test]
 fn a_directory_below_the_root_is_opened_and_its_children_are_reached() {
     let parent: PathBuf = fixture("anchor-open");
@@ -17,7 +21,9 @@ fn a_directory_below_the_root_is_opened_and_its_children_are_reached() {
     remove(parent.as_path());
 }
 
-/// A component that is a symbolic link, a file or missing is refused, and a path that climbs out of the root is refused.
+/// A component that is a symbolic link,
+/// a file or missing is refused,
+/// and a path that climbs out of the root is refused.
 #[test]
 fn a_linked_or_missing_component_is_refused() {
     let parent: PathBuf = fixture("anchor-refuse");
@@ -63,8 +69,13 @@ fn a_directory_without_owner_permission_is_opened_after_widening_it() {
     remove(parent.as_path());
 }
 
-/// A directory the owner cannot read is widened by adding the owner's bits, not by flipping them: a mode that keeps some
-///  of them (write, search, or both) ends with all three, and a child can be created in it.
+/// A directory the owner cannot read is widened by adding the owner's bits,
+/// not by flipping them:
+/// a mode that keeps some
+///  of them (write,
+/// search,
+/// or both) ends with all three,
+/// and a child can be created in it.
 #[test]
 fn a_directory_that_keeps_some_owner_bits_gets_all_of_them() {
     // SAFETY: `geteuid` takes no arguments and cannot fail; root opens any directory, so there is nothing to widen.

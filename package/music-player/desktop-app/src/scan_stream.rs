@@ -20,10 +20,14 @@
 //! const all = scanStreaming(root, 5000, (batch) => index.append(batch));
 //! ```
 
+/// Imports the path types that the walk reports.
 use std::path::{Path, PathBuf};
+/// Imports the duration and instant types that pace the reports.
 use std::time::{Duration, Instant};
 
+/// Imports the natural name comparison that orders each folder's entries.
 use crate::natural_order::natural_cmp;
+/// Imports the test that tells an audio file from any other file.
 use crate::playback::is_audio_file;
 
 /// What:

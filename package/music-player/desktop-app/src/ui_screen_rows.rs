@@ -9,8 +9,11 @@
 //! the current row and the picker rules can be
 //! tested without a window.
 
+/// Imports the rail section type that the folder picker lists.
 use music_player::folder_rail::RailSection;
+/// Imports the title prefix helpers that shorten row titles.
 use music_player::title_prefix::{display_title, shared_prefix_len};
+/// Imports the track list entry that rows are made from.
 use music_player::track_entries::TrackListEntry;
 
 /// What:
@@ -310,6 +313,10 @@ pub fn picker(sections: &[RailSection], current_folder: &str) -> Picker {
     };
 }
 
+/// Unit tests of `ui_screen_rows`,
+/// in the sidecar file `ui_screen_rows_tests.rs`.
+/// Role of the module:
+/// pure conversions from the shared player-content model into the flat track list and the folder picker lists that the window shows.
 #[cfg(test)]
 #[path = "ui_screen_rows_tests.rs"]
 mod tests;

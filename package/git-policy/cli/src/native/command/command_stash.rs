@@ -309,11 +309,17 @@ pub fn parse_stash_region(
 }
 
 /// What:
-///  Whether the subcommand can change the worktree, the index or the stash list.
+///  Whether the subcommand can change the worktree,
+/// the index or the stash list.
 /// Why:
-///   `list`, `show` and `create` only read: `create` writes a commit object and stores nothing, so an
+///   `list`,
+/// `show` and `create` only read:
+/// `create` writes a commit object and stores nothing,
+/// so an
 ///  inspection is not blocked like `drop`.
-///   Every other subcommand, and the form with no subcommand word, writes at least one of them.
+///   Every other subcommand,
+/// and the form with no subcommand word,
+/// writes at least one of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

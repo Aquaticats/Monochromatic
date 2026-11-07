@@ -13,6 +13,8 @@
 //!  so it is unit-tested directly,
 //! including adversarial inputs (the tests live in `protocol_tests.rs`).
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::{option_or_text, result_or_text};
 /// What:
 ///      `use std::path::PathBuf;`.
 ///  Owned filesystem path.
@@ -649,7 +651,7 @@ pub fn parse_command(raw: &str) -> Result<Command, String> {
     //           First token or an error if the line was blank. `.ok_or_else(closure)`
     //           turns `None` into `Err`; `?` unwraps.
     // Why:      Every command starts with a verb.
-    let verb = tokens.next().ok_or_else(|| return "empty command".to_string())?;
+    let verb = option_or_text(tokens.next(), format_args!("empty command"))?;
 
     // What:     `match verb { ... }`. Dispatch on the verb. Each arm parses its remaining
     //           tokens with a helper and returns a `Command` or an error.
@@ -761,10 +763,8 @@ fn parse_f64(token: Option<&str>, field: &str) -> Result<f64, String> {
     //           parse it, converting both the missing and the non-numeric cases into
     //           messages. Tail expression.
     // Why:      One place for the "present and numeric" check.
-    return token
-        .ok_or_else(|| format!("{field} missing"))?
-        .parse::<f64>()
-        .map_err(|_| format!("{field} is not a number"))
+    let text = option_or_text(token, format_args!("{field} missing"))?;
+    return result_or_text(text.parse::<f64>(), format_args!("{field} is not a number"))
 }
 
 /// Parse an optional token as `i32`,
@@ -778,10 +778,8 @@ fn parse_i32(token: Option<&str>, field: &str) -> Result<i32, String> {
     // What:     `token.ok_or_else(...)?.parse::<i32>().map_err(...)`. Same shape as
     //           `parse_f64` for integers.
     // Why:      One place for the integer check.
-    return token
-        .ok_or_else(|| format!("{field} missing"))?
-        .parse::<i32>()
-        .map_err(|_| format!("{field} is not an integer"))
+    let text = option_or_text(token, format_args!("{field} missing"))?;
+    return result_or_text(text.parse::<i32>(), format_args!("{field} is not an integer"))
 }
 
 /// Parse a pointer-button name.

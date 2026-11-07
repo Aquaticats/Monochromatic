@@ -3,7 +3,9 @@
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 
-/// Configured hooks are found, listed one per line, and explained with the ways forward.
+/// Configured hooks are found,
+/// listed one per line,
+/// and explained with the ways forward.
 #[test]
 fn configured_hooks_are_listed_and_explained() {
     let root: PathBuf = fixture("doctor-config-hooks");
@@ -30,7 +32,9 @@ fn a_clean_repository_reports_nothing() {
     remove(root.as_path());
 }
 
-/// The retired `indexLock` and `landing` keys are named with the remedy, each alone and both together, and a file
+/// The retired `indexLock` and `landing` keys are named with the remedy,
+/// each alone and both together,
+/// and a file
 /// without them reports nothing.
 #[test]
 fn the_inert_index_lock_and_landing_keys_are_named_with_the_remedy() {
@@ -67,7 +71,8 @@ fn the_inert_index_lock_and_landing_keys_are_named_with_the_remedy() {
     remove(root.as_path());
 }
 
-/// The retired `hooks` key is accepted and reported as ignored, and an unreadable file is named.
+/// The retired `hooks` key is accepted and reported as ignored,
+/// and an unreadable file is named.
 #[test]
 fn the_retired_key_and_a_broken_file_are_reported() {
     let root: PathBuf = fixture("doctor-config-retired");

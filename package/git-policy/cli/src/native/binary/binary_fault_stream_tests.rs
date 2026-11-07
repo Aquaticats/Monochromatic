@@ -1,13 +1,22 @@
 //! What:
-//!  Standard streams that are closed, whose reader is gone, or whose device is full, before and during a command.
+//!  Standard streams that are closed,
+//! whose reader is gone,
+//! or whose device is full,
+//! before and during a command.
 //! Why:
 //!  The README promises that a closed terminal or a broken pipe does not strand the repository or make the wrapper
 //!  report something other than what Git would.
-//!  Rust's runtime ignores `SIGPIPE`, so a write to a broken pipe returns `EPIPE` to the wrapper instead of ending
-//!  it, and an ignored signal survives `exec`: every control here checks that a Git process the wrapper becomes or
-//!  starts still ends the way it does when started directly, that a commit already in its transaction lands or is
-//!  recovered whichever stream failed, and that no write to a dead stream panics.
-//!  The reader of a broken pipe is closed before the command starts, so the first write fails and no timing decides it.
+//!  Rust's runtime ignores `SIGPIPE`,
+//! so a write to a broken pipe returns `EPIPE` to the wrapper instead of ending
+//!  it,
+//! and an ignored signal survives `exec`:
+//! every control here checks that a Git process the wrapper becomes or
+//!  starts still ends the way it does when started directly,
+//! that a commit already in its transaction lands or is
+//!  recovered whichever stream failed,
+//! and that no write to a dead stream panics.
+//!  The reader of a broken pipe is closed before the command starts,
+//! so the first write fails and no timing decides it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,9 +37,11 @@ use std::process::{Command, ExitStatus, Stdio};
 enum StreamFault {
     /// The descriptor is closed before the program starts.
     Closed,
-    /// The descriptor is the write end of a pipe whose read end is closed: every write fails with `EPIPE`.
+    /// The descriptor is the write end of a pipe whose read end is closed:
+    /// every write fails with `EPIPE`.
     BrokenPipe,
-    /// The descriptor is `/dev/full`: every write fails with `ENOSPC`.
+    /// The descriptor is `/dev/full`:
+    /// every write fails with `ENOSPC`.
     FullDevice,
 }
 
@@ -46,7 +57,8 @@ fn broken_pipe() -> OwnedFd {
     return write_end;
 }
 
-/// A `Stdio` that carries the fault, for an output stream.
+/// A `Stdio` that carries the fault,
+/// for an output stream.
 fn faulty_output(fault: StreamFault) -> Stdio {
     match fault {
         StreamFault::Closed => return Stdio::null(),
@@ -57,7 +69,9 @@ fn faulty_output(fault: StreamFault) -> Stdio {
     }
 }
 
-/// Close descriptors 0, 1 and 2 of the child just before it runs, so the program starts with no standard streams.
+/// Close descriptors 0,
+/// 1 and 2 of the child just before it runs,
+/// so the program starts with no standard streams.
 fn close_standard_streams(command: &mut Command) {
     // SAFETY: between fork and exec only `close`, an async-signal-safe call, runs.
     unsafe {
@@ -70,7 +84,9 @@ fn close_standard_streams(command: &mut Command) {
     }
 }
 
-/// Give a command the fault on its output streams and, for a closed fault, on its input too.
+/// Give a command the fault on its output streams and,
+/// for a closed fault,
+/// on its input too.
 fn apply(command: &mut Command, fault: StreamFault) {
     match fault {
         StreamFault::Closed => {
@@ -83,10 +99,13 @@ fn apply(command: &mut Command, fault: StreamFault) {
     }
 }
 
-/// A commit that prints its summary (no `--quiet`), so the wrapper and Git both write to the faulty streams.
+/// A commit that prints its summary (no `--quiet`),
+/// so the wrapper and Git both write to the faulty streams.
 const SUMMARY_COMMIT: [&str; 4] = ["commit", "--message=x", "--", "a.txt"];
 
-/// A commit whose streams are faulty lands, or is recovered by the next command, and the wrapper never panics.
+/// A commit whose streams are faulty lands,
+/// or is recovered by the next command,
+/// and the wrapper never panics.
 fn commit_with_faulty_streams(name: &str, fault: StreamFault) {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = staged_repository(&fixture, "repo");
@@ -106,7 +125,9 @@ fn a_commit_with_closed_standard_streams_lands() {
     commit_with_faulty_streams("stream-closed", StreamFault::Closed);
 }
 
-/// A commit whose output pipes have no reader lands: the summary has nowhere to go, and nothing waits for it.
+/// A commit whose output pipes have no reader lands:
+/// the summary has nowhere to go,
+/// and nothing waits for it.
 #[test]
 fn a_commit_with_broken_output_pipes_lands() {
     commit_with_faulty_streams("stream-pipe", StreamFault::BrokenPipe);
@@ -118,9 +139,12 @@ fn a_commit_with_full_output_devices_lands() {
     commit_with_faulty_streams("stream-full", StreamFault::FullDevice);
 }
 
-/// A commit whose streams are faulty ends as the same commit started directly with the same fault: Git's own status
-///  is the oracle, because a summary that cannot be written ends Git by `SIGPIPE` or a write error whichever program
-///  starts it, and the wrapper must neither add a failure nor hide one.
+/// A commit whose streams are faulty ends as the same commit started directly with the same fault:
+/// Git's own status
+///  is the oracle,
+/// because a summary that cannot be written ends Git by `SIGPIPE` or a write error whichever program
+///  starts it,
+/// and the wrapper must neither add a failure nor hide one.
 #[test]
 fn a_commit_with_faulty_streams_ends_as_git_does() {
     let fixture: Fixture = fixture("stream-exit");
@@ -143,12 +167,16 @@ fn a_commit_with_faulty_streams_ends_as_git_does() {
     remove_settled(&fixture);
 }
 
-/// How a process ended as one number: its exit code, or 128 plus the signal that ended it, as a shell reports it.
+/// How a process ended as one number:
+/// its exit code,
+/// or 128 plus the signal that ended it,
+/// as a shell reports it.
 fn shell_status(status: ExitStatus) -> i32 {
     return status.code().unwrap_or_else(|| { return 128 + status.signal().unwrap_or(0); });
 }
 
-/// A repository with one tracked file of a megabyte, so that `git show` writes more than a pipe holds.
+/// A repository with one tracked file of a megabyte,
+/// so that `git show` writes more than a pipe holds.
 fn repository_with_a_big_file(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("big"));
     std::fs::write(repo.join("big.txt"), "x".repeat(1 << 20)).expect("big file");
@@ -157,7 +185,8 @@ fn repository_with_a_big_file(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// How a Git command that writes a lot ended when started directly and through the wrapper, with the same fault.
+/// How a Git command that writes a lot ended when started directly and through the wrapper,
+/// with the same fault.
 fn show_both_ways(fixture: &Fixture, repo: &Path, fault: StreamFault) -> (ExitStatus, ExitStatus) {
     let mut through_wrapper: Command = bounded(fixture, fixture.root.join("bin/git").as_path(), wrapper_first_path(fixture).as_os_str());
     through_wrapper.current_dir(repo).args(["show", "HEAD:big.txt"]);
@@ -171,7 +200,8 @@ fn show_both_ways(fixture: &Fixture, repo: &Path, fault: StreamFault) -> (ExitSt
     );
 }
 
-/// A forwarded command that writes into a broken pipe ends as Git does when started directly: by `SIGPIPE`,
+/// A forwarded command that writes into a broken pipe ends as Git does when started directly:
+/// by `SIGPIPE`,
 ///  because the wrapper ignores that signal and `exec` must not hand the ignored disposition on to Git.
 #[test]
 fn a_forwarded_command_into_a_broken_pipe_ends_as_git_does() {

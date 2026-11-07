@@ -10,21 +10,35 @@
 //! platform file actions,
 //! and feedback messages in one place.
 
+/// Imports the path type that names the track the menu is open for.
 use std::path::Path;
+/// Imports the shared ownership type that shares the engine and host with the callbacks.
 use std::rc::Rc;
 
+/// Imports the command that the menu sends to the engine.
 use music_player::command::Command;
+/// Imports the engine that receives the commands.
 use music_player::engine::Engine;
+/// Imports the title that a menu shows for its track.
 use music_player::track_entries::track_title_for;
+/// Imports the menu actions and the list of them for a track.
 use music_player::track_menu::{TrackMenuAction, track_menu_actions_for};
+/// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
+/// Imports the file actions and their error type.
 use crate::ui_files::{FileActionError, can_restore_from_trash, copy_text, move_to_trash, show_in_file_manager};
+/// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
+/// Imports the pure menu texts and rows.
 use crate::ui_menu_model::{copied_text, details_text, human_size, menu_items, shown_in_file_manager_text};
+/// Imports the overlays that report the outcome of an action.
 use crate::ui_overlays::{show_error, show_file_error, show_long_notice, show_notice, show_trash_notice, show_undo};
+/// Imports the model builder and the state accessors of the screen.
 use crate::ui_screen::{model_of, read_state, update_state};
+/// Imports the page scope lookup.
 use crate::ui_screen_view::selected_page_scope;
+/// Imports the window and the generated menu row type.
 use crate::{AppWindow, TrackMenuItem};
 
 /// What:

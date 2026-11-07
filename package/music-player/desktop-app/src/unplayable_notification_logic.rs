@@ -11,7 +11,9 @@
 //! so every rule is tested without them.
 //! The thread and the bus calls are in `unplayable_notification` and `unplayable_notification_wire`.
 
+/// Imports the set type of the told files.
 use std::collections::HashSet;
+/// Imports the path types of the files in a report.
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -80,6 +82,7 @@ pub fn unplayable_message(paths: &[PathBuf]) -> String {
 /// The row mark still shows the file every time.
 #[derive(Debug, Default)]
 pub struct Ledger {
+    /// The files that were announced already.
     announced: HashSet<PathBuf>,
 }
 
@@ -113,6 +116,12 @@ impl Ledger {
     }
 }
 
+/// Unit tests of `unplayable_notification_logic`,
+/// in the sidecar file `unplayable_notification_logic_tests.rs`.
+/// Role of the module:
+/// the pure rules of the "cannot be played" report (D122):
+/// what a report of undecodable files becomes,
+/// and which files have already been told.
 #[cfg(test)]
 #[path = "unplayable_notification_logic_tests.rs"]
 mod tests;

@@ -25,18 +25,25 @@
 //! without a panic (`library/std/src/io/stdio.rs` `handle_ebadf`,
 //! `library/std/src/sys/stdio/windows.rs` `get_handle`).
 
+/// Imports the pure attachment decisions and their outcome types that this module carries out.
 use crate::console_attach::{
     ConsoleAttachOutcome, StdHandleAction, StreamReport, needs_console_attach, std_handle_action_after_attach,
 };
+/// Imports the console color decisions and their support level that this module reads from the console.
 use crate::console_color::{ConsoleColorSupport, ConsoleColors, has_virtual_terminal, mode_with_virtual_terminal};
+/// Imports the access rights and the handle type that the console file open needs.
 use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE, HANDLE};
+/// Imports the file creation call and its flags that open the console device.
 use windows::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
+/// Imports the console calls,
+/// modes and standard handles that attach the process to its parent's console.
 use windows::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, CONSOLE_MODE, GetConsoleMode, GetStdHandle, STD_ERROR_HANDLE, STD_HANDLE,
     STD_OUTPUT_HANDLE, SetConsoleMode, SetStdHandle,
 };
+/// Imports the macro that builds a wide string literal for the console device name.
 use windows::core::w;
 
 /// What:

@@ -13,7 +13,7 @@
 /// Import the actual loop and its existing result models.
 use super::{FixStop, MAX_PASSES, SourceChecker, fix_source};
 use crate::diagnostic::{Diagnostic, Severity, Span};
-use crate::edits::{Edit, Fix, FixError};
+use crate::edits::{Edit, Fix, FixClass, FixError};
 
 /// Deterministic fixture behavior,
 ///  not executable repository configuration.
@@ -95,6 +95,7 @@ impl SourceChecker for Checker {
             source.len()
         };
         finding.fix = Some(Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: 0,
                 end,

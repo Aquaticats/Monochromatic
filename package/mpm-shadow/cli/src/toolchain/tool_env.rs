@@ -82,6 +82,11 @@ fn refusal(tool_id: &str, name: &str, value: &str, reason: &str) -> ToolchainErr
     ));
 }
 
+/// Whether a character after the first may appear in an environment variable name.
+fn is_name_character(character: char) -> bool {
+    return character.is_ascii_alphanumeric() || character == '_';
+}
+
 /// What:
 /// Whether `name` is a plain environment variable name:
 /// an ASCII letter or underscore,
@@ -104,7 +109,7 @@ fn is_plain_name(name: &str) -> bool {
     if !(first.is_ascii_alphabetic() || first == '_') {
         return false;
     }
-    return characters.all(|character| return character.is_ascii_alphanumeric() || character == '_');
+    return characters.all(is_name_character);
 }
 
 /// What:

@@ -10,8 +10,12 @@
 //! the window
 //! only draws them.
 
+/// Imports the keyboard platform and the shortcut action that a menu row can name.
 use music_player::keymap::{KeyboardPlatform, ShortcutAction};
+/// Imports the shortcut text that a row shows.
 use music_player::keymap_bindings::shortcut_text;
+/// Imports the track menu actions,
+/// their labels and the list and dividers of a menu.
 use music_player::track_menu::{TrackMenuAction, access_label, label, track_menu_actions_for, track_menu_divider_flags};
 
 /// What:
@@ -204,6 +208,8 @@ pub fn shown_in_file_manager_text(file_name: &str) -> String {
 /// Why:
 /// the details row shows a size a person can read at a glance.
 pub fn human_size(bytes: u64) -> String {
+    /// Bytes in a kibibyte,
+    /// from which larger sizes are scaled.
     const KB: f64 = 1024.0;
     let value = bytes as f64;
     if value >= KB * KB * KB {
@@ -215,6 +221,12 @@ pub fn human_size(bytes: u64) -> String {
     return format!("{:.1} KB", value / KB);
 }
 
+/// Unit tests of `ui_menu_model`,
+/// in the sidecar file `ui_menu_model_tests.rs`.
+/// Role of the module:
+/// pure track menu model:
+/// the rows,
+/// icons and dividers for one track.
 #[cfg(test)]
 #[path = "ui_menu_model_tests.rs"]
 mod tests;

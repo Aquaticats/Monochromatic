@@ -1,12 +1,28 @@
 //! What:
-//!  Starting one package-manager program for a worktree repair: finding it on a search path, running it in a directory with
-//!  its output captured and a quiet window, and saying how it ended.
+//!  Starting one package-manager program for a worktree repair:
+//! finding it on a search path,
+//! running it in a directory with
+//!  its output captured and a quiet window,
+//! and saying how it ended.
 //! Why:
-//!  The repairs of a new worktree (`package_repair.rs`) start tools the repository uses (pnpm, Cargo, mpm-shadow). Each one
-//!  must end in a plain verdict the add can word for the person: the program is missing, it failed with a reason, it showed
-//!  no sign of work for its window, or it worked. A tool that works is never ended for being slow (owner, 2026-11-03:
-//!  "Install online during the add"; pick 9 of `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the
-//!  owner's delegation and open to the owner's veto), with the signs of work the push reads (`push_progress.rs`). Nothing here decides which tool runs or what its output means.
+//!  The repairs of a new worktree (`package_repair.rs`) start tools the repository uses (pnpm,
+//! Cargo,
+//! mpm-shadow).
+//! Each one
+//!  must end in a plain verdict the add can word for the person:
+//! the program is missing,
+//! it failed with a reason,
+//! it showed
+//!  no sign of work for its window,
+//! or it worked.
+//! A tool that works is never ended for being slow (owner,
+//! 2026-11-03:
+//!  "Install online during the add";
+//! pick 9 of `doc/planning/cli-git-shipped-limits-audit.md`,
+//! the coordinator's under the
+//!  owner's delegation and open to the owner's veto),
+//! with the signs of work the push reads (`push_progress.rs`).
+//! Nothing here decides which tool runs or what its output means.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,9 +32,17 @@
 
 /// The patience of a run that ends on a stall.
 use crate::bounded_push::Patience;
+/// A child owned until it is reaped,
+/// and awaited on the runtime through its pidfd.
+use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
+/// The process's runtime:
+/// the synchronous face enters it,
+/// and the reaper of a late leader runs on it.
+use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
 /// The clock that reads the signs of work of a process tree.
 use crate::push_progress::Clock;
-/// The longest quiet gap of each tool, kept for the timing records.
+/// The longest quiet gap of each tool,
+/// kept for the timing records.
 use crate::output_capture::Capture;
 use crate::quiet_ledger;
 use std::ffi::{OsStr, OsString};
@@ -27,9 +51,13 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// What:
-///  One program start: its arguments, the directory it runs in, and the variables added to its environment.
+///  One program start:
+/// its arguments,
+/// the directory it runs in,
+/// and the variables added to its environment.
 /// Why:
-///   The program path is found separately, so a test can name a fixture and a person's search path is read once.
+///   The program path is found separately,
+/// so a test can name a fixture and a person's search path is read once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -48,8 +76,12 @@ pub struct ToolCommand {
 /// What:
 ///  How long a started program may stay silent and how long it may run in all.
 /// Why:
-///   Two bounds travel together: the quiet window ends a program that shows nothing, and the ceiling ends one that keeps showing
-///  something (owner, 2026-11-04, "Silence plus a ceiling (Recommended)").
+///   Two bounds travel together:
+/// the quiet window ends a program that shows nothing,
+/// and the ceiling ends one that keeps showing
+///  something (owner,
+/// 2026-11-04,
+/// "Silence plus a ceiling (Recommended)").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -59,14 +91,16 @@ pub struct ToolCommand {
 pub struct ToolLimits {
     /// How long the program may show no sign of work.
     pub window: Duration,
-    /// The longest the program runs, whatever it shows.
+    /// The longest the program runs,
+    /// whatever it shows.
     pub ceiling: Duration,
 }
 
 /// What:
 ///  How a started program ended.
 /// Why:
-///   The repair words each case differently, so they stay apart.
+///   The repair words each case differently,
+/// so they stay apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,11 +110,16 @@ pub struct ToolLimits {
 pub enum ToolEnd {
     /// Exit status zero.
     Succeeded,
-    /// The program did not start, or ended with a failure status; the text names the status and the tail of its output.
+    /// The program did not start,
+    /// or ended with a failure status;
+    /// the text names the status and the tail of its output.
     Failed(String),
-    /// The program showed no sign of work for its window, and was stopped.
+    /// The program showed no sign of work for its window,
+    /// and was stopped.
     TimedOut,
-    /// The program ran as long as the ceiling allows, whatever it showed, and was stopped with its whole process group.
+    /// The program ran as long as the ceiling allows,
+    /// whatever it showed,
+    /// and was stopped with its whole process group.
     CeilingReached(Duration),
 }
 
@@ -97,19 +136,31 @@ pub enum ToolEnd {
 pub struct ToolRun {
     /// How the program ended.
     pub end: ToolEnd,
-    /// Wall time from start to end, in milliseconds.
+    /// Wall time from start to end,
+    /// in milliseconds.
     pub millis: u128,
-    /// What the program wrote to its standard output; empty when it did not run to its end.
+    /// What the program wrote to its standard output;
+    /// empty when it did not run to its end.
     pub stdout: Vec<u8>,
-    /// What was left out of the output or could not be read, in words for the person. Output with a note is not the whole output:
+    /// What was left out of the output or could not be read,
+    /// in words for the person.
+    /// Output with a note is not the whole output:
     ///  a parser of `stdout` must not take it for a complete result.
     pub notes: Vec<String>,
 }
 
 /// The most bytes of a program's output kept for its failure text.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 const OUTPUT_TAIL_BYTES: usize = 600;
 
 /// How often a running program is looked at.
@@ -118,7 +169,9 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// What:
 ///  The first executable file named `name` in a search path.
 /// Why:
-///   The program is the one the person's environment resolves; a missing one is a verdict, not a failure to start.
+///   The program is the one the person's environment resolves;
+/// a missing one is a verdict,
+/// not a failure to start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -145,9 +198,13 @@ pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> 
 }
 
 /// What:
-///  The last bytes of what a program printed, as text, with the cut ragged edge dropped.
+///  The last bytes of what a program printed,
+/// as text,
+/// with the cut ragged edge dropped.
 /// Why:
-///   A failure is worded with the end of the output, where tools print their reason; the start is progress noise.
+///   A failure is worded with the end of the output,
+/// where tools print their reason;
+/// the start is progress noise.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -178,7 +235,8 @@ fn tail_of(bytes: &[u8]) -> String {
 /// What:
 ///  How a finished program's status is worded.
 /// Why:
-///   A signal has no code, and the person should see which of the two ended the program.
+///   A signal has no code,
+/// and the person should see which of the two ended the program.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,17 +252,39 @@ fn describe_status(status: std::process::ExitStatus) -> String {
 }
 
 /// What:
-///  Run a program to its end, until it has shown no sign of work for the window, or until it has run as long as the ceiling.
+///  Run a program to its end,
+/// until it has shown no sign of work for the window,
+/// or until it has run as long as the ceiling.
 /// Why:
-///   The add must not wait for a tool that does nothing, and must keep the tail of its output for the log. A tool that works is
-///  waited for until the ceiling (owner, 2026-11-04, "Silence plus a ceiling (Recommended)"; `wait_ceilings.rs`,
-///  `REPAIR_TOOL_CEILING`), where it is ended like a silent one. The program leads a process group of its own, so the stop reaches the children it
-///  started too. Where the system counts nothing (no `/proc/<pid>/io`) the quiet window never ends the tool, and only the
-///  ceiling does. The longest quiet gap of the run is kept in the ledger under the program's name and first argument. The output
-///  goes to anonymous files, so the ceiling covers the draining of it too: nothing waits for a stream to close, a helper that holds
-///  an inherited stream after the tool has exited holds nothing up, and the stop (the group, while the leader is not yet reaped,
-///  so the group number is still the leader's) never has to wait for a helper that left the group. A helper still running when the
-///  leader has exited successfully is left alone, because a tool may start a helper on purpose; at the ceiling or the window the
+///   The add must not wait for a tool that does nothing,
+/// and must keep the tail of its output for the log.
+/// A tool that works is
+///  waited for until the ceiling (owner,
+/// 2026-11-04,
+/// "Silence plus a ceiling (Recommended)";
+/// `wait_ceilings.rs`,
+///  `REPAIR_TOOL_CEILING`),
+/// where it is ended like a silent one.
+/// The program leads a process group of its own,
+/// so the stop reaches the children it
+///  started too.
+/// Where the system counts nothing (no `/proc/<pid>/io`) the quiet window never ends the tool,
+/// and only the
+///  ceiling does.
+/// The longest quiet gap of the run is kept in the ledger under the program's name and first argument.
+/// The output
+///  goes to anonymous files,
+/// so the ceiling covers the draining of it too:
+/// nothing waits for a stream to close,
+/// a helper that holds
+///  an inherited stream after the tool has exited holds nothing up,
+/// and the stop (the group,
+/// while the leader is not yet reaped,
+///  so the group number is still the leader's) never has to wait for a helper that left the group.
+/// A helper still running when the
+///  leader has exited successfully is left alone,
+/// because a tool may start a helper on purpose;
+/// at the ceiling or the window the
 ///  whole group is stopped.
 ///
 /// In TS you'd write (pseudocode):
@@ -212,21 +292,32 @@ fn describe_status(status: std::process::ExitStatus) -> String {
 /// async function runTool(program: string, command: ToolCommand, limits: { windowMs: number; ceilingMs: number }): Promise<ToolRun>;
 /// ```
 pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
-    return run_tool_reaping(program, command, limits, &reap_within_stop_grace);
+    let started: Instant = Instant::now();
+    return match run_on_runtime(run_tool_reaping(program, command, limits, &reap_within_stop_grace)) {
+        Ok(run) => run,
+        Err(refusal) => ToolRun {
+            end: ToolEnd::Failed(format!("{} could not be run: {refusal}", program.display())),
+            millis: started.elapsed().as_millis(),
+            stdout: Vec::new(),
+            notes: Vec::new(),
+        },
+    };
 }
 
 /// What:
-///  Reap a stopped leader within the push stop grace; whether it was reaped.
+///  Reap a stopped leader within the push stop grace;
+/// whether it was reaped.
 /// Why:
-///   `run_tool` stops a leader the usual way, and a named function stands where a closure that ignored the captured
+///   `run_tool` stops a leader the usual way,
+/// and a named function stands where a closure that ignored the captured
 ///  output stood.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const reapWithinStopGrace = (leader: Child, _captured: Capture) => reapWithin(leader, STOP_GRACE);
 /// ```
-fn reap_within_stop_grace(leader: Child, _captured: &Capture) -> bool {
-    return reap_within(leader, crate::bounded_push::STOP_GRACE);
+async fn reap_within_stop_grace(leader: Child, _captured: &Capture) -> bool {
+    return reap_within(leader, crate::bounded_push::STOP_GRACE).await;
 }
 
 /// The run of a tool that never started because the files for its output could not be made.
@@ -234,8 +325,12 @@ fn no_place_for_output(program: &Path, started: Instant, error: &std::io::Error)
     return ToolRun { end: ToolEnd::Failed(format!("{} could not be started: no place for its output ({error})", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
 }
 
-/// `run_tool` with the reaper of a stopped leader given: a control sees that the stop path reaps through it.
-pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimits, reap: &dyn Fn(Child, &Capture) -> bool) -> ToolRun {
+/// `run_tool` as a task of the runtime,
+/// with the reaper of a stopped leader given:
+/// a control sees that the stop path reaps through it.
+///  The wait for the tool is awaited on its pidfd,
+/// and the looks at the clock and the ceiling are made at `POLL_INTERVAL`.
+pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &Path, command: &ToolCommand, limits: ToolLimits, reap: &Reap) -> ToolRun {
     use std::os::unix::process::CommandExt;
     let started: Instant = Instant::now();
     let mut starting: Command = Command::new(program);
@@ -255,15 +350,15 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
     for (name, value) in &command.set {
         starting.env(name, value);
     }
-    let mut child: Child = match starting.spawn() {
-        Ok(running) => running,
+    let mut child: OwnedChild = match starting.spawn() {
+        Ok(running) => adopt(running),
         Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
     };
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
     let mut at_ceiling: bool = false;
     let mut wait_failure: Option<std::io::Error> = None;
     let status: Option<std::process::ExitStatus> = loop {
-        match wait_status(&mut child) {
+        match wait_status(&mut child).await {
             Ok(Some(done)) => break Some(done),
             // The ceiling ends the program whatever it shows (owner, 2026-11-04, "Silence plus a ceiling (Recommended)").
             Ok(None) if started.elapsed() >= limits.ceiling => {
@@ -271,7 +366,7 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
                 break None;
             }
             Ok(None) if clock.check().is_some() => break None,
-            Ok(None) => std::thread::sleep(POLL_INTERVAL),
+            Ok(None) => {}
             // A wait that fails is a stop like the others: the group is stopped, the pages are released and the leader is reaped below.
             Err(error) => {
                 wait_failure = Some(error);
@@ -284,12 +379,15 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
         quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none() && !at_ceiling && wait_failure.is_none());
     }
     let Some(finished) = status else {
-        stop_group(&child);
+        stop_group(child.id());
         // The leader is reaped so it leaves no zombie, within a budget: a process in uninterruptible I/O ends only when the I/O does,
         // and a wait with no bound would keep the add for as long as it lasts. Nothing waits for the output, which is in files.
         // What the tool wrote is released first: nobody reads it, and a descendant that keeps the files open would keep the pages.
         captured.discard();
-        let _reaped_in_time: bool = reap(child, &captured);
+        // A leader that the wait has collected (it ended while the wait failed) has nothing left to reap.
+        if let Some(leader) = child.into_std_when_unreaped() {
+            let _reaped_in_time: bool = reap(leader, &captured).await;
+        }
         let end: ToolEnd = match wait_failure {
             Some(error) => ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())),
             None if at_ceiling => ToolEnd::CeilingReached(limits.ceiling),
@@ -312,51 +410,67 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
     return ToolRun { end: ToolEnd::Failed(format!("{}: {text}{disclosed}", describe_status(finished))), millis, stdout: Vec::new(), notes: shown.notes };
 }
 
-/// `Child::try_wait`, and in a control an error once the file the seam names exists.
-fn wait_status(child: &mut Child) -> std::io::Result<Option<std::process::ExitStatus>> {
+/// The child's end if it comes within `POLL_INTERVAL`,
+/// awaited on its pidfd,
+/// and in a control an error once the file the seam
+///  names exists.
+async fn wait_status(child: &mut OwnedChild) -> std::io::Result<Option<std::process::ExitStatus>> {
     #[cfg(test)]
     if WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { return seam.borrow().as_ref().is_some_and(|path| { return path.exists(); }); }) {
         return Err(std::io::Error::other("the wait failed"));
     }
-    return child.try_wait();
+    return match tokio::time::timeout(POLL_INTERVAL, child.wait()).await {
+        Ok(ended) => ended.map(Some),
+        Err(_not_yet) => Ok(None),
+    };
 }
 
 #[cfg(test)]
 thread_local! {
-    /// A control makes the wait for the tool fail once the file it names exists, which the tool makes after it has written.
+    /// A control makes the wait for the tool fail once the file it names exists,
+    /// which the tool makes after it has written.
     pub(crate) static WAIT_FAILS_ONCE_THIS_FILE_EXISTS: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:
-///  Reap `child` within `budget`; when it has not ended by then, hand it to a thread that reaps it whenever it does.
+///  Reap `child` within `budget`;
+/// when it has not ended by then,
+/// hand it to a task that reaps it whenever it does.
 /// Why:
-///   The stop is a signal, and a process whose kernel call cannot be interrupted ends only when the call does. The add returns
-///  without it, and the thread keeps the leader from becoming a zombie for good. True when the leader ended within the budget.
+///   The stop is a signal,
+/// and a process whose kernel call cannot be interrupted ends only when the call does.
+/// The add returns
+///  without it,
+/// and the task keeps the leader from becoming a zombie for good.
+/// True when the leader ended within the budget.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const ended = await reapWithin(child, budgetMs); // false: a background task reaps it later
 /// ```
-fn reap_within(mut child: Child, budget: Duration) -> bool {
-    let began: Instant = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => return true,
-            Ok(None) if began.elapsed() < budget => std::thread::sleep(POLL_INTERVAL),
-            Ok(None) | Err(_) => break,
-        }
+async fn reap_within(child: Child, budget: Duration) -> bool {
+    let mut owned: OwnedChild = adopt(child);
+    if let Ok(Ok(_status)) = tokio::time::timeout(budget, owned.wait()).await {
+        return true;
     }
-    // A thread that cannot be started leaves the leader to the system's init when this process ends; the add goes on either way.
-    let _handed = std::thread::Builder::new().name(String::from("cli-git-leader-reaper")).spawn(move || {
-        let _reaped = child.wait();
-    });
+    // A runtime with no worker leaves the leader to the system's init when this process ends; the add goes on either way.
+    if let Some(late) = owned.into_std_when_unreaped() {
+        let _handed = spawn_on_runtime(async move {
+            let mut reaper: OwnedChild = adopt(late);
+            let _reaped = reaper.wait().await;
+        });
+    }
     return false;
 }
 
 /// What:
-///  The name a tool's quiet gap is kept under: the program's file name and its first argument, as in `pnpm install`.
+///  The name a tool's quiet gap is kept under:
+/// the program's file name and its first argument,
+/// as in `pnpm install`.
 /// Why:
-///   Two uses of one program (`cargo metadata`, `cargo clean`) have different gaps, and the arguments after the first are
+///   Two uses of one program (`cargo metadata`,
+/// `cargo clean`) have different gaps,
+/// and the arguments after the first are
 ///  paths that would make a name for every worktree.
 ///
 /// In TS you'd write (pseudocode):
@@ -377,14 +491,15 @@ fn tool_step(program: &Path, command: &ToolCommand) -> String {
 /// What:
 ///  Stop the child's whole process group.
 /// Why:
-///   pnpm and Cargo start helpers; stopping only the leader would leave them running against the worktree.
+///   pnpm and Cargo start helpers;
+/// stopping only the leader would leave them running against the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// process.kill(-child.pid, 'SIGKILL');
 /// ```
-fn stop_group(child: &Child) {
-    let Ok(leader) = libc::pid_t::try_from(child.id()) else { return };
+fn stop_group(leader_id: u32) {
+    let Ok(leader) = libc::pid_t::try_from(leader_id) else { return };
     // SAFETY: `kill` takes a process-group id and a signal number and touches no memory; the group was made by this process.
     let _stopped = unsafe { libc::kill(-leader, libc::SIGKILL) };
 }

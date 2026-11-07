@@ -21,16 +21,26 @@
 //! function applyAnswer(win: AppWindow, a: Answer) { if (a.sequence !== latest) return; syncRows(model, view.rows); anchor(a.refresh); }
 //! ```
 
+/// Imports the cell that holds the row model on the window thread.
 use std::cell::RefCell;
+/// Imports the shared ownership type that shares the model with the window.
 use std::rc::Rc;
 
+/// Imports the result type that rows are built from.
 use music_player::search_results::SearchResult;
+/// Imports the answer type that arrives from the service.
 use music_player::search_service::SearchAnswer;
+/// Imports the model trait and the model types of the window.
 use slint::{Model, ModelRc, VecModel};
 
+/// Imports the model builder and the state accessors of the screen.
 use crate::ui_screen::{model_of, read_state, update_state};
+/// Imports the row height,
+/// the anchor calculation and the result key.
 use crate::ui_search_anchor::{SEARCH_ROW_HEIGHT_PX, anchored_offset, result_key};
+/// Imports the row and view types and the view builder.
 use crate::ui_search_model::{SearchRowView, SearchView, search_view_of};
+/// Imports the window and the generated search row types.
 use crate::{AppWindow, SearchRow, SearchSegment};
 
 /// What:

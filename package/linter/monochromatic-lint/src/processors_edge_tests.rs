@@ -10,7 +10,7 @@
 //! ```
 
 /// Import the same consumer helpers and atomic fix models as ordinary projection tests.
-use super::{Edit, Fix, ProcessorLanguage, finding, fixed, inputs};
+use super::{Edit, Fix, FixClass, ProcessorLanguage, finding, fixed, inputs};
 /// Preserve the existing diagnostic severity model.
 use crate::diagnostic::{Diagnostic, Severity};
 /// Exercise the empty-snippet documentation policy through typed real rule selection.
@@ -32,6 +32,7 @@ fn processors_project_each_doc_line_endpoint_with_mixed_newline_spellings() {
                 source,
                 &virtuals[0],
                 Fix {
+                    class: FixClass::Content,
                     edits: vec![Edit {
                         start,
                         end,
@@ -53,6 +54,7 @@ fn processors_project_trailing_newline_replacements_without_orphan_prefixes() {
         source,
         &virtuals[0],
         Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: 0,
                 end: virtuals[0].source().len(),
@@ -79,6 +81,7 @@ fn processors_project_depth_two_fix_to_original_host() {
             source.as_str(),
             rust,
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: at,
                     end: at + 1,
@@ -106,6 +109,7 @@ fn processors_project_depth_two_fix_to_original_host() {
             source.as_str(),
             prose,
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: word,
                     end: word + 3,
@@ -177,6 +181,7 @@ fn processors_refuse_inline_line_docs_but_support_inline_block_docs() {
             source,
             &virtuals[0],
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: at,
                     end: at + 1,
@@ -219,6 +224,7 @@ fn processors_extract_and_project_indented_block_and_line_doc_fences() {
                 source,
                 rust,
                 Fix {
+                    class: FixClass::Content,
                     edits: vec![Edit {
                         start: at,
                         end: at + 1,
@@ -238,6 +244,7 @@ fn processors_extract_and_project_indented_block_and_line_doc_fences() {
             indented,
             &block[0],
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start,
                     end: start + length,
@@ -253,6 +260,7 @@ fn processors_extract_and_project_indented_block_and_line_doc_fences() {
             indented,
             &block[0],
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: split,
                     end: split,
@@ -332,6 +340,7 @@ fn processors_map_multiple_labels_and_preserve_processing_failures() {
         .push(finding(rust, authored, 3).labels.remove(0));
     let literal: usize = rust.source().find("= 1").expect("literal") + 2;
     multi.fix = Some(Fix {
+        class: FixClass::Content,
         edits: vec![Edit {
             start: literal,
             end: literal + 1,
@@ -379,6 +388,7 @@ fn processors_keep_no_op_groups_byte_identical() {
     let virtuals = inputs(source, ProcessorLanguage::Rust);
     let fix: Fix = virtuals[0]
         .project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: 0,
                 end: virtuals[0].source().len(),

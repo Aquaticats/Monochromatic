@@ -1,9 +1,21 @@
 //! What:
-//!  Controls of the bound on the folder of saved copies: the age cut, the size cut, the one-day floor under a burst, the
-//!  settings, the audit line, the copy just written, and a writer that saves while a pass runs.
+//!  Controls of the bound on the folder of saved copies:
+//! the age cut,
+//! the size cut,
+//! the one-day floor under a burst,
+//! the
+//!  settings,
+//! the audit line,
+//! the copy just written,
+//! and a writer that saves while a pass runs.
 //! Why:
-//!  The copies are the only remaining content of replaced files, so every way a pass could remove one that is still wanted
-//!  (a young one, the one just written, a directory that is not the wrapper's, a limit read as zero) is checked, each with
+//!  The copies are the only remaining content of replaced files,
+//! so every way a pass could remove one that is still wanted
+//!  (a young one,
+//! the one just written,
+//! a directory that is not the wrapper's,
+//! a limit read as zero) is checked,
+//! each with
 //!  a real folder in a fixture and none against this repository's own `.git/monochromatic-git-policy-cli`.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,10 +35,12 @@ use std::path::{Path, PathBuf};
 /// A day in milliseconds.
 const DAY: i64 = 24 * 60 * 60 * 1000;
 
-/// A time well after 2026-11-02, the clock of the controls.
+/// A time well after 2026-11-02,
+/// the clock of the controls.
 const NOW: i64 = 1_793_660_000_000;
 
-/// A directory name for a save made `age` before `NOW`, the way the wrapper names it.
+/// A directory name for a save made `age` before `NOW`,
+/// the way the wrapper names it.
 fn name_at(age: i64) -> String {
     return format_iso_milliseconds(NOW - age).chars().take(19).map(|each| { return if each == ':' { '-' } else { each }; }).collect();
 }
@@ -36,12 +50,16 @@ fn listed(age: i64, bytes: u128) -> Stamped {
     return Stamped { name: name_at(age), millis: NOW - age, bytes, identity: Identity::default() };
 }
 
-/// The limits of the controls: thirty days, and a size each control chooses.
+/// The limits of the controls:
+/// thirty days,
+/// and a size each control chooses.
 fn limits(max_bytes: u64) -> Limits {
     return Limits { max_age_days: 30, max_bytes };
 }
 
-/// Makes the directory of a save made `age` before `NOW`, holding one file of `bytes` bytes, and gives its path.
+/// Makes the directory of a save made `age` before `NOW`,
+/// holding one file of `bytes` bytes,
+/// and gives its path.
 fn make_save(common: &Path, age: i64, file: &str, bytes: usize) -> PathBuf {
     let directory: PathBuf = common.join(SAVED_DIRECTORY).join(name_at(age));
     std::fs::create_dir_all(&directory).expect("save directory");
@@ -49,12 +67,15 @@ fn make_save(common: &Path, age: i64, file: &str, bytes: usize) -> PathBuf {
     return directory;
 }
 
-/// The real clock in whole milliseconds, which the concurrent control uses because its saves are made now.
+/// The real clock in whole milliseconds,
+/// which the concurrent control uses because its saves are made now.
 fn now_offset() -> i64 {
     return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return i64::try_from(elapsed.as_millis()).unwrap_or(0); }) - NOW;
 }
 
-/// A copy older than the age limit goes, one inside it stays, and the limit is the day count the settings give.
+/// A copy older than the age limit goes,
+/// one inside it stays,
+/// and the limit is the day count the settings give.
 #[test]
 fn a_copy_past_the_age_limit_is_chosen_and_a_younger_one_is_not() {
     let entries: Vec<Stamped> = vec![listed(31 * DAY, 1), listed(29 * DAY, 1), listed(2 * DAY, 1)];
@@ -63,7 +84,8 @@ fn a_copy_past_the_age_limit_is_chosen_and_a_younger_one_is_not() {
     assert_eq!(plan(entries.as_slice(), NOW, tighter, None), vec![(0, Reason::Age), (1, Reason::Age), (2, Reason::Age)]);
 }
 
-/// Past the size limit the oldest go first, and only as many as bring the folder under it.
+/// Past the size limit the oldest go first,
+/// and only as many as bring the folder under it.
 #[test]
 fn past_the_size_limit_the_oldest_go_first_and_no_more_than_needed() {
     let entries: Vec<Stamped> = vec![listed(5 * DAY, 400), listed(9 * DAY, 400), listed(3 * DAY, 400), listed(2 * DAY, 400)];
@@ -73,7 +95,8 @@ fn past_the_size_limit_the_oldest_go_first_and_no_more_than_needed() {
     assert!(plan(entries.as_slice(), NOW, limits(1600), None).is_empty(), "at the limit nothing goes");
 }
 
-/// A copy past the age limit is counted out of the size before the size cut is made, so it is not removed twice for two
+/// A copy past the age limit is counted out of the size before the size cut is made,
+/// so it is not removed twice for two
 /// reasons and the size cut takes only what the age cut left over.
 #[test]
 fn the_age_cut_comes_first_and_the_size_cut_counts_what_is_left() {
@@ -82,7 +105,8 @@ fn the_age_cut_comes_first_and_the_size_cut_counts_what_is_left() {
     assert_eq!(plan(entries.as_slice(), NOW, limits(700), None), vec![(0, Reason::Age)]);
 }
 
-/// A burst of saves inside one day is out of reach of the size cut however far over the limit it puts the folder: the
+/// A burst of saves inside one day is out of reach of the size cut however far over the limit it puts the folder:
+/// the
 /// floor is the protection against deleting what was just made.
 #[test]
 fn a_burst_of_young_copies_is_never_cut_by_size() {
@@ -95,7 +119,8 @@ fn a_burst_of_young_copies_is_never_cut_by_size() {
     assert_eq!(plan(&[exactly], NOW, limits(1), None), vec![(0, Reason::Size)], "a day old is within reach of the size cut");
 }
 
-/// The directory just written is never chosen, even when its name says it is old (a save made with an old clock).
+/// The directory just written is never chosen,
+/// even when its name says it is old (a save made with an old clock).
 #[test]
 fn the_copy_just_written_is_never_chosen() {
     let entries: Vec<Stamped> = vec![listed(90 * DAY, 10), listed(80 * DAY, 10)];
@@ -103,7 +128,8 @@ fn the_copy_just_written_is_never_chosen() {
     assert_eq!(kept, vec![(0, Reason::Age)]);
 }
 
-/// The defaults are the owner's: thirty days and one gibibyte.
+/// The defaults are the owner's:
+/// thirty days and one gibibyte.
 #[test]
 fn the_defaults_are_thirty_days_and_one_gibibyte() {
     assert_eq!(Limits::default(), Limits { max_age_days: DEFAULT_MAX_AGE_DAYS, max_bytes: DEFAULT_MAX_BYTES });
@@ -122,7 +148,9 @@ fn sizes_take_git_suffixes() {
     }
 }
 
-/// Names read back to the second the wrapper wrote them, with the number a second save in one second gets; a name of
+/// Names read back to the second the wrapper wrote them,
+/// with the number a second save in one second gets;
+/// a name of
 /// another shape is nothing.
 #[test]
 fn a_directory_name_reads_back_to_the_time_it_was_written() {
@@ -135,8 +163,12 @@ fn a_directory_name_reads_back_to_the_time_it_was_written() {
     }
 }
 
-/// A pass removes what the plan chooses from a real folder, leaves directories that are not the wrapper's untouched, and
-/// leaves one audit line for each removed directory with its time, path, bytes and reason.
+/// A pass removes what the plan chooses from a real folder,
+/// leaves directories that are not the wrapper's untouched,
+/// and
+/// leaves one audit line for each removed directory with its time,
+/// path,
+/// bytes and reason.
 #[test]
 fn a_pass_removes_the_chosen_directories_and_audits_each() {
     let common: PathBuf = fixture("prune-pass");
@@ -175,8 +207,11 @@ fn a_line_for_a_directory_of_many_copies_lists_a_hundred_and_counts_all() {
     assert_eq!(value["copies"].as_array().map(Vec::len), Some(100));
 }
 
-/// A save with an old clock is complete and durable when the pass runs, so it is the one thing the pass cannot remove, while
-/// the same directory with no `keep` is within reach of the age cut. The older copies of the folder are the pass's to judge.
+/// A save with an old clock is complete and durable when the pass runs,
+/// so it is the one thing the pass cannot remove,
+/// while
+/// the same directory with no `keep` is within reach of the age cut.
+/// The older copies of the folder are the pass's to judge.
 #[test]
 fn the_copy_just_saved_survives_a_pass_that_would_otherwise_remove_it() {
     let root: PathBuf = fixture("prune-just-saved");
@@ -195,7 +230,9 @@ fn the_copy_just_saved_survives_a_pass_that_would_otherwise_remove_it() {
     remove(root.as_path());
 }
 
-/// A writer that saves copies while a pass runs loses nothing: every save is a young directory, which neither cut reaches,
+/// A writer that saves copies while a pass runs loses nothing:
+/// every save is a young directory,
+/// which neither cut reaches,
 /// so a pass never meets a half-written copy it could remove.
 #[test]
 fn a_writer_saving_during_a_pass_loses_no_copy() {
@@ -232,7 +269,9 @@ fn a_writer_saving_during_a_pass_loses_no_copy() {
     remove(root.as_path());
 }
 
-/// The doctor's block states the size, the count and the oldest save, and is empty when the folder holds nothing.
+/// The doctor's block states the size,
+/// the count and the oldest save,
+/// and is empty when the folder holds nothing.
 #[test]
 fn the_doctor_reports_size_count_and_oldest() {
     let common: PathBuf = fixture("prune-doctor");

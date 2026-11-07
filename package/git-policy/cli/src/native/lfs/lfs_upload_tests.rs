@@ -14,7 +14,10 @@ fn plan() -> UploadPlan {
     return UploadPlan { remotes: words(&["origin"]), refs: words(&["main"]), everything: false, submodules: false, full_scan: false, objects: None };
 }
 
-/// A stand-in `git-lfs` that records its arguments, directory, `git` and configuration variables, then exits.
+/// A stand-in `git-lfs` that records its arguments,
+/// directory,
+/// `git` and configuration variables,
+/// then exits.
 fn stand_in(directory: &std::path::Path, record: &std::path::Path, status: i32) {
     std::fs::create_dir_all(directory).expect("bin directory");
     let source: String = format!(
@@ -24,7 +27,9 @@ fn stand_in(directory: &std::path::Path, record: &std::path::Path, status: i32) 
     executable(directory.join("git-lfs").as_path(), source.as_bytes());
 }
 
-/// Run the interactive upload with the given `PATH` directories, prefix and status, returning result and diagnostics.
+/// Run the interactive upload with the given `PATH` directories,
+/// prefix and status,
+/// returning result and diagnostics.
 fn run(root: &std::path::Path, path: &[&std::path::Path], global_prefix: &[&str], upload: &UploadPlan) -> (Option<i32>, String) {
     return run_with(root, path, global_prefix, upload, &[("XDG_STATE_HOME", root.join("state").to_str().expect("UTF-8"))]);
 }
@@ -58,7 +63,9 @@ fn run_with(
     return (code, String::from_utf8_lossy(diagnostics.as_slice()).into_owned());
 }
 
-/// A succeeding upload is silent, gets the plan's arguments in the chosen directory, and sees the real Git first.
+/// A succeeding upload is silent,
+/// gets the plan's arguments in the chosen directory,
+/// and sees the real Git first.
 #[test]
 fn a_succeeding_upload_is_silent_and_sees_the_real_git_first() {
     let root = fixture("lfs-upload-ok");
@@ -81,7 +88,8 @@ fn a_succeeding_upload_is_silent_and_sees_the_real_git_first() {
     remove(root.as_path());
 }
 
-/// The `git-lfs` the caller's `PATH` finds first runs, even though the real Git's directory leads the child's `PATH`.
+/// The `git-lfs` the caller's `PATH` finds first runs,
+/// even though the real Git's directory leads the child's `PATH`.
 #[test]
 fn the_program_is_the_one_the_callers_path_finds_first() {
     let root = fixture("lfs-upload-order");
@@ -99,7 +107,9 @@ fn the_program_is_the_one_the_callers_path_finds_first() {
     remove(root.as_path());
 }
 
-/// The global options travel to the child: `-c` as configuration pairs after the ones already set, the repository
+/// The global options travel to the child:
+/// `-c` as configuration pairs after the ones already set,
+/// the repository
 ///  options as their variables.
 #[test]
 fn the_global_options_reach_the_child() {
@@ -129,7 +139,8 @@ fn the_global_options_reach_the_child() {
     remove(root.as_path());
 }
 
-/// Pairs the environment already holds come first, so the global options win as they do in Git.
+/// Pairs the environment already holds come first,
+/// so the global options win as they do in Git.
 #[test]
 fn the_variables_continue_after_the_environments_own_pairs() {
     let environment: Vec<(OsString, OsString)> = vec![(OsString::from("GIT_CONFIG_COUNT"), OsString::from("3"))];
@@ -150,7 +161,8 @@ fn the_variables_continue_after_the_environments_own_pairs() {
     assert!(prefix_variables(&[], &[]).is_empty());
 }
 
-/// A failing upload stops with its own status and the explanation; a missing program stops with status 1.
+/// A failing upload stops with its own status and the explanation;
+/// a missing program stops with status 1.
 #[test]
 fn a_failing_or_missing_upload_stops_with_the_explanation() {
     let root = fixture("lfs-upload-fail");
@@ -166,7 +178,8 @@ fn a_failing_or_missing_upload_stops_with_the_explanation() {
     remove(root.as_path());
 }
 
-/// An upload ended by a signal says so by number, and a signal sent to the wrapper reaches the child.
+/// An upload ended by a signal says so by number,
+/// and a signal sent to the wrapper reaches the child.
 #[test]
 fn an_upload_ended_by_a_signal_names_the_signal() {
     let root = fixture("lfs-upload-signal");
@@ -192,8 +205,11 @@ fn a_submodule_push_gets_the_notice() {
     remove(root.as_path());
 }
 
-/// A signal sent to the wrapper while an upload runs reaches the upload: the child is gone, and the status is the signal's.
-///  (Each test runs in its own process, so the process-wide relay of the guard affects only this test.)
+/// A signal sent to the wrapper while an upload runs reaches the upload:
+/// the child is gone,
+/// and the status is the signal's.
+///  (Each test runs in its own process,
+/// so the process-wide relay of the guard affects only this test.)
 #[test]
 fn a_signal_sent_to_the_wrapper_stops_the_upload() {
     let root = fixture("lfs-upload-relay");
@@ -223,14 +239,20 @@ fn a_signal_sent_to_the_wrapper_stops_the_upload() {
     remove(root.as_path());
 }
 
-/// How long the upload would run if nothing stopped it, in whole seconds; far past the control.
+/// How long the upload would run if nothing stopped it,
+/// in whole seconds;
+/// far past the control.
 const HOLD_SECONDS: u32 = 3_000;
 
-/// The line `git-lfs` printed in the incident, with the token the `lfs.url` carries.
+/// The line `git-lfs` printed in the incident,
+/// with the token the `lfs.url` carries.
 const INCIDENT_LINE: &str = "batch response: Fatal error: Server error https://user:secret@lfs.example.invalid/objects/batch from HTTP 503";
 
-/// A stand-in `git-lfs` that counts its runs in `counter` and, for the first `failures` runs, prints the text of
-///  `message_file` on standard error and exits with `status`; later runs succeed.
+/// A stand-in `git-lfs` that counts its runs in `counter` and,
+/// for the first `failures` runs,
+/// prints the text of
+///  `message_file` on standard error and exits with `status`;
+/// later runs succeed.
 fn failing_stand_in(directory: &std::path::Path, counter: &std::path::Path, failures: u32, message: &str, status: i32) {
     std::fs::create_dir_all(directory).expect("bin directory");
     let message_file: PathBuf = directory.join("message.txt");
@@ -251,9 +273,16 @@ fn runs_of(counter: &std::path::Path) -> u32 {
     });
 }
 
-/// A server error is not run again by the wrapper: pick 12 of the shipped-limits audit (the coordinator's under the owner's
-///  delegation, open to the owner's veto) classes an HTTP 5xx as outside our control, retried by the service's push retry plan
-///  alone. The upload runs once, the program's status is kept, the explanation follows, and no retry is announced.
+/// A server error is not run again by the wrapper:
+/// pick 12 of the shipped-limits audit (the coordinator's under the owner's
+///  delegation,
+/// open to the owner's veto) classes an HTTP 5xx as outside our control,
+/// retried by the service's push retry plan
+///  alone.
+/// The upload runs once,
+/// the program's status is kept,
+/// the explanation follows,
+/// and no retry is announced.
 #[test]
 fn a_server_error_ends_the_upload_at_once_with_the_explanation() {
     let root = fixture("lfs-upload-server-error-once");
@@ -270,8 +299,12 @@ fn a_server_error_ends_the_upload_at_once_with_the_explanation() {
     remove(root.as_path());
 }
 
-/// A refused credential, a missing object, a failure with no known wording and a server error beside a missing object are
-///  each run once, as every other failure is: the wrapper runs the upload again for none of them.
+/// A refused credential,
+/// a missing object,
+/// a failure with no known wording and a server error beside a missing object are
+///  each run once,
+/// as every other failure is:
+/// the wrapper runs the upload again for none of them.
 #[test]
 fn every_failure_runs_the_upload_once() {
     let cases: [(&str, &str, i32); 4] = [
@@ -295,7 +328,8 @@ fn every_failure_runs_the_upload_once() {
     }
 }
 
-/// A caller whose environment names no scratch location gets a refusal that says how to go on, not an unmasked run.
+/// A caller whose environment names no scratch location gets a refusal that says how to go on,
+/// not an unmasked run.
 #[test]
 fn an_upload_that_cannot_capture_its_output_is_refused_with_the_ways_forward() {
     let root = fixture("lfs-upload-no-scratch");

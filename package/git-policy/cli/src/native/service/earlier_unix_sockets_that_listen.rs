@@ -1,12 +1,26 @@
 //! What:
-//!  Whether a socket of an earlier release's unit listens, read from the table of unix sockets (`/proc/net/unix`): the table's
-//!  lines, the flag that says a socket listens, and the path a line ends with.
+//!  Whether a socket of an earlier release's unit listens,
+//! read from the table of unix sockets (`/proc/net/unix`):
+//! the table's
+//!  lines,
+//! the flag that says a socket listens,
+//! and the path a line ends with.
 //! Why:
-//!  A socket unit's file stays behind when the unit stops (measured with a throwaway socket unit), so the file says nothing
-//!  about whether a connection would start the earlier helper; the table lists the sockets that exist now and flags the
-//!  ones that listen (`__SO_ACCEPTCON`, `1 << 16`, Linux `include/linux/net.h`; `net/unix/af_unix.c`, `unix_seq_show`, prints it
-//!  when `sk_state == TCP_LISTEN`). Provisioning reads it to know whether the earlier socket of a worktree still needs to be
-//!  stopped, and the look that guards an adoption of the earlier journals reads it for the same reason. A table that cannot
+//!  A socket unit's file stays behind when the unit stops (measured with a throwaway socket unit),
+//! so the file says nothing
+//!  about whether a connection would start the earlier helper;
+//! the table lists the sockets that exist now and flags the
+//!  ones that listen (`__SO_ACCEPTCON`,
+//! `1 << 16`,
+//! Linux `include/linux/net.h`;
+//! `net/unix/af_unix.c`,
+//! `unix_seq_show`,
+//! prints it
+//!  when `sk_state == TCP_LISTEN`).
+//! Provisioning reads it to know whether the earlier socket of a worktree still needs to be
+//!  stopped,
+//! and the look that guards an adoption of the earlier journals reads it for the same reason.
+//! A table that cannot
 //!  be read leaves the question open and is told apart from a table without a listener.
 //!
 //! In TS you'd write (pseudocode):
@@ -38,7 +52,9 @@ pub enum ListeningSockets {
     Unreadable,
 }
 
-/// The flags column of a line of `/proc/net/unix`, which the kernel prints in hexadecimal; `None` when it is not.
+/// The flags column of a line of `/proc/net/unix`,
+/// which the kernel prints in hexadecimal;
+/// `None` when it is not.
 fn socket_flags_of(column: &[u8]) -> Option<u32> {
     let text: &str = std::str::from_utf8(column).ok()?;
     return u32::from_str_radix(text, 16).ok();
@@ -80,7 +96,10 @@ fn is_listening_socket_ending_with(line: &[u8], endings: &[Vec<u8>]) -> bool {
 /// What:
 ///  Reads the table under `proc_root` and says whether a socket that listens ends with one of `endings`.
 /// Why:
-///   The table is read, never the file system, and nothing connects to a socket, because a connection to an earlier unit's
+///   The table is read,
+/// never the file system,
+/// and nothing connects to a socket,
+/// because a connection to an earlier unit's
 ///  socket starts its helper.
 ///
 /// In TS you'd write (pseudocode):
@@ -103,12 +122,14 @@ pub fn listening_sockets_ending_with(proc_root: &Path, endings: &[Vec<u8>]) -> L
     return ListeningSockets::None;
 }
 
-/// The path every socket of an earlier unit instance ends with: `/cli-git/<instance>.sock`.
+/// The path every socket of an earlier unit instance ends with:
+/// `/cli-git/<instance>.sock`.
 pub fn earlier_socket_ending(instance: &str) -> Vec<u8> {
     return format!("/{}/{instance}.sock", SERVICE_UNIT.earlier).into_bytes();
 }
 
-/// Whether the earlier release's socket of an instance listens; a table that cannot be read counts as "yes".
+/// Whether the earlier release's socket of an instance listens;
+/// a table that cannot be read counts as "yes".
 pub fn earlier_socket_of_instance_listens(proc_root: &Path, instance: &str) -> bool {
     return listening_sockets_ending_with(proc_root, &[earlier_socket_ending(instance)]) != ListeningSockets::None;
 }

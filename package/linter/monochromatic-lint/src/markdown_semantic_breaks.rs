@@ -12,7 +12,7 @@
 /// Import the established diagnostic/fix model and native source.
 use crate::diagnostic::{Diagnostic, Severity};
 /// Import the edit and fix types that a semantic line-break repair is expressed as.
-use crate::edits::{Edit, Fix};
+use crate::edits::{Edit, Fix, FixClass};
 /// Import byte-oriented lexical guards and AST boundary helpers.
 use crate::markdown_block_start::starts_block_construct;
 /// Import the planner that picks where a paragraph may break without changing its meaning.
@@ -106,6 +106,7 @@ pub fn semantic_line_breaks(context: &MarkdownSource, severity: Severity) -> Vec
             );
             // The fix consumes at most the one separating space; the grouped editor resolves competing fixes.
             diagnostic.fix = Some(Fix {
+                class: FixClass::Whitespace,
                 edits: vec![Edit {
                     start: at,
                     end: at + separator,

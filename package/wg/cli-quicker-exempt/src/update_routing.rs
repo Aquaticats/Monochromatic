@@ -318,7 +318,10 @@ impl UpdateRouting {
                 Outcome::Ignored
             }
             Err(AdoptError::MemberVanished) => {
-                let count = self.member_vanishes.get(&key).map_or(1, |earlier| return earlier + 1);
+                let count = match self.member_vanishes.get(&key) {
+                    Some(earlier) => earlier + 1,
+                    None => 1,
+                };
                 self.member_vanishes.insert(key, count);
                 if count < MEMBER_VANISH_LIMIT {
                     return Outcome::Ignored;

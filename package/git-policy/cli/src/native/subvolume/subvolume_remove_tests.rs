@@ -1,4 +1,7 @@
-//! Controls for the removal of trees: files, links, ordinary trees and trees with directories the owner cannot write.
+//! Controls for the removal of trees:
+//! files,
+//! links,
+//! ordinary trees and trees with directories the owner cannot write.
 
 use super::*;
 use std::path::PathBuf;
@@ -7,7 +10,10 @@ use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
 
-/// A file, a link and a missing path are handled; a link is unlinked, never followed.
+/// A file,
+/// a link and a missing path are handled;
+/// a link is unlinked,
+/// never followed.
 #[test]
 fn a_file_and_a_link_are_unlinked_and_a_missing_path_is_an_error() {
     let parent: PathBuf = fixture("remove-tree-simple");
@@ -20,7 +26,10 @@ fn a_file_and_a_link_are_unlinked_and_a_missing_path_is_an_error() {
     remove(parent.as_path());
 }
 
-/// Directories without owner write or search permission, at several depths, do not stop the removal; a link inside is
+/// Directories without owner write or search permission,
+/// at several depths,
+/// do not stop the removal;
+/// a link inside is
 ///  unlinked and its target is untouched.
 #[test]
 fn directories_the_owner_cannot_write_are_removed_with_their_content() {
@@ -40,8 +49,11 @@ fn directories_the_owner_cannot_write_are_removed_with_their_content() {
     remove(parent.as_path());
 }
 
-/// A nested subvolume is another tree's data, not part of the tree being removed: the removal refuses before it deletes
-///  anything, and names the nested subvolume.
+/// A nested subvolume is another tree's data,
+/// not part of the tree being removed:
+/// the removal refuses before it deletes
+///  anything,
+/// and names the nested subvolume.
 #[test]
 fn btrfs_a_nested_subvolume_stops_the_removal_before_anything_is_deleted() {
     let Some(root) = btrfs_fixture("remove-tree-nested") else { return };

@@ -1,12 +1,21 @@
 //! What:
-//!  The built wrapper's choice of route and its own provisioning of socket activation, against a stand-in for the user
-//!  session bus that plays the manager's side, and the after-commit push through a running service.
+//!  The built wrapper's choice of route and its own provisioning of socket activation,
+//! against a stand-in for the user
+//!  session bus that plays the manager's side,
+//! and the after-commit push through a running service.
 //! Why:
-//!  There is no install step and no switch: a socket that exists is used, a session bus and the service program mean the
-//!  wrapper sets the service up itself (units in the runtime directory, then a reload and a start through the bus), and
+//!  There is no install step and no switch:
+//! a socket that exists is used,
+//! a session bus and the service program mean the
+//!  wrapper sets the service up itself (units in the runtime directory,
+//! then a reload and a start through the bus),
+//! and
 //!  every failure of that is a plain message with the repository unchanged
-//!  (`doc/planning/cli-git-resident-service.md`, "Provisioning"). The stand-in starts the real service when it is asked
-//!  to start the socket, as the manager's socket activation would.
+//!  (`doc/planning/cli-git-resident-service.md`,
+//! "Provisioning").
+//! The stand-in starts the real service when it is asked
+//!  to start the socket,
+//! as the manager's socket activation would.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::{Running, start_in, start_in_release};
@@ -27,7 +36,9 @@ use std::time::{Duration, Instant};
 
 pub(super) const PATIENCE: Duration = Duration::from_secs(60);
 
-/// A repository with one committed file, edited, and a short runtime directory.
+/// A repository with one committed file,
+/// edited,
+/// and a short runtime directory.
 pub(super) fn prepared(name: &str) -> (Fixture, PathBuf, PathBuf) {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
@@ -68,7 +79,8 @@ pub(super) fn finish(fixture: &Fixture, runtime: &Path) {
     remove_settled(fixture);
 }
 
-/// The reply a bus gives a call: a method return that names the call's number.
+/// The reply a bus gives a call:
+/// a method return that names the call's number.
 fn return_for(serial: u32) -> Vec<u8> {
     let mut message: Vec<u8> = vec![b'l', 2, 0, 1, 0, 0, 0, 0];
     message.extend(serial.to_le_bytes());
@@ -78,7 +90,8 @@ fn return_for(serial: u32) -> Vec<u8> {
     return message;
 }
 
-/// A method return with a signature and a body, naming the call it answers.
+/// A method return with a signature and a body,
+/// naming the call it answers.
 fn return_with(serial: u32, signature: &str, body: &[u8]) -> Vec<u8> {
     let mut fields: Vec<u8> = vec![5, 1, b'u', 0];
     fields.extend(serial.to_le_bytes());
@@ -100,7 +113,19 @@ fn return_with(serial: u32, signature: &str, body: &[u8]) -> Vec<u8> {
     return message;
 }
 
-/// The reply to `GetUnit`: the object path of the unit, whichever unit was asked for.
+/// The reply to `Hello`:
+/// the connection's unique name.
+fn unique_name_return(serial: u32) -> Vec<u8> {
+    let name: &str = ":1.42";
+    let mut body: Vec<u8> = u32::try_from(name.len()).expect("short").to_le_bytes().to_vec();
+    body.extend(name.as_bytes());
+    body.push(0);
+    return return_with(serial, "s", &body);
+}
+
+/// The reply to `GetUnit`:
+/// the object path of the unit,
+/// whichever unit was asked for.
 fn unit_path_return(serial: u32) -> Vec<u8> {
     let path: &str = "/org/freedesktop/systemd1/unit/stand_2din";
     let mut body: Vec<u8> = u32::try_from(path.len()).expect("short").to_le_bytes().to_vec();
@@ -109,7 +134,9 @@ fn unit_path_return(serial: u32) -> Vec<u8> {
     return return_with(serial, "o", &body);
 }
 
-/// The reply to the `ActiveState` read: a variant holding `inactive`, because the stand-in's stop is immediate.
+/// The reply to the `ActiveState` read:
+/// a variant holding `inactive`,
+/// because the stand-in's stop is immediate.
 fn inactive_state_return(serial: u32) -> Vec<u8> {
     let state: &str = "inactive";
     let mut body: Vec<u8> = vec![1, b's', 0, 0];
@@ -119,8 +146,11 @@ fn inactive_state_return(serial: u32) -> Vec<u8> {
     return return_with(serial, "v", &body);
 }
 
-/// One connection to the stand-in bus: it authenticates (or refuses) and answers every call, and when asked to start a
-///  unit it runs the starter if one is left. It returns the names of the methods it was asked for.
+/// One connection to the stand-in bus:
+/// it authenticates (or refuses) and answers every call,
+/// and when asked to start a
+///  unit it runs the starter if one is left.
+/// It returns the names of the methods it was asked for.
 fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on_start: &mut Option<Box<dyn FnOnce() + Send>>) -> Vec<String> {
     let mut asked: Vec<String> = Vec::new();
     let mut one: [u8; 1] = [0];
@@ -136,12 +166,20 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
         return asked;
     }
     let _sent = stream.write_all(b"OK 00112233445566778899aabbccddeeff\r\n");
-    let mut begin: Vec<u8> = Vec::new();
-    while !begin.ends_with(b"\r\n") {
-        if stream.read_exact(&mut one).is_err() {
-            return asked;
+    // `zbus` pipelines `NEGOTIATE_UNIX_FD` and `BEGIN` after the answer: the stand-in agrees to the first and stops at the second.
+    loop {
+        let mut begin: Vec<u8> = Vec::new();
+        while !begin.ends_with(b"\r\n") {
+            if stream.read_exact(&mut one).is_err() {
+                return asked;
+            }
+            begin.push(one[0]);
         }
-        begin.push(one[0]);
+        if begin == b"NEGOTIATE_UNIX_FD\r\n" {
+            let _agreed = stream.write_all(b"AGREE_UNIX_FD\r\n");
+        } else {
+            break;
+        }
     }
     loop {
         let mut header: Vec<u8> = vec![0; 16];
@@ -168,6 +206,8 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
             start();
         }
         let answer: Vec<u8> = match member {
+            // `zbus` reads the unique name that `Hello` returns, so the reply to it carries one.
+            "Hello" => unique_name_return(serial),
             "GetUnit" => unit_path_return(serial),
             "Get" => inactive_state_return(serial),
             _ => return_for(serial),
@@ -178,9 +218,14 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
     }
 }
 
-/// A stand-in for the session bus that serves `connections` wrapper connections one after another, as the manager's bus
-///  would serve several commits, and returns the methods each was asked for, in the order the connections came. The starter
-///  runs at the first start of a unit, as the manager's socket activation would.
+/// A stand-in for the session bus that serves `connections` wrapper connections one after another,
+/// as the manager's bus
+///  would serve several commits,
+/// and returns the methods each was asked for,
+/// in the order the connections came.
+/// The starter
+///  runs at the first start of a unit,
+/// as the manager's socket activation would.
 pub(super) fn fake_bus_many(runtime: &Path, refuse: bool, connections: usize, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<Vec<String>>> {
     let listener: UnixListener = UnixListener::bind(runtime.join("bus")).expect("the bus socket");
     return std::thread::spawn(move || {
@@ -194,13 +239,16 @@ pub(super) fn fake_bus_many(runtime: &Path, refuse: bool, connections: usize, st
     });
 }
 
-/// A stand-in for the session bus for one wrapper connection: the methods it was asked for.
+/// A stand-in for the session bus for one wrapper connection:
+/// the methods it was asked for.
 fn fake_bus(runtime: &Path, refuse: bool, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<String>> {
     let many = fake_bus_many(runtime, refuse, 1, starter);
     return std::thread::spawn(move || { return many.join().expect("bus").into_iter().flatten().collect(); });
 }
 
-/// Starts the real service at the socket the wrapper looks for, the way socket activation would, and keeps it alive.
+/// Starts the real service at the socket the wrapper looks for,
+/// the way socket activation would,
+/// and keeps it alive.
 pub(super) fn activation(fixture_root: PathBuf, runtime: PathBuf, keep: Arc<Mutex<Vec<Running>>>) -> Box<dyn FnOnce() + Send> {
     return Box::new(move || {
         let service: Running = start_in(fixture_root.as_path(), runtime.as_path());
@@ -208,7 +256,8 @@ pub(super) fn activation(fixture_root: PathBuf, runtime: PathBuf, keep: Arc<Mute
     });
 }
 
-/// With a socket in place and no bus at all, the commit goes through the service and nothing is set up.
+/// With a socket in place and no bus at all,
+/// the commit goes through the service and nothing is set up.
 #[test]
 fn an_existing_socket_is_used_with_no_bus() {
     let (fixture, repo, runtime) = prepared("provision-socket");
@@ -221,9 +270,13 @@ fn an_existing_socket_is_used_with_no_bus() {
     finish(&fixture, runtime.as_path());
 }
 
-/// With a bus and the service program but no socket, the first commit sets the service up (units in the runtime directory,
-///  then Hello and StartUnit), the stand-in starts the service as the manager would, and the commit lands through
-///  it; the second commit finds the socket and asks the bus nothing.
+/// With a bus and the service program but no socket,
+/// the first commit sets the service up (units in the runtime directory,
+///  then Hello and StartUnit),
+/// the stand-in starts the service as the manager would,
+/// and the commit lands through
+///  it;
+/// the second commit finds the socket and asks the bus nothing.
 #[test]
 fn the_first_commit_provisions_and_the_second_does_not() {
     let (fixture, repo, runtime) = prepared("provision-first");
@@ -252,8 +305,12 @@ fn the_first_commit_provisions_and_the_second_does_not() {
     finish(&fixture, runtime.as_path());
 }
 
-/// What an upgrade leaves behind, rebuilt: the units a release installed, naming a program that was removed when the next
-///  release was installed. The text is the installed service unit with its program path replaced.
+/// What an upgrade leaves behind,
+/// rebuilt:
+/// the units a release installed,
+/// naming a program that was removed when the next
+///  release was installed.
+/// The text is the installed service unit with its program path replaced.
 const REMOVED_PROGRAM: &str = "/home/a/.local/share/toolchain/cargo/cli/0.5.2/bin/cli-git-service";
 
 fn point_unit_at_removed_program(runtime: &Path, fixture: &Fixture) {
@@ -264,9 +321,17 @@ fn point_unit_at_removed_program(runtime: &Path, fixture: &Fixture) {
     std::fs::write(&unit, text.replace(program.as_str(), REMOVED_PROGRAM)).expect("older unit");
 }
 
-/// An upgrade removes the program the installed service unit names, while the manager's socket stays. The next commit
-///  finds the unit differs from what the wrapper would write, rewrites it, has the manager reload, clears failed state, and
-///  starts the socket, and the commit lands without the person doing anything. The bus is asked for those and nothing else.
+/// An upgrade removes the program the installed service unit names,
+/// while the manager's socket stays.
+/// The next commit
+///  finds the unit differs from what the wrapper would write,
+/// rewrites it,
+/// has the manager reload,
+/// clears failed state,
+/// and
+///  starts the socket,
+/// and the commit lands without the person doing anything.
+/// The bus is asked for those and nothing else.
 #[test]
 fn a_unit_naming_a_removed_program_heals_on_the_next_commit() {
     let (fixture, repo, runtime) = prepared("provision-heal");
@@ -293,8 +358,12 @@ fn a_unit_naming_a_removed_program_heals_on_the_next_commit() {
     finish(&fixture, runtime.as_path());
 }
 
-/// When the installed units are what the wrapper would write and the socket is there, a commit rewrites nothing, reloads
-///  nothing and does not connect to the bus at all: the stand-in saw one connection, the first commit's.
+/// When the installed units are what the wrapper would write and the socket is there,
+/// a commit rewrites nothing,
+/// reloads
+///  nothing and does not connect to the bus at all:
+/// the stand-in saw one connection,
+/// the first commit's.
 #[test]
 fn matching_units_cost_no_rewrite_no_reload_and_no_bus_call() {
     let (fixture, repo, runtime) = prepared("provision-fast");
@@ -320,9 +389,14 @@ fn matching_units_cost_no_rewrite_no_reload_and_no_bus_call() {
     finish(&fixture, runtime.as_path());
 }
 
-/// A service that is running from another release (here one left from before an upgrade, with its socket in place) is never
-///  the one that serves this wrapper's commit: the wrapper asks it to retire, the next connection reaches the current
-///  release, and the commit lands there, with the one notice and nothing else for the person to do.
+/// A service that is running from another release (here one left from before an upgrade,
+/// with its socket in place) is never
+///  the one that serves this wrapper's commit:
+/// the wrapper asks it to retire,
+/// the next connection reaches the current
+///  release,
+/// and the commit lands there,
+/// with the one notice and nothing else for the person to do.
 #[test]
 fn a_running_service_of_another_release_is_retired_and_the_commit_lands() {
     let (fixture, repo, runtime) = prepared("provision-retire");
@@ -355,7 +429,8 @@ fn a_running_service_of_another_release_is_retired_and_the_commit_lands() {
     finish(&fixture, runtime.as_path());
 }
 
-/// A commit the service does not take (here one with nothing to commit, which the transaction answers) sets nothing up:
+/// A commit the service does not take (here one with nothing to commit,
+/// which the transaction answers) sets nothing up:
 ///  no unit is written and the bus is never asked.
 #[test]
 fn a_commit_the_service_does_not_take_sets_nothing_up() {
@@ -371,7 +446,9 @@ fn a_commit_the_service_does_not_take_sets_nothing_up() {
     finish(&fixture, runtime.as_path());
 }
 
-/// A bus that refuses the wrapper stops the commit with the plain remedy, quickly, and changes nothing.
+/// A bus that refuses the wrapper stops the commit with the plain remedy,
+/// quickly,
+/// and changes nothing.
 #[test]
 fn a_refusing_bus_stops_the_commit_plainly() {
     let (fixture, repo, runtime) = prepared("provision-refused");
@@ -387,7 +464,8 @@ fn a_refusing_bus_stops_the_commit_plainly() {
     finish(&fixture, runtime.as_path());
 }
 
-/// A unit of the same name that something else wrote is never touched; the commit stops and names the file.
+/// A unit of the same name that something else wrote is never touched;
+/// the commit stops and names the file.
 #[test]
 fn a_foreign_unit_in_the_way_stops_the_commit_and_is_left_alone() {
     let (fixture, repo, runtime) = prepared("provision-foreign");
@@ -405,8 +483,10 @@ fn a_foreign_unit_in_the_way_stops_the_commit_and_is_left_alone() {
     finish(&fixture, runtime.as_path());
 }
 
-/// Units an earlier release wrote into the user's own directory would outrank the runtime ones; they are recognized by
-///  their content and removed, and the commit then lands.
+/// Units an earlier release wrote into the user's own directory would outrank the runtime ones;
+/// they are recognized by
+///  their content and removed,
+/// and the commit then lands.
 #[test]
 fn units_of_an_earlier_release_are_removed() {
     let (fixture, repo, runtime) = prepared("provision-earlier");
@@ -428,7 +508,8 @@ fn units_of_an_earlier_release_are_removed() {
     finish(&fixture, runtime.as_path());
 }
 
-/// A bare repository the work repository pushes to, set as the branch's upstream.
+/// A bare repository the work repository pushes to,
+/// set as the branch's upstream.
 fn with_remote(fixture: &Fixture, repo: &Path) -> PathBuf {
     let remote: PathBuf = fixture.root.join("remote.git");
     git(fixture, &fixture.root, &["init", "--quiet", "--bare", remote.to_str().expect("UTF-8")]);
@@ -437,7 +518,8 @@ fn with_remote(fixture: &Fixture, repo: &Path) -> PathBuf {
     return remote;
 }
 
-/// The commit a branch names in a repository, or empty text when it names none.
+/// The commit a branch names in a repository,
+/// or empty text when it names none.
 fn tip(fixture: &Fixture, directory: &Path, branch: &str) -> String {
     return git_text(fixture, directory, &["rev-parse", "--quiet", "--verify", branch]).trim_end().to_string();
 }
@@ -447,7 +529,8 @@ fn states(repo: &Path, state: &str) -> usize {
     return std::fs::read_dir(directory).map_or(0, Iterator::count);
 }
 
-/// Waits for a condition the service brings about after the commit returned, up to the patience of these controls.
+/// Waits for a condition the service brings about after the commit returned,
+/// up to the patience of these controls.
 fn eventually(what: &str, mut condition: impl FnMut() -> bool) {
     let began: Instant = Instant::now();
     while !condition() {
@@ -456,8 +539,12 @@ fn eventually(what: &str, mut condition: impl FnMut() -> bool) {
     }
 }
 
-/// A commit through the service returns, and the service then pushes it: the upstream has the commit, both work records
-///  are done, and nothing was pushed by the wrapper.
+/// A commit through the service returns,
+/// and the service then pushes it:
+/// the upstream has the commit,
+/// both work records
+///  are done,
+/// and nothing was pushed by the wrapper.
 #[test]
 fn the_service_pushes_after_the_commit_returned() {
     let (fixture, repo, runtime) = prepared("service-push");
@@ -474,7 +561,9 @@ fn the_service_pushes_after_the_commit_returned() {
     finish(&fixture, runtime.as_path());
 }
 
-/// A push that cannot succeed does not fail the commit; the next commit through the service says so once, plainly.
+/// A push that cannot succeed does not fail the commit;
+/// the next commit through the service says so once,
+/// plainly.
 #[test]
 fn a_failed_push_is_reported_by_the_next_commit() {
     let (fixture, repo, runtime) = prepared("service-push-fails");
@@ -493,7 +582,9 @@ fn a_failed_push_is_reported_by_the_next_commit() {
     finish(&fixture, runtime.as_path());
 }
 
-/// A service with nothing to do exits on its own after the idle time, with success, so the manager does not restart it;
+/// A service with nothing to do exits on its own after the idle time,
+/// with success,
+/// so the manager does not restart it;
 ///  a connection before then keeps it for a further full idle time.
 #[test]
 fn an_idle_service_exits_with_success() {
@@ -527,8 +618,10 @@ fn an_idle_service_exits_with_success() {
     finish(&fixture, runtime.as_path());
 }
 
-/// Starts the single per-user service of the release before one service per worktree, as the manager's socket activation left
-///  it: this build's program announcing the earlier release on the one socket every worktree shared.
+/// Starts the single per-user service of the release before one service per worktree,
+/// as the manager's socket activation left
+///  it:
+/// this build's program announcing the earlier release on the one socket every worktree shared.
 fn start_per_user_service(fixture: &Fixture, runtime: &Path) -> std::process::Child {
     let socket: PathBuf = runtime.join(LEGACY_SOCKET_RELATIVE);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
@@ -555,10 +648,20 @@ fn start_per_user_service(fixture: &Fixture, runtime: &Path) -> std::process::Ch
     return child;
 }
 
-/// A per-user service of the earlier release is running with its two units installed. The first commit of this release asks it
-///  to retire, has the manager stop its socket, waits for the service to leave by itself (the manager is asked about it, and the
-///  stop of the service goes after it left, so a landing in progress is not cut), and reload, removes its units and its socket file, starts the
-///  worktree's own instance, and the commit lands there. The old service exits by itself with success.
+/// A per-user service of the earlier release is running with its two units installed.
+/// The first commit of this release asks it
+///  to retire,
+/// has the manager stop its socket,
+/// waits for the service to leave by itself (the manager is asked about it,
+/// and the
+///  stop of the service goes after it left,
+/// so a landing in progress is not cut),
+/// and reload,
+/// removes its units and its socket file,
+/// starts the
+///  worktree's own instance,
+/// and the commit lands there.
+/// The old service exits by itself with success.
 #[test]
 fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the_commit() {
     let (fixture, repo, runtime) = prepared("provision-per-user");

@@ -1,13 +1,24 @@
-// What:     A library of a million tracks in the folder walk's order, for the refresh tests.
-// Why:      1,000 artists and 1,000,000 tracks are normal operation (D112), so the planner and the controller are measured
-//           at that size in the normal suite. The shared generator lists artist folders in the order it drew them, not in
-//           the walk's order, so the artist groups are sorted by folder name here and the whole list is then checked
-//           against the comparison the planner searches with.
+//! What:
+//!     A library of a million tracks in the folder walk's order,
+//! for the refresh tests.
+//! Why:
+//!      1,000 artists and 1,000,000 tracks are normal operation (D112),
+//! so the planner and the controller are measured
+//!           at that size in the normal suite.
+//! The shared generator lists artist folders in the order it drew them,
+//! not in
+//!           the walk's order,
+//! so the artist groups are sorted by folder name here and the whole list is then checked
+//!           against the comparison the planner searches with.
 
+/// Imports the path types that the generated library uses.
 use std::path::{Path, PathBuf};
 
+/// Imports the name comparison whose order the generated library follows.
 use crate::natural_order::natural_cmp;
+/// Imports the generator of the in-memory library that the scale test uses.
 use crate::scale_library_tests::build_library;
+/// Imports the walk order comparison that the planner searches with.
 use crate::walk_order::walk_cmp;
 
 /// What:

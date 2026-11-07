@@ -2,7 +2,8 @@
 
 use super::*;
 
-/// The request carries the private index and object store, and drops the invocation's prefix.
+/// The request carries the private index and object store,
+/// and drops the invocation's prefix.
 #[test]
 fn the_request_selects_the_private_state() {
     let request: GitRequest = indexed_request(Path::new("/work"), &["write-tree"], Some(Path::new("/s/commit.index")), Some(Path::new("/s/objects")));

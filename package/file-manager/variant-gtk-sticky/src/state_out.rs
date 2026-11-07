@@ -101,10 +101,10 @@ pub(crate) fn write_observed_state(inputs: &ObservedInputs) {
     snapshot.insert("scrolledDown".into(), Value::from(inputs.scroll > 0.0));
     snapshot.insert("scrollTopPx".into(), Value::from(inputs.scroll.round() as i64));
     let snapshot_value = Value::Object(snapshot);
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| return elapsed.as_nanos())
-        .unwrap_or(0);
+    let stamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_nanos(),
+        Err(_) => 0,
+    };
     let temp = {
         let mut temp = path.clone();
         temp.push(format!(".{}.{}.tmp", process::id(), stamp));

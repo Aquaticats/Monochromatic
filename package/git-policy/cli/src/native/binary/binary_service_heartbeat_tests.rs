@@ -1,10 +1,20 @@
 //! What:
-//!  The client's wait for the commit service, with a fake service that sends exactly what a control says: heartbeats through
-//!  a long batch, heartbeats that stop, a service that never starts and one that starts late.
+//!  The client's wait for the commit service,
+//! with a fake service that sends exactly what a control says:
+//! heartbeats through
+//!  a long batch,
+//! heartbeats that stop,
+//! a service that never starts and one that starts late.
 //! Why:
-//!  The wait has no clock of its own (the owner's rule "You should (almost) never be waiting." and "Commits should never
-//!  fail."): only the service's silence, or the manager saying the start failed, ends it. A control that runs a real service
-//!  cannot make it stall on cue, so the service here is a listener that follows a script.
+//!  The wait has no clock of its own (the owner's rule "You should (almost) never be waiting."
+//! and "Commits should never
+//!  fail."):
+//! only the service's silence,
+//! or the manager saying the start failed,
+//! ends it.
+//! A control that runs a real service
+//!  cannot make it stall on cue,
+//! so the service here is a listener that follows a script.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,13 +35,17 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-/// How long the fake service may be silent before the client under test treats it as stopped: short, so a control is quick.
+/// How long the fake service may be silent before the client under test treats it as stopped:
+/// short,
+/// so a control is quick.
 const QUICK_SILENCE: Duration = Duration::from_millis(300);
 
 /// How often the fake service beats.
 const FAKE_BEAT: Duration = Duration::from_millis(60);
 
-/// The longest the controls wait for anything: far beyond what a healthy run needs, so only a hang reaches it.
+/// The longest the controls wait for anything:
+/// far beyond what a healthy run needs,
+/// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// A start wait the controls would exceed many times over if it still bounded a start the manager can be asked about.
@@ -66,7 +80,8 @@ fn read_request(stream: &UnixStream) {
     BufReader::new(stream).read_line(&mut request).expect("the client sends its request");
 }
 
-/// A request that needs no repository, because the fake service never looks at it.
+/// A request that needs no repository,
+/// because the fake service never looks at it.
 fn request() -> CommitRequest {
     return CommitRequest {
         id: String::from("heartbeat-control"),
@@ -108,8 +123,10 @@ fn client(config: ClientConfig) -> std::thread::JoinHandle<(Result<Submitted, Cl
     });
 }
 
-/// A service that keeps sending beats through a wait many times longer than the silence bound is waited for, and its answer
-/// is taken; the wait has no limit of the client's own.
+/// A service that keeps sending beats through a wait many times longer than the silence bound is waited for,
+/// and its answer
+/// is taken;
+/// the wait has no limit of the client's own.
 #[test]
 fn a_service_that_keeps_sending_heartbeats_through_a_long_batch_is_waited_for() {
     let name: String = address("long-batch");
@@ -131,8 +148,13 @@ fn a_service_that_keeps_sending_heartbeats_through_a_long_batch_is_waited_for() 
     assert!(!notices.contains(SILENT_NOTICE), "a service that beats is never called silent: {notices:?}");
 }
 
-/// A service that stops sending beats ends the wait: the client says so, asks again with the same request, and meets a
-/// service that accepts and greets nothing, which is the same silence; it ends with the plain failure that says whether the
+/// A service that stops sending beats ends the wait:
+/// the client says so,
+/// asks again with the same request,
+/// and meets a
+/// service that accepts and greets nothing,
+/// which is the same silence;
+/// it ends with the plain failure that says whether the
 /// commit may have been made and what to do.
 #[test]
 fn a_service_that_stops_sending_heartbeats_ends_the_wait_and_the_request_is_sent_again() {
@@ -196,8 +218,10 @@ fn watched(name: &str) -> ClientConfig {
     return ClientConfig { start_wait: OLD_START_WAIT, heartbeat_silence: PATIENCE, start_watch: Some(watch), ..config(name) };
 }
 
-/// A service that never starts is waited for as long as the manager does not say the start failed, however long that is
-/// against the old start wait, and the wait ends with the plain failure once the manager says it twice.
+/// A service that never starts is waited for as long as the manager does not say the start failed,
+/// however long that is
+/// against the old start wait,
+/// and the wait ends with the plain failure once the manager says it twice.
 #[test]
 fn a_service_that_never_starts_ends_the_wait_when_the_manager_says_the_start_failed() {
     let name: String = address("never-starts");
@@ -225,7 +249,9 @@ fn a_service_that_never_starts_ends_the_wait_when_the_manager_says_the_start_fai
     drop(held);
 }
 
-/// A service that starts a long while after the client asks, against the old start wait, is waited for and answers.
+/// A service that starts a long while after the client asks,
+/// against the old start wait,
+/// is waited for and answers.
 #[test]
 fn a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_failed() {
     let name: String = address("starts-late");
@@ -243,8 +269,12 @@ fn a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_faile
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
 }
 
-/// A unit the manager reports `inactive` after the start wait, while the socket holds the client's connection and nothing starts
-/// it, is started by the client's request to the manager; the client goes on waiting and the service then answers. A unit the
+/// A unit the manager reports `inactive` after the start wait,
+/// while the socket holds the client's connection and nothing starts
+/// it,
+/// is started by the client's request to the manager;
+/// the client goes on waiting and the service then answers.
+/// A unit the
 /// manager reports `activating` is never asked to start.
 #[test]
 fn an_inactive_unit_is_asked_to_start_after_the_start_wait_and_an_activating_one_is_not() {
@@ -275,7 +305,8 @@ fn an_inactive_unit_is_asked_to_start_after_the_start_wait_and_an_activating_one
     MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
 }
 
-/// A manager that cannot be asked leaves the wait to the start wait, as before.
+/// A manager that cannot be asked leaves the wait to the start wait,
+/// as before.
 #[test]
 fn a_manager_that_cannot_be_asked_leaves_the_wait_to_the_start_wait() {
     let name: String = address("unaskable");
@@ -292,8 +323,10 @@ fn a_manager_that_cannot_be_asked_leaves_the_wait_to_the_start_wait() {
     drop(held);
 }
 
-/// A command that waits on the service keeps its scratch directory from aging out: the sweep that removes entries older than
-/// `SCRATCH_STALE_AFTER` finds a waiter's directory fresh however long the wait lasts, and removes the same directory of a
+/// A command that waits on the service keeps its scratch directory from aging out:
+/// the sweep that removes entries older than
+/// `SCRATCH_STALE_AFTER` finds a waiter's directory fresh however long the wait lasts,
+/// and removes the same directory of a
 /// command that is no longer waiting (the positive control).
 #[test]
 fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
@@ -336,10 +369,13 @@ fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
 /// How long a control waits for a client that must end at its ceiling before it calls it hung.
 const CEILING_PATIENCE: Duration = Duration::from_secs(15);
 
-/// The ceilings the controls give the client: short, so a control ends in a moment.
+/// The ceilings the controls give the client:
+/// short,
+/// so a control ends in a moment.
 const SHORT_CEILING: Duration = Duration::from_millis(500);
 
-/// Runs the client on a thread and returns what it ended with and printed, or nothing when it was still waiting after
+/// Runs the client on a thread and returns what it ended with and printed,
+/// or nothing when it was still waiting after
 ///  `CEILING_PATIENCE`.
 fn client_within_patience(config: ClientConfig) -> Option<(Result<Submitted, ClientFailure>, String)> {
     let (finished, ended) = std::sync::mpsc::channel();
@@ -351,8 +387,13 @@ fn client_within_patience(config: ClientConfig) -> Option<(Result<Submitted, Cli
     return ended.recv_timeout(CEILING_PATIENCE).ok();
 }
 
-/// A fake service for the ceiling controls: the first connection is greeted, reads the request and beats for ever; the second is
-///  greeted and reads the line that asks for the withdrawal, which it returns with the answer `reply` gives (nothing: no answer).
+/// A fake service for the ceiling controls:
+/// the first connection is greeted,
+/// reads the request and beats for ever;
+/// the second is
+///  greeted and reads the line that asks for the withdrawal,
+/// which it returns with the answer `reply` gives (nothing:
+/// no answer).
 fn serve_a_wait_and_a_withdrawal(service: UnixListener, reply: Option<ServiceMessage>) -> std::thread::JoinHandle<Option<ClientMessage>> {
     return std::thread::spawn(move || {
         let (first, _) = service.accept().expect("the first connection");
@@ -379,8 +420,13 @@ fn serve_a_wait_and_a_withdrawal(service: UnixListener, reply: Option<ServiceMes
     });
 }
 
-/// A wait that passes the answer ceiling, with the service still sending heartbeats, is withdrawn: the client asks the service to
-/// withdraw the request of its identity on a new connection, and when the service says it did, the command ends with the error
+/// A wait that passes the answer ceiling,
+/// with the service still sending heartbeats,
+/// is withdrawn:
+/// the client asks the service to
+/// withdraw the request of its identity on a new connection,
+/// and when the service says it did,
+/// the command ends with the error
 /// that says the commit will not land later and what to run.
 #[test]
 fn a_wait_past_the_answer_ceiling_withdraws_the_request_and_ends_with_the_error() {
@@ -394,8 +440,12 @@ fn a_wait_past_the_answer_ceiling_withdraws_the_request_and_ends_with_the_error(
     assert_eq!(asked, Some(ClientMessage::Withdraw { id: String::from("heartbeat-control") }));
 }
 
-/// The race: the commit landed just as the bound passed. The service answers the withdrawal with the landed commit, and the
-/// command reports success, not the error.
+/// The race:
+/// the commit landed just as the bound passed.
+/// The service answers the withdrawal with the landed commit,
+/// and the
+/// command reports success,
+/// not the error.
 #[test]
 fn a_commit_that_landed_as_the_bound_passed_is_reported_as_landed() {
     let name: String = address("ceiling-race-landed");
@@ -409,7 +459,8 @@ fn a_commit_that_landed_as_the_bound_passed_is_reported_as_landed() {
     fake.join().expect("fake service");
 }
 
-/// A service that does not answer the withdrawal ends the wait at the withdrawal's own ceiling, with the error that says it is not
+/// A service that does not answer the withdrawal ends the wait at the withdrawal's own ceiling,
+/// with the error that says it is not
 /// known whether the commit was made.
 #[test]
 fn a_withdrawal_the_service_does_not_answer_ends_at_its_own_ceiling() {
@@ -421,7 +472,8 @@ fn a_withdrawal_the_service_does_not_answer_ends_at_its_own_ceiling() {
     assert_eq!(answered, Err(ClientFailure::WithdrawalUnconfirmed { blocker: None }));
 }
 
-/// A start the manager reports as under way (`activating`) is waited for only until the start ceiling, then ends with the plain
+/// A start the manager reports as under way (`activating`) is waited for only until the start ceiling,
+/// then ends with the plain
 /// failure that names the log.
 #[test]
 fn a_start_that_never_finishes_ends_at_the_start_ceiling() {
@@ -434,8 +486,14 @@ fn a_start_that_never_finishes_ends_at_the_start_ceiling() {
     assert_eq!(answered, Err(ClientFailure::DidNotStart));
 }
 
-/// A fake service for the late-notice control: the first connection is greeted and beats; the second, the withdrawal's, is greeted,
-/// reads the line that asks for the withdrawal, tells the client its request is inside the write, and beats without ever answering.
+/// A fake service for the late-notice control:
+/// the first connection is greeted and beats;
+/// the second,
+/// the withdrawal's,
+/// is greeted,
+/// reads the line that asks for the withdrawal,
+/// tells the client its request is inside the write,
+/// and beats without ever answering.
 fn serve_a_withdrawal_that_says_the_request_is_inside_the_write(service: UnixListener) -> std::thread::JoinHandle<()> {
     return std::thread::spawn(move || {
         let (first, _) = service.accept().expect("the first connection");
@@ -460,8 +518,12 @@ fn serve_a_withdrawal_that_says_the_request_is_inside_the_write(service: UnixLis
 }
 
 /// The notice that the request is inside the write reaches the client only on the connection it opened to ask for its withdrawal,
-/// because the write began within a minute of the answer ceiling (sol-1: the seven-second path was missed): the client does what a
-/// client that heard it earlier does, and ends at its answer ceiling plus the extra wait, not at the withdrawal's ceiling.
+/// because the write began within a minute of the answer ceiling (sol-1:
+/// the seven-second path was missed):
+/// the client does what a
+/// client that heard it earlier does,
+/// and ends at its answer ceiling plus the extra wait,
+/// not at the withdrawal's ceiling.
 #[test]
 fn a_notice_that_arrives_on_the_withdrawal_connection_ends_the_wait_at_the_answer_ceiling_plus_the_extra_wait() {
     let name: String = address("late-inside-notice");

@@ -13,6 +13,10 @@
 //! `close` ends the gate for good at shutdown,
 //! so parked workers leave instead of waiting for a resume that cannot come.
 
+/// Imports the shared ownership,
+/// lock,
+/// condition variable,
+/// one-time initialization and poison types of the gate.
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 
 /// What:
@@ -36,8 +40,13 @@ pub enum Admission {
 /// so a pause can never revive a gate that was closed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum GateState {
+    /// The sweep runs.
     Running,
+    /// The sweep waits for a resume.
     Paused,
+    /// The sweep is over;
+    /// waiting threads wake and stop,
+    /// and a pause cannot reopen the gate.
     Closed,
 }
 
@@ -48,7 +57,11 @@ enum GateState {
 /// the condition variable parks them until resume or close.
 #[derive(Debug)]
 pub struct SweepGate {
+    /// The state,
+    /// guarded so that a pause,
+    /// a resume and a close never race.
     state: Mutex<GateState>,
+    /// Parks the sweep threads until a resume or a close.
     wake: Condvar,
 }
 

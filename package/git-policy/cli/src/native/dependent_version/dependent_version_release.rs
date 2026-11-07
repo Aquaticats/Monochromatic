@@ -1,18 +1,32 @@
-//! What: Patch-bump a plain `major.minor.patch` release version, and quote text the way
+//! What:
+//! Patch-bump a plain `major.minor.patch` release version,
+//! and quote text the way
 //!       `JSON.stringify` does.
-//! Why: A dependent receives a patch bump. Only a plain release can be bumped
-//!      automatically; anything else (a prerelease, build metadata, a leading zero, a
-//!      missing component) is reported for a bump by hand, with the incumbent's message
-//!      (`dependent-version-bump.ts:87-177`). The patch component is incremented as a
-//!      decimal digit string, so it is exact at any size.
+//! Why:
+//! A dependent receives a patch bump.
+//! Only a plain release can be bumped
+//!      automatically;
+//! anything else (a prerelease,
+//! build metadata,
+//! a leading zero,
+//! a
+//!      missing component) is reported for a bump by hand,
+//! with the incumbent's message
+//!      (`dependent-version-bump.ts:87-177`).
+//! The patch component is incremented as a
+//!      decimal digit string,
+//! so it is exact at any size.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // patchBumpVersion({ name, version }); JSON.stringify(text);
 //! ```
 
-/// What: The UTF-16 code unit of `.`.
-/// Why:  Versions are kept as code units; components are split on this unit.
+/// What:
+/// The UTF-16 code unit of `.`.
+/// Why:
+///  Versions are kept as code units;
+/// components are split on this unit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -20,10 +34,15 @@
 /// ```
 const DOT: u16 = 0x2e;
 
-/// What: A dependent whose version cannot be bumped automatically. `Vec<u16>` keeps the
+/// What:
+/// A dependent whose version cannot be bumped automatically.
+/// `Vec<u16>` keeps the
 ///       version as the code units JavaScript holds.
-/// Why:  The policy turns this into a `dependent-version-unsupported` finding without a
-///       patch, and the plan stops, exactly as the incumbent's throw stops it.
+/// Why:
+///  The policy turns this into a `dependent-version-unsupported` finding without a
+///       patch,
+/// and the plan stops,
+/// exactly as the incumbent's throw stops it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -37,8 +56,11 @@ pub struct UnsupportedVersion {
     pub version: Vec<u16>,
 }
 
-/// What: The incumbent's message for an unsupported version, verbatim.
-/// Why:  The finding text tells the person to bump that package by hand.
+/// What:
+/// The incumbent's message for an unsupported version,
+/// verbatim.
+/// Why:
+///  The finding text tells the person to bump that package by hand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,8 +74,11 @@ pub fn unsupported_message(unsupported: &UnsupportedVersion) -> String {
     );
 }
 
-/// What: One automatic patch bump: the version before and after.
-/// Why:  Both appear in the finding message and the text edit.
+/// What:
+/// One automatic patch bump:
+/// the version before and after.
+/// Why:
+///  Both appear in the finding message and the text edit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,8 +92,12 @@ pub struct ReleaseBump {
     pub to: String,
 }
 
-/// What: Whether one UTF-16 code unit is the dot `.`. `&u16` borrows the unit, as `split` hands it over.
-/// Why:  `split` takes this function by path where a closure would otherwise stand.
+/// What:
+/// Whether one UTF-16 code unit is the dot `.`.
+/// `&u16` borrows the unit,
+/// as `split` hands it over.
+/// Why:
+///  `split` takes this function by path where a closure would otherwise stand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,9 +107,12 @@ fn is_dot_unit(unit: &u16) -> bool {
     return *unit == DOT;
 }
 
-/// What: Whether one component is a non-empty run of ASCII digits without a leading zero.
+/// What:
+/// Whether one component is a non-empty run of ASCII digits without a leading zero.
 ///       `&[u16]` borrows code units.
-/// Why:  Semantic versioning's numeric identifiers; `0` alone is allowed.
+/// Why:
+///  Semantic versioning's numeric identifiers;
+/// `0` alone is allowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,8 +129,12 @@ fn is_release_component(component: &[u16]) -> bool {
     return digits && !(component.len() > 1 && component[0] == u16::from(b'0'));
 }
 
-/// What: Add one to a decimal digit string. `.rev()` walks from the last digit.
-/// Why:  An exact increment at any size; the incumbent's `Number(component) + 1` rounds
+/// What:
+/// Add one to a decimal digit string.
+/// `.rev()` walks from the last digit.
+/// Why:
+///  An exact increment at any size;
+/// the incumbent's `Number(component) + 1` rounds
 ///       above 2^53 and prints exponent notation from 10^21.
 ///
 /// In TS you'd write (pseudocode):
@@ -131,8 +167,10 @@ fn increment_decimal(digits: &[u16]) -> String {
     return text;
 }
 
-/// What: Bump the patch component of a plain release version.
-/// Why:  Only plain releases are bumped automatically.
+/// What:
+/// Bump the patch component of a plain release version.
+/// Why:
+///  Only plain releases are bumped automatically.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,11 +203,18 @@ pub fn patch_bump_version(name: &str, version: &[u16]) -> Result<ReleaseBump, Un
     });
 }
 
-/// What: Quote code units as `JSON.stringify` quotes a string. `char::decode_utf16` pairs
+/// What:
+/// Quote code units as `JSON.stringify` quotes a string.
+/// `char::decode_utf16` pairs
 ///       surrogates and yields an error for each unpaired one.
-/// Why:  Messages and the version edit compare against the incumbent's quoting: `"`, `\`
-///       and the short control escapes are escaped, other units below U+0020 and unpaired
-///       surrogates become lower-case `\u` escapes, and everything else stays literal.
+/// Why:
+///  Messages and the version edit compare against the incumbent's quoting:
+/// `"`,
+/// `\`
+///       and the short control escapes are escaped,
+/// other units below U+0020 and unpaired
+///       surrogates become lower-case `\u` escapes,
+/// and everything else stays literal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,7 +244,8 @@ pub fn json_quote_units(units: &[u16]) -> String {
     return quoted;
 }
 
-/// Release checks, exact increments and quoting.
+/// Release checks,
+/// exact increments and quoting.
 #[cfg(test)]
 #[path = "dependent_version_release_tests.rs"]
 mod tests;

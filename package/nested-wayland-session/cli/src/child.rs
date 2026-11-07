@@ -43,11 +43,14 @@ use smithay::reexports::calloop::{
 };
 
 /// What:
-///      `use anyhow::{Context, Result};`.
-///  Error helpers.
+///      `use anyhow::Result;`.
+///  The error channel.
 /// Why:
-///       `spawn_child` returns `Result` and annotates spawn failures.
-use anyhow::{Context, Result};
+///       `spawn_child` returns `Result`.
+use anyhow::Result;
+
+/// Error text that is built only on failure.
+use crate::lazy_error_text::with_message;
 
 /// What:
 ///      `use tracing::{info, warn};`.
@@ -174,9 +177,7 @@ pub fn spawn_child(
     //           `.with_context(closure)` lazily attaches a message on error; `?` unwraps
     //           or returns the error.
     // Why:      Actually launch the client, failing cleanly if the binary is missing.
-    let child = cmd
-        .spawn()
-        .with_context(|| format!("failed to spawn hosted client: {program}"))?;
+    let child = with_message(cmd.spawn(), format_args!("failed to spawn hosted client: {program}"))?;
 
     // What:     `info!(...)`. Log the spawn with the socket the child will use.
     // Why:      Make the wiring visible for debugging.
@@ -194,11 +195,12 @@ pub fn spawn_child(
 
 /// Requests graceful xdg-toplevel close and schedules force-stop fallback.
 pub fn request_hosted_client_shutdown(state: &mut Compositor) {
-    let toplevels = state
-        .space
-        .elements()
-        .filter_map(|window| return window.toplevel().cloned())
-        .collect::<Vec<_>>();
+    let mut toplevels = Vec::new();
+    for window in state.space.elements() {
+        if let Some(toplevel) = window.toplevel() {
+            toplevels.push(toplevel.clone());
+        }
+    }
     state.shutdown_deadline = Some(Instant::now() + SHUTDOWN_GRACE);
     if toplevels.is_empty() {
         warn!("no hosted toplevel available for graceful close; scheduling forced shutdown");
@@ -212,11 +214,35 @@ pub fn request_hosted_client_shutdown(state: &mut Compositor) {
 
 /// Returns whether pending graceful shutdown passed its fallback deadline.
 fn shutdown_expired(deadline: Option<Instant>, now: Instant) -> bool {
-    return deadline.is_some_and(|value| return now >= value);
+    return matches!(deadline, Some(value) if now >= value);
 }
 
 /// Register the periodic child-exit poll on the event loop.
 ///
+/// The timer callback of the child-exit poll.
+///
+/// What:
+///      `fn on_child_poll_timer(_deadline: Instant, _metadata: &mut (), state: &mut Compositor) -> TimeoutAction`.
+///  `poll_child(state)` checks whether the child exited and,
+///  if so,
+///  stops the loop;
+///  `TimeoutAction::ToDuration(POLL_INTERVAL)` tells calloop to reschedule the timer
+///  for another `POLL_INTERVAL` from now.
+///  The unit-typed `_metadata` is the timer source's metadata slot,
+///  which it leaves empty.
+/// Why:
+///       Keep polling until the loop stops.
+///  A named function replaces the closure the timer source took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function onChildPollTimer(_deadline, _metadata, state) { pollChild(state); return reschedule(POLL_INTERVAL); }
+/// ```
+fn on_child_poll_timer(_deadline: Instant, _metadata: &mut (), state: &mut Compositor) -> TimeoutAction {
+    poll_child(state);
+    return TimeoutAction::ToDuration(POLL_INTERVAL)
+}
+
 /// What:
 ///      `pub fn register_exit_poll(loop_handle: &LoopHandle<Compositor>)`.
 ///  Borrows
@@ -235,18 +261,7 @@ pub fn register_exit_poll(loop_handle: &LoopHandle<Compositor>) {
     //           (`_`), and `&mut Compositor` (`state`).
     // Why:      Poll the child on a fixed cadence.
     loop_handle
-        .insert_source(Timer::from_duration(POLL_INTERVAL), |_, _, state: &mut Compositor| {
-            // What:     `poll_child(state);`. Check whether the child exited and, if so,
-            //           stop the loop.
-            // Why:      The actual exit check.
-            poll_child(state);
-
-            // What:     `TimeoutAction::ToDuration(POLL_INTERVAL)`. Tell calloop to
-            //           reschedule the timer for another `POLL_INTERVAL` from now (tail
-            //           expression of the closure).
-            // Why:      Keep polling until the loop stops.
-            return TimeoutAction::ToDuration(POLL_INTERVAL)
-        })
+        .insert_source(Timer::from_duration(POLL_INTERVAL), on_child_poll_timer)
         .expect("failed to register the child-exit poll timer");
 }
 

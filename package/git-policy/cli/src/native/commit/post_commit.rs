@@ -2,10 +2,15 @@
 //!  The post-commit policy gate over a landed commit's own changes.
 //! Why:
 //!  The incumbent (`src/policy-engine/post-commit-lifecycle.ts`) checks the committed bytes of
-//!  every path a landed commit changed, and only a gate that passes lets the commit reach auto-push. The push itself is
-//!  the service's work item, handed over by `commit_command.rs` after a passing gate.
-//!  A blocked gate keeps the commit local and names it in a `commit-landed` event; the command exits `2`.
-//!  The landed commit is an input, so the integrator can call this after any landing.
+//!  every path a landed commit changed,
+//! and only a gate that passes lets the commit reach auto-push.
+//! The push itself is
+//!  the service's work item,
+//! handed over by `commit_command.rs` after a passing gate.
+//!  A blocked gate keeps the commit local and names it in a `commit-landed` event;
+//! the command exits `2`.
+//!  The landed commit is an input,
+//! so the integrator can call this after any landing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +26,9 @@ use crate::config_schema::PolicyConfig;
 use crate::child_environment::environment_value;
 /// The failure code and the event kinds the gate emits.
 use crate::diagnostics::EngineFailureCode;
-/// The linter the Markdown policy finds on, and runs with, the invocation's environment.
+/// The linter the Markdown policy finds on,
+/// and runs with,
+/// the invocation's environment.
 use crate::policy_checks::shipped_checks;
 use crate::policy_content::LifecycleContent;
 use crate::policy_engine::{StageEnd, StageRequest, pass_exit_code};
@@ -37,13 +44,15 @@ use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
-/// Exit status the command returns when the gate blocks the backup, as the incumbent's `PolicyDecisionError(2)`.
+/// Exit status the command returns when the gate blocks the backup,
+/// as the incumbent's `PolicyDecisionError(2)`.
 pub const POST_COMMIT_BLOCKED_EXIT_CODE: i32 = 2;
 
 /// What:
 ///  The inputs of one post-commit gate.
 /// Why:
-///   The landed commit names the delta; the global prefix and the environment make every query read
+///   The landed commit names the delta;
+/// the global prefix and the environment make every query read
 ///  the repository the commit landed in.
 ///
 /// In TS you'd write (pseudocode):
@@ -54,11 +63,15 @@ pub const POST_COMMIT_BLOCKED_EXIT_CODE: i32 = 2;
 pub struct PostCommitRequest<'request> {
     /// Absolute real Git executable.
     pub real_git: &'request Path,
-    /// The landed commit object name, as Git printed it.
+    /// The landed commit object name,
+    /// as Git printed it.
     pub landed_oid: &'request str,
     /// The arguments the command forwarded to Git.
     pub arguments: &'request [OsString],
-    /// The global options of the invocation, kept before every query (`-C`, `--git-dir`, `-c`).
+    /// The global options of the invocation,
+    /// kept before every query (`-C`,
+    /// `--git-dir`,
+    /// `-c`).
     pub global_prefix: &'request [OsString],
     /// Variables added to every query.
     pub overlay: &'request [(OsString, OsString)],
@@ -74,7 +87,9 @@ pub struct PostCommitRequest<'request> {
 
 /// What:
 ///  The settled gate:
-///  the landed commit, every event it produced, and whether the backup must not run.
+///  the landed commit,
+/// every event it produced,
+/// and whether the backup must not run.
 /// Why:
 ///   `events` already carries the `commit-landed` event when `blocked` is true,
 ///  so the caller renders one list.
@@ -85,9 +100,11 @@ pub struct PostCommitRequest<'request> {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PostCommitGate {
-    /// The landed commit object name, as given.
+    /// The landed commit object name,
+    /// as given.
     pub oid: String,
-    /// Every event the gate produced, in order.
+    /// Every event the gate produced,
+    /// in order.
     pub events: Vec<PolicyEvent>,
     /// Whether the backup must not run.
     pub blocked: bool,
@@ -96,9 +113,12 @@ pub struct PostCommitGate {
 /// What:
 ///  Run the post-commit policies over the landed commit's delta.
 /// Why:
-///   Only a gate with no blocking event, no failure and no pending correction lets the backup run;
-///  a warning-only result is allowed, as in the incumbent.
-///   A landed name that is not an object name is an engine failure, so the commit is kept and reported.
+///   Only a gate with no blocking event,
+/// no failure and no pending correction lets the backup run;
+///  a warning-only result is allowed,
+/// as in the incumbent.
+///   A landed name that is not an object name is an engine failure,
+/// so the commit is kept and reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

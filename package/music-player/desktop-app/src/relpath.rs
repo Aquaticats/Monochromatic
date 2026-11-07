@@ -210,9 +210,15 @@ fn shared_prefix_len(tracks: &[PathBuf]) -> usize {
 #[derive(PartialEq, Eq)]
 enum PageKey<'a> {
     /// The page of the folder with this name.
-    Folder(std::borrow::Cow<'a, str>),
+    Folder(
+        /// The folder's name.
+        std::borrow::Cow<'a, str>,
+    ),
     /// The page of this upper-case ASCII letter.
-    Letter(char),
+    Letter(
+        /// The upper-case letter.
+        char,
+    ),
     /// The `#` page.
     CatchAll,
 }
@@ -294,6 +300,11 @@ fn normal_parts(path: &Path) -> impl Iterator<Item = std::borrow::Cow<'_, str>> 
     });
 }
 
+/// Unit tests of `relpath`,
+/// in the sidecar file `relpath_tests.rs`.
+/// Role of the module:
+/// pure relative-path display:
+/// strip the longest common directory prefix from the queue's track paths so the UI can show each track's path relative to the loaded root (e.g.
 #[cfg(test)]
 #[path = "relpath_tests.rs"]
 mod tests;

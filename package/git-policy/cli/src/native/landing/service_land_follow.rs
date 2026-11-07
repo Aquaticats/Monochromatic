@@ -1,12 +1,22 @@
 //! What:
-//!  What the service's landing does once the branch has moved: the worktree's index entries of the commit's paths and the
-//!  conclusion state a merge, cherry-pick or revert leaves behind.
+//!  What the service's landing does once the branch has moved:
+//! the worktree's index entries of the commit's paths and the
+//!  conclusion state a merge,
+//! cherry-pick or revert leaves behind.
 //! Why:
-//!  A commit Git built in a scratch repository carries no list of changes, and a conclusion's state files belong to the
-//!  commit that concludes it. Both steps are idempotent, so the same code finishes a batch a killed service left open.
-//!  The index entries come from the repository itself: the paths that differ between the branch before and the commit,
-//!  as bytes, handed to `reset` on its standard input, so a name that is not UTF-8, a long list and a gitlink need no
-//!  special case (`doc/planning/cli-git-resident-service.md`, "Landing every command line").
+//!  A commit Git built in a scratch repository carries no list of changes,
+//! and a conclusion's state files belong to the
+//!  commit that concludes it.
+//! Both steps are idempotent,
+//! so the same code finishes a batch a killed service left open.
+//!  The index entries come from the repository itself:
+//! the paths that differ between the branch before and the commit,
+//!  as bytes,
+//! handed to `reset` on its standard input,
+//! so a name that is not UTF-8,
+//! a long list and a gitlink need no
+//!  special case (`doc/planning/cli-git-resident-service.md`,
+//! "Landing every command line").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,16 +37,32 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::transaction_journal::RefFormat;
 use std::path::Path;
 
-/// How many times the index update is tried again when the lock was gone by the time it was looked at: the holder let go
-///  between Git's refusal and the look, so the next try is expected to take the lock.
-///  Measured on 2026-11-03 on this host, on a copy of this repository's index (20,739 tracked files, 2.9 MB), with 20 runs each
-///  of `git status`, `git add -A`, `git reset -q` and `git update-index --refresh`: Git held `index.lock` for at most 100 ms
-///  (`add -A`; medians 26 to 53 ms, `status` at most 55 ms, `reset` at most 71 ms, `update-index` at most 77 ms). Five tries
-///  of that hold cover five holds in a row. A holder that is still there is waited for by `index_holder_wait.rs`, with no bound,
+/// How many times the index update is tried again when the lock was gone by the time it was looked at:
+/// the holder let go
+///  between Git's refusal and the look,
+/// so the next try is expected to take the lock.
+///  Measured on 2026-11-03 on this host,
+/// on a copy of this repository's index (20,739 tracked files,
+/// 2.9 MB),
+/// with 20 runs each
+///  of `git status`,
+/// `git add -A`,
+/// `git reset -q` and `git update-index --refresh`:
+/// Git held `index.lock` for at most 100 ms
+///  (`add -A`;
+/// medians 26 to 53 ms,
+/// `status` at most 55 ms,
+/// `reset` at most 71 ms,
+/// `update-index` at most 77 ms).
+/// Five tries
+///  of that hold cover five holds in a row.
+/// A holder that is still there is waited for by `index_holder_wait.rs`,
+/// with no bound,
 ///  and does not use these tries.
 const INDEX_ATTEMPTS: usize = 5;
 
-/// The pause between index tries when the lock was gone: the longest hold measured for one of Git's own short commands (see
+/// The pause between index tries when the lock was gone:
+/// the longest hold measured for one of Git's own short commands (see
 ///  `INDEX_ATTEMPTS`).
 const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
@@ -45,11 +71,13 @@ const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 pub enum IndexPaths<'a> {
     /// The paths the request listed.
     Listed(&'a [String]),
-    /// Paths given as bytes, for a client that reconciles the index without a landing.
+    /// Paths given as bytes,
+    /// for a client that reconciles the index without a landing.
     Named(&'a [Vec<u8>]),
     /// Every path that differs between the branch before the landing and the new commit.
     Derived {
-        /// The branch before the landing; the all-zero name when the branch did not exist.
+        /// The branch before the landing;
+        /// the all-zero name when the branch did not exist.
         old: &'a str,
     },
 }
@@ -86,7 +114,8 @@ fn literal(path: &[u8]) -> Vec<u8> {
     return spec;
 }
 
-/// The names (bytes, NUL-separated) of the paths that differ between `old` and `new`.
+/// The names (bytes,
+/// NUL-separated) of the paths that differ between `old` and `new`.
 fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
     let mut arguments: Vec<&str> = vec!["diff-tree", "-r", "--name-only", "-z", "--no-renames"];
     if is_zero_object(old) {
@@ -193,11 +222,18 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 }
 
 /// What:
-///  Updates the index entries of the commit's paths to the commit `new`, waiting while another program holds the index.
+///  Updates the index entries of the commit's paths to the commit `new`,
+/// waiting while another program holds the index.
 /// Why:
-///   Only Git's own index lock can make this fail for a moment. A holder proven alive is waited for with no bound, one that
-///  nothing proves alive for the short backoff, and a dead one not at all (`index_holder_wait.rs`); a lock that was gone by the
-///  time it was looked at is tried again a few times. An empty list changes nothing, because `reset` with no path would
+///   Only Git's own index lock can make this fail for a moment.
+/// A holder proven alive is waited for with no bound,
+/// one that
+///  nothing proves alive for the short backoff,
+/// and a dead one not at all (`index_holder_wait.rs`);
+/// a lock that was gone by the
+///  time it was looked at is tried again a few times.
+/// An empty list changes nothing,
+/// because `reset` with no path would
 ///  reset the whole index.
 ///
 /// In TS you'd write (pseudocode):
@@ -208,7 +244,8 @@ pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str
     return update_index_within(git, repository, index, LOCK_CEILING, new, paths);
 }
 
-/// `update_index` that gives up on a holder of the index lock after `ceiling`, with the lock's code.
+/// `update_index` that gives up on a holder of the index lock after `ceiling`,
+/// with the lock's code.
 ///
 /// # Errors
 ///
@@ -242,11 +279,16 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
 }
 
 /// What:
-///  Builds the index the landing will install, in a file of its own beside the real index: a copy of the real index with the
+///  Builds the index the landing will install,
+/// in a file of its own beside the real index:
+/// a copy of the real index with the
 ///  commit's paths reset to the commit.
 /// Why:
-///   The landing holds Git's `index.lock`, so Git's own `reset` cannot take it; the new index is made in another file and then
-///  moved into place by the lock's release, which is how Git installs an index.
+///   The landing holds Git's `index.lock`,
+/// so Git's own `reset` cannot take it;
+/// the new index is made in another file and then
+///  moved into place by the lock's release,
+/// which is how Git installs an index.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -263,13 +305,15 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
 }
 
 /// Whether the private copy (made from the live index while `lock` is held) was reset to
-///  the commit without starting Git; Git's own command follows when it was not.
+///  the commit without starting Git;
+/// Git's own command follows when it was not.
 #[cfg(target_os = "linux")]
 fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, copy): (&IndexLock, &PrivateCopy)) -> bool {
     return crate::index_reset_file::reset_index_file(git, repository, new, paths, lock, copy);
 }
 
-/// Without the in-process update on this platform, Git's own command always runs.
+/// Without the in-process update on this platform,
+/// Git's own command always runs.
 #[cfg(not(target_os = "linux"))]
 fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, &PrivateCopy)) -> bool {
     return false;
@@ -285,10 +329,14 @@ pub fn storage_failure(error: &std::io::Error) -> FailureCode {
 }
 
 /// What:
-///  Removes the conclusion state real Git removed in the scratch repository, from the worktree's Git directory.
+///  Removes the conclusion state real Git removed in the scratch repository,
+/// from the worktree's Git directory.
 /// Why:
-///   Each entry goes only while it still holds the bytes copied when the commit was prepared, so a later command's merge
-///  state is never removed; after a first run nothing matches any more, so a second run changes nothing.
+///   Each entry goes only while it still holds the bytes copied when the commit was prepared,
+/// so a later command's merge
+///  state is never removed;
+/// after a first run nothing matches any more,
+/// so a second run changes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

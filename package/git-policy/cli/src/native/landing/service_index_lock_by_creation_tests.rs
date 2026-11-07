@@ -1,6 +1,8 @@
 //! Controls for the index lock on a filesystem that makes neither a rename without replacing nor a hard link:
-//!  the lock is taken by exclusive creation as Git takes it, the fallback is used only when both calls are refused,
-//!  a lock that exists is never removed or replaced by it, and a failure after the creation leaves no lock of ours.
+//!  the lock is taken by exclusive creation as Git takes it,
+//! the fallback is used only when both calls are refused,
+//!  a lock that exists is never removed or replaced by it,
+//! and a failure after the creation leaves no lock of ours.
 
 use crate::service_index_lock::*;
 use crate::service_index_marker::{marker_text, own_identity};
@@ -10,7 +12,9 @@ use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// How long a control waits for a lock that stays: short, because only the ceiling ends that wait.
+/// How long a control waits for a lock that stays:
+/// short,
+/// because only the ceiling ends that wait.
 const SHORT_CEILING: Duration = Duration::from_millis(400);
 
 fn index_in(name: &str) -> (PathBuf, PathBuf) {
@@ -46,8 +50,11 @@ fn names_beside_the_index(index: &Path) -> Vec<String> {
     return names;
 }
 
-/// The exclusive creation is the fallback of the two refusals, never a first choice:
-/// a rename that works, a link that works after a refused rename, and a link that fails for any other reason never create the
+/// The exclusive creation is the fallback of the two refusals,
+/// never a first choice:
+/// a rename that works,
+/// a link that works after a refused rename,
+/// and a link that fails for any other reason never create the
 /// lock file themselves.
 #[test]
 fn exclusive_creation_is_used_only_when_both_the_rename_and_the_link_are_refused() {
@@ -77,9 +84,14 @@ fn exclusive_creation_is_used_only_when_both_the_rename_and_the_link_are_refused
     remove(root.as_path());
 }
 
-/// The lock made by exclusive creation holds the marker of its holder, whole, by the time the hold begins; a lock another
-/// program holds is waited for to the ceiling and stays exactly as it was, whether it is a Git's empty lock (the state a kill
-/// between creation and marker leaves) or anything else, and the wait ends with `IndexInUse` and words that name the file and the fix.
+/// The lock made by exclusive creation holds the marker of its holder,
+/// whole,
+/// by the time the hold begins;
+/// a lock another
+/// program holds is waited for to the ceiling and stays exactly as it was,
+/// whether it is a Git's empty lock (the state a kill
+/// between creation and marker leaves) or anything else,
+/// and the wait ends with `IndexInUse` and words that name the file and the fix.
 #[test]
 fn a_lock_that_exists_is_never_removed_or_replaced_by_the_fallback() {
     let (root, index) = index_in("lock-creation-existing");
@@ -106,8 +118,11 @@ fn a_lock_that_exists_is_never_removed_or_replaced_by_the_fallback() {
     remove(root.as_path());
 }
 
-/// A lock with the whole marker of a service that is gone is stale, yet where no claim file can be placed (the same filesystem)
-/// nothing proves it safe to remove: it stays, and the wait ends at the ceiling.
+/// A lock with the whole marker of a service that is gone is stale,
+/// yet where no claim file can be placed (the same filesystem)
+/// nothing proves it safe to remove:
+/// it stays,
+/// and the wait ends at the ceiling.
 #[test]
 fn a_stale_marked_lock_stays_where_no_claim_can_be_placed() {
     let (root, index) = index_in("lock-creation-stale-marked");
@@ -129,8 +144,10 @@ fn a_stale_marked_lock_stays_where_no_claim_can_be_placed() {
     remove(root.as_path());
 }
 
-/// A marker that cannot be flushed after the lock was created removes the lock again, so a failure here never leaves a lock of
-/// ours that nothing could clear; the failure is the answer.
+/// A marker that cannot be flushed after the lock was created removes the lock again,
+/// so a failure here never leaves a lock of
+/// ours that nothing could clear;
+/// the failure is the answer.
 #[test]
 fn a_marker_that_cannot_be_flushed_leaves_no_lock() {
     let (root, index) = index_in("lock-creation-sync-fails");
@@ -151,7 +168,8 @@ fn a_marker_that_cannot_be_flushed_leaves_no_lock() {
     remove(root.as_path());
 }
 
-/// A creation that fails for any reason is the answer, and nothing is left.
+/// A creation that fails for any reason is the answer,
+/// and nothing is left.
 #[test]
 fn a_creation_that_fails_is_the_answer_and_leaves_nothing() {
     let (root, index) = index_in("lock-creation-refused");

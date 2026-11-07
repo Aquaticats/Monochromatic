@@ -353,10 +353,12 @@ pub fn refusal_text(marker: &StartMarker, own_executable: &Path, environment: &[
 }
 
 /// What:
-///  The birth identity of the process with a number, read from the operating system now.
+///  The birth identity of the process with a number,
+/// read from the operating system now.
 ///       `.ok().flatten()` turns a read failure and an absent process into the same `None`.
 /// Why:
-///   The check treats an identity it cannot read as no contradiction, so both cases need no distinction here.
+///   The check treats an identity it cannot read as no contradiction,
+/// so both cases need no distinction here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

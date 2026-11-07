@@ -303,9 +303,12 @@ pub fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
 }
 
 /// What:
-///  The Git directory of the worktree itself: its own for a linked worktree, the common one for the main worktree.
+///  The Git directory of the worktree itself:
+/// its own for a linked worktree,
+/// the common one for the main worktree.
 /// Why:
-///   The worktree's `HEAD` lives there, and it tells which branch the worktree has checked out.
+///   The worktree's `HEAD` lives there,
+/// and it tells which branch the worktree has checked out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

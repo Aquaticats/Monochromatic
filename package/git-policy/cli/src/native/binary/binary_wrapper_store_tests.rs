@@ -1,6 +1,9 @@
 //! Binary-level controls for the stored copy of the wrapper that fixtures on another filesystem than the build link:
-//! its name is the build's content, it is published without a lock, a copy that disappears before a fixture links it
-//! is made again, and fixtures in any root share one file.
+//! its name is the build's content,
+//! it is published without a lock,
+//! a copy that disappears before a fixture links it
+//! is made again,
+//! and fixtures in any root share one file.
 
 use super::support::{Fixture, WRAPPER, fixture, fixture_in};
 use super::wrapper_store::{
@@ -14,13 +17,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Barrier, OnceLock};
 use std::time::Duration;
 
-/// The device and inode of a file, which name the file whatever path reaches it.
+/// The device and inode of a file,
+/// which name the file whatever path reaches it.
 fn identity(path: &Path) -> (u64, u64) {
     let metadata: std::fs::Metadata = std::fs::metadata(path).expect("metadata");
     return (metadata.dev(), metadata.ino());
 }
 
-/// The names in a directory, sorted, hidden ones included.
+/// The names in a directory,
+/// sorted,
+/// hidden ones included.
 fn names_in(directory: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(directory)
         .expect("directory")
@@ -30,7 +36,8 @@ fn names_in(directory: &Path) -> Vec<String> {
     return names;
 }
 
-/// The name of a build is its bytes: equal length and equal modification time with different bytes are two builds,
+/// The name of a build is its bytes:
+/// equal length and equal modification time with different bytes are two builds,
 /// and equal bytes with different times are one.
 #[test]
 fn the_name_of_a_build_is_its_content() {
@@ -54,12 +61,18 @@ fn the_name_of_a_build_is_its_content() {
 /// How many callers ask for a build's name at the same moment.
 const NAME_CALLERS: usize = 4;
 
-/// How long the first read waits for the other callers to have asked; the wait ends sooner, as soon as they have, and
+/// How long the first read waits for the other callers to have asked;
+/// the wait ends sooner,
+/// as soon as they have,
+/// and
 /// only a caller that never arrives makes it run out.
 const ARRIVAL_DEADLINE: Duration = Duration::from_secs(2);
 
-/// However many callers ask for the name of a build at once, the build is read once: the first read is held open
-/// until every caller has asked, so a caller that would start a read of its own has started it.
+/// However many callers ask for the name of a build at once,
+/// the build is read once:
+/// the first read is held open
+/// until every caller has asked,
+/// so a caller that would start a read of its own has started it.
 #[test]
 fn callers_that_ask_together_for_the_name_of_a_build_read_it_once() {
     let cell: OnceLock<BuildName> = OnceLock::new();
@@ -89,7 +102,9 @@ fn callers_that_ask_together_for_the_name_of_a_build_read_it_once() {
     assert!(names.iter().all(|name| { return name == "the name"; }), "{names:?}");
 }
 
-/// A read that failed is the outcome for every later caller, with the same kind of error, and no later caller reads
+/// A read that failed is the outcome for every later caller,
+/// with the same kind of error,
+/// and no later caller reads
 /// again.
 #[test]
 fn a_failed_read_of_the_name_is_the_outcome_for_later_callers() {
@@ -111,13 +126,22 @@ fn a_failed_read_of_the_name_is_the_outcome_for_later_callers() {
 /// How many callers publish against each other in one control.
 const PUBLISHING_CALLERS: usize = 4;
 
-/// How many bytes the stand-in build has. Each caller writes one partial copy of it, so the control writes
-/// `PUBLISHING_CALLERS` times this, whatever the host's core count, and not as many copies of the real 22 MB executable
+/// How many bytes the stand-in build has.
+/// Each caller writes one partial copy of it,
+/// so the control writes
+/// `PUBLISHING_CALLERS` times this,
+/// whatever the host's core count,
+/// and not as many copies of the real 22 MB executable
 /// as the host has cores.
 const STAND_IN_BYTES: usize = 64 * 1024;
 
-/// Count one more caller at the gate and wait, up to `ARRIVAL_DEADLINE`, until `callers` have; return whether they had
-/// when this caller left. A caller that died before the gate makes the others leave late and say so, not hang.
+/// Count one more caller at the gate and wait,
+/// up to `ARRIVAL_DEADLINE`,
+/// until `callers` have;
+/// return whether they had
+/// when this caller left.
+/// A caller that died before the gate makes the others leave late and say so,
+/// not hang.
 fn meet_at_gate(arrived: &AtomicUsize, callers: usize) -> bool {
     arrived.fetch_add(1, Ordering::SeqCst);
     let deadline: std::time::Instant = std::time::Instant::now() + ARRIVAL_DEADLINE;
@@ -127,12 +151,20 @@ fn meet_at_gate(arrived: &AtomicUsize, callers: usize) -> bool {
     return arrived.load(Ordering::SeqCst) >= callers;
 }
 
-/// However many callers ask at once, every one ends with a link to the same final file holding the build's bytes, a
-/// recent copy of another build stays while they link, and nothing else stays: no partial file, no second copy.
-/// Every caller holds its finished partial copy at the gate before any of them publishes, so all of them publish
-/// against each other whatever the schedule; the build is a small stand-in so that no more is written than
+/// However many callers ask at once,
+/// every one ends with a link to the same final file holding the build's bytes,
+/// a
+/// recent copy of another build stays while they link,
+/// and nothing else stays:
+/// no partial file,
+/// no second copy.
+/// Every caller holds its finished partial copy at the gate before any of them publishes,
+/// so all of them publish
+/// against each other whatever the schedule;
+/// the build is a small stand-in so that no more is written than
 /// `PUBLISHING_CALLERS` copies of `STAND_IN_BYTES`.
-/// The identity of the final file is taken before a later ask, so a later ask that replaced it is seen.
+/// The identity of the final file is taken before a later ask,
+/// so a later ask that replaced it is seen.
 #[test]
 fn concurrent_callers_end_with_links_to_one_final_file_of_the_build() {
     let created: Fixture = fixture("store-once");
@@ -176,8 +208,11 @@ fn concurrent_callers_end_with_links_to_one_final_file_of_the_build() {
 }
 
 
-/// A caller that publishes after another has won leaves the winner's file as the stored copy, removes its own partial
-/// file, and succeeds; a caller that publishes first becomes the stored copy.
+/// A caller that publishes after another has won leaves the winner's file as the stored copy,
+/// removes its own partial
+/// file,
+/// and succeeds;
+/// a caller that publishes first becomes the stored copy.
 #[test]
 fn a_late_publisher_leaves_the_winners_file_in_place() {
     let created: Fixture = fixture("store-publish");
@@ -194,7 +229,8 @@ fn a_late_publisher_leaves_the_winners_file_in_place() {
     assert_eq!(identity(&stored).1, winner_inode, "the stored file was replaced");
 }
 
-/// What a caller that died after linking its partial file to a published file leaves: the published file under the
+/// What a caller that died after linking its partial file to a published file leaves:
+/// the published file under the
 /// partial names this process identifier and the counter values below `count` would produce.
 fn plant_aliasing_leftovers(store: &Path, published: &Path, count: usize) -> Vec<PathBuf> {
     std::fs::create_dir_all(store).expect("store");
@@ -211,13 +247,19 @@ fn plant_aliasing_leftovers(store: &Path, published: &Path, count: usize) -> Vec
 /// The bytes of the file a leftover partial name aliases.
 const PUBLISHED_BYTES: &[u8] = b"a published copy that must never be written through another name";
 
-/// Whether the published file still holds its bytes; a plain answer, so a failure never prints a whole executable.
+/// Whether the published file still holds its bytes;
+/// a plain answer,
+/// so a failure never prints a whole executable.
 fn still_published(published: &Path) -> bool {
     return std::fs::read(published).is_ok_and(|bytes| { return bytes == PUBLISHED_BYTES; });
 }
 
-/// A partial name that exists is never reused, whatever process left it: the reservation moves on to a name nobody
-/// has, the files under the taken names keep their bytes and their one inode, and a store in which every name tried
+/// A partial name that exists is never reused,
+/// whatever process left it:
+/// the reservation moves on to a name nobody
+/// has,
+/// the files under the taken names keep their bytes and their one inode,
+/// and a store in which every name tried
 /// is taken is an error and not an overwrite.
 #[test]
 fn a_partial_name_that_exists_is_never_reused() {
@@ -269,8 +311,12 @@ fn a_copy_never_writes_through_a_leftover_partial_name() {
     assert_eq!(names_in(&store), expected, "the leftovers stay and the copy has no partial file of its own");
 }
 
-/// A copy of another build that no fixture has linked for the idle age is removed, a younger one is not, and neither is
-/// the current build's copy; a partial file goes only when it is that old too, so a live caller's never does.
+/// A copy of another build that no fixture has linked for the idle age is removed,
+/// a younger one is not,
+/// and neither is
+/// the current build's copy;
+/// a partial file goes only when it is that old too,
+/// so a live caller's never does.
 #[test]
 fn only_idle_copies_of_other_builds_leave_the_store() {
     let created: Fixture = fixture("store-idle");
@@ -290,13 +336,20 @@ fn only_idle_copies_of_other_builds_leave_the_store() {
     assert_eq!(names_in(&store), vec![String::from("keep")], "everything but the current build's copy was idle");
 }
 
-/// The status-change time of a file, in seconds, which no program can set: only a link, an unlink, a write or an
+/// The status-change time of a file,
+/// in seconds,
+/// which no program can set:
+/// only a link,
+/// an unlink,
+/// a write or an
 /// attribute change moves it.
 fn changed_at(path: &Path) -> i64 {
     return std::fs::metadata(path).expect("metadata").ctime();
 }
 
-/// A store holding the current build's copy and one other copy, both with one name, and a partial file.
+/// A store holding the current build's copy and one other copy,
+/// both with one name,
+/// and a partial file.
 fn store_with_an_idle_candidate(created: &Fixture) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let store: PathBuf = created.root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store).expect("store");
@@ -309,7 +362,10 @@ fn store_with_an_idle_candidate(created: &Fixture) -> (PathBuf, PathBuf, PathBuf
 }
 
 /// A copy and a partial file are removed when `now` is the idle age after their status-change time and not one second
-/// before, and the current build's copy is never removed: the age is judged by the clock handed in, not by sleeping.
+/// before,
+/// and the current build's copy is never removed:
+/// the age is judged by the clock handed in,
+/// not by sleeping.
 #[test]
 fn a_copy_leaves_the_store_exactly_when_it_has_been_idle_for_the_idle_age() {
     let created: Fixture = fixture("store-aging");
@@ -323,8 +379,12 @@ fn a_copy_leaves_the_store_exactly_when_it_has_been_idle_for_the_idle_age() {
     assert_eq!(names_in(&store), vec![String::from("keep")], "at the idle age everything but the current build went");
 }
 
-/// A copy a fixture linked just now stays however old its contents are: the age is the status-change time, which a
-/// link moves, and not the modification time, which a link leaves alone and which any copy of an old build carries.
+/// A copy a fixture linked just now stays however old its contents are:
+/// the age is the status-change time,
+/// which a
+/// link moves,
+/// and not the modification time,
+/// which a link leaves alone and which any copy of an old build carries.
 #[test]
 fn a_copy_with_an_old_modification_time_and_a_recent_link_stays() {
     let created: Fixture = fixture("store-recent-link");
@@ -336,8 +396,12 @@ fn a_copy_with_an_old_modification_time_and_a_recent_link_stays() {
     assert_eq!(names_in(&store).len(), 3, "a recently linked copy went: {:?}", names_in(&store));
 }
 
-/// A copy that a fixture links after the decision to remove it was made, and before the removal, stays, and the
-/// fixture's link is that very copy; a copy that a fixture already holds a link to is never a candidate.
+/// A copy that a fixture links after the decision to remove it was made,
+/// and before the removal,
+/// stays,
+/// and the
+/// fixture's link is that very copy;
+/// a copy that a fixture already holds a link to is never a candidate.
 #[test]
 fn a_link_made_during_the_removal_keeps_the_copy() {
     let created: Fixture = fixture("store-link-during-removal");
@@ -362,8 +426,11 @@ fn a_link_made_during_the_removal_keeps_the_copy() {
     assert!(leftovers.is_empty(), "the set-aside name stayed: {leftovers:?}");
 }
 
-/// The copy of another build is removed after a caller got its path and before it links it: the caller gets the copy
-/// again, and its link is the stored file itself, not a copy of its own.
+/// The copy of another build is removed after a caller got its path and before it links it:
+/// the caller gets the copy
+/// again,
+/// and its link is the stored file itself,
+/// not a copy of its own.
 #[test]
 fn a_stored_copy_that_vanishes_before_the_link_is_made_again() {
     let created: Fixture = fixture("store-vanish");
@@ -384,8 +451,10 @@ fn a_stored_copy_that_vanishes_before_the_link_is_made_again() {
     assert_eq!(std::fs::read(&to).expect("linked bytes"), std::fs::read(built).expect("built bytes"));
 }
 
-/// A copy whose bytes do not have the name read before it was made is not published. The name of the build is read
-/// once per process, so asking for another file under it makes exactly that mismatch.
+/// A copy whose bytes do not have the name read before it was made is not published.
+/// The name of the build is read
+/// once per process,
+/// so asking for another file under it makes exactly that mismatch.
 #[test]
 fn a_copy_that_does_not_have_the_builds_name_is_not_published() {
     let created: Fixture = fixture("store-changed");
@@ -399,18 +468,23 @@ fn a_copy_that_does_not_have_the_builds_name_is_not_published() {
     assert_eq!(names_in(&empty_root.join(STORE_DIRECTORY)), Vec::<String>::new(), "a partial file or a copy stayed");
 }
 
-/// How a fixture root gets the built executable, as the filesystem under the root allows.
+/// How a fixture root gets the built executable,
+/// as the filesystem under the root allows.
 #[derive(Debug, Eq, PartialEq)]
 enum Linking {
     /// A hard link of the built executable works.
     Built,
-    /// The link fails across filesystems (`EXDEV`): fixtures link the one stored copy.
+    /// The link fails across filesystems (`EXDEV`):
+    /// fixtures link the one stored copy.
     Stored,
-    /// The link fails for another reason (a protected-links rule, a filesystem without links): fixtures copy.
+    /// The link fails for another reason (a protected-links rule,
+    /// a filesystem without links):
+    /// fixtures copy.
     Private(std::io::ErrorKind),
 }
 
-/// Ask `directory`'s filesystem the question the fixtures' factory asks, with a link that is removed again.
+/// Ask `directory`'s filesystem the question the fixtures' factory asks,
+/// with a link that is removed again.
 fn linking_in(directory: &Path) -> Linking {
     let probe: PathBuf = directory.join(format!("link-probe-{}", std::process::id()));
     let linked: std::io::Result<()> = std::fs::hard_link(WRAPPER, &probe);
@@ -424,9 +498,13 @@ fn linking_in(directory: &Path) -> Linking {
     };
 }
 
-/// What two fixtures in `directory` must be, given how `directory`'s filesystem links:
-/// the built executable itself where it can be linked, one stored copy of its bytes where only a copy on this
-/// filesystem can, and private copies with its bytes where no link works. Returns which of the three applied.
+/// What two fixtures in `directory` must be,
+/// given how `directory`'s filesystem links:
+/// the built executable itself where it can be linked,
+/// one stored copy of its bytes where only a copy on this
+/// filesystem can,
+/// and private copies with its bytes where no link works.
+/// Returns which of the three applied.
 fn assert_fixtures_follow_the_links_the_filesystem_allows(directory: &Path, first: &Fixture, second: &Fixture) -> Linking {
     let built_bytes: Vec<u8> = std::fs::read(WRAPPER).expect("built bytes");
     let linking: Linking = linking_in(directory);
@@ -462,8 +540,10 @@ fn assert_fixtures_follow_the_links_the_filesystem_allows(directory: &Path, firs
     return linking;
 }
 
-/// Two fixtures in the default root are the built executable itself where the root's filesystem links it, its one
-/// stored copy where it does not (`EXDEV`), and copies of its bytes where no link works.
+/// Two fixtures in the default root are the built executable itself where the root's filesystem links it,
+/// its one
+/// stored copy where it does not (`EXDEV`),
+/// and copies of its bytes where no link works.
 #[test]
 fn fixtures_are_the_built_executable_or_its_one_stored_copy() {
     let (first, second): (Fixture, Fixture) = (fixture("share-first"), fixture("share-second"));
@@ -471,33 +551,41 @@ fn fixtures_are_the_built_executable_or_its_one_stored_copy() {
     assert_fixtures_follow_the_links_the_filesystem_allows(root.as_path(), &first, &second);
 }
 
-/// Directories that are usually another filesystem than the build: shared memory and the user's runtime directory.
+/// Directories that are usually another filesystem than the build:
+/// shared memory and the user's runtime directory.
 fn other_filesystem_candidates() -> Vec<PathBuf> {
     let mut candidates: Vec<PathBuf> = vec![PathBuf::from("/dev/shm")];
     candidates.extend(std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from));
     return candidates;
 }
 
-/// How many copies of the executable the stored-copy path holds at once on the other filesystem: the stored copy and
+/// How many copies of the executable the stored-copy path holds at once on the other filesystem:
+/// the stored copy and
 /// the partial copy of a caller that is about to publish.
 const COPIES_ON_THE_OTHER_FILESYSTEM: u64 = 2;
 
-/// A directory made for one control and removed when the control ends, however it ends: a panic unwinds through
-/// this too, so a failed control leaves no executable behind.
+/// A directory made for one control and removed when the control ends,
+/// however it ends:
+/// a panic unwinds through
+/// this too,
+/// so a failed control leaves no executable behind.
 struct Scratch {
-    /// The directory, which holds the roots of the control's fixtures and their store.
+    /// The directory,
+    /// which holds the roots of the control's fixtures and their store.
     directory: PathBuf,
 }
 
 impl Scratch {
-    /// Make the directory, and the guard that removes it.
+    /// Make the directory,
+    /// and the guard that removes it.
     fn create(directory: PathBuf) -> std::io::Result<Self> {
         std::fs::create_dir_all(&directory)?;
         return Ok(Self { directory });
     }
 }
 
-/// Removes the directory and everything under it; a directory already gone is not an error.
+/// Removes the directory and everything under it;
+/// a directory already gone is not an error.
 impl Drop for Scratch {
     fn drop(&mut self) {
         match std::fs::remove_dir_all(&self.directory) {
@@ -508,7 +596,8 @@ impl Drop for Scratch {
     }
 }
 
-/// The bytes that can be written to the filesystem under `path` without root, for an ordinary user.
+/// The bytes that can be written to the filesystem under `path` without root,
+/// for an ordinary user.
 fn available_bytes(path: &Path) -> std::io::Result<u64> {
     use std::os::unix::ffi::OsStrExt;
     let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
@@ -526,10 +615,12 @@ fn available_bytes(path: &Path) -> std::io::Result<u64> {
 
 /// What:
 ///  A scratch directory in the first of `candidates` that is a writable directory on another filesystem than `built`
-///  (the probe link of the build fails with `EXDEV`) with room for the copies the stored-copy path holds there; the
+///  (the probe link of the build fails with `EXDEV`) with room for the copies the stored-copy path holds there;
+/// the
 ///  reasons every candidate was refused when none is.
 /// Why:
-///  Not every host has shared memory or a runtime directory, and `EXDEV` says nothing about capacity.
+///  Not every host has shared memory or a runtime directory,
+/// and `EXDEV` says nothing about capacity.
 fn scratch_on_another_filesystem(candidates: &[PathBuf], built: &Path) -> Result<Scratch, String> {
     let needed: u64 = std::fs::metadata(built).map_err(|error| { return format!("{} is unreadable ({error})", built.display()); })?.len()
         * COPIES_ON_THE_OTHER_FILESYSTEM;
@@ -559,8 +650,10 @@ fn scratch_on_another_filesystem(candidates: &[PathBuf], built: &Path) -> Result
     return Err(reasons.join("; "));
 }
 
-/// Two fixtures in a root on another filesystem than the build, where the link of the build itself fails (`EXDEV`),
-/// are one stored copy of the build's bytes. Where no such filesystem is available the control says why and ends.
+/// Two fixtures in a root on another filesystem than the build,
+/// where the link of the build itself fails (`EXDEV`),
+/// are one stored copy of the build's bytes.
+/// Where no such filesystem is available the control says why and ends.
 #[test]
 fn fixtures_on_another_filesystem_share_the_stored_copy_of_the_build() {
     let scratch: Scratch = match scratch_on_another_filesystem(other_filesystem_candidates().as_slice(), Path::new(WRAPPER)) {
@@ -576,8 +669,10 @@ fn fixtures_on_another_filesystem_share_the_stored_copy_of_the_build() {
     assert_eq!(linking, Linking::Stored, "the scratch directory was chosen because it could not link the build");
 }
 
-/// A control that panics leaves no scratch directory behind, and a host with no other filesystem gets every reason it
-/// was refused, not a panic.
+/// A control that panics leaves no scratch directory behind,
+/// and a host with no other filesystem gets every reason it
+/// was refused,
+/// not a panic.
 #[test]
 fn a_scratch_directory_goes_with_its_control_and_a_missing_filesystem_is_a_reason() {
     let created: Fixture = fixture("store-scratch");
@@ -601,26 +696,34 @@ fn a_scratch_directory_goes_with_its_control_and_a_missing_filesystem_is_a_reaso
     }
 }
 
-/// The time the waiting controls start from, a fixed instant so no control reads the real clock: the clock of a wait
+/// The time the waiting controls start from,
+/// a fixed instant so no control reads the real clock:
+/// the clock of a wait
 /// moves only when the wait pauses.
 fn fake_start() -> std::time::SystemTime {
     return std::time::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
 }
 
-/// The progress window, the poll and the cap the waiting controls use, in the fake clock's time.
+/// The progress window,
+/// the poll and the cap the waiting controls use,
+/// in the fake clock's time.
 const WAIT_LIMITS: [Duration; 3] = [Duration::from_secs(10), Duration::from_secs(1), Duration::from_secs(100)];
 
-/// How many pauses a waiting control allows before it fails, so a wait that never ends fails the control instead of
-/// holding it: far more than the cap needs.
+/// How many pauses a waiting control allows before it fails,
+/// so a wait that never ends fails the control instead of
+/// holding it:
+/// far more than the cap needs.
 const MOST_PAUSES: u32 = 1000;
 
-/// A clock that moves only when the wait pauses, and runs `on_pause` with the new time and the number of pauses so far.
+/// A clock that moves only when the wait pauses,
+/// and runs `on_pause` with the new time and the number of pauses so far.
 struct FakeClock<'a> {
     /// How far the clock has moved from `fake_start`.
     elapsed: std::cell::Cell<Duration>,
     /// How many times the wait paused.
     pauses: std::cell::Cell<u32>,
-    /// What happens while the wait sleeps: the other caller's writes and publish.
+    /// What happens while the wait sleeps:
+    /// the other caller's writes and publish.
     on_pause: std::cell::RefCell<Box<dyn FnMut(std::time::SystemTime, u32) + 'a>>,
 }
 
@@ -635,7 +738,8 @@ impl<'a> FakeClock<'a> {
         return FakeClock::new(|_, _| {});
     }
 
-    /// How long the wait slept in all, as the clock saw it.
+    /// How long the wait slept in all,
+    /// as the clock saw it.
     fn slept(&self) -> Duration {
         return self.elapsed.get();
     }
@@ -662,7 +766,8 @@ fn set_written(path: &Path, when: std::time::SystemTime) {
     file.set_modified(when).expect("set the time");
 }
 
-/// A store with the partial copy of another caller, last written at `written`.
+/// A store with the partial copy of another caller,
+/// last written at `written`.
 fn store_with_partial(created: &Fixture, written: std::time::SystemTime) -> (PathBuf, PathBuf, PathBuf) {
     let store: PathBuf = created.root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store).expect("store");
@@ -672,7 +777,9 @@ fn store_with_partial(created: &Fixture, written: std::time::SystemTime) -> (Pat
     return (store.clone(), partial, store.join("the-build"));
 }
 
-/// A caller waits while the other caller keeps writing, and ends the wait at once when the copy is published: nothing but
+/// A caller waits while the other caller keeps writing,
+/// and ends the wait at once when the copy is published:
+/// nothing but
 /// the stored name and the recent writes decide it.
 #[test]
 fn a_caller_waits_while_the_copy_is_written_and_stops_when_it_is_published() {
@@ -693,8 +800,12 @@ fn a_caller_waits_while_the_copy_is_written_and_stops_when_it_is_published() {
     assert!(stored.exists() && !partial.exists());
 }
 
-/// Nobody waits for a partial copy nobody is writing, and the wait does not pause even once: an old one (a killed run's),
-/// a leftover that aliases a published file, no partial copy at all, and a stored copy that is there already.
+/// Nobody waits for a partial copy nobody is writing,
+/// and the wait does not pause even once:
+/// an old one (a killed run's),
+/// a leftover that aliases a published file,
+/// no partial copy at all,
+/// and a stored copy that is there already.
 #[test]
 fn a_caller_does_not_wait_for_a_partial_copy_nobody_is_writing() {
     let created: Fixture = fixture("store-wait-stale");
@@ -716,7 +827,8 @@ fn a_caller_does_not_wait_for_a_partial_copy_nobody_is_writing() {
     assert_eq!(wait_for_publisher_on(store.as_path(), stored.as_path(), WAIT_LIMITS, &clock), WaitEnd::Published);
 }
 
-/// A copy that stops growing is waited for exactly until the window has passed without a write, and no longer.
+/// A copy that stops growing is waited for exactly until the window has passed without a write,
+/// and no longer.
 #[test]
 fn a_copy_that_stops_growing_ends_the_wait_when_the_window_has_passed() {
     let created: Fixture = fixture("store-wait-stopped");
@@ -728,7 +840,9 @@ fn a_copy_that_stops_growing_ends_the_wait_when_the_window_has_passed() {
     assert!(clock.slept() < window + poll, "the wait went on past the first look after the window: {:?}", clock.slept());
 }
 
-/// A copy written to without end ends the wait at the cap, on the first look after it, whatever the window says.
+/// A copy written to without end ends the wait at the cap,
+/// on the first look after it,
+/// whatever the window says.
 #[test]
 fn a_copy_that_never_finishes_ends_the_wait_at_the_cap() {
     let created: Fixture = fixture("store-wait-cap");
@@ -739,7 +853,8 @@ fn a_copy_that_never_finishes_ends_the_wait_at_the_cap() {
     assert!(clock.slept() >= cap && clock.slept() < cap + poll, "{:?}", clock.slept());
 }
 
-/// A partial copy dated in the future (a clock that moved back) counts as being written, and the wait still ends at the cap.
+/// A partial copy dated in the future (a clock that moved back) counts as being written,
+/// and the wait still ends at the cap.
 #[test]
 fn a_copy_dated_in_the_future_is_waited_for_to_the_cap_only() {
     let created: Fixture = fixture("store-wait-future");
@@ -748,7 +863,9 @@ fn a_copy_dated_in_the_future_is_waited_for_to_the_cap_only() {
     assert_eq!(wait_for_publisher_on(store.as_path(), stored.as_path(), WAIT_LIMITS, &clock), WaitEnd::CapReached);
 }
 
-/// The wait on the system's clock decides the cases that need no time: nothing in progress, and a stored copy.
+/// The wait on the system's clock decides the cases that need no time:
+/// nothing in progress,
+/// and a stored copy.
 #[test]
 fn the_wait_on_the_system_clock_answers_without_waiting_when_nothing_is_in_progress() {
     let created: Fixture = fixture("store-wait-system");
@@ -761,7 +878,10 @@ fn the_wait_on_the_system_clock_answers_without_waiting_when_nothing_is_in_progr
 }
 
 /// A caller whose wait ends with the copy published writes no copy of its own and returns the published one (its
-/// `before_publish` hook, which only a copying caller reaches, never runs); when the wait finds nobody copying it copies.
+/// `before_publish` hook,
+/// which only a copying caller reaches,
+/// never runs);
+/// when the wait finds nobody copying it copies.
 #[test]
 fn shared_copy_waits_for_a_copy_in_progress_instead_of_writing_another() {
     let created: Fixture = fixture("store-wait-shared");

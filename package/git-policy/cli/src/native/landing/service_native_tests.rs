@@ -1,4 +1,5 @@
-//! Controls for the arguments real Git is given for a commit it builds, and for reading the parents of what it made.
+//! Controls for the arguments real Git is given for a commit it builds,
+//! and for reading the parents of what it made.
 
 use super::*;
 
@@ -10,7 +11,9 @@ fn strings(words: &[&str]) -> Vec<String> {
     return words.iter().map(|word| { return (*word).to_string(); }).collect();
 }
 
-/// The parents come from the header block only, in order; a line in the message that looks like a parent is not one.
+/// The parents come from the header block only,
+/// in order;
+/// a line in the message that looks like a parent is not one.
 #[test]
 fn parents_come_from_the_header_block_in_order() {
     let merge: &[u8] = b"tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nparent 1111\nparent 2222\nauthor A <a@b> 1 +0000\n\nparent 3333\n";
@@ -19,7 +22,8 @@ fn parents_come_from_the_header_block_in_order() {
     assert_eq!(parents_of(root), Vec::<String>::new());
 }
 
-/// A commit of named paths is given neither the paths nor the separator nor `--only`, and keeps its message options.
+/// A commit of named paths is given neither the paths nor the separator nor `--only`,
+/// and keeps its message options.
 #[test]
 fn named_paths_and_the_separator_are_left_out_for_git() {
     let (globals, commit) = private_invocation(
@@ -33,7 +37,8 @@ fn named_paths_and_the_separator_are_left_out_for_git() {
     assert_eq!(commit, strings(&["-m", "subject"]));
 }
 
-/// Global options that would send Git elsewhere are dropped, the others are kept before the command.
+/// Global options that would send Git elsewhere are dropped,
+/// the others are kept before the command.
 #[test]
 fn global_options_that_redirect_git_are_dropped() {
     let (globals, commit) = private_invocation(
@@ -47,7 +52,8 @@ fn global_options_that_redirect_git_are_dropped() {
     assert_eq!(commit, strings(&["-S", "-m", "signed"]));
 }
 
-/// A selection the private index already holds is not given to Git again, with its pathspec file and its pathspecs.
+/// A selection the private index already holds is not given to Git again,
+/// with its pathspec file and its pathspecs.
 #[test]
 fn a_selection_the_private_index_holds_is_not_given_to_git_again() {
     let line: Vec<OsString> = arguments(&["commit", "-i", "-m", "all", "--pathspec-from-file=list", "--pathspec-file-nul", "--", "a.txt"]);
@@ -57,7 +63,9 @@ fn a_selection_the_private_index_holds_is_not_given_to_git_again() {
     assert_eq!(private_invocation(&patch, &[], TransactionMode::Index, false, false).1, strings(&["--patch", "-m", "p"]));
 }
 
-/// `-a` is removed once it has staged into the private index, whether alone or in a cluster, and not otherwise.
+/// `-a` is removed once it has staged into the private index,
+/// whether alone or in a cluster,
+/// and not otherwise.
 #[test]
 fn commit_all_is_removed_only_when_the_index_already_holds_it() {
     let line: Vec<OsString> = arguments(&["commit", "-am", "all"]);

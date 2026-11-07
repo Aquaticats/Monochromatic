@@ -1,11 +1,19 @@
-//! Controls for the shell quoting: the form chosen for each kind of value, and a round trip through a real shell for
-//!  hostile values (a separator, a substitution, quotes, a newline, bytes that are not UTF-8).
+//! Controls for the shell quoting:
+//! the form chosen for each kind of value,
+//! and a round trip through a real shell for
+//!  hostile values (a separator,
+//! a substitution,
+//! quotes,
+//! a newline,
+//! bytes that are not UTF-8).
 
 use super::*;
 use std::os::unix::ffi::OsStrExt;
 use std::process::Command;
 
-/// A value of safe characters is printed as it is, the empty value as two quotes, and anything else in single quotes
+/// A value of safe characters is printed as it is,
+/// the empty value as two quotes,
+/// and anything else in single quotes
 ///  with each single quote spelled `'\''`.
 #[test]
 fn each_kind_of_value_gets_its_form() {
@@ -17,7 +25,8 @@ fn each_kind_of_value_gets_its_form() {
     assert_eq!(shell_quote(b"$(id)`id`\"x\" \\y"), "'$(id)`id`\"x\" \\y'");
 }
 
-/// Control characters and bytes that are not UTF-8 are spelled as escapes in the ANSI-C form, never printed.
+/// Control characters and bytes that are not UTF-8 are spelled as escapes in the ANSI-C form,
+/// never printed.
 #[test]
 fn controls_and_invalid_bytes_are_escaped_in_the_ansi_c_form() {
     assert_eq!(shell_quote(b"a\nb\tc"), "$'a\\nb\\tc'");

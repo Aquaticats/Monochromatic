@@ -1,4 +1,7 @@
-//! Controls for the typed primitive failure: its words, the feature-missing classification, and the NUL refusal.
+//! Controls for the typed primitive failure:
+//! its words,
+//! the feature-missing classification,
+//! and the NUL refusal.
 
 use super::*;
 
@@ -13,7 +16,8 @@ fn a_path_with_a_nul_byte_is_refused_before_the_call() {
     assert!(error.to_string().contains("statfs"), "{error}");
 }
 
-/// The message names the call, the path and the system's words for the error number.
+/// The message names the call,
+/// the path and the system's words for the error number.
 #[test]
 fn the_message_names_the_call_the_path_and_the_error() {
     let error: PrimitiveError = PrimitiveError { operation: "FICLONE", path: PathBuf::from("/x/y"), errno: libc::EXDEV };

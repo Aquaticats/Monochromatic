@@ -314,6 +314,12 @@ const MAX_TOO_LOUD_DB: f64 = 1.0 / 2.0;
 /// ```
 const MAX_TOO_QUIET_DB: f64 = -2.0;
 
+/// Folds one byte into a running FNV-1a hash,
+/// the step `mix` and the byte hash repeat.
+fn fold_byte(hash: u64, byte: &u8) -> u64 {
+    return (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME);
+}
+
 /// What:
 ///      `fn mix(hash: u64, word: u64) -> u64`.
 ///  Fold one 64-bit word into a running
@@ -343,9 +349,12 @@ fn mix(hash: u64, word: u64) -> u64 {
     // ```
     return word.to_le_bytes()
         .iter()
-        .fold(hash, |accumulator, &byte| {
-            return (accumulator ^ byte as u64).wrapping_mul(FNV_PRIME)
-        })
+        .fold(hash, fold_byte)
+}
+
+/// Folds one word into a running hash by way of `mix`.
+fn fold_word(hash: u64, word: &u64) -> u64 {
+    return mix(hash, *word);
 }
 
 /// What:
@@ -368,7 +377,7 @@ fn hash_words(words: &[u64]) -> u64 {
     // ```ts
     // return words.reduce((hash, word) => mix(hash, word), FNV_OFFSET);
     // ```
-    return words.iter().fold(FNV_OFFSET, |hash, &word| return mix(hash, word))
+    return words.iter().fold(FNV_OFFSET, fold_word)
 }
 
 /// What:
@@ -396,9 +405,7 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
     // ```
     return bytes
         .iter()
-        .fold(FNV_OFFSET, |hash, &byte| {
-            return (hash ^ byte as u64).wrapping_mul(FNV_PRIME)
-        })
+        .fold(FNV_OFFSET, fold_byte)
 }
 
 /// What:

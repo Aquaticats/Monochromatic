@@ -78,8 +78,17 @@ use gtk4::GestureDrag;
 ///  so this accepts and records rather than moves files.
 pub(crate) fn install_drop_target(widget: &impl IsA<Widget>) {
     let drop = DropTarget::new(FileList::static_type(), DragAction::COPY);
-    drop.connect_drop(|_, value, _, _| return handle_drop(value));
+    drop.connect_drop(on_drop_signal);
     widget.add_controller(drop);
+}
+
+/// What:
+///  the `drop` signal handler of the inbound drop target.
+/// Why:
+///  GTK needs a `'static` callable that captures nothing here,
+///  so a named function replaces the closure that only forwarded to `handle_drop`.
+fn on_drop_signal(_target: &DropTarget, value: &Value, _x: f64, _y: f64) -> bool {
+    return handle_drop(value)
 }
 
 /// What:

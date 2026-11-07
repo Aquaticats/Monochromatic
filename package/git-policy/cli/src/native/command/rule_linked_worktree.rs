@@ -1,6 +1,7 @@
 //! What:
 //!  Pure decision of the linked-worktree-only policy:
-//!  commands that can discard uncommitted state never run in the main worktree, and run in a linked worktree
+//!  commands that can discard uncommitted state never run in the main worktree,
+//! and run in a linked worktree
 //!      only while it is clean.
 //! Why:
 //!  `git stash` that changes state,
@@ -11,7 +12,8 @@
 //!  a forced `rm`,
 //!  `mv`,
 //!  or `checkout-index`,
-//!  `read-tree --reset` and an `--abort` can throw away work, and the loss leaves no record.
+//!  `read-tree --reset` and an `--abort` can throw away work,
+//! and the loss leaves no record.
 //!  This file decides from the arguments alone whether the command is guarded and when,
 //!  and from the worktree kind and dirtiness the caller measured whether to reject it.
 //!  It starts no process.
@@ -82,7 +84,8 @@ pub const LINKED_WORKTREE_REQUIRED_CODE: &str = "linked-worktree-required";
 ///       `#[derive(...)]` asks the compiler to generate copying,
 ///  debug printing and `==`.
 /// Why:
-///   Each form has its own rejection text, because the same subcommand serves different intents:
+///   Each form has its own rejection text,
+/// because the same subcommand serves different intents:
 ///  `restore --staged` unstages while `restore <path>` reverts a file.
 ///
 /// In TS you'd write (pseudocode):
@@ -106,7 +109,10 @@ pub enum GuardedCommand {
     RestoreStaged,
     /// A `git restore` that writes worktree files.
     RestoreWorktree,
-    /// A `git checkout` with paths, `--force`, `--patch`, `--ours` or `--theirs`.
+    /// A `git checkout` with paths,
+    /// `--force`,
+    /// `--patch`,
+    /// `--ours` or `--theirs`.
     CheckoutPaths,
     /// A `git checkout` that moves `HEAD`.
     CheckoutMove,
@@ -154,14 +160,18 @@ pub enum LinkedWorktreeDecision {
     ///  a linked worktree is still judged by whether it is dirty.
     NeedsEffectiveTarget(GuardedCommand),
     /// The form moves `HEAD` and loses nothing unless local changes exist:
-    ///  it is rejected in any worktree, the main one included, only while the worktree is dirty.
+    ///  it is rejected in any worktree,
+    /// the main one included,
+    /// only while the worktree is dirty.
     WhenDirty(GuardedCommand),
 }
 
 /// What:
 ///  The files that count as uncommitted state for a guarded command.
 /// Why:
-///   A `clean` deletes untracked files, so they count for it; every other form loses tracked changes only.
+///   A `clean` deletes untracked files,
+/// so they count for it;
+/// every other form loses tracked changes only.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -177,7 +187,9 @@ pub fn dirty_scope(command: GuardedCommand) -> DirtyScope {
 /// What:
 ///  Turn one classifier reading into a decision.
 /// Why:
-///   Every command shares this step: an overwrite needs the worktree kind, a `HEAD` move needs the dirtiness,
+///   Every command shares this step:
+/// an overwrite needs the worktree kind,
+/// a `HEAD` move needs the dirtiness,
 ///  and a harmless region needs nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -193,12 +205,15 @@ fn decided(command: GuardedCommand, reading: Discard) -> LinkedWorktreeDecision 
 }
 
 /// What:
-///  Whether a guarded subcommand word and its region can discard, and in which way.
+///  Whether a guarded subcommand word and its region can discard,
+/// and in which way.
 ///  `&[u8]` borrows the subcommand word;
 ///  `Result<A, B>` is "either success `A` or failure `B`".
 /// Why:
-///   Each subcommand is read with its own Git grammar, so `rm -- -f` is a path and `rm -rf` is a force.
-///  A region Git refuses is the refusal, and Git then discards nothing.
+///   Each subcommand is read with its own Git grammar,
+/// so `rm -- -f` is a path and `rm -rf` is a force.
+///  A region Git refuses is the refusal,
+/// and Git then discards nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

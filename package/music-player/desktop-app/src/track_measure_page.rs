@@ -14,9 +14,12 @@
 //! `track_measure` re-exports both,
 //! so callers keep one import path.
 
+/// Imports the map type of the measures.
 use std::collections::HashMap;
+/// Imports the path type that keys the measures.
 use std::path::PathBuf;
 
+/// Imports the measure that each entry holds.
 use crate::track_measure::TrackMeasure;
 
 /// What:

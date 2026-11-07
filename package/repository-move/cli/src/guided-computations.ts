@@ -11,7 +11,10 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { BYTES_PER_GIB, } from './constants.ts';
+import {
+  BYTES_PER_GIB,
+  CLONE_LIMIT_ALLOWANCE_BYTES,
+} from './constants.ts';
 import type { GuidedConfig, } from './guided-types.ts';
 import { wordsOf, } from './text-checks.ts';
 
@@ -157,7 +160,8 @@ export async function preflight(config: GuidedConfig,): Promise<string> {
   /**
    The estimate in bytes.
    */
-  const total = mainBytes + externalBytes;
+  const total = mainBytes + externalBytes
+    + CLONE_LIMIT_ALLOWANCE_BYTES;
   /**
    The estimate plus the margin in bytes.
    */
@@ -176,6 +180,7 @@ export async function preflight(config: GuidedConfig,): Promise<string> {
   const lines = [
     `nested checkout footprint (exclusive + set shared): ${gibibytes(mainBytes,)} GiB`,
     `external worktrees (du, no sharing): ${gibibytes(externalBytes,)} GiB`,
+    `clone-limit allowance: ${String(CLONE_LIMIT_ALLOWANCE_BYTES,)} bytes (extents the kernel writes in full instead of cloning)`,
     `estimate: ${gibibytes(total,)} GiB; with the plan margin of ${String(config.marginPercent,)} percent: ${gibibytes(need,)} GiB`,
     `860 free now: ${gibibytes(driveFree,)} GiB; free after the estimate and margin: ${gibibytes(driveFree - need,)} GiB; required: at least ${String(config.minFreeGiB,)} GiB`,
     `NVMe free now: ${gibibytes(nvmeFree,)} GiB; required: at least ${String(config.nvmeMinFreeGiB,)} GiB while source snapshots exist`,

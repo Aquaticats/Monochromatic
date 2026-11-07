@@ -1,9 +1,17 @@
-//! Controls for the meter and the clock of a push's progress, on real short-lived processes that write, sleep and start
+//! Controls for the meter and the clock of a push's progress,
+//! on real short-lived processes that write,
+//! sleep and start
 //! others at known times.
 //! Why:
-//!  The stop on no progress is only as exact as the bytes it counts and the limits it keeps, so each is pinned on both sides:
-//!  bytes of the root and of what it started count, an idle tree counts nothing, a moving tree never stalls, a stalled tree
-//!  stops at its window, no total time stops a moving tree, and where nothing is measured the window is a fixed deadline.
+//!  The stop on no progress is only as exact as the bytes it counts and the limits it keeps,
+//! so each is pinned on both sides:
+//!  bytes of the root and of what it started count,
+//! an idle tree counts nothing,
+//! a moving tree never stalls,
+//! a stalled tree
+//!  stops at its window,
+//! no total time stops a moving tree,
+//! and where nothing is measured the window is a fixed deadline.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,19 +25,25 @@ use std::process::{Child, Command, Stdio};
 /// The name the control gives the probe test in order to run it as a process of its own.
 const PROBE_NAME: &str = "push::push_progress::tests::disk_wait_probe";
 
-/// The variable that holds the probe's hold in milliseconds; without it the probe does nothing.
+/// The variable that holds the probe's hold in milliseconds;
+/// without it the probe does nothing.
 const PROBE_HOLD_VARIABLE: &str = "CLI_GIT_DISK_WAIT_PROBE_HOLD_MILLISECONDS";
 
-/// The variable that says what the probe does when its hold is over: `exit`, or `idle` to sleep as a process waiting on a server.
+/// The variable that says what the probe does when its hold is over:
+/// `exit`,
+/// or `idle` to sleep as a process waiting on a server.
 const PROBE_THEN_VARIABLE: &str = "CLI_GIT_DISK_WAIT_PROBE_THEN";
 
-/// Pause between two looks of a control, shorter than every limit it uses.
+/// Pause between two looks of a control,
+/// shorter than every limit it uses.
 const LOOK: Duration = Duration::from_millis(50);
 
-/// How long a control waits for something that must happen, so a broken meter fails it and never holds it.
+/// How long a control waits for something that must happen,
+/// so a broken meter fails it and never holds it.
 const PATIENCE: Duration = Duration::from_secs(20);
 
-/// A shell command running `script` in `directory`, with its output discarded.
+/// A shell command running `script` in `directory`,
+/// with its output discarded.
 fn shell(script: &str, directory: &std::path::Path) -> Child {
     return spawn_owned(
         Command::new("sh")
@@ -44,12 +58,12 @@ fn shell(script: &str, directory: &std::path::Path) -> Child {
 }
 
 /// End a child the control started.
-fn end(mut child: Child) {
-    child.kill().expect("end the child");
-    child.wait().expect("reap the child");
+fn end(child: Child) {
+    crate::child_ended_with_its_whole_group::end_with_its_group(child);
 }
 
-/// Look at the tree until a sample shows nothing new, which an idle tree does within a few looks of its start.
+/// Look at the tree until a sample shows nothing new,
+/// which an idle tree does within a few looks of its start.
 fn settle(meter: &mut Meter, root: i32) {
     let began: Instant = Instant::now();
     while meter.sample(root) {
@@ -58,7 +72,8 @@ fn settle(meter: &mut Meter, root: i32) {
     }
 }
 
-/// An idle tree moves nothing between looks, and a write of the root shows at the next look.
+/// An idle tree moves nothing between looks,
+/// and a write of the root shows at the next look.
 #[test]
 fn a_write_of_the_root_is_progress_and_an_idle_tree_is_not() {
     let root: std::path::PathBuf = fixture("progress-root");
@@ -81,7 +96,8 @@ fn a_write_of_the_root_is_progress_and_an_idle_tree_is_not() {
     remove(root.as_path());
 }
 
-/// What a process started by the root writes counts too: the root itself only waits.
+/// What a process started by the root writes counts too:
+/// the root itself only waits.
 #[test]
 fn a_write_of_a_process_the_root_started_is_progress() {
     let root: std::path::PathBuf = fixture("progress-descendant");
@@ -98,11 +114,43 @@ fn a_write_of_a_process_the_root_started_is_progress() {
     }
     assert!(seen, "the write of the descendant was seen");
     assert!(meter.moved() > idle);
+    // Any byte moved sets `seen` (a read counts), so the control waits for the write itself before it ends the tree.
+    while !root.join("log").exists() && began.elapsed() < PATIENCE {
+        std::thread::sleep(LOOK);
+    }
+    assert!(root.join("log").exists(), "the descendant wrote its line");
     end(child);
     remove(root.as_path());
 }
 
-/// A process that ends takes its counters with it, and the bytes it moved stay counted.
+/// Ending a control's child ends what the child started too,
+/// before the fixture goes:
+/// a background subshell that outlives its leader
+///  would write into the fixture while it is removed (`DirectoryNotEmpty`,
+/// seen in the gate of `85e6d2ab99`).
+/// The subshell here would
+///  create `log` 0.3 s after it starts,
+/// so a `log` that shows up after the child was ended means it was left running.
+#[test]
+fn ending_a_child_ends_the_processes_it_started_too() {
+    let root: std::path::PathBuf = fixture("progress-end-group");
+    let child: Child = shell("(sleep 0.3; echo a >> log; sleep 60) & wait", root.as_path());
+    let pid: i32 = i32::try_from(child.id()).expect("pid");
+    // The subshell must exist before the child is ended, or there is nothing left running to find.
+    let began: Instant = Instant::now();
+    while crate::process_tree::descendants_of(pid).is_empty() {
+        assert!(began.elapsed() < PATIENCE, "the shell never started its subshell");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    end(child);
+    std::thread::sleep(Duration::from_millis(600));
+    let left_running: bool = root.join("log").exists();
+    remove(root.as_path());
+    assert!(!left_running, "a process the ended child had started was left running and wrote into the fixture");
+}
+
+/// A process that ends takes its counters with it,
+/// and the bytes it moved stay counted.
 #[test]
 fn the_bytes_of_a_process_that_ended_stay_counted() {
     let root: std::path::PathBuf = fixture("progress-ended");
@@ -118,7 +166,8 @@ fn the_bytes_of_a_process_that_ended_stay_counted() {
     remove(root.as_path());
 }
 
-/// A process that does not exist moves nothing, and the system counts bytes for a process that does.
+/// A process that does not exist moves nothing,
+/// and the system counts bytes for a process that does.
 #[test]
 fn a_missing_process_moves_nothing_and_this_system_counts_bytes() {
     assert_eq!(bytes_moved_by(i32::MAX), None);
@@ -127,7 +176,8 @@ fn a_missing_process_moves_nothing_and_this_system_counts_bytes() {
     assert!(!Meter::new().sample(i32::MAX));
 }
 
-/// A fixed patience stops at its limit, and not before.
+/// A fixed patience stops at its limit,
+/// and not before.
 #[test]
 fn a_fixed_patience_stops_at_its_limit() {
     let child: Child = spawn_owned(Command::new("sleep").arg("60")).expect("sleep");
@@ -147,7 +197,9 @@ fn a_fixed_patience_stops_at_its_limit() {
     end(child);
 }
 
-/// A tree that moves nothing stalls at its window, with the window, the bytes moved and the time in the report.
+/// A tree that moves nothing stalls at its window,
+/// with the window,
+/// the bytes moved and the time in the report.
 #[test]
 fn a_tree_that_moves_nothing_stalls_at_its_window() {
     let child: Child = spawn_owned(Command::new("sleep").arg("60")).expect("sleep");
@@ -168,7 +220,8 @@ fn a_tree_that_moves_nothing_stalls_at_its_window() {
     end(child);
 }
 
-/// A tree that keeps moving is not stopped for time at all: no total bound ends a push that shows progress.
+/// A tree that keeps moving is not stopped for time at all:
+/// no total bound ends a push that shows progress.
 #[test]
 fn a_tree_that_keeps_moving_is_never_stopped_for_time() {
     let root: std::path::PathBuf = fixture("progress-no-ceiling");
@@ -187,14 +240,21 @@ fn a_tree_that_keeps_moving_is_never_stopped_for_time() {
     remove(root.as_path());
 }
 
-/// Whether the process `pid` still runs: a process that is gone, or ended and waiting to be reaped, does not.
+/// Whether the process `pid` still runs:
+/// a process that is gone,
+/// or ended and waiting to be reaped,
+/// does not.
 fn process_runs(pid: u32) -> bool {
     let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return false };
     return stat.rsplit_once(')').and_then(|(_, rest)| { return rest.trim_start().chars().next(); }) != Some('Z');
 }
 
-/// The loop that leaked for 87 minutes, started by a test that then panics, is gone when the test ends: a failing test
-///  must not leave its helper behind, with its `sleep` either.
+/// The loop that leaked for 87 minutes,
+/// started by a test that then panics,
+/// is gone when the test ends:
+/// a failing test
+///  must not leave its helper behind,
+/// with its `sleep` either.
 #[test]
 fn a_loop_started_by_a_panicking_test_is_gone_when_the_test_ends() {
     let (sender, receiver) = std::sync::mpsc::channel::<u32>();
@@ -221,8 +281,12 @@ fn a_loop_started_by_a_panicking_test_is_gone_when_the_test_ends() {
     assert!(!left, "the loop of process {pid} outlived the test that started it");
 }
 
-/// A process that product code started in the fixture, and that no guard of the test holds, is gone when the test ends: a
-///  hook that does `exec sleep` cannot watch its test without starting processes the meter would count as progress, so the
+/// A process that product code started in the fixture,
+/// and that no guard of the test holds,
+/// is gone when the test ends:
+/// a
+///  hook that does `exec sleep` cannot watch its test without starting processes the meter would count as progress,
+/// so the
 ///  fixture ends what works in it.
 #[test]
 fn a_process_working_in_a_fixture_is_gone_when_the_test_ends() {
@@ -255,7 +319,8 @@ fn a_process_working_in_a_fixture_is_gone_when_the_test_ends() {
     assert!(!left, "the sleeper of process {pid} outlived the test that started it");
 }
 
-/// Where nothing is measured the stall window is a fixed deadline, even for a tree that writes all the time.
+/// Where nothing is measured the stall window is a fixed deadline,
+/// even for a tree that writes all the time.
 #[test]
 fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
     let root: std::path::PathBuf = fixture("progress-unmeasured");
@@ -276,8 +341,13 @@ fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
     remove(root.as_path());
 }
 
-/// What the probe's child does for its hold: sleep, and end. The probe's thread is then blocked in `clone` with
-///  `CLONE_VFORK`, which the kernel waits out in uninterruptible sleep (state `D`) without any disk, byte or processor time.
+/// What the probe's child does for its hold:
+/// sleep,
+/// and end.
+/// The probe's thread is then blocked in `clone` with
+///  `CLONE_VFORK`,
+/// which the kernel waits out in uninterruptible sleep (state `D`) without any disk,
+/// byte or processor time.
 extern "C" fn hold_in_vfork_child(milliseconds: *mut libc::c_void) -> libc::c_int {
     let hold: usize = milliseconds as usize;
     let pause: libc::timespec = libc::timespec {
@@ -292,8 +362,13 @@ extern "C" fn hold_in_vfork_child(milliseconds: *mut libc::c_void) -> libc::c_in
     }
 }
 
-/// Hold the calling thread in uninterruptible sleep for `milliseconds`: no I/O, no processor time, no byte moved, which is
-///  what a wait for a slow disk looks like to `/proc` and what no file system, device or FUSE mount is needed to make.
+/// Hold the calling thread in uninterruptible sleep for `milliseconds`:
+/// no I/O,
+/// no processor time,
+/// no byte moved,
+/// which is
+///  what a wait for a slow disk looks like to `/proc` and what no file system,
+/// device or FUSE mount is needed to make.
 fn hold_in_disk_wait(milliseconds: usize) {
     let mut stack: Vec<u8> = vec![0; 64 * 1024];
     // SAFETY: the child gets its own stack (`stack` outlives the call, which returns only after the child ended) and runs
@@ -307,8 +382,11 @@ fn hold_in_disk_wait(milliseconds: usize) {
     }
 }
 
-/// The process the controls start when they need a tree in disk wait: not a test of its own, it does nothing unless the
-///  variable names a hold, and then holds a thread in uninterruptible sleep for that long and either ends or sleeps on.
+/// The process the controls start when they need a tree in disk wait:
+/// not a test of its own,
+/// it does nothing unless the
+///  variable names a hold,
+/// and then holds a thread in uninterruptible sleep for that long and either ends or sleeps on.
 #[test]
 fn disk_wait_probe() {
     let Some(hold) = std::env::var(PROBE_HOLD_VARIABLE).ok().and_then(|text| { return text.parse::<usize>().ok(); }) else {
@@ -320,7 +398,11 @@ fn disk_wait_probe() {
     }
 }
 
-/// The command that runs the probe: this test binary, the probe only, holding for `hold`, then `then`.
+/// The command that runs the probe:
+/// this test binary,
+/// the probe only,
+/// holding for `hold`,
+/// then `then`.
 pub(crate) fn disk_wait_command(hold: Duration, then: &str) -> Command {
     #[allow(clippy::disallowed_methods, reason = "identifies the running test binary so the control can start the probe test of it as a process of its own")]
     let test_binary: std::path::PathBuf = std::env::current_exe().expect("this test binary");
@@ -333,8 +415,13 @@ pub(crate) fn disk_wait_command(hold: Duration, then: &str) -> Command {
     return command;
 }
 
-/// A thread in uninterruptible sleep is a sign of life at every look, with nothing else moving: the wait of a process for
-///  its disk (the fsync of an object, the update of a ref) is not a stall. The probe's hold ends and it sleeps on, and then
+/// A thread in uninterruptible sleep is a sign of life at every look,
+/// with nothing else moving:
+/// the wait of a process for
+///  its disk (the fsync of an object,
+/// the update of a ref) is not a stall.
+/// The probe's hold ends and it sleeps on,
+/// and then
 ///  the tree is idle at last.
 #[test]
 fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
@@ -359,7 +446,8 @@ fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
     end(child);
 }
 
-/// A push-like tree in disk wait for longer than the stall window is not stopped, and one that sleeps on afterwards is.
+/// A push-like tree in disk wait for longer than the stall window is not stopped,
+/// and one that sleeps on afterwards is.
 #[test]
 fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
     let mut probe: Command = disk_wait_command(Duration::from_millis(4000), "idle");
@@ -385,8 +473,14 @@ fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
     end(child);
 }
 
-/// A push whose connection to the remote is open and silent is ended when the connected window passes (owner, 2026-11-03: "Bound
-/// it, keep retrying"): the clock stops it as a stall, long after the stall window of a push with no connection, and the
+/// A push whose connection to the remote is open and silent is ended when the connected window passes (owner,
+/// 2026-11-03:
+/// "Bound
+/// it,
+/// keep retrying"):
+/// the clock stops it as a stall,
+/// long after the stall window of a push with no connection,
+/// and the
 /// service's retry plan keeps the push.
 #[test]
 fn a_silent_open_connection_is_ended_at_the_connected_window() {
@@ -415,7 +509,9 @@ fn a_silent_open_connection_is_ended_at_the_connected_window() {
     assert!(report.limit == window && began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
 }
 
-/// A `/proc/<pid>/stat` line is read after its last parenthesis: the state, and the user and system ticks added.
+/// A `/proc/<pid>/stat` line is read after its last parenthesis:
+/// the state,
+/// and the user and system ticks added.
 #[test]
 fn a_stat_line_gives_its_state_and_its_processor_ticks() {
     let line: &str = "4242 (a (odd) name) D 1 4242 4242 0 -1 4194560 100 0 0 0 7 5 0 0 20 0 1 0 12345 1000 10 18446744073709551615";
@@ -428,7 +524,11 @@ fn a_stat_line_gives_its_state_and_its_processor_ticks() {
     }
 }
 
-/// Each sign of work counts alone, at the look that finds it, and a process that shows none is idle: bytes, processor ticks,
+/// Each sign of work counts alone,
+/// at the look that finds it,
+/// and a process that shows none is idle:
+/// bytes,
+/// processor ticks,
 ///  a task able to run or waiting for the disk.
 #[test]
 fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {
@@ -449,10 +549,17 @@ fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {
     assert!(!meter.observe(key, 5, 1, false), "a counter that fell (a number reused) is not work");
 }
 
-/// A child that ends before the first sample interval has passed is never looked for among the machine's processes: the
-/// listing reads the status file of every process the host runs (841 files, 7 ms on this host at a load of 40, and more where
-/// more run), and the wrapper watches every Git it starts, a dozen to two dozen for one commit, most of them ended within
-/// ten milliseconds. The first look at a child that has just started needs only the child itself.
+/// A child that ends before the first sample interval has passed is never looked for among the machine's processes:
+/// the
+/// listing reads the status file of every process the host runs (841 files,
+/// 7 ms on this host at a load of 40,
+/// and more where
+/// more run),
+/// and the wrapper watches every Git it starts,
+/// a dozen to two dozen for one commit,
+/// most of them ended within
+/// ten milliseconds.
+/// The first look at a child that has just started needs only the child itself.
 #[test]
 fn a_child_that_has_just_started_is_looked_at_without_listing_the_machine() {
     let root: std::path::PathBuf = fixture("progress-first-look");

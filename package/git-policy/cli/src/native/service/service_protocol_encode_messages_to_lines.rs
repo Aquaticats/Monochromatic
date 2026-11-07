@@ -1,7 +1,8 @@
 //! What:
 //!  Writes a client message or a service message as one JSON object on one line.
 //! Why:
-//!  The line form needs no framing library; the types come from `service_protocol_messages_and_name_checks.rs`
+//!  The line form needs no framing library;
+//! the types come from `service_protocol_messages_and_name_checks.rs`
 //!  and the decoder that reads these lines is in `service_protocol_decode_lines_to_messages.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,7 +14,9 @@ use serde_json::{Map, Value};
 use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, Change, Cleanup, LandedCapture, ClientMessage, ServiceMessage};
 
 /// What:
-///  One changed path of a commit request as a JSON object: its path, mode and blob (null for a deletion).
+///  One changed path of a commit request as a JSON object:
+/// its path,
+/// mode and blob (null for a deletion).
 /// Why:
 ///  `encode_client` maps every change of a request through it.
 ///
@@ -30,9 +33,12 @@ fn change_json(change: &Change) -> Value {
 }
 
 /// What:
-///  The cleanup a request asks for as a JSON object: the Git directory, the scratch directory and whether the store is a reftable.
+///  The cleanup a request asks for as a JSON object:
+/// the Git directory,
+/// the scratch directory and whether the store is a reftable.
 /// Why:
-///  `encode_client` writes it under the `cleanup` key, and null when the request asks for none.
+///  `encode_client` writes it under the `cleanup` key,
+/// and null when the request asks for none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -47,7 +53,8 @@ fn cleanup_json(cleanup: &Cleanup) -> Value {
 }
 
 /// What:
-///  One landed capture as a JSON object: the commit and the capture number.
+///  One landed capture as a JSON object:
+/// the commit and the capture number.
 /// Why:
 ///  `encode_service` writes the list of captures a retry must prepare against.
 ///
@@ -62,7 +69,8 @@ fn landed_json(entry: &LandedCapture) -> Value {
     ]));
 }
 
-/// One JSON object, written on one line from its entries.
+/// One JSON object,
+/// written on one line from its entries.
 fn object(entries: Vec<(&str, Value)>) -> String {
     let mut map: Map<String, Value> = Map::new();
     for (key, value) in entries {
@@ -72,11 +80,15 @@ fn object(entries: Vec<(&str, Value)>) -> String {
 }
 
 /// What:
-///  The line that asks a service to retire, written in the protocol version that service speaks.
+///  The line that asks a service to retire,
+/// written in the protocol version that service speaks.
 /// Why:
-///   A service reads a line only in its own version, except that services built with this check read a retire at any
-///  version. A service of an earlier release (the ones that sent no release in their greeting) refuses a retire written in
-///  a newer version as unsupported and stays, so the line must carry the version the service announced.
+///   A service reads a line only in its own version,
+/// except that services built with this check read a retire at any
+///  version.
+/// A service of an earlier release (the ones that sent no release in their greeting) refuses a retire written in
+///  a newer version as unsupported and stays,
+/// so the line must carry the version the service announced.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,7 +101,8 @@ pub fn encode_retire(version: u32) -> String {
 /// What:
 ///  The line for a client message.
 /// Why:
-///   One object per line, no newline inside any field.
+///   One object per line,
+/// no newline inside any field.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,4 +1,8 @@
-//! Controls for the subvolume removal of a worktree: the plan's accepted and declined forms, and, on btrfs, the
+//! Controls for the subvolume removal of a worktree:
+//! the plan's accepted and declined forms,
+//! and,
+//! on btrfs,
+//! the
 //!  removal of a clean subvolume worktree (where the mount allows it) and every case that must be left to Git.
 
 use super::*;
@@ -11,7 +15,8 @@ fn plan_for(target: &Path) -> RemovePlan {
     return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string() };
 }
 
-/// Whether the wrapper served the plan: the removal ran to its end.
+/// Whether the wrapper served the plan:
+/// the removal ran to its end.
 fn served_plan(repo: &Path, plan: &RemovePlan) -> bool {
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     return remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path() }) == RemoveOutcome::Removed;
@@ -22,8 +27,10 @@ fn served(repo: &Path, target: &Path) -> bool {
     return served_plan(repo, &plan_for(target));
 }
 
-/// A repository with one tracked file, and a linked worktree added into a fresh subvolume with every file aged and the
-///  index refreshed, so that the worktree is provably clean.
+/// A repository with one tracked file,
+/// and a linked worktree added into a fresh subvolume with every file aged and the
+///  index refreshed,
+/// so that the worktree is provably clean.
 fn clean_subvolume_worktree(root: &Path) -> (PathBuf, PathBuf) {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join("tracked.txt"), b"tracked\n").expect("tracked");
@@ -38,7 +45,8 @@ fn clean_subvolume_worktree(root: &Path) -> (PathBuf, PathBuf) {
     return (repo, canonical);
 }
 
-/// A clean subvolume worktree is destroyed with its registration where the mount allows it, and is left whole to Git
+/// A clean subvolume worktree is destroyed with its registration where the mount allows it,
+/// and is left whole to Git
 ///  where it does not.
 #[test]
 fn btrfs_a_clean_subvolume_worktree_is_destroyed_where_the_mount_allows_it() {
@@ -57,7 +65,10 @@ fn btrfs_a_clean_subvolume_worktree_is_destroyed_where_the_mount_allows_it() {
     remove(root.as_path());
 }
 
-/// Every condition that Git's removal checks keeps the wrapper's hands off: a modified file, an untracked file, a lock,
+/// Every condition that Git's removal checks keeps the wrapper's hands off:
+/// a modified file,
+/// an untracked file,
+/// a lock,
 ///  and a worktree that is an ordinary directory.
 #[test]
 fn btrfs_a_worktree_git_would_refuse_or_that_is_no_subvolume_is_left_alone() {

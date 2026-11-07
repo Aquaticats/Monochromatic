@@ -1,12 +1,22 @@
 //! What:
-//!  The mechanics of rung 1 of the cheap-worktree ladder: a snapshot of the source subvolume taken at a stage name beside
-//!  the destination, made into a worktree there (its own `.git` pointer, no stubs of nested worktrees, the source's index
-//!  with refreshed stat fields), and swapped with the destination in one atomic step.
+//!  The mechanics of rung 1 of the cheap-worktree ladder:
+//! a snapshot of the source subvolume taken at a stage name beside
+//!  the destination,
+//! made into a worktree there (its own `.git` pointer,
+//! no stubs of nested worktrees,
+//! the source's index
+//!  with refreshed stat fields),
+//! and swapped with the destination in one atomic step.
 //! Why:
 //!  The snapshot shares every data block with the source and carries its ignored state at no cost
-//!  (`doc/planning/cli-git-btrfs-worktree.md`). It is made at a name Git never hands out, so the destination is
-//!  complete or untouched at every instant: `RENAME_EXCHANGE` puts the finished subvolume at the destination and the
-//!  empty directory real Git made at the stage name, which is then removed. A source that changed while the snapshot was
+//!  (`doc/planning/cli-git-btrfs-worktree.md`).
+//! It is made at a name Git never hands out,
+//! so the destination is
+//!  complete or untouched at every instant:
+//! `RENAME_EXCHANGE` puts the finished subvolume at the destination and the
+//!  empty directory real Git made at the stage name,
+//! which is then removed.
+//! A source that changed while the snapshot was
 //!  taken is caught by comparing the snapshot's own files with the index entries copied from the source.
 //!
 //! In TS you'd write (pseudocode):
@@ -45,7 +55,8 @@ fn is_gone(error: &std::io::Error) -> bool {
 }
 
 /// What:
-///  Do nothing; the seams of `put_in_place` run this unless a control puts work there.
+///  Do nothing;
+/// the seams of `put_in_place` run this unless a control puts work there.
 /// Why:
 ///   The real swap has nothing to do between its steps.
 ///
@@ -71,15 +82,18 @@ fn ours_on_failure<T>(outcome: Result<T, String>) -> Result<T, PlaceError> {
     };
 }
 
-/// A placement failure with its reason, marked as one where the stage is still this process's to destroy.
+/// A placement failure with its reason,
+/// marked as one where the stage is still this process's to destroy.
 fn ours(reason: String) -> PlaceError {
     return PlaceError { reason, stage_is_ours: true };
 }
 
 /// What:
-///  A snapshot step's failure carrying the identity of the stage this process made, so the caller can destroy it.
+///  A snapshot step's failure carrying the identity of the stage this process made,
+/// so the caller can destroy it.
 /// Why:
-///   Once the stage exists, every later failure must name it.
+///   Once the stage exists,
+/// every later failure must name it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,7 +107,8 @@ fn failing<T>(outcome: Result<T, String>, made: Option<ObjectId>) -> Result<T, S
 }
 
 /// What:
-///  The identity of what a path's name leads to now, or nothing when its parent cannot be opened or the name cannot be looked up.
+///  The identity of what a path's name leads to now,
+/// or nothing when its parent cannot be opened or the name cannot be looked up.
 /// Why:
 ///   The stage's identity is what a later removal checks.
 ///
@@ -107,7 +122,8 @@ fn identity_of_name(path: &Path) -> Option<ObjectId> {
 }
 
 /// What:
-///  Whether the entry `name` below `parent` is a directory itself; an entry that cannot be examined is not.
+///  Whether the entry `name` below `parent` is a directory itself;
+/// an entry that cannot be examined is not.
 /// Why:
 ///   Only the directory Git made may be swapped with the stage.
 ///
@@ -125,7 +141,8 @@ fn is_directory_at(parent: &File, name: &OsStr) -> bool {
 /// What:
 ///  Open the parent directory and the displaced stage and the placed destination below it.
 /// Why:
-///   Settling works on handles, so a rename of a name cannot redirect it.
+///   Settling works on handles,
+/// so a rename of a name cannot redirect it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,13 +171,20 @@ fn file_holds(directory: &File, name: &OsStr, expected: &[u8]) -> bool {
 }
 
 /// What:
-///  Remove one stub from the snapshot below the held handle of its root: the directory `path` names (a path inside the
-///  source), after its `.git` pointer when `pointer` is set.
+///  Remove one stub from the snapshot below the held handle of its root:
+/// the directory `path` names (a path inside the
+///  source),
+/// after its `.git` pointer when `pointer` is set.
 /// Why:
-///   Every directory on the way is opened without following a link and on the snapshot's own device, so a registered
+///   Every directory on the way is opened without following a link and on the snapshot's own device,
+/// so a registered
 ///  path that reaches the snapshot through a link (a link left where a directory was moved) is an error and never an
-///  unlink in the tree the link points at. A nested subvolume's stub is removed only as an empty directory; only the
-///  destination's own directory, which Git made, holds a pointer file.
+///  unlink in the tree the link points at.
+/// A nested subvolume's stub is removed only as an empty directory;
+/// only the
+///  destination's own directory,
+/// which Git made,
+/// holds a pointer file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,11 +219,15 @@ fn remove_stub(root: &File, source_root: &Path, path: &Path, pointer: bool) -> R
 }
 
 /// What:
-///  Remove the stub that each nested worktree leaves in the snapshot, and the destination's own directory when it lies
+///  Remove the stub that each nested worktree leaves in the snapshot,
+/// and the destination's own directory when it lies
 ///  inside the source.
 /// Why:
-///   A nested worktree that is a subvolume is an empty directory in the snapshot; the destination was made by Git before
-///  the snapshot, so a source that contains it holds a directory with Git's `.git` file there. Neither belongs in the new
+///   A nested worktree that is a subvolume is an empty directory in the snapshot;
+/// the destination was made by Git before
+///  the snapshot,
+/// so a source that contains it holds a directory with Git's `.git` file there.
+/// Neither belongs in the new
 ///  worktree.
 ///
 /// In TS you'd write (pseudocode):
@@ -216,9 +244,11 @@ fn remove_stubs(stage: &Path, source: &SnapshotSource, plan: &AddPlan) -> Result
 
 /// What:
 ///  Put the new worktree's `.git` pointer into the snapshot in place of the source's `.git` (a directory for a main
-///  checkout, a pointer file for a linked worktree).
+///  checkout,
+/// a pointer file for a linked worktree).
 /// Why:
-///   The bytes are the ones real Git wrote for the new worktree, so the pointer is exactly Git's.
+///   The bytes are the ones real Git wrote for the new worktree,
+/// so the pointer is exactly Git's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -231,11 +261,15 @@ fn replace_git_pointer(stage: &Path, pointer: &[u8]) -> Result<(), String> {
 }
 
 /// What:
-///  Check the snapshot against the source's index, then install that index in the new worktree's administrative
+///  Check the snapshot against the source's index,
+/// then install that index in the new worktree's administrative
 ///  directory with stat fields refreshed and the accelerator extensions of the source dropped.
 /// Why:
-///   Every tracked file of the snapshot must equal its entry, which proves the snapshot and the index describe the same
-///  state whatever the source did meanwhile. The extensions (`UNTR`, `FSMN`) name the source's worktree.
+///   Every tracked file of the snapshot must equal its entry,
+/// which proves the snapshot and the index describe the same
+///  state whatever the source did meanwhile.
+/// The extensions (`UNTR`,
+/// `FSMN`) name the source's worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -278,9 +312,13 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index:
 }
 
 /// What:
-///  The stat fields of the snapshot's files: the ones the walk returned, and a cursor for an entry the walk did not cover.
+///  The stat fields of the snapshot's files:
+/// the ones the walk returned,
+/// and a cursor for an entry the walk did not cover.
 /// Why:
-///   One walk of the snapshot gave the fields of the files it covered; a source with changes has no walk, so its entries are looked
+///   One walk of the snapshot gave the fields of the files it covered;
+/// a source with changes has no walk,
+/// so its entries are looked
 ///  at through a cursor that keeps its directory open.
 ///
 /// In TS you'd write (pseudocode):
@@ -288,7 +326,8 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index:
 /// class WalkedThenCursor implements StatLookup { statNow(path) { return this.known.get(path) ?? this.cursor.fields(path); } }
 /// ```
 struct WalkedThenCursor<'a, 'root> {
-    /// The fields the walk returned, by path.
+    /// The fields the walk returned,
+    /// by path.
     known: &'a std::collections::HashMap<&'a [u8], StatFields>,
     /// The cursor for an entry the walk did not cover.
     cursor: &'a mut StatCursor<'root>,
@@ -304,10 +343,13 @@ impl StatLookup for WalkedThenCursor<'_, '_> {
 }
 
 /// What:
-///  The bytes of the index inside the snapshot's own `.git`, read below handles that follow no link.
+///  The bytes of the index inside the snapshot's own `.git`,
+/// read below handles that follow no link.
 /// Why:
-///   A source with uncommitted changes has no index that was proven equal to its files; the copy's index and the copy's files
-///  are one instant, whatever the source does next.
+///   A source with uncommitted changes has no index that was proven equal to its files;
+/// the copy's index and the copy's files
+///  are one instant,
+/// whatever the source does next.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -323,9 +365,11 @@ fn read_own_index(stage: &Path) -> Result<Vec<u8>, String> {
 }
 
 /// What:
-///  Take the snapshot at `stage` and make it the new worktree there; the caller destroys `stage` on an error.
+///  Take the snapshot at `stage` and make it the new worktree there;
+/// the caller destroys `stage` on an error.
 /// Why:
-///   Each step is one the later steps depend on; the first failure ends the rung with its reason.
+///   Each step is one the later steps depend on;
+/// the first failure ends the rung with its reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -377,26 +421,35 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
 pub struct Snapshotted {
     /// The identity of the stage this process made.
     pub stage: ObjectId,
-    /// The trash the leave-out made in the stage, with the identity of everything it moved there; the disposal after the swap
+    /// The trash the leave-out made in the stage,
+    /// with the identity of everything it moved there;
+    /// the disposal after the swap
     ///  empties exactly that.
     pub trash: Option<TrashManifest>,
 }
 
-/// Why a snapshot could not be taken, and the identity of the stage it left, if it left one.
+/// Why a snapshot could not be taken,
+/// and the identity of the stage it left,
+/// if it left one.
 #[derive(Debug, Eq, PartialEq)]
 pub struct SnapshotFailure {
-    /// The reason, in words.
+    /// The reason,
+    /// in words.
     pub reason: String,
     /// The identity of the stage this process made before it failed.
     pub stage: Option<ObjectId>,
 }
 
-/// Why a swap of the stage with the destination did not complete, and whether the stage name still holds the snapshot.
+/// Why a swap of the stage with the destination did not complete,
+/// and whether the stage name still holds the snapshot.
 #[derive(Debug, Eq, PartialEq)]
 pub struct PlaceError {
-    /// The reason, in words.
+    /// The reason,
+    /// in words.
     pub reason: String,
-    /// Whether the object at the stage name is the snapshot this process made. When it is not, nothing may be removed there:
+    /// Whether the object at the stage name is the snapshot this process made.
+    /// When it is not,
+    /// nothing may be removed there:
     ///  the stage name holds somebody else's directory.
     pub stage_is_ours: bool,
 }
@@ -410,12 +463,22 @@ pub struct PlaceSeams<'a> {
 }
 
 /// What:
-///  Swap the finished stage with the destination, after giving the stage the mode of the source's root.
+///  Swap the finished stage with the destination,
+/// after giving the stage the mode of the source's root.
 /// Why:
-///   `RENAME_EXCHANGE` leaves no instant at which the destination is missing or incomplete; the old destination, a
-///  directory with Git's `.git` file, ends up at the stage name for `settle_displaced`. The names are looked up in the held
-///  parent; the destination must be the directory Git made, and a directory that is not is swapped back. When the swap back
-///  fails, the error says the stage name no longer holds the snapshot, so the caller does not remove what is there.
+///   `RENAME_EXCHANGE` leaves no instant at which the destination is missing or incomplete;
+/// the old destination,
+/// a
+///  directory with Git's `.git` file,
+/// ends up at the stage name for `settle_displaced`.
+/// The names are looked up in the held
+///  parent;
+/// the destination must be the directory Git made,
+/// and a directory that is not is swapped back.
+/// When the swap back
+///  fails,
+/// the error says the stage name no longer holds the snapshot,
+/// so the caller does not remove what is there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -455,11 +518,18 @@ pub fn put_in_place_with(stage: &Path, destination: &Path, source_mode: u32, exp
 }
 
 /// What:
-///  Settle the directory real Git made, now at the stage name: move what was added to it meanwhile into the new worktree,
-///  remove Git's pointer when it is the one that was written, remove the directory when it is empty, and return what stays.
+///  Settle the directory real Git made,
+/// now at the stage name:
+/// move what was added to it meanwhile into the new worktree,
+///  remove Git's pointer when it is the one that was written,
+/// remove the directory when it is empty,
+/// and return what stays.
 /// Why:
-///   The destination may have gained files between the look and the exchange, and a recursive removal would delete them.
-///  Only the pointer and an empty directory are removed; every other entry is moved without replacing, or stays with a note.
+///   The destination may have gained files between the look and the exchange,
+/// and a recursive removal would delete them.
+///  Only the pointer and an empty directory are removed;
+/// every other entry is moved without replacing,
+/// or stays with a note.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

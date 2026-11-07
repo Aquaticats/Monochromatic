@@ -1,4 +1,5 @@
-//! Controls for the plan and the capped input. Every bound is the module's named constant or a relation to the input.
+//! Controls for the plan and the capped input.
+//! Every bound is the module's named constant or a relation to the input.
 
 use super::*;
 
@@ -18,7 +19,9 @@ fn commit_with(patch_lines: usize, files: &[(&str, &str)]) -> LandedCommit {
     };
 }
 
-/// No names and only the log give no entry; a code-free commit gets the skip entry; one code name reviews.
+/// No names and only the log give no entry;
+/// a code-free commit gets the skip entry;
+/// one code name reviews.
 #[test]
 fn plan_follows_the_names() {
     assert_eq!(plan_for(&[]), Plan::Silent);
@@ -32,7 +35,8 @@ fn plan_follows_the_names() {
     }
 }
 
-/// The patch cap applies from one line past the cap, and the whole patch's line count is what is reported.
+/// The patch cap applies from one line past the cap,
+/// and the whole patch's line count is what is reported.
 #[test]
 fn patch_cap_switches_exactly_at_the_cap() {
     let at_cap: ReviewInput = build_input(&commit_with(CAP_LINES, &[]), &[]);
@@ -46,7 +50,10 @@ fn patch_cap_switches_exactly_at_the_cap() {
     assert!(!capped.model_input.contains(&format!("patch {CAP_LINES}")));
 }
 
-/// A patch that ends with a newline has one more, empty, line, as `split('\n')` counts.
+/// A patch that ends with a newline has one more,
+/// empty,
+/// line,
+/// as `split('\n')` counts.
 #[test]
 fn a_final_newline_counts_as_a_line() {
     let mut commit: LandedCommit = commit_with(3, &[]);
@@ -54,7 +61,9 @@ fn a_final_newline_counts_as_a_line() {
     assert_eq!(build_input(&commit, &[]).diff_line_count, 4);
 }
 
-/// The excerpt window is the changed span plus the context, clamped to the file, and its header says so.
+/// The excerpt window is the changed span plus the context,
+/// clamped to the file,
+/// and its header says so.
 #[test]
 fn excerpt_window_is_span_plus_context() {
     let file: String = (1..=200).map(|number| return format!("l{number}")).collect::<Vec<String>>().join("\n");
@@ -81,7 +90,8 @@ fn the_window_follows_new_side_lines() {
     assert!(input.model_input.contains(&format!("lines {} to {} of", 210 - EXCERPT_CONTEXT, 211 + EXCERPT_CONTEXT)));
 }
 
-/// A file with nothing to anchor on gets the head of the file, never a negative window.
+/// A file with nothing to anchor on gets the head of the file,
+/// never a negative window.
 #[test]
 fn an_unanchored_file_gets_its_head() {
     let file: String = (1..=300).map(|number| return format!("l{number}")).collect::<Vec<String>>().join("\n");
@@ -91,7 +101,8 @@ fn an_unanchored_file_gets_its_head() {
     assert!(input.model_input.ends_with(&format!("l{HEAD_WINDOW}")));
 }
 
-/// Only the first files up to the file cap are excerpted, and a file past the cap does not appear.
+/// Only the first files up to the file cap are excerpted,
+/// and a file past the cap does not appear.
 #[test]
 fn excerpts_stop_at_the_file_cap() {
     let many: Vec<String> = (0..=MAX_EXCERPT_FILES).map(|number| return format!("f{number}.rs")).collect();
@@ -103,7 +114,8 @@ fn excerpts_stop_at_the_file_cap() {
     assert!(!input.model_input.contains(many[MAX_EXCERPT_FILES].as_str()));
 }
 
-/// Files stop getting excerpts once the line cap is reached, and a deleted file gets none and costs no lines.
+/// Files stop getting excerpts once the line cap is reached,
+/// and a deleted file gets none and costs no lines.
 #[test]
 fn excerpts_stop_at_the_line_cap_and_skip_deleted_files() {
     let wide: String = (0..EXCERPT_LINE_CAP).map(|_| return "w").collect::<Vec<&str>>().join("\n");
@@ -120,7 +132,9 @@ fn excerpts_stop_at_the_line_cap_and_skip_deleted_files() {
     assert!(reached.model_input.contains("excerpt of c.ts"));
 }
 
-/// The input is cut by UTF-16 units, the reported length is the cut length, and a short input reports its own length.
+/// The input is cut by UTF-16 units,
+/// the reported length is the cut length,
+/// and a short input reports its own length.
 #[test]
 fn input_is_cut_by_utf16_units() {
     let mut commit: LandedCommit = commit_with(1, &[]);

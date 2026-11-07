@@ -1,10 +1,21 @@
 //! What:
-//!  The values every commit of the service route shares: the invocation, how it can stop, what it came to, the selection
-//!  the command line makes, and the policy checks over the private index.
+//!  The values every commit of the service route shares:
+//! the invocation,
+//! how it can stop,
+//! what it came to,
+//! the selection
+//!  the command line makes,
+//! and the policy checks over the private index.
 //! Why:
-//!  The preparation (`service_prepare.rs`) and the commit command (`commit_command.rs`) pass these between them. The
-//!  transaction that once landed a commit itself, with its registry, recovery and replay, is gone: the resident service is the
-//!  only writer of a commit (`doc/planning/cli-git-resident-service.md`, "Landing every command line").
+//!  The preparation (`service_prepare.rs`) and the commit command (`commit_command.rs`) pass these between them.
+//! The
+//!  transaction that once landed a commit itself,
+//! with its registry,
+//! recovery and replay,
+//! is gone:
+//! the resident service is the
+//!  only writer of a commit (`doc/planning/cli-git-resident-service.md`,
+//! "Landing every command line").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,7 +49,9 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  Everything the invocation fixes before the transaction starts.
 /// Why:
-///   The steps share one identity, one parsed commit region and one configuration; passing them together keeps a
+///   The steps share one identity,
+/// one parsed commit region and one configuration;
+/// passing them together keeps a
 ///   step from reading another invocation's state.
 ///
 /// In TS you'd write (pseudocode):
@@ -46,9 +59,12 @@ use std::path::{Path, PathBuf};
 /// type CommitInvocation = { args; gitPath; cwd; region; policyOptions; concurrency };
 /// ```
 pub struct CommitInvocation<'a> {
-    /// Real Git, the child environment overlay, and the invocation's global options.
+    /// Real Git,
+    /// the child environment overlay,
+    /// and the invocation's global options.
     pub context: &'a GitContext,
-    /// The invocation's environment, read for leases and inherited configuration.
+    /// The invocation's environment,
+    /// read for leases and inherited configuration.
     pub environment: &'a [(OsString, OsString)],
     /// The effective invocation directory (the process directory moved by every `-C`).
     pub cwd: &'a Path,
@@ -67,8 +83,12 @@ pub struct CommitInvocation<'a> {
 /// What:
 ///  Why the transaction stopped without a policy result.
 /// Why:
-///   The incumbent's boundary maps each to a different ending: Git's own exit code with no wrapper text, a message
-///   with exit status 1, a finding with exit status 2, or a verbatim stop text.
+///   The incumbent's boundary maps each to a different ending:
+/// Git's own exit code with no wrapper text,
+/// a message
+///   with exit status 1,
+/// a finding with exit status 2,
+/// or a verbatim stop text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,9 +96,12 @@ pub struct CommitInvocation<'a> {
 /// ```
 #[derive(Debug)]
 pub enum TransactionStop {
-    /// Native `git commit` exited nonzero during preparation: its status is the invocation's, and Git printed why.
+    /// Native `git commit` exited nonzero during preparation:
+    /// its status is the invocation's,
+    /// and Git printed why.
     NativeExit(i32),
-    /// A Git step failed: the message reaches standard error and the status is 1.
+    /// A Git step failed:
+    /// the message reaches standard error and the status is 1.
     Message(String),
     /// A transaction failure reported as an engine failure event with status 2.
     Failed {
@@ -124,7 +147,9 @@ pub fn failed(message: String) -> TransactionStop {
 /// What:
 ///  What the transaction decided.
 /// Why:
-///   The command prints the events, runs the post-commit lifecycle for a landed commit, and exits with the code.
+///   The command prints the events,
+/// runs the post-commit lifecycle for a landed commit,
+/// and exits with the code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,19 +157,25 @@ pub fn failed(message: String) -> TransactionStop {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TransactionResult {
-    /// The events the invocation reports, in order.
+    /// The events the invocation reports,
+    /// in order.
     pub events: Vec<PolicyEvent>,
-    /// The exit status when nothing landed; 0 after a landed commit.
+    /// The exit status when nothing landed;
+    /// 0 after a landed commit.
     pub exit_code: i32,
-    /// The landed commit, when the transaction landed one.
+    /// The landed commit,
+    /// when the transaction landed one.
     pub landed_oid: Option<String>,
-    /// Whether the Git configuration read when the commit began holds LFS keys, so the commit's auto-push must upload
-    ///  LFS objects first; `false` when nothing landed.
+    /// Whether the Git configuration read when the commit began holds LFS keys,
+    /// so the commit's auto-push must upload
+    ///  LFS objects first;
+    /// `false` when nothing landed.
     pub uses_lfs: bool,
 }
 
 /// What:
-///  The commit-region facts the transaction decides from, derived once.
+///  The commit-region facts the transaction decides from,
+/// derived once.
 /// Why:
 ///   The mode and the selection flags are read in several steps.
 ///
@@ -154,9 +185,12 @@ pub struct TransactionResult {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Selection {
-    /// Whether a pathless commit concludes a merge, cherry-pick or revert.
+    /// Whether a pathless commit concludes a merge,
+    /// cherry-pick or revert.
     pub concludes_sequencer: bool,
-    /// Whether the selection UI (include, interactive, patch) leaves the policies read-only.
+    /// Whether the selection UI (include,
+    /// interactive,
+    /// patch) leaves the policies read-only.
     pub read_only: bool,
     /// Whether any path was selected.
     pub selects_paths: bool,
@@ -169,7 +203,8 @@ pub struct Selection {
 /// What:
 ///  Decide the selection facts of one commit invocation.
 /// Why:
-///   Invalid combinations reach native Git unchanged, so it rejects them.
+///   Invalid combinations reach native Git unchanged,
+/// so it rejects them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -200,10 +235,13 @@ pub fn decide_selection(region: &CommitRegion, conclusion: Conclusion) -> Select
 }
 
 /// What:
-///  Rebuild the shipped checks over the private commit index: rule facts stay real, the candidates come from the
+///  Rebuild the shipped checks over the private commit index:
+/// rule facts stay real,
+/// the candidates come from the
 ///  private index against the recorded base.
 /// Why:
-///   The incumbent's rules ask real Git about the real index, while the content policies read what the transaction
+///   The incumbent's rules ask real Git about the real index,
+/// while the content policies read what the transaction
 ///   corrects.
 ///
 /// In TS you'd write (pseudocode):
@@ -234,7 +272,8 @@ pub fn private_checks<'a, F: RepositoryFacts>(
 }
 
 /// What:
-///  How many passes changed the state when the convergence settled; any other ending counts none.
+///  How many passes changed the state when the convergence settled;
+/// any other ending counts none.
 /// Why:
 ///   The fix summary names the passes of a settled convergence only.
 ///
@@ -252,7 +291,9 @@ pub fn settled_passes(convergence: &Convergence) -> u64 {
 /// What:
 ///  The candidate request for the paths a private index changes against the recorded base.
 /// Why:
-///   The policies check exactly the paths the commit changes; each path is literal and rooted at the top level, so a
+///   The policies check exactly the paths the commit changes;
+/// each path is literal and rooted at the top level,
+/// so a
 ///   name with glob characters or a directory below the current one still names one file.
 ///
 /// In TS you'd write (pseudocode):
@@ -273,7 +314,8 @@ pub fn staged_at_base(base: Option<ObjectId>, paths: &[Vec<u8>]) -> CandidateReq
 }
 
 /// What:
-///  The recorded base as an object ID, or nothing for an unborn branch.
+///  The recorded base as an object ID,
+/// or nothing for an unborn branch.
 /// Why:
 ///   The candidate listing compares the private index with this commit.
 ///

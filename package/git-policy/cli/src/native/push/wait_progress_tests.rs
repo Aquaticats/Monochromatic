@@ -1,10 +1,16 @@
-//! Controls for the shared clock of wait notices: the cadence from its variable, the ticker's due moments,
-//!  the place-in-line sentence, the child-wait line and the reporter that prints them.
+//! Controls for the shared clock of wait notices:
+//! the cadence from its variable,
+//! the ticker's due moments,
+//!  the place-in-line sentence,
+//! the child-wait line and the reporter that prints them.
 
 use super::*;
 
-/// A cadence the ticker tests drive: one second of grace and ten seconds between notices.
-///  The values are the case's input, chosen so the waits are short; they are not the production defaults.
+/// A cadence the ticker tests drive:
+/// one second of grace and ten seconds between notices.
+///  The values are the case's input,
+/// chosen so the waits are short;
+/// they are not the production defaults.
 const STANDARD: Cadence = Cadence {
     grace: Duration::from_secs(1),
     interval: Duration::from_secs(10),
@@ -25,7 +31,8 @@ fn the_cadence_follows_the_variable_or_the_standard() {
     }
 }
 
-/// The grace is never longer than the interval, so an interval of one second also starts after one second.
+/// The grace is never longer than the interval,
+/// so an interval of one second also starts after one second.
 #[test]
 fn the_grace_never_outlasts_the_interval() {
     let short: Cadence = Cadence::from_interval(Duration::from_millis(250));
@@ -36,7 +43,8 @@ fn the_grace_never_outlasts_the_interval() {
     assert_eq!(Cadence::from_interval(Duration::from_secs(60)).grace, NOTICE_GRACE);
 }
 
-/// Nothing is due before the grace; one notice is due at the grace and one at every interval after it.
+/// Nothing is due before the grace;
+/// one notice is due at the grace and one at every interval after it.
 #[test]
 fn a_notice_is_due_after_the_grace_and_at_every_interval() {
     let mut ticker: Ticker = Ticker::new(STANDARD);
@@ -50,7 +58,8 @@ fn a_notice_is_due_after_the_grace_and_at_every_interval() {
     assert!(ticker.due(Duration::from_secs(21)));
 }
 
-/// A poll that comes late answers once for all the notices it missed, never in a burst.
+/// A poll that comes late answers once for all the notices it missed,
+/// never in a burst.
 #[test]
 fn a_late_poll_answers_once() {
     let mut ticker: Ticker = Ticker::new(STANDARD);
@@ -93,7 +102,10 @@ fn the_next_notice_is_due_in_the_remaining_time() {
     assert_eq!(announced.next_in(Duration::from_secs(3)), Duration::from_secs(7));
 }
 
-/// The child line names the wait, the process, both durations and where the limit changes; the repeats drop the hint.
+/// The child line names the wait,
+/// the process,
+/// both durations and where the limit changes;
+/// the repeats drop the hint.
 #[test]
 fn the_child_line_names_the_wait_the_process_and_both_durations() {
     let facts: ChildWaitFacts<'_> = ChildWaitFacts {
@@ -125,7 +137,8 @@ fn the_child_line_names_the_wait_the_process_and_both_durations() {
 }
 
 /// The reporter reports no notice due and prints nothing before the grace.
-///  The grace is an hour, so no host is slow enough to make the early poll late.
+///  The grace is an hour,
+/// so no host is slow enough to make the early poll late.
 #[test]
 fn the_reporter_prints_nothing_inside_the_grace() {
     let mut sink: Vec<u8> = Vec::new();
@@ -139,9 +152,11 @@ fn the_reporter_prints_nothing_inside_the_grace() {
     assert!(sink.is_empty());
 }
 
-/// The reporter prints a line at the grace and at every interval after it, and the line builder runs only for a printed
+/// The reporter prints a line at the grace and at every interval after it,
+/// and the line builder runs only for a printed
 ///  line and learns whether it is a repeat.
-///  It polls until three lines are out, so the count does not depend on how fast the host runs the loop.
+///  It polls until three lines are out,
+/// so the count does not depend on how fast the host runs the loop.
 #[test]
 fn the_reporter_prints_at_the_pace_of_its_ticker() {
     let mut sink: Vec<u8> = Vec::new();

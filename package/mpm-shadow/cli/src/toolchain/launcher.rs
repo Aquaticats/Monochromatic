@@ -44,8 +44,9 @@ use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
 use super::cargo_installs::{is_newer_than_locked, older_lock_message_for};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
-/// Imports what this module uses from `super::launcher_current_link`.
+/// Imports the check that follows a launcher chain and names a loop or a broken record.
 use super::launcher_chain::chain_problem;
+/// Imports what this module uses from `super::launcher_current_link`.
 use super::launcher_current_link::{MissingProgram, locked_version, missing_program_advice, program_to_run, version_that_runs};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{Scope, ScopeKind};

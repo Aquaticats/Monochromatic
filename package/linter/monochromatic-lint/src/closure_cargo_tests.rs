@@ -49,6 +49,20 @@ fn dylint_availability_has_three_outcomes() {
             .reason()
             .contains("cargo dylint --version")
     );
+    let no_subcommand = scenario(&[
+        ("dylint-version.status", "101"),
+        (
+            "dylint-version.stderr",
+            "error: no such command: `dylint`\n\n\tView all installed commands with `cargo --list`\n",
+        ),
+    ]);
+    assert!(
+        matches!(
+            dylint_probe(&no_subcommand.cargo),
+            Err(ProbeFailure::Absent(_))
+        ),
+        "cargo's own words for an unknown subcommand are the only absence"
+    );
     let missing =
         dylint_probe(Path::new("/nonexistent/monochromatic-lint/cargo")).expect_err("a reason");
     assert!(matches!(missing, ProbeFailure::Absent(_)), "{missing:?}");
@@ -60,9 +74,11 @@ fn dylint_availability_has_three_outcomes() {
 
 /// A `cargo` that starts and exits 126 or 127 is broken,
 /// not absent,
-/// and a plain failure stays a reason to skip.
+/// and so is any other failure that does not say there is no such subcommand:
+/// a stale installed tool answers like that,
+/// and the failure names `mise run toolchain:install`.
 #[test]
-fn a_cargo_that_exits_126_or_127_is_broken_and_any_other_failure_is_absent() {
+fn a_cargo_that_fails_without_saying_no_such_command_is_broken() {
     for status in ["126", "127"] {
         let stub = scenario(&[
             ("dylint-version.status", status),
@@ -77,13 +93,28 @@ fn a_cargo_that_exits_126_or_127_is_broken_and_any_other_failure_is_absent() {
             failure.reason().contains(&format!("exited with {status}")),
             "{failure:?}"
         );
-        assert!(failure.reason().ends_with("its own words"), "{failure:?}");
+        assert!(failure.reason().contains("its own words"), "{failure:?}");
+        assert!(
+            failure.reason().contains("mise run toolchain:install"),
+            "{failure:?}"
+        );
     }
-    let plain = scenario(&[("dylint-version.status", "101")]);
-    assert!(matches!(
-        dylint_probe(&plain.cargo),
-        Err(ProbeFailure::Absent(_))
-    ));
+    for status in ["1", "2", "101", "255"] {
+        let stale = scenario(&[
+            ("dylint-version.status", status),
+            ("dylint-version.stderr", "its own words\n"),
+        ]);
+        let failure = dylint_probe(&stale.cargo).expect_err("a failure");
+        assert!(
+            matches!(failure, ProbeFailure::Broken(_)),
+            "{status}: {failure:?}"
+        );
+        assert!(failure.reason().contains("its own words"), "{failure:?}");
+        assert!(
+            failure.reason().contains("mise run toolchain:install"),
+            "{status}: {failure:?}"
+        );
+    }
 }
 
 /// A cold registry names the directory and the fetch command,

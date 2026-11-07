@@ -163,10 +163,12 @@ pub fn init_backend(
     //           returns it on failure. `mut backend` because we call `renderer()`
     //           (a `&mut` method) below.
     // Why:      This is the nested window and its GPU renderer.
-    let (mut backend, winit) = winit::init_from_attributes::<GlesRenderer>(attributes)
-        .map_err(|err| {
-            return anyhow::anyhow!(nested_failure_message(&err.to_string(), ParentEnvironment::from_process()))
-        })?;
+    let (mut backend, winit) = match winit::init_from_attributes::<GlesRenderer>(attributes) {
+        Ok(pair) => pair,
+        Err(err) => {
+            return Err(anyhow::anyhow!(nested_failure_message(&err.to_string(), ParentEnvironment::from_process())))
+        }
+    };
 
     // What:     `backend.window().set_minimized(true);`. Asks the parent compositor to minimize
     //           the new window; winit sends the request for `xdg_toplevel.set_minimized` on

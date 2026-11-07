@@ -19,6 +19,8 @@
 //!  which answers the pending requests right after a new size or scale,
 //!  so a client can draw the new size before the next capture.
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::{failed_error, with_message};
 /// What:
 ///      Grouped `use` of paths,
 ///  the free-standing directory creator,
@@ -48,11 +50,11 @@ use smithay::reexports::calloop::{
 };
 
 /// What:
-///      `use anyhow::{Context, Result};`.
-///  Error helpers.
+///      `use anyhow::Result;`.
+///  The `Result` alias.
 /// Why:
-///       `start` returns `Result` and annotates directory / timer failures.
-use anyhow::{Context, Result};
+///       `start` returns `Result`.
+use anyhow::Result;
 
 /// What:
 ///      `use tracing::{info, warn};`.
@@ -205,7 +207,7 @@ pub fn start(state: &mut Compositor, dir: PathBuf, fps: f64, format: Format) -> 
     // What:     `create_dir_all(&dir).with_context(...)?;`. Ensure the output directory
     //           exists (creating parents).
     // Why:      Workers write frame files into it.
-    create_dir_all(&dir).with_context(|| format!("creating capture directory {}", dir.display()))?;
+    with_message(create_dir_all(&dir), format_args!("creating capture directory {}", dir.display()))?;
 
     // What:     `let workers = worker_count();`. Choose the encoder thread count.
     // Why:      Size the pool to the machine, leaving cores for the app and render thread.
@@ -228,12 +230,8 @@ pub fn start(state: &mut Compositor, dir: PathBuf, fps: f64, format: Format) -> 
     //           |_, _, state| tick(state)).map_err(...)?;`. Register the rescheduling timer;
     //           the callback runs `tick` on the render thread.
     // Why:      The steady capture clock.
-    let token = state
-        .loop_handle
-        .insert_source(Timer::from_duration(period), |_, _, event_state: &mut Compositor| {
-            return tick(event_state)
-        })
-        .map_err(|err| anyhow::anyhow!("registering the capture timer failed: {err}"))?;
+    let inserted = state.loop_handle.insert_source(Timer::from_duration(period), on_capture_timer);
+    let token = failed_error(inserted, "registering the capture timer failed")?;
 
     // What:     `let now = Instant::now();`. The schedule origin.
     // Why:      Absolute deadlines are computed from here.
@@ -309,6 +307,19 @@ pub fn stop(state: &mut Compositor) -> Option<RecordStats> {
         seconds,
         fps,
     })
+}
+
+/// The capture timer's callback:
+///  run one capture tick.
+///
+/// What:
+///      `fn on_capture_timer(_deadline: Instant, _metadata: &mut (), event_state: &mut Compositor) -> TimeoutAction`.
+///  The unit-typed `_metadata` is the timer source's metadata slot,
+///  which it leaves empty.
+/// Why:
+///       A named function replaces the closure the timer source took.
+fn on_capture_timer(_deadline: Instant, _metadata: &mut (), event_state: &mut Compositor) -> TimeoutAction {
+    return tick(event_state)
 }
 
 /// One capture tick:
@@ -476,7 +487,7 @@ fn worker_count() -> usize {
     //           `n.get()` unwraps the `NonZero<usize>`.
     // Why:      The basis for the pool size.
     let cores = std::thread::available_parallelism()
-        .map(|n| return n.get())
+        .map(std::num::NonZeroUsize::get)
         .unwrap_or(MIN_WORKERS);
 
     // What:     `cores.saturating_sub(RESERVED_CORES).max(MIN_WORKERS)`. Reserve cores, then

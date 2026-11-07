@@ -1,14 +1,28 @@
 //! What:
 //!  A read of the per-entry flags of an index file that decide whether the index may seed an explicit-path commit:
-//!  whether any entry is marked assume-unchanged, skip-worktree or intent-to-add.
+//!  whether any entry is marked assume-unchanged,
+//! skip-worktree or intent-to-add.
 //! Why:
-//!  A private index copied from the real index and reset to the base keeps those marks, and `git add --all -- <path>`
-//!  then skips a marked file the commit named (assume-unchanged) or refuses it (skip-worktree), where Git's own partial
-//!  commit and the previous flow staged it; an intent-to-add entry of a tracked empty file survives the reset and is then
-//!  left out of the tree, so the commit loses that file. Finding a mark needs the whole file, and a Git start for it would add a
-//!  process to every commit, so the entries are read here; anything this reader does not fully understand answers
-//!  "unreadable", and the caller then builds the index the slower, always-correct way.
-//!  The layout is the one in Git's `gitformat-index` documentation: a 12-byte header, entries (versions 2 to 4), then
+//!  A private index copied from the real index and reset to the base keeps those marks,
+//! and `git add --all -- <path>`
+//!  then skips a marked file the commit named (assume-unchanged) or refuses it (skip-worktree),
+//! where Git's own partial
+//!  commit and the previous flow staged it;
+//! an intent-to-add entry of a tracked empty file survives the reset and is then
+//!  left out of the tree,
+//! so the commit loses that file.
+//! Finding a mark needs the whole file,
+//! and a Git start for it would add a
+//!  process to every commit,
+//! so the entries are read here;
+//! anything this reader does not fully understand answers
+//!  "unreadable",
+//! and the caller then builds the index the slower,
+//! always-correct way.
+//!  The layout is the one in Git's `gitformat-index` documentation:
+//! a 12-byte header,
+//! entries (versions 2 to 4),
+//! then
 //!  extensions and a trailing checksum.
 //!
 //! In TS you'd write (pseudocode):
@@ -28,31 +42,42 @@ const EXTENDED: u16 = 0x4000;
 const SKIP_WORKTREE: u16 = 0x4000;
 
 /// Bit of the extended flags that marks intent-to-add.
-/// Such an entry keeps the empty blob's name and is left out of any tree built from the index, so a copy that a one-tree
+/// Such an entry keeps the empty blob's name and is left out of any tree built from the index,
+/// so a copy that a one-tree
 ///  `read-tree --reset` leaves in place drops a tracked empty file from the commit.
 const INTENT_TO_ADD: u16 = 0x2000;
 
-/// Bytes of the index header: signature, version and entry count.
+/// Bytes of the index header:
+/// signature,
+/// version and entry count.
 const HEADER_LENGTH: usize = 12;
 
-/// Bytes of an entry before its object name: ten 32-bit stat fields.
+/// Bytes of an entry before its object name:
+/// ten 32-bit stat fields.
 const STAT_LENGTH: usize = 40;
 
-/// Object name lengths tried in turn: SHA-1 and SHA-256.
+/// Object name lengths tried in turn:
+/// SHA-1 and SHA-256.
 const OBJECT_NAME_LENGTHS: [usize; 2] = [20, 32];
 
-/// The extension that makes the entries live partly in another file, which this reader does not follow.
+/// The extension that makes the entries live partly in another file,
+/// which this reader does not follow.
 const SPLIT_INDEX_EXTENSION: &[u8; 4] = b"link";
 
 /// What a read of an index file found.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IndexFlags {
-    /// Every entry was read and none is marked assume-unchanged, skip-worktree or intent-to-add.
+    /// Every entry was read and none is marked assume-unchanged,
+    /// skip-worktree or intent-to-add.
     Plain,
-    /// At least one entry is marked assume-unchanged, skip-worktree or intent-to-add.
+    /// At least one entry is marked assume-unchanged,
+    /// skip-worktree or intent-to-add.
     Marked,
-    /// The file is not an index this reader fully understands (an unknown version, a split index, a layout that does
-    /// not add up), so nothing is known about its marks.
+    /// The file is not an index this reader fully understands (an unknown version,
+    /// a split index,
+    /// a layout that does
+    /// not add up),
+    /// so nothing is known about its marks.
     Unreadable,
 }
 
@@ -71,7 +96,8 @@ fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 /// What:
 ///  Reads every entry and extension of an index whose object names are `name_length` bytes long.
 /// Why:
-///   A wrong name length misplaces the entries, so the layout stops adding up and the read answers nothing;
+///   A wrong name length misplaces the entries,
+/// so the layout stops adding up and the read answers nothing;
 ///  a right one consumes the file exactly up to its checksum.
 ///
 /// In TS you'd write (pseudocode):
@@ -142,7 +168,8 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<bool> {
 ///  Whether an index file has an entry marked assume-unchanged or skip-worktree.
 /// Why:
 ///   Both object name lengths are tried because the reader is not told the repository's object format;
-///  a layout that adds up for neither is unreadable, never "plain".
+///  a layout that adds up for neither is unreadable,
+/// never "plain".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,22 +1,29 @@
-//! Controls of the shared source-scan helpers, on filesystem fixtures: a nested layout is walked and resolved, test-only
-//! support is told from release code by the module tree, and a tree that cannot be trusted is an error.
+//! Controls of the shared source-scan helpers,
+//! on filesystem fixtures:
+//! a nested layout is walked and resolved,
+//! test-only
+//! support is told from release code by the module tree,
+//! and a tree that cannot be trusted is an error.
 
 use super::declaration::{Declaration, declarations, module_name};
 use super::{SourceFile, classified_sources, manifest_roots, module_tree, real_roots, release_root, source_root, write_tree};
 use crate::source_scan_tests::walk::discover;
 use crate::test_support::fixture;
 
-/// The classification of one path in a listing, or a panic naming the path when the listing lacks it.
+/// The classification of one path in a listing,
+/// or a panic naming the path when the listing lacks it.
 fn test_only_of(listing: &[SourceFile], path: &str) -> bool {
     return listing.iter().find(|file| return file.path == path).unwrap_or_else(|| panic!("{path} is listed")).test_only;
 }
 
-/// The declarations of a text, or a panic when the text cannot be read.
+/// The declarations of a text,
+/// or a panic when the text cannot be read.
 fn declared(text: &str) -> Vec<Declaration> {
     return declarations(text).expect("readable declarations");
 }
 
-/// A declaration reads with its `path` attribute and with every spelling of a test gate, and only a gate that holds
+/// A declaration reads with its `path` attribute and with every spelling of a test gate,
+/// and only a gate that holds
 /// solely when testing marks it test-only.
 #[test]
 fn declarations_read_path_attributes_and_test_gates() {
@@ -51,8 +58,11 @@ fn declarations_read_path_attributes_and_test_gates() {
     );
 }
 
-/// An item between an attribute and a module detaches the attribute, so a gate on a function never gates the module
-/// after it; an indented declaration and an unreadable `path` attribute are errors, not guesses.
+/// An item between an attribute and a module detaches the attribute,
+/// so a gate on a function never gates the module
+/// after it;
+/// an indented declaration and an unreadable `path` attribute are errors,
+/// not guesses.
 #[test]
 fn declarations_refuse_what_they_cannot_place() {
     let detached: Vec<Declaration> = declared("#[cfg(test)]\nfn helper() {}\nmod after;\n");
@@ -65,8 +75,12 @@ fn declarations_refuse_what_they_cannot_place() {
     assert_eq!(module_name("use a::mod_b;"), None);
 }
 
-/// A nested layout resolves the way the compiler resolves it: a `mod.rs` directory, a sibling directory named after
-/// a file, and a `path` attribute, with test gates inherited by every child.
+/// A nested layout resolves the way the compiler resolves it:
+/// a `mod.rs` directory,
+/// a sibling directory named after
+/// a file,
+/// and a `path` attribute,
+/// with test gates inherited by every child.
 #[test]
 fn the_tree_resolves_nested_modules_and_inherits_test_gates() {
     let root = fixture("scan-tree-nested");
@@ -106,7 +120,8 @@ fn the_tree_resolves_nested_modules_and_inherits_test_gates() {
     assert!(!test_only_of(&listing, "after_path.rs"));
 }
 
-/// A file reached once through a gate and once without is release, whichever is followed first.
+/// A file reached once through a gate and once without is release,
+/// whichever is followed first.
 #[test]
 fn a_file_reached_without_a_gate_is_release_code() {
     let root = fixture("scan-tree-two-routes");
@@ -124,8 +139,11 @@ fn a_file_reached_without_a_gate_is_release_code() {
     assert!(test_only_of(&listing, "gated_route.rs"));
 }
 
-/// A tree that is not what the compiler reads is an error: a declaration with no file, a declaration with two files,
-/// a source file nothing declares, and a root that is missing.
+/// A tree that is not what the compiler reads is an error:
+/// a declaration with no file,
+/// a declaration with two files,
+/// a source file nothing declares,
+/// and a root that is missing.
 #[test]
 fn an_untrustworthy_tree_is_an_error() {
     let missing = fixture("scan-tree-missing-file");
@@ -143,7 +161,8 @@ fn an_untrustworthy_tree_is_an_error() {
     assert!(module_tree(&rootless, &[release_root("lib.rs")]).is_err(), "a root that is not there");
 }
 
-/// The walk lists nested files by relative name, and an empty tree and an absent root are errors.
+/// The walk lists nested files by relative name,
+/// and an empty tree and an absent root are errors.
 #[test]
 fn the_walk_lists_everything_or_fails() {
     let nested = fixture("scan-walk-nested");
@@ -155,7 +174,8 @@ fn the_walk_lists_everything_or_fails() {
     assert!(discover(&nested.join("absent")).is_err(), "a root that is not there");
 }
 
-/// A link in the tree may point outside it or nowhere, so the walk is an error and not a listing.
+/// A link in the tree may point outside it or nowhere,
+/// so the walk is an error and not a listing.
 #[cfg(unix)]
 #[test]
 fn the_walk_refuses_a_link() {
@@ -165,7 +185,9 @@ fn the_walk_refuses_a_link() {
     assert!(discover(&linked).is_err(), "a link may point outside the tree or nowhere");
 }
 
-/// The manifest's library and binaries are release roots, its test targets are test-only roots, and a target
+/// The manifest's library and binaries are release roots,
+/// its test targets are test-only roots,
+/// and a target
 /// outside the source prefix is an error rather than a silent gap.
 #[test]
 fn the_manifest_gives_the_roots() {
@@ -179,7 +201,10 @@ fn the_manifest_gives_the_roots() {
     assert!(manifest_roots("[package]\n", "src/native/").is_err(), "no target at all");
 }
 
-/// The real crate: every file is reached from the manifest's targets, support is test-only, and the shipped
+/// The real crate:
+/// every file is reached from the manifest's targets,
+/// support is test-only,
+/// and the shipped
 /// entry points are release code.
 #[test]
 fn the_real_crate_is_fully_classified() {

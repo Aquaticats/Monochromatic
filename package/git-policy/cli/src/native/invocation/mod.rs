@@ -31,10 +31,14 @@ pub mod effective_target;
 /// The per-invocation decision the thin executable performs.
 pub mod entry;
 
-/// Plans what a forwarded Git command does: plain forward, settled worktree copy, or index-writer coordination.
+/// Plans what a forwarded Git command does:
+/// plain forward,
+/// settled worktree copy,
+/// or index-writer coordination.
 pub mod entry_forward_action_planning;
 
-/// Turns a plain forward of a push into a stacked or LFS-uploading push, with the notices a forward owes.
+/// Turns a plain forward of a push into a stacked or LFS-uploading push,
+/// with the notices a forward owes.
 pub mod entry_push_stacking_and_lfs_upload;
 
 /// Runs coordinated and settled forwards and writes to the standard streams.
@@ -56,13 +60,15 @@ pub mod global_arguments;
 ///  and direct `check`/`fix`.
 pub mod management;
 
-/// The direct `monochromatic-git-policy-cli` commands that run in this process, with their refusals.
+/// The direct `monochromatic-git-policy-cli` commands that run in this process,
+/// with their refusals.
 pub mod management_direct_commands;
 
 /// Which repository the service commands mean.
 pub mod management_service_repository_selection;
 
-/// `service settle-earlier-batches`, and the note `doctor` adds about the batches it would settle.
+/// `service settle-earlier-batches`,
+/// and the note `doctor` adds about the batches it would settle.
 pub mod management_service_settle_earlier_batches;
 
 /// The `git monochromatic-git-policy-cli` argument grammar.
@@ -77,10 +83,13 @@ pub mod real_git;
 /// Wrapper self-exclusion for one PATH candidate.
 pub mod real_git_candidate;
 
-/// The real Git that the commit service's unit file records, read as the fallback when `PATH` offers none.
+/// The real Git that the commit service's unit file records,
+/// read as the fallback when `PATH` offers none.
 pub mod real_git_record;
 
-/// The one resolution of the real Git every start uses: `PATH`, then the Git the commit service's unit records.
+/// The one resolution of the real Git every start uses:
+/// `PATH`,
+/// then the Git the commit service's unit records.
 pub mod real_git_resolution;
 
 /// The marker every real-Git start carries and the check that stops a wrapper which finds it was started as Git.
@@ -107,19 +116,26 @@ pub mod git_builtins;
 ///  from refusals to forwarding.
 pub mod wrapped_command;
 
-/// The steps of a wrapped command beside its guarded stages: escape-hatch record, push failure notices, snapshots, manual push.
+/// The steps of a wrapped command beside its guarded stages:
+/// escape-hatch record,
+/// push failure notices,
+/// snapshots,
+/// manual push.
 pub mod wrapped_command_notices_snapshots_and_manual_push;
 
 /// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists.
 pub mod hooks_off;
 
-/// The startup step of a command: isolated merges whose process died, and what an earlier release left behind.
+/// The startup step of a command:
+/// isolated merges whose process died,
+/// and what an earlier release left behind.
 pub mod startup_gate;
 
 /// The Git version check run once before work that depends on Git's behavior.
 pub mod git_version;
 
-/// The private per-user cache of the version text, keyed by the Git executable's identity.
+/// The private per-user cache of the version text,
+/// keyed by the Git executable's identity.
 pub mod git_version_cache;
 
 /// The Git command a forwarded invocation runs,
