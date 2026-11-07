@@ -45,6 +45,11 @@ const TASK_PREFIX_START = '[//';
 const TASK_PREFIX_END = ']';
 
 /**
+ The line `mise` prints when a task fails starts with this; it ends an error's excerpt.
+ */
+const TASK_FAILURE_START = 'ERROR ';
+
+/**
  A Rust error with a code starts with this, followed by the code and a closing bracket.
  */
 const RUST_CODED_START = 'error[';
@@ -231,10 +236,13 @@ export function firstErrorOf(output: string,): FirstError | typeof NO_ERROR_IN_O
    */
   const continuation: string[] = [];
   for (const line of lines.slice(start + 1,)) {
-    if ((line.trim() === '') || (errorStartOf(line,) !== NOT_AN_ERROR_START)
-      || (continuation.length >= (EXCERPT_LINES
-        - 1)))
+    if (
+      (line.trim() === '') || line.startsWith(TASK_FAILURE_START,)
+        || (errorStartOf(line,) !== NOT_AN_ERROR_START)
+        || (continuation.length >= (EXCERPT_LINES - 1))
+    ) {
       break;
+    }
     continuation.push(line,);
   }
   return {

@@ -200,31 +200,36 @@ export function movesSection({
     MAXIMUM_MOVE_LINES,
   );
   /**
-   Lines of the section.
+   One block of lines per lock that has a shown move, then the note about moves left out.
    */
-  const lines: string[] = [];
-  for (const { source, } of moves) {
+  const blocks: (readonly string[])[] = moves.flatMap(function blockOf({ source, },) {
     /**
      Shown moves of this lock.
      */
     const inSource = shown.filter(function isOfSource(entry,) {
       return entry.source === source;
     },);
-    if (inSource.length > 0) {
-      lines.push(
-        `### ${source}`,
-        '',
-        ...inSource.map(moveLine,),
-        '',
-      );
-    }
-  }
+    return inSource.length === 0 ? [] : [[
+      `### ${source}`,
+      '',
+      ...inSource.map(moveLine,),
+    ],];
+  },);
   if (entries.length > shown.length) {
-    lines.push(
+    blocks.push([
       `and ${entries.length - shown.length} more moves in the locks; \`git diff\` between the commits lists them.`,
-    );
+    ],);
   }
-  return lines;
+  // A blank line separates one block from the next, and none ends the section.
+  return blocks.flatMap(function separated(
+    block,
+    position,
+  ) {
+    return position === 0 ? block : [
+      '',
+      ...block,
+    ];
+  },);
 }
 
 /**
