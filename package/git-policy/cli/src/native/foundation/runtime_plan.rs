@@ -87,6 +87,21 @@ pub enum RuntimePlan {
     },
 }
 
+/// The workers a count of threads left allows:
+/// each comes with a blocking-pool thread,
+/// and one more thread builds the runtime.
+fn workers_by_threads(left: u64) -> usize {
+    return usize::try_from(left.saturating_sub(1) / 2).unwrap_or(usize::MAX);
+}
+
+/// The workers an address space left allows,
+/// after the reserve,
+/// each as a pair of threads.
+fn workers_by_address_space(left: u64) -> usize {
+    let pairs: u64 = left.saturating_sub(ADDRESS_SPACE_RESERVE_BYTES) / (2 * THREAD_VIRTUAL_BYTES);
+    return usize::try_from(pairs).unwrap_or(usize::MAX);
+}
+
 /// What:
 ///  The plan for this host:
 /// the budget's worker count,
@@ -113,13 +128,8 @@ pub fn plan_runtime(host: &HostResources, limits: &RuntimeLimits) -> RuntimePlan
         host,
     });
     // Each worker comes with a blocking-pool thread, and one more thread builds the runtime.
-    let by_threads: usize = limits.threads_left.map_or(usize::MAX, |left| {
-        return usize::try_from(left.saturating_sub(1) / 2).unwrap_or(usize::MAX);
-    });
-    let by_address_space: usize = limits.address_space_left.map_or(usize::MAX, |left| {
-        let pairs: u64 = left.saturating_sub(ADDRESS_SPACE_RESERVE_BYTES) / (2 * THREAD_VIRTUAL_BYTES);
-        return usize::try_from(pairs).unwrap_or(usize::MAX);
-    });
+    let by_threads: usize = limits.threads_left.map_or(usize::MAX, workers_by_threads);
+    let by_address_space: usize = limits.address_space_left.map_or(usize::MAX, workers_by_address_space);
     let workers: usize = by_budget.min(by_threads).min(by_address_space);
     if workers < 1 {
         return RuntimePlan::CurrentThread;

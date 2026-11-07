@@ -39,6 +39,7 @@ use crate::rename_that_never_replaces::rename_noreplace;
 use crate::service_instance::instance_of;
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 use crate::wrapper_names_old_and_new::{KEPT_BESIDE_SUFFIX, MESSAGE_PREFIX, RenamedName};
+use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -77,14 +78,29 @@ pub struct FoldSurroundings {
     pub proc_root: PathBuf,
 }
 
+/// The path an environment variable holds,
+/// or nothing when it is unset or empty.
+fn non_empty_environment_path(name: &str) -> Option<PathBuf> {
+    let value: OsString = std::env::var_os(name)?;
+    if value.is_empty() {
+        return None;
+    }
+    return Some(PathBuf::from(value));
+}
+
+/// The state folder under the home folder,
+/// or nothing when no home is set.
+fn home_state_dir() -> Option<PathBuf> {
+    let home: PathBuf = non_empty_environment_path("HOME")?;
+    return Some(home.join(".local").join("state"));
+}
+
 impl FoldSurroundings {
     /// The surroundings of this process:
     /// its environment and the live process table.
     pub fn of_this_process() -> Self {
-        let named: Option<PathBuf> = std::env::var_os("XDG_STATE_HOME").filter(|value| return !value.is_empty()).map(PathBuf::from);
-        let state_dir: Option<PathBuf> = named.or_else(|| {
-            return std::env::var_os("HOME").filter(|value| return !value.is_empty()).map(|home| return PathBuf::from(home).join(".local").join("state"));
-        });
+        let named: Option<PathBuf> = non_empty_environment_path("XDG_STATE_HOME");
+        let state_dir: Option<PathBuf> = named.or_else(home_state_dir);
         return FoldSurroundings { state_dir, proc_root: PathBuf::from("/proc") };
     }
 }
@@ -164,9 +180,10 @@ fn needs_fold(directory: &Path, kept: KeptName) -> bool {
 /// ```
 fn keep_numbered_copies(directory: &Path, name: RenamedName) -> std::io::Result<()> {
     for copy in numbered_copies(directory, name.earlier) {
-        let Some(file_name) = copy.file_name().map(|found| return found.to_string_lossy().into_owned()) else {
+        let Some(found) = copy.file_name() else {
             continue;
         };
+        let file_name: String = found.to_string_lossy().into_owned();
         let Some(number) = file_name.strip_prefix(format!("{}.", name.earlier).as_str()) else {
             continue;
         };
@@ -243,7 +260,12 @@ fn earlier_program_hold(directory: &Path, surroundings: &FoldSurroundings) -> Op
 /// function foldKeptNames(directory: string, names: KeptName[], surroundings: FoldSurroundings, steps: FoldSteps): FoldReport;
 /// ```
 pub fn fold_kept_names(directory: &Path, names: &[KeptName], surroundings: &FoldSurroundings, steps: &mut dyn FoldSteps) -> FoldReport {
-    let wanted: Vec<KeptName> = names.iter().copied().filter(|kept| return needs_fold(directory, *kept)).collect();
+    let mut wanted: Vec<KeptName> = Vec::new();
+    for kept in names.iter().copied() {
+        if needs_fold(directory, kept) {
+            wanted.push(kept);
+        }
+    }
     if wanted.is_empty() {
         return FoldReport { held: None, outcomes: Vec::new() };
     }

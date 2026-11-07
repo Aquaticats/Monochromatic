@@ -180,6 +180,17 @@ fn read_range(path: &Path, from: u64, to: u64) -> std::io::Result<Vec<u8>> {
     return Ok(bytes);
 }
 
+/// Whether a byte ends a line.
+fn is_newline(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// The place of the first line end in `bytes`,
+/// or nothing when there is none.
+fn first_newline_in(bytes: &[u8]) -> Option<usize> {
+    return bytes.iter().position(is_newline);
+}
+
 /// Whether `block` starts at the start of a line of `haystack`,
 /// looking at the first start at or after `from`.
 ///  Only line starts are compared,
@@ -191,7 +202,7 @@ fn block_starts_a_line(haystack: &[u8], from: usize, block: &[u8]) -> bool {
         if haystack.get(start..start + block.len()) == Some(block) {
             return true;
         }
-        let Some(newline) = haystack.get(start..).and_then(|rest| return rest.iter().position(|byte| return *byte == b'\n')) else {
+        let Some(newline) = haystack.get(start..).and_then(first_newline_in) else {
             return false;
         };
         start += newline + 1;
@@ -210,6 +221,11 @@ fn file_holds_block(path: &Path, from: u64, block: &[u8]) -> std::io::Result<boo
     return Ok(block_starts_a_line(bytes.as_slice(), start, block));
 }
 
+/// Whether a byte is an ASCII digit.
+fn is_ascii_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
 /// The numbered older copies of `current` that exist (`<current>.1`,
 /// `<current>.2`,
 /// ...).
@@ -223,7 +239,7 @@ pub fn numbered_copies(parent: &Path, current: &str) -> Vec<PathBuf> {
         let file_name: String = entry.file_name().to_string_lossy().into_owned();
         if let Some(number) = file_name.strip_prefix(wanted_start.as_str())
             && !number.is_empty()
-            && number.bytes().all(|byte| return byte.is_ascii_digit())
+            && number.bytes().all(is_ascii_digit_byte)
         {
             copies.push(entry.path());
         }
@@ -295,7 +311,10 @@ fn length_of(path: &Path) -> std::io::Result<Option<u64>> {
 /// Whether the moved log is longer than the bytes already added;
 /// a log that is shorter counts as not grown.
 fn grown_past(path: &Path, from: u64) -> std::io::Result<bool> {
-    return Ok(length_of(path)?.is_some_and(|length| return length > from));
+    return match length_of(path)? {
+        Some(length) => Ok(length > from),
+        None => Ok(false),
+    };
 }
 
 /// What:
@@ -315,7 +334,10 @@ fn grown_past(path: &Path, from: u64) -> std::io::Result<bool> {
 /// function leaveForALaterCommand(held: HeldJournal, last: Round | undefined, from: number): LogFold;
 /// ```
 fn leave_for_a_later_command(held: &mut HeldJournal, last: Option<Round>, from: u64, current: &Path) -> std::io::Result<LogFold> {
-    let said: bool = last.is_some_and(|round| return round.from == from && round.to == from);
+    let said: bool = match last {
+        Some(round) => round.from == from && round.to == from,
+        None => false,
+    };
     if !said {
         let offset: u64 = length_of(current)?.unwrap_or(0);
         held.record(Round { offset, from, to: from })?;

@@ -142,6 +142,22 @@ fn multi_thread(workers: usize, blocking: usize) -> std::io::Result<Runtime> {
         .build();
 }
 
+/// Runs a runtime builder on its two sizes,
+/// the state and function a guarded call takes.
+fn run_multi_thread_builder<B>(state: (B, usize, usize)) -> std::io::Result<Runtime>
+where
+    B: FnOnce(usize, usize) -> std::io::Result<Runtime>,
+{
+    let (builder, workers, blocking_threads): (B, usize, usize) = state;
+    return builder(workers, blocking_threads);
+}
+
+/// The text of a build error,
+/// the reason a process has no runtime.
+fn error_text(error: std::io::Error) -> String {
+    return error.to_string();
+}
+
 /// What:
 ///  Builds the runtime `plan` names.
 /// The multi-thread runtime is built by `multi_thread` on a helper thread that the caller waits
@@ -173,7 +189,7 @@ where
     let started = std::thread::Builder::new().name(String::from("git-policy-runtime-build")).spawn(move || {
         // A refused thread panics inside tokio's build; the panic is caught here and reported as a replaced runtime.
         let outcome: std::thread::Result<std::io::Result<Runtime>> =
-            crate::panic_notice::while_panics_are_expected(|| { return multi_thread_builder(workers, blocking_threads); });
+            crate::panic_notice::while_panics_are_expected((multi_thread_builder, workers, blocking_threads), run_multi_thread_builder::<B>);
         let result: std::io::Result<Runtime> = match outcome {
             Ok(built) => built,
             Err(_payload) => Err(std::io::Error::other("the build of the multi-thread runtime panicked")),
@@ -208,7 +224,7 @@ fn build_for_this_process() -> Result<BuiltRuntime, String> {
     let host: crate::parallel_budget::HostResources = crate::parallel_budget::HostResources::read();
     let limits: crate::runtime_limits::RuntimeLimits = crate::runtime_limits::RuntimeLimits::read();
     let plan: RuntimePlan = crate::runtime_plan::plan_runtime(&host, &limits);
-    return build_with_deadline(plan, BUILD_DEADLINE, multi_thread).map_err(|error| { return error.to_string(); });
+    return build_with_deadline(plan, BUILD_DEADLINE, multi_thread).map_err(error_text);
 }
 
 /// What:
@@ -271,7 +287,8 @@ pub fn run_on_runtime<F: std::future::Future>(future: F) -> Result<F::Output, Ru
 /// How the process's runtime was built,
 /// or nothing before the first need.
 pub fn built_flavor() -> Option<BuiltFlavor> {
-    return RUNTIME.get().and_then(|built| { return built.as_ref().ok(); }).map(|built| { return built.flavor; });
+    let built: &BuiltRuntime = RUNTIME.get()?.as_ref().ok()?;
+    return Some(built.flavor);
 }
 
 /// Runtime controls stay out of the release executable.

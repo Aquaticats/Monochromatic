@@ -58,7 +58,7 @@ where
     J: FnOnce() -> T + Send + 'static,
 {
     // `spawn_blocking` panics where no thread can start; the closure it consumed is gone, so nothing ran.
-    let started = crate::panic_notice::while_panics_are_expected(|| { return tokio::task::spawn_blocking(job); });
+    let started = crate::panic_notice::while_panics_are_expected(job, tokio::task::spawn_blocking::<J, T>);
     let Ok(handle) = started else {
         return Err(BlockingJobError::NoThreadToStart);
     };

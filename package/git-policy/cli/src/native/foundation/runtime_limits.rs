@@ -88,7 +88,8 @@ pub fn control_group_path(text: &str) -> Option<String> {
 
 /// What is left of a limit that is `limit` (nothing when unlimited) with `used` already taken.
 pub fn left_under(limit: Option<u64>, used: u64) -> Option<u64> {
-    return limit.map(|bound| { return bound.saturating_sub(used); });
+    let bound: u64 = limit?;
+    return Some(bound.saturating_sub(used));
 }
 
 /// The threads a control group can still hold:
@@ -129,6 +130,35 @@ pub fn group_threads_left(root: &Path, path: &str) -> Option<u64> {
 /// The root of the unified control-group hierarchy.
 const CONTROL_GROUP_ROOT: &str = "/sys/fs/cgroup";
 
+/// The address space this process has mapped,
+/// zero when its status cannot be read.
+#[cfg(unix)]
+fn mapped_bytes_of_this_process() -> u64 {
+    let Ok(text) = std::fs::read_to_string(SELF_STATUS) else {
+        return 0;
+    };
+    return mapped_bytes_from(text.as_str()).unwrap_or(0);
+}
+
+/// The threads the system counts as running,
+/// zero when its load file cannot be read.
+#[cfg(unix)]
+fn system_threads_in_use() -> u64 {
+    let Ok(text) = std::fs::read_to_string(SYSTEM_LOAD) else {
+        return 0;
+    };
+    return system_threads_from(text.as_str()).unwrap_or(0);
+}
+
+/// The threads this process's control group can still hold,
+/// nothing when no limit can be read.
+#[cfg(unix)]
+fn threads_left_in_this_control_group() -> Option<u64> {
+    let text: String = std::fs::read_to_string("/proc/self/cgroup").ok()?;
+    let path: String = control_group_path(text.as_str())?;
+    return group_threads_left(Path::new(CONTROL_GROUP_ROOT), path.as_str());
+}
+
 impl RuntimeLimits {
     /// What:
     ///  The limits of this process now.
@@ -145,22 +175,13 @@ impl RuntimeLimits {
     #[cfg(unix)]
     pub fn read() -> RuntimeLimits {
         let address_space: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::As);
-        let mapped: u64 = std::fs::read_to_string(SELF_STATUS)
-            .ok()
-            .and_then(|text| { return mapped_bytes_from(text.as_str()); })
-            .unwrap_or(0);
+        let mapped: u64 = mapped_bytes_of_this_process();
         let address_space_left: Option<u64> = left_under(address_space.current, mapped);
         // Counting the user's threads is a scan of every process, so one read of the system total stands in for it.
         let processes: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::Nproc);
-        let system_threads: u64 = std::fs::read_to_string(SYSTEM_LOAD)
-            .ok()
-            .and_then(|text| { return system_threads_from(text.as_str()); })
-            .unwrap_or(0);
+        let system_threads: u64 = system_threads_in_use();
         let by_process_limit: Option<u64> = left_under(processes.current, system_threads);
-        let by_group: Option<u64> = std::fs::read_to_string("/proc/self/cgroup")
-            .ok()
-            .and_then(|text| { return control_group_path(text.as_str()); })
-            .and_then(|path| { return group_threads_left(Path::new(CONTROL_GROUP_ROOT), path.as_str()); });
+        let by_group: Option<u64> = threads_left_in_this_control_group();
         return RuntimeLimits { address_space_left, threads_left: least_of(by_process_limit, by_group) };
     }
 }

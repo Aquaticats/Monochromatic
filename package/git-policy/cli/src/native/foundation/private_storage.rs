@@ -128,6 +128,12 @@ fn exclusive_options() -> OpenOptions {
     return options;
 }
 
+/// Create the file at `staged` with `exclusive_options`,
+/// the file-making call the staging-file builder takes by name.
+fn open_exclusively(staged: &std::path::Path) -> std::io::Result<std::fs::File> {
+    return exclusive_options().open(staged);
+}
+
 /// What:
 ///  Set a path's permission bits to `mode`,
 ///  on Unix only.
@@ -201,7 +207,7 @@ fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTempFile> {
     return tempfile::Builder::new()
         .prefix(prefix.as_os_str())
         .suffix(".partial")
-        .make_in(directory, |staged| { return exclusive_options().open(staged); });
+        .make_in(directory, open_exclusively);
 }
 
 /// What:

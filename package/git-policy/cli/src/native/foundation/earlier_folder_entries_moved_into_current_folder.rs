@@ -65,7 +65,10 @@ pub enum FolderFold {
 /// Whether a path is a real folder,
 /// not a link to one.
 fn is_real_folder(path: &Path) -> bool {
-    return std::fs::symlink_metadata(path).map(|found| return found.file_type().is_dir()).unwrap_or(false);
+    let Ok(found) = std::fs::symlink_metadata(path) else {
+        return false;
+    };
+    return found.file_type().is_dir();
 }
 
 /// The name an earlier entry takes beside a current entry of the same name.
@@ -122,7 +125,10 @@ pub fn fold_folder(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) 
             Err(error) => return Err(error),
         };
         // The names are read before any is moved, so a move never changes what the listing returns.
-        let names: Vec<std::ffi::OsString> = listing.map(|entry| return entry.map(|found| return found.file_name())).collect::<Result<_, _>>()?;
+        let mut names: Vec<std::ffi::OsString> = Vec::new();
+        for entry in listing {
+            names.push(entry?.file_name());
+        }
         for entry_name in names {
             let source: PathBuf = from_folder.join(entry_name.as_os_str());
             let target: PathBuf = into_folder.join(entry_name.as_os_str());
