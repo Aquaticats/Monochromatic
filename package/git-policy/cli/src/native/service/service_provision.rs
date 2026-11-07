@@ -260,6 +260,15 @@ fn describe(error: &CallError) -> String {
     };
 }
 
+/// Say in the service's log that the earlier release's unit for this worktree was not stopped,
+/// and why.
+fn warn_not_stopped(unit: &str, error: &CallError) {
+    crate::service_warn!(
+        "the commit service of the earlier release for this worktree ({unit}) was not stopped: {}; the batches it left open stay open, and the next commit tries again",
+        describe(error)
+    );
+}
+
 /// What:
 ///  Stops the socket unit `cli-git@<instance>.socket` that the earlier release set up for this very worktree,
 /// when no helper
@@ -305,21 +314,15 @@ fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager)
     let service: String = earlier_service_unit_instance(host.instance.as_str());
     // The start that came before may have used the time of its exchange; these calls have a time of their own.
     manager.within(EXCHANGE_WAIT);
-    let unreadable = |unit: &str, error: &CallError| {
-        crate::service_warn!(
-            "the commit service of the earlier release for this worktree ({unit}) was not stopped: {}; the batches it left open stay open, and the next commit tries again",
-            describe(error)
-        );
-    };
     // A helper that runs finishes its own batches; it is not touched.
     match manager.active_state(service.as_str()) {
         Ok(Some(state)) if !is_at_rest(state.as_str()) => return,
         Ok(_) => {}
-        Err(error) => return unreadable(service.as_str(), &error),
+        Err(error) => return warn_not_stopped(service.as_str(), &error),
     }
     let held: Option<String> = match manager.active_state(socket.as_str()) {
         Ok(state) => state,
-        Err(error) => return unreadable(socket.as_str(), &error),
+        Err(error) => return warn_not_stopped(socket.as_str(), &error),
     };
     if !matches!(&held, Some(state) if !is_at_rest(state.as_str())) {
         return;
@@ -327,7 +330,7 @@ fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager)
     match manager.stop_alone(socket.as_str()) {
         Ok(()) => {}
         Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => {}
-        Err(error) => unreadable(socket.as_str(), &error),
+        Err(error) => warn_not_stopped(socket.as_str(), &error),
     }
 }
 
