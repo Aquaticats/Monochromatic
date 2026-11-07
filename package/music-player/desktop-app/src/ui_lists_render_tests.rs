@@ -6,7 +6,9 @@
 //! reports it, so a test of the element tree cannot tell a fixed list from a broken one.
 //! Note: the platform is installed per test thread, as the testing backend does, so these tests run beside the others.
 
+use std::cell::Cell;
 use std::rc::Rc;
+use std::time::Duration;
 
 use music_player::command::Update;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
@@ -16,6 +18,14 @@ use slint::{ComponentHandle, PlatformError, Rgb8Pixel};
 use crate::AppWindow;
 use crate::ui_screen::{project, update_state};
 use crate::ui_screen_view::ScreenState;
+
+thread_local! {
+    /// What: `CLOCK` is how long the test thread's Slint clock says the program has run.
+    /// Why: Slint animations read the platform's clock, and the default clock is the wall clock, so how far a fade-in has gone
+    /// when a frame is drawn depended on how fast the build runs: a debug build (slow) drew a page at full ink, a release build
+    /// (fast) drew it still faded. The test clock moves only when the test moves it.
+    static CLOCK: Cell<Duration> = const { Cell::new(Duration::ZERO) };
+}
 
 /// What: `SoftwarePlatform` hands one software window to every window the test creates.
 /// Why: Slint needs a platform to create a window, and this one draws into memory.
@@ -29,6 +39,11 @@ impl Platform for SoftwarePlatform {
     /// What: `create_window_adapter` gives the shared software window.
     fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError> {
         return Ok(self.window.clone());
+    }
+
+    /// What: `duration_since_start` gives the test clock, which stands still until the test moves it.
+    fn duration_since_start(&self) -> Duration {
+        return CLOCK.get();
     }
 }
 
