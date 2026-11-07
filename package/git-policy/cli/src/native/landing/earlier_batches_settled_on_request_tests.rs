@@ -213,6 +213,28 @@ fn the_hold_keeps_which_socket_or_helper_caused_it() {
     remove(world.root.as_path());
 }
 
+/// The service log says which program held a settling back (its process ID, the program and the folder that did not resolve)
+///  and shows no other word of its command line, because any of them can be a secret that no masker knows.
+#[test]
+fn the_log_line_of_a_held_settling_names_the_program_and_folder_and_no_other_argument() {
+    let (world, state) = world_with_earlier_journal("settle-log-program", "state");
+    let landed: CommitRequest = request(&world, "logged", "logged.txt", "logged\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(proc_root.as_path(), 52, &["/usr/bin/unrelated-tool", "--journal", "/nowhere/at/all", "--remote", "https://user:s3cret@example.invalid/x", "--token", "s3cret-token"]);
+    let mut settled: Option<RequestedSettlement> = None;
+    let entries = crate::service_timing::capture::entries_of(|| { settled = Some(settle(&world, state.as_path(), proc_root.as_path())); });
+    assert!(matches!(settled, Some(RequestedSettlement::Held { .. })), "{settled:?}");
+    let line: &str = entries.iter().map(|entry| { return entry.message.as_str(); }).find(|message| { return message.contains("were not settled"); }).expect("the held settling is logged");
+    for wanted in ["52", "/usr/bin/unrelated-tool", "/nowhere/at/all"] {
+        assert!(line.contains(wanted), "{wanted}: {line}");
+    }
+    for secret in ["s3cret", "--token", "--remote", "example.invalid"] {
+        assert!(!entries.iter().any(|entry| { return entry.message.contains(secret); }), "{secret} must not be logged: {entries:?}");
+    }
+    remove(world.root.as_path());
+}
+
 /// A batch Git cannot answer for is named, not left out: here one ordinary landed batch and another valid intent of the same
 ///  worktree whose repository is unavailable. The first is finished, the second is reported as unanswered with its journal,
 ///  and its intent stays on disk (nothing is discarded).
