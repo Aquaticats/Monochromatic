@@ -1582,6 +1582,14 @@ each request ends with `quiet_ms=<longest among the steps that ended by themselv
 The landings of one service share the ledger, so the first answer after a batch's steps holds their figures and the
 others of
 that batch hold none; a figure is a gap of some step of the service since the previous answer, not of one request.
+Every Git step a command or a landing starts is also listed with its duration (`src/native/transaction/transaction_step_durations.rs`):
+`steps` in the commit timing record (`name`, the program and the subcommand only; `offsetMs` from the command's start;
+`durationMs`) and `stepsDropped`, and `steps="<name>@<offset>+<duration>;..."` with `steps_dropped=<count>` at the end of the
+service's `answered` line (offsets from the request's acceptance, the steps since the previous answer, as with `quiet_steps`).
+The list is bounded by `MAX_STEP_RUNS` (64): the most one commit starts is `LANDING_ATTEMPTS` (3) times 17 Git starts (10 in the
+client and 7 in the service, counted with `strace` over ten commits on 2026-11-07), rounded up to a power of two.
+The commit Git builds in the scratch repository runs with the terminal attached and no watch, so its entry (`git commit`) is the
+only record of its time, signing included.
 The gateway call's total deadline is `ureq`'s `global` timeout, set to `REVIEW_CALL_CEILING`; the transport's other timeouts
 (`per_call`, `send_body`, `recv_response`, `recv_body`) default to none in the locked `ureq` 3.5.0 (`Timeouts::default`,
 `src/config.rs`; only the one second wait for a `100 Continue`, which the call never sends).

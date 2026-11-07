@@ -77,6 +77,8 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
     let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
     // What the Git steps and tools since the previous answer showed; the answer that finds them takes them.
     let quiet: Vec<(String, Duration)> = crate::quiet_ledger::drain();
+    // The Git steps since the previous answer, with their offsets from this request's acceptance.
+    let (steps, steps_dropped): (Vec<crate::transaction_step_durations::StepFigure>, usize) = crate::transaction_step_durations::drain_steps(arrival.accepted);
     let line: String = answered_line(&Answered {
         request: request.id.as_str(),
         reference: request.reference.as_str(),
@@ -92,6 +94,8 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
         answer: times.landed_at.elapsed(),
         total: arrival.accepted.elapsed(),
         quiet: quiet.as_slice(),
+        steps: steps.as_slice(),
+        steps_dropped,
     });
     // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
     let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };

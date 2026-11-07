@@ -2774,6 +2774,18 @@ all durations in whole milliseconds taken from the monotonic clock:
   leaving the work records and waking the service,
   which reaches the service a second time.
   It is not split into a reach and a wait.
+- `steps` lists every Git step the command started, in the order they began,
+  each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:
+  the program and the subcommand (never a path, a message, an option value or the environment),
+  when the step began after the command's start, and how long it ran, in whole milliseconds.
+  It names the step that spent a slow phase, which `quietMs` cannot (that holds the longest quiet gap of a step, not its time).
+  The commit Git builds in the scratch repository is `git commit`: it runs with the terminal attached and no watch, so signing
+  with `commit.gpgsign` and an editor are inside its duration, and `ssh-keygen`, which Git starts, is not listed apart from it.
+  The list holds at most 64 steps (`MAX_STEP_RUNS`: the most one commit starts is 3 landing attempts times 17 Git starts,
+  measured with `strace` on 2026-11-07, rounded up to a power of two), and `stepsDropped` counts the steps that came after.
+  `quietMs` and `longestQuietMs` stay as they were.
+  The service's `answered` line ends with `steps="git rev-parse@3+4;..."` (`name@offset+duration`, the offset from the request's
+  acceptance) and `steps_dropped=<count>`.
 
 The service writes to its standard error,
 which the service manager keeps in the journal of its unit.
