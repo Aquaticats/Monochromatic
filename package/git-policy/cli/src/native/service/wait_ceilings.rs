@@ -65,6 +65,21 @@ pub const LANDING_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from
     LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT.as_millis() as u64 * CEILING_MARGIN as u64,
 ));
 
+/// The longest the settling of an earlier service's open batches took in the commit service's journal: the `settle_ms` of the
+///  `answered` lines since 2026-11-01 (3,630 lines, 150 of them above zero, 99th percentile 20 ms, longest 172 ms). The settle runs before
+///  each batch and waits for a foreign `index.lock` only when an earlier batch's landing meets one; no settle in that journal waited
+///  longer than 172 ms for anything.
+pub const LONGEST_SETTLE_WAIT: Duration = Duration::from_millis(172);
+
+/// The longest the settling of an earlier service's batches waits for a foreign `index.lock`.
+pub const SETTLE_LOCK_CEILING: Duration = LOCK_CEILING;
+
+/// The longest a merge waits for a foreign `index.lock` before it changes anything.
+pub const MERGE_LOCK_CEILING: Duration = LOCK_CEILING;
+
+/// The longest the index reconciliation of a commit whose corrections removed every change waits for a foreign `index.lock`.
+pub const RECONCILE_LOCK_CEILING: Duration = LOCK_CEILING;
+
 /// The longest a forwarded `git add`, `rm` or `mv` waits for the commit service's hold on the index, and the longest its whole
 ///  series of reruns lasts. Measured: the longest of 715 logged service holds was 119,721 ms (disk sync of the new index). Ten
 ///  minutes is five times that.
@@ -152,3 +167,8 @@ pub const REVIEW_CEILING: Duration = Duration::from_secs(2 * 60);
 ///  Measured: the longest of 2,093 reference updates in the service journal (`answered` lines, `ref_ms`, 2026-11-02T04:01:38-05:00
 ///  to 2026-11-04T09:11:09-05:00) took 3,438 ms (99th percentile 47 ms); twice that is 6.9 s, 7 s.
 pub const SHORT_EXTRA_WAIT: Duration = Duration::from_secs(7);
+
+/// The ceilings are derived and checked as controls in the test module.
+#[cfg(test)]
+#[path = "wait_ceilings_tests.rs"]
+mod tests;
