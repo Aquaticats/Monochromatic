@@ -246,29 +246,40 @@
         "cargo-about"
       ]
     },
+    // The seven repository-published tools install from the GitHub release archive of this repository, the way
+    // `mpm-shadow` does, since 2026-11-07 (owner: "Right after the release"; doc/planning/crates-io-footprint.md): later
+    // releases carry `-alpha.N` and skip crates.io, so a `cargo:` request could not see them. `tagPrefix` picks one
+    // program's releases out of the repository's many tags; the lock records the SHA-256 of each Linux archive. The ids
+    // keep their `cargo:` spelling because `.github/workflows/catalog-specifiers.yml` and
+    // `.github/actions/repo-tools-setup/action.yml` read the lock by them.
     "cargo:monochromatic-lint": {
-      "request": "cargo:monochromatic-lint@latest",
-      "route": "cargo-binstall",
+      "request": "github:Aquaticats/Monochromatic@latest",
+      "route": "archive",
       "bins": [
         "monochromatic-lint"
-      ]
+      ],
+      "options": {
+        "tagPrefix": "monochromatic-lint-v"
+      }
     },
-    // The postinstall links `cli-git-native` as `git` under `.cache/cli-git-bin`
-    // with a temporary name plus rename (doc/planning/cli-git-native-cutover.md).
+    // The postinstall links `monochromatic-git-policy-cli` (named `cli-git-native` before 0.6.0) as `git` under
+    // `.cache/cli-git-bin` with a temporary name plus rename (doc/planning/cli-git-native-cutover.md,
+    // doc/planning/git-policy-cli-program-rename.md). The link folder keeps its old name until step 3 of the rename.
     "cargo:monochromatic-git-policy-cli": {
-      "request": "cargo:monochromatic-git-policy-cli@latest",
-      "route": "cargo-binstall",
+      "request": "github:Aquaticats/Monochromatic@latest",
+      "route": "archive",
       "bins": [
-        "cli-git-native"
+        "monochromatic-git-policy-cli"
       ],
       "os": [
         "linux"
       ],
       "options": {
+        "tagPrefix": "monochromatic-git-policy-cli-v",
         "postinstall": {
           "when": "always",
           "link": {
-            "sourceBin": "cli-git-native",
+            "sourceBin": "monochromatic-git-policy-cli",
             "linkName": "git",
             "linkDir": ".cache/cli-git-bin"
           }
@@ -294,8 +305,8 @@
     // launcher as `cargo` in a throwaway worktree) passed again: `cargo --version` and `cargo metadata` exited 0, the
     // link and the shadow each ran once per command, and the real cargo ran only through `.cache/toolchain-bin/cargo`.
     "cargo:monochromatic-cargo-shadow": {
-      "request": "cargo:monochromatic-cargo-shadow@latest",
-      "route": "cargo-binstall",
+      "request": "github:Aquaticats/Monochromatic@latest",
+      "route": "archive",
       "bins": [
         "cargo-shadow"
       ],
@@ -303,6 +314,7 @@
         "linux"
       ],
       "options": {
+        "tagPrefix": "monochromatic-cargo-shadow-v",
         "postinstall": {
           "when": "always",
           "link": {
@@ -320,8 +332,8 @@
     // (`pnpm --version` exit 126, `pnpm root` hung), so it was kept off PATH; 0.1.1 fixes that, checked behind the
     // real launcher in a throwaway PATH first. Linux only: the release publishes x86_64 and aarch64 Linux archives.
     "cargo:monochromatic-pnpm-shadow": {
-      "request": "cargo:monochromatic-pnpm-shadow@latest",
-      "route": "cargo-binstall",
+      "request": "github:Aquaticats/Monochromatic@latest",
+      "route": "archive",
       "bins": [
         "pnpm-shadow"
       ],
@@ -329,6 +341,7 @@
         "linux"
       ],
       "options": {
+        "tagPrefix": "monochromatic-pnpm-shadow-v",
         "postinstall": {
           "when": "always",
           "link": {
@@ -345,8 +358,8 @@
     // precedes `.cache/toolchain-bin` on PATH, so those tools in the mise environment run behind the
     // shadow (doc/planning/agent-search-io-throttle.md). Linux only: the crate uses `ioprio_set` and `/proc`.
     "cargo:monochromatic-search-shadow": {
-      "request": "cargo:monochromatic-search-shadow@latest",
-      "route": "cargo-binstall",
+      "request": "github:Aquaticats/Monochromatic@latest",
+      "route": "archive",
       "bins": [
         "search-shadow"
       ],
@@ -354,6 +367,7 @@
         "linux"
       ],
       "options": {
+        "tagPrefix": "monochromatic-search-shadow-v",
         "postinstall": {
           "when": "always",
           "run": {
@@ -400,21 +414,27 @@
     // The repository's file generator and checker (package/file-enforcer/cli). `mise run sync:files`, the
     // `prepare:pnpm` task and the CI drift gates run this binary; Linux only, like the release archives.
     "cargo:monochromatic-file-enforcer-cli": {
-      "request": "cargo:monochromatic-file-enforcer-cli@latest",
-      "route": "cargo-binstall",
+      "request": "github:Aquaticats/Monochromatic@latest",
+      "route": "archive",
       "bins": [
         "file-enforcer"
       ],
       "os": [
         "linux"
-      ]
+      ],
+      "options": {
+        "tagPrefix": "monochromatic-file-enforcer-cli-v"
+      }
     },
     "cargo:monochromatic-nested-wayland-session": {
-      "request": "cargo:monochromatic-nested-wayland-session@latest",
-      "route": "cargo-binstall",
+      "request": "github:Aquaticats/Monochromatic@latest",
+      "route": "archive",
       "bins": [
         "monochromatic-nested-wayland-session"
-      ]
+      ],
+      "options": {
+        "tagPrefix": "monochromatic-nested-wayland-session-v"
+      }
     },
     "cmake": {
       "request": "github:Kitware/CMake@latest",
