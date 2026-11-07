@@ -179,8 +179,8 @@ fn frames_of_samples_of_an_unknown_channel_count_is_zero() {
 
 #[test]
 fn the_emit_interval_throttles_below_a_second() {
-    assert!(POSITION_EMIT_INTERVAL_SECS > 0.0, "a zero interval would emit every callback");
-    assert!(POSITION_EMIT_INTERVAL_SECS < 1.0, "updates must arrive more than once per second");
+    const { assert!(POSITION_EMIT_INTERVAL_SECS > 0.0, "a zero interval would emit every callback") };
+    const { assert!(POSITION_EMIT_INTERVAL_SECS < 1.0, "updates must arrive more than once per second") };
 }
 
 #[test]
