@@ -7,7 +7,6 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
 import {
   chmod,
   mkdir,
@@ -23,7 +22,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { promisify, } from 'node:util';
+import { setTimeout as wait, } from 'node:timers/promises';
 import {
   describe,
   expect,
@@ -32,8 +31,10 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
+  childFailureOf,
   createGuidedConfig,
   cutoverStages,
+  execFileAsync,
   footprintOf,
   type GuidedConfig,
   GuidedStopError,
@@ -51,8 +52,9 @@ import {
   windowMaximum,
 } from '../dist/final/node/index.mjs';
 
-const execFileAsync = promisify(execFile,);
 const BIN = new URL('../dist/final/node/run-repository-move.mjs', import.meta.url,).pathname;
+/** Milliseconds the window test waits so a one-second window is over (a little more than one second). */
+const WINDOW_PAUSE_MILLISECONDS = 2_100;
 /** Mode of the stand-in `sudo` script: readable and executable by everyone, writable by its owner. */
 const EXECUTABLE_MODE = 0o755;
 const TOOLS_FOLDER = dirname(new URL(import.meta.url,).pathname,);
@@ -99,6 +101,13 @@ function commandWords(command: string,): readonly string[] {
     .split(' ',).filter((word,) => word !== '');
 }
 
+type ResolvedStage = { readonly stage: Stage; readonly command: string; };
+
+/** Pairs every stage with the command text it runs once its internal step has written what the command reads. */
+async function withCommands({ stages, config, }: { stages: readonly Stage[]; config: GuidedConfig; },): Promise<readonly ResolvedStage[]> {
+  return await Promise.all(stages.map(async (candidate,) => ({ stage: candidate, command: await resolvedCommand({ stage: candidate, config, },), }),),);
+}
+
 async function exists(path: string,): Promise<boolean> {
   return await stat(path,).then(() => true, () => false);
 }
@@ -123,10 +132,10 @@ async function writeStandIns(home: string,): Promise<StandIns> {
   const scripts: Record<string, string> = {
     sudo: [
       '#!/bin/sh',
-      'printf \'%s\\n\' "$*" >> "$STAND_IN_SUDO_LOG"',
+      String.raw`printf '%s\n' "$*" >> "$STAND_IN_SUDO_LOG"`,
       'case "$1" in',
       '  --non-interactive|mkfs.btrfs|umount) exit 0 ;;',
-      '  mount) for last; do :; done; printf \'%s\\n\' "$(realpath "$last")" >> "$STAND_IN_MOUNTS"; exit 0 ;;',
+      String.raw`  mount) for last; do :; done; printf '%s\n' "$(realpath "$last")" >> "$STAND_IN_MOUNTS"; exit 0 ;;`,
       '  mkdir) exec "$@" ;;',
       'esac',
       'echo "stand-in sudo refuses: $*" >&2',
@@ -138,7 +147,7 @@ async function writeStandIns(home: string,): Promise<StandIns> {
       'for last; do :; done',
       'resolved=$(realpath "$last" 2>/dev/null) || exit 1',
       'grep --fixed-strings --line-regexp --quiet "$resolved" "$STAND_IN_MOUNTS" 2>/dev/null || exit 1',
-      'printf \'/dev/loop0 %s\\n\' "$resolved"',
+      String.raw`printf '/dev/loop0 %s\n' "$resolved"`,
       '',
     ].join('\n',),
     mountpoint: [
@@ -365,7 +374,7 @@ await describe({
               ];
               const first = await runStages({ config, stages: [stages[0] as Stage,], },);
               expect(first.error,).toBeUndefined();
-              await new Promise((resolve,) => setTimeout(resolve, 2_100,));
+              await wait(WINDOW_PAUSE_MILLISECONDS,);
               const { error, } = await runStages({ config, stages, },);
               expect((error as GuidedStopError).status,).toBe(3,);
               expect(
@@ -439,9 +448,9 @@ await describe({
               await mkdir(config.wiz, { recursive: true, },);
               await mkdir(config.moveState, { recursive: true, },);
               const paths = Array.from({ length: 20, }, (_, index,) => `/r/wt${String(index,).padStart(2, '0',)}`);
-              for (const [index, path,] of ['/r', ...paths,].entries()) {
+              await Promise.all(['/r', ...paths,].map(async (path, index,) => {
                 await writeFile(join(config.moveState, `f${String(index,).padStart(3, '0',)}.snapshot.json`,), JSON.stringify({ path, },),);
-              }
+              },),);
               await writeFile(join(config.wiz, 'baseline-frozen.tsv',), [
                 'path\tstate\tchanged\tuntracked\tunfinished\tindexLock\thead\tindexSha256',
                 '/r/wt07\tok\t2\t0\t\tfalse\th\ts',
@@ -542,10 +551,14 @@ await describe({
                 thaw: thawStages(config,),
                 rollback: rollbackStages({ c: config, stamp: '20260101T000000Z', },),
               };
-              for (const [phase, stages,] of Object.entries(sets,)) {
+              const resolved = await Promise.all(Object.entries(sets,).map(async ([phase, stages,],) => ({
+                phase,
+                stages,
+                withCommands: await withCommands({ stages, config, },),
+              }),),);
+              for (const { phase, stages, withCommands: pairs, } of resolved) {
                 expect(new Set(stages.map((s,) => s.id),).size,).toBe(stages.length,);
-                for (const s of stages) {
-                  const command = await resolvedCommand({ stage: s, config, },);
+                for (const { stage: s, command, } of pairs) {
                   expect(s.unprivileged.length,).toBeGreaterThan(10,);
                   // The one stage that only prints the removals for a person to run names sudo in text it echoes.
                   const usesSudo = s.id === 'f8-cleanup-printed' ? false : commandWords(command,).includes('sudo',);
@@ -570,8 +583,8 @@ await describe({
               expect(ids.indexOf('f2b-snapshot-folder',),).toBeLessThan(ids.indexOf('f3a-print',),);
               expect(made.root,).toBe('yes',);
               expect(made.command,).toContain('sudo mkdir --parents /x/source/snap',);
-              for (const s of stages) {
-                const texts = [await resolvedCommand({ stage: s, config, },), s.check ?? '', s.rollback ?? '',].join('\n',);
+              for (const { stage: s, command, } of await withCommands({ stages, config, },)) {
+                const texts = [command, s.check ?? '', s.rollback ?? '',].join('\n',);
                 expect([s.id, texts.includes('/x/snap',),],).toEqual([s.id, false,],);
               }
             },);
@@ -615,12 +628,15 @@ await describe({
           name: 'a dry run of every command through the built bin exits 0, lists its stages and creates no state',
           fn: async () => {
             await withConfig(async ({ config, home, },) => {
-              for (const command of ['prepare', 'cutover', 'thaw', 'rollback',]) {
-                const result = await execFileAsync(process.execPath, [BIN, command, '--dry-run',], {
+              const results = await Promise.all(['prepare', 'cutover', 'thaw', 'rollback',].map(async (command,) => ({
+                command,
+                result: await execFileAsync(process.execPath, [BIN, command, '--dry-run',], {
                   encoding: 'utf8',
                   env: { ...process.env, HOME: home, },
                   cwd: '/',
-                },);
+                },),
+              }),),);
+              for (const { command, result, } of results) {
                 expect(result.stdout,).toContain(`${command} finished (dry run`,);
                 expect(result.stdout,).toContain('== stage 1/',);
               }
@@ -688,7 +704,9 @@ await describe({
               await markPrepareDone({ config, ids: ['i1-install-link-check', 'i2-record-before',], },);
               const first = await runPrepareWithStandIns({ home, standIns, },);
               expect(first,).toContain('both mount lines are loop devices',);
-              expect(await exists(join(config.wiz, 'done', 'prepare', 'f1-images',),),).toBe(true,);
+              expect(
+                await exists(join(config.wiz, 'done', 'prepare', 'f1-images',),),
+              ).toBe(true,);
               const again = await runPrepareWithStandIns({ home, standIns, flags: ['--redo=f1-images',], },);
               expect(again,).not.toContain('cannot overwrite',);
               expect(again,).not.toContain('File exists',);
@@ -706,9 +724,10 @@ await describe({
                 thawStages(config,),
                 rollbackStages({ c: config, stamp: 'S', },),
               ];
-              for (const stages of sets) {
-                for (const s of stages) {
-                  const texts = [await resolvedCommand({ stage: s, config, },), s.check ?? '', s.rollback ?? '',];
+              const resolvedSets = await Promise.all(sets.map(async (stages,) => await withCommands({ stages, config, },),),);
+              for (const pairs of resolvedSets) {
+                for (const { stage: s, command, } of pairs) {
+                  const texts = [command, s.check ?? '', s.rollback ?? '',];
                   for (const text of texts) {
                     for (const line of ['\n', ';', '|', '&', '(', ')',].reduce((joined, separator,) => joined.replaceAll(separator, '\n',), text,).split('\n',).filter((row,) => row.includes('findmnt',))) {
                       const words = commandWords(line,);
@@ -745,7 +764,7 @@ await describe({
                 await execFileAsync(process.execPath, [BIN, 'sideways',], { encoding: 'utf8', env: { ...process.env, HOME: home, }, cwd: '/', },);
               }
               catch (error) {
-                code = (error as { code: number; }).code;
+                code = Number(childFailureOf(error,).code,);
               }
               expect(code,).toBe(64,);
             },);
@@ -766,8 +785,9 @@ await describe({
                 },);
               }
               catch (error) {
-                code = (error as { code: number; }).code;
-                stderr = (error as { stdout: string; }).stdout;
+                const failure = childFailureOf(error,);
+                code = Number(failure.code,);
+                stderr = failure.stdout;
               }
               expect(code,).toBe(64,);
               expect(stderr,).toContain('inside the repository',);

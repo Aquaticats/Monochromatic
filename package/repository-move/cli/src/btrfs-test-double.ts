@@ -32,6 +32,8 @@ import {
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { pathExists, } from './completion-records.ts';
+import { text, } from 'node:stream/consumers';
+import { parseTextFields, } from './json-text-fields.ts';
 
 /**
  Milliseconds the slow send sleeps, long enough that a deadline of a few seconds always ends it.
@@ -47,6 +49,16 @@ const SOURCE_MARKER = '.stub-subvolume';
  Name of the metadata file of every other subvolume.
  */
 const META_FILE = '.meta';
+
+/**
+ Place of the subject path in the arguments of `property get` and `property set` (`property set -ts <path> ro true`).
+ */
+const SUBJECT_INDEX = 3;
+
+/**
+ Place of the value in the arguments of `property set`.
+ */
+const VALUE_INDEX = 5;
 
 /**
  Exit status for an unsupported subcommand.
@@ -87,14 +99,25 @@ async function readMeta(folder: string,): Promise<Meta> {
       metaPath(folder,),
       'utf8',
     )).split('\n',)
-      .filter(
-      function notBlank(line,) {
+      .filter(function notBlank(line,) {
         return line !== '';
-      },
-      )
-      .map(function toPair(line,) {
-        return line.split('=',);
-      },),) as Meta;
+      },)
+      .map(function toPair(line,): readonly [
+        string,
+        string,
+      ] {
+        /**
+         The text before and after the first equals sign.
+         */
+        const [key = '', value = '',] = line.split(
+          '=',
+          2,
+        );
+        return [
+          key,
+          value,
+        ];
+      },),);
   }
   /**
    The marker this step searches for.
@@ -155,16 +178,8 @@ async function writeMeta(
  @returns the text
  */
 async function readStandardInput(): Promise<string> {
-  /**
-   The chunks read from standard input.
-   */
-  const chunks: Buffer[] = [];
   // Touched only here: a named import of `stdin` would open it in every call, and an open stdin keeps the process alive.
-  for await (const chunk of process.stdin) {
-    chunks.push(chunk as Buffer,);
-  }
-  return Buffer.concat(chunks,)
-    .toString('utf8',);
+  return await text(process.stdin,);
 }
 
 /**
@@ -196,18 +211,19 @@ async function snapshot(args: readonly string[],): Promise<void> {
       ro: String(readOnly,),
     },
   },);
-  for (const stub of readOnly ? [] : (env.STUBS ?? '').split(',',)
+  await Promise.all((readOnly ? [] : (env.STUBS ?? '').split(',',))
     .filter(function notBlank(name,) {
       return name !== '';
-    },)) {
-    await mkdir(
-      join(
-        destination,
-        stub,
-      ),
-      { recursive: true, },
-    );
-  }
+    },)
+    .map(async function makeStub(stub,) {
+      await mkdir(
+        join(
+          destination,
+          stub,
+        ),
+        { recursive: true, },
+      );
+    },),);
 }
 
 /**
@@ -271,7 +287,7 @@ async function send(args: readonly string[],): Promise<void> {
     // The real `btrfs send` with clone sources and no `-p` searches for a parent (btrfs-progs `find_good_parent`): the
     // subvolume the snapshot was taken from must be a clone source, or a clone source must be a snapshot of the same
     // subvolume. Anything else ends with "parent determination failed".
-    if (!cloneMetas.some(function isRelated(clone,) {
+    if (!cloneMetas.some(function isRelated(clone: Readonly<Meta>,) {
       return (clone.parent === sentMeta.parent) || (clone.uuid === sentMeta.parent);
     },)) {
       console.error(`ERROR: parent determination failed for ${name}`,);
@@ -324,29 +340,28 @@ async function receive(args: readonly string[],): Promise<void> {
   /**
    The stream of this step.
    */
-  const stream = JSON.parse(input,) as {
-    readonly uuid: string;
-    readonly name: string;
-    readonly parent: string;
-    readonly clones: string;
-  };
+  const stream = parseTextFields(input,);
+  /**
+   The name of the sent snapshot.
+   */
+  const sentName = stream.name ?? '';
   /**
    The destination of this step.
    */
   const destination = join(
     destinationFolder,
-    stream.name,
+    sentName,
   );
   await mkdir(destination,);
   await writeMeta({
     folder: destination,
     meta: {
-      uuid: `r-${stream.name}`,
+      uuid: `r-${sentName}`,
       parent: '-',
-      received: stream.uuid,
-      ro: env.FAIL_RO === stream.name ? 'false' : 'true',
-      sentParent: stream.parent,
-      sentClones: stream.clones,
+      received: stream.uuid ?? '',
+      ro: env.FAIL_RO === sentName ? 'false' : 'true',
+      sentParent: stream.parent ?? '',
+      sentClones: stream.clones ?? '',
     },
   },);
 }
@@ -391,18 +406,18 @@ async function main(args: readonly string[],): Promise<void> {
     await mkdir(folder,);
   }
   else if (key === 'property get') {
-    console.log(`ro=${(await readMeta(args[3] ?? '',)).ro}`,);
+    console.log(`ro=${(await readMeta(args[SUBJECT_INDEX] ?? '',)).ro}`,);
   }
   else if (key === 'property set') {
     /**
      The path the step writes to or reads from.
      */
-    const target = args[3] ?? '';
+    const target = args[SUBJECT_INDEX] ?? '';
     await writeMeta({
       folder: target,
       meta: {
         ...await readMeta(target,),
-        ro: args[5] ?? 'false',
+        ro: args[VALUE_INDEX] ?? 'false',
       },
     },);
   }

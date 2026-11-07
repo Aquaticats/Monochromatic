@@ -15,12 +15,10 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
-import { execFile, } from 'node:child_process';
 import {
   basename,
   join,
 } from 'node:path';
-import { promisify, } from 'node:util';
 import {
   describe,
   expect,
@@ -35,17 +33,13 @@ import {
   runCopyTool,
   writeInventory,
 } from './move-fixture.ts';
+import {
+  execFileAsync,
+} from '../dist/final/node/index.mjs';
 
 /** A folder on a memory filesystem, which is never the filesystem of the scratch folder; the tests only look at it. */
 const OTHER_FILESYSTEM_FOLDER = '/dev/shm';
 
-/**
- Specialized promisified `execFile`, typed through Node's own adapter contract.
- The generic `promisify(execFile)` form trips `strict-void-return`;
- see `doc/troubleshooting/oxlint-promisify-void-return.md`.
- */
-const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
-const execFileAsync = promisifyExecFile(execFile,);
 
 type LinkedFolder = {
   readonly path: string;
@@ -233,9 +227,15 @@ await describe({
             await writeInventory({ fixture, rows: [['a', 'u-a', 'u-main',], ['b', 'u-b',],], },);
             const result = await runCopyTool({ fixture, pass: 'first', },);
             expect(result.status,).toBe(0,);
-            expect(await metaOf(join(fixture.base, 'recv', 's001',),),).toContain('sentParent=s000',);
-            expect(await metaOf(join(fixture.base, 'recv', 's002',),),).toContain('sentParent=-',);
-            expect(await metaOf(join(fixture.base, 'recv', 's002',),),).toContain('sentClones=\n',);
+            expect(
+              await metaOf(join(fixture.base, 'recv', 's001',),),
+            ).toContain('sentParent=s000',);
+            expect(
+              await metaOf(join(fixture.base, 'recv', 's002',),),
+            ).toContain('sentParent=-',);
+            expect(
+              await metaOf(join(fixture.base, 'recv', 's002',),),
+            ).toContain('sentClones=\n',);
             expect(result.stderr,).toContain('s001',);
             expect(result.stderr,).toContain('incremental on s000',);
             expect(result.stderr,).toContain('full send',);
@@ -248,8 +248,12 @@ await describe({
             await writeInventory({ fixture, rows: [['a', 'u-a', 'u-b',], ['b', 'u-b', 'u-main',],], },);
             const result = await runCopyTool({ fixture, pass: 'first', },);
             expect(result.status,).toBe(0,);
-            expect(await metaOf(join(fixture.base, 'recv', 's001',),),).toContain('sentParent=s000',);
-            expect(await metaOf(join(fixture.base, 'recv', 's002',),),).toContain('sentParent=s000',);
+            expect(
+              await metaOf(join(fixture.base, 'recv', 's001',),),
+            ).toContain('sentParent=s000',);
+            expect(
+              await metaOf(join(fixture.base, 'recv', 's002',),),
+            ).toContain('sentParent=s000',);
           },
         },),
         it({
@@ -273,7 +277,9 @@ await describe({
             const result = await runCopyTool({ fixture, pass: 'first', },);
             expect(result.status,).toBe(1,);
             expect(result.stderr,).toContain('btrfs subvolume list -u -q',);
-            expect(await exists(join(fixture.base, 'snap', 's000',),),).toBe(false,);
+            expect(
+              await exists(join(fixture.base, 'snap', 's000',),),
+            ).toBe(false,);
           },
         },),
         it({
@@ -286,7 +292,9 @@ await describe({
             const again = await runCopyTool({ fixture, pass: 'first', },);
             expect(again.status,).toBe(0,);
             expect(await sendCalls({ fixture, snapshot: 's000', },),).toBe(1,);
-            expect(await metaOf(join(fixture.base, 'recv', 's001',),),).toContain('sentParent=s000',);
+            expect(
+              await metaOf(join(fixture.base, 'recv', 's001',),),
+            ).toContain('sentParent=s000',);
           },
         },),
       ],

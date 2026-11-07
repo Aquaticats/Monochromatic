@@ -6,8 +6,6 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
-import { promisify, } from 'node:util';
 import {
   chmod,
   mkdir,
@@ -19,6 +17,9 @@ import {
 import { join, } from 'node:path';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { INVENTORY_TOP, } from './move-fixture-run.ts';
+import {
+  execFileAsync,
+} from '../dist/final/node/index.mjs';
 
 export {
   COPY_TOOL,
@@ -41,7 +42,6 @@ export type Fixture = {
 /**
  Runs a program and waits for it.
  */
-const execFileAsync = promisify(execFile,);
 
 /**
  Git's own program, never the repository's wrapper.
@@ -213,8 +213,11 @@ export async function writeInventory(
     readonly fixture: Fixture;
     readonly rows: readonly (readonly [
       string,
+      string
+    ] | readonly [
       string,
-      string?
+      string,
+      string
     ])[];
     readonly withParents?: boolean;
   },
@@ -244,13 +247,30 @@ export async function writeInventory(
    The lines of text this step works on.
    */
   const lines = [
-    `ID 100 gen 9 top level 5 ${columns({ uuid: 'u-unrelated', parentUuid: '-', },)} path other/unrelated/volume`,
-    `ID 256 gen 9 top level 5 ${columns({ uuid: 'u-main', parentUuid: '-', },)} path ${INVENTORY_TOP}/main`,
+    `ID 100 gen 9 top level 5 ${columns({
+      uuid: 'u-unrelated',
+      parentUuid: '-',
+    },)} path other/unrelated/volume`,
+    `ID 256 gen 9 top level 5 ${columns({
+      uuid: 'u-main',
+      parentUuid: '-',
+    },)} path ${INVENTORY_TOP}/main`,
     ...rows.map(function toRow(
-      [name, uuid, parentUuid = '-',],
+      row,
       index,
     ) {
-      return `ID ${String(FIRST_WORKTREE_ID + index,)} gen 9 top level 256 ${columns({ uuid, parentUuid, },)} path ${INVENTORY_TOP}/main/wt/${name}`;
+      /**
+       The name and UUID, and the UUID of the subvolume it was snapshotted from (the dash when the row has none).
+       */
+      const [name, uuid,] = row;
+      /**
+       The UUID of the subvolume this row was snapshotted from, the dash for none.
+       */
+      const parentUuid = row.at(2,) ?? '-';
+      return `ID ${String(FIRST_WORKTREE_ID + index,)} gen 9 top level 256 ${columns({
+        uuid,
+        parentUuid,
+      },)} path ${INVENTORY_TOP}/main/wt/${name}`;
     },),
   ];
   await writeFile(
