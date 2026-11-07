@@ -19,14 +19,11 @@ import { join, } from 'node:path';
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import {
-  type Action,
   chordKeys,
   clickAt,
   isPaused,
   isPlaying,
   modeIs,
-  pauseFor,
-  sequenceOf,
   tapKey,
   typeText,
 } from './actions.ts';
@@ -50,11 +47,6 @@ import {
  How long a selected row is watched to see that it stays paused and selected, in milliseconds.
  */
 const STAYS_MS = 1_500;
-
-/**
- Time the app gets to apply typed text and answer the query before the keys that make it report them, in milliseconds.
- */
-const ANSWER_SETTLE_MS = 1_500;
 
 /**
  Time the file watcher and the refresh sweep get to see a changed file before the next click, in milliseconds.
@@ -113,29 +105,7 @@ function brokenSelected(state: UiState,): boolean {
 }
 
 /**
- Types a query on the open Search page, waits for its answer, and moves the highlight down and up so the app reports the
- query and the highlighted result in one state line.
-
- @param query - the words to type
-
- @returns the action
-
- @example
- ```ts
- typeQueryAndHighlight('Charlie',);
- ```
- */
-function typeQueryAndHighlight(query: string,): Action {
-  return sequenceOf([
-    typeText(query,),
-    pauseFor(ANSWER_SETTLE_MS,),
-    tapKey('down',),
-    tapKey('up',),
-  ],);
-}
-
-/**
- Opens Search, types the query, and opens the highlighted result with Enter.
+ Opens Search, types the query, waits for the answer that highlights a result, and opens that result with Enter.
 
  @param session - the wide session, on the player page
 
@@ -176,11 +146,15 @@ async function openResultFor(
     until: isSearchWithField,
     what: 'the Search page with the query field focused',
   },);
+  // The app writes a state line when it shows an answer, with the query and the highlighted result in it. A result that
+  // is not in the library yet (a file the check has just written) arrives in a later answer, so the wait is bounded by
+  // the time the app gets to find a new file. No key is pressed before the answer: a Down key that reaches the query
+  // field before any result exists moves the keyboard to the back button, and the answer then has no highlighted result.
   await press({
     session,
-    act: typeQueryAndHighlight(query,),
+    act: typeText(query,),
     until: function queryAnswered(state: UiState,): boolean {
-      return (state.search_query === query) && (state.search_ring !== NO_INDEX);
+      return (state.reason === 'search-answer') && (state.search_query === query) && (state.search_ring !== NO_INDEX);
     },
     what: `a highlighted result for ${query}`,
     timeoutMs: NEW_FILE_TIMEOUT_MS,
