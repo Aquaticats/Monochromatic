@@ -104,8 +104,8 @@ TODO
     not root.
     The script refuses to run as root or from a folder inside the repository.
 4.  Check that the two scratch scripts the plan names exist:
-    `/var/home/user/temp/agent/dangling/move-repository.ts` and
-    `/var/home/user/temp/agent/dangling/list-uncommitted-work.ts`.
+    `package/repository-move/cli/src/move-repository.ts` and
+    `package/repository-move/cli/src/list-uncommitted-work.ts` in the repository.
     The script checks this itself and stops with the missing path.
     They sit under `~/temp`,
     which is a link onto the 860,

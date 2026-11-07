@@ -199,10 +199,10 @@ EXTERNAL_FINAL="${DEST_ROOT}/external-worktrees"
 SNAPSHOTS="${MOVE_SNAPSHOTS:-${HOME_DIR}/repository-move-snapshots}"
 MOVE_STATE="${MOVE_STATE_DIR:-${HOME_DIR}/repository-move-state}"
 WIZ="${MOVE_STATE}/wizard"
-DANGLING="${MOVE_DANGLING_DIR:-${HOME_DIR}/temp/agent/dangling}"
-MOVE_SCRIPT="${DANGLING}/move-repository.ts"
-SCAN_SCRIPT="${DANGLING}/list-uncommitted-work.ts"
-INVENTORY="${DANGLING}/inventory-nested.txt"
+TOOLS="${MOVE_TOOLS_DIR:-${REPO}/package/repository-move/cli/src}"
+MOVE_SCRIPT="${TOOLS}/move-repository.ts"
+SCAN_SCRIPT="${TOOLS}/list-uncommitted-work.ts"
+INVENTORY="${HOME_DIR}/repository-move-state/inventory-nested.txt"
 INVENTORY_MAIN="${MOVE_INVENTORY_MAIN:-home/user/Monochromatic}"
 FIXTURE_PARENT="${MOVE_FIXTURE_PARENT:-${HOME_DIR}/temp/agent}"
 CLI_GIT_STATE="${XDG_STATE_HOME:-${HOME_DIR}/.local/state}/cli-git/service"
@@ -229,7 +229,7 @@ USER_SCOPE="--user --scope --property=CPUQuota=100% --property=MemoryMax=1G --pr
 require_plain_path() {
   [[ "$2" =~ ^/[A-Za-z0-9_./@+-]+$ ]] || { printf 'The setting %s=%s holds a character this wizard does not quote; use a plain path.\n' "$1" "$2" >&2; REPORTED=1; exit 64; }
 }
-for _name in REPO EXTERNAL_WORKTREES DRIVE DEST_ROOT SNAPSHOTS MOVE_STATE DANGLING FIXTURE_PARENT CLI_GIT_STATE; do
+for _name in REPO EXTERNAL_WORKTREES DRIVE DEST_ROOT SNAPSHOTS MOVE_STATE TOOLS FIXTURE_PARENT CLI_GIT_STATE; do
   require_plain_path "$_name" "${!_name}"
 done
 
