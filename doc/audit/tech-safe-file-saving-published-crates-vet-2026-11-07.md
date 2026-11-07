@@ -278,6 +278,15 @@ Without it:
   "The commit service could not finish this commit, so it was not made. Run the commit again; ...".
   The writers above matter when the repository is on the filesystem that refuses links and the state directory is not.
 
+### The owner's answer on G1
+
+Recorded 2026-11-07, in the question tool.
+The question said: "Commits keep working on those disks. We own 10 lines plus a 15-line test. On those disks only, two programs
+saving the same file at the same instant could overwrite one another."
+The owner picked, verbatim: "Keep the fallback (Recommended)".
+Effect: the replacement is built on `tempfile::persist_noclobber`, and the checked rename is kept for the one case where neither
+`renameat2` with `RENAME_NOREPLACE` nor a hard link works.
+
 ### How much of our own code the fallback is
 
 - In `publish_exclusive` (`foundation/private_storage.rs` lines 191 to 206) ten code lines are the fallback:

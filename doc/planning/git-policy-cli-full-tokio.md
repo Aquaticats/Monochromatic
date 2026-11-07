@@ -1816,7 +1816,12 @@ NFS rejects the flag but has links); FUSE servers such as `s3fs-fuse` lack both;
 (only the post-commit work item is lost), but a commit during or concluding an unfinished merge fails with
 "writing packed-refs failed: Operation not supported (os error 95)" or
 "copying a conclusion entry into the shadow failed: Operation not supported (os error 95)"; the fallback is ten code lines.
-Until the owner answers, today's checked rename stays and the replacement of `private_storage.rs` waits.
+The owner answered G1, 2026-11-07, in the question tool.
+The question said: "Commits keep working on those disks. We own 10 lines plus a 15-line test. On those disks only, two programs
+saving the same file at the same instant could overwrite one another."
+The owner picked, verbatim: "Keep the fallback (Recommended)".
+So the replacement of `private_storage.rs` is built on `tempfile::persist_noclobber`, and the checked rename stays as the fallback
+for that one case only: the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard link.
 
 ### What is left
 
