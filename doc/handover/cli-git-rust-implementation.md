@@ -3563,6 +3563,18 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
 
+### Release batch waiting for a free agent slot (2026-11-07)
+
+- The one-release-each batch (`doc/planning/one-release-each-batch-2026-11.md`) is ready to run:
+  registration merged (`a6104c0f64`), the `jsonc-edit` dry run passed (run 42363884326),
+  the settle fixes, rename audit and never-at-login guards are merged (`2fa2df5d68`, gate 5069/5069).
+- Its agent could not start: five subagents were already running (the limit).
+  It starts when one finishes, with the 15 crates other than the wrapper in wave order;
+  the wrapper (0.5.34 to 0.6.0) waits for the earlier-scratch-name pairing branch
+  (`fix/git-policy-cli-pair-earlier-scratch-name`) and the cross-vendor review of `2fa2df5d68`
+  (`~/temp/agent/issue-6261/sol-review-audit-8/`).
+- The daily toolchain timer must not run for real until the batch ends (its agent was told).
+
 ### Known flakes and failures not yet fixed
 
 - Shipped in 0.5.27,
