@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::test_support::scratch_environment;
+use crate::ticker_beside_a_wait::with_a_ticker_beside;
 
 /// A shell command running `script`.
 #[cfg(unix)]
@@ -10,27 +11,6 @@ fn shell(script: &str) -> Command {
     let mut command: Command = Command::new("sh");
     command.arg("-c").arg(script);
     return command;
-}
-
-/// Runs `future` on a current-thread runtime, where one thread runs both the future and a task that counts every millisecond, and
-///  returns the future's value and how often the counting task ran. A wait that holds the thread leaves it no turn.
-fn with_a_ticker_beside<Value>(future: impl std::future::Future<Output = Value>) -> (Value, u32) {
-    let runtime: tokio::runtime::Runtime =
-        tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
-    let ticks: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-    let value: Value = runtime.block_on(async {
-        let ticker = async {
-            loop {
-                tokio::time::sleep(Duration::from_millis(1)).await;
-                ticks.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            }
-        };
-        tokio::select! {
-            value = future => value,
-            () = ticker => unreachable!("the ticker never ends"),
-        }
-    });
-    return (value, ticks.load(std::sync::atomic::Ordering::SeqCst));
 }
 
 /// The wait for a push that runs for a while is the runtime's: a task beside it runs while the push does.

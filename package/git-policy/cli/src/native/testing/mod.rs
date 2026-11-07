@@ -38,3 +38,7 @@ pub(crate) mod no_threads_child_test_support;
 /// A point where threads must all arrive, for controls that prove work overlapped.
 #[cfg(test)]
 pub(crate) mod parallel_test_support;
+
+/// A counting task beside a wait, for controls that prove the wait held no thread; never part of the release executable.
+#[cfg(test)]
+pub(crate) mod ticker_beside_a_wait;
