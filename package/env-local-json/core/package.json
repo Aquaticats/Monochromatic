@@ -25,6 +25,7 @@
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/fs-path-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/repository-link-check": "workspace:*",
     "string-dedent": "catalog:"
   },
   "devDependencies": {

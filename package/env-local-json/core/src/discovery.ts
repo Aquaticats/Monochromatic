@@ -35,6 +35,7 @@ import {
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { STORE_FILE_NAME, } from './constants.ts';
+import { repositoryLinkCause, } from './repository-link-cause.ts';
 import {
   EnvLocalJsonPathError,
   EnvLocalJsonReadError,
@@ -399,6 +400,8 @@ async function walkForStore({
 
  @param cwd - directory a relative explicit path resolves against
 
+ @param home - home directory that holds the repository link identity file
+
  @returns canonical store file path
 
  @throws EnvLocalJsonPathError when the path is missing, not a file, or
@@ -412,9 +415,11 @@ async function walkForStore({
 async function canonicalExplicitStorePath({
   path,
   cwd,
+  home,
 }: {
   readonly path: string;
   readonly cwd: string;
+  readonly home: string;
 },): Promise<string> {
   /**
    Absolute explicit store path, resolved against the caller's directory.
@@ -448,6 +453,10 @@ async function canonicalExplicitStorePath({
     throw new EnvLocalJsonPathError({
       path,
       reason: 'missing',
+      linkCause: await repositoryLinkCause({
+        path: absolute,
+        home,
+      },),
     },);
   }
 }
@@ -514,6 +523,7 @@ export async function resolveStorePath({
   if (path !== undefined) {
     return canonicalExplicitStorePath({
       cwd: cwd ?? process.cwd(),
+      home,
       path,
     },);
   }
