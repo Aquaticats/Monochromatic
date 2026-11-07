@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "tools": {
     "bin": {
-      "request": "github:marcosnils/bin@0.29.4",
+      "request": "github:marcosnils/bin@latest",
       "route": "archive",
       "bins": [
         "bin"
@@ -16,7 +16,7 @@
       }
     },
     "mpm": {
-      "request": "pipx:meta-package-manager@8.2.0",
+      "request": "pipx:meta-package-manager@latest",
       "route": "mpm-uvx",
       "bins": [
         "mpm",
@@ -29,9 +29,8 @@
         }
       }
     },
-    // Pinned to 1.3.14 because the Rust rewrite's robustness invites serious doubts.
     "bun": {
-      "request": "github:oven-sh/bun@bun-v1.3.14",
+      "request": "github:oven-sh/bun@latest",
       "route": "bin-sourced",
       "bins": [
         "bun",
@@ -82,10 +81,8 @@
         "fastmod"
       ]
     },
-    // Pinned to 0.13.2: the --fuzzing-workspace and libfuzzer-sys integration
-    // shifted across point releases; this is the verified rollout version.
     "cargo:cargo-fuzz": {
-      "request": "cargo:cargo-fuzz@0.13.2",
+      "request": "cargo:cargo-fuzz@latest",
       "route": "cargo-binstall",
       "bins": [
         "cargo-fuzz"
@@ -437,10 +434,8 @@
         "rcodesign"
       ]
     },
-    // Pinned to 0.15.2 to match the terminal Containerfile's ZIG_VERSION
-    // (doc/decision/desktop-app-podman-build.md); bump both together.
     "zig": {
-      "request": "zig@0.15.2",
+      "request": "zig@latest",
       "route": "archive",
       "bins": [
         "zig"
@@ -590,8 +585,9 @@
         "docker-language-server"
       ]
     },
-    // Pinned to b9829: llama.cpp tags before the Linux build finishes uploading,
-    // so a floating install can miss the ubuntu-x64 asset entirely.
+    // Pinned to b9829: no latest form works. GitHub marks every b-numbered release a prerelease, which the
+    // `github:` resolver skips, so `@latest` resolves the unrelated v0.9.0 release, which has no Linux asset and
+    // fails the whole `update` (probed 2026-11-07). Move the pin by hand until the resolver can take prereleases.
     "llama.cpp": {
       "request": "github:ggml-org/llama.cpp@b9829",
       "route": "archive",
@@ -688,7 +684,8 @@
         "betterleaks"
       ]
     },
-    // Temurin 21: AGP 9 / Gradle 9 need a JDK in the 17 to 21 range.
+    // Temurin 21: AGP 9 / Gradle 9 need a JDK in the 17 to 21 range. The newest release of this major line is
+    // the latest form the resolver supports (`java:temurin@latest` is refused); a newer major waits for AGP.
     "java": {
       "request": "java:temurin@21",
       "route": "archive",

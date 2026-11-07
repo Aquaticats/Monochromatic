@@ -45,7 +45,6 @@ arboard = ">=3.6.1"
 arc-swap = ">=1.9.2"
 async-channel = ">=2.5.0"
 base64 = ">=0.23.1"
-bincode = ">=1.3.3"
 branches = ">=0.4.6"
 clap = ">=4.6.7"
 cpal = ">=0.18.2"
@@ -127,6 +126,12 @@ windows = ">=0.62.2"
 winresource = ">=0.1.32"
 zbus = ">=5.19.0"
 zbus_xml = ">=5.2.1"
+
+# bincode 1.x only (package/forbidden-strings/core): the crate uses the 1.x serde functions, and bincode 3.0.0 is a
+# placeholder whose library is a single compile_error (its message is an xkcd address, comic 2347). The default
+# catalog's open-ended floor let the 2026-11-07 update lock 3.0.0 and broke every crate that depends on forbidden-strings-core.
+[catalogs.bincode-1]
+bincode = "^1.3.3"
 
 # Exact pins. Each one's reason sits beside the dependency in the crate that selects it.
 [catalogs.pinned]
