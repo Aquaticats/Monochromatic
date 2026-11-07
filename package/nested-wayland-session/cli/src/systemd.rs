@@ -195,16 +195,6 @@ pub fn build_child_command(program: &str, args: &[String], isolation: &Isolation
         return direct(program, args);
     }
 
-    // What:     `let quota = isolation.cpu_quota_percent.unwrap_or_else(default_quota_percent);`.
-    //           The hard cap, defaulting to the machine-sized reservation.
-    // Why:      Always cap the app when isolating, so the compositor keeps headroom.
-    let quota = isolation.cpu_quota_percent.unwrap_or_else(default_quota_percent);
-
-    // What:     `let weight = isolation.cpu_weight.unwrap_or(DEFAULT_APP_WEIGHT);`. The soft
-    //           share, defaulting low.
-    // Why:      Deprioritise the app under contention.
-    let weight = isolation.cpu_weight.unwrap_or(DEFAULT_APP_WEIGHT);
-
     // What:     `let mut cmd = Command::new("systemd-run");`. Start the wrapper command.
     // Why:      systemd-run places the app in a resource-controlled transient scope.
     let mut cmd = Command::new("systemd-run");
@@ -217,13 +207,26 @@ pub fn build_child_command(program: &str, args: &[String], isolation: &Isolation
     // Why:      Run the app in a scope we can constrain, transparently to it.
     cmd.args(["--user", "--scope", "--collect", "--quiet"]);
 
-    // What:     `cmd.arg(format!("--property=CPUQuota={quota}%"));`. Set the hard CPU cap.
-    // Why:      Bound the app's total CPU so encoders and the render thread are never starved.
-    cmd.arg(format!("--property=CPUQuota={quota}%"));
+    // What:     `let properties = isolation_properties(isolation);`. Ask the pure helper for
+    //           every `--property=NAME=value` argument the scope carries. `isolation` is already
+    //           a `&Isolation` (a borrow), so it is passed on as it is.
+    // Why:      The limits live in one function that a test can call without a user manager.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const properties = isolationProperties(isolation);
+    // ```
+    let properties = isolation_properties(isolation);
 
-    // What:     `cmd.arg(format!("--property=CPUWeight={weight}"));`. Set the soft share.
-    // Why:      Under contention the scheduler favours the compositor.
-    cmd.arg(format!("--property=CPUWeight={weight}"));
+    // What:     `cmd.args(&properties);`. Append each property as its own argument.
+    //           `&properties` lends the `Vec<String>` read-only.
+    // Why:      Each property reaches `systemd-run` as one argument, never through a shell.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // cmd.args(properties);
+    // ```
+    cmd.args(&properties);
 
     // What:     `cmd.arg("--");`. End of systemd-run options.
     // Why:      Everything after is the app command line.
@@ -236,11 +239,63 @@ pub fn build_child_command(program: &str, args: &[String], isolation: &Isolation
 
     // What:     `info!(...)`. Announce the applied isolation.
     // Why:      Make the constraint visible in logs.
-    info!("hosting the app under a systemd scope: CPUQuota={quota}%, CPUWeight={weight}");
+    info!("hosting the app under a systemd scope with {}", properties.join(" "));
 
     // What:     `cmd`. Return the configured wrapper command (tail expression).
     // Why:      The caller adds Wayland env and spawns it.
     return cmd
+}
+
+/// What:
+///      `pub fn isolation_properties(isolation: &Isolation) -> Vec<String>`.
+///  Returns every `--property=NAME=value` argument of the scope that hosts the app,
+///           in order: `CPUQuota` and `CPUWeight`.
+///  `&Isolation` borrows the settings read-only;
+///           `Vec<String>` is a growable list of owned strings (not `&[&str]`,
+///           because the values are built at run time and must outlive this call).
+/// Why:
+///       The limits are decided in one pure function,
+///  so a test reads them without starting a scope.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isolationProperties(isolation: Isolation): string[] { ... }
+/// ```
+pub fn isolation_properties(isolation: &Isolation) -> Vec<String> {
+    // What:     `let quota = isolation.cpu_quota_percent.unwrap_or_else(default_quota_percent);`.
+    //           `Option<u32>` holds the caller's cap or nothing; `unwrap_or_else` takes the
+    //           value when present and otherwise calls `default_quota_percent` (a function
+    //           passed as a value, as in TS).
+    // Why:      Always cap the app when isolating, so the compositor keeps headroom.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const quota = isolation.cpuQuotaPercent ?? defaultQuotaPercent();
+    // ```
+    let quota = isolation.cpu_quota_percent.unwrap_or_else(default_quota_percent);
+
+    // What:     `let weight = isolation.cpu_weight.unwrap_or(DEFAULT_APP_WEIGHT);`. The soft
+    //           share; `unwrap_or` takes the value when present and otherwise the constant.
+    // Why:      Deprioritise the app under contention.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const weight = isolation.cpuWeight ?? DEFAULT_APP_WEIGHT;
+    // ```
+    let weight = isolation.cpu_weight.unwrap_or(DEFAULT_APP_WEIGHT);
+
+    // What:     `vec![...]` builds a `Vec<String>` from a list; `format!` builds a `String`
+    //           like a TS template literal. The last line has no `;`, so it is the return value.
+    // Why:      Hand the caller the properties in the order they are passed to systemd-run.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return [`--property=CPUQuota=${quota}%`, `--property=CPUWeight=${weight}`];
+    // ```
+    return vec![
+        format!("--property=CPUQuota={quota}%"),
+        format!("--property=CPUWeight={weight}"),
+    ]
 }
 
 /// Build a direct (un-isolated) command for the app.
@@ -264,3 +319,8 @@ fn direct(program: &str, args: &[String]) -> Command {
     // Why:      Hand it back to the caller.
     return cmd
 }
+
+/// Verifies the properties the isolated scope carries.
+#[cfg(test)]
+#[path = "systemd_tests.rs"]
+mod tests;
