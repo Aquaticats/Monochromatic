@@ -44,9 +44,8 @@ fn shell(script: &str, directory: &std::path::Path) -> Child {
 }
 
 /// End a child the control started.
-fn end(mut child: Child) {
-    child.kill().expect("end the child");
-    child.wait().expect("reap the child");
+fn end(child: Child) {
+    crate::test_support::end_with_its_group(child);
 }
 
 /// Look at the tree until a sample shows nothing new, which an idle tree does within a few looks of its start.
@@ -98,6 +97,11 @@ fn a_write_of_a_process_the_root_started_is_progress() {
     }
     assert!(seen, "the write of the descendant was seen");
     assert!(meter.moved() > idle);
+    // Any byte moved sets `seen` (a read counts), so the control waits for the write itself before it ends the tree.
+    while !root.join("log").exists() && began.elapsed() < PATIENCE {
+        std::thread::sleep(LOOK);
+    }
+    assert!(root.join("log").exists(), "the descendant wrote its line");
     end(child);
     remove(root.as_path());
 }
