@@ -11,12 +11,22 @@
 //! These tests read the production sources of the bounded run and fail when either rule is broken.
 
 /// The production sources of the bounded run that write trace events.
-const SOURCES: [(&str, &str); 4] = [
+const SOURCES: [(&str, &str); 10] = [
     ("bounded_run.rs", include_str!("bounded_run.rs")),
     ("bounded_run_containment.rs", include_str!("bounded_run_containment.rs")),
     ("bounded_run_record_writes.rs", include_str!("bounded_run_record_writes.rs")),
     ("bounded_run_route_cache.rs", include_str!("bounded_run_route_cache.rs")),
+    ("control_group.rs", include_str!("control_group.rs")),
+    ("journal.rs", include_str!("journal.rs")),
+    ("journal_directory_readers.rs", include_str!("journal_directory_readers.rs")),
+    ("journal_done_marker.rs", include_str!("journal_done_marker.rs")),
+    ("journal_kept_notices.rs", include_str!("journal_kept_notices.rs")),
+    ("journal_transaction.rs", include_str!("journal_transaction.rs")),
 ];
+
+/// How many code lines before a computed trace text may carry the `#[cfg(test)]` that keeps it out of a production build:
+/// the attribute sits on the statement or on the `if` that holds it.
+const ATTRIBUTE_REACH: usize = 3;
 
 /// The calls that read a file or compute a text,
 /// which a plain trace event must not contain.
@@ -63,8 +73,13 @@ fn a_computed_trace_text_exists_in_a_test_build_only() {
                 continue;
             }
             checked += 1;
-            let before: &str = if position == 0 { "" } else { lines[position - 1].1.trim() };
-            assert!(before == "#[cfg(test)]", "{name}:{number} writes a computed trace text without `#[cfg(test)]` on the line before it, so a production build would compute it: {line}");
+            let mut guarded: bool = false;
+            for back in 1..=ATTRIBUTE_REACH {
+                if position >= back && lines[position - back].1.trim() == "#[cfg(test)]" {
+                    guarded = true;
+                }
+            }
+            assert!(guarded, "{name}:{number} writes a computed trace text without `#[cfg(test)]` on one of the code lines before it, so a production build would compute it: {line}");
         }
     }
     assert!(checked > 0, "no computed trace text was found, so this guard checked nothing");
