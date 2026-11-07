@@ -1,9 +1,13 @@
 //! What:
-//!  The loop of the commit service's work thread: it waits for wakes and due retries, runs a round of repository work for them,
+//!  The loop of the commit service's work thread:
+//! it waits for wakes and due retries,
+//! runs a round of repository work for them,
 //!  and keeps the service from exiting idle while a repository waits to be looked at again.
 //! Why:
-//!  The loop that lands commits (`serve` in `service_server.rs`) and this loop run side by side; separate files keep each
-//!  one readable, and this one does not use the other.
+//!  The loop that lands commits (`serve` in `service_server.rs`) and this loop run side by side;
+//! separate files keep each
+//!  one readable,
+//! and this one does not use the other.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,17 +25,36 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 /// What:
-///  Runs the after-commit work of each repository named, one repository at a time, folding wakes that arrive while it
-///  works into the next round, and looks again at a repository whose claims another instance held when their lease is over.
+///  Runs the after-commit work of each repository named,
+/// one repository at a time,
+/// folding wakes that arrive while it
+///  works into the next round,
+/// and looks again at a repository whose claims another instance held when their lease is over.
 /// Why:
-///   Draining claims everything pending, so a burst of wakes for one repository is one pass. The instance that held a claim
-///  may have died, and nothing but this loop would then wake the work: it waits for a wake no longer than the first lease still
-///  running, and the service counts itself busy meanwhile, so it does not exit idle with work claimed by a dead holder. A
-///  service that has just started has had no wake yet, so the loop looks at every repository an earlier service of this instance
-///  was woken for (`ClaimWatch`), after the schedule's slack, and the claims or pending work it finds are run or waited for as
-///  after any wake: a kill is followed by the work being run with no commit needed. The same
-///  holds for a push the service stopped: the loop owns the plan of its new tries (`PushRetries`), each round hands the workers
-///  what is due and applies what they ask, and the wake for the earliest plan is kept in the same schedule as the lease wakes, so
+///   Draining claims everything pending,
+/// so a burst of wakes for one repository is one pass.
+/// The instance that held a claim
+///  may have died,
+/// and nothing but this loop would then wake the work:
+/// it waits for a wake no longer than the first lease still
+///  running,
+/// and the service counts itself busy meanwhile,
+/// so it does not exit idle with work claimed by a dead holder.
+/// A
+///  service that has just started has had no wake yet,
+/// so the loop looks at every repository an earlier service of this instance
+///  was woken for (`ClaimWatch`),
+/// after the schedule's slack,
+/// and the claims or pending work it finds are run or waited for as
+///  after any wake:
+/// a kill is followed by the work being run with no commit needed.
+/// The same
+///  holds for a push the service stopped:
+/// the loop owns the plan of its new tries (`PushRetries`),
+/// each round hands the workers
+///  what is due and applies what they ask,
+/// and the wake for the earliest plan is kept in the same schedule as the lease wakes,
+/// so
 ///  the service neither forgets the plan nor exits idle while a try is pending.
 ///
 /// In TS you'd write (pseudocode):

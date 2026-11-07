@@ -9,7 +9,8 @@ fn argv(parts: &[&str]) -> Vec<OsString> {
     return parts.iter().map(OsString::from).collect();
 }
 
-/// Environment of the fixture Git, matching the test support fixtures.
+/// Environment of the fixture Git,
+/// matching the test support fixtures.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
     let mut environment: Vec<(OsString, OsString)> = [
         ("PATH", "/usr/bin:/bin"),

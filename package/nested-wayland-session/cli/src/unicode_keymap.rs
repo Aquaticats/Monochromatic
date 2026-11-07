@@ -7,6 +7,8 @@
 //!  Wayland has no other way to put an arbitrary character into a plain key event,
 //!  and tools such as `wtype` use the same route.
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::option_or_text;
 /// Smithay compositor types.
 use smithay::input::keyboard::xkb;
 
@@ -67,8 +69,8 @@ pub const MAX_SPARE_KEYS: usize = 64;
 /// ```
 pub fn base_keymap_text() -> Result<String, String> {
     let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
-    let keymap = xkb::Keymap::new_from_names(&context, "", "", "", "", None, xkb::KEYMAP_COMPILE_NO_FLAGS)
-        .ok_or_else(|| return "compiling the default keymap failed".to_string())?;
+    let compiled = xkb::Keymap::new_from_names(&context, "", "", "", "", None, xkb::KEYMAP_COMPILE_NO_FLAGS);
+    let keymap = option_or_text(compiled, format_args!("compiling the default keymap failed"))?;
     return Ok(keymap.get_as_string(xkb::KEYMAP_FORMAT_TEXT_V1))
 }
 
@@ -100,10 +102,11 @@ pub fn spare_evdev(index: usize) -> u32 {
 /// function insertAfterHeader(keymap: string, marker: string, addition: string): string { ... }
 /// ```
 fn insert_after_header(keymap: &str, marker: &str, addition: &str) -> Result<String, String> {
-    let header = keymap.find(marker).ok_or_else(|| return format!("the keymap has no {marker} section"))?;
-    let line_end = keymap[header..]
-        .find('\n')
-        .ok_or_else(|| return format!("the keymap {marker} header has no line break"))?;
+    let header = option_or_text(keymap.find(marker), format_args!("the keymap has no {marker} section"))?;
+    let line_end = option_or_text(
+        keymap[header..].find('\n'),
+        format_args!("the keymap {marker} header has no line break"),
+    )?;
     let at = header + line_end + 1;
     return Ok(format!("{}{}{}", &keymap[..at], addition, &keymap[at..]))
 }
@@ -143,6 +146,18 @@ pub fn with_unicode_keys(base: &str, characters: &[char]) -> Result<String, Stri
     return Ok(raise_maximum(&with_symbols, spare_evdev(MAX_SPARE_KEYS) + XKB_OFFSET))
 }
 
+/// The number in the text after `maximum = `,
+/// without its trailing `;`.
+///
+/// What:
+///      `fn parse_maximum(rest: &str) -> Option<u32>`.
+///  `None` when the text is not a number.
+/// Why:
+///       `Option::and_then` takes it by path instead of a closure.
+fn parse_maximum(rest: &str) -> Option<u32> {
+    return rest.trim_end_matches(';').parse::<u32>().ok()
+}
+
 /// Raise a keycodes section's `maximum = N;` line to at least a value.
 ///
 /// What:
@@ -158,7 +173,7 @@ pub fn with_unicode_keys(base: &str, characters: &[char]) -> Result<String, Stri
 fn raise_maximum(keymap: &str, minimum_maximum: u32) -> String {
     let mut out = String::with_capacity(keymap.len());
     for line in keymap.split_inclusive('\n') {
-        let current = line.trim().strip_prefix("maximum = ").and_then(|rest| return rest.trim_end_matches(';').parse::<u32>().ok());
+        let current = line.trim().strip_prefix("maximum = ").and_then(parse_maximum);
         match current {
             Some(value) if value < minimum_maximum => out.push_str(&format!("\tmaximum = {minimum_maximum};\n")),
             _ => out.push_str(line),

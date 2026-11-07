@@ -1,12 +1,24 @@
 //! What:
-//!  The disposal of the trash a snapshot's leave-out made: hand it to the commit service as a work item, or empty it here when
-//!  the service cannot be reached, and the service's handler. Both delete only the directory the leave-out recorded and only
-//!  the entries it recorded, found by walking down from the worktree's handle without following a link.
+//!  The disposal of the trash a snapshot's leave-out made:
+//! hand it to the commit service as a work item,
+//! or empty it here when
+//!  the service cannot be reached,
+//! and the service's handler.
+//! Both delete only the directory the leave-out recorded and only
+//!  the entries it recorded,
+//! found by walking down from the worktree's handle without following a link.
 //! Why:
-//!  A name of forty hexadecimal digits proves nothing about who made a directory, and a path string is resolved again by every
-//!  call that takes it. The manifest says which objects the leave-out made and moved; the disposal opens each directory on the
-//!  way by one plain name below the handle of the one above, compares identities, and leaves anything else alone with a
-//!  reason. A record stays until the trash is gone or the service has taken it, so a failure is never a silent success.
+//!  A name of forty hexadecimal digits proves nothing about who made a directory,
+//! and a path string is resolved again by every
+//!  call that takes it.
+//! The manifest says which objects the leave-out made and moved;
+//! the disposal opens each directory on the
+//!  way by one plain name below the handle of the one above,
+//! compares identities,
+//! and leaves anything else alone with a
+//!  reason.
+//! A record stays until the trash is gone or the service has taken it,
+//! so a failure is never a silent success.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,24 +49,32 @@ use std::path::{Path, PathBuf};
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrashDispose";
 
-/// The reference every trash work item carries; the service accepts only a reference under `refs/`.
+/// The reference every trash work item carries;
+/// the service accepts only a reference under `refs/`.
 pub const TRASH_REFERENCE: &str = "refs/cli-git/trash";
 
 /// The most bytes of a worktree's `.git` file that are read.
 const POINTER_LIMIT: u64 = 64 * 1024;
 
-/// How the service's address is found for a Git directory; injected so a control never reaches the real service.
+/// How the service's address is found for a Git directory;
+/// injected so a control never reaches the real service.
 pub type Router<'a> = &'a dyn Fn(&Path, &Path) -> Option<Route>;
 
-/// Sets up what the service needs before it can be reached, as a commit does for its first message; injected so a control
+/// Sets up what the service needs before it can be reached,
+/// as a commit does for its first message;
+/// injected so a control
 ///  never reaches the session bus.
 pub type Provisioner<'a> = &'a dyn Fn(&ProvisionHost) -> Result<(), ClientFailure>;
 
-/// How the service is reached: where its address is found, how it is set up, and how long its start is waited for.
+/// How the service is reached:
+/// where its address is found,
+/// how it is set up,
+/// and how long its start is waited for.
 pub struct Reach<'a> {
     /// Finds the service's address for a Git directory.
     pub router: Router<'a>,
-    /// Sets up the worktree's socket activation, which a new worktree does not have yet.
+    /// Sets up the worktree's socket activation,
+    /// which a new worktree does not have yet.
     pub provisioner: Provisioner<'a>,
     /// The longest wait for the service to start.
     pub start_wait: std::time::Duration,
@@ -62,12 +82,18 @@ pub struct Reach<'a> {
 
 /// Where the trash went.
 enum Handed {
-    /// The service was reached with a record that names the trash, and owns the emptying now.
+    /// The service was reached with a record that names the trash,
+    /// and owns the emptying now.
     Service,
-    /// The service was not reached; the trash is emptied here. `record` is the work item that was written for it, if any, and
+    /// The service was not reached;
+    /// the trash is emptied here.
+    /// `record` is the work item that was written for it,
+    /// if any,
+    /// and
     ///  `why` says in words why the service was not reached.
     Here {
-        /// The pending work item, which stays until the trash is gone.
+        /// The pending work item,
+        /// which stays until the trash is gone.
         record: Option<PathBuf>,
         /// Why the service was not reached.
         why: String,
@@ -75,10 +101,15 @@ enum Handed {
 }
 
 /// What:
-///  Dispose of the trash a snapshot made in the new worktree `destination`, when it made one.
+///  Dispose of the trash a snapshot made in the new worktree `destination`,
+/// when it made one.
 /// Why:
-///   The wrapper never starts the service itself; writing the record and connecting to its socket does. A trash that no one
-///  empties is only disk, but the foreground fallback means the worktree never keeps one past the command that made it, and a
+///   The wrapper never starts the service itself;
+/// writing the record and connecting to its socket does.
+/// A trash that no one
+///  empties is only disk,
+/// but the foreground fallback means the worktree never keeps one past the command that made it,
+/// and a
 ///  trash that cannot be emptied is reported with its path and the reason.
 ///
 /// In TS you'd write (pseudocode):
@@ -90,7 +121,9 @@ pub fn dispose_pending_trash(context: &GitContext, destination: &Path, git_dir: 
     return dispose_pending_trash_with(context.real_git.as_path(), destination, git_dir, manifest, notices, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: START_WAIT });
 }
 
-/// `dispose_pending_trash` for a known trash, with the route finder and the wait for a current service injected, so a control
+/// `dispose_pending_trash` for a known trash,
+/// with the route finder and the wait for a current service injected,
+/// so a control
 ///  can use a fixture service and a short wait.
 pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, reach: &Reach<'_>) -> Result<(), String> {
     let (record, why): (Option<PathBuf>, String) = match hand_over(real_git, destination, git_dir, manifest, notices, reach) {
@@ -117,10 +150,16 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
     return Ok(());
 }
 
-/// Write the work item, set up the worktree's socket activation, and connect to the service.
+/// Write the work item,
+/// set up the worktree's socket activation,
+/// and connect to the service.
 ///
-/// Why: a new worktree has a commit service instance of its own whose socket does not exist until something sets it up; a
-/// commit does that before its first message, so the hand-over does it too, instead of waiting out the start for a socket
+/// Why:
+/// a new worktree has a commit service instance of its own whose socket does not exist until something sets it up;
+/// a
+/// commit does that before its first message,
+/// so the hand-over does it too,
+/// instead of waiting out the start for a socket
 /// that nothing will ever create.
 fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, reach: &Reach<'_>) -> Handed {
     // A record spells a path as text. A path that is not text cannot be spelled, and a lossy spelling would name another place.
@@ -170,7 +209,8 @@ fn is_not_empty(error: &std::io::Error) -> bool {
     return matches!(error.raw_os_error(), Some(libc::ENOTEMPTY | libc::EEXIST));
 }
 
-/// Whether two paths that both resolve name the same place; a path that cannot be resolved names none.
+/// Whether two paths that both resolve name the same place;
+/// a path that cannot be resolved names none.
 fn same_after_resolving(left: &Path, right: &Path) -> bool {
     return match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
         (Ok(resolved_left), Ok(resolved_right)) => resolved_left == resolved_right,
@@ -178,8 +218,11 @@ fn same_after_resolving(left: &Path, right: &Path) -> bool {
     };
 }
 
-/// Check that the worktree at `repository` is the one whose administrative directory is `git_dir`: its `.git` file, read
-///  below the held root, points at that directory.
+/// Check that the worktree at `repository` is the one whose administrative directory is `git_dir`:
+/// its `.git` file,
+/// read
+///  below the held root,
+/// points at that directory.
 fn verify_association(root: &File, repository: &Path, git_dir: &Path) -> Result<(), String> {
     let pointer: File = match open_file_at(root, std::ffi::OsStr::new(".git")) {
         Ok(opened) => opened,
@@ -209,12 +252,18 @@ fn verify_association(root: &File, repository: &Path, git_dir: &Path) -> Result<
 }
 
 /// What:
-///  Empty the trash directory the manifest describes, in the worktree `repository` whose administrative directory is
-///  `git_dir`; a trash that is already gone is done.
+///  Empty the trash directory the manifest describes,
+/// in the worktree `repository` whose administrative directory is
+///  `git_dir`;
+/// a trash that is already gone is done.
 /// Why:
-///   Every directory from the worktree down is opened by one plain name below the handle of the one above, so a link at any
-///  level is an error and never followed. The trash is the directory with the recorded identity, each entry in it is removed
-///  only when it is the object that was moved there, and anything else in the trash stays with a reason.
+///   Every directory from the worktree down is opened by one plain name below the handle of the one above,
+/// so a link at any
+///  level is an error and never followed.
+/// The trash is the directory with the recorded identity,
+/// each entry in it is removed
+///  only when it is the object that was moved there,
+/// and anything else in the trash stays with a reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -279,11 +328,18 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
 }
 
 /// What:
-///  The service's handler: empty the trash directory a work item names, after checking that it is the one the snapshot made.
+///  The service's handler:
+/// empty the trash directory a work item names,
+/// after checking that it is the one the snapshot made.
 /// Why:
-///   The record is a file in the Git directory; the handler trusts nothing in it beyond what it can verify: the worktree's
-///  `.git` file points at the record's Git directory, every directory down to the trash is a real one, the trash has the
-///  recorded identity, and each entry removed is the recorded object.
+///   The record is a file in the Git directory;
+/// the handler trusts nothing in it beyond what it can verify:
+/// the worktree's
+///  `.git` file points at the record's Git directory,
+/// every directory down to the trash is a real one,
+/// the trash has the
+///  recorded identity,
+/// and each entry removed is the recorded object.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

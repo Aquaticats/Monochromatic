@@ -1,4 +1,5 @@
-//! Controls for the recovery of isolated merges, each on a repository left in one of the states a killed merge
+//! Controls for the recovery of isolated merges,
+//! each on a repository left in one of the states a killed merge
 //! leaves.
 
 use super::*;
@@ -20,7 +21,10 @@ struct World {
     new_oid: String,
 }
 
-/// Build the world: `feature` changes `f.txt`, adds `dir/new.txt` and deletes `gone.txt`; `main` changes `h.txt`.
+/// Build the world:
+/// `feature` changes `f.txt`,
+/// adds `dir/new.txt` and deletes `gone.txt`;
+/// `main` changes `h.txt`.
 fn world(name: &str) -> World {
     let parent: PathBuf = fixture(name);
     let repo: PathBuf = repository(parent.as_path(), "repo");
@@ -55,14 +59,17 @@ fn place(world: &World) -> RecoveryPlace {
     return RecoveryPlace { git: git_context(), cwd: world.repo.clone(), common_dir: world.git_dir.clone() };
 }
 
-/// An owner that is certainly gone: this process's PID with a birth identity no process has.
+/// An owner that is certainly gone:
+/// this process's PID with a birth identity no process has.
 fn dead_owner(id: &str) -> TransactionOwner {
     let mut owner: TransactionOwner = current_transaction_owner(id, "2026-10-29T00:00:00.000Z").expect("owner");
     owner.owner_identity = String::from("linux:1");
     return owner;
 }
 
-/// Write the record of a merge of the world, owned by `owner`, and return its file.
+/// Write the record of a merge of the world,
+/// owned by `owner`,
+/// and return its file.
 fn record_of(world: &World, owner: TransactionOwner, target_ref: Option<&str>) -> PathBuf {
     let intent: MergeIntent = MergeIntent {
         owner,
@@ -82,7 +89,8 @@ fn snapshot(world: &World) -> (String, String) {
     );
 }
 
-/// A merge killed before it touched anything is discarded, and the checkout is as it was.
+/// A merge killed before it touched anything is discarded,
+/// and the checkout is as it was.
 #[test]
 fn a_merge_that_never_began_is_discarded() {
     let world: World = world("merge-recovery-never-began");
@@ -112,7 +120,8 @@ fn a_live_owners_record_is_left_alone() {
     remove(world.parent.as_path());
 }
 
-/// A dead owner's record, a malformed record and no record are told apart without a lock or a process.
+/// A dead owner's record,
+/// a malformed record and no record are told apart without a lock or a process.
 #[test]
 fn only_dead_or_unreadable_records_need_recovery() {
     let world: World = world("merge-recovery-scan");
@@ -140,7 +149,10 @@ fn a_landed_merge_only_loses_its_record() {
     remove(world.parent.as_path());
 }
 
-/// A branch that moved to something else before the merge touched the checkout: nothing to put back, the record goes, and
+/// A branch that moved to something else before the merge touched the checkout:
+/// nothing to put back,
+/// the record goes,
+/// and
 /// the merge can be computed again on the moved head.
 #[test]
 fn a_branch_that_moved_before_the_checkout_changed_only_loses_its_record() {
@@ -158,8 +170,12 @@ fn a_branch_that_moved_before_the_checkout_changed_only_loses_its_record() {
 }
 
 /// The branch moved after Git installed the merge's paths (the fast-forward lost the race for the branch between its
-/// checkout and its ref update): the paths go back to what the moved head holds, so the checkout matches the head, another
-/// session's staged entry is untouched, and nothing of the merge is left half applied.
+/// checkout and its ref update):
+/// the paths go back to what the moved head holds,
+/// so the checkout matches the head,
+/// another
+/// session's staged entry is untouched,
+/// and nothing of the merge is left half applied.
 #[test]
 fn a_branch_that_moved_after_the_install_puts_the_merged_paths_back() {
     let world: World = world("merge-recovery-moved-after-install");
@@ -187,7 +203,9 @@ fn a_branch_that_moved_after_the_install_puts_the_merged_paths_back() {
     remove(world.parent.as_path());
 }
 
-/// Git updated the worktree and the index and died before it moved the branch: recovery moves the branch, and
+/// Git updated the worktree and the index and died before it moved the branch:
+/// recovery moves the branch,
+/// and
 /// another session's staged entry is exactly as it was.
 #[test]
 fn a_merge_killed_after_the_checkout_update_is_completed() {
@@ -209,7 +227,8 @@ fn a_merge_killed_after_the_checkout_update_is_completed() {
     remove(world.parent.as_path());
 }
 
-/// Git wrote some files and died before it wrote the index: recovery finishes the files and the index.
+/// Git wrote some files and died before it wrote the index:
+/// recovery finishes the files and the index.
 #[test]
 fn a_merge_killed_between_the_worktree_and_the_index_is_completed() {
     let world: World = world("merge-recovery-before-index");
@@ -225,7 +244,8 @@ fn a_merge_killed_between_the_worktree_and_the_index_is_completed() {
     remove(world.parent.as_path());
 }
 
-/// A path that holds neither its old nor its merged content belongs to someone else: nothing is changed.
+/// A path that holds neither its old nor its merged content belongs to someone else:
+/// nothing is changed.
 #[test]
 fn a_foreign_edit_stops_the_completion() {
     let world: World = world("merge-recovery-foreign");
@@ -285,7 +305,8 @@ fn a_detached_head_is_completed_too() {
     remove(world.parent.as_path());
 }
 
-/// The merge's own process settles a failure the same way, whatever its owner.
+/// The merge's own process settles a failure the same way,
+/// whatever its owner.
 #[test]
 fn a_failed_merge_settles_without_a_liveness_check() {
     let world: World = world("merge-recovery-settle");
@@ -303,9 +324,12 @@ fn a_failed_merge_settles_without_a_liveness_check() {
 /// What:
 ///  The starts a recovery makes while it completes a merge that wrote only some of its files.
 /// Why:
-///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`. The recovery's `checkout-index` is the one
-///  that carried it (Git 2.56.0 `builtin/checkout-index.c` gates only the message on it, and the exit status is 1 for a
-///  path that is not in the index with or without it); the control looks at the start that checks out the files.
+///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`.
+/// The recovery's `checkout-index` is the one
+///  that carried it (Git 2.56.0 `builtin/checkout-index.c` gates only the message on it,
+/// and the exit status is 1 for a
+///  path that is not in the index with or without it);
+/// the control looks at the start that checks out the files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -329,9 +353,18 @@ fn the_recovery_checks_files_out_without_quiet() {
     remove(world.parent.as_path());
 }
 
-/// A record whose owner is in another PID namespace and older than the patience is neither alive nor dead (owner, 2026-11-04,
-/// "Refuse and name it (Recommended)"): recovery stops with an error that names the record, the owner, the namespace, the age and
-/// the `rm`, and changes nothing: the record stays, the branch stays, the staged entries and the worktree stay.
+/// A record whose owner is in another PID namespace and older than the patience is neither alive nor dead (owner,
+/// 2026-11-04,
+/// "Refuse and name it (Recommended)"):
+/// recovery stops with an error that names the record,
+/// the owner,
+/// the namespace,
+/// the age and
+/// the `rm`,
+/// and changes nothing:
+/// the record stays,
+/// the branch stays,
+/// the staged entries and the worktree stay.
 #[test]
 fn an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes() {
     let world: World = world("merge-recovery-foreign-expired");
@@ -355,7 +388,10 @@ fn an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes()
     remove(world.parent.as_path());
 }
 
-/// Records `[dead A, expired-foreign B]`: recovery refuses before it settles A (sol-1 round 3, P1 C: the refusal said nothing was
+/// Records `[dead A, expired-foreign B]`:
+/// recovery refuses before it settles A (sol-1 round 3,
+/// P1 C:
+/// the refusal said nothing was
 /// changed after the first record had been settled).
 #[test]
 fn an_old_record_of_another_namespace_after_a_dead_one_stops_recovery_before_the_dead_one_is_settled() {

@@ -56,6 +56,12 @@ pub mod registry;
 /// The line and the section the shadow adds after mpm's `--version` and `--help`.
 pub mod shadow_notice;
 
+/// The rule that a shadow never starts a shadow:
+/// the identity every shadow carries,
+/// the check of a candidate,
+/// and the arrival marker.
+pub mod shadow_identity;
+
 /// The shadow mode:
 /// lookup,
 /// launch,
@@ -105,6 +111,12 @@ mod version_tests;
 mod prune_tests;
 
 /// The unit tests of the PATH lookup.
+/// The unit tests of the identity,
+/// the launcher-record follow and the arrival marker.
+#[cfg(test)]
+mod shadow_identity_tests;
+
+/// The unit tests of the PATH lookup's real-binary rules.
 #[cfg(test)]
 mod real_binary_tests;
 

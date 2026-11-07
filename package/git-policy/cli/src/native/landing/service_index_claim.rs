@@ -1,18 +1,39 @@
 //! What:
-//!  The claim chain: how one reclaimer at a time is chosen to remove a stale index lock, using only files placed whole beside the
-//!  lock and the judgement of whether their makers are gone. Every reclaim goes through it, on every file system.
+//!  The claim chain:
+//! how one reclaimer at a time is chosen to remove a stale index lock,
+//! using only files placed whole beside the
+//!  lock and the judgement of whether their makers are gone.
+//! Every reclaim goes through it,
+//! on every file system.
 //! Why:
-//!  A removal by name removes whatever the name holds by then, so two reclaimers of one stale file must not both go on to unlink
-//!  it (the second would remove the live lock a landing placed after the first). A `flock` on the stale file would do where the
-//!  file system gives one, but a reclaimer on that path and one on the claim path would not see each other, and a lock manager
-//!  can answer one call and refuse the next; one mechanism for all reclaimers closes that. The exclusion is a numbered chain of
-//!  claim files named from the stale lock's marker. A reclaimer places its claim at the lowest slot whose claims below it are
-//!  all made by gone processes, and holds only when it finds every slot below its own still there and gone. A dead claimer's
-//!  claim is never removed while the stale file stands at its name, because removing a claim by name would be the same race one
-//!  level down; claims are added, a reclaimer removes its own live claim only when it backs off, and every claim is removed
-//!  after the stale file left its name, when nothing destructive is left to guard
-//!  (`doc/planning/cli-git-one-reclaimer-per-index.md`, "The claim chain"). A claim whose maker is on another machine is neither
-//!  passed over nor waited for as a running one: it stays and the person is told.
+//!  A removal by name removes whatever the name holds by then,
+//! so two reclaimers of one stale file must not both go on to unlink
+//!  it (the second would remove the live lock a landing placed after the first).
+//! A `flock` on the stale file would do where the
+//!  file system gives one,
+//! but a reclaimer on that path and one on the claim path would not see each other,
+//! and a lock manager
+//!  can answer one call and refuse the next;
+//! one mechanism for all reclaimers closes that.
+//! The exclusion is a numbered chain of
+//!  claim files named from the stale lock's marker.
+//! A reclaimer places its claim at the lowest slot whose claims below it are
+//!  all made by gone processes,
+//! and holds only when it finds every slot below its own still there and gone.
+//! A dead claimer's
+//!  claim is never removed while the stale file stands at its name,
+//! because removing a claim by name would be the same race one
+//!  level down;
+//! claims are added,
+//! a reclaimer removes its own live claim only when it backs off,
+//! and every claim is removed
+//!  after the stale file left its name,
+//! when nothing destructive is left to guard
+//!  (`doc/planning/cli-git-one-reclaimer-per-index.md`,
+//! "The claim chain").
+//! A claim whose maker is on another machine is neither
+//!  passed over nor waited for as a running one:
+//! it stays and the person is told.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,10 +50,13 @@ use std::path::{Path, PathBuf};
 /// What every claim file's name starts with (after the lock's directory).
 pub const CLAIM_INFIX: &str = "cli-reclaim-";
 
-/// The longest claim this reader looks at, as long as the longest marker it reads from a lock.
+/// The longest claim this reader looks at,
+/// as long as the longest marker it reads from a lock.
 const CLAIM_READ_LIMIT: u64 = 512;
 
-/// The mode of a claim file: readable by every account that can reach the repository's directory, since a reclaimer that cannot
+/// The mode of a claim file:
+/// readable by every account that can reach the repository's directory,
+/// since a reclaimer that cannot
 ///  read a claim takes its maker to run.
 const CLAIM_MODE: u32 = 0o644;
 
@@ -40,13 +64,21 @@ const CLAIM_MODE: u32 = 0o644;
 pub enum Claim {
     /// This reclaimer holds the chain until the value is cleared or dropped.
     Held(ClaimHold),
-    /// A claimer that runs (or cannot be judged) is ahead, or a claim could not be read: not this reclaimer's turn.
+    /// A claimer that runs (or cannot be judged) is ahead,
+    /// or a claim could not be read:
+    /// not this reclaimer's turn.
     Busy,
-    /// A claim in the way was made by a service on another machine: it is not proven gone, so it stays and is named.
+    /// A claim in the way was made by a service on another machine:
+    /// it is not proven gone,
+    /// so it stays and is named.
     Foreign { file: PathBuf, marked: Marked },
-    /// A claim in the way cannot be judged (its maker is in another PID namespace, or it cannot be read): it stays and is named.
+    /// A claim in the way cannot be judged (its maker is in another PID namespace,
+    /// or it cannot be read):
+    /// it stays and is named.
     Unjudged { file: PathBuf, marked: Option<Marked> },
-    /// A claim could not be placed or this process cannot name itself: nothing is removed, and the caller says so.
+    /// A claim could not be placed or this process cannot name itself:
+    /// nothing is removed,
+    /// and the caller says so.
     Unavailable(std::io::Error),
 }
 
@@ -55,19 +87,30 @@ pub enum Claim {
 enum Slot {
     /// No such file.
     Free,
-    /// A claim whose maker is gone, or a file that holds no whole marker (a power loss left it, or a stranger placed it; a
-    ///  running claimer's file is placed whole): passed over, never removed while the stale file stands.
+    /// A claim whose maker is gone,
+    /// or a file that holds no whole marker (a power loss left it,
+    /// or a stranger placed it;
+    /// a
+    ///  running claimer's file is placed whole):
+    /// passed over,
+    /// never removed while the stale file stands.
     Dead,
     /// A claim whose maker is proven to run.
     Live,
-    /// A claim whose maker cannot be judged here (another PID namespace, a `/proc` that does not agree), or a claim that cannot be
-    ///  read at all (then without a marker): neither gone nor proven running, and not a contention that passes.
+    /// A claim whose maker cannot be judged here (another PID namespace,
+    /// a `/proc` that does not agree),
+    /// or a claim that cannot be
+    ///  read at all (then without a marker):
+    /// neither gone nor proven running,
+    /// and not a contention that passes.
     Unjudged(Option<Marked>),
-    /// A claim whose maker is on another machine, or on one this machine cannot be compared with.
+    /// A claim whose maker is on another machine,
+    /// or on one this machine cannot be compared with.
     Elsewhere(Marked),
 }
 
-/// The claim a reclaimer holds: slots zero to its own are the chain it removes when the stale file has left its name.
+/// The claim a reclaimer holds:
+/// slots zero to its own are the chain it removes when the stale file has left its name.
 pub struct ClaimHold {
     lock: PathBuf,
     key: String,
@@ -76,8 +119,11 @@ pub struct ClaimHold {
 }
 
 impl ClaimHold {
-    /// Removes the claims at slots zero to this one: called once the stale file no longer stands at its name, when no
-    ///  reclaimer's removal needs guarding any more. A claim that cannot be removed is reported and left.
+    /// Removes the claims at slots zero to this one:
+    /// called once the stale file no longer stands at its name,
+    /// when no
+    ///  reclaimer's removal needs guarding any more.
+    /// A claim that cannot be removed is reported and left.
     pub fn clear_all(mut self) {
         self.cleared = true;
         for slot in 0..=self.own {
@@ -87,7 +133,8 @@ impl ClaimHold {
 }
 
 impl Drop for ClaimHold {
-    /// A reclaimer that leaves with the stale file still at its name removes only its own claim, so no claim below it is
+    /// A reclaimer that leaves with the stale file still at its name removes only its own claim,
+    /// so no claim below it is
     ///  taken from a reclaimer that reads it as gone.
     fn drop(&mut self) {
         if !self.cleared {
@@ -110,10 +157,13 @@ fn hex_of_byte(byte: &u8) -> String {
 }
 
 /// What:
-///  A byte of a process identity as it is written in a claim's name: the bytes a file name cannot hold and the escape itself as
-///  `%` and two hexadecimal digits, every other byte as the character it is.
+///  A byte of a process identity as it is written in a claim's name:
+/// the bytes a file name cannot hold and the escape itself as
+///  `%` and two hexadecimal digits,
+/// every other byte as the character it is.
 /// Why:
-///  Two different identities never share a name, and the name stays short.
+///  Two different identities never share a name,
+/// and the name stays short.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,7 +174,8 @@ fn escaped_byte(byte: u8) -> String {
 }
 
 /// What:
-///  Remembers a claim file that may have been made, for the next attempt of this thread to remove.
+///  Remembers a claim file that may have been made,
+/// for the next attempt of this thread to remove.
 /// Why:
 ///  A claim whose placement is not known would block every reclaimer if it stayed.
 ///
@@ -139,12 +190,18 @@ fn remember_abandoned(path: PathBuf, text: String) {
 }
 
 /// What:
-///  The name of the claim at `slot` for the stale lock with the identity `key`, in the lock's directory.
+///  The name of the claim at `slot` for the stale lock with the identity `key`,
+/// in the lock's directory.
 /// Why:
 ///   A claim name of the lock's own name with the whole identity appended would pass the limit of a file name (255 bytes) beside
-///  a lock with a long name, and no claim could be placed. The name is a fixed-length digest of the lock's name and the key (the
-///  first sixteen bytes of SHA-256, which the index writer already carries), so two different locks of one directory and two
-///  different stale files of one lock never share a name, and every reclaimer derives it alike.
+///  a lock with a long name,
+/// and no claim could be placed.
+/// The name is a fixed-length digest of the lock's name and the key (the
+///  first sixteen bytes of SHA-256,
+/// which the index writer already carries),
+/// so two different locks of one directory and two
+///  different stale files of one lock never share a name,
+/// and every reclaimer derives it alike.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,17 +220,31 @@ pub fn claim_path(lock: &Path, key: &str, slot: usize) -> PathBuf {
     return lock.with_file_name(format!("{CLAIM_INFIX}{hex}-{slot}"));
 }
 
-/// How many bytes of the digest name a claim: 128 bits, far past any chance of two stale locks of one directory sharing a name.
+/// How many bytes of the digest name a claim:
+/// 128 bits,
+/// far past any chance of two stale locks of one directory sharing a name.
 const CLAIM_DIGEST_BYTES: usize = 16;
 
 /// What:
-///  The identity of the stale lock that names its claims: the batch and process its marker names, from the marker's own text.
+///  The identity of the stale lock that names its claims:
+/// the batch and process its marker names,
+/// from the marker's own text.
 /// Why:
-///   Every reclaimer of one stale lock must derive the same name, whichever way it reached the file: the device number of one
-///  remote tree can differ between two mounts of it, but the marker is the file's own content. The process the marker names is
-///  gone, and a gone process places no further lock with that marker, so no later lock carries the key and a claim left under
-///  it is inert. The birth identity is written as it is, with the bytes a file name cannot hold escaped, so that two different
-///  identities never share a name. A marker that names no process (an earlier release's) is keyed on its batch number alone.
+///   Every reclaimer of one stale lock must derive the same name,
+/// whichever way it reached the file:
+/// the device number of one
+///  remote tree can differ between two mounts of it,
+/// but the marker is the file's own content.
+/// The process the marker names is
+///  gone,
+/// and a gone process places no further lock with that marker,
+/// so no later lock carries the key and a claim left under
+///  it is inert.
+/// The birth identity is written as it is,
+/// with the bytes a file name cannot hold escaped,
+/// so that two different
+///  identities never share a name.
+/// A marker that names no process (an earlier release's) is keyed on its batch number alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,7 +273,11 @@ fn remove_claim(path: &Path) {
     }
 }
 
-/// What the file at `path` is as a claim: absent, a gone maker's, a running maker's, or one that cannot be judged.
+/// What the file at `path` is as a claim:
+/// absent,
+/// a gone maker's,
+/// a running maker's,
+/// or one that cannot be judged.
 fn look_at(path: &Path) -> Slot {
     // No link is followed and no pipe waited on, so a stranger's file of this name cannot hang the reclaimer.
     let opened = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(path);
@@ -233,7 +308,10 @@ fn look_at(path: &Path) -> Slot {
     };
 }
 
-/// What reading the claim file at `path` as text gave: its text, nothing because there is no such file, or an error because it
+/// What reading the claim file at `path` as text gave:
+/// its text,
+/// nothing because there is no such file,
+/// or an error because it
 ///  could not be read (then whether it is this attempt's claim is not known).
 fn text_of(path: &Path) -> std::io::Result<Option<String>> {
     let file = match std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(path) {
@@ -252,13 +330,22 @@ fn text_of(path: &Path) -> std::io::Result<Option<String>> {
 
 thread_local! {
     /// The claims this thread placed whose placement answered with an error and which could not be read back to be recognised,
-    ///  with the marker text each was written from. A later attempt of the thread resolves them first. Per thread, so another
+    ///  with the marker text each was written from.
+    /// A later attempt of the thread resolves them first.
+    /// Per thread,
+    /// so another
     ///  thread's attempt in the same process is never taken for an abandoned one (the process number is the same for both).
     static ABANDONED: std::cell::RefCell<Vec<(PathBuf, String)>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Removes the claims this thread abandoned: a file that still holds exactly the text the thread wrote is the thread's own claim,
-///  and goes; one that holds other text, or is gone, was never the thread's claim or is no more, and is forgotten; one that still
+/// Removes the claims this thread abandoned:
+/// a file that still holds exactly the text the thread wrote is the thread's own claim,
+///  and goes;
+/// one that holds other text,
+/// or is gone,
+/// was never the thread's claim or is no more,
+/// and is forgotten;
+/// one that still
 ///  cannot be read stays on the list for the next attempt.
 fn resolve_abandoned() {
     let pending: Vec<(PathBuf, String)> = ABANDONED.take();
@@ -271,7 +358,8 @@ fn resolve_abandoned() {
     }
 }
 
-/// A number no other attempt has: 64 bits of the system's random source.
+/// A number no other attempt has:
+/// 64 bits of the system's random source.
 fn attempt_token() -> std::io::Result<u64> {
     let uuid: String = match crate::random_id::random_uuid() {
         Ok(found) => found,
@@ -292,13 +380,24 @@ fn all_below_are_dead(lock: &Path, key: &str, slot: usize) -> bool {
 }
 
 /// What:
-///  Takes the claim for the stale lock whose marker is `marked`, which the caller has judged stale, at the lowest slot not taken by a
-///  claimer that runs; `Busy` when a claimer that runs is ahead.
+///  Takes the claim for the stale lock whose marker is `marked`,
+/// which the caller has judged stale,
+/// at the lowest slot not taken by a
+///  claimer that runs;
+/// `Busy` when a claimer that runs is ahead.
 /// Why:
-///   Two reclaimers of one stale file must not both unlink its name. A claim is placed whole (`place_marked`), so a placed
-///  claim is never half written; the maker's marker is judged as a lock holder's is, so a dead claimer never blocks anyone.
-///  After the claim is placed, every slot below is read again, because what a reclaimer read before placing may be arbitrarily
-///  old: a claim there that is missing or alive means another reclaimer holds or may hold, and this one backs off.
+///   Two reclaimers of one stale file must not both unlink its name.
+/// A claim is placed whole (`place_marked`),
+/// so a placed
+///  claim is never half written;
+/// the maker's marker is judged as a lock holder's is,
+/// so a dead claimer never blocks anyone.
+///  After the claim is placed,
+/// every slot below is read again,
+/// because what a reclaimer read before placing may be arbitrarily
+///  old:
+/// a claim there that is missing or alive means another reclaimer holds or may hold,
+/// and this one backs off.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

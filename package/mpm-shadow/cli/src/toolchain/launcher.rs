@@ -44,6 +44,8 @@ use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
 use super::cargo_installs::{is_newer_than_locked, older_lock_message_for};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports the check that follows a launcher chain and names a loop or a broken record.
+use super::launcher_chain::chain_problem;
 /// Imports what this module uses from `super::launcher_current_link`.
 use super::launcher_current_link::{MissingProgram, locked_version, missing_program_advice, program_to_run, version_that_runs};
 /// Imports what this module uses from `super::scope`.
@@ -363,6 +365,13 @@ pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
     let launch: Launch = prepare_launch(record, lock_text.as_deref());
     if let Some(warning) = &launch.warning {
         eprintln!("mpm-shadow: warning: {warning}");
+    }
+    // A launcher never starts itself: a chain of records that leads back to this launcher, or in a circle, is refused before anything is started.
+    if let Ok(own) = std::env::current_exe()
+        && let Some(problem) = chain_problem(&own, &launch.program)
+    {
+        eprintln!("mpm-shadow: {problem}");
+        return EXEC_FAILED_EXIT_CODE;
     }
     if let Err(error) = refresh_stale_record(record, &launch.program) {
         eprintln!("mpm-shadow: warning: could not update the launcher record, so it keeps naming a program that no longer exists: {error}");

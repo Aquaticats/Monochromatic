@@ -23,7 +23,8 @@ mod support;
 #[path = "binary_support_program_names_and_time_bound.rs"]
 mod support_program_names_and_time_bound;
 
-/// The limits a control puts on a fixture service process, and how it applies them.
+/// The limits a control puts on a fixture service process,
+/// and how it applies them.
 #[path = "binary_support_resource_limits.rs"]
 mod support_resource_limits;
 
@@ -39,7 +40,8 @@ mod support_fixture_directories;
 #[path = "binary_support_observation.rs"]
 mod support_observation;
 
-/// The hang guard: a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
+/// The hang guard:
+/// a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
 #[path = "binary_supervisor.rs"]
 mod supervisor;
 
@@ -57,7 +59,11 @@ mod supervisor_proc;
 #[path = "binary_supervisor_pin.rs"]
 mod supervisor_pin;
 
-/// The supervisor's judge, readers and monitor, and real commands that loop, deadlock, wait and crawl.
+/// The supervisor's judge,
+/// readers and monitor,
+/// and real commands that loop,
+/// deadlock,
+/// wait and crawl.
 #[path = "binary_supervisor_tests.rs"]
 mod supervisor_guard;
 
@@ -65,7 +71,9 @@ mod supervisor_guard;
 #[path = "binary_wrapper_store.rs"]
 mod wrapper_store;
 
-/// The stored copy's name, its lock-free publish, its pruning and the sharing of one wrapper file by fixtures.
+/// The stored copy's name,
+/// its lock-free publish,
+/// its pruning and the sharing of one wrapper file by fixtures.
 #[path = "binary_wrapper_store_tests.rs"]
 mod wrapper_store_guard;
 
@@ -80,7 +88,9 @@ mod fixture_guard;
 #[path = "binary_forwarding_tests.rs"]
 mod forwarding;
 
-/// The lines added after Git's answer to `--version`, `-v`, `--help` and `-h`.
+/// The lines added after Git's answer to `--version`,
+/// `-v`,
+/// `--help` and `-h`.
 #[path = "binary_announced_tests.rs"]
 mod announced;
 
@@ -88,12 +98,17 @@ mod announced;
 #[path = "binary_resolution_tests.rs"]
 mod resolution;
 
-/// The wrapper never starts itself as Git: launchers, links, copies and other releases behind counting stand-ins.
+/// The wrapper never starts itself as Git:
+/// launchers,
+/// links,
+/// copies and other releases behind counting stand-ins.
 #[path = "binary_never_self_start_tests.rs"]
 mod never_self_start;
 
-/// With no real Git after the wrapper on `PATH`, the wrapper falls back to the Git its commit service was set up with
-///  when that record passes the `PATH` candidate checks, and otherwise keeps its stop.
+/// With no real Git after the wrapper on `PATH`,
+/// the wrapper falls back to the Git its commit service was set up with
+///  when that record passes the `PATH` candidate checks,
+/// and otherwise keeps its stop.
 #[path = "binary_installed_git_fallback_tests.rs"]
 mod installed_git_fallback;
 
@@ -115,15 +130,23 @@ mod frontier;
 #[path = "binary_builtin_tests.rs"]
 mod builtin;
 
-/// Taking one side of a conflicted file during a merge, rebase, cherry-pick or revert: saved first, conflicted paths only.
+/// Taking one side of a conflicted file during a merge,
+/// rebase,
+/// cherry-pick or revert:
+/// saved first,
+/// conflicted paths only.
 #[path = "binary_conflict_side_tests.rs"]
 mod conflict_side;
 
-/// Every command form that can discard uncommitted state: rejected, allowed in a clean linked worktree, or hatched.
+/// Every command form that can discard uncommitted state:
+/// rejected,
+/// allowed in a clean linked worktree,
+/// or hatched.
 #[path = "binary_discard_tests.rs"]
 mod discard;
 
-/// A clone made with `--no-checkout` has no index file, and the guard of uncommitted work lets its first checkout run.
+/// A clone made with `--no-checkout` has no index file,
+/// and the guard of uncommitted work lets its first checkout run.
 #[path = "binary_no_checkout_clone_tests.rs"]
 mod no_checkout_clone;
 
@@ -140,7 +163,9 @@ mod markdown;
 #[path = "binary_event_path_tests.rs"]
 mod event_path;
 
-/// The program under its new name and its earlier names: the command word, the settings file and the kept folders.
+/// The program under its new name and its earlier names:
+/// the command word,
+/// the settings file and the kept folders.
 #[path = "binary_program_rename_tests.rs"]
 mod program_rename_guard;
 
@@ -150,29 +175,40 @@ mod management;
 /// `git monochromatic-git-policy-cli migrate-to-subvolume` and the doctor's filesystem section through the executable.
 #[path = "binary_subvolume_tests.rs"]
 mod subvolume;
-/// `git monochromatic-git-policy-cli convert-worktree-to-subvolume` started the way a person starts it, with no forward-target variable.
+/// `git monochromatic-git-policy-cli convert-worktree-to-subvolume` started the way a person starts it,
+/// with no forward-target variable.
 #[path = "binary_convert_tests.rs"]
 mod convert;
 
 #[path = "binary_coordination_tests.rs"]
 mod coordination;
-/// No external hook runs, and configured hooks are reported.
+/// No external hook runs,
+/// and configured hooks are reported.
 #[path = "binary_external_hook_tests.rs"]
 mod external_hooks;
 /// The dependent-version policy on direct check and fix.
 #[path = "binary_dependent_version_tests.rs"]
 mod dependent_version;
 
-/// A true merge in a checkout whose index holds another session's staged work: equal to native Git's merge on a
-/// clean copy, nothing of the other work disturbed, refusals that change nothing, and recovery after a kill.
+/// A true merge in a checkout whose index holds another session's staged work:
+/// equal to native Git's merge on a
+/// clean copy,
+/// nothing of the other work disturbed,
+/// refusals that change nothing,
+/// and recovery after a kill.
 #[path = "binary_merge_isolation_tests.rs"]
 mod merge_isolation;
 
-/// The word-level second merge pass after a merge, rebase, cherry-pick or revert that Git stops with a conflict.
+/// The word-level second merge pass after a merge,
+/// rebase,
+/// cherry-pick or revert that Git stops with a conflict.
 #[path = "binary_word_merge_tests.rs"]
 mod word_merge;
 
-/// The finish after the second pass: the operation ends like a clean run, and `--no-commit`, `--squash` and `--edit` stop it.
+/// The finish after the second pass:
+/// the operation ends like a clean run,
+/// and `--no-commit`,
+/// `--squash` and `--edit` stop it.
 #[path = "binary_word_merge_finish_tests.rs"]
 mod word_merge_finish;
 
@@ -180,7 +216,9 @@ mod word_merge_finish;
 #[path = "binary_held_lock_support.rs"]
 mod held_lock_support;
 
-/// A `git pull` that merges: completed in isolation like `git merge`, and every other pull left to native Git.
+/// A `git pull` that merges:
+/// completed in isolation like `git merge`,
+/// and every other pull left to native Git.
 #[path = "binary_pull_isolation_tests.rs"]
 mod pull_isolation;
 
@@ -188,31 +226,41 @@ mod pull_isolation;
 #[path = "binary_merge_never_fails_tests.rs"]
 mod merge_never_fails;
 
-/// Real commits through the transaction: landing, policies, replay and conflict.
+/// Real commits through the transaction:
+/// landing,
+/// policies,
+/// replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
-/// The Git version text a commit records in the user's cache directory, and when it trusts it.
+/// The Git version text a commit records in the user's cache directory,
+/// and when it trusts it.
 #[path = "binary_version_cache_tests.rs"]
 mod version_cache;
 
-/// Finding `strace`, which the budget, fault and child-bound controls run a wrapped command under.
+/// Finding `strace`,
+/// which the budget,
+/// fault and child-bound controls run a wrapped command under.
 #[path = "binary_strace_support.rs"]
 mod strace;
 
-/// Reads a `strace` trace of a wrapped commit into process starts and sync calls per program, for the budget controls.
+/// Reads a `strace` trace of a wrapped commit into process starts and sync calls per program,
+/// for the budget controls.
 #[path = "binary_budget_trace.rs"]
 mod budget_trace;
 
-/// Ratchet budgets: the process starts and fsync-class calls of a wrapped commit can only go down.
+/// Ratchet budgets:
+/// the process starts and fsync-class calls of a wrapped commit can only go down.
 #[path = "binary_budget_tests.rs"]
 mod budget;
 
-/// A forwarded command makes no thread or child of its own before Git replaces the wrapper, so a runtime is never built for it.
+/// A forwarded command makes no thread or child of its own before Git replaces the wrapper,
+/// so a runtime is never built for it.
 #[path = "binary_forwarded_command_makes_no_thread_tests.rs"]
 mod forwarded_command_makes_no_thread;
 
-/// The runtime build finishes and the command carries on under a process limit and under address-space limits, with Git as the control.
+/// The runtime build finishes and the command carries on under a process limit and under address-space limits,
+/// with Git as the control.
 #[path = "binary_runtime_build_under_limits_tests.rs"]
 mod runtime_build_under_limits;
 
@@ -224,35 +272,50 @@ mod known_content;
 #[path = "binary_event_path_commit_tests.rs"]
 mod event_path_commit;
 
-/// `mono/catalog-specifiers` through real commits and direct checks, and the repository's own configuration.
+/// `mono/catalog-specifiers` through real commits and direct checks,
+/// and the repository's own configuration.
 #[path = "binary_catalog_specifiers_tests.rs"]
 mod catalog_specifiers;
 
-/// The linked-worktree ignored-state copy: the rules file reaches new worktrees, and an interrupted copy recovers.
+/// The linked-worktree ignored-state copy:
+/// the rules file reaches new worktrees,
+/// and an interrupted copy recovers.
 #[path = "binary_worktree_copy_tests.rs"]
 mod worktree_copy;
 
-/// Worktree commands beside an add whose real Git still runs: none waits, and each new worktree gets exactly its own copy.
+/// Worktree commands beside an add whose real Git still runs:
+/// none waits,
+/// and each new worktree gets exactly its own copy.
 #[path = "binary_worktree_copy_concurrent_tests.rs"]
 mod worktree_copy_concurrent;
 
-/// The copy for every form of `git worktree add` that Git accepts, and none for each form Git rejects.
+/// The copy for every form of `git worktree add` that Git accepts,
+/// and none for each form Git rejects.
 #[path = "binary_worktree_copy_forms_tests.rs"]
 mod worktree_copy_forms;
 
-/// The cheap-worktree ladder: new worktrees are subvolumes, a forwarded removal destroys them, other forms stay Git's.
+/// The cheap-worktree ladder:
+/// new worktrees are subvolumes,
+/// a forwarded removal destroys them,
+/// other forms stay Git's.
 #[path = "binary_worktree_ladder_tests.rs"]
 mod worktree_ladder;
 
-/// Rung 1 of the cheap-worktree ladder: a snapshot of a clean subvolume worktree equals Git's own checkout.
+/// Rung 1 of the cheap-worktree ladder:
+/// a snapshot of a clean subvolume worktree equals Git's own checkout.
 #[path = "binary_worktree_snapshot_tests.rs"]
 mod worktree_snapshot;
 
-/// Rung 2 of the cheap-worktree ladder: clones of a clean worktree's tracked files equal Git's own checkout.
+/// Rung 2 of the cheap-worktree ladder:
+/// clones of a clean worktree's tracked files equal Git's own checkout.
 #[path = "binary_worktree_clone_tests.rs"]
 mod worktree_clone;
 
-/// The line that says why an add took the slow way: the cause, the remedy, `--quiet`, and the journal entry.
+/// The line that says why an add took the slow way:
+/// the cause,
+/// the remedy,
+/// `--quiet`,
+/// and the journal entry.
 #[path = "binary_worktree_slow_route_tests.rs"]
 mod worktree_slow_route;
 
@@ -268,27 +331,36 @@ mod worktree_checkout_workers;
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
 
-/// An explicit push that lost a race to another session: the merge is published by a push planned and run inside the same process.
+/// An explicit push that lost a race to another session:
+/// the merge is published by a push planned and run inside the same process.
 #[path = "binary_push_stacking_tests.rs"]
 mod push_stacking;
 
-/// The Git LFS upload before a push: every push the executable starts carries it, and a failure stops the push.
+/// The Git LFS upload before a push:
+/// every push the executable starts carries it,
+/// and a failure stops the push.
 #[path = "binary_lfs_pre_push_tests.rs"]
 mod lfs_pre_push;
 
-/// The parent that owns an LFS push explains a failed upload from Git's own trace, and no wrapper is started for it.
+/// The parent that owns an LFS push explains a failed upload from Git's own trace,
+/// and no wrapper is started for it.
 #[path = "binary_lfs_parent_tests.rs"]
 mod lfs_parent;
 
-/// The manual-push probe through the whole wrapper: verbosity cannot bypass a policy, and upstream options publish.
+/// The manual-push probe through the whole wrapper:
+/// verbosity cannot bypass a policy,
+/// and upstream options publish.
 #[path = "binary_push_probe_tests.rs"]
 mod push_probe;
 
-/// A push that Git itself refuses (an absent branch to delete, a refspec naming nothing, no such remote) ends as Git ends it.
+/// A push that Git itself refuses (an absent branch to delete,
+/// a refspec naming nothing,
+/// no such remote) ends as Git ends it.
 #[path = "binary_push_refusal_tests.rs"]
 mod push_refusal;
 
-/// A push the wrapper cannot scope fails with the hint of its cause, not the one hint of its code.
+/// A push the wrapper cannot scope fails with the hint of its cause,
+/// not the one hint of its code.
 #[path = "binary_push_scope_tests.rs"]
 mod push_scope;
 
@@ -296,15 +368,21 @@ mod push_scope;
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
 
-/// Traditional hooks never run through the wrapper, and `git monochromatic-git-policy-cli doctor` explains the Git LFS shims.
+/// Traditional hooks never run through the wrapper,
+/// and `git monochromatic-git-policy-cli doctor` explains the Git LFS shims.
 #[path = "binary_hooks_off_tests.rs"]
 mod hooks_off;
 
-/// A configuration cannot make a Git the wrapper started run a hook through an alias, a monitor program or an editor.
+/// A configuration cannot make a Git the wrapper started run a hook through an alias,
+/// a monitor program or an editor.
 #[path = "binary_hooks_off_escape_tests.rs"]
 mod hooks_off_escape;
 
-/// The notices of a commit that waits: what it waits for, who holds it, the repeat, and the bound.
+/// The notices of a commit that waits:
+/// what it waits for,
+/// who holds it,
+/// the repeat,
+/// and the bound.
 #[path = "binary_wait_notice_tests.rs"]
 mod wait_notice;
 
@@ -312,7 +390,9 @@ mod wait_notice;
 #[path = "binary_fault_support.rs"]
 mod fault;
 
-/// The wrapper run with no `timeout` in front of it, in a process group of its own, for controls that signal or limit it.
+/// The wrapper run with no `timeout` in front of it,
+/// in a process group of its own,
+/// for controls that signal or limit it.
 #[path = "binary_fault_run.rs"]
 mod fault_run;
 
@@ -320,15 +400,21 @@ mod fault_run;
 #[path = "binary_fault_signal_tests.rs"]
 mod fault_signal;
 
-/// Descriptor, process and address-space limits near exhaustion on the wrapper and on the service, and a single processor.
+/// Descriptor,
+/// process and address-space limits near exhaustion on the wrapper and on the service,
+/// and a single processor.
 #[path = "binary_fault_limits_tests.rs"]
 mod fault_limits;
 
-/// Slow storage, a full disk, failing writes and kills at any call, injected with `strace` into the service and the wrapper's flows.
+/// Slow storage,
+/// a full disk,
+/// failing writes and kills at any call,
+/// injected with `strace` into the service and the wrapper's flows.
 #[path = "binary_fault_trace_tests.rs"]
 mod fault_trace;
 
-/// Standard streams that are closed, unread or full.
+/// Standard streams that are closed,
+/// unread or full.
 #[path = "binary_fault_stream_tests.rs"]
 mod fault_stream;
 
@@ -340,64 +426,103 @@ mod fault_remote;
 #[path = "binary_lfs_hang_tests.rs"]
 mod lfs_hang;
 
-/// The wrapped commit command through the resident service, compared with native Git.
+/// The wrapped commit command through the resident service,
+/// compared with native Git.
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
-/// The service as a mode of the one executable: refused starts, the wrapper as `--git`, and the words behind a global option.
+/// The service as a mode of the one executable:
+/// refused starts,
+/// the wrapper as `--git`,
+/// and the words behind a global option.
 #[path = "binary_service_mode_tests.rs"]
 mod service_mode;
 
-/// The upgrade from the release with the service as a second program: the unit is rewritten, the old service retires.
+/// The upgrade from the release with the service as a second program:
+/// the unit is rewritten,
+/// the old service retires.
 #[path = "binary_service_upgrade_one_executable_tests.rs"]
 mod service_upgrade_one_executable;
 
-/// A commit whose prepared content was pruned before it landed: prepared again once, then a plain failure.
+/// A commit whose prepared content was pruned before it landed:
+/// prepared again once,
+/// then a plain failure.
 #[path = "binary_service_pruned_tests.rs"]
 mod service_pruned;
 
-/// Two commits of one file in one worktree, the second landing behind the first: its captured bytes merged, never re-read.
+/// Two commits of one file in one worktree,
+/// the second landing behind the first:
+/// its captured bytes merged,
+/// never re-read.
 #[path = "binary_service_replay_tests.rs"]
 mod service_replay;
 
-/// A backup push the service made after a commit returned and the remote refused, shown by the next wrapper command.
+/// A backup push the service made after a commit returned and the remote refused,
+/// shown by the next wrapper command.
 #[path = "binary_push_failure_tests.rs"]
 mod push_failure;
 
-/// Merge, pull's merge, cherry-pick, revert and am hand the push to the service, as a commit does; a rebase does not.
+/// Merge,
+/// pull's merge,
+/// cherry-pick,
+/// revert and am hand the push to the service,
+/// as a commit does;
+/// a rebase does not.
 #[path = "binary_push_trigger_tests.rs"]
 mod push_trigger;
-/// A fetch after a Git was killed while it held reference locks: removed on a proof, described and kept otherwise.
+/// A fetch after a Git was killed while it held reference locks:
+/// removed on a proof,
+/// described and kept otherwise.
 #[path = "binary_stale_ref_lock_tests.rs"]
 mod stale_ref_lock;
 
 
-/// The message and identity options through the service, compared with native Git field by field.
+/// The message and identity options through the service,
+/// compared with native Git field by field.
 #[path = "binary_service_options_tests.rs"]
 mod service_options;
 
-/// Index commits and `commit -a` through the service, compared with native Git including what is left behind.
+/// Index commits and `commit -a` through the service,
+/// compared with native Git including what is left behind.
 #[path = "binary_service_selection_tests.rs"]
 mod service_selection;
 
-/// Amends through the service, compared with native Git field by field including what is left behind.
+/// Amends through the service,
+/// compared with native Git field by field including what is left behind.
 #[path = "binary_service_amend_tests.rs"]
 mod service_amend;
 
-/// The twin harness of the landing controls: native Git in one byte copy, the service in the other, every field compared.
+/// The twin harness of the landing controls:
+/// native Git in one byte copy,
+/// the service in the other,
+/// every field compared.
 #[path = "binary_service_landing_support.rs"]
 mod service_landing_support;
 
-/// Selection command lines (`-i`, `-p`, `--interactive`, a pathspec file) and the dry run, compared with native Git.
+/// Selection command lines (`-i`,
+/// `-p`,
+/// `--interactive`,
+/// a pathspec file) and the dry run,
+/// compared with native Git.
 #[path = "binary_service_landing_selection_tests.rs"]
 mod service_landing_selection;
 
-/// States that used to be declined (a conclusion, a detached head, a branch not yet born, an unmerged index, nothing to
-///  commit, a rewrite, awkward change lists), compared with native Git.
+/// States that used to be declined (a conclusion,
+/// a detached head,
+/// a branch not yet born,
+/// an unmerged index,
+/// nothing to
+///  commit,
+/// a rewrite,
+/// awkward change lists),
+/// compared with native Git.
 #[path = "binary_service_landing_state_tests.rs"]
 mod service_landing_state;
 
-/// A landing while a foreign `git commit` holds the index lock: the wait, the order, and the limit.
+/// A landing while a foreign `git commit` holds the index lock:
+/// the wait,
+/// the order,
+/// and the limit.
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
 
@@ -406,62 +531,90 @@ mod service_landing_lock;
 #[path = "binary_commit_timing_tests.rs"]
 mod commit_timing;
 
-/// A landing that waits for a foreign index lock in one repository, beside a landing in another.
+/// A landing that waits for a foreign index lock in one repository,
+/// beside a landing in another.
 #[path = "binary_service_lane_tests.rs"]
 mod service_lane;
 
-/// The scratch directory of a commit in preparation, removed by the service when the client's connection closes.
+/// The scratch directory of a commit in preparation,
+/// removed by the service when the client's connection closes.
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
 
-/// The ends of the waits on the commit path: a commit withdrawn at its bound never lands, not even after a restart of the service.
+/// The ends of the waits on the commit path:
+/// a commit withdrawn at its bound never lands,
+/// not even after a restart of the service.
 #[path = "binary_service_withdraw_tests.rs"]
 mod service_withdraw;
 
-/// The client's wait for the commit service: heartbeats, silence, a start the manager reports failed, a late start.
+/// The client's wait for the commit service:
+/// heartbeats,
+/// silence,
+/// a start the manager reports failed,
+/// a late start.
 #[path = "binary_service_heartbeat_tests.rs"]
 mod service_heartbeat;
 
-/// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
+/// Commits real Git builds for the service (an editor,
+/// a signature),
+/// compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]
 mod service_native;
 
-/// A commit with named paths during a revert, a cherry-pick or a merge, compared with real Git.
+/// A commit with named paths during a revert,
+/// a cherry-pick or a merge,
+/// compared with real Git.
 #[path = "binary_service_sequencer_tests.rs"]
 mod service_sequencer;
 
-/// A commit of named paths while another session's merge is unfinished lands, and the merge is carried forward.
+/// A commit of named paths while another session's merge is unfinished lands,
+/// and the merge is carried forward.
 #[path = "binary_commit_during_merge_tests.rs"]
 mod commit_during_merge;
 
-/// Guard: no option of the wrapper's follows the person's `--` in any Git start, and no `--quiet` is added.
+/// Guard:
+/// no option of the wrapper's follows the person's `--` in any Git start,
+/// and no `--quiet` is added.
 #[path = "binary_option_order_guard_tests.rs"]
 mod option_order_guard;
 
-/// The route of a commit and the wrapper's own provisioning of socket activation, against a stand-in session bus.
+/// The route of a commit and the wrapper's own provisioning of socket activation,
+/// against a stand-in session bus.
 #[path = "binary_service_provision_tests.rs"]
 mod service_provision;
 
-/// A machine with no way to reach or start a service stops a commit plainly; a directory with no repository gets Git's words.
+/// A machine with no way to reach or start a service stops a commit plainly;
+/// a directory with no repository gets Git's words.
 #[path = "binary_service_no_manager_tests.rs"]
 mod service_no_manager;
 
-/// The upgrade from the 0.5.4 release, run with that release's own service program.
+/// The upgrade from the 0.5.4 release,
+/// run with that release's own service program.
 #[path = "binary_service_upgrade_tests.rs"]
 mod service_upgrade;
 
-/// The resident commit service as a real process: kills at each point of a batch, requests sent again, late and older services.
+/// The resident commit service as a real process:
+/// kills at each point of a batch,
+/// requests sent again,
+/// late and older services.
 #[path = "binary_service_tests.rs"]
 mod service;
 
-/// A Git step past its class bound is stopped, named with its class, and the repository recovers.
+/// A Git step past its class bound is stopped,
+/// named with its class,
+/// and the repository recovers.
 #[path = "binary_child_bound_tests.rs"]
 mod child_bound;
 
-/// What the person's terminal shows of a commit the service landed: warnings, one summary line, the waits.
+/// What the person's terminal shows of a commit the service landed:
+/// warnings,
+/// one summary line,
+/// the waits.
 #[path = "binary_client_service_tests.rs"]
 mod client_service;
 
-/// The package-manager repair of a new worktree: pnpm, Cargo and the toolchain launchers work at the new location.
+/// The package-manager repair of a new worktree:
+/// pnpm,
+/// Cargo and the toolchain launchers work at the new location.
 #[path = "binary_package_repair_tests.rs"]
 mod package_repair;

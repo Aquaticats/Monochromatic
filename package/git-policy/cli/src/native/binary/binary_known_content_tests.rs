@@ -1,5 +1,6 @@
 //! Binary-level controls for the forbidden-strings rule that content already in a parent commit's tree is not
-//!  scanned again, driven through a real `git commit` of a rename.
+//!  scanned again,
+//! driven through a real `git commit` of a rename.
 //! Every control runs the built executable on a disposable repository with the host's Git.
 
 use super::commit::{git_text, remove_settled, run_commit, wrapped_commit};
@@ -7,8 +8,11 @@ use super::support::{Fixture, Observed, fixture, git, observe, repository, stder
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-/// A rename of a file that already holds a forbidden string lands, and the decision is logged with the masked
-///  pathname, the blob and the parent commit; the same rename with one byte changed is stopped and nothing lands.
+/// A rename of a file that already holds a forbidden string lands,
+/// and the decision is logged with the masked
+///  pathname,
+/// the blob and the parent commit;
+/// the same rename with one byte changed is stopped and nothing lands.
 #[test]
 fn a_rename_of_known_content_lands_and_a_rename_with_a_changed_byte_does_not() {
     let fixture: Fixture = fixture("known-content-rename");

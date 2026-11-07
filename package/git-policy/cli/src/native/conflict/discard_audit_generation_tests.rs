@@ -1,10 +1,18 @@
 //! What:
-//!  The history of the audit file: every rotation keeps its own generation, generations that name a saved copy still on disk
-//!  are never removed, and the rest are kept up to a size; the timing logs keep one generation.
+//!  The history of the audit file:
+//! every rotation keeps its own generation,
+//! generations that name a saved copy still on disk
+//!  are never removed,
+//! and the rest are kept up to a size;
+//! the timing logs keep one generation.
 //! Why:
-//!  The audit file attributes a loss of uncommitted work, and each `saved-conflict` line names the saved copies it made. With
-//!  one generation the second rotation dropped the lines that named copies still on disk (the delegated pick 11, option C,
-//!  in `doc/planning/cli-git-shipped-limits-audit.md`). The tests put files in a disposable directory and never touch a real
+//!  The audit file attributes a loss of uncommitted work,
+//! and each `saved-conflict` line names the saved copies it made.
+//! With
+//!  one generation the second rotation dropped the lines that named copies still on disk (the delegated pick 11,
+//! option C,
+//!  in `doc/planning/cli-git-shipped-limits-audit.md`).
+//! The tests put files in a disposable directory and never touch a real
 //!  Git directory.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,7 +20,9 @@
 //! // await rotate(auditFile); expect(await generations(dir)).toEqual([1, 2]);
 //! ```
 
-/// The writer, the file names, the rotation steps and the bound under test.
+/// The writer,
+/// the file names,
+/// the rotation steps and the bound under test.
 use super::{
     AUDIT_FILE, AUDIT_HISTORY_BYTES, AuditOutcome, AuditRecord, ROTATE_AT_BYTES, RotationStep, append_line, audit_line,
     move_aside_between,
@@ -27,7 +37,9 @@ fn kept_generations() -> u64 {
     return AUDIT_HISTORY_BYTES / ROTATE_AT_BYTES;
 }
 
-/// A file of exactly `ROTATE_AT_BYTES` bytes whose lines are `lines` and then filler, every line ended, so that the next
+/// A file of exactly `ROTATE_AT_BYTES` bytes whose lines are `lines` and then filler,
+/// every line ended,
+/// so that the next
 /// append sees a full file.
 fn full_file(lines: &[String]) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
@@ -73,20 +85,23 @@ fn saved_conflict_line(root: &Path, copies: &[String]) -> String {
     return line.trim_end().to_string();
 }
 
-/// A saved copy that exists on disk, and the `path => place` text an audit line names it by.
+/// A saved copy that exists on disk,
+/// and the `path => place` text an audit line names it by.
 fn existing_copy(root: &Path, name: &str) -> String {
     let place: PathBuf = root.join(name);
     std::fs::write(&place, b"the only content of a replaced file\n").expect("a saved copy");
     return format!("a.rs => {}", place.display());
 }
 
-/// Fills the live file so that the next append rotates it, then appends one line.
+/// Fills the live file so that the next append rotates it,
+/// then appends one line.
 fn rotate_once(target: &Path, name: &str) {
     std::fs::write(target, full_file(&[marker(name)])).expect("a full live file");
     append_line(target, b"{\"live\":1}\n").expect("the append that rotates");
 }
 
-/// The numbers of the generations `target.<number>` that exist, ascending.
+/// The numbers of the generations `target.<number>` that exist,
+/// ascending.
 fn generations(target: &Path) -> Vec<u64> {
     let directory: &Path = target.parent().expect("a directory");
     let prefix: String = format!("{}.", target.file_name().expect("a name").to_string_lossy());
@@ -118,7 +133,9 @@ fn private_names(root: &Path) -> Vec<String> {
         .collect();
 }
 
-/// Each rotation keeps the file it moved, under a number nobody used, so the second rotation does not replace the first.
+/// Each rotation keeps the file it moved,
+/// under a number nobody used,
+/// so the second rotation does not replace the first.
 #[test]
 fn each_rotation_of_the_audit_file_keeps_its_own_generation() {
     let root: PathBuf = fixture("generations-each");
@@ -133,7 +150,9 @@ fn each_rotation_of_the_audit_file_keeps_its_own_generation() {
     remove(root.as_path());
 }
 
-/// Over the bound, the oldest generation that names no saved copy goes first, and the newest stay.
+/// Over the bound,
+/// the oldest generation that names no saved copy goes first,
+/// and the newest stay.
 #[test]
 fn over_the_bound_the_oldest_generation_that_names_no_copy_goes() {
     let root: PathBuf = fixture("generations-bound");
@@ -150,7 +169,8 @@ fn over_the_bound_the_oldest_generation_that_names_no_copy_goes() {
     remove(root.as_path());
 }
 
-/// A generation that names a saved copy still on disk stays when the bound is hit, and the next oldest goes in its place.
+/// A generation that names a saved copy still on disk stays when the bound is hit,
+/// and the next oldest goes in its place.
 #[test]
 fn a_generation_that_names_a_copy_on_disk_is_never_removed() {
     let root: PathBuf = fixture("generations-pinned");
@@ -170,7 +190,8 @@ fn a_generation_that_names_a_copy_on_disk_is_never_removed() {
     remove(root.as_path());
 }
 
-/// A generation whose copy is gone no longer explains anything on disk, so the bound removes it like any other.
+/// A generation whose copy is gone no longer explains anything on disk,
+/// so the bound removes it like any other.
 #[test]
 fn a_generation_that_names_a_deleted_copy_goes_like_any_other() {
     let root: PathBuf = fixture("generations-deleted");
@@ -188,7 +209,9 @@ fn a_generation_that_names_a_deleted_copy_goes_like_any_other() {
     remove(root.as_path());
 }
 
-/// When every older generation names a copy on disk, the bound removes none of them, and the newest history that names
+/// When every older generation names a copy on disk,
+/// the bound removes none of them,
+/// and the newest history that names
 /// nothing is not squeezed out by them.
 #[test]
 fn when_only_pinned_generations_exceed_the_bound_none_is_removed() {
@@ -205,8 +228,11 @@ fn when_only_pinned_generations_exceed_the_bound_none_is_removed() {
     remove(root.as_path());
 }
 
-/// Only a `saved-conflict` line that names a place on disk pins a generation: a copy list with nothing to copy, and a pruned
-/// directory's line (which records a removal), explain nothing that still exists.
+/// Only a `saved-conflict` line that names a place on disk pins a generation:
+/// a copy list with nothing to copy,
+/// and a pruned
+/// directory's line (which records a removal),
+/// explain nothing that still exists.
 #[test]
 fn lines_that_name_nothing_on_disk_do_not_pin_a_generation() {
     let root: PathBuf = fixture("generations-unpinned-lines");
@@ -230,7 +256,8 @@ fn lines_that_name_nothing_on_disk_do_not_pin_a_generation() {
     remove(root.as_path());
 }
 
-/// A writer killed after it took the file off its name leaves the file at a private name with every line; later rotations
+/// A writer killed after it took the file off its name leaves the file at a private name with every line;
+/// later rotations
 /// count its bytes against the bound and never remove it.
 #[test]
 fn a_file_left_by_a_killed_rotation_is_counted_and_never_removed() {
@@ -299,7 +326,9 @@ fn a_number_taken_by_another_writer_is_never_replaced() {
     remove(root.as_path());
 }
 
-/// A rotation that cannot finish, here because the directory refuses a new name, never costs the record.
+/// A rotation that cannot finish,
+/// here because the directory refuses a new name,
+/// never costs the record.
 #[test]
 fn an_audit_rotation_that_fails_does_not_drop_the_record() {
     use std::os::unix::fs::PermissionsExt;
@@ -316,8 +345,11 @@ fn an_audit_rotation_that_fails_does_not_drop_the_record() {
     remove(root.as_path());
 }
 
-/// The timing logs keep one generation: a third rotation replaces the file that the second left in `.1`, and nothing numbered
-/// beyond it is made, however many audit generations stay.
+/// The timing logs keep one generation:
+/// a third rotation replaces the file that the second left in `.1`,
+/// and nothing numbered
+/// beyond it is made,
+/// however many audit generations stay.
 #[test]
 fn a_timing_log_keeps_one_generation() {
     for file in [TIMING_FILE, crate::add_timing::ADD_TIMING_FILE, crate::push_trigger_log::TRIGGER_FILE] {
@@ -333,7 +365,8 @@ fn a_timing_log_keeps_one_generation() {
 }
 
 /// A `saved-conflict` line that cannot be parsed (a write cut short) or that names a place the writer could not show as text
-/// might name a copy that exists, so its generation stays.
+/// might name a copy that exists,
+/// so its generation stays.
 #[test]
 fn a_line_that_may_name_a_copy_keeps_its_generation() {
     let root: PathBuf = fixture("generations-doubtful");

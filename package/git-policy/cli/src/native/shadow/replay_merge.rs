@@ -1,15 +1,22 @@
 //! What:
-//!  The merge step of one replay: the tree from `git merge-tree --write-tree` of the prepared change onto the landed tip.
+//!  The merge step of one replay:
+//! the tree from `git merge-tree --write-tree` of the prepared change onto the landed tip.
 //! Why:
-//!  A commit that lost the race to another is prepared again over the tip the service names; the merge says whether the two
-//!  changes meet cleanly and, when they do not, which paths conflict, in byte order.
+//!  A commit that lost the race to another is prepared again over the tip the service names;
+//! the merge says whether the two
+//!  changes meet cleanly and,
+//! when they do not,
+//! which paths conflict,
+//! in byte order.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await mergeReplayTree({ gitPath, shadowPath, mergeBase, current, prepared, worktreeRoot });
 //! ```
 
-/// The conflicts of a merge tree, with their stages, for the word-level second pass.
+/// The conflicts of a merge tree,
+/// with their stages,
+/// for the word-level second pass.
 use crate::merge_second_pass::{Conflict, conflicts_of_merge_tree};
 /// The attribute tree a merge from objects reads.
 use crate::child_environment::environment_with_overlay;
@@ -21,13 +28,15 @@ use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git};
 /// Filesystem paths.
 use std::path::Path;
 
-/// `git merge-tree` exit status reporting conflicts; a tree ID still prints.
+/// `git merge-tree` exit status reporting conflicts;
+/// a tree ID still prints.
 const MERGE_CONFLICT_EXIT: i32 = 1;
 
 /// What:
 ///  The outcome of merging the prepared change onto the current target.
 /// Why:
-///   A clean merge yields a tree to rebuild a commit on; a conflict yields the paths that name the winning commit.
+///   A clean merge yields a tree to rebuild a commit on;
+/// a conflict yields the paths that name the winning commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,27 +44,34 @@ const MERGE_CONFLICT_EXIT: i32 = 1;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReplayMerge {
-    /// The change applies cleanly; the merged tree is in the shadow store.
+    /// The change applies cleanly;
+    /// the merged tree is in the shadow store.
     Merged {
         /// Merged tree.
         tree_oid: String,
     },
     /// The change conflicts with the target.
     Conflict {
-        /// Conflicting paths in Git path byte order, each once, as the exact bytes Git reported.
+        /// Conflicting paths in Git path byte order,
+        /// each once,
+        /// as the exact bytes Git reported.
         paths: Vec<Vec<u8>>,
-        /// The tree Git wrote, holding the conflicted files with markers.
+        /// The tree Git wrote,
+        /// holding the conflicted files with markers.
         tree_oid: String,
-        /// The conflicted paths with their stages, for the word-level second pass.
+        /// The conflicted paths with their stages,
+        /// for the word-level second pass.
         conflicts: Vec<Conflict>,
     },
 }
 
 /// What:
 ///  A merge or rebuild failure:
-///       a Git command failed, or the commit could not be rebuilt.
+///       a Git command failed,
+/// or the commit could not be rebuilt.
 /// Why:
-///   Replay reports each as `transaction-failed`, never as a conflict.
+///   Replay reports each as `transaction-failed`,
+/// never as a conflict.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -63,7 +79,8 @@ pub enum ReplayMerge {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReplayMergeError {
-    /// A Git command failed, or `merge-tree` exited above `1`.
+    /// A Git command failed,
+    /// or `merge-tree` exited above `1`.
     Git(GitFailure),
     /// The prepared commit could not be rebuilt.
     Rebuild(String),
@@ -71,7 +88,8 @@ pub enum ReplayMergeError {
 
 /// What:
 ///  Merges the prepared change onto the current target in the shadow:
-///       the tree when clean, or the conflicted paths in byte order.
+///       the tree when clean,
+/// or the conflicted paths in byte order.
 /// Why:
 ///   `git merge-tree --write-tree` gives the answer with exit `1` for a conflict and a tree ID in both cases;
 ///       any other non-zero exit is a failure.

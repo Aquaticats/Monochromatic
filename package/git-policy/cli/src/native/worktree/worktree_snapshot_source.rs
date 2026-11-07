@@ -1,12 +1,24 @@
 //! What:
-//!  Whether the creating worktree can be the source of a snapshot for a new worktree, decided before real Git runs, and
+//!  Whether the creating worktree can be the source of a snapshot for a new worktree,
+//! decided before real Git runs,
+//! and
 //!  everything the snapshot needs to know about it.
 //! Why:
-//!  A snapshot copies the whole subvolume, so the source must be a subvolume root on the same filesystem as the
-//!  destination, clean, and free of every feature whose result would differ from Git's checkout: a sparse checkout, a
-//!  worktree-specific configuration, a submodule, and a nested linked worktree that is an ordinary directory (a
-//!  snapshot carries its files, and removing them one by one costs more than the checkout saves). Each refusal returns
-//!  its reason in words; the caller logs it and falls to the next rung without a word to the person.
+//!  A snapshot copies the whole subvolume,
+//! so the source must be a subvolume root on the same filesystem as the
+//!  destination,
+//! clean,
+//! and free of every feature whose result would differ from Git's checkout:
+//! a sparse checkout,
+//! a
+//!  worktree-specific configuration,
+//! a submodule,
+//! and a nested linked worktree that is an ordinary directory (a
+//!  snapshot carries its files,
+//! and removing them one by one costs more than the checkout saves).
+//! Each refusal returns
+//!  its reason in words;
+//! the caller logs it and falls to the next rung without a word to the person.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +42,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The source a snapshot is taken from and what the later steps need to know about it.
 /// Why:
-///   The checks ran once before Git; the steps after Git use their results instead of asking again.
+///   The checks ran once before Git;
+/// the steps after Git use their results instead of asking again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -40,28 +53,38 @@ use std::path::{Path, PathBuf};
 pub struct SnapshotSource {
     /// The subvolume root of the creating worktree.
     pub root: PathBuf,
-    /// Its Git directory: its own for a linked worktree, the common one for a main checkout.
+    /// Its Git directory:
+    /// its own for a linked worktree,
+    /// the common one for a main checkout.
     pub git_dir: PathBuf,
     /// The common Git directory.
     pub common_dir: PathBuf,
-    /// What its `HEAD` names, proven clean.
+    /// What its `HEAD` names,
+    /// proven clean.
     pub clean: CleanSource,
-    /// Registered linked worktrees whose roots lie inside the source; the snapshot holds an empty stub for each.
+    /// Registered linked worktrees whose roots lie inside the source;
+    /// the snapshot holds an empty stub for each.
     pub nested: Vec<PathBuf>,
-    /// The configuration the checks read, which names the abbreviation length of the line Git's checkout prints.
+    /// The configuration the checks read,
+    /// which names the abbreviation length of the line Git's checkout prints.
     pub config: ConfigSnapshot,
-    /// Whether Git ignores the place a snapshot of the main checkout sets its left-out directories aside; false for a linked
-    ///  worktree, which sets nothing aside.
+    /// Whether Git ignores the place a snapshot of the main checkout sets its left-out directories aside;
+    /// false for a linked
+    ///  worktree,
+    /// which sets nothing aside.
     pub trash_ignored: bool,
-    /// The uncommitted changes of a source that is not clean, when it is snapshotted anyway and restored to its `HEAD`;
+    /// The uncommitted changes of a source that is not clean,
+    /// when it is snapshotted anyway and restored to its `HEAD`;
     ///  nothing for a clean source.
     pub dirty: Option<ChangedPaths>,
 }
 
 /// What:
-///  The roots of the linked worktrees registered in a repository, read from their `gitdir` files.
+///  The roots of the linked worktrees registered in a repository,
+/// read from their `gitdir` files.
 /// Why:
-///   Git lists the same paths; reading them here costs no Git process.
+///   Git lists the same paths;
+/// reading them here costs no Git process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -81,13 +104,17 @@ pub fn registered_roots(common_dir: &Path) -> Vec<PathBuf> {
     return roots;
 }
 
-/// The configuration key that turns a sparse checkout on; Git copies the patterns into a new worktree, a snapshot cannot.
+/// The configuration key that turns a sparse checkout on;
+/// Git copies the patterns into a new worktree,
+/// a snapshot cannot.
 const SPARSE_KEY: &str = "core.sparsecheckout";
 
 /// What:
-///  The reason the configuration rules the source out, or nothing.
+///  The reason the configuration rules the source out,
+/// or nothing.
 /// Why:
-///   Git copies the filtered worktree configuration and the sparse-checkout patterns into a new worktree, and conversion
+///   Git copies the filtered worktree configuration and the sparse-checkout patterns into a new worktree,
+/// and conversion
 ///  settings that live only in a worktree would disagree between the two worktrees.
 ///
 /// In TS you'd write (pseudocode):
@@ -109,7 +136,9 @@ fn configuration_refusal(entries: &[ConfigEntry]) -> Option<String> {
 /// What:
 ///  Whether the mounts that hold two paths are one btrfs filesystem.
 /// Why:
-///   A snapshot and a clone cross subvolumes of one filesystem only; the mount table names the device, which is the
+///   A snapshot and a clone cross subvolumes of one filesystem only;
+/// the mount table names the device,
+/// which is the
 ///  same for every subvolume of a filesystem.
 ///
 /// In TS you'd write (pseudocode):
@@ -125,9 +154,11 @@ fn on_one_btrfs(first: &Path, second: &Path) -> bool {
 }
 
 /// What:
-///  The registered worktrees inside the source that are not empty stubs, if any.
+///  The registered worktrees inside the source that are not empty stubs,
+/// if any.
 /// Why:
-///   A nested worktree that is a subvolume appears in a snapshot as an empty directory; an ordinary directory would be
+///   A nested worktree that is a subvolume appears in a snapshot as an empty directory;
+/// an ordinary directory would be
 ///  carried with all its files.
 ///
 /// In TS you'd write (pseudocode):
@@ -144,9 +175,12 @@ fn nested_ordinary_worktree(nested: &[PathBuf]) -> Option<PathBuf> {
 }
 
 /// What:
-///  The registered worktrees inside the source whose recorded path is not their real path, if any.
+///  The registered worktrees inside the source whose recorded path is not their real path,
+/// if any.
 /// Why:
-///   A recorded path reached through a link names a directory the snapshot carries as a link, not as a stub; the
+///   A recorded path reached through a link names a directory the snapshot carries as a link,
+/// not as a stub;
+/// the
 ///  snapshot rung leaves such a source to the next rung.
 ///
 /// In TS you'd write (pseudocode):
@@ -163,7 +197,9 @@ fn nested_through_link(nested: &[PathBuf]) -> Option<PathBuf> {
 }
 
 /// What:
-///  The root, Git directory and common directory of the creating worktree, or why there is none.
+///  The root,
+/// Git directory and common directory of the creating worktree,
+/// or why there is none.
 /// Why:
 ///   A bare repository and a location outside any worktree have no files to copy from.
 ///
@@ -179,10 +215,13 @@ fn worktree_of(identity: &WorktreeIdentity) -> Result<(&PathBuf, &PathBuf, &Path
 }
 
 /// What:
-///  The cheap reasons the snapshot rung cannot serve a planned add: the source is no subvolume root, or it and the
+///  The cheap reasons the snapshot rung cannot serve a planned add:
+/// the source is no subvolume root,
+/// or it and the
 ///  destination are not on one btrfs filesystem.
 /// Why:
-///   These need two `statfs` calls and one inode number, so they run before the dear checks.
+///   These need two `statfs` calls and one inode number,
+/// so they run before the dear checks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -204,7 +243,8 @@ pub fn snapshot_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<S
 }
 
 /// What:
-///  The device number of what a path leads to, or nothing when it cannot be examined.
+///  The device number of what a path leads to,
+/// or nothing when it cannot be examined.
 /// Why:
 ///   Two paths share data blocks only on one device.
 ///
@@ -220,10 +260,13 @@ fn device_of_path(path: &Path) -> Option<u64> {
 }
 
 /// What:
-///  Whether the filesystem of `path` may share data blocks between files: btrfs, XFS (reflink is a per-filesystem
+///  Whether the filesystem of `path` may share data blocks between files:
+/// btrfs,
+/// XFS (reflink is a per-filesystem
 ///  feature that the first clone reveals) and overlayfs (a clone inside the overlay reaches the layers' filesystem).
 /// Why:
-///   Other filesystems never clone, so the clone rung is not tried there.
+///   Other filesystems never clone,
+/// so the clone rung is not tried there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -237,10 +280,14 @@ fn may_clone(path: &Path) -> bool {
 }
 
 /// What:
-///  The cheap reasons the clone rung cannot serve a planned add: either side is on a filesystem that never clones, or the
-///  two are not in one clone domain (one btrfs filesystem, or one device elsewhere).
+///  The cheap reasons the clone rung cannot serve a planned add:
+/// either side is on a filesystem that never clones,
+/// or the
+///  two are not in one clone domain (one btrfs filesystem,
+/// or one device elsewhere).
 /// Why:
-///   A clone crosses subvolumes of one btrfs filesystem and nothing else; an overlay or XFS is one device.
+///   A clone crosses subvolumes of one btrfs filesystem and nothing else;
+/// an overlay or XFS is one device.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -263,21 +310,27 @@ pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<Stri
     return if one_domain { None } else { Some(format!("{} and {} are on different filesystems", root.display(), parent.display())) };
 }
 
-/// Which kind of check refused a source, so the person can be told the cause in words that fit it.
+/// Which kind of check refused a source,
+/// so the person can be told the cause in words that fit it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RefusalKind {
-    /// The source could not be proven clean, for the kind of reason the clean check gives.
+    /// The source could not be proven clean,
+    /// for the kind of reason the clean check gives.
     Unclean(CleanRefusalKind),
-    /// A feature a copy of the files does not reproduce, or a state the checks cannot read.
+    /// A feature a copy of the files does not reproduce,
+    /// or a state the checks cannot read.
     Unsupported,
-    /// The stat data could not vouch for the files, and the Git run that settles it by content failed.
+    /// The stat data could not vouch for the files,
+    /// and the Git run that settles it by content failed.
     StatusFailed,
 }
 
 /// What:
-///  Why a source cannot be copied, and which kind of check said so.
+///  Why a source cannot be copied,
+/// and which kind of check said so.
 /// Why:
-///   The reason is for the log and for the sentence the person reads; the kind lets the sentence be chosen without reading
+///   The reason is for the log and for the sentence the person reads;
+/// the kind lets the sentence be chosen without reading
 ///  the reason's words.
 ///
 /// In TS you'd write (pseudocode):
@@ -286,7 +339,8 @@ pub enum RefusalKind {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Refusal {
-    /// The reason, in words.
+    /// The reason,
+    /// in words.
     pub reason: String,
     /// The kind of check that refused.
     pub kind: RefusalKind,
@@ -300,11 +354,16 @@ impl Refusal {
 }
 
 /// What:
-///  Check the creating worktree for everything a copy of its files needs, from the cheapest check to the dearest, and
-///  collect what the later steps use; the refusal is the error.
+///  Check the creating worktree for everything a copy of its files needs,
+/// from the cheapest check to the dearest,
+/// and
+///  collect what the later steps use;
+/// the refusal is the error.
 /// Why:
-///   The dear checks (the clean check starts one Git run) happen once for both rungs, and only after a cheap check let a
-///  rung through. The kind of the refusal lets the ladder tell the person the cause in fitting words.
+///   The dear checks (the clean check starts one Git run) happen once for both rungs,
+/// and only after a cheap check let a
+///  rung through.
+/// The kind of the refusal lets the ladder tell the person the cause in fitting words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -315,10 +374,14 @@ pub fn source_refusal(context: &GitContext, identity: &WorktreeIdentity) -> Resu
 }
 
 /// What:
-///  `source_refusal`, except that a main checkout with only ordinary uncommitted changes is a source too, carrying the list of
-///  its changes; every other refusal stays.
+///  `source_refusal`,
+/// except that a main checkout with only ordinary uncommitted changes is a source too,
+/// carrying the list of
+///  its changes;
+/// every other refusal stays.
 /// Why:
-///   The ladder snapshots such a source and restores the copy to the new worktree's `HEAD`; the clone rung and the other
+///   The ladder snapshots such a source and restores the copy to the new worktree's `HEAD`;
+/// the clone rung and the other
 ///  callers of the clean answer never see it.
 ///
 /// In TS you'd write (pseudocode):
@@ -330,9 +393,12 @@ pub fn source_or_dirty(context: &GitContext, identity: &WorktreeIdentity) -> Res
 }
 
 /// What:
-///  The Git configuration of the source, read on a thread of its own and timed as the work `readConfig`.
+///  The Git configuration of the source,
+/// read on a thread of its own and timed as the work `readConfig`.
 /// Why:
-///   The read writes nothing, so it runs beside the cleanliness check; the add timing record sums the work of threads by name.
+///   The read writes nothing,
+/// so it runs beside the cleanliness check;
+/// the add timing record sums the work of threads by name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -345,7 +411,9 @@ fn read_configuration_timed((context, root): (&GitContext, &Path)) -> Option<Con
     return read;
 }
 
-/// Whether the place left-out directories are set aside is ignored, for a main checkout only, timed as the work `trashIgnored`.
+/// Whether the place left-out directories are set aside is ignored,
+/// for a main checkout only,
+/// timed as the work `trashIgnored`.
 fn trash_location_ignored_timed((context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
     let began: std::time::Instant = begin_work();
     let ignored: bool = git_dir == common_dir && crate::worktree_trash::trash_location_is_ignored(context, root);
@@ -353,7 +421,8 @@ fn trash_location_ignored_timed((context, root, git_dir, common_dir): (&GitConte
     return ignored;
 }
 
-/// The cleanliness check of the source, which runs on the calling thread beside the two reads on threads of their own.
+/// The cleanliness check of the source,
+/// which runs on the calling thread beside the two reads on threads of their own.
 fn clean_check_of_source((context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> Result<CleanSource, CleanRefusal> {
     return check_clean(context, root, git_dir, common_dir);
 }
@@ -362,9 +431,12 @@ fn clean_check_of_source((context, root, git_dir, common_dir): (&GitContext, &Pa
 type TrashAndCleanVerdicts = (std::thread::Result<bool>, Result<CleanSource, CleanRefusal>);
 
 /// What:
-///  Read whether the trash location is ignored on a thread, and check the cleanliness of the source here, beside it.
+///  Read whether the trash location is ignored on a thread,
+/// and check the cleanliness of the source here,
+/// beside it.
 /// Why:
-///   The two read different things and write nothing; the verdicts are read in the order the checks have always had.
+///   The two read different things and write nothing;
+/// the verdicts are read in the order the checks have always had.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -374,7 +446,8 @@ fn check_trash_and_cleanliness(state: (&GitContext, &Path, &Path, &Path)) -> Tra
     return run_beside_caller((state, trash_location_ignored_timed), (state, clean_check_of_source));
 }
 
-/// The checks of `source_refusal`, and of `source_or_dirty` when `allow_dirty` is set.
+/// The checks of `source_refusal`,
+/// and of `source_or_dirty` when `allow_dirty` is set.
 fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty: bool) -> Result<SnapshotSource, Refusal> {
     let (root, git_dir, common_dir): (&PathBuf, &PathBuf, &PathBuf) = worktree_of(identity).map_err(Refusal::unsupported)?;
     if git_dir.join("info/sparse-checkout").exists() || common_dir.join("info/sparse-checkout").exists() {
@@ -419,9 +492,11 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
 }
 
 /// What:
-///  A refusal for a source that is not clean, carrying the reason and kind of the clean check's refusal.
+///  A refusal for a source that is not clean,
+/// carrying the reason and kind of the clean check's refusal.
 /// Why:
-///   The ladder reports a refusal of its own kind, and an unclean source is one of them.
+///   The ladder reports a refusal of its own kind,
+/// and an unclean source is one of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -445,9 +520,13 @@ fn status_failed(reason: String) -> Refusal {
 }
 
 /// What:
-///  Whether a source that is not clean can be copied and restored: the main checkout, whose index lies inside the snapshot.
+///  Whether a source that is not clean can be copied and restored:
+/// the main checkout,
+/// whose index lies inside the snapshot.
 /// Why:
-///   The restore starts from the index the snapshot carries, which is one instant with the files; a linked worktree's index
+///   The restore starts from the index the snapshot carries,
+/// which is one instant with the files;
+/// a linked worktree's index
 ///  lies outside its directory and is not in the snapshot.
 ///
 /// In TS you'd write (pseudocode):
@@ -459,9 +538,11 @@ fn restorable_here(identity: &WorktreeIdentity) -> bool {
 }
 
 /// What:
-///  Check the creating worktree for everything a copy of its files needs; the reason is the error.
+///  Check the creating worktree for everything a copy of its files needs;
+/// the reason is the error.
 /// Why:
-///   Callers that only log or compare the reason ask for the words; the ladder asks `source_refusal` for the kind too.
+///   Callers that only log or compare the reason ask for the words;
+/// the ladder asks `source_refusal` for the kind too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -488,9 +569,11 @@ fn ordinary_worktree_reason(path: PathBuf) -> String {
 }
 
 /// What:
-///  The registered worktree inside the source that would be carried into a snapshot with all its files, if any.
+///  The registered worktree inside the source that would be carried into a snapshot with all its files,
+/// if any.
 /// Why:
-///   Only the snapshot rung cares: a nested worktree that is a subvolume is an empty stub in a snapshot.
+///   Only the snapshot rung cares:
+/// a nested worktree that is a subvolume is an empty stub in a snapshot.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -508,10 +591,14 @@ pub fn snapshot_blocker(source: &SnapshotSource) -> Option<String> {
 }
 
 /// What:
-///  Decide whether the creating worktree of a planned add can be the snapshot source: the cheap refusals, the shared
-///  checks, then what only a snapshot minds.
+///  Decide whether the creating worktree of a planned add can be the snapshot source:
+/// the cheap refusals,
+/// the shared
+///  checks,
+/// then what only a snapshot minds.
 /// Why:
-///   The ladder asks the three in turn so the clone rung can share the dear checks; this is the whole question for the
+///   The ladder asks the three in turn so the clone rung can share the dear checks;
+/// this is the whole question for the
 ///  snapshot alone.
 ///
 /// In TS you'd write (pseudocode):

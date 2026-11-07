@@ -1,13 +1,24 @@
 //! What:
-//!  The Git steps a command or a landing started, each with the program and subcommand, when it began and how long it took,
+//!  The Git steps a command or a landing started,
+//! each with the program and subcommand,
+//! when it began and how long it took,
 //! kept until a timing record takes them.
 //! Why:
-//!  A timing record that names only phases cannot say which step spent a slow phase: on 2026-11-07 a commit spent 241 s in its
-//! build phase, which runs real Git in a scratch repository, and the record held no entry for that step (the quiet ledger keeps
-//! the longest quiet gap of a step, not how long it ran).
-//! The name is the program and the subcommand (`git commit`), never a path, a message, an option value or the environment, so a
+//!  A timing record that names only phases cannot say which step spent a slow phase:
+//! on 2026-11-07 a commit spent 241 s in its
+//! build phase,
+//! which runs real Git in a scratch repository,
+//! and the record held no entry for that step (the quiet ledger keeps
+//! the longest quiet gap of a step,
+//! not how long it ran).
+//! The name is the program and the subcommand (`git commit`),
+//! never a path,
+//! a message,
+//! an option value or the environment,
+//! so a
 //! record carries nothing the person typed.
-//! The list is bounded (`MAX_STEP_RUNS`) and says how many entries it dropped, so a record never grows with the work.
+//! The list is bounded (`MAX_STEP_RUNS`) and says how many entries it dropped,
+//! so a record never grows with the work.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,17 +36,30 @@ use std::time::{Duration, Instant};
 
 /// The most steps one record lists.
 ///
-/// Measured on 2026-11-07 with `strace` over ten commits of the shaped repository (`native:perf --trace-directory`): a commit starts
-/// 10 Git processes in the client and 7 in the service, 17 in all. A landing that loses its branch is prepared again at most
-/// `LANDING_ATTEMPTS` (3) times, so the most one commit starts is 3 times 17, 51; 64 is the next power of two above it. The record
-/// names how many steps went unlisted, so a longer run is counted, not lost silently. At about 70 bytes an entry, 64 entries are
-/// under 4.5 KiB, a small share of the one mebibyte the timing file holds.
+/// Measured on 2026-11-07 with `strace` over ten commits of the shaped repository (`native:perf --trace-directory`):
+/// a commit starts
+/// 10 Git processes in the client and 7 in the service,
+/// 17 in all.
+/// A landing that loses its branch is prepared again at most
+/// `LANDING_ATTEMPTS` (3) times,
+/// so the most one commit starts is 3 times 17,
+/// 51;
+/// 64 is the next power of two above it.
+/// The record
+/// names how many steps went unlisted,
+/// so a longer run is counted,
+/// not lost silently.
+/// At about 70 bytes an entry,
+/// 64 entries are
+/// under 4.5 KiB,
+/// a small share of the one mebibyte the timing file holds.
 pub const MAX_STEP_RUNS: usize = 64;
 
 /// One step that ran.
 #[derive(Clone, Debug)]
 pub struct StepRun {
-    /// The program and the subcommand, for example `git commit`.
+    /// The program and the subcommand,
+    /// for example `git commit`.
     pub name: String,
     /// When the step started.
     pub began: Instant,
@@ -45,7 +69,8 @@ pub struct StepRun {
 
 /// The steps kept and the number that did not fit.
 struct Ledger {
-    /// The steps kept, in the order they ended.
+    /// The steps kept,
+    /// in the order they ended.
     runs: Vec<StepRun>,
     /// How many steps came after the list was full.
     dropped: usize,
@@ -57,7 +82,8 @@ static STEPS: Mutex<Ledger> = Mutex::new(Ledger { runs: Vec::new(), dropped: 0 }
 /// What:
 ///  Keeps one step that has just ended.
 /// Why:
-///   The Git runner calls it after every step it ran, whatever the step's outcome.
+///   The Git runner calls it after every step it ran,
+/// whatever the step's outcome.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,18 +99,26 @@ pub fn note_step(name: &str, began: Instant, took: Duration) {
     ledger.runs.push(StepRun { name: plain_name(name), began, took });
 }
 
-/// The name with every character that is not a letter, a digit, a space, a hyphen or an underscore replaced by `?`, so a name can
-///  never carry a path, an option value or a separator of the log line.
+/// The name with every character that is not a letter,
+/// a digit,
+/// a space,
+/// a hyphen or an underscore replaced by `?`,
+/// so a name can
+///  never carry a path,
+/// an option value or a separator of the log line.
 fn plain_name(name: &str) -> String {
     return name.chars().map(plain_character).collect();
 }
 
-/// One character of a name, or `?` when it is none of the allowed ones.
+/// One character of a name,
+/// or `?` when it is none of the allowed ones.
 fn plain_character(character: char) -> char {
     return if character.is_ascii_alphanumeric() || matches!(character, ' ' | '-' | '_') { character } else { '?' };
 }
 
-/// One step as its record knows it: offset from the record's origin and duration, in whole milliseconds.
+/// One step as its record knows it:
+/// offset from the record's origin and duration,
+/// in whole milliseconds.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StepFigure {
     /// The program and the subcommand.
@@ -96,9 +130,14 @@ pub struct StepFigure {
 }
 
 /// What:
-///  Every step kept, ordered by when it began and measured from `origin`, with the number dropped; the list is emptied.
+///  Every step kept,
+/// ordered by when it began and measured from `origin`,
+/// with the number dropped;
+/// the list is emptied.
 /// Why:
-///   One record takes the steps of the command it describes; the next starts from nothing. Threads add steps in the order they end,
+///   One record takes the steps of the command it describes;
+/// the next starts from nothing.
+/// Threads add steps in the order they end,
 ///  so the order is made here.
 ///
 /// In TS you'd write (pseudocode):
@@ -110,12 +149,22 @@ pub fn drain_steps(origin: Instant) -> (Vec<StepFigure>, usize) {
     let mut taken: Vec<StepRun> = std::mem::take(&mut ledger.runs);
     let dropped: usize = std::mem::take(&mut ledger.dropped);
     drop(ledger);
-    taken.sort_by_key(|run| { return run.began; });
-    let figures: Vec<StepFigure> = taken.iter().map(|run| { return figure_of(run, origin); }).collect();
+    taken.sort_by_key(began_of);
+    let mut figures: Vec<StepFigure> = Vec::new();
+    for run in &taken {
+        figures.push(figure_of(run, origin));
+    }
     return (figures, dropped);
 }
 
-/// The figure of one step against an origin; a step that began before the origin starts at zero.
+/// When a step started,
+/// the key the steps are ordered by.
+fn began_of(run: &StepRun) -> Instant {
+    return run.began;
+}
+
+/// The figure of one step against an origin;
+/// a step that began before the origin starts at zero.
 fn figure_of(run: &StepRun, origin: Instant) -> StepFigure {
     return StepFigure {
         name: run.name.clone(),
@@ -125,7 +174,8 @@ fn figure_of(run: &StepRun, origin: Instant) -> StepFigure {
 }
 
 /// What:
-///  One figure as a JSON object: `{"name":"git commit","offsetMs":12,"durationMs":1004}`.
+///  One figure as a JSON object:
+/// `{"name":"git commit","offsetMs":12,"durationMs":1004}`.
 /// Why:
 ///   `steps_json` joins them into the record's list.
 ///
@@ -138,9 +188,11 @@ fn figure_json(figure: &StepFigure) -> String {
 }
 
 /// What:
-///  The steps as a JSON array, in the order given.
+///  The steps as a JSON array,
+/// in the order given.
 /// Why:
-///   The client's timing record carries it under `steps`, with the number dropped under `stepsDropped`.
+///   The client's timing record carries it under `steps`,
+/// with the number dropped under `stepsDropped`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -152,9 +204,12 @@ pub fn steps_json(figures: &[StepFigure]) -> String {
 }
 
 /// What:
-///  The steps as one word for the service's log line: `name@offset+duration` joined by semicolons.
+///  The steps as one word for the service's log line:
+/// `name@offset+duration` joined by semicolons.
 /// Why:
-///   The service's lines are `key=value` words; the name has no semicolon, at sign or plus because it is a program and a
+///   The service's lines are `key=value` words;
+/// the name has no semicolon,
+/// at sign or plus because it is a program and a
 ///  subcommand of Git.
 ///
 /// In TS you'd write (pseudocode):
@@ -171,7 +226,9 @@ fn step_word(figure: &StepFigure) -> String {
     return format!("{}@{}+{}", figure.name, figure.offset_ms, figure.duration_ms);
 }
 
-/// The ledger is kept, bounded, ordered and written as controls in the test module.
+/// The ledger is kept,
+/// bounded,
+/// ordered and written as controls in the test module.
 #[cfg(test)]
 #[path = "transaction_step_durations_tests.rs"]
 mod tests;

@@ -35,16 +35,87 @@ pub struct Edit {
 }
 
 /// What:
-///  All edits supplied by one finding.
+///  What a fix does to the reader's text:
+///  only whitespace between the same tokens,
+///  or content.
 /// Why:
-///  This group is the unit accepted or rejected when edits conflict.
+///  Plain `--fix` runs in the commit path and in agents' hands,
+///  so a fix that adds,
+///  removes or rewrites a token must be named as content and wait for `--fix-content`.
+///  A rule declares the class beside the edit it builds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Fix = { edits: Edit[] };
+/// type FixClass = 'whitespace' | 'content';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FixClass {
+    /// The edit changes only line breaks and the spaces around them;
+    ///  every whitespace-separated token stays,
+    /// in order.
+    ///  A Rust host's comment marker on a continuation line is comment syntax,
+    /// not a token of the text.
+    Whitespace,
+    /// The edit adds,
+    ///  removes or rewrites a token.
+    Content,
+}
+
+/// What:
+///  The classes a run may apply.
+/// Why:
+///  Plain `--fix` is `WhitespaceOnly`,
+///  and `--fix-content` is `WhitespaceAndContent`;
+///  a finding whose fix is outside the scope is still reported.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FixScope = 'whitespace-only' | 'whitespace-and-content';
+/// ```
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FixScope {
+    /// Only whitespace fixes apply.
+    #[default]
+    WhitespaceOnly,
+    /// Whitespace fixes and content fixes apply.
+    WhitespaceAndContent,
+}
+
+/// What:
+///  The scope's question about one fix.
+/// Why:
+///  Plain `--fix` and `--fix-content` differ only in which classes this answers yes for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// scope.allows(fix.class);
+/// ```
+impl FixScope {
+    /// Whether a fix of this class may be applied in this scope.
+    pub fn allows(self, class: FixClass) -> bool {
+        return match class {
+            FixClass::Whitespace => true,
+            FixClass::Content => self == FixScope::WhitespaceAndContent,
+        };
+    }
+}
+
+/// What:
+///  All edits supplied by one finding,
+///  with the class of change they make.
+/// Why:
+///  This group is the unit accepted or rejected when edits conflict,
+///  and the class decides whether a run may apply it at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Fix = { class: FixClass; edits: Edit[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Fix {
+    /// Whether the edits change only whitespace or change content.
+    pub class: FixClass,
     /// Related replacements that must apply together.
     pub edits: Vec<Edit>,
 }

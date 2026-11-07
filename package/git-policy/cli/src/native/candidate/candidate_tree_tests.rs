@@ -1,5 +1,8 @@
-//! What: Controls for the tree-record parser.
-//! Why: A record misread would compare a manifest with the wrong `HEAD` bytes, or admit a
+//! What:
+//! Controls for the tree-record parser.
+//! Why:
+//! A record misread would compare a manifest with the wrong `HEAD` bytes,
+//! or admit a
 //!      file a direct fix did not select although `HEAD` holds something else.
 //!
 //! In TS you'd write (pseudocode):
@@ -14,7 +17,8 @@ use crate::candidate_error::{CandidateError, CandidateFailure};
 /// The modes and object names records carry.
 use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
 
-/// Forty copies of one hexadecimal digit, as text.
+/// Forty copies of one hexadecimal digit,
+/// as text.
 fn hex(digit: char) -> String {
     return std::iter::repeat_n(digit, 40).collect();
 }
@@ -24,7 +28,8 @@ fn object(digit: char) -> ObjectId {
     return parse_object_id(hex(digit).as_bytes()).expect("forty hexadecimal digits");
 }
 
-/// The failure a parse returned, which the control requires.
+/// The failure a parse returned,
+/// which the control requires.
 fn failure(result: Result<Vec<TreeRecord>, CandidateError>) -> CandidateError {
     match result {
         Ok(records) => panic!("expected a failure, parsed {records:?}"),
@@ -32,7 +37,10 @@ fn failure(result: Result<Vec<TreeRecord>, CandidateError>) -> CandidateError {
     }
 }
 
-/// Every mode, its type, tabs and spaces inside a pathname, and listing order are kept.
+/// Every mode,
+/// its type,
+/// tabs and spaces inside a pathname,
+/// and listing order are kept.
 #[test]
 fn parses_every_file_mode_in_listing_order() {
     let listing: String = format!(
@@ -69,13 +77,15 @@ fn parses_every_file_mode_in_listing_order() {
     );
 }
 
-/// An empty listing is an empty tree, not a failure.
+/// An empty listing is an empty tree,
+/// not a failure.
 #[test]
 fn an_empty_listing_has_no_records() {
     assert_eq!(parse_tree_records(b"").expect("empty"), Vec::new());
 }
 
-/// Each malformed shape is refused with its own cause, naming the record's position only.
+/// Each malformed shape is refused with its own cause,
+/// naming the record's position only.
 #[test]
 fn refuses_every_malformed_record() {
     let blob: String = hex('a');

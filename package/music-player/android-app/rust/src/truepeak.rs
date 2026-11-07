@@ -43,6 +43,17 @@
 use crate::decode::Source;
 
 /// What:
+///      `use crate::error::PlayerError;` imports the engine's one error type.
+/// Why:
+///       The two `map_err` functions take a `PlayerError` and rewrap it as a `TruePeakError`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { PlayerError } from "./error";
+/// ```
+use crate::error::PlayerError;
+
+/// What:
 ///      `use truepeak_core::{AudioSpec, Decision, TruePeakError, TruePeakSource,
 ///           default_policy, resolve_decision, resolve_full_scan};`.
 ///  The shared source
@@ -80,6 +91,38 @@ use truepeak_core::{
 /// export { truePeakInterleaved } from "truepeak-core";
 /// ```
 pub use truepeak_core::true_peak_interleaved;
+
+/// What:
+///      `fn decode_failed(error: PlayerError) -> TruePeakError`.
+///  Rewrap a decoder error as the shared crate's decode error,
+///  keeping the decoder's message.
+/// Why:
+///       `map_err` takes it by path,
+///  so no closure is needed to cross the crate boundary.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const decodeFailed = (error: PlayerError) => ({ kind: "decode", message: String(error) });
+/// ```
+fn decode_failed(error: PlayerError) -> TruePeakError {
+    return TruePeakError::Decode { message: error.to_string() }
+}
+
+/// What:
+///      `fn seek_failed(error: PlayerError) -> TruePeakError`.
+///  Rewrap a decoder error as the shared crate's seek error,
+///  keeping the decoder's message.
+/// Why:
+///       `map_err` takes it by path,
+///  so no closure is needed to cross the crate boundary.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seekFailed = (error: PlayerError) => ({ kind: "seek", message: String(error) });
+/// ```
+fn seek_failed(error: PlayerError) -> TruePeakError {
+    return TruePeakError::Seek { message: error.to_string() }
+}
 
 /// What:
 ///      `struct AndroidSource { inner: Box<dyn Source> }`.
@@ -174,7 +217,7 @@ impl TruePeakSource for AndroidSource {
     /// nextChunk() { try { return this.inner.nextChunk(); } catch (e) { throw decodeError(e); } }
     /// ```
     fn next_chunk(&mut self) -> Result<Vec<f32>, TruePeakError> {
-        // What:     `self.inner.next_chunk().map_err(|error| TruePeakError::Decode { ... })`.
+        // What:     `self.inner.next_chunk().map_err(decode_failed)`.
         //           Forward; `.map_err` rewraps a `PlayerError` as a crate decode error.
         //           Tail -> return.
         // Why:      Keep the decoder's message while crossing the crate boundary.
@@ -185,7 +228,7 @@ impl TruePeakSource for AndroidSource {
         // ```
         return self.inner
             .next_chunk()
-            .map_err(|error| return TruePeakError::Decode { message: error.to_string() })
+            .map_err(decode_failed)
     }
 
     /// What:
@@ -229,7 +272,7 @@ impl TruePeakSource for AndroidSource {
         // const seconds = frame / rate;
         // ```
         let seconds = frame as f64 / f64::from(rate);
-        // What:     `self.inner.seek(seconds).map_err(|error| TruePeakError::Seek { ... })`.
+        // What:     `self.inner.seek(seconds).map_err(seek_failed)`.
         //           Seek; rewrap a `PlayerError` as a crate seek error. Tail -> return.
         // Why:      Keep the decoder's message while crossing the crate boundary.
         //
@@ -239,7 +282,7 @@ impl TruePeakSource for AndroidSource {
         // ```
         return self.inner
             .seek(seconds)
-            .map_err(|error| return TruePeakError::Seek { message: error.to_string() })
+            .map_err(seek_failed)
     }
 }
 

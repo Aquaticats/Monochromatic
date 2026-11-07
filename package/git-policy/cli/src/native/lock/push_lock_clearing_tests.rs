@@ -1,8 +1,10 @@
 //! What:
 //!  Controls for the wrapper's own fetch and push starting after the stale reference locks of their repository are cleared.
 //! Why:
-//!  The locks are made by real Git killed with `SIGKILL`, and the fetch and push are real Git started through the same runner
-//!  the commit service uses, so what the controls show is what the service meets.
+//!  The locks are made by real Git killed with `SIGKILL`,
+//! and the fetch and push are real Git started through the same runner
+//!  the commit service uses,
+//! so what the controls show is what the service meets.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,13 +25,15 @@ const PATIENCE: Patience = Patience::Fixed(Duration::from_secs(120));
 /// The tracking reference a killed push leaves locked.
 const TRACKING: &str = "refs/remotes/origin/main";
 
-/// Run `arguments` as the wrapper's own runner does, with `judge`.
+/// Run `arguments` as the wrapper's own runner does,
+/// with `judge`.
 fn run(stage: &Stage, arguments: &[&str], judge: &Judge) -> PushAttempt {
     let command: Command = killed::plain_git(stage, arguments);
     return run_clearing_locks(command, PATIENCE, STOP_GRACE, scratch_environment().as_slice(), judge).expect("the run");
 }
 
-/// A push killed after the remote took its commit leaves the tracking reference locked; the next push clears it and succeeds.
+/// A push killed after the remote took its commit leaves the tracking reference locked;
+/// the next push clears it and succeeds.
 #[test]
 fn a_push_runs_after_the_lock_of_a_killed_push_is_cleared() {
     let stage: Stage = killed::stage("push-clearing-killed-push", true);
@@ -43,7 +47,10 @@ fn a_push_runs_after_the_lock_of_a_killed_push_is_cleared() {
     stage.finish();
 }
 
-/// The same push, with a judge that never sees a complete process table, shows Git's refusal (Git exits 0 for it, the
+/// The same push,
+/// with a judge that never sees a complete process table,
+/// shows Git's refusal (Git exits 0 for it,
+/// the
 /// push having delivered) and says what was found.
 #[test]
 fn a_failed_push_carries_the_notice_of_the_lock_it_could_not_clear() {
@@ -60,7 +67,8 @@ fn a_failed_push_carries_the_notice_of_the_lock_it_could_not_clear() {
     stage.finish();
 }
 
-/// A run that succeeds says nothing about locks it cleared: the notice is for the failure that follows a lock.
+/// A run that succeeds says nothing about locks it cleared:
+/// the notice is for the failure that follows a lock.
 #[test]
 fn a_successful_run_adds_no_words() {
     let stage: Stage = killed::stage("push-clearing-silent", true);

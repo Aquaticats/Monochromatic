@@ -19,18 +19,29 @@
 //! to the window;
 //! the movement rules themselves are the pure functions of `list_focus`.
 
+/// Imports the cell that holds the row tops that the window reads back.
 use std::cell::RefCell;
 
+/// Imports the focus zone and the shortcut action that list keys carry.
 use music_player::keymap::{FocusZone, ShortcutAction};
+/// Imports the focus movement rules and the letter jump.
 use music_player::list_focus::{ListMove, first_starting_with, move_focus, start_focus};
+/// Imports the component handle that reaches the window's globals.
 use slint::ComponentHandle;
 
+/// Imports the window that shows the lists.
 use crate::AppWindow;
+/// Imports the generated focus type.
 use crate::Focus;
+/// Imports the generated track layout global.
 use crate::TrackLayout;
+/// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
+/// Imports the projection and the state accessors of the screen.
 use crate::ui_screen::{project, read_state, update_state};
+/// Imports the row types of the track list and the folder picker.
 use crate::ui_screen_rows::{ListRow, PickerName};
+/// Imports the scroll geometry calculations of the track list.
 use crate::ui_screen_scroll::{row_at_px, row_height_px, row_offset_px, row_tops_px, top_of_px};
 
 thread_local! {

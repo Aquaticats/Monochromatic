@@ -2,7 +2,8 @@
 //!  Validation of the options object of the `markdown/autofix` policy and of its `rules` list.
 //! Why:
 //!  The policy reader in `config_policies.rs` validates every policy's options and stays under the file-size limit;
-//!  this policy's options carry a rule list of their own, so their validation lives in a file of its own that the
+//!  this policy's options carry a rule list of their own,
+//! so their validation lives in a file of its own that the
 //!  reader imports and that imports nothing from it.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,11 +13,14 @@
 
 /// The error type that names the offending configuration key.
 use crate::config_error::ConfigError;
-/// The typed settings of the policy, the rule names it accepts, and the defaults a missing key keeps.
+/// The typed settings of the policy,
+/// the rule names it accepts,
+/// and the defaults a missing key keeps.
 use crate::config_schema::{MarkdownAutofixOptions, MarkdownRule, PolicyConfig, markdown_rule_from_name};
 /// The shared value readers.
 use crate::config_values::{member_keys, member_path, strings, wrong_kind};
-/// The repository's JSONC value type, which the reader walks directly.
+/// The repository's JSONC value type,
+/// which the reader walks directly.
 use monochromatic_jsonc_edit::JsoncValue;
 
 /// What:

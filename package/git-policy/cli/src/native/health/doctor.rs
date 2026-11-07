@@ -1,18 +1,29 @@
 //! What:
-//!  `git monochromatic-git-policy-cli doctor`: list the traditional hooks a repository holds and the external hooks its Git
-//!  configuration defines, and note the retired `hooks.concurrentCommits` key.
+//!  `git monochromatic-git-policy-cli doctor`:
+//! list the traditional hooks a repository holds and the external hooks its Git
+//!  configuration defines,
+//! and note the retired `hooks.concurrentCommits` key.
 //! Why:
 //!  Traditional hooks (executable scripts in `<git-common-dir>/hooks` or in a `core.hooksPath` directory) are
-//!  unsupported, and their behavior with the wrapper is undefined.
-//!  The commit path warns when `core.hooksPath` is configured but never scans a directory, because a scan costs
-//!  file system calls on every commit; this command is where the scan happens, on request.
-//!  Exit status 0 means none were found, 1 means at least one was (a configured hook counts), and 2 means the
+//!  unsupported,
+//! and their behavior with the wrapper is undefined.
+//!  The commit path warns when `core.hooksPath` is configured but never scans a directory,
+//! because a scan costs
+//!  file system calls on every commit;
+//! this command is where the scan happens,
+//! on request.
+//!  Exit status 0 means none were found,
+//! 1 means at least one was (a configured hook counts),
+//! and 2 means the
 //!  repository could not be located.
-//!  A hook file that is byte for byte the shim `git lfs` writes for its own name is expected and harmless, because the
-//!  wrapper does the Git LFS upload itself and starts Git with traditional hooks off; it is explained apart from the
+//!  A hook file that is byte for byte the shim `git lfs` writes for its own name is expected and harmless,
+//! because the
+//!  wrapper does the Git LFS upload itself and starts Git with traditional hooks off;
+//! it is explained apart from the
 //!  other hooks and does not make the exit status 1.
 //!  It also says on standard error whether Git's own fsmonitor is off (one line) or which file and scope turn it on
-//!  (a finding with the command); that never changes the exit status (`doctor_fsmonitor.rs`).
+//!  (a finding with the command);
+//! that never changes the exit status (`doctor_fsmonitor.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,9 +36,11 @@ use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
 /// Configured external hooks and the retired `hooks` key.
 use crate::discarded_prune::doctor_section;
 use crate::doctor_config::{ConfigFindings, config_findings, render_hook_lines, render_notes};
-/// Whether Git's own fsmonitor is off, or which setting turns it on.
+/// Whether Git's own fsmonitor is off,
+/// or which setting turns it on.
 use crate::doctor_fsmonitor::fsmonitor_report;
-/// Lexical path normalization, so one directory named two ways is scanned once.
+/// Lexical path normalization,
+/// so one directory named two ways is scanned once.
 use crate::lexical_path::normalized_path;
 /// One required Git start with the caller's context.
 use crate::transaction_git::{GitContext, GitRequest, run_git};
@@ -39,13 +52,15 @@ use std::path::{Path, PathBuf};
 /// Exit status when at least one traditional hook was found.
 pub const HOOKS_FOUND_EXIT_CODE: i32 = 1;
 
-/// File name suffix of the samples Git installs, which are never hooks.
+/// File name suffix of the samples Git installs,
+/// which are never hooks.
 const SAMPLE_SUFFIX: &[u8] = b".sample";
 
 /// What:
 ///  Where a repository keeps hooks.
 /// Why:
-///   Git reads hooks from `<git-common-dir>/hooks` unless `core.hooksPath` names another directory, and a
+///   Git reads hooks from `<git-common-dir>/hooks` unless `core.hooksPath` names another directory,
+/// and a
 ///  repository can hold hooks in both.
 ///
 /// In TS you'd write (pseudocode):
@@ -54,16 +69,20 @@ const SAMPLE_SUFFIX: &[u8] = b".sample";
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HooksLocation {
-    /// Absolute common Git directory, whose `hooks` directory is the default.
+    /// Absolute common Git directory,
+    /// whose `hooks` directory is the default.
     pub common_directory: PathBuf,
-    /// Absolute directory a configured `core.hooksPath` names, resolved the way Git resolves it.
+    /// Absolute directory a configured `core.hooksPath` names,
+    /// resolved the way Git resolves it.
     pub configured: Option<PathBuf>,
 }
 
 /// What:
-///  The directories to scan, each once.
+///  The directories to scan,
+/// each once.
 /// Why:
-///   The default directory comes first, then the configured one unless it is the same directory.
+///   The default directory comes first,
+/// then the configured one unless it is the same directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,7 +102,8 @@ pub fn hook_directories(location: &HooksLocation) -> Vec<PathBuf> {
 /// What:
 ///  Whether a file mode makes the file runnable by someone.
 /// Why:
-///   Git runs a hook only when it is executable and prints a hint for a file it skips, so a plain file is not a hook.
+///   Git runs a hook only when it is executable and prints a hint for a file it skips,
+/// so a plain file is not a hook.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -98,7 +118,8 @@ fn is_executable(metadata: &std::fs::Metadata) -> bool {
 /// What:
 ///  Whether a file is runnable.
 /// Why:
-///   Without Unix permission bits every regular file counts, because the platform has no mode to test.
+///   Without Unix permission bits every regular file counts,
+/// because the platform has no mode to test.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,11 +131,16 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 }
 
 /// What:
-///  The traditional hooks in one directory: executable regular files and symbolic links, except `*.sample`.
+///  The traditional hooks in one directory:
+/// executable regular files and symbolic links,
+/// except `*.sample`.
 /// Why:
-///   A missing directory holds none; any other failure to read it is reported, because silence would pass a
+///   A missing directory holds none;
+/// any other failure to read it is reported,
+/// because silence would pass a
 ///  directory the command could not look at.
-///  A link counts whatever it points at (a dangling link too), because Git follows it when it starts the hook.
+///  A link counts whatever it points at (a dangling link too),
+/// because Git follows it when it starts the hook.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -145,9 +171,11 @@ pub fn scan_hooks_directory(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
 }
 
 /// What:
-///  The traditional hooks in every directory, in directory order and then name order.
+///  The traditional hooks in every directory,
+/// in directory order and then name order.
 /// Why:
-///   The report lists them as a person reads them: the default directory first.
+///   The report lists them as a person reads them:
+/// the default directory first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -162,9 +190,11 @@ pub fn find_traditional_hooks(directories: &[PathBuf]) -> std::io::Result<Vec<Pa
 }
 
 /// What:
-///  The report: one hook path per line.
+///  The report:
+/// one hook path per line.
 /// Why:
-///   The output is for people and scripts alike, so it carries nothing but the paths.
+///   The output is for people and scripts alike,
+/// so it carries nothing but the paths.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,7 +225,8 @@ or express what it checked as a policy under policies in monochromatic-git-polic
 /// What:
 ///  Run one Git query in `cwd` and return its standard output as text.
 /// Why:
-///   Locating the repository takes three small questions, and each failure is reported with Git's own words.
+///   Locating the repository takes three small questions,
+/// and each failure is reported with Git's own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -223,8 +254,12 @@ fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<
 /// What:
 ///  Locate the hooks of the repository that Git selects from `cwd` and the caller's global options.
 /// Why:
-///   Git alone knows the common directory (worktrees, `--git-dir`, `GIT_DIR`) and how `core.hooksPath` expands.
-///  A relative `core.hooksPath` is relative to where Git runs hooks, which is the worktree root, or the Git
+///   Git alone knows the common directory (worktrees,
+/// `--git-dir`,
+/// `GIT_DIR`) and how `core.hooksPath` expands.
+///  A relative `core.hooksPath` is relative to where Git runs hooks,
+/// which is the worktree root,
+/// or the Git
 ///  directory of a bare repository.
 ///
 /// In TS you'd write (pseudocode):
@@ -276,10 +311,14 @@ pub fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, S
 /// The four hooks `git lfs install` writes.
 const LFS_SHIM_NAMES: [&str; 4] = ["pre-push", "post-checkout", "post-commit", "post-merge"];
 
-/// The longest shim file the comparison reads, in bytes; a longer file is not a shim.
+/// The longest shim file the comparison reads,
+/// in bytes;
+/// a longer file is not a shim.
 const LFS_SHIM_LIMIT: u64 = 1024;
 
-/// The text git-lfs 3.8.0 writes (`lfs/hook.go`, `hookBaseContent` and its `write`, which appends a line feed),
+/// The text git-lfs 3.8.0 writes (`lfs/hook.go`,
+/// `hookBaseContent` and its `write`,
+/// which appends a line feed),
 ///  with the hook's own name where `{{Command}}` stands.
 const LFS_SHIM_TEMPLATE: &str = r##"#!/bin/sh
 command -v git-lfs >/dev/null 2>&1 || { printf >&2 "\n%s\n\n" "This repository is configured for Git LFS but 'git-lfs' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the '{{Command}}' file in the hooks directory (set by 'core.hookspath'; usually '.git/hooks')."; exit 2; }
@@ -289,7 +328,8 @@ git lfs {{Command}} "$@"
 /// What:
 ///  The text git-lfs writes for the hook called `name`.
 /// Why:
-///   Recognition is by these exact bytes, so an edited or foreign file is never taken for a shim.
+///   Recognition is by these exact bytes,
+/// so an edited or foreign file is never taken for a shim.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -302,8 +342,10 @@ pub fn lfs_shim_text(name: &str) -> String {
 /// What:
 ///  Whether a hook file is exactly the git-lfs shim for its own name.
 /// Why:
-///   Only a regular file whose name is one of the four hooks and whose bytes equal that hook's shim counts; a link,
-///  a file that differs by one byte, and a shim under another hook's name are ordinary unsupported hooks.
+///   Only a regular file whose name is one of the four hooks and whose bytes equal that hook's shim counts;
+/// a link,
+///  a file that differs by one byte,
+/// and a shim under another hook's name are ordinary unsupported hooks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -336,8 +378,11 @@ pub fn is_lfs_shim(path: &Path) -> bool {
 /// What:
 ///  The explanation of the Git LFS shims a repository holds.
 /// Why:
-///   They are listed apart from the unsupported hooks and say what is going on, because the person who finds them
-///  after deleting them needs to know they come back, that this is normal, and that nothing needs doing.
+///   They are listed apart from the unsupported hooks and say what is going on,
+/// because the person who finds them
+///  after deleting them needs to know they come back,
+/// that this is normal,
+/// and that nothing needs doing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -365,7 +410,9 @@ such as `/usr/bin/git` directly, would run them.\n",
 /// What:
 ///  Decide what `git monochromatic-git-policy-cli doctor` prints and exits with.
 /// Why:
-///   Exit 0 with no output means no traditional hook was found, exit 1 lists each one on standard output, and exit 2
+///   Exit 0 with no output means no traditional hook was found,
+/// exit 1 lists each one on standard output,
+/// and exit 2
 ///  reports a repository or a directory that could not be examined.
 ///  Git LFS shims are explained on standard error apart from the other hooks and leave an exit status of 0 as it is;
 ///  any other hook beside them still ends in 1 with the unsupported report.
@@ -381,7 +428,8 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
 /// What:
 ///  A filesystem section that is always empty.
 /// Why:
-///   `doctor_action` prints no filesystem section, and `doctor_action_with_section` takes its section as a function,
+///   `doctor_action` prints no filesystem section,
+/// and `doctor_action_with_section` takes its section as a function,
 ///  so this named function stands where a closure that ignored its argument stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -396,9 +444,16 @@ fn no_filesystem_section(_common_directory: &Path) -> String {
 ///  The same decision with a filesystem section appended to standard error.
 ///  `&dyn Fn(&Path) -> String` is a borrowed function from the repository's common Git directory to the section text.
 /// Why:
-///   The section is informational and comes last, after every hook line and note; a run that could not examine the
-///  repository (status 2) prints none, and the exit status never depends on it. Git selected the common directory
-///  (so `-C`, `--git-dir` and linked worktrees are honored), and the caller supplies the text function, so the
+///   The section is informational and comes last,
+/// after every hook line and note;
+/// a run that could not examine the
+///  repository (status 2) prints none,
+/// and the exit status never depends on it.
+/// Git selected the common directory
+///  (so `-C`,
+/// `--git-dir` and linked worktrees are honored),
+/// and the caller supplies the text function,
+/// so the
 ///  exact-output controls pass one that returns nothing and stay independent of the host.
 ///
 /// In TS you'd write (pseudocode):

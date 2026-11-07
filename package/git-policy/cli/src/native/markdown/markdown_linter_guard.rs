@@ -1,6 +1,9 @@
 //! What:
-//!  Run one job on a thread of its own and wait for it until it ends, or until the thread has shown no sign of work for a
-//!  window, so a job that panics or never ends costs the caller one failed result, not the process.
+//!  Run one job on a thread of its own and wait for it until it ends,
+//! or until the thread has shown no sign of work for a
+//!  window,
+//! so a job that panics or never ends costs the caller one failed result,
+//! not the process.
 //! Why:
 //!  The Markdown linter used to run as a child process,
 //!  and the operating system gave the wrapper a free boundary:
@@ -9,10 +12,13 @@
 //!  the linter shares its address space,
 //!  so a boundary is rebuilt here from what the language offers,
 //!  and it is a smaller one than a process gave:
-//!  a hang and a panic are contained, a stack overflow, an out-of-memory abort or any other abort is not,
+//!  a hang and a panic are contained,
+//! a stack overflow,
+//! an out-of-memory abort or any other abort is not,
 //!  and ends the wrapper like any other crash.
 //!  The size of a finished result is bounded by the caller after the fact.
-//!  The long-term answer is to run the linter in the resident service, outside the client.
+//!  The long-term answer is to run the linter in the resident service,
+//! outside the client.
 //!  A panic is caught on the job's thread and returned as text.
 //!  A job that shows no sign of work for the window cannot be stopped from outside,
 //!  so the wrapper stops waiting for it and leaves the thread to end with the process,
@@ -21,14 +27,31 @@
 //!  so abandoning it leaves nothing locked.
 //!  The thread has the linter's own stack size,
 //!  because the main thread's stack is set by the platform and a stack overflow cannot be caught;
-//!  the size makes an overflow as unlikely as in the executable, it does not contain one.
-//!  Silence ends the wait (owner, 2026-11-03: "Stop only on no progress"; pick 9 of
-//!  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation and open to the owner's
-//!  veto). The signs of work are those the push reads, taken from the job thread's own files under `/proc/self/task/`
-//!  (`thread_quiet.rs`): the bytes it read and wrote, its processor time, its state. The longest quiet gap of every run is kept
-//!  in the ledger under `monochromatic-lint` (`quiet_ledger.rs`). Where `/proc` cannot be read only the ceiling ends the wait.
-//!  The ceiling (`wait_ceilings.rs`, `LINT_CEILING`) abandons a job that keeps showing work (owner, 2026-11-04, "Silence plus a
-//!  ceiling (Recommended)"), the same way: the wrapper stops waiting and the thread ends with the process.
+//!  the size makes an overflow as unlikely as in the executable,
+//! it does not contain one.
+//!  Silence ends the wait (owner,
+//! 2026-11-03:
+//! "Stop only on no progress";
+//! pick 9 of
+//!  `doc/planning/cli-git-shipped-limits-audit.md`,
+//! the coordinator's under the owner's delegation and open to the owner's
+//!  veto).
+//! The signs of work are those the push reads,
+//! taken from the job thread's own files under `/proc/self/task/`
+//!  (`thread_quiet.rs`):
+//! the bytes it read and wrote,
+//! its processor time,
+//! its state.
+//! The longest quiet gap of every run is kept
+//!  in the ledger under `monochromatic-lint` (`quiet_ledger.rs`).
+//! Where `/proc` cannot be read only the ceiling ends the wait.
+//!  The ceiling (`wait_ceilings.rs`,
+//! `LINT_CEILING`) abandons a job that keeps showing work (owner,
+//! 2026-11-04,
+//! "Silence plus a
+//!  ceiling (Recommended)"),
+//! the same way:
+//! the wrapper stops waiting and the thread ends with the process.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,9 +60,11 @@
 
 /// When a long wait prints its notices.
 use crate::wait_progress::{Cadence, WaitReporter};
-/// The longest quiet gap of each tool, kept for the timing records.
+/// The longest quiet gap of each tool,
+/// kept for the timing records.
 use crate::quiet_ledger;
-/// The thread's own number, and the clock that says when a thread has been quiet for a window.
+/// The thread's own number,
+/// and the clock that says when a thread has been quiet for a window.
 use crate::thread_quiet::{ThreadClock, current_thread_id};
 /// The thread builder the linter's own executable uses for everything that lints.
 use monochromatic_lint::run_workers::lint_thread;
@@ -65,11 +90,14 @@ use std::time::{Duration, Instant};
 pub enum GuardFailure {
     /// The operating system would not start the thread.
     Start(String),
-    /// The job panicked; the text is the panic's message.
+    /// The job panicked;
+    /// the text is the panic's message.
     Panicked(String),
     /// The job showed no sign of work for the window and was abandoned.
     Quiet(Duration),
-    /// The job ran as long as the ceiling allows, whatever it showed, and was abandoned.
+    /// The job ran as long as the ceiling allows,
+    /// whatever it showed,
+    /// and was abandoned.
     Ceiling(Duration),
     /// The thread ended without sending a result or a panic,
     ///  which no code path here does.
@@ -79,7 +107,9 @@ pub enum GuardFailure {
 /// What:
 ///  How long a guarded job may stay silent and how long it may run in all.
 /// Why:
-///   The window abandons a job that shows nothing; the ceiling abandons one that keeps showing something (owner, 2026-11-04,
+///   The window abandons a job that shows nothing;
+/// the ceiling abandons one that keeps showing something (owner,
+/// 2026-11-04,
 ///  "Silence plus a ceiling (Recommended)").
 ///
 /// In TS you'd write (pseudocode):
@@ -90,14 +120,16 @@ pub enum GuardFailure {
 pub struct GuardLimits {
     /// How long the job may show no sign of work.
     pub window: Duration,
-    /// The longest the wrapper waits for the job, whatever it shows.
+    /// The longest the wrapper waits for the job,
+    /// whatever it shows.
     pub ceiling: Duration,
 }
 
 /// What:
 ///  The text of a caught panic's payload.
 /// Why:
-///  A panic carries a `&str` or a `String`; anything else has no message to show.
+///  A panic carries a `&str` or a `String`;
+/// anything else has no message to show.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,7 +148,8 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 /// What:
 ///  The notice a long wait prints.
 /// Why:
-///  The linter hashes every image a file links, which takes seconds for a large one,
+///  The linter hashes every image a file links,
+/// which takes seconds for a large one,
 ///  and a silent wait looks like a hang;
 ///  the notice names the file and where the wait stops.
 ///
@@ -145,7 +178,9 @@ fn notice_line(waiting_for: &str, waited: Duration, window: Duration, repeat: bo
 ///  The wait sleeps on the channel,
 ///  so a job that finishes wakes it at once,
 ///  and wakes by itself only when a notice or a look at the thread is due.
-///  The thread's number arrives first on its own channel; until it does the thread is starting, which is not quiet.
+///  The thread's number arrives first on its own channel;
+/// until it does the thread is starting,
+/// which is not quiet.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,9 +229,15 @@ fn wait_for<T>(
 }
 
 /// The longest the wait sleeps before it looks at the notice schedule again.
-///  Exempt from a citation under `LQM` (class: poll): it sets how often a condition is looked at again, so it adds at
-///  most one poll interval to a wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-audit.md`,
-///  "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// poll):
+/// it sets how often a condition is looked at again,
+/// so it adds at
+///  most one poll interval to a wait that already exists.
+/// Classed once in `doc/planning/cli-git-shipped-limits-audit.md`,
+///  "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 const NOTICE_POLL: Duration = Duration::from_millis(50);
 
 /// What:
@@ -243,7 +284,8 @@ pub fn run_guarded<T: Send + 'static>(
     return result;
 }
 
-/// Panic, quiet-window and notice controls stay out of the release executable.
+/// Panic,
+/// quiet-window and notice controls stay out of the release executable.
 #[cfg(test)]
 #[path = "markdown_linter_guard_tests.rs"]
 mod tests;

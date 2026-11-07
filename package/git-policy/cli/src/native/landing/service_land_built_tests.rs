@@ -1,11 +1,15 @@
-//! Controls for the checks of a commit Git built: the parents and the objects it adds are read from the object store, no
-//!  `rev-list` is started for an ordinary signed commit, and every verdict equals the one the `rev-list` gives.
+//! Controls for the checks of a commit Git built:
+//! the parents and the objects it adds are read from the object store,
+//! no
+//!  `rev-list` is started for an ordinary signed commit,
+//! and every verdict equals the one the `rev-list` gives.
 
 use super::tests::{World, built_request, request, world};
 use super::*;
 use crate::test_support::{git, git_text, remove};
 
-/// How many times the landing's Git children named `command`, from Git's trace2 start events.
+/// How many times the landing's Git children named `command`,
+/// from Git's trace2 start events.
 fn starts_of(trace: &Path, command: &str) -> usize {
     let events: String = std::fs::read_to_string(trace).unwrap_or_default();
     let quoted: String = format!("\"{command}\"");
@@ -24,8 +28,11 @@ fn traced(name: &str) -> (World, PathBuf) {
     return (world, trace);
 }
 
-/// A signed commit has the branch tip as its parent and adds a blob: the landing reads the commit and checks the blob in the
-/// object store, so it starts no `rev-list`, and the commit lands as it did.
+/// A signed commit has the branch tip as its parent and adds a blob:
+/// the landing reads the commit and checks the blob in the
+/// object store,
+/// so it starts no `rev-list`,
+/// and the commit lands as it did.
 #[test]
 fn an_ordinary_commit_git_built_is_checked_without_starting_rev_list() {
     let (world, trace) = traced("service-built-no-rev-list");
@@ -40,8 +47,11 @@ fn an_ordinary_commit_git_built_is_checked_without_starting_rev_list() {
     remove(world.root.as_path());
 }
 
-/// Positive control: where the object store cannot show the history (a graft file makes `rev-list` show another one), the
-/// landing still starts the `rev-list` it always ran, once for the parents and once for the objects.
+/// Positive control:
+/// where the object store cannot show the history (a graft file makes `rev-list` show another one),
+/// the
+/// landing still starts the `rev-list` it always ran,
+/// once for the parents and once for the objects.
 #[test]
 fn a_repository_with_grafts_is_left_to_rev_list() {
     let (world, trace) = traced("service-built-grafts");
@@ -56,8 +66,13 @@ fn a_repository_with_grafts_is_left_to_rev_list() {
     remove(world.root.as_path());
 }
 
-/// The verdict for each way an object can be gone equals the `rev-list` verdict: the landing is refused as unavailable and the
-/// branch stays, whether the missing object is a blob, a tree, a tree below a tree, or is removed after the commit was read.
+/// The verdict for each way an object can be gone equals the `rev-list` verdict:
+/// the landing is refused as unavailable and the
+/// branch stays,
+/// whether the missing object is a blob,
+/// a tree,
+/// a tree below a tree,
+/// or is removed after the commit was read.
 #[test]
 fn every_object_a_built_commit_adds_must_be_there_as_rev_list_demands() {
     let remove_loose = |world: &World, name: &str| {
@@ -95,7 +110,8 @@ fn every_object_a_built_commit_adds_must_be_there_as_rev_list_demands() {
     remove(world.root.as_path());
 }
 
-/// Objects that only a pack holds are present too: a repack that left nothing loose does not make the commit unavailable.
+/// Objects that only a pack holds are present too:
+/// a repack that left nothing loose does not make the commit unavailable.
 #[test]
 fn objects_held_only_by_a_pack_count_as_present() {
     let (world, trace) = traced("service-built-packed");
@@ -112,8 +128,10 @@ fn objects_held_only_by_a_pack_count_as_present() {
     remove(world.root.as_path());
 }
 
-/// A commit with the tip's tree (nothing added) and one that merges another branch are not shapes the store proves: the first is
-/// present by construction, the second is left to Git and lands as before.
+/// A commit with the tip's tree (nothing added) and one that merges another branch are not shapes the store proves:
+/// the first is
+/// present by construction,
+/// the second is left to Git and lands as before.
 #[test]
 fn an_empty_change_and_a_merge_land_as_before() {
     let (world, trace) = traced("service-built-shapes");
@@ -131,8 +149,12 @@ fn an_empty_change_and_a_merge_land_as_before() {
     remove(world.root.as_path());
 }
 
-/// The proof of a wide directory costs work in proportion to the directory, not to its square: a commit that adds one file to a
-/// directory of thousands of files is checked with a few steps per entry. The steps are counted (name comparisons), so the control
+/// The proof of a wide directory costs work in proportion to the directory,
+/// not to its square:
+/// a commit that adds one file to a
+/// directory of thousands of files is checked with a few steps per entry.
+/// The steps are counted (name comparisons),
+/// so the control
 /// does not depend on how fast the host is.
 #[test]
 fn the_proof_of_a_wide_directory_is_linear_in_its_width() {
@@ -158,10 +180,20 @@ fn the_proof_of_a_wide_directory_is_linear_in_its_width() {
     remove(world.root.as_path());
 }
 
-/// The store answers only where the history it reads is the history Git shows: every setting that changes what Git shows (a
-/// shallow file or graft file elsewhere, another replacement namespace, replacements switched off, `core.useReplaceRefs`, and
-/// the global option that switches replacements off) sends the checks to `rev-list`, which the landing always ran. The commit
-/// still lands. Each case lands one ordinary commit Git built and counts the `rev-list` starts: two, where an ordinary
+/// The store answers only where the history it reads is the history Git shows:
+/// every setting that changes what Git shows (a
+/// shallow file or graft file elsewhere,
+/// another replacement namespace,
+/// replacements switched off,
+/// `core.useReplaceRefs`,
+/// and
+/// the global option that switches replacements off) sends the checks to `rev-list`,
+/// which the landing always ran.
+/// The commit
+/// still lands.
+/// Each case lands one ordinary commit Git built and counts the `rev-list` starts:
+/// two,
+/// where an ordinary
 /// repository starts none.
 #[test]
 fn every_setting_that_changes_the_history_git_shows_sends_the_checks_to_rev_list() {
@@ -236,7 +268,8 @@ fn a_replacement_object_sends_the_checks_to_rev_list() {
     remove(world.root.as_path());
 }
 
-/// A world over a SHA-256 repository, which the object names of 64 hexadecimal digits tell from a SHA-1 one.
+/// A world over a SHA-256 repository,
+/// which the object names of 64 hexadecimal digits tell from a SHA-1 one.
 fn sha256_world(name: &str) -> (World, PathBuf) {
     let root: PathBuf = crate::test_support::fixture(name);
     let repo: PathBuf = root.join("repo");
@@ -251,7 +284,9 @@ fn sha256_world(name: &str) -> (World, PathBuf) {
     return (World { root, repo, context }, trace);
 }
 
-/// The checks answer from the object store in a SHA-256 repository too, with the objects loose and with them only in a pack, and
+/// The checks answer from the object store in a SHA-256 repository too,
+/// with the objects loose and with them only in a pack,
+/// and
 /// a missing object is refused there as it is in a SHA-1 one.
 #[test]
 fn the_checks_of_a_commit_git_built_hold_in_a_sha256_repository() {
@@ -283,8 +318,11 @@ fn the_checks_of_a_commit_git_built_hold_in_a_sha256_repository() {
     remove(world.root.as_path());
 }
 
-/// The commit Git built is looked up again when the proof runs: one removed between the read of its parents and the check of its
-/// objects is refused as unavailable, the branch stays, and nothing of it is put on the branch.
+/// The commit Git built is looked up again when the proof runs:
+/// one removed between the read of its parents and the check of its
+/// objects is refused as unavailable,
+/// the branch stays,
+/// and nothing of it is put on the branch.
 #[test]
 fn a_built_commit_removed_between_the_checks_is_refused() {
     let world: World = world("service-built-commit-between");
@@ -300,8 +338,11 @@ fn a_built_commit_removed_between_the_checks_is_refused() {
     remove(world.root.as_path());
 }
 
-/// An amend whose commit Git built reads the replaced commit's parents from the store, and its objects are checked by Git (the
-/// tip is not its parent): one `rev-list` start, and it lands with the parents of the commit it replaces.
+/// An amend whose commit Git built reads the replaced commit's parents from the store,
+/// and its objects are checked by Git (the
+/// tip is not its parent):
+/// one `rev-list` start,
+/// and it lands with the parents of the commit it replaces.
 #[test]
 fn an_amend_git_built_lands_with_the_parents_of_the_commit_it_replaces() {
     let (world, trace) = traced("service-built-amend");

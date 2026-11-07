@@ -1,25 +1,37 @@
 //! What:
-//!  Where the words of a Git run the wrapper or the service started on its own go, now that none of those runs carries
-//!  `--quiet` or `-q`: one journal entry, from the service for a run it made and from the wrapper for a run it made while
+//!  Where the words of a Git run the wrapper or the service started on its own go,
+//! now that none of those runs carries
+//!  `--quiet` or `-q`:
+//! one journal entry,
+//! from the service for a run it made and from the wrapper for a run it made while
 //!  carrying out a person's command.
 //! Why:
-//!  The owner's rule is "No the wrapper should never append --quiet. Letting native git emit whatever it wants to is expected",
-//!  and for the wrapper's and the service's own runs the answer was "Drop it everywhere (Recommended)". Every such run is
-//!  captured (`run_git` pipes both streams into `GitOutput`), so Git's words would be discarded with the capture; this
-//!  keeps them where a failure of the same run is already recorded (`journalctl`). A hook's standard output and the service's
-//!  protocol replies are never the destination, and no other option or redirect hides the words in the meantime.
+//!  The owner's rule is "No the wrapper should never append --quiet.
+//! Letting native git emit whatever it wants to is expected",
+//!  and for the wrapper's and the service's own runs the answer was "Drop it everywhere (Recommended)".
+//! Every such run is
+//!  captured (`run_git` pipes both streams into `GitOutput`),
+//! so Git's words would be discarded with the capture;
+//! this
+//!  keeps them where a failure of the same run is already recorded (`journalctl`).
+//! A hook's standard output and the service's
+//!  protocol replies are never the destination,
+//! and no other option or redirect hides the words in the meantime.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const words = [stdout, stderr].filter((text) => text.trim() !== '').join('\n'); if (words) journal.info(`git ${command} said: ${words}`);
 //! ```
 
-/// Masks the userinfo of any URL in Git's words, as every journal entry of the service is masked.
+/// Masks the userinfo of any URL in Git's words,
+/// as every journal entry of the service is masked.
 use crate::lfs_output_mask::mask_userinfo_text;
-/// The entry from a wrapper a person ran, which only Linux writes.
+/// The entry from a wrapper a person ran,
+/// which only Linux writes.
 #[cfg(target_os = "linux")]
 use crate::client_journal::record_entry;
-/// The priority an entry carries, and the service's way to write one.
+/// The priority an entry carries,
+/// and the service's way to write one.
 use crate::journald_native::Priority;
 use crate::service_timing::{in_service, log_entry};
 /// The captured output of one Git start.
@@ -29,9 +41,14 @@ use crate::transaction_git::GitOutput;
 pub const COMMAND_FIELD: &str = "CLI_GIT_INNER_COMMAND";
 
 /// What:
-///  The text of a Git run's words: its standard output, then its standard error, trimmed, or nothing when it said nothing.
+///  The text of a Git run's words:
+/// its standard output,
+/// then its standard error,
+/// trimmed,
+/// or nothing when it said nothing.
 /// Why:
-///   A run that said nothing makes no entry, so an entry always carries something to read.
+///   A run that said nothing makes no entry,
+/// so an entry always carries something to read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,11 +73,16 @@ pub fn words_of(stdout: &[u8], stderr: &[u8]) -> Option<String> {
 }
 
 /// What:
-///  Record the words of a finished run, whichever program made it: the service's log when this is the service, the client
+///  Record the words of a finished run,
+/// whichever program made it:
+/// the service's log when this is the service,
+/// the client
 ///  entry otherwise.
 /// Why:
-///   The auto-push's fetch and fast-forward run in the service and in the wrapper's own stacked push, and the shadow's `init`
-///  in both, so the choice is made here once.
+///   The auto-push's fetch and fast-forward run in the service and in the wrapper's own stacked push,
+/// and the shadow's `init`
+///  in both,
+/// so the choice is made here once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,13 +108,15 @@ pub fn record_text<S: AsRef<str>>(arguments: &[S], text: &str) {
     deliver_from_wrapper(message.as_str(), &fields);
 }
 
-/// Send the entry of a wrapper a person ran to the journal; whether the socket took it is of no use to the command.
+/// Send the entry of a wrapper a person ran to the journal;
+/// whether the socket took it is of no use to the command.
 #[cfg(target_os = "linux")]
 fn deliver_from_wrapper(message: &str, fields: &[(&str, String)]) {
     let _sent: bool = record_entry(Priority::Info, message, fields);
 }
 
-/// Only Linux writes the wrapper's journal entries; elsewhere the words are not kept.
+/// Only Linux writes the wrapper's journal entries;
+/// elsewhere the words are not kept.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
 fn deliver_from_wrapper(_message: &str, _fields: &[(&str, String)]) {}
@@ -100,7 +124,8 @@ fn deliver_from_wrapper(_message: &str, _fields: &[(&str, String)]) {}
 /// What:
 ///  Record the words of a finished run from its captured output.
 /// Why:
-///   Most runs are captured as a `GitOutput`; this is `record_text` for them.
+///   Most runs are captured as a `GitOutput`;
+/// this is `record_text` for them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,7 +138,8 @@ pub fn record_words<S: AsRef<str>>(arguments: &[S], output: &GitOutput) {
 /// What:
 ///  Record the words of a finished run from its two streams.
 /// Why:
-///   The auto-push's queries come back as two byte streams, not as a `GitOutput`.
+///   The auto-push's queries come back as two byte streams,
+/// not as a `GitOutput`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

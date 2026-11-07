@@ -1,8 +1,14 @@
 //! What:
-//!  The plan for one `git worktree remove` that the wrapper may serve with a subvolume destroy: the one directory it names.
+//!  The plan for one `git worktree remove` that the wrapper may serve with a subvolume destroy:
+//! the one directory it names.
 //! Why:
-//!  Only the plain form (one directory, no option, a non-empty name) is served; `--force` and every other option change what Git checks, and a
-//!  name Git resolves by its last path component is not a directory here, so those stay with Git.
+//!  Only the plain form (one directory,
+//! no option,
+//! a non-empty name) is served;
+//! `--force` and every other option change what Git checks,
+//! and a
+//!  name Git resolves by its last path component is not a directory here,
+//! so those stay with Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,9 +19,12 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The worktree a `git worktree remove <path>` names, resolved to a directory that exists.
+///  The worktree a `git worktree remove <path>` names,
+/// resolved to a directory that exists.
 /// Why:
-///   The removal needs the worktree's real path; Git also accepts a unique last component, which the wrapper leaves to
+///   The removal needs the worktree's real path;
+/// Git also accepts a unique last component,
+/// which the wrapper leaves to
 ///  Git by finding no such directory.
 ///
 /// In TS you'd write (pseudocode):
@@ -26,14 +35,16 @@ use std::path::{Path, PathBuf};
 pub struct RemovePlan {
     /// The real path of the worktree directory.
     pub target: PathBuf,
-    /// The operand as the person typed it, which Git also matches against the last components of every registered path.
+    /// The operand as the person typed it,
+    /// which Git also matches against the last components of every registered path.
     pub operand: OsString,
 }
 
 /// What:
 ///  Plan one invocation of `git worktree remove` that names exactly one directory and no option.
 /// Why:
-///   `--force` and every other option change what Git checks, so those forms stay with Git.
+///   `--force` and every other option change what Git checks,
+/// so those forms stay with Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

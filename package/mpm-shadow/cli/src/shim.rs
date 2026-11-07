@@ -65,8 +65,9 @@ use std::os::unix::process::ExitStatusExt;
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
 
-/// Imports `Command` (build and start a program) and `ExitStatus` (how a finished program ended).
-use std::process::{Command, ExitStatus};
+/// Imports `Child` (a started program that can be waited for),
+/// `Command` (build and start a program) and `ExitStatus` (how a finished program ended).
+use std::process::{Child, Command, ExitStatus};
 
 /// Imports `cargo_home` from `crate::cargo_home`.
 use crate::cargo_home::cargo_home;
@@ -82,15 +83,18 @@ use crate::cleanup_report::{VERBOSE_ENV, cleanup_lines};
 /// Imports the depth guard.
 use crate::nesting::{NESTING_ENV, must_refuse, nesting_depth};
 /// Imports the retrying start.
-use crate::start_retry::{RetryReport, retry_refused_start};
+use crate::start_retry::{RetryReport, StartAttempt, retry_refused_start};
 /// Imports the messages for a start that did not happen.
 use crate::start_failure::{StartFailure, command_line, describe_nesting_refusal, describe_start_failure};
 /// Imports what this module uses from `crate::shadow_notice`.
+/// Imports the notice that follows the tool's version and help.
 use crate::shadow_notice::{TopLevelRequest, help_section, top_level_request, version_line};
 /// Imports the environment view and the toolchain roots (where `install` records version-keyed installs).
 use crate::toolchain::scope::{EnvMap, toolchain_roots};
 /// Imports `find_in_path` from `crate::real_binary`.
 use crate::real_binary::find_in_path;
+/// Imports the arrival marker rules and the check made on the open program just before its start.
+use crate::shadow_identity::{ARRIVAL_EXIT_CODE, StartMode, Vetted, arrival_at_this_process, arrival_line, mark_start, vet};
 
 /// What:
 /// `pub fn exit_code_of(status: ExitStatus) -> i32` declares a public function turning a finished child's
@@ -174,6 +178,28 @@ pub enum ProgramRun {
     },
 }
 
+/// One spawn of the vetted program with its arguments and nesting depth,
+/// which the start retry repeats while the system refuses to create a process.
+struct VettedSpawn<'start> {
+    /// The program that was checked while open.
+    vetted: &'start Vetted,
+    /// The arguments the program is started with.
+    arguments: &'start [OsString],
+    /// How many shadows deep the child starts.
+    child_depth: u32,
+}
+
+/// Lets the start retry try the spawn again after a refusal.
+impl StartAttempt<Child> for VettedSpawn<'_> {
+    /// Spawns the vetted program once.
+    fn attempt(&mut self) -> std::io::Result<Child> {
+        let mut command: Command = self.vetted.command();
+        command.args(self.arguments).env(NESTING_ENV, self.child_depth.to_string());
+        mark_start(&mut command, StartMode::Spawn);
+        return command.spawn();
+    }
+}
+
 /// What:
 /// Starts `program` with the standard streams inherited and `NESTING_ENV` set to `child_depth`,
 /// starting again with growing pauses (within a bound) when the system refuses for lack of processes,
@@ -187,9 +213,13 @@ pub enum ProgramRun {
 /// export function startAndWait(program: string, args: Buffer[], childDepth: number): ProgramRun
 /// ```
 pub fn start_and_wait(program: &Path, arguments: &[OsString], child_depth: u32) -> ProgramRun {
-    let (started, retry) = retry_refused_start(&mut || {
-        return Command::new(program).args(arguments).env(NESTING_ENV, child_depth.to_string()).spawn();
-    });
+    // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
+    let vetted: Vetted = match vet(program) {
+        Ok(checked) => checked,
+        Err(reason) => return ProgramRun::NotStarted { error: std::io::Error::other(reason), retry: RetryReport::default() },
+    };
+    let mut attempt: VettedSpawn<'_> = VettedSpawn { vetted: &vetted, arguments, child_depth };
+    let (started, retry) = retry_refused_start(&mut attempt);
     let mut child = match started {
         Ok(child) => child,
         Err(error) => return ProgramRun::NotStarted { error, retry },
@@ -248,7 +278,10 @@ fn prune_after_run() {
     if let Some(directory) = home {
         let roots: Vec<PathBuf> = toolchain_roots(&EnvMap::from_process());
         let report = prune_stale_own_crates_reporting(&directory, &roots);
-        let verbose: bool = env::var(VERBOSE_ENV).is_ok_and(|value| return !value.is_empty());
+        let verbose: bool = match env::var(VERBOSE_ENV) {
+            Ok(value) => !value.is_empty(),
+            Err(_) => false,
+        };
         for line in cleanup_lines(&report, &directory, verbose) {
             eprintln!("{line}");
         }
@@ -288,6 +321,12 @@ fn print_shadow_notice(request: TopLevelRequest, real_mpm: &Path) {
 /// export function runShim(args: Buffer[]): number
 /// ```
 pub fn run_shim(arguments: Vec<OsString>) -> i32 {
+    // The arrival stop comes before anything else: a shadow that a shadow started as its real mpm does nothing and says so in one line
+    // (`shadow_identity.rs`), whatever the nesting count below would have said.
+    if let Some(arrival) = arrival_at_this_process() {
+        eprintln!("{}", arrival_line(SHADOWED_NAME, &arrival));
+        return ARRIVAL_EXIT_CODE;
+    }
     let path_variable: String = env::var("PATH").unwrap_or_default();
     let own_path: PathBuf = own_real_path();
 

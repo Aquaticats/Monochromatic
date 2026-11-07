@@ -1,10 +1,18 @@
 //! What:
-//!  The part of a tree that differs from an index, found by walking the tree beside the index's cache-tree: a directory that
-//!  the cache-tree marks valid, with the tree name the tree has there, is equal by construction and is not read.
+//!  The part of a tree that differs from an index,
+//! found by walking the tree beside the index's cache-tree:
+//! a directory that
+//!  the cache-tree marks valid,
+//! with the tree name the tree has there,
+//! is equal by construction and is not read.
 //! Why:
-//!  A commit compares its index with the tree of `HEAD` several times, and the comparison read every directory of the tree
-//!  (about 1,400 tree objects, tens of thousands of reads and file probes on the checkout of this repository) to find one
-//!  changed file. The index already says which directories changed: Git invalidates the cache-tree along every changed path.
+//!  A commit compares its index with the tree of `HEAD` several times,
+//! and the comparison read every directory of the tree
+//!  (about 1,400 tree objects,
+//! tens of thousands of reads and file probes on the checkout of this repository) to find one
+//!  changed file.
+//! The index already says which directories changed:
+//! Git invalidates the cache-tree along every changed path.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,18 +28,23 @@ use crate::repo_read_object::{ObjectKind, name_length};
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_tree::{FlatEntry, is_tree_mode, parse_tree};
 
-/// The deepest tree nesting the walk follows, as `repo_read_tree.rs` follows it.
+/// The deepest tree nesting the walk follows,
+/// as `repo_read_tree.rs` follows it.
 const TREE_DEPTH_LIMIT: usize = 256;
 
-/// The most entries the tree side may hold before the reader declines, as `repo_read_tree.rs` holds them.
+/// The most entries the tree side may hold before the reader declines,
+/// as `repo_read_tree.rs` holds them.
 const FLAT_ENTRY_LIMIT: usize = 4_000_000;
 
 /// What the walk found.
 #[derive(Debug)]
 pub struct UnequalParts {
-    /// The entries of the tree outside the directories that were left unread, in path order.
+    /// The entries of the tree outside the directories that were left unread,
+    /// in path order.
     pub tree: Vec<FlatEntry>,
-    /// The ranges of the index (start, end) that belong to the directories left unread, in index order.
+    /// The ranges of the index (start,
+    /// end) that belong to the directories left unread,
+    /// in index order.
     pub skipped: Vec<(usize, usize)>,
 }
 
@@ -39,9 +52,11 @@ pub struct UnequalParts {
 struct Walk<'a> {
     /// Where the tree objects are read from.
     database: &'a ObjectDatabase,
-    /// The object format, which fixes the name length.
+    /// The object format,
+    /// which fixes the name length.
     format: ObjectFormat,
-    /// The index paths, sorted.
+    /// The index paths,
+    /// sorted.
     paths: &'a [&'a [u8]],
     /// The entries of the tree seen so far.
     tree: Vec<FlatEntry>,
@@ -49,7 +64,8 @@ struct Walk<'a> {
     skipped: Vec<(usize, usize)>,
 }
 
-/// The subdirectory `name` of a cache-tree node; the file keeps its subdirectories sorted by length and then bytes.
+/// The subdirectory `name` of a cache-tree node;
+/// the file keeps its subdirectories sorted by length and then bytes.
 fn subtree_of<'a>(node: &'a CacheTree, name: &[u8]) -> Option<&'a CacheTree> {
     // A binary search over the sorted subdirectories by (length, bytes).
     let (mut low, mut high): (usize, usize) = (0, node.subtrees.len());
@@ -65,7 +81,8 @@ fn subtree_of<'a>(node: &'a CacheTree, name: &[u8]) -> Option<&'a CacheTree> {
     return None;
 }
 
-/// The range of `range` whose paths start with `prefix`, which is one stretch because the paths are sorted.
+/// The range of `range` whose paths start with `prefix`,
+/// which is one stretch because the paths are sorted.
 fn below(paths: &[&[u8]], range: (usize, usize), prefix: &[u8]) -> (usize, usize) {
     let window: &[&[u8]] = &paths[range.0..range.1];
     // Two binary searches over the sorted paths: the first path not before the prefix, then the end of the paths that start with it.
@@ -94,7 +111,9 @@ fn below(paths: &[&[u8]], range: (usize, usize), prefix: &[u8]) -> (usize, usize
 }
 
 impl Walk<'_> {
-    /// Walk the directory `tree` (below `prefix`), whose index paths are `range`, and `node` (its cache-tree node when there is one).
+    /// Walk the directory `tree` (below `prefix`),
+    /// whose index paths are `range`,
+    /// and `node` (its cache-tree node when there is one).
     fn directory(&mut self, tree: &[u8], node: Option<&CacheTree>, prefix: &mut Vec<u8>, range: (usize, usize), depth: usize) -> Option<()> {
         if depth > TREE_DEPTH_LIMIT {
             return None;
@@ -139,12 +158,19 @@ impl Walk<'_> {
 }
 
 /// What:
-///  The entries of the tree `tree` that lie outside the directories the cache-tree proves equal, and the index ranges of those
-///  directories; `None` when the walk cannot be trusted (an unreadable tree, a count that does not match the index).
+///  The entries of the tree `tree` that lie outside the directories the cache-tree proves equal,
+/// and the index ranges of those
+///  directories;
+/// `None` when the walk cannot be trusted (an unreadable tree,
+/// a count that does not match the index).
 /// Why:
-///   Leaving an equal directory out of both sides leaves their difference as it was, so the caller compares what remains the way
-///  it compared the whole lists. The index paths must be sorted and free of unmerged and intent-to-add entries, which the caller
-///  checks, because a cache-tree says nothing of an entry it left out of the tree it hashed.
+///   Leaving an equal directory out of both sides leaves their difference as it was,
+/// so the caller compares what remains the way
+///  it compared the whole lists.
+/// The index paths must be sorted and free of unmerged and intent-to-add entries,
+/// which the caller
+///  checks,
+/// because a cache-tree says nothing of an entry it left out of the tree it hashed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,7 +190,8 @@ pub fn unequal_parts(database: &ObjectDatabase, tree: &[u8], format: ObjectForma
 }
 
 /// What:
-///  The items of `all` outside the `skipped` ranges, in order.
+///  The items of `all` outside the `skipped` ranges,
+/// in order.
 /// Why:
 ///   The index side of the comparison drops the same directories the tree side left unread.
 ///
@@ -186,8 +213,11 @@ pub fn outside<'a, Item>(all: &'a [Item], skipped: &[(usize, usize)]) -> Vec<&'a
 /// What:
 ///  The changes from `tree` to `index` found without reading the directories the cache-tree proves equal.
 /// Why:
-///   The index side drops the same directories the tree side left unread, so `diff_sorted` compares only what can differ and
-///  gives the changes the full lists give; `None` when the walk or the comparison declines, and the caller then reads the whole tree.
+///   The index side drops the same directories the tree side left unread,
+/// so `diff_sorted` compares only what can differ and
+///  gives the changes the full lists give;
+/// `None` when the walk or the comparison declines,
+/// and the caller then reads the whole tree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

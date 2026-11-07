@@ -1,8 +1,13 @@
 //! What:
-//!  The pnpm repair: `pnpm install --offline --frozen-lockfile` in a new worktree whose `node_modules` was copied.
+//!  The pnpm repair:
+//! `pnpm install --offline --frozen-lockfile` in a new worktree whose `node_modules` was copied.
 //! Why:
-//!  pnpm's links reach its store by a path counted in directory levels from the project, so a copy at another depth holds
-//!  links that are dead or, worse, resolve through a parent directory's `node_modules` to the source's packages. pnpm
+//!  pnpm's links reach its store by a path counted in directory levels from the project,
+//! so a copy at another depth holds
+//!  links that are dead or,
+//! worse,
+//! resolve through a parent directory's `node_modules` to the source's packages.
+//! pnpm
 //!  rewrites its own layout for the new location in about the time of a no-op install.
 //!
 //! In TS you'd write (pseudocode):
@@ -17,7 +22,9 @@ use crate::shell_quote::shell_quote;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// The program the person's environment resolves; in this repository a shadow that checks manifests, then runs pnpm.
+/// The program the person's environment resolves;
+/// in this repository a shadow that checks manifests,
+/// then runs pnpm.
 const PROGRAM: &str = "pnpm";
 
 /// The file that names the packages the layout is built from.
@@ -26,13 +33,17 @@ const LOCKFILE: &str = "pnpm-lock.yaml";
 /// The directory pnpm links packages into.
 const MODULES: &str = "node_modules";
 
-/// The arguments of the relink: no network, and no change to the lockfile.
+/// The arguments of the relink:
+/// no network,
+/// and no change to the lockfile.
 const ARGUMENTS: [&str; 3] = ["install", "--offline", "--frozen-lockfile"];
 
 /// What:
-///  The command a person runs to do what the repair could not, from any directory.
+///  The command a person runs to do what the repair could not,
+/// from any directory.
 /// Why:
-///   `--dir` names the worktree, so the printed line works wherever it is pasted.
+///   `--dir` names the worktree,
+/// so the printed line works wherever it is pasted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,9 +54,11 @@ pub fn manual_command(destination: &Path) -> String {
 }
 
 /// What:
-///  Relink the copied `node_modules` of a worktree with pnpm, when it has a lockfile and a `node_modules`.
+///  Relink the copied `node_modules` of a worktree with pnpm,
+/// when it has a lockfile and a `node_modules`.
 /// Why:
-///   Without a lockfile or a copied `node_modules` there is no layout to repair, and nothing is started.
+///   Without a lockfile or a copied `node_modules` there is no layout to repair,
+/// and nothing is started.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -61,11 +61,14 @@ use image::{
 };
 
 /// What:
-///      `use anyhow::{Context, Result};`.
-///  Error helpers.
+///      `use anyhow::Result;`.
+///  The `Result` alias.
 /// Why:
-///       The encode functions return `Result` and annotate failures.
-use anyhow::{Context, Result};
+///       The encode functions return `Result`.
+use anyhow::Result;
+
+/// Error text that is built only on failure.
+use crate::lazy_error_text::with_message;
 
 /// What:
 ///      `use crossbeam_channel::Receiver as WorkReceiver;`.
@@ -338,7 +341,7 @@ impl EncoderPool {
         // What:     `self.work_tx.try_send(frame).map_err(|err| err.into_inner())`. Try to
         //           enqueue; on failure recover the `Frame` from the send error.
         // Why:      Return the buffer to the caller for reuse when dropping.
-        return self.work_tx.try_send(frame).map_err(|err| return err.into_inner())
+        return self.work_tx.try_send(frame).map_err(crossbeam_channel::TrySendError::into_inner)
     }
 
     /// Return a buffer to the free pool (used when a frame is dropped or reclaimed).
@@ -544,9 +547,8 @@ pub fn write_png(pixels: &[u8], width: u32, height: u32, path: &Path) -> Result<
     // What:     `let file = BufWriter::new(File::create(path).with_context(...)?);`. Create
     //           the file and wrap it in a buffered writer.
     // Why:      Buffered writes are faster than many small syscalls.
-    let file = BufWriter::new(
-        File::create(path).with_context(|| format!("creating {}", path.display()))?,
-    );
+    let created = File::create(path);
+    let file = BufWriter::new(with_message(created, format_args!("creating {}", path.display()))?);
 
     // What:     `let encoder = PngEncoder::new_with_quality(file, CompressionType::Fast,
     //           FilterType::NoFilter);`. Build a fast, filterless PNG encoder.
@@ -557,9 +559,8 @@ pub fn write_png(pixels: &[u8], width: u32, height: u32, path: &Path) -> Result<
     //           .context(...)?;`. Encode the RGBA pixels. `.into()` widens `ColorType` to
     //           the `ExtendedColorType` the trait wants.
     // Why:      Produce the PNG.
-    encoder
-        .write_image(pixels, width, height, ColorType::Rgba8.into())
-        .with_context(|| format!("encoding PNG {}", path.display()))?;
+    let encoded = encoder.write_image(pixels, width, height, ColorType::Rgba8.into());
+    with_message(encoded, format_args!("encoding PNG {}", path.display()))?;
 
     // What:     `Ok(())`. Success.
     // Why:      Frame written.
@@ -579,16 +580,14 @@ pub fn write_bmp(pixels: &[u8], width: u32, height: u32, path: &Path) -> Result<
     // What:     `let mut file = BufWriter::new(File::create(path).with_context(...)?);`.
     //           `mut` because `BmpEncoder::new` borrows the writer mutably.
     // Why:      Create the destination.
-    let mut file = BufWriter::new(
-        File::create(path).with_context(|| format!("creating {}", path.display()))?,
-    );
+    let created = File::create(path);
+    let mut file = BufWriter::new(with_message(created, format_args!("creating {}", path.display()))?);
 
     // What:     `BmpEncoder::new(&mut file).encode(pixels, width, height,
     //           ColorType::Rgba8.into()).context(...)?;`. Write the BMP.
     // Why:      Emit the raw frame with a BMP header.
-    BmpEncoder::new(&mut file)
-        .encode(pixels, width, height, ColorType::Rgba8.into())
-        .with_context(|| format!("encoding BMP {}", path.display()))?;
+    let encoded = BmpEncoder::new(&mut file).encode(pixels, width, height, ColorType::Rgba8.into());
+    with_message(encoded, format_args!("encoding BMP {}", path.display()))?;
 
     // What:     `Ok(())`. Success.
     // Why:      Frame written.

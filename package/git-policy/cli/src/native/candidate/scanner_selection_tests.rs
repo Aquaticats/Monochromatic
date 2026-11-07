@@ -67,7 +67,8 @@ fn configured(path: &str, optional: bool) -> RulesFileEntry {
     return RulesFileEntry { path: String::from(path), optional };
 }
 
-/// The source of a variable or default, which cannot fail for a value that parses.
+/// The source of a variable or default,
+/// which cannot fail for a value that parses.
 fn source(variable: Option<&OsStr>, root: &Path) -> RulesSource {
     return rules_source(None, variable, root).expect("a valid source");
 }
@@ -117,7 +118,8 @@ fn rules_file_precedence_matches_the_standalone_scanner() {
 }
 
 /// The variable is a rules list in the scanner's grammar:
-///  comma-separated, a trailing `?` marking an optional entry,
+///  comma-separated,
+/// a trailing `?` marking an optional entry,
 ///  each entry resolved against the root and an absolute entry kept as it is.
 #[test]
 fn the_variable_is_read_as_the_scanners_rules_list() {
@@ -146,7 +148,8 @@ fn the_variable_is_read_as_the_scanners_rules_list() {
     assert_eq!(source(Some(OsStr::new("odd?name.txt")), root).entries, vec![entry("/repo/root/odd?name.txt", false)]);
 }
 
-/// A malformed variable is a refusal, not a guess.
+/// A malformed variable is a refusal,
+/// not a guess.
 #[test]
 fn a_malformed_variable_is_refused() {
     let root: &Path = Path::new("/repo/root");
@@ -162,7 +165,8 @@ fn a_malformed_variable_is_refused() {
     );
 }
 
-/// A setting that is not UTF-8 cannot be split, so it is still one required path.
+/// A setting that is not UTF-8 cannot be split,
+/// so it is still one required path.
 #[test]
 fn a_variable_that_is_not_utf8_is_one_required_path() {
     let root: &Path = Path::new("/repo/root");
@@ -191,7 +195,8 @@ fn configured_files_keep_order_and_flags() {
     );
 }
 
-/// Every listed file inside the repository is excluded from the scan, not only the first.
+/// Every listed file inside the repository is excluded from the scan,
+/// not only the first.
 #[test]
 fn every_rules_file_inside_the_repository_has_a_candidate_pathname() {
     let root: &Path = Path::new("/repo/root");

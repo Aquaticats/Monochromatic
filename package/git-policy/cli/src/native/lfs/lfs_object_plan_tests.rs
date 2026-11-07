@@ -1,4 +1,5 @@
-//! Controls for narrowing an upload plan to the objects a push introduces, against repositories built by real Git.
+//! Controls for narrowing an upload plan to the objects a push introduces,
+//! against repositories built by real Git.
 
 use super::*;
 use crate::repo_read_layout::read_layout_in;
@@ -11,7 +12,8 @@ fn oid(n: u8) -> String {
     return format!("{n:02x}").repeat(32);
 }
 
-/// Commit `files` (path, text) and return the commit's name.
+/// Commit `files` (path,
+/// text) and return the commit's name.
 fn commit(repo: &Path, files: &[(&str, String)], message: &str) -> String {
     for (path, text) in files {
         let target: PathBuf = repo.join(path);
@@ -28,7 +30,8 @@ fn pointer(n: u8) -> String {
     return format!("version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize 10\n", oid(n));
 }
 
-/// Put the `n`-th object into the local LFS storage, as `git lfs` would have when it cleaned the file.
+/// Put the `n`-th object into the local LFS storage,
+/// as `git lfs` would have when it cleaned the file.
 fn store(repo: &Path, n: u8) {
     let name: String = oid(n);
     let directory: PathBuf = repo.join(".git/lfs/objects").join(&name[..2]).join(&name[2..4]);
@@ -37,7 +40,9 @@ fn store(repo: &Path, n: u8) {
 }
 
 /// A repository whose `origin/main` tracking ref is at `known` and whose `main` is at `tip`:
-///  `known` holds pointer 1, `tip` adds a plain file only, `with_pointer` (on a branch `feature`) adds pointer 2.
+///  `known` holds pointer 1,
+/// `tip` adds a plain file only,
+/// `with_pointer` (on a branch `feature`) adds pointer 2.
 fn world(root: &Path) -> (PathBuf, String, String, String) {
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("dir");
@@ -71,7 +76,8 @@ fn narrow(repo: &Path, plan: UploadPlan) -> Option<UploadPlan> {
     return narrow_plan(plan, layout.as_ref());
 }
 
-/// A push that adds no pointer starts nothing: the plan narrows to no upload at all.
+/// A push that adds no pointer starts nothing:
+/// the plan narrows to no upload at all.
 #[test]
 fn a_push_that_adds_no_pointer_uploads_nothing() {
     let root = fixture("lfs-object-plan-none");
@@ -96,7 +102,8 @@ fn a_push_that_adds_one_pointer_names_that_object() {
     remove(root.as_path());
 }
 
-/// When the tracking refs cannot be trusted the whole history of the pushed refs is read, so the older pointer is named too.
+/// When the tracking refs cannot be trusted the whole history of the pushed refs is read,
+/// so the older pointer is named too.
 #[test]
 fn an_untrusted_destination_scans_the_whole_history() {
     let root = fixture("lfs-object-plan-full");
@@ -109,7 +116,8 @@ fn an_untrusted_destination_scans_the_whole_history() {
     remove(root.as_path());
 }
 
-/// A pointer whose object is not in the local storage leaves the plan as it was, so `git-lfs` words the failure.
+/// A pointer whose object is not in the local storage leaves the plan as it was,
+/// so `git-lfs` words the failure.
 #[test]
 fn a_pointer_without_its_local_object_is_left_to_git_lfs() {
     let root = fixture("lfs-object-plan-missing");
@@ -119,7 +127,10 @@ fn a_pointer_without_its_local_object_is_left_to_git_lfs() {
     remove(root.as_path());
 }
 
-/// Anything the readers decline leaves the plan as it was: no layout, a ref that does not resolve, a revision expression.
+/// Anything the readers decline leaves the plan as it was:
+/// no layout,
+/// a ref that does not resolve,
+/// a revision expression.
 #[test]
 fn what_the_readers_decline_leaves_the_plan_to_git_lfs() {
     let root = fixture("lfs-object-plan-decline");

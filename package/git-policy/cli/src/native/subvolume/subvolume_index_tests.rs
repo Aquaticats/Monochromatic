@@ -1,17 +1,26 @@
-//! Controls for the index stat rewrite on built bytes: versions 2, 3 and 4, both hash lengths and the zero checksum,
-//!  the entries that must keep their stat fields, the extensions that are kept, dropped or make the rewrite decline,
-//!  and every malformed shape. The file system never enters; the lookup is a closure.
+//! Controls for the index stat rewrite on built bytes:
+//! versions 2,
+//! 3 and 4,
+//! both hash lengths and the zero checksum,
+//!  the entries that must keep their stat fields,
+//! the extensions that are kept,
+//! dropped or make the rewrite decline,
+//!  and every malformed shape.
+//! The file system never enters;
+//! the lookup is a closure.
 
 use super::*;
 
-/// A function-like value with the right shape is a lookup in tests: the shipped callers write a small struct that holds the state.
+/// A function-like value with the right shape is a lookup in tests:
+/// the shipped callers write a small struct that holds the state.
 impl<Lookup: FnMut(&[u8]) -> Option<StatFields>> StatLookup for Lookup {
     fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
         return self(path);
     }
 }
 
-/// A function-like value with the right shape is a trust check in tests: the shipped callers write a small struct that holds the state.
+/// A function-like value with the right shape is a trust check in tests:
+/// the shipped callers write a small struct that holds the state.
 impl<Check: FnMut(&[u8], &StoredStat) -> bool> StatTrust for Check {
     fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool {
         return self(path, stored);
@@ -43,12 +52,15 @@ fn regular(path: &'static str) -> Built {
     return Built { path, mode: 0o100_644, flags: 0, size: 10, mtime_seconds: 100, mtime_nanos: 7 };
 }
 
-/// What `lstat` would report for every path now: the same size and time, new inode and change time.
+/// What `lstat` would report for every path now:
+/// the same size and time,
+/// new inode and change time.
 fn fresh() -> StatFields {
     return StatFields { ctime_seconds: 900, ctime_nanos: 901, mtime_seconds: 100, mtime_nanos: 7, dev: 5, ino: 6, uid: 1000, gid: 1001, size: 10 };
 }
 
-/// The bytes of a built entry's fixed part: old stat fields that the rewrite must replace.
+/// The bytes of a built entry's fixed part:
+/// old stat fields that the rewrite must replace.
 fn entry_bytes(entry: &Built, hash_length: usize) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     for value in [1u32, 2, entry.mtime_seconds, entry.mtime_nanos, 3, 4, entry.mode, 8, 9, entry.size] {
@@ -103,7 +115,8 @@ fn build(version: u32, entries: &[Built], extensions: &[(&[u8; 4], Vec<u8>)], ch
     return bytes;
 }
 
-/// The paths of a rewritten file's entries and the stat fields stored for each, read back with the same walker the
+/// The paths of a rewritten file's entries and the stat fields stored for each,
+/// read back with the same walker the
 ///  rewrite uses plus raw offsets.
 fn stored(bytes: &[u8], hash_length: usize) -> Vec<(Vec<u8>, [u32; 9])> {
     let (entries, _end) = walk_entries(bytes, hash_length).expect("walk");
@@ -116,7 +129,12 @@ fn stored(bytes: &[u8], hash_length: usize) -> Vec<(Vec<u8>, [u32; 9])> {
         .collect();
 }
 
-/// The fields a rewritten entry holds: change time, device, inode, owner and group replaced, the rest kept.
+/// The fields a rewritten entry holds:
+/// change time,
+/// device,
+/// inode,
+/// owner and group replaced,
+/// the rest kept.
 const REWRITTEN: [u32; 9] = [900, 901, 100, 7, 5, 6, 1000, 1001, 10];
 
 /// The fields of a built entry the rewrite did not touch.
@@ -134,7 +152,10 @@ fn skipped(outcome: IndexOutcome) -> String {
     return reason;
 }
 
-/// A version 2 index with SHA-1: matching entries get the new fields, the checksum is valid, and nothing else moves.
+/// A version 2 index with SHA-1:
+/// matching entries get the new fields,
+/// the checksum is valid,
+/// and nothing else moves.
 #[test]
 fn a_version_2_index_gets_fresh_stat_fields_and_a_valid_checksum() {
     let input: Vec<u8> = build(2, &[regular("README.md"), regular("src/main.rs")], &[(b"TREE", vec![1, 2, 3])], Checksum::Sha1);
@@ -146,8 +167,13 @@ fn a_version_2_index_gets_fresh_stat_fields_and_a_valid_checksum() {
     assert!(output.windows(4).any(|window: &[u8]| { return window == b"TREE"; }), "the cache-tree extension is kept");
 }
 
-/// An entry keeps its fields when the file is missing, differs in size or in time, has no size, is not a regular file
-///  or a link, or is a conflict stage; a link and a time without nanoseconds are rewritten.
+/// An entry keeps its fields when the file is missing,
+/// differs in size or in time,
+/// has no size,
+/// is not a regular file
+///  or a link,
+/// or is a conflict stage;
+/// a link and a time without nanoseconds are rewritten.
 #[test]
 fn only_entries_whose_file_still_matches_are_rewritten() {
     let mut stage: Built = regular("conflict");
@@ -184,7 +210,8 @@ fn only_entries_whose_file_still_matches_are_rewritten() {
     }
 }
 
-/// Version 3 entries with the extended-flags word are walked; the same word in a version 2 index is not a layout.
+/// Version 3 entries with the extended-flags word are walked;
+/// the same word in a version 2 index is not a layout.
 #[test]
 fn extended_flags_belong_to_version_3_only() {
     let mut extended: Built = regular("intent");
@@ -197,7 +224,8 @@ fn extended_flags_belong_to_version_3_only() {
     assert!(skipped(rewrite_index_stat(v2.as_slice(), &mut |_path: &[u8]| { return Some(fresh()); })).contains("documented layout"));
 }
 
-/// Version 4 paths are compressed against the previous one; the lookup still receives the whole path.
+/// Version 4 paths are compressed against the previous one;
+/// the lookup still receives the whole path.
 #[test]
 fn version_4_paths_are_expanded_before_the_lookup() {
     let input: Vec<u8> = build(4, &[regular("dir/alpha"), regular("dir/beta"), regular("other")], &[], Checksum::Sha1);
@@ -211,7 +239,8 @@ fn version_4_paths_are_expanded_before_the_lookup() {
     assert_eq!(output.len(), input.len());
 }
 
-/// A SHA-256 index is recognized by its checksum and rewritten with one; an all-zero checksum stays all zero.
+/// A SHA-256 index is recognized by its checksum and rewritten with one;
+/// an all-zero checksum stays all zero.
 #[test]
 fn both_hash_lengths_and_the_zero_checksum_are_kept() {
     let wide: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Sha256);
@@ -225,7 +254,9 @@ fn both_hash_lengths_and_the_zero_checksum_are_kept() {
     assert_eq!(&kept_zero[kept_zero.len() - 20..], &[0u8; 20]);
 }
 
-/// The derived extensions are dropped, the others kept in order, and the checksum covers what remains.
+/// The derived extensions are dropped,
+/// the others kept in order,
+/// and the checksum covers what remains.
 #[test]
 fn derived_extensions_are_dropped_and_the_others_kept() {
     let extensions: Vec<(&[u8; 4], Vec<u8>)> = vec![
@@ -245,7 +276,8 @@ fn derived_extensions_are_dropped_and_the_others_kept() {
     assert_eq!(&output[output.len() - 20..], sha1(&output[..output.len() - 20]).as_slice());
 }
 
-/// A split or sparse index changes what the entries mean, so the rewrite declines and names the extension.
+/// A split or sparse index changes what the entries mean,
+/// so the rewrite declines and names the extension.
 #[test]
 fn split_and_sparse_indexes_are_declined() {
     for signature in [b"link", b"sdir"] {
@@ -302,8 +334,10 @@ fn malformed_files_are_declined_with_a_reason() {
     assert!(skipped(rewrite_index_stat(long_extension.as_slice(), &mut { lookup })).contains("runs past the end"));
 }
 
-/// A file that is exactly a header is long enough to be judged by its signature and version, so the decline names what
-///  is wrong with it (no checksum fits) and not the missing signature; one byte less cannot hold the signature.
+/// A file that is exactly a header is long enough to be judged by its signature and version,
+/// so the decline names what
+///  is wrong with it (no checksum fits) and not the missing signature;
+/// one byte less cannot hold the signature.
 #[test]
 fn a_file_of_exactly_a_header_is_judged_by_its_content_and_one_byte_less_is_not_an_index() {
     let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
@@ -317,7 +351,8 @@ fn a_file_of_exactly_a_header_is_judged_by_its_content_and_one_byte_less_is_not_
     assert!(short.contains("no DIRC signature"), "{short}");
 }
 
-/// The 124-byte SHA-256 index with an all-zero checksum whose entry walk also succeeds as a SHA-1 index: read as SHA-1 its
+/// The 124-byte SHA-256 index with an all-zero checksum whose entry walk also succeeds as a SHA-1 index:
+/// read as SHA-1 its
 ///  object name hides a second entry layout and an `UNTR` extension that ends exactly at the checksum.
 fn ambiguous_sha256_index() -> Vec<u8> {
     let mut bytes: Vec<u8> = b"DIRC".to_vec();
@@ -335,8 +370,10 @@ fn ambiguous_sha256_index() -> Vec<u8> {
     return bytes;
 }
 
-/// A zero checksum does not say which hash an index uses. A file that parses under both lengths is declined when the
-///  repository's format is not known, and read with the repository's format when it is.
+/// A zero checksum does not say which hash an index uses.
+/// A file that parses under both lengths is declined when the
+///  repository's format is not known,
+/// and read with the repository's format when it is.
 #[test]
 fn an_ambiguous_zero_checksum_is_declined_unless_the_repository_hash_is_known() {
     let input: Vec<u8> = ambiguous_sha256_index();
@@ -350,7 +387,8 @@ fn an_ambiguous_zero_checksum_is_declined_unless_the_repository_hash_is_known() 
     assert_eq!(&output[output.len() - 32..], &[0u8; 32], "an index written without a checksum keeps none");
 }
 
-/// An empty SHA-256 index with an all-zero checksum is read as SHA-256 on its own, and a known format that contradicts a
+/// An empty SHA-256 index with an all-zero checksum is read as SHA-256 on its own,
+/// and a known format that contradicts a
 ///  verifying checksum is declined.
 #[test]
 fn an_empty_skip_hash_sha256_index_and_a_contradicting_format_are_handled() {
@@ -364,8 +402,11 @@ fn an_empty_skip_hash_sha256_index_and_a_contradicting_format_are_handled() {
     assert!(reason.contains("does not match the repository's hash"), "{reason}");
 }
 
-/// An entry as new as the index file is racy and keeps its fields; an older one is rewritten; the reference check can
-///  keep an entry too, and is given the fields the entry stores.
+/// An entry as new as the index file is racy and keeps its fields;
+/// an older one is rewritten;
+/// the reference check can
+///  keep an entry too,
+/// and is given the fields the entry stores.
 #[test]
 fn racy_entries_and_untrusted_entries_keep_their_stat_fields() {
     let input: Vec<u8> = build(2, &[regular("README.md")], &[], Checksum::Sha1);

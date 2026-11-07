@@ -2,6 +2,8 @@
 //!  `drag`,
 //!  and `scroll` commands with their `name=value` options.
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::result_or_text;
 /// Sibling modules of this crate.
 use super::{
     parse_button, parse_f64,
@@ -30,7 +32,7 @@ pub(super) fn parse_click(tokens: &mut std::str::SplitWhitespace) -> Result<Comm
     let y = parse_f64(tokens.next(), "click y")?;
     let rest = split(tokens, "click", &["mods", "count", "interval"])?;
     let button = button_argument(&rest, "click")?;
-    let count = u32::try_from(rest.number("count", 1, (1, 10))?).map_err(|_| return "click count is too large".to_string())?;
+    let count = result_or_text(u32::try_from(rest.number("count", 1, (1, 10))?), format_args!("click count is too large"))?;
     let interval_ms = rest.number("interval", 80, (0, 5_000))?;
     let modifiers = rest.modifiers()?;
     return Ok(Command::Click { x, y, button, count, interval_ms, modifiers })
@@ -85,7 +87,7 @@ pub(super) fn parse_drag(tokens: &mut std::str::SplitWhitespace) -> Result<Comma
     let to_y = parse_f64(tokens.next(), "drag y2")?;
     let rest = split(tokens, "drag", &["mods", "steps", "step-ms"])?;
     let button = button_argument(&rest, "drag")?;
-    let steps = u32::try_from(rest.number("steps", 10, (1, 1_000))?).map_err(|_| return "drag steps is too large".to_string())?;
+    let steps = result_or_text(u32::try_from(rest.number("steps", 10, (1, 1_000))?), format_args!("drag steps is too large"))?;
     let step_ms = rest.number("step-ms", 16, (0, 5_000))?;
     let modifiers = rest.modifiers()?;
     for (name, value) in [("x1", from_x), ("y1", from_y), ("x2", to_x), ("y2", to_y)] {
@@ -120,7 +122,7 @@ pub(super) fn parse_scroll(tokens: &mut std::str::SplitWhitespace) -> Result<Com
     if !rest.positional.is_empty() {
         return Err("scroll expects X Y DX DY and optional name=value options".to_string())
     }
-    let steps = u32::try_from(rest.number("steps", 1, (1, 1_000))?).map_err(|_| return "scroll steps is too large".to_string())?;
+    let steps = result_or_text(u32::try_from(rest.number("steps", 1, (1, 1_000))?), format_args!("scroll steps is too large"))?;
     let step_ms = rest.number("step-ms", 16, (0, 5_000))?;
     let modifiers = rest.modifiers()?;
     for (name, value) in [("x", x), ("y", y), ("dx", dx), ("dy", dy)] {

@@ -241,10 +241,14 @@ impl<'run> HostChecker<'run> {
     fn project(
         &mut self,
         input: &VirtualSource,
-        finding: Diagnostic,
+        mut finding: Diagnostic,
         source: &str,
         findings: &mut Vec<Diagnostic>,
     ) {
+        // A listing quotes source word for word; its comments are reported and never rewritten.
+        if input.is_inside_fence() && finding.fix.is_some() {
+            finding.fix = None;
+        }
         let mut without_fix: Option<Diagnostic> = None;
         if finding.fix.is_some() {
             let mut copy: Diagnostic = finding.clone();
@@ -421,7 +425,17 @@ mod snapshot;
 impl SourceChecker for HostChecker<'_> {
     /// Wrap the infallible snapshot check in the loop's result type.
     fn check(&mut self, source: &str) -> Result<Vec<Diagnostic>, FixError> {
-        return Ok(self.check_snapshot(source));
+        let mut findings: Vec<Diagnostic> = self.check_snapshot(source);
+        // A fix outside this run's scope is withheld; its finding is still reported.
+        for finding in &mut findings {
+            let Some(fix) = &finding.fix else {
+                continue;
+            };
+            if !self.plan.fix_scope.allows(fix.class) {
+                finding.fix = None;
+            }
+        }
+        return Ok(findings);
     }
 }
 

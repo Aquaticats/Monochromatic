@@ -86,7 +86,7 @@ fn tokenize(line: &str) -> Result<Vec<Token>, String> {
             if !closed {
                 return Err("drop-file has a quoted path with no closing quote".to_string())
             }
-            if characters.peek().is_some_and(|after| return !after.is_whitespace()) {
+            if matches!(characters.peek(), Some(after) if !after.is_whitespace()) {
                 return Err("drop-file needs whitespace after a closing quote".to_string())
             }
         } else {
@@ -141,7 +141,7 @@ pub(super) fn parse(rest: &str) -> Result<Command, String> {
     } else if count == 2 && !tokens[1].quoted && tokens[1].text.parse::<f64>().is_ok() {
         return Err("drop-file needs both x and y or neither".to_string())
     }
-    if point.is_some_and(|(x, y)| return !x.is_finite() || !y.is_finite()) {
+    if matches!(point, Some((x, y)) if !x.is_finite() || !y.is_finite()) {
         return Err("drop-file coordinates must be finite".to_string())
     }
     if path_count == 0 {
@@ -150,6 +150,13 @@ pub(super) fn parse(rest: &str) -> Result<Command, String> {
     if path_count > MAX_FILES {
         return Err(format!("drop-file takes at most {MAX_FILES} paths"))
     }
-    let paths = tokens.iter().take(path_count).map(|token| return PathBuf::from(&token.text)).collect();
-    return Ok(Command::DropFile { paths, x: point.map(|(x, _)| return x), y: point.map(|(_, y)| return y) })
+    let mut paths: Vec<PathBuf> = Vec::new();
+    for token in tokens.iter().take(path_count) {
+        paths.push(PathBuf::from(&token.text));
+    }
+    let (x, y) = match point {
+        Some((x, y)) => (Some(x), Some(y)),
+        None => (None, None),
+    };
+    return Ok(Command::DropFile { paths, x, y })
 }

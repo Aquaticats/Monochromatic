@@ -1,14 +1,33 @@
 //! What:
-//!  The commit command's path through the resident service: prepare the commit in this process (private index,
-//!  policies), send the prepared change to the service, and report what it landed.
+//!  The commit command's path through the resident service:
+//! prepare the commit in this process (private index,
+//!  policies),
+//! send the prepared change to the service,
+//! and report what it landed.
 //! Why:
-//!  The service is the only writer, so a commit takes no lock and polls nothing: preparation and policies run here,
-//!  outside the service's serialized step, and the service moves the branch once for a whole batch of commits
-//!  (`doc/planning/cli-git-resident-service.md`, "Where preparation and policies run").
-//!  Every command line lands through it. The lines `service_commit_args.rs` accepts are built here from the command line
-//!  (message and identity options, sign-off, trailers, a reused or fixup message, `-a`, an index commit, `--amend`); every
-//!  other line, and every commit that is not on an ordinary branch with an ordinary state, is built by real Git in a scratch
-//!  repository and landed as Git made it. Which route a commit takes is decided by `service_route.rs`; what is prepared is
+//!  The service is the only writer,
+//! so a commit takes no lock and polls nothing:
+//! preparation and policies run here,
+//!  outside the service's serialized step,
+//! and the service moves the branch once for a whole batch of commits
+//!  (`doc/planning/cli-git-resident-service.md`,
+//! "Where preparation and policies run").
+//!  Every command line lands through it.
+//! The lines `service_commit_args.rs` accepts are built here from the command line
+//!  (message and identity options,
+//! sign-off,
+//! trailers,
+//! a reused or fixup message,
+//! `-a`,
+//! an index commit,
+//! `--amend`);
+//! every
+//!  other line,
+//! and every commit that is not on an ordinary branch with an ordinary state,
+//! is built by real Git in a scratch
+//!  repository and landed as Git made it.
+//! Which route a commit takes is decided by `service_route.rs`;
+//! what is prepared is
 //!  `service_prepare.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -48,16 +67,22 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-/// What the service path returns: the transaction result for the lifecycle, and the handoff when the commit landed.
+/// What the service path returns:
+/// the transaction result for the lifecycle,
+/// and the handoff when the commit landed.
 pub struct ServiceCommit {
     /// What the policies and the landing came to.
     pub result: TransactionResult,
-    /// How to leave the after-commit work for the service; absent when nothing landed.
+    /// How to leave the after-commit work for the service;
+    /// absent when nothing landed.
     pub handoff: Option<ServiceHandoff>,
 }
 
-/// How many times a commit Git built is built again on the new tip when the branch moves before it lands, before the
-///  plain failure. A build is one signature, so the bound keeps a busy branch from keeping a person's command running.
+/// How many times a commit Git built is built again on the new tip when the branch moves before it lands,
+/// before the
+///  plain failure.
+/// A build is one signature,
+/// so the bound keeps a busy branch from keeping a person's command running.
 pub const REBUILD_ATTEMPTS: usize = 5;
 
 /// The plain failure of a branch that moved under a commit that cannot be made again on another tip.
@@ -80,10 +105,14 @@ fn display_text(file: &Path) -> String {
 }
 
 /// What:
-///  Lands the commit through the service, for every command line.
+///  Lands the commit through the service,
+/// for every command line.
 /// Why:
-///   The service is the only writer of a commit. A machine where none can be reached or started ends the command with the
-///  plain message of its platform, before anything was changed; every other ending is the commit's.
+///   The service is the only writer of a commit.
+/// A machine where none can be reached or started ends the command with the
+///  plain message of its platform,
+/// before anything was changed;
+/// every other ending is the commit's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

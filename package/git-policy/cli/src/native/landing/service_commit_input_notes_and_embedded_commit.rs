@@ -1,9 +1,16 @@
 //! What:
-//!  The small steps of a service commit: the arguments after the subcommand, the name of a switched branch, the standard input
-//!  the commit reads, the message when no repository is found, the lines printed after a landing, and the commit the service
+//!  The small steps of a service commit:
+//! the arguments after the subcommand,
+//! the name of a switched branch,
+//! the standard input
+//!  the commit reads,
+//! the message when no repository is found,
+//! the lines printed after a landing,
+//! and the commit the service
 //!  builds itself from the message embedded in the command line.
 //! Why:
-//!  `service_commit.rs` holds the retry loop around them; none of them uses the loop.
+//!  `service_commit.rs` holds the retry loop around them;
+//! none of them uses the loop.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -59,7 +66,8 @@ pub(crate) fn switched_branch_name(reference: &str) -> String {
     return if reference == "HEAD" { String::from("a detached head") } else { reference.trim_start_matches("refs/heads/").to_string() };
 }
 
-/// The standard input of the command when a pathspec file is read from it, read once.
+/// The standard input of the command when a pathspec file is read from it,
+/// read once.
 pub(crate) fn standard_input_for(invocation: &CommitInvocation<'_>) -> Result<Option<Vec<u8>>, TransactionStop> {
     let after: &[OsString] = arguments_after_subcommand(invocation.arguments, invocation.subcommand_index);
     let Some(value) = invocation.region.pathspec_from_file else { return Ok(None) };
@@ -74,10 +82,13 @@ pub(crate) fn standard_input_for(invocation: &CommitInvocation<'_>) -> Result<Op
 }
 
 /// What:
-///  What a commit run outside any repository says: Git's own words and status for the same question.
+///  What a commit run outside any repository says:
+/// Git's own words and status for the same question.
 /// Why:
-///   No worktree means no service instance to send the commit to. Asking Git which repository the directory belongs to gives
-///  the person the text and the exit status native `git commit` gives there, and that question can make no commit.
+///   No worktree means no service instance to send the commit to.
+/// Asking Git which repository the directory belongs to gives
+///  the person the text and the exit status native `git commit` gives there,
+/// and that question can make no commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,7 +124,8 @@ pub(crate) fn message_of_source(found: &AmendSource) -> &str {
 ///  Writes the summary line of a landed commit and ends the command as Git does when it cannot be written.
 /// Why:
 ///   Git prints its summary after the branch moved and dies with `SIGPIPE` when the reader is gone and with a write error when
-///  the device is full or closed, so a command whose output is broken ends the same way whichever program built the commit.
+///  the device is full or closed,
+/// so a command whose output is broken ends the same way whichever program built the commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,7 +153,8 @@ pub(crate) fn print_summary(line: &str) {
 /// What:
 ///  Writes one note of the wrapper's to standard error.
 /// Why:
-///   The note is the wrapper's own words beside Git's output on standard output; a write that fails is logged and does not fail
+///   The note is the wrapper's own words beside Git's output on standard output;
+/// a write that fails is logged and does not fail
 ///  the commit that has already landed.
 ///
 /// In TS you'd write (pseudocode):
@@ -154,7 +167,11 @@ pub(crate) fn print_note(line: &str) {
     }
 }
 
-/// What the embedded route made of a command line: the message, the identities and, for an amend, the replaced commit.
+/// What the embedded route made of a command line:
+/// the message,
+/// the identities and,
+/// for an amend,
+/// the replaced commit.
 pub(crate) struct Embedded {
     pub(crate) message: String,
     pub(crate) author: String,
@@ -164,10 +181,15 @@ pub(crate) struct Embedded {
 }
 
 /// What:
-///  Builds the message and the identities of a command line the service covers, the way native Git would.
+///  Builds the message and the identities of a command line the service covers,
+/// the way native Git would.
 /// Why:
-///   Returns nothing when Git alone can say what the line means (an unreadable message file, a date it does not read, no
-///  identity configured, an empty message), and Git then builds the commit and gives the person its own words.
+///   Returns nothing when Git alone can say what the line means (an unreadable message file,
+/// a date it does not read,
+/// no
+///  identity configured,
+/// an empty message),
+/// and Git then builds the commit and gives the person its own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,10 +224,15 @@ pub(crate) fn embedded_commit(invocation: &CommitInvocation<'_>, parsed: Service
 }
 
 /// What:
-///  Where the service of this worktree is reached and, when it may have to be started, how to provision it.
+///  Where the service of this worktree is reached and,
+/// when it may have to be started,
+/// how to provision it.
 /// Why:
-///  The route depends on the process environment and on the worktree's own Git directory, which names the service instance;
-///  a commit outside a repository, or on a machine with no way to start a service, stops here.
+///  The route depends on the process environment and on the worktree's own Git directory,
+/// which names the service instance;
+///  a commit outside a repository,
+/// or on a machine with no way to start a service,
+/// stops here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -237,7 +264,10 @@ pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing:
 }
 
 /// What:
-///  The settings of the client that submits a commit to the service: the address, the waits and ceilings, and the watch on the
+///  The settings of the client that submits a commit to the service:
+/// the address,
+/// the waits and ceilings,
+/// and the watch on the
 ///  service manager when the service may have to be started.
 /// Why:
 ///  The retry loop copies it for each wait and adds the scratch directory to keep fresh.

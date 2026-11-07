@@ -9,18 +9,31 @@
 //! this file only
 //! converts them into Slint values and writes window properties.
 
+/// Imports the cell that holds the screen state on the window thread.
 use std::cell::RefCell;
+/// Imports the shared ownership type that shares models with the window.
 use std::rc::Rc;
 
+/// Imports the update type that engine messages arrive as.
 use music_player::command::Update;
+/// Imports the default track row template.
 use music_player::template_model::DEFAULT_TRACK_TEMPLATE;
+/// Imports the function that applies reported measures to the state.
 use music_player::track_measure::apply_measures;
+/// Imports the supporting line evaluation of a row.
 use music_player::track_supporting_line::supporting_line_from_template;
+/// Imports the component handle,
+/// the model types and the shared string that fill the window.
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
+/// Imports the conversion of the playback mode to the window's integer.
 use crate::ui_playback::playback_mode_to_int;
+/// Imports the scroll request type and its decision.
 use crate::ui_screen_scroll::{ScrollRequest, next_scroll_request, scroll_offset_for};
+/// Imports the screen state and view types and the projection.
 use crate::ui_screen_view::{ScreenState, ScreenView, view};
+/// Imports the window,
+/// its generated row types and the time formatter.
 use crate::{AppWindow, DeckState, FolderName, FolderRailCell, TrackListRow, format_time};
 
 thread_local! {
@@ -201,6 +214,20 @@ fn reset_position(app: &AppWindow) {
     app.set_position_text(format_time(0.0).into());
 }
 
+/// What:
+/// `pub(crate) fn set_now_playing(app, index, name, duration)` records the playing track in the screen state and shows its name,
+/// length and queue position in the window.
+/// Why:
+/// The engine reports each track load once;
+/// the deck and the keyboard code then read the same facts from the state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function setNowPlaying(app: AppWindow, index: number | null, name: string, duration: number): void {
+///  state.trackName = name; state.duration = duration; state.currentIndex = index;
+///  app.trackName = name; app.duration = duration; app.durationText = formatTime(duration); app.currentIndex = index ?? -1;
+/// }
+/// ```
 pub(crate) fn set_now_playing(app: &AppWindow, index: Option<usize>, name: &str, duration: f64) {
     update_state(|state| {
         state.track_name = name.to_string();

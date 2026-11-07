@@ -9,6 +9,14 @@
 //!  Environment-variable fallback stays in `lib.rs` because
 //! it is not itself command-line syntax.
 
+#![cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "clap's derive generates the missing-argument closures in its FromArgMatches implementation with the field type as their span, so no author-written closure exists to refactor; see package/forbidden-strings/cli/doc/closure-lint-suppressions.md"
+    )
+)]
+
 /// Imports clap's parser trait and derive macro for this CLI declaration.
 // What:     `use clap::Parser;` brings TWO clap tools into scope under one name:
 //           the `Parser` trait, which supplies `Cli::try_parse_from(...)`, and

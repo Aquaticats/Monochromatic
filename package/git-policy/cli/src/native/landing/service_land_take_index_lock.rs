@@ -1,7 +1,10 @@
 //! What:
-//!  Takes the index lock for a batch that is ready to land, notes the wait in the timing and the log, and cleans up when the lock is refused.
+//!  Takes the index lock for a batch that is ready to land,
+//! notes the wait in the timing and the log,
+//! and cleans up when the lock is refused.
 //! Why:
-//!  It is a self-contained step of a landing, and a file of its own keeps `land_batch_body` short.
+//!  It is a self-contained step of a landing,
+//! and a file of its own keeps `land_batch_body` short.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,10 +23,13 @@ use std::path::Path;
 use std::time::Instant;
 
 /// What:
-///  Takes the index lock for a batch, noting how long it waited and who held it; when the lock is refused the intent is forgotten,
+///  Takes the index lock for a batch,
+/// noting how long it waited and who held it;
+/// when the lock is refused the intent is forgotten,
 ///  the built commit is kept on a side ref and the scratch branch is deleted.
 /// Why:
-///  The lock is asked for after the objects and the intent are made, so it is held for the branch move and the index build only;
+///  The lock is asked for after the objects and the intent are made,
+/// so it is held for the branch move and the index build only;
 ///  a refusal leaves nothing that a restart of the service could land.
 ///
 /// In TS you'd write (pseudocode):

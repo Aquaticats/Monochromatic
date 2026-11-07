@@ -1997,6 +1997,295 @@ not to crates.io.
   `cargo new` and `cargo build` of a scratch crate through that directory (capped scope) finished and
   the program printed `Hello, world!`.
 
+### Release record: `monochromatic-git-policy-cli` 0.6.1-alpha.1, the earlier names fold and a no-checkout clone checks out (2026-11-07T20:02:01Z)
+
+Released by the coordinator from main,
+not waiting for the tokio branch:
+the leftover-ref-lock cause the release had waited for was measured
+(Git's own SIGTERM cleanup cut by a 5 s stop),
+and the same race is in 0.6.0.
+
+- Content:
+  the fold of earlier `cli-git` names into the current ones (`baf4c039f2`),
+  a checkout in a clone made with `--no-checkout` (merge `d2598b2842`),
+  the held-settle message naming the earlier commit service's program,
+  and the index-lock fallback.
+- Gate:
+  `native:test:container` on main `d2598b2842` in a throwaway worktree,
+  unit `wrapper-alpha-gate-d2598b2842`:
+  `Summary [ 976.843s] 5199 tests run: 5199 passed (4 slow), 8 skipped`.
+  Between the gate and the dispatch,
+  nothing under `package/git-policy/cli`,
+  `rust-catalog.toml` or `Cargo.lock` changed;
+  `.github/workflows/cargo-publish.yml` and the crates.io decision action did (the repository-wide lint pass),
+  so the dry run went first.
+- Dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42408755184`:
+  `success`
+  (release `success`,
+  publish skipped).
+  The first dispatch was refused locally:
+  the note was 217 characters against the tool's 200.
+- Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42409052182`
+  (2026-11-07T20:02:01Z to 20:05:36Z,
+  `success`),
+  bump commit `215d3dd3a1` (2026-11-07T20:05:23Z),
+  0.6.0 to 0.6.1-alpha.1.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42409350167`
+  (2026-11-07T20:05:33Z to 20:10:34Z,
+  `success`);
+  `native:release:wait` printed
+  `crates.io 0.6.1-alpha.1: skipped, the alpha label is not published to crates.io (only a plain number and -rc.N are)`
+  and the release assets for `aarch64` and `x86_64` Linux.
+- Lock commit `4c06805b71`:
+  `mise run toolchain:update` reported `1 tools moved`;
+  the diff (read whole) changes only `cargo:monochromatic-git-policy-cli`
+  (version,
+  four artifact URLs,
+  sha256 `04476eca...0deb` for `aarch64` and `12963df1...b35b` for `x86_64`) and the lock digest.
+  `toolchain:install` reported `1 installed, 65 unchanged, 0 failed`.
+- Installed binary:
+  `.cache/toolchain-bin/monochromatic-git-policy-cli --version` prints
+  `monochromatic-git-policy-cli 0.6.1-alpha.1, shadowing git at /usr/bin/git`;
+  the lock commit itself went through it and printed "Updating the commit service...".
+- The fold:
+  the six earlier-name lines had already stopped before the install;
+  `.git/cli-git` and the earlier logs were gone and `.git/monochromatic-git-policy-cli` last changed at
+  2026-11-07T14:57:11-05:00,
+  so a build of main's code (which has the fold) ran against the shared Git directory before 0.6.1-alpha.1 was
+  installed;
+  which program did it is not identified.
+  Nothing was lost:
+  0.5.34 wrote only the earlier names,
+  and the current logs hold its records
+  (257 commit-timing,
+  22 audit,
+  73 push-trigger,
+  41 worktree-add-timing lines),
+  matching the earlier files' sizes.
+
+### Release record: the shadows never start a shadow, `monochromatic-search-shadow` 0.2.3-alpha.1, `monochromatic-pnpm-shadow` 0.1.3-alpha.1, `monochromatic-cargo-shadow` 0.1.5-alpha.3 and `monochromatic-mpm-shadow` 0.2.7-alpha.5 (2026-11-07T15:22:55-05:00)
+
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session.";
+"We should never invoke ourselves recursively.
+That's bad design.
+Audit,
+remove,
+and ban that design aggressively.";
+"nothing should ever wait forever or indefinitely".
+Four alphas under the label gate:
+they go to the GitHub releases and the toolchain lock,
+not to crates.io.
+
+- The defect and the change (branch `fix/shadows-never-start-another-shadow`,
+  merged to main by `ec70e4cf26` 2026-11-07T15:02:22-05:00;
+  troubleshooting entry `doc/troubleshooting/search-shadow-copies-start-each-other-without-end.md`):
+  two `search-shadow` copies at different paths chose each other as the real `grep` and replaced themselves with each other without end
+  (measured 105 starts per second under `strace`,
+  at a quarter of one CPU).
+  Every `PATH` lookup of the four shadows skipped only its own path;
+  now every shadow program carries an identity text in an ELF section,
+  the lookup skips any candidate that carries it (through launcher records),
+  the start goes through the file that was checked,
+  and a shadow started by a shadow stops at once with one line and exit status 2.
+  `mpm-shadow` launchers also refuse a record chain that leads back to a launcher.
+- Red first:
+  test commits `4b435e69f9` (search-shadow:
+  three loops ended at the five second bound,
+  two failures,
+  two controls passed),
+  `679d141568` (pnpm-shadow:
+  four red),
+  `6cebcb29ce` (cargo-shadow:
+  four red) and `f9bafea350` (mpm-shadow:
+  seven red,
+  two of them launcher loops that ended at the bound).
+  Fix commits `60c11621d4`,
+  `505fcdc7dc`,
+  `abb5b4210c`,
+  `ec51606c45` and `99f7f2beba`.
+- Gates on the merged tree:
+  `lint`,
+  `lint:clippy` with warnings denied and `test` for each crate:
+  search-shadow 97 of 97,
+  pnpm-shadow 97 of 97,
+  cargo-shadow 708 of 708 (18 skipped),
+  mpm-shadow 628 of 628.
+  One earlier full cargo-shadow run failed
+  `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`
+  twice (it needs a freed time namespace number to be reused,
+  and the allocator is shared by every session on the host);
+  it passed in the later full run without a change to that code.
+- Dry runs (each `success`,
+  `publish` skipped):
+  mpm-shadow `https://github.com/Aquaticats/Monochromatic/actions/runs/42409174548`,
+  search-shadow `.../42409864215`,
+  pnpm-shadow `.../42410075106`,
+  cargo-shadow `.../42410286984`.
+  Three dry runs started at once were cancelled by the workflow's one-run concurrency group (`.../42409146071`,
+  `.../42409153052`,
+  `.../42409159803`) and were started again one at a time.
+- Release runs and publish runs (each `success`):
+  mpm-shadow 0.2.7-alpha.4 to alpha.5 `.../42409491393` (bump `ffca464af8`),
+  publish `.../42409620811`;
+  search-shadow 0.2.2 to 0.2.3-alpha.1 `.../42409961703` (bump `b2b5a4f5bd`),
+  publish `.../42410050963`;
+  pnpm-shadow 0.1.2 to 0.1.3-alpha.1 `.../42410171012` (bump `1eb57682c6`),
+  publish `.../42410263305`;
+  cargo-shadow 0.1.5-alpha.2 to alpha.3 `.../42410399055` (bump `518be0a289`),
+  publish `.../42410470730`.
+  The wait task said for each `crates.io <version>: skipped, the alpha label is not published to crates.io`.
+  GitHub releases `monochromatic-<crate>-v<version>` (published 2026-11-07T20:13:06Z for mpm-shadow,
+  20:15:34Z for search-shadow,
+  20:18:24Z for pnpm-shadow and
+  20:21:17Z for cargo-shadow):
+  `isPrerelease` false,
+  `isDraft` false,
+  with both Linux tarballs and the checksums file.
+- Lock move (commit `2b9a1589ae`,
+  2026-11-07T15:22:55-05:00):
+  `mise run toolchain:update` moved the four tools and nothing else ("4 tools moved");
+  every aarch64 and x86_64 SHA-256 value in the lock equals the release's checksums file.
+  `mise run toolchain:install` reported `3 installed, 63 unchanged, 0 failed`
+  (the mpm-shadow copy that ran the install was already the newest).
+- Installed binaries:
+  `.cache/search-shadow-bin/rg --version` and `grep --version`,
+  `.cache/cargo-shadow-bin/cargo --version`,
+  `.cache/pnpm-shadow-bin/pnpm --version` and `.cache/mpm-shadow-bin/mpm --version` print the real tool's text and one line naming the shadow at its new version,
+  exit 0 (the first `mpm --version` call ran past a 20 second limit and was not reproduced:
+  four later calls took 0.2 to 3 seconds,
+  and a trace of one showed a single start of each program).
+  The two-copy reproduction with the installed 0.2.3-alpha.1 program and a copy of it made another version
+  ended by itself with exit 1 (grep,
+  no match) after two starts (the shadow,
+  then the real `grep` through the checked file),
+  where 0.2.2 never ended.
+  A shadow started by a script that runs another shadow stopped with exit status 2 and the one line.
+- Not done here:
+  the real cargo that `cargo-shadow`'s install step starts inside its contained runner gets no arrival marker
+  (it keeps the vetting and a lookup that skips shadows by identity);
+  a tree whose links point at an older shadow keeps the old behavior until `mise run toolchain:install` runs in it;
+  a shared crate for the identity rule was not added (the broader option,
+  left to the owner).
+
+### Release record: `monochromatic-lint` 0.5.2-alpha.3, `--fix` changes only whitespace (2026-11-07T15:42:54-05:00)
+
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session."
+An alpha under the label gate:
+it goes to the GitHub release and the toolchain lock,
+not to crates.io.
+
+- The change it carries (branch `fix/monochromatic-lint-fix-changes-only-whitespace`,
+  merged to main by `2941e1e60e`):
+  `--fix` no longer wraps a URL whose link text swallowed a code span backtick,
+  no longer rewrites a pipe table,
+  no longer rewrites a rustdoc comment inside a fenced listing
+  and no longer adds `>` to a broken blockquote line.
+  The open split of whitespace fixes from content fixes is
+  `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`.
+- Gates on the merged tree:
+  `lint` and `lint:types` (clippy with warnings denied) exit 0;
+  the test run ended `871 tests run: 868 passed, 3 failed, 3 skipped`,
+  the three failures being `config_pin::tests::the_hint_names_a_measured_newer_pin_and_nothing_else`,
+  `config_pin::tests::unmeasured_pins_and_farther_lockfiles_produce_no_hint` and
+  `binary::a_newer_repository_pin_adds_the_stale_binary_hint`,
+  the pin-hint family the 0.5.2-alpha.2 record above already names as failing in a module this change does not touch
+  (`numeric_triple` in `src/config_pin.rs` reads `0.5.2-alpha.3` as four parts and measures nothing).
+- Release runs:
+  dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42410774214` (success),
+  release `https://github.com/Aquaticats/Monochromatic/actions/runs/42410912719`,
+  publish `https://github.com/Aquaticats/Monochromatic/actions/runs/42411061993`;
+  crates.io skipped it ("the alpha label is not published to crates.io"),
+  and the GitHub release `monochromatic-lint-v0.5.2-alpha.3` holds the platform archives.
+- Lock move:
+  `4076b89351`,
+  one tool moved by `mise run toolchain:update` (`cargo:monochromatic-lint` 0.5.2-alpha.2 to 0.5.2-alpha.3);
+  `mise run toolchain:install` then installed it and `monochromatic-lint --version` printed `monochromatic-lint 0.5.2-alpha.3`.
+- Proof at the user boundary:
+  the installed 0.5.2-alpha.3 binary run with `--fix` on the five reproductions left the URL and the pipe table
+  unchanged and still reported (`markdown/no-bare-urls`,
+  `markdown/no-pipe-tables`),
+  left the fenced Rust listing in Markdown unchanged and still reported,
+  broke the outer doc comment of a Rust file and left its doc example alone,
+  and broke the blockquote lines without adding a `>`.
+
+### Release record: `monochromatic-lint` 0.5.2-alpha.4 and 0.5.2-alpha.5, the fix classes and the stale install (2026-11-07T16:50:00-05:00)
+
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session."
+Two alphas under the label gate:
+they go to GitHub releases and the toolchain lock,
+not to crates.io.
+
+- 0.5.2-alpha.4 carries the fix classes
+  (merge `2b6c1521ef`,
+  branch `feat/monochromatic-lint-fix-classes-whitespace-and-content`,
+  coordinator pick of option A in `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`,
+  owner veto open):
+  every fix carries a class,
+  plain `--fix` applies only whitespace fixes,
+  `--fix-content` also applies content fixes,
+  and `--rules` prints `fixClass`.
+- 0.5.2-alpha.5 carries the closure check change
+  (merge `4de475d142`):
+  a `cargo` that fails `cargo dylint --version` without saying `no such command` is a broken or stale tool,
+  so the run fails with status 2 and names `mise run toolchain:install`;
+  before,
+  any failure other than 126 and 127 was taken for a machine without cargo-dylint
+  and skipped with exit 0.
+  The other skips (cold cargo cache,
+  missing rustc-dev,
+  driver gap,
+  package prerequisites) are unchanged,
+  because the owner's answer of 2026-10-19 skips a package whose prerequisites are missing on the machine.
+- Red first:
+  `13baff0739` (seven class tests and the token property) and `19ae70cc7d` (three stale-install tests);
+  fix commits `a186d61108` and `1eafeab702`.
+- Gates on the merged tree:
+  `lint` and `lint:types` exit 0;
+  the test run ended `880 tests run: 877 passed, 3 failed, 3 skipped`,
+  the three failures being the pin-hint family
+  (`config_pin::tests::the_hint_names_a_measured_newer_pin_and_nothing_else`,
+  `config_pin::tests::unmeasured_pins_and_farther_lockfiles_produce_no_hint`,
+  `binary::a_newer_repository_pin_adds_the_stale_binary_hint`),
+  which the 0.5.2-alpha.3 record already names and which another agent owns.
+- Release runs:
+  0.5.2-alpha.4 dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42415498694`,
+  release `https://github.com/Aquaticats/Monochromatic/actions/runs/42415630578`,
+  publish `https://github.com/Aquaticats/Monochromatic/actions/runs/42415748634`;
+  0.5.2-alpha.5 dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42416513288`,
+  release `https://github.com/Aquaticats/Monochromatic/actions/runs/42416647214`,
+  publish `https://github.com/Aquaticats/Monochromatic/actions/runs/42416777236`;
+  crates.io skipped both.
+- Lock move:
+  one commit moves `cargo:monochromatic-lint` 0.5.2-alpha.3 to 0.5.2-alpha.5 (one tool moved);
+  0.5.2-alpha.4 was never locked because alpha.5 followed within the hour.
+  `mise run toolchain:install` then installed it and `monochromatic-lint --version` printed `monochromatic-lint 0.5.2-alpha.5`.
+- Proof at the user boundary,
+  with the installed 0.5.2-alpha.5:
+  for each of the six content rules plain `--fix` left the file as written and kept the finding,
+  and `--fix-content` rewrote it with no finding left;
+  `--rules` listed `semantic-line-breaks` as `whitespace` and the seven other fixable rules as `content`;
+  a stub `cargo` whose `dylint --version` exits 1 with its own words made the run exit 2 with a processing failure
+  that names `mise run toolchain:install`,
+  while a stub whose standard error says `no such command: dylint` still skipped with exit 0 and one message;
+  the five earlier reproductions behave as in the 0.5.2-alpha.3 record.
+- Property measurement (plain `--fix`,
+  every fixable Markdown rule enabled,
+  the ignored `real_tree_keeps_every_token_under_the_whitespace_rule` test):
+  6575 tracked Markdown,
+  MDX and Rust files,
+  1212 changed by the fix,
+  none changed a token (731 s).
+  The 0.5.2-alpha.3 executable with the same rules over 3063 Markdown files changed tokens in 9.
+
 ## Evidence log
 
 - crates.io API reads:

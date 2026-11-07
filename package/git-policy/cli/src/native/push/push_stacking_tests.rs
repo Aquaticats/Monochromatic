@@ -1,5 +1,7 @@
-//! Controls for integrating an explicit push that lost a race, against real repositories and bare remotes.
-//! The stacked push is published by plain Git here: the gates that the executable adds are exercised in the binary tests.
+//! Controls for integrating an explicit push that lost a race,
+//! against real repositories and bare remotes.
+//! The stacked push is published by plain Git here:
+//! the gates that the executable adds are exercised in the binary tests.
 
 use super::*;
 use crate::test_support::{fixture, git, remove};
@@ -36,9 +38,13 @@ fn push_git(root: &Path) -> PushGit {
     };
 }
 
-/// A fixture: a bare remote, the pushing clone, and the clone another session pushes from.
+/// A fixture:
+/// a bare remote,
+/// the pushing clone,
+/// and the clone another session pushes from.
 struct Race {
-    /// Directory that holds the fixture, removed at the end of each test.
+    /// Directory that holds the fixture,
+    /// removed at the end of each test.
     root: PathBuf,
     /// The bare remote.
     remote: PathBuf,
@@ -112,7 +118,8 @@ fn region(race: &Race) -> Vec<OsString> {
         .collect();
 }
 
-/// Publish the merge with plain Git in the clone, as the planner's forwarded push does once the gates pass.
+/// Publish the merge with plain Git in the clone,
+/// as the planner's forwarded push does once the gates pass.
 fn plain_git_merge_push(
     git: &PushGit,
     global_prefix: &[OsString],
@@ -130,7 +137,8 @@ fn plain_git_merge_push(
     return Ok(status.code().unwrap_or(1));
 }
 
-/// Integrate a failed push of `HEAD` from the local clone; plain Git publishes the merge.
+/// Integrate a failed push of `HEAD` from the local clone;
+/// plain Git publishes the merge.
 fn stack(race: &Race, region: &[OsString]) -> (Option<i32>, String) {
     let git_for_local = push_git(&race.local);
     let request = StackRequest {
@@ -154,7 +162,8 @@ fn reachable(race: &Race, ancestor: &str, descendant: &str) -> bool {
         .success();
 }
 
-/// A push that lost a race is merged with what landed and published, and the branch follows the merge.
+/// A push that lost a race is merged with what landed and published,
+/// and the branch follows the merge.
 #[test]
 fn a_push_that_lost_a_race_publishes_the_merge_and_the_branch_follows() {
     let race = race("ps-lost-race");
@@ -192,7 +201,9 @@ fn a_detached_head_stays_where_it_is_and_the_report_says_so() {
     remove(&race.root);
 }
 
-/// A conflict publishes nothing, names the paths, and exits non-zero.
+/// A conflict publishes nothing,
+/// names the paths,
+/// and exits non-zero.
 #[test]
 fn a_conflict_publishes_nothing_and_names_the_paths() {
     let race = race("ps-conflict");
@@ -233,7 +244,8 @@ fn an_unreachable_remote_prints_and_changes_nothing() {
     remove(&race.root);
 }
 
-/// Forced, deleting and multi-ref forms are never integrated.
+/// Forced,
+/// deleting and multi-ref forms are never integrated.
 #[test]
 fn forced_deleting_and_multi_ref_pushes_are_never_integrated() {
     let race = race("ps-ineligible");

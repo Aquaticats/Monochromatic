@@ -27,7 +27,8 @@ fn rendered_without_hint(sequence: u64, event: &PolicyEvent) -> String {
     return strip_hint_fields(render_policy_event(sequence, event).as_str());
 }
 
-/// A finding with a known hint carries it as its own field after the message, and the message stays the same.
+/// A finding with a known hint carries it as its own field after the message,
+/// and the message stays the same.
 #[test]
 fn a_hinted_event_carries_the_hint_as_its_own_field() {
     let line: String = render_policy_event(
@@ -251,7 +252,9 @@ fn fix_summary_has_the_incumbent_shape() {
     );
 }
 
-/// The word-merged event is one line with its type, its outcome and the part lines in one escaped message, and it blocks nothing.
+/// The word-merged event is one line with its type,
+/// its outcome and the part lines in one escaped message,
+/// and it blocks nothing.
 #[test]
 fn word_merged_has_its_shape_and_does_not_block() {
     let event: PolicyEvent = PolicyEvent::WordMerged { lines: vec![String::from("word-level merge: a.md: part 1 of 1: \"x\""), String::from("second")] };
@@ -440,7 +443,8 @@ fn a_fix_summary_lists_every_path_s_bytes_once_one_is_not_utf8() {
     );
 }
 
-/// An engine failure that chose its own hint renders that hint instead of its code's, and one that chose none renders no hint.
+/// An engine failure that chose its own hint renders that hint instead of its code's,
+/// and one that chose none renders no hint.
 #[test]
 fn an_engine_failure_renders_the_hint_it_chose() {
     let render = |hint: crate::policy_events::EngineFailureHint| -> String {

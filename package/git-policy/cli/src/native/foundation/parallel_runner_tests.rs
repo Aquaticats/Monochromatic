@@ -1,19 +1,27 @@
-//! The ordered parallel run: items really overlap, the report keeps input order, progress is live, the worker bound holds, lanes
-//!  never overlap inside themselves, and a worker's panic ends the run instead of hanging it.
+//! The ordered parallel run:
+//! items really overlap,
+//! the report keeps input order,
+//! progress is live,
+//! the worker bound holds,
+//! lanes
+//!  never overlap inside themselves,
+//! and a worker's panic ends the run instead of hanging it.
 
 use super::*;
 use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE};
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
 
-/// A function-like value with the right shape is a test's work: the shipped callers write a small struct instead.
+/// A function-like value with the right shape is a test's work:
+/// the shipped callers write a small struct instead.
 impl<T, R, Work: Fn(usize, &T, &mut dyn LineSink) -> R + Sync> OrderedWork<T, R> for Work {
     fn run(&self, index: usize, item: &T, say: &mut dyn LineSink) -> R {
         return self(index, item, say);
     }
 }
 
-/// A function-like value with the right shape is a test's consumer: the shipped callers write a small struct instead.
+/// A function-like value with the right shape is a test's consumer:
+/// the shipped callers write a small struct instead.
 impl<R, Consumer: FnMut(Event<'_, R>)> OrderedEvents<R> for Consumer {
     fn on_event(&mut self, event: Event<'_, R>) {
         self(event);
@@ -25,7 +33,8 @@ fn single_lanes(count: usize) -> Vec<Vec<usize>> {
     return (0..count).map(|index: usize| { return vec![index]; }).collect();
 }
 
-/// Run `work` over `count` items on `workers` threads and return every event as text, in the order the consumer saw them.
+/// Run `work` over `count` items on `workers` threads and return every event as text,
+/// in the order the consumer saw them.
 fn events_of(count: usize, workers: usize, work: &dyn OrderedWork<usize, String>) -> Vec<String> {
     let items: Vec<usize> = (0..count).collect();
     let lanes: Vec<Vec<usize>> = single_lanes(count);
@@ -46,7 +55,8 @@ fn events_of(count: usize, workers: usize, work: &dyn OrderedWork<usize, String>
     return seen;
 }
 
-/// Items that wait for each other all finish when they run side by side: a serial run would time out at the rendezvous.
+/// Items that wait for each other all finish when they run side by side:
+/// a serial run would time out at the rendezvous.
 #[test]
 fn items_overlap_in_time() {
     let count: usize = 4;
@@ -57,7 +67,9 @@ fn items_overlap_in_time() {
     assert!(ends.iter().all(|end: &&String| { return end.ends_with("true"); }), "every item met the others: {events:?}");
 }
 
-/// The control for the control: one worker cannot pass a rendezvous that needs two, so the overlap test would fail for a serial run.
+/// The control for the control:
+/// one worker cannot pass a rendezvous that needs two,
+/// so the overlap test would fail for a serial run.
 #[test]
 fn one_worker_cannot_pass_a_rendezvous_of_two() {
     let point: Rendezvous = Rendezvous::impatient(2, SERIAL_PATIENCE);
@@ -65,7 +77,8 @@ fn one_worker_cannot_pass_a_rendezvous_of_two() {
     assert!(events.iter().any(|event: &String| { return event.ends_with("false"); }), "{events:?}");
 }
 
-/// The first item finishes last, yet the report keeps input order and holds the later items' lines until it is complete.
+/// The first item finishes last,
+/// yet the report keeps input order and holds the later items' lines until it is complete.
 #[test]
 fn the_report_keeps_input_order_when_completion_order_inverts() {
     let count: usize = 3;
@@ -85,7 +98,8 @@ fn the_report_keeps_input_order_when_completion_order_inverts() {
     assert_eq!(events, expected);
 }
 
-/// A line of the first unfinished item reaches the consumer while that item still runs: the item waits for the consumer to have seen it.
+/// A line of the first unfinished item reaches the consumer while that item still runs:
+/// the item waits for the consumer to have seen it.
 #[test]
 fn the_first_items_lines_are_live() {
     let seen_by_consumer: AtomicBool = AtomicBool::new(false);
@@ -115,7 +129,8 @@ fn the_first_items_lines_are_live() {
     assert!(observed_live, "the consumer saw the line before the item ended");
 }
 
-/// No more items run at once than the workers allow, and the bound is reached.
+/// No more items run at once than the workers allow,
+/// and the bound is reached.
 #[test]
 fn the_worker_bound_holds_and_is_reached() {
     let workers: usize = 3;
@@ -134,7 +149,8 @@ fn the_worker_bound_holds_and_is_reached() {
     assert_eq!(high.load(Ordering::SeqCst), workers);
 }
 
-/// The items of one lane run one after another in lane order, while lanes overlap.
+/// The items of one lane run one after another in lane order,
+/// while lanes overlap.
 #[test]
 fn a_lane_runs_its_items_in_order_and_never_overlaps_itself() {
     let items: Vec<usize> = (0..4).collect();
@@ -178,7 +194,9 @@ fn a_worker_panic_ends_the_run() {
     assert!(outcome.is_err());
 }
 
-/// A lane set that leaves an item out, repeats one, or names one that does not exist is refused before anything runs.
+/// A lane set that leaves an item out,
+/// repeats one,
+/// or names one that does not exist is refused before anything runs.
 #[test]
 fn lanes_must_cover_every_item_exactly_once() {
     let items: Vec<usize> = (0..2).collect();
@@ -205,7 +223,8 @@ fn an_empty_run_reports_nothing() {
 }
 
 /// Where the system starts no thread the workers' lanes run on the calling thread and the report is whole and in order (shipped
-/// `Scope::spawn` panicked there). The body runs in a child that is refused every thread.
+/// `Scope::spawn` panicked there).
+/// The body runs in a child that is refused every thread.
 #[test]
 fn an_ordered_run_where_no_thread_can_start_reports_every_item_in_order() {
     if crate::no_threads_child_test_support::ran_in_child(module_path!(), "an_ordered_run_where_no_thread_can_start_reports_every_item_in_order") {

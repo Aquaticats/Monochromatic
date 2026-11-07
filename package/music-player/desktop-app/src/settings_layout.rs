@@ -134,6 +134,12 @@ pub fn icon_y_in_row() -> f32 {
     return (ROW_HEIGHT - ICON_DIAMETER) / 2.0;
 }
 
+/// Unit tests of `settings_layout`,
+/// in the sidecar file `settings_layout_tests.rs`.
+/// Role of the module:
+/// layout rules of the Settings page,
+/// written once as numbers (D109,
+/// D110).
 #[cfg(test)]
 #[path = "settings_layout_tests.rs"]
 mod tests;

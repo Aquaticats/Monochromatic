@@ -8,23 +8,33 @@
 //! // repair/index.ts: one `export * from './file'` per module below.
 //! ```
 
-/// Starting one package-manager program for a worktree repair: finding it, running it with a limit, saying how it ended.
+/// Starting one package-manager program for a worktree repair:
+/// finding it,
+/// running it with a limit,
+/// saying how it ended.
 #[cfg(target_os = "linux")]
 pub mod package_repair_command;
 
-/// What a worktree repair prints: one line for success, one plain line per repair that could not finish.
+/// What a worktree repair prints:
+/// one line for success,
+/// one plain line per repair that could not finish.
 #[cfg(target_os = "linux")]
 pub mod package_repair_report;
 
-/// Cloning one directory tree with its modes, times and links, for the build state Cargo keeps outside a worktree.
+/// Cloning one directory tree with its modes,
+/// times and links,
+/// for the build state Cargo keeps outside a worktree.
 #[cfg(target_os = "linux")]
 pub mod package_repair_tree_clone;
 
-/// The pnpm repair of a new worktree: relink the copied `node_modules` offline against the frozen lockfile.
+/// The pnpm repair of a new worktree:
+/// relink the copied `node_modules` offline against the frozen lockfile.
 #[cfg(target_os = "linux")]
 pub mod package_repair_pnpm;
 
-/// The Cargo repair of a new worktree: clone external build state, then clean the worktree's own crates.
+/// The Cargo repair of a new worktree:
+/// clone external build state,
+/// then clean the worktree's own crates.
 #[cfg(target_os = "linux")]
 pub mod package_repair_cargo;
 
@@ -37,7 +47,8 @@ pub mod package_repair_cargo_lock;
 /// The Cargo workspaces of a new worktree and the manifests that lead to them.
 pub mod package_repair_cargo_workspaces;
 
-/// The toolchain repair of a new worktree: rebuild the links and launchers that name another checkout's lock.
+/// The toolchain repair of a new worktree:
+/// rebuild the links and launchers that name another checkout's lock.
 #[cfg(target_os = "linux")]
 pub mod package_repair_toolchain;
 
@@ -46,5 +57,7 @@ pub mod package_repair_toolchain;
 pub mod package_repair;
 
 /// What a repair reads and is asked:
-///  the person's switches, what the process offers, and the request that holds both.
+///  the person's switches,
+/// what the process offers,
+/// and the request that holds both.
 pub mod package_repair_request;

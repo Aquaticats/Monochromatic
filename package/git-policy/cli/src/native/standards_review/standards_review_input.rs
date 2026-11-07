@@ -1,10 +1,19 @@
 //! What:
-//!  The pure part of the standards-review shadow run: which landed commits get an entry, and the capped model input
+//!  The pure part of the standards-review shadow run:
+//! which landed commits get an entry,
+//! and the capped model input
 //!  built from the commit's patch and the excerpts of its changed code files.
 //! Why:
-//!  This is the root `mise.toml` task `shadow-review` after its Git reads: the no-entry, no-code-files and review
-//!  cases, the 2000-line patch cap, the eight-file and 4000-line excerpt caps, and the 24000-unit input cap. Taking
-//!  the patch and the file contents as plain values lets the caps be tested without Git, a network or a clock.
+//!  This is the root `mise.toml` task `shadow-review` after its Git reads:
+//! the no-entry,
+//! no-code-files and review
+//!  cases,
+//! the 2000-line patch cap,
+//! the eight-file and 4000-line excerpt caps,
+//! and the 24000-unit input cap.
+//! Taking
+//!  the patch and the file contents as plain values lets the caps be tested without Git,
+//! a network or a clock.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,18 +24,28 @@ use crate::standards_review_patch::{NewSpan, new_spans};
 use crate::standards_review_text::{utf16_length, utf16_prefix};
 use std::collections::BTreeMap;
 
-/// The tracked log's repository-relative path: the repository's switch for the review, and the file a commit changes
-/// without getting an entry. It is frozen history that the service never writes.
+/// The tracked log's repository-relative path:
+/// the repository's switch for the review,
+/// and the file a commit changes
+/// without getting an entry.
+/// It is frozen history that the service never writes.
 pub const TRACKED_LOG_RELATIVE: &str = "doc/audit/standards-review-gate-shadow.md";
 
-/// The live log's path under the common Git directory: untracked, so a landing never makes a checkout show a change.
+/// The live log's path under the common Git directory:
+/// untracked,
+/// so a landing never makes a checkout show a change.
 pub const SHARED_LOG_RELATIVE: &str = "monochromatic-git-policy-cli/standards-review-shadow.md";
 
 /// What:
-///  The live log of a repository: the one file every worktree's service instance appends its entries to.
+///  The live log of a repository:
+/// the one file every worktree's service instance appends its entries to.
 /// Why:
-///   The log sits in the common Git directory, which `git status` never lists and no worktree copy reaches, and one
-///   file serves all worktrees. The service already knows the directory from the work item, so no Git start finds it.
+///   The log sits in the common Git directory,
+/// which `git status` never lists and no worktree copy reaches,
+/// and one
+///   file serves all worktrees.
+/// The service already knows the directory from the work item,
+/// so no Git start finds it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -37,10 +56,14 @@ pub fn shared_log_path(common_dir: &std::path::Path) -> std::path::PathBuf {
 }
 
 /// What:
-///  Whether a worktree has the tracked shadow log: the review exists only where the repository keeps one.
+///  Whether a worktree has the tracked shadow log:
+/// the review exists only where the repository keeps one.
 /// Why:
-///   The tracked file's presence is the repository's own switch; no configuration names a program, the wrapper leaves a
-///   review item only where it is true, and the service never writes that file.
+///   The tracked file's presence is the repository's own switch;
+/// no configuration names a program,
+/// the wrapper leaves a
+///   review item only where it is true,
+/// and the service never writes that file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -62,7 +85,8 @@ pub const EXCERPT_CONTEXT: i64 = 30;
 /// Excerpt lines after which no further file gets an excerpt.
 pub const EXCERPT_LINE_CAP: i64 = 4000;
 
-/// Lines of the head of a file that has no changed line to anchor an excerpt on: the context on both sides and one.
+/// Lines of the head of a file that has no changed line to anchor an excerpt on:
+/// the context on both sides and one.
 pub const HEAD_WINDOW: i64 = 2 * EXCERPT_CONTEXT + 1;
 
 /// UTF-16 units of model input.
@@ -74,8 +98,12 @@ pub const CODE_SUFFIXES: [&str; 6] = [".ts", ".tsx", ".rs", ".js", ".mjs", ".cjs
 /// What:
 ///  What a landed commit's changed names say before anything is read from Git.
 /// Why:
-///   A commit with no names (a root commit, a merge) or only the log gets no entry, and a commit with no code gets a
-///   three-line skip entry; neither needs the patch or any file, so neither costs a Git start.
+///   A commit with no names (a root commit,
+/// a merge) or only the log gets no entry,
+/// and a commit with no code gets a
+///   three-line skip entry;
+/// neither needs the patch or any file,
+/// so neither costs a Git start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,14 +115,16 @@ pub enum Plan {
     Silent,
     /// The skip entry.
     NoCode,
-    /// A review of these code files, in name order.
+    /// A review of these code files,
+    /// in name order.
     Review(Vec<String>),
 }
 
 /// What:
 ///  The plan for the names `git diff-tree --name-only -r` prints for the landed commit.
 /// Why:
-///   It is the script's first three branches, in order.
+///   It is the script's first three branches,
+/// in order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -131,10 +161,14 @@ pub fn plan_for(names: &[String]) -> Plan {
 }
 
 /// What:
-///  Everything the review reads about one landed commit: the patch, and the new-side text of each code file that
-///  will be excerpted. A path missing from `contents` has no new-side file (it was deleted).
+///  Everything the review reads about one landed commit:
+/// the patch,
+/// and the new-side text of each code file that
+///  will be excerpted.
+/// A path missing from `contents` has no new-side file (it was deleted).
 /// Why:
-///   One value is all the pure builder needs, whichever way the reads were made.
+///   One value is all the pure builder needs,
+/// whichever way the reads were made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -144,7 +178,8 @@ pub fn plan_for(names: &[String]) -> Plan {
 pub struct LandedCommit {
     /// Full commit name.
     pub sha: String,
-    /// Subject line, trimmed.
+    /// Subject line,
+    /// trimmed.
     pub subject: String,
     /// `git show --format= --patch` text.
     pub patch: String,
@@ -155,7 +190,9 @@ pub struct LandedCommit {
 /// What:
 ///  The sizes the entry reports and the text the model receives.
 /// Why:
-///   `model_input` is cut at the unit cap, while `model_input_units` is the length the script prints: the cut length.
+///   `model_input` is cut at the unit cap,
+/// while `model_input_units` is the length the script prints:
+/// the cut length.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,7 +202,9 @@ pub struct LandedCommit {
 pub struct ReviewInput {
     /// Code files in the commit.
     pub code_file_count: usize,
-    /// Lines of the whole patch (a final newline counts as one more, empty, line).
+    /// Lines of the whole patch (a final newline counts as one more,
+    /// empty,
+    /// line).
     pub diff_line_count: usize,
     /// Whether the patch is over `CAP_LINES`.
     pub truncated: bool,
@@ -176,13 +215,21 @@ pub struct ReviewInput {
 }
 
 /// What:
-///  The excerpt of one file: its header and the text of the window around the changed span.
+///  The excerpt of one file:
+/// its header and the text of the window around the changed span.
 ///  The window runs from `EXCERPT_CONTEXT` lines before the first changed new-side line to `EXCERPT_CONTEXT` lines
-///  after the last, cut from the new-side file. A file with no changed line to anchor on (a binary file, a mode change,
+///  after the last,
+/// cut from the new-side file.
+/// A file with no changed line to anchor on (a binary file,
+/// a mode change,
 ///  a pure rename) gets the head of the file instead.
 /// Why:
-///   Returns the window's line count too, which the 4000-line cap adds up. The script cut the window from old-side
-///   numbers, which sit in the wrong place after an earlier insertion, and gave a file without hunks a nonsensical
+///   Returns the window's line count too,
+/// which the 4000-line cap adds up.
+/// The script cut the window from old-side
+///   numbers,
+/// which sit in the wrong place after an earlier insertion,
+/// and gave a file without hunks a nonsensical
 ///   negative window.
 ///
 /// In TS you'd write (pseudocode):
@@ -220,7 +267,10 @@ fn excerpt(name: &str, content: &str, spans: &[NewSpan]) -> (Vec<String>, i64) {
 /// What:
 ///  Build the capped model input for a reviewed commit.
 /// Why:
-///   The input is the first `CAP_LINES` patch lines, a blank line, then each excerpt separated by blank lines, cut to
+///   The input is the first `CAP_LINES` patch lines,
+/// a blank line,
+/// then each excerpt separated by blank lines,
+/// cut to
 ///   `INPUT_UNIT_CAP` UTF-16 units.
 ///
 /// In TS you'd write (pseudocode):

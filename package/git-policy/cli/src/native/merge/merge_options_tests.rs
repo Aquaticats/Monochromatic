@@ -7,7 +7,8 @@ fn region(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(OsString::from).collect();
 }
 
-/// The supported shape of a command line, or a failure naming it.
+/// The supported shape of a command line,
+/// or a failure naming it.
 fn supported(words: &[&str]) -> MergeShape {
     match parse_merge_shape(&region(words)) {
         ParsedMerge::Supported(shape) => return shape,
@@ -15,7 +16,8 @@ fn supported(words: &[&str]) -> MergeShape {
     }
 }
 
-/// The reason a command line is forwarded, or a failure naming it.
+/// The reason a command line is forwarded,
+/// or a failure naming it.
 fn unsupported(words: &[&str]) -> String {
     match parse_merge_shape(&region(words)) {
         ParsedMerge::Supported(shape) => panic!("{words:?} should be forwarded but read as {shape:?}"),
@@ -51,7 +53,8 @@ fn every_spelling_of_the_message_reads_the_same_bytes() {
     }
 }
 
-/// Git joins several values with a blank line, ending each in a line feed.
+/// Git joins several values with a blank line,
+/// ending each in a line feed.
 #[test]
 fn several_messages_are_joined_by_a_blank_line() {
     let shape: MergeShape = supported(&["-m", "one", "-m", "two\n", "-m", "three", "feature"]);
@@ -73,7 +76,10 @@ fn a_message_keeps_its_bytes() {
     }
 }
 
-/// The fast-forward, edit, quiet, stat and unrelated-history switches.
+/// The fast-forward,
+/// edit,
+/// quiet,
+/// stat and unrelated-history switches.
 #[test]
 fn the_switches_are_read() {
     assert_eq!(supported(&["--no-ff", "f"]).fast_forward, FastForwardChoice::Never);

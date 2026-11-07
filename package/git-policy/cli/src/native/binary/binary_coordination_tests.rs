@@ -1,11 +1,16 @@
 //! What:
 //!  Index writers through the built executable:
-//!  a `git add` beside a foreign `index.lock` ends as native Git ends it, at once and with Git's own words,
+//!  a `git add` beside a foreign `index.lock` ends as native Git ends it,
+//! at once and with Git's own words,
 //!  and a `git rebase --exec 'git add'` finishes because a nested wrapper waits for nothing.
 //! Why:
-//!  A forwarded index writer competes for the index only through Git's own `index.lock`, as it does without the wrapper;
-//!  the one holder it waits for is the commit service, whose hold ends by itself. A writer that waited for a foreign lock,
-//!  or for a lock its own ancestor held, would hang where native Git does not.
+//!  A forwarded index writer competes for the index only through Git's own `index.lock`,
+//! as it does without the wrapper;
+//!  the one holder it waits for is the commit service,
+//! whose hold ends by itself.
+//! A writer that waited for a foreign lock,
+//!  or for a lock its own ancestor held,
+//! would hang where native Git does not.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -59,8 +64,11 @@ fn a_nested_git_add_inside_rebase_does_not_deadlock() {
     remove(&fixture);
 }
 
-/// A foreign program's `index.lock` is Git's refusal: the wrapped `git add` ends with the status and the words native
-///  `git add` gives for the same lock, does not wait for it, and leaves it where it is.
+/// A foreign program's `index.lock` is Git's refusal:
+/// the wrapped `git add` ends with the status and the words native
+///  `git add` gives for the same lock,
+/// does not wait for it,
+/// and leaves it where it is.
 #[test]
 fn a_foreign_index_lock_is_refused_as_native_git_refuses_it() {
     let fixture: Fixture = fixture("coordination-foreign-lock");

@@ -20,6 +20,7 @@ use crate::config_lookup::CONFIG_NAME;
 use crate::configuration::{ConfigBlock, parse_configuration};
 use crate::configuration_rules::RULE_IDS;
 use crate::directive_findings::UNUSED;
+use crate::edits::FixClass;
 use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_plan::ConfigStore;
 use crate::run_test_support::{read, records, write};
@@ -33,7 +34,8 @@ use std::path::Path;
 /// Markdown rules without a fixer:
 ///  their remedy is structural,
 ///  so no grouped edit can repair them.
-const UNFIXABLE_MARKDOWN: [&str; 4] = [
+const UNFIXABLE_MARKDOWN: [&str; 5] = [
+    "markdown/no-pipe-tables",
     "markdown/heading-increment",
     "markdown/no-duplicate-heading",
     "markdown/single-h1",
@@ -70,12 +72,14 @@ fn the_listing_describes_every_registered_rule_in_order() {
     // The first and last lines, byte for byte.
     assert_eq!(
         listing.lines().next(),
-        Some(r#"{"id":"rust/max-lines","fixable":false,"options":["max"],"suppressible":false}"#)
+        Some(
+            r#"{"id":"rust/max-lines","fixable":false,"fixClass":null,"options":["max"],"suppressible":false}"#
+        )
     );
     assert_eq!(
         listing.lines().last(),
         Some(
-            r#"{"id":"shell/no-ampersand","fixable":false,"options":["max"],"suppressible":false}"#
+            r#"{"id":"shell/no-ampersand","fixable":false,"fixClass":null,"options":["max"],"suppressible":false}"#
         )
     );
     // Fixability is exactly the Markdown rules whose remedy is a grouped edit.
@@ -83,6 +87,17 @@ fn the_listing_describes_every_registered_rule_in_order() {
         let rule = rule_info(*id).expect("registered rule is described");
         let fixable: bool = id.starts_with("markdown/") && !UNFIXABLE_MARKDOWN.contains(id);
         assert_eq!(rule.fixable, fixable, "{id}");
+        // A fix class exactly when there is a fix,
+        //  and the line-break rule alone is the whitespace class.
+        assert_eq!(rule.fix_class.is_some(), fixable, "{id}");
+        if fixable {
+            let expected: FixClass = if *id == "markdown/semantic-line-breaks" {
+                FixClass::Whitespace
+            } else {
+                FixClass::Content
+            };
+            assert_eq!(rule.fix_class, Some(expected), "{id}");
+        }
     }
     assert!(listing.ends_with('\n'));
 }

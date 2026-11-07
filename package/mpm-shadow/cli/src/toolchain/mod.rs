@@ -94,6 +94,10 @@ pub mod archive_staging;
 /// The per-tree launcher for repository-published tools.
 pub mod launcher;
 
+/// The check that a launcher's records never lead back to the launcher or in a circle,
+/// so a launcher never starts itself.
+pub mod launcher_chain;
+
 /// What a launcher runs when its record's program is gone:
 /// the program under `current`,
 /// or the sentence that names both versions and the command that fixes it.

@@ -25,9 +25,11 @@
 //! // for (const candidate of prepared.version.candidates) await prepared.store.bytes(candidate);
 //! ```
 
-/// The size of a pathspec chunk, kept in a file of its own so that sibling files share it without importing each other.
+/// The size of a pathspec chunk,
+/// kept in a file of its own so that sibling files share it without importing each other.
 use crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE;
-/// Running Git for a prediction, and the path of the real index.
+/// Running Git for a prediction,
+/// and the path of the real index.
 use crate::candidate_prediction_git_runs::{real_index_path, run_git};
 /// Import the layer's failure type and its closed list of causes.
 use crate::candidate_attribute::{AttributeSource, CandidateAttributes};
@@ -101,30 +103,43 @@ pub enum CandidateRequest {
         ///  `--all` is `:/`.
         Vec<OsString>,
     ),
-    /// The entries the index already holds for the pathspecs, read without staging the worktree first.
-    ///  The commit path uses it, so corrections already written to the private index are the candidates.
+    /// The entries the index already holds for the pathspecs,
+    /// read without staging the worktree first.
+    ///  The commit path uses it,
+    /// so corrections already written to the private index are the candidates.
     Staged(
         /// The pathspecs of the scope.
         Vec<OsString>,
     ),
-    /// The entries the private index holds for the pathspecs, with a recorded base commit (the empty tree when the
-    ///  branch was unborn) as the baseline that marks additions, read without staging the worktree. The commit
-    ///  transaction uses it: its baseline is the base it recorded at invocation, never the `HEAD` another landing may
-    ///  have moved since. No pathspec means no candidate.
+    /// The entries the private index holds for the pathspecs,
+    /// with a recorded base commit (the empty tree when the
+    ///  branch was unborn) as the baseline that marks additions,
+    /// read without staging the worktree.
+    /// The commit
+    ///  transaction uses it:
+    /// its baseline is the base it recorded at invocation,
+    /// never the `HEAD` another landing may
+    ///  have moved since.
+    /// No pathspec means no candidate.
     StagedAtBase {
-        /// The recorded base commit, or nothing for an unborn branch.
+        /// The recorded base commit,
+        /// or nothing for an unborn branch.
         base: Option<ObjectId>,
-        /// The pathspecs of the scope, each literal and rooted at the top level.
+        /// The pathspecs of the scope,
+        /// each literal and rooted at the top level.
         pathspecs: Vec<OsString>,
     },
-    /// The changes a manual push publishes: each newly published commit's own delta and the whole tree
+    /// The changes a manual push publishes:
+    /// each newly published commit's own delta and the whole tree
     ///  of each tip with no known published base.
     Pushed(
         /// The commits and trees the scan reads.
         PushedScope,
     ),
-    /// The paths one landed commit changed, each against every parent,
-    ///  as the post-commit gate reads them: the committed bytes and no worktree or index state.
+    /// The paths one landed commit changed,
+    /// each against every parent,
+    ///  as the post-commit gate reads them:
+    /// the committed bytes and no worktree or index state.
     Landed(
         /// The landed commit whose tree changes are listed.
         ObjectId,
@@ -134,7 +149,9 @@ pub enum CandidateRequest {
 /// What:
 ///  The commits and trees a manual push scans.
 /// Why:
-///   A pushed commit contributes its own delta, and a tip with no known base contributes its tree; both are
+///   A pushed commit contributes its own delta,
+/// and a tip with no known base contributes its tree;
+/// both are
 ///  listed without staging anything.
 ///
 /// In TS you'd write (pseudocode):
@@ -143,7 +160,8 @@ pub enum CandidateRequest {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PushedScope {
-    /// Newly published commits, each contributing its own delta.
+    /// Newly published commits,
+    /// each contributing its own delta.
     pub commits: Vec<ObjectId>,
     /// Pushed tips whose whole tree is new.
     pub trees: Vec<ObjectId>,
@@ -320,9 +338,11 @@ fn projected_scope(
 }
 
 /// What:
-///  The candidates of the entries the index already holds for these pathspecs, against `HEAD`.
+///  The candidates of the entries the index already holds for these pathspecs,
+/// against `HEAD`.
 /// Why:
-///   The direct and the staged requests both end here; only the direct one stages the worktree first.
+///   The direct and the staged requests both end here;
+/// only the direct one stages the worktree first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -346,7 +366,8 @@ fn staged_scope(
 ///  `HashMap::entry(..).or_insert_with(..)` keeps the first source of a pathname.
 /// Why:
 ///   A pushed pathname can be listed by several commits;
-///  its candidate comes from the first, so its attributes do too.
+///  its candidate comes from the first,
+/// so its attributes do too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

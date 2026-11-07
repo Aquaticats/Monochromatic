@@ -1,8 +1,16 @@
 //! Differential controls for the in-process answers:
-//!  for each command line the wrapper issues, standard output and exit code equal what real Git prints in the same
-//!  repository, in loose and packed object states, index versions 2 to 4, SHA-1 and SHA-256;
-//!  and every state Git words differently (unmerged paths, a file that became a directory, a gitlink,
-//!  intent-to-add, a possible rename, a decisive configuration key) is declined.
+//!  for each command line the wrapper issues,
+//! standard output and exit code equal what real Git prints in the same
+//!  repository,
+//! in loose and packed object states,
+//! index versions 2 to 4,
+//! SHA-1 and SHA-256;
+//!  and every state Git words differently (unmerged paths,
+//! a file that became a directory,
+//! a gitlink,
+//!  intent-to-add,
+//! a possible rename,
+//! a decisive configuration key) is declined.
 
 use super::*;
 use crate::test_support::{fixture, git, git_output, remove};
@@ -20,7 +28,8 @@ pub(crate) fn mine(root: &Path, repo: &Path, arguments: &[&str]) -> Option<Answe
     return answer_with(&Query { arguments: given.as_slice(), directory: Some(repo), variables: &[], input: None }, Vec::new(), &scope(root));
 }
 
-/// Require equal output and exit code with Git; returns whether the readers answered.
+/// Require equal output and exit code with Git;
+/// returns whether the readers answered.
 fn compare(root: &Path, repo: &Path, arguments: &[&str]) -> bool {
     let expected = git_output(repo, arguments);
     let Some(found) = mine(root, repo, arguments) else {
@@ -47,8 +56,12 @@ pub(crate) fn text(repo: &Path, arguments: &[&str]) -> String {
     return String::from_utf8(git_output(repo, arguments).stdout).expect("UTF-8").trim_end().to_string();
 }
 
-/// A repository with a first commit of varied entries and a staged second state: modified, mode-changed, type-changed,
-/// deleted and added paths, including a non-UTF-8 name and a name with a space.
+/// A repository with a first commit of varied entries and a staged second state:
+/// modified,
+/// mode-changed,
+/// type-changed,
+/// deleted and added paths,
+/// including a non-UTF-8 name and a name with a space.
 fn staged_repository(root: &Path, name: &str, format: &str) -> PathBuf {
     let repo = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
@@ -74,7 +87,8 @@ fn staged_repository(root: &Path, name: &str, format: &str) -> PathBuf {
     return repo;
 }
 
-/// Every command line of the shapes the wrapper issues, against the staged repository.
+/// Every command line of the shapes the wrapper issues,
+/// against the staged repository.
 fn all_shapes(root: &Path, repo: &Path) {
     let head = text(repo, &["rev-parse", "HEAD"]);
     let tree = text(repo, &["rev-parse", "HEAD^{tree}"]);
@@ -100,7 +114,9 @@ fn all_shapes(root: &Path, repo: &Path) {
     answered(root, repo, &["show", "--no-patch", "--format=%s", &head]);
 }
 
-/// All shapes agree with Git on a loose, a packed and a version 4 index state, in SHA-1 and SHA-256.
+/// All shapes agree with Git on a loose,
+/// a packed and a version 4 index state,
+/// in SHA-1 and SHA-256.
 #[test]
 fn the_shapes_equal_git_in_every_state() {
     let root = fixture("repo-read-query-shapes");
@@ -118,7 +134,11 @@ fn the_shapes_equal_git_in_every_state() {
     remove(root.as_path());
 }
 
-/// Subjects of one-line, multi-line, blank-led, tab-led and body-carrying messages, and a root commit's raw diff.
+/// Subjects of one-line,
+/// multi-line,
+/// blank-led,
+/// tab-led and body-carrying messages,
+/// and a root commit's raw diff.
 #[test]
 fn subjects_and_root_commits_equal_git() {
     let root = fixture("repo-read-query-subjects");
@@ -213,7 +233,8 @@ fn states_that_need_git_are_declined() {
     remove(root.as_path());
 }
 
-/// A repository whose index really is a sparse index: a cone-mode checkout of one directory with `--sparse-index`.
+/// A repository whose index really is a sparse index:
+/// a cone-mode checkout of one directory with `--sparse-index`.
 fn sparse_index_repository(root: &Path) -> PathBuf {
     let repo = root.join("sparse");
     std::fs::create_dir(&repo).expect("dir");
@@ -230,8 +251,10 @@ fn sparse_index_repository(root: &Path) -> PathBuf {
     return repo;
 }
 
-/// A real sparse index is left to Git by every query, whether the configuration keys that announce it are present or not,
-/// and where the readers would answer, they equal Git.
+/// A real sparse index is left to Git by every query,
+/// whether the configuration keys that announce it are present or not,
+/// and where the readers would answer,
+/// they equal Git.
 #[test]
 fn a_real_sparse_index_is_declined() {
     let root = fixture("repo-read-query-sparse");
@@ -272,9 +295,12 @@ fn a_real_sparse_index_is_declined() {
     remove(root.as_path());
 }
 
-/// With `extensions.worktreeConfig` on, the readers answer and equal Git while `config.worktree` holds nothing that
-///  changes the output, and decline whenever that file sets a key that could (`core.sparseCheckout` is where
-///  `git sparse-checkout` itself writes it, `core.ignoreCase` and `diff.relative` change what is printed),
+/// With `extensions.worktreeConfig` on,
+/// the readers answer and equal Git while `config.worktree` holds nothing that
+///  changes the output,
+/// and decline whenever that file sets a key that could (`core.sparseCheckout` is where
+///  `git sparse-checkout` itself writes it,
+/// `core.ignoreCase` and `diff.relative` change what is printed),
 ///  also through an include.
 #[test]
 fn a_worktree_config_that_sets_a_content_key_is_declined() {
@@ -306,10 +332,16 @@ fn a_worktree_config_that_sets_a_content_key_is_declined() {
     remove(root.as_path());
 }
 
-/// What a commit changed is found by reading the trees along the changed path and no others: the two trees of a commit share
-/// nearly every subtree, and the listing of a commit's changes used to read every file of both trees (measured: 20,740 files,
-/// about 1,400 trees on each side, in the gate that follows every commit). A repository of many directories with one changed
-/// file is the shape where the two ways differ most; the answer must still equal Git's.
+/// What a commit changed is found by reading the trees along the changed path and no others:
+/// the two trees of a commit share
+/// nearly every subtree,
+/// and the listing of a commit's changes used to read every file of both trees (measured:
+/// 20,740 files,
+/// about 1,400 trees on each side,
+/// in the gate that follows every commit).
+/// A repository of many directories with one changed
+/// file is the shape where the two ways differ most;
+/// the answer must still equal Git's.
 #[test]
 fn the_changes_of_a_commit_are_found_without_reading_the_unchanged_directories() {
     let root = fixture("repo-read-query-changes-only");

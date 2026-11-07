@@ -1,19 +1,41 @@
 //! What:
-//!  The resident commit service as a mode of the one executable: `monochromatic-git-policy-cli monochromatic-git-policy-cli service run <options>`.
+//!  The resident commit service as a mode of the one executable:
+//! `monochromatic-git-policy-cli monochromatic-git-policy-cli service run <options>`.
 //! Why:
-//!  The release ships one program (owner, 2026-11-04: "Bazel doesn't need to distribute as 2 bins."), so the service is a mode
-//!  of the wrapper's executable and not a second one. The operating system starts it on demand and hands it the listening
-//!  socket (socket activation); the wrapper never starts it. The mode is chosen by the three leading words of the arguments and
-//!  never by the name the program was started as, so the executable's own path in a unit file names nothing but itself.
+//!  The release ships one program (owner,
+//! 2026-11-04:
+//! "Bazel doesn't need to distribute as 2 bins."),
+//! so the service is a mode
+//!  of the wrapper's executable and not a second one.
+//! The operating system starts it on demand and hands it the listening
+//!  socket (socket activation);
+//! the wrapper never starts it.
+//! The mode is chosen by the three leading words of the arguments and
+//!  never by the name the program was started as,
+//! so the executable's own path in a unit file names nothing but itself.
 //!  Development and test runs name an address instead.
-//!  Options: `--journal <directory>` (required), `--git <path>` (default `/usr/bin/git`), and one of
-//!  `--abstract <name>` or `--path <socket>`; with neither, the socket comes from the service manager. Test runs may also
-//!  give `--idle-seconds <n>` and `--release <text>` (the release announced to clients; default this build's). The unit
-//!  instance of one worktree passes `--instance <name>` (`service_instance.rs`), and that service refuses messages about
-//!  any other worktree; without it a development run serves any.
-//!  The service finishes no batch of an earlier release's helper and has no option that does: the look that would guard it cannot
-//!  exclude a wrapper of the earlier release that starts the helper meanwhile (cross-vendor reviews of 2026-11-07), so only
-//!  `git monochromatic-git-policy-cli service settle-earlier-batches`, run by a person, does it
+//!  Options:
+//! `--journal <directory>` (required),
+//! `--git <path>` (default `/usr/bin/git`),
+//! and one of
+//!  `--abstract <name>` or `--path <socket>`;
+//! with neither,
+//! the socket comes from the service manager.
+//! Test runs may also
+//!  give `--idle-seconds <n>` and `--release <text>` (the release announced to clients;
+//! default this build's).
+//! The unit
+//!  instance of one worktree passes `--instance <name>` (`service_instance.rs`),
+//! and that service refuses messages about
+//!  any other worktree;
+//! without it a development run serves any.
+//!  The service finishes no batch of an earlier release's helper and has no option that does:
+//! the look that would guard it cannot
+//!  exclude a wrapper of the earlier release that starts the helper meanwhile (cross-vendor reviews of 2026-11-07),
+//! so only
+//!  `git monochromatic-git-policy-cli service settle-earlier-batches`,
+//! run by a person,
+//! does it
 //!  (`earlier_service_journal_adopted.rs`).
 //!
 //! In TS you'd write (pseudocode):
@@ -32,8 +54,13 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// The words, first in the arguments, that select the service mode. They sit inside the wrapper's own `monochromatic-git-policy-cli` namespace, and
-///  `run` is a third word apart from `status`, which asks a running service whether it answers.
+/// The words,
+/// first in the arguments,
+/// that select the service mode.
+/// They sit inside the wrapper's own `monochromatic-git-policy-cli` namespace,
+/// and
+///  `run` is a third word apart from `status`,
+/// which asks a running service whether it answers.
 pub const SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.current, "service", "run"];
 
 /// The words a unit file an earlier release wrote passes;
@@ -49,7 +76,9 @@ pub const EXIT_NOT_LISTENING: i32 = 3;
 /// What:
 ///  Whether the arguments (without the program name) select the service mode.
 /// Why:
-///   The decision reads the words only, before anything else of the process is set up, so the wrapper's own start never runs
+///   The decision reads the words only,
+/// before anything else of the process is set up,
+/// so the wrapper's own start never runs
 ///  the service's setup and the service's start never runs the wrapper's.
 ///
 /// In TS you'd write (pseudocode):
@@ -61,7 +90,9 @@ pub fn is_service_start(arguments: &[OsString]) -> bool {
         && (starts_with_service_words(arguments, &SERVICE_WORDS) || starts_with_service_words(arguments, &EARLIER_SERVICE_WORDS));
 }
 
-/// The words of the arguments after the service mode words, as text; a word that is not text is refused.
+/// The words of the arguments after the service mode words,
+/// as text;
+/// a word that is not text is refused.
 pub fn service_options(arguments: &[OsString]) -> Result<Vec<String>, OsString> {
     // The first word that is not text is the refusal.
     let mut options: Vec<String> = Vec::new();
@@ -93,9 +124,11 @@ fn starts_with_service_words(arguments: &[OsString], words: &[&str; 3]) -> bool 
 }
 
 /// What:
-///  The value of a numeric option, nothing when the option is absent or its value is not a number.
+///  The value of a numeric option,
+/// nothing when the option is absent or its value is not a number.
 /// Why:
-///  The ceiling and idle options are read this way; a value that does not parse leaves the default.
+///  The ceiling and idle options are read this way;
+/// a value that does not parse leaves the default.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,10 +152,17 @@ fn option(arguments: &[String], name: &str) -> Option<String> {
 /// What:
 ///  Refuses a `--git` that would make every Git the service starts start the wrapper again.
 /// Why:
-///   A launcher of the wrapper, a link to it, a copy of it or the executable itself named as Git makes the service start
-///  the wrapper for every Git step (a unit written by an earlier release can hold such a path), and the executable is now
-///  the service's own program, so its own file is the first candidate to refuse (owner: "We should never invoke ourselves
-///  recursively."). The executable's path is identification only; nothing is started from it.
+///   A launcher of the wrapper,
+/// a link to it,
+/// a copy of it or the executable itself named as Git makes the service start
+///  the wrapper for every Git step (a unit written by an earlier release can hold such a path),
+/// and the executable is now
+///  the service's own program,
+/// so its own file is the first candidate to refuse (owner:
+/// "We should never invoke ourselves
+///  recursively.").
+/// The executable's path is identification only;
+/// nothing is started from it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -140,8 +180,12 @@ fn git_is_wrapper(git: &std::path::Path) -> bool {
 /// What:
 ///  Runs the service until it ends and gives the exit status.
 /// Why:
-///   The setup of the process comes first and only here: the service's Git starts run with hooks off, a signal that ends the
-///  service leaves a line, and the push advice names the service's remedies. The wrapper's own entry never reaches this.
+///   The setup of the process comes first and only here:
+/// the service's Git starts run with hooks off,
+/// a signal that ends the
+///  service leaves a line,
+/// and the push advice names the service's remedies.
+/// The wrapper's own entry never reaches this.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

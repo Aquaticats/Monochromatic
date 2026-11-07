@@ -34,6 +34,8 @@ import {
 } from './errors.ts';
 import {
   countShortcutUses,
+  describeStartStage,
+  startStageOf,
   waylandDisplayOf,
 } from './log-scan.ts';
 import { pollUntilDeadline, } from './poll.ts';
@@ -50,6 +52,11 @@ import {
  How many of the latest states a timeout message shows.
  */
 const RECENT_STATES = 3;
+
+/**
+ How many of the last log lines a timeout message shows when the app wrote no state at all.
+ */
+const LOG_LINES_SHOWN = 6;
 
 /**
  What a check says to wait for a state.
@@ -310,6 +317,11 @@ export function createUiStateLog(
       return nonNullishOrThrow(states.find(isWanted,),);
 
     /**
+     How far the start got, which says where an empty log stopped.
+     */
+    const stage = startStageOf({ lines: await lines(), },);
+
+    /**
      The latest states, one per line, for the message.
      */
     const recent = states
@@ -318,6 +330,14 @@ export function createUiStateLog(
         return JSON.stringify(state,);
       },)
       .join('\n   ',);
+    if (states.length === 0)
+      throw new CheckFailureError(
+        `timed out waiting for ${what}; the app wrote no ui_state line; start stopped at: ${stage} `
+          + `(${describeStartStage(stage,)}); last log lines:\n   ${
+            (await lines()).slice(-LOG_LINES_SHOWN,)
+              .join('\n   ',)
+          }`,
+      );
     throw new CheckFailureError(`timed out waiting for ${what}; last states:\n   ${recent}`,);
   }
 

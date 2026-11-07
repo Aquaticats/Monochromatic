@@ -1,5 +1,10 @@
-//! Several worktrees converted side by side: they overlap in time, the report keeps input order, a failure in one leaves the
-//!  others whole, the budget and `--jobs` bound the overlap, and the output equals the one-at-a-time output.
+//! Several worktrees converted side by side:
+//! they overlap in time,
+//! the report keeps input order,
+//! a failure in one leaves the
+//!  others whole,
+//! the budget and `--jobs` bound the overlap,
+//! and the output equals the one-at-a-time output.
 
 use super::*;
 use crate::fs_primitive_error::PrimitiveError;
@@ -20,7 +25,8 @@ const LARGE_HOST: HostResources = HostResources { parallelism: WORKTREES * 8, me
 /// How long the worktree that must finish last waits for the others before the control reports that they did not.
 const LAST_TO_FINISH_PATIENCE: Duration = Duration::from_secs(3);
 
-/// The name of the worktree at `index`; the names sort in index order.
+/// The name of the worktree at `index`;
+/// the names sort in index order.
 fn name_of(index: usize) -> String {
     return format!("w{index}");
 }
@@ -29,7 +35,8 @@ fn name_of(index: usize) -> String {
 struct Watched<'hooks> {
     /// The platform that does the work.
     inner: PlainPlatform,
-    /// Called with the path of the converting subvolume before it is created; an error fails the creation.
+    /// Called with the path of the converting subvolume before it is created;
+    /// an error fails the creation.
     on_create: Box<dyn Fn(&Path) -> Result<(), PrimitiveError> + Send + Sync + 'hooks>,
     /// Called before the swap of a worktree with its converting sibling.
     on_exchange: Box<dyn Fn(&Path) + Send + Sync + 'hooks>,
@@ -75,7 +82,9 @@ impl Platform for Watched<'_> {
     }
 }
 
-/// A checkout with `count` quiet linked worktrees `w0`, `w1`, ... inside it.
+/// A checkout with `count` quiet linked worktrees `w0`,
+/// `w1`,
+/// ... inside it.
 fn checkout_with_worktrees(name: &str, count: usize) -> (PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let root: PathBuf = make_checkout(parent.as_path(), "checkout");
@@ -110,8 +119,10 @@ fn is_converting_of(path: &Path, name: &str) -> bool {
     return path.file_name().is_some_and(|last: &std::ffi::OsStr| { return last.to_string_lossy() == format!("{name}{CONVERTING_SUFFIX}"); });
 }
 
-/// The conversions of several worktrees start before any of them has finished the first step: a point that needs all of them
-///  at once is passed only by parallel work, and a serial run waits there until its patience ends.
+/// The conversions of several worktrees start before any of them has finished the first step:
+/// a point that needs all of them
+///  at once is passed only by parallel work,
+/// and a serial run waits there until its patience ends.
 #[test]
 fn worktrees_are_converted_side_by_side() {
     let (parent, root) = checkout_with_worktrees("convert-parallel-overlap", WORKTREES);
@@ -132,8 +143,11 @@ fn worktrees_are_converted_side_by_side() {
     remove(parent.as_path());
 }
 
-/// The report is the one a run of one worktree after another gives, whichever worktree finishes first: the worktree that sorts
-///  first is held back until all the others have finished, and its lines still come first.
+/// The report is the one a run of one worktree after another gives,
+/// whichever worktree finishes first:
+/// the worktree that sorts
+///  first is held back until all the others have finished,
+/// and its lines still come first.
 #[test]
 fn the_report_keeps_input_order_whichever_worktree_finishes_first() {
     let (parent, root) = checkout_with_worktrees("convert-parallel-order", WORKTREES);
@@ -169,8 +183,11 @@ fn the_report_keeps_input_order_whichever_worktree_finishes_first() {
     remove(parent.as_path());
 }
 
-/// A creation that fails in the first worktree leaves its journal and no other trace, converts every other worktree, and ends the
-///  run with the failure status; the same command again finishes the first.
+/// A creation that fails in the first worktree leaves its journal and no other trace,
+/// converts every other worktree,
+/// and ends the
+///  run with the failure status;
+/// the same command again finishes the first.
 #[test]
 fn a_failed_worktree_does_not_stop_or_corrupt_the_others() {
     let (parent, root) = checkout_with_worktrees("convert-parallel-failure", WORKTREES);
@@ -200,7 +217,9 @@ fn a_failed_worktree_does_not_stop_or_corrupt_the_others() {
     remove(parent.as_path());
 }
 
-/// The most conversions in flight at once, from the first step to the swap, for a run on `host` with `jobs` as the person's cap,
+/// The most conversions in flight at once,
+/// from the first step to the swap,
+/// for a run on `host` with `jobs` as the person's cap,
 ///  with a point that the first `meeting` of them must reach together.
 fn busiest_of(name: &str, host: &HostResources, jobs: Option<usize>, meeting: usize) -> usize {
     let (parent, root) = checkout_with_worktrees(name, WORKTREES + WORKTREES);
@@ -225,7 +244,8 @@ fn busiest_of(name: &str, host: &HostResources, jobs: Option<usize>, meeting: us
     return busiest.load(Ordering::SeqCst);
 }
 
-/// The budget the host allows is the bound: on a host that may run few threads the overlap reaches that many and no more.
+/// The budget the host allows is the bound:
+/// on a host that may run few threads the overlap reaches that many and no more.
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: 3, memory_available: None };
@@ -234,7 +254,8 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     assert_eq!(busiest_of("convert-parallel-budget", &host, None, allowed), allowed);
 }
 
-/// Memory that is free bounds the overlap too: a host with room for one conversion converts one at a time.
+/// Memory that is free bounds the overlap too:
+/// a host with room for one conversion converts one at a time.
 #[test]
 fn the_free_memory_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: WORKTREES * 8, memory_available: Some(CONVERSION_MEMORY) };
@@ -248,7 +269,8 @@ fn jobs_caps_the_overlap() {
     assert_eq!(busiest_of("convert-parallel-jobs", &LARGE_HOST, Some(cap), cap), cap);
 }
 
-/// The same worktree named twice is converted once and then found converted, never refused as busy with itself.
+/// The same worktree named twice is converted once and then found converted,
+/// never refused as busy with itself.
 #[test]
 fn a_worktree_named_twice_is_converted_once_and_then_skipped() {
     let (parent, root) = checkout_with_worktrees("convert-parallel-twice", 2);
@@ -262,7 +284,9 @@ fn a_worktree_named_twice_is_converted_once_and_then_skipped() {
     remove(parent.as_path());
 }
 
-/// A dry run lists every worktree in order, says what it would do, and changes nothing.
+/// A dry run lists every worktree in order,
+/// says what it would do,
+/// and changes nothing.
 #[test]
 fn a_dry_run_lists_every_worktree_in_order_and_changes_nothing() {
     let (parent, root) = checkout_with_worktrees("convert-parallel-dry", WORKTREES);
@@ -279,7 +303,8 @@ fn a_dry_run_lists_every_worktree_in_order_and_changes_nothing() {
     remove(parent.as_path());
 }
 
-/// The lines of a run with the fixture's own path replaced, so two fixtures' reports can be compared.
+/// The lines of a run with the fixture's own path replaced,
+/// so two fixtures' reports can be compared.
 fn lines_without_root(lines: &[String], root: &Path) -> Vec<String> {
     return lines.iter().map(|line: &String| { return line.replace(root.to_string_lossy().as_ref(), "<root>"); }).collect();
 }
@@ -297,7 +322,9 @@ fn the_output_equals_the_one_at_a_time_output() {
     remove(side_parent.as_path());
 }
 
-/// However large the host and however many worktrees, no more than the measured ceiling are converted at once; the person's cap
+/// However large the host and however many worktrees,
+/// no more than the measured ceiling are converted at once;
+/// the person's cap
 ///  still lowers it.
 #[test]
 fn a_large_host_does_not_pass_the_storage_ceiling() {

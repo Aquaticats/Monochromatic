@@ -153,8 +153,12 @@ The launcher now rewrites its own record to the program it started
 tests `a_launcher_rewrites_a_stale_record_to_the_program_it_started_so_a_shadow_behind_it_can_see_where_it_leads`
 and `a_record_that_cannot_be_rewritten_is_a_warning_and_the_program_still_runs`),
 so the record is true again before any shadow reads it.
-`pnpm-shadow` and `search-shadow` have the same skip rule and are covered by the same rewrite;
+`pnpm-shadow` has the same skip rule and is covered by the same rewrite;
 only `cargo-shadow` was run in this measurement.
+Corrected 2026-11-07:
+`search-shadow` does not have that rule (it had no launcher-record rule and no guard),
+and its links are not launchers;
+see `doc/troubleshooting/search-shadow-copies-start-each-other-without-end.md`.
 
 ## Limits
 

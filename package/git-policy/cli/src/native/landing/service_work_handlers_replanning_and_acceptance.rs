@@ -1,9 +1,16 @@
 //! What:
-//!  What the work of the commit service is made of: the kinds it runs, the handlers that run each kind, which records are
-//!  acceptable work, how claims are settled, what a drain returned and how a push that failed is planned again.
+//!  What the work of the commit service is made of:
+//! the kinds it runs,
+//! the handlers that run each kind,
+//! which records are
+//!  acceptable work,
+//! how claims are settled,
+//! what a drain returned and how a push that failed is planned again.
 //! Why:
-//!  The drain of pending claims (`service_work_drain_pending_claims.rs`), the drains of directories (`service_work.rs`) and the
-//!  rounds (`service_work_run_round.rs`) all speak in these; they sit in a file that uses none of those.
+//!  The drain of pending claims (`service_work_drain_pending_claims.rs`),
+//! the drains of directories (`service_work.rs`) and the
+//!  rounds (`service_work_run_round.rs`) all speak in these;
+//! they sit in a file that uses none of those.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,32 +34,47 @@ pub const SERVICE_KINDS: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance,
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
 
-/// What a wake message brings: the repository to work on and the review credential that came with it, if any.
+/// What a wake message brings:
+/// the repository to work on and the review credential that came with it,
+/// if any.
 pub type Wake = (PathBuf, Option<ReviewKey>);
 
 /// What a handler came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Verdict {
-    /// The work was done, or there was nothing to do.
+    /// The work was done,
+    /// or there was nothing to do.
     Done,
-    /// The work failed; the text is what the person should be told.
+    /// The work failed;
+    /// the text is what the person should be told.
     Failed(String),
-    /// Nothing was done and nothing is left to retry, but the person should be told why; the text is what they are told.
+    /// Nothing was done and nothing is left to retry,
+    /// but the person should be told why;
+    /// the text is what they are told.
     Skipped(String),
-    /// The push failed for a reason that can pass (a stall, the network, an LFS server error, a held lock, a remote that advanced again);
-    /// the text is what the person should be told, and the service tries the push again on its own, with growing pauses.
+    /// The push failed for a reason that can pass (a stall,
+    /// the network,
+    /// an LFS server error,
+    /// a held lock,
+    /// a remote that advanced again);
+    /// the text is what the person should be told,
+    /// and the service tries the push again on its own,
+    /// with growing pauses.
     Retry(String),
 }
 
 /// What runs each kind of work.
 pub trait WorkHandlers {
-    /// Push the branch of these items, which share a repository and a branch; the last is the newest.
+    /// Push the branch of these items,
+    /// which share a repository and a branch;
+    /// the last is the newest.
     fn push(&self, items: &[WorkItem]) -> Verdict;
     /// Run the repository's automatic upkeep.
     fn maintenance(&self, item: &WorkItem) -> Verdict;
     /// Review one landed commit into the repository's shadow log.
     fn review(&self, item: &WorkItem) -> Verdict;
-    /// Empty the directory of left-out files a snapshot-made worktree set aside; a handler that does not know it skips.
+    /// Empty the directory of left-out files a snapshot-made worktree set aside;
+    /// a handler that does not know it skips.
     fn trash(&self, _item: &WorkItem) -> Verdict {
         return Verdict::Skipped(String::from("this handler does not empty trash directories"));
     }
@@ -66,7 +88,9 @@ pub fn work_directory(git_dir: &Path) -> PathBuf {
 /// What:
 ///  Whether an item is one this service should act on for this repository.
 /// Why:
-///   Anyone who can write the work directory can write an item, so the fields that become a directory, a reference or a
+///   Anyone who can write the work directory can write an item,
+/// so the fields that become a directory,
+/// a reference or a
 ///  program argument are checked before they are used.
 ///
 /// In TS you'd write (pseudocode):
@@ -83,7 +107,9 @@ pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
         && item.oid.as_bytes().iter().all(u8::is_ascii_hexdigit);
 }
 
-/// Moves the claims to `state` and stops renewing them; a claim that another instance took over is said, and left to it.
+/// Moves the claims to `state` and stops renewing them;
+/// a claim that another instance took over is said,
+/// and left to it.
 pub(crate) fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed], state: &str) {
     for item in claimed {
         if let Err(reason) = held.settle(work_dir, item.id.as_str(), state) {
@@ -93,10 +119,15 @@ pub(crate) fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed]
 }
 
 /// What:
-///  The claims of `claimed` that this instance still holds, before their work starts.
+///  The claims of `claimed` that this instance still holds,
+/// before their work starts.
 /// Why:
-///   A claim whose renewal found it gone was taken over: another instance runs that item now, so running it here as well would
-///  do it twice. The claim is forgotten and the loss said, and nothing else is done for it.
+///   A claim whose renewal found it gone was taken over:
+/// another instance runs that item now,
+/// so running it here as well would
+///  do it twice.
+/// The claim is forgotten and the loss said,
+/// and nothing else is done for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,15 +153,28 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
 }
 
 /// What:
-///  Whether a common Git directory belongs to a repository with no main worktree, which `core.bare` in its own `config`, or in its
-///  `config.worktree` when `extensions.worktreeConfig` turns that file on, says.
+///  Whether a common Git directory belongs to a repository with no main worktree,
+/// which `core.bare` in its own `config`,
+/// or in its
+///  `config.worktree` when `extensions.worktreeConfig` turns that file on,
+/// says.
 /// Why:
-///   A bare repository has no instance whose Git directory is the common one, so the instances of its linked worktrees are the
-///  only ones that can run the records left there; a repository with a main worktree has that instance, which owns them.
-///   Git moves `core.bare` into `config.worktree` when the extension is enabled (`git help config`, "extensions.worktreeConfig"),
+///   A bare repository has no instance whose Git directory is the common one,
+/// so the instances of its linked worktrees are the
+///  only ones that can run the records left there;
+/// a repository with a main worktree has that instance,
+/// which owns them.
+///   Git moves `core.bare` into `config.worktree` when the extension is enabled (`git help config`,
+/// "extensions.worktreeConfig"),
 ///  and reads that file after `config` only while the extension is on and the repository has a format version
-///  (`repo_read_layout.rs`), so the last `core.bare` of the two decides. An unreadable or unparsable file, or a spelling this
-///  reader leaves to Git, reads as not bare, and the records then stay for the main worktree's instance, which is the safe side
+///  (`repo_read_layout.rs`),
+/// so the last `core.bare` of the two decides.
+/// An unreadable or unparsable file,
+/// or a spelling this
+///  reader leaves to Git,
+/// reads as not bare,
+/// and the records then stay for the main worktree's instance,
+/// which is the safe side
 ///  of a wrong answer.
 ///
 /// In TS you'd write (pseudocode):
@@ -161,11 +205,18 @@ pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
 }
 
 /// What:
-///  Leaves a notice for each push the service gave up on without ever finishing it: its holder was stopped, or lost, on every
+///  Leaves a notice for each push the service gave up on without ever finishing it:
+/// its holder was stopped,
+/// or lost,
+/// on every
 ///  try.
 /// Why:
-///   Such an item moves to `failed` by recovery, not by a handler, so nothing else records why the commit was never backed up
-///  and the person would not be told. The notice is the one a skipped push leaves, because nothing failed and nothing was sent.
+///   Such an item moves to `failed` by recovery,
+/// not by a handler,
+/// so nothing else records why the commit was never backed up
+///  and the person would not be told.
+/// The notice is the one a skipped push leaves,
+/// because nothing failed and nothing was sent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -187,10 +238,14 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
 }
 
 /// What:
-///  What one drain of a directory hands back: how long until it must be looked at again for a claim another instance holds, and
+///  What one drain of a directory hands back:
+/// how long until it must be looked at again for a claim another instance holds,
+/// and
 ///  the changes it asks of the retry plan.
 /// Why:
-///   A drain runs on a worker and cannot change the plan, which the service loop owns; it returns what it did and the loop
+///   A drain runs on a worker and cannot change the plan,
+/// which the service loop owns;
+/// it returns what it did and the loop
 ///  applies it (`PushRetries::apply`).
 ///
 /// In TS you'd write (pseudocode):
@@ -199,24 +254,29 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
 /// ```
 #[derive(Debug, Default)]
 pub struct Drained {
-    /// How long until a claim another instance holds runs out its lease, or nothing when there is none.
+    /// How long until a claim another instance holds runs out its lease,
+    /// or nothing when there is none.
     pub wait: Option<Duration>,
-    /// The plans and the forgets the drain asks of the retry plan, in the order they were made.
+    /// The plans and the forgets the drain asks of the retry plan,
+    /// in the order they were made.
     pub changes: Vec<RetryChange>,
 }
 
 /// What:
-///  The retry state one drain works with: the first pause (nothing when a retryable push is to be reported as failed) and the
+///  The retry state one drain works with:
+/// the first pause (nothing when a retryable push is to be reported as failed) and the
 ///  changes it has asked of the plan so far.
 /// Why:
-///   One value is passed down to the places that plan or forget a retry, so none of them reads the plan or shares it.
+///   One value is passed down to the places that plan or forget a retry,
+/// so none of them reads the plan or shares it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type Replanning = { first?: number; changes: RetryChange[] };
 /// ```
 pub(crate) struct Replanning {
-    /// The pause before the first new try, or nothing for a drain that keeps no plan.
+    /// The pause before the first new try,
+    /// or nothing for a drain that keeps no plan.
     pub(crate) first: Option<Duration>,
     /// What was asked of the plan.
     pub(crate) changes: Vec<RetryChange>,
@@ -224,19 +284,28 @@ pub(crate) struct Replanning {
 
 /// Methods over the state.
 impl Replanning {
-    /// Ask the plan to drop the branch: its push landed, or the person must act.
+    /// Ask the plan to drop the branch:
+    /// its push landed,
+    /// or the person must act.
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
         self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
     }
 }
 
 /// What:
-///  Plan the next try of a push that failed for a reason that can pass, say so in the journal, and give the words the person's
+///  Plan the next try of a push that failed for a reason that can pass,
+/// say so in the journal,
+/// and give the words the person's
 ///  failure record carries.
 /// Why:
-///   The journal line names the cause, the number of the try that is planned and the pause before it, so the service's quiet
-///  between tries is explained; the person's record says the service keeps trying, so they do not push by hand for nothing.
-///  The plan is asked of the service loop (`Replanning`), which owns it.
+///   The journal line names the cause,
+/// the number of the try that is planned and the pause before it,
+/// so the service's quiet
+///  between tries is explained;
+/// the person's record says the service keeps trying,
+/// so they do not push by hand for nothing.
+///  The plan is asked of the service loop (`Replanning`),
+/// which owns it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -264,11 +333,18 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
 }
 
 /// What:
-///  Push again every branch of this Git directory whose pause is over, with no new commit needed.
+///  Push again every branch of this Git directory whose pause is over,
+/// with no new commit needed.
 /// Why:
-///   The work loop looks at the repository when `drain` tells it to (the wait it returns), and this is what the look does for
-///  a push the service stopped: it lands and the person's failure record goes, it is planned again with a longer pause, or it
-///  is given up on because a conflict needs the person. The due pushes come with the directory's request, taken from the plan
+///   The work loop looks at the repository when `drain` tells it to (the wait it returns),
+/// and this is what the look does for
+///  a push the service stopped:
+/// it lands and the person's failure record goes,
+/// it is planned again with a longer pause,
+/// or it
+///  is given up on because a conflict needs the person.
+/// The due pushes come with the directory's request,
+/// taken from the plan
 ///  by the service loop before the round.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,6 +1,13 @@
 # Repository on the 860 drive: measurements, inventory, the symlink design and runbook
 
 Status:
+preparation work for the move landed 2026-11-07 (section "Status and order of the work items":
+W1 built,
+the copy tool fixed and in the repository,
+the guided runner in TypeScript,
+the 860 mount option as a runner stage);
+the move itself has not run.
+Earlier status:
 revised 2026-11-07T06:45:00-05:00 to the design the owner picked (a symbolic link at the old path),
 and revised again 2026-11-07T07:15:00-05:00 to answer the cross-vendor review (section "Cross-vendor review of the first
 symlink revision").
@@ -1205,9 +1212,16 @@ then,
 at the chosen moment,
 the final pass and the switch to the link.
 
-That guided script is written:
-[the guided root script](../runbook/repository-on-the-860-drive-guided-root-script.md)
-(`doc/runbook/repository-on-the-860-drive-guided-root-script.sh`).
+That guided runner is written
+(first as a bash script in `4980c200ea`,
+then,
+on the owner's word "Wizard writes TypeScript,
+and you just do the move yourself,
+no need to delegate to me" (2026-11-07,
+relayed by the coordinator),
+as TypeScript that the coordinator runs):
+[the guided runner](../runbook/repository-on-the-860-drive-guided-runner.md)
+(`package/repository-move/cli/src/run-repository-move.ts`).
 Its `prepare` command runs the fixture test,
 R0,
 the pre-flight and the first pass and then stops;
@@ -2070,6 +2084,117 @@ none creates anything.
     Tests:
     state 6 of the fixture table.
 
+### Status and order of the work items, 2026-11-07T14:55:39-05:00
+
+W1 is built:
+`package/repository-link/check` (library,
+bins `repository-link-check`,
+`repository-link-run` and `repository-link-record`,
+and `openRepositoryRoot()`),
+with tests for every answer of the contract (the identity file also records the mount point,
+so fixtures can vary it).
+The install outside the repository copies the built bins to `~/.local/share/monochromatic-dev/repository-link/`
+(the plan's `toolchain-global` folder holds launchers that name the repository,
+so a separate folder keeps the check
+free of it).
+The stalled drive on a hung mount and a wrong filesystem mounted at the real mount point need root and are untested.
+The Rust copy of the check in the wrapper (W2) is not built.
+Nothing else of W2 to W15 is built.
+
+What blocks what.
+Nothing from W2 to W15 blocks the copy or the swap itself:
+the copy is read-only on the old tree,
+and with the 860 mounted the link resolves for every tool.
+The plan's phase 0 does require one of them before the swap (the `claude-cpu-watch.service` unit copy of W8,
+a root-free step in `~/.config/systemd/user`).
+The rest block the first reboot or the first login before the drive is mounted,
+which the plan's cut-over step 8 tests,
+so the order below is the order in which they stop a bad first login.
+
+1.  W8 first,
+    owner package `package/claude-cpu-cap/daemon` and the unit link in `~/.config/systemd/user`.
+    Today [measured 2026-11-07T14:55:39-05:00]:
+    the unit is still a symbolic link into the repository,
+    `Restart=always`,
+    `RestartSec=2`,
+    default start limit,
+    `NRestarts=0`,
+    and `ExecStart` runs `%h/.local/share/mise/installs/node/latest/bin/node %h/Monochromatic/package/claude-cpu-cap/daemon/src/cpu-watch.ts`.
+    Change and test as in item 8.
+2.  W2 and W3,
+    owner package `package/git-policy/cli` (Rust).
+    Today [read from source]:
+    `instance_of` in `src/native/service/service_instance.rs` still hashes the path as given when `canonicalize` fails.
+    Change as in items 2 and 3:
+    the wrapper's copy of the W1 test table,
+    status 128,
+    `instance_of` returning an error,
+    and the freeze message.
+    Test as in items 2 and 3.
+    This is what a commit does on the first login before the drive is mounted.
+3.  W6,
+    W7 and W9,
+    owners the user's `~/.claude/settings.json`,
+    `~/.claude.json`,
+    `~/.codex/config.toml` and the links in `~/.local/bin`,
+    with `package/claude-code-plugin/bash-output-filter`,
+    `package/mcp/mvm`,
+    `package/search-fetch/mcp`,
+    `package/claude-code-plugin/source` and `package/pi-plugin/spawn`.
+    Today [read 2026-11-07T14:55:39-05:00]:
+    only the output filter (`PreToolUse` on `Bash`,
+    no `onFailure`) and the status line are configured as hooks,
+    so no rule-enforcing hook needs `onFailure: block` yet;
+    `mvm` is spelled `/home/user/Monochromatic/...`,
+    `search-fetch` `/var/home/user/Monochromatic/...`,
+    and Codex runs `mise exec --cd /home/user/Monochromatic -- node ...`;
+    `spawn-claude` and `spawn-pi` are links into the repository.
+    Change and test as in items 6,
+    7 and 9,
+    through `repository-link-run` at its installed path.
+4.  W4,
+    owner package `package/mpm-shadow/cli`.
+    Today [read from source]:
+    `run_launcher` still reads the lock file with `.ok()` (`launcher.rs`,
+    line 357) and `ensure_launcher` still calls `fs::create_dir_all` (line 237).
+    Change and test as in item 4.
+5.  W5,
+    owners `package/cargo-shadow`,
+    `package/pnpm-shadow` and `package/search-shadow`:
+    no change beyond W1 at start,
+    the test of item 5.
+6.  W10,
+    owner `package/env-local-json/core`:
+    the cause text from W1 in the two typed errors (`ENV_LOCAL_JSON_PATH` in `~/.bashrc` still names
+    `/var/home/user/Monochromatic/.env.local.json`),
+    and the dangling-path tests of item 10.
+7.  W11,
+    owner the file `/etc/systemd/system/mount-860.service` (root).
+    Today [read with `systemctl cat`]:
+    `ExecStop` runs `umount /var/mnt/encrypted 2>/dev/null` then `cryptsetup luksClose crypt_sda 2>/dev/null`.
+    The mount option edit is a stage of the guided runner,
+    not an owner change of this item;
+    the optional stop-path message stays optional.
+8.  W12,
+    no owner package:
+    `kopia-snapshot-all.service` is a user unit whose `ExecStart` is `kopia snapshot create --all`,
+    and the only work is the first snapshot's upload size after the move.
+9.  W13 and W14,
+    no package:
+    checks after the cut-over,
+    from the plan's items 13 and 14.
+10. W15,
+    owners W1 (built:
+    it reports a real folder at the link path in phase `after`) and `package/git-policy/cli` (the wrapper's
+    `doctor`,
+    with W2).
+
+Identity file.
+`repository-link-record --phase=before` runs in the `prepare` command (stage `i2-record-before`),
+and `--phase=after` in the `cutover` command after the swap (stage `c20b-record-after`),
+as the user and never with `sudo`.
+The rollback renames the identity file aside and records phase `before` again.
+
 [claude-hooks]: https://code.claude.com/docs/en/hooks
 
 ## What the canonical path changes
@@ -2327,7 +2452,7 @@ Steps:
     with the script below.
     Values taken earlier legitimately differ because sessions commit while they finish.
 
-The baseline script is `/var/home/user/temp/agent/dangling/list-uncommitted-work.ts`.
+The baseline script is `/var/home/user/Monochromatic/package/repository-move/cli/src/list-uncommitted-work.ts`.
 For each line of `git worktree list --porcelain` it runs
 `/usr/bin/git --no-optional-locks -C <worktree> status --porcelain=v1 --untracked-files=all`,
 counts changed and untracked files,
@@ -2341,8 +2466,8 @@ Run:
 
 ```bash
 systemd-run --user --scope --property=CPUQuota=100% --property=MemoryMax=1G --property=TasksMax=64 --property=IOWeight=10 \
-  timeout 3000 node /var/home/user/temp/agent/dangling/list-uncommitted-work.ts \
-  /var/home/user/Monochromatic /var/home/user/temp/agent/dangling/baseline-frozen.tsv 180
+  timeout 3000 node /var/home/user/Monochromatic/package/repository-move/cli/src/list-uncommitted-work.ts \
+  /var/home/user/Monochromatic /var/home/user/repository-move-state/wizard/baseline-frozen.tsv 180
 ```
 
 The copy carries uncommitted files and the old tree is kept,
@@ -2438,6 +2563,42 @@ and a snapshot that is kept pins old extents while the live tree changes.
   no mechanism reserves space for commits,
   and the plan does not claim one.
 
+## The send plan, 2026-11-07 (coordinator's pick, owner's veto open)
+
+Found on the first real fixture runs of the guided runner; the source trace and the measurements are in
+`doc/troubleshooting/btrfs-send-clone-sources-need-a-parent.md`.
+`btrfs send` with clone sources and no parent stops ("parent determination failed"), and a parent that is a snapshot of
+another subvolume can pair two different inodes made in one transaction (the kernel pairs inodes by number and
+generation), which failed loudly on the fixture and could silently misdescribe a file on a real run.
+The copy tool therefore sends every first-pass subvolume as `-p <empty parent> -c <every earlier copy>`, sends the final
+pass `-p` the first-pass snapshot of the same subvolume, refuses a destination that holds two subvolumes with one
+received UUID or an entry of the received folder that no record knows, and verifies every first-pass copy against its
+snapshot (`--pass=verify-first`, stage `p4f-verify-first`, required before the cut-over) before the window.
+Clone reach, measured by the coordinator on 2026-11-07 from 21:48Z to 21:54Z in the extent tree of `/dev/dm-1` (read-only,
+`btrfs inspect-internal dump-tree -t extent`, a script that errors on a zero count), over all of `/home`:
+4,501,595 data extents with one reference (421.46 GiB);
+3,100,463 with 2 to 64 (544.75 GiB physical, 2,520.65 GiB referenced);
+17,974 with 65 to 1024 (9.41 GiB physical, 1,220.92 GiB referenced, these clone);
+9 with more than 1024, the kernel's `SEND_MAX_EXTENT_REFS` (0.14 GiB physical, 238.39 GiB referenced).
+Six of the nine resolve entirely outside the repository (a browser cache database, the baloo index, the pnpm store index);
+three resolve only to a deleted subvolume (6087) waiting for the cleaner, with 13,038,362,624 bytes (12.14 GiB) referenced.
+So the clone limit adds at most 12.14 GiB to the copy, beyond the 263.6 GiB shared estimate, and only if every such
+reference were in the repository.
+Limits: `dump-tree` skips a subtree whose block was rewritten during the read (one block was skipped), so the counts are
+lower bounds, and the count covers all of `/home`, not only the repository.
+The capacity preflight (`p3`) counts the 12.14 GiB as part of the estimate (`CLONE_LIMIT_ALLOWANCE_BYTES`), then adds the
+plan margin, before the first send.
+
+The final pass also asks btrfs what changed: an incremental `btrfs send --no-data` between a subvolume's first-pass and
+final snapshots (one history) holds one command per change, and only the snapshot header when nothing changed.
+That answer is recorded (`<name>.diff.json`), the verification inside the window (`c10b-verify-final`, path, type, size,
+time and mode) compares only the final copies that changed or have no first-pass copy, and a checksum-depth pass over the
+same copies (`c22-verify-final-checksum`) runs after the release while the old tree is kept; the runner's `status` says not
+to delete the old tree until it is done.
+The snapshot generation was not used as the test, because creating a snapshot sets a new generation
+(`create_pending_snapshot` in `fs/btrfs/transaction.c`), so two snapshots of an unchanged subvolume do not agree on it.
+
+
 ## The copy
 
 Method M1 (send and receive with clone sources,
@@ -2449,9 +2610,9 @@ and the 16 external worktrees) are handled as described below.
 
 The root steps of this section,
 the fixture test and the cut-over run through
-[the guided root script](../runbook/repository-on-the-860-drive-guided-root-script.md).
+[the guided runner](../runbook/repository-on-the-860-drive-guided-runner.md).
 
-The script `/var/home/user/temp/agent/dangling/move-repository.ts` replaces the print-only generator of the earlier
+The tool `package/repository-move/cli/src/move-repository.ts` replaces the print-only generator of the earlier
 revision.
 Without `--run` it prints every step and runs nothing;
 with `--run` it needs root,
@@ -2498,7 +2659,7 @@ the owner runs as root:
 
 ```bash
 # R0: every subvolume of the NVMe filesystem; the script keeps those below the main checkout, at any depth.
-sudo btrfs subvolume list /var/home > /var/home/user/temp/agent/dangling/inventory-nested.txt
+sudo btrfs subvolume list -u /var/home > /var/home/user/repository-move-state/inventory-nested.txt
 sudo findmnt --list --output TARGET,SOURCE,FSTYPE | grep -F /var/home/user/Monochromatic
 ```
 
@@ -2528,11 +2689,11 @@ mkdir -m 0700 /var/home/user/repository-move-snapshots
 sudo mkdir -m 0700 /var/mnt/encrypted/repository
 sudo chown user:user /var/mnt/encrypted/repository
 mkdir -m 0700 /var/mnt/encrypted/repository/received-read-only
-node /var/home/user/temp/agent/dangling/move-repository.ts --pass=first --main=/var/home/user/Monochromatic \
+node /var/home/user/Monochromatic/package/repository-move/cli/src/move-repository.ts --pass=first --main=/var/home/user/Monochromatic \
   --snapshots=/var/home/user/repository-move-snapshots --received=/var/mnt/encrypted/repository/received-read-only \
   --final=/var/mnt/encrypted/repository/Monochromatic --state=/var/home/user/repository-move-state \
-  --inventory=/var/home/user/temp/agent/dangling/inventory-nested.txt --inventory-main=home/user/Monochromatic
-sudo node /var/home/user/temp/agent/dangling/move-repository.ts --run --pass=first ...same arguments...
+  --inventory=/var/home/user/repository-move-state/inventory-nested.txt --inventory-main=home/user/Monochromatic
+sudo /absolute/path/of/node /var/home/user/Monochromatic/package/repository-move/cli/src/move-repository.ts --run --pass=first ...same arguments...
 ```
 
 Worked example,
@@ -2659,12 +2820,13 @@ and `source-baseline.txt` records the source's own total and shared figures for 
 
 ```bash
 # F3: the first pass with the real script, then a change, then the final pass with a freeze.
-sudo node /var/home/user/temp/agent/dangling/move-repository.ts --run --pass=first --main="$fixture/source/main" --snapshots="$fixture/snap" \
+sudo /absolute/path/of/node /var/home/user/Monochromatic/package/repository-move/cli/src/move-repository.ts --run --pass=first --main="$fixture/source/main" --snapshots="$fixture/snap" \
   --received="$fixture/dest/recv" --final="$fixture/dest/final" --state="$fixture/state" --inventory="$fixture/inventory.txt" \
   --inventory-prefix="<path prefix reported by the list>=$fixture/" --deadline-seconds=600 --min-free-gib=1
 echo changed >> "$fixture/source/main/.claude/worktrees/b/extra.txt"
 git -C "$fixture/source/main" -c user.name=t -c user.email=t@t commit --allow-empty --quiet --message after
-sudo node move-repository.ts --run --freeze --pass=final ...same arguments...
+node move-repository.ts --run --pass=freeze ...same arguments...   # as the user: the owner of a subvolume sets ro
+sudo /absolute/path/of/node move-repository.ts --run --pass=final ...same arguments...
 ```
 
 Both runs must end `finished`,
@@ -2692,8 +2854,8 @@ the clone sources did not keep sharing and the method is wrong for this reposito
 
 ```bash
 # F5: an interrupted receive is detected, and a corrupted stream fails on a flipped known byte.
-sudo node move-repository.ts --run --pass=first ...arguments with --deadline-seconds=1 on a fresh state folder...
-sudo node move-repository.ts --run --pass=first ...arguments with the normal deadline, same state folder...
+sudo /absolute/path/of/node move-repository.ts --run --pass=first ...arguments with --deadline-seconds=1 on a fresh state folder...
+sudo /absolute/path/of/node move-repository.ts --run --pass=first ...arguments with the normal deadline, same state folder...
 sudo sh -c "btrfs send '$fixture/snap/s001' > '$fixture/stream.bin'"
 python3 -I -c "import sys; p=sys.argv[1]; f=open(p,'r+b'); f.seek(100000); b=f.read(1); f.seek(100000); f.write(bytes([b[0]^255]))" "$fixture/stream.bin"
 sudo mkdir "$fixture/dest/recv-bad"
@@ -2711,7 +2873,7 @@ sudo unshare --mount --propagation private bash -euo pipefail -c "
   mount --bind '$fixture/dest/final' '$fixture/source/main'
   git -C '$fixture/source/main' worktree list
   git -C '$fixture/source/main' fsck --full
-  node /var/home/user/temp/agent/dangling/list-uncommitted-work.ts '$fixture/source/main' '$fixture/staged.tsv' 60
+  node /var/home/user/Monochromatic/package/repository-move/cli/src/list-uncommitted-work.ts '$fixture/source/main' '$fixture/staged.tsv' 60
 "
 ```
 

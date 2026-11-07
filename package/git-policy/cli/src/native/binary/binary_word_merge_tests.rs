@@ -1,11 +1,22 @@
 //! What:
-//!  The word-level second merge pass through the built executable: after a merge, rebase, cherry-pick or revert that
-//!  Git stops with a conflict, the files whose every conflicted region resolves by word are written and staged, each
-//!  merged part is listed on standard error and in the journal, and everything else stays as Git left it.
+//!  The word-level second merge pass through the built executable:
+//! after a merge,
+//! rebase,
+//! cherry-pick or revert that
+//!  Git stops with a conflict,
+//! the files whose every conflicted region resolves by word are written and staged,
+//! each
+//!  merged part is listed on standard error and in the journal,
+//! and everything else stays as Git left it.
 //! Why:
-//!  The owner decided on 2026-11-03 that the wrapper re-merges only the conflicted parts word by word, accepts a file only
-//!  when every part resolves, and lists each part (`doc/planning/cli-git-merge-auto-resolution.md`). A person's own
-//!  edits of a conflicted file, and every file that does not resolve, must be left exactly as Git wrote them.
+//!  The owner decided on 2026-11-03 that the wrapper re-merges only the conflicted parts word by word,
+//! accepts a file only
+//!  when every part resolves,
+//! and lists each part (`doc/planning/cli-git-merge-auto-resolution.md`).
+//! A person's own
+//!  edits of a conflicted file,
+//! and every file that does not resolve,
+//! must be left exactly as Git wrote them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,13 +28,17 @@ use super::support::{Fixture, Observed, fixture, git, observe, remove, repositor
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// The words every line about a merged part carries, so a reader can find them in a long output.
+/// The words every line about a merged part carries,
+/// so a reader can find them in a long output.
 pub(super) const MERGE_LINE_MARK: &str = "word-level merge";
 
-/// The corpus input whose two sides edit a line and insert a line right after it: Git conflicts, the word pass resolves.
+/// The corpus input whose two sides edit a line and insert a line right after it:
+/// Git conflicts,
+/// the word pass resolves.
 pub(super) const ADJACENT: &str = "md1b";
 
-/// The corpus input whose two sides append different sections at one point: the word pass leaves it a conflict.
+/// The corpus input whose two sides append different sections at one point:
+/// the word pass leaves it a conflict.
 pub(super) const BOTH_APPEND: &str = "md2";
 
 /// The bytes of one stored corpus file.
@@ -50,11 +65,16 @@ pub(super) enum Stop {
     Revert,
 }
 
-/// Every operation, so a control covers all four.
+/// Every operation,
+/// so a control covers all four.
 pub(super) const STOPS: [Stop; 4] = [Stop::Merge, Stop::Rebase, Stop::CherryPick, Stop::Revert];
 
-/// A repository with the inputs tracked on `main`, ready for `stop`: the sides of each input are committed on `main`
-/// (ours) and `topic` (theirs), except for a revert, which reverts the edit made on `main` after the insertion landed.
+/// A repository with the inputs tracked on `main`,
+/// ready for `stop`:
+/// the sides of each input are committed on `main`
+/// (ours) and `topic` (theirs),
+/// except for a revert,
+/// which reverts the edit made on `main` after the insertion landed.
 pub(super) fn prepared(fixture: &Fixture, stop: Stop, names: &[&str]) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let write = |extension: &str| {
@@ -100,7 +120,9 @@ pub(super) fn arguments_of(stop: Stop) -> Vec<&'static str> {
     };
 }
 
-/// What the resolved file holds: the revert keeps the insertion and undoes the edit, so it ends at the insertion side.
+/// What the resolved file holds:
+/// the revert keeps the insertion and undoes the edit,
+/// so it ends at the insertion side.
 pub(super) fn expected_after(stop: Stop, name: &str) -> Vec<u8> {
     return match stop {
         Stop::Revert => corpus(name, "theirs"),
@@ -126,7 +148,8 @@ pub(super) fn merge_lines(observed: &Observed) -> Vec<String> {
     return stderr_of(observed).lines().filter(|line| { return line.contains(MERGE_LINE_MARK); }).map(String::from).collect();
 }
 
-/// The entries that reached a journal stand-in, as field maps.
+/// The entries that reached a journal stand-in,
+/// as field maps.
 fn journal_entries(receiver: &std::os::unix::net::UnixDatagram) -> Vec<std::collections::BTreeMap<String, String>> {
     let mut entries: Vec<std::collections::BTreeMap<String, String>> = Vec::new();
     let mut buffer: Vec<u8> = vec![0; 65_536];
@@ -142,7 +165,8 @@ fn journal_entries(receiver: &std::os::unix::net::UnixDatagram) -> Vec<std::coll
     return entries;
 }
 
-/// Run the operation through the wrapper with a journal stand-in; the receiver is returned with what the caller saw.
+/// Run the operation through the wrapper with a journal stand-in;
+/// the receiver is returned with what the caller saw.
 fn run_with_journal(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> (Observed, std::os::unix::net::UnixDatagram) {
     use std::os::linux::net::SocketAddrExt;
     let name: String = format!("cli-git-test-journal-word-merge-{}-{}", std::process::id(), fixture.root.display().to_string().len());
@@ -156,7 +180,9 @@ fn run_with_journal(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> (Obse
 }
 
 /// A command line with an option the finish does not read (an abbreviation of `--no-commit` here) leaves the operation stopped:
-///  the file is staged as resolved, Git's status stays, and no merge commit is made.
+///  the file is staged as resolved,
+/// Git's status stays,
+/// and no merge commit is made.
 #[test]
 fn an_option_the_finish_does_not_know_leaves_the_operation_stopped_with_the_file_staged() {
     let fixture: Fixture = fixture("word-merge-unknown-option");
@@ -172,7 +198,8 @@ fn an_option_the_finish_does_not_know_leaves_the_operation_stopped_with_the_file
     remove(&fixture);
 }
 
-/// The journal receives one entry per merged file that names the file, the part and the operation.
+/// The journal receives one entry per merged file that names the file,
+/// the part and the operation.
 #[test]
 fn the_journal_receives_each_merged_part() {
     let fixture: Fixture = fixture("word-merge-journal");
@@ -188,7 +215,8 @@ fn the_journal_receives_each_merged_part() {
     remove(&fixture);
 }
 
-/// A conflicted file that does not resolve stays exactly as Git wrote it, beside a file that does.
+/// A conflicted file that does not resolve stays exactly as Git wrote it,
+/// beside a file that does.
 #[test]
 fn a_file_that_does_not_resolve_stays_conflicted_beside_one_that_does() {
     let fixture: Fixture = fixture("word-merge-beside");
@@ -203,7 +231,8 @@ fn a_file_that_does_not_resolve_stays_conflicted_beside_one_that_does() {
     remove(&fixture);
 }
 
-/// A file with one resolvable region and one that is not stays fully conflicted, and nothing is staged for it.
+/// A file with one resolvable region and one that is not stays fully conflicted,
+/// and nothing is staged for it.
 #[test]
 fn a_file_with_one_unresolvable_part_stays_fully_conflicted() {
     let fixture: Fixture = fixture("word-merge-partial");
@@ -228,7 +257,8 @@ fn a_file_with_one_unresolvable_part_stays_fully_conflicted() {
     remove(&fixture);
 }
 
-/// A person's own edit of a conflicted file is never replaced: a command that fails again on the same conflict leaves it.
+/// A person's own edit of a conflicted file is never replaced:
+/// a command that fails again on the same conflict leaves it.
 #[test]
 fn a_hand_edited_conflicted_file_is_left_alone() {
     let fixture: Fixture = fixture("word-merge-hand-edit");
@@ -245,8 +275,10 @@ fn a_hand_edited_conflicted_file_is_left_alone() {
     remove(&fixture);
 }
 
-/// A merge run in a checkout whose index holds another session's staged work is completed by the wrapper; a conflict the
-/// word pass resolves ends in a merge commit, and the staged work stays staged.
+/// A merge run in a checkout whose index holds another session's staged work is completed by the wrapper;
+/// a conflict the
+/// word pass resolves ends in a merge commit,
+/// and the staged work stays staged.
 #[test]
 fn an_isolated_merge_with_an_adjacent_edit_is_completed_and_listed() {
     let fixture: Fixture = fixture("word-merge-isolated");
@@ -265,7 +297,8 @@ fn an_isolated_merge_with_an_adjacent_edit_is_completed_and_listed() {
     remove(&fixture);
 }
 
-/// A conflict the word pass cannot resolve still ends the isolated merge with the conflict finding, and changes nothing.
+/// A conflict the word pass cannot resolve still ends the isolated merge with the conflict finding,
+/// and changes nothing.
 #[test]
 fn an_isolated_merge_with_a_both_append_conflict_is_still_refused() {
     let fixture: Fixture = fixture("word-merge-isolated-refused");
@@ -281,7 +314,9 @@ fn an_isolated_merge_with_a_both_append_conflict_is_still_refused() {
     remove(&fixture);
 }
 
-/// One file that resolves does not carry a second that does not: the isolated merge is refused whole, and nothing changes.
+/// One file that resolves does not carry a second that does not:
+/// the isolated merge is refused whole,
+/// and nothing changes.
 #[test]
 fn an_isolated_merge_with_one_unresolvable_file_among_resolvable_ones_is_refused_whole() {
     let fixture: Fixture = fixture("word-merge-isolated-partial");

@@ -1,7 +1,13 @@
 //! What:
-//!  The questions an isolated merge asks Git and the terminal: the merge settings, the unsaved paths, the fetch head, and whether an editor would open.
+//!  The questions an isolated merge asks Git and the terminal:
+//! the merge settings,
+//! the unsaved paths,
+//! the fetch head,
+//! and whether an editor would open.
 //! Why:
-//!  These steps only read, and the merge and its apply step both need them, so they live in a file of their own that imports none of the files that use them.
+//!  These steps only read,
+//! and the merge and its apply step both need them,
+//! so they live in a file of their own that imports none of the files that use them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,7 +25,9 @@ use crate::merge_isolation_run_types::{Bail, MergeConfig};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::Path;
 
-/// Whether one byte is the NUL byte that ends each entry of a `-z` listing. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the NUL byte that ends each entry of a `-z` listing.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
@@ -27,7 +35,10 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// What:
 ///  Read Git's boolean spellings.
 /// Why:
-///   Settings accept `true`, `yes`, `on`, `1` and their opposites in any letter case.
+///   Settings accept `true`,
+/// `yes`,
+/// `on`,
+/// `1` and their opposites in any letter case.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,9 +55,12 @@ pub fn parse_maybe_bool(text: &str) -> Option<bool> {
 /// What:
 ///  Whether `git merge` would open an editor for the message.
 /// Why:
-///   `GIT_MERGE_AUTOEDIT` decides when it is set; otherwise the editor opens when standard input and output are one
+///   `GIT_MERGE_AUTOEDIT` decides when it is set;
+/// otherwise the editor opens when standard input and output are one
 ///  terminal.
-///  The editor is not reproduced here, so a merge that would open one is forwarded; `--no-edit` avoids it.
+///  The editor is not reproduced here,
+/// so a merge that would open one is forwarded;
+/// `--no-edit` avoids it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -59,7 +73,9 @@ pub fn editor_would_open(auto_edit: Option<&str>, same_terminal: bool) -> Option
     }
 }
 
-/// The device and inode a descriptor names, to tell whether two descriptors are the same file; nothing when it cannot be read.
+/// The device and inode a descriptor names,
+/// to tell whether two descriptors are the same file;
+/// nothing when it cannot be read.
 #[cfg(unix)]
 fn device_and_inode(descriptor: std::os::fd::BorrowedFd<'_>) -> Option<(u64, u64)> {
     use std::os::unix::fs::MetadataExt;
@@ -120,7 +136,9 @@ impl Session {
         };
     }
 
-    /// Run Git, require success, and return its trimmed standard output.
+    /// Run Git,
+    /// require success,
+    /// and return its trimmed standard output.
     pub fn text(&self, arguments: &[&str]) -> Result<String, String> {
         let output: GitOutput = self.run(arguments)?;
         if !output.succeeded() {
@@ -134,7 +152,10 @@ impl Session {
 ///  Read the settings in one Git call.
 /// Why:
 ///   The settings that change what a merge does but that this path does not reproduce defer the whole command to
-///  native Git; the others (`merge.ff`, `merge.stat`, `commit.gpgSign`) are honored.
+///  native Git;
+/// the others (`merge.ff`,
+/// `merge.stat`,
+/// `commit.gpgSign`) are honored.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -193,9 +214,12 @@ pub fn lines_of(output: &GitOutput) -> Vec<String> {
 }
 
 /// What:
-///  The result of the staged-work check: the paths of everyone else's unsaved work, or a reason to forward.
+///  The result of the staged-work check:
+/// the paths of everyone else's unsaved work,
+/// or a reason to forward.
 /// Why:
-///   An unmerged path means a conflict is in progress, which native Git reports itself.
+///   An unmerged path means a conflict is in progress,
+/// which native Git reports itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -226,11 +250,17 @@ pub fn unsaved_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
 }
 
 /// What:
-///  The head a pull's `FETCH_HEAD` lists for merging, with the file's text that names it in the merge message.
+///  The head a pull's `FETCH_HEAD` lists for merging,
+/// with the file's text that names it in the merge message.
 /// Why:
 ///   `git merge FETCH_HEAD` merges the lines marked for merging and words the message from the whole file
-///  (`handle_fetch_head`, `builtin/merge.c`); this completes the merge only for exactly one such head and leaves several, or
-///  none, to native Git, which words that refusal itself.
+///  (`handle_fetch_head`,
+/// `builtin/merge.c`);
+/// this completes the merge only for exactly one such head and leaves several,
+/// or
+///  none,
+/// to native Git,
+/// which words that refusal itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

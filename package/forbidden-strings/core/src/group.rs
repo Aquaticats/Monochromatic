@@ -109,6 +109,12 @@ fn search_wrap(node: Node) -> Node {
     return concat(vec![Node::Top, node])
 }
 
+/// The table engine of a built automaton after minimization,
+/// with no seeds.
+fn minimized_engine(dfa: crate::dfa::table::Dfa) -> Engine {
+    return Engine::new(EngineKind::Table(minimize(&dfa)), Vec::new());
+}
+
 /// Builds a node into a seedless Table engine,
 ///  or `None` past the cap.
 ///
@@ -127,7 +133,7 @@ fn search_wrap(node: Node) -> Node {
 fn group_engine(node: Node) -> Option<Engine> {
     return build_dfa_within(search_wrap(node), GROUP_DFA_CAP)
         .ok()
-        .map(|dfa| return Engine::new(EngineKind::Table(minimize(&dfa)), Vec::new()))
+        .map(minimized_engine)
 }
 
 /// Folds each rule into the first group whose grown union still fits the cap.

@@ -1,5 +1,7 @@
-//! Controls for a replay of a landing whose index update did not install: it is made only over the index file the landing saw
-//!  under its lock, and every other index is left as its writers left it.
+//! Controls for a replay of a landing whose index update did not install:
+//! it is made only over the index file the landing saw
+//!  under its lock,
+//! and every other index is left as its writers left it.
 
 use super::tests::{World, built_request, land_with_failed_index, request, world};
 use super::*;
@@ -7,14 +9,16 @@ use crate::service_fault::hooks;
 use crate::service_journal::{DONE_EXTENSION, OPEN_EXTENSION, batch_path};
 use crate::test_support::{git, git_text, remove};
 
-/// Commits `path` with `content` as the branch's tip, so a landing starts from an index that has an entry for it.
+/// Commits `path` with `content` as the branch's tip,
+/// so a landing starts from an index that has an entry for it.
 fn commit_file(world: &World, path: &str, content: &str) {
     std::fs::write(world.repo.join(path), content).expect("write");
     git(world.repo.as_path(), &["add", "--", path]);
     git(world.repo.as_path(), &["commit", "--quiet", "--message", format!("start {path}").as_str()]);
 }
 
-/// Stages `content` at `path` the way another session does: the worktree file is written and added.
+/// Stages `content` at `path` the way another session does:
+/// the worktree file is written and added.
 fn stage(world: &World, path: &str, content: &str) {
     std::fs::create_dir_all(world.repo.join(path).parent().expect("parent")).expect("directories");
     std::fs::write(world.repo.join(path), content).expect("write");
@@ -25,7 +29,8 @@ fn staged(world: &World, path: &str) -> String {
     return git_text(world.repo.as_path(), &["show", format!(":{path}").as_str()]);
 }
 
-/// The control that must move: a replay over the index file the landing saw finishes the index update.
+/// The control that must move:
+/// a replay over the index file the landing saw finishes the index update.
 #[test]
 fn a_replay_over_the_index_the_landing_saw_finishes_the_update() {
     let world: World = world("service-witness-untouched");
@@ -39,8 +44,10 @@ fn a_replay_over_the_index_the_landing_saw_finishes_the_update() {
     remove(world.root.as_path());
 }
 
-/// A path staged back to exactly the entry the landing started from was staged by someone: the same entry is not the same
-///  history, so the replay does not put the landed content over it.
+/// A path staged back to exactly the entry the landing started from was staged by someone:
+/// the same entry is not the same
+///  history,
+/// so the replay does not put the landed content over it.
 #[test]
 fn a_path_staged_back_to_the_starting_entry_is_kept() {
     let world: World = world("service-witness-aba");
@@ -56,8 +63,11 @@ fn a_path_staged_back_to_the_starting_entry_is_kept() {
     remove(world.root.as_path());
 }
 
-/// A commit Git built lists its paths only when it is finished, and it is replayed like any other batch: over the file the
-///  landing saw, or not at all.
+/// A commit Git built lists its paths only when it is finished,
+/// and it is replayed like any other batch:
+/// over the file the
+///  landing saw,
+/// or not at all.
 #[test]
 fn a_commit_git_built_is_not_replayed_over_later_staging() {
     let world: World = world("service-witness-built");
@@ -70,7 +80,9 @@ fn a_commit_git_built_is_not_replayed_over_later_staging() {
     remove(world.root.as_path());
 }
 
-/// A batch with no start record (an older one, or a landing that could not write it) is not replayed: nothing says what the
+/// A batch with no start record (an older one,
+/// or a landing that could not write it) is not replayed:
+/// nothing says what the
 ///  index was.
 #[test]
 fn a_batch_with_no_start_record_is_not_replayed() {
@@ -86,7 +98,8 @@ fn a_batch_with_no_start_record_is_not_replayed() {
     remove(world.root.as_path());
 }
 
-/// A record that cannot be read now decides nothing: the batch stays open and the index alone.
+/// A record that cannot be read now decides nothing:
+/// the batch stays open and the index alone.
 #[test]
 fn a_start_record_that_cannot_be_read_leaves_the_batch_open() {
     let world: World = world("service-witness-unreadable");
@@ -102,8 +115,10 @@ fn a_start_record_that_cannot_be_read_leaves_the_batch_open() {
     remove(world.root.as_path());
 }
 
-/// The write footprint of a reset is more than the names it was given: a file landed at `a` is reset by replacing every entry
-///  under `a/`. A directory another session staged where the landed file is must survive the replay.
+/// The write footprint of a reset is more than the names it was given:
+/// a file landed at `a` is reset by replacing every entry
+///  under `a/`.
+/// A directory another session staged where the landed file is must survive the replay.
 #[test]
 fn a_directory_staged_where_the_landed_file_is_survives_the_replay() {
     let world: World = world("service-witness-footprint");
@@ -116,7 +131,8 @@ fn a_directory_staged_where_the_landed_file_is_survives_the_replay() {
     remove(world.root.as_path());
 }
 
-/// The inverse: a file staged where the landed directory's entries are.
+/// The inverse:
+/// a file staged where the landed directory's entries are.
 #[test]
 fn a_file_staged_where_the_landed_directory_is_survives_the_replay() {
     let world: World = world("service-witness-footprint-inverse");
@@ -132,7 +148,8 @@ fn a_file_staged_where_the_landed_directory_is_survives_the_replay() {
     remove(world.root.as_path());
 }
 
-/// A landing stopped after its start record and before the branch moved leaves the branch and the index as they were, and the
+/// A landing stopped after its start record and before the branch moved leaves the branch and the index as they were,
+/// and the
 ///  restart forgets the batch with its record.
 #[test]
 fn a_landing_stopped_after_the_start_record_and_before_the_move_is_dropped() {
@@ -166,8 +183,11 @@ fn a_landing_stopped_after_the_move_is_finished_by_the_restart() {
     remove(world.root.as_path());
 }
 
-/// A path staged since leaves every path of the batch as it is, the untouched ones too: whether a path was touched cannot be
-///  told from its entry, and a reset of one path can rewrite the entries around it.
+/// A path staged since leaves every path of the batch as it is,
+/// the untouched ones too:
+/// whether a path was touched cannot be
+///  told from its entry,
+/// and a reset of one path can rewrite the entries around it.
 #[test]
 fn a_changed_index_resets_no_path_of_the_batch() {
     let world: World = world("service-witness-whole-batch");
@@ -183,8 +203,12 @@ fn a_changed_index_resets_no_path_of_the_batch() {
     remove(world.root.as_path());
 }
 
-/// A conflicted autostash apply left in a scratch repository: the stash is stored there, the commit's private index holds the
-///  three stages of `c.txt`, and the copy of `MERGE_AUTOSTASH` names the stash. Returns the record of the commit's cleanup.
+/// A conflicted autostash apply left in a scratch repository:
+/// the stash is stored there,
+/// the commit's private index holds the
+///  three stages of `c.txt`,
+/// and the copy of `MERGE_AUTOSTASH` names the stash.
+/// Returns the record of the commit's cleanup.
 fn conflicted_autostash(world: &World) -> crate::service_protocol::Cleanup {
     use std::io::Write as _;
     let scratch: PathBuf = world.root.join("scratch");
@@ -218,7 +242,8 @@ fn conflicted_autostash(world: &World) -> crate::service_protocol::Cleanup {
     return crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false };
 }
 
-/// The files a conflicted autostash apply left unmerged are unmerged in the index a replay installs, as in the landing's own.
+/// The files a conflicted autostash apply left unmerged are unmerged in the index a replay installs,
+/// as in the landing's own.
 #[test]
 fn a_replay_over_the_index_the_landing_saw_carries_the_conflict_stages() {
     let world: World = world("service-witness-stages");
@@ -230,7 +255,9 @@ fn a_replay_over_the_index_the_landing_saw_carries_the_conflict_stages() {
     remove(world.root.as_path());
 }
 
-/// Once another session staged the path the autostash conflicted in, the saved stages are not put over its staging: a replay
+/// Once another session staged the path the autostash conflicted in,
+/// the saved stages are not put over its staging:
+/// a replay
 ///  that is not made over the index the landing saw carries nothing either.
 #[test]
 fn saved_conflict_stages_are_not_put_over_later_staging() {
@@ -245,8 +272,11 @@ fn saved_conflict_stages_are_not_put_over_later_staging() {
     remove(world.root.as_path());
 }
 
-/// A killed service's lock is removed by the restart and taken again a moment later; a foreign session that stages through its
-///  whole `git add` in between, back to the entry the landing started from, is not overwritten.
+/// A killed service's lock is removed by the restart and taken again a moment later;
+/// a foreign session that stages through its
+///  whole `git add` in between,
+/// back to the entry the landing started from,
+/// is not overwritten.
 #[test]
 fn a_session_that_stages_between_the_stale_lock_and_the_restart_is_kept() {
     let world: World = world("service-witness-handoff");

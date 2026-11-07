@@ -50,8 +50,6 @@ mod slint_generated;
 /// Imports every public Slint binding from the generated-only lint boundary.
 use slint_generated::*;
 
-use music_player::color_scheme::{COLOR_SCHEME_ENV, FOLLOW_SYSTEM, scheme_override};
-
 /// What:
 ///      `mod ui_progress;` loads the sibling `ui_progress.rs` module into this
 ///           binary crate.
@@ -70,54 +68,124 @@ mod ui_progress;
 /// Playback mode conversion and displayed-page scope projection.
 mod ui_playback;
 
+/// Window binding for the library screen:
+/// applies engine updates to the UI-thread state and pushes the projected view into `AppWindow`.
 mod ui_screen;
 
+/// Pure conversions from the shared player-content model into the flat track list and the folder picker lists that the window shows.
 mod ui_screen_rows;
 
+/// Plain-language message for an event the user did not ask about:
+/// a file that left the folder.
 mod ui_notices;
 
+/// Page selection on the screen state:
+/// the cached page index,
+/// the selected page,
+/// and the pages' measures.
 mod ui_screen_pages;
 
+/// Scroll requests for the track list:
+/// which projection scrolls the list,
+/// and to which row.
 mod ui_screen_scroll;
 
+/// Coalesced projection for updates that arrive in bursts.
 mod ui_screen_throttle;
 
+/// Pure library screen state and its projection into the window's view model.
 mod ui_screen_view;
 
+/// Window binding for the Licenses page that the Licenses row of Settings opens.
 mod ui_licenses;
 
+/// Window binding for the Search route:
+/// opens and closes it,
+/// sends each query edit to the Search service,
+/// and activates a result.
 mod ui_search;
 
+/// Window binding for the Settings page and the template editor.
 mod ui_settings;
 
+/// Pure models for the Settings template rows and the template editor page.
 mod ui_settings_model;
 
+/// Window binding for the Text size setting:
+/// the stepper and reset callbacks of Settings,
+/// and the `TextSize` global.
 mod ui_text_size;
 
+/// Pure template helpers for the desktop window:
+/// track fields from display paths,
+/// the playing-track subtitle,
+/// and the offset conversion the template editor needs.
 mod ui_templates;
 
+/// Pure Search page model:
+/// the rows,
+/// emphasis segments and status text for one query.
 mod ui_search_model;
 
+/// Scroll anchoring for Search results that are re-ranked while the user looks at them (D111).
 mod ui_search_anchor;
 
+/// Applying Search answers to the window,
+/// in place.
 mod ui_search_apply;
 
+/// Window callbacks for the library screen:
+/// each user action becomes engine commands.
 mod ui_wire;
 
+/// Platform file actions behind the track menu:
+/// show in the file manager,
+/// copy the file name,
+/// move to the trash,
+/// and restore from the trash for Undo.
 mod ui_files;
 
+/// Keyboard shortcuts for the player:
+/// each key becomes a `ShortcutRequest`,
+/// the `keymap` classifier names the action,
+/// and the action runs against the window and the host (D102,
+/// D106).
 mod ui_keys;
 
+/// What each classified shortcut does (D102,
+/// D106).
 mod ui_keys_actions;
 
+/// What:
+///      `mod ui_keys_row_actions;` loads the sibling `ui_keys_row_actions.rs`:
+/// what the shortcuts of a focused track row and of the track menu do.
+/// Why:
+///       Row and menu actions share the menu ring,
+/// and they fill a file of their own beside the other action groups.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as uiKeysRowActions from "./ui_keys_row_actions";
+/// ```
+mod ui_keys_row_actions;
+
+/// Requests for keyboard focus from the Rust side (Alt+1,
+/// Alt+2,
+/// Escape out of a field).
 mod ui_keys_focus;
 
+/// The host of keyboard actions:
+/// what a shortcut can ask of the application beyond the window.
 mod ui_host;
 
+/// The keyboard ring inside the folder picker and the track list (D106).
 mod ui_lists;
 
+/// Key hint badges and shortcut texts on the window (D106).
 mod ui_hints;
 
+/// The window's observable state as one log line,
+/// for the end-to-end run.
 mod ui_state_log;
 
 /// Shared helpers of the window tests that press real key events.
@@ -199,6 +267,11 @@ mod ui_lists_render_tests;
 #[cfg(test)]
 mod ui_render_support;
 
+/// Tests of the shared render support:
+/// its clock step against the animation times written in the markup.
+#[cfg(test)]
+mod ui_render_support_tests;
+
 /// Rendered tests of the focus ring on the player page (D117):
 /// its band,
 /// its shape and what focus leaves unchanged.
@@ -227,12 +300,20 @@ mod ui_focus_ring_menu_tests;
 #[cfg(test)]
 mod ui_focus_ring_fixture_tests;
 
+/// Window binding for the track menu:
+/// opens it for a row,
+/// and runs the chosen action.
 mod ui_menu;
 
+/// Pure track menu model:
+/// the rows,
+/// icons and dividers for one track.
 mod ui_menu_model;
 
+/// Window binding for the feedback messages and the first-run pane.
 mod ui_overlays;
 
+/// Pure models for the first-run pane and the feedback messages.
 mod ui_overlays_model;
 
 /// Headless layout tests for the composed window at the cover and unfolded widths.
@@ -267,6 +348,24 @@ mod ui_search_ingest_tests;
 /// import * as uiTheme from "./ui_theme";
 /// ```
 mod ui_theme;
+
+/// What:
+///      `mod main_startup_helpers;` loads the sibling `main_startup_helpers.rs`:
+/// the music folder lookup,
+/// the color scheme override and the two system notifiers.
+/// Why:
+///       They answer startup questions from the environment,
+/// so they stay out of `main.rs`,
+/// which wires the window.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as mainStartupHelpers from "./main_startup_helpers";
+/// ```
+mod main_startup_helpers;
+
+/// Imports the startup lookups and constructors that `main` calls.
+use main_startup_helpers::{color_scheme_from_env, music_dir, start_analysis_notifier, start_unplayable_notifier};
 
 /// What:
 ///      `mod ui_font_scale;` loads the sibling `ui_font_scale.rs` module.
@@ -326,36 +425,6 @@ mod ui_font_scale;
 /// // no import needed; a path is just a string
 /// ```
 use std::path::PathBuf;
-
-/// What:
-///      `#[cfg(unix)] use std::path::Path;`.
-///  The BORROWED path view (`&Path`),
-///           imported ONLY on Unix targets.
-///  `#[cfg(unix)]` is a conditional-
-///           compilation attribute that keeps the line on Unix (Linux/macOS/BSD)
-///           and drops it elsewhere;
-///  siblings:
-///  `windows`,
-///  `target_os = "..."`.
-/// Why:
-///       `Path::new` is used solely inside the Unix-only `xdg_user_dir_music`
-///           helper below,
-///  so importing it unconditionally would be an unused
-///           import on Windows (which trips the deny-warnings clippy gate).
-/// Gotcha:
-///    `#[cfg(...)]` is COMPILE-time conditional compilation,
-///  not a runtime
-///           `if`:
-///  the line literally does not exist in a non-Unix build,
-///  so it
-///           cannot be an unused import there.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // no equivalent: the import is physically absent from non-Unix builds
-/// ```
-#[cfg(unix)]
-use std::path::Path;
 
 /// What:
 ///      `use anyhow::Result;` imports `anyhow`'s one-parameter application
@@ -542,19 +611,6 @@ use music_player::session::Session;
 use music_player::launcher::{self, Launcher};
 
 /// What:
-/// `use music_player::analysis_notification::{AnalysisNotifier, Identity, NotifierConfig};`.
-///  The system indicator for the true-peak analysis,
-/// and the app identity it shows.
-/// Why:
-///       D107 replaces the in-app banner with a Plasma job or a freedesktop notification.
-use music_player::analysis_notification::{AnalysisNotifier, Identity, NotifierConfig};
-/// What:
-/// `use music_player::unplayable_notification::{UnplayableConfig, UnplayableNotifier};`.
-/// Why:
-/// the notification that replaced the "cannot be played" message in the window (D122).
-use music_player::unplayable_notification::{UnplayableConfig, UnplayableNotifier};
-
-/// What:
 /// `use music_player::sweep_gate::SweepGate;`.
 /// The pause gate of the background analysis sweep.
 /// Why:
@@ -687,306 +743,6 @@ pub(crate) fn format_time(secs: f64) -> String {
     return format!("{}:{:02}", whole / 60, whole % 60)
 }
 
-
-
-
-/// What:
-///      `fn xdg_user_dir_music() -> Option<PathBuf>`.
-///  Last-resort lookup:
-///  shell
-///           out to the `xdg-user-dir MUSIC` command and use its printed path.
-///  The
-///           return is `Option<PathBuf>`:
-///  `Some(path)` on success,
-///  `None` otherwise
-///           (Rust has no `null`;
-///  absence is modeled by the `Option` enum).
-/// Why:
-///       Some setups (and some `directories` parsing gaps) leave the music dir
-///           discoverable only through the official `xdg-user-dir` tool;
-///  this is the
-///           fallback when the env var and the user-dirs file both come up empty.
-/// What:
-///      `#[cfg(unix)]` compiles this Unix version of the helper only on Unix
-///           targets (Linux/macOS/BSD);
-///  the `#[cfg(not(unix))]` stub just below
-///           replaces it on Windows.
-///  `unix` is a built-in cfg covering the whole
-///           Unix family;
-///  siblings:
-///  `windows`,
-///  `target_os = "linux"`.
-/// Why:
-///       `xdg-user-dir` is a freedesktop CLI tool that exists only on Unix
-///           desktops;
-///  on Windows the spawn would always fail,
-///  so gate it out and
-///           let the stub return `None` instead of wasting a process spawn.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function xdgUserDirMusic(): string | null { ... } // Unix-only implementation
-/// ```
-#[cfg(unix)]
-fn xdg_user_dir_music() -> Option<PathBuf> {
-    // What:     `let output = std::process::Command::new("xdg-user-dir").arg("MUSIC").output().ok()?;`.
-    //           `Command::new(name)` starts a process builder; `.arg("MUSIC")` adds an
-    //           argument; `.output()` runs it to completion and returns
-    //           `io::Result<Output>` (stdout/stderr/status). `.ok()` converts that
-    //           `Result` into an `Option` (DROPPING the error); the `?` then unwraps
-    //           the `Option`, RETURNING `None` from this whole function if the command
-    //           could not run (e.g. the tool is not installed, as in the container).
-    // Why:      Ask the OS where the music directory is; treat "could not run" as
-    //           "no answer" rather than an error to propagate.
-    // Gotcha:   `?` here is EARLY RETURN, not optional chaining: on `None` it exits
-    //           the function returning `None`. Combined with `.ok()` it also silently
-    //           discards the underlying I/O error.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // let output;
-    // try { output = spawnSync("xdg-user-dir", ["MUSIC"]); } catch { return null; }
-    // ```
-    let output = std::process::Command::new("xdg-user-dir")
-        .arg("MUSIC")
-        .output()
-        .ok()?;
-    // What:     `if !output.status.success() { return None; }`. `status.success()` is
-    //           `true` only on exit code 0; `!` negates it; an early `return None`
-    //           constructs the empty `Option`.
-    // Why:      A failed command yields no usable path.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (output.status !== 0) return null;
-    // ```
-    if !output.status.success() {
-        return None;
-    }
-    // What:     `let text = String::from_utf8(output.stdout).ok()?;`. `output.stdout`
-    //           is the raw bytes (`Vec<u8>`); `String::from_utf8` validates them as
-    //           UTF-8 returning `Result<String, _>`; `.ok()?` yields the `String` or
-    //           early-returns `None` on invalid UTF-8.
-    // Why:      We need the printed path as text.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const text = output.stdout.toString("utf8");
-    // ```
-    let text = String::from_utf8(output.stdout).ok()?;
-    // What:     `let trimmed = text.trim();`. `.trim()` returns a BORROWED `&str`
-    //           view of `text` with leading/trailing whitespace (including the
-    //           trailing newline) removed; no new allocation.
-    // Why:      Command output ends in a newline we must strip.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const trimmed = text.trim();
-    // ```
-    let trimmed = text.trim();
-    // What:     `if trimmed.is_empty() { return None; }`. `.is_empty()` is `true` for
-    //           a zero-length string; early-return the empty `Option`.
-    // Why:      No path was printed.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (!trimmed) return null;
-    // ```
-    if trimmed.is_empty() {
-        return None;
-    }
-    // What:     `if let Some(home) = std::env::var_os("HOME") && Path::new(&home) == Path::new(trimmed) { return None; }`.
-    //           A LET-CHAIN `if`: it runs the body only if BOTH `var_os("HOME")` is
-    //           `Some(home)` (the env var is set) AND the two paths are equal.
-    //           `Path::new(x)` wraps a borrowed `&OsStr`/`&str` as a `&Path` with no
-    //           allocation (unlike `PathBuf::from`, which would allocate); `&Path ==
-    //           &Path` compares by path components. `&home` borrows the `OsString`.
-    // Why:      `xdg-user-dir MUSIC` prints `$HOME` when no music dir is configured;
-    //           reject that case to avoid auto-loading the entire home directory.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const home = process.env.HOME;
-    // if (home !== undefined && home === trimmed) return null;
-    // ```
-    if let Some(home) = std::env::var_os("HOME")
-        && Path::new(&home) == Path::new(trimmed) {
-            return None;
-        }
-    // What:     `Some(PathBuf::from(trimmed))`. `PathBuf::from(trimmed)` allocates an
-    //           owned path from the borrowed `&str`; `Some(...)` wraps it as the
-    //           present case of `Option`. Tail expression -> return value.
-    // Why:      Hand back the discovered music directory.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return trimmed;
-    // ```
-    return Some(PathBuf::from(trimmed))
-}
-
-/// What:
-///      `#[cfg(not(unix))] fn xdg_user_dir_music() -> Option<PathBuf>`.
-///  The
-///           non-Unix stub (Windows):
-///  same signature as the Unix version above,
-///           compiled only when NOT a Unix target.
-///  `not(unix)` inverts the `unix`
-///           cfg predicate.
-/// Why:
-///       Windows has no `xdg-user-dir` tool,
-///  and `music_dir()` already resolves
-///           the Windows Music known-folder via the `directories` crate one step
-///           earlier,
-///  so this fallback has nothing to do;
-///  keep the call site
-///           platform-agnostic by returning `None`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function xdgUserDirMusic(): string | null { return null; } // non-Unix stub
-/// ```
-#[cfg(not(unix))]
-fn xdg_user_dir_music() -> Option<PathBuf> {
-    // What:     `None`. The empty case of `Option<PathBuf>` (no path); sibling
-    //           `Some(p)` would carry a path. Bare tail expression -> return value.
-    // Why:      Signal "this source found no music dir" on Windows.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return null;
-    // ```
-    None
-}
-
-/// What:
-///      `fn music_dir() -> Option<PathBuf>`.
-///  Find the user's music directory:
-///           the `XDG_MUSIC_DIR` environment variable first,
-///  then the XDG user-dirs
-///           file via the `directories` crate,
-///  then the `xdg-user-dir MUSIC`
-///           command,
-///  then `Music` inside the home folder (D95:
-/// a library is always open).
-///  Returns `None` unless one yields an existing directory.
-/// Why:
-///       The containerized `run` task bind-mounts the host music folder and
-///           exports `XDG_MUSIC_DIR` as its in-container path;
-///  a native run has no
-///           such env,
-///  so we fall back to the user-dirs file and finally the
-///           `xdg-user-dir` tool.
-///  The `directories` crate reads only the file,
-///  never
-///           the env var,
-///  so the env lookup must be explicit here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function musicDir(): string | null { ... }
-/// ```
-fn music_dir() -> Option<PathBuf> {
-    // What:     the places to look, in order: `XDG_MUSIC_DIR`, the user-dirs file, the `xdg-user-dir` tool, then `Music`
-    //           inside the home folder. Each later place is computed only if the earlier ones gave no folder.
-    // Why:      D95: a library is always open. A home folder with a `Music` folder but no user-dirs entry used to show
-    //           the "No folder is open" screen (EM7). The first place that is an existing folder wins, so a variable
-    //           pointing at a missing folder falls through instead of ending the search.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return [process.env.XDG_MUSIC_DIR, userDirs()?.audioDir, xdgUserDirMusic(), join(homedir(), "Music")].find(isDir) ?? null;
-    // ```
-    let from_environment = std::iter::once(std::env::var_os("XDG_MUSIC_DIR").map(PathBuf::from));
-    let from_user_dirs = std::iter::once_with(|| {
-        return directories::UserDirs::new().and_then(|dirs| return dirs.audio_dir().map(|p| return p.to_path_buf()));
-    });
-    let from_tool = std::iter::once_with(xdg_user_dir_music);
-    let from_home = std::iter::once_with(|| {
-        return directories::BaseDirs::new().map(|dirs| return music_player::default_library::home_music_folder(dirs.home_dir()));
-    });
-    return music_player::default_library::first_existing_dir(
-        from_environment.chain(from_user_dirs).chain(from_tool).chain(from_home),
-    );
-}
-
-/// What:
-///      `fn color_scheme_from_env() -> i32`.
-///  The `Theme.scheme-override` value that `MUSIC_PLAYER_COLOR_SCHEME` selects.
-/// Why:
-///       A mistyped value is logged and the window follows the system,
-/// so the app still opens.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function colorSchemeFromEnv(): number {
-///   try { return schemeOverride(process.env.MUSIC_PLAYER_COLOR_SCHEME); } catch (error) { warn(error); return FOLLOW_SYSTEM; }
-/// }
-/// ```
-fn color_scheme_from_env() -> i32 {
-    // What:     `scheme_override(value.as_deref())`. Map the variable's text to the override.
-    // Why:      An absent variable is `None`, which follows the system.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const value = process.env.MUSIC_PLAYER_COLOR_SCHEME;
-    // ```
-    let value = std::env::var(COLOR_SCHEME_ENV).ok();
-    return match scheme_override(value.as_deref()) {
-        Ok(scheme) => scheme,
-        Err(error) => {
-            tracing::warn!(error = %error, "ignoring the color scheme override");
-            FOLLOW_SYSTEM
-        }
-    };
-}
-
-/// What:
-/// `start_analysis_notifier` starts the system indicator for the true-peak analysis (D107).
-/// Why:
-/// its Pause and Resume go to the sweep gate,
-/// which parks the sweep workers before their next claim;
-/// the callback
-/// only flips the gate,
-/// so it returns at once.
-/// The name and icon are those of the shipped desktop file,
-/// so a run
-/// without the installed file still gets a named header.
-fn start_analysis_notifier() -> AnalysisNotifier {
-    return AnalysisNotifier::spawn(NotifierConfig::session(
-        app_identity(),
-        true,
-        Box::new(|paused| SweepGate::shared().set_paused(paused)),
-    ))
-}
-
-/// What:
-/// `app_identity` names the app to the desktop for every system notification it posts.
-/// Why:
-/// the analysis indicator (D107) and the "cannot be played" notification (D122) show the same name,
-/// icon and
-/// desktop entry,
-/// so they are built from one value.
-fn app_identity() -> Identity {
-    return Identity {
-        desktop_entry: music_player::identity::APP_ID.to_string(),
-        app_name: "Music Player".to_string(),
-        app_icon: "multimedia-player".to_string(),
-    };
-}
-
-/// What:
-/// `start_unplayable_notifier` starts the system notification for files that cannot be played (D122).
-/// Why:
-/// the engine thread hands it the paths;
-/// it posts them on its own thread,
-/// so neither the engine nor the window
-/// waits on the bus.
-/// The window itself shows only the row mark.
-fn start_unplayable_notifier() -> UnplayableNotifier {
-    return UnplayableNotifier::spawn(UnplayableConfig::session(app_identity()));
-}
-
 /// What:
 ///      `fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError>`.
 ///  In a Windows debug build,
@@ -999,6 +755,7 @@ fn start_unplayable_notifier() -> UnplayableNotifier {
 ///           path as a real one.
 #[cfg(all(windows, debug_assertions))]
 fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError> {
+    /// Imports the startup failure injection variable and the helpers that read it.
     use music_player::startup_failure::{FORCE_STARTUP_FAILURE_ENV, forced_failure_detail, forced_startup_failure};
     let value = std::env::var(FORCE_STARTUP_FAILURE_ENV).ok();
     if forced_startup_failure(value.as_deref()) == Some(step) {
@@ -1502,7 +1259,6 @@ fn main() -> Result<()> {
         });
     }));
     ui_wire::wire(&app, &engine);
-
 
     // What:     `match cli.path { Some(path) => ..., None => ... }`. The single optional
     //           positional path was parsed into `cli` at the top of `main`. A CLI path

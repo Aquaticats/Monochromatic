@@ -1,5 +1,10 @@
-//! Controls for the work-item record: idempotent enqueue, exclusive claims, lease expiry on the right clock, recovery that
-//! cannot take another instance's claim, and refusal of bad records.
+//! Controls for the work-item record:
+//! idempotent enqueue,
+//! exclusive claims,
+//! lease expiry on the right clock,
+//! recovery that
+//! cannot take another instance's claim,
+//! and refusal of bad records.
 
 use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired, requeue_expired_reporting};
 use crate::work_item_state_directories_and_claim_names::NAME_SEPARATOR;
@@ -7,7 +12,8 @@ use super::*;
 use crate::test_support::{fixture, remove};
 use crate::work_item_recovery::{ClaimExpiry, STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
 
-/// A function-like value with the right shape is an expiry test in these controls: the shipped caller writes a small struct.
+/// A function-like value with the right shape is an expiry test in these controls:
+/// the shipped caller writes a small struct.
 impl<Test: Fn(&ClaimTime) -> bool> ClaimExpiry for Test {
     fn has_expired(&self, stamp: &ClaimTime) -> bool {
         return self(stamp);
@@ -17,18 +23,23 @@ impl<Test: Fn(&ClaimTime) -> bool> ClaimExpiry for Test {
 /// The lease the tests use.
 const LEASE: Duration = Duration::from_secs(60);
 
-/// A boot ID, and another boot's.
+/// A boot ID,
+/// and another boot's.
 const BOOT: &str = "0123456789abcdef0123456789abcdef";
 const OTHER_BOOT: &str = "fedcba9876543210fedcba9876543210";
 
-/// A machine ID, and another machine's.
+/// A machine ID,
+/// and another machine's.
 const MACHINE: &str = "00112233445566778899aabbccddeeff";
 const OTHER_MACHINE: &str = "ffeeddccbbaa99887766554433221100";
 
 /// The longest a file name may be on the filesystems the work directory is kept on.
 const FILE_NAME_MAX: usize = 255;
 
-/// The clocks at the start of every test: one boot, a monotonic clock that has run for a while, and a wall clock.
+/// The clocks at the start of every test:
+/// one boot,
+/// a monotonic clock that has run for a while,
+/// and a wall clock.
 fn clock() -> ClaimTime {
     return ClaimTime::from_parts(BOOT, Duration::from_secs(5000), Duration::from_secs(1_700_000_000)).on_machine(MACHINE);
 }
@@ -57,7 +68,9 @@ fn names(work: &Path, state: &str) -> Vec<String> {
     return found;
 }
 
-/// A record decodes to the item it encoded, one line, with an id derived from kind and object.
+/// A record decodes to the item it encoded,
+/// one line,
+/// with an id derived from kind and object.
 #[test]
 fn a_record_round_trips() {
     for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance] {
@@ -86,7 +99,9 @@ fn bad_records_are_refused() {
     }
 }
 
-/// The same landing enqueued twice, or after it was claimed or finished, adds nothing.
+/// The same landing enqueued twice,
+/// or after it was claimed or finished,
+/// adds nothing.
 #[test]
 fn enqueue_is_idempotent_across_states() {
     let directory: PathBuf = fixture("work-enqueue");
@@ -103,7 +118,9 @@ fn enqueue_is_idempotent_across_states() {
     remove(directory.as_path());
 }
 
-/// Claims go oldest first, each item to one claimant, and an empty queue gives none.
+/// Claims go oldest first,
+/// each item to one claimant,
+/// and an empty queue gives none.
 #[test]
 fn claims_are_oldest_first_and_exclusive() {
     let directory: PathBuf = fixture("work-claim");
@@ -121,7 +138,9 @@ fn claims_are_oldest_first_and_exclusive() {
     remove(directory.as_path());
 }
 
-/// A claim is one file whose name has the id, a generation of its own and the clock reading, and no two claims of the same id
+/// A claim is one file whose name has the id,
+/// a generation of its own and the clock reading,
+/// and no two claims of the same id
 /// share a generation.
 #[test]
 fn a_claim_is_named_by_its_id_its_generation_and_its_clock_reading() {
@@ -155,7 +174,9 @@ fn an_undecodable_record_does_not_block_the_queue() {
     remove(directory.as_path());
 }
 
-/// A claim whose lease ran out returns to pending with one more try, then to failed at the limit; a live lease stays.
+/// A claim whose lease ran out returns to pending with one more try,
+/// then to failed at the limit;
+/// a live lease stays.
 #[test]
 fn expired_leases_requeue_and_then_fail() {
     let directory: PathBuf = fixture("work-lease");
@@ -178,7 +199,8 @@ fn expired_leases_requeue_and_then_fail() {
     remove(directory.as_path());
 }
 
-/// The oldest pending item's age is what the wrapper's notice is based on; an empty queue has none.
+/// The oldest pending item's age is what the wrapper's notice is based on;
+/// an empty queue has none.
 #[test]
 fn the_oldest_pending_age_is_measured_from_the_oldest_item() {
     let directory: PathBuf = fixture("work-age");
@@ -194,8 +216,14 @@ fn the_oldest_pending_age_is_measured_from_the_oldest_item() {
     remove(directory.as_path());
 }
 
-/// Two instances that both saw an expired claim: the first returns it to pending and claims it again, then the second, still
-///  acting on what it saw, must leave the new claim alone. The seam is the `expired` closure, which runs between a recovery's
+/// Two instances that both saw an expired claim:
+/// the first returns it to pending and claims it again,
+/// then the second,
+/// still
+///  acting on what it saw,
+/// must leave the new claim alone.
+/// The seam is the `expired` closure,
+/// which runs between a recovery's
 ///  look at the claims and its take.
 #[test]
 fn a_recovery_that_looked_earlier_leaves_a_claim_acquired_since_alone() {
@@ -232,7 +260,8 @@ fn a_recovery_that_looked_earlier_leaves_a_claim_acquired_since_alone() {
     remove(directory.as_path());
 }
 
-/// A holder that renews between a recovery's look and its take keeps the claim: the renewal changed the name the recovery
+/// A holder that renews between a recovery's look and its take keeps the claim:
+/// the renewal changed the name the recovery
 /// means to take.
 #[test]
 fn a_renewal_between_the_look_and_the_take_keeps_the_claim() {
@@ -257,8 +286,10 @@ fn a_renewal_between_the_look_and_the_take_keeps_the_claim() {
     remove(directory.as_path());
 }
 
-/// A step of the wall clock forward must not make a healthy holder look dead, and a step back must not keep a dead holder's
-/// claim alive: within one boot only the monotonic clock counts.
+/// A step of the wall clock forward must not make a healthy holder look dead,
+/// and a step back must not keep a dead holder's
+/// claim alive:
+/// within one boot only the monotonic clock counts.
 #[test]
 fn a_wall_clock_step_neither_expires_a_live_holder_nor_keeps_a_dead_one() {
     let directory: PathBuf = fixture("work-clock-step");
@@ -278,8 +309,11 @@ fn a_wall_clock_step_neither_expires_a_live_holder_nor_keeps_a_dead_one() {
     remove(directory.as_path());
 }
 
-/// A claim file name carries its holder's boot ID. When the judge's boot differs, the holder of the earlier boot is dead,
-/// so the claim has run out at once, however little wall time has passed and whichever way the wall clock was set.
+/// A claim file name carries its holder's boot ID.
+/// When the judge's boot differs,
+/// the holder of the earlier boot is dead,
+/// so the claim has run out at once,
+/// however little wall time has passed and whichever way the wall clock was set.
 #[test]
 fn a_claim_of_an_earlier_boot_has_run_out_at_once() {
     let directory: PathBuf = fixture("work-clock-boot");
@@ -294,8 +328,11 @@ fn a_claim_of_an_earlier_boot_has_run_out_at_once() {
     remove(directory.as_path());
 }
 
-/// A claim of another machine (a second host on a shared filesystem) is not of an earlier boot, whatever the boot IDs say: it
-/// runs out by its lease on the wall clock, and not before.
+/// A claim of another machine (a second host on a shared filesystem) is not of an earlier boot,
+/// whatever the boot IDs say:
+/// it
+/// runs out by its lease on the wall clock,
+/// and not before.
 #[test]
 fn a_claim_of_another_machine_runs_out_by_the_wall_clock() {
     let directory: PathBuf = fixture("work-clock-other-machine");
@@ -310,8 +347,11 @@ fn a_claim_of_another_machine_runs_out_by_the_wall_clock() {
     remove(directory.as_path());
 }
 
-/// A claim an earlier release named (three-part reading, no machine ID) is still read, and is judged by its lease even by a
-/// judge of another boot: an old claim left by a reboot waits out its lease once.
+/// A claim an earlier release named (three-part reading,
+/// no machine ID) is still read,
+/// and is judged by its lease even by a
+/// judge of another boot:
+/// an old claim left by a reboot waits out its lease once.
 #[test]
 fn a_claim_in_the_old_file_name_form_runs_out_by_the_wall_clock() {
     let directory: PathBuf = fixture("work-clock-old-form");
@@ -327,8 +367,13 @@ fn a_claim_in_the_old_file_name_form_runs_out_by_the_wall_clock() {
     remove(directory.as_path());
 }
 
-/// The longest claim file name the code can make, with the longest kind, a SHA-256 object name, and a reading whose
-/// numbers fill 64 bits, fits a file name, with the suffix of a recovery's temporary file too.
+/// The longest claim file name the code can make,
+/// with the longest kind,
+/// a SHA-256 object name,
+/// and a reading whose
+/// numbers fill 64 bits,
+/// fits a file name,
+/// with the suffix of a recovery's temporary file too.
 #[test]
 fn the_longest_claim_file_name_fits_a_file_name() {
     let longest_kind: usize = [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance].into_iter().map(|kind| { return kind.name().len(); }).max().expect("kinds");
@@ -341,8 +386,11 @@ fn the_longest_claim_file_name_fits_a_file_name() {
     assert!(parse_claim_name(name.as_str()).is_some_and(|(_, stamp)| { return stamp == widest; }), "and it reads back whole");
 }
 
-/// A legacy claim has no machine ID, so a judge whose wall clock was set back at boot has nothing to measure it by until that
-/// clock passes the claim's own timestamp: it recovers at the old timestamp plus the lease, not one lease after the restart.
+/// A legacy claim has no machine ID,
+/// so a judge whose wall clock was set back at boot has nothing to measure it by until that
+/// clock passes the claim's own timestamp:
+/// it recovers at the old timestamp plus the lease,
+/// not one lease after the restart.
 #[test]
 fn a_legacy_claim_waits_for_the_wall_clock_to_pass_its_own_timestamp() {
     let directory: PathBuf = fixture("work-clock-legacy-set-back");
@@ -364,14 +412,18 @@ fn modified_of(path: &Path) -> SystemTime {
     return std::fs::metadata(path).expect("metadata").modified().expect("modification time");
 }
 
-/// Sets the modification time of `path` to an hour ago, which is how long an item waited in the queue.
+/// Sets the modification time of `path` to an hour ago,
+/// which is how long an item waited in the queue.
 fn age_an_hour(path: &Path) {
     let file: std::fs::File = std::fs::File::open(path).expect("open");
     file.set_modified(SystemTime::now() - Duration::from_secs(3600)).expect("set the time");
 }
 
-/// A release that cannot read the reading in a claim's name judges the claim by its file's modification time, which a rename
-/// keeps. The claim and every renewal must leave that time at the moment they happened, or such a reader takes a live claim.
+/// A release that cannot read the reading in a claim's name judges the claim by its file's modification time,
+/// which a rename
+/// keeps.
+/// The claim and every renewal must leave that time at the moment they happened,
+/// or such a reader takes a live claim.
 #[test]
 fn a_claim_and_a_renewal_leave_the_modification_time_at_their_own_moment() {
     let directory: PathBuf = fixture("work-clock-modified");
@@ -390,8 +442,10 @@ fn a_claim_and_a_renewal_leave_the_modification_time_at_their_own_moment() {
     remove(directory.as_path());
 }
 
-/// An id is a kind and an object name of at most 64 letters and digits; any other entry of `pending` is moved to `failed`
-/// and never claimed, since its claim's name could fit a file name while the name of the temporary file of its recovery did not.
+/// An id is a kind and an object name of at most 64 letters and digits;
+/// any other entry of `pending` is moved to `failed`
+/// and never claimed,
+/// since its claim's name could fit a file name while the name of the temporary file of its recovery did not.
 #[test]
 fn an_entry_whose_id_is_not_a_kind_and_an_object_name_is_failed_not_claimed() {
     let directory: PathBuf = fixture("work-malformed-id");
@@ -413,8 +467,11 @@ fn an_entry_whose_id_is_not_a_kind_and_an_object_name_is_failed_not_claimed() {
     remove(directory.as_path());
 }
 
-/// A judge with no boot ID cannot tell the claim's boot from its own, so the wall clock is what is left: the claim runs out
-/// by wall time, and not before.
+/// A judge with no boot ID cannot tell the claim's boot from its own,
+/// so the wall clock is what is left:
+/// the claim runs out
+/// by wall time,
+/// and not before.
 #[test]
 fn a_claim_judged_without_a_boot_runs_out_by_the_wall_clock() {
     let directory: PathBuf = fixture("work-clock-no-boot");
@@ -443,7 +500,8 @@ fn a_claim_stamped_without_a_boot_runs_out_by_the_wall_clock() {
     remove(directory.as_path());
 }
 
-/// How long until the first claim runs out is the shortest time left on any claim, and nothing when none is held.
+/// How long until the first claim runs out is the shortest time left on any claim,
+/// and nothing when none is held.
 #[test]
 fn the_next_expiry_is_the_shortest_time_left() {
     let directory: PathBuf = fixture("work-next-expiry");
@@ -459,8 +517,10 @@ fn the_next_expiry_is_the_shortest_time_left() {
     remove(directory.as_path());
 }
 
-/// A claim by an earlier release is named by its id alone and aged by its file's modification time on the wall clock; it
-/// is recovered like any other, and renewing it gives it a generation of this release.
+/// A claim by an earlier release is named by its id alone and aged by its file's modification time on the wall clock;
+/// it
+/// is recovered like any other,
+/// and renewing it gives it a generation of this release.
 #[test]
 fn a_claim_by_an_earlier_release_is_aged_by_its_modification_time() {
     let directory: PathBuf = fixture("work-legacy-claim");
@@ -483,8 +543,11 @@ fn a_claim_by_an_earlier_release_is_aged_by_its_modification_time() {
     remove(directory.as_path());
 }
 
-/// A recovery killed after it took a claim leaves the item in `recovering`, exactly once; that entry runs out like a claim
-/// and is then returned, and while it is young it is left alone.
+/// A recovery killed after it took a claim leaves the item in `recovering`,
+/// exactly once;
+/// that entry runs out like a claim
+/// and is then returned,
+/// and while it is young it is left alone.
 #[test]
 fn a_recovery_killed_after_the_take_is_finished_by_the_next_one() {
     let directory: PathBuf = fixture("work-recovery-killed");
@@ -523,7 +586,8 @@ fn stray_temporary(work: &Path) -> (PathBuf, ClaimTime) {
     return (stray, ClaimTime::from_wall(modified));
 }
 
-/// A temporary file of a recovery that was killed is removed once it is a day old, and not before.
+/// A temporary file of a recovery that was killed is removed once it is a day old,
+/// and not before.
 #[test]
 fn a_stray_recovery_temporary_file_is_removed_when_old() {
     let directory: PathBuf = fixture("work-stray-temporary");
@@ -551,8 +615,10 @@ fn a_stray_recovery_temporary_file_a_minute_short_of_a_day_is_kept() {
     remove(directory.as_path());
 }
 
-/// A claim whose record cannot be read once taken is failed in that pass, so it is not taken again every lease and does not keep
-/// a service waiting; the directory stands in for a file that cannot be read.
+/// A claim whose record cannot be read once taken is failed in that pass,
+/// so it is not taken again every lease and does not keep
+/// a service waiting;
+/// the directory stands in for a file that cannot be read.
 #[test]
 fn a_claim_that_cannot_be_read_is_failed_in_one_pass() {
     let directory: PathBuf = fixture("work-unreadable-claim");
@@ -568,7 +634,9 @@ fn a_claim_that_cannot_be_read_is_failed_in_one_pass() {
     remove(directory.as_path());
 }
 
-/// A recovery that moves an item to `failed` for want of tries gives the item back, so the caller can tell the person; a
+/// A recovery that moves an item to `failed` for want of tries gives the item back,
+/// so the caller can tell the person;
+/// a
 /// recovery that returns it to `pending` gives nothing.
 #[test]
 fn a_recovery_reports_the_items_it_gives_up_on() {

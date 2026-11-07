@@ -1,11 +1,17 @@
 //! What:
-//!  The built executable's service mode (`monochromatic-git-policy-cli monochromatic-git-policy-cli service run`): the invariants that the service is a mode of
+//!  The built executable's service mode (`monochromatic-git-policy-cli monochromatic-git-policy-cli service run`):
+//! the invariants that the service is a mode of
 //!  the wrapper and not a second program.
 //! Why:
-//!  The release ships one executable, so a person's `git monochromatic-git-policy-cli service run` reaches the same code the service manager starts.
-//!  A start with no socket from the manager and no named address must be refused and leave no server and no directory; a
-//!  `--git` that is the wrapper itself must be refused (owner: "We should never invoke ourselves recursively."); the words
-//!  count only first, so a global option of Git in front never selects the mode.
+//!  The release ships one executable,
+//! so a person's `git monochromatic-git-policy-cli service run` reaches the same code the service manager starts.
+//!  A start with no socket from the manager and no named address must be refused and leave no server and no directory;
+//! a
+//!  `--git` that is the wrapper itself must be refused (owner:
+//! "We should never invoke ourselves recursively.");
+//! the words
+//!  count only first,
+//! so a global option of Git in front never selects the mode.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,13 +23,17 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Output, Stdio};
 use std::time::{Duration, Instant};
 
-/// The longest a control waits for a start to end: far beyond what a refusal needs, so only a hang reaches it.
+/// The longest a control waits for a start to end:
+/// far beyond what a refusal needs,
+/// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// How long a control waits before it takes an absent file to stay absent.
 const SETTLE: Duration = Duration::from_millis(500);
 
-/// Waits for `child` to end within `PATIENCE`, and gives its output; a child still running then is killed and the control fails.
+/// Waits for `child` to end within `PATIENCE`,
+/// and gives its output;
+/// a child still running then is killed and the control fails.
 fn finished(mut child: Child) -> Output {
     let began: Instant = Instant::now();
     loop {
@@ -39,8 +49,13 @@ fn finished(mut child: Child) -> Output {
     }
 }
 
-/// A person types `git monochromatic-git-policy-cli service run`: the manager passed no socket and no address is named, so the start is refused with
-///  the reason and the way forward, exits without listening, and creates nothing, not even the journal directory.
+/// A person types `git monochromatic-git-policy-cli service run`:
+/// the manager passed no socket and no address is named,
+/// so the start is refused with
+///  the reason and the way forward,
+/// exits without listening,
+/// and creates nothing,
+/// not even the journal directory.
 #[test]
 fn a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing() {
     let fixture: Fixture = fixture("service-mode-no-socket");
@@ -63,8 +78,11 @@ fn a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing() {
     remove(&fixture);
 }
 
-/// The words select the mode only first: behind a global option of Git they are an unknown management command, which the
-///  wrapper refuses with its usage, and no server starts and no socket appears.
+/// The words select the mode only first:
+/// behind a global option of Git they are an unknown management command,
+/// which the
+///  wrapper refuses with its usage,
+/// and no server starts and no socket appears.
 #[test]
 fn the_words_behind_a_global_option_start_no_server() {
     let fixture: Fixture = fixture("service-mode-behind-option");
@@ -91,7 +109,9 @@ fn the_words_behind_a_global_option_start_no_server() {
     remove(&fixture);
 }
 
-/// Starts the service mode with `--git` set to `git`, on a path socket of the fixture, and gives its end.
+/// Starts the service mode with `--git` set to `git`,
+/// on a path socket of the fixture,
+/// and gives its end.
 fn run_with_git(fixture: &Fixture, git: &Path, label: &str) -> (Output, PathBuf) {
     let socket: PathBuf = fixture.root.join(format!("{label}.sock"));
     let output: Output = finished(
@@ -112,8 +132,12 @@ fn run_with_git(fixture: &Fixture, git: &Path, label: &str) -> (Output, PathBuf)
     return (output, socket);
 }
 
-/// A `--git` that is the wrapper (the built file, the fixture's hard link of it, the `git` link to it, or a byte copy) is
-///  refused at once with the way out, and nothing listens.
+/// A `--git` that is the wrapper (the built file,
+/// the fixture's hard link of it,
+/// the `git` link to it,
+/// or a byte copy) is
+///  refused at once with the way out,
+/// and nothing listens.
 #[test]
 fn a_git_that_is_the_wrapper_is_refused() {
     let fixture: Fixture = fixture("service-mode-git-is-wrapper");
@@ -134,7 +158,9 @@ fn a_git_that_is_the_wrapper_is_refused() {
     remove(&fixture);
 }
 
-/// The control that the refusal can fail: the same start with the real Git listens, answers a connection and ends when told.
+/// The control that the refusal can fail:
+/// the same start with the real Git listens,
+/// answers a connection and ends when told.
 #[test]
 fn the_same_start_with_the_real_git_listens() {
     let fixture: Fixture = fixture("service-mode-real-git");

@@ -132,16 +132,22 @@ pub fn links_unsupported(error: &std::io::Error) -> bool {
 
 /// What the filesystem answered when the lock was asked to be placed whole.
 enum Atomic {
-    /// Neither a rename that does not replace nor a hard link can be made there; the error names both refusals.
+    /// Neither a rename that does not replace nor a hard link can be made there;
+    /// the error names both refusals.
     Refused(std::io::Error),
-    /// Any other failure: the lock exists, or storage failed.
+    /// Any other failure:
+    /// the lock exists,
+    /// or storage failed.
     Failed(std::io::Error),
 }
 
 /// What:
-///  Places `staged` as `lock` in one step: a rename that does not replace, else a hard link.
+///  Places `staged` as `lock` in one step:
+/// a rename that does not replace,
+/// else a hard link.
 /// Why:
-///   Both are exclusive and atomic, so the lock carries its marker from the instant it exists.
+///   Both are exclusive and atomic,
+/// so the lock carries its marker from the instant it exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,8 +174,16 @@ fn place_whole(platform: &Platform, staged: &Path, lock: &Path) -> Result<(), At
     }
 }
 
+/// The storage error a refused or failed placement carries.
+fn error_of(refusal: Atomic) -> std::io::Error {
+    return match refusal {
+        Atomic::Refused(error) | Atomic::Failed(error) => error,
+    };
+}
+
 /// What:
-///  Makes the marked `staged` file the file at `lock`, whole;
+///  Makes the marked `staged` file the file at `lock`,
+/// whole;
 /// `AlreadyExists` when it exists,
 /// and `staged` then stays for the next attempt.
 /// Why:
@@ -192,26 +206,25 @@ fn place_whole(platform: &Platform, staged: &Path, lock: &Path) -> Result<(), At
 /// `Unsupported` (naming both refusals) when the filesystem can place neither way,
 /// and the storage error otherwise.
 pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io::Result<()> {
-    return place_whole(platform, staged, lock).map_err(|refusal| {
-        return match refusal {
-            Atomic::Refused(error) | Atomic::Failed(error) => error,
-        };
-    });
+    return place_whole(platform, staged, lock).map_err(error_of);
 }
 
 /// How a lock came to be placed.
 #[derive(Debug)]
 pub enum Placed {
-    /// The staged file is the lock: the holder keeps its descriptor.
+    /// The staged file is the lock:
+    /// the holder keeps its descriptor.
     Whole,
     /// The lock was created by exclusive creation and given its marker afterwards;
-    /// this descriptor is the lock's own inode, and the holder keeps it instead of the staged file's.
+    /// this descriptor is the lock's own inode,
+    /// and the holder keeps it instead of the staged file's.
     Created(std::fs::File),
 }
 
 impl Placed {
     /// The descriptor that names the lock's inode:
-    /// the one the lock was created with, else the staged file's.
+    /// the one the lock was created with,
+    /// else the staged file's.
     pub fn held_or(self, staged: std::fs::File) -> std::fs::File {
         return match self {
             Placed::Whole => staged,
@@ -220,12 +233,22 @@ impl Placed {
     }
 }
 
+/// Write `marker` to the lock file just created and flush it,
+/// with the fault points of a kill between the two.
+fn write_marker_and_sync(platform: &Platform, file: &mut std::fs::File, marker: &str) -> std::io::Result<()> {
+    std::io::Write::write_all(file, marker.as_bytes())?;
+    // A kill here leaves a lock with its marker, not yet flushed.
+    crate::service_fault::reach(crate::service_fault::LOCK_MARKED_UNSYNCED);
+    return (platform.sync)(file);
+}
+
 /// What:
 ///  Takes `index.lock` for the marked `staged` file:
 /// whole where the filesystem has a rename that does not replace or a hard link,
 /// else by exclusive creation with `marker` written afterwards.
 /// Why:
-///   Git's own lock is taken by exclusive creation (`open` with `O_CREAT | O_EXCL`, `lockfile.c` `lock_file`),
+///   Git's own lock is taken by exclusive creation (`open` with `O_CREAT | O_EXCL`,
+/// `lockfile.c` `lock_file`),
 /// which needs neither call,
 /// so a filesystem that refuses both still lets Git commit and must let this service land a commit too ("Commits should never fail.").
 /// The two steps leave a window:
@@ -260,11 +283,7 @@ pub fn place_lock(platform: &Platform, staged: &Path, marker: &str, lock: &Path)
     );
     // A kill here leaves a lock without its marker.
     crate::service_fault::reach(crate::service_fault::LOCK_CREATED_UNMARKED);
-    let marked: std::io::Result<()> = std::io::Write::write_all(&mut file, marker.as_bytes()).and_then(|()| {
-        // A kill here leaves a lock with its marker, not yet flushed.
-        crate::service_fault::reach(crate::service_fault::LOCK_MARKED_UNSYNCED);
-        return (platform.sync)(&file);
-    });
+    let marked: std::io::Result<()> = write_marker_and_sync(platform, &mut file, marker);
     if let Err(error) = marked {
         drop(file);
         if let Err(removal) = std::fs::remove_file(lock) {

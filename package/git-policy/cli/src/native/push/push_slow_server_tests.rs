@@ -1,10 +1,19 @@
 //! Controls for a push whose server runs a check after the pack is sent and says nothing for longer than the stall window,
-//!  with real Git: over HTTP to Git's own `http-backend` behind a loopback port, and over a local path as the control.
+//!  with real Git:
+//! over HTTP to Git's own `http-backend` behind a loopback port,
+//! and over a local path as the control.
 //! Why:
-//!  GitHub checks a push (its pre-receive hooks) after the pack arrived, and a push that waits for that is not stuck. The
-//!  remote here sets `receive.keepAlive` to 0 ("set to 0 to disable keepalives entirely", `git help config`) so the server is
-//!  exactly silent, and its `pre-receive` hook sleeps past the window: the push must land on its first try over a connection that
-//!  is open, however long the server takes, and be stopped as before where there is no connection.
+//!  GitHub checks a push (its pre-receive hooks) after the pack arrived,
+//! and a push that waits for that is not stuck.
+//! The
+//!  remote here sets `receive.keepAlive` to 0 ("set to 0 to disable keepalives entirely",
+//! `git help config`) so the server is
+//!  exactly silent,
+//! and its `pre-receive` hook sleeps past the window:
+//! the push must land on its first try over a connection that
+//!  is open,
+//! however long the server takes,
+//! and be stopped as before where there is no connection.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,7 +35,8 @@ use std::ffi::OsString;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-/// The stall window of the controls, a whole second as the environment variable of the push takes it.
+/// The stall window of the controls,
+/// a whole second as the environment variable of the push takes it.
 const STALL: Duration = Duration::from_secs(1);
 
 /// How many stall windows the server's hook stays silent.
@@ -50,7 +60,8 @@ fn silent_remote(projects: &std::path::Path, silence: Duration) -> PathBuf {
     return remote;
 }
 
-/// The push of `main` to `origin`, with the environment the wrapper gives its pushes and nothing from the host.
+/// The push of `main` to `origin`,
+/// with the environment the wrapper gives its pushes and nothing from the host.
 fn push_command(repo: &std::path::Path) -> Command {
     let mut command: Command = Command::new(REAL_GIT);
     command
@@ -64,14 +75,16 @@ fn push_command(repo: &std::path::Path) -> Command {
     return command;
 }
 
-/// Run the push under a patience, with its time.
+/// Run the push under a patience,
+/// with its time.
 fn run(repo: &std::path::Path, patience: Patience) -> (PushAttempt, Duration) {
     let started: Instant = Instant::now();
     let attempt: PushAttempt = run_bounded_push(push_command(repo), patience, GRACE, scratch_environment().as_slice()).expect("runs");
     return (attempt, started.elapsed());
 }
 
-/// A push over HTTP to a server that checks the push in silence for longer than the stall window lands on its first try, and
+/// A push over HTTP to a server that checks the push in silence for longer than the stall window lands on its first try,
+/// and
 ///  its output names the wait.
 #[test]
 fn a_push_over_http_waits_for_a_silent_server_check_and_lands() {
@@ -91,8 +104,10 @@ fn a_push_over_http_waits_for_a_silent_server_check_and_lands() {
     remove(root.as_path());
 }
 
-/// The same silent check behind a local path has no connection to wait on (the hook is a child of the push), so the push is
-///  stopped on a stall, as before.
+/// The same silent check behind a local path has no connection to wait on (the hook is a child of the push),
+/// so the push is
+///  stopped on a stall,
+/// as before.
 #[test]
 fn the_same_silence_behind_a_local_path_is_still_a_stall() {
     let root: PathBuf = fixture("slow-server-local");
@@ -108,8 +123,11 @@ fn the_same_silence_behind_a_local_path_is_still_a_stall() {
     remove(root.as_path());
 }
 
-/// A server that took the connection and says nothing for longer than the stall window is a connected remote, not a stalled
-///  push: the wrapper does not stop the push for time, and the push ends when the server closes the connection.
+/// A server that took the connection and says nothing for longer than the stall window is a connected remote,
+/// not a stalled
+///  push:
+/// the wrapper does not stop the push for time,
+/// and the push ends when the server closes the connection.
 #[test]
 fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
     let listener: TcpListener = TcpListener::bind("127.0.0.1:0").expect("a local listener");
@@ -136,7 +154,9 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
     drop(silent);
 }
 
-/// A server check that outlasts several stall windows does not stop the push, and no total time does: it lands.
+/// A server check that outlasts several stall windows does not stop the push,
+/// and no total time does:
+/// it lands.
 #[test]
 fn a_push_over_http_is_not_stopped_for_time_while_the_server_checks() {
     let root: PathBuf = fixture("slow-server-no-ceiling");
@@ -154,7 +174,8 @@ fn a_push_over_http_is_not_stopped_for_time_while_the_server_checks() {
     remove(root.as_path());
 }
 
-/// The low-speed time in seconds that the wrapper used to give a push (`GIT_HTTP_LOW_SPEED_TIME`), kept here only to put the
+/// The low-speed time in seconds that the wrapper used to give a push (`GIT_HTTP_LOW_SPEED_TIME`),
+/// kept here only to put the
 ///  silence past it.
 const FORMER_LOW_SPEED_SECONDS: u64 = 60;
 
@@ -164,14 +185,18 @@ const FORMER_LOW_SPEED_BYTES: &str = "1000";
 /// How much longer than the wrapper's former low-speed cutoff the server's check stays silent.
 const PAST_THE_CUTOFF: Duration = Duration::from_secs(5);
 
-/// The low-speed time a person sets in the control that proves the person's own value still applies, in whole seconds.
+/// The low-speed time a person sets in the control that proves the person's own value still applies,
+/// in whole seconds.
 const PERSON_LOW_SPEED_SECONDS: u64 = 2;
 
 /// How many times the person's low-speed time the server's check stays silent in that control.
 const PERSON_SILENCE_FACTOR: u32 = 6;
 
-/// The coordinator of the wrapper's own push for the repository, as the service builds it: the stall window of the controls in
-///  its environment, and whatever the person set besides.
+/// The coordinator of the wrapper's own push for the repository,
+/// as the service builds it:
+/// the stall window of the controls in
+///  its environment,
+/// and whatever the person set besides.
 fn push_git(repo: &std::path::Path, person: &[(&str, &str)]) -> PushGit {
     let mut environment: Vec<(OsString, OsString)> = [
         ("PATH", "/usr/bin:/bin"),
@@ -188,7 +213,8 @@ fn push_git(repo: &std::path::Path, person: &[(&str, &str)]) -> PushGit {
     return PushGit { real_git: PathBuf::from(REAL_GIT), cwd: repo.to_path_buf(), environment, lfs: false };
 }
 
-/// A silent HTTP server and a repository that pushes to it, for a silence of `silence`.
+/// A silent HTTP server and a repository that pushes to it,
+/// for a silence of `silence`.
 fn http_stage(name: &str, silence: Duration) -> (PathBuf, PathBuf, PathBuf, SmartHttp) {
     let root: PathBuf = fixture(name);
     let projects: PathBuf = root.join("projects");
@@ -200,7 +226,8 @@ fn http_stage(name: &str, silence: Duration) -> (PathBuf, PathBuf, PathBuf, Smar
     return (root, repo, remote, server);
 }
 
-/// The wrapper's own push, as the service runs it.
+/// The wrapper's own push,
+/// as the service runs it.
 fn run_wrapper_push(git: &PushGit) -> (PushAttempt, Duration) {
     let started: Instant = Instant::now();
     let arguments: Vec<OsString> = ["push", "origin", "main"].iter().map(OsString::from).collect();
@@ -209,7 +236,9 @@ fn run_wrapper_push(git: &PushGit) -> (PushAttempt, Duration) {
 }
 
 /// A server check that stays silent past the 60 seconds after which the wrapper used to have Git end an HTTP transfer lands on
-///  the first try: the wrapper's push sets no low-speed limit of its own, so nothing but the server or TCP ends the wait.
+///  the first try:
+/// the wrapper's push sets no low-speed limit of its own,
+/// so nothing but the server or TCP ends the wait.
 #[test]
 fn a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands() {
     let cutoff: Duration = Duration::from_secs(FORMER_LOW_SPEED_SECONDS);
@@ -223,8 +252,11 @@ fn a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands() {
     remove(root.as_path());
 }
 
-/// A low-speed limit and time the person set reach Git unchanged, so they still end a silent HTTP wait: a person who wants a
-///  shorter cutoff has it, and the wrapper's push neither adds nor lengthens one.
+/// A low-speed limit and time the person set reach Git unchanged,
+/// so they still end a silent HTTP wait:
+/// a person who wants a
+///  shorter cutoff has it,
+/// and the wrapper's push neither adds nor lengthens one.
 #[test]
 fn a_low_speed_setting_the_person_made_still_ends_a_silent_http_wait() {
     let person_time: Duration = Duration::from_secs(PERSON_LOW_SPEED_SECONDS);

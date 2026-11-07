@@ -13,7 +13,8 @@ use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::stage_ignored_snapshot;
 use std::os::unix::fs::PermissionsExt;
 
-/// `settle_interrupted_add` with the two lookups as values, so that a lookup that fails other than by absence can be driven.
+/// `settle_interrupted_add` with the two lookups as values,
+/// so that a lookup that fails other than by absence can be driven.
 fn settle_from(record: &Path, marker: std::io::Result<bool>, read: &mut dyn FnMut() -> std::io::Result<String>) -> Settlement {
     if let Some(settled) = settle_marker(record, marker) {
         return settled;
@@ -21,7 +22,8 @@ fn settle_from(record: &Path, marker: std::io::Result<bool>, read: &mut dyn FnMu
     return settle_text(record, read());
 }
 
-/// A common directory and a destination parent beside it, as a copy into `worktrees/topic` would use.
+/// A common directory and a destination parent beside it,
+/// as a copy into `worktrees/topic` would use.
 fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let common: PathBuf = root.join("common");
@@ -31,7 +33,8 @@ fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     return (root, common, worktrees.join("topic"));
 }
 
-/// A stage container with a payload and a read-only directory, the shape an interrupted copy leaves.
+/// A stage container with a payload and a read-only directory,
+/// the shape an interrupted copy leaves.
 fn abandoned_stage(container: &Path) {
     create_private_directory(container).expect("container");
     let payload: PathBuf = container.join("payload");
@@ -42,7 +45,9 @@ fn abandoned_stage(container: &Path) {
     std::fs::set_permissions(locked.as_path(), std::fs::Permissions::from_mode(0o500)).expect("read-only");
 }
 
-/// A claim names a container beside the destination, writes it under the journal root, and creates nothing else.
+/// A claim names a container beside the destination,
+/// writes it under the journal root,
+/// and creates nothing else.
 #[test]
 fn a_claim_names_the_container_and_creates_no_container() {
     let (root, common, destination) = scene("claim-names");
@@ -63,7 +68,8 @@ fn a_claim_names_the_container_and_creates_no_container() {
     remove(root.as_path());
 }
 
-/// Releasing a claim removes its file and nothing else; two claims have different containers.
+/// Releasing a claim removes its file and nothing else;
+/// two claims have different containers.
 #[test]
 fn releasing_a_claim_removes_only_its_file() {
     let (root, common, destination) = scene("claim-release");
@@ -103,7 +109,8 @@ fn claims_exist_until_released() {
     remove(root.as_path());
 }
 
-/// Only claim files count: journals and unrelated files do not make the repository pending.
+/// Only claim files count:
+/// journals and unrelated files do not make the repository pending.
 #[test]
 fn other_files_are_not_claims() {
     let (root, common, _destination) = scene("claim-others");
@@ -114,7 +121,9 @@ fn other_files_are_not_claims() {
     remove(root.as_path());
 }
 
-/// An abandoned stage is removed with its read-only directories, its claim goes, and one notice names the stage.
+/// An abandoned stage is removed with its read-only directories,
+/// its claim goes,
+/// and one notice names the stage.
 #[test]
 fn an_abandoned_stage_is_removed_with_a_notice() {
     let (root, common, destination) = scene("claim-reap");
@@ -135,7 +144,8 @@ fn an_abandoned_stage_is_removed_with_a_notice() {
     remove(root.as_path());
 }
 
-/// A claim whose container was never created is removed quietly: nothing was staged.
+/// A claim whose container was never created is removed quietly:
+/// nothing was staged.
 #[test]
 fn a_claim_without_a_container_is_removed_without_a_notice() {
     let (root, common, destination) = scene("claim-no-container");
@@ -146,7 +156,8 @@ fn a_claim_without_a_container_is_removed_without_a_notice() {
     remove(root.as_path());
 }
 
-/// A stage that a pending journal names is kept for recovery; only its claim is removed.
+/// A stage that a pending journal names is kept for recovery;
+/// only its claim is removed.
 #[test]
 fn a_journaled_stage_is_kept() {
     let (root, common, destination) = scene("claim-journaled");
@@ -172,7 +183,8 @@ fn a_journaled_stage_is_kept() {
     remove(root.as_path());
 }
 
-/// Every abandoned stage of a repository is removed in one pass, each with its own notice.
+/// Every abandoned stage of a repository is removed in one pass,
+/// each with its own notice.
 #[test]
 fn every_abandoned_stage_is_removed() {
     let (root, common, destination) = scene("claim-reap-many");
@@ -188,7 +200,8 @@ fn every_abandoned_stage_is_removed() {
     remove(root.as_path());
 }
 
-/// A claim that names a path outside the stage container naming is refused, and the named path survives.
+/// A claim that names a path outside the stage container naming is refused,
+/// and the named path survives.
 #[test]
 fn a_claim_naming_another_directory_is_refused() {
     let (root, common, destination) = scene("claim-foreign-name");
@@ -214,7 +227,8 @@ fn a_claim_naming_a_relative_path_is_refused() {
     remove(root.as_path());
 }
 
-/// A claim that names a stage others can read is refused: the directory is not provably monochromatic-git-policy-cli's own.
+/// A claim that names a stage others can read is refused:
+/// the directory is not provably monochromatic-git-policy-cli's own.
 #[test]
 fn a_shared_stage_is_refused_and_kept() {
     let (root, common, destination) = scene("claim-shared");
@@ -227,7 +241,8 @@ fn a_shared_stage_is_refused_and_kept() {
     remove(root.as_path());
 }
 
-/// A symbolic link in the container's place is refused, so a planted link never redirects the removal.
+/// A symbolic link in the container's place is refused,
+/// so a planted link never redirects the removal.
 #[test]
 fn a_linked_container_is_refused_and_its_target_kept() {
     let (root, common, destination) = scene("claim-linked");
@@ -252,8 +267,10 @@ fn a_shared_claim_file_is_refused() {
     remove(root.as_path());
 }
 
-/// A write cut off before its rename leaves a temporary that names its dead writer; the next pass removes it without a notice,
-///  and leaves the temporary of a writer that still runs, which is about to rename it.
+/// A write cut off before its rename leaves a temporary that names its dead writer;
+/// the next pass removes it without a notice,
+///  and leaves the temporary of a writer that still runs,
+/// which is about to rename it.
 #[test]
 fn an_unfinished_write_of_a_dead_writer_is_removed_and_a_live_writers_is_kept() {
     let (root, common, _destination) = scene("claim-temporary");
@@ -275,7 +292,9 @@ fn an_unfinished_write_of_a_dead_writer_is_removed_and_a_live_writers_is_kept() 
     remove(root.as_path());
 }
 
-/// A claim whose owner still runs is an add or a copy in progress: its stage, its records and its claim are left whole.
+/// A claim whose owner still runs is an add or a copy in progress:
+/// its stage,
+/// its records and its claim are left whole.
 #[test]
 fn a_live_owners_claim_is_left_whole() {
     let (root, common, destination) = scene("claim-live-owner");
@@ -302,7 +321,8 @@ fn a_repository_without_a_journal_root_reaps_nothing() {
 }
 
 /// A journal root that cannot be listed because a file stands where a directory belongs is a failure,
-///  not an empty root: the claims and the unfinished writes under it were not looked at.
+///  not an empty root:
+/// the claims and the unfinished writes under it were not looked at.
 #[test]
 fn an_unlistable_journal_root_is_a_failure_and_not_an_empty_one() {
     let (root, common, _destination) = scene("claim-root-not-a-directory");
@@ -313,7 +333,8 @@ fn an_unlistable_journal_root_is_a_failure_and_not_an_empty_one() {
     remove(root.as_path());
 }
 
-/// Making a directory durable is fine when it succeeded or the directory was never created, and a fault otherwise.
+/// Making a directory durable is fine when it succeeded or the directory was never created,
+/// and a fault otherwise.
 #[test]
 fn only_an_absent_directory_may_skip_its_sync() {
     absent_is_fine(Ok(())).expect("done");
@@ -352,8 +373,13 @@ fn releasing_an_add_claim_removes_the_destination_record() {
     remove(root.as_path());
 }
 
-/// A process killed between Git and the swap, before the add was bound, leaves a claim, a stage and a destination nothing
-///  proves to be the add's: recovery changes nothing, and tells the person about the stage and how to see and remove the destination.
+/// A process killed between Git and the swap,
+/// before the add was bound,
+/// leaves a claim,
+/// a stage and a destination nothing
+///  proves to be the add's:
+/// recovery changes nothing,
+/// and tells the person about the stage and how to see and remove the destination.
 #[test]
 fn an_unbound_add_deletes_nothing_and_is_reported() {
     let (root, common, destination) = scene("claim-add-interrupted");
@@ -375,8 +401,12 @@ fn an_unbound_add_deletes_nothing_and_is_reported() {
     remove(root.as_path());
 }
 
-/// A real repository with a worktree registered without a checkout, and the add's claim, abandoned as a kill leaves it: bound
-///  and recorded when `bound`, as planned only otherwise.
+/// A real repository with a worktree registered without a checkout,
+/// and the add's claim,
+/// abandoned as a kill leaves it:
+/// bound
+///  and recorded when `bound`,
+/// as planned only otherwise.
 fn killed_add(name: &str, bound: bool, marked: bool) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
@@ -400,7 +430,8 @@ fn killed_add(name: &str, bound: bool, marked: bool) -> (PathBuf, PathBuf, PathB
     return (root, repo.clone(), destination, repo.join(".git/worktrees/topic"));
 }
 
-/// An add killed before it was bound deletes nothing, even when a worktree with a valid pair stands at the recorded path:
+/// An add killed before it was bound deletes nothing,
+/// even when a worktree with a valid pair stands at the recorded path:
 ///  a person ran real Git there and may have edited files in it.
 #[test]
 fn an_add_killed_before_git_never_deletes_a_worktree_someone_else_made_at_the_path() {
@@ -413,8 +444,11 @@ fn an_add_killed_before_git_never_deletes_a_worktree_someone_else_made_at_the_pa
     remove(root.as_path());
 }
 
-/// An add killed after it was bound and before it completed leaves a registered worktree: recovery changes nothing, says
-///  once what is incomplete and the commands that finish or remove it, and drops its records.
+/// An add killed after it was bound and before it completed leaves a registered worktree:
+/// recovery changes nothing,
+/// says
+///  once what is incomplete and the commands that finish or remove it,
+/// and drops its records.
 #[test]
 fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     let (root, repo, destination, admin) = killed_add("claim-add-killed", true, false);
@@ -429,8 +463,10 @@ fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     remove(root.as_path());
 }
 
-/// A bound destination that another process replaced with a worktree of its own is left whole with its registration; the
-///  report names the path, and nothing is deleted or unregistered.
+/// A bound destination that another process replaced with a worktree of its own is left whole with its registration;
+/// the
+///  report names the path,
+/// and nothing is deleted or unregistered.
 #[test]
 fn a_replaced_destination_is_left_whole_and_reported() {
     let (root, repo, destination, _admin) = killed_add("claim-add-replaced", true, false);
@@ -445,7 +481,8 @@ fn a_replaced_destination_is_left_whole_and_reported() {
     remove(root.as_path());
 }
 
-/// An add that was marked complete before the kill is a whole worktree: recovery keeps it and says nothing.
+/// An add that was marked complete before the kill is a whole worktree:
+/// recovery keeps it and says nothing.
 #[test]
 fn an_add_marked_complete_is_kept_by_recovery() {
     let (root, repo, destination, admin) = killed_add("claim-add-marked", true, true);
@@ -457,8 +494,11 @@ fn an_add_marked_complete_is_kept_by_recovery() {
     remove(root.as_path());
 }
 
-/// A lookup that fails other than by absence is not "complete" and not "incomplete": the record stays, the report says that
-///  the state is unknown, and nothing is changed.
+/// A lookup that fails other than by absence is not "complete" and not "incomplete":
+/// the record stays,
+/// the report says that
+///  the state is unknown,
+/// and nothing is changed.
 #[test]
 fn a_lookup_that_fails_keeps_the_record_and_says_the_state_is_unknown() {
     let record: PathBuf = PathBuf::from("/records/one.add");
@@ -473,7 +513,8 @@ fn a_lookup_that_fails_keeps_the_record_and_says_the_state_is_unknown() {
     assert!(!complete.keep && complete.notice.is_none(), "a complete add needs no look at its record");
 }
 
-/// A stage that the claim of a worktree add names is reported and never removed, whatever stands at the name.
+/// A stage that the claim of a worktree add names is reported and never removed,
+/// whatever stands at the name.
 #[test]
 fn a_stage_named_by_an_add_is_reported_and_never_removed() {
     let (root, common, destination) = scene("claim-add-stage");
@@ -490,7 +531,9 @@ fn a_stage_named_by_an_add_is_reported_and_never_removed() {
     remove(root.as_path());
 }
 
-/// A release that stops after its first step has removed the record and kept the marker, never the other way round: a
+/// A release that stops after its first step has removed the record and kept the marker,
+/// never the other way round:
+/// a
 ///  marker standing in for one that cannot be removed makes the second step fail.
 #[test]
 fn releasing_an_add_removes_the_record_before_the_marker() {
@@ -519,7 +562,9 @@ fn unfinished_record_and_marker_writes_are_removed() {
     remove(root.as_path());
 }
 
-/// A claim that is gone by the time it is read (its owner released it, or another command reaped it) is skipped, while a
+/// A claim that is gone by the time it is read (its owner released it,
+/// or another command reaped it) is skipped,
+/// while a
 /// claim that is there and names no stage container is still refused.
 #[test]
 fn a_claim_that_vanished_is_skipped_and_a_malformed_one_is_refused() {
@@ -536,7 +581,8 @@ fn a_claim_that_vanished_is_skipped_and_a_malformed_one_is_refused() {
     remove(root.as_path());
 }
 
-/// A marker published after a subvolume was swapped into place is atomic and flushes nothing, where the durable marker flushes
+/// A marker published after a subvolume was swapped into place is atomic and flushes nothing,
+/// where the durable marker flushes
 ///  its file and the directory that holds it.
 #[test]
 fn an_unsynced_marker_is_published_whole_and_flushes_nothing() {
@@ -573,7 +619,8 @@ fn an_unsynced_release_removes_the_records_and_flushes_nothing() {
     remove(root.as_path());
 }
 
-/// An owner of another PID namespace, and the age that makes its item expired.
+/// An owner of another PID namespace,
+/// and the age that makes its item expired.
 fn foreign_owner() -> crate::worktree_copy_owner::CopyOwner {
     return crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
 }
@@ -588,7 +635,8 @@ fn age_past_the_patience(path: &Path) {
         .expect("age");
 }
 
-/// A stage claim file with a chosen name, so the order of the sweep is the order of the names.
+/// A stage claim file with a chosen name,
+/// so the order of the sweep is the order of the names.
 fn claim_file(common: &Path, name: &str, container: &Path, owner: &crate::worktree_copy_owner::CopyOwner) -> PathBuf {
     let root: PathBuf = ensure_journal_root(common).expect("root");
     let path: PathBuf = root.join(format!("{name}{CLAIM_SUFFIX}"));
@@ -597,8 +645,10 @@ fn claim_file(common: &Path, name: &str, container: &Path, owner: &crate::worktr
     return path;
 }
 
-/// A dead owner's claim comes first and an expired foreign claim after it: the sweep refuses before it removes anything (sol-1 round 3,
-/// P1 C: the refusal said "nothing was changed" after the first claim's stage was gone).
+/// A dead owner's claim comes first and an expired foreign claim after it:
+/// the sweep refuses before it removes anything (sol-1 round 3,
+/// P1 C:
+/// the refusal said "nothing was changed" after the first claim's stage was gone).
 #[test]
 fn an_expired_foreign_claim_stops_the_sweep_before_any_stage_is_removed() {
     let (root, common, destination) = scene("claim-foreign-after-dead");
@@ -619,7 +669,9 @@ fn an_expired_foreign_claim_stops_the_sweep_before_any_stage_is_removed() {
     remove(root.as_path());
 }
 
-/// The same for the temporaries: a dead writer's file first, an expired foreign writer's after it.
+/// The same for the temporaries:
+/// a dead writer's file first,
+/// an expired foreign writer's after it.
 #[test]
 fn an_expired_foreign_temporary_stops_the_sweep_before_any_temporary_is_removed() {
     let (root, common, _destination) = scene("temporary-foreign-after-dead");

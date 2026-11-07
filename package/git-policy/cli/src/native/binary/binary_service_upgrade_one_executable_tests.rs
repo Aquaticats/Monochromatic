@@ -1,14 +1,30 @@
 //! What:
 //!  The upgrade from the release that shipped the service as a second program (0.5.34) to the release where it is a mode of
-//!  the wrapper's own executable, against a stand-in for the user manager that plays the manager's two parts: it owns the
-//!  listening socket and passes it to the service it starts (socket activation), and it answers the wrapper's bus calls.
+//!  the wrapper's own executable,
+//! against a stand-in for the user manager that plays the manager's two parts:
+//! it owns the
+//!  listening socket and passes it to the service it starts (socket activation),
+//! and it answers the wrapper's bus calls.
 //! Why:
-//!  The unit a 0.5.34 wrapper wrote names `<toolchain>/0.5.34/bin/cli-git-service`, and the install of the next release removes
-//!  that directory; a start under it ends with `status=203/EXEC` (`doc/troubleshooting/cli-git-service-unit-names-a-removed-
-//!  program-status-203-exec.md`). The new wrapper must rewrite the unit, before any activation could use it, to the one that
-//!  starts its own executable in service mode, and the old service, still running from the removed file, must retire after
-//!  finishing its work (owner: "Commits should never fail." "never discard user data"). The control starts the very
-//!  command line the rewritten unit holds, with the socket passed in the way the manager passes it, so the unit text itself
+//!  The unit a 0.5.34 wrapper wrote names `<toolchain>/0.5.34/bin/cli-git-service`,
+//! and the install of the next release removes
+//!  that directory;
+//! a start under it ends with `status=203/EXEC` (`doc/troubleshooting/cli-git-service-unit-names-a-removed-
+//!  program-status-203-exec.md`).
+//! The new wrapper must rewrite the unit,
+//! before any activation could use it,
+//! to the one that
+//!  starts its own executable in service mode,
+//! and the old service,
+//! still running from the removed file,
+//! must retire after
+//!  finishing its work (owner:
+//! "Commits should never fail."
+//! "never discard user data").
+//! The control starts the very
+//!  command line the rewritten unit holds,
+//! with the socket passed in the way the manager passes it,
+//! so the unit text itself
 //!  is proved to start a working service.
 //!
 //! In TS you'd write (pseudocode):
@@ -29,8 +45,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-/// The service unit template of release 0.5.34, as that release wrote it (`git show monochromatic-git-policy-cli-v0.5.34:
-///  package/git-policy/cli/src/native/service/service_units/cli-git@.service`), with the program and Git words still to fill in.
+/// The service unit template of release 0.5.34,
+/// as that release wrote it (`git show monochromatic-git-policy-cli-v0.5.34:
+///  package/git-policy/cli/src/native/service/service_units/cli-git@.service`),
+/// with the program and Git words still to fill in.
 const SERVICE_UNIT_0_5_34: &str = "\
 # Written by the git wrapper for its commit service (cli-git-unit); the wrapper rewrites this file when it changes.
 # One instance per worktree: the instance name is a hash of the worktree's own Git directory (service_instance.rs).
@@ -48,20 +66,29 @@ StateDirectory=cli-git/service/%i
 Restart=on-failure
 ";
 
-/// The path 0.5.34 wrote into its unit, in a toolchain directory the next install removed.
+/// The path 0.5.34 wrote into its unit,
+/// in a toolchain directory the next install removed.
 const REMOVED_PROGRAM: &str = "/home/a/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/0.5.34/bin/cli-git-service";
 
-/// The variable naming the real 0.5.34 `cli-git-service` program, copied out of the toolchain directory before an install
-///  removes it; the control with it needs a build whose version differs from 0.5.34, because a service of the same release
+/// The variable naming the real 0.5.34 `cli-git-service` program,
+/// copied out of the toolchain directory before an install
+///  removes it;
+/// the control with it needs a build whose version differs from 0.5.34,
+/// because a service of the same release
 ///  is not asked to retire.
 const OLD_SERVICE_VARIABLE: &str = "CLI_GIT_OLD_SERVICE_0_5_34";
 
-/// The release the stand-in old service announces, which is never this build's.
+/// The release the stand-in old service announces,
+/// which is never this build's.
 const STAND_IN_RELEASE: &str = "0.5.34-before-one-executable";
 
-/// The words of an `ExecStart=` line after the equals sign, with the specifiers the control can know filled in, as the manager
-///  would fill them: `%S/cli-git/service/%i` (an earlier release's unit) and `%S/monochromatic-git-policy-cli/service/%i`
-///  (this release's) are the journal directory, and `%i` the instance.
+/// The words of an `ExecStart=` line after the equals sign,
+/// with the specifiers the control can know filled in,
+/// as the manager
+///  would fill them:
+/// `%S/cli-git/service/%i` (an earlier release's unit) and `%S/monochromatic-git-policy-cli/service/%i`
+///  (this release's) are the journal directory,
+/// and `%i` the instance.
 fn exec_words(unit: &str, journal: &Path, instance: &str) -> Vec<String> {
     let line: &str = unit.lines().find(|line| { return line.starts_with("ExecStart="); }).expect("an ExecStart line");
     return line
@@ -76,8 +103,10 @@ fn exec_words(unit: &str, journal: &Path, instance: &str) -> Vec<String> {
         .collect();
 }
 
-/// Starts `words` as the manager starts a socket-activated service: the listening socket is descriptor 3 and the
-///  variables name this process and one descriptor. `sh` only sets the process number in the variable and replaces itself.
+/// Starts `words` as the manager starts a socket-activated service:
+/// the listening socket is descriptor 3 and the
+///  variables name this process and one descriptor.
+/// `sh` only sets the process number in the variable and replaces itself.
 fn activate(listener: &UnixListener, words: &[String], root: &Path) -> Child {
     let descriptor: i32 = listener.as_raw_fd();
     let mut command: Command = Command::new("/usr/bin/sh");
@@ -109,7 +138,8 @@ fn activate(listener: &UnixListener, words: &[String], root: &Path) -> Child {
     return spawn_owned(&mut command).expect("the service starts");
 }
 
-/// A wrapped scoped commit of `file` with the runtime directory and the bus of the fixture, ready to run.
+/// A wrapped scoped commit of `file` with the runtime directory and the bus of the fixture,
+/// ready to run.
 fn commit_command(fixture: &Fixture, repo: &Path, message: &str, file: &str, runtime: &Path) -> Command {
     let mut command = wrapped_commit(fixture, repo, &["commit", "-m", message, "--", file]);
     command.env("XDG_RUNTIME_DIR", runtime).env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", runtime.join("bus").display()));
@@ -130,7 +160,8 @@ fn exited_within(child: &mut Child, limit: Duration) -> Option<std::process::Exi
     }
 }
 
-/// Waits until a connection to `socket` is answered with a greeting, so the service is serving.
+/// Waits until a connection to `socket` is answered with a greeting,
+/// so the service is serving.
 fn wait_serving(socket: &Path) {
     use std::io::Read;
     let began: Instant = Instant::now();
@@ -147,9 +178,17 @@ fn wait_serving(socket: &Path) {
     }
 }
 
-/// The upgrade, with the old service started by `old_words`: 0.5.34's unit text names a removed program, an old service of the
-///  other release runs on the manager's socket, and two commits arrive together. Both land, the unit was rewritten before the
-///  manager was asked to start anything, the old service left by itself with success, and the service that serves them was
+/// The upgrade,
+/// with the old service started by `old_words`:
+/// 0.5.34's unit text names a removed program,
+/// an old service of the
+///  other release runs on the manager's socket,
+/// and two commits arrive together.
+/// Both land,
+/// the unit was rewritten before the
+///  manager was asked to start anything,
+/// the old service left by itself with success,
+/// and the service that serves them was
 ///  started from the rewritten unit's own command line.
 fn upgrade_with(name: &str, old_words: impl FnOnce(&Fixture, &Path, &str) -> Vec<String>) {
     let (fixture, repo, runtime): (Fixture, PathBuf, PathBuf) = prepared(name);
@@ -220,7 +259,8 @@ fn upgrade_with(name: &str, old_words: impl FnOnce(&Fixture, &Path, &str) -> Vec
     finish(&fixture, runtime.as_path());
 }
 
-/// With this build's own executable standing in for the old service (announcing another release), which is the old service's
+/// With this build's own executable standing in for the old service (announcing another release),
+/// which is the old service's
 ///  retirement logic and the unit rewrite proved without needing the old program.
 #[test]
 fn the_unit_of_the_second_program_is_rewritten_and_the_old_service_retires_without_losing_a_commit() {
@@ -232,7 +272,8 @@ fn the_unit_of_the_second_program_is_rewritten_and_the_old_service_retires_witho
     });
 }
 
-/// The same with the real 0.5.34 `cli-git-service` program, started with the command line 0.5.34's unit holds.
+/// The same with the real 0.5.34 `cli-git-service` program,
+/// started with the command line 0.5.34's unit holds.
 #[test]
 #[ignore = "needs CLI_GIT_OLD_SERVICE_0_5_34, the 0.5.34 cli-git-service program, and a build whose version is not 0.5.34"]
 fn the_real_0_5_34_service_retires_when_the_unit_is_rewritten() {

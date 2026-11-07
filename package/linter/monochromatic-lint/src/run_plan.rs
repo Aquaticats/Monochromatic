@@ -19,6 +19,7 @@ use crate::{
     config_lookup::{ConfigurationSource, discover_configuration, load_configuration_at},
     config_match::{FileConfiguration, PreparedConfiguration, prepare_configuration},
     directive_options::DirectiveOptions,
+    edits::FixScope,
     markdown_rule_settings::{MarkdownRuleSettings, markdown_rule_settings},
     run_paths::{Language, absolute_normal, display_name, language_of, relative_from},
     rust_rule_settings::{RustRuleSettings, rust_rule_settings},
@@ -91,6 +92,9 @@ pub struct FilePlan {
     /// Whether and how loudly unused suppression directives are reported;
     ///  the same for every file of a run.
     pub directives: DirectiveOptions,
+    /// Which classes of fix this run may apply;
+    ///  the same for every file of a run.
+    pub fix_scope: FixScope,
 }
 
 /// What:
@@ -163,6 +167,8 @@ pub struct ConfigStore {
     by_directory: BTreeMap<PathBuf, Option<Arc<PreparedConfiguration>>>,
     /// Unused-directive settings copied into every plan.
     directives: DirectiveOptions,
+    /// Classes of fix copied into every plan.
+    fix_scope: FixScope,
 }
 
 /// What:
@@ -228,6 +234,7 @@ impl ConfigStore {
             explicit,
             by_directory: BTreeMap::<PathBuf, Option<Arc<PreparedConfiguration>>>::new(),
             directives: DirectiveOptions::default(),
+            fix_scope: FixScope::default(),
         };
     }
 
@@ -243,6 +250,13 @@ impl ConfigStore {
     /// ```
     pub fn with_directives(mut self, directives: DirectiveOptions) -> ConfigStore {
         self.directives = directives;
+        return self;
+    }
+
+    /// Choose the classes of fix every plan of this store may apply;
+    ///  a store starts at whitespace only.
+    pub fn with_fix_scope(mut self, fix_scope: FixScope) -> ConfigStore {
+        self.fix_scope = fix_scope;
         return self;
     }
 
@@ -354,6 +368,7 @@ impl ConfigStore {
                 config,
                 root,
                 directives: self.directives,
+                fix_scope: self.fix_scope,
             }),
         });
     }

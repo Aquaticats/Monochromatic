@@ -1,11 +1,17 @@
 //! What:
 //!  Controls for the executable's linter:
 //!  the linked linter's contract on a real repository tree,
-//!  and every failure of the guard around it, planted through the fix function.
+//!  and every failure of the guard around it,
+//! planted through the fix function.
 //! Why:
-//!  The real linter proves what the policy relies on (a rewrite, a kept finding, an exclude, odd names);
+//!  The real linter proves what the policy relies on (a rewrite,
+//! a kept finding,
+//! an exclude,
+//! odd names);
 //!  the planted functions reach each failure quickly:
-//!  a panic, a stall with no sign of work, a run that ends with a status the configuration never produces.
+//!  a panic,
+//! a stall with no sign of work,
+//! a run that ends with a status the configuration never produces.
 //!  The planted stall is the guard's required control:
 //!  against a guard that runs the fix on the caller's thread it never returns.
 //!
@@ -29,11 +35,16 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-/// The quiet window of the one control whose planted fix never returns, so the abandonment shows quickly.
+/// The quiet window of the one control whose planted fix never returns,
+/// so the abandonment shows quickly.
 /// Why:
-///   Only a stalled fix waits out its window. Every control whose fix returns or panics at once uses the production
-///  `LINT_QUIET_WINDOW`, which only judges a hang: under a loaded host a planted panic came back later than this window
-///  and read as a timeout instead of the panic, in the container gate of `692dcb9f48` (2026-11-03T00:08:43-05:00).
+///   Only a stalled fix waits out its window.
+/// Every control whose fix returns or panics at once uses the production
+///  `LINT_QUIET_WINDOW`,
+/// which only judges a hang:
+/// under a loaded host a planted panic came back later than this window
+///  and read as a timeout instead of the panic,
+/// in the container gate of `692dcb9f48` (2026-11-03T00:08:43-05:00).
 const SHORT_WINDOW: Duration = Duration::from_millis(100);
 
 /// The default options:
@@ -64,10 +75,12 @@ fn the_executable_linter_uses_its_labelled_unmeasured_window() {
     assert_eq!(embedded_linter().window, LINT_QUIET_WINDOW);
 }
 
-/// How many times the planted stall started, to show that no second one starts beside an abandoned one.
+/// How many times the planted stall started,
+/// to show that no second one starts beside an abandoned one.
 static STALL_STARTS: AtomicUsize = AtomicUsize::new(0);
 
-/// A fix function that never returns, as an infinite loop would not.
+/// A fix function that never returns,
+/// as an infinite loop would not.
 fn stalls(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
     STALL_STARTS.fetch_add(1, Ordering::SeqCst);
     loop {
@@ -75,12 +88,14 @@ fn stalls(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure
     }
 }
 
-/// A fix function that panics, as a rule with a defect would.
+/// A fix function that panics,
+/// as a rule with a defect would.
 fn panics(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
     panic!("planted panic in the linter");
 }
 
-/// The status a planted run ends with: one the one-rule configuration never produces.
+/// The status a planted run ends with:
+/// one the one-rule configuration never produces.
 const NEVER_PRODUCED_STATUS: u8 = 1;
 
 /// A fix function whose run ends with a status the configuration never produces.
@@ -99,7 +114,8 @@ fn echoes(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure>
     });
 }
 
-/// A stalled fix is abandoned when it shows no sign of work, with a reason that names the limit and the ways forward;
+/// A stalled fix is abandoned when it shows no sign of work,
+/// with a reason that names the limit and the ways forward;
 ///  the commit goes on to report the candidate unchecked instead of hanging.
 #[test]
 fn a_stalled_linter_is_abandoned_when_it_shows_no_sign_of_work() {
@@ -171,7 +187,9 @@ fn guard_failures_read_as_sentences() {
     assert!(vanished.contains("without a result"), "{vanished}");
 }
 
-/// The candidate name reaches the linter as the exact bytes Git gave, including a dash, a space and a byte that is not UTF-8.
+/// The candidate name reaches the linter as the exact bytes Git gave,
+/// including a dash,
+/// a space and a byte that is not UTF-8.
 #[test]
 fn a_candidate_name_is_the_exact_bytes_the_linter_is_given() {
     let root: PathBuf = fixture("linter-name");
@@ -195,7 +213,8 @@ fn a_candidate_name_is_the_exact_bytes_the_linter_is_given() {
     remove(root.as_path());
 }
 
-/// A name with a dash, a space and a byte that is not UTF-8.
+/// A name with a dash,
+/// a space and a byte that is not UTF-8.
 const EXACT_NAME: &[u8] = b"-x dir/caf\xe9 =.md";
 
 /// A repository directory with an LFS endpoint,
@@ -286,13 +305,18 @@ fn the_linked_linter_meets_the_contract() {
     remove(root.as_path());
 }
 
-/// The quiet window of the control below: longer than the sampling interval of the progress meter.
+/// The quiet window of the control below:
+/// longer than the sampling interval of the progress meter.
 const WORKING_WINDOW: Duration = Duration::from_millis(1200);
 
-/// How many times the working fix writes a file, a pause after each: a multiple of the window in all.
+/// How many times the working fix writes a file,
+/// a pause after each:
+/// a multiple of the window in all.
 const WORKING_ROUNDS: u32 = 15;
 
-/// A fix that keeps working (it writes a file a round, with a pause between) and then answers, with no busy loop.
+/// A fix that keeps working (it writes a file a round,
+/// with a pause between) and then answers,
+/// with no busy loop.
 fn works_then_answers(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
     let scratch: PathBuf = request.top_level.join("linter-progress");
     for round in 0..WORKING_ROUNDS {
@@ -302,7 +326,9 @@ fn works_then_answers(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, Embe
     return echoes(request);
 }
 
-/// A linter that keeps making progress is never abandoned however long it runs: the window judges quiet time, not wall time.
+/// A linter that keeps making progress is never abandoned however long it runs:
+/// the window judges quiet time,
+/// not wall time.
 #[test]
 fn a_linter_that_keeps_working_is_never_abandoned_however_long_it_runs() {
     let root: PathBuf = fixture("linter-working");
@@ -314,8 +340,13 @@ fn a_linter_that_keeps_working_is_never_abandoned_however_long_it_runs() {
     remove(root.as_path());
 }
 
-/// A fix that keeps working past the ceiling is abandoned there: the reason names the tool, the file, the ceiling and the ways
-/// forward, and the next candidate is refused without a second thread, as after a quiet one.
+/// A fix that keeps working past the ceiling is abandoned there:
+/// the reason names the tool,
+/// the file,
+/// the ceiling and the ways
+/// forward,
+/// and the next candidate is refused without a second thread,
+/// as after a quiet one.
 #[test]
 fn a_linter_that_keeps_working_is_abandoned_at_its_ceiling_naming_the_file() {
     let root: PathBuf = fixture("linter-ceiling");
@@ -329,7 +360,8 @@ fn a_linter_that_keeps_working_is_abandoned_at_its_ceiling_naming_the_file() {
     remove(root.as_path());
 }
 
-/// The shipped linter waits longer than its window, or the window would never end anything.
+/// The shipped linter waits longer than its window,
+/// or the window would never end anything.
 #[test]
 fn the_shipped_ceiling_is_past_the_shipped_quiet_window() {
     assert!(crate::wait_ceilings::LINT_CEILING > LINT_QUIET_WINDOW);

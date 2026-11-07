@@ -81,7 +81,8 @@ fn spawn_service_with_environment(root: &Path, places: &Places, idle_seconds: &s
     return spawn_service_with_stderr(root, places, idle_seconds, extra, environment, Stdio::from(log));
 }
 
-/// `spawn_service_with_environment` with the service's standard error given, so a control can make it a pipe.
+/// `spawn_service_with_environment` with the service's standard error given,
+/// so a control can make it a pipe.
 fn spawn_service_with_stderr(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str], environment: &[(&str, String)], stderr: Stdio) -> Held {
     std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
     let child: Child = super::support::service_command()
@@ -164,7 +165,8 @@ fn number(record: &serde_json::Value, name: &str) -> u64 {
     return record[name].as_u64().unwrap_or_else(|| { panic!("no number {name} in {record}") });
 }
 
-/// The wrapped commit of `a.txt` through the service at `runtime`, not yet run.
+/// The wrapped commit of `a.txt` through the service at `runtime`,
+/// not yet run.
 fn commit_a_command(fixture: &Fixture, repo: &Path, runtime: &Path) -> Command {
     // A different text each time, so a second commit in one control has something to commit.
     static ROUND: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -255,11 +257,14 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     remove_settled(&fixture);
 }
 
-/// How long the stand-in Git sleeps before it runs the commit step, in seconds.
+/// How long the stand-in Git sleeps before it runs the commit step,
+/// in seconds.
 const SLOW_STEP_SECONDS: u64 = 1;
 
-/// A directory with a stand-in `git` that sleeps `SLOW_STEP_SECONDS` before any run whose words include `commit`, then runs the
-///  real Git; every other step runs at once.
+/// A directory with a stand-in `git` that sleeps `SLOW_STEP_SECONDS` before any run whose words include `commit`,
+/// then runs the
+///  real Git;
+/// every other step runs at once.
 fn slow_commit_git(fixture: &Fixture) -> PathBuf {
     let directory: PathBuf = fixture.root.join("slow-commit-bin");
     std::fs::create_dir_all(&directory).expect("directory of the stand-in");
@@ -272,12 +277,18 @@ fn slow_commit_git(fixture: &Fixture) -> PathBuf {
     return directory;
 }
 
-/// The record names every Git step of the command with when it began and how long it took, so a slow build is attributed to
+/// The record names every Git step of the command with when it began and how long it took,
+/// so a slow build is attributed to
 ///  the step that spent the time.
 /// Why:
-///  On 2026-11-07 a commit spent 241 s in its build phase and the record could not say in which step: the commit Git builds in
-///  the scratch repository ran with no notice and no entry of its own. The stand-in Git sleeps in that step, and the step's
-///  duration has to be in the record, with a name that carries no path, message or environment.
+///  On 2026-11-07 a commit spent 241 s in its build phase and the record could not say in which step:
+/// the commit Git builds in
+///  the scratch repository ran with no notice and no entry of its own.
+/// The stand-in Git sleeps in that step,
+/// and the step's
+///  duration has to be in the record,
+/// with a name that carries no path,
+/// message or environment.
 #[test]
 fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
     let fixture: Fixture = fixture("timing-steps");
@@ -317,23 +328,29 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
     remove_settled(&fixture);
 }
 
-/// Whole milliseconds each term of a sum may fall short by, because every phase is cut to whole milliseconds on its own.
+/// Whole milliseconds each term of a sum may fall short by,
+/// because every phase is cut to whole milliseconds on its own.
 const ROUNDING_MS: u64 = 12;
 
 /// Whether the wait for a foreign holder accounts for the rest of the hold.
-/// The hold had lasted `age_ms` when the service first looked at the lock (it measures that itself, from the lock's own
-///  age) and ended when the wait ended, so on any host the wait is at least what was left of the hold.
+/// The hold had lasted `age_ms` when the service first looked at the lock (it measures that itself,
+/// from the lock's own
+///  age) and ended when the wait ended,
+/// so on any host the wait is at least what was left of the hold.
 fn wait_covers_the_hold(wait_ms: u64, age_ms: u64, hold_ms: u64) -> bool {
     return wait_ms + age_ms + ROUNDING_MS >= hold_ms;
 }
 
-/// Whether a phase lies beside the wait and not inside it: the phase and the wait fit in the whole they are both part of.
+/// Whether a phase lies beside the wait and not inside it:
+/// the phase and the wait fit in the whole they are both part of.
 fn phase_lies_beside_the_wait(phase_ms: u64, wait_ms: u64, whole_ms: u64) -> bool {
     return phase_ms + wait_ms <= whole_ms + ROUNDING_MS;
 }
 
 /// A host that is slow for one phase (an object write of 2.7 s) and that delays the wait's start (a long preparation) breaks
-///  neither bound: the wait still covers what is left of the hold, and the slow phase still lies beside it.
+///  neither bound:
+/// the wait still covers what is left of the hold,
+/// and the slow phase still lies beside it.
 #[test]
 fn a_slow_phase_and_a_late_wait_do_not_break_the_attribution() {
     let hold: u64 = 4_000;
@@ -343,7 +360,8 @@ fn a_slow_phase_and_a_late_wait_do_not_break_the_attribution() {
     assert!(phase_lies_beside_the_wait(2_681, wait, 2_681 + wait + 50), "a slow phase is not the wait");
 }
 
-/// A wait that is shorter than what was left of the hold means the time went to another phase; a phase that overlaps the wait
+/// A wait that is shorter than what was left of the hold means the time went to another phase;
+/// a phase that overlaps the wait
 ///  is counted twice.
 #[test]
 fn a_wait_that_lost_time_or_a_phase_that_overlaps_it_is_caught() {
@@ -377,7 +395,9 @@ fn a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait(
     attributes_the_wait_for_a_foreign_index_holder("timing-lock-late", Duration::from_secs(STALL_HOLDS * u64::from(HOLD_SECONDS)));
 }
 
-/// Runs the claim of the two controls: a wrapped commit starts `stall` after the foreign commit took the lock, and the foreign
+/// Runs the claim of the two controls:
+/// a wrapped commit starts `stall` after the foreign commit took the lock,
+/// and the foreign
 ///  commit lets go `HOLD_SECONDS` after the wrapped commit's first notice that it waits for it.
 fn attributes_the_wait_for_a_foreign_index_holder(control: &str, stall: Duration) {
     let fixture: Fixture = fixture(control);
@@ -724,9 +744,12 @@ fn a_service_stopped_by_a_signal_says_so_and_still_dies_of_it() {
     remove_settled(&fixture);
 }
 
-/// A receiving socket on a fresh abstract name standing for the journal, and the settings that make a service started with
-/// its standard error in `places.log` believe the log is the journal's stream: `$JOURNAL_STREAM` names the log's device and
-/// inode, and the test-only variable names the receiver.
+/// A receiving socket on a fresh abstract name standing for the journal,
+/// and the settings that make a service started with
+/// its standard error in `places.log` believe the log is the journal's stream:
+/// `$JOURNAL_STREAM` names the log's device and
+/// inode,
+/// and the test-only variable names the receiver.
 fn native_journal(places: &Places, name: &str) -> (std::os::unix::net::UnixDatagram, Vec<(&'static str, String)>) {
     use std::os::linux::net::SocketAddrExt;
     use std::os::unix::fs::MetadataExt;
@@ -744,7 +767,9 @@ fn native_journal(places: &Places, name: &str) -> (std::os::unix::net::UnixDatag
     return (receiver, environment);
 }
 
-/// Every entry the stand-in has received so far, as `NAME=value` maps, waiting up to `patience` for the first and a moment
+/// Every entry the stand-in has received so far,
+/// as `NAME=value` maps,
+/// waiting up to `patience` for the first and a moment
 /// for the rest.
 fn entries_received(receiver: &std::os::unix::net::UnixDatagram, until: impl Fn(&[std::collections::BTreeMap<String, String>]) -> bool) -> Vec<std::collections::BTreeMap<String, String>> {
     let began: Instant = Instant::now();
@@ -759,8 +784,10 @@ fn entries_received(receiver: &std::os::unix::net::UnixDatagram, until: impl Fn(
     return found;
 }
 
-/// A service whose standard error is the journal sends its entries on the native socket with a priority and fields, writes
-/// nothing of them to standard error, and the request identity in the `answered` entry is the one in the client's record,
+/// A service whose standard error is the journal sends its entries on the native socket with a priority and fields,
+/// writes
+/// nothing of them to standard error,
+/// and the request identity in the `answered` entry is the one in the client's record,
 /// so the two join on a key and not on a time.
 #[test]
 fn a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_record() {
@@ -794,7 +821,8 @@ fn a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_re
     remove_settled(&fixture);
 }
 
-/// The signal handler dates the exit of a service that is stopped by sending it on the native socket, and the line is not
+/// The signal handler dates the exit of a service that is stopped by sending it on the native socket,
+/// and the line is not
 /// also written to standard error.
 #[test]
 fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
@@ -819,8 +847,11 @@ fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
     remove_settled(&fixture);
 }
 
-/// A journal that is not listening costs no line: the service writes it to standard error, with the priority prefix the
-/// journal's stream reads, and it still starts and answers.
+/// A journal that is not listening costs no line:
+/// the service writes it to standard error,
+/// with the priority prefix the
+/// journal's stream reads,
+/// and it still starts and answers.
 #[test]
 fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority() {
     let fixture: Fixture = fixture("timing-native-gone");
@@ -838,18 +869,23 @@ fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority
     remove_settled(&fixture);
 }
 
-/// A pipe whose write end the control keeps, so it can fill the pipe after the service has started.
+/// A pipe whose write end the control keeps,
+/// so it can fill the pipe after the service has started.
 struct FullablePipe {
     /// The end the service gets as standard error.
     service_end: std::os::fd::OwnedFd,
-    /// The end the control keeps and fills; it shares the open file description with the service's end, so the flags the
+    /// The end the control keeps and fills;
+    /// it shares the open file description with the service's end,
+    /// so the flags the
     /// control leaves alone stay blocking for the service.
     control_end: std::os::fd::OwnedFd,
-    /// The end nobody reads, kept open so that the pipe stays full instead of broken.
+    /// The end nobody reads,
+    /// kept open so that the pipe stays full instead of broken.
     _reader: std::os::fd::OwnedFd,
 }
 
-/// A new pipe, made as two descriptors for each end.
+/// A new pipe,
+/// made as two descriptors for each end.
 fn fullable_pipe() -> FullablePipe {
     use std::os::fd::{FromRawFd, OwnedFd};
     let mut ends: [libc::c_int; 2] = [0; 2];
@@ -862,7 +898,8 @@ fn fullable_pipe() -> FullablePipe {
 }
 
 impl FullablePipe {
-    /// Fills the pipe with page-sized writes while a poll shows room, never changing the flags it shares with the service,
+    /// Fills the pipe with page-sized writes while a poll shows room,
+    /// never changing the flags it shares with the service,
     /// so the next write of the service finds a full pipe that blocks.
     fn fill(&self) {
         use std::os::fd::AsRawFd;
@@ -880,8 +917,10 @@ impl FullablePipe {
     }
 }
 
-/// A service stopped by `SIGTERM` while its standard error is a full blocking pipe still exits by the signal, within a bound:
-/// the handler may lose its line, never wait for room.
+/// A service stopped by `SIGTERM` while its standard error is a full blocking pipe still exits by the signal,
+/// within a bound:
+/// the handler may lose its line,
+/// never wait for room.
 fn stopped_with_a_full_pipe(name: &str, on_stream: bool) {
     use std::os::fd::AsRawFd;
     let fixture: Fixture = fixture(name);
@@ -909,7 +948,9 @@ fn stopped_with_a_full_pipe(name: &str, on_stream: bool) {
     remove_settled(&fixture);
 }
 
-/// How long a service gets to end after `SIGTERM` when its standard error has no room: far more than it needs, far less than
+/// How long a service gets to end after `SIGTERM` when its standard error has no room:
+/// far more than it needs,
+/// far less than
 /// forever.
 const FULL_PIPE_BOUND: Duration = Duration::from_secs(10);
 

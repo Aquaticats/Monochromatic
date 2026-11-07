@@ -1,8 +1,12 @@
 //! What:
-//!  The environment and the attribute files a content check reads: where the system and global attributes files are, what
-//!  `.gitattributes` lines convert content, and which macros lead to such attributes.
+//!  The environment and the attribute files a content check reads:
+//! where the system and global attributes files are,
+//! what
+//!  `.gitattributes` lines convert content,
+//! and which macros lead to such attributes.
 //! Why:
-//!  Git rewrites a file's bytes on the way into the index when an attribute converts it, so a file can be proven equal to its
+//!  Git rewrites a file's bytes on the way into the index when an attribute converts it,
+//! so a file can be proven equal to its
 //!  committed bytes only when no attribute that applies to it converts anything.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,21 +24,27 @@ use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 
-/// Where Git reads the system attributes file from, as far as it can be established.
+/// Where Git reads the system attributes file from,
+/// as far as it can be established.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SystemAttributes {
     /// `GIT_ATTR_NOSYSTEM` turns the file off.
     Disabled,
-    /// The file the executable reads, at its own prefix.
+    /// The file the executable reads,
+    /// at its own prefix.
     File(PathBuf),
-    /// The location, or the variable's value, could not be established without running Git.
+    /// The location,
+    /// or the variable's value,
+    /// could not be established without running Git.
     Unknown,
 }
 
 /// What:
-///  The environment facts the content decision depends on: the configuration files Git reads and the system attributes file.
+///  The environment facts the content decision depends on:
+/// the configuration files Git reads and the system attributes file.
 /// Why:
-///   A control injects both, so a decision never depends on the machine it runs on.
+///   A control injects both,
+/// so a decision never depends on the machine it runs on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,17 +56,25 @@ pub struct ConversionEnvironment {
     pub scope: ScopeEnvironment,
     /// Where the system attributes file is.
     pub system_attributes: SystemAttributes,
-    /// Why Git would take its attributes from a tree instead of the worktree files read here (`GIT_ATTR_SOURCE`, `--attr-source`,
-    ///  `attr.tree`), when it would; the content shortcut is then refused.
+    /// Why Git would take its attributes from a tree instead of the worktree files read here (`GIT_ATTR_SOURCE`,
+    /// `--attr-source`,
+    ///  `attr.tree`),
+    /// when it would;
+    /// the content shortcut is then refused.
     pub alternate_attribute_source: Option<String>,
-    /// The variables the facts were read from, which the configuration listing reads its `GIT_CONFIG_COUNT` entries from too, so
-    ///  one environment decides every fact; empty for a stand-in that names none.
+    /// The variables the facts were read from,
+    /// which the configuration listing reads its `GIT_CONFIG_COUNT` entries from too,
+    /// so
+    ///  one environment decides every fact;
+    /// empty for a stand-in that names none.
     pub variables: Vec<(OsString, OsString)>,
 }
 
 impl ConversionEnvironment {
-    /// The facts of an environment given as variables. The variables name the real Git (the forward-target variable) when the
-    ///  system files are to be learned from it; without it the system files are unknown and the content decision refuses.
+    /// The facts of an environment given as variables.
+    /// The variables name the real Git (the forward-target variable) when the
+    ///  system files are to be learned from it;
+    /// without it the system files are unknown and the content decision refuses.
     pub fn from_variables(variables: &[(OsString, OsString)]) -> ConversionEnvironment {
         let selected: Option<String> = if sets_variable(variables, "GIT_ATTR_SOURCE") { Some(String::from("GIT_ATTR_SOURCE is set")) } else { None };
         return ConversionEnvironment { scope: ScopeEnvironment::from_variables(variables), system_attributes: system_attributes_from(variables), alternate_attribute_source: selected, variables: variables.to_vec() };
@@ -64,9 +82,11 @@ impl ConversionEnvironment {
 }
 
 /// What:
-///  Whether the environment sets the variable `wanted`, to any value.
+///  Whether the environment sets the variable `wanted`,
+/// to any value.
 /// Why:
-///   Setting `GIT_ATTR_SOURCE` makes Git read attributes from a tree, which the content check does not model.
+///   Setting `GIT_ATTR_SOURCE` makes Git read attributes from a tree,
+/// which the content check does not model.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,8 +104,11 @@ fn sets_variable(variables: &[(OsString, OsString)], wanted: &str) -> bool {
 /// What:
 ///  Where the system attributes file is for a Git started with `variables`.
 /// Why:
-///   `GIT_ATTR_NOSYSTEM` is read as Git reads a boolean environment variable (empty is false); the file is where the
-///  executable says it is, never derived from the system configuration path, which `GIT_CONFIG_SYSTEM` moves alone.
+///   `GIT_ATTR_NOSYSTEM` is read as Git reads a boolean environment variable (empty is false);
+/// the file is where the
+///  executable says it is,
+/// never derived from the system configuration path,
+/// which `GIT_CONFIG_SYSTEM` moves alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,25 +140,32 @@ pub fn system_attributes_from(variables: &[(OsString, OsString)]) -> SystemAttri
 pub struct AttributeFile {
     /// How the reason names the file.
     pub label: String,
-    /// The directory of the file relative to the worktree root, `/` separated, empty for the root.
+    /// The directory of the file relative to the worktree root,
+    /// `/` separated,
+    /// empty for the root.
     pub base: Vec<u8>,
     /// Its lines.
     pub lines: Vec<AttributeLine>,
 }
 
-/// The attributes files that apply whatever the path is, and the macros among them that set a converting attribute.
+/// The attributes files that apply whatever the path is,
+/// and the macros among them that set a converting attribute.
 #[derive(Clone, Debug)]
 pub struct FixedSources {
-    /// The files, in no particular order: any of them may apply.
+    /// The files,
+    /// in no particular order:
+    /// any of them may apply.
     pub files: Vec<AttributeFile>,
-    /// Macro names that set a converting attribute, directly or through another macro.
+    /// Macro names that set a converting attribute,
+    /// directly or through another macro.
     pub macros: HashSet<Vec<u8>>,
 }
 
 /// What:
 ///  Whether any line of an attributes file is quoted.
 /// Why:
-///   A quoted line's pattern and attributes are not modelled, so the file may set anything.
+///   A quoted line's pattern and attributes are not modelled,
+/// so the file may set anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -175,10 +205,13 @@ pub fn converts(token: &[u8], macros: &HashSet<Vec<u8>>) -> bool {
 }
 
 /// What:
-///  The names of the macros that set a converting attribute, directly or through other macros.
+///  The names of the macros that set a converting attribute,
+/// directly or through other macros.
 /// Why:
-///   Reverse edges (attribute name to the macros that mention it) and a queue visit every definition once, whatever the order of
-///  the lines, so a long chain costs work in proportion to its length.
+///   Reverse edges (attribute name to the macros that mention it) and a queue visit every definition once,
+/// whatever the order of
+///  the lines,
+/// so a long chain costs work in proportion to its length.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

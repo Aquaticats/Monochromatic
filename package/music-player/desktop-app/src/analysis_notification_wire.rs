@@ -34,19 +34,34 @@
 //! the thread that calls these functions
 //! is in `analysis_notification`.
 
+/// Imports the map type that carries notification hints.
 use std::collections::HashMap;
+/// Imports the non-zero size type that bounds the queue of the signal stream.
 use std::num::NonZeroUsize;
+/// Imports the handle of the thread that waits for bus signals.
 use std::thread::JoinHandle;
 
+/// Imports the stream extension that reads signals one at a time.
 use futures_util::StreamExt;
+/// Imports the bus-daemon proxy through which the module adds its signal match rules.
 use zbus::fdo::DBusProxy;
+/// Imports the match rule that selects which bus signals the module receives.
 use zbus::match_rule::MatchRule;
+/// Imports the message type that tells signals from other messages.
 use zbus::message::Type;
+/// Imports the bus name type that addresses the services the module calls.
 use zbus::names::BusName;
+/// Imports the connection,
+/// message stream,
+/// object path,
+/// proxy and variant types of the D-Bus client.
 use zbus::{Connection, MessageStream, OwnedObjectPath, Proxy, Variant};
 
+/// Imports the identity that names the player to the notification service.
 use crate::analysis_notification::Identity;
+/// Imports the view and the outcome that the wire calls translate to and from bus messages.
 use crate::analysis_notification_logic::{IndicatorView, Outcome};
+/// Imports the time-bounded step that stops a bus call from blocking its thread for ever.
 use crate::dbus_step_bound::step;
 
 /// What:
@@ -165,13 +180,37 @@ const JOB_ERROR_USER: u32 = 2;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BusSignal {
     /// The job's Pause button was pressed.
-    JobSuspend { sender: String, path: String },
+    JobSuspend {
+        /// Unique name of the bus peer that sent the signal.
+        sender: String,
+        /// Object path of the job that was suspended.
+        path: String,
+    },
     /// The job's Resume button was pressed.
-    JobResume { sender: String, path: String },
+    JobResume {
+        /// Unique name of the bus peer that sent the signal.
+        sender: String,
+        /// Object path of the job that was resumed.
+        path: String,
+    },
     /// A notification action button was pressed.
-    ActionInvoked { sender: String, id: u32, key: String },
+    ActionInvoked {
+        /// Unique name of the bus peer that sent the signal.
+        sender: String,
+        /// Identifier of the notification whose button was pressed.
+        id: u32,
+        /// Key of the action that was pressed.
+        key: String,
+    },
     /// A notification closed for `reason`.
-    NotificationClosed { sender: String, id: u32, reason: u32 },
+    NotificationClosed {
+        /// Unique name of the bus peer that sent the signal.
+        sender: String,
+        /// Identifier of the notification that closed.
+        id: u32,
+        /// Reason code that the service gave.
+        reason: u32,
+    },
 }
 
 /// What:
@@ -195,8 +234,12 @@ pub enum Backend {
 /// and the unique name of the server that owns it.
 #[derive(Debug)]
 pub struct JobView {
+    /// Proxy of the job object on the bus.
     proxy: Proxy<'static>,
+    /// Object path of the job on the bus.
     path: String,
+    /// Unique name of the server that owns the job,
+    /// which signals are checked against.
     owner: String,
 }
 
@@ -208,8 +251,13 @@ pub struct JobView {
 /// and the service's unique name.
 #[derive(Debug)]
 pub struct FdoNotification {
+    /// Proxy of the notification service.
     proxy: Proxy<'static>,
+    /// Identifier that the service gave the notification,
+    /// which later calls and signals use.
     id: u32,
+    /// Unique name of the service,
+    /// which signals are checked against.
     owner: String,
 }
 

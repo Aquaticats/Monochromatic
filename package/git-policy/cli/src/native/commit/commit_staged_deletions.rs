@@ -2,10 +2,15 @@
 //!  The commit-only finding for a staged deletion that an explicit-path commit cannot record because the path is
 //!  still on disk.
 //! Why:
-//!  An explicit pathspec selects worktree content, never index state, so a deletion staged with `git rm --cached`
-//!  for a path that stays on disk (an ignored editor file, for example) is not the content the pathspec selects.
-//!  Without this finding Git answers "nothing to commit", or a private `git add` fails with a hint to force-add the
-//!  ignored path, which would re-track the file instead of recording its removal.
+//!  An explicit pathspec selects worktree content,
+//! never index state,
+//! so a deletion staged with `git rm --cached`
+//!  for a path that stays on disk (an ignored editor file,
+//! for example) is not the content the pathspec selects.
+//!  Without this finding Git answers "nothing to commit",
+//! or a private `git add` fails with a hint to force-add the
+//!  ignored path,
+//! which would re-track the file instead of recording its removal.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,16 +23,19 @@ use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked}
 use std::ffi::OsString;
 use std::path::Path;
 
-/// The core of the finding; the same core as the other commit-only findings.
+/// The core of the finding;
+/// the same core as the other commit-only findings.
 pub const STAGED_DELETION_CORE_ID: &str = "commit-only";
 
-/// The code of the finding, reported as `commit-only/staged-deletion-worktree-present`.
+/// The code of the finding,
+/// reported as `commit-only/staged-deletion-worktree-present`.
 pub const STAGED_DELETION_CODE: &str = "staged-deletion-worktree-present";
 
 /// What:
 ///  The selected paths whose deletion is staged in the real index while an entry still exists at that worktree path.
 /// Why:
-///   Only these paths make an explicit-path commit disagree with the staged state; the read touches no index,
+///   Only these paths make an explicit-path commit disagree with the staged state;
+/// the read touches no index,
 ///  object store or worktree file.
 ///
 /// In TS you'd write (pseudocode):
@@ -66,7 +74,8 @@ pub fn staged_deletions_present_on_disk(
 
 /// What:
 ///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
-///  `&u8` borrows the byte, as `split` hands it over.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
 /// Why:
 ///   `split` takes this function by path where a closure would otherwise stand.
 ///
@@ -79,9 +88,14 @@ fn is_nul_byte(byte: &u8) -> bool {
 }
 
 /// What:
-///  The message of the finding: the paths, why a pathspec cannot record them, and each valid way forward.
+///  The message of the finding:
+/// the paths,
+/// why a pathspec cannot record them,
+/// and each valid way forward.
 /// Why:
-///   Both intents are legitimate (commit the removal, or re-track the file), and the diagnostic must not pick one;
+///   Both intents are legitimate (commit the removal,
+/// or re-track the file),
+/// and the diagnostic must not pick one;
 ///  forcing an add of an ignored path belongs only to the second.
 ///
 /// In TS you'd write (pseudocode):

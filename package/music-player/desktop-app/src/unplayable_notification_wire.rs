@@ -10,13 +10,21 @@
 //! What to say is in `unplayable_notification_logic`,
 //! and the thread that calls this is in `unplayable_notification`.
 
+/// Imports the map type that carries notification hints.
 use std::collections::HashMap;
 
+/// Imports the connection,
+/// proxy and variant types of the D-Bus client.
 use zbus::{Connection, Proxy, Variant};
 
+/// Imports the identity that names the player to the notification service.
 use crate::analysis_notification::Identity;
+/// Imports the interface,
+/// name and path of the notification service.
 use crate::analysis_notification_wire::{NOTIFICATIONS_INTERFACE, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH};
+/// Imports the time-bounded step that stops a bus call from blocking its thread for ever.
 use crate::dbus_step_bound::step;
+/// Imports the notice that the call posts.
 use crate::unplayable_notification_logic::Notice;
 
 /// What:

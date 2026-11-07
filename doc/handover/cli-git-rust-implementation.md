@@ -3507,61 +3507,132 @@ so main no longer shows it.
 
 Branch `fix/git-policy-cli-commits-never-stall-on-an-unproven-lock`.
 Four commits of worktree `repository-passes-monochromatic-lint` ended `stopped` after 678 to 1,229 s
-(batches `1794071191963902` to `905`, kept refs `refs/cli-git/kept/1794071191963902` to `906`).
-Observed (service journal `monochromatic-git-policy-cli@1c9eb51b40dabe448a44433445ab12c6.service`, the worktree agent's transcript):
-one `index.lock` of size 0 with no PID file, made at 13:04:20.578-05:00 and the same file (device, inode, change time) at 14:06:35,
-62 looks per wait, every look read as `foreign no-marker`, and each commit refused after its own 600 s ceiling,
-the later ones queued behind the earlier ones' waits (batch 903 `queued_ms` 463,454, batch 904 580,364), which is where the 20 minutes came from.
-The third client's `answerWaitMs` 1,200,776 is exactly `ANSWER_CEILING`: it withdrew on its own bound as well.
+(batches `1794071191963902` to `905`,
+kept refs `refs/cli-git/kept/1794071191963902` to `906`).
+Observed (service journal `monochromatic-git-policy-cli@1c9eb51b40dabe448a44433445ab12c6.service`,
+the worktree agent's transcript):
+one `index.lock` of size 0 with no PID file,
+made at 13:04:20.578-05:00 and the same file (device,
+inode,
+change time) at 14:06:35,
+62 looks per wait,
+every look read as `foreign no-marker`,
+and each commit refused after its own 600 s ceiling,
+the later ones queued behind the earlier ones' waits (batch 903 `queued_ms` 463,454,
+batch 904 580,364),
+which is where the 20 minutes came from.
+The third client's `answerWaitMs` 1,200,776 is exactly `ANSWER_CEILING`:
+it withdrew on its own bound as well.
 The "orphaned `git commit` (pid 1303971)" of the brief was not the holder:
 the agent's `ps` at about 14:06 listed it as a `git commit --message docs(cargo-shadow-cli)...` of age 2:03,
-a wrapper client of its own retry unit `commit-rest`, started about 14:04, an hour after the lock was made, and waiting behind it.
-No process that held the lock was seen at any time; the agent's `ps` filter for `git commit|git add|git status` at 14:06 showed only that client.
-Mechanism shown in a throwaway repository with Git 2.56: a `git commit -- <path>` held up in a clean filter holds a size 0 `index.lock`
-with the lock open (and `index~pid.lock` under `core.lockfilePid`), and `kill -9` leaves that file with no process and the same size and time.
-So the likeliest shape is a Git that was killed within a moment of making the lock, without the PID file the wrapper's own Gits write,
-which is a stale lock; that is an inference, the creator is not identified by any retained record.
-The agent's hung `git status --short` (tool timeout, exit 143, 13:01:30 to 13:04:12) ended eight seconds before the lock was made: a candidate, not shown.
-The five kept commits are the only record of the work and nothing was lost: every path they carry is on the branch now,
+a wrapper client of its own retry unit `commit-rest`,
+started about 14:04,
+an hour after the lock was made,
+and waiting behind it.
+No process that held the lock was seen at any time;
+the agent's `ps` filter for `git commit|git add|git status` at 14:06 showed only that client.
+Mechanism shown in a throwaway repository with Git 2.56:
+a `git commit -- <path>` held up in a clean filter holds a size 0 `index.lock`
+with the lock open (and `index~pid.lock` under `core.lockfilePid`),
+and `kill -9` leaves that file with no process and the same size and time.
+So the likeliest shape is a Git that was killed within a moment of making the lock,
+without the PID file the wrapper's own Gits write,
+which is a stale lock;
+that is an inference,
+the creator is not identified by any retained record.
+The agent's hung `git status --short` (tool timeout,
+exit 143,
+13:01:30 to 13:04:12) ended eight seconds before the lock was made:
+a candidate,
+not shown.
+The five kept commits are the only record of the work and nothing was lost:
+every path they carry is on the branch now,
 as the kept blob or through the later commit `f9d0aaebfc`.
-They were one to seven files, not large commits.
-The scan defect is real but not shown to have caused this: the service's scan walked processes upward and stopped at 250 ms
-(`SERVICE_SCAN_BUDGET`, measured on 2026-11-03 over 858 processes) where a whole walk on 2026-11-07 took 313 to 398 ms over 1,000 processes
-and 54,500 descriptors, so a live holder past the cut would have read as unproven; and hundreds of processes of other user namespaces are unreadable.
-Fixed on the branch: scan bound of five times the longest walk with the newest numbers first,
-the holder's PID, program, start time and `kill` command in the line the person reads and at the ceiling,
-`LANDING_LOCK_CEILING` (one minute: five times the longest self-released foreign wait, 8 s, three waits only),
+They were one to seven files,
+not large commits.
+The scan defect is real but not shown to have caused this:
+the service's scan walked processes upward and stopped at 250 ms
+(`SERVICE_SCAN_BUDGET`,
+measured on 2026-11-03 over 858 processes) where a whole walk on 2026-11-07 took 313 to 398 ms over 1,000 processes
+and 54,500 descriptors,
+so a live holder past the cut would have read as unproven;
+and hundreds of processes of other user namespaces are unreadable.
+Fixed on the branch:
+scan bound of five times the longest walk with the newest numbers first,
+the holder's PID,
+program,
+start time and `kill` command in the line the person reads and at the ceiling,
+`LANDING_LOCK_CEILING` (one minute:
+five times the longest self-released foreign wait,
+8 s,
+three waits only),
 the refusal at once of the commits queued behind a lock that already outlasted one wait (`service_index_refused_lock.rs`),
 and a summary of the unreadable processes in the unproven line.
 The coordinator searched both journals around the lock's creation for kills:
 the system journal 12:50 to 13:10 (`oom|Killed process|killed|SIGKILL|out of memory`) has only `btrfs-cleaner-io-weight.service` TERM kills,
 and the user journal 12:58 to 13:06 (`oom|Killed|SIGKILL|code=killed|status=9`) has nothing.
-That rules out an out-of-memory or systemd kill, not a direct kill (a tool timeout or `kill -9` is not journaled); the creator stays unidentified.
-Open, for the owner or the next agent:
-whether a size 0 lock that no readable process has open, with no PID file, may be removed by the service (today never: the owner picked "kept" for locks without a PID file);
-the merge, the settling of earlier batches and the index reconciliation after a landing still wait `LOCK_CEILING` (10 minutes, unmeasured);
-a native `git commit --only` in its hook phase holds the lock with no descriptor open and no PID file, and processes of other user namespaces are unreadable,
+That rules out an out-of-memory or systemd kill,
+not a direct kill (a tool timeout or `kill -9` is not journaled);
+the creator stays unidentified.
+Open,
+for the owner or the next agent:
+whether a size 0 lock that no readable process has open,
+with no PID file,
+may be removed by the service (today never:
+the owner picked "kept" for locks without a PID file);
+the merge,
+the settling of earlier batches and the index reconciliation after a landing still wait `LOCK_CEILING` (10 minutes,
+unmeasured);
+a native `git commit --only` in its hook phase holds the lock with no descriptor open and no PID file,
+and processes of other user namespaces are unreadable,
 so such a holder stays unprovable by descriptor.
 
 ### Timing record names every step; the other lock waits; the staged-additions lead (2026-11-07)
 
-Branch `feat/git-policy-cli-commit-timing-names-every-step`, cut from `5f5bb6a6d1`.
-The commit timing record now has `steps` (every Git step with program and subcommand, offset and duration in ms, at most 64) and `stepsDropped`;
+Branch `feat/git-policy-cli-commit-timing-names-every-step`,
+cut from `5f5bb6a6d1`.
+The commit timing record now has `steps` (every Git step with program and subcommand,
+offset and duration in ms,
+at most 64) and `stepsDropped`;
 the service's `answered` line ends with `steps="name@offset+duration;..."` and `steps_dropped`.
-The commit Git builds in the scratch repository (`commit/commit_preparation.rs`, `run_native_commit`) ran with the terminal attached and no watch,
-which is why the 248 s commit had no notice and no `git commit` key in `quietMs`; its entry is now the only record of its time, signing included.
-That step is still unbounded and unwatched (an editor may be open in it): a wait with no ceiling, open for the owner.
-The merge, the settling of earlier batches and the index reconciliation take ceilings derived from their measurements (`wait_ceilings.rs`);
-none of the three logs a duration except the settle (`settle_ms`, longest 172 ms of 3,630), so merge and reconciliation take the landing's ceiling.
-The staged-additions lead: `git read-tree --reset`, `git update-index --add` and `git diff-index` are issued in the prepare phase, not the build,
-by `initialize_commit_index` and `carry_selected_staged_additions` (`commit/commit_index.rs`, `commit_staged_additions.rs`, `private_index_stage.rs`),
-when the real index differs from the base tree or the commit names staged additions; they cost about 100 ms together (43 to 66, 13, 17) and native Git does the
+The commit Git builds in the scratch repository (`commit/commit_preparation.rs`,
+`run_native_commit`) ran with the terminal attached and no watch,
+which is why the 248 s commit had no notice and no `git commit` key in `quietMs`;
+its entry is now the only record of its time,
+signing included.
+That step is still unbounded and unwatched (an editor may be open in it):
+a wait with no ceiling,
+open for the owner.
+The merge,
+the settling of earlier batches and the index reconciliation take ceilings derived from their measurements (`wait_ceilings.rs`);
+none of the three logs a duration except the settle (`settle_ms`,
+longest 172 ms of 3,630),
+so merge and reconciliation take the landing's ceiling.
+The staged-additions lead:
+`git read-tree --reset`,
+`git update-index --add` and `git diff-index` are issued in the prepare phase,
+not the build,
+by `initialize_commit_index` and `carry_selected_staged_additions` (`commit/commit_index.rs`,
+`commit_staged_additions.rs`,
+`private_index_stage.rs`),
+when the real index differs from the base tree or the commit names staged additions;
+they cost about 100 ms together (43 to 66,
+13, 17) and native Git does the
 same work inside its one process.
-Sampling the stacks of a slow first commit of that shape (`eu-stack`, 100 ms) put most samples in `forbidden_regex::parallel::build_rules`
-(`RuntimeRules` compile of the rules list): the compile runs once per distinct rules text and release (`~/.cache/forbidden-strings/v<version>/`), 1.7 s warm
-and about 20 s on the first commit of a fresh cache under load; the production cache held three entries of the current version today, so it is a cost of the first
-commit after a change of the rules text or a new release, not of every commit.
-Open: precompile the rules for a repository off the commit's path (the service after a landing, or at install); that touches the service's work loop and the scanner
+Sampling the stacks of a slow first commit of that shape (`eu-stack`,
+100 ms) put most samples in `forbidden_regex::parallel::build_rules`
+(`RuntimeRules` compile of the rules list):
+the compile runs once per distinct rules text and release (`~/.cache/forbidden-strings/v<version>/`),
+1.7 s warm
+and about 20 s on the first commit of a fresh cache under load;
+the production cache held three entries of the current version today,
+so it is a cost of the first
+commit after a change of the rules text or a new release,
+not of every commit.
+Open:
+precompile the rules for a repository off the commit's path (the service after a landing,
+or at install);
+that touches the service's work loop and the scanner
 adapter and waits for the coordinator.
 
 ### Plain commit with unmerged files finishes the merge
@@ -4209,14 +4280,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The rule has been `error` since at least
   `0b49ae109e` (2026-10-06);
   the package `lint` task never ran `monochromatic-lint`.
-  Agent running on
-  `fix/git-policy-cli-passes-the-repository-linter` (start recorded by `9ccef551a8`):
-  wire it into the package lint,
-  the
-  repository fixer for line breaks (whitespace-only proof),
-  hand fixes for the rest,
-  and a conflict recipe for the
-  tokio and held-settle branches.
+  The wrapper package passes the repository linter since merge `4365ac97bc` (gate 5199 of 5199):
+  the package `lint` runs `lint:monochromatic-lint` at `--max-warnings 0`.
+  Open:
+  the tokio branch (`feat/git-policy-cli-on-tokio`) still meets doc-comment conflicts on its next merge of main,
+  and its recipe is in the wrapper README,
+  section "Merging main into a branch that edited doc comments".
+  Open:
+  `fault_limits::a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` failed once in a
+  gate and passed on the rerun of the same tree and in two other gates,
+  cause not measured (rule SUF).
   Repo-wide baseline on main `136a40fe69`
   (log `~/temp/agent/repo-wide-monochromatic-lint-136a40fe69.log`,
   `mise` exit 2):
@@ -4446,12 +4519,96 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   (`strace -e execve`);
   refreshing the worktree's links ended it.
   Against the owner's "We should never invoke ourselves recursively" and "nothing should ever wait forever or indefinitely".
-  Given to an agent (`fix/shadows-never-start-another-shadow`):
-  identity check plus arrival marker so no shadow starts any shadow,
-  an audit of every shadow and launcher,
-  alpha releases.
+  Fixed and merged (`ec70e4cf26`):
+  every shadow (`search-shadow`,
+  `pnpm-shadow`,
+  `cargo-shadow`,
+  `mpm-shadow`) carries
+  `MONOCHROMATIC-SHADOW-IDENTITY/1 <crate> <version>` in an ELF section,
+  skips a candidate that carries it,
+  follows launcher records up to 8 hops,
+  starts a vetted program through `/proc/self/fd/N`,
+  and stops on arrival (`MONOCHROMATIC_SHADOW_STARTED_BY`);
+  `mpm-shadow`'s launcher refuses circular records (exit 126);
+  `src/shadow_identity.rs` is byte-identical in the four crates (a test fails otherwise).
+  Before:
+  419 execs in 4 s;
+  after:
+  2 execs and the real `grep`.
+  Released as `mpm-shadow` 0.2.7-alpha.5,
+  `search-shadow` 0.2.3-alpha.1,
+  `pnpm-shadow` 0.1.3-alpha.1 and `cargo-shadow` 0.1.5-alpha.3,
+  locked `2b9a1589ae`,
+  installed;
+  about +0.2 ms per call.
+  Open:
+  cargo-shadow's install-step cargo starts without the arrival marker;
+  `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` failed twice
+  (it needs a freed time-namespace number reused,
+  shared by every session on the host).
   Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
   its worktree and branch are removed.
+- Repository-wide `monochromatic-lint`:
+  merged into main in small merges,
+  the last `cc34dc6faf`;
+  174,916 findings (main `136a40fe69`) down to 38,466.
+  Left:
+  `package/git-policy/cli` 35,006 (its own branch,
+  ready,
+  merges after the alpha);
+  `doc/decision` 1,785 (owner question in `doc/handover/questions-for-the-owner.md`);
+  about 1,675 in scope
+  (`music-player/desktop-app` rustdoc 664,
+  closures 610 across `cargo-shadow`,
+  `forbidden-strings`,
+  `file-manager` and others,
+  fenced-Rust rustdoc warnings in docs 263,
+  shell 96 in `catalog-specifiers.yml`,
+  `playwright-image.yml` and `repo-tools-setup`,
+  `max-lines` 13,
+  fuzz seeds 4 that need an approved ignore);
+  the closure check skipped five packages whose dependencies were not in the cargo cache,
+  so the closure count is low.
+  The fixer's content-changing defects (URL in a code span,
+  pipe table to HTML,
+  `///` inside fenced Rust,
+  `>` in blockquotes) are given to an agent (`fix/monochromatic-lint-fix-changes-only-whitespace`);
+  commits that only added markers are separate and revertable
+  (`c9d4e2dde5`,
+  `18b830ea58`,
+  `2f11a41621`,
+  `8a7ca6e81f`,
+  `102099f24b`,
+  `265cdbbc0c`,
+  `4b367c4a37`).
+  Why nothing caught it:
+  the commit path checks one Markdown rule,
+  CI's lint step cannot find the tool,
+  `mise run lint` runs nowhere;
+  proposal `doc/planning/repository-linter-stays-at-zero.md` (owner question).
+  It also changed release-path files after the wrapper's release gate started:
+  `.github/workflows/cargo-publish.yml` (trimmed under its ratchet)
+  and the crates.io decision action (now a Node step,
+  agreeing with the old bash on 21 manifests);
+  the release dry run exercises both.
+- Commit stalls,
+  measured 2026-11-07 from `.git/monochromatic-git-policy-cli-commit-timing.jsonl`
+  (`~/temp/agent/commit-timing-today.ts`):
+  450 commits,
+  442 landed,
+  7 stopped,
+  1 ended;
+  `totalMs` p50 2066,
+  p90 13710,
+  p99 416760,
+  max 1228797;
+  141 over 5 s.
+  The four longest (678 to 1229 s,
+  worktree `repository-passes-monochromatic-lint`) ended `stopped` after `answerWaitMs` 1200776 with `lockHolderKind`
+  `unproven`;
+  the holder was an orphaned `git commit` holding that worktree's `index.lock`.
+  Against "Commits should never fail" and the 5 s rule;
+  given to an agent (`fix/git-policy-cli-commits-never-stall-on-an-unproven-lock`).
 - Music player:
   merged into main `9944c1ffe8` (1601 of 1601 desktop-app tests,
   Clippy and e2e lint clean;
@@ -4474,15 +4631,28 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Docs:
   `doc/troubleshooting/slint-render-test-fade-in-reads-the-wall-clock.md`,
   `doc/troubleshooting/music-player-e2e-search-answer-and-headless-start.md`.
-  Queued for the next free agent slot:
-  make the e2e runner headless by default for agents
-  (the working wrapper lives only in scratch,
-  `~/temp/agent/four-tests/headless-compositor.ts`,
-  with `--headless --gpu /dev/dri/renderD129`;
-  `--gpu auto` took about 56 s to open the control socket against the runner's 30 s poll),
-  fix the start stall,
-  keep each failing check's text and last `ui_state` lines,
-  then measure the three open checks and the wall-clock read in `ui_render_support.rs`.
+  The follow-up is merged (`8f12e9c0ba`):
+  the runner starts the nested session headless unless `--visible` or `E2E_VISIBLE=1`,
+  picks the render node from the compositor's `--list-gpus`,
+  and removes `WAYLAND_DISPLAY`,
+  `WAYLAND_SOCKET`,
+  `DISPLAY` and `XAUTHORITY` from the unit (tests assert both modes);
+  the start stall was a cold page cache (socket 9.9 to 34.9 s cold against 0.06 to 0.26 s warm),
+  now bounded by `COLD_START_BOUND_MS` (120 s,
+  measurements cited) with a message naming how far a start got;
+  each failing check writes its text and last ten `ui_state` changes under `<E2E_OUT>/failures/`;
+  the settings pair failed 9 of 15 headless runs because the track and folder lists' focus timers called `focus()` while
+  Settings covered the player and Slint moved the keyboard to Back
+  (red test first;
+  fix requires `Focus.player-active`;
+  after:
+  60 of 60 settings checks,
+  40 of 40 browse checks);
+  `ui_render_support.rs` no longer reads the wall clock (1603 of 1603).
+  Open:
+  one `session/wide` click-through setup timeout,
+  seen once on both the fixed and the earlier binary,
+  cause not measured.
 - Held settle message:
   merged into main `66dbb1ca27` (gate 5194 of 5194,
   lint clean).
@@ -5199,11 +5369,27 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   against the brief's "No sudo");
   the guardrail has no `sudo` rule (`package/claude-code-plugin/guardrail/src/index.ts`,
   searched).
-  Next:
-  the preparation work (W1 first,
-  the `move-repository.ts` fixes,
-  both scripts into the repository),
-  given to an agent 2026-11-07.
+  Preparation merged (`d393987084`):
+  `package/repository-move/cli` (copy tool with records by UUID plus path,
+  separate freeze and thaw passes,
+  a total deadline,
+  external passes that report deletions;
+  the TypeScript runner `repository-move-run`,
+  run by the coordinator)
+  and `package/repository-link/check` (W1);
+  runbook `doc/runbook/repository-on-the-860-drive-guided-runner.md`.
+  The coordinator ran `prepare` (unit `repository-move-prepare`,
+  log `~/temp/agent/860-prepare.log`):
+  `i1-install-link-check`,
+  `i2-record-before` and `f1a-folder` completed;
+  `f1-images` stopped because the runner built the fixture path at plan time
+  (the dry-run placeholder `send-fixture.DRYRUN`)
+  instead of reading `f1a`'s folder (`send-fixture.zyCVij`);
+  nothing was mounted.
+  The fix goes test-first to the W2 to W15 agent (`feat/repository-move-dangling-link-items`),
+  which also builds W2 to W15 and makes the two new packages lint-clean (both exit 1 on warnings today).
+  The swap waits for W2 to W15 (owner:
+  "take care of dangling links").
 
 - The symlink plan is committed (`4f430a0683`,
   `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`;

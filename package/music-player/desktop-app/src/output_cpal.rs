@@ -218,6 +218,7 @@ use ringbuf::{HeapProd, HeapRb};
 /// import { PlayerError } from "./error";
 /// ```
 use crate::audio_meter::MeterSnapshot;
+/// Imports the error type that the output returns on failure.
 use crate::error::PlayerError;
 
 /// What:

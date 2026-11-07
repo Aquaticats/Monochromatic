@@ -206,6 +206,13 @@ fn advance(state: &mut Compositor, queue: &mut VecDeque<Step>, reply: &SyncSende
 pub fn start(state: &mut Compositor, steps: Vec<Step>, reply: SyncSender<Response>) {
     let mut queue: VecDeque<Step> = steps.into();
     let callback_reply = reply.clone();
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "calloop's insert_source needs a callable that carries the step queue and the reply sender; see doc/closure-lint-suppressions.md"
+        )
+    )]
     let inserted = state.loop_handle.insert_source(Timer::immediate(), move |_, _, event_state: &mut Compositor| {
         return advance(event_state, &mut queue, &callback_reply)
     });

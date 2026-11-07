@@ -317,6 +317,7 @@ use ringbuf::{HeapCons, HeapProd, HeapRb};
 /// import { PlayerError } from "./error";
 /// ```
 use crate::error::PlayerError;
+/// Imports the underrun meter and its snapshot that the realtime callback feeds.
 use crate::audio_meter::{AudioMeter, MeterSnapshot};
 
 /// What:

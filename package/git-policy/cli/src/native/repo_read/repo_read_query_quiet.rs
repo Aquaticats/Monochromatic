@@ -1,13 +1,27 @@
 //! What:
-//!  The exit status of `git diff-index --cached --quiet <commit-or-HEAD> [-- <paths>]` without starting Git: 0 when the index
-//!  holds exactly the commit's tree for those paths, 1 when it differs.
+//!  The exit status of `git diff-index --cached --quiet <commit-or-HEAD> [-- <paths>]` without starting Git:
+//! 0 when the index
+//!  holds exactly the commit's tree for those paths,
+//! 1 when it differs.
 //! Why:
-//!  The wrapper asks this before every merge, before every commit's index check and when it proves a restored worktree; each
-//!  start cost a process (and, under load, more than forty seconds) for a question two files answer. The rules are
-//!  `diff-lib.c` (`diff_cache`, `oneway_diff`, `do_oneway_diff`) and `diff.c` (`diff_addremove`, `diff_change`,
-//!  `is_submodule_ignored`) of Git 2.56.0: an unmerged entry is always a difference (`diff_unmerge`), an intent-to-add entry
-//!  is an ordinary entry with the empty blob (`diff-index` never sets `ita_invisible_in_index`), and a submodule difference
-//!  can be hidden by `.gitmodules`, so that one case is left to Git when a `.gitmodules` exists anywhere.
+//!  The wrapper asks this before every merge,
+//! before every commit's index check and when it proves a restored worktree;
+//! each
+//!  start cost a process (and,
+//! under load,
+//! more than forty seconds) for a question two files answer.
+//! The rules are
+//!  `diff-lib.c` (`diff_cache`,
+//! `oneway_diff`,
+//! `do_oneway_diff`) and `diff.c` (`diff_addremove`,
+//! `diff_change`,
+//!  `is_submodule_ignored`) of Git 2.56.0:
+//! an unmerged entry is always a difference (`diff_unmerge`),
+//! an intent-to-add entry
+//!  is an ordinary entry with the empty blob (`diff-index` never sets `ita_invisible_in_index`),
+//! and a submodule difference
+//!  can be hidden by `.gitmodules`,
+//! so that one case is left to Git when a `.gitmodules` exists anywhere.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,7 +37,8 @@ use crate::repo_read_refs::{RefValue, Refs};
 use crate::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree_shared, parse_commit};
 use crate::repo_read_tree_cached::{UnequalParts, outside, unequal_parts};
 
-/// The commit `HEAD` names, for a branch under `refs/heads/` or a detached head.
+/// The commit `HEAD` names,
+/// for a branch under `refs/heads/` or a detached head.
 fn head_commit(context: &Context) -> Option<String> {
     let refs: Refs = Refs::new(context.layout.common_dir.as_path(), context.layout.object_format.hex_length());
     return match refs.lookup_head(context.layout.git_dir.as_path())? {
@@ -45,7 +60,8 @@ fn tree_of_operand(context: &Context, database: &ObjectDatabase, operand: &[u8])
     };
 }
 
-/// Whether a `.gitmodules` file is in the worktree or in either list, so a submodule difference might be configured away.
+/// Whether a `.gitmodules` file is in the worktree or in either list,
+/// so a submodule difference might be configured away.
 fn has_gitmodules(context: &Context, tree: &[FlatEntry], index: &[IndexEntry]) -> bool {
     if context.layout.worktree_root.join(".gitmodules").symlink_metadata().is_ok() {
         return true;
@@ -68,12 +84,16 @@ fn is_link(mode: u32) -> bool {
     return mode & 0o170_000 == MODE_GITLINK;
 }
 
-/// The answer of a quiet comparison: no output, and the exit code `1` when the two sides differ.
+/// The answer of a quiet comparison:
+/// no output,
+/// and the exit code `1` when the two sides differ.
 fn quiet_answer(differs: bool) -> Option<Answer> {
     return Some(Answer { stdout: Vec::new(), stderr: Vec::new(), code: i32::from(differs) });
 }
 
-/// How the two sorted lists differ: whether a difference Git always reports exists, and whether one that only a submodule
+/// How the two sorted lists differ:
+/// whether a difference Git always reports exists,
+/// and whether one that only a submodule
 /// setting could hide exists.
 fn compare(tree: &[&FlatEntry], index: &[&IndexEntry]) -> (bool, bool) {
     let (mut left, mut right): (usize, usize) = (0, 0);

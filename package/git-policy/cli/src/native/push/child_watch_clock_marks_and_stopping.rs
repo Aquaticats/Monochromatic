@@ -1,8 +1,13 @@
 //! What:
-//!  What a child watch is made of below its public face: the terms a watch runs under, the marks the waiting thread sends,
-//!  the shared flags, and the stopping of a child and the processes it started.
+//!  What a child watch is made of below its public face:
+//! the terms a watch runs under,
+//! the marks the waiting thread sends,
+//!  the shared flags,
+//! and the stopping of a child and the processes it started.
 //! Why:
-//!  `child_watch.rs` holds the watch itself and the running of watched steps; these pieces do not use it, so they sit in a
+//!  `child_watch.rs` holds the watch itself and the running of watched steps;
+//! these pieces do not use it,
+//! so they sit in a
 //!  file of their own and `child_watch.rs` re-exports the public ones.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,10 +26,12 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::sync::mpsc::UnboundedReceiver;
 use crate::stopped_git_locks::LockLedger;
 use crate::bounded_push::STOP_GRACE;
+use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
 use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 use std::time::{Duration, Instant};
 
-/// The shortest sleep of the watcher, so a due moment that already passed cannot spin it.
+/// The shortest sleep of the watcher,
+/// so a due moment that already passed cannot spin it.
 pub(crate) const SHORTEST_SLEEP: Duration = Duration::from_millis(1);
 
 /// What:
@@ -38,7 +45,8 @@ pub(crate) const SHORTEST_SLEEP: Duration = Duration::from_millis(1);
 /// type WatchTerms = { limitMs: number; cadence: Cadence; notices: Writable };
 /// ```
 pub struct WatchTerms {
-    /// The quiet window: how long one wait may show no sign of work before the child is ended.
+    /// The quiet window:
+    /// how long one wait may show no sign of work before the child is ended.
     pub limit: Duration,
     /// When the notices of a wait are due.
     pub cadence: Cadence,
@@ -47,9 +55,14 @@ pub struct WatchTerms {
 }
 
 impl WatchTerms {
-    /// The terms a step of `class` runs under: the class's bound (or the variable's) and the class's grace before
-    ///  the first notice, the notice interval of the environment, notices on standard error.
-    ///  The grace never exceeds the interval, so a short interval still announces a wait quickly, nor half the bound,
+    /// The terms a step of `class` runs under:
+    /// the class's bound (or the variable's) and the class's grace before
+    ///  the first notice,
+    /// the notice interval of the environment,
+    /// notices on standard error.
+    ///  The grace never exceeds the interval,
+    /// so a short interval still announces a wait quickly,
+    /// nor half the bound,
     ///  so a bound set below the class's grace still gets a notice before the step is stopped.
     pub fn for_class(class: ChildClass) -> Self {
         let interval: Cadence = Cadence::from_environment();
@@ -61,17 +74,22 @@ impl WatchTerms {
         };
     }
 
-    /// The terms of a step that reads objects through a long-lived reader: those of an object-writing step, the longer
-    ///  class, because one request can name a large blob.
+    /// The terms of a step that reads objects through a long-lived reader:
+    /// those of an object-writing step,
+    /// the longer
+    ///  class,
+    /// because one request can name a large blob.
     pub fn from_environment() -> Self {
         return Self::for_class(ChildClass::Object);
     }
 }
 
 /// What:
-///  How long a step of `class` runs before its first notice, for a notice `interval` and a `limit`.
+///  How long a step of `class` runs before its first notice,
+/// for a notice `interval` and a `limit`.
 /// Why:
-///   The class's grace, but never past the interval (a short interval still announces a wait quickly) and never past
+///   The class's grace,
+/// but never past the interval (a short interval still announces a wait quickly) and never past
 ///  half the bound (a bound set below the grace still gets a notice before the step is stopped).
 ///
 /// In TS you'd write (pseudocode):
@@ -83,10 +101,16 @@ pub fn grace_for(class: ChildClass, interval: Duration, limit: Duration) -> Dura
 }
 
 /// What:
-///  What the waiting thread tells the watcher: a wait began at a moment, or the wait ended.
+///  What the waiting thread tells the watcher:
+/// a wait began at a moment,
+/// or the wait ended.
 /// Why:
-///   The watcher owns the marks it acts on (when the wait began, when its next notice is due, how many notices went out),
-///  so no state is shared and no lock is held: the waiting thread only sends, and the watcher reads at its own pace.
+///   The watcher owns the marks it acts on (when the wait began,
+/// when its next notice is due,
+/// how many notices went out),
+///  so no state is shared and no lock is held:
+/// the waiting thread only sends,
+/// and the watcher reads at its own pace.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -102,27 +126,34 @@ pub(crate) enum Mark {
 /// How often a stopped step is looked at while it ends.
 pub(crate) const STOP_POLL: Duration = Duration::from_millis(10);
 
-/// The marks of the wait the watcher is watching, kept by the watcher task alone.
+/// The marks of the wait the watcher is watching,
+/// kept by the watcher task alone.
 pub(crate) struct Marks {
-    /// When the current wait began, or nothing between waits.
+    /// When the current wait began,
+    /// or nothing between waits.
     pub(crate) since: Option<Instant>,
     /// When the current wait's next notice is due.
     pub(crate) ticker: Ticker,
     /// How many notices the current wait printed.
     pub(crate) printed: u32,
-    /// The clock that reads the signs of work of the child during the current wait; nothing between waits.
+    /// The clock that reads the signs of work of the child during the current wait;
+    /// nothing between waits.
     pub(crate) clock: Option<Clock>,
     /// The child.
     pub(crate) pid: u32,
     /// The quiet window.
     pub(crate) window: Duration,
-    /// The longest quiet gap of any wait on this child, in microseconds, read by the waiting thread.
+    /// The longest quiet gap of any wait on this child,
+    /// in microseconds,
+    /// read by the waiting thread.
     pub(crate) longest: Arc<AtomicU64>,
 }
 
 impl Marks {
-    /// Take one mark from the waiting thread into account; a wait that begins starts a clock on the child with the window as its
-    ///  stall and no wall-clock fallback, because elapsed time alone never ends a step.
+    /// Take one mark from the waiting thread into account;
+    /// a wait that begins starts a clock on the child with the window as its
+    ///  stall and no wall-clock fallback,
+    /// because elapsed time alone never ends a step.
     pub(crate) fn apply(&mut self, mark: Mark, cadence: Cadence) {
         match mark {
             Mark::Begin(at) => {
@@ -139,7 +170,8 @@ impl Marks {
         }
     }
 
-    /// Keep the longest quiet gap of the wait that is ending, the one still running included.
+    /// Keep the longest quiet gap of the wait that is ending,
+    /// the one still running included.
     pub(crate) fn keep_gap(&self) {
         // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
         if let Some(clock) = self.clock.as_ref()
@@ -151,8 +183,10 @@ impl Marks {
     }
 }
 
-/// Send `signal` to the process `raw` only while it is still the process that was found (by its recorded start time); where
-/// no start time can be read, the signal is sent without that check.
+/// Send `signal` to the process `raw` only while it is still the process that was found (by its recorded start time);
+/// where
+/// no start time can be read,
+/// the signal is sent without that check.
 #[cfg(unix)]
 pub(crate) fn signal_root(root: &Option<TreeMember>, identified: bool, raw: i32, signal: libc::c_int) {
     if root.as_ref().map_or(!identified, still_running) {
@@ -164,14 +198,24 @@ pub(crate) fn signal_root(root: &Option<TreeMember>, identified: bool, raw: i32,
 }
 
 /// What:
-///  Ends a process the way a watched wait does when it crosses its bound: a catchable request first, a bounded grace,
-///  then the kill, and then the removal of the lock files it could not remove itself.
+///  Ends a process the way a watched wait does when it crosses its bound:
+/// a catchable request first,
+/// a bounded grace,
+///  then the kill,
+/// and then the removal of the lock files it could not remove itself.
 /// Why:
-///   Git removes its lock files only when it is asked to end with a signal it catches, so a step that is killed at once
-///  leaves its `.lock` files and every later Git command on the same files fails. A step that answers the request ends
-///  in the grace; one that does not (it was stopped by the kernel in an uninterruptible call) is killed, and its locks are
-///  swept after it is gone. The blocked read or wait on that process then returns, and the waiting thread reports the
-///  bound. The processes the child started end with it.
+///   Git removes its lock files only when it is asked to end with a signal it catches,
+/// so a step that is killed at once
+///  leaves its `.lock` files and every later Git command on the same files fails.
+/// A step that answers the request ends
+///  in the grace;
+/// one that does not (it was stopped by the kernel in an uninterruptible call) is killed,
+/// and its locks are
+///  swept after it is gone.
+/// The blocked read or wait on that process then returns,
+/// and the waiting thread reports the
+///  bound.
+/// The processes the child started end with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -198,7 +242,7 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     signal_root(&root, identified, raw, libc::SIGTERM);
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
-    while asked.elapsed() < STOP_GRACE && tree.iter().any(still_running) {
+    while escalation_waits(asked.elapsed(), STOP_GRACE, tree.as_slice()) && tree.iter().any(still_running) {
         tokio::time::sleep(STOP_POLL).await;
     }
     signal_root(&root, identified, raw, libc::SIGKILL);
@@ -222,7 +266,8 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     }
 }
 
-/// A platform without signals cannot end the child from the watcher; the wait is only announced.
+/// A platform without signals cannot end the child from the watcher;
+/// the wait is only announced.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
 pub(crate) async fn stop_process(_pid: u32, _locks: &LockLedger, _incoming: &mut UnboundedReceiver<Mark>) {}
@@ -230,7 +275,8 @@ pub(crate) async fn stop_process(_pid: u32, _locks: &LockLedger, _incoming: &mut
 /// What:
 ///  The flags the waiting thread and the watcher task share.
 /// Why:
-///   They travel together to the watcher, which writes `expired` and `longest` and reads `stoppable`.
+///   They travel together to the watcher,
+/// which writes `expired` and `longest` and reads `stoppable`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -241,10 +287,15 @@ pub(crate) struct WatchFlags {
     pub(crate) expired: Arc<AtomicBool>,
     /// Whether a quiet child may be ended.
     pub(crate) stoppable: Arc<AtomicBool>,
-    /// The longest quiet gap so far, in microseconds.
+    /// The longest quiet gap so far,
+    /// in microseconds.
     pub(crate) longest: Arc<AtomicU64>,
-    /// How long one wait may last in all, in microseconds, whatever the child shows; the largest value means no ceiling.
+    /// How long one wait may last in all,
+    /// in microseconds,
+    /// whatever the child shows;
+    /// the largest value means no ceiling.
     pub(crate) ceiling: Arc<AtomicU64>,
-    /// Raised by the watcher when the child was ended because the ceiling passed, not because it was quiet.
+    /// Raised by the watcher when the child was ended because the ceiling passed,
+    /// not because it was quiet.
     pub(crate) ceiling_hit: Arc<AtomicBool>,
 }

@@ -1,6 +1,11 @@
-//! Controls for the restart decision about an open batch when a Git question about the branch fails: a failure is no answer, so
-//!  the batch stays open (the owner's rule is "never discard user data"), and only an answer that the branch never moved, or
-//!  that the reference is gone, lets the intent go.
+//! Controls for the restart decision about an open batch when a Git question about the branch fails:
+//! a failure is no answer,
+//! so
+//!  the batch stays open (the owner's rule is "never discard user data"),
+//! and only an answer that the branch never moved,
+//! or
+//!  that the reference is gone,
+//! lets the intent go.
 
 use super::head_tests::blind_context;
 use super::tests::{World, land_with_failed_index, request, world};
@@ -14,19 +19,23 @@ fn blind_land_context(world: &World) -> LandContext {
     return LandContext { git: blind_context(world.root.as_path()), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: world.context.lock_ceiling };
 }
 
-/// The intent of batch `seq`, as the journal holds it.
+/// The intent of batch `seq`,
+/// as the journal holds it.
 fn open_intent(world: &World, seq: u64) -> Intent {
     let text: String = std::fs::read_to_string(batch_path(world.context.journal.as_path(), seq, OPEN_EXTENSION)).expect("the open intent");
     return parse_intent(text.as_str()).expect("a readable intent");
 }
 
-/// The decisions a recovery made, by batch.
+/// The decisions a recovery made,
+/// by batch.
 fn decisions(reports: &[RecoveryReport]) -> Vec<(u64, Recovery)> {
     return reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
 }
 
-/// A batch that landed stays open when the Git question about its branch fails, for the service's own recovery and for the
-///  recovery of one instance; once Git answers again the batch is finished and the index shows the landing.
+/// A batch that landed stays open when the Git question about its branch fails,
+/// for the service's own recovery and for the
+///  recovery of one instance;
+/// once Git answers again the batch is finished and the index shows the landing.
 #[test]
 fn a_git_that_fails_does_not_make_a_landed_batch_look_unmoved() {
     for name in ["all", "instance"] {
@@ -45,7 +54,8 @@ fn a_git_that_fails_does_not_make_a_landed_batch_look_unmoved() {
     }
 }
 
-/// A reference file Git cannot read exits like a missing reference but says so on its standard error; it is no proof that the
+/// A reference file Git cannot read exits like a missing reference but says so on its standard error;
+/// it is no proof that the
 ///  branch never moved.
 #[test]
 fn a_reference_git_warns_about_is_not_a_missing_reference() {
@@ -62,7 +72,8 @@ fn a_reference_git_warns_about_is_not_a_missing_reference() {
     remove(world.root.as_path());
 }
 
-/// Control: a reference that is gone for certain still lets the intent of a batch that cannot land go.
+/// Control:
+/// a reference that is gone for certain still lets the intent of a batch that cannot land go.
 #[test]
 fn a_reference_that_is_missing_still_drops_the_intent() {
     let world: World = world("finish-git-missing-reference");
@@ -76,8 +87,10 @@ fn a_reference_that_is_missing_still_drops_the_intent() {
     remove(world.root.as_path());
 }
 
-/// When the branch is neither at the old value nor at the new one, the question whether the new commit is below it decides.
-///  A question that fails keeps the batch open; a clean "no" (a commit that is not below the branch) drops it.
+/// When the branch is neither at the old value nor at the new one,
+/// the question whether the new commit is below it decides.
+///  A question that fails keeps the batch open;
+/// a clean "no" (a commit that is not below the branch) drops it.
 #[test]
 fn a_failed_ancestry_question_keeps_the_batch_and_a_clean_no_drops_it() {
     let world: World = world("finish-git-ancestry");

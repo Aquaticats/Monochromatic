@@ -23,19 +23,26 @@
 //! Off Linux the handle exists and does nothing;
 //! macOS and Windows have no notification code yet (D122).
 
+/// Imports the path type that names an unplayable file.
 #[cfg(target_os = "linux")]
 use std::path::PathBuf;
+/// Imports the channel ends and the module through which the worker takes its inputs.
 #[cfg(target_os = "linux")]
 use std::sync::mpsc::{self, Receiver, Sender};
+/// Imports the shared ownership and lock types that let every clone of the notifier reach one worker.
 #[cfg(target_os = "linux")]
 use std::sync::{Arc, Mutex};
+/// Imports the handle through which the last notifier clone joins the worker thread.
 #[cfg(target_os = "linux")]
 use std::thread::JoinHandle;
 
+/// Imports the D-Bus session connection that the notification travels over.
 #[cfg(target_os = "linux")]
 use zbus::Connection;
 
+/// Imports the identity that names the player to the notification service.
 use crate::analysis_notification::Identity;
+/// Imports the ledger of told files and the notice that the worker sends.
 #[cfg(target_os = "linux")]
 use crate::unplayable_notification_logic::{Ledger, Notice};
 
@@ -77,7 +84,12 @@ impl UnplayableConfig {
 /// so the thread has one wait point.
 #[cfg(target_os = "linux")]
 enum Input {
-    Report(Vec<PathBuf>),
+    /// Tell the user about these files.
+    Report(
+        /// The files that could not be played.
+        Vec<PathBuf>,
+    ),
+    /// Close the thread.
     Stop,
 }
 
@@ -91,7 +103,10 @@ enum Input {
 /// and a destructor must not block on the bus.
 #[cfg(target_os = "linux")]
 struct Shared {
+    /// Queue through which the app sends the thread its inputs.
     sender: Sender<Input>,
+    /// Handle of the notifier thread,
+    /// kept so that shutdown can join it.
     thread: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -103,6 +118,7 @@ struct Shared {
 #[cfg(target_os = "linux")]
 #[derive(Clone)]
 pub struct UnplayableNotifier {
+    /// The part of the handle that every clone points at.
     shared: Arc<Shared>,
 }
 
@@ -113,10 +129,19 @@ pub struct UnplayableNotifier {
 /// the told-before ledger and the one-warning flag live together on that thread.
 #[cfg(target_os = "linux")]
 struct Worker {
+    /// The names with which the player introduces itself to the notification service.
     identity: Identity,
+    /// Opens the session bus connection,
+    /// called again after a failure so that a later report can still succeed.
     connect: Box<dyn Fn() -> zbus::Result<Connection> + Send + 'static>,
+    /// The open session bus connection,
+    /// once a connect succeeded.
     connection: Option<Connection>,
+    /// The files the user was already told about,
+    /// so that no file is announced twice.
     ledger: Ledger,
+    /// Whether the first failure was logged as a warning already,
+    /// so that later ones log at debug level.
     warned: bool,
 }
 
@@ -299,6 +324,12 @@ impl UnplayableNotifier {
     pub fn shutdown(&self) {}
 }
 
+/// Unit tests of `unplayable_notification`,
+/// in the sidecar file `unplayable_notification_tests.rs`.
+/// Role of the module:
+/// the "cannot be played" report as a system notification (D122),
+/// never a message in the window.
+/// They run on Linux only.
 #[cfg(all(test, target_os = "linux"))]
 #[path = "unplayable_notification_tests.rs"]
 mod tests;

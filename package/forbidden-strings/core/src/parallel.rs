@@ -20,21 +20,6 @@
 //! ```
 
 /// What:
-///     Imports `NonZeroUsize`,
-///  an unsigned integer type the compiler guarantees is
-///          never zero.
-/// Why:
-///      `available_parallelism` reports the core count as a `NonZeroUsize`,
-///  and the
-///          code below turns it back into a plain `usize` with `NonZeroUsize::get`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // No 1:1 equivalent: TS has one `number` type with no "never zero" variant.
-/// ```
-use std::num::NonZeroUsize;
-
-/// What:
 ///     Imports `AtomicUsize`,
 ///  an integer that many threads may read and update at
 ///          once without a lock,
@@ -232,6 +217,15 @@ pub(crate) fn build_pattern(pattern: &str) -> Result<BuiltRule, CompileError> {
 /// ```
 static CORE_COUNT: OnceLock<usize> = OnceLock::new();
 
+/// The number of cores the operating system reports,
+/// or one when it cannot say.
+fn detected_core_count() -> usize {
+    return match thread::available_parallelism() {
+        Ok(cores) => cores.get(),
+        Err(_) => 1,
+    };
+}
+
 /// Returns how many cores this process may use,
 ///  computed once per process.
 ///
@@ -261,7 +255,7 @@ fn core_count() -> usize {
     // CORE_COUNT ??= os.availableParallelism?.() ?? 1;
     // return CORE_COUNT;
     // ```
-    return *CORE_COUNT.get_or_init(|| return thread::available_parallelism().map_or(1, NonZeroUsize::get))
+    return *CORE_COUNT.get_or_init(detected_core_count)
 }
 
 /// Builds every pattern into a rule on as many threads as the machine has cores.
@@ -304,6 +298,12 @@ pub(crate) fn build_rules(patterns: &[&str], stop_on_error: bool) -> Vec<RuleOut
     // ```
     let worker_count = cores.min(patterns.len());
     return build_rules_with(patterns, stop_on_error, worker_count, WORKER_STACK_BYTES, build_pattern)
+}
+
+/// The index of the rule an outcome belongs to,
+/// the key that restores input order after workers finish out of order.
+fn rule_index_of(outcome: &RuleOutcome) -> usize {
+    return outcome.0;
 }
 
 /// Builds every pattern into a rule with explicit workers,
@@ -381,7 +381,7 @@ pub(crate) fn build_rules_with(
     // ```ts
     // outcomes.sort((a, b) => a[0] - b[0]);
     // ```
-    outcomes.sort_unstable_by_key(|outcome| return outcome.0);
+    outcomes.sort_unstable_by_key(rule_index_of);
     return outcomes
 }
 
@@ -427,6 +427,13 @@ fn drain_on_workers(
     // ```ts
     // return await Promise.all(workers).then((batches) => batches.flat());
     // ```
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`std::thread::scope` accepts only a callable, and the workers borrow the patterns and the shared counters for the scope only; see package/forbidden-strings/core/doc/closure-lint-suppressions.md"
+        )
+    )]
     return thread::scope(|scope| {
         // What:    `Vec::new()` creates an empty growable array of join handles (a handle
         //          is how the caller waits for one thread and receives its return value).
@@ -449,6 +456,13 @@ fn drain_on_workers(
             // ```ts
             // const spawned = tryStartWorker(() => drain(patterns, stop_on_error, next, first_error, build));
             // ```
+            #[cfg_attr(
+                dylint_lib = "monochromatic_lint_closure",
+                expect(
+                    avoidable_closure,
+                    reason = "`Builder::spawn_scoped` accepts only a callable, and the worker must carry the patterns and the shared counters; see package/forbidden-strings/core/doc/closure-lint-suppressions.md"
+                )
+            )]
             let spawned = thread::Builder::new()
                 .stack_size(stack_bytes)
                 .spawn_scoped(scope, || return drain(patterns, stop_on_error, next, first_error, build));

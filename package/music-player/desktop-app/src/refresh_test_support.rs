@@ -1,10 +1,20 @@
-// What:     Helpers shared by the refresh tests: a disposable library folder, a random generator, and an in-memory disk.
-// Why:      The planner, the coalescer and the controller are tested over real folders (the oracle is the folder walk
-//           itself) and over a million in-memory tracks (the scale test), and each needs the same small pieces.
+//! What:
+//!     Helpers shared by the refresh tests:
+//! a disposable library folder,
+//! a random generator,
+//! and an in-memory disk.
+//! Why:
+//!      The planner,
+//! the coalescer and the controller are tested over real folders (the oracle is the folder walk
+//!           itself) and over a million in-memory tracks (the scale test),
+//! and each needs the same small pieces.
 
+/// Imports the set and map types that the fake disk keeps its entries in.
 use std::collections::{BTreeSet, HashMap};
+/// Imports the path types that name the fake disk's entries.
 use std::path::{Path, PathBuf};
 
+/// Imports the disk interface and the entry kind that the fake disk implements.
 use crate::disk_view::{Disk, EntryKind};
 
 /// What:
@@ -97,6 +107,8 @@ impl Drop for TempTree {
 ///      The answer is probed once,
 /// in a throwaway folder.
 fn folder_names_ignore_case() -> bool {
+    /// The probed answer,
+    /// kept so that the probe runs once per process.
     static ANSWER: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     return *ANSWER.get_or_init(|| {
         let probe = TempTree::new("case-probe");
@@ -125,7 +137,11 @@ pub(crate) fn pick_stem(all: &[&'static str], rng: &mut Rng) -> &'static str {
 /// `Rng` is a 64-bit xorshift generator.
 /// Why:
 /// a fixed seed repeats a failing sequence of random edits exactly.
-pub(crate) struct Rng(pub(crate) u64);
+pub(crate) struct Rng(
+    /// The current state of the generator,
+    /// which its seed sets.
+    pub(crate) u64,
+);
 
 /// Methods of `Rng`.
 impl Rng {

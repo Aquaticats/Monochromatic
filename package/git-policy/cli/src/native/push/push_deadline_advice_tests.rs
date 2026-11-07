@@ -2,7 +2,9 @@
 
 use super::*;
 
-/// In a terminal the variable is the remedy; in the service the user manager's command and the restart are, and the
+/// In a terminal the variable is the remedy;
+/// in the service the user manager's command and the restart are,
+/// and the
 ///  service text never tells a person to set a variable in a terminal.
 #[test]
 fn the_service_advice_reaches_the_service_and_the_terminal_advice_names_the_variable() {
@@ -16,7 +18,8 @@ fn the_service_advice_reaches_the_service_and_the_terminal_advice_names_the_vari
     assert_eq!(limit_clause_for(true), service);
 }
 
-/// The test program is not the service, so the running program's advice is the terminal's.
+/// The test program is not the service,
+/// so the running program's advice is the terminal's.
 #[test]
 fn a_program_that_is_not_the_service_gets_the_terminal_advice() {
     assert_eq!(extend_clause(), extend_clause_for(false));

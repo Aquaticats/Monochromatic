@@ -1,10 +1,16 @@
-//! Controls for the service's hold on the index lock: exclusive creation with the marker in place, a wait that ends when the
-//!  holder lets go and is not woken by anything else, no bound on the wait for a holder proven alive or one nothing proves alive, release by rename, and
+//! Controls for the service's hold on the index lock:
+//! exclusive creation with the marker in place,
+//! a wait that ends when the
+//!  holder lets go and is not woken by anything else,
+//! no bound on the wait for a holder proven alive or one nothing proves alive,
+//! release by rename,
+//! and
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
 
 use super::*;
 
-/// A function-like value with the right shape is an announcer in these controls: the shipped callers write a small struct that holds the state.
+/// A function-like value with the right shape is an announcer in these controls:
+/// the shipped callers write a small struct that holds the state.
 impl<Say: Fn(Announce)> Announcer for Say {
     fn announce(&self, note: Announce) {
         self(note);
@@ -34,7 +40,8 @@ fn own_marker(seq: u64) -> String {
     return marker_text(seq, &own_identity).expect("this process has an identity");
 }
 
-/// The number of a process that has exited and been reaped, so nothing runs under it.
+/// The number of a process that has exited and been reaped,
+/// so nothing runs under it.
 fn dead_pid() -> i64 {
     let mut child = std::process::Command::new("true").spawn().expect("a short process");
     let pid: i64 = i64::from(child.id());
@@ -59,7 +66,8 @@ fn leftovers(index: &Path) -> Vec<String> {
     return names;
 }
 
-/// The lock is created exclusively with this process's marker, a second attempt fails while it is held (its holder runs),
+/// The lock is created exclusively with this process's marker,
+/// a second attempt fails while it is held (its holder runs),
 ///  and the release moves the new index over the real one and leaves no lock and no staging file.
 #[test]
 fn the_lock_is_exclusive_and_its_release_installs_the_new_index() {
@@ -77,8 +85,10 @@ fn the_lock_is_exclusive_and_its_release_installs_the_new_index() {
     remove(root.as_path());
 }
 
-/// The release installs the built file itself by one rename (the index is the built file's inode afterwards), so the marked
-///  lock stands until the new index is in place; copying the index over the lock first is what left a lock without its marker.
+/// The release installs the built file itself by one rename (the index is the built file's inode afterwards),
+/// so the marked
+///  lock stands until the new index is in place;
+/// copying the index over the lock first is what left a lock without its marker.
 #[test]
 fn the_release_renames_the_built_index_into_place_before_the_lock_goes() {
     use std::os::unix::fs::MetadataExt;
@@ -94,8 +104,11 @@ fn the_release_renames_the_built_index_into_place_before_the_lock_goes() {
     remove(root.as_path());
 }
 
-/// Staging files a killed attempt left are removed once the lock is taken: the fixed name an earlier release used and one
-///  whose writer is gone; a live writer's staging file stays. The new lock carries its own marker.
+/// Staging files a killed attempt left are removed once the lock is taken:
+/// the fixed name an earlier release used and one
+///  whose writer is gone;
+/// a live writer's staging file stays.
+/// The new lock carries its own marker.
 #[test]
 fn staging_files_of_killed_attempts_are_removed_and_a_live_writers_stays() {
     let (root, index) = index_in("index-lock-staged");
@@ -120,8 +133,11 @@ fn staging_files_of_killed_attempts_are_removed_and_a_live_writers_stays() {
     remove(root.as_path());
 }
 
-/// A dead holder's lock with a hard-linked alias (a kill after the link, before the alias was removed) is taken over without
-///  opening the alias, so the alias never empties the lock; the alias goes with the dead holder.
+/// A dead holder's lock with a hard-linked alias (a kill after the link,
+/// before the alias was removed) is taken over without
+///  opening the alias,
+/// so the alias never empties the lock;
+/// the alias goes with the dead holder.
 #[test]
 fn a_dead_holders_lock_with_a_linked_alias_is_taken_over_without_emptying_it() {
     let (root, index) = index_in("index-lock-alias");
@@ -137,7 +153,8 @@ fn a_dead_holders_lock_with_a_linked_alias_is_taken_over_without_emptying_it() {
     remove(root.as_path());
 }
 
-/// A lock that goes out of scope without a release is removed, and the index is as it was.
+/// A lock that goes out of scope without a release is removed,
+/// and the index is as it was.
 #[test]
 fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
     let (root, index) = index_in("index-lock-drop");
@@ -147,9 +164,13 @@ fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
     remove(root.as_path());
 }
 
-/// A foreign holder that lets go while the service waits is followed at once by the service's own lock, long before the
-///  repetition of the notice; the wait makes a handful of attempts, not one per event it causes itself.
-/// The holder lets go a while after the wait's first notice, so the wait idles on the watch for that while however long
+/// A foreign holder that lets go while the service waits is followed at once by the service's own lock,
+/// long before the
+///  repetition of the notice;
+/// the wait makes a handful of attempts,
+/// not one per event it causes itself.
+/// The holder lets go a while after the wait's first notice,
+/// so the wait idles on the watch for that while however long
 ///  the marker's flush took before it.
 #[test]
 fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
@@ -187,8 +208,11 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     remove(root.as_path());
 }
 
-/// An owner nothing proves alive is waited for like one proven alive: the lock is taken the moment it goes, however long that
-///  is, and the clients are told what is known and how to remove the lock if no program uses the repository.
+/// An owner nothing proves alive is waited for like one proven alive:
+/// the lock is taken the moment it goes,
+/// however long that
+///  is,
+/// and the clients are told what is known and how to remove the lock if no program uses the repository.
 #[test]
 fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     let (root, index) = index_in("index-lock-unproven-unbounded");
@@ -211,8 +235,12 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     remove(root.as_path());
 }
 
-/// Where no watch can be set (the watch limit is reached, or the file system gives none), the wait polls: a foreign lock that goes
-///  after a while is followed by the service's own lock, where the wait used to fail the commit at once.
+/// Where no watch can be set (the watch limit is reached,
+/// or the file system gives none),
+/// the wait polls:
+/// a foreign lock that goes
+///  after a while is followed by the service's own lock,
+/// where the wait used to fail the commit at once.
 #[test]
 fn where_no_watch_can_be_set_the_wait_polls_until_the_lock_goes() {
     let (root, index) = index_in("index-lock-no-watch-poll");
@@ -229,12 +257,18 @@ fn where_no_watch_can_be_set_the_wait_polls_until_the_lock_goes() {
     remove(root.as_path());
 }
 
-/// How long the controls keep a foreign lock: far more than the old backoff of an owner nothing proves alive, which was one
-///  second, so only a wait with no bound lasts through it.
+/// How long the controls keep a foreign lock:
+/// far more than the old backoff of an owner nothing proves alive,
+/// which was one
+///  second,
+/// so only a wait with no bound lasts through it.
 const LONG_HOLD: Duration = Duration::from_millis(2500);
 
-/// A PID file that names a process which no longer runs ends the wait at once, with the process named, and nothing is removed.
-/// The wait runs on a thread and the control gives it a few seconds, so a dead owner waited for like a live one fails the control
+/// A PID file that names a process which no longer runs ends the wait at once,
+/// with the process named,
+/// and nothing is removed.
+/// The wait runs on a thread and the control gives it a few seconds,
+/// so a dead owner waited for like a live one fails the control
 ///  instead of hanging it.
 #[test]
 fn a_dead_owner_ends_the_wait_at_once() {
@@ -261,8 +295,10 @@ fn a_dead_owner_ends_the_wait_at_once() {
 /// The time a control gives a wait that must end at once before it calls it hung.
 const DEAD_OWNER_PATIENCE: Duration = Duration::from_secs(10);
 
-/// A holder proven alive is waited for with no bound: the wait goes on through the whole hold with the holder named and no line
-///  that gives up, and the service's lock is taken the moment the holder lets go.
+/// A holder proven alive is waited for with no bound:
+/// the wait goes on through the whole hold with the holder named and no line
+///  that gives up,
+/// and the service's lock is taken the moment the holder lets go.
 #[test]
 fn a_holder_proven_alive_is_waited_for_with_no_bound() {
     let (root, index) = index_in("index-lock-proven-alive");
@@ -288,8 +324,10 @@ fn a_holder_proven_alive_is_waited_for_with_no_bound() {
     remove(root.as_path());
 }
 
-/// A lock with the service's marker whose holder is gone is a dead instance's: the next landing removes it and takes its own at
-///  once, whether the marker names a dead holder or is one an earlier release wrote without a holder.
+/// A lock with the service's marker whose holder is gone is a dead instance's:
+/// the next landing removes it and takes its own at
+///  once,
+/// whether the marker names a dead holder or is one an earlier release wrote without a holder.
 #[test]
 fn a_dead_service_instances_lock_does_not_block_the_next_landing() {
     let (root, index) = index_in("index-lock-dead-instance");
@@ -308,7 +346,9 @@ fn a_dead_service_instances_lock_does_not_block_the_next_landing() {
     remove(root.as_path());
 }
 
-/// A child process that is killed and reaped when the control ends, failed or not, so a failing control leaks nothing.
+/// A child process that is killed and reaped when the control ends,
+/// failed or not,
+/// so a failing control leaks nothing.
 struct Holder(std::process::Child);
 
 impl Drop for Holder {
@@ -318,7 +358,9 @@ impl Drop for Holder {
     }
 }
 
-/// A service lock whose holder still runs is waited for like a foreign one and never taken over; once that holder is gone, the
+/// A service lock whose holder still runs is waited for like a foreign one and never taken over;
+/// once that holder is gone,
+/// the
 ///  lock is taken at once.
 #[test]
 fn a_live_service_holders_lock_is_never_taken_over() {
@@ -377,7 +419,9 @@ fn a_stale_lock_is_removed_only_when_it_is_the_services_own() {
     remove(root.as_path());
 }
 
-/// The marker reads back as written, an earlier release's marker reads as one without a holder, and anything else is not a
+/// The marker reads back as written,
+/// an earlier release's marker reads as one without a holder,
+/// and anything else is not a
 ///  service marker.
 #[test]
 fn markers_read_back_and_others_are_not_the_services() {
@@ -390,7 +434,8 @@ fn markers_read_back_and_others_are_not_the_services() {
     }
 }
 
-/// The wait's event filter wakes for the lock's own removal and for an overflow, never for another file in the directory.
+/// The wait's event filter wakes for the lock's own removal and for an overflow,
+/// never for another file in the directory.
 #[test]
 fn the_wait_wakes_only_for_the_lock_itself() {
     let event = |mask: u32, name: &str| -> Vec<u8> {
@@ -934,8 +979,10 @@ fn a_release_whose_check_cannot_be_made_keeps_the_lock_and_the_old_index() {
 /// with the quota of inotify instances used up by that one,
 /// the second is created at all.
 /// The closure plays a quota of one by refusing a watch while the first is open.
-/// The foreign holder lets go inside the second call, once the quota has been checked,
-/// so no clock decides whether the lock is still held when the wait looks at it (a slow staging flush, as under load,
+/// The foreign holder lets go inside the second call,
+/// once the quota has been checked,
+/// so no clock decides whether the lock is still held when the wait looks at it (a slow staging flush,
+/// as under load,
 /// changes nothing).
 #[test]
 fn an_ended_watch_is_dropped_before_the_next_is_set() {
@@ -967,7 +1014,8 @@ fn an_ended_watch_is_dropped_before_the_next_is_set() {
 }
 
 /// A lock that is free at the first attempt needs no second watch:
-/// the wait is for a held lock, and the watch set before the attempt is the only one.
+/// the wait is for a held lock,
+/// and the watch set before the attempt is the only one.
 #[test]
 fn a_lock_free_at_the_first_attempt_sets_one_watch() {
     let (root, index) = index_in("index-lock-watch-free");
@@ -1649,10 +1697,17 @@ fn a_new_pid_namespace_over_the_old_proc_is_told_from_the_view() {
 //endregion
 
 
-/// What the person is told about a holder proven alive: its number, its program, when it started, and the way out.
+/// What the person is told about a holder proven alive:
+/// its number,
+/// its program,
+/// when it started,
+/// and the way out.
 /// Why:
 ///  On 2026-11-07 a commit waited for a lock held by a live `git commit` and was told only that the owner "cannot be proven alive".
-///  A holder the wrapper can see is named with what a person needs to end it if it is stuck: the PID, the program, the start time and the command.
+///  A holder the wrapper can see is named with what a person needs to end it if it is stuck:
+/// the PID,
+/// the program,
+/// the start time and the command.
 #[test]
 fn a_holder_proven_alive_is_named_with_its_program_start_time_and_the_way_out() {
     let (root, index) = index_in("index-lock-named-holder");
@@ -1684,8 +1739,12 @@ fn a_holder_proven_alive_is_named_with_its_program_start_time_and_the_way_out() 
 
 /// A lock that already outlasted one commit's wait is refused at once to the commits queued behind it.
 /// Why:
-///  Four commits of one worktree each waited a full ceiling for the same lock one after another, 678 to 1,229 s each, because
-///  every queued commit began its own wait. The lock is the same file; a second wait for it tells nothing the first did not.
+///  Four commits of one worktree each waited a full ceiling for the same lock one after another,
+/// 678 to 1,229 s each,
+/// because
+///  every queued commit began its own wait.
+/// The lock is the same file;
+/// a second wait for it tells nothing the first did not.
 #[test]
 fn a_lock_that_outlasted_one_wait_is_refused_at_once_to_the_next_commit() {
     let (root, index) = index_in("index-lock-refused-once");
@@ -1722,7 +1781,9 @@ fn a_new_lock_is_waited_for_after_the_one_that_outlasted_a_wait_is_gone() {
     remove(root.as_path());
 }
 
-/// The landing's wait for a foreign lock is the longest self-released wait with a margin of five, in whole minutes, the way every
+/// The landing's wait for a foreign lock is the longest self-released wait with a margin of five,
+/// in whole minutes,
+/// the way every
 ///  other ceiling of `wait_ceilings.rs` is derived.
 #[test]
 fn the_landing_ceiling_follows_the_longest_measured_foreign_wait() {

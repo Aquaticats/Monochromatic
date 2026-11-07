@@ -1,12 +1,23 @@
 //! What:
-//!  The wrapper's side of a commit through the resident service: connect, wait honestly while the operating system
-//!  starts the service, send the request, show the queue position, survive a service that dies mid-request, and turn
+//!  The wrapper's side of a commit through the resident service:
+//! connect,
+//! wait honestly while the operating system
+//!  starts the service,
+//! send the request,
+//! show the queue position,
+//! survive a service that dies mid-request,
+//! and turn
 //!  every failure into the plain text of `service_messages.rs`.
 //! Why:
-//!  A failure the system can resolve is resolved here without the user: a service that is starting is waited for, one
-//!  that crashed is reconnected to with the same request identity, one that was started from another release of the
-//!  wrapper (older or newer, found by the release its welcome names) is asked to retire and is reached again once the
-//!  manager has started the current one. Only what cannot be resolved ends the command.
+//!  A failure the system can resolve is resolved here without the user:
+//! a service that is starting is waited for,
+//! one
+//!  that crashed is reconnected to with the same request identity,
+//! one that was started from another release of the
+//!  wrapper (older or newer,
+//! found by the release its welcome names) is asked to retire and is reached again once the
+//!  manager has started the current one.
+//! Only what cannot be resolved ends the command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,10 +46,13 @@ use std::time::{Duration, Instant};
 pub enum Submitted {
     /// The commit is on the branch.
     Landed { commit: String, already: bool },
-    /// A named path changed on the branch: prepare again from this base and submit again with the same identity.
-    ///  `landed` tells when the bytes of the commits the service landed since were captured, for the ones it knows.
+    /// A named path changed on the branch:
+    /// prepare again from this base and submit again with the same identity.
+    ///  `landed` tells when the bytes of the commits the service landed since were captured,
+    /// for the ones it knows.
     PrepareAgain { base: String, landed: Vec<LandedCapture> },
-    /// The branch is no longer at the base of a commit that cannot be moved to another tip (an amend, or a commit Git built).
+    /// The branch is no longer at the base of a commit that cannot be moved to another tip (an amend,
+    /// or a commit Git built).
     ///  The caller decides whether to build it again on the new tip or to stop.
     Moved,
 }
@@ -64,8 +78,10 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
 /// What:
 ///  Sends a commit request and waits until it is answered.
 /// Why:
-///   The same identity goes with every send, so a service that landed the commit and died before answering reports it
-///  as already landed, and nothing lands twice.
+///   The same identity goes with every send,
+/// so a service that landed the commit and died before answering reports it
+///  as already landed,
+/// and nothing lands twice.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -99,10 +115,13 @@ pub fn submit_traced(config: &ClientConfig, request: &CommitRequest, notices: &m
 }
 
 /// What:
-///  Renews the modification time of the command's scratch directory when it is due: at once the first time, then as often as
+///  Renews the modification time of the command's scratch directory when it is due:
+/// at once the first time,
+/// then as often as
 ///  the config says.
 /// Why:
-///  A wait longer than the sweep's age must never have its directory swept, whatever the service sends.
+///  A wait longer than the sweep's age must never have its directory swept,
+/// whatever the service sends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,8 +143,13 @@ fn renew_scratch(settings: &ClientConfig, last_renewed: &mut Option<Instant>) {
 
 /// The sends and the waits of `submit_traced`.
 ///
-/// The wait for the answer has no clock: it lasts as long as the service keeps sending, and ends when the service goes
-///  silent for the silence bound. The request is then sent again with the same identity, so nothing lands twice, and the
+/// The wait for the answer has no clock:
+/// it lasts as long as the service keeps sending,
+/// and ends when the service goes
+///  silent for the silence bound.
+/// The request is then sent again with the same identity,
+/// so nothing lands twice,
+/// and the
 ///  command ends only when every try has met silence or a closed connection.
 fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
@@ -240,12 +264,20 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
 }
 
 /// What:
-///  Withdraws the request after the answer ceiling: asks the service, on a connection of its own, to drop the request of this
-///  identity, and turns its answer into the command's end.
+///  Withdraws the request after the answer ceiling:
+/// asks the service,
+/// on a connection of its own,
+/// to drop the request of this
+///  identity,
+/// and turns its answer into the command's end.
 /// Why:
-///   The owner's answer is that a wait that reaches its bound returns an error and the commit never lands later by itself. The
-///  service takes the withdrawal between two landings, so either the commit landed first (the answer is `Landed`, and the command
-///  succeeds) or it never will (`Withdrawn`). A service that does not answer within the withdrawal ceiling leaves it unknown.
+///   The owner's answer is that a wait that reaches its bound returns an error and the commit never lands later by itself.
+/// The
+///  service takes the withdrawal between two landings,
+/// so either the commit landed first (the answer is `Landed`,
+/// and the command
+///  succeeds) or it never will (`Withdrawn`).
+/// A service that does not answer within the withdrawal ceiling leaves it unknown.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -286,22 +318,38 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
     return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
 }
 
-/// A scratch directory handed to the service: the service removes it when this value is dropped, and when the process that
-///  holds it dies by any means, because the connection is the only thing that says the directory is still wanted.
+/// A scratch directory handed to the service:
+/// the service removes it when this value is dropped,
+/// and when the process that
+///  holds it dies by any means,
+/// because the connection is the only thing that says the directory is still wanted.
 pub struct ScratchWatch {
-    /// The open connection. Close-on-exec, so no program the wrapper starts keeps it open after the wrapper is gone.
+    /// The open connection.
+    /// Close-on-exec,
+    /// so no program the wrapper starts keeps it open after the wrapper is gone.
     _connection: UnixStream,
 }
 
 /// What:
-///  Hands the commit's scratch directory to the service, which removes it when the connection closes.
+///  Hands the commit's scratch directory to the service,
+/// which removes it when the connection closes.
 /// Why:
-///   A client killed without warning cannot remove what it made, and no one can tell afterwards whether it is gone or
-///  stopped: the open connection is the signal, without a process id and without a lock. The announcement is written at once
-///  and the greeting is not waited for, so a service that is frozen or still starting takes it when it reads, and a client
-///  killed meanwhile still loses its directory. A service that is not running takes nothing, and a service of another release
-///  refuses a message it does not know and closes nothing of the client's; in both the client removes the directory itself
-///  when it ends, as it always has.
+///   A client killed without warning cannot remove what it made,
+/// and no one can tell afterwards whether it is gone or
+///  stopped:
+/// the open connection is the signal,
+/// without a process id and without a lock.
+/// The announcement is written at once
+///  and the greeting is not waited for,
+/// so a service that is frozen or still starting takes it when it reads,
+/// and a client
+///  killed meanwhile still loses its directory.
+/// A service that is not running takes nothing,
+/// and a service of another release
+///  refuses a message it does not know and closes nothing of the client's;
+/// in both the client removes the directory itself
+///  when it ends,
+/// as it always has.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -316,11 +364,16 @@ pub fn watch_scratch(config: &ClientConfig, git_dir: &std::path::Path, path: &st
 }
 
 /// What:
-///  Tells the service that work items were written for a repository, starting it through the operating system when it
-///  is not running, and returns once the service has taken the message.
+///  Tells the service that work items were written for a repository,
+/// starting it through the operating system when it
+///  is not running,
+/// and returns once the service has taken the message.
 /// Why:
-///   The wrapper never starts the service or runs the work itself; the message is the only thing the service needs to
-///  look at the repository's work directory. The connection closes when the service has read the line, which is the
+///   The wrapper never starts the service or runs the work itself;
+/// the message is the only thing the service needs to
+///  look at the repository's work directory.
+/// The connection closes when the service has read the line,
+/// which is the
 ///  confirmation that it will act.
 ///
 /// In TS you'd write (pseudocode):

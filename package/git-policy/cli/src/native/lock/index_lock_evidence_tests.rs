@@ -363,8 +363,10 @@ fn the_proven_holder_line_names_its_proof() {
     assert!(file.contains("(proven by its Git lock PID file)"));
 }
 
-/// The change time is whole milliseconds since the epoch, with the nanosecond part rounded down.
-///  Permission changes move the change time, and the test retries until the millisecond part is not zero.
+/// The change time is whole milliseconds since the epoch,
+/// with the nanosecond part rounded down.
+///  Permission changes move the change time,
+/// and the test retries until the millisecond part is not zero.
 #[test]
 #[cfg(unix)]
 fn the_change_time_rounds_nanoseconds_down_to_milliseconds() {
@@ -389,9 +391,11 @@ fn the_change_time_rounds_nanoseconds_down_to_milliseconds() {
     remove(root.as_path());
 }
 
-/// A scan that could not look at hundreds of processes is summarized, not listed.
+/// A scan that could not look at hundreds of processes is summarized,
+/// not listed.
 /// Why:
-///  On 2026-11-07 the notice named every process the account could not read, which buried what a person needs to know.
+///  On 2026-11-07 the notice named every process the account could not read,
+/// which buried what a person needs to know.
 #[test]
 fn many_unreadable_processes_are_summarized_in_the_wait_line() {
     let reasons: Vec<String> = (0..200).map(|number| { return format!("PID {number}: Permission denied (os error 13)"); }).collect();

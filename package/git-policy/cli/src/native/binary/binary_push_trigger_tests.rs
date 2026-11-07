@@ -1,10 +1,20 @@
 //! What:
-//!  The commands other than `git commit` that add commits to a branch (merge, pull's merge, cherry-pick, revert, am) hand
+//!  The commands other than `git commit` that add commits to a branch (merge,
+//! pull's merge,
+//! cherry-pick,
+//! revert,
+//! am) hand
 //!  the push to the service when they leave the branch ahead of its upstream and not diverged from it.
 //! Why:
-//!  A clean `git merge` used to stay local until the next commit pushed it. The owner chose that every command adding
-//!  commits queues the push as a commit does (2026-11-02), and that a rebase does not, because a rebased branch would need a
-//!  forced push. The remote is a real bare repository, the service a real process, the commands the built wrapper.
+//!  A clean `git merge` used to stay local until the next commit pushed it.
+//! The owner chose that every command adding
+//!  commits queues the push as a commit does (2026-11-02),
+//! and that a rebase does not,
+//! because a rebased branch would need a
+//!  forced push.
+//! The remote is a real bare repository,
+//! the service a real process,
+//! the commands the built wrapper.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,7 +26,9 @@ use super::support::{Fixture, Observed, fixture, git, observe, repository, settl
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// A repository on `main` that tracks a bare remote's `main`, a clone that stands for another person, and a service.
+/// A repository on `main` that tracks a bare remote's `main`,
+/// a clone that stands for another person,
+/// and a service.
 struct World {
     fixture: Fixture,
     repo: PathBuf,
@@ -25,7 +37,8 @@ struct World {
     service: FixtureService,
 }
 
-/// The world with `main` published and a `topic` branch one commit ahead of it, checked out `main`.
+/// The world with `main` published and a `topic` branch one commit ahead of it,
+/// checked out `main`.
 fn world(name: &str) -> World {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
@@ -49,7 +62,8 @@ fn world(name: &str) -> World {
     return World { fixture, repo, remote, other, service };
 }
 
-/// Run a wrapped command in `directory` with the fixture service reachable, and return what the caller saw.
+/// Run a wrapped command in `directory` with the fixture service reachable,
+/// and return what the caller saw.
 fn wrapped_in(world: &World, directory: &Path, arguments: &[&str]) -> Observed {
     let mut command = wrapped_commit(&world.fixture, directory, arguments);
     command.env("XDG_RUNTIME_DIR", &world.service.runtime);
@@ -61,7 +75,8 @@ fn run(world: &World, arguments: &[&str]) -> Observed {
     return wrapped_in(world, world.repo.as_path(), arguments);
 }
 
-/// What a ref holds in a repository, trimmed.
+/// What a ref holds in a repository,
+/// trimmed.
 fn tip(world: &World, repository: &Path, name: &str) -> String {
     return String::from_utf8_lossy(&git(&world.fixture, repository, &["rev-parse", name]).stdout).trim().to_owned();
 }
@@ -79,7 +94,9 @@ fn push_records(world: &World) -> usize {
         .sum();
 }
 
-/// Assert the command succeeded, wait for the service, and assert the remote's `main` is the local one.
+/// Assert the command succeeded,
+/// wait for the service,
+/// and assert the remote's `main` is the local one.
 fn assert_pushed(world: &World, observed: &Observed) {
     let text: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
     assert_eq!(observed.code, Some(0), "{text}");
@@ -106,7 +123,8 @@ fn a_merge_commit_is_pushed() {
     remove_settled(&world.fixture);
 }
 
-/// A fast-forward merge moves the tip without making a commit, and is pushed too.
+/// A fast-forward merge moves the tip without making a commit,
+/// and is pushed too.
 #[test]
 fn a_fast_forward_merge_is_pushed() {
     let world: World = world("trigger-fast-forward");
@@ -147,7 +165,8 @@ fn an_applied_patch_is_pushed() {
     remove_settled(&world.fixture);
 }
 
-/// `git pull` that merges what another person pushed is pushed, on top of the local commit.
+/// `git pull` that merges what another person pushed is pushed,
+/// on top of the local commit.
 #[test]
 fn a_pull_that_merges_is_pushed() {
     let world: World = world("trigger-pull-merge");
@@ -163,7 +182,9 @@ fn a_pull_that_merges_is_pushed() {
     remove_settled(&world.fixture);
 }
 
-/// `git pull --rebase` is a rebase, which the owner excludes: the rewritten branch is not handed over.
+/// `git pull --rebase` is a rebase,
+/// which the owner excludes:
+/// the rewritten branch is not handed over.
 #[test]
 fn a_pull_that_rebases_is_not_pushed() {
     let world: World = world("trigger-pull-rebase");
@@ -226,8 +247,10 @@ fn a_merge_that_moves_nothing_is_not_pushed() {
     remove_settled(&world.fixture);
 }
 
-/// A branch that has diverged from its upstream (the remote moved and was fetched) is not handed over: the push would be
-/// rejected, and the owner asked for ahead and not diverged.
+/// A branch that has diverged from its upstream (the remote moved and was fetched) is not handed over:
+/// the push would be
+/// rejected,
+/// and the owner asked for ahead and not diverged.
 #[test]
 fn a_merge_into_a_diverged_branch_is_not_pushed() {
     let world: World = world("trigger-diverged");
@@ -242,7 +265,8 @@ fn a_merge_into_a_diverged_branch_is_not_pushed() {
     remove_settled(&world.fixture);
 }
 
-/// A branch without an upstream is not handed over by a merge: the first push of a branch is a commit's business.
+/// A branch without an upstream is not handed over by a merge:
+/// the first push of a branch is a commit's business.
 #[test]
 fn a_merge_into_a_branch_without_an_upstream_is_not_pushed() {
     let world: World = world("trigger-no-upstream");
@@ -254,7 +278,10 @@ fn a_merge_into_a_branch_without_an_upstream_is_not_pushed() {
 }
 
 /// A merge that native Git refuses only because the index holds staged changes is completed by the wrapper from objects
-/// (`merge_isolation.rs`); it is a command that adds a commit like any other, and it is pushed, leaving the staged file staged.
+/// (`merge_isolation.rs`);
+/// it is a command that adds a commit like any other,
+/// and it is pushed,
+/// leaving the staged file staged.
 #[test]
 fn a_merge_the_wrapper_completes_with_staged_changes_is_pushed() {
     let world: World = world("trigger-isolated-merge");
@@ -271,7 +298,8 @@ fn a_merge_the_wrapper_completes_with_staged_changes_is_pushed() {
     remove_settled(&world.fixture);
 }
 
-/// The ending of a stopped cherry-pick counts as the command that adds the commit: `--continue` moves the tip and is pushed.
+/// The ending of a stopped cherry-pick counts as the command that adds the commit:
+/// `--continue` moves the tip and is pushed.
 #[test]
 fn a_cherry_pick_continued_after_a_conflict_is_pushed() {
     let world: World = world("trigger-continue");

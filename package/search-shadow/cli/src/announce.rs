@@ -37,6 +37,9 @@ use std::path::{self, Path};
 /// Imports `Command` (the builder that starts the real tool) and `ExitStatus` (how it ended).
 use std::process::{Command, ExitStatus};
 
+/// Imports the check of the chosen program and the arrival marker of its start.
+use crate::shadow_identity::{StartMode, Vetted, mark_start, vet};
+
 /// Imports the escape-hatch variable name (printed in the help section) and the exit code for a real tool that cannot start.
 use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE};
 
@@ -347,7 +350,18 @@ pub fn run_announced(name: &str, real: &Path, arguments: &[OsString], announceme
     // ```ts
     // try { status = spawnSync(real, args, { stdio: 'inherit' }); } catch (error) { console.error(...); return 126; }
     // ```
-    let status: ExitStatus = match Command::new(real).args(arguments).status() {
+    // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
+    let vetted: Vetted = match vet(real) {
+        Ok(checked) => checked,
+        Err(reason) => {
+            eprintln!("search-shadow: could not start {}: {reason}", real.display());
+            return EXEC_FAILED_EXIT_CODE;
+        }
+    };
+    let mut command: Command = vetted.command();
+    command.args(arguments);
+    mark_start(&mut command, StartMode::Spawn);
+    let status: ExitStatus = match command.status() {
         Ok(status) => status,
         Err(error) => {
             eprintln!("search-shadow: could not start {}: {error}", real.display());

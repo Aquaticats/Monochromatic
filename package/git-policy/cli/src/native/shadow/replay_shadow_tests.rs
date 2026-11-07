@@ -1,10 +1,15 @@
 //! Controls for the shadow runner:
-//!  the shadow selection, standard input, a private index, and failures.
+//!  the shadow selection,
+//! standard input,
+//! a private index,
+//! and failures.
 
 use super::*;
 use crate::test_support::{fixture, git_context, git_text, remove, repository};
 
-/// The runner selects the shadow store, passes input, and returns the command's output.
+/// The runner selects the shadow store,
+/// passes input,
+/// and returns the command's output.
 #[test]
 fn the_runner_selects_the_shadow_and_passes_input() {
     let root: PathBuf = fixture("replay-shadow-runner");

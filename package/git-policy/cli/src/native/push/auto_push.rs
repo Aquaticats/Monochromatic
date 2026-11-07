@@ -1,5 +1,7 @@
 //! What:
-//!  The commit service's push of a landed commit's branch: which push runs, what its output shows,
+//!  The commit service's push of a landed commit's branch:
+//! which push runs,
+//! what its output shows,
 //!  and how a failure is reported without failing the commit.
 //! Why:
 //!  Every commit in this repository is backed up (`AGENTS.md` rule APG),
@@ -7,7 +9,8 @@
 //!  prints only GitHub `remote:` lines on success and the full output on failure,
 //!  and leaves a notice for the next command when the push fails.
 //!  The service is the only pusher of the repositories it serves and coalesces pending pushes of one branch
-//!  into one call, so the push needs no lock.
+//!  into one call,
+//! so the push needs no lock.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,9 +19,11 @@
 
 /// Where a plain push of a named branch goes.
 use crate::auto_push_destination::{NamedPush, named_push};
-/// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
+/// The reconcile of a push that a moved remote branch rejected,
+/// and the lines it adds to the output.
 use crate::auto_push_reconcile::{RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, reconcile_divergent_push};
-/// The service's Git, the failed attempt it reports and its error type.
+/// The service's Git,
+/// the failed attempt it reports and its error type.
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
 /// The auto-push's bounded `git push` with the Git LFS upload.
 use crate::lfs_bounded_push::run_push;
@@ -35,7 +40,8 @@ const TAG: &str = "monochromatic-git-policy-cli";
 /// Prefix of the GitHub server-side lines a clean push surfaces.
 const REMOTE_LINE_PREFIX: &str = "remote: ";
 
-/// Note printed after every failed push: the commit stays local.
+/// Note printed after every failed push:
+/// the commit stays local.
 pub const PUSH_FAILED_NOTE: &str =
     "monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.";
 
@@ -45,14 +51,17 @@ const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";
 /// How many times the service pushes again when a held reference lock refused the update of a remote-tracking reference.
 pub const PUSH_LOCK_RETRIES: u32 = 3;
 
-/// The pause before the first of those pushes; each later one waits a multiple of it.
+/// The pause before the first of those pushes;
+/// each later one waits a multiple of it.
 const PUSH_LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// What:
 ///  Which branch the auto-push took.
 /// Why:
-///   `Skipped` covers both "nowhere to back up to" and a setting under which Git pushes the branch nowhere; the first
-///  exits 0 silently, the second with a note that the person must see.
+///   `Skipped` covers both "nowhere to back up to" and a setting under which Git pushes the branch nowhere;
+/// the first
+///  exits 0 silently,
+/// the second with a note that the person must see.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -71,7 +80,8 @@ pub enum AutoPushOutcome {
 /// What:
 ///  The result of one auto-push attempt.
 /// Why:
-///   `shown` is what the terminal received, so tests compare the surfaced text directly.
+///   `shown` is what the terminal received,
+/// so tests compare the surfaced text directly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -81,16 +91,23 @@ pub enum AutoPushOutcome {
 pub struct AutoPushResult {
     /// Which branch the auto-push took.
     pub outcome: AutoPushOutcome,
-    /// Push exit code; `0` when skipped or pushed, Git's code (or `1`) on failure.
+    /// Push exit code;
+    /// `0` when skipped or pushed,
+    /// Git's code (or `1`) on failure.
     pub exit_code: i64,
-    /// Text surfaced to stderr; empty on a silent skip or a quiet clean push, the note on a skip with one.
+    /// Text surfaced to stderr;
+    /// empty on a silent skip or a quiet clean push,
+    /// the note on a skip with one.
     pub shown: String,
 }
 
 /// What:
-///  Select the output a push shows: only `remote:` lines after a clean push, everything after a failure.
+///  Select the output a push shows:
+/// only `remote:` lines after a clean push,
+/// everything after a failure.
 /// Why:
-///   A rejection, a hook refusal or an offline error stays diagnosable only when the full output shows.
+///   A rejection,
+/// a hook refusal or an offline error stays diagnosable only when the full output shows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,7 +129,9 @@ pub fn filter_push_output(output: &str, exit_code: i64) -> String {
 /// What:
 ///  Whether a read-only Git query exits zero.
 /// Why:
-///   A non-zero exit is an answer ("no upstream", "no origin"); a failure to start Git is not an answer.
+///   A non-zero exit is an answer ("no upstream",
+/// "no origin");
+/// a failure to start Git is not an answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,7 +143,8 @@ fn query_succeeds(git: &PushGit, arguments: &[&str]) -> Result<bool, SingleFligh
 }
 
 /// What:
-///  Run one real `git push` and capture its interleaved output, with one trailing line break removed,
+///  Run one real `git push` and capture its interleaved output,
+/// with one trailing line break removed,
 ///  stopping it when its deadline passes.
 /// Why:
 ///   Git's output of stdout and stderr shares one file so the lines interleave in the order they were written,
@@ -142,13 +162,15 @@ fn run_push_command(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, Si
 
 /// What a push plan decided before anything was pushed.
 enum Planned {
-    /// Nothing to push; the result says why.
+    /// Nothing to push;
+    /// the result says why.
     Skip(AutoPushResult),
     /// Push the branch with these arguments.
     Push {
         /// The branch HEAD names.
         branch_ref: String,
-        /// Whether the branch has an upstream, which makes a moved remote branch reconcilable.
+        /// Whether the branch has an upstream,
+        /// which makes a moved remote branch reconcilable.
         has_upstream: bool,
         /// The `git push` arguments.
         arguments: Vec<String>,
@@ -156,9 +178,12 @@ enum Planned {
 }
 
 /// What:
-///  The plan that skips a branch with a note, after writing the note to the terminal sink.
+///  The plan that skips a branch with a note,
+/// after writing the note to the terminal sink.
 /// Why:
-///   The note is the only diagnostic of a push that never ran, so the result carries it as well, for the caller that
+///   The note is the only diagnostic of a push that never ran,
+/// so the result carries it as well,
+/// for the caller that
 ///  reports it elsewhere than the sink.
 ///
 /// In TS you'd write (pseudocode):
@@ -172,11 +197,16 @@ fn skipped_with(note: String, err: &mut dyn Write) -> Planned {
 }
 
 /// What:
-///  Decide how to push a recorded branch whatever the worktree has checked out: no upstream and no origin skips, otherwise
+///  Decide how to push a recorded branch whatever the worktree has checked out:
+/// no upstream and no origin skips,
+/// otherwise
 ///  the push names the branch on both sides and never reads `HEAD`.
 /// Why:
-///   The service pushes after the command returned, so the person may switch branches or detach the head at any instant,
-///  including between a check and the push; the record names the branch that received the commit, and the plain
+///   The service pushes after the command returned,
+/// so the person may switch branches or detach the head at any instant,
+///  including between a check and the push;
+/// the record names the branch that received the commit,
+/// and the plain
 ///  `git push` would publish the checked-out one instead.
 ///
 /// In TS you'd write (pseudocode):
@@ -218,10 +248,12 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
 }
 
 /// What:
-///  Push a landed commit's branch once, with no coordination with other processes.
+///  Push a landed commit's branch once,
+/// with no coordination with other processes.
 /// Why:
 ///   The service's push consumer is the only pusher of the repositories it serves and coalesces pending pushes of one
-///  branch into this single call, so it needs no lock.
+///  branch into this single call,
+/// so it needs no lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

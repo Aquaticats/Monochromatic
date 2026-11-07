@@ -71,7 +71,7 @@ fn line_starts(buf: &[u8]) -> Vec<usize> {
 /// This shared formatter keeps content and pathname findings consistent.
 pub(crate) fn rule_token(base: usize, names: &[Option<String>], rule_id: usize) -> String {
     // A borrowed name is copied only when a finding is emitted.
-    if let Some(name) = names.get(rule_id).and_then(|name| return name.as_deref()) {
+    if let Some(name) = names.get(rule_id).and_then(Option::as_deref) {
         return name.to_string();
     }
     return (base + rule_id).to_string();
@@ -134,6 +134,13 @@ pub(crate) fn scan_content(buf: &[u8], loaded: &LoadedRules) -> Vec<ScanFinding>
         // RuntimeRules::line_matches and RegexSet::line_matches allocating hits/candidates
         // per call; RegexSet::resolve_matches also owns fresh CheckedFull scratch.
         // The scanner boundary tests provoke a real bounds unwind and compare later scans.
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "`std::panic::catch_unwind` accepts only a callable, and the guarded scan needs the buffer and the line starts, so it must carry them; see package/forbidden-strings/cli/doc/closure-lint-suppressions.md"
+            )
+        )]
         let matcher = AssertUnwindSafe(|| return scan_set.matcher.line_matches(buf, &starts));
         hits.extend(scan_one_set(scan_set.base, &scan_set.names, matcher));
     }

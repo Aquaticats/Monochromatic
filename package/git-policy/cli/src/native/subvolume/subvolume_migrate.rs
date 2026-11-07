@@ -1,13 +1,30 @@
 //! What:
-//!  Convert a main checkout into a btrfs subvolume at the same path, in process, resumably.
+//!  Convert a main checkout into a btrfs subvolume at the same path,
+//! in process,
+//! resumably.
 //! Why:
-//!  The steps are those of the proven script (`doc/handover/cli-git-subvolume-migration-script.md`), without any
-//!  program started: create `<root>.subvol-new` as a subvolume; create the linked worktrees inside it as nested
-//!  subvolumes; copy the tree with cloned data; repeat the copy as a delta; hold `.git/index.lock`, run the last
-//!  delta and swap the two directories in one atomic step; rename the old tree aside; carry over files newer in the
-//!  old tree; rewrite the Git index stat fields; verify. Each step is recorded in the journal (`subvolume_journal.rs`),
-//!  so a rerun after a kill at any point resumes: a finished step is skipped and an unfinished one is repeated, and all
-//!  of them are idempotent. The old tree is never deleted here.
+//!  The steps are those of the proven script (`doc/handover/cli-git-subvolume-migration-script.md`),
+//! without any
+//!  program started:
+//! create `<root>.subvol-new` as a subvolume;
+//! create the linked worktrees inside it as nested
+//!  subvolumes;
+//! copy the tree with cloned data;
+//! repeat the copy as a delta;
+//! hold `.git/index.lock`,
+//! run the last
+//!  delta and swap the two directories in one atomic step;
+//! rename the old tree aside;
+//! carry over files newer in the
+//!  old tree;
+//! rewrite the Git index stat fields;
+//! verify.
+//! Each step is recorded in the journal (`subvolume_journal.rs`),
+//!  so a rerun after a kill at any point resumes:
+//! a finished step is skipped and an unfinished one is repeated,
+//! and all
+//!  of them are idempotent.
+//! The old tree is never deleted here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,7 +45,8 @@ use std::time::Instant;
 /// What:
 ///  What the person asked for the migration to do.
 /// Why:
-///   The two switches are the script's `--no-nested-worktrees` and `--no-refresh-indexes`; the dry run previews.
+///   The two switches are the script's `--no-nested-worktrees` and `--no-refresh-indexes`;
+/// the dry run previews.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -36,7 +54,9 @@ use std::time::Instant;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MigrateOptions {
-    /// Preview only: nothing is created, written or journaled.
+    /// Preview only:
+    /// nothing is created,
+    /// written or journaled.
     pub dry_run: bool,
     /// Create the linked worktrees inside the checkout as nested subvolumes.
     pub nested_worktrees: bool,
@@ -45,7 +65,8 @@ pub struct MigrateOptions {
 }
 
 /// What:
-///  How a migration command ended, when it did not fail.
+///  How a migration command ended,
+/// when it did not fail.
 /// Why:
 ///   The command maps each to an exit status and the closing text.
 ///
@@ -61,17 +82,22 @@ pub enum Verdict {
     AlreadyDone,
     /// The preview was printed.
     DryRun,
-    /// Nothing was changed: these conditions stand in the way.
+    /// Nothing was changed:
+    /// these conditions stand in the way.
     Refused(Vec<Refusal>),
 }
 
-/// Whether a path is the root of a subvolume, false when it cannot be asked.
+/// Whether a path is the root of a subvolume,
+/// false when it cannot be asked.
 fn is_subvolume(platform: &dyn Platform, path: &Path) -> bool {
     return platform.is_subvolume_root(path).unwrap_or(false);
 }
 
 /// What:
-///  Print the facts the preview and the run begin with: the mount, the option, the processes that will stay behind.
+///  Print the facts the preview and the run begin with:
+/// the mount,
+/// the option,
+/// the processes that will stay behind.
 /// Why:
 ///   A process whose working directory is inside the checkout keeps writing into the old tree after the exchange.
 ///
@@ -99,9 +125,12 @@ fn announce(run: &mut Run<'_>, options: MigrateOptions) {
 }
 
 /// What:
-///  The create and nested steps: the new subvolume, then one nested subvolume per linked worktree inside the checkout.
+///  The create and nested steps:
+/// the new subvolume,
+/// then one nested subvolume per linked worktree inside the checkout.
 /// Why:
-///   A later snapshot of the root then holds an empty stub for each worktree instead of a full copy; the copy fills them.
+///   A later snapshot of the root then holds an empty stub for each worktree instead of a full copy;
+/// the copy fills them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,11 +162,23 @@ fn create_subvolumes(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), M
 }
 
 /// What:
-///  The exchange step: hold the index lock, run the last delta, swap the two directories, rename the old tree aside.
+///  The exchange step:
+/// hold the index lock,
+/// run the last delta,
+/// swap the two directories,
+/// rename the old tree aside.
 /// Why:
-///   The lock keeps Git's index writers out while the last delta runs and the swap happens. It is Git's own `index.lock`
-///  (nothing else excludes Git), one per index, created with `O_EXCL`, never waited for, and held only from the last delta
-///  to the end of the index rewrite; see `subvolume_lock.rs`. After a kill, `exchange`
+///   The lock keeps Git's index writers out while the last delta runs and the swap happens.
+/// It is Git's own `index.lock`
+///  (nothing else excludes Git),
+/// one per index,
+/// created with `O_EXCL`,
+/// never waited for,
+/// and held only from the last delta
+///  to the end of the index rewrite;
+/// see `subvolume_lock.rs`.
+/// After a kill,
+/// `exchange`
 ///  recorded as started with the checkout already a subvolume means only the rename or the record is left.
 ///
 /// In TS you'd write (pseudocode):
@@ -179,7 +220,8 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
 /// What:
 ///  Create the migration's lock of every index in a tree.
 /// Why:
-///   A lock held by another Git command stops the migration with the file named; its own lock from an earlier run is
+///   A lock held by another Git command stops the migration with the file named;
+/// its own lock from an earlier run is
 ///  accepted.
 ///
 /// In TS you'd write (pseudocode):
@@ -196,7 +238,9 @@ fn acquire_all(tree: &Path, token: &str) -> Result<(), MigrateError> {
 /// What:
 ///  Remove the migration's locks that travelled with the old tree.
 /// Why:
-///   The old tree is kept as a plain directory; a lock left in it would block every Git command there, and only the
+///   The old tree is kept as a plain directory;
+/// a lock left in it would block every Git command there,
+/// and only the
 ///  locks that hold this migration's token are removed.
 ///
 /// In TS you'd write (pseudocode):
@@ -213,10 +257,15 @@ fn drop_old_locks(run: &mut Run<'_>) -> Result<(), MigrateError> {
 }
 
 /// What:
-///  The steps after the exchange: catch-up, index rewrite, verification.
+///  The steps after the exchange:
+/// catch-up,
+/// index rewrite,
+/// verification.
 /// Why:
-///   Writers that held descriptors in the old tree may have written after the swap; the index rewrite makes the first
-///  `git status` cheap; the verification proves the checkout is a subvolume root with a readable `.git/HEAD`.
+///   Writers that held descriptors in the old tree may have written after the swap;
+/// the index rewrite makes the first
+///  `git status` cheap;
+/// the verification proves the checkout is a subvolume root with a readable `.git/HEAD`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -258,7 +307,10 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
 /// What:
 ///  The closing text of a finished migration.
 /// Why:
-///   It states what is left to do and every way to undo or finish: restart sessions, check Git, delete the old tree.
+///   It states what is left to do and every way to undo or finish:
+/// restart sessions,
+/// check Git,
+/// delete the old tree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -278,11 +330,16 @@ fn closing(run: &mut Run<'_>) {
 }
 
 /// What:
-///  Run the whole migration command: preflight, preview or steps.
+///  Run the whole migration command:
+/// preflight,
+/// preview or steps.
 ///  `say` receives progress lines as they happen.
 /// Why:
-///   A refusal returns before anything is created. A finished migration or a plain subvolume with no journal returns
-///  `AlreadyDone`. Any failure after the first step leaves the journal so a rerun resumes, and the error says so.
+///   A refusal returns before anything is created.
+/// A finished migration or a plain subvolume with no journal returns
+///  `AlreadyDone`.
+/// Any failure after the first step leaves the journal so a rerun resumes,
+/// and the error says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

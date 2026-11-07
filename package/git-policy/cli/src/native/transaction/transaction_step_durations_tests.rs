@@ -1,17 +1,26 @@
-//! Controls for the ledger of step durations: the bound and its count of dropped steps, the order by start, the names that carry
-//!  nothing but a program and a subcommand, offsets from an origin, and the two forms a record writes.
+//! Controls for the ledger of step durations:
+//! the bound and its count of dropped steps,
+//! the order by start,
+//! the names that carry
+//!  nothing but a program and a subcommand,
+//! offsets from an origin,
+//! and the two forms a record writes.
 
 use super::*;
 
-/// The step times of a control, in whole milliseconds.
+/// The step times of a control,
+/// in whole milliseconds.
 const SHORT: Duration = Duration::from_millis(5);
 
-/// Empty the process-wide ledger, which other controls of the same process may have filled.
+/// Empty the process-wide ledger,
+/// which other controls of the same process may have filled.
 fn clean() {
     let _taken = drain_steps(Instant::now());
 }
 
-/// Steps come back ordered by when they began, with offsets from the origin and whole-millisecond durations, and a second drain
+/// Steps come back ordered by when they began,
+/// with offsets from the origin and whole-millisecond durations,
+/// and a second drain
 ///  finds nothing.
 #[test]
 fn steps_are_ordered_by_start_and_measured_from_the_origin() {
@@ -45,7 +54,8 @@ fn a_step_that_began_before_the_origin_starts_at_zero() {
     assert_eq!(figures[0].offset_ms, 0);
 }
 
-/// The list holds `MAX_STEP_RUNS` steps and counts the rest, so a record never grows with the work and never hides that it was cut.
+/// The list holds `MAX_STEP_RUNS` steps and counts the rest,
+/// so a record never grows with the work and never hides that it was cut.
 #[test]
 fn the_list_is_bounded_and_counts_what_did_not_fit() {
     clean();
@@ -61,7 +71,9 @@ fn the_list_is_bounded_and_counts_what_did_not_fit() {
     assert_eq!(drain_steps(origin).1, 0);
 }
 
-/// A name carries a program and a subcommand and nothing else: a path, an option value or a separator is replaced.
+/// A name carries a program and a subcommand and nothing else:
+/// a path,
+/// an option value or a separator is replaced.
 #[test]
 fn a_name_never_carries_a_path_or_a_separator() {
     clean();

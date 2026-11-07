@@ -14,7 +14,9 @@
 //! The timing and narrowing rules are pure logic with injected time,
 //! so they are tested without a window.
 
+/// Imports the keyboard platform and the shortcut action that a badge describes.
 use crate::keymap::{KeyboardPlatform, ShortcutAction};
+/// Imports the held modifiers and the binding lookups that give each badge its key text.
 use crate::keymap_bindings::{HeldModifiers, binding_for, key_label};
 
 /// What:

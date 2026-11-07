@@ -1,6 +1,10 @@
-//! Controls for the rollback and for the deletion of the old tree: the rollback from every state the migration can be
-//!  stopped in, the deepest-first removal of nested subvolumes with and without the kernel's destroy call, the refusals,
-//!  and the deletion of the old tree with and without unreadable files. They run on the stand-in platform.
+//! Controls for the rollback and for the deletion of the old tree:
+//! the rollback from every state the migration can be
+//!  stopped in,
+//! the deepest-first removal of nested subvolumes with and without the kernel's destroy call,
+//! the refusals,
+//!  and the deletion of the old tree with and without unreadable files.
+//! They run on the stand-in platform.
 
 use super::*;
 use crate::fs_kind::FilesystemKind;
@@ -24,7 +28,8 @@ const DONE: i32 = 0;
 /// The exit status of a failure after the journal began.
 const FAILED: i32 = 2;
 
-/// A platform that records which subvolumes the destroy call was asked to remove, and can refuse the call.
+/// A platform that records which subvolumes the destroy call was asked to remove,
+/// and can refuse the call.
 struct Recording {
     inner: PlainPlatform,
     destroyed: RefCell<Vec<PathBuf>>,
@@ -63,7 +68,8 @@ impl Platform for Recording {
     }
 }
 
-/// A platform whose chosen exchange takes effect and then fails, as a kill right after the kernel call would leave it.
+/// A platform whose chosen exchange takes effect and then fails,
+/// as a kill right after the kernel call would leave it.
 struct KillAfterExchange {
     inner: PlainPlatform,
     /// Which exchange call (counting from 1) fails after it took effect.
@@ -71,7 +77,8 @@ struct KillAfterExchange {
     calls: std::cell::Cell<u32>,
 }
 
-/// Everything is delegated; the chosen exchange reports a failure after it ran.
+/// Everything is delegated;
+/// the chosen exchange reports a failure after it ran.
 impl Platform for KillAfterExchange {
     fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
         return self.inner.filesystem_facts(path);
@@ -119,7 +126,8 @@ fn remove_old_arguments(discard_unreadable: bool) -> MigrateArguments {
     return MigrateArguments { mode: MigrateMode::RemoveOld, discard_unreadable, ..migrate_arguments() };
 }
 
-/// Whether the running user is root, which cannot make an unreadable file.
+/// Whether the running user is root,
+/// which cannot make an unreadable file.
 fn running_as_root() -> bool {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     return unsafe { libc::geteuid() } == 0;
@@ -133,7 +141,9 @@ fn migrated(name: &str, platform: &dyn Platform) -> (PathBuf, PathBuf) {
     return (parent, root);
 }
 
-/// After a rollback the original directory is back as an ordinary directory, clean, with nothing left beside it.
+/// After a rollback the original directory is back as an ordinary directory,
+/// clean,
+/// with nothing left beside it.
 fn assert_original_again(platform: &dyn Platform, root: &Path) {
     let layout = layout_of(root).expect("layout");
     assert_eq!(platform.is_subvolume_root(root), Ok(false));
@@ -147,8 +157,11 @@ fn assert_original_again(platform: &dyn Platform, root: &Path) {
     assert!(!root.join(".git/index.lock").exists());
 }
 
-/// A finished migration is undone: a file written to the new root since is carried back, the nested subvolumes are
-///  removed deepest first through the destroy call, and the journal is gone.
+/// A finished migration is undone:
+/// a file written to the new root since is carried back,
+/// the nested subvolumes are
+///  removed deepest first through the destroy call,
+/// and the journal is gone.
 #[test]
 fn a_finished_migration_is_rolled_back_with_newer_files_and_nested_subvolumes_deepest_first() {
     let platform: Recording = recording(false);
@@ -165,7 +178,9 @@ fn a_finished_migration_is_rolled_back_with_newer_files_and_nested_subvolumes_de
     remove(parent.as_path());
 }
 
-/// Where the destroy call is not allowed or fails, the subvolumes are emptied and removed instead, with the same end.
+/// Where the destroy call is not allowed or fails,
+/// the subvolumes are emptied and removed instead,
+/// with the same end.
 #[test]
 fn the_removal_falls_back_to_emptying_when_the_destroy_call_is_not_available() {
     let mut refused: PlainPlatform = PlainPlatform::new();
@@ -199,8 +214,11 @@ fn a_rollback_stopped_at_each_step_is_finished_by_the_next_run() {
     }
 }
 
-/// A rollback killed right after its own exchange, before the rename or the journal record, must not swap the trees
-///  a second time: that would put the new subvolume back in the checkout's place and delete the original directory.
+/// A rollback killed right after its own exchange,
+/// before the rename or the journal record,
+/// must not swap the trees
+///  a second time:
+/// that would put the new subvolume back in the checkout's place and delete the original directory.
 #[test]
 fn a_rollback_killed_right_after_its_exchange_does_not_exchange_again() {
     let platform: KillAfterExchange = KillAfterExchange { inner: PlainPlatform::new(), kill_on: 2, calls: std::cell::Cell::new(0) };
@@ -228,7 +246,8 @@ fn a_rollback_killed_after_the_rename_before_the_record_is_finished() {
     remove(parent.as_path());
 }
 
-/// A migration run again while a rollback has swapped the trees is refused and changes nothing: only the rollback can
+/// A migration run again while a rollback has swapped the trees is refused and changes nothing:
+/// only the rollback can
 ///  finish the job.
 #[test]
 fn a_migration_is_refused_while_a_rollback_is_half_done() {
@@ -245,7 +264,8 @@ fn a_migration_is_refused_while_a_rollback_is_half_done() {
     remove(parent.as_path());
 }
 
-/// A migration stopped before the exchange is undone from each earlier stop; the migration's lock is removed.
+/// A migration stopped before the exchange is undone from each earlier stop;
+/// the migration's lock is removed.
 #[test]
 fn a_migration_stopped_before_the_exchange_is_rolled_back_from_every_earlier_stop() {
     for point in ["after-create", "after-nested", "copy-entry", "after-copy", "after-delta1", "after-lock", "before-exchange"] {
@@ -273,7 +293,9 @@ fn a_migration_stopped_between_the_exchange_and_the_rename_is_rolled_back() {
     remove(parent.as_path());
 }
 
-/// Without a journal there is nothing recorded to undo: status 1, nothing changed.
+/// Without a journal there is nothing recorded to undo:
+/// status 1,
+/// nothing changed.
 #[test]
 fn a_rollback_without_a_journal_is_refused() {
     let platform: PlainPlatform = PlainPlatform::new();
@@ -286,7 +308,8 @@ fn a_rollback_without_a_journal_is_refused() {
     remove(parent.as_path());
 }
 
-/// A recorded exchange whose old tree has gone is refused with the two ways forward, and nothing is deleted.
+/// A recorded exchange whose old tree has gone is refused with the two ways forward,
+/// and nothing is deleted.
 #[test]
 fn a_rollback_whose_old_tree_is_missing_is_refused() {
     let platform: PlainPlatform = PlainPlatform::new();
@@ -320,7 +343,8 @@ fn the_dry_run_of_the_other_modes_changes_nothing() {
     remove(parent.as_path());
 }
 
-/// The old tree of a finished migration is deleted with the journal; the checkout and its worktree stay intact.
+/// The old tree of a finished migration is deleted with the journal;
+/// the checkout and its worktree stay intact.
 #[test]
 fn the_old_tree_is_deleted_after_a_finished_migration() {
     let platform: PlainPlatform = PlainPlatform::new();
@@ -337,7 +361,8 @@ fn the_old_tree_is_deleted_after_a_finished_migration() {
     remove(parent.as_path());
 }
 
-/// The deletion is refused for a migration that is not finished, and the old tree stays.
+/// The deletion is refused for a migration that is not finished,
+/// and the old tree stays.
 #[test]
 fn the_old_tree_of_an_unfinished_migration_is_not_deleted() {
     let platform: PlainPlatform = PlainPlatform::new();
@@ -351,7 +376,9 @@ fn the_old_tree_of_an_unfinished_migration_is_not_deleted() {
     remove(parent.as_path());
 }
 
-/// Files this user could not read exist only in the old tree: the deletion is refused with both remedies, and the
+/// Files this user could not read exist only in the old tree:
+/// the deletion is refused with both remedies,
+/// and the
 ///  explicit discard deletes them with the tree.
 #[test]
 fn unreadable_files_hold_back_the_deletion_unless_discarded() {
@@ -376,8 +403,11 @@ fn unreadable_files_hold_back_the_deletion_unless_discarded() {
     remove(parent.as_path());
 }
 
-/// A file that exists only in the new subvolume and that this user may not read cannot be carried back: the rollback is
-///  refused before the exchange, nothing is deleted, and the explicit discard deletes it with the subvolume.
+/// A file that exists only in the new subvolume and that this user may not read cannot be carried back:
+/// the rollback is
+///  refused before the exchange,
+/// nothing is deleted,
+/// and the explicit discard deletes it with the subvolume.
 #[test]
 fn a_rollback_does_not_destroy_an_unreadable_file_that_only_the_new_subvolume_holds() {
     if running_as_root() {
@@ -402,7 +432,9 @@ fn a_rollback_does_not_destroy_an_unreadable_file_that_only_the_new_subvolume_ho
     remove(parent.as_path());
 }
 
-/// A manifest of unreadable files that cannot be read is not an empty manifest: the deletion stops, and the old tree
+/// A manifest of unreadable files that cannot be read is not an empty manifest:
+/// the deletion stops,
+/// and the old tree
 ///  with the files only it holds stays.
 #[test]
 fn an_unreadable_manifest_stops_the_deletion_instead_of_counting_as_empty() {
@@ -436,7 +468,9 @@ fn set_seconds(path: &Path, seconds: i64) {
 }
 
 /// What a process that kept a descriptor in the old tree wrote after the catch-up is carried into the checkout before the
-///  old tree is deleted: a changed file and a new file; a file that was deleted from the checkout on purpose stays
+///  old tree is deleted:
+/// a changed file and a new file;
+/// a file that was deleted from the checkout on purpose stays
 ///  deleted.
 #[test]
 fn writes_to_the_old_tree_after_the_catch_up_are_carried_before_it_is_deleted() {
@@ -476,7 +510,8 @@ fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {
     remove(parent.as_path());
 }
 
-/// A failure while deleting is reported with the path and the instruction to run again; the journal stays.
+/// A failure while deleting is reported with the path and the instruction to run again;
+/// the journal stays.
 #[test]
 fn a_deletion_that_fails_is_reported_and_keeps_the_journal() {
     if running_as_root() {
@@ -554,7 +589,9 @@ fn a_rollback_empties_a_subvolume_that_holds_read_only_directories() {
     remove(parent.as_path());
 }
 
-/// Nested subvolumes inside nested subvolumes are destroyed deepest first, and the top one last, whatever order the
+/// Nested subvolumes inside nested subvolumes are destroyed deepest first,
+/// and the top one last,
+/// whatever order the
 ///  directory listing returns them in.
 #[test]
 fn subvolumes_nested_several_levels_deep_are_destroyed_deepest_first() {

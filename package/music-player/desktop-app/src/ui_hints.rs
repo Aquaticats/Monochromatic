@@ -15,14 +15,24 @@
 //! timer,
 //! and to the window.
 
+/// Imports the cell that holds the hint state between ticks.
 use std::cell::Cell;
+/// Imports the duration and instant types that time the hold delay.
 use std::time::{Duration, Instant};
 
+/// Imports the hint state,
+/// its targets and the badge text.
 use music_player::key_hints::{HintTarget, KeyHints, badge_text};
+/// Imports the keyboard platform and the shortcut action that the texts describe.
 use music_player::keymap::{KeyboardPlatform, ShortcutAction};
+/// Imports the held modifiers and the shortcut text lookup.
 use music_player::keymap_bindings::{HeldModifiers, shortcut_text};
+/// Imports the component handle,
+/// the timer and its mode that run the hold delay.
 use slint::{ComponentHandle, Timer, TimerMode};
 
+/// Imports the window and the generated badge,
+/// key and text globals that hold the hints.
 use crate::{AppWindow, KeyBadges, Keys, ShortcutTexts};
 
 thread_local! {

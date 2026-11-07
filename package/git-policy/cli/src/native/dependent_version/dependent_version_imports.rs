@@ -1,17 +1,31 @@
-//! What: Decide whether source text imports a package or one of its subpaths.
-//! Why: A development dependency is bundled, and so carries a bump, only when non-test
-//!      source imports it. This is the incumbent's specifier scan (`source-imports.ts:59-264`):
-//!      a quoted specifier equal to the name, or starting with the name and `/`, directly
-//!      after `from`, `import`, `import(` or `require(`. Every character it inspects is
-//!      ASCII, so scanning UTF-8 bytes decides exactly what scanning UTF-16 units decides.
+//! What:
+//! Decide whether source text imports a package or one of its subpaths.
+//! Why:
+//! A development dependency is bundled,
+//! and so carries a bump,
+//! only when non-test
+//!      source imports it.
+//! This is the incumbent's specifier scan (`source-imports.ts:59-264`):
+//!      a quoted specifier equal to the name,
+//! or starting with the name and `/`,
+//! directly
+//!      after `from`,
+//! `import`,
+//! `import(` or `require(`.
+//! Every character it inspects is
+//!      ASCII,
+//! so scanning UTF-8 bytes decides exactly what scanning UTF-16 units decides.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // importsPackage({ sourceText, packageName });
 //! ```
 
-/// What: Keywords that put a string literal directly after them in specifier position.
-/// Why:  `import x from 'p'`, `export * from 'p'` and `import 'p'`.
+/// What:
+/// Keywords that put a string literal directly after them in specifier position.
+/// Why:
+///  `import x from 'p'`,
+/// `export * from 'p'` and `import 'p'`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -19,8 +33,10 @@
 /// ```
 const SPECIFIER_KEYWORDS: &[&[u8]] = &[b"from", b"import"];
 
-/// What: Callees whose first argument is a module specifier.
-/// Why:  `import('p')` and `require('p')`.
+/// What:
+/// Callees whose first argument is a module specifier.
+/// Why:
+///  `import('p')` and `require('p')`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -28,8 +44,11 @@ const SPECIFIER_KEYWORDS: &[&[u8]] = &[b"from", b"import"];
 /// ```
 const SPECIFIER_CALLEES: &[&[u8]] = &[b"import", b"require"];
 
-/// What: Whether a byte can continue a JavaScript identifier, for keyword boundaries.
-/// Why:  `reimport 'p'` and `myrequire('p')` are not specifiers.
+/// What:
+/// Whether a byte can continue a JavaScript identifier,
+/// for keyword boundaries.
+/// Why:
+///  `reimport 'p'` and `myrequire('p')` are not specifiers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,9 +58,13 @@ fn is_identifier_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'$';
 }
 
-/// What: The exclusive end of the text before `end` once trailing whitespace is dropped.
+/// What:
+/// The exclusive end of the text before `end` once trailing whitespace is dropped.
 ///       `.rposition(...)` finds the last match.
-/// Why:  Whitespace, including line breaks, may separate a keyword from its literal.
+/// Why:
+///  Whitespace,
+/// including line breaks,
+/// may separate a keyword from its literal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,8 +77,12 @@ fn skip_whitespace_backwards(text: &[u8], end: usize) -> usize {
     };
 }
 
-/// What: Whether one byte is something other than a space, tab, carriage return or line feed.
-/// Why:  `rposition` takes this function by path where a closure would otherwise stand.
+/// What:
+/// Whether one byte is something other than a space,
+/// tab,
+/// carriage return or line feed.
+/// Why:
+///  `rposition` takes this function by path where a closure would otherwise stand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,9 +92,13 @@ fn is_not_whitespace_byte(byte: &u8) -> bool {
     return !matches!(byte, b' ' | b'\t' | b'\r' | b'\n');
 }
 
-/// What: Whether one of the keywords ends exactly at `end`, with no identifier byte before
-///       it. `.checked_sub` is subtraction that yields nothing instead of going below zero.
-/// Why:  A keyword must be a whole word.
+/// What:
+/// Whether one of the keywords ends exactly at `end`,
+/// with no identifier byte before
+///       it.
+/// `.checked_sub` is subtraction that yields nothing instead of going below zero.
+/// Why:
+///  A keyword must be a whole word.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -94,8 +125,10 @@ fn ends_with_keyword(text: &[u8], end: usize, keywords: &[&[u8]]) -> bool {
     return false;
 }
 
-/// What: Whether the string literal opening at `quote_index` is in specifier position.
-/// Why:  `const name = '@scope/b'` mentions a package without importing it.
+/// What:
+/// Whether the string literal opening at `quote_index` is in specifier position.
+/// Why:
+///  `const name = '@scope/b'` mentions a package without importing it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -118,13 +151,20 @@ fn is_specifier_position(text: &[u8], quote_index: usize) -> bool {
         );
 }
 
-/// What: Whether source text imports the package or one of its subpaths.
-///       `.match_indices(...)` yields each non-overlapping occurrence from the left, the
+/// What:
+/// Whether source text imports the package or one of its subpaths.
+///       `.match_indices(...)` yields each non-overlapping occurrence from the left,
+/// the
 ///       same occurrences the incumbent's `indexOf` loop visits.
-/// Why:  The character before an occurrence must open a quote, the one after must close it
-///       or start a subpath, and the literal must be in specifier position.
-/// Gotcha: For an empty name the incumbent's loop never advances and does not terminate;
-///         here every position is an occurrence, so the stated rule applies to it too.
+/// Why:
+///  The character before an occurrence must open a quote,
+/// the one after must close it
+///       or start a subpath,
+/// and the literal must be in specifier position.
+/// Gotcha:
+/// For an empty name the incumbent's loop never advances and does not terminate;
+///         here every position is an occurrence,
+/// so the stated rule applies to it too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -149,7 +189,8 @@ pub fn imports_package(source_text: &str, package_name: &str) -> bool {
     return false;
 }
 
-/// Specifier detection, including every case of the incumbent's unit tests.
+/// Specifier detection,
+/// including every case of the incumbent's unit tests.
 #[cfg(test)]
 #[path = "dependent_version_imports_tests.rs"]
 mod tests;

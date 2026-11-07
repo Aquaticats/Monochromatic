@@ -1,9 +1,16 @@
 //! What:
-//!  The configuration the Git LFS upload plan reads, and the answers derived from it: the default remote, the branch
-//!  `HEAD` names, and whether a value reads as true.
+//!  The configuration the Git LFS upload plan reads,
+//! and the answers derived from it:
+//! the default remote,
+//! the branch
+//!  `HEAD` names,
+//! and whether a value reads as true.
 //! Why:
-//!  The plan and the manual-push probe must agree on the destination of a bare push, so both read it here. The entries
-//!  come from a snapshot the caller already holds or from one `config --get-regexp`, never one start per key.
+//!  The plan and the manual-push probe must agree on the destination of a bare push,
+//! so both read it here.
+//! The entries
+//!  come from a snapshot the caller already holds or from one `config --get-regexp`,
+//! never one start per key.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,13 +23,23 @@ use crate::config_snapshot::ConfigSnapshot;
 use std::ffi::OsString;
 
 /// What:
-///  A read-only Git query: its trimmed standard output when it finished (status zero, or status one with no output,
-///  which is how `config --get-regexp` and `symbolic-ref --quiet` say "nothing"), or what went wrong.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A read-only Git query:
+/// its trimmed standard output when it finished (status zero,
+/// or status one with no output,
+///  which is how `config --get-regexp` and `symbolic-ref --quiet` say "nothing"),
+/// or what went wrong.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The plan asks Git questions through this one method. Each caller that starts Git is a small struct with the state
-///  its questions need (the real Git, the prefix, the overlay), and a test can still pass a closure, which the
-///  blanket `impl` below turns into a query, so no closure is written in shipped code.
+///   The plan asks Git questions through this one method.
+/// Each caller that starts Git is a small struct with the state
+///  its questions need (the real Git,
+/// the prefix,
+/// the overlay),
+/// and a test can still pass a closure,
+/// which the
+///  blanket `impl` below turns into a query,
+/// so no closure is written in shipped code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,10 +51,12 @@ pub trait GitQuery {
 }
 
 /// What:
-///  Every function-like value with the right shape is a query: `ask` just calls it.
+///  Every function-like value with the right shape is a query:
+/// `ask` just calls it.
 ///  `impl<Answer: FnMut(..)> GitQuery for Answer` reads "for every type `Answer` that can be called like this".
 /// Why:
-///   The tests of the plan stub Git with closures, and they keep doing so without a struct per stub.
+///   The tests of the plan stub Git with closures,
+/// and they keep doing so without a struct per stub.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,10 +71,12 @@ impl<Answer: FnMut(&[&str]) -> Result<String, String>> GitQuery for Answer {
 /// A borrowed query that the plan functions share.
 pub type Query<'a> = &'a mut dyn GitQuery;
 
-/// Configuration entries the plan reads: `(key, value)` with Git's normalised key.
+/// Configuration entries the plan reads:
+/// `(key, value)` with Git's normalised key.
 pub type Settings = Vec<(String, String)>;
 
-/// Why the plan could not be worked out; the push is refused with this text rather than run without its upload.
+/// Why the plan could not be worked out;
+/// the push is refused with this text rather than run without its upload.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,10 +90,13 @@ pub const SETTINGS_REGEXP: &str =
     "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url)|push\\.default|url\\..*\\.pushinsteadof)$";
 
 /// What:
-///  The last dotted word of a key after a prefix: `remote.origin.url` after `remote.` gives `url`.
-///  `Option<&str>` is "a borrowed piece of the key, or no answer".
+///  The last dotted word of a key after a prefix:
+/// `remote.origin.url` after `remote.` gives `url`.
+///  `Option<&str>` is "a borrowed piece of the key,
+/// or no answer".
 /// Why:
-///   `wanted_key` asks it for the `remote.` and `branch.` families, and a function stands where nested closures stood.
+///   `wanted_key` asks it for the `remote.` and `branch.` families,
+/// and a function stands where nested closures stood.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,7 +129,9 @@ pub(crate) fn wanted_key(key: &str) -> bool {
         || remote_variable;
 }
 
-/// The settings the plan reads, out of a snapshot the caller already holds, so no Git start is needed for them.
+/// The settings the plan reads,
+/// out of a snapshot the caller already holds,
+/// so no Git start is needed for them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -127,7 +153,8 @@ pub fn settings_from_snapshot(snapshot: &ConfigSnapshot) -> Settings {
     return settings;
 }
 
-/// The settings the plan reads, from one `config --get-regexp` start.
+/// The settings the plan reads,
+/// from one `config --get-regexp` start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -147,7 +174,8 @@ pub fn read_settings(query: Query<'_>) -> Result<Settings, PlanError> {
     return Ok(settings);
 }
 
-/// The last value of a setting, the last one written winning as in Git.
+/// The last value of a setting,
+/// the last one written winning as in Git.
 pub(crate) fn setting<'a>(all: &'a [(String, String)], key: &str) -> Option<&'a str> {
     for (name, value) in all.iter().rev() {
         if name == key {
@@ -157,7 +185,8 @@ pub(crate) fn setting<'a>(all: &'a [(String, String)], key: &str) -> Option<&'a 
     return None;
 }
 
-/// Every value of a setting, in the order written.
+/// Every value of a setting,
+/// in the order written.
 pub(crate) fn values<'a>(all: &'a [(String, String)], key: &str) -> Vec<&'a str> {
     let mut found: Vec<&'a str> = Vec::new();
     for (name, value) in all {
@@ -168,7 +197,8 @@ pub(crate) fn values<'a>(all: &'a [(String, String)], key: &str) -> Vec<&'a str>
     return found;
 }
 
-/// The branch `HEAD` names, from the full ref so that a tag with the same name cannot change the answer.
+/// The branch `HEAD` names,
+/// from the full ref so that a tag with the same name cannot change the answer.
 pub(crate) fn current_branch(query: Query<'_>) -> Result<Option<String>, PlanError> {
     let full: String = match query.ask(&["symbolic-ref", "--quiet", "HEAD"]) {
         Ok(text) => text,
@@ -177,14 +207,20 @@ pub(crate) fn current_branch(query: Query<'_>) -> Result<Option<String>, PlanErr
     return Ok(full.strip_prefix("refs/heads/").map(str::to_owned));
 }
 
-/// The value of one `branch.<name>.<variable>` setting of the current branch; nothing when there is no branch.
+/// The value of one `branch.<name>.<variable>` setting of the current branch;
+/// nothing when there is no branch.
 fn branch_setting(branch: Option<&str>, all: &[(String, String)], variable: &str) -> Option<String> {
     let name: &str = branch?;
     return setting(all, &format!("branch.{name}.{variable}")).map(str::to_owned);
 }
 
-/// The remote Git pushes to when the caller names none: the branch's push remote, the default push remote, the
-///  branch's remote, then `origin`. Each later source is read only when the earlier ones gave nothing.
+/// The remote Git pushes to when the caller names none:
+/// the branch's push remote,
+/// the default push remote,
+/// the
+///  branch's remote,
+/// then `origin`.
+/// Each later source is read only when the earlier ones gave nothing.
 pub(crate) fn default_remote(branch: Option<&str>, all: &[(String, String)]) -> String {
     if let Some(found) = branch_setting(branch, all, "pushremote") {
         return found;
@@ -199,9 +235,12 @@ pub(crate) fn default_remote(branch: Option<&str>, all: &[(String, String)]) -> 
 }
 
 /// What:
-///  The remote a push goes to: the one the caller named, or the one Git picks for a bare push.
+///  The remote a push goes to:
+/// the one the caller named,
+/// or the one Git picks for a bare push.
 /// Why:
-///   The manual-push probe and the upload plan must agree on the destination, so both read it here.
+///   The manual-push probe and the upload plan must agree on the destination,
+/// so both read it here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

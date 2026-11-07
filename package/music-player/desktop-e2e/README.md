@@ -25,6 +25,17 @@ It looks for `target/release/music-player` in the current directory,
 node package/music-player/desktop-e2e/src/cli.ts --app-dir package/music-player/desktop-app
 ```
 
+The run is headless:
+the compositor renders without any display,
+so nothing appears on the desktop.
+A person who wants to watch passes `--visible` (or sets `E2E_VISIBLE=1`),
+which opens a nested window in the current graphical session:
+
+```sh
+# shell, from the repository root, in a graphical session
+node package/music-player/desktop-e2e/src/cli.ts --app-dir package/music-player/desktop-app --visible
+```
+
 The output has one `PASS`,
  `FAIL` or `SKIP` line per check,
  then a table and a summary such as
@@ -35,43 +46,103 @@ Run it alone:
 
 ## What the suite needs
 
-- A graphical session (`WAYLAND_DISPLAY`) for the nested compositor to open its window in.
+- With `--visible` only,
+  a graphical session (`WAYLAND_DISPLAY`) for the nested compositor to open its window in.
+  A headless run needs no display and a GPU render node (see "Headless by default").
 - PipeWire with `pw-dump` and `pactl`,
    a systemd user session with `systemd-run` and `systemctl`,
    `pgrep`,
    ImageMagick (`magick`),
    and `wl-paste`.
 - The nested compositor `monochromatic-nested-wayland-session`,
-  installed through mise
-   (`"cargo:monochromatic-nested-wayland-session" = "latest"` in the root `mise.toml`),
-   or any executable named by `E2E_COMPOSITOR`.
+  installed through mise (`"cargo:monochromatic-nested-wayland-session" = "latest"` in the root `mise.toml`),
+  or any executable named by `E2E_COMPOSITOR`.
   The run starts the install that mise reports for `mise where cargo:monochromatic-nested-wayland-session`,
-   whatever its version:
+  whatever its version:
   the runner pins no version,
   and the path it uses is absolute,
-   because the mise shim needs a trusted config that the compositor's systemd unit does not have.
+  because the mise shim needs a trusted config that the compositor's systemd unit does not have.
   Before it starts,
-  the run asks the compositor for `--version` and requires 0.4.0 or newer
-   (`FIRST_VERSION_WITH_RUNNER_CONTROLS` in `src/compositor-version.ts`,
+  the run asks the compositor for `--version` and requires 0.6.0 or newer for a headless run (`FIRST_VERSION_WITH_HEADLESS_GPU_CHOICE` in `src/compositor-version.ts`,
+  the first version with `--headless` together with `--gpu` and `--list-gpus`) and 0.4.0 or newer for a visible one (`FIRST_VERSION_WITH_RUNNER_CONTROLS`,
   the first version with the controls below);
-   a newer version,
+  a newer version,
   including a pre-release build,
   is always accepted.
   An older version,
   or output with no version,
-  is refused with a plain message that names
-   `mise upgrade cargo:monochromatic-nested-wayland-session` and `E2E_COMPOSITOR` as the ways out.
+  is refused with a plain message that names `mise upgrade cargo:monochromatic-nested-wayland-session` and `E2E_COMPOSITOR` as the ways out.
   Version 0.4.0 added the key names the checks press (Menu,
   F10 and the other F keys,
-   chords,
+  chords,
   `hold` with the client's key repeat),
   Unicode typing,
   exact odd sizes,
-   focus return after a dialog,
+  focus return after a dialog,
   and the `windows` and `repeat-info` commands.
   One check stays recorded as not injectable:
-   a held Shift with repeats cannot occur,
+  a held Shift with repeats cannot occur,
   because modifier keys never repeat on Wayland.
+
+## Headless by default
+
+Nothing a run starts shows anything on the desktop unless a person asked for it.
+The compositor starts with `--headless --gpu <device>`,
+and the unit that holds it gets none of the variables that name a display of the host (`WAYLAND_DISPLAY`,
+`WAYLAND_SOCKET`,
+`DISPLAY`,
+`XAUTHORITY`):
+they are left out of the unit's environment and listed in `UnsetEnvironment`,
+so even a compositor started without `--headless` finds no parent display and refuses to start instead of opening a window.
+A failed device probe is an error,
+never a fall back to a visible window.
+`src/session-launch.ts` builds the one argument vector every session runs (`sessionLaunchArguments`),
+and its unit tests assert on that vector for the headless and the visible case.
+
+The device is not fixed.
+The run asks the compositor for `--list-gpus` (which opens every render node Mesa offers),
+passes the node that `auto uses:` names to `--gpu`,
+and falls back to the first node Mesa could open.
+The software renderer is never chosen by itself,
+because a start on it was slow to map a window in an earlier measurement;
+a host with no usable render node fails with a message that quotes the compositor,
+everything its listing printed and the ways out (`E2E_GPU` and `--visible`).
+That call also loads the compositor's libraries before the first session waits for them.
+
+## Start-up waits and where a start stops
+
+A session start waits for the control socket and then for the app's first state line.
+Both waits are bounded by `COLD_START_BOUND_MS` in `src/timing.ts`,
+sized from the measured start times recorded beside it:
+a start with the files in the page cache takes about a second,
+and a start after they were evicted took up to 57 s on the development host,
+because the time goes to reading Mesa,
+LLVM and the binaries from a busy disk,
+not to computing (the doc `doc/troubleshooting/music-player-e2e-search-answer-and-headless-start.md` has the numbers).
+When a start does not finish in time,
+the message names how far it got from the unit's log (`startStageOf` in `src/log-scan.ts`):
+the compositor wrote nothing,
+the compositor started but opened no socket,
+the socket is open but the app was not started,
+the app was started but wrote no line,
+or the app logs but wrote no state line.
+
+## Failure evidence
+
+Each failing check writes `<E2E_OUT>/failures/<group>--<name>.failure.txt` with the check's id and title,
+its failure text,
+the name of the session it ran in,
+the last ten `ui_state` changes (`seq`,
+`reason`,
+`zone`,
+`focus`,
+`route` and `unfolded`) without the position ticks of a playing track (their count is stated),
+and the final state.
+The path is printed on the `FAIL` line,
+on the closing `FAILED` line and in `e2e-summary.json`.
+The folder is emptied at the start of each run.
+A session that stops between two checks (a page it expects never came back) is recorded as `session/<name>` with the same evidence,
+and the run goes on with the next session instead of ending without a report.
 
 ## Isolation
 
@@ -104,6 +175,14 @@ Run it alone:
    scratch root;
    default `temp/agent/music-player-e2e` under the home directory,
    created with mode 0700.
+- `E2E_VISIBLE`:
+  exactly `1` opens a nested window on the desktop (the same as `--visible`);
+  unset,
+  empty and every other value keep the run headless.
+- `E2E_GPU`:
+  the render device of a headless run,
+  `software` or a render node path such as `/dev/dri/renderD128`,
+  used instead of the `--list-gpus` probe.
 - `E2E_COMPOSITOR`:
    path of the compositor executable;
    default the active mise install,
@@ -128,11 +207,15 @@ Run it alone:
 ## Layout
 
 - `src/cli.ts` is the command:
-   it reads `--app-dir` and the environment,
-   runs the suite,
-   and fails the command when checks fail.
+  it reads `--app-dir`,
+  `--visible` and the environment,
+  runs the suite,
+  and fails the command when checks fail.
 - `src/compositor-path.ts` finds the installed compositor with `mise where`,
    and `src/compositor-version.ts` refuses one without the controls the checks use.
+- `src/gpu-choice.ts` decides where the compositor draws and,
+  for a headless run,
+  probes the render node.
 - `src/run.ts` checks the preconditions,
    builds the scratch library,
    creates the sink,
@@ -144,9 +227,10 @@ Run it alone:
    `src/ui-state-log.ts` and `src/log-scan.ts` read the app's state from its log.
 - `src/pipewire.ts` holds the null sink and the routing proof.
 - `src/recorder.ts`,
-   `src/report.ts` and `src/selection.ts` record outcomes,
-   print the table and summary,
-   and apply the filter.
+  `src/report.ts` and `src/selection.ts` record outcomes,
+  keep each failure's evidence,
+  print the table and summary,
+  and apply the filter.
 - `src/wide-interaction.ts` and `src/narrow-interaction.ts` hold the click-through checks:
    while Search covers the player,
   a click on its empty area changes nothing under it (wide and narrow window),

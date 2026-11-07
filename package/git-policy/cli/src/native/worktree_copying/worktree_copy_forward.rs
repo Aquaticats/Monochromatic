@@ -1,11 +1,18 @@
 //! What:
 //!  Running a forwarded Git command through the linked-worktree ignored-state copy:
-//!  which invocations the copy applies to, and the child-process run that performs it.
+//!  which invocations the copy applies to,
+//! and the child-process run that performs it.
 //! Why:
-//!  A command that creates a worktree must copy the ignored state once real Git returns, and a command run from a linked
-//!  worktree must first recover a copy a dead process left; replacing the process with Git would drop both duties, so
-//!  these invocations run Git as a child. No lock is held: concurrent commands never wait for one another.
-//!  The main checkout is a source only for the configured rules file, so it takes this path only when the
+//!  A command that creates a worktree must copy the ignored state once real Git returns,
+//! and a command run from a linked
+//!  worktree must first recover a copy a dead process left;
+//! replacing the process with Git would drop both duties,
+//! so
+//!  these invocations run Git as a child.
+//! No lock is held:
+//! concurrent commands never wait for one another.
+//!  The main checkout is a source only for the configured rules file,
+//! so it takes this path only when the
 //!  command creates a worktree and the configuration names that file.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,9 +28,11 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  Everything the copy needs to know about one forwarded invocation, decided before Git starts.
+///  Everything the copy needs to know about one forwarded invocation,
+/// decided before Git starts.
 /// Why:
-///   The plan decides that the copy applies; the run performs it with real Git and the process environment.
+///   The plan decides that the copy applies;
+/// the run performs it with real Git and the process environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,12 +42,17 @@ use std::path::{Path, PathBuf};
 pub struct CopyFacts {
     /// The repository shape the invocation selects.
     pub identity: WorktreeIdentity,
-    /// Whether the command, after alias resolution, creates a worktree.
+    /// Whether the command,
+    /// after alias resolution,
+    /// creates a worktree.
     pub creates: bool,
-    /// The destination the creating command's line names, in the form Git records it; absent for every other command and for
+    /// The destination the creating command's line names,
+    /// in the form Git records it;
+    /// absent for every other command and for
     ///  a form of `git worktree add` whose destination is not read.
     pub destination: Option<PathBuf>,
-    /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves; absent for every other
+    /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves;
+    /// absent for every other
     ///  command and every form the ladder does not know.
     pub add_plan: Option<AddPlan>,
     /// The directory of a `git worktree remove` in the plain form the wrapper may serve with a subvolume destroy;
@@ -49,8 +63,10 @@ pub struct CopyFacts {
 /// What:
 ///  Whether the copy applies to an invocation.
 /// Why:
-///   Linked worktrees and bare repositories always take the lifecycle (recovery, creation);
-///  the main checkout only when it creates a worktree and has paths to hand over, so its other commands
+///   Linked worktrees and bare repositories always take the lifecycle (recovery,
+/// creation);
+///  the main checkout only when it creates a worktree and has paths to hand over,
+/// so its other commands
 ///  keep their plain forwarding and cost no filesystem reads.
 ///
 /// In TS you'd write (pseudocode):
@@ -62,11 +78,15 @@ pub fn copy_applies(identity: &WorktreeIdentity, creates: bool) -> bool {
 }
 
 /// What:
-///  Whether the copy applies to an invocation, when a `git worktree add` or `git worktree remove` that the ladder
+///  Whether the copy applies to an invocation,
+/// when a `git worktree add` or `git worktree remove` that the ladder
 ///  serves may also run in the main checkout.
 /// Why:
-///   The ladder snapshots or clones from the creating worktree, and the main checkout is one; a removal is served from
-///  any checkout. A creating command from the main checkout takes the lifecycle whatever the configuration names.
+///   The ladder snapshots or clones from the creating worktree,
+/// and the main checkout is one;
+/// a removal is served from
+///  any checkout.
+/// A creating command from the main checkout takes the lifecycle whatever the configuration names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,7 +109,8 @@ pub fn copy_applies_with(identity: &WorktreeIdentity, creates: bool, serves_ladd
 /// What:
 ///  How one forwarded run ended.
 /// Why:
-///   Only a run that failed before or after Git needs its own text; otherwise the status is Git's.
+///   Only a run that failed before or after Git needs its own text;
+/// otherwise the status is Git's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,9 +118,13 @@ pub fn copy_applies_with(identity: &WorktreeIdentity, creates: bool, serves_ladd
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ForwardedRun {
-    /// Git ran (and the copy, when one applied, finished); this is the exit status.
+    /// Git ran (and the copy,
+    /// when one applied,
+    /// finished);
+    /// this is the exit status.
     Ran(i32),
-    /// The run could not start or settle; the standard error text and exit status.
+    /// The run could not start or settle;
+    /// the standard error text and exit status.
     Failed {
         /// Text for standard error.
         stderr: String,
@@ -111,8 +136,11 @@ pub enum ForwardedRun {
 /// What:
 ///  The directory the repository queries of the copy run in.
 /// Why:
-///   Every query names absolute paths, so any directory of the repository works; the worktree root exists whenever
-///  the identity has a worktree, and a bare repository's common directory is itself a repository.
+///   Every query names absolute paths,
+/// so any directory of the repository works;
+/// the worktree root exists whenever
+///  the identity has a worktree,
+/// and a bare repository's common directory is itself a repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,7 +160,8 @@ fn query_directory(identity: &WorktreeIdentity) -> PathBuf {
 /// What:
 ///  Runs real Git as a child with the given variables and reports how it ended.
 /// Why:
-///   One start for the plain and the settled runs, so both report an unstartable Git the same way.
+///   One start for the plain and the settled runs,
+/// so both report an unstartable Git the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,10 +185,14 @@ fn run_plain(
 }
 
 /// What:
-///  Runs the forwarded Git command, settling the ignored-state copy around it when one applies.
+///  Runs the forwarded Git command,
+/// settling the ignored-state copy around it when one applies.
 /// Why:
-///   Git's status is the answer unless the copy failed: a copy failure after a successful Git is status 2,
-///  after a failed Git it keeps Git's status, and a failure of the lifecycle itself is status 2, each with its message.
+///   Git's status is the answer unless the copy failed:
+/// a copy failure after a successful Git is status 2,
+///  after a failed Git it keeps Git's status,
+/// and a failure of the lifecycle itself is status 2,
+/// each with its message.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -190,11 +223,16 @@ pub fn run_forwarded_git(
 }
 
 /// What:
-///  Remove the worktree a plain `git worktree remove` names by destroying its subvolume, when every condition holds.
+///  Remove the worktree a plain `git worktree remove` names by destroying its subvolume,
+/// when every condition holds.
 /// Why:
-///   Git's own removal unlinks every file; the destroy is one call. `None` leaves the whole command to Git; a removal
+///   Git's own removal unlinks every file;
+/// the destroy is one call.
+/// `None` leaves the whole command to Git;
+/// a removal
 ///  that destroyed the files but could not remove the registration fails the command with the repair steps and is never
-///  handed to Git, whose removal would find the worktree already gone.
+///  handed to Git,
+/// whose removal would find the worktree already gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,9 +270,11 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
 }
 
 /// What:
-///  The settled run: the lifecycle with real Git as its runner and the process's standard error as its stream.
+///  The settled run:
+/// the lifecycle with real Git as its runner and the process's standard error as its stream.
 /// Why:
-///   Real Git runs as a child so the wrapper can copy the ignored state once it returns; no lock is held around it.
+///   Real Git runs as a child so the wrapper can copy the ignored state once it returns;
+/// no lock is held around it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,9 +294,11 @@ fn run_settled(
     use crate::worktree_copy_error::WorktreeCopyError;
 
     /// What:
-    ///  Decide once whether the checkout gets parallel workers, and say the decision.
+    ///  Decide once whether the checkout gets parallel workers,
+    /// and say the decision.
     /// Why:
-    ///   The first checkout step decides from what the person set, and later steps use that answer.
+    ///   The first checkout step decides from what the person set,
+    /// and later steps use that answer.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -291,9 +333,13 @@ fn run_settled(
     };
     let mut stderr = std::io::stderr();
     /// What:
-    ///  The real Git started as a child for each step of the ladder, with the options the step needs.
+    ///  The real Git started as a child for each step of the ladder,
+    /// with the options the step needs.
     /// Why:
-    ///   The ladder calls it once per Git step; it carries the invocation, the real Git, the overlay and the parallel-checkout
+    ///   The ladder calls it once per Git step;
+    /// it carries the invocation,
+    /// the real Git,
+    /// the overlay and the parallel-checkout
     ///  decision that the first checkout step makes.
     ///
     /// In TS you'd write (pseudocode):
@@ -311,7 +357,9 @@ fn run_settled(
         invocation: &'a Invocation,
         /// The real Git.
         real_git: &'a Path,
-        /// Whether the checkout may get parallel workers, decided at the first checkout step from what the person set, and not again.
+        /// Whether the checkout may get parallel workers,
+        /// decided at the first checkout step from what the person set,
+        /// and not again.
         parallel: Option<bool>,
     }
 

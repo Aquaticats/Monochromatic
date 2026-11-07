@@ -1,13 +1,26 @@
 //! What:
-//!  A closed terminal and the other signals a session sends: `SIGHUP`, `SIGINT`, `SIGTERM` and `SIGQUIT` to the wrapper alone
-//!  while its Git commit waits, and `SIGHUP` to the wrapper's whole process group while the commit sits in the editor.
+//!  A closed terminal and the other signals a session sends:
+//! `SIGHUP`,
+//! `SIGINT`,
+//! `SIGTERM` and `SIGQUIT` to the wrapper alone
+//!  while its Git commit waits,
+//! and `SIGHUP` to the wrapper's whole process group while the commit sits in the editor.
 //! Why:
-//!  The README promises that a closed terminal does not strand the repository. A signal to the wrapper alone must reach the
-//!  Git it waits for through the wrapper's own relay (`signal_relay.rs`), and the wrapper must end with the signal's status.
-//!  The earlier controls signalled `timeout`, which forwards the signal to its whole group, so Git and the editor were
-//!  signalled directly and the relay was never the thing tested; the `SIGQUIT` core dumps of Git on the development host came
-//!  from that shape (Git's cleanup re-raises the quit it got, and the quit's default action dumps core). Here the wrapper
-//!  runs with no `timeout` (`binary_fault_run.rs`), the signal goes to its process ID alone, and the Git it starts is a
+//!  The README promises that a closed terminal does not strand the repository.
+//! A signal to the wrapper alone must reach the
+//!  Git it waits for through the wrapper's own relay (`signal_relay.rs`),
+//! and the wrapper must end with the signal's status.
+//!  The earlier controls signalled `timeout`,
+//! which forwards the signal to its whole group,
+//! so Git and the editor were
+//!  signalled directly and the relay was never the thing tested;
+//! the `SIGQUIT` core dumps of Git on the development host came
+//!  from that shape (Git's cleanup re-raises the quit it got,
+//! and the quit's default action dumps core).
+//! Here the wrapper
+//!  runs with no `timeout` (`binary_fault_run.rs`),
+//! the signal goes to its process ID alone,
+//! and the Git it starts is a
 //!  stand-in script that records which signals reached it and then dies of that signal with core dumps off.
 //!
 //! In TS you'd write (pseudocode):
@@ -25,13 +38,24 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
-/// How long a control waits for a process it expects to be gone: a hang guard, never part of a verdict.
+/// How long a control waits for a process it expects to be gone:
+/// a hang guard,
+/// never part of a verdict.
 const GONE_PATIENCE: Duration = Duration::from_secs(30);
 
-/// A `git` placed after the wrapper on `PATH`, so it is the real Git the wrapper starts. It runs the real Git for every call
-///  except the commit of the preparation (`commit --quiet`), which it turns into a stalled Git: it announces itself, records
-///  its process ID, waits, and on a signal records the signal's name and ends with the status Git gives a child it lost to that
-///  signal (`128 + signal`; a shell cannot die of a quit it has reset, which is why it exits).
+/// A `git` placed after the wrapper on `PATH`,
+/// so it is the real Git the wrapper starts.
+/// It runs the real Git for every call
+///  except the commit of the preparation (`commit --quiet`),
+/// which it turns into a stalled Git:
+/// it announces itself,
+/// records
+///  its process ID,
+/// waits,
+/// and on a signal records the signal's name and ends with the status Git gives a child it lost to that
+///  signal (`128 + signal`;
+/// a shell cannot die of a quit it has reset,
+/// which is why it exits).
 ///  Returns the directory to add to `PATH`.
 fn stand_in_git(fixture: &Fixture, log: &Path, started: &Path, process_id: &Path) -> PathBuf {
     let directory: PathBuf = fixture.root.join("shim");
@@ -67,7 +91,8 @@ exec /usr/bin/git \"$@\"
     return directory;
 }
 
-/// Waits until the process is gone, or fails the control naming it.
+/// Waits until the process is gone,
+/// or fails the control naming it.
 fn assert_gone(pid: i32, what: &str) {
     let began: Instant = Instant::now();
     while is_running(pid) {
@@ -76,8 +101,13 @@ fn assert_gone(pid: i32, what: &str) {
     }
 }
 
-/// Sends `signal` to the wrapper alone while its Git waits, and requires the relay's whole effect: the stand-in Git received that
-///  one signal and ended with it, the wrapper ended with `128 + signal`, nothing runs on, and the repository recovers.
+/// Sends `signal` to the wrapper alone while its Git waits,
+/// and requires the relay's whole effect:
+/// the stand-in Git received that
+///  one signal and ended with it,
+/// the wrapper ended with `128 + signal`,
+/// nothing runs on,
+/// and the repository recovers.
 fn relayed_to_git(name: &str, label: &str, signal: i32) {
     let fixture: Fixture = fixture(label);
     let repo: PathBuf = staged_repository(&fixture, "repo");
@@ -111,32 +141,41 @@ fn relayed_to_git(name: &str, label: &str, signal: i32) {
     remove_settled(&fixture);
 }
 
-/// A hangup sent to the wrapper alone reaches its Git, and the wrapper ends with status 129.
+/// A hangup sent to the wrapper alone reaches its Git,
+/// and the wrapper ends with status 129.
 #[test]
 fn a_hangup_sent_to_the_wrapper_alone_is_relayed_to_git() {
     relayed_to_git("HUP", "relay-hup", libc::SIGHUP);
 }
 
-/// An interrupt sent to the wrapper alone reaches its Git, and the wrapper ends with status 130.
+/// An interrupt sent to the wrapper alone reaches its Git,
+/// and the wrapper ends with status 130.
 #[test]
 fn an_interrupt_sent_to_the_wrapper_alone_is_relayed_to_git() {
     relayed_to_git("INT", "relay-int", libc::SIGINT);
 }
 
-/// A termination signal sent to the wrapper alone reaches its Git, and the wrapper ends with status 143.
+/// A termination signal sent to the wrapper alone reaches its Git,
+/// and the wrapper ends with status 143.
 #[test]
 fn a_termination_sent_to_the_wrapper_alone_is_relayed_to_git() {
     relayed_to_git("TERM", "relay-term", libc::SIGTERM);
 }
 
-/// A quit sent to the wrapper alone reaches its Git, and the wrapper ends with status 131.
+/// A quit sent to the wrapper alone reaches its Git,
+/// and the wrapper ends with status 131.
 #[test]
 fn a_quit_sent_to_the_wrapper_alone_is_relayed_to_git() {
     relayed_to_git("QUIT", "relay-quit", libc::SIGQUIT);
 }
 
-/// A hangup of the whole process group, as a closing terminal sends, while the real Git waits in the editor: the commit ends
-///  with status 129, the editor is gone, and nothing is left behind.
+/// A hangup of the whole process group,
+/// as a closing terminal sends,
+/// while the real Git waits in the editor:
+/// the commit ends
+///  with status 129,
+/// the editor is gone,
+/// and nothing is left behind.
 #[test]
 fn a_hangup_of_the_whole_group_during_the_editor_ends_the_commit_and_leaves_nothing() {
     let fixture: Fixture = fixture("signal-group-hup");
@@ -155,7 +194,9 @@ fn a_hangup_of_the_whole_group_during_the_editor_ends_the_commit_and_leaves_noth
     remove_settled(&fixture);
 }
 
-/// The control that the signal shape is sound: a wrapper whose Git is not signalled ends normally, so a status of `128 + signal`
+/// The control that the signal shape is sound:
+/// a wrapper whose Git is not signalled ends normally,
+/// so a status of `128 + signal`
 ///  above comes from the signal and not from the stand-in.
 #[test]
 fn an_unsignalled_commit_through_the_same_shape_lands() {

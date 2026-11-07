@@ -21,13 +21,19 @@
 //! a track,
 //! a mode or play state.
 
+/// Imports the cell that holds the log sequence number.
 use std::cell::Cell;
 
+/// Imports the focus zone that the line names.
 use music_player::keymap::FocusZone;
+/// Imports the text element type of the sizes that the line reports.
 use music_player::text_size::TextElement;
+/// Imports the component handle that reaches the window's globals.
 use slint::ComponentHandle;
 
+/// Imports the state reader of the screen.
 use crate::ui_screen::read_state;
+/// Imports the window and the generated globals that the line reads.
 use crate::{AppWindow, Focus, FolderLayout, Keys, TrackLayout};
 
 thread_local! {

@@ -1,10 +1,13 @@
 //! What:
-//!  Write one corrected file into the private commit index: its bytes as a blob,
+//!  Write one corrected file into the private commit index:
+//! its bytes as a blob,
 //!       then the index entry that names that blob.
 //! Why:
-//!  Corrections land in the private index, never in the real index or the worktree.
+//!  Corrections land in the private index,
+//! never in the real index or the worktree.
 //!  The incumbent patches the private index with `git apply --cached`;
-//!       here the policy already holds the corrected bytes, so the blob and the entry are written directly.
+//!       here the policy already holds the corrected bytes,
+//! so the blob and the entry are written directly.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +24,8 @@ use std::path::Path;
 /// What:
 ///  The private index and the Git context its writes run in.
 /// Why:
-///   One value keeps the index, object store and repository together at every write.
+///   One value keeps the index,
+/// object store and repository together at every write.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,7 +39,8 @@ pub struct PrivateStage<'a> {
     pub cwd: &'a Path,
     /// Private commit index receiving the entries.
     pub index: &'a Path,
-    /// Object store receiving the blobs; the real store when absent.
+    /// Object store receiving the blobs;
+    /// the real store when absent.
     pub object_directory: Option<&'a Path>,
 }
 
@@ -60,7 +65,8 @@ pub fn git_mode(mode: CandidateMode) -> &'static str {
 /// What:
 ///  Write one correction's bytes into the private index.
 /// Why:
-///   A correction the index cannot take is a failure of the pass, reported with its path.
+///   A correction the index cannot take is a failure of the pass,
+/// reported with its path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,7 +99,8 @@ fn write_blob(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<String, String> 
 /// What:
 ///  Point one index entry at a blob.
 /// Why:
-///   `--add` creates the entry for a path that was not staged, and `--cacheinfo` names the mode and blob directly.
+///   `--add` creates the entry for a path that was not staged,
+/// and `--cacheinfo` names the mode and blob directly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,7 +123,8 @@ fn update_entry(stage: &PrivateStage<'_>, mode: &str, oid: &str, path: &[u8]) ->
 /// What:
 ///  Run one private Git command and turn a failure into its message.
 /// Why:
-///   Every write reports the same way, so a failed write names the command that failed.
+///   Every write reports the same way,
+/// so a failed write names the command that failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

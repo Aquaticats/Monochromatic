@@ -1,8 +1,12 @@
 //! What:
-//!  A file's identity at the moment it was judged: the removal checks that it is still that file.
+//!  A file's identity at the moment it was judged:
+//! the removal checks that it is still that file.
 //! Why:
-//!  A freed inode number may be handed to the next file created at once, so device and inode alone cannot tell the judged
-//!  lock from a new lock a live Git made at the same path; the size, birth time and modification time are compared too.
+//!  A freed inode number may be handed to the next file created at once,
+//! so device and inode alone cannot tell the judged
+//!  lock from a new lock a live Git made at the same path;
+//! the size,
+//! birth time and modification time are compared too.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,22 +17,27 @@ use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::time::SystemTime;
 
-/// A lock's identity at the moment it was judged: the removal checks that it is still this file.
+/// A lock's identity at the moment it was judged:
+/// the removal checks that it is still this file.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Identity {
     /// Device number.
     pub device: u64,
-    /// Inode number; a freed inode may be reused at once, so it is never compared alone.
+    /// Inode number;
+    /// a freed inode may be reused at once,
+    /// so it is never compared alone.
     pub inode: u64,
     /// Size in bytes.
     pub size: u64,
-    /// Birth time in nanoseconds since the epoch, where the file system keeps it.
+    /// Birth time in nanoseconds since the epoch,
+    /// where the file system keeps it.
     pub born_ns: Option<u128>,
     /// Modification time in nanoseconds since the epoch.
     pub modified_ns: i128,
 }
 
-/// The identity of the file at `path`, without following a link.
+/// The identity of the file at `path`,
+/// without following a link.
 pub fn identity_of(path: &Path) -> Option<Identity> {
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
     let born_ns: Option<u128> = match metadata.created() {

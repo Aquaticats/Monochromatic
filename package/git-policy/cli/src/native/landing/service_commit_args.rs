@@ -1,11 +1,25 @@
 //! What:
-//!  Which `git commit` command lines the resident service lands, and the message such a line stands for.
+//!  Which `git commit` command lines the resident service lands,
+//! and the message such a line stands for.
 //! Why:
-//!  The service lands the scoped commit an agent or a person types most (`git commit -m <message> -- <paths>`), with the
-//!  options that only shape the message or the identity: `-F <file>`, `--author`, `--date`, `--trailer`, `--cleanup`,
-//!  `--allow-empty-message`, `-s`, `--amend` and `--reset-author`. Every other option (editor, signing, templates) still
-//!  goes through the transaction until the service covers it, so this module answers "is this line one the service covers" before anything
-//!  is prepared, and builds the message with the clean-up Git applies when no editor opens.
+//!  The service lands the scoped commit an agent or a person types most (`git commit -m <message> -- <paths>`),
+//! with the
+//!  options that only shape the message or the identity:
+//! `-F <file>`,
+//! `--author`,
+//! `--date`,
+//! `--trailer`,
+//! `--cleanup`,
+//!  `--allow-empty-message`,
+//! `-s`,
+//! `--amend` and `--reset-author`.
+//! Every other option (editor,
+//! signing,
+//! templates) still
+//!  goes through the transaction until the service covers it,
+//! so this module answers "is this line one the service covers" before anything
+//!  is prepared,
+//! and builds the message with the clean-up Git applies when no editor opens.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,17 +32,24 @@ use std::ffi::OsString;
 /// What a covered command line asked for.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ServiceCommitArgs {
-    /// The `-m` texts, in order; each is a paragraph.
+    /// The `-m` texts,
+    /// in order;
+    /// each is a paragraph.
     pub messages: Vec<String>,
-    /// The `-F` file, read by the caller relative to the working directory; never standard input.
+    /// The `-F` file,
+    /// read by the caller relative to the working directory;
+    /// never standard input.
     pub file: Option<OsString>,
     /// Whether `--quiet` was given.
     pub quiet: bool,
-    /// The `--author` text, always of the form `Name <email>`.
+    /// The `--author` text,
+    /// always of the form `Name <email>`.
     pub author: Option<String>,
-    /// The `--date` text, left to Git to parse.
+    /// The `--date` text,
+    /// left to Git to parse.
     pub date: Option<String>,
-    /// The `--trailer` texts, in order.
+    /// The `--trailer` texts,
+    /// in order.
     pub trailers: Vec<String>,
     /// Whether `--cleanup=verbatim` keeps the message exactly as given.
     pub verbatim: bool,
@@ -36,24 +57,32 @@ pub struct ServiceCommitArgs {
     pub allow_empty_message: bool,
     /// Whether `-s` asks for a `Signed-off-by` trailer of the committer.
     pub signoff: bool,
-    /// The commit whose message `-C` reuses, with its authorship.
+    /// The commit whose message `-C` reuses,
+    /// with its authorship.
     pub reuse: Option<String>,
-    /// The commit `--fixup` or `--squash` names, and which of the two.
+    /// The commit `--fixup` or `--squash` names,
+    /// and which of the two.
     pub fixup: Option<(FixupKind, String)>,
     /// Whether `--cleanup=strip` also removes comment lines.
     pub strip: bool,
     /// Whether `--no-edit` was given.
     pub no_edit: bool,
-    /// Whether `--amend` replaces the last commit: its parents, its message (without a message option) and its author.
+    /// Whether `--amend` replaces the last commit:
+    /// its parents,
+    /// its message (without a message option) and its author.
     pub amend: bool,
-    /// Whether `--reset-author` makes the committer the author of an amend, with a new author date.
+    /// Whether `--reset-author` makes the committer the author of an amend,
+    /// with a new author date.
     pub reset_author: bool,
 }
 
 /// Which message prefix `--fixup` and `--squash` make.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FixupKind {
-    /// `--fixup=<commit>`: the message is `fixup! <subject>`. (`--squash` always opens an editor, so it is not covered.)
+    /// `--fixup=<commit>`:
+    /// the message is `fixup! <subject>`.
+    /// (`--squash` always opens an editor,
+    /// so it is not covered.)
     Fixup,
 }
 
@@ -66,10 +95,12 @@ const FLAG_WORDS: [&str; 16] = [
     "--amend", "--reset-author", "--include", "--patch", "--interactive", "--pathspec-file-nul",
 ];
 
-/// Long options that take one value, with the field they fill.
+/// Long options that take one value,
+/// with the field they fill.
 const VALUE_WORDS: [&str; 9] = ["--message", "--file", "--author", "--date", "--trailer", "--cleanup", "--reuse-message", "--fixup", "--pathspec-from-file"];
 
-/// The value of a long option given as `--name=value` or `--name value`; `index` moves past a separate value.
+/// The value of a long option given as `--name=value` or `--name value`;
+/// `index` moves past a separate value.
 fn long_value<'a>(token: &'a str, name: &str, arguments: &'a [OsString], index: &mut usize) -> Option<Option<&'a str>> {
     if token == name {
         let value: &str = arguments.get(*index)?.to_str()?;
@@ -84,7 +115,8 @@ fn long_value<'a>(token: &'a str, name: &str, arguments: &'a [OsString], index: 
 /// What:
 ///  Reads the arguments after `commit` and says whether the service covers them.
 /// Why:
-///   Anything not listed here is refused, so a new Git option is never silently dropped.
+///   Anything not listed here is refused,
+/// so a new Git option is never silently dropped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -206,8 +238,11 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
 /// What:
 ///  The commit message Git makes of the given texts when no editor opens.
 /// Why:
-///   Each text is a paragraph; Git strips trailing whitespace from every line, drops leading and trailing blank lines,
-///  squeezes runs of blank lines into one and ends the message with a newline. An empty result is no message.
+///   Each text is a paragraph;
+/// Git strips trailing whitespace from every line,
+/// drops leading and trailing blank lines,
+///  squeezes runs of blank lines into one and ends the message with a newline.
+/// An empty result is no message.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -235,17 +270,22 @@ pub fn cleanup_message(messages: &[String]) -> Option<String> {
     return Some(format!("{}\n", lines.join("\n")));
 }
 
-/// Long options that name where the message comes from, or edit it, or add to it.
+/// Long options that name where the message comes from,
+/// or edit it,
+/// or add to it.
 const MESSAGE_VALUE_LONG: [&str; 5] = ["--message", "--file", "--template", "--trailer", "--cleanup"];
 
 /// Long options without a value that open the editor or add a sign-off.
 const MESSAGE_FLAG_LONG: [&str; 4] = ["--edit", "--no-edit", "--signoff", "--no-signoff"];
 
-/// Long options that take the author, or the parents, or the whole commit from another commit.
+/// Long options that take the author,
+/// or the parents,
+/// or the whole commit from another commit.
 const BORROWING_LONG: [&str; 5] = ["--reedit-message", "--reuse-message", "--squash", "--fixup", "--amend"];
 
 /// What:
-///  An argument as text, with bytes that are not valid text replaced.
+///  An argument as text,
+/// with bytes that are not valid text replaced.
 /// Why:
 ///  The commit options are read as text.
 ///
@@ -260,7 +300,8 @@ fn lossy_text(token: &OsString) -> String {
 /// What:
 ///  Whether a name is the start of one of the known long options.
 /// Why:
-///  Git accepts an unambiguous abbreviation of a long option, so a name that starts a known option is not a safe option to pass on.
+///  Git accepts an unambiguous abbreviation of a long option,
+/// so a name that starts a known option is not a safe option to pass on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -276,13 +317,22 @@ fn abbreviates_a_known_option(known: &[&str], name: &str) -> bool {
 }
 
 /// What:
-///  The arguments of a commit Git built, rewritten so that the message the person already typed is used as it is and no
+///  The arguments of a commit Git built,
+/// rewritten so that the message the person already typed is used as it is and no
 ///  editor opens.
 /// Why:
-///   After the editor has run the message is fixed, so a commit built on a tip that has since moved is built again from
-///  `-F <file>` with the message kept verbatim. A line that takes its author or its parents from another commit (`-c`, `-C`,
-///  `--fixup`, `--squash`, `--amend`) cannot be rebuilt that way, and an abbreviated option that may be one of the dropped
-///  ones is not guessed at: both give nothing, and the caller saves the message and stops.
+///   After the editor has run the message is fixed,
+/// so a commit built on a tip that has since moved is built again from
+///  `-F <file>` with the message kept verbatim.
+/// A line that takes its author or its parents from another commit (`-c`,
+/// `-C`,
+///  `--fixup`,
+/// `--squash`,
+/// `--amend`) cannot be rebuilt that way,
+/// and an abbreviated option that may be one of the dropped
+///  ones is not guessed at:
+/// both give nothing,
+/// and the caller saves the message and stops.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

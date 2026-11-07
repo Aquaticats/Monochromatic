@@ -1,19 +1,35 @@
 //! What:
-//!  The linked-worktree ignored-state copy around one forwarded Git invocation: the public entry point the
-//!  integrator calls, the settlement and summary it writes, and the exit status it returns.
+//!  The linked-worktree ignored-state copy around one forwarded Git invocation:
+//! the public entry point the
+//!  integrator calls,
+//! the settlement and summary it writes,
+//! and the exit status it returns.
 //! Why:
 //!  A worktree that Git creates (or a bare repository's) needs its ignored files from the source worktree.
-//!  No lock stands around the command: the destination comes from the command line, the copy is a transaction of its own
-//!  (a journal and a stage claim that name their owner process), and a copy a dead process left is recovered first by the
-//!  next command. Concurrent adds in one repository never wait for one another (the owner's decision of 2026-11-03).
+//!  No lock stands around the command:
+//! the destination comes from the command line,
+//! the copy is a transaction of its own
+//!  (a journal and a stage claim that name their owner process),
+//! and a copy a dead process left is recovered first by the
+//!  next command.
+//! Concurrent adds in one repository never wait for one another (the owner's decision of 2026-11-03).
 //!
 //! Integrator contract:
-//!  The caller decides the bypass facts (`--no-worktree-copy`, short-circuit global help or version, whether the
-//!  command creates a worktree after alias resolution, and the destination its command line names) with the native
-//!  modules that already own them, passes the repository identity and the effective working directory, and supplies the
-//!  runner that starts real Git. This module never runs the commit refusal; it is not wired yet.
-//!  A main-checkout source is observed only when the command creates a worktree; it then hands over its ignored
-//!  state under the main checkout's leave-out rule (`worktree_copy_prune.rs`), with its registered worktrees excluded.
+//!  The caller decides the bypass facts (`--no-worktree-copy`,
+//! short-circuit global help or version,
+//! whether the
+//!  command creates a worktree after alias resolution,
+//! and the destination its command line names) with the native
+//!  modules that already own them,
+//! passes the repository identity and the effective working directory,
+//! and supplies the
+//!  runner that starts real Git.
+//! This module never runs the commit refusal;
+//! it is not wired yet.
+//!  A main-checkout source is observed only when the command creates a worktree;
+//! it then hands over its ignored
+//!  state under the main checkout's leave-out rule (`worktree_copy_prune.rs`),
+//! with its registered worktrees excluded.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,7 +57,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  How a real Git run ended.
 /// Why:
-///   Its numeric status is the exit status the wrapper keeps; a signal has none.
+///   Its numeric status is the exit status the wrapper keeps;
+/// a signal has none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -49,7 +66,8 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GitStatus {
-    /// The exit code, absent when Git ended by a signal.
+    /// The exit code,
+    /// absent when Git ended by a signal.
     pub code: Option<i32>,
 }
 
@@ -77,8 +95,11 @@ pub struct Invocation {
     pub effective_cwd: PathBuf,
     /// Whether the command creates a worktree after alias resolution.
     pub creates: bool,
-    /// The destination the creating command's line names, in the form Git records it; absent when the line has a form that is
-    ///  not read, in which case no copy is made and the command says so.
+    /// The destination the creating command's line names,
+    /// in the form Git records it;
+    /// absent when the line has a form that is
+    ///  not read,
+    /// in which case no copy is made and the command says so.
     pub destination: Option<PathBuf>,
     /// Whether `--no-worktree-copy` appeared in flag position.
     pub opted_out: bool,
@@ -86,18 +107,24 @@ pub struct Invocation {
     pub short_circuit: bool,
     /// The real Git executable and the variables every Git child receives.
     pub context: GitContext,
-    /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves, when it is one.
+    /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves,
+    /// when it is one.
     pub add_plan: Option<AddPlan>,
-    /// The person's `--quiet` and `--no-checkout`, read from the arguments, which decide what the package-manager repair of
+    /// The person's `--quiet` and `--no-checkout`,
+    /// read from the arguments,
+    /// which decide what the package-manager repair of
     ///  a new worktree may print and whether it runs.
     #[cfg(target_os = "linux")]
     pub repair: RepairSwitch,
 }
 
 /// What:
-///  The result of one settled invocation: Git's status and the copy failure, if any.
+///  The result of one settled invocation:
+/// Git's status and the copy failure,
+/// if any.
 /// Why:
-///   Both facts decide the exit status, so they travel together.
+///   Both facts decide the exit status,
+/// so they travel together.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,15 +134,18 @@ pub struct Invocation {
 pub struct Settlement {
     /// How real Git ended.
     pub git: GitStatus,
-    /// The ignored-state copy failure, when copying failed.
+    /// The ignored-state copy failure,
+    /// when copying failed.
     pub copy_failure: Option<WorktreeCopyError>,
 }
 
 /// What:
 ///  Which Git run the settlement asks its runner to start.
 /// Why:
-///   The person's command is one run; the cheap-worktree ladder adds `--no-checkout` to it and starts the commands that
-///  complete the worktree itself, each with the caller's streams.
+///   The person's command is one run;
+/// the cheap-worktree ladder adds `--no-checkout` to it and starts the commands that
+///  complete the worktree itself,
+/// each with the caller's streams.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,13 +153,15 @@ pub struct Settlement {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GitStep<'a> {
-    /// The person's arguments, unchanged.
+    /// The person's arguments,
+    /// unchanged.
     Person,
     /// The person's arguments with `--no-checkout` inserted at this index.
     WithoutCheckout(usize),
     /// Another Git command with these arguments and these variables added.
     Other {
-        /// The arguments, global options and subcommand included.
+        /// The arguments,
+        /// global options and subcommand included.
         arguments: &'a [std::ffi::OsString],
         /// The variables added to the run's environment.
         environment: &'a [(std::ffi::OsString, std::ffi::OsString)],
@@ -138,9 +170,14 @@ pub enum GitStep<'a> {
 
 /// What:
 ///  Runs one real Git step.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The ladder calls it once per Git step; the state a step needs (the invocation, the real Git, the overlay, the parallel-checkout
+///   The ladder calls it once per Git step;
+/// the state a step needs (the invocation,
+/// the real Git,
+/// the overlay,
+/// the parallel-checkout
 ///  decision) is a small struct that implements this.
 ///
 /// In TS you'd write (pseudocode):
@@ -155,7 +192,9 @@ pub trait GitRunner {
 /// What:
 ///  The one summary line a successful copy writes.
 /// Why:
-///   Users and agents read the count, the source, and the destination count from it.
+///   Users and agents read the count,
+/// the source,
+/// and the destination count from it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -180,7 +219,9 @@ pub fn summary_line(copied: usize, destinations: usize, source: Option<&Path>) -
 /// What:
 ///  The exit status of a settled invocation.
 /// Why:
-///   A copy-only failure is 2; Git's own status is kept when Git failed; a signal without a status is 1.
+///   A copy-only failure is 2;
+/// Git's own status is kept when Git failed;
+/// a signal without a status is 1.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -201,9 +242,11 @@ pub fn exit_code(settlement: &Settlement) -> i32 {
 }
 
 /// What:
-///  Runs one forwarded invocation with no synchronization, and settles its status.
+///  Runs one forwarded invocation with no synchronization,
+/// and settles its status.
 /// Why:
-///   Every bypass forwards exactly the same way, so the runner is called once.
+///   Every bypass forwards exactly the same way,
+/// so the runner is called once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -223,8 +266,10 @@ const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this `gi
 /// What:
 ///  The line for a destination Git made whose registration could not be confirmed.
 /// Why:
-///   A worktree that gets no copy must say so; here the pointer in its `.git` file and the registration it names do not
-///  name each other, so monochromatic-git-policy-cli cannot tell the worktree is the command's own and copies nothing.
+///   A worktree that gets no copy must say so;
+/// here the pointer in its `.git` file and the registration it names do not
+///  name each other,
+/// so monochromatic-git-policy-cli cannot tell the worktree is the command's own and copies nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -238,11 +283,16 @@ fn unconfirmed_destination_notice(destination: &Path) -> String {
 }
 
 /// What:
-///  Synchronizes the worktree this command registered at its destination and writes the summary line for it; the root of
-///  the created worktree, a snapshot's included, comes back for the package-manager repair.
+///  Synchronizes the worktree this command registered at its destination and writes the summary line for it;
+/// the root of
+///  the created worktree,
+/// a snapshot's included,
+/// comes back for the package-manager repair.
 /// Why:
-///   The destination is the one the command line named, so a worktree another add registered at the same time is never
-///  copied into here; a failure stops the copy with no summary written.
+///   The destination is the one the command line named,
+/// so a worktree another add registered at the same time is never
+///  copied into here;
+/// a failure stops the copy with no summary written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -325,30 +375,46 @@ fn synchronize_after(
 }
 
 /// What:
-///  What is left to do once the ignored state is in place: the source the ignored files came from and the worktrees the
+///  What is left to do once the ignored state is in place:
+/// the source the ignored files came from and the worktrees the
 ///  command created.
 /// Why:
-///   The package-manager repairs touch only the new worktrees and read the source, so no other add has to wait for them; they
-///  run last, with the facts the copy found.
+///   The package-manager repairs touch only the new worktrees and read the source,
+/// so no other add has to wait for them;
+/// they
+///  run last,
+/// with the facts the copy found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type AfterLock = { sourceRoot?: string; created: string[] };
 /// ```
 struct AfterLock {
-    /// The checkout the ignored files came from; none for a bare repository, which copies nothing.
+    /// The checkout the ignored files came from;
+    /// none for a bare repository,
+    /// which copies nothing.
     source_root: Option<PathBuf>,
-    /// The roots of every worktree the command created, a snapshot's included; empty after a failed copy.
+    /// The roots of every worktree the command created,
+    /// a snapshot's included;
+    /// empty after a failed copy.
     created: Vec<PathBuf>,
 }
 
 /// What:
-///  Repair the package-manager state of every worktree the command created, once its ignored state is in place.
+///  Repair the package-manager state of every worktree the command created,
+/// once its ignored state is in place.
 /// Why:
-///   A copy or a snapshot keeps links and build state exactly as the source had them; each tool's own offline repair makes
-///  them work at the new location (`package_repair.rs`). It never fails the add: a repair that cannot finish says so in one
-///  line that names the command to run. A bare repository has no source worktree, so nothing was copied and nothing is repaired.
-///  It runs on the worktree the registration binding confirmed, and no lock stands around it, so a slow tool never holds
+///   A copy or a snapshot keeps links and build state exactly as the source had them;
+/// each tool's own offline repair makes
+///  them work at the new location (`package_repair.rs`).
+/// It never fails the add:
+/// a repair that cannot finish says so in one
+///  line that names the command to run.
+/// A bare repository has no source worktree,
+/// so nothing was copied and nothing is repaired.
+///  It runs on the worktree the registration binding confirmed,
+/// and no lock stands around it,
+/// so a slow tool never holds
 ///  another add.
 ///
 /// In TS you'd write (pseudocode):
@@ -366,9 +432,14 @@ fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn W
 }
 
 /// What:
-///  Runs one creating command: whether its destination was registered already, the ladder and real Git, and the copy.
+///  Runs one creating command:
+/// whether its destination was registered already,
+/// the ladder and real Git,
+/// and the copy.
 /// Why:
-///   Nothing here waits for another command: the destination, the stage claim and the journal belong to this command alone,
+///   Nothing here waits for another command:
+/// the destination,
+/// the stage claim and the journal belong to this command alone,
 ///  so any number of adds run side by side in one repository.
 ///
 /// In TS you'd write (pseudocode):
@@ -422,7 +493,9 @@ fn settle_creation(
 }
 
 /// What:
-///  Settles one forwarded invocation: bypasses forward untouched; every other command first recovers what dead owners left,
+///  Settles one forwarded invocation:
+/// bypasses forward untouched;
+/// every other command first recovers what dead owners left,
 ///  and a creating command then copies the ignored state into the worktree it created.
 /// Why:
 ///   The integrator calls this once per forwarded command and turns the settlement into the exit status with [`exit_code`].
@@ -440,9 +513,11 @@ pub fn run_with_worktree_copy(
 }
 
 /// What:
-///  The settlement of one invocation, before the lifecycle words its raw failures.
+///  The settlement of one invocation,
+/// before the lifecycle words its raw failures.
 /// Why:
-///   Only the top of the lifecycle words raw failures, as the incumbent's `asWorktreeCopyError` does.
+///   Only the top of the lifecycle words raw failures,
+/// as the incumbent's `asWorktreeCopyError` does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -477,10 +552,16 @@ fn settle_invocation(
 }
 
 /// What:
-///  The part of a forwarded command's settlement that follows the observation of its source: recovery, then, for a creating
-///  command, the ladder, the copy of the ignored state and the repairs.
+///  The part of a forwarded command's settlement that follows the observation of its source:
+/// recovery,
+/// then,
+/// for a creating
+///  command,
+/// the ladder,
+/// the copy of the ignored state and the repairs.
 /// Why:
-///   The caller records the steps of a creating command around this whole part, whichever way it ends.
+///   The caller records the steps of a creating command around this whole part,
+/// whichever way it ends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

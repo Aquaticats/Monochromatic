@@ -1,16 +1,30 @@
 //! What:
-//!  Fold the names an earlier release kept in a Git directory into the current names when both exist: logs by adding the earlier
-//!  log's bytes to the current log, folders by moving the earlier folder's entries into the current folder. It runs only when no
-//!  earlier program that writes them is running, says so once when it waits, and says once when it cannot finish.
+//!  Fold the names an earlier release kept in a Git directory into the current names when both exist:
+//! logs by adding the earlier
+//!  log's bytes to the current log,
+//! folders by moving the earlier folder's entries into the current folder.
+//! It runs only when no
+//!  earlier program that writes them is running,
+//! says so once when it waits,
+//! and says once when it cannot finish.
 //! Why:
 //!  Both names exist in a repository where development builds of the renamed wrapper and the installed earlier release ran side
-//!  by side, and every command used to print one line per pair. The owner's rules are that a person need not merge folders by
-//!  hand and that no user data is discarded; the fold makes the current name hold everything and leaves no earlier name.
-//!  The checks that make it safe sit here: the look at the earlier commit service of the Git directory's worktree (processes
-//!  only, because a socket whose unit stays active for good writes nothing), then the fold of each name, which loses nothing on
+//!  by side,
+//! and every command used to print one line per pair.
+//! The owner's rules are that a person need not merge folders by
+//!  hand and that no user data is discarded;
+//! the fold makes the current name hold everything and leaves no earlier name.
+//!  The checks that make it safe sit here:
+//! the look at the earlier commit service of the Git directory's worktree (processes
+//!  only,
+//! because a socket whose unit stays active for good writes nothing),
+//! then the fold of each name,
+//! which loses nothing on
 //!  a kill at any instruction (`earlier_log_lines_added_to_current_log.rs`,
-//!  `earlier_folder_entries_moved_into_current_folder.rs`). It runs on the command's own path because a forwarded command
-//!  replaces the process and a thread would die with it; the cost when no name exists twice is a few `stat` calls per name.
+//!  `earlier_folder_entries_moved_into_current_folder.rs`).
+//! It runs on the command's own path because a forwarded command
+//!  replaces the process and a thread would die with it;
+//! the cost when no name exists twice is a few `stat` calls per name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,24 +34,28 @@
 use crate::earlier_folder_entries_moved_into_current_folder::{FolderFold, fold_folder};
 use crate::earlier_log_lines_added_to_current_log::{FoldSteps, LogFold, NeverStopped, fold_log, numbered_copies};
 use crate::earlier_service_journal_adopted::earlier_journals_in_state;
-use crate::earlier_service_process_look::{Hold, ServiceLook, earlier_service_process_hold, effective_user};
+use crate::earlier_service_process_look::{Hold, Holding, ServiceLook, earlier_service_process_hold, effective_user};
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::service_instance::instance_of;
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 use crate::wrapper_names_old_and_new::{KEPT_BESIDE_SUFFIX, MESSAGE_PREFIX, RenamedName};
+use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// What kind of thing a kept name is, which decides how it folds.
+/// What kind of thing a kept name is,
+/// which decides how it folds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum KeptKind {
-    /// A log of lines; `rotates` when it keeps numbered older copies.
+    /// A log of lines;
+    /// `rotates` when it keeps numbered older copies.
     Log {
         /// Whether the log moves aside into `<name>.<number>` at its size limit.
         rotates: bool,
     },
-    /// A folder of saved copies, records or notices.
+    /// A folder of saved copies,
+    /// records or notices.
     Folder,
 }
 
@@ -53,19 +71,36 @@ pub struct KeptName {
 /// What the look at the earlier program needs from the process around it.
 #[derive(Clone, Debug)]
 pub struct FoldSurroundings {
-    /// The user's state folder, where the earlier commit service kept its journals.
+    /// The user's state folder,
+    /// where the earlier commit service kept its journals.
     pub state_dir: Option<PathBuf>,
     /// The process table to look at.
     pub proc_root: PathBuf,
 }
 
+/// The path an environment variable holds,
+/// or nothing when it is unset or empty.
+fn non_empty_environment_path(name: &str) -> Option<PathBuf> {
+    let value: OsString = std::env::var_os(name)?;
+    if value.is_empty() {
+        return None;
+    }
+    return Some(PathBuf::from(value));
+}
+
+/// The state folder under the home folder,
+/// or nothing when no home is set.
+fn home_state_dir() -> Option<PathBuf> {
+    let home: PathBuf = non_empty_environment_path("HOME")?;
+    return Some(home.join(".local").join("state"));
+}
+
 impl FoldSurroundings {
-    /// The surroundings of this process: its environment and the live process table.
+    /// The surroundings of this process:
+    /// its environment and the live process table.
     pub fn of_this_process() -> Self {
-        let named: Option<PathBuf> = std::env::var_os("XDG_STATE_HOME").filter(|value| return !value.is_empty()).map(PathBuf::from);
-        let state_dir: Option<PathBuf> = named.or_else(|| {
-            return std::env::var_os("HOME").filter(|value| return !value.is_empty()).map(|home| return PathBuf::from(home).join(".local").join("state"));
-        });
+        let named: Option<PathBuf> = non_empty_environment_path("XDG_STATE_HOME");
+        let state_dir: Option<PathBuf> = named.or_else(home_state_dir);
         return FoldSurroundings { state_dir, proc_root: PathBuf::from("/proc") };
     }
 }
@@ -77,14 +112,19 @@ pub enum Outcome {
     Nothing,
     /// The earlier name is gone and its content is under the current name.
     Folded,
-    /// A program still has the moved log open for writing: every byte it held so far is in the current log, nothing is said,
+    /// A program still has the moved log open for writing:
+    /// every byte it held so far is in the current log,
+    /// nothing is said,
     ///  and a later command adds what the program writes next and removes the moved log once the program has closed it.
     LeftForALaterCommand,
     /// Another process is folding it.
     Busy,
-    /// Entries of the earlier folder stayed where they were; each is listed.
+    /// Entries of the earlier folder stayed where they were;
+    /// each is listed.
     Left(Vec<PathBuf>),
-    /// The file system refused; the message names the cause. Everything is still in place.
+    /// The file system refused;
+    /// the message names the cause.
+    /// Everything is still in place.
     Failed(String),
     /// A control stopped the fold.
     Stopped(&'static str),
@@ -93,18 +133,22 @@ pub enum Outcome {
 /// What happened in one Git directory.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FoldReport {
-    /// Why nothing was folded, when an earlier program may be writing.
+    /// Why nothing was folded,
+    /// when an earlier program may be writing.
     pub held: Option<Hold>,
     /// The outcome of each name that existed twice.
     pub outcomes: Vec<(RenamedName, Outcome)>,
 }
 
-/// Whether anything exists at a path, a final symbolic link counting as present.
+/// Whether anything exists at a path,
+/// a final symbolic link counting as present.
 fn present(path: &Path) -> bool {
     return std::fs::symlink_metadata(path).is_ok();
 }
 
-/// Whether a kept name needs folding: both names exist, or a fold of a log was interrupted and left its moved log or journal.
+/// Whether a kept name needs folding:
+/// both names exist,
+/// or a fold of a log was interrupted and left its moved log or journal.
 fn needs_fold(directory: &Path, kept: KeptName) -> bool {
     let earlier: bool = present(directory.join(kept.name.earlier).as_path());
     let current: bool = present(directory.join(kept.name.current).as_path());
@@ -119,11 +163,16 @@ fn needs_fold(directory: &Path, kept: KeptName) -> bool {
 }
 
 /// What:
-///  Keep the numbered older copies of an earlier rotating log beside the current ones: each `<earlier>.<number>` goes to
-///  `<current>.<number>`, or beside it with the suffix when that name is taken.
+///  Keep the numbered older copies of an earlier rotating log beside the current ones:
+/// each `<earlier>.<number>` goes to
+///  `<current>.<number>`,
+/// or beside it with the suffix when that name is taken.
 /// Why:
-///   The audit log's older copies name saved files still on disk, so none is left under a name nothing reads and none replaces
-///  another. Each is one rename that never replaces; a copy whose both target names are taken stays where it is.
+///   The audit log's older copies name saved files still on disk,
+/// so none is left under a name nothing reads and none replaces
+///  another.
+/// Each is one rename that never replaces;
+/// a copy whose both target names are taken stays where it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -131,9 +180,10 @@ fn needs_fold(directory: &Path, kept: KeptName) -> bool {
 /// ```
 fn keep_numbered_copies(directory: &Path, name: RenamedName) -> std::io::Result<()> {
     for copy in numbered_copies(directory, name.earlier) {
-        let Some(file_name) = copy.file_name().map(|found| return found.to_string_lossy().into_owned()) else {
+        let Some(found) = copy.file_name() else {
             continue;
         };
+        let file_name: String = found.to_string_lossy().into_owned();
         let Some(number) = file_name.strip_prefix(format!("{}.", name.earlier).as_str()) else {
             continue;
         };
@@ -181,7 +231,14 @@ fn fold_one(directory: &Path, kept: KeptName, steps: &mut dyn FoldSteps) -> Outc
     }
 }
 
-/// The look at the earlier commit service of the worktree whose Git directory this is, processes only.
+/// The reason a look held a fold back,
+/// without the program behind it.
+fn reason_of(holding: Holding) -> Hold {
+    return holding.because;
+}
+
+/// The look at the earlier commit service of the worktree whose Git directory this is,
+/// processes only.
 fn earlier_program_hold(directory: &Path, surroundings: &FoldSurroundings) -> Option<Hold> {
     let instance: String = instance_of(directory);
     let journals: Vec<PathBuf> = match surroundings.state_dir.as_deref() {
@@ -192,21 +249,29 @@ fn earlier_program_hold(directory: &Path, surroundings: &FoldSurroundings) -> Op
         None => Vec::new(),
     };
     let look: ServiceLook = ServiceLook { instance, journals, own_pid: std::process::id(), own_user: effective_user(), ceiling: PROCESS_LOOK_CEILING };
-    return earlier_service_process_hold(look, surroundings.proc_root.as_path()).map(|holding| { return holding.because; });
+    return earlier_service_process_hold(look, surroundings.proc_root.as_path()).map(reason_of);
 }
 
 /// What:
-///  Fold every kept name of `names` that exists twice in `directory`, unless an earlier program may be writing.
+///  Fold every kept name of `names` that exists twice in `directory`,
+/// unless an earlier program may be writing.
 /// Why:
-///   The look runs only when something exists twice, so a repository with nothing to fold pays only the `stat` calls.
-///   `steps` lets a control stop the fold at a step, as a kill would.
+///   The look runs only when something exists twice,
+/// so a repository with nothing to fold pays only the `stat` calls.
+///   `steps` lets a control stop the fold at a step,
+/// as a kill would.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function foldKeptNames(directory: string, names: KeptName[], surroundings: FoldSurroundings, steps: FoldSteps): FoldReport;
 /// ```
 pub fn fold_kept_names(directory: &Path, names: &[KeptName], surroundings: &FoldSurroundings, steps: &mut dyn FoldSteps) -> FoldReport {
-    let wanted: Vec<KeptName> = names.iter().copied().filter(|kept| return needs_fold(directory, *kept)).collect();
+    let mut wanted: Vec<KeptName> = Vec::new();
+    for kept in names.iter().copied() {
+        if needs_fold(directory, kept) {
+            wanted.push(kept);
+        }
+    }
     if wanted.is_empty() {
         return FoldReport { held: None, outcomes: Vec::new() };
     }
@@ -231,7 +296,8 @@ static WAIT_SAID: AtomicBool = AtomicBool::new(false);
 /// Whether this process has already said that a fold could not finish.
 static FAILURE_SAID: AtomicBool = AtomicBool::new(false);
 
-/// The line that says a fold waits, with what to do in plain words.
+/// The line that says a fold waits,
+/// with what to do in plain words.
 fn waiting_line(directory: &Path, hold: Hold) -> String {
     let instance: String = instance_of(directory);
     let stop: String = match hold {
@@ -268,10 +334,13 @@ fn failure_line(directory: &Path, name: RenamedName, outcome: &Outcome) -> Optio
 }
 
 /// What:
-///  `fold_kept_names`, with the one line to standard error: once per process when the fold waits for an earlier program,
+///  `fold_kept_names`,
+/// with the one line to standard error:
+/// once per process when the fold waits for an earlier program,
 ///  and once per process when a name could not be folded.
 /// Why:
-///   The fold never stops a command; the lines are the only report of a fold that did not happen.
+///   The fold never stops a command;
+/// the lines are the only report of a fold that did not happen.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

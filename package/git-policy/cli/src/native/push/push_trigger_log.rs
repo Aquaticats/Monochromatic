@@ -56,19 +56,23 @@ impl Outcome {
     }
 }
 
-/// The worktree a decision was made in; the file is shared by every worktree of the repository, so a line must say which.
+/// The worktree a decision was made in;
+/// the file is shared by every worktree of the repository,
+/// so a line must say which.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Origin<'place> {
     /// The worktree's top level.
     pub worktree: &'place Path,
-    /// The worktree's own Git directory, which names its service instance.
+    /// The worktree's own Git directory,
+    /// which names its service instance.
     pub git_dir: &'place Path,
 }
 
 /// Everything one line states.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Decision<'record> {
-    /// The common Git directory that holds the file; nothing is written without it.
+    /// The common Git directory that holds the file;
+    /// nothing is written without it.
     pub common_dir: Option<&'record Path>,
     /// The worktree the command ran in.
     pub origin: Option<Origin<'record>>,
@@ -76,16 +80,22 @@ pub struct Decision<'record> {
     pub command: &'record str,
     /// How the trigger ended.
     pub outcome: Outcome,
-    /// The step, in a stable word.
+    /// The step,
+    /// in a stable word.
     pub reason: &'record str,
-    /// What the step read, as text.
+    /// What the step read,
+    /// as text.
     pub detail: &'record str,
-    /// The branch the command was on, when it was known.
+    /// The branch the command was on,
+    /// when it was known.
     pub branch: Option<&'record str>,
 }
 
-/// The reasons that mean the wrapper could not decide or could not hand the push over, so a reader scanning the file
-/// finds them; every other reason is a decision working as intended (a branch that did not grow, a detached `HEAD`).
+/// The reasons that mean the wrapper could not decide or could not hand the push over,
+/// so a reader scanning the file
+/// finds them;
+/// every other reason is a decision working as intended (a branch that did not grow,
+/// a detached `HEAD`).
 const WARN_REASONS: [&str; 9] = [
     "layout-declined",
     "head-unreadable",
@@ -98,7 +108,9 @@ const WARN_REASONS: [&str; 9] = [
     "handover-failed",
 ];
 
-/// The level a line states: `warn` for a decision the wrapper could not make or a hand-over that failed, else `info`.
+/// The level a line states:
+/// `warn` for a decision the wrapper could not make or a hand-over that failed,
+/// else `info`.
 pub fn level_of(outcome: Outcome, reason: &str) -> &'static str {
     if outcome == Outcome::Declined && WARN_REASONS.contains(&reason) {
         return "warn";
@@ -109,9 +121,17 @@ pub fn level_of(outcome: Outcome, reason: &str) -> &'static str {
 /// What:
 ///  The line for one decision.
 /// Why:
-///   The fields say which worktree (`worktree`, `gitDir`, `instance`), which command, which release, which branch and the
-///  one reason with what it read, so a missing push is diagnosed from the file alone; the userinfo of a URL in the
-///  detail is masked, because a failure the service reports can name a remote.
+///   The fields say which worktree (`worktree`,
+/// `gitDir`,
+/// `instance`),
+/// which command,
+/// which release,
+/// which branch and the
+///  one reason with what it read,
+/// so a missing push is diagnosed from the file alone;
+/// the userinfo of a URL in the
+///  detail is masked,
+/// because a failure the service reports can name a remote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,7 +184,8 @@ pub fn record_decision(decision: &Decision<'_>) {
     }
 }
 
-/// Who the record names, its level and its masking.
+/// Who the record names,
+/// its level and its masking.
 #[cfg(test)]
 #[path = "push_trigger_log_tests.rs"]
 mod tests;

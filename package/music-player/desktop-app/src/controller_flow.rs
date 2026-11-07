@@ -22,11 +22,17 @@
 //! class Controller { startPlaying() {} togglePlaying() {} stopAtScopeEnd() {} reportUnplayable(paths) {} }
 //! ```
 
+/// Imports the path type that names a file the player could not play.
 use std::path::PathBuf;
 
+/// Imports the update that the controller sends to the window.
 use crate::command::Update;
+/// Imports the controller whose playback flow this module extends.
 use crate::controller::Controller;
 
+/// Methods of `Controller` for the playback flow around the edges:
+/// starting from nothing,
+/// stopping at the end of a folder and reporting unplayable files.
 impl Controller {
     /// What:
     ///      `pub(crate) fn start_playing(&mut self)`.
@@ -257,6 +263,13 @@ impl Controller {
     }
 }
 
+/// Unit tests of `controller_flow`,
+/// in the sidecar file `controller_flow_tests.rs`.
+/// Role of the module:
+/// controller side of the playback flow around the edges:
+/// starting from nothing,
+/// stopping at the end of a folder,
+/// and reporting files that could not be played.
 #[cfg(test)]
 #[path = "controller_flow_tests.rs"]
 mod tests;

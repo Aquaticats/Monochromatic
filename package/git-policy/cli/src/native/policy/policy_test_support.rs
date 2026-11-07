@@ -44,7 +44,8 @@ pub(crate) struct ScriptedFacts {
     pub(crate) index: Result<IndexVsHead, String>,
     /// The answer to `sequencer_state`.
     pub(crate) sequencer: Result<SequencerState, String>,
-    /// The answer to `worktree_dirty`, whatever the scope.
+    /// The answer to `worktree_dirty`,
+    /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
     pub(crate) remote_guess: Result<bool, String>,

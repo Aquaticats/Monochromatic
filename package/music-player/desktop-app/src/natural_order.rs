@@ -21,6 +21,7 @@
 //! names.sort(new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }).compare);
 //! ```
 
+/// Imports the ordering type that the comparison returns.
 use std::cmp::Ordering;
 
 /// What:
@@ -118,6 +119,11 @@ pub fn natural_cmp(left: &str, right: &str) -> Ordering {
     }
 }
 
+/// Unit tests of `natural_order`,
+/// in the sidecar file `natural_order_tests.rs`.
+/// Role of the module:
+/// natural order for file and folder names:
+/// `Track 2` comes before `Track 10`.
 #[cfg(test)]
 #[path = "natural_order_tests.rs"]
 mod tests;

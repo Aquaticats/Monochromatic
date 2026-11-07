@@ -112,7 +112,10 @@ pub fn program_to_run(real: &Path) -> PathBuf {
     let Some(name) = real.file_name() else {
         return real.to_path_buf();
     };
-    return find_bin_under(link, &name.to_string_lossy()).unwrap_or_else(|| return real.to_path_buf());
+    return match find_bin_under(link, &name.to_string_lossy()) {
+        Some(found) => found,
+        None => real.to_path_buf(),
+    };
 }
 
 /// What a launcher knows when it found no program to start.
@@ -149,7 +152,10 @@ pub struct MissingProgram<'facts> {
 /// ```
 pub fn missing_program_advice(facts: MissingProgram<'_>) -> String {
     let name: String = file_name_text(facts.real);
-    let locked_pin: Option<String> = facts.lock_text.and_then(|text| return locked_version(text, facts.tool_id));
+    let locked_pin: Option<String> = match facts.lock_text {
+        Some(text) => locked_version(text, facts.tool_id),
+        None => None,
+    };
     let current_version: Option<String> = version_that_runs(facts.real);
     let where_locked: &str = match facts.scope {
         ScopeKind::Repo => "this tree",

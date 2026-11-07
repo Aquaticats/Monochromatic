@@ -1,11 +1,20 @@
 //! What:
-//!  The wrapper's own fetch and push, run after the reference locks of a killed Git in their repository have been judged
+//!  The wrapper's own fetch and push,
+//! run after the reference locks of a killed Git in their repository have been judged
 //!  and the provably stale ones removed.
 //! Why:
-//!  The commit service pushes unattended, and the reconcile fetch runs inside it, so a lock that a killed Git left blocks
-//!  them with nobody there to clear it. Clearing before every start also covers every repetition of a push (each repetition
-//!  starts through here), and nothing is waited for. A failed attempt carries the notice, so the person who reads the
-//!  failure (or the refusal Git prints and still exits 0 on) finds what was removed, what was left, and the command that clears a lock the wrapper will not remove.
+//!  The commit service pushes unattended,
+//! and the reconcile fetch runs inside it,
+//! so a lock that a killed Git left blocks
+//!  them with nobody there to clear it.
+//! Clearing before every start also covers every repetition of a push (each repetition
+//!  starts through here),
+//! and nothing is waited for.
+//! A failed attempt carries the notice,
+//! so the person who reads the
+//!  failure (or the refusal Git prints and still exits 0 on) finds what was removed,
+//! what was left,
+//! and the command that clears a lock the wrapper will not remove.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,10 +37,12 @@ use std::time::Duration;
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
-/// What Git prints when another process holds the lock of a reference it updates, also from a push that exits 0.
+/// What Git prints when another process holds the lock of a reference it updates,
+/// also from a push that exits 0.
 const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";
 
-/// Run `command` as `run_bounded_push_once` does, after the stale reference locks of its repository are cleared by `judge`.
+/// Run `command` as `run_bounded_push_once` does,
+/// after the stale reference locks of its repository are cleared by `judge`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

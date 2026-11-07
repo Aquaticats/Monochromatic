@@ -1,8 +1,12 @@
 //! What:
-//!  The copying of a staged snapshot's files and links from the source into the stage, one worker per slice of the manifest.
+//!  The copying of a staged snapshot's files and links from the source into the stage,
+//! one worker per slice of the manifest.
 //! Why:
-//!  The stage must hold every byte before the final comparison, and a clone or a copy of one file is independent of the
-//!  next, so a large manifest is split in slices that run side by side, each stopping when another has failed.
+//!  The stage must hold every byte before the final comparison,
+//! and a clone or a copy of one file is independent of the
+//!  next,
+//! so a large manifest is split in slices that run side by side,
+//! each stopping when another has failed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,9 +22,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::path::{Path, PathBuf};
 
 /// What:
-///  Creates one private directory with mode `0700`, parents included.
+///  Creates one private directory with mode `0700`,
+/// parents included.
 /// Why:
-///   Staged content is never readable by other users, even before installation.
+///   Staged content is never readable by other users,
+/// even before installation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,7 +45,8 @@ pub fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
 /// What:
 ///  Creates one directory tree on a platform without Unix modes.
 /// Why:
-///   Keeps the staging code identical on every platform; no mode is claimed here.
+///   Keeps the staging code identical on every platform;
+/// no mode is claimed here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,9 +59,11 @@ pub fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
 }
 
 /// What:
-///  Asks the filesystem to clone the source's content into a new destination file, when it can.
+///  Asks the filesystem to clone the source's content into a new destination file,
+/// when it can.
 /// Why:
-///   A clone shares storage on copy-on-write filesystems; any refusal means the caller must copy bytes instead.
+///   A clone shares storage on copy-on-write filesystems;
+/// any refusal means the caller must copy bytes instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,9 +76,11 @@ pub fn try_clone(source: &std::fs::File, destination: &std::fs::File) -> bool {
 }
 
 /// What:
-///  Declines cloning on platforms where this lane has no clone request, so every copy takes the byte path.
+///  Declines cloning on platforms where this lane has no clone request,
+/// so every copy takes the byte path.
 /// Why:
-///   The incumbent's fallback is a full copy, which is always correct.
+///   The incumbent's fallback is a full copy,
+/// which is always correct.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -98,7 +109,8 @@ pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), Work
 /// What:
 ///  How recent a change time may be and still be too close to the clock to prove "unchanged".
 /// Why:
-///   Filesystem timestamps have a granularity; a write that lands in the same tick as the stamp would leave it equal,
+///   Filesystem timestamps have a granularity;
+/// a write that lands in the same tick as the stamp would leave it equal,
 ///  so a file changed this recently is compared byte for byte instead of trusted.
 ///
 /// In TS you'd write (pseudocode):
@@ -108,7 +120,9 @@ pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), Work
 const RECENT_CHANGE_NANOS: i128 = 20_000_000;
 
 /// What:
-///  Whether a stamp is old enough, against the clock now, to prove that no write follows it unseen.
+///  Whether a stamp is old enough,
+/// against the clock now,
+/// to prove that no write follows it unseen.
 /// Why:
 ///   A change time in the future or within the timestamp granularity of now proves nothing.
 ///
@@ -127,11 +141,16 @@ fn stamp_is_settled(stamp: &FileStamp) -> bool {
 
 /// What:
 ///  Creates a destination file exclusively and fills it with the source's bytes,
-///  using the clone request the caller supplies, and returns the source's stamp when a clone proved the bytes.
+///  using the clone request the caller supplies,
+/// and returns the source's stamp when a clone proved the bytes.
 /// Why:
-///   Whether the filesystem clones is the machine's choice, so a test supplies a clone that accepts or refuses
-///  and sees each path taken on every machine. A clone shares the source's blocks as of one instant; a source stamp that is
-///  equal before and after it and old enough to be settled proves no write interleaved, and the final check compares it again.
+///   Whether the filesystem clones is the machine's choice,
+/// so a test supplies a clone that accepts or refuses
+///  and sees each path taken on every machine.
+/// A clone shares the source's blocks as of one instant;
+/// a source stamp that is
+///  equal before and after it and old enough to be settled proves no write interleaved,
+/// and the final check compares it again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,14 +182,32 @@ pub fn copy_file_exclusive_with(
 }
 
 /// What:
-///  The entries below which a copy stays on one thread: `PARALLEL_BREAK_EVEN_ENTRIES`.
+///  The entries below which a copy stays on one thread:
+/// `PARALLEL_BREAK_EVEN_ENTRIES`.
 /// Why:
-///   Starting threads costs more than a very small copy. Measured with `copy_manifest_entries` itself forced to 1, 2, 4 and 8
-///  workers on reflinked trees of this repository (2026-11-03, five runs each in alternating orders, other sessions running, a
-///  debug build): 8 workers took 0.7 ms against 1.1 ms for 30 entries, 1.9 ms against 3.6 ms for 90, 5.9 ms against 13.4 ms for
-///  296, 25.4 ms against 91.4 ms for 2,119, 57.3 ms against 202.6 ms for 4,722, and 104.4 ms against 397.6 ms for 9,301, so the
-///  old threshold of 4096 kept copies of up to 4,095 entries on one thread for up to 145 ms more. Picked by the coordinator under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
+///   Starting threads costs more than a very small copy.
+/// Measured with `copy_manifest_entries` itself forced to 1,
+/// 2,
+/// 4 and 8
+///  workers on reflinked trees of this repository (2026-11-03,
+/// five runs each in alternating orders,
+/// other sessions running,
+/// a
+///  debug build):
+/// 8 workers took 0.7 ms against 1.1 ms for 30 entries,
+/// 1.9 ms against 3.6 ms for 90,
+/// 5.9 ms against 13.4 ms for
+///  296,
+/// 25.4 ms against 91.4 ms for 2,119,
+/// 57.3 ms against 202.6 ms for 4,722,
+/// and 104.4 ms against 397.6 ms for 9,301,
+/// so the
+///  old threshold of 4096 kept copies of up to 4,095 entries on one thread for up to 145 ms more.
+/// Picked by the coordinator under the owner's delegation,
+/// open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Picked for these follow-ups",
+/// option A).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -181,10 +218,36 @@ pub const PARALLEL_COPY_MIN_ENTRIES: usize = crate::parallel_budget::PARALLEL_BR
 /// What:
 ///  The most threads one copy starts.
 /// Why:
-///   Cloning is a metadata operation bound by the filesystem's locks more than by CPU, and other sessions share this host.
-///  Measured with `clone_tree` (`package_repair_tree_clone.rs`, the same `copy_file_exclusive` primitive as the copy stage) on trees of reflinked tracked files of this repository, medians of three runs, 28 threads, other sessions running, 2026-11-03: at 22,718 entries 1, 2, 4, 8 and 16 workers took 1,549, 880, 555, 397 and 415 ms (three runs each, the
-///  spread of 16 workers 383 to 444 ms), at 9,301 entries 619, 363, 236, 183 and 194 ms, and at 4,723 entries 330, 190, 124, 99
-///  and 106 ms, so more than eight workers were never faster. Kept at eight; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///   Cloning is a metadata operation bound by the filesystem's locks more than by CPU,
+/// and other sessions share this host.
+///  Measured with `clone_tree` (`package_repair_tree_clone.rs`,
+/// the same `copy_file_exclusive` primitive as the copy stage) on trees of reflinked tracked files of this repository,
+/// medians of three runs,
+/// 28 threads,
+/// other sessions running,
+/// 2026-11-03:
+/// at 22,718 entries 1,
+/// 2,
+/// 4,
+/// 8 and 16 workers took 1,549,
+/// 880,
+/// 555,
+/// 397 and 415 ms (three runs each,
+/// the
+///  spread of 16 workers 383 to 444 ms),
+/// at 9,301 entries 619,
+/// 363,
+/// 236,
+/// 183 and 194 ms,
+/// and at 4,723 entries 330,
+/// 190,
+/// 124,
+/// 99
+///  and 106 ms,
+/// so more than eight workers were never faster.
+/// Kept at eight;
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -193,10 +256,15 @@ pub const PARALLEL_COPY_MIN_ENTRIES: usize = crate::parallel_budget::PARALLEL_BR
 pub(crate) const PARALLEL_COPY_MAX_WORKERS: usize = 8;
 
 /// What:
-///  How many threads a copy of this many entries uses: one below the threshold, else the host's budget (the CPUs the process may
-///  use less a margin, and the free memory), capped.
+///  How many threads a copy of this many entries uses:
+/// one below the threshold,
+/// else the host's budget (the CPUs the process may
+///  use less a margin,
+/// and the free memory),
+/// capped.
 /// Why:
-///   The bound follows the CPUs the process is allowed (a container's quota included), never the whole host.
+///   The bound follows the CPUs the process is allowed (a container's quota included),
+/// never the whole host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -206,7 +274,8 @@ pub fn copy_worker_count(entries: usize) -> usize {
     return copy_worker_count_on(&HostResources::read(), entries);
 }
 
-/// `copy_worker_count` with the host's resources chosen by the caller, so a control states a host of any size.
+/// `copy_worker_count` with the host's resources chosen by the caller,
+/// so a control states a host of any size.
 pub fn copy_worker_count_on(host: &HostResources, entries: usize) -> usize {
     if entries < PARALLEL_COPY_MIN_ENTRIES {
         return 1;
@@ -215,10 +284,13 @@ pub fn copy_worker_count_on(host: &HostResources, entries: usize) -> usize {
 }
 
 /// What:
-///  Copies the files and links of one slice of a manifest into the stage, recording each cloned file's stamp.
+///  Copies the files and links of one slice of a manifest into the stage,
+/// recording each cloned file's stamp.
 /// Why:
-///   Each entry is recreated from the source's no-follow view, so no symbolic link is ever followed;
-///  directories exist already, and a parent is created only when the entry's parent changes.
+///   Each entry is recreated from the source's no-follow view,
+/// so no symbolic link is ever followed;
+///  directories exist already,
+/// and a parent is created only when the entry's parent changes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -263,10 +335,15 @@ fn copy_leaves(
 }
 
 /// What:
-///  Copies one manifest's entries into the stage: directories first, then files and links in parallel slices.
+///  Copies one manifest's entries into the stage:
+/// directories first,
+/// then files and links in parallel slices.
 /// Why:
-///   The manifest is parent first, so every directory exists before a worker needs it; the slices are contiguous so
-///  neighbouring files share a directory, and the first failure stops the other workers.
+///   The manifest is parent first,
+/// so every directory exists before a worker needs it;
+/// the slices are contiguous so
+///  neighbouring files share a directory,
+/// and the first failure stops the other workers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -310,9 +387,12 @@ pub fn copy_manifest_entries(
 }
 
 /// What:
-///  Copy one slice of leaf entries on a worker, and tell the other workers to stop when it failed.
+///  Copy one slice of leaf entries on a worker,
+/// and tell the other workers to stop when it failed.
 /// Why:
-///   The workers share the flag only to end early; the first failure is each worker's own result, and the caller reports the
+///   The workers share the flag only to end early;
+/// the first failure is each worker's own result,
+/// and the caller reports the
 ///  first in slice order.
 ///
 /// In TS you'd write (pseudocode):
@@ -330,9 +410,11 @@ fn copy_slice_and_flag_failure(
 }
 
 /// What:
-///  The parent directory of a native path, which always exists for a validated path under a root.
+///  The parent directory of a native path,
+/// which always exists for a validated path under a root.
 /// Why:
-///   Selected nested files can need parents the selection did not name, so each file creates its own.
+///   Selected nested files can need parents the selection did not name,
+/// so each file creates its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -348,7 +430,8 @@ fn parent_of(path: &Path) -> PathBuf {
 /// What:
 ///  Creates a symbolic link with the exact target text.
 /// Why:
-///   The target is never resolved, so a link to a missing or outside path is copied as-is.
+///   The target is never resolved,
+/// so a link to a missing or outside path is copied as-is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -362,7 +445,8 @@ fn symlink_at(target: &Path, link: &Path) -> Result<(), WorktreeCopyError> {
 /// What:
 ///  Creates a symbolic link on a platform where this lane does not stage links.
 /// Why:
-///   Links are a Unix feature in the copy contract; other platforms refuse them with the generic sentence.
+///   Links are a Unix feature in the copy contract;
+/// other platforms refuse them with the generic sentence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

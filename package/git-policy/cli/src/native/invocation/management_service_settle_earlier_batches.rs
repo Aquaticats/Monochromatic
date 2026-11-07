@@ -1,15 +1,34 @@
 //! What:
-//!  `git monochromatic-git-policy-cli service settle-earlier-batches`: finishes, when the person asks, the batches that the
-//!  commit service of an earlier release left open for the worktree, and the note `doctor` adds about them.
+//!  `git monochromatic-git-policy-cli service settle-earlier-batches`:
+//! finishes,
+//! when the person asks,
+//! the batches that the
+//!  commit service of an earlier release left open for the worktree,
+//! and the note `doctor` adds about them.
 //! Why:
-//!  The owner's rule is "never discard user data", and the owner picked "Off, settle on request" (2026-11-07): the service
-//!  never settles those batches by itself, because nothing excludes an earlier-release wrapper that starts the earlier helper
-//!  meanwhile (`earlier_service_journal_adopted.rs`). This command is the one way in. It acts only on the worktree it runs in
-//!  (its instance's journal and the shared earlier journal's batches of that worktree), checks that no earlier socket listens
-//!  and no earlier helper runs, says the condition it is safe under before it acts, and runs the finish-only recovery. It is
-//!  not on the commit path, so a commit never waits for it or fails for it. It lives under `service` and not under `fix`
-//!  because `fix` applies policies over files and demands a file scope, while this works on the commit service's journals;
-//!  and not under `doctor`, which only reports. `doctor` adds a read-only note that names this command.
+//!  The owner's rule is "never discard user data",
+//! and the owner picked "Off,
+//! settle on request" (2026-11-07):
+//! the service
+//!  never settles those batches by itself,
+//! because nothing excludes an earlier-release wrapper that starts the earlier helper
+//!  meanwhile (`earlier_service_journal_adopted.rs`).
+//! This command is the one way in.
+//! It acts only on the worktree it runs in
+//!  (its instance's journal and the shared earlier journal's batches of that worktree),
+//! checks that no earlier socket listens
+//!  and no earlier helper runs,
+//! says the condition it is safe under before it acts,
+//! and runs the finish-only recovery.
+//! It is
+//!  not on the commit path,
+//! so a commit never waits for it or fails for it.
+//! It lives under `service` and not under `fix`
+//!  because `fix` applies policies over files and demands a file scope,
+//! while this works on the commit service's journals;
+//!  and not under `doctor`,
+//! which only reports.
+//! `doctor` adds a read-only note that names this command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,26 +48,32 @@ use crate::wait_ceilings::SETTLE_LOCK_CEILING;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// The command as a person types it, named in every message about it.
+/// The command as a person types it,
+/// named in every message about it.
 const COMMAND: &str = "git monochromatic-git-policy-cli service settle-earlier-batches";
 
 /// What a settling needs to know.
 pub(crate) struct SettleRequest<'a> {
     /// The worktree the command runs in.
     pub selection: Selection,
-    /// The state folder the earlier release's journals are in, when one is known.
+    /// The state folder the earlier release's journals are in,
+    /// when one is known.
     pub state_dir: Option<&'a Path>,
-    /// Real Git for the recovery, when one was found.
+    /// Real Git for the recovery,
+    /// when one was found.
     pub git: Option<GitContext>,
     /// The process table to look at.
     pub proc_root: &'a Path,
 }
 
 /// What:
-///  The state folder of the user: `XDG_STATE_HOME` when set and not empty, else `$HOME/.local/state`.
+///  The state folder of the user:
+/// `XDG_STATE_HOME` when set and not empty,
+/// else `$HOME/.local/state`.
 /// Why:
 ///   The earlier unit's `StateDirectory=cli-git/service/%i` puts the journal there for a user manager (`systemd.exec(5)`,
-///  `StateDirectory=`), and the command runs as the same user.
+///  `StateDirectory=`),
+/// and the command runs as the same user.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -66,32 +91,44 @@ pub(crate) fn state_dir_of(environment: &[(OsString, OsString)]) -> Option<PathB
     };
 }
 
-/// The noun that agrees with a count: "batch" for one, "batches" for any other number.
+/// The noun that agrees with a count:
+/// "batch" for one,
+/// "batches" for any other number.
 fn batch_noun(count: usize) -> &'static str {
     return if count == 1 { "batch" } else { "batches" };
 }
 
-/// The count with its noun, as "1 batch" or "3 batches".
+/// The count with its noun,
+/// as "1 batch" or "3 batches".
 fn batches(count: usize) -> String {
     return format!("{count} {}", batch_noun(count));
 }
 
-/// The past-tense verb that agrees with a count, as "was" for one and "were" for any other number.
+/// The past-tense verb that agrees with a count,
+/// as "was" for one and "were" for any other number.
 fn was_or_were(count: usize) -> &'static str {
     return if count == 1 { "was" } else { "were" };
 }
 
-/// An exit that settled nothing, with the reason on standard error.
+/// An exit that settled nothing,
+/// with the reason on standard error.
 fn refused(reason: &str) -> Action {
     return Action::Exit { code: 1, stdout: String::new(), stderr: format!("{COMMAND}: {reason}\n") };
 }
 
 /// What:
-///  What to do about the cause of a hold, in plain words, with the units that are the cause and no others.
+///  What to do about the cause of a hold,
+/// in plain words,
+/// with the units that are the cause and no others.
 /// Why:
-///   The look tells this worktree's own socket and helper from the single service of the first releases, which serves every
-///  worktree; the units to stop differ, and stopping the wrong ones would leave the command refusing again. A listening socket
-///  does not stop by waiting, so the wait for an idle exit is offered only for a helper that runs with no socket listening,
+///   The look tells this worktree's own socket and helper from the single service of the first releases,
+/// which serves every
+///  worktree;
+/// the units to stop differ,
+/// and stopping the wrong ones would leave the command refusing again.
+/// A listening socket
+///  does not stop by waiting,
+/// so the wait for an idle exit is offered only for a helper that runs with no socket listening,
 ///  which the look reports after the sockets.
 ///
 /// In TS you'd write (pseudocode):
@@ -127,12 +164,20 @@ fn way_on(holding: &Holding, instance: &str) -> String {
 }
 
 /// What:
-///  What to do when a program that cannot be ruled out holds the command back: wait for it, stop it, or stop the earlier units
-///  when it is one, then run the command again.
+///  What to do when a program that cannot be ruled out holds the command back:
+/// wait for it,
+/// stop it,
+/// or stop the earlier units
+///  when it is one,
+/// then run the command again.
 /// Why:
-///   The program may be an earlier commit service or an unrelated tool that happens to take a `--journal` option, and this check
-///  cannot tell which. Stopping the earlier units ends the first kind and leaves the second running, so the text says which
-///  way clears which case; only waiting for the program or stopping it clears both.
+///   The program may be an earlier commit service or an unrelated tool that happens to take a `--journal` option,
+/// and this check
+///  cannot tell which.
+/// Stopping the earlier units ends the first kind and leaves the second running,
+/// so the text says which
+///  way clears which case;
+/// only waiting for the program or stopping it clears both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,12 +191,18 @@ fn unsure_way_on(program: &UnsureProgram, own_units: &str, shared_units: &str, a
 }
 
 /// What:
-///  The sentences that name the program behind a hold that rests on a folder this check could not resolve, or nothing for any
+///  The sentences that name the program behind a hold that rests on a folder this check could not resolve,
+/// or nothing for any
 ///  other hold.
 /// Why:
-///   The person must be able to tell what blocks the command: the process ID and the program it runs, the folder that did not
-///  resolve and the system's answer, and why that is not enough to rule the program out. The look
-///  stops at the first such program, so the text says another may be named once this one is gone.
+///   The person must be able to tell what blocks the command:
+/// the process ID and the program it runs,
+/// the folder that did not
+///  resolve and the system's answer,
+/// and why that is not enough to rule the program out.
+/// The look
+///  stops at the first such program,
+/// so the text says another may be named once this one is gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -170,14 +221,53 @@ fn program_sentences(holding: &Holding) -> String {
     );
 }
 
-/// The socket unit of the single service of the first releases, which served every worktree.
+/// The socket unit of the single service of the first releases,
+/// which served every worktree.
 const SHARED_SOCKET_UNIT: &str = "cli-git.socket";
 
 /// The service unit of the single service of the first releases.
 const SHARED_SERVICE_UNIT: &str = "cli-git.service";
 
-/// What is said before the command acts: the condition it is safe under.
+/// What is said before the command acts:
+/// the condition it is safe under.
 const CONDITION: &str = "Settling is safe only when no wrapper of the earlier release is in use in this worktree at this moment: such a wrapper sets its commit service up again and can start the earlier helper while this runs, and two services could then settle one batch. No earlier socket listens and no earlier helper runs now, so the command goes on.\n";
+
+/// The exit for a settling that a hold stopped:
+/// how many batches stay open,
+/// the cause with the program behind it and the way on.
+fn held_back(open: usize, instance: &str, because: Holding) -> Action {
+    return Action::Exit {
+        code: 1,
+        stdout: String::new(),
+        stderr: format!(
+            "{} the earlier release's commit service left open for this worktree {} not settled, because {}.{} Nothing was changed. {}\n",
+            batches(open),
+            was_or_were(open),
+            because.because.words(),
+            program_sentences(&because),
+            way_on(&because, instance)
+        ),
+    };
+}
+
+/// Say the safety condition on `out` and flush it,
+/// so it reaches the person before anything is changed.
+fn say_condition(out: &mut dyn std::io::Write) -> std::io::Result<()> {
+    out.write_all(CONDITION.as_bytes())?;
+    return out.flush();
+}
+
+/// Whether the settling left a batch open.
+fn is_still_open(batch: &SettledBatch) -> bool {
+    return batch.report.handled == Handled::StillOpen;
+}
+
+/// The Git facts of the real Git the invocation found,
+/// or nothing when none was found.
+fn git_context_of(environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Option<GitContext> {
+    let found: &Path = real_git?;
+    return Some(GitContext { real_git: found.to_path_buf(), overlay: child_environment_overlay(environment, found), global_prefix: Vec::new(), common_dir: None });
+}
 
 /// A line about one batch the settling dealt with.
 fn line_of(batch: &SettledBatch) -> String {
@@ -192,11 +282,18 @@ fn line_of(batch: &SettledBatch) -> String {
 }
 
 /// What:
-///  Settles on request: counts, looks, says the condition, then runs the finish-only recovery.
+///  Settles on request:
+/// counts,
+/// looks,
+/// says the condition,
+/// then runs the finish-only recovery.
 ///  `condition_out` is where the condition is said before anything is changed.
 /// Why:
-///   Every refusal changes nothing and says what to do. The condition is written before the recovery starts, and only when
-///  the look passed, so a held-back run does not claim to be acting.
+///   Every refusal changes nothing and says what to do.
+/// The condition is written before the recovery starts,
+/// and only when
+///  the look passed,
+/// so a held-back run does not claim to be acting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -217,40 +314,26 @@ pub(crate) fn settle_earlier_batches_action(request: &SettleRequest<'_>, conditi
     if open == 0 {
         return Action::Exit { code: 0, stdout: String::from("No batch of the earlier release is left open for this worktree. Nothing to settle.\n"), stderr: String::new() };
     }
-    let held = |because: Holding| -> Action {
-        return Action::Exit {
-            code: 1,
-            stdout: String::new(),
-            stderr: format!(
-                "{} the earlier release's commit service left open for this worktree {} not settled, because {}.{} Nothing was changed. {}\n",
-                batches(open),
-                was_or_were(open),
-                because.because.words(),
-                program_sentences(&because),
-                way_on(&because, instance.as_str())
-            ),
-        };
-    };
     if let Some(because) = hold_on_earlier_helper(&earlier, instance.as_str(), request.proc_root) {
-        return held(because);
+        return held_back(open, instance.as_str(), because);
     }
     let Some(git) = request.git.as_ref() else {
         return refused("no real Git was found to finish the batches with, so nothing was settled.");
     };
     // The condition reaches the person before anything is changed; when it cannot be delivered, nothing is.
-    if let Err(error) = condition_out.write_all(CONDITION.as_bytes()).and_then(|()| { return condition_out.flush(); }) {
+    if let Err(error) = say_condition(condition_out) {
         return refused(format!("the safety condition could not be written to standard error ({error}), so nothing was settled.").as_str());
     }
     let (settled, unanswered) = match settle_on_request(git, &earlier, instance.as_str(), request.proc_root, SETTLE_LOCK_CEILING) {
         RequestedSettlement::Settled { batches, unanswered } => (batches, unanswered),
-        RequestedSettlement::Held { because, .. } => return held(because),
+        RequestedSettlement::Held { because, .. } => return held_back(open, instance.as_str(), because),
         RequestedSettlement::NothingOpen => return Action::Exit { code: 0, stdout: String::from("No batch of the earlier release is left open for this worktree. Nothing to settle.\n"), stderr: String::new() },
     };
     let mut lines: String = settled.iter().map(line_of).collect();
     for batch in &unanswered {
         lines.push_str(unanswered_line(batch).as_str());
     }
-    let still_open: bool = settled.iter().any(|batch| { return batch.report.handled == Handled::StillOpen; });
+    let still_open: bool = settled.iter().any(is_still_open);
     let problems: bool = still_open || !unanswered.is_empty();
     return Action::Exit {
         code: i32::from(problems),
@@ -259,7 +342,8 @@ pub(crate) fn settle_earlier_batches_action(request: &SettleRequest<'_>, conditi
     };
 }
 
-/// A line about a batch the recovery could not examine, naming it and its journal.
+/// A line about a batch the recovery could not examine,
+/// naming it and its journal.
 fn unanswered_line(batch: &UnansweredBatch) -> String {
     return format!(
         "batch {} in {} could not be examined: Git gave no answer about its branch (its repository may be unavailable); it stays on disk, nothing was discarded\n",
@@ -269,10 +353,16 @@ fn unanswered_line(batch: &UnansweredBatch) -> String {
 }
 
 /// What:
-///  The note `doctor` adds: how many batches the earlier release's service left open for this worktree, and the command that
-///  settles them. Empty when none are left, or when the worktree or the state folder is not known.
+///  The note `doctor` adds:
+/// how many batches the earlier release's service left open for this worktree,
+/// and the command that
+///  settles them.
+/// Empty when none are left,
+/// or when the worktree or the state folder is not known.
 /// Why:
-///   The person learns about leftover batches without reading journals. The count is read without changing a file, and it may
+///   The person learns about leftover batches without reading journals.
+/// The count is read without changing a file,
+/// and it may
 ///  include a batch that is finished already (its intent is still on disk until the recovery sees it).
 ///
 /// In TS you'd write (pseudocode):
@@ -295,9 +385,14 @@ pub(crate) fn earlier_batches_note(selection: &Selection, state_dir: Option<&Pat
 }
 
 /// What:
-///  Plans the command from the invocation's facts: the worktree Git selects, the state folder, real Git, the live `/proc`.
+///  Plans the command from the invocation's facts:
+/// the worktree Git selects,
+/// the state folder,
+/// real Git,
+/// the live `/proc`.
 /// Why:
-///   The condition is said on standard error before anything is changed; the result comes back as the action.
+///   The condition is said on standard error before anything is changed;
+/// the result comes back as the action.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -305,9 +400,7 @@ pub(crate) fn earlier_batches_note(selection: &Selection, state_dir: Option<&Pat
 /// ```
 pub(crate) fn plan_settle_earlier_batches(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
     let state: Option<PathBuf> = state_dir_of(environment);
-    let git: Option<GitContext> = real_git.map(|found| {
-        return GitContext { real_git: found.to_path_buf(), overlay: child_environment_overlay(environment, found), global_prefix: Vec::new(), common_dir: None };
-    });
+    let git: Option<GitContext> = git_context_of(environment, real_git);
     let request: SettleRequest<'_> = SettleRequest {
         selection: status_git_dir(global_arguments, environment, real_git),
         state_dir: state.as_deref(),

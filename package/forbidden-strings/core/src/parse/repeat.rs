@@ -208,13 +208,16 @@ fn parse_number(cur: &mut Cursor, pos: usize) -> Result<usize, CompileError> {
             break;
         }
         any = true;
-        value = value
-            .checked_mul(10)
-            .and_then(|v| return v.checked_add((c - b'0') as usize))
-            .ok_or(CompileError::Syntax {
-                pos,
-                message: "repetition count is too large".to_string(),
-            })?;
+        let digit: usize = (c - b'0') as usize;
+        let scaled: Option<usize> = value.checked_mul(10);
+        let grown: Option<usize> = match scaled {
+            Some(tens) => tens.checked_add(digit),
+            None => None,
+        };
+        value = grown.ok_or(CompileError::Syntax {
+            pos,
+            message: "repetition count is too large".to_string(),
+        })?;
         cur.bump();
     }
     if !any {

@@ -2,7 +2,8 @@
 
 use super::*;
 
-/// A blob is named by its framed bytes: the empty blob and a short one have the names Git gives them.
+/// A blob is named by its framed bytes:
+/// the empty blob and a short one have the names Git gives them.
 #[test]
 fn a_blob_is_named_as_git_names_it() {
     let hex = |name: Vec<u8>| -> String { return name.iter().map(|byte: &u8| { return format!("{byte:02x}"); }).collect(); };
@@ -11,7 +12,10 @@ fn a_blob_is_named_as_git_names_it() {
     assert_eq!(blob_name(b"hello\n", ObjectFormat::Sha256).len(), 32);
 }
 
-/// `GIT_ATTR_NOSYSTEM` is read as a Git boolean: unset and empty are false, a boolean word is itself, anything else is unknown.
+/// `GIT_ATTR_NOSYSTEM` is read as a Git boolean:
+/// unset and empty are false,
+/// a boolean word is itself,
+/// anything else is unknown.
 #[test]
 fn the_system_switch_is_read_as_git_reads_a_boolean() {
     let with = |value: &str| -> Vec<(OsString, OsString)> { return vec![(OsString::from("GIT_ATTR_NOSYSTEM"), OsString::from(value))]; };

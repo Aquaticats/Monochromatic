@@ -1,9 +1,14 @@
 //! What:
-//!  What a clean check says about one tracked file: the refusal types, one index entry's recorded stat data, and the verdict of
+//!  What a clean check says about one tracked file:
+//! the refusal types,
+//! one index entry's recorded stat data,
+//! and the verdict of
 //!  comparing that data with the file's metadata.
 //! Why:
-//!  The proof that a worktree is clean compares every file with what the index recorded; the content judge and the tree walks
-//!  both need the same entry and verdict types, so they live apart from either.
+//!  The proof that a worktree is clean compares every file with what the index recorded;
+//! the content judge and the tree walks
+//!  both need the same entry and verdict types,
+//! so they live apart from either.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,8 +25,12 @@ pub const ASSUME_VALID: u16 = 0x8000;
 /// What:
 ///  Which kind of state kept a worktree from being proven clean.
 /// Why:
-///   Callers decide by kind, never by the words of the reason: the snapshot rung restores a worktree whose only trouble is an
-///  ordinary change, and refuses every state a restore cannot be proven to undo; the sentence for the person is chosen by kind.
+///   Callers decide by kind,
+/// never by the words of the reason:
+/// the snapshot rung restores a worktree whose only trouble is an
+///  ordinary change,
+/// and refuses every state a restore cannot be proven to undo;
+/// the sentence for the person is chosen by kind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,27 +39,49 @@ pub const ASSUME_VALID: u16 = 0x8000;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CleanRefusalKind {
-    /// A merge, cherry-pick, revert, bisect, rebase, sequencer or `index.lock` mark exists; the name is the mark's.
+    /// A merge,
+    /// cherry-pick,
+    /// revert,
+    /// bisect,
+    /// rebase,
+    /// sequencer or `index.lock` mark exists;
+    /// the name is the mark's.
     OperationInProgress(&'static str),
-    /// The index, the object database, the configuration or Git itself cannot be read in the way the checks need.
+    /// The index,
+    /// the object database,
+    /// the configuration or Git itself cannot be read in the way the checks need.
     Unreadable,
-    /// An index or tree entry of a kind a restore cannot be proven to undo: unmerged, intent-to-add, skip-worktree,
-    ///  assume-unchanged, or a submodule.
+    /// An index or tree entry of a kind a restore cannot be proven to undo:
+    /// unmerged,
+    /// intent-to-add,
+    /// skip-worktree,
+    ///  assume-unchanged,
+    /// or a submodule.
     NotPlain,
-    /// The index differs from the tree of `HEAD`: a staged addition, deletion, change or rename.
+    /// The index differs from the tree of `HEAD`:
+    /// a staged addition,
+    /// deletion,
+    /// change or rename.
     StagedChange,
-    /// A tracked file is missing, changed its type or executable bit, or differs in content.
+    /// A tracked file is missing,
+    /// changed its type or executable bit,
+    /// or differs in content.
     FileChanged,
-    /// A tracked file's size, times or inode differ from its entry, so it probably changed.
+    /// A tracked file's size,
+    /// times or inode differ from its entry,
+    /// so it probably changed.
     StatStale,
-    /// A tracked file is as new as the index, so its stat fields prove nothing.
+    /// A tracked file is as new as the index,
+    /// so its stat fields prove nothing.
     Racy,
     /// Git lists an untracked file that no ignore rule covers.
     Untracked,
 }
 
 impl CleanRefusalKind {
-    /// Whether a reset to a commit can undo the state: only ordinary changes, not an operation in progress or a state Git
+    /// Whether a reset to a commit can undo the state:
+    /// only ordinary changes,
+    /// not an operation in progress or a state Git
     ///  keeps outside the tree and the files.
     pub fn restorable(self) -> bool {
         return matches!(self, Self::StagedChange | Self::FileChanged | Self::StatStale | Self::Racy | Self::Untracked);
@@ -58,9 +89,11 @@ impl CleanRefusalKind {
 }
 
 /// What:
-///  Why a worktree could not be proven clean: the kind and the reason in words.
+///  Why a worktree could not be proven clean:
+/// the kind and the reason in words.
 /// Why:
-///   The words are for logs and for people; the kind is for code.
+///   The words are for logs and for people;
+/// the kind is for code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,7 +103,8 @@ impl CleanRefusalKind {
 pub struct CleanRefusal {
     /// What kind of state refused.
     pub kind: CleanRefusalKind,
-    /// The reason, in words.
+    /// The reason,
+    /// in words.
     pub reason: String,
 }
 
@@ -95,7 +129,8 @@ impl std::fmt::Display for CleanRefusal {
 /// What:
 ///  One tracked file of an index with the stat fields the index recorded for it.
 /// Why:
-///   `parse_index` leaves the stat fields out, and the comparison with the file on disk needs them.
+///   `parse_index` leaves the stat fields out,
+/// and the comparison with the file on disk needs them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,7 +138,8 @@ impl std::fmt::Display for CleanRefusal {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StatEntry {
-    /// The path, `/` separated.
+    /// The path,
+    /// `/` separated.
     pub path: Vec<u8>,
     /// The entry's flags (the assume-valid bit among them).
     pub flags: u16,
@@ -116,8 +152,10 @@ pub struct StatEntry {
 /// What:
 ///  What the stat data of an index entry says about a file.
 /// Why:
-///   A file the data cannot vouch for (a racily clean entry, a stale stat) is not the same as a file that certainly changed:
-///  Git settles the first by content, so a caller that can compare content takes the two apart.
+///   A file the data cannot vouch for (a racily clean entry,
+/// a stale stat) is not the same as a file that certainly changed:
+///  Git settles the first by content,
+/// so a caller that can compare content takes the two apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,19 +163,29 @@ pub struct StatEntry {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatVerdict {
-    /// Size, times, inode, type and mode all equal the entry.
+    /// Size,
+    /// times,
+    /// inode,
+    /// type and mode all equal the entry.
     Agrees,
-    /// The stat data proves nothing either way; the content decides.
+    /// The stat data proves nothing either way;
+    /// the content decides.
     Unproven(String),
-    /// The file certainly differs: missing type, mode or assume-unchanged mark.
+    /// The file certainly differs:
+    /// missing type,
+    /// mode or assume-unchanged mark.
     Differs(String),
 }
 
 /// What:
 ///  What the stat data of the entry says about a file whose metadata is `metadata`.
 /// Why:
-///   The comparison takes the metadata of an inode already in hand, so a caller that holds a descriptor judges the file it
-///  holds, not whatever the path names a moment later. Type and executable bit come before the time checks: they differ
+///   The comparison takes the metadata of an inode already in hand,
+/// so a caller that holds a descriptor judges the file it
+///  holds,
+/// not whatever the path names a moment later.
+/// Type and executable bit come before the time checks:
+/// they differ
 ///  whatever the content is.
 ///
 /// In TS you'd write (pseudocode):
@@ -153,11 +201,15 @@ pub fn metadata_verdict(entry: &StatEntry, metadata: &std::fs::Metadata, index_s
 }
 
 /// What:
-///  What the stat data of the entry says about a file whose metadata is `metadata`, as a refusal with its kind, or nothing
+///  What the stat data of the entry says about a file whose metadata is `metadata`,
+/// as a refusal with its kind,
+/// or nothing
 ///  when they agree.
 /// Why:
 ///   One comparison serves the verdict that callers of the stat-only checks use and the kind that the snapshot rung decides
-///  by. Type and executable bit come before the time checks: they differ whatever the content is.
+///  by.
+/// Type and executable bit come before the time checks:
+/// they differ whatever the content is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -187,7 +239,8 @@ pub fn stat_finding(entry: &StatEntry, metadata: &std::fs::Metadata, index_secon
 }
 
 /// What:
-///  The reason a file whose metadata is `metadata` differs from its index entry, or nothing when the two agree.
+///  The reason a file whose metadata is `metadata` differs from its index entry,
+/// or nothing when the two agree.
 /// Why:
 ///   Callers that rely on the stat data alone (the snapshot and clone rungs) treat a file the data cannot vouch for like a
 ///  file that changed.
@@ -217,9 +270,11 @@ pub fn file_changed(reason: String) -> CleanRefusal {
 }
 
 /// What:
-///  The refusal for a file that changed, as the `Some` an `Option` of refusals holds.
+///  The refusal for a file that changed,
+/// as the `Some` an `Option` of refusals holds.
 /// Why:
-///   The directory walks return the first refusal, and a missing file is one.
+///   The directory walks return the first refusal,
+/// and a missing file is one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

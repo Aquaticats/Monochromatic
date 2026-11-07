@@ -6,7 +6,9 @@ fn path(name: &str) -> PathBuf {
     return PathBuf::from(format!("/repositories/{name}/.git"));
 }
 
-/// An empty schedule waits for nothing; one entry is waited for until it is due, then taken once.
+/// An empty schedule waits for nothing;
+/// one entry is waited for until it is due,
+/// then taken once.
 #[test]
 fn an_entry_is_waited_for_until_it_is_due_and_then_taken_once() {
     let start: Instant = Instant::now();
@@ -21,7 +23,8 @@ fn an_entry_is_waited_for_until_it_is_due_and_then_taken_once() {
     assert_eq!(schedule.take_due(start + Duration::from_secs(3600)), Vec::<PathBuf>::new(), "taken once");
 }
 
-/// The wait is for the first of several entries, and an entry that is already due waits no time.
+/// The wait is for the first of several entries,
+/// and an entry that is already due waits no time.
 #[test]
 fn the_wait_is_for_the_first_entry() {
     let start: Instant = Instant::now();
@@ -31,8 +34,10 @@ fn the_wait_is_for_the_first_entry() {
     assert_eq!(schedule.next_wait(start + Duration::from_secs(500)), Some(Duration::ZERO));
 }
 
-/// A round that ran a repository replaces its entry with what the round asked for, or drops it when the round asked for
-/// nothing, and leaves the entries of repositories it did not run.
+/// A round that ran a repository replaces its entry with what the round asked for,
+/// or drops it when the round asked for
+/// nothing,
+/// and leaves the entries of repositories it did not run.
 #[test]
 fn a_round_replaces_the_entries_of_the_repositories_it_ran() {
     let start: Instant = Instant::now();

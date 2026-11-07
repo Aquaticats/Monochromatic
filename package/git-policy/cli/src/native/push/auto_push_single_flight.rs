@@ -1,8 +1,14 @@
 //! What:
-//!  The service's Git for a push: the real Git, its working directory and environment, the command builder, the
+//!  The service's Git for a push:
+//! the real Git,
+//! its working directory and environment,
+//! the command builder,
+//! the
 //!  deadline-bound read-only query and the failure types of a push.
 //! Why:
-//!  The push, its reconcile and the queries before them all start Git the same way, so none re-enters the wrapper
+//!  The push,
+//! its reconcile and the queries before them all start Git the same way,
+//! so none re-enters the wrapper
 //!  and every Git child receives the same environment.
 //!
 //! In TS you'd write (pseudocode):
@@ -24,7 +30,8 @@ use std::process::Command;
 /// What:
 ///  Why a push or one of its Git queries could not finish.
 /// Why:
-///   Every variant is a failure the service reports, and the commit stays saved.
+///   Every variant is a failure the service reports,
+/// and the commit stays saved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -32,13 +39,16 @@ use std::process::Command;
 /// ```
 #[derive(Debug)]
 pub enum SingleFlightError {
-    /// Git could not be started, or failed in a way the incumbent does not model as an exit status.
+    /// Git could not be started,
+    /// or failed in a way the incumbent does not model as an exit status.
     Start(std::io::Error),
     /// A Git query exited with a status the caller did not expect.
     Git {
-        /// Arguments of the query, for the diagnostic.
+        /// Arguments of the query,
+        /// for the diagnostic.
         arguments: String,
-        /// Exit code, or nothing when a signal ended the process.
+        /// Exit code,
+        /// or nothing when a signal ended the process.
         code: Option<i32>,
         /// Complete standard error text of the query.
         stderr: String,
@@ -47,9 +57,11 @@ pub enum SingleFlightError {
     Io(std::io::Error),
     /// A Git query showed no sign of work for its quiet window and was stopped.
     TimedOut {
-        /// Arguments of the query, for the diagnostic.
+        /// Arguments of the query,
+        /// for the diagnostic.
         arguments: String,
-        /// The quiet window it exceeded, in whole seconds.
+        /// The quiet window it exceeded,
+        /// in whole seconds.
         seconds: u64,
     },
 }
@@ -83,8 +95,10 @@ impl std::error::Error for SingleFlightError {}
 /// What:
 ///  One push this invocation ran itself.
 /// Why:
-///   `output` is Git's interleaved output with one trailing line break removed, as the incumbent's
-///  `nano-spawn` `output` is; a successful push's output is never recorded.
+///   `output` is Git's interleaved output with one trailing line break removed,
+/// as the incumbent's
+///  `nano-spawn` `output` is;
+/// a successful push's output is never recorded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -92,14 +106,17 @@ impl std::error::Error for SingleFlightError {}
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PushAttempt {
-    /// Push exit code, `0` on success.
+    /// Push exit code,
+    /// `0` on success.
     pub exit_code: i64,
     /// Complete interleaved push output.
     pub output: String,
 }
 
 /// What:
-///  The real Git the service runs, where, and with which environment.
+///  The real Git the service runs,
+/// where,
+/// and with which environment.
 /// Why:
 ///   The service passes the complete environment in (the invocation's variables with the overlay applied),
 ///  and nothing is read from the process environment here.
@@ -114,16 +131,20 @@ pub struct PushGit {
     pub real_git: PathBuf,
     /// Directory the commit landed in.
     pub cwd: PathBuf,
-    /// Complete environment every Git child receives: the invocation's variables with the overlay applied.
+    /// Complete environment every Git child receives:
+    /// the invocation's variables with the overlay applied.
     pub environment: Vec<(OsString, OsString)>,
-    /// Whether the pushes of this coordinator must upload LFS objects first (`lfs_bounded_push`); queries and fetches never do.
+    /// Whether the pushes of this coordinator must upload LFS objects first (`lfs_bounded_push`);
+    /// queries and fetches never do.
     pub lfs: bool,
 }
 
 /// What:
-///  Build a real Git command with the given arguments, directory and environment.
+///  Build a real Git command with the given arguments,
+/// directory and environment.
 /// Why:
-///   Every coordination query and push starts Git this way, so none re-enters the wrapper.
+///   Every coordination query and push starts Git this way,
+/// so none re-enters the wrapper.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -155,7 +176,8 @@ fn in_push_environment(mut command: Command, git: &PushGit) -> Command {
     return command;
 }
 
-/// The arguments as one display string, for diagnostics.
+/// The arguments as one display string,
+/// for diagnostics.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -173,7 +195,8 @@ fn describe_arguments(arguments: &[OsString]) -> String {
 ///  Run a read-only Git query and return its trimmed standard output.
 ///       `Result<A, B>` is either the output or a failure.
 /// Why:
-///   Any failed query is a coordination failure; it is never read as an answer.
+///   Any failed query is a coordination failure;
+/// it is never read as an answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -193,9 +216,12 @@ pub fn git_output(git: &PushGit, arguments: &[OsString]) -> Result<String, Singl
 }
 
 /// What:
-///  Run a read-only Git query that is ended only when it shows no sign of work, and capture its streams separately.
+///  Run a read-only Git query that is ended only when it shows no sign of work,
+/// and capture its streams separately.
 /// Why:
-///   A query that never returns would hold the caller, and the service's push behind it, for good.
+///   A query that never returns would hold the caller,
+/// and the service's push behind it,
+/// for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

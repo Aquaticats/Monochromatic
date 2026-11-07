@@ -26,6 +26,12 @@ pub mod index_lock_holder_parsers;
 /// Evidence about a foreign `index.lock` and the verdict it supports.
 pub mod index_lock_evidence;
 
+/// The sentences about a lock's holder:
+/// its program,
+/// start time and the way to end it,
+/// and a summary of unreadable processes.
+pub mod index_lock_holder_words;
+
 /// Index-writer classification and the commands that coordinate with a landing.
 pub mod index_writer_commands;
 
@@ -39,10 +45,14 @@ pub mod index_lock_wait;
 ///  the landing lock held while real Git runs as a child.
 pub mod index_writer_forward;
 
-/// The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
+/// The lock files a stopped Git child leaves behind,
+/// found and removed once the child and what it started are gone.
 pub mod stopped_git_locks;
 
-/// The reference locks a killed Git left behind: judged one by one, removed on a proof, otherwise described.
+/// The reference locks a killed Git left behind:
+/// judged one by one,
+/// removed on a proof,
+/// otherwise described.
 pub mod stale_ref_locks;
 
 /// The record of one judged reference lock and the outcome of a clearing pass.
@@ -51,7 +61,8 @@ pub mod stale_ref_lock_found;
 /// Which files below a Git directory are reference locks.
 pub mod stale_ref_lock_walk;
 
-/// A file's identity at the moment it was judged, so the removal can tell it from a new file at the same path.
+/// A file's identity at the moment it was judged,
+/// so the removal can tell it from a new file at the same path.
 pub mod stale_ref_lock_identity;
 
 /// How one reference lock is judged.
@@ -60,22 +71,27 @@ pub mod stale_ref_lock_judge;
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;
 
-/// The processes that carry a number inside a PID namespace nested in the reader's, which a pid file may name.
+/// The processes that carry a number inside a PID namespace nested in the reader's,
+/// which a pid file may name.
 pub mod stale_ref_lock_nested_numbers;
 
-/// The wrapper's own fetch and push, started after the stale reference locks of their repository are cleared.
+/// The wrapper's own fetch and push,
+/// started after the stale reference locks of their repository are cleared.
 pub mod push_lock_clearing;
 
 /// The notice a forwarded fetch or push is preceded by when reference locks of a killed Git are found.
 pub mod forwarded_lock_notice;
 
-/// What the wrapper prints about reference locks, and the quoted command that clears one it will not remove.
+/// What the wrapper prints about reference locks,
+/// and the quoted command that clears one it will not remove.
 pub mod stale_ref_lock_message;
 
-/// Real Git processes killed with `SIGKILL` while they hold reference locks, for the controls.
+/// Real Git processes killed with `SIGKILL` while they hold reference locks,
+/// for the controls.
 #[cfg(test)]
 pub(crate) mod stale_ref_lock_killed_git;
 
-/// The numbered claim files that let exactly one command work on one worktree or checkout, without a lock.
+/// The numbered claim files that let exactly one command work on one worktree or checkout,
+/// without a lock.
 #[cfg(target_os = "linux")]
 pub mod single_owner_claim;

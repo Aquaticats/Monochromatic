@@ -17,7 +17,9 @@
 //! const missing = !(portalAvailable() || executableOnPath("zenity", process.env.PATH));
 //! ```
 
+/// Imports the operating-system string type that the program name search compares.
 use std::ffi::OsStr;
+/// Imports the path type that joins a program name onto each search directory.
 use std::path::Path;
 
 /// What:
@@ -57,6 +59,8 @@ pub fn executable_on_path(program: &str, path_variable: &OsStr) -> bool {
 /// no portal call is made.
 #[cfg(target_os = "linux")]
 fn portal_is_available() -> bool {
+    /// Well-known bus name of the desktop portal,
+    /// which a folder chooser needs on Linux.
     const PORTAL: &str = "org.freedesktop.portal.Desktop";
     let connection = match crate::dbus_step_bound::connect(
         zbus::connection::Builder::session(),
@@ -120,6 +124,11 @@ pub fn dialog_backend_missing() -> bool {
     }
 }
 
+/// Unit tests of `dialog_backend`,
+/// in the sidecar file `dialog_backend_tests.rs`.
+/// Role of the module:
+/// whether a folder chooser can open at all,
+/// and what to tell the user when none can.
 #[cfg(test)]
 #[path = "dialog_backend_tests.rs"]
 mod tests;

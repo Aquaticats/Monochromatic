@@ -1,11 +1,20 @@
 //! What:
-//!  One entry from the wrapper a person ran to the journal, as a datagram on the native socket, sent without waiting and
+//!  One entry from the wrapper a person ran to the journal,
+//! as a datagram on the native socket,
+//! sent without waiting and
 //!  never failing the command.
 //! Why:
-//!  The wrapper is no service: its standard error is the person's terminal or an agent's capture, which is gone when the
-//!  command ends. A decision the person was told about once (an add that took the slow way and why) is then recoverable
-//!  afterwards only from the journal (`journalctl --identifier=monochromatic-git-policy-cli`). The socket is unconnected and non-blocking, so a
-//!  journal that is absent, restarting or full costs the command nothing; the entry is then only in the debug log.
+//!  The wrapper is no service:
+//! its standard error is the person's terminal or an agent's capture,
+//! which is gone when the
+//!  command ends.
+//! A decision the person was told about once (an add that took the slow way and why) is then recoverable
+//!  afterwards only from the journal (`journalctl --identifier=monochromatic-git-policy-cli`).
+//! The socket is unconnected and non-blocking,
+//! so a
+//!  journal that is absent,
+//! restarting or full costs the command nothing;
+//! the entry is then only in the debug log.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,9 +29,13 @@ use std::os::unix::net::UnixDatagram;
 const TAG: &str = "clientJournal";
 
 /// What:
-///  Where the entry goes: the journal's socket, or the stand-in a test names; a unit test that names none reaches nothing.
+///  Where the entry goes:
+/// the journal's socket,
+/// or the stand-in a test names;
+/// a unit test that names none reaches nothing.
 /// Why:
-///   A control must never write into the host's journal, and the variable is the only way a test says where its entry may go.
+///   A control must never write into the host's journal,
+/// and the variable is the only way a test says where its entry may go.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -37,9 +50,11 @@ fn target() -> Option<Target> {
 }
 
 /// What:
-///  Send one entry to the journal; whether the socket took it.
+///  Send one entry to the journal;
+/// whether the socket took it.
 /// Why:
-///   The command that sends it goes on whatever the journal does; the answer is for a test and for the debug log.
+///   The command that sends it goes on whatever the journal does;
+/// the answer is for a test and for the debug log.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,7 +65,9 @@ pub fn record_entry(priority: Priority, message: &str, fields: &[(&str, String)]
 }
 
 /// What:
-///  Send one entry under the identifier of the sender: the wrapper's, or the service's when the code runs inside the service.
+///  Send one entry under the identifier of the sender:
+/// the wrapper's,
+/// or the service's when the code runs inside the service.
 /// Why:
 ///   An entry belongs next to the others of the program that sent it (`journalctl --identifier=cli-git-service`).
 ///
@@ -64,7 +81,8 @@ pub fn record_entry_as(identifier: &str, priority: Priority, message: &str, fiel
 }
 
 /// What:
-///  Send one entry to `target`; whether the socket took it.
+///  Send one entry to `target`;
+/// whether the socket took it.
 /// Why:
 ///   Split from the choice of target so a control names its own receiver without touching the process environment.
 ///
@@ -77,7 +95,8 @@ pub fn send_entry(target: &Target, priority: Priority, message: &str, fields: &[
 }
 
 /// What:
-///  Send one entry to `target` under `identifier`; whether the socket took it.
+///  Send one entry to `target` under `identifier`;
+/// whether the socket took it.
 /// Why:
 ///   The same send for the wrapper and for code that runs inside the service.
 ///

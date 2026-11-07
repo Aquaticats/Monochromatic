@@ -32,7 +32,8 @@ fn fixture_with_log(name: &str) -> Fixture {
     return Fixture { parent, root };
 }
 
-/// Commit `files` (name, text) and return the work item for the new commit.
+/// Commit `files` (name,
+/// text) and return the work item for the new commit.
 fn commit(fixture: &Fixture, files: &[(&str, &str)], message: &str) -> WorkItem {
     for (name, text) in files {
         let path: PathBuf = fixture.root.join(name);
@@ -54,19 +55,22 @@ fn commit(fixture: &Fixture, files: &[(&str, &str)], message: &str) -> WorkItem 
     };
 }
 
-/// The options the service builds, with the gateway pointed at `endpoint` and the credential set.
+/// The options the service builds,
+/// with the gateway pointed at `endpoint` and the credential set.
 fn options(item: &WorkItem, endpoint: &str) -> ReviewOptions {
     return options_with(item, endpoint, ReviewKey::new(KEY).as_ref());
 }
 
-/// The options the service builds for a wake message that carried `key` (or none), pointed at `endpoint`.
+/// The options the service builds for a wake message that carried `key` (or none),
+/// pointed at `endpoint`.
 fn options_with(item: &WorkItem, endpoint: &str, key: Option<&ReviewKey>) -> ReviewOptions {
     let mut built: ReviewOptions = options_for(item, &review_variables(key));
     built.endpoint = String::from(endpoint);
     return built;
 }
 
-/// The text of the tracked log in the fixture's worktree, which the service must never change.
+/// The text of the tracked log in the fixture's worktree,
+/// which the service must never change.
 fn tracked_log_of(fixture: &Fixture) -> String {
     return std::fs::read_to_string(fixture.root.join(TRACKED_LOG_RELATIVE)).expect("tracked log");
 }
@@ -74,13 +78,18 @@ fn tracked_log_of(fixture: &Fixture) -> String {
 /// The tracked log's content as the fixture commits it.
 const TRACKED_LOG_CONTENT: &str = "# Log\n";
 
-/// The text of the fixture repository's live log; empty when it does not exist.
+/// The text of the fixture repository's live log;
+/// empty when it does not exist.
 fn log_of(fixture: &Fixture) -> String {
     return std::fs::read_to_string(shared_log_path(fixture.root.join(".git").as_path())).unwrap_or_default();
 }
 
-/// A code commit is reviewed: the gateway is asked with the commit's own text, and the entry lands in the live log in the
-/// common Git directory, which did not exist before, while the tracked log stays exactly as committed.
+/// A code commit is reviewed:
+/// the gateway is asked with the commit's own text,
+/// and the entry lands in the live log in the
+/// common Git directory,
+/// which did not exist before,
+/// while the tracked log stays exactly as committed.
 #[test]
 fn a_code_commit_is_reviewed_and_appended() {
     let fixture: Fixture = fixture_with_log("review-code");
@@ -99,7 +108,8 @@ fn a_code_commit_is_reviewed_and_appended() {
     remove(fixture.parent.as_path());
 }
 
-/// A repeated item adds nothing and asks nothing, so a crash between the append and the settling is harmless.
+/// A repeated item adds nothing and asks nothing,
+/// so a crash between the append and the settling is harmless.
 #[test]
 fn a_repeated_item_adds_nothing() {
     let fixture: Fixture = fixture_with_log("review-repeat");
@@ -113,7 +123,8 @@ fn a_repeated_item_adds_nothing() {
     remove(fixture.parent.as_path());
 }
 
-/// A commit with no code gets the skip entry without any gateway call, and a commit that only changes the log gets none.
+/// A commit with no code gets the skip entry without any gateway call,
+/// and a commit that only changes the log gets none.
 #[test]
 fn skips_and_log_only_commits_make_no_call() {
     let fixture: Fixture = fixture_with_log("review-skip");
@@ -133,8 +144,11 @@ fn skips_and_log_only_commits_make_no_call() {
     remove(fixture.parent.as_path());
 }
 
-/// A linked worktree's item names that worktree's own Git directory (`.git/worktrees/<name>`), and its entry still goes to
-///  the repository's one log in the common Git directory, which outlives the worktree; nothing is written beside the worktree.
+/// A linked worktree's item names that worktree's own Git directory (`.git/worktrees/<name>`),
+/// and its entry still goes to
+///  the repository's one log in the common Git directory,
+/// which outlives the worktree;
+/// nothing is written beside the worktree.
 #[test]
 fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
     let fixture: Fixture = fixture_with_log("review-linked");
@@ -167,7 +181,9 @@ fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
     remove(fixture.parent.as_path());
 }
 
-/// A repository without a shadow log is left alone: no call, no file created.
+/// A repository without a shadow log is left alone:
+/// no call,
+/// no file created.
 #[test]
 fn a_repository_without_a_shadow_log_is_left_alone() {
     let parent: PathBuf = fixture("review-no-log");
@@ -191,7 +207,8 @@ fn a_repository_without_a_shadow_log_is_left_alone() {
     remove(parent.as_path());
 }
 
-/// A gateway failure is an entry in the log and the item is done; an unknown commit is a failed item with the reason.
+/// A gateway failure is an entry in the log and the item is done;
+/// an unknown commit is a failed item with the reason.
 #[test]
 fn a_gateway_failure_is_logged_and_an_unreadable_commit_fails_the_item() {
     let fixture: Fixture = fixture_with_log("review-failures");
@@ -206,8 +223,10 @@ fn a_gateway_failure_is_logged_and_an_unreadable_commit_fails_the_item() {
     remove(fixture.parent.as_path());
 }
 
-/// A gateway that never answers is ended when it has been silent for the quiet window, and the item is done with the
-///  failure in its log entry: no budget around the whole review decides it.
+/// A gateway that never answers is ended when it has been silent for the quiet window,
+/// and the item is done with the
+///  failure in its log entry:
+/// no budget around the whole review decides it.
 #[test]
 fn a_silent_gateway_ends_the_review_when_it_has_been_silent_for_the_quiet_window() {
     let fixture: Fixture = fixture_with_log("review-silent");
@@ -225,7 +244,9 @@ fn a_silent_gateway_ends_the_review_when_it_has_been_silent_for_the_quiet_window
     remove(fixture.parent.as_path());
 }
 
-/// The options point the log at the live log in the item's common Git directory, never at the tracked log, and give the call its quiet window.
+/// The options point the log at the live log in the item's common Git directory,
+/// never at the tracked log,
+/// and give the call its quiet window.
 #[test]
 fn options_follow_the_item() {
     let fixture: Fixture = fixture_with_log("review-options");
@@ -266,8 +287,11 @@ fn a_review_without_a_key_records_no_key() {
     remove(fixture.parent.as_path());
 }
 
-/// The credential variables answer from the message only: with no key they answer nothing, whatever the service's own
-/// environment holds, while any other variable still answers from the environment.
+/// The credential variables answer from the message only:
+/// with no key they answer nothing,
+/// whatever the service's own
+/// environment holds,
+/// while any other variable still answers from the environment.
 #[test]
 fn the_service_environment_never_supplies_a_key() {
     let none = review_variables(None);
@@ -298,7 +322,8 @@ fn the_review_clock_reads_the_wall_clock() {
     assert!(before <= read && read <= after, "{before} <= {read} <= {after}");
 }
 
-/// A review that ran as long as the service lets one run is a failed item whose reason names what was running, the ceiling and
+/// A review that ran as long as the service lets one run is a failed item whose reason names what was running,
+/// the ceiling and
 /// the command that does it again.
 #[test]
 fn a_review_stopped_at_the_ceiling_names_the_review_the_ceiling_and_the_command() {
@@ -309,16 +334,25 @@ fn a_review_stopped_at_the_ceiling_names_the_review_the_ceiling_and_the_command(
     assert!(reason.contains("standards review") && reason.contains(format!("SHADOW_REVIEW_SHA={oid} mise run shadow-review").as_str()), "{reason}");
 }
 
-/// The shipped review ceiling covers the shipped call ceiling and its quiet window, or the call's own bound could never be reached.
+/// The shipped review ceiling covers the shipped call ceiling and its quiet window,
+/// or the call's own bound could never be reached.
 #[test]
 fn the_review_ceiling_is_past_the_call_ceiling_and_the_quiet_window() {
     assert!(crate::wait_ceilings::REVIEW_CEILING > crate::wait_ceilings::REVIEW_CALL_CEILING);
     assert!(crate::wait_ceilings::REVIEW_CALL_CEILING > CALL_QUIET_WINDOW);
 }
 
-/// A review whose log write stalls (sol-2, B): the log is a named pipe that nobody reads, so the review blocks at the log. The
-/// service stops waiting for it at the ceiling and fails it; a second item is refused and starts no thread behind the stalled one;
-/// when the pipe is read the stalled review ends, and the same item, reviewed again, is done.
+/// A review whose log write stalls (sol-2,
+/// B):
+/// the log is a named pipe that nobody reads,
+/// so the review blocks at the log.
+/// The
+/// service stops waiting for it at the ceiling and fails it;
+/// a second item is refused and starts no thread behind the stalled one;
+/// when the pipe is read the stalled review ends,
+/// and the same item,
+/// reviewed again,
+/// is done.
 #[test]
 fn a_stalled_log_blocks_later_reviews_without_piling_threads_and_the_item_is_reviewed_again_after() {
     static OWN: crate::standards_review_run::Containment = crate::standards_review_run::Containment::new();

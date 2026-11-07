@@ -1,9 +1,16 @@
 //! What:
-//!  The `git commit` command of the native wrapper: the preparation and landing through the resident service, the settled
-//!  events, the post-commit gate and the handoff of the automatic backup.
+//!  The `git commit` command of the native wrapper:
+//! the preparation and landing through the resident service,
+//! the settled
+//!  events,
+//! the post-commit gate and the handoff of the automatic backup.
 //! Why:
-//!  The wrapper runs the commit instead of forwarding it, prints the pre-forward events only after the commit returned,
-//!  then runs the post-commit gate for a landed commit and, when the gate passes, hands the push to the service. A commit
+//!  The wrapper runs the commit instead of forwarding it,
+//! prints the pre-forward events only after the commit returned,
+//!  then runs the post-commit gate for a landed commit and,
+//! when the gate passes,
+//! hands the push to the service.
+//! A commit
 //!  that landed nothing exits with its own status.
 //!
 //! In TS you'd write (pseudocode):
@@ -35,7 +42,8 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 /// What:
-///  The effective invocation directory: the process directory moved by every `-C` of the global options.
+///  The effective invocation directory:
+/// the process directory moved by every `-C` of the global options.
 /// Why:
 ///   Relative pathspecs and the transaction's Git queries resolve from where Git itself would run.
 ///
@@ -62,7 +70,8 @@ pub fn effective_directory(start: &Path, global_prefix: &[OsString]) -> PathBuf 
 /// What:
 ///  The ending of one commit command.
 /// Why:
-///   Everything the command wrote it wrote itself and in order, so only the exit status is left to the caller.
+///   Everything the command wrote it wrote itself and in order,
+/// so only the exit status is left to the caller.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -75,7 +84,8 @@ pub struct CommitEnding {
 }
 
 /// What:
-///  Write text to standard error, ignoring a closed stream.
+///  Write text to standard error,
+/// ignoring a closed stream.
 /// Why:
 ///   The exit status already carries the result.
 ///
@@ -92,7 +102,10 @@ fn write_stderr(text: &str) {
 /// What:
 ///  Print what the transaction stopped with and name the exit status.
 /// Why:
-///   Each stop ends differently: Git's own status with nothing printed, a message with status 1, or a finding with
+///   Each stop ends differently:
+/// Git's own status with nothing printed,
+/// a message with status 1,
+/// or a finding with
 ///   status 2.
 ///
 /// In TS you'd write (pseudocode):
@@ -131,7 +144,8 @@ fn report_stop(stop: TransactionStop) -> CommitEnding {
 /// { rawArgs, gitPath, runtimeResolution, ... }
 /// ```
 pub struct CommitCommand<'a> {
-    /// Real Git, its overlay and the global options.
+    /// Real Git,
+    /// its overlay and the global options.
     pub context: &'a GitContext,
     /// The invocation's environment.
     pub environment: &'a [(OsString, OsString)],
@@ -150,8 +164,11 @@ pub struct CommitCommand<'a> {
 /// What:
 ///  Run one commit through the service and its lifecycle.
 /// Why:
-///   The service is the only writer of a commit, so the command takes no lock and recovers nothing: it prepares the commit,
-///  sends it, and reports what the service landed.
+///   The service is the only writer of a commit,
+/// so the command takes no lock and recovers nothing:
+/// it prepares the commit,
+///  sends it,
+/// and reports what the service landed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -209,10 +226,15 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
 }
 
 /// What:
-///  The post-commit lifecycle of a commit the service landed: the gate, then the handoff of the push and the upkeep.
+///  The post-commit lifecycle of a commit the service landed:
+/// the gate,
+/// then the handoff of the push and the upkeep.
 /// Why:
-///   The push runs after the command returns, so the commit never waits for the network; a blocked gate keeps the commit
-///  local and exits 2, and a handoff that fails is said plainly without changing the exit status.
+///   The push runs after the command returns,
+/// so the commit never waits for the network;
+/// a blocked gate keeps the commit
+///  local and exits 2,
+/// and a handoff that fails is said plainly without changing the exit status.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

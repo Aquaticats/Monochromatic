@@ -1,9 +1,19 @@
-//! What: Rewrite the top-level `version` value in a manifest's text, leaving every other
+//! What:
+//! Rewrite the top-level `version` value in a manifest's text,
+//! leaving every other
 //!       byte unchanged.
-//! Why: The bump is delivered as a full-content patch, so indentation, key order, line
-//!      endings and the trailing newline must survive exactly. This is the incumbent's
-//!      scanner (`manifest-text.ts:184-333`) over bytes: it tracks `{`/`[` depth outside
-//!      strings, finds the first `"version"` key at depth one, and requires its raw value to
+//! Why:
+//! The bump is delivered as a full-content patch,
+//! so indentation,
+//! key order,
+//! line
+//!      endings and the trailing newline must survive exactly.
+//! This is the incumbent's
+//!      scanner (`manifest-text.ts:184-333`) over bytes:
+//! it tracks `{`/`[` depth outside
+//!      strings,
+//! finds the first `"version"` key at depth one,
+//! and requires its raw value to
 //!      be exactly the JSON quoting of the expected version.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,8 +21,11 @@
 //! // replaceManifestVersion({ path, text, from, to });
 //! ```
 
-/// What: `use` brings names from sibling files into this file.
-/// Why:  Failures are shape problems with the incumbent's messages; versions are quoted as
+/// What:
+/// `use` brings names from sibling files into this file.
+/// Why:
+///  Failures are shape problems with the incumbent's messages;
+/// versions are quoted as
 ///       `JSON.stringify` quotes them.
 ///
 /// In TS you'd write (pseudocode):
@@ -25,8 +38,11 @@ use crate::dependent_version_manifest::shape;
 /// `JSON.stringify` quoting of the expected and new versions.
 use crate::dependent_version_release::json_quote_units;
 
-/// What: The raw spelling of the key this module looks for, with its quotes.
-/// Why:  An escaped spelling such as `"version"` is a different key to the scanner,
+/// What:
+/// The raw spelling of the key this module looks for,
+/// with its quotes.
+/// Why:
+///  An escaped spelling such as `"version"` is a different key to the scanner,
 ///       as it is to the incumbent.
 ///
 /// In TS you'd write (pseudocode):
@@ -35,9 +51,12 @@ use crate::dependent_version_release::json_quote_units;
 /// ```
 const VERSION_KEY: &[u8] = b"\"version\"";
 
-/// What: The closing quote of the JSON string literal whose opening quote is at `start`.
+/// What:
+/// The closing quote of the JSON string literal whose opening quote is at `start`.
 ///       `.enumerate().skip(n)` visits `(index, byte)` pairs from index `n` on.
-/// Why:  A backslash hides the byte after it, whatever that byte is.
+/// Why:
+///  A backslash hides the byte after it,
+/// whatever that byte is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -57,9 +76,15 @@ fn literal_end(bytes: &[u8], start: usize) -> Option<usize> {
     return None;
 }
 
-/// What: The index of the first byte at or after `start` that is not JSON whitespace, or
-///       the length. `.position(...)` returns the offset of the first match.
-/// Why:  JSON allows space, tab, carriage return and line feed around `:`.
+/// What:
+/// The index of the first byte at or after `start` that is not JSON whitespace,
+/// or
+///       the length.
+/// `.position(...)` returns the offset of the first match.
+/// Why:
+///  JSON allows space,
+/// tab,
+/// carriage return and line feed around `:`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,8 +99,12 @@ fn skip_whitespace(bytes: &[u8], start: usize) -> usize {
     return bytes.len();
 }
 
-/// What: The incumbent's failure for a literal that never closes; it names no manifest.
-/// Why:  Unreachable for text that parsed as JSON, but reachable for arbitrary input.
+/// What:
+/// The incumbent's failure for a literal that never closes;
+/// it names no manifest.
+/// Why:
+///  Unreachable for text that parsed as JSON,
+/// but reachable for arbitrary input.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,10 +117,19 @@ fn unterminated(path: &[u8]) -> PolicyIncomplete {
     };
 }
 
-/// What: Replace the value of the first top-level `"version"` key, which must be exactly
-///       `from` quoted, with `to` quoted. `&str` borrows text; the result is owned.
-/// Why:  Only the version changes; a manifest whose first top-level `version` holds
-///       something else (an escaped spelling, a different value, a duplicate key whose
+/// What:
+/// Replace the value of the first top-level `"version"` key,
+/// which must be exactly
+///       `from` quoted,
+/// with `to` quoted.
+/// `&str` borrows text;
+/// the result is owned.
+/// Why:
+///  Only the version changes;
+/// a manifest whose first top-level `version` holds
+///       something else (an escaped spelling,
+/// a different value,
+/// a duplicate key whose
 ///       first value differs) is refused rather than guessed at.
 ///
 /// In TS you'd write (pseudocode):
@@ -134,8 +172,10 @@ pub fn replace_manifest_version(
     return Err(shape(path, "has no top-level \"version\""));
 }
 
-/// What: Replace the string value that starts after optional whitespace at `start`.
-/// Why:  The value must be a string literal spelled exactly as `JSON.stringify(from)`.
+/// What:
+/// Replace the string value that starts after optional whitespace at `start`.
+/// Why:
+///  The value must be a string literal spelled exactly as `JSON.stringify(from)`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -173,7 +213,8 @@ fn replace_value(
     ));
 }
 
-/// The version rewrite, including every case of the incumbent's unit tests.
+/// The version rewrite,
+/// including every case of the incumbent's unit tests.
 #[cfg(test)]
 #[path = "dependent_version_text_tests.rs"]
 mod tests;

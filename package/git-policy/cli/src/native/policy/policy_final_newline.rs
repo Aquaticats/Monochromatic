@@ -9,7 +9,8 @@
 //!  `final-newline-normalize.ts`),
 //!  so the native
 //!      wrapper reports the same files with the same words.
-//!  A file whose `text` Git attribute is unset (`-text`, which `binary` includes) keeps its exact bytes,
+//!  A file whose `text` Git attribute is unset (`-text`,
+//! which `binary` includes) keeps its exact bytes,
 //!      which the installed wrapper could only do by path;
 //!  the attribute travels with a package that moves,
 //!      where a path list goes stale.
@@ -161,7 +162,8 @@ pub fn normalized_final_newline(bytes: &[u8]) -> Option<Vec<u8>> {
 ///   Deletions have no content;
 ///  symbolic links and submodules are not files of text;
 ///       preserved paths keep their bytes.
-///  The `text` attribute is read later, only for files whose bytes are not canonical.
+///  The `text` attribute is read later,
+/// only for files whose bytes are not canonical.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

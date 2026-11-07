@@ -1,10 +1,15 @@
 //! What:
-//!  The built wrapper's commit command through the resident service, compared with native `git commit`.
+//!  The built wrapper's commit command through the resident service,
+//! compared with native `git commit`.
 //! Why:
-//!  The service path must make the commit native Git would have made (same tree, message and author) and must leave
-//!  everything it does not cover to native Git (`doc/planning/cli-git-resident-service.md`, "Migration plan").
-//!  The service is started by the test at the socket path under the runtime directory the wrapper looks in, as the
-//!  operating system's socket activation would leave it; the wrapper finds the socket and uses it.
+//!  The service path must make the commit native Git would have made (same tree,
+//! message and author) and must leave
+//!  everything it does not cover to native Git (`doc/planning/cli-git-resident-service.md`,
+//! "Migration plan").
+//!  The service is started by the test at the socket path under the runtime directory the wrapper looks in,
+//! as the
+//!  operating system's socket activation would leave it;
+//! the wrapper finds the socket and uses it.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{Fixture, fixture, git, repository};
@@ -21,21 +26,30 @@ pub(super) fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Strin
     return git_text(fixture, repo, arguments).trim_end().to_string();
 }
 
-/// The runtime directory a service under test uses. A socket path must fit in a few dozen characters, which the
-///  fixture tree's depth does not allow, so it lives in the short agent scratch directory.
+/// The runtime directory a service under test uses.
+/// A socket path must fit in a few dozen characters,
+/// which the
+///  fixture tree's depth does not allow,
+/// so it lives in the short agent scratch directory.
 pub(super) fn runtime_for(name: &str) -> PathBuf {
     let scratch: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
     return scratch.join(format!("rn-{}-{}", std::process::id(), runtime_number(name)));
 }
 
-/// The names given to `runtime_for` so far in this process, in the order they were first given.
-///  A mutex guards the list because tests of one process may name runtimes from several threads; a test-only list, so no
+/// The names given to `runtime_for` so far in this process,
+/// in the order they were first given.
+///  A mutex guards the list because tests of one process may name runtimes from several threads;
+/// a test-only list,
+/// so no
 ///  production code waits on it.
 static RUNTIME_NAMES: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
 
 /// A small number for a runtime name:
-///  the socket path is the runtime directory, the program's folder name and a 32-digit instance name, and the whole must
-///  fit in a socket address (107 bytes), so the directory name is a number and not the test's name.
+///  the socket path is the runtime directory,
+/// the program's folder name and a 32-digit instance name,
+/// and the whole must
+///  fit in a socket address (107 bytes),
+/// so the directory name is a number and not the test's name.
 fn runtime_number(name: &str) -> usize {
     let mut names = RUNTIME_NAMES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(position) = names.iter().position(|known| { return known == name; }) {
@@ -45,7 +59,9 @@ fn runtime_number(name: &str) -> usize {
     return names.len() - 1;
 }
 
-/// The services under test, one per worktree as in production, stopped (and their runtime directory removed) when they go out
+/// The services under test,
+/// one per worktree as in production,
+/// stopped (and their runtime directory removed) when they go out
 ///  of scope.
 pub(super) struct Running {
     children: Vec<Child>,
@@ -74,7 +90,8 @@ impl Running {
         return last.unwrap_or_else(|| { return Ok(std::os::unix::process::ExitStatusExt::from_raw(0)); });
     }
 
-    /// Waits for the first service to exit by itself for at most `limit`; nothing when it is still running then.
+    /// Waits for the first service to exit by itself for at most `limit`;
+    /// nothing when it is still running then.
     pub(super) fn exited_within(&mut self, limit: Duration) -> Option<std::process::ExitStatus> {
         let began: Instant = Instant::now();
         let child: &mut Child = self.children.first_mut()?;
@@ -100,13 +117,17 @@ impl Drop for Running {
     }
 }
 
-/// Starts the service of every worktree under `root` on the socket the wrapper looks for in `runtime`, with the settings a
-///  service manager would give each instance. A worktree made later gets its service from `start_worktree`.
+/// Starts the service of every worktree under `root` on the socket the wrapper looks for in `runtime`,
+/// with the settings a
+///  service manager would give each instance.
+/// A worktree made later gets its service from `start_worktree`.
 pub(super) fn start_in(root: &Path, runtime: &Path) -> Running {
     return start_in_release(root, runtime, None);
 }
 
-/// Starts the service as `start_in` does, announcing `release` to its clients instead of its own, so a test can stand a
+/// Starts the service as `start_in` does,
+/// announcing `release` to its clients instead of its own,
+/// so a test can stand a
 ///  service of another release where the manager would have left one from before an upgrade.
 pub(super) fn start_in_release(root: &Path, runtime: &Path, release: Option<&str>) -> Running {
     let git_dirs: Vec<PathBuf> = super::support::worktree_git_dirs(root, 4);
@@ -115,7 +136,8 @@ pub(super) fn start_in_release(root: &Path, runtime: &Path, release: Option<&str
     return running;
 }
 
-/// Starts the service of every worktree in `git_dirs` and adds it to `running`, waiting until each listens.
+/// Starts the service of every worktree in `git_dirs` and adds it to `running`,
+/// waiting until each listens.
 fn serve_into(running: &mut Running, root: &Path, runtime: &Path, git_dirs: &[PathBuf], release: Option<&str>) {
     std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("socket directory");
     let journal: PathBuf = root.join("journal");
@@ -148,7 +170,9 @@ fn serve_into(running: &mut Running, root: &Path, runtime: &Path, git_dirs: &[Pa
     }
 }
 
-/// Starts the service of one worktree made after the others were, in the runtime directory another handle owns: the handle
+/// Starts the service of one worktree made after the others were,
+/// in the runtime directory another handle owns:
+/// the handle
 ///  returned stops this service and leaves the runtime directory to its owner.
 pub(super) fn start_worktree(root: &Path, runtime: &Path, repo: &Path) -> Running {
     let mut running: Running = Running { children: Vec::new(), runtime: PathBuf::new() };
@@ -211,8 +235,10 @@ fn a_scoped_commit_through_the_service_equals_the_native_commit() {
     remove_settled(&fixture);
 }
 
-/// The harness's per-fixture service takes the wrapped commit the way a person's commit is taken, and goes when its owner
-///  goes, with its runtime directory.
+/// The harness's per-fixture service takes the wrapped commit the way a person's commit is taken,
+/// and goes when its owner
+///  goes,
+/// with its runtime directory.
 #[test]
 fn the_fixture_service_takes_a_wrapped_commit_and_goes_with_its_owner() {
     let fixture: Fixture = fixture("service-harness");
@@ -245,7 +271,8 @@ fn directory_of(program: &str) -> Option<PathBuf> {
     return std::env::var_os("PATH").and_then(|paths| { return std::env::split_paths(&paths).find(|directory| { return directory.join(program).is_file(); }); });
 }
 
-/// Real Git with `git-lfs` reachable, in the fixture's hermetic environment.
+/// Real Git with `git-lfs` reachable,
+/// in the fixture's hermetic environment.
 fn git_with_lfs(fixture: &Fixture, repo: &Path, lfs: &Path, arguments: &[&str]) {
     let output: Output = Command::new("/usr/bin/git")
         .current_dir(repo)
@@ -264,12 +291,14 @@ fn git_with_lfs(fixture: &Fixture, repo: &Path, lfs: &Path, arguments: &[&str]) 
     assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(&output.stderr));
 }
 
-/// Whether a program is on the search path, so a control that needs it can say plainly why it did not run.
+/// Whether a program is on the search path,
+/// so a control that needs it can say plainly why it did not run.
 fn on_path(program: &str) -> bool {
     return std::env::var_os("PATH").is_some_and(|paths| { return std::env::split_paths(&paths).any(|directory| { return directory.join(program).is_file(); }); });
 }
 
-/// A commit from inside a PID namespace reaches the service and lands: nothing about the commit depends on process ids.
+/// A commit from inside a PID namespace reaches the service and lands:
+/// nothing about the commit depends on process ids.
 #[test]
 fn a_commit_from_a_pid_namespace_lands() {
     if !on_path("unshare") {
@@ -310,8 +339,12 @@ fn a_commit_from_a_pid_namespace_lands() {
     remove_settled(&fixture);
 }
 
-/// Issue 1770: a scoped commit with an unrelated tracked LFS asset that is stat-dirty lands, and no temporary path
-///  is printed. Needs the real `git-lfs`; without it the control says so and stops.
+/// Issue 1770:
+/// a scoped commit with an unrelated tracked LFS asset that is stat-dirty lands,
+/// and no temporary path
+///  is printed.
+/// Needs the real `git-lfs`;
+/// without it the control says so and stops.
 #[test]
 fn a_scoped_commit_beside_a_stat_dirty_lfs_asset_lands_through_the_service() {
     let Some(lfs) = directory_of("git-lfs") else {

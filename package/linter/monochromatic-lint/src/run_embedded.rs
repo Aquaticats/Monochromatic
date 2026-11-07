@@ -1,6 +1,6 @@
 //! What:
 //!  The in-process entry for a caller that would otherwise start
-//!  `monochromatic-lint --config=<file> --stdin --stdin-filename=<name> --fix`:
+//!  `monochromatic-lint --config=<file> --stdin --stdin-filename=<name> --fix-content`:
 //!  one function that takes the configuration text,
 //!  the filename and the source bytes,
 //!  and returns the fixed source and the findings the fixes left.
@@ -28,6 +28,7 @@ use crate::{
     config_error::ConfigError,
     config_lookup::{ConfigurationSource, configuration_from_text},
     diagnostic::{Diagnostic, Severity},
+    edits::FixScope,
     run_modes::SetupError,
     run_output::exit_status,
     run_plan::ConfigStore,
@@ -197,8 +198,12 @@ pub fn fix_source(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, Embedded
         request.configuration,
     )
     .map_err(config_failure)?;
-    let mut store: ConfigStore =
-        ConfigStore::from_source(request.top_level, described).map_err(config_failure)?;
+    // The embedded caller names the rules it wants in its own configuration,
+    //  so every class of fix those rules attach applies:
+    //  the commit path's `markdown/autofix` exists to rewrite LFS image URLs, which is a content fix.
+    let mut store: ConfigStore = ConfigStore::from_source(request.top_level, described)
+        .map_err(config_failure)?
+        .with_fix_scope(FixScope::WhitespaceAndContent);
     require_supported_name(request.name).map_err(setup_failure)?;
     let run: SourceRun = lint_source_bytes(
         &mut store,

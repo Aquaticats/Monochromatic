@@ -1,12 +1,24 @@
 //! What:
-//!  Judge one candidate and, when it is proven stale, set it aside, check that it is the file that was judged, and remove it
+//!  Judge one candidate and,
+//! when it is proven stale,
+//! set it aside,
+//! check that it is the file that was judged,
+//! and remove it
 //!  with its companions.
 //! Why:
-//!  Two wrappers may judge the same lock at the same moment, and a live Git may create a new lock at the same path the
-//!  instant the old one is gone. A plain `unlink` by path would then remove the live Git's lock. One `rename` to a private
-//!  name takes the file atomically; what was taken is then checked against what was judged, and put back if it differs.
-//!  Nothing here removes a path after a separate look at it: the lock, its pid file and the packed-references staging file
-//!  all go through that one step, each against the identity it had when it was judged.
+//!  Two wrappers may judge the same lock at the same moment,
+//! and a live Git may create a new lock at the same path the
+//!  instant the old one is gone.
+//! A plain `unlink` by path would then remove the live Git's lock.
+//! One `rename` to a private
+//!  name takes the file atomically;
+//! what was taken is then checked against what was judged,
+//! and put back if it differs.
+//!  Nothing here removes a path after a separate look at it:
+//! the lock,
+//! its pid file and the packed-references staging file
+//!  all go through that one step,
+//! each against the identity it had when it was judged.
 //!  No lock of the wrapper's own is taken (`Use as few locks as possible.`).
 //!
 //! In TS you'd write (pseudocode):
@@ -25,7 +37,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
-/// The start of the private name a lock is set aside under; it ends in no `.lock`, so Git and the walk ignore it.
+/// The start of the private name a lock is set aside under;
+/// it ends in no `.lock`,
+/// so Git and the walk ignore it.
 const ASIDE_PREFIX: &str = "cli-git-stale-lock";
 
 /// Makes two names set aside by one process differ.
@@ -38,8 +52,11 @@ fn aside_name(root: &Path) -> PathBuf {
     return root.join(format!("{ASIDE_PREFIX}-{}-{count}-{nanos:x}", std::process::id()));
 }
 
-/// Take the file at `lock` by renaming it into `root`; remove it if it is the file that was judged, otherwise put it back.
-///  Returns whether the judged file was removed. A file that already differs from the judged one is not moved at all.
+/// Take the file at `lock` by renaming it into `root`;
+/// remove it if it is the file that was judged,
+/// otherwise put it back.
+///  Returns whether the judged file was removed.
+/// A file that already differs from the judged one is not moved at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,8 +71,11 @@ pub fn remove_if_unchanged(root: &Path, lock: &Path, judged: &Identity, outcome:
     return take_and_check(root, lock, judged, outcome);
 }
 
-/// The step after that look: take the file at `lock` into `root` under a name nobody has, compare what was taken with
-///  `judged`, then remove it or put it back where it was found.
+/// The step after that look:
+/// take the file at `lock` into `root` under a name nobody has,
+/// compare what was taken with
+///  `judged`,
+/// then remove it or put it back where it was found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -90,7 +110,8 @@ pub fn take_and_check(root: &Path, lock: &Path, judged: &Identity, outcome: &mut
     return Ok(false);
 }
 
-/// Judge `candidate` and record the result in `outcome`; remove it when it is proven stale.
+/// Judge `candidate` and record the result in `outcome`;
+/// remove it when it is proven stale.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

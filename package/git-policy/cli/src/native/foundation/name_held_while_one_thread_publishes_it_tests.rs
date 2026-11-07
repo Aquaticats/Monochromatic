@@ -1,15 +1,21 @@
-//! Controls for the in-memory claim on a name that is being published: one holder at a time, a bounded wait, a claim given back
-//! on every way out, and independence of names in different slots.
+//! Controls for the in-memory claim on a name that is being published:
+//! one holder at a time,
+//! a bounded wait,
+//! a claim given back
+//! on every way out,
+//! and independence of names in different slots.
 
 use super::*;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 
-/// A wait no control reaches: a held name is given back long before it.
+/// A wait no control reaches:
+/// a held name is given back long before it.
 const FAR_LONGER_THAN_A_CONTROL: Duration = Duration::from_secs(60);
 
-/// Two paths whose claims live in different slots, found by trying names until the slots differ.
+/// Two paths whose claims live in different slots,
+/// found by trying names until the slots differ.
 fn two_paths_in_different_slots() -> (PathBuf, PathBuf) {
     let first: PathBuf = PathBuf::from("claim-control-first");
     for number in 0.. {
@@ -21,8 +27,12 @@ fn two_paths_in_different_slots() -> (PathBuf, PathBuf) {
     unreachable!("the range has no end");
 }
 
-/// A held name refuses a second hold of the same name until the first ends, and then gives it; the refusal is `TimedOut`, and the
-///  control's own wait is the length of a zero deadline, so nothing sleeps.
+/// A held name refuses a second hold of the same name until the first ends,
+/// and then gives it;
+/// the refusal is `TimedOut`,
+/// and the
+///  control's own wait is the length of a zero deadline,
+/// so nothing sleeps.
 #[test]
 fn a_name_that_is_held_is_refused_until_the_holder_drops() {
     let path: PathBuf = PathBuf::from("claim-control-held");
@@ -34,7 +44,8 @@ fn a_name_that_is_held_is_refused_until_the_holder_drops() {
     hold_name_while_publishing(path.as_path(), Duration::ZERO).expect("the name is free once the holder dropped");
 }
 
-/// A thread that waits for a held name gets it as soon as the holder lets go, long before its deadline.
+/// A thread that waits for a held name gets it as soon as the holder lets go,
+/// long before its deadline.
 #[test]
 fn a_waiting_thread_gets_the_name_when_the_holder_lets_go() {
     let path: PathBuf = PathBuf::from("claim-control-waiting");
@@ -50,7 +61,8 @@ fn a_waiting_thread_gets_the_name_when_the_holder_lets_go() {
     waiter.join().expect("the waiter").expect("the waiter got the name");
 }
 
-/// A claim is given back when the publish panics, so a panic of one thread never keeps a name from the others.
+/// A claim is given back when the publish panics,
+/// so a panic of one thread never keeps a name from the others.
 #[test]
 fn a_panic_while_holding_gives_the_name_back() {
     let path: PathBuf = PathBuf::from("claim-control-panic");
@@ -64,7 +76,8 @@ fn a_panic_while_holding_gives_the_name_back() {
     hold_name_while_publishing(path.as_path(), Duration::ZERO).expect("the claim was given back by the unwind");
 }
 
-/// Names in different slots are held at once; only names that share a slot wait for each other.
+/// Names in different slots are held at once;
+/// only names that share a slot wait for each other.
 #[test]
 fn names_in_different_slots_are_held_at_the_same_time() {
     let (first, second) = two_paths_in_different_slots();
@@ -72,8 +85,11 @@ fn names_in_different_slots_are_held_at_the_same_time() {
     let _b: HeldName = hold_name_while_publishing(second.as_path(), Duration::ZERO).expect("second, in another slot");
 }
 
-/// Many threads that each hold one name, read a counter, let others run and write the counter plus one never lose an increment:
-///  the claim makes the read and the write one step to the others (a read-modify-write that is not atomic, on purpose).
+/// Many threads that each hold one name,
+/// read a counter,
+/// let others run and write the counter plus one never lose an increment:
+///  the claim makes the read and the write one step to the others (a read-modify-write that is not atomic,
+/// on purpose).
 #[test]
 fn the_claim_makes_a_read_and_a_write_one_step() {
     const THREADS: usize = 8;
@@ -96,4 +112,66 @@ fn the_claim_makes_a_read_and_a_write_one_step() {
         worker.join().expect("a worker");
     }
     assert_eq!(counter.load(Ordering::SeqCst), THREADS * ROUNDS);
+}
+
+/// The wait for a held name is a wake on the flag,
+/// not a poll:
+/// the module offers no turn with `yield_now` and sleeps with no
+///  `thread::sleep`,
+/// which is also the rule of the one-wait guard of the whole move (plan step T13).
+#[test]
+fn the_wait_for_a_held_name_is_a_wake_on_the_flag_and_not_a_poll() {
+    let source: &str = include_str!("name_held_while_one_thread_publishes_it.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    for forbidden in ["thread::sleep", "yield_now"] {
+        assert!(!code.contains(forbidden), "the wait for a held name still polls with `{forbidden}`");
+    }
+}
+
+/// A wait for a name that is never given back ends at its bound,
+/// not before it and not long after it.
+#[test]
+fn a_wait_for_a_name_that_is_never_given_back_ends_at_its_bound() {
+    const BOUND: Duration = Duration::from_millis(150);
+    const GENEROUS_SLACK: Duration = Duration::from_secs(10);
+    let path: PathBuf = PathBuf::from("claim-control-bounded-wait");
+    let _held: HeldName = hold_name_while_publishing(path.as_path(), Duration::ZERO).expect("held");
+    let started: Instant = Instant::now();
+    let refused: std::io::Error = hold_name_while_publishing(path.as_path(), BOUND).err().expect("the name is never given back");
+    let waited: Duration = started.elapsed();
+    assert_eq!(refused.kind(), std::io::ErrorKind::TimedOut);
+    assert!(waited >= BOUND, "the wait ended at {waited:?}, before its bound of {BOUND:?}");
+    assert!(waited < BOUND + GENEROUS_SLACK, "the wait took {waited:?} for a bound of {BOUND:?}");
+}
+
+/// Waiters that are woken one after another by a name that is taken and given back many times all get it inside their bound:
+///  a wake lost between a waiter's last look at the flag and its sleep would leave one of them to run out its bound.
+#[test]
+fn no_wake_is_lost_when_many_threads_take_and_give_back_one_name() {
+    const THREADS: usize = 8;
+    const ROUNDS: usize = 300;
+    const BOUND: Duration = Duration::from_secs(30);
+    let timed_out: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let workers: Vec<_> = (0..THREADS)
+        .map(|_| {
+            let missed: Arc<AtomicUsize> = Arc::clone(&timed_out);
+            return std::thread::spawn(move || {
+                for _ in 0..ROUNDS {
+                    match hold_name_while_publishing(Path::new("claim-control-wakes"), BOUND) {
+                        Ok(held) => {
+                            std::thread::sleep(Duration::from_micros(50));
+                            drop(held);
+                        }
+                        Err(_) => {
+                            missed.fetch_add(1, Ordering::SeqCst);
+                        }
+                    }
+                }
+            });
+        })
+        .collect();
+    for worker in workers {
+        worker.join().expect("a worker");
+    }
+    assert_eq!(timed_out.load(Ordering::SeqCst), 0, "a waiter ran out its bound while the name was being given back");
 }

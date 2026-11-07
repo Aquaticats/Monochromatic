@@ -1,8 +1,15 @@
 //! What:
-//!  Reading and writing the `UNTR` index extension (`dir.c`: `read_untracked_extension`, `write_untracked_extension`).
+//!  Reading and writing the `UNTR` index extension (`dir.c`:
+//! `read_untracked_extension`,
+//! `write_untracked_extension`).
 //! Why:
-//!  The extension is kept across an in-process index update, so it is decoded to directories and encoded again with the same
-//!  layout: directories in preorder, then three bitmaps (valid, check-only, has-exclude-object) indexed by that order,
+//!  The extension is kept across an in-process index update,
+//! so it is decoded to directories and encoded again with the same
+//!  layout:
+//! directories in preorder,
+//! then three bitmaps (valid,
+//! check-only,
+//! has-exclude-object) indexed by that order,
 //!  then the stat records and object names of the flagged directories.
 //!
 //! In TS you'd write (pseudocode):
@@ -16,7 +23,9 @@ use crate::index_ewah::Ewah;
 use crate::index_stat::{CACHE_STAT_LENGTH, StatData, be32, decode_varint, encode_varint};
 use crate::index_untracked::{Untracked, UntrackedDir};
 
-/// The deepest directory nesting the reader follows: the depth the tree reader follows (`TREE_DEPTH_LIMIT` in `repo_read_tree.rs`), as a directory of the cache cannot nest deeper than a tree.
+/// The deepest directory nesting the reader follows:
+/// the depth the tree reader follows (`TREE_DEPTH_LIMIT` in `repo_read_tree.rs`),
+/// as a directory of the cache cannot nest deeper than a tree.
 const DEPTH_LIMIT: usize = 256;
 
 /// The text up to the first NUL and the bytes after it.
@@ -25,7 +34,10 @@ fn take_text(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
     return Some((&bytes[..nul], &bytes[nul + 1..]));
 }
 
-/// Read one directory and, after it, its subdirectories in preorder; counts the directories read.
+/// Read one directory and,
+/// after it,
+/// its subdirectories in preorder;
+/// counts the directories read.
 fn read_dir<'a>(bytes: &'a [u8], count: &mut usize, depth: usize) -> Option<(UntrackedDir, &'a [u8])> {
     if depth > DEPTH_LIMIT {
         return None;
@@ -59,7 +71,8 @@ fn read_dir<'a>(bytes: &'a [u8], count: &mut usize, depth: usize) -> Option<(Unt
     return Some((dir, rest));
 }
 
-/// Hand the flags, stat records and object names to the directories in preorder.
+/// Hand the flags,
+/// stat records and object names to the directories in preorder.
 fn assign(dir: &mut UntrackedDir, position: &mut usize, flags: &Flags<'_>, cursor: &mut (usize, usize)) -> Option<()> {
     let index: usize = *position;
     *position += 1;
@@ -96,7 +109,8 @@ struct Flags<'a> {
     hash_length: usize,
 }
 
-/// The fixed part of the extension: what comes before the directories.
+/// The fixed part of the extension:
+/// what comes before the directories.
 struct Header {
     /// The machine identification.
     ident: Vec<u8>,
@@ -111,7 +125,8 @@ struct Header {
 }
 
 impl Header {
-    /// The cache these fields start, with `root` as its directories.
+    /// The cache these fields start,
+    /// with `root` as its directories.
     fn with_root(self, root: Option<UntrackedDir>) -> Untracked {
         return Untracked {
             ident: self.ident,
@@ -142,7 +157,9 @@ fn read_header(body: &[u8], hash_length: usize) -> Option<(Header, &[u8])> {
     return Some((header, after_name));
 }
 
-/// The extension from its bytes, or `None` for anything outside the layout Git writes (Git would drop such a cache; the
+/// The extension from its bytes,
+/// or `None` for anything outside the layout Git writes (Git would drop such a cache;
+/// the
 /// caller lets Git answer instead).
 pub fn read_untracked(data: &[u8], hash_length: usize) -> Option<Untracked> {
     let (last, body) = data.split_last()?;
@@ -201,7 +218,8 @@ struct Writer {
     ids: Vec<u8>,
 }
 
-/// The subdirectories of `dir` that the cache descends into, in order.
+/// The subdirectories of `dir` that the cache descends into,
+/// in order.
 fn recursing_children(dir: &UntrackedDir) -> Vec<&UntrackedDir> {
     let mut recursing: Vec<&UntrackedDir> = Vec::new();
     for child in &dir.dirs {

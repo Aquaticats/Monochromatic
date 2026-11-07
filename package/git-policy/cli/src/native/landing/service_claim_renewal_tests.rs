@@ -1,4 +1,8 @@
-//! Controls for the renewal of claim leases: what a renewal changes, what it leaves alone, what a settlement reaches, and that
+//! Controls for the renewal of claim leases:
+//! what a renewal changes,
+//! what it leaves alone,
+//! what a settlement reaches,
+//! and that
 //! the thread stops.
 
 use crate::work_item_recovery::requeue_expired;
@@ -17,7 +21,9 @@ fn clock() -> ClaimTime {
     return ClaimTime::from_parts(BOOT, Duration::from_secs(5000), Duration::from_secs(1_700_000_000));
 }
 
-/// A claimed push item in a fresh work directory, claimed at `stamp`; the claim is returned with the directories.
+/// A claimed push item in a fresh work directory,
+/// claimed at `stamp`;
+/// the claim is returned with the directories.
 fn claimed_item(name: &str, stamp: &ClaimTime) -> (PathBuf, PathBuf, Claimed) {
     let root: PathBuf = fixture(name);
     let work_dir: PathBuf = root.join("work");
@@ -41,7 +47,8 @@ fn claimed_names(work_dir: &Path) -> Vec<String> {
     return std::fs::read_dir(state_directory(work_dir, CLAIMED)).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
 }
 
-/// A renewed claim is not taken over at the end of the lease it started with, and the same claim unrenewed is.
+/// A renewed claim is not taken over at the end of the lease it started with,
+/// and the same claim unrenewed is.
 #[test]
 fn a_renewed_claim_outlives_the_lease_it_started_with() {
     let started: ClaimTime = clock();
@@ -54,7 +61,8 @@ fn a_renewed_claim_outlives_the_lease_it_started_with() {
     remove(root.as_path());
 }
 
-/// A renewal finds nothing to renew once the claim has left `claimed`, and never creates a claim.
+/// A renewal finds nothing to renew once the claim has left `claimed`,
+/// and never creates a claim.
 #[test]
 fn renewing_never_brings_back_a_settled_claim() {
     let started: ClaimTime = clock();
@@ -65,7 +73,8 @@ fn renewing_never_brings_back_a_settled_claim() {
     remove(root.as_path());
 }
 
-/// The held set follows the claims taken and settled, and a settlement moves the claim under the name it has now.
+/// The held set follows the claims taken and settled,
+/// and a settlement moves the claim under the name it has now.
 #[test]
 fn the_held_set_follows_what_is_taken_and_settled() {
     let (root, work_dir, claimed) = claimed_item("renewal-held", &clock());
@@ -84,8 +93,11 @@ fn the_held_set_follows_what_is_taken_and_settled() {
     remove(root.as_path());
 }
 
-/// A claim another instance took over is found gone by the next renewal, is no longer held, and its settlement says so and
-/// moves nothing: not the other instance's new claim of the same item either.
+/// A claim another instance took over is found gone by the next renewal,
+/// is no longer held,
+/// and its settlement says so and
+/// moves nothing:
+/// not the other instance's new claim of the same item either.
 #[test]
 fn a_claim_taken_over_is_found_gone_and_settles_nothing_of_the_new_claim() {
     let started: ClaimTime = clock();
@@ -106,8 +118,12 @@ fn a_claim_taken_over_is_found_gone_and_settles_nothing_of_the_new_claim() {
     remove(root.as_path());
 }
 
-/// A holder whose renewal has not run since another instance took its claim and claimed the item again finds, by the
-/// generation in the file name, that the file in `claimed` is not its own: it is not held, and its settlement moves nothing.
+/// A holder whose renewal has not run since another instance took its claim and claimed the item again finds,
+/// by the
+/// generation in the file name,
+/// that the file in `claimed` is not its own:
+/// it is not held,
+/// and its settlement moves nothing.
 #[test]
 fn a_claim_claimed_again_by_another_instance_is_not_this_holders_though_its_id_is_in_claimed() {
     let started: ClaimTime = clock();
@@ -124,7 +140,8 @@ fn a_claim_claimed_again_by_another_instance_is_not_this_holders_though_its_id_i
     remove(root.as_path());
 }
 
-/// The renewal thread renames the held claims by itself, and is gone when the renewal is dropped.
+/// The renewal thread renames the held claims by itself,
+/// and is gone when the renewal is dropped.
 #[test]
 fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
     let (root, work_dir, claimed) = claimed_item("renewal-thread", &clock());
@@ -146,7 +163,8 @@ fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
     remove(root.as_path());
 }
 
-/// A claim the renewal does not hold is left to its lease, so a dead holder's claim still expires.
+/// A claim the renewal does not hold is left to its lease,
+/// so a dead holder's claim still expires.
 #[test]
 fn a_claim_that_is_not_held_is_not_renewed() {
     let (root, work_dir, claimed) = claimed_item("renewal-not-held", &clock());
@@ -162,8 +180,10 @@ fn a_claim_that_is_not_held_is_not_renewed() {
     remove(root.as_path());
 }
 
-/// A settlement finds its claim by id and generation, so a renewal that renamed the file since the claim was taken does not
-/// make the settlement miss it, and no lock stands between the two.
+/// A settlement finds its claim by id and generation,
+/// so a renewal that renamed the file since the claim was taken does not
+/// make the settlement miss it,
+/// and no lock stands between the two.
 #[test]
 fn a_settlement_after_renewals_finds_the_claim_under_whatever_name_it_has() {
     let (root, work_dir, claimed) = claimed_item("renewal-settle-after", &clock());
@@ -179,8 +199,11 @@ fn a_settlement_after_renewals_finds_the_claim_under_whatever_name_it_has() {
     remove(root.as_path());
 }
 
-/// A drain and its renewal thread work at once without either waiting: settlements race renewals driven as fast as the thread
-/// answers, and every claim is settled exactly once, none lost and none left in `claimed`.
+/// A drain and its renewal thread work at once without either waiting:
+/// settlements race renewals driven as fast as the thread
+/// answers,
+/// and every claim is settled exactly once,
+/// none lost and none left in `claimed`.
 #[test]
 fn settlements_racing_renewals_lose_no_claim() {
     let root: PathBuf = fixture("renewal-race");

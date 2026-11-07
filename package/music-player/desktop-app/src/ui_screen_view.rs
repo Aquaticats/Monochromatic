@@ -10,21 +10,37 @@
 //! here without a Slint window,
 //! so they can be tested directly.
 
+/// Imports the playback mode that the view shows.
 use music_player::command::PlaybackMode;
+/// Imports the page entry type that the player content is built from.
 use music_player::pagination::PageEntry;
+/// Imports the page index that the state caches.
 use music_player::page_index::PageIndex;
+/// Imports the shared ownership type of the name list that the state shares.
 use std::sync::Arc;
+/// Imports the player content input and its builder.
 use music_player::player_content::{PlayerContentInput, build_player_content};
+/// Imports the fields that a track template reads.
 use music_player::template_model::TrackFields;
+/// Imports the deck folder label and the track title.
 use music_player::track_entries::{deck_folder_label, track_title_for};
+/// Imports the track measure and the position lookup.
 use music_player::track_measure::{TrackMeasure, lookup_for_positions};
+/// Imports the map type that holds measures by path.
 use std::collections::HashMap;
 
+/// Imports the row and picker types,
+/// their builders and the shared-prefix stripping and unplayable marking.
 use crate::ui_screen_rows::{ListRow, Picker, PickerName, list_rows, picker, strip_shared_prefixes, mark_unplayable};
+/// Imports the title prefix helpers that shorten row titles.
 use music_player::title_prefix::{display_title, shared_prefix_len};
+/// Imports the scroll request that a view may carry.
 use crate::ui_screen_scroll::ScrollRequest;
+/// Imports the subtitle and title evaluation of the playing track.
 use crate::ui_templates::{playing_subtitle, playing_track};
+/// Imports the template editor state that the settings pages keep.
 use music_player::template_editor_state::TemplateEditorState;
+/// Imports the default playing template.
 use music_player::template_model::DEFAULT_PLAYING_TEMPLATE;
 
 /// What:
@@ -426,6 +442,10 @@ pub fn view(state: &ScreenState, supporting_line: &dyn Fn(&TrackFields) -> Optio
 /// Page selection helpers live in `ui_screen_pages.rs` and keep their old paths here.
 pub use crate::ui_screen_pages::{select_folder_label, selected_page_scope};
 
+/// Unit tests of `ui_screen_view`,
+/// in the sidecar file `ui_screen_view_tests.rs`.
+/// Role of the module:
+/// pure library screen state and its projection into the window's view model.
 #[cfg(test)]
 #[path = "ui_screen_view_tests.rs"]
 mod tests;

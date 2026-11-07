@@ -1,10 +1,17 @@
 //! What:
-//!  The push of a merge that integrated a lost race, planned and run inside the running wrapper.
+//!  The push of a merge that integrated a lost race,
+//! planned and run inside the running wrapper.
 //! Why:
-//!  The merge push must pass every gate a typed `git push` passes, so the policies read the integrated result.
-//!  An earlier version started the wrapper's own executable with a marker variable to get those gates; the wrapper
-//!  never starts itself, so the same planning (`plan_invocation`) now runs in this process, with the marker set only
-//!  in the environment handed to the planner, never in the process environment, and the planned action is run here.
+//!  The merge push must pass every gate a typed `git push` passes,
+//! so the policies read the integrated result.
+//!  An earlier version started the wrapper's own executable with a marker variable to get those gates;
+//! the wrapper
+//!  never starts itself,
+//! so the same planning (`plan_invocation`) now runs in this process,
+//! with the marker set only
+//!  in the environment handed to the planner,
+//! never in the process environment,
+//! and the planned action is run here.
 //!  The marker stops that planned push from stacking again.
 //!
 //! In TS you'd write (pseudocode):
@@ -36,9 +43,11 @@ use std::io::Write;
 const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What:
-///  The environment handed to the planner: the coordinator's complete environment with the stacking marker set once.
+///  The environment handed to the planner:
+/// the coordinator's complete environment with the stacking marker set once.
 /// Why:
-///   A marker the caller already had must not appear twice, because the first entry would win a lookup.
+///   A marker the caller already had must not appear twice,
+/// because the first entry would win a lookup.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,13 +64,16 @@ fn marked_environment(environment: &[(OsString, OsString)]) -> Vec<(OsString, Os
     return marked;
 }
 
-/// Write `text` to standard error; a failed write is ignored because nowhere is left to report it.
+/// Write `text` to standard error;
+/// a failed write is ignored because nowhere is left to report it.
 fn write_to_standard_error(text: &str) {
     // Terminal output error: nowhere is left to report a failed diagnostic write.
     let _written = std::io::stderr().write_all(text.as_bytes());
 }
 
-/// The status of a forwarded run: the child's own code, or the code of the failure after its message is written.
+/// The status of a forwarded run:
+/// the child's own code,
+/// or the code of the failure after its message is written.
 fn status_of_forwarded(run: ForwardedRun) -> i32 {
     return match run {
         ForwardedRun::Ran(code) => code,
@@ -75,7 +87,11 @@ fn status_of_forwarded(run: ForwardedRun) -> i32 {
 /// What:
 ///  Run a planned action to its end as a child of this process and return its status.
 /// Why:
-///   Only the actions a marked push can plan are handled: a plain run, a settled run, a push child, or a refusal;
+///   Only the actions a marked push can plan are handled:
+/// a plain run,
+/// a settled run,
+/// a push child,
+/// or a refusal;
 ///  anything else is a planning bug and ends with the engine failure status and a plain message.
 ///
 /// In TS you'd write (pseudocode):
@@ -119,7 +135,8 @@ fn run_planned(action: Action) -> i32 {
 /// What:
 ///  Push a merge through the push gates of this process and report Git's status.
 /// Why:
-///   The status is what the stacking loop reads; Git's own output went to the caller's streams.
+///   The status is what the stacking loop reads;
+/// Git's own output went to the caller's streams.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

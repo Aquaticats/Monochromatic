@@ -1,5 +1,9 @@
-//! Controls for the filesystem section of the doctor: the wording for every case on built facts, the kernel command
-//!  line parsing, the facts read from a real fixture, and the section's place in the doctor's output and exit status.
+//! Controls for the filesystem section of the doctor:
+//! the wording for every case on built facts,
+//! the kernel command
+//!  line parsing,
+//! the facts read from a real fixture,
+//! and the section's place in the doctor's output and exit status.
 
 use super::*;
 use crate::action::Action;
@@ -13,7 +17,8 @@ const ROOT: &str = "/work/checkout";
 /// The mount point the built facts use.
 const MOUNT: &str = "/work";
 
-/// The source the built mount and the built root mount share, unless a control separates them.
+/// The source the built mount and the built root mount share,
+/// unless a control separates them.
 const SOURCE: &str = "/dev/mapper/root";
 
 /// Facts for a btrfs checkout on an ostree host with one `rootflags=` word.
@@ -35,8 +40,11 @@ fn assert_shape(text: &str) {
     assert_eq!(text.matches(SECTION_MARKER).count(), 1, "{text}");
 }
 
-/// A checkout on btrfs that is an ordinary directory: the owner's wording about performance, the migrate commands in
-///  order (dry run first), and the plain statement that worktrees still use Git's checkout.
+/// A checkout on btrfs that is an ordinary directory:
+/// the owner's wording about performance,
+/// the migrate commands in
+///  order (dry run first),
+/// and the plain statement that worktrees still use Git's checkout.
 #[test]
 fn an_ordinary_directory_on_btrfs_is_told_a_subvolume_can_help_with_performance() {
     let text: String = render_section(&facts(FilesystemKind::Btrfs, false, Some(true)));
@@ -60,8 +68,12 @@ fn a_subvolume_checkout_is_not_told_to_migrate() {
     assert!(text.contains("from a snapshot of the worktree it is run from when that worktree is clean") && text.contains("every new worktree a subvolume"), "{text}");
 }
 
-/// Without the option, the runtime command names the mount point, and an ostree host gets delete plus append with the
-///  value of the running kernel command line; `--replace` is explained, never printed as a command.
+/// Without the option,
+/// the runtime command names the mount point,
+/// and an ostree host gets delete plus append with the
+///  value of the running kernel command line;
+/// `--replace` is explained,
+/// never printed as a command.
 #[test]
 fn the_missing_option_comes_with_the_runtime_command_and_the_ostree_delete_and_append() {
     let text: String = render_section(&facts(FilesystemKind::Btrfs, true, Some(false)));
@@ -72,8 +84,10 @@ fn the_missing_option_comes_with_the_runtime_command_and_the_ostree_delete_and_a
     assert!(!text.contains("/etc/fstab"), "an ostree host is not told to edit fstab: {text}");
 }
 
-/// A filesystem other than the root one (an extra disk) is not told to change the kernel command line, which does not
-///  configure it; it is pointed at its own mount configuration.
+/// A filesystem other than the root one (an extra disk) is not told to change the kernel command line,
+/// which does not
+///  configure it;
+/// it is pointed at its own mount configuration.
 #[test]
 fn another_filesystem_than_the_root_one_gets_no_kernel_argument() {
     let mut elsewhere: FilesystemFacts = facts(FilesystemKind::Btrfs, true, Some(false));
@@ -94,7 +108,8 @@ fn an_option_already_on_the_kernel_command_line_is_not_appended_again() {
     assert!(text.contains("already lists") && text.contains("reboot") && !text.contains("sudo rpm-ostree"), "{text}");
 }
 
-/// A conventional host is told to edit the filesystem table; it gets no `rpm-ostree` command.
+/// A conventional host is told to edit the filesystem table;
+/// it gets no `rpm-ostree` command.
 #[test]
 fn a_conventional_host_is_told_to_edit_fstab() {
     let mut conventional: FilesystemFacts = facts(FilesystemKind::Btrfs, true, Some(false));
@@ -117,14 +132,18 @@ fn an_ostree_host_without_exactly_one_rootflags_word_gets_no_kargs_command() {
     assert!(crowded.contains("several `rootflags=` words") && !crowded.contains("sudo rpm-ostree kargs --delete"), "{crowded}");
 }
 
-/// An unreadable mount table is said, not guessed.
+/// An unreadable mount table is said,
+/// not guessed.
 #[test]
 fn an_unreadable_mount_table_is_stated() {
     let text: String = render_section(&facts(FilesystemKind::Btrfs, true, None));
     assert!(text.contains("mount table could not be read") && !text.contains("sudo "), "{text}");
 }
 
-/// Overlayfs: the detection, what works inside it and what does not apply, and no migration or mount advice.
+/// Overlayfs:
+/// the detection,
+/// what works inside it and what does not apply,
+/// and no migration or mount advice.
 #[test]
 fn overlayfs_is_described_with_what_works_and_what_does_not() {
     let text: String = render_section(&facts(FilesystemKind::Overlayfs, false, Some(false)));
@@ -134,7 +153,8 @@ fn overlayfs_is_described_with_what_works_and_what_does_not() {
     assert!(!text.contains("migrate-to-subvolume") && !text.contains("sudo "), "{text}");
 }
 
-/// Any other filesystem: one line that Git's checkout is used and nothing faster applies.
+/// Any other filesystem:
+/// one line that Git's checkout is used and nothing faster applies.
 #[test]
 fn another_filesystem_gets_one_line() {
     let text: String = render_section(&facts(FilesystemKind::Other, false, Some(false)));
@@ -143,7 +163,9 @@ fn another_filesystem_gets_one_line() {
     assert!(text.contains("no faster method applies") && text.contains("XFS made with reflink"), "{text}");
 }
 
-/// The value of a `rootflags=` word is everything after the first `=`, for every word, and other words are ignored.
+/// The value of a `rootflags=` word is everything after the first `=`,
+/// for every word,
+/// and other words are ignored.
 #[test]
 fn rootflags_values_keep_their_equal_signs() {
     let line: &str = "BOOT_IMAGE=(hd0,gpt2)/vmlinuz root=UUID=x rootflags=subvol=root,compress=zstd:1 rw norootflags=1 rootflags=a";
@@ -152,7 +174,9 @@ fn rootflags_values_keep_their_equal_signs() {
     assert_eq!(parse_rootflags(""), Vec::<String>::new());
 }
 
-/// The facts of a fixture directory agree with what the kernel reports for it, whatever the host's filesystem is; a
+/// The facts of a fixture directory agree with what the kernel reports for it,
+/// whatever the host's filesystem is;
+/// a
 ///  directory that is not there has no facts.
 #[test]
 fn the_facts_of_a_real_directory_agree_with_the_kernel() {
@@ -168,7 +192,8 @@ fn the_facts_of_a_real_directory_agree_with_the_kernel() {
     remove(parent.as_path());
 }
 
-/// The section for a common Git directory starts with the marker and names the main checkout; a directory not called
+/// The section for a common Git directory starts with the marker and names the main checkout;
+/// a directory not called
 ///  `.git` and a path that is not there give nothing.
 #[test]
 fn the_host_section_names_the_main_checkout_and_is_empty_for_anything_else() {
@@ -183,7 +208,9 @@ fn the_host_section_names_the_main_checkout_and_is_empty_for_anything_else() {
     remove(parent.as_path());
 }
 
-/// The section is the last thing on standard error, changes neither the status nor standard output, and a run that
+/// The section is the last thing on standard error,
+/// changes neither the status nor standard output,
+/// and a run that
 ///  could not examine the repository prints none.
 #[test]
 fn the_section_is_informational_and_last() {
@@ -208,7 +235,9 @@ fn the_section_is_informational_and_last() {
     remove(parent.as_path());
 }
 
-/// A mount point with a shell separator, spaces or a substitution is one quoted word in the printed command, so pasting
+/// A mount point with a shell separator,
+/// spaces or a substitution is one quoted word in the printed command,
+/// so pasting
 ///  the command cannot run anything else.
 #[test]
 fn a_mount_point_is_quoted_in_the_printed_command() {
@@ -224,7 +253,8 @@ fn a_mount_point_is_quoted_in_the_printed_command() {
 }
 
 /// The delete and append arguments of the kernel argument command are single words even when the value has spaces,
-///  quotes, `$` or backticks.
+///  quotes,
+/// `$` or backticks.
 #[test]
 fn the_kernel_argument_command_quotes_its_values() {
     let mut hostile: FilesystemFacts = facts(FilesystemKind::Btrfs, true, Some(false));
@@ -237,7 +267,8 @@ fn the_kernel_argument_command_quotes_its_values() {
 }
 
 /// A quoted value of the kernel command line keeps its quotes in the delete argument (it must equal the stored one) and
-///  gets the option inside them in the append argument; a quoted value that lists the option already gets no command.
+///  gets the option inside them in the append argument;
+/// a quoted value that lists the option already gets no command.
 #[test]
 fn a_quoted_kernel_value_is_deleted_as_it_is_and_appended_inside_its_quotes() {
     let mut quoted: FilesystemFacts = facts(FilesystemKind::Btrfs, true, Some(false));
@@ -252,8 +283,11 @@ fn a_quoted_kernel_value_is_deleted_as_it_is_and_appended_inside_its_quotes() {
     assert!(listed.contains("already lists") && !listed.contains("sudo rpm-ostree"), "{listed}");
 }
 
-/// The command line is split the way the kernel splits it: a double quote keeps spaces in a word, a quoted value is read
-///  without its quotes for the option check but kept whole for the delete argument, and a word quoted as a whole is
+/// The command line is split the way the kernel splits it:
+/// a double quote keeps spaces in a word,
+/// a quoted value is read
+///  without its quotes for the option check but kept whole for the delete argument,
+/// and a word quoted as a whole is
 ///  unwrapped.
 #[test]
 fn the_kernel_command_line_is_split_at_unquoted_spaces() {

@@ -1,4 +1,7 @@
-//! Journaled installation checks against real Git repositories: completion, failure, and resumption from the log.
+//! Journaled installation checks against real Git repositories:
+//! completion,
+//! failure,
+//! and resumption from the log.
 
 use super::*;
 use crate::worktree_copy_stage::new_stage_container;
@@ -8,7 +11,8 @@ use crate::worktree_copy_install_entry::capture_installed_path;
 use crate::worktree_copy_install_log::{INSTALL_LOG_NAME, open_install_log};
 use crate::worktree_copy_journal::{ensure_journal_root, read_pending_journals};
 
-/// A source repository whose ignored `cache` holds one nested file, and a destination directory beside it.
+/// A source repository whose ignored `cache` holds one nested file,
+/// and a destination directory beside it.
 fn ignored_source(root: &Path) -> (PathBuf, PathBuf) {
     let source: PathBuf = repository(root, "source");
     std::fs::write(source.join(".gitignore"), b"cache/\n").expect("gitignore");
@@ -27,12 +31,15 @@ fn common_of(source: &Path) -> PathBuf {
     return std::fs::canonicalize(source.join(".git")).expect("common directory");
 }
 
-/// A staged snapshot of the source, as the copy would produce it.
+/// A staged snapshot of the source,
+/// as the copy would produce it.
 fn stage(source: &Path, destination: &Path) -> StagedSnapshot {
     return stage_ignored_snapshot(&git_context(), source, new_stage_container(destination).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
 }
 
-/// Entries of the destination with their content, sorted, for comparison.
+/// Entries of the destination with their content,
+/// sorted,
+/// for comparison.
 fn tree(root: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
@@ -114,7 +121,8 @@ fn completed_synchronization_leaves_no_journal_or_stage() {
     remove(root.as_path());
 }
 
-/// A copy that fails while staging removes its stage and releases its claim, so nothing is left to reap.
+/// A copy that fails while staging removes its stage and releases its claim,
+/// so nothing is left to reap.
 #[cfg(unix)]
 #[test]
 fn failed_staging_releases_its_claim() {
@@ -176,7 +184,8 @@ fn recorder_claims_each_path_once() {
     remove(root.as_path());
 }
 
-/// A failed installation is removed with its journal and stage, and the destination keeps its own differing entry.
+/// A failed installation is removed with its journal and stage,
+/// and the destination keeps its own differing entry.
 #[cfg(unix)]
 #[test]
 fn failed_installation_never_stays_pending() {
@@ -214,7 +223,9 @@ fn failed_installation_never_stays_pending() {
     remove(root.as_path());
 }
 
-/// An interrupted installation resumes from its log: claimed and created paths are honored, and the rest is installed.
+/// An interrupted installation resumes from its log:
+/// claimed and created paths are honored,
+/// and the rest is installed.
 #[cfg(unix)]
 #[test]
 fn interrupted_installation_resumes_from_its_log() {
@@ -280,7 +291,8 @@ fn interrupted_installation_resumes_from_its_log() {
     remove(root.as_path());
 }
 
-/// A stage that lost a claimed path cannot be recovered, and the failure names the stage.
+/// A stage that lost a claimed path cannot be recovered,
+/// and the failure names the stage.
 #[cfg(unix)]
 #[test]
 fn stage_missing_a_claim_cannot_be_recovered() {

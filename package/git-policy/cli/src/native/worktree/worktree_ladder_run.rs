@@ -1,12 +1,26 @@
 //! What:
-//!  The ladder around one `git worktree add` on Linux: the choice of rung before real Git runs, and, after it
-//!  returned, the snapshot rung's steps with a fall back to Git's own checkout whenever one cannot finish.
+//!  The ladder around one `git worktree add` on Linux:
+//! the choice of rung before real Git runs,
+//! and,
+//! after it
+//!  returned,
+//! the snapshot rung's steps with a fall back to Git's own checkout whenever one cannot finish.
 //! Why:
-//!  `doc/planning/cli-git-btrfs-worktree.md` designs it. With a snapshot source Git runs with `--no-checkout` (branch
-//!  validation, administrative files, configuration copy and every message stay Git's), the wrapper snapshots the source
-//!  into a stage name beside the destination, makes it the worktree, applies the difference between the source's tree
-//!  and the new `HEAD` with `git read-tree -m -u`, and swaps it into place. Any failure before the swap destroys the
-//!  stage and completes the worktree the way Git does, with `git reset --hard`; the person only ever sees Git's result.
+//!  `doc/planning/cli-git-btrfs-worktree.md` designs it.
+//! With a snapshot source Git runs with `--no-checkout` (branch
+//!  validation,
+//! administrative files,
+//! configuration copy and every message stay Git's),
+//! the wrapper snapshots the source
+//!  into a stage name beside the destination,
+//! makes it the worktree,
+//! applies the difference between the source's tree
+//!  and the new `HEAD` with `git read-tree -m -u`,
+//! and swaps it into place.
+//! Any failure before the swap destroys the
+//!  stage and completes the worktree the way Git does,
+//! with `git reset --hard`;
+//! the person only ever sees Git's result.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,9 +46,12 @@ use std::path::{Path, PathBuf};
 const TAG: &str = "worktreeLadder";
 
 /// What:
-///  Which rung the ladder chose before Git ran, with what it prepared for it.
+///  Which rung the ladder chose before Git ran,
+/// with what it prepared for it.
 /// Why:
-///   The snapshot rung holds the claim on its stage name, which must be released on every path out; the rungs that leave
+///   The snapshot rung holds the claim on its stage name,
+/// which must be released on every path out;
+/// the rungs that leave
 ///  Git or the wrapper to fill the destination prepare an empty subvolume there when they can.
 ///
 /// In TS you'd write (pseudocode):
@@ -42,12 +59,17 @@ const TAG: &str = "worktreeLadder";
 /// type Rung = { kind: 'git'; subvolume?: CreatedSubvolume } | { kind: 'clone'; source: SnapshotSource; subvolume?: CreatedSubvolume; claim: StageClaim } | { kind: 'snapshot'; source: SnapshotSource; claim: StageClaim };
 /// ```
 pub(crate) enum Rung {
-    /// Git's own checkout, into an empty subvolume the wrapper made when it could.
+    /// Git's own checkout,
+    /// into an empty subvolume the wrapper made when it could.
     Git(Option<CreatedSubvolume>),
-    /// Clones of the source's tracked files, Git running without a checkout first; the claim records the add durably, so
+    /// Clones of the source's tracked files,
+    /// Git running without a checkout first;
+    /// the claim records the add durably,
+    /// so
     ///  an interrupted one is removed by the next command.
     Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim),
-    /// A snapshot of the source, Git running without a checkout first.
+    /// A snapshot of the source,
+    /// Git running without a checkout first.
     Snapshot(Box<SnapshotSource>, StageClaim),
 }
 
@@ -61,19 +83,25 @@ pub(crate) enum Rung {
 /// type Ladder = { plan?: AddPlan; rung: Rung; slow?: SlowRoute };
 /// ```
 pub struct Ladder {
-    /// The destination plan, absent when the invocation is not a form the ladder serves.
+    /// The destination plan,
+    /// absent when the invocation is not a form the ladder serves.
     pub(crate) plan: Option<AddPlan>,
     /// The chosen rung.
     pub(crate) rung: Rung,
-    /// Why the add will not be a snapshot, when it will not and a sentence would help; told to the person after Git ran.
+    /// Why the add will not be a snapshot,
+    /// when it will not and a sentence would help;
+    /// told to the person after Git ran.
     pub(crate) slow: Option<SlowRoute>,
 }
 
 /// What:
-///  What the ladder tells the lifecycle after Git: Git's status as the person should see it, and the destination whose
+///  What the ladder tells the lifecycle after Git:
+/// Git's status as the person should see it,
+/// and the destination whose
 ///  ignored state the rung already carried.
 /// Why:
-///   A snapshot carries the source's ignored state, so the lifecycle's own copy skips that destination.
+///   A snapshot carries the source's ignored state,
+/// so the lifecycle's own copy skips that destination.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,9 +116,12 @@ pub struct LadderResult {
 }
 
 /// What:
-///  Log why Git, and not a snapshot or clones, checks the worktree out.
+///  Log why Git,
+/// and not a snapshot or clones,
+/// checks the worktree out.
 /// Why:
-///   One log line carries both refusals, so a person reading the log sees why the cheap rungs were not used.
+///   One log line carries both refusals,
+/// so a person reading the log sees why the cheap rungs were not used.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -101,7 +132,8 @@ fn log_git_checkout(plan: &AddPlan, reason: &str, snapshot_refusal: &Option<Stri
 }
 
 /// What:
-///  The identity of what the stage's name leads to now, or nothing when its parent cannot be opened or the name cannot be looked up.
+///  The identity of what the stage's name leads to now,
+/// or nothing when its parent cannot be opened or the name cannot be looked up.
 /// Why:
 ///   Discarding a stage checks that the name still holds the object this process made.
 ///
@@ -116,11 +148,20 @@ fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
 }
 
 /// What:
-///  Choose the rung for one invocation and prepare it: a snapshot source and the claim on its stage, a clone source, or an
-///  empty subvolume at the destination for Git to fill; with the sentence that says why it is not the snapshot, when it is not.
+///  Choose the rung for one invocation and prepare it:
+/// a snapshot source and the claim on its stage,
+/// a clone source,
+/// or an
+///  empty subvolume at the destination for Git to fill;
+/// with the sentence that says why it is not the snapshot,
+/// when it is not.
 /// Why:
-///   Every check that can be made before Git runs is made now, cheapest first, so a refused rung costs no extra Git run and
-///  each refusal leaves its reason in the log and, in words, with the person once Git has succeeded.
+///   Every check that can be made before Git runs is made now,
+/// cheapest first,
+/// so a refused rung costs no extra Git run and
+///  each refusal leaves its reason in the log and,
+/// in words,
+/// with the person once Git has succeeded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,9 +236,11 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
 }
 
 /// What:
-///  Choose the rung for one invocation and prepare it; see `choose_rung`.
+///  Choose the rung for one invocation and prepare it;
+/// see `choose_rung`.
 /// Why:
-///   No plan means a form the ladder does not serve, which Git runs as the person wrote it.
+///   No plan means a form the ladder does not serve,
+/// which Git runs as the person wrote it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -222,11 +265,19 @@ pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &Wor
 }
 
 /// What:
-///  Destroy the stage this process made, a subvolume or, where the mount does not allow the destroy, a tree, but only if the
+///  Destroy the stage this process made,
+/// a subvolume or,
+/// where the mount does not allow the destroy,
+/// a tree,
+/// but only if the
 ///  name still holds the object that was made.
 /// Why:
-///   A name can be taken by another process; nothing is removed that is not the object this process made, and a stage that
-///  cannot be proven is left and reported. The stage name is random and private, so the window between the check and the
+///   A name can be taken by another process;
+/// nothing is removed that is not the object this process made,
+/// and a stage that
+///  cannot be proven is left and reported.
+/// The stage name is random and private,
+/// so the window between the check and the
 ///  destroy has no other party in practice.
 ///
 /// In TS you'd write (pseudocode):
@@ -256,9 +307,13 @@ pub(crate) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::Object
 
 impl Ladder {
     /// What:
-    ///  The first Git run the lifecycle starts: the person's arguments, with `--no-checkout` for the snapshot rung.
+    ///  The first Git run the lifecycle starts:
+    /// the person's arguments,
+    /// with `--no-checkout` for the snapshot rung.
     /// Why:
-    ///   Git then validates, registers and configures the worktree, and leaves the checkout to the rung.
+    ///   Git then validates,
+    /// registers and configures the worktree,
+    /// and leaves the checkout to the rung.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

@@ -42,7 +42,9 @@ use std::time::{Duration, Instant};
 
 /// The file inside the common Git directory that collects the timing records of every worktree of the repository.
 /// It moves
-///  aside to `monochromatic-git-policy-cli-commit-timing.jsonl.1`, replacing the older one (a timing log keeps one generation), at the size limit
+///  aside to `monochromatic-git-policy-cli-commit-timing.jsonl.1`,
+/// replacing the older one (a timing log keeps one generation),
+/// at the size limit
 ///  `discard_audit::append_line` applies.
 pub const TIMING_FILE: &str = COMMIT_TIMING_LOG.current;
 
@@ -247,8 +249,10 @@ pub struct CommitTiming {
     place: Option<Place>,
     /// The branch (or `HEAD`) the first preparation found.
     pub reference: Option<String>,
-    /// The identity the commit's request carries, which the service's `answered` line states as `request` and as the
-    /// journal field `CLI_GIT_REQUEST_ID`; the key that joins this record to the service's.
+    /// The identity the commit's request carries,
+    /// which the service's `answered` line states as `request` and as the
+    /// journal field `CLI_GIT_REQUEST_ID`;
+    /// the key that joins this record to the service's.
     pub request: Option<String>,
     /// How the command ended:
     /// `landed`,
@@ -286,11 +290,17 @@ pub struct CommitTiming {
     pub gate: Duration,
     /// Leaving the push and the upkeep for the service and waking it.
     pub handoff: Duration,
-    /// The longest quiet gap of every Git step and tool this command ran, by step name, taken from the ledger when the record
-    ///  is written; a step that was ended for being quiet is listed apart from the steps that ended by themselves.
+    /// The longest quiet gap of every Git step and tool this command ran,
+    /// by step name,
+    /// taken from the ledger when the record
+    ///  is written;
+    /// a step that was ended for being quiet is listed apart from the steps that ended by themselves.
     pub quiet: Vec<(String, Duration)>,
-    /// Every Git step this command started, each with its program and subcommand, when it began (from the command's start) and how
-    ///  long it ran, taken from the step ledger when the record is written (`transaction_step_durations.rs`).
+    /// Every Git step this command started,
+    /// each with its program and subcommand,
+    /// when it began (from the command's start) and how
+    ///  long it ran,
+    /// taken from the step ledger when the record is written (`transaction_step_durations.rs`).
     pub steps: Vec<StepFigure>,
     /// How many steps came after the list reached its bound.
     pub steps_dropped: usize,

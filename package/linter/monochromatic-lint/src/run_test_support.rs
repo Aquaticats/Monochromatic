@@ -16,6 +16,7 @@
 ///  planner and output model.
 use crate::{
     cli_options::CliOptions,
+    edits::FixScope,
     run_command::run_command,
     run_output::RunOutput,
     run_plan::{ConfigStore, FilePlan, Planned},
@@ -115,8 +116,13 @@ pub(crate) fn codes(text: &str) -> Vec<String> {
 
 /// Plan one file through the production store,
 ///  with nearest-file lookup from the working directory.
+///  The plan may apply content fixes too:
+///  the controls that use it test the fix machinery,
+///  and the split between whitespace and content fixes is tested through the command line.
 pub(crate) fn plan(cwd: &Path, relative: &str) -> FilePlan {
-    let mut store: ConfigStore = ConfigStore::new(cwd, None).expect("store");
+    let mut store: ConfigStore = ConfigStore::new(cwd, None)
+        .expect("store")
+        .with_fix_scope(FixScope::WhitespaceAndContent);
     match store.plan(Path::new(relative)).expect("planning succeeds") {
         Planned::Lint { plan: planned } => return *planned,
         Planned::Ignored => panic!("{relative} is ignored by the fixture configuration"),

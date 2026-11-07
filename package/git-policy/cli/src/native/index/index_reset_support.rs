@@ -1,7 +1,9 @@
 //! Fixtures that compare the in-process path reset with `git reset` on copies of one repository.
 //!
-//! A scene is a repository whose branch has moved on by one commit made through a second index file, so the main index
-//! still holds the old commit's entries with real stat data, as it does when the commit service lands a commit.
+//! A scene is a repository whose branch has moved on by one commit made through a second index file,
+//! so the main index
+//! still holds the old commit's entries with real stat data,
+//! as it does when the commit service lands a commit.
 
 use crate::test_support::{REAL_GIT, age, fixture, git, git_text, remove, spawn_owned};
 use std::ffi::OsString;
@@ -10,7 +12,8 @@ use std::process::{Command, Output, Stdio};
 
 /// One change the second commit makes to the first commit's tree.
 pub(crate) enum Edit<'a> {
-    /// A file (or symbolic link, by mode) with this content.
+    /// A file (or symbolic link,
+    /// by mode) with this content.
     Put { path: &'a str, mode: &'a str, content: &'a [u8] },
     /// A submodule entry naming a commit that is not in this repository.
     Gitlink { path: &'a str, id: &'a str },
@@ -18,9 +21,12 @@ pub(crate) enum Edit<'a> {
     Delete(&'a str),
 }
 
-/// A repository, the commit its index is at, and the commit the branch is at.
+/// A repository,
+/// the commit its index is at,
+/// and the commit the branch is at.
 pub(crate) struct Scene {
-    /// The fixture directory, removed by the caller.
+    /// The fixture directory,
+    /// removed by the caller.
     pub root: PathBuf,
     /// The repository.
     pub repo: PathBuf,
@@ -30,7 +36,8 @@ pub(crate) struct Scene {
     pub new: String,
 }
 
-/// Run real Git in `dir` with the fixture identity, extra variables and optional standard input.
+/// Run real Git in `dir` with the fixture identity,
+/// extra variables and optional standard input.
 pub(crate) fn git_with(dir: &Path, env: &[(&str, OsString)], args: &[&str], input: Option<&[u8]>) -> Output {
     let mut command: Command = Command::new(REAL_GIT);
     command
@@ -58,7 +65,9 @@ pub(crate) fn git_with(dir: &Path, env: &[(&str, OsString)], args: &[&str], inpu
     return child.wait_with_output().expect("Git output");
 }
 
-/// Real Git in a copy of `dir`'s environment with `index` as its index file, requiring success; its standard output.
+/// Real Git in a copy of `dir`'s environment with `index` as its index file,
+/// requiring success;
+/// its standard output.
 fn git_in_index(dir: &Path, index: &Path, args: &[&str], input: Option<&[u8]>) -> String {
     let output: Output = git_with(dir, &[("GIT_INDEX_FILE", index.as_os_str().to_os_string())], args, input);
     assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
@@ -68,11 +77,18 @@ fn git_in_index(dir: &Path, index: &Path, args: &[&str], input: Option<&[u8]>) -
 /// What a scene's first commit holds and its second commit changes.
 #[derive(Default)]
 pub(crate) struct Plan<'a> {
-    /// Regular files of the first commit: path, content, executable.
+    /// Regular files of the first commit:
+    /// path,
+    /// content,
+    /// executable.
     pub files: &'a [(&'a str, &'a [u8], bool)],
-    /// Symbolic links of the first commit: path, target.
+    /// Symbolic links of the first commit:
+    /// path,
+    /// target.
     pub links: &'a [(&'a str, &'a str)],
-    /// Submodule entries of the first commit: path, commit name.
+    /// Submodule entries of the first commit:
+    /// path,
+    /// commit name.
     pub gitlinks: &'a [(&'a str, &'a str)],
     /// What the second commit changes.
     pub edits: &'a [Edit<'a>],
@@ -137,7 +153,8 @@ pub(crate) fn scene(name: &str, plan: &Plan<'_>) -> Scene {
     return Scene { root, repo, old, new };
 }
 
-/// A copy of the scene's repository beside it, with times and modes kept.
+/// A copy of the scene's repository beside it,
+/// with times and modes kept.
 pub(crate) fn copy_of(scene: &Scene) -> PathBuf {
     let copy: PathBuf = scene.root.join("copy");
     let output: Output = Command::new("cp").args(["--archive", "--no-target-directory"]).arg(&scene.repo).arg(&copy).output().expect("cp");
@@ -173,7 +190,8 @@ pub(crate) fn index_bytes(repo: &Path) -> Vec<u8> {
     return std::fs::read(repo.join(".git").join("index")).expect("index");
 }
 
-/// What `git ls-files --stage --debug` says, for a failure message.
+/// What `git ls-files --stage --debug` says,
+/// for a failure message.
 pub(crate) fn listing(repo: &Path) -> String {
     return String::from_utf8_lossy(&git_with(repo, &[], &["ls-files", "--stage", "--debug"], None).stdout).into_owned();
 }
@@ -192,17 +210,27 @@ pub(crate) fn finish(scene: Scene) {
 static NEXT_BATCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 /// What:
-///  The in-process update as a landing runs it: take the live index lock, copy the live index to the private name, reset the
-///  private copy, and install it by the lock's release; when the update declines, drop the copy and the lock and leave the
+///  The in-process update as a landing runs it:
+/// take the live index lock,
+/// copy the live index to the private name,
+/// reset the
+///  private copy,
+/// and install it by the lock's release;
+/// when the update declines,
+/// drop the copy and the lock and leave the
 ///  live index as it was.
 /// Why:
-///   The controls compare index files after the update, so they run it under the same lock protocol the service does.
+///   The controls compare index files after the update,
+/// so they run it under the same lock protocol the service does.
 pub(crate) fn landing_reset(context: &crate::transaction_git::GitContext, repo: &Path, new: &str, paths: crate::service_land_follow::IndexPaths<'_>) -> bool {
     return landing_reset_copy(context, repo, new, paths, false);
 }
 
-/// `landing_reset`, with the private copy given an old modification time when `old_copy` is set. The copy's time is the one
-/// the update compares the entries' times with, so a control for racily clean entries needs the copy older than they are.
+/// `landing_reset`,
+/// with the private copy given an old modification time when `old_copy` is set.
+/// The copy's time is the one
+/// the update compares the entries' times with,
+/// so a control for racily clean entries needs the copy older than they are.
 pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, repo: &Path, new: &str, paths: crate::service_land_follow::IndexPaths<'_>, old_copy: bool) -> bool {
     let live: PathBuf = repo.join(".git").join("index");
     let seq: u64 = NEXT_BATCH.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -224,8 +252,10 @@ pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, r
     return done;
 }
 
-/// A commit on top of the scene's `new` whose whole tree is the one entry `name` of `mode` naming a blob with `content`, made
-/// without Git's name checks (`hash-object --literally`), so a name Git refuses can be in a tree.
+/// A commit on top of the scene's `new` whose whole tree is the one entry `name` of `mode` naming a blob with `content`,
+/// made
+/// without Git's name checks (`hash-object --literally`),
+/// so a name Git refuses can be in a tree.
 pub(crate) fn commit_with_raw_entry(scene: &Scene, name: &str, mode: &str, content: &[u8]) -> String {
     let blob: String = String::from_utf8(git_with(scene.repo.as_path(), &[], &["hash-object", "-w", "--stdin"], Some(content)).stdout).expect("UTF-8").trim().to_string();
     let mut tree: Vec<u8> = format!("{mode} {name}\0").into_bytes();

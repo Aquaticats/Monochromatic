@@ -75,10 +75,31 @@ use crate::types::PaneId;
 ///      whole-app scroll.
 mod lane;
 /// What:
+///  pure placement queries (lookups,
+///  extents,
+///  sort keys) shared by the lane and scroll modules.
+/// Why:
+///  named loop functions replace iterator-adapter closures over placement snapshots.
+mod placement_queries;
+/// What:
 ///  horizontal reveal and row-coordinate helpers for `StripLayout`.
 /// Why:
 ///  spawn still needs horizontal reveal even after vertical scrolling moved to lanes.
 mod scroll;
+
+/// What:
+///  the source of the widget for a pane that has none yet.
+/// Why:
+///  `reconcile` builds missing widgets through this trait instead of a closure,
+///  so the strip passes itself as data and no callable is created per call.
+pub(crate) trait PaneWidgetBuilder {
+    /// What:
+    ///  build the widget for pane `id`.
+    /// Why:
+    ///  the layout owns placement,
+    ///  the implementor owns what a pane shows.
+    fn build_widget(&self, id: PaneId) -> Widget;
+}
 
 /// What:
 ///  immutable placement snapshot for one pane.
@@ -230,7 +251,7 @@ impl StripLayout {
 
     /// What:
     ///  reconcile GTK widgets to `placements`,
-    ///  building missing panes through `build_widget`.
+    ///  building missing panes through `builder`.
     /// Why:
     ///  one idempotent pass after each model mutation grows/shrinks columns,
     ///  removes stale
@@ -243,22 +264,15 @@ impl StripLayout {
     pub(crate) fn reconcile(
         self: &Rc<Self>,
         placements: Vec<PanePlacement>,
-        mut build_widget: impl FnMut(PaneId) -> Widget,
+        builder: &impl PaneWidgetBuilder,
     ) {
         self.placements.replace(placements.clone());
-        let column_count = placements
-            .iter()
-            .map(|placement| return placement.column + 1)
-            .max()
-            .unwrap_or(0);
+        let column_count = placement_queries::column_count_of(&placements);
         self.ensure_columns(column_count);
-        let live: HashMap<PaneId, (usize, usize)> = placements
-            .iter()
-            .map(|placement| return (placement.id, (placement.column, placement.row)))
-            .collect();
+        let live: HashMap<PaneId, (usize, usize)> = placement_queries::live_positions(&placements);
         self.remove_stale(&live);
         for placement in &placements {
-            self.ensure_pane_widget(placement, &mut build_widget);
+            self.ensure_pane_widget(placement, builder);
         }
         self.set_content_height(&live);
         self.prune_lane_offsets();
@@ -303,13 +317,12 @@ impl StripLayout {
     /// Why:
     ///  closed panes must leave their column canvas and the widget map.
     fn remove_stale(&self, live: &HashMap<PaneId, (usize, usize)>) {
-        let stale: Vec<PaneId> = self
-            .widgets
-            .borrow()
-            .keys()
-            .copied()
-            .filter(|id| return !live.contains_key(id))
-            .collect();
+        let mut stale: Vec<PaneId> = Vec::new();
+        for id in self.widgets.borrow().keys() {
+            if !live.contains_key(id) {
+                stale.push(*id);
+            }
+        }
         for id in stale {
             if let Some(widget) = self.widgets.borrow_mut().remove(&id)
                 && let Some(fixed) = widget.parent().and_downcast::<Fixed>()
@@ -328,12 +341,12 @@ impl StripLayout {
     fn ensure_pane_widget(
         &self,
         placement: &PanePlacement,
-        build_widget: &mut impl FnMut(PaneId) -> Widget,
+        builder: &impl PaneWidgetBuilder,
     ) {
         if self.widgets.borrow().contains_key(&placement.id) {
             return;
         }
-        let widget = build_widget(placement.id);
+        let widget = builder.build_widget(placement.id);
         widget.set_size_request(PANE_WIDTH, PANE_HEIGHT);
         if let Some(view) = self.columns.borrow().get(placement.column) {
             view.fixed.put(&widget, 0.0, 0.0);
@@ -348,11 +361,7 @@ impl StripLayout {
     ///      state of their own.
     fn set_content_height(&self, live: &HashMap<PaneId, (usize, usize)>) {
         for (index, view) in self.columns.borrow().iter().enumerate() {
-            let max_row = live
-                .values()
-                .filter_map(|&(column, row)| return (column == index).then_some(row))
-                .max()
-                .unwrap_or(0);
+            let max_row = placement_queries::deepest_row_in_column(live, index);
             let height = (scroll::row_y(max_row) + f64::from(PANE_HEIGHT)) as i32;
             view.fixed.set_size_request(PANE_WIDTH, height);
         }

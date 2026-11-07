@@ -41,7 +41,8 @@ pub enum HolderState {
     /// or a boot that has ended.
     Gone,
     /// The process runs now,
-    /// in the same boot, on the same machine and in the same PID namespace.
+    /// in the same boot,
+    /// on the same machine and in the same PID namespace.
     Running,
     /// The reader cannot compare:
     /// another machine,
@@ -61,7 +62,9 @@ pub struct ReaderView<'a> {
     /// The PID namespace of the reader,
     /// where it can be read.
     pub scope: Option<&'a str>,
-    /// The machine ID of the reader's host (32 lowercase hexadecimal digits, not all zero), where it can be read.
+    /// The machine ID of the reader's host (32 lowercase hexadecimal digits,
+    /// not all zero),
+    /// where it can be read.
     pub machine: Option<&'a str>,
     /// Whether the reader's `/proc` numbers the reader as the operating system does.
     pub procfs_agrees: bool,
@@ -121,7 +124,9 @@ impl ReaderView<'static> {
 }
 
 /// What:
-///  The PID namespace this process is in, as the scope text a marker carries; nothing when the link cannot be read.
+///  The PID namespace this process is in,
+/// as the scope text a marker carries;
+/// nothing when the link cannot be read.
 /// Why:
 ///  `current_pid_scope` reads it once and keeps it.
 ///
@@ -135,9 +140,11 @@ fn read_pid_scope() -> Option<String> {
 }
 
 /// What:
-///  The text when it is not empty, nothing when it is.
+///  The text when it is not empty,
+/// nothing when it is.
 /// Why:
-///  An empty boot ID or machine ID is no evidence, so a marker and a view leave it out.
+///  An empty boot ID or machine ID is no evidence,
+/// so a marker and a view leave it out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -348,8 +355,12 @@ pub fn holder_state_in(
     };
 }
 
-/// Whether the marker's holder cannot be proven to be on this machine, so that no boot ID can say it is gone: it names a machine ID
-///  that is not this reader's (or none is valid), or it names none and a boot other than this one, or it names no process at all.
+/// Whether the marker's holder cannot be proven to be on this machine,
+/// so that no boot ID can say it is gone:
+/// it names a machine ID
+///  that is not this reader's (or none is valid),
+/// or it names none and a boot other than this one,
+/// or it names no process at all.
 pub fn holder_is_elsewhere_in(holder: Option<&(i64, String)>, view: &ReaderView) -> bool {
     let Some((_, birth)) = holder else { return true };
     let (_, boot, _, machine) = split_birth(birth.as_str());

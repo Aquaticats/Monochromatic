@@ -1,18 +1,26 @@
 //! Binary-level controls for the Git LFS upload before a push.
-//! The built executable runs `git-lfs push <remote> <refs>` as a child of its own before every push it starts, in a
-//!  repository whose configuration holds LFS keys: before any ref moves, with a failure stopping the push before it
-//!  starts. The push itself carries no hook.
+//! The built executable runs `git-lfs push <remote> <refs>` as a child of its own before every push it starts,
+//! in a
+//!  repository whose configuration holds LFS keys:
+//! before any ref moves,
+//! with a failure stopping the push before it
+//!  starts.
+//! The push itself carries no hook.
 //! A stand-in `git-lfs` on the fixture's PATH records what it was given and what the origin's `main` was at that
-//!  moment; one control at the end runs the real `git-lfs` against an LFS server written inline.
+//!  moment;
+//! one control at the end runs the real `git-lfs` against an LFS server written inline.
 
 use super::commit::{git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit, wrapped_commit};
 use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, executable, fixture, git, observe, repository, stderr_of};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// A repository, its bare origin, and the file the stand-in program appends to.
+/// A repository,
+/// its bare origin,
+/// and the file the stand-in program appends to.
 pub(super) struct World {
-    /// The working repository, on `main`.
+    /// The working repository,
+    /// on `main`.
     pub(super) repo: PathBuf,
     /// The bare origin.
     pub(super) origin: PathBuf,
@@ -23,16 +31,22 @@ pub(super) struct World {
 /// One run of the stand-in program.
 #[derive(Debug)]
 pub(super) struct Run {
-    /// Its arguments, joined by spaces.
+    /// Its arguments,
+    /// joined by spaces.
     arguments: String,
     /// Its standard input lines.
     input: Vec<String>,
-    /// The origin's `refs/heads/main` when the program ran, or `absent`.
+    /// The origin's `refs/heads/main` when the program ran,
+    /// or `absent`.
     origin_main: String,
 }
 
-/// The stand-in `git-lfs`: record the arguments, the input and the origin's `main`, then exit with `status` from the
-///  run numbered `from_run` (counting from zero) on, and with `0` before it.
+/// The stand-in `git-lfs`:
+/// record the arguments,
+/// the input and the origin's `main`,
+/// then exit with `status` from the
+///  run numbered `from_run` (counting from zero) on,
+/// and with `0` before it.
 fn stand_in_source(world_origin: &Path, record: &Path, status: i32, from_run: usize) -> String {
     return format!(
         "#!/bin/sh\n\
@@ -49,13 +63,15 @@ fn stand_in_source(world_origin: &Path, record: &Path, status: i32, from_run: us
     );
 }
 
-/// Create the repository and its origin, and a stand-in program that fails every run.
+/// Create the repository and its origin,
+/// and a stand-in program that fails every run.
 pub(super) fn world(fixture: &Fixture, lfs: bool, program: Option<i32>) -> World {
     return world_failing_from(fixture, lfs, program, 0);
 }
 
 /// Create the repository and its origin.
-///  `lfs` adds a Git LFS key to the repository configuration; `program` installs the stand-in with that exit status,
+///  `lfs` adds a Git LFS key to the repository configuration;
+/// `program` installs the stand-in with that exit status,
 ///  which it returns from run number `from_run` on.
 fn world_failing_from(fixture: &Fixture, lfs: bool, program: Option<i32>, from_run: usize) -> World {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
@@ -79,7 +95,8 @@ fn world_failing_from(fixture: &Fixture, lfs: bool, program: Option<i32>, from_r
     return World { repo, origin, record };
 }
 
-/// Every run the stand-in recorded, in order.
+/// Every run the stand-in recorded,
+/// in order.
 pub(super) fn runs(world: &World) -> Vec<Run> {
     let text: String = std::fs::read_to_string(&world.record).unwrap_or_default();
     let mut found: Vec<Run> = Vec::new();
@@ -95,7 +112,8 @@ pub(super) fn runs(world: &World) -> Vec<Run> {
     return found;
 }
 
-/// The object a reference names in a repository, or `absent`.
+/// The object a reference names in a repository,
+/// or `absent`.
 pub(super) fn ref_of(fixture: &Fixture, repo: &Path, name: &str) -> String {
     let output = direct(fixture)
         .current_dir(repo)
@@ -106,7 +124,8 @@ pub(super) fn ref_of(fixture: &Fixture, repo: &Path, name: &str) -> String {
     return if text.is_empty() { String::from("absent") } else { text };
 }
 
-/// Commit a file with real Git, so no auto-push runs.
+/// Commit a file with real Git,
+/// so no auto-push runs.
 pub(super) fn commit_directly(fixture: &Fixture, repo: &Path, name: &str, text: &str) {
     std::fs::write(repo.join(name), text).expect("fixture file");
     git(fixture, repo, &["add", "--", name]);
@@ -118,7 +137,9 @@ pub(super) fn wrapped(fixture: &Fixture, directory: &Path, arguments: &[&str]) -
     return observe(&mut wrapped_commit(fixture, directory, arguments), b"");
 }
 
-/// A plain push uploads once, naming its remote and refs, before the origin's `main` exists.
+/// A plain push uploads once,
+/// naming its remote and refs,
+/// before the origin's `main` exists.
 #[test]
 fn a_push_runs_the_upload_before_any_ref_moves() {
     let fixture: Fixture = fixture("lfs-push");
@@ -135,7 +156,8 @@ fn a_push_runs_the_upload_before_any_ref_moves() {
     remove_settled(&fixture);
 }
 
-/// A failing upload stops the push before anything is published, and the message names the cause and the ways on.
+/// A failing upload stops the push before anything is published,
+/// and the message names the cause and the ways on.
 #[test]
 fn a_failing_upload_blocks_the_push_and_names_every_way_forward() {
     let fixture: Fixture = fixture("lfs-push-fails");
@@ -175,7 +197,8 @@ fn a_failing_upload_blocks_a_forced_push() {
     remove_settled(&fixture);
 }
 
-/// A dry run publishes nothing, so it uploads nothing.
+/// A dry run publishes nothing,
+/// so it uploads nothing.
 #[test]
 fn a_dry_run_push_uploads_nothing() {
     let fixture: Fixture = fixture("lfs-push-dry-run");
@@ -186,7 +209,8 @@ fn a_dry_run_push_uploads_nothing() {
     remove_settled(&fixture);
 }
 
-/// Git's own `--no-verify` skips the upload, as it skipped the shim.
+/// Git's own `--no-verify` skips the upload,
+/// as it skipped the shim.
 #[test]
 fn no_verify_skips_the_upload() {
     let fixture: Fixture = fixture("lfs-push-no-verify");
@@ -214,8 +238,10 @@ fn the_caller_can_switch_the_upload_off_for_one_push() {
     remove_settled(&fixture);
 }
 
-/// `git lfs install` in an account writes the filter to the global file; that alone must not turn every repository
-///  into an LFS repository, or a push would need `git-lfs` everywhere.
+/// `git lfs install` in an account writes the filter to the global file;
+/// that alone must not turn every repository
+///  into an LFS repository,
+/// or a push would need `git-lfs` everywhere.
 #[test]
 fn a_global_lfs_filter_alone_runs_no_upload() {
     let fixture: Fixture = fixture("lfs-push-global-only");
@@ -230,7 +256,9 @@ fn a_global_lfs_filter_alone_runs_no_upload() {
     remove_settled(&fixture);
 }
 
-/// A repository without LFS keys pushes as before: no upload step, and no need for `git-lfs` at all.
+/// A repository without LFS keys pushes as before:
+/// no upload step,
+/// and no need for `git-lfs` at all.
 #[test]
 fn a_repository_without_lfs_keys_runs_no_upload() {
     let fixture: Fixture = fixture("lfs-push-none");
@@ -256,7 +284,8 @@ fn a_missing_git_lfs_blocks_the_push_and_names_the_remedies() {
     remove_settled(&fixture);
 }
 
-/// The auto-push after a landed commit uploads first, before the origin's branch exists.
+/// The auto-push after a landed commit uploads first,
+/// before the origin's branch exists.
 #[test]
 fn the_auto_push_after_a_commit_runs_the_upload_before_any_ref_moves() {
     let fixture: Fixture = fixture("lfs-auto-push");
@@ -278,7 +307,8 @@ fn the_auto_push_after_a_commit_runs_the_upload_before_any_ref_moves() {
     remove_settled(&fixture);
 }
 
-/// A failing upload keeps the commit local, leaves the origin untouched and says so.
+/// A failing upload keeps the commit local,
+/// leaves the origin untouched and says so.
 #[test]
 fn a_failing_upload_keeps_the_auto_pushed_commit_local() {
     let fixture: Fixture = fixture("lfs-auto-push-fails");
@@ -312,7 +342,9 @@ fn an_auto_push_without_lfs_keys_runs_no_upload() {
     remove_settled(&fixture);
 }
 
-/// The origin, a second clone that wins races, and the pushing repository one commit ahead of a moved origin.
+/// The origin,
+/// a second clone that wins races,
+/// and the pushing repository one commit ahead of a moved origin.
 fn lost_race(fixture: &Fixture, world: &World) -> (PathBuf, String) {
     git(fixture, world.repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
     let rival: PathBuf = fixture.root.join("rival");
@@ -360,7 +392,8 @@ fn a_failing_upload_blocks_the_merge_push_after_a_lost_race() {
     remove_settled(&fixture);
 }
 
-/// The reconcile push of an auto-push that lost a race is uploaded for first, with the merge as the local object.
+/// The reconcile push of an auto-push that lost a race is uploaded for first,
+/// with the merge as the local object.
 #[test]
 fn the_reconcile_push_of_an_auto_push_runs_the_upload_before_the_ref_moves() {
     let fixture: Fixture = fixture("lfs-reconcile");

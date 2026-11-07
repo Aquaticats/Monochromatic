@@ -1,5 +1,8 @@
-//! Controls for the route decision: an existing socket is used as it is, the session bus and the wrapper's own executable together
-//!  mean the wrapper provisions, and anything less has no route.
+//! Controls for the route decision:
+//! an existing socket is used as it is,
+//! the session bus and the wrapper's own executable together
+//!  mean the wrapper provisions,
+//! and anything less has no route.
 
 use super::*;
 use crate::test_support::{fixture, remove};
@@ -49,7 +52,8 @@ fn add_program(machine: &Machine) -> PathBuf {
     return machine.wrapper.clone();
 }
 
-/// A socket that exists is used as it is, with nothing to set up.
+/// A socket that exists is used as it is,
+/// with nothing to set up.
 #[test]
 fn an_existing_socket_is_used_as_it_is() {
     let machine: Machine = machine("route-socket");
@@ -60,8 +64,10 @@ fn an_existing_socket_is_used_as_it_is() {
     remove(machine.root.as_path());
 }
 
-/// A socket that exists does not end the wrapper's care for the units: the socket is the manager's and outlives an upgrade,
-///  so with the bus and the program the provisioning check is still handed back, and `provision` decides from the files.
+/// A socket that exists does not end the wrapper's care for the units:
+/// the socket is the manager's and outlives an upgrade,
+///  so with the bus and the program the provisioning check is still handed back,
+/// and `provision` decides from the files.
 #[test]
 fn an_existing_socket_still_hands_back_the_provisioning_check() {
     let machine: Machine = machine("route-socket-check");
@@ -77,7 +83,8 @@ fn an_existing_socket_still_hands_back_the_provisioning_check() {
     remove(machine.root.as_path());
 }
 
-/// The session bus and the service program together mean the wrapper sets the service up itself, from the facts it found.
+/// The session bus and the service program together mean the wrapper sets the service up itself,
+/// from the facts it found.
 #[test]
 fn the_bus_and_the_program_mean_provisioning() {
     let machine: Machine = machine("route-provision");
@@ -94,7 +101,11 @@ fn the_bus_and_the_program_mean_provisioning() {
     remove(machine.root.as_path());
 }
 
-/// Without the bus, or without the program, or without a runtime directory, and with no socket, there is no route.
+/// Without the bus,
+/// or without the program,
+/// or without a runtime directory,
+/// and with no socket,
+/// there is no route.
 #[test]
 fn anything_less_has_no_route() {
     let machine: Machine = machine("route-none");
@@ -109,7 +120,8 @@ fn anything_less_has_no_route() {
     remove(machine.root.as_path());
 }
 
-/// Each worktree has its own socket and its own instance, so two worktrees of one repository are never routed to one service,
+/// Each worktree has its own socket and its own instance,
+/// so two worktrees of one repository are never routed to one service,
 ///  and one worktree is routed to the same one however its commit is started.
 #[test]
 fn two_worktrees_are_routed_to_two_services() {
@@ -128,7 +140,8 @@ fn two_worktrees_are_routed_to_two_services() {
     remove(machine.root.as_path());
 }
 
-/// The user unit directory is the configuration home's, else the home's `.config`.
+/// The user unit directory is the configuration home's,
+/// else the home's `.config`.
 #[test]
 fn the_user_unit_directory_follows_the_configuration_home() {
     assert_eq!(user_unit_dir(Some(Path::new("/cfg")), Some(Path::new("/home/a"))), Some(PathBuf::from("/cfg/systemd/user")));

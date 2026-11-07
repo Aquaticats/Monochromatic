@@ -10,7 +10,8 @@ fn a_clean_reconciliation_says_so() {
     assert!(message.contains(" Hint: if you were committing only whitespace or final-newline edits"), "{message}");
 }
 
-/// Conflicted worktree copies are named as a JSON list, as the incumbent writes them.
+/// Conflicted worktree copies are named as a JSON list,
+/// as the incumbent writes them.
 #[test]
 fn kept_worktree_copies_are_named() {
     let message: String = no_change_message(&[b"a.txt".to_vec(), b"b \"c\".txt".to_vec()]);

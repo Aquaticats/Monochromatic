@@ -1,16 +1,35 @@
 //! What:
-//!  The stat rewrite of a Git index: the bytes of an index file in, the bytes of the same index out, with the stat
+//!  The stat rewrite of a Git index:
+//! the bytes of an index file in,
+//! the bytes of the same index out,
+//! with the stat
 //!  fields of each entry replaced by what the file on disk reports now.
 //! Why:
-//!  A reflink copy gives every file a new inode number and change time, so the first `git status` in the copied tree
-//!  finds every entry stat-dirty and hashes every file (22.1 s measured against 0.17 s with the rewrite, and the clean
-//!  filter of Git LFS runs on LFS files). The rewrite touches an entry only when the file's size and modification
-//!  time equal the entry's, so a file that really changed stays dirty. Entry lengths never change, so the entries are
-//!  edited in place. The accelerator extensions that record stat-derived state (`UNTR` untracked cache, `FSMN`
-//!  fsmonitor token) or offsets into the entries (`EOIE`, `IEOT`) are dropped, because Git rebuilds them; a split
-//!  index (`link`) or a sparse index (`sdir`) is left untouched. The checksum is recomputed with the hash that
-//!  verifies the old one (SHA-1, else SHA-256); an index written with `index.skipHash` has an all-zero checksum and
-//!  keeps one. Versions 2, 3 and 4 are read (`Documentation/gitformat-index.adoc`).
+//!  A reflink copy gives every file a new inode number and change time,
+//! so the first `git status` in the copied tree
+//!  finds every entry stat-dirty and hashes every file (22.1 s measured against 0.17 s with the rewrite,
+//! and the clean
+//!  filter of Git LFS runs on LFS files).
+//! The rewrite touches an entry only when the file's size and modification
+//!  time equal the entry's,
+//! so a file that really changed stays dirty.
+//! Entry lengths never change,
+//! so the entries are
+//!  edited in place.
+//! The accelerator extensions that record stat-derived state (`UNTR` untracked cache,
+//! `FSMN`
+//!  fsmonitor token) or offsets into the entries (`EOIE`,
+//! `IEOT`) are dropped,
+//! because Git rebuilds them;
+//! a split
+//!  index (`link`) or a sparse index (`sdir`) is left untouched.
+//! The checksum is recomputed with the hash that
+//!  verifies the old one (SHA-1,
+//! else SHA-256);
+//! an index written with `index.skipHash` has an all-zero checksum and
+//!  keeps one.
+//! Versions 2,
+//! 3 and 4 are read (`Documentation/gitformat-index.adoc`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,23 +38,31 @@
 
 use crate::subvolume_sha::{sha1, sha256};
 
-/// The bytes of the header: signature, version and entry count.
+/// The bytes of the header:
+/// signature,
+/// version and entry count.
 const HEADER: usize = 12;
 
-/// The bytes of the fixed stat fields of an entry, before the object name.
+/// The bytes of the fixed stat fields of an entry,
+/// before the object name.
 const STAT: usize = 40;
 
-/// The extension signatures that are dropped: derived state that Git rebuilds.
+/// The extension signatures that are dropped:
+/// derived state that Git rebuilds.
 const DROPPED: [&[u8; 4]; 4] = [b"UNTR", b"FSMN", b"EOIE", b"IEOT"];
 
-/// The extension signatures that make the rewrite decline: they change what the entries mean.
+/// The extension signatures that make the rewrite decline:
+/// they change what the entries mean.
 const DECLINED: [&[u8; 4]; 2] = [b"link", b"sdir"];
 
 /// What:
-///  What a file on disk reports now, in the units an index entry stores.
-///  `u32` is an unsigned 32-bit integer (siblings `u64` and `i64`); an index stores each stat field as 32 bits.
+///  What a file on disk reports now,
+/// in the units an index entry stores.
+///  `u32` is an unsigned 32-bit integer (siblings `u64` and `i64`);
+/// an index stores each stat field as 32 bits.
 /// Why:
-///   The caller fills it from `lstat`; the rewrite compares size and modification time and copies the rest.
+///   The caller fills it from `lstat`;
+/// the rewrite compares size and modification time and copies the rest.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,31 +70,41 @@ const DECLINED: [&[u8; 4]; 2] = [b"link", b"sdir"];
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StatFields {
-    /// Change time, seconds.
+    /// Change time,
+    /// seconds.
     pub ctime_seconds: u32,
-    /// Change time, nanoseconds.
+    /// Change time,
+    /// nanoseconds.
     pub ctime_nanos: u32,
-    /// Modification time, seconds.
+    /// Modification time,
+    /// seconds.
     pub mtime_seconds: u32,
-    /// Modification time, nanoseconds.
+    /// Modification time,
+    /// nanoseconds.
     pub mtime_nanos: u32,
-    /// Device, low 32 bits.
+    /// Device,
+    /// low 32 bits.
     pub dev: u32,
-    /// Inode, low 32 bits.
+    /// Inode,
+    /// low 32 bits.
     pub ino: u32,
     /// Owner.
     pub uid: u32,
     /// Group.
     pub gid: u32,
-    /// Size, low 32 bits.
+    /// Size,
+    /// low 32 bits.
     pub size: u32,
 }
 
 /// What:
 ///  The result of one rewrite.
-///  `Vec<u8>` is the owned bytes of the new file; `String` is the owned reason a rewrite was declined.
+///  `Vec<u8>` is the owned bytes of the new file;
+/// `String` is the owned reason a rewrite was declined.
 /// Why:
-///   A declined index is left as copied, and the reason goes into the report, so the cost (a slow first status) is
+///   A declined index is left as copied,
+/// and the reason goes into the report,
+/// so the cost (a slow first status) is
 ///  explained.
 ///
 /// In TS you'd write (pseudocode):
@@ -76,16 +113,19 @@ pub struct StatFields {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IndexOutcome {
-    /// The new file; `updated` of `total` entries got fresh stat fields.
+    /// The new file;
+    /// `updated` of `total` entries got fresh stat fields.
     Rewritten {
-        /// The whole new index file, checksum included.
+        /// The whole new index file,
+        /// checksum included.
         bytes: Vec<u8>,
         /// Entries whose stat fields were replaced.
         updated: usize,
         /// Entries in the index.
         total: usize,
     },
-    /// The index was not changed, for this reason.
+    /// The index was not changed,
+    /// for this reason.
     Skipped(String),
 }
 
@@ -101,23 +141,27 @@ pub(crate) struct Located {
     pub(crate) mode: u32,
 }
 
-/// A big-endian `u32` at `at`, or nothing past the end.
+/// A big-endian `u32` at `at`,
+/// or nothing past the end.
 pub(crate) fn be32(bytes: &[u8], at: usize) -> Option<u32> {
     let quad: &[u8] = bytes.get(at..at.checked_add(4)?)?;
     return Some(u32::from_be_bytes([quad[0], quad[1], quad[2], quad[3]]));
 }
 
-/// A big-endian `u16` at `at`, or nothing past the end.
+/// A big-endian `u16` at `at`,
+/// or nothing past the end.
 fn be16(bytes: &[u8], at: usize) -> Option<u16> {
     let pair: &[u8] = bytes.get(at..at.checked_add(2)?)?;
     return Some(u16::from_be_bytes([pair[0], pair[1]]));
 }
 
 /// What:
-///  Walk the entries of an index whose checksum is `hash_length` bytes; return them and the offset where they end.
+///  Walk the entries of an index whose checksum is `hash_length` bytes;
+/// return them and the offset where they end.
 /// Why:
 ///   Entry layout depends on the hash length (the object name) and the version (v4 compresses the path against the
-///  previous one, v2 and v3 pad to 8 bytes).
+///  previous one,
+/// v2 and v3 pad to 8 bytes).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -179,7 +223,8 @@ fn is_zero_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// The position of the first NUL byte of `bytes`, or `None` when there is none.
+/// The position of the first NUL byte of `bytes`,
+/// or `None` when there is none.
 fn first_nul_at(bytes: &[u8]) -> Option<usize> {
     for (position, stored) in bytes.iter().enumerate() {
         if *stored == 0 {
@@ -203,8 +248,10 @@ fn is_listed(names: &[&[u8; 4]], signature: &[u8]) -> bool {
 ///  Whether the extensions that follow the entries of an index whose checksum is `hash_length` bytes end exactly where
 ///  the checksum begins.
 /// Why:
-///   An index with an all-zero checksum proves nothing about its hash length, so a length is accepted only when the
-///  whole file parses under it; a wrong length almost always leaves a cut-off extension.
+///   An index with an all-zero checksum proves nothing about its hash length,
+/// so a length is accepted only when the
+///  whole file parses under it;
+/// a wrong length almost always leaves a cut-off extension.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -227,13 +274,22 @@ fn extensions_fit(bytes: &[u8], entries_end: usize, hash_length: usize) -> bool 
 }
 
 /// What:
-///  Which hash verifies the checksum, as a hash length: 20 for SHA-1, 32 for SHA-256, and for an all-zero checksum
+///  Which hash verifies the checksum,
+/// as a hash length:
+/// 20 for SHA-1,
+/// 32 for SHA-256,
+/// and for an all-zero checksum
 ///  (`index.skipHash`) the one length under which the whole file parses.
 ///  `known` is the repository's hash length when the caller read it from the repository's configuration.
 /// Why:
-///   A checksum that verifies proves its length. An all-zero checksum proves nothing, so the repository's object
-///  format decides when it is known; when it is not, a file that parses under both lengths is ambiguous and is
-///  declined, because a wrong guess drops or keeps the wrong bytes of every entry.
+///   A checksum that verifies proves its length.
+/// An all-zero checksum proves nothing,
+/// so the repository's object
+///  format decides when it is known;
+/// when it is not,
+/// a file that parses under both lengths is ambiguous and is
+///  declined,
+/// because a wrong guess drops or keeps the wrong bytes of every entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -275,9 +331,12 @@ fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), St
 }
 
 /// What:
-///  Rewrite the stat fields of an index file; see the module description for the rules.
-///  `lookup` is called with an entry's path and returns what `lstat` reports now, or nothing for a missing file.
-///  `&mut dyn StatLookup` is a borrowed lookup that may keep state (a table, a cursor over a directory).
+///  Rewrite the stat fields of an index file;
+/// see the module description for the rules.
+///  `lookup` is called with an entry's path and returns what `lstat` reports now,
+/// or nothing for a missing file.
+///  `&mut dyn StatLookup` is a borrowed lookup that may keep state (a table,
+/// a cursor over a directory).
 /// Why:
 ///   Keeping the file system out of this function makes every branch testable with built bytes.
 ///
@@ -291,35 +350,44 @@ pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn StatLookup) -> IndexOut
 
 /// What:
 ///  Where the rewrite of an index asks what `lstat` reports now for an entry's path.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The lookup may keep state (a table the clone filled, a cursor that keeps its directory open), and the rewrite stays free of the
-///  file system; a type that holds the state implements this.
+///   The lookup may keep state (a table the clone filled,
+/// a cursor that keeps its directory open),
+/// and the rewrite stays free of the
+///  file system;
+/// a type that holds the state implements this.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// interface StatLookup { statNow(path: Uint8Array): StatFields | undefined }
 /// ```
 pub trait StatLookup {
-    /// What `lstat` reports now for `path`, or nothing for a file that is missing.
+    /// What `lstat` reports now for `path`,
+    /// or nothing for a file that is missing.
     fn stat_now(&mut self, path: &[u8]) -> Option<StatFields>;
 }
 
 /// What:
 ///  Where the rewrite of an index asks whether the file an entry was recorded for is still the one the copy was made from.
 /// Why:
-///   The check keeps the reference trees it compares with; a type that holds them implements this.
+///   The check keeps the reference trees it compares with;
+/// a type that holds them implements this.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// interface StatTrust { isTrusted(path: Uint8Array, stored: StoredStat): boolean }
 /// ```
 pub trait StatTrust {
-    /// Whether the entry for `path`, with the fields it stored, is still trusted.
+    /// Whether the entry for `path`,
+    /// with the fields it stored,
+    /// is still trusted.
     fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool;
 }
 
-/// The check that accepts every entry: no reference index needs to agree.
+/// The check that accepts every entry:
+/// no reference index needs to agree.
 pub struct AcceptEveryStat;
 
 impl StatTrust for AcceptEveryStat {
@@ -332,7 +400,8 @@ impl StatTrust for AcceptEveryStat {
 ///  What the caller knows about the index beyond its bytes.
 ///  `Option<usize>` is a value that may be absent.
 /// Why:
-///   The repository's hash length decides how an all-zero checksum is read, and the index file's own modification time
+///   The repository's hash length decides how an all-zero checksum is read,
+/// and the index file's own modification time
 ///  decides which entries are racy.
 ///
 /// In TS you'd write (pseudocode):
@@ -343,14 +412,17 @@ impl StatTrust for AcceptEveryStat {
 pub struct RewriteContext {
     /// The repository's hash length in bytes (20 or 32) when it was read from its configuration.
     pub hash_length: Option<usize>,
-    /// The modification time of the index file the bytes came from: seconds and nanoseconds.
+    /// The modification time of the index file the bytes came from:
+    /// seconds and nanoseconds.
     pub index_mtime: Option<(u32, u32)>,
 }
 
 /// What:
-///  The stat fields an entry holds, as stored.
+///  The stat fields an entry holds,
+/// as stored.
 /// Why:
-///   The caller compares them with the file the index was written for, so an entry is refreshed only when that file is
+///   The caller compares them with the file the index was written for,
+/// so an entry is refreshed only when that file is
 ///  the one Git recorded and not one that changed since.
 ///
 /// In TS you'd write (pseudocode):
@@ -359,33 +431,44 @@ pub struct RewriteContext {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StoredStat {
-    /// Change time, seconds.
+    /// Change time,
+    /// seconds.
     pub ctime_seconds: u32,
-    /// Change time, nanoseconds (0 when Git was built without nanosecond support).
+    /// Change time,
+    /// nanoseconds (0 when Git was built without nanosecond support).
     pub ctime_nanos: u32,
-    /// Modification time, seconds.
+    /// Modification time,
+    /// seconds.
     pub mtime_seconds: u32,
-    /// Modification time, nanoseconds (0 when Git was built without nanosecond support).
+    /// Modification time,
+    /// nanoseconds (0 when Git was built without nanosecond support).
     pub mtime_nanos: u32,
-    /// Inode, low 32 bits.
+    /// Inode,
+    /// low 32 bits.
     pub ino: u32,
     /// Owner.
     pub uid: u32,
     /// Group.
     pub gid: u32,
-    /// Size, low 32 bits.
+    /// Size,
+    /// low 32 bits.
     pub size: u32,
 }
 
 /// What:
-///  Rewrite the stat fields of an index file; see the module description for the rules.
-///  `trusted` is asked, with an entry's path and stored fields, whether the file the entry was recorded for is still
+///  Rewrite the stat fields of an index file;
+/// see the module description for the rules.
+///  `trusted` is asked,
+/// with an entry's path and stored fields,
+/// whether the file the entry was recorded for is still
 ///  the one the copy was made from.
 ///  An entry whose modification time is not earlier than the index file's own (racy in Git's terms) keeps its fields,
 ///  so Git hashes it.
 /// Why:
-///   Replacing the change time and inode of an entry that Git could not trust, or of a file that changed after Git
-///  looked, would make Git believe the stored blob is current.
+///   Replacing the change time and inode of an entry that Git could not trust,
+/// or of a file that changed after Git
+///  looked,
+/// would make Git believe the stored blob is current.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

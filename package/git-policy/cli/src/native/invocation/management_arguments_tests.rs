@@ -277,7 +277,8 @@ fn native_bytes_are_kept_for_pathspecs_and_refused_for_policy_ids() {
     }
 }
 
-/// `doctor` takes no arguments, and the usage and help name it.
+/// `doctor` takes no arguments,
+/// and the usage and help name it.
 #[test]
 fn doctor_takes_no_arguments_and_is_documented() {
     assert_eq!(parse(&["doctor"]), Ok(ManagementAction::Doctor));
@@ -289,7 +290,9 @@ fn doctor_takes_no_arguments_and_is_documented() {
 }
 
 /// The help describes the `doctor` exit statuses the way `SPEC.md` ("Doctor") defines them:
-///  0 for no hooks or only git-lfs shims, 1 for any other hook (even beside shims), 2 outside a repository.
+///  0 for no hooks or only git-lfs shims,
+/// 1 for any other hook (even beside shims),
+/// 2 outside a repository.
 #[test]
 fn doctor_help_states_the_exit_statuses() {
     let sentence: &str = concat!(
@@ -300,7 +303,8 @@ fn doctor_help_states_the_exit_statuses() {
     assert!(!MANAGEMENT_HELP.contains("exit 1 when any are found"), "{MANAGEMENT_HELP}");
 }
 
-/// `service` takes exactly the word `status` or the word `settle-earlier-batches`, and anything else (the retired `install` and
+/// `service` takes exactly the word `status` or the word `settle-earlier-batches`,
+/// and anything else (the retired `install` and
 ///  `uninstall` included) is a usage error.
 #[test]
 fn the_service_command_takes_only_status_and_settle_earlier_batches() {

@@ -1,17 +1,38 @@
 //! What:
-//!  The removal of a stale index lock by one reclaimer at a time: the reclaimer opens the lock it will judge, reads the marker
-//!  from that open file, takes its place in the claim chain beside the lock, checks that the name still refers to that file, and
+//!  The removal of a stale index lock by one reclaimer at a time:
+//! the reclaimer opens the lock it will judge,
+//! reads the marker
+//!  from that open file,
+//! takes its place in the claim chain beside the lock,
+//! checks that the name still refers to that file,
+//! and
 //!  only then unlinks the name.
 //! Why:
-//!  A removal by name removes whatever the name holds by then. Between a look at the marker and the removal, the stale lock may
-//!  be gone and a live lock in its place; that happens when a second reclaimer (another instance serving the same physical
-//!  index, an alternate index shared by two worktrees, a service on another machine over a shared file system) removed the stale
-//!  lock and placed its own. The earlier cure took the file aside by a rename and put it back by a hard link, which left the
-//!  live lock off its name for a while, in which Git could take the name and strand it. Here no file is moved: the claim chain
-//!  (`service_index_claim.rs`) lets one reclaimer of that file go on, and a reclaimer that opened it before it was removed finds
-//!  the name no longer refers to it. The chain is used on every file system, because a reclaimer on the `flock` path and one on
-//!  the claim path would not see each other. A live landing cannot place a lock while the name is occupied. What stays open is a
-//!  person's `rm index.lock` between the check and the unlink, because no system call unlinks a name only if it still names a
+//!  A removal by name removes whatever the name holds by then.
+//! Between a look at the marker and the removal,
+//! the stale lock may
+//!  be gone and a live lock in its place;
+//! that happens when a second reclaimer (another instance serving the same physical
+//!  index,
+//! an alternate index shared by two worktrees,
+//! a service on another machine over a shared file system) removed the stale
+//!  lock and placed its own.
+//! The earlier cure took the file aside by a rename and put it back by a hard link,
+//! which left the
+//!  live lock off its name for a while,
+//! in which Git could take the name and strand it.
+//! Here no file is moved:
+//! the claim chain
+//!  (`service_index_claim.rs`) lets one reclaimer of that file go on,
+//! and a reclaimer that opened it before it was removed finds
+//!  the name no longer refers to it.
+//! The chain is used on every file system,
+//! because a reclaimer on the `flock` path and one on
+//!  the claim path would not see each other.
+//! A live landing cannot place a lock while the name is occupied.
+//! What stays open is a
+//!  person's `rm index.lock` between the check and the unlink,
+//! because no system call unlinks a name only if it still names a
 //!  given file (`doc/planning/cli-git-one-reclaimer-per-index.md`).
 //!
 //! In TS you'd write (pseudocode):
@@ -29,26 +50,48 @@ use std::path::{Path, PathBuf};
 /// What a reclaimer made of the file at a lock's name.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Reclaimed {
-    /// No lock is left in the way: the stale file was removed, or was already gone.
+    /// No lock is left in the way:
+    /// the stale file was removed,
+    /// or was already gone.
     Removed,
-    /// The name no longer refers to the file that was judged stale: the placement is worth another try.
+    /// The name no longer refers to the file that was judged stale:
+    /// the placement is worth another try.
     Changed,
-    /// Another reclaimer holds a claim on the stale file and is removing it: the lock is not this reclaimer's to remove.
+    /// Another reclaimer holds a claim on the stale file and is removing it:
+    /// the lock is not this reclaimer's to remove.
     Busy,
-    /// The file is not a stale lock of the service (a live holder's, Git's, or not readable): it is left where it is.
+    /// The file is not a stale lock of the service (a live holder's,
+    /// Git's,
+    /// or not readable):
+    /// it is left where it is.
     Kept,
-    /// The file is stale and cannot be removed; the log says why.
+    /// The file is stale and cannot be removed;
+    /// the log says why.
     Stuck,
-    /// The file is stale, but no claim file could be placed beside it (the file system refuses the placement): the file is left
-    ///  where it is, and the person is told how to remove it. It carries the marker read from the very file that was judged, so
+    /// The file is stale,
+    /// but no claim file could be placed beside it (the file system refuses the placement):
+    /// the file is left
+    ///  where it is,
+    /// and the person is told how to remove it.
+    /// It carries the marker read from the very file that was judged,
+    /// so
     ///  the notice never describes a file that replaced it.
     Unguarded(Marked),
-    /// The file (the lock, or a claim in the way of its removal) was written by a service on another machine, or on one whose
-    ///  machine cannot be compared with this one: nothing proves its maker gone, so it is left where it is and the person is
-    ///  told how to remove it. It carries the marker read from the file.
+    /// The file (the lock,
+    /// or a claim in the way of its removal) was written by a service on another machine,
+    /// or on one whose
+    ///  machine cannot be compared with this one:
+    /// nothing proves its maker gone,
+    /// so it is left where it is and the person is
+    ///  told how to remove it.
+    /// It carries the marker read from the file.
     Foreign { file: PathBuf, marked: Marked },
-    /// A claim in the way cannot be judged (its maker is in another PID namespace, or the claim cannot be read): it is not removed,
-    ///  not passed over and not a passing contention, and the person is told which file it is. It carries the marker when one
+    /// A claim in the way cannot be judged (its maker is in another PID namespace,
+    /// or the claim cannot be read):
+    /// it is not removed,
+    ///  not passed over and not a passing contention,
+    /// and the person is told which file it is.
+    /// It carries the marker when one
     ///  could be read.
     Unjudged { file: PathBuf, marked: Option<Marked> },
 }
@@ -56,8 +99,10 @@ pub enum Reclaimed {
 /// What:
 ///  Which marks `reclaim_if` takes for stale.
 /// Why:
-///   A mark is stale when its holder is gone; the removal of a killed service's lock adds that the mark is the one of its own batch.
-///  Each kind is a value, so no closure has to carry the batch number.
+///   A mark is stale when its holder is gone;
+/// the removal of a killed service's lock adds that the mark is the one of its own batch.
+///  Each kind is a value,
+/// so no closure has to carry the batch number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -82,10 +127,14 @@ impl StaleMark {
 }
 
 /// What:
-///  Removes the index lock of `index` left by a service that was killed, when it still carries the service's marker for `seq`
+///  Removes the index lock of `index` left by a service that was killed,
+/// when it still carries the service's marker for `seq`
 ///  and its holder is gone.
 /// Why:
-///   Only the marker proves the lock is ours; a foreign lock, one a Git holds, or one whose holder still runs is never touched.
+///   Only the marker proves the lock is ours;
+/// a foreign lock,
+/// one a Git holds,
+/// or one whose holder still runs is never touched.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,11 +146,16 @@ pub fn remove_stale(index: &Path, seq: u64) {
 }
 
 /// What:
-///  Removes the file at `lock` if `is_stale` says the marker in it is a stale one, while no other reclaimer holds the file.
+///  Removes the file at `lock` if `is_stale` says the marker in it is a stale one,
+/// while no other reclaimer holds the file.
 /// Why:
 ///   One reclaimer per file at a time is what keeps a live lock another instance placed after the marker was read from being
-///  removed. The answer says what the caller does next: place again after `Removed` and `Changed`, wait as for any held lock
-///  after `Busy` and `Kept`, and give up after `Stuck`.
+///  removed.
+/// The answer says what the caller does next:
+/// place again after `Removed` and `Changed`,
+/// wait as for any held lock
+///  after `Busy` and `Kept`,
+/// and give up after `Stuck`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -176,18 +230,22 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: StaleMark) -> Recl
     };
 }
 
-/// `answer`, after the claims of a reclaimer that saw the stale file leave its name are removed.
+/// `answer`,
+/// after the claims of a reclaimer that saw the stale file leave its name are removed.
 fn cleared(claim: ClaimHold, answer: Reclaimed) -> Reclaimed {
     claim.clear_all();
     return answer;
 }
 
-/// Opens `lock` to read its marker without following a link or waiting on a pipe, and without a descriptor a child could inherit.
+/// Opens `lock` to read its marker without following a link or waiting on a pipe,
+/// and without a descriptor a child could inherit.
 fn open_to_judge(lock: &Path) -> std::io::Result<std::fs::File> {
     return std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(lock);
 }
 
-/// Whether the name `lock` refers to the very file `file` has open: the same device and the same inode, so a replaced file whose
+/// Whether the name `lock` refers to the very file `file` has open:
+/// the same device and the same inode,
+/// so a replaced file whose
 ///  inode number was reused cannot pass while `file` keeps the old one alive.
 fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
     let named = std::fs::symlink_metadata(lock)?;
@@ -195,18 +253,30 @@ fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
     return Ok(named.dev() == open.dev() && named.ino() == open.ino());
 }
 
-/// A path as one word for a shell: in single quotes, a quote inside it closed, escaped and opened again.
+/// A path as one word for a shell:
+/// in single quotes,
+/// a quote inside it closed,
+/// escaped and opened again.
 pub fn shell_quote(path: &Path) -> String {
     return format!("'{}'", path.display().to_string().replace('\'', "'\\''"));
 }
 
 /// What:
-///  The words for a stale lock that was not removed: which lock, which batch and process left it, how to tell it is still that
-///  lock, and how to remove it.
+///  The words for a stale lock that was not removed:
+/// which lock,
+/// which batch and process left it,
+/// how to tell it is still that
+///  lock,
+/// and how to remove it.
 /// Why:
-///   Native Git leaves a stale `index.lock` to the person, and so does a service that cannot place the claim a safe removal needs;
-///  the person must be able to act from the notice alone. `marked` is the marker read from the file that was judged, never a
-///  second read of the name, which another landing may have taken since; the first line to look for lets the person see that
+///   Native Git leaves a stale `index.lock` to the person,
+/// and so does a service that cannot place the claim a safe removal needs;
+///  the person must be able to act from the notice alone.
+/// `marked` is the marker read from the file that was judged,
+/// never a
+///  second read of the name,
+/// which another landing may have taken since;
+/// the first line to look for lets the person see that
 ///  the file is still the one described.
 ///
 /// In TS you'd write (pseudocode):
@@ -231,13 +301,25 @@ pub fn stale_lock_words(lock: &Path, marked: &Marked) -> String {
 }
 
 /// What:
-///  The words for a file left because its maker is not proven gone on this machine: the file, the batch and process, why it
-///  stays, and how to remove it.
+///  The words for a file left because its maker is not proven gone on this machine:
+/// the file,
+/// the batch and process,
+/// why it
+///  stays,
+/// and how to remove it.
 /// Why:
-///   A boot ID that differs says nothing about a service on another machine, which may be running and holding the file; a marker
-///  of an earlier release names no machine (or no process) and cannot say whether it was written here; and a lock in an earlier
-///  release's format is reclaimed by that release's own exclusion, which this release cannot join. So the file is neither removed
-///  nor called stale; the person who knows that service is gone can remove it, and needs the notice alone to do so. `marked` is
+///   A boot ID that differs says nothing about a service on another machine,
+/// which may be running and holding the file;
+/// a marker
+///  of an earlier release names no machine (or no process) and cannot say whether it was written here;
+/// and a lock in an earlier
+///  release's format is reclaimed by that release's own exclusion,
+/// which this release cannot join.
+/// So the file is neither removed
+///  nor called stale;
+/// the person who knows that service is gone can remove it,
+/// and needs the notice alone to do so.
+/// `marked` is
 ///  the marker read from the file itself.
 ///
 /// In TS you'd write (pseudocode):
@@ -264,10 +346,18 @@ pub fn foreign_words(file: &Path, marked: &Marked) -> String {
 }
 
 /// What:
-///  The words for a claim that cannot be judged: the file, the maker if it could be read, why it stays, and how to remove it.
+///  The words for a claim that cannot be judged:
+/// the file,
+/// the maker if it could be read,
+/// why it stays,
+/// and how to remove it.
 /// Why:
-///   A claim whose maker is in another PID namespace, or that cannot be read, is neither gone nor proven running; it blocks every
-///  reclaim of the stale lock for as long as it stands, so the wait must name it and not call it passing contention.
+///   A claim whose maker is in another PID namespace,
+/// or that cannot be read,
+/// is neither gone nor proven running;
+/// it blocks every
+///  reclaim of the stale lock for as long as it stands,
+/// so the wait must name it and not call it passing contention.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

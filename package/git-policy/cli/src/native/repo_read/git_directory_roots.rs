@@ -1,9 +1,14 @@
 //! What:
-//!  The Git directories a command works in, found without starting Git: the Git directory and the common Git directory.
+//!  The Git directories a command works in,
+//! found without starting Git:
+//! the Git directory and the common Git directory.
 //! Why:
 //!  The sweep of a stopped child's locks and the clearing of a killed Git's reference locks both need to know where a
-//!  repository keeps its lock files. Git is not asked, because both run when Git has just failed or is about to be
-//!  started, and reading a few small files costs nothing.
+//!  repository keeps its lock files.
+//! Git is not asked,
+//! because both run when Git has just failed or is about to be
+//!  started,
+//! and reading a few small files costs nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,9 +22,12 @@ use std::path::{Path, PathBuf};
 /// The command whose repository is wanted.
 use std::process::Command;
 
-/// The common Git directory a linked worktree's Git directory names in its `commondir` file, or the directory itself.
-///  The few lines are repeated here because the module that reads it belongs to the service run, which the client path
-///  may not name (`standards_review_boundary_tests.rs`); a path that cannot be resolved is used as written.
+/// The common Git directory a linked worktree's Git directory names in its `commondir` file,
+/// or the directory itself.
+///  The few lines are repeated here because the module that reads it belongs to the service run,
+/// which the client path
+///  may not name (`standards_review_boundary_tests.rs`);
+/// a path that cannot be resolved is used as written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -37,7 +45,10 @@ pub fn common_dir_for(git_dir: &Path) -> PathBuf {
     return std::fs::canonicalize(&joined).unwrap_or(joined);
 }
 
-/// Where the Git directory of a working directory is: `.git` as a directory, a `gitdir:` file, or a bare repository.
+/// Where the Git directory of a working directory is:
+/// `.git` as a directory,
+/// a `gitdir:` file,
+/// or a bare repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -63,8 +74,10 @@ pub fn git_directory_of(start: &Path) -> Option<PathBuf> {
     return None;
 }
 
-/// The Git directory and the common Git directory (when it differs) of a working directory, or of `GIT_DIR` when one is
-///  named; nothing when no repository is found.
+/// The Git directory and the common Git directory (when it differs) of a working directory,
+/// or of `GIT_DIR` when one is
+///  named;
+/// nothing when no repository is found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,7 +99,9 @@ pub fn roots_for(working: &Path, named: Option<PathBuf>) -> Vec<PathBuf> {
     return roots;
 }
 
-/// The roots of a command that has not started yet: its repository comes from `GIT_DIR` in its environment, or from its
+/// The roots of a command that has not started yet:
+/// its repository comes from `GIT_DIR` in its environment,
+/// or from its
 ///  working directory (the process's own when the command sets none).
 ///
 /// In TS you'd write (pseudocode):

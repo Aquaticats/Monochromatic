@@ -1,16 +1,23 @@
-//! Runs a test body in a child process that starts under a chosen umask, so no test changes the umask of a process other tests
+//! Runs a test body in a child process that starts under a chosen umask,
+//! so no test changes the umask of a process other tests
 //! run in (the test binary runs tests on threads of one process under `cargo test`).
 //!
-//! A test calls `ran_in_child` first and returns when it says `true`: the parent has then started this same test in a child
-//! with the mask, and the child's success is the parent's assertion. In the child it says `false` and the test goes on.
+//! A test calls `ran_in_child` first and returns when it says `true`:
+//! the parent has then started this same test in a child
+//! with the mask,
+//! and the child's success is the parent's assertion.
+//! In the child it says `false` and the test goes on.
 
 use std::os::unix::process::CommandExt as _;
 
 /// The environment variable that marks the child.
 const CHILD_VARIABLE: &str = "CLI_GIT_UMASK_CHILD";
 
-/// Whether this call ran the test in a child under `mask` (and asserted that it passed); `false` in the child itself, where the
-/// body follows. `module` is `module_path!()` of the test and `name` its function name.
+/// Whether this call ran the test in a child under `mask` (and asserted that it passed);
+/// `false` in the child itself,
+/// where the
+/// body follows.
+/// `module` is `module_path!()` of the test and `name` its function name.
 pub(crate) fn ran_in_child(module: &str, name: &str, mask: u32) -> bool {
     if std::env::var_os(CHILD_VARIABLE).is_some() {
         return false;

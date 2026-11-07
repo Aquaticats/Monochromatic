@@ -1,9 +1,14 @@
 //! What:
-//!  The copying of the real index into a private index: a copy that keeps the source's timestamps, the check of
-//!  whether the captured index may seed an explicit-path commit, and the failure that reports a copy which failed.
+//!  The copying of the real index into a private index:
+//! a copy that keeps the source's timestamps,
+//! the check of
+//!  whether the captured index may seed an explicit-path commit,
+//! and the failure that reports a copy which failed.
 //! Why:
 //!  `commit_index.rs` initializes the private commit index for each selection mode and stays under the file-size
-//!  limit; the copy steps need nothing from it, so they live in a file of their own that it imports.
+//!  limit;
+//! the copy steps need nothing from it,
+//! so they live in a file of their own that it imports.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,7 +29,8 @@ use std::path::Path;
 /// Why:
 ///   A copy with fresh times would make Git trust stat data captured in the same second
 ///  as a later same-size edit (issue #544).
-///  A missing source is an error, as the incumbent's `copyFile` reports it.
+///  A missing source is an error,
+/// as the incumbent's `copyFile` reports it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -48,7 +54,8 @@ pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io:
 ///  Whether the captured real index may seed the private index of an explicit-path commit.
 /// Why:
 ///   Only an index whose every entry was read and carries no assume-unchanged or skip-worktree mark may;
-///  one that cannot be read is treated like a marked one, and the commit builds its index from the base alone.
+///  one that cannot be read is treated like a marked one,
+/// and the commit builds its index from the base alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,7 +71,8 @@ pub fn seeds_private_index(captured_index: &Path) -> bool {
 /// What:
 ///  The failure that reports an index file which could not be copied.
 /// Why:
-///   Three copies of `initialize_commit_index` report the same failure, and `map_err` takes this function by path
+///   Three copies of `initialize_commit_index` report the same failure,
+/// and `map_err` takes this function by path
 ///  where a closure would otherwise stand.
 ///
 /// In TS you'd write (pseudocode):

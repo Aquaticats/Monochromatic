@@ -5,7 +5,9 @@
  default `target/e2e` under the app directory), `E2E_TMP` (scratch root, default `temp/agent/music-player-e2e` under the
  home directory), `E2E_LIBRARY_GENERATOR` (the library generator script), `E2E_COMPOSITOR` (the compositor executable,
  default the one mise has installed, found by `compositor-path.ts`), and `E2E_UNIT_MEMORY_MAX`, `E2E_UNIT_CPU_QUOTA` and
- `E2E_UNIT_TASKS_MAX` (the systemd limits of each session unit, defaulting to the measured values in `session-launch.ts`).
+ `E2E_UNIT_TASKS_MAX` (the systemd limits of each session unit, defaulting to the measured values in `session-launch.ts`),
+ `E2E_VISIBLE` (exactly `1` asks for a nested window on the desktop; anything else, or nothing, keeps the run headless)
+ and `E2E_GPU` (the render device of a headless run, `software` or a render node path, replacing the probe).
  
  @example
  ```ts
@@ -30,17 +32,30 @@ import {
 } from './session-launch.ts';
 
 /**
+ The only value of `E2E_VISIBLE` that asks for a nested window.
+ */
+const VISIBLE_ENABLED = '1';
+
+/**
  Everything the run needs to know about its surroundings.
  */
 export type RunConfig = {
   readonly appDir: string;
   readonly compositorPath: string;
   readonly generatorPath: string;
+  /**
+   The render device a person named for a headless run, or the empty string when the run probes for one.
+   */
+  readonly gpu: string;
   readonly only: string;
   readonly outputRoot: string;
   readonly releaseBinary: string;
   readonly scratchRoot: string;
   readonly unitLimits: UnitLimits;
+  /**
+   True only when a person asked for a nested window on the desktop; every other run is headless.
+   */
+  readonly visible: boolean;
 };
 
 /**
@@ -49,17 +64,19 @@ export type RunConfig = {
 export type RunOverrides = {
   readonly compositorPath?: string;
   readonly generatorPath?: string;
+  readonly gpu?: string;
   readonly only?: string;
   readonly outputRoot?: string;
   readonly scratchRoot?: string;
   readonly unitCpuQuota?: string;
   readonly unitMemoryMax?: string;
   readonly unitTasksMax?: string;
+  readonly visible?: boolean;
 };
 
 /**
  Reads the overrides from the environment variables `E2E_ONLY`, `E2E_OUT`, `E2E_TMP`, `E2E_LIBRARY_GENERATOR`,
- `E2E_COMPOSITOR`, `E2E_UNIT_MEMORY_MAX`, `E2E_UNIT_CPU_QUOTA` and `E2E_UNIT_TASKS_MAX`.
+ `E2E_COMPOSITOR`, `E2E_UNIT_MEMORY_MAX`, `E2E_UNIT_CPU_QUOTA`, `E2E_UNIT_TASKS_MAX`, `E2E_VISIBLE` and `E2E_GPU`.
  
  @returns the overrides whose variables are set
  
@@ -74,6 +91,7 @@ export function overridesFromEnvironment(): RunOverrides {
    */
   const {
     E2E_COMPOSITOR,
+    E2E_GPU,
     E2E_LIBRARY_GENERATOR,
     E2E_ONLY,
     E2E_OUT,
@@ -81,6 +99,7 @@ export function overridesFromEnvironment(): RunOverrides {
     E2E_UNIT_CPU_QUOTA,
     E2E_UNIT_MEMORY_MAX,
     E2E_UNIT_TASKS_MAX,
+    E2E_VISIBLE,
   } = process.env;
   return {
     ...E2E_COMPOSITOR === undefined ? {} : { compositorPath: E2E_COMPOSITOR, },
@@ -91,6 +110,9 @@ export function overridesFromEnvironment(): RunOverrides {
     ...E2E_UNIT_CPU_QUOTA === undefined ? {} : { unitCpuQuota: E2E_UNIT_CPU_QUOTA, },
     ...E2E_UNIT_MEMORY_MAX === undefined ? {} : { unitMemoryMax: E2E_UNIT_MEMORY_MAX, },
     ...E2E_UNIT_TASKS_MAX === undefined ? {} : { unitTasksMax: E2E_UNIT_TASKS_MAX, },
+    ...(E2E_GPU === undefined) || (E2E_GPU === '') ? {} : { gpu: E2E_GPU, },
+    // Exactly "1": a stray "0", "false" or empty value must never open a window on the desktop.
+    ...E2E_VISIBLE === VISIBLE_ENABLED ? { visible: true, } : {},
   };
 }
 
@@ -136,6 +158,8 @@ export function loadRunConfig(
       'agent-scale',
       'make-scale-library.ts',
     ),
+    gpu: overrides.gpu ?? '',
+    visible: overrides.visible ?? false,
     only: overrides.only ?? '',
     outputRoot: overrides.outputRoot ?? join(
       appDir,

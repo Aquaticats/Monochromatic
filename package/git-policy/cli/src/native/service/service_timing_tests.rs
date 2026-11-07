@@ -31,7 +31,9 @@ const OBJECTS_MS: u64 = 13;
 const JOURNAL_MS: u64 = 17;
 const REF_MS: u64 = 19;
 const INDEX_UPDATE_MS: u64 = 23;
-/// How long the index lock was held in the controls' landing: the branch move and the index build, so within their sum.
+/// How long the index lock was held in the controls' landing:
+/// the branch move and the index build,
+/// so within their sum.
 const HOLD_MS: u64 = 31;
 /// Time of the landing no named phase covers.
 const READS_MS: u64 = 29;
@@ -276,8 +278,11 @@ fn a_log_line_states_its_own_time_at_its_end() {
     assert_eq!(line.matches('\n').count(), 1);
 }
 
-/// What a push, a review or a server said can name a remote with a password in it; the entry carries the URL without it,
-/// in the message and in a field, and the other words are as they were.
+/// What a push,
+/// a review or a server said can name a remote with a password in it;
+/// the entry carries the URL without it,
+/// in the message and in a field,
+/// and the other words are as they were.
 #[test]
 fn the_userinfo_of_a_url_never_reaches_an_entry() {
     use crate::service_timing::capture::entries_of;
@@ -294,7 +299,8 @@ fn the_userinfo_of_a_url_never_reaches_an_entry() {
     assert!(entries[1].fields.contains(&(String::from("CLI_GIT_URL"), String::from("https://<credentials>@example.invalid/r.git"))), "{:?}", entries[1].fields);
 }
 
-/// The macros write at the priority their name says, and the plain one at `info`.
+/// The macros write at the priority their name says,
+/// and the plain one at `info`.
 #[test]
 fn the_macros_write_at_the_priority_their_name_says() {
     use crate::journald_native::Priority;
@@ -306,8 +312,12 @@ fn the_macros_write_at_the_priority_their_name_says() {
     assert_eq!(entries.iter().map(|entry| { return entry.priority; }).collect::<Vec<_>>(), vec![Priority::Info, Priority::Warning, Priority::Error]);
 }
 
-/// A message with a newline in it is one entry; a native entry keeps the newline, as written, and the line on standard
-/// error is one line, so it cannot start a second line there.
+/// A message with a newline in it is one entry;
+/// a native entry keeps the newline,
+/// as written,
+/// and the line on standard
+/// error is one line,
+/// so it cannot start a second line there.
 #[test]
 fn a_message_with_a_newline_is_one_entry_and_one_line_on_standard_error() {
     let entries = crate::service_timing::capture::entries_of(|| { crate::service_log!("first\nsecond"); });
@@ -316,7 +326,9 @@ fn a_message_with_a_newline_is_one_entry_and_one_line_on_standard_error() {
     assert_eq!(line, format!("{}first second at_ms=7\n", crate::service_timing::LOG_PREFIX));
 }
 
-/// A cut that falls just before the `@` of a URL's userinfo must not leave the password: the text is masked whole, then cut.
+/// A cut that falls just before the `@` of a URL's userinfo must not leave the password:
+/// the text is masked whole,
+/// then cut.
 #[test]
 fn a_cut_just_before_the_at_sign_leaves_no_password() {
     use crate::journald_native::MESSAGE_LIMIT;
@@ -326,8 +338,11 @@ fn a_cut_just_before_the_at_sign_leaves_no_password() {
     assert!(!entries[0].message.contains("TOPSECRET"), "{}", &entries[0].message[entries[0].message.len().saturating_sub(80)..]);
 }
 
-/// The answered line states the longest quiet gap of the steps that ended by themselves, and each step's gap by name, with a
-///  step that was ended for being quiet kept out of the longest; a request that met no step states an empty list.
+/// The answered line states the longest quiet gap of the steps that ended by themselves,
+/// and each step's gap by name,
+/// with a
+///  step that was ended for being quiet kept out of the longest;
+/// a request that met no step states an empty list.
 #[test]
 fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
     let landing: LandTiming = LandTiming::default();
@@ -362,7 +377,8 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
     assert!(line_for("r", "refs/heads/main", &landing).contains(" quiet_ms=0.000 quiet_steps=\"\" "));
 }
 
-/// The answered line names every Git step of the service with its offset and duration, and says how many it dropped.
+/// The answered line names every Git step of the service with its offset and duration,
+/// and says how many it dropped.
 #[test]
 fn the_answered_line_names_each_step_with_its_offset_and_duration() {
     let landing: LandTiming = LandTiming::default();
@@ -393,8 +409,10 @@ fn the_answered_line_names_each_step_with_its_offset_and_duration() {
     assert_eq!(fields(line.as_str()).get("steps_dropped").map(String::as_str), Some("5"));
 }
 
-/// An `answered` line written before the index step was named by its role calls the same duration `sync_ms`: the reader of a
-/// line finds it under either name, and a line that holds both (never written) is read by the new name.
+/// An `answered` line written before the index step was named by its role calls the same duration `sync_ms`:
+/// the reader of a
+/// line finds it under either name,
+/// and a line that holds both (never written) is read by the new name.
 #[test]
 fn a_record_from_before_the_rename_still_gives_its_index_update() {
     let recorded: &str = "answered request=\"r\" branch=\"refs/heads/main\" outcome=landed batch=1 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 \

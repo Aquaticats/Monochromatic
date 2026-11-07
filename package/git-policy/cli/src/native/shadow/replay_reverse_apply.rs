@@ -2,7 +2,9 @@
 //!  The exact emulation of `git apply --reverse --check` for one text file:
 //!       the subsumption test that asks whether a landed change already sits in the prepared bytes.
 //! Why:
-//!  Git's `apply.c` matching (`apply_one_fragment`, `find_pos`, `match_fragment`) with its defaults:
+//!  Git's `apply.c` matching (`apply_one_fragment`,
+//! `find_pos`,
+//! `match_fragment`) with its defaults:
 //!       no context reduction,
 //!       no whitespace fixing,
 //!       no overlapping hunks,
@@ -35,17 +37,21 @@ struct ImageLine {
     patched: bool,
 }
 
-/// Whether one byte is not one of the white-space bytes that Git's quick hash leaves out. Used by `filter`.
+/// Whether one byte is not one of the white-space bytes that Git's quick hash leaves out.
+/// Used by `filter`.
 fn is_not_hash_whitespace(byte: &u8) -> bool {
     return !matches!(*byte, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r');
 }
 
-/// Whether a hunk line is an addition or a removal and not context. `&PatchLine` borrows the line, as `rposition` hands it over.
+/// Whether a hunk line is an addition or a removal and not context.
+/// `&PatchLine` borrows the line,
+/// as `rposition` hands it over.
 fn is_change_line(line: &PatchLine) -> bool {
     return line.op != b' ';
 }
 
-/// The position `at` as a start in the image when the preimage matches there; nothing for a negative position or a mismatch.
+/// The position `at` as a start in the image when the preimage matches there;
+/// nothing for a negative position or a mismatch.
 fn position_that_matches(image: &[ImageLine], preimage: &[Vec<u8>], at: i64, match_beginning: bool, match_end: bool) -> Option<usize> {
     // A negative position has no `usize`, and `matches_at` rejects a position whose preimage runs past the image.
     let index: usize = usize::try_from(at).ok()?;
@@ -57,7 +63,11 @@ fn position_that_matches(image: &[ImageLine], preimage: &[Vec<u8>], at: i64, mat
 
 /// What:
 ///  The bytes Git's quick line hash ignores:
-///       spaces, tabs, newlines, vertical tabs, form feeds and carriage returns.
+///       spaces,
+/// tabs,
+/// newlines,
+/// vertical tabs,
+/// form feeds and carriage returns.
 /// Why:
 ///   An incomplete last preimage line matches an image line with the same non-whitespace content.
 ///
@@ -79,7 +89,8 @@ fn hash_key(text: &[u8]) -> Vec<u8> {
 /// Why:
 ///   A preimage's incomplete last line only has to be a prefix of its image line
 ///       whose non-whitespace content is equal,
-///       unless the hunk is anchored at the end, where the line must be equal.
+///       unless the hunk is anchored at the end,
+/// where the line must be equal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -219,9 +230,11 @@ fn reverse_hunk(image: &[ImageLine], hunk: &PatchHunk) -> Option<Vec<ImageLine>>
 
 /// What:
 ///  Whether every hunk of a landed change applies in reverse to the prepared bytes,
-///       in order, so the prepared bytes already contain the landed change.
+///       in order,
+/// so the prepared bytes already contain the landed change.
 /// Why:
-///   Subsumption's strict check; the one-sided extension in `replay_containment` covers what this rejects.
+///   Subsumption's strict check;
+/// the one-sided extension in `replay_containment` covers what this rejects.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

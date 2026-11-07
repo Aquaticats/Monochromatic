@@ -1,12 +1,25 @@
 //! What:
-//!  The repair of a new worktree's package-manager state: after a rung filled the worktree and the ignored files were
-//!  copied, run each tool's own offline repair so the state it keeps for the old location works at the new one.
+//!  The repair of a new worktree's package-manager state:
+//! after a rung filled the worktree and the ignored files were
+//!  copied,
+//! run each tool's own offline repair so the state it keeps for the old location works at the new one.
 //! Why:
-//!  A copy keeps links and build state exactly as they were. pnpm's links climb out of the tree by a fixed number of
-//!  levels, Cargo's build state bakes in the source's paths, and the toolchain launchers name the source's lock. Each tool
-//!  knows how to rebuild its own layout, so the wrapper starts it (the owner's exemption, 2026-11-03) and never edits
-//!  its files itself. A repair never fails the add: it ends in a line that names the command to run, and a tool the
-//!  environment does not provide is a verdict, not an error. Another process changing the files while they are copied or
+//!  A copy keeps links and build state exactly as they were.
+//! pnpm's links climb out of the tree by a fixed number of
+//!  levels,
+//! Cargo's build state bakes in the source's paths,
+//! and the toolchain launchers name the source's lock.
+//! Each tool
+//!  knows how to rebuild its own layout,
+//! so the wrapper starts it (the owner's exemption,
+//! 2026-11-03) and never edits
+//!  its files itself.
+//! A repair never fails the add:
+//! it ends in a line that names the command to run,
+//! and a tool the
+//!  environment does not provide is a verdict,
+//! not an error.
+//! Another process changing the files while they are copied or
 //!  repaired is the person's risk and is not defended against.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +32,10 @@ use crate::add_timing::{begin_work, end_work};
 use crate::diagnostic_log::debug;
 use crate::package_repair_cargo::repair_cargo;
 use crate::package_repair_pnpm::repair_pnpm;
-/// What the repairs read, who asks, and the switches of the person; kept in a file of their own and named here so the paths
+/// What the repairs read,
+/// who asks,
+/// and the switches of the person;
+/// kept in a file of their own and named here so the paths
 ///  outside this folder stay the same.
 pub use crate::package_repair_request::{RepairEnvironment, RepairRequest, RepairSwitch, workers_for};
 use crate::package_repair_report::{Finding, render};
@@ -30,10 +46,13 @@ use std::io::Write;
 const TAG: &str = "packageRepair";
 
 /// What:
-///  A finished tool thread's finding, or no finding when the tool panicked.
-///  `std::thread::Result<Option<Finding>>` is "what the thread returned, or the panic it died of".
+///  A finished tool thread's finding,
+/// or no finding when the tool panicked.
+///  `std::thread::Result<Option<Finding>>` is "what the thread returned,
+/// or the panic it died of".
 /// Why:
-///   A tool that panicked has no finding; the add goes on and the worktree stays as the copy left it.
+///   A tool that panicked has no finding;
+/// the add goes on and the worktree stays as the copy left it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,10 +69,14 @@ fn settled(joined: std::thread::Result<Option<Finding>>, tool: &str) -> Option<F
 }
 
 /// What:
-///  Run the pnpm, toolchain and Cargo repairs side by side inside one thread scope and return their findings.
+///  Run the pnpm,
+/// toolchain and Cargo repairs side by side inside one thread scope and return their findings.
 /// Why:
-///   The tools are independent, and each borrows the request for the length of the scope. A thread that cannot start runs
-///  its tool in turn (`start_or_run_with`); the Cargo repair runs on the calling thread.
+///   The tools are independent,
+/// and each borrows the request for the length of the scope.
+/// A thread that cannot start runs
+///  its tool in turn (`start_or_run_with`);
+/// the Cargo repair runs on the calling thread.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,7 +91,8 @@ fn repair_side_by_side(request: &RepairRequest<'_>) -> (Option<Finding>, Vec<Fin
 /// What the toolchain repair on its thread and the Cargo repair on the calling thread found.
 type ToolchainAndCargo = (std::thread::Result<Option<Finding>>, Vec<Finding>);
 
-/// The pnpm repair, timed as the work `repairPnpm` because it runs on a thread of its own.
+/// The pnpm repair,
+/// timed as the work `repairPnpm` because it runs on a thread of its own.
 fn repair_pnpm_timed(request: &RepairRequest<'_>) -> Option<Finding> {
     let began: std::time::Instant = begin_work();
     let found: Option<Finding> = repair_pnpm(request.destination, request.environment);
@@ -76,7 +100,8 @@ fn repair_pnpm_timed(request: &RepairRequest<'_>) -> Option<Finding> {
     return found;
 }
 
-/// The toolchain repair, timed as the work `repairToolchain` because it runs on a thread of its own.
+/// The toolchain repair,
+/// timed as the work `repairToolchain` because it runs on a thread of its own.
 fn repair_toolchain_timed(request: &RepairRequest<'_>) -> Option<Finding> {
     let began: std::time::Instant = begin_work();
     let found: Option<Finding> = repair_toolchain(request.destination, request.environment);
@@ -84,7 +109,9 @@ fn repair_toolchain_timed(request: &RepairRequest<'_>) -> Option<Finding> {
     return found;
 }
 
-/// The Cargo repair, timed as the work `repairCargo`; it runs on the calling thread.
+/// The Cargo repair,
+/// timed as the work `repairCargo`;
+/// it runs on the calling thread.
 fn repair_cargo_timed(request: &RepairRequest<'_>) -> Vec<Finding> {
     let began: std::time::Instant = begin_work();
     let cargo: Vec<Finding> = repair_cargo(request);
@@ -92,7 +119,8 @@ fn repair_cargo_timed(request: &RepairRequest<'_>) -> Vec<Finding> {
     return cargo;
 }
 
-/// Run the toolchain repair on a thread and the Cargo repair here, side by side.
+/// Run the toolchain repair on a thread and the Cargo repair here,
+/// side by side.
 fn repair_toolchain_beside_cargo(request: &RepairRequest<'_>) -> ToolchainAndCargo {
     return run_beside_caller((request, repair_toolchain_timed), (request, repair_cargo_timed));
 }
@@ -100,7 +128,9 @@ fn repair_toolchain_beside_cargo(request: &RepairRequest<'_>) -> ToolchainAndCar
 /// What:
 ///  Repair the package-manager state of one new worktree and print what the person needs to know.
 /// Why:
-///   The tools are independent, so they run side by side; the add ends when the slowest does.
+///   The tools are independent,
+/// so they run side by side;
+/// the add ends when the slowest does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

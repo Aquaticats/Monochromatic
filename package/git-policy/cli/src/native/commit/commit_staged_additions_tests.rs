@@ -1,5 +1,9 @@
-//! Controls for staged additions in explicit-path commits: which entries are carried, what the private index then
-//! holds, how pathspec files read, and what the ignored-path refusal says.
+//! Controls for staged additions in explicit-path commits:
+//! which entries are carried,
+//! what the private index then
+//! holds,
+//! how pathspec files read,
+//! and what the ignored-path refusal says.
 
 use super::*;
 use crate::private_index_request::CaptureIndexes;
@@ -8,8 +12,11 @@ use crate::test_support::{fixture, git, git_context, git_text, remove, repositor
 use crate::transaction_journal::TransactionMode;
 use std::path::PathBuf;
 
-/// A repository whose `*.js` files are ignored, with `lib/_a.js` and `lib/_b.js` and `other.js` force-staged as
-/// additions, as in issue #1807, and the private indexes beside the real index.
+/// A repository whose `*.js` files are ignored,
+/// with `lib/_a.js` and `lib/_b.js` and `other.js` force-staged as
+/// additions,
+/// as in issue #1807,
+/// and the private indexes beside the real index.
 fn scenario(name: &str) -> (PathBuf, PathBuf, CaptureIndexes, String) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -99,7 +106,8 @@ fn a_staged_addition_outside_the_selection_stays_out() {
     remove(root.as_path());
 }
 
-/// The worktree content wins over the staged content, as native `git commit -- <path>` does.
+/// The worktree content wins over the staged content,
+/// as native `git commit -- <path>` does.
 #[test]
 fn the_worktree_content_wins_over_the_staged_content() {
     let (root, repo, indexes, base) = scenario("staged-additions-worktree");
@@ -116,7 +124,8 @@ fn the_worktree_content_wins_over_the_staged_content() {
     remove(root.as_path());
 }
 
-/// A path staged and then deleted from the worktree leaves the commit empty, as it does for a tracked path.
+/// A path staged and then deleted from the worktree leaves the commit empty,
+/// as it does for a tracked path.
 #[test]
 fn a_staged_addition_removed_from_the_worktree_commits_nothing() {
     let (root, repo, indexes, base) = scenario("staged-additions-removed");
@@ -144,7 +153,9 @@ fn the_private_tree_equals_the_tree_native_git_commits() {
     remove(native_root.as_path());
 }
 
-/// A pathspec file selects staged additions, newline separated, NUL separated and quoted.
+/// A pathspec file selects staged additions,
+/// newline separated,
+/// NUL separated and quoted.
 #[test]
 fn pathspec_files_select_staged_additions() {
     let (root, repo, indexes, base) = scenario("staged-additions-file-list");
@@ -167,7 +178,8 @@ fn pathspec_files_select_staged_additions() {
     remove(root.as_path());
 }
 
-/// A path that is ignored and not staged is still refused, and the message names the way forward.
+/// A path that is ignored and not staged is still refused,
+/// and the message names the way forward.
 #[test]
 fn an_ignored_path_that_is_not_staged_is_refused_with_the_remedy() {
     let (root, repo, indexes, base) = scenario("staged-additions-refusal");
@@ -200,7 +212,8 @@ fn raw_records_are_read_and_malformed_ones_are_rejected() {
     assert!(parse_raw_additions(b"").expect("empty").is_empty());
 }
 
-/// No pathspec reads nothing, so an empty selection never starts Git.
+/// No pathspec reads nothing,
+/// so an empty selection never starts Git.
 #[test]
 fn no_pathspec_reads_no_additions() {
     let (root, repo, _, base) = scenario("staged-additions-none");
@@ -216,7 +229,8 @@ fn no_pathspec_reads_no_additions() {
     remove(root.as_path());
 }
 
-/// Pathspec files read as Git reads them, and anything unreadable is declined.
+/// Pathspec files read as Git reads them,
+/// and anything unreadable is declined.
 #[test]
 fn pathspec_files_read_as_git_reads_them() {
     assert_eq!(read(b"a\nb\n", false), Some(vec![String::from("a"), String::from("b")]));
@@ -232,7 +246,8 @@ fn pathspec_files_read_as_git_reads_them() {
     assert_eq!(read(b"", false), Some(Vec::new()));
 }
 
-/// Every escape Git writes decodes to its byte, and a malformed escape is declined.
+/// Every escape Git writes decodes to its byte,
+/// and a malformed escape is declined.
 #[test]
 fn quoted_elements_decode_every_escape() {
     assert_eq!(unquote_c_style(b"\"\\a\\b\\f\\n\\r\\t\\v\\\\\\\"\""), Some(vec![7, 8, 12, b'\n', b'\r', b'\t', 11, b'\\', b'"']));

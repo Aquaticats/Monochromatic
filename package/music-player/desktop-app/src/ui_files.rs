@@ -10,7 +10,9 @@
 //! the menu decides which action runs;
 //! this module only knows how each OS does it.
 
+/// Imports the formatting traits that render `FileActionError` as text.
 use std::fmt;
+/// Imports the path types that name the files acted on.
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -27,18 +29,35 @@ use std::path::{Path, PathBuf};
 #[derive(Debug)]
 pub enum FileActionError {
     /// The path has no parent folder to open.
-    NoParent(PathBuf),
+    NoParent(
+        /// The path that has no parent.
+        PathBuf,
+    ),
     /// A file manager process could not be started.
-    Spawn(String),
+    Spawn(
+        /// What the system reported.
+        String,
+    ),
     /// The clipboard could not be written.
-    Clipboard(String),
+    Clipboard(
+        /// What the system reported.
+        String,
+    ),
     /// The file could not be moved to the trash.
-    Trash(String),
+    Trash(
+        /// What the system reported.
+        String,
+    ),
     /// The file could not be restored from the trash;
     /// the text is the whole plain sentence to show.
-    Restore(String),
+    Restore(
+        /// The whole plain sentence to show.
+        String,
+    ),
 }
 
+/// Text of a `FileActionError`,
+/// which is the plain sentence the window shows.
 impl fmt::Display for FileActionError {
     /// What:
     /// `fmt` writes the failure in plain words for the feedback message.
@@ -53,6 +72,7 @@ impl fmt::Display for FileActionError {
     }
 }
 
+/// Lets `FileActionError` travel as a standard error value.
 impl std::error::Error for FileActionError {}
 
 /// What:
@@ -280,6 +300,14 @@ pub fn restore_from_trash(_path: &Path) -> Result<(), FileActionError> {
     return Err(FileActionError::Restore("the trash cannot be restored on this platform".to_string()));
 }
 
+/// Unit tests of `ui_files`,
+/// in the sidecar file `ui_files_tests.rs`.
+/// Role of the module:
+/// platform file actions behind the track menu:
+/// show in the file manager,
+/// copy the file name,
+/// move to the trash,
+/// and restore from the trash for Undo.
 #[cfg(test)]
 #[path = "ui_files_tests.rs"]
 mod tests;

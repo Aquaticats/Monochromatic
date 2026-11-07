@@ -1,9 +1,17 @@
 //! What:
-//!  The first look at a worktree a conversion might change: what its `.git` file names, and every reason the conversion must
+//!  The first look at a worktree a conversion might change:
+//! what its `.git` file names,
+//! and every reason the conversion must
 //!  not start.
 //! Why:
-//!  A conversion swaps a whole directory, so it starts only when the worktree is registered as the administrative directory
-//!  says, is quiet, is unmodified, and is on btrfs; each reason that stops it is reported, not only the first.
+//!  A conversion swaps a whole directory,
+//! so it starts only when the worktree is registered as the administrative directory
+//!  says,
+//! is quiet,
+//! is unmodified,
+//! and is on btrfs;
+//! each reason that stops it is reported,
+//! not only the first.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,7 +37,9 @@ pub const CONVERTING_SUFFIX: &str = ".cli-git-converting";
 /// What:
 ///  The facts about a worktree path that every mode needs.
 /// Why:
-///   They are read once, from the `.git` file and the administrative directory, without starting Git.
+///   They are read once,
+/// from the `.git` file and the administrative directory,
+/// without starting Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,10 +65,16 @@ pub fn converting_path(path: &Path) -> PathBuf {
 }
 
 /// What:
-///  Read the registration of a worktree path: its `.git` file, its administrative directory, and the back-pointer.
+///  Read the registration of a worktree path:
+/// its `.git` file,
+/// its administrative directory,
+/// and the back-pointer.
 /// Why:
-///   Only a linked worktree whose administrative directory names this very path back is converted; anything else (the main
-///  checkout, a submodule, a stale registration) is refused with the reason.
+///   Only a linked worktree whose administrative directory names this very path back is converted;
+/// anything else (the main
+///  checkout,
+/// a submodule,
+/// a stale registration) is refused with the reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,7 +109,9 @@ pub fn inspect(path: &Path) -> Result<Candidate, String> {
     return Ok(Candidate { path: real, admin, common, git_file });
 }
 
-/// What kind of reason stands in the way, so a caller exempts what it owns by kind and identity, never by the words.
+/// What kind of reason stands in the way,
+/// so a caller exempts what it owns by kind and identity,
+/// never by the words.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RefusalKind {
     /// The worktree is locked with `git worktree lock`.
@@ -108,13 +126,15 @@ pub enum RefusalKind {
     Nested,
     /// A tracked file or the state of `HEAD` is not provably clean.
     NotQuiet,
-    /// A process uses the worktree, or the process table cannot be read.
+    /// A process uses the worktree,
+    /// or the process table cannot be read.
     Process,
     /// Another command of this program owns the worktree or the checkout around it.
     OtherCommand,
 }
 
-/// What an interrupted conversion of this command owns at this moment, established by identity before the refusals are made.
+/// What an interrupted conversion of this command owns at this moment,
+/// established by identity before the refusals are made.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Owned {
     /// The `index.lock` holds this conversion's token.
@@ -123,7 +143,8 @@ pub struct Owned {
     pub stage: bool,
 }
 
-/// One reason a worktree cannot be converted now: its kind and the sentence for the person.
+/// One reason a worktree cannot be converted now:
+/// its kind and the sentence for the person.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Refusal {
     /// What kind of reason it is.
@@ -133,10 +154,15 @@ pub struct Refusal {
 }
 
 /// What:
-///  The directories of worktrees registered in the common directory `common` that lie inside `inside`, not `inside` itself.
+///  The directories of worktrees registered in the common directory `common` that lie inside `inside`,
+/// not `inside` itself.
 /// Why:
-///   A listing or a registration that cannot be read is an error and not the absence of a nested worktree; only a registration
-///  with no `gitdir` file, or one whose directory is gone, is skipped, because Git would prune it.
+///   A listing or a registration that cannot be read is an error and not the absence of a nested worktree;
+/// only a registration
+///  with no `gitdir` file,
+/// or one whose directory is gone,
+/// is skipped,
+/// because Git would prune it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -170,7 +196,8 @@ fn registered_inside(common: &Path, inside: &Path) -> Result<Vec<PathBuf>, Strin
     return Ok(found);
 }
 
-/// The sentence that refuses a conversion while a migration of the main checkout that holds the worktree is running, or
+/// The sentence that refuses a conversion while a migration of the main checkout that holds the worktree is running,
+/// or
 ///  nothing when none is (or the common directory is not a main checkout's `.git`).
 fn migration_of_main_checkout(common: &Path) -> Option<String> {
     if common.file_name() != Some(std::ffi::OsStr::new(".git")) {
@@ -188,7 +215,8 @@ fn migration_of_main_checkout(common: &Path) -> Option<String> {
 /// What:
 ///  Add one refusal of `kind` with its `text` to the list.
 /// Why:
-///   Every check of the conversion's start adds its refusal the same way, so all of them are reported at once.
+///   Every check of the conversion's start adds its refusal the same way,
+/// so all of them are reported at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,10 +227,15 @@ fn refuse(reasons: &mut Vec<Refusal>, kind: RefusalKind, text: String) {
 }
 
 /// What:
-///  Every reason a worktree cannot be converted now, with its kind; empty means it can.
+///  Every reason a worktree cannot be converted now,
+/// with its kind;
+/// empty means it can.
 /// Why:
-///   The dry run prints them all, and a real run refuses on the first call with the whole list. The registrations are read
-///  from the common directory itself, so a bare layout is checked like any other.
+///   The dry run prints them all,
+/// and a real run refuses on the first call with the whole list.
+/// The registrations are read
+///  from the common directory itself,
+/// so a bare layout is checked like any other.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

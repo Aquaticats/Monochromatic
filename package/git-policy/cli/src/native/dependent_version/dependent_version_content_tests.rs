@@ -1,6 +1,8 @@
-//! What: The failure conversions and the complete diagnostics of the dependent-version
+//! What:
+//! The failure conversions and the complete diagnostics of the dependent-version
 //!       planner.
-//! Why: The wiring maps each variant to a failure code and prints the message as written,
+//! Why:
+//! The wiring maps each variant to a failure code and prints the message as written,
 //!      so every variant's text is pinned.
 //!
 //! In TS you'd write (pseudocode):
@@ -8,7 +10,8 @@
 //! // expect(planErrorMessage({ kind: 'policy-incomplete', ... })).toBe('...');
 //! ```
 
-/// The failure types, the conversions and the message builders.
+/// The failure types,
+/// the conversions and the message builders.
 use super::{ContentUnavailable, PlanError, PolicyIncomplete, display_path, plan_error_message};
 
 /// Converted failures keep their cause.
@@ -40,7 +43,9 @@ fn displays_paths_lossily() {
     );
 }
 
-/// Unreadable content names the path, or the listing, and both remedies.
+/// Unreadable content names the path,
+/// or the listing,
+/// and both remedies.
 #[test]
 fn content_unavailable_messages_name_the_subject() {
     assert_eq!(

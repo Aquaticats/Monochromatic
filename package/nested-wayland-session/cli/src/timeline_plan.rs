@@ -11,6 +11,44 @@ use crate::{
 ///  press the modifiers first,
 ///  release them last in reverse.
 ///
+/// Append a key-down step for each key,
+/// in order.
+///
+/// What:
+///      `fn push_key_downs(steps: &mut Vec<Step>, keys: &[u32])`.
+/// Why:
+///       Press goes forward through a chord's keys;
+///  a loop replaces the `map` closure that built the steps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pushKeyDowns(steps: Step[], keys: number[]): void { for (const key of keys) steps.push(keyDown(key)); }
+/// ```
+fn push_key_downs(steps: &mut Vec<Step>, keys: &[u32]) {
+    for code in keys {
+        steps.push(Step::KeyDown(*code));
+    }
+}
+
+/// Append a key-up step for each key,
+/// in reverse order.
+///
+/// What:
+///      `fn push_key_ups(steps: &mut Vec<Step>, keys: &[u32])`.
+/// Why:
+///       Release goes back through a chord's keys;
+///  a loop replaces the `map` closure that built the steps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pushKeyUps(steps: Step[], keys: number[]): void { for (const key of [...keys].reverse()) steps.push(keyUp(key)); }
+/// ```
+fn push_key_ups(steps: &mut Vec<Step>, keys: &[u32]) {
+    for code in keys.iter().rev() {
+        steps.push(Step::KeyUp(*code));
+    }
+}
+
 /// What:
 ///      `fn with_modifiers(modifiers: &str, inner: Vec<Step>) -> Result<Vec<Step>, String>`.
 ///  An empty `modifiers` returns `inner` unchanged.
@@ -26,9 +64,10 @@ fn with_modifiers(modifiers: &str, inner: Vec<Step>) -> Result<Vec<Step>, String
         return Ok(inner)
     }
     let chord = parse_chord(modifiers)?;
-    let mut steps: Vec<Step> = chord.keys.iter().map(|code| return Step::KeyDown(*code)).collect();
+    let mut steps: Vec<Step> = Vec::new();
+    push_key_downs(&mut steps, &chord.keys);
     steps.extend(inner);
-    steps.extend(chord.keys.iter().rev().map(|code| return Step::KeyUp(*code)));
+    push_key_ups(&mut steps, &chord.keys);
     return Ok(steps)
 }
 
@@ -46,9 +85,10 @@ fn with_modifiers(modifiers: &str, inner: Vec<Step>) -> Result<Vec<Step>, String
 /// ```
 #[must_use]
 pub fn hold_steps(chord: &Chord, millis: u64) -> Vec<Step> {
-    let mut steps: Vec<Step> = chord.keys.iter().map(|code| return Step::KeyDown(*code)).collect();
+    let mut steps: Vec<Step> = Vec::new();
+    push_key_downs(&mut steps, &chord.keys);
     steps.push(Step::Wait(millis));
-    steps.extend(chord.keys.iter().rev().map(|code| return Step::KeyUp(*code)));
+    push_key_ups(&mut steps, &chord.keys);
     return steps
 }
 
@@ -147,7 +187,10 @@ fn scroll_steps(x: f64, y: f64, dx: f64, dy: f64, steps: u32, step_ms: u64) -> V
 pub fn plan(command: &Command) -> Option<Result<Vec<Step>, String>> {
     match command {
         Command::Key { name, action: KeyAction::Hold { millis } } => {
-            return Some(parse_chord(name).map(|chord| return hold_steps(&chord, *millis)))
+            match parse_chord(name) {
+                Ok(chord) => return Some(Ok(hold_steps(&chord, *millis))),
+                Err(message) => return Some(Err(message)),
+            }
         }
         Command::Click { x, y, button, count, interval_ms, modifiers } if *count > 1 || !modifiers.is_empty() => {
             return Some(with_modifiers(modifiers, click_steps(*x, *y, *button, *count, *interval_ms)))

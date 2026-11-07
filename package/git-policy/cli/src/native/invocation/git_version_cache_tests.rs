@@ -28,7 +28,8 @@ fn cache_in(root: &Path) -> PathBuf {
     return root.join("xdg").join("monochromatic-git-policy-cli");
 }
 
-/// The text of the host Git's answer, as the version check parses it.
+/// The text of the host Git's answer,
+/// as the version check parses it.
 fn host_release() -> (u64, u64, u64) {
     return ask_git_version(&git_context()).expect("the host Git is supported");
 }
@@ -39,7 +40,8 @@ fn plant(cache: &Path, path: &Path, text: &str) {
     store_version_text(cache, &identity, text.as_bytes());
 }
 
-/// A compiled executable named `git` has an identity, and the identity names its canonical path.
+/// A compiled executable named `git` has an identity,
+/// and the identity names its canonical path.
 #[test]
 #[cfg(unix)]
 fn a_compiled_git_has_an_identity() {
@@ -82,7 +84,8 @@ fn scripts_and_shims_have_no_identity() {
 }
 
 /// A miss runs Git and records its text;
-///  the next ask is answered by the cache alone, shown by a planted text that no Git prints.
+///  the next ask is answered by the cache alone,
+/// shown by a planted text that no Git prints.
 #[test]
 #[cfg(unix)]
 fn a_miss_is_recorded_and_the_next_ask_hits() {
@@ -223,7 +226,9 @@ fn stale_or_foreign_entries_are_not_trusted() {
     remove(root.as_path());
 }
 
-/// A cached text that parses as a release before the minimum is accepted like a live answer: it is a release, not a refusal.
+/// A cached text that parses as a release before the minimum is accepted like a live answer:
+/// it is a release,
+/// not a refusal.
 #[test]
 #[cfg(unix)]
 fn a_cached_old_release_is_accepted_like_a_live_one() {

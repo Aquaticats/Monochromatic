@@ -1103,14 +1103,13 @@ impl Engine {
         // this.playIntent = play;
         // ```
         self.play_intent = play;
-        // What:     `self.tx.send(Command::Load(file, play)) .map_err(|_|
-        //           PlayerError::Unsupported("engine worker gone".to_string()))?;`.
+        // What:     `self.tx.send(Command::Load(file, play)) .map_err(PlayerError::engine_worker_gone)?;`.
         //           `Command::Load(file, play)` is a WRAPPER CONSTRUCTOR building the `Load`
         //           variant (it MOVES the owned `file` into the message). `self.tx.send(...)`
-        //           returns a `Result` that errs only if the worker is gone. `.map_err(|_|
-        //           ...)` is a CLOSURE `|_| ...` (the `_` ignores the original error) that
-        //           REPLACES any send error with a `PlayerError::Unsupported(...)` whose
-        //           message is an owned `String` (`.to_string()` on the `&str` literal).
+        //           returns a `Result` that errs only if the worker is gone. `.map_err(...)`
+        //           takes the named function `PlayerError::engine_worker_gone` (it ignores the
+        //           original error) and REPLACES any send error with a
+        //           `PlayerError::Unsupported(...)` whose message is an owned `String`.
         //           The trailing `?` then propagates that converted error out of `load`.
         // Why:      Convert the channel's low-level send error into the engine's unified
         //           `PlayerError`, and bail out of `load` if the worker has already exited.
@@ -1125,7 +1124,7 @@ impl Engine {
         // ```
         self.tx
             .send(Command::Load(file, play))
-            .map_err(|_| return PlayerError::Unsupported("engine worker gone".to_string()))?;
+            .map_err(PlayerError::engine_worker_gone)?;
         // What:     `Ok(())`. `Ok(...)` wraps the success channel of `Result`, and `()` is
         //           the unit value ("nothing"). No trailing `;`, so this is the tail
         //           expression and the function's return value.

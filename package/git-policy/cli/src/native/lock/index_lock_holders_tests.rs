@@ -169,8 +169,10 @@ fn the_proc_scan_matches_descriptors_by_identity() {
 
 /// A scan cut short looks at the newest processes first.
 /// Why:
-///  The holder of a lock made a moment ago is a recent process, and its number is the highest on the host.
-///  On 2026-11-07 a live `git commit` held a lock for 62 minutes and 62 looks never named it, because every look walked the
+///  The holder of a lock made a moment ago is a recent process,
+/// and its number is the highest on the host.
+///  On 2026-11-07 a live `git commit` held a lock for 62 minutes and 62 looks never named it,
+/// because every look walked the
 ///  numbers upward and stopped at its time bound before it reached the newest ones.
 #[test]
 fn a_scan_cut_short_looks_at_the_newest_processes_first() {
@@ -193,7 +195,7 @@ fn a_scan_cut_short_looks_at_the_newest_processes_first() {
     std::fs::write(proc_root.join(holder_number.to_string()).join("comm"), b"git\n").expect("holder name");
     // The scan may look at a handful of processes before it is cut, far fewer than the host has.
     let few: usize = 5;
-    let evidence: HolderEvidence = scan_proc_fd_holders_stopping(proc_root.as_path(), device, inode, 7, &|reached| { return reached >= few; });
+    let evidence: HolderEvidence = scan_proc_fd_holders_stopping(proc_root.as_path(), device, inode, 7, ScanLimit { deadline: None, processes: Some(few) });
     assert_eq!(
         evidence.holders,
         vec![Holder { pid: i64::from(holder_number), command: Some(String::from("git")) }],
@@ -293,7 +295,8 @@ fn an_unheld_lock_has_no_holders() {
 }
 
 /// Only ASCII digit names are process identifiers,
-///  so the proc scan skips `self`, empty names and names with other bytes.
+///  so the proc scan skips `self`,
+/// empty names and names with other bytes.
 #[test]
 #[cfg(unix)]
 fn only_digit_names_are_process_identifiers() {

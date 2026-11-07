@@ -1,11 +1,25 @@
 //! What:
-//!  Controls that the runtime build finishes, and the command carries on, where the system limits threads or address space.
+//!  Controls that the runtime build finishes,
+//! and the command carries on,
+//! where the system limits threads or address space.
 //! Why:
-//!  A multi-thread runtime panics, then hangs, when the system refuses it a thread or address space
-//!  (`doc/planning/git-policy-cli-full-tokio.md`, "A multi-thread runtime panics, then hangs"), and the owner's rules are
-//!  "Commits should never fail." and "nothing should ever wait forever". Each control starts the built executable with the
-//!  test-only runtime probe under one limit, and starts real Git under the same limit as the native control (choice 10, "what
-//!  Git completes, we complete"): where Git completes, the probe must complete too.
+//!  A multi-thread runtime panics,
+//! then hangs,
+//! when the system refuses it a thread or address space
+//!  (`doc/planning/git-policy-cli-full-tokio.md`,
+//! "A multi-thread runtime panics,
+//! then hangs"),
+//! and the owner's rules are
+//!  "Commits should never fail."
+//! and "nothing should ever wait forever".
+//! Each control starts the built executable with the
+//!  test-only runtime probe under one limit,
+//! and starts real Git under the same limit as the native control (choice 10,
+//! "what
+//!  Git completes,
+//! we complete"):
+//! where Git completes,
+//! the probe must complete too.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,23 +36,31 @@ use std::time::Instant;
 /// The probe's environment variable (`foundation/runtime_probe.rs`).
 const PROBE: &str = git_policy_cli::runtime_probe::RUNTIME_PROBE_VARIABLE;
 
-/// The longest a probe run may take: many times the build deadline of the runtime, and a margin for process start under load.
+/// The longest a probe run may take:
+/// many times the build deadline of the runtime,
+/// and a margin for process start under load.
 const PROBE_BOUND: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// How often a running probe is looked at.
 const PROBE_POLL: std::time::Duration = std::time::Duration::from_millis(10);
 
-/// One mebibyte, for address-space limits written in the plan's units.
+/// One mebibyte,
+/// for address-space limits written in the plan's units.
 const MEBIBYTE: u64 = 1 << 20;
 
-/// What the probe printed, line by line.
+/// What the probe printed,
+/// line by line.
 fn probe_lines(observed: &Observed) -> Vec<String> {
     return String::from_utf8_lossy(observed.stdout.as_slice()).lines().map(String::from).collect();
 }
 
-/// Runs the probe in `fixture` with `limit` applied between fork and exec; `None` runs it without one.
-///  The wrapper is started directly, not under `timeout`, because `timeout` forks and a process limit of one refuses that fork;
-///  the bound is this function's own wait, and a probe still running at `PROBE_BOUND` is killed and reported as no exit code.
+/// Runs the probe in `fixture` with `limit` applied between fork and exec;
+/// `None` runs it without one.
+///  The wrapper is started directly,
+/// not under `timeout`,
+/// because `timeout` forks and a process limit of one refuses that fork;
+///  the bound is this function's own wait,
+/// and a probe still running at `PROBE_BOUND` is killed and reported as no exit code.
 fn probe_under(fixture: &Fixture, limit: Option<(LimitKind, u64)>) -> Observed {
     let mut command: Command = Command::new(fixture.root.join("bin/git"));
     hermetic(&mut command, fixture, wrapper_first_path(fixture).as_os_str());
@@ -66,7 +88,9 @@ fn probe_under(fixture: &Fixture, limit: Option<(LimitKind, u64)>) -> Observed {
     return Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
 }
 
-/// Real Git's `--version` under the same limit: the native control. Git completes where the system leaves it enough.
+/// Real Git's `--version` under the same limit:
+/// the native control.
+/// Git completes where the system leaves it enough.
 fn git_completes_under(fixture: &Fixture, limit: Option<(LimitKind, u64)>) -> bool {
     let mut command: Command = direct(fixture);
     command.arg("--version");
@@ -80,7 +104,8 @@ fn git_completes_under(fixture: &Fixture, limit: Option<(LimitKind, u64)>) -> bo
     return observe(&mut command, b"").code == Some(0);
 }
 
-/// Without a limit the probe builds a runtime, and the blocking job runs on it.
+/// Without a limit the probe builds a runtime,
+/// and the blocking job runs on it.
 #[test]
 fn without_a_limit_the_runtime_is_built_and_a_blocking_job_runs() {
     let fixture: Fixture = fixture("runtime-probe-free");
@@ -92,7 +117,8 @@ fn without_a_limit_the_runtime_is_built_and_a_blocking_job_runs() {
     remove(&fixture);
 }
 
-/// Where the process limit leaves no thread, the current-thread runtime stands in and the blocking job fails plainly.
+/// Where the process limit leaves no thread,
+/// the current-thread runtime stands in and the blocking job fails plainly.
 #[test]
 fn where_no_thread_can_start_the_runtime_is_current_thread_and_the_blocking_job_fails_plainly() {
     let fixture: Fixture = fixture("runtime-probe-nproc");
@@ -115,11 +141,16 @@ fn where_no_thread_can_start_the_runtime_is_current_thread_and_the_blocking_job_
 }
 
 /// The address-space sizes of the measured hang band (tokio's multi-thread build hung at 900 to 1150 MiB with default arenas)
-///  and sizes either side, from the smallest where the wrapper itself starts (below 48 MiB the debug build was measured to print nothing, with or
-///  without a runtime, though Git completes there: a gap that is not the runtime's) to above.
+///  and sizes either side,
+/// from the smallest where the wrapper itself starts (below 48 MiB the debug build was measured to print nothing,
+/// with or
+///  without a runtime,
+/// though Git completes there:
+/// a gap that is not the runtime's) to above.
 const ADDRESS_SPACE_SIZES_MEBIBYTES: [u64; 18] = [48, 52, 56, 60, 64, 80, 100, 200, 400, 600, 800, 900, 950, 1020, 1030, 1100, 1150, 1500];
 
-/// At every address-space size where Git completes, the probe finishes by its bound with a runtime and a blocking job.
+/// At every address-space size where Git completes,
+/// the probe finishes by its bound with a runtime and a blocking job.
 #[test]
 fn at_every_address_space_size_the_runtime_is_built_by_the_deadline_and_the_job_runs() {
     let fixture: Fixture = fixture("runtime-probe-address-space");

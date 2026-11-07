@@ -1,7 +1,10 @@
-//! Controls for the ceilings of the waits for a foreign `index.lock`: each wait takes the ceiling derived from its own measurement,
+//! Controls for the ceilings of the waits for a foreign `index.lock`:
+//! each wait takes the ceiling derived from its own measurement,
 //!  and none still takes the unmeasured ten minutes.
 //! Why:
-//!  On 2026-11-07 four commits waited 678 to 1,229 s because the landing waited a full unmeasured ten minutes; the merge, the settling
+//!  On 2026-11-07 four commits waited 678 to 1,229 s because the landing waited a full unmeasured ten minutes;
+//! the merge,
+//! the settling
 //!  of earlier batches and the index reconciliation after corrections waited the same ten minutes for the same kind of holder.
 
 use super::*;
@@ -9,7 +12,8 @@ use super::*;
 /// The margin every ceiling of this file keeps over its longest measurement.
 const MARGIN: u32 = 5;
 
-/// One minute, the unit the ceilings are rounded up to.
+/// One minute,
+/// the unit the ceilings are rounded up to.
 const MINUTE: Duration = Duration::from_secs(60);
 
 /// The smallest whole number of minutes that is at least five times `measured`.
@@ -25,7 +29,8 @@ fn names_the_unmeasured_ceiling(source: &str) -> bool {
     });
 }
 
-/// The merge's wait for a foreign holder is five times the longest self-released foreign wait, in whole minutes.
+/// The merge's wait for a foreign holder is five times the longest self-released foreign wait,
+/// in whole minutes.
 #[test]
 fn the_merge_waits_the_measured_ceiling_not_ten_minutes() {
     assert_eq!(MERGE_LOCK_CEILING, derived(LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT));
@@ -35,7 +40,8 @@ fn the_merge_waits_the_measured_ceiling_not_ten_minutes() {
     assert!(source.contains("MERGE_LOCK_CEILING"));
 }
 
-/// The settling of earlier batches waits five times the longest settle measured, in whole minutes.
+/// The settling of earlier batches waits five times the longest settle measured,
+/// in whole minutes.
 #[test]
 fn the_settling_of_earlier_batches_waits_the_measured_ceiling_not_ten_minutes() {
     assert_eq!(SETTLE_LOCK_CEILING, derived(LONGEST_SETTLE_WAIT));
@@ -45,7 +51,8 @@ fn the_settling_of_earlier_batches_waits_the_measured_ceiling_not_ten_minutes() 
     assert!(source.contains("SETTLE_LOCK_CEILING"));
 }
 
-/// The index reconciliation after corrections waits five times the longest self-released foreign wait, in whole minutes.
+/// The index reconciliation after corrections waits five times the longest self-released foreign wait,
+/// in whole minutes.
 #[test]
 fn the_index_reconciliation_waits_the_measured_ceiling_not_ten_minutes() {
     assert_eq!(RECONCILE_LOCK_CEILING, derived(LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT));
@@ -55,7 +62,8 @@ fn the_index_reconciliation_waits_the_measured_ceiling_not_ten_minutes() {
     assert!(source.contains("RECONCILE_LOCK_CEILING"));
 }
 
-/// No wait is left on the unmeasured ceiling: it stays only as the basis of the foreign-owner patience of another PID namespace.
+/// No wait is left on the unmeasured ceiling:
+/// it stays only as the basis of the foreign-owner patience of another PID namespace.
 #[test]
 fn no_wait_is_left_on_the_unmeasured_ceiling() {
     for (name, source) in [

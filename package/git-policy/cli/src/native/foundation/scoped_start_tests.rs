@@ -1,4 +1,5 @@
-//! Controls for the start of a scoped thread: the job runs on a thread when one starts and on the calling thread when none does.
+//! Controls for the start of a scoped thread:
+//! the job runs on a thread when one starts and on the calling thread when none does.
 
 use super::*;
 
@@ -30,7 +31,10 @@ fn a_thread_that_starts_runs_the_closure_on_another_thread() {
     assert_ne!(ran_on, here);
 }
 
-/// A start the system refuses runs the job here, once, and returns its value; a panic is handed to `join`.
+/// A start the system refuses runs the job here,
+/// once,
+/// and returns its value;
+/// a panic is handed to `join`.
 #[test]
 fn a_thread_that_cannot_start_runs_the_closure_on_the_calling_thread_once() {
     STARTS_FAIL_ON_THIS_THREAD.with(|flag| { flag.set(true); });
@@ -48,7 +52,8 @@ fn a_thread_that_cannot_start_runs_the_closure_on_the_calling_thread_once() {
     assert!(panicked, "a panic of the work is a join error, as on a thread");
 }
 
-/// A thread of the plain kind that the system refuses is an error to the caller, not a panic.
+/// A thread of the plain kind that the system refuses is an error to the caller,
+/// not a panic.
 #[test]
 fn a_named_thread_that_cannot_start_is_an_error() {
     let _refused = RefusedStarts::here();
