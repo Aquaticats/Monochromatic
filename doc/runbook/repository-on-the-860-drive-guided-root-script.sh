@@ -452,11 +452,12 @@ internal_preflight() {
 internal_window_maximum() {
   local first scan du_seconds derived chosen="${MOVE_WINDOW_MAX_SECONDS:-}"
   first="$(<"$WIZ/first-pass-seconds")"; scan="$(<"$WIZ/scan-seconds")"; du_seconds="$(<"$WIZ/du-seconds")"
-  derived=$(( first + 2 * scan + 2 * du_seconds ))
+  derived=$(( first + first + 2 * scan + 2 * du_seconds ))
   printf 'first pass, measured: %s s (the final pass sends only what changed, so a full first pass is its upper bound)\n' "$first"
   printf 'one scan of every worktree, measured: %s s (taken twice in the window: frozen baseline and staged table)\n' "$scan"
   printf 'one footprint measurement of the checkout, measured: %s s (taken twice: source and copy)\n' "$du_seconds"
-  printf 'derived maximum = first pass + 2 x scan + 2 x footprint = %s s\n' "$derived"
+  printf 'content-check allowance, the author'"'"'s choice: one more first-pass duration, %s s, because fsck, the checksum comparisons and the counts read the copy about once\n' "$first"
+  printf 'derived maximum = first pass + content-check allowance + 2 x scan + 2 x footprint = %s s\n' "$derived"
   if [[ -n "$chosen" ]]; then
     (( chosen <= derived )) || { echo "REFUSED: MOVE_WINDOW_MAX_SECONDS=$chosen is above the derived maximum $derived; the window may be shortened, never lengthened."; return 1; }
     derived="$chosen"; printf 'shortened by the owner to %s s\n' "$derived"
@@ -758,9 +759,12 @@ echo \"snapshots printed: \$(grep --count '^btrfs subvolume snapshot -r' $WIZ/fi
   STEP_ROLLBACK="read-only"
   run_step p4b-print "First pass: print mode"
 
-  STEP_SAYS="First pass, for real. The repository stays writable; no window, no freeze. Each transfer has the script's own deadline ($TRANSFER_DEADLINE s) and its own systemd scope (CPUQuota 200%, MemoryMax 2G, TasksMax 32, IOWeight 10). The script has no total limit, only that per-transfer one; Ctrl-C is safe and a rerun resumes from the state records."
+  STEP_SAYS="First pass, for real. The repository stays writable; no window, no freeze. Each transfer has the script's own deadline ($TRANSFER_DEADLINE s) and its own systemd scope (CPUQuota 200%, MemoryMax 2G, TasksMax 32, IOWeight 10). The script has no total limit, only that per-transfer one; Ctrl-C is safe while the registered worktrees stay the same: a rerun resumes from the state records, and it refuses if a worktree was added or removed since the pass started."
   STEP_ASK="Have you read $WIZ/first-pass-print.txt and is it what you expect?"
-  STEP_CMD="sudo $NODE $MOVE_SCRIPT --run --pass=first $first_args"
+  STEP_CMD="if [ -s $MOVE_STATE/first-pass-manifest.tsv ]; then
+  $NODE $MOVE_SCRIPT --pass=first $first_args | awk '/^btrfs subvolume snapshot -r /{ print \$5 }' | cmp --silent - <(cut --fields=2 $MOVE_STATE/first-pass-manifest.tsv) || { echo 'STOP: worktrees changed since this first pass started, and the copy script keys its records by position; finish from a fresh state folder'; exit 1; }
+fi
+sudo $NODE $MOVE_SCRIPT --run --pass=first $first_args"
   STEP_CHECK="grep --fixed-strings 'pass first finished' \"\$OUTPUT_FILE\" && test \"\$(ls $MOVE_STATE | grep --count '^s[0-9]*\\.received\\.json\$')\" = \"\$(wc --lines < $MOVE_STATE/first-pass-manifest.tsv)\""
   STEP_CHECK_TEXT="'pass first finished' and one received record per manifest row"
   STEP_ROLLBACK="nothing on the NVMe tree changed (snapshots only). A partial receive is named by the script with the exact 'btrfs subvolume delete' for you to run"
@@ -832,7 +836,7 @@ echo checks passed"
   STEP_TIMER="scan-seconds"
   run_step c01-pre-freeze-table "Table before the freeze"
 
-  STEP_SAYS="The stated maximum of the cut-over window, from numbers this wizard measured: first pass + 2 x scan + 2 x footprint. You may shorten it with MOVE_WINDOW_MAX_SECONDS, never lengthen it."
+  STEP_SAYS="The stated maximum of the cut-over window, from numbers this wizard measured: first pass + a content-check allowance (one more first-pass duration, the script author's choice) + 2 x scan + 2 x footprint. You may shorten it with MOVE_WINDOW_MAX_SECONDS, never lengthen it."
   STEP_CMD="bash $SELF __window-maximum"
   STEP_CHECK="test -s $WIZ/window-max-seconds"; STEP_CHECK_TEXT="the maximum is recorded"
   STEP_ROLLBACK="nothing started; the clock starts only at the step that stops the units"
@@ -1049,9 +1053,10 @@ systemd-run $USER_SCOPE timeout --kill-after=$KILL_GRACE $SCAN_TIMEOUT $NODE $SC
   run_step c20-through-link "Verify 9: through the link"
 
   STEP_WINDOW="yes"
-  STEP_SAYS="RELEASE: start the stopped user unit again and close the window. After this the fast rollback no longer applies (writes will reach the 860 tree); a later rollback is the full reverse migration in the plan, section Rollback, which this script does not run."
+  STEP_SAYS="RELEASE: start the stopped commit sockets and claude-cpu-watch.service again and close the window. After this the fast rollback no longer applies (writes will reach the 860 tree); a later rollback is the full reverse migration in the plan, section Rollback, which this script does not run."
   STEP_ASK="Release now? Last chance for the fast rollback."
-  STEP_CMD="if grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service $WIZ/stopped-units.txt; then systemctl --user start claude-cpu-watch.service; fi
+  STEP_CMD="{ grep '\\.socket\$' $WIZ/stopped-units.txt || true; } | xargs --no-run-if-empty systemctl --user start || echo 'WARNING: a commit socket did not restart; list-units cli-git@* shows which'
+if grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service $WIZ/stopped-units.txt; then systemctl --user start claude-cpu-watch.service; fi
 date +%s > $WIZ/window-end
 echo \"window length: \$(( \$(cat $WIZ/window-end) - \$(cat $WIZ/window-start) )) s\""
   STEP_CHECK="! grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service $WIZ/stopped-units.txt || systemctl --user is-active --quiet claude-cpu-watch.service"; STEP_CHECK_TEXT="claude-cpu-watch.service is active again (if the cut-over stopped it)"
@@ -1086,9 +1091,10 @@ while read -r p; do if mountpoint --quiet \"\$p\"; then sudo umount \"\$p\"; fi;
   STEP_ROLLBACK="freeze again by running the cut-over"
   run_step t2-umount-binds "Unmount external binds"
   STEP_NO_MARK="yes"
-  STEP_SAYS="Start claude-cpu-watch.service again if the cut-over stopped it. Commit services start on the next commit by themselves."
+  STEP_SAYS="Start again what the cut-over stopped: the commit sockets (restarting them is harmless; whether the wrapper would start them itself was not verified) and claude-cpu-watch.service."
   STEP_CMD="touch $WIZ/stopped-units.txt
-if grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service $WIZ/stopped-units.txt; then systemctl --user start claude-cpu-watch.service; else echo 'it was not stopped by the cut-over'; fi"
+{ grep '\\.socket\$' $WIZ/stopped-units.txt || true; } | xargs --no-run-if-empty systemctl --user start || echo 'WARNING: a commit socket did not restart; list-units cli-git@* shows which'
+if grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service $WIZ/stopped-units.txt; then systemctl --user start claude-cpu-watch.service; else echo 'claude-cpu-watch.service was not stopped by the cut-over'; fi"
   STEP_CHECK="true"; STEP_CHECK_TEXT="the command exited 0"
   STEP_ROLLBACK="systemctl --user stop claude-cpu-watch.service"
   run_step t3-restart-units "Restart the stopped unit"
@@ -1100,6 +1106,7 @@ thaw_aftermath() {
   if [[ -d "$WIZ/done/cutover" ]]; then mv --no-target-directory "$WIZ/done/cutover" "$WIZ/done/cutover.aborted-$stamp"; fi
   if [[ -e "$WIZ/window-start" ]]; then mv "$WIZ/window-start" "$WIZ/window-start.aborted-$stamp"; fi
   if [[ -e "$WIZ/swap-timestamp" ]]; then mv "$WIZ/swap-timestamp" "$WIZ/swap-timestamp.aborted-$stamp"; fi
+  warn "If a timeout stopped the final pass, its systemd scope may still be running until its own deadline: wait for 'systemctl list-units run-*.scope' to show no btrfs send before deleting a partial receive."
   say "Nothing was deleted. The cut-over progress and window clock were renamed aside (suffix .aborted-$stamp)."
   say "Before another cut-over attempt, remove the leftovers of this one yourself, because the copy script refuses to reuse them:"
   note "  snapshots on the NVMe:   $(ls "$SNAPSHOTS" 2>/dev/null | grep '^f[0-9]' | tr '\n' ' ')"

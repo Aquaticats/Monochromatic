@@ -229,7 +229,10 @@ Nothing is frozen and no commit is refused.
     Each transfer has the copy script's own deadline (14400 s) and its own systemd scope.
     The copy script has no total limit,
     only that per-transfer one;
-    **Ctrl-C** is safe and a rerun resumes from the state records.
+    **Ctrl-C** is safe while the registered worktrees stay the same,
+    and a rerun resumes from the state records.
+    The stage refuses to resume if a worktree was added or removed since the pass started
+    (see the defects in the plan's script).
     Check:
     `pass first finished` and one `received` record per row of the manifest.
     The script adds the elapsed time to `first-pass-seconds`,
@@ -356,7 +359,7 @@ which the script times from the first stage that stops the units:
     `git fsck --full`,
     the table and the worktree list through the real link equal the baseline.
 23. Release:
-    start `claude-cpu-watch.service` again,
+    start the stopped commit sockets and `claude-cpu-watch.service` again,
     close the window,
     print the window length.
     After this the fast rollback no longer applies.
@@ -371,7 +374,9 @@ because it shows the choice of subvolumes and the comparison as two stages.
 `thaw` is for a stop before the swap:
 it sets `ro=false` on every subvolume the script froze,
 unmounts the external binds,
-and restarts `claude-cpu-watch.service`.
+and restarts the commit sockets and `claude-cpu-watch.service` that the cut-over stopped
+(restarting the sockets is harmless;
+whether the wrapper would start them itself on the next commit was not verified).
 It then renames the cut-over progress and the window clock aside (renames,
 never deletions)
 and prints the leftovers of the aborted attempt that the owner must delete before trying again,
@@ -392,7 +397,7 @@ which this script does not run.
 ## The maximum duration of the window
 
 The plan says the window length "is not known" and that the runbook states the maximum after the first pass is timed.
-The script derives it from times it measured itself,
+The script derives it from times it measured itself plus one allowance,
 and refuses to exceed it:
 
 - the first pass,
@@ -406,15 +411,20 @@ and refuses to exceed it:
 - two footprint measurements of the checkout,
   each assumed to take as long as the one measured in `prepare`
   (`du-seconds`):
-  one for the source and one for the copy.
+  one for the source and one for the copy;
+- a content-check allowance of one more first-pass duration,
+  the script author's choice with no measurement behind it:
+  the fsck,
+  the checksum comparisons,
+  the file counts and external pass two read the copy about once.
 
 The maximum is the sum,
 printed with its parts at the "Window maximum" stage.
 The owner may shorten it with `MOVE_WINDOW_MAX_SECONDS`,
 never lengthen it.
-The fsck and the content comparisons have no measured counterpart;
-they are absorbed by the slack between the final pass and its upper bound,
-which is an assumption to watch.
+The allowance is the weakest part of the bound:
+a maximum that is too small makes the cut-over stop in the verification and the owner starts over,
+so the first real run should be read as a measurement of it.
 
 Enforcement:
 every window stage checks the clock before it is offered,
@@ -423,6 +433,10 @@ and the final pass gets that remainder as its per-transfer deadline.
 When the clock is exceeded the script runs nothing further and says what to run:
 `thaw` before the swap,
 `rollback` after it.
+When the outer timeout ends `sudo node`,
+the transfer already running in its own systemd scope continues until its own deadline,
+which is at most the same remainder;
+wait for `systemctl list-units 'run-*.scope'` to show no `btrfs send` before deleting a partial receive.
 A timeout cannot end a task stuck in uninterruptible kernel I/O;
 the script then reports a failure and treats the stage as not done,
 and the stuck process is the owner's to find.
@@ -464,6 +478,19 @@ each non-trivial command in a bounded
 - The helper computations (`__preflight`,
   `__window-maximum`,
   `__select-verify`) with prepared inputs.
+
+Also run:
+the first-pass resume guard,
+against the real print mode,
+passed on a manifest equal to the live registry and stopped when one row was removed.
+The restart of the commit sockets and the unit,
+against a stand-in `systemctl`:
+it started the socket and the unit,
+started only the unit when there was no socket,
+and reported a failed socket start.
+The shared forbidden-strings appendix and the local appendix hold no rule that matches the characters of the library
+part (an em dash and a warning sign);
+the scanner binary itself was not run.
 
 Not verified:
 every real root command,
@@ -545,6 +572,17 @@ found while writing the script:
   and the plan's check 8 has no `--delete` either;
   the script keeps the copy step as written
   (it deletes nothing) and adds `--delete` to the dry-run comparison so the extra file is reported for the owner.
+- The copy script rewrites its manifest from the live registry on every first-pass run and keys its records by position
+  (`s001`,
+  `s002`),
+  so a rerun after a worktree was added or removed would reuse a record for a different path and
+  send the wrong parent in the final pass.
+  The script's first-pass stage compares the printed snapshot sources with the manifest and stops on a difference.
+  Worktrees come and go within minutes on this host
+  (a stand-in inventory built at 18:26 UTC already disagreed with Git by 18:40 UTC),
+  so a first pass that lasts hours will probably meet this stop;
+  the copy script has no way to continue past it,
+  and the owner decides how to finish.
 - A root `git` in the staged verification can rewrite the index as root;
   the script runs Git as the user.
 - The plan does not state the window maximum;
