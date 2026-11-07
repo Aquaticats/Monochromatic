@@ -1,4 +1,6 @@
-//! Controls for the configured-hook report: which hooks the snapshot names, what the warning says and that it never
+//! Controls for the configured-hook report:
+//! which hooks the snapshot names,
+//! what the warning says and that it never
 //!  blocks.
 
 use super::*;
@@ -15,7 +17,9 @@ fn listing_snapshot(records: &[(&str, &str)]) -> ConfigSnapshot {
     return ConfigSnapshot::parse(bytes.as_slice(), true).expect("a well-formed listing");
 }
 
-/// A `core.fsmonitor` is left as configured: it is no hook of the report, whatever it names.
+/// A `core.fsmonitor` is left as configured:
+/// it is no hook of the report,
+/// whatever it names.
 #[test]
 fn core_fsmonitor_is_not_reported_as_a_hook() {
     for value in ["/usr/local/bin/watch", "true", "false"] {
@@ -40,7 +44,10 @@ impl Write for RefusingStream {
     }
 }
 
-/// Hooks group by name, events accumulate in order, an empty event resets the list as Git does, and a command alone
+/// Hooks group by name,
+/// events accumulate in order,
+/// an empty event resets the list as Git does,
+/// and a command alone
 /// still names a hook.
 #[test]
 fn hooks_group_by_name_with_their_events_and_commands() {
@@ -68,7 +75,9 @@ fn hooks_group_by_name_with_their_events_and_commands() {
     assert_eq!(describe_hook(&hooks[1]), "hook.lint (events: pre-commit, commit-msg)");
 }
 
-/// Keys that only look like hooks name none: event switches, other hook settings and other sections.
+/// Keys that only look like hooks name none:
+/// event switches,
+/// other hook settings and other sections.
 #[test]
 fn switches_and_other_keys_name_no_hook() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[
@@ -83,7 +92,8 @@ fn switches_and_other_keys_name_no_hook() {
     assert_eq!(external_hooks_warning(None), None);
 }
 
-/// A hook its author switched off with `hook.<name>.enabled=false` is not reported, and one switched on is.
+/// A hook its author switched off with `hook.<name>.enabled=false` is not reported,
+/// and one switched on is.
 #[test]
 fn a_hook_switched_off_by_name_is_not_reported() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[
@@ -97,7 +107,9 @@ fn a_hook_switched_off_by_name_is_not_reported() {
     assert_eq!(hooks[0].name, "on");
 }
 
-/// The warning names every hook with its events, the ways forward and the doctor, as one `configuration-warning`.
+/// The warning names every hook with its events,
+/// the ways forward and the doctor,
+/// as one `configuration-warning`.
 #[test]
 fn the_warning_names_the_hooks_and_the_ways_forward() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[
@@ -113,7 +125,8 @@ fn the_warning_names_the_hooks_and_the_ways_forward() {
     }
 }
 
-/// A stream that refuses the line does not stop the command, and a good stream receives exactly the line.
+/// A stream that refuses the line does not stop the command,
+/// and a good stream receives exactly the line.
 #[test]
 fn the_writer_emits_one_line_or_nothing() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "hook.a.event\npost-commit")]);
