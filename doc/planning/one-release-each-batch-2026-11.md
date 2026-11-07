@@ -1162,6 +1162,12 @@ proved the Wayland library step.
   (built from `a8923376a2`),
   crates.io `2026-11-07T11:47:06.445839Z`, `yanked` false.
 
+- `monochromatic-browserslist` 0.1.0 to 0.1.1:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369723100`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369851512`
+  (built from `4f224afa10`),
+  crates.io `2026-11-07T11:52:01.185390Z`, `yanked` false.
+
 ## Evidence log
 
 - crates.io API reads:
