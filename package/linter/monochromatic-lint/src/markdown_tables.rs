@@ -27,7 +27,8 @@ const DETAIL: &str = "Markdown pipe tables force each row onto one line; prefer 
 ///  One finding per pipe table,
 ///  without a fix.
 /// Why:
-///  `--fix` changes only whitespace for this rule's findings, and a table has no whitespace-only repair.
+///  `--fix` changes only whitespace for this rule's findings,
+/// and a table has no whitespace-only repair.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

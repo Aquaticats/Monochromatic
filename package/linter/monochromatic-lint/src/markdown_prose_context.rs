@@ -90,12 +90,18 @@ pub(crate) fn delimiter_tail(context: &MarkdownSource, id: u32, ancestors: &[u32
 
 /// What:
 ///  The text a broken line starts with:
-///  indentation kept, list-marker characters replaced with spaces and quote markers left out.
+///  indentation kept,
+/// list-marker characters replaced with spaces and quote markers left out.
 /// Why:
-///  A quote marker is a token, and a fix that only changes whitespace never adds one.
+///  A quote marker is a token,
+/// and a fix that only changes whitespace never adds one.
 ///  A line without `>` still belongs to the quotation:
-///  CommonMark 0.31.2, section 5.1 "Block quotes", rule 2 "Laziness", keeps a line in the paragraph it continues,
-///  and the caller never breaks where the next line would start a block, the one case laziness excludes.
+///  CommonMark 0.31.2,
+/// section 5.1 "Block quotes",
+/// rule 2 "Laziness",
+/// keeps a line in the paragraph it continues,
+///  and the caller never breaks where the next line would start a block,
+/// the one case laziness excludes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

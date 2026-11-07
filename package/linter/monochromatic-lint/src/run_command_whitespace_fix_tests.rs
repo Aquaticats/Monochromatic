@@ -77,10 +77,11 @@ fn without_leading_comment_marker(line: &str) -> &str {
 
 /// Tokens of Rust source with the one leading comment marker of each line removed.
 fn tokens_without_comment_markers(text: &str) -> Vec<&str> {
-    return text
-        .lines()
-        .flat_map(|line| without_leading_comment_marker(line).split_whitespace())
-        .collect::<Vec<&str>>();
+    let mut found: Vec<&str> = Vec::<&str>::new();
+    for line in text.lines() {
+        found.extend(without_leading_comment_marker(line).split_whitespace());
+    }
+    return found;
 }
 
 /// The tokens a language compares:
@@ -167,7 +168,9 @@ fn a_doc_example_in_a_rust_file_is_left_as_written_beside_its_broken_doc_comment
 }
 
 /// A line break inside a blockquote adds no marker token and the text stays in the quotation:
-///  CommonMark 0.31.2, section 5.1 "Block quotes", rule 2 "Laziness" and example 251,
+///  CommonMark 0.31.2,
+/// section 5.1 "Block quotes",
+/// rule 2 "Laziness" and example 251,
 ///  keeps a line without `>` in the paragraph of the quotation it continues.
 #[test]
 fn a_blockquote_break_adds_no_marker_and_stays_in_the_quote() {
@@ -180,16 +183,15 @@ fn a_blockquote_break_adds_no_marker_and_stays_in_the_quote() {
     assert_eq!(remaining, Vec::<String>::new());
     assert_eq!(tokens(fixed.as_str()), tokens(source));
     let context: MarkdownSource = parse(fixed.as_str());
-    let root: u32 = *context
-        .all_nodes()
-        .iter()
-        .find(|id| context.kind(**id) == MdastNodeType::Root)
-        .expect("a parse has a root");
-    let root_children: Vec<MdastNodeType> = context
-        .children(root)
-        .iter()
-        .map(|child| context.kind(*child))
-        .collect::<Vec<MdastNodeType>>();
+    let mut root_children: Vec<MdastNodeType> = Vec::<MdastNodeType>::new();
+    for id in context.all_nodes() {
+        if context.kind(*id) != MdastNodeType::Root {
+            continue;
+        }
+        for child in context.children(*id) {
+            root_children.push(context.kind(*child));
+        }
+    }
     assert_eq!(root_children, [MdastNodeType::Blockquote]);
 }
 
@@ -235,9 +237,10 @@ fn whitespace_fix_keeps_every_token_of_every_fixture() {
 fn real_tree_keeps_every_token_under_the_whitespace_rule() {
     let root: String = std::env::var("MONOCHROMATIC_LINT_PROPERTY_ROOT")
         .expect("MONOCHROMATIC_LINT_PROPERTY_ROOT names the tree to measure");
-    let step: usize = std::env::var("MONOCHROMATIC_LINT_PROPERTY_STEP")
-        .map(|text| text.parse::<usize>().expect("the step is a count"))
-        .unwrap_or(1);
+    let step: usize = match std::env::var("MONOCHROMATIC_LINT_PROPERTY_STEP") {
+        Ok(text) => text.parse::<usize>().expect("the step is a count"),
+        Err(_) => 1,
+    };
     let listing: std::process::Output = std::process::Command::new("git")
         .args(["-C", root.as_str(), "ls-files", "*.md", "*.mdx", "*.rs"])
         .output()

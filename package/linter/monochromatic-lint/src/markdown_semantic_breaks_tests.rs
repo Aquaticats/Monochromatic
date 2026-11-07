@@ -159,12 +159,10 @@ fn placements(source: &str) -> Vec<(Vec<MdastNodeType>, Vec<String>)> {
         if context.kind(*id) != MdastNodeType::Paragraph {
             continue;
         }
-        let containers: Vec<MdastNodeType> = context
-            .ancestors(*id)
-            .expect("an acyclic parse")
-            .iter()
-            .map(|ancestor| context.kind(*ancestor))
-            .collect::<Vec<MdastNodeType>>();
+        let mut containers: Vec<MdastNodeType> = Vec::<MdastNodeType>::new();
+        for ancestor in context.ancestors(*id).expect("an acyclic parse") {
+            containers.push(context.kind(ancestor));
+        }
         let words: Vec<String> = context
             .text_content(*id)
             .expect("an acyclic parse")
@@ -177,7 +175,9 @@ fn placements(source: &str) -> Vec<(Vec<MdastNodeType>, Vec<String>)> {
 }
 
 /// A break in a quotation adds no `>` and never moves text out of its quote or list item:
-///  CommonMark 0.31.2, section 5.1 "Block quotes", rule 2 "Laziness" and example 251,
+///  CommonMark 0.31.2,
+/// section 5.1 "Block quotes",
+/// rule 2 "Laziness" and example 251,
 ///  keeps a line without `>` in the paragraph it continues,
 ///  at any depth and inside list items.
 #[test]

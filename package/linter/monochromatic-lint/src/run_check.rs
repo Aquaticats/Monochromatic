@@ -241,11 +241,10 @@ impl<'run> HostChecker<'run> {
     fn project(
         &mut self,
         input: &VirtualSource,
-        finding: Diagnostic,
+        mut finding: Diagnostic,
         source: &str,
         findings: &mut Vec<Diagnostic>,
     ) {
-        let mut finding: Diagnostic = finding;
         // A listing quotes source word for word; its comments are reported and never rewritten.
         if input.is_inside_fence() && finding.fix.is_some() {
             finding.fix = None;
