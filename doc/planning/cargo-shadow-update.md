@@ -2642,7 +2642,11 @@ and the release gate ran for the first time on the round (the resume point above
   Two more findings,
   each red first:
   an execute-only compiled program was refused (the PATH search accepts it),
-  fixed by an `O_PATH` open;
+  fixed by an `O_PATH` open for the checks;
+  the second review then showed that such a file cannot be told from an execute-only script,
+  which the kernel runs and which must be given its own path,
+  so an unreadable file is started by path with the check repeated (red test first,
+  `an_execute_only_script_real_cargo_is_given_its_own_path_by_the_kernel`);
   the largest process id was inclusive although `pid_max` is one greater than the maximum PID (`proc_sys_kernel(5)`).
   The contained-start test now requires the scope route and asserts the scope launch;
   a planted `vetted.command()` in `RealCargo::run` turned it red and was restored.

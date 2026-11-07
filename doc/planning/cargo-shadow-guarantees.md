@@ -2542,8 +2542,12 @@ Substantive findings and their state:
   and `a_compiled_real_cargo_is_started_by_the_exec_branch_with_its_arguments`
   and `a_compiled_real_cargo_is_started_by_the_child_branch_with_its_arguments` start a compiled program through both of the shim's own
   starts (red at the exec site before the fix).
-  An execute-only compiled program is opened by `O_PATH` and started through it (`an_execute_only_compiled_real_cargo_is_started_like_any_other`),
-  because the search for the real cargo accepts it.
+  An execute-only program (the search for the real cargo accepts it) is opened by `O_PATH` for the identity checks and started by path with
+  the check repeated,
+  because a file that cannot be read cannot be told from a script and a script must be given its own path
+  (`an_execute_only_compiled_real_cargo_is_started_like_any_other`,
+  `an_execute_only_script_real_cargo_is_given_its_own_path_by_the_kernel`,
+  red before the fix).
   The first process id Linux never allocates (the value of `pid_max`,
   "one greater than the maximum PID") no longer counts as an
   acknowledging process.
@@ -2554,11 +2558,15 @@ Substantive findings and their state:
   or an `ETXTBSY` refusal while a
   writer holds the file,
   is not covered);
-  it needs a working `/proc/self/fd`,
-  and without one the start is by path with the repeated check;
+  it needs a working `/proc/self/fd`:
+  a missing directory makes the start by path with the repeated check,
+  and a directory that exists and does not work is not detected,
+  so the start fails instead;
   the identity checks run on the open file,
   while the launcher-record check reads `.launch` files and their targets by pathname;
-  a program that is not an ELF file (a script or any other format) is started by path;
+  a program that is not a readable ELF file (a script,
+  any other format,
+  or a file this process cannot read) is started by path;
   the printed Fix B record uses the lossy text of a path,
   so a path with bytes that are not UTF-8 is not reproduced faithfully;
   the script swap test proves the refusal at the repeated check,
