@@ -25,25 +25,29 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      # What the steps below run: the program, the word after it, and the settings file it reads.
+      CLI_PROGRAM: monochromatic-git-policy-cli
+      CLI_WORD: monochromatic-git-policy-cli
+      CLI_SETTINGS: monochromatic-git-policy-cli.config.jsonc
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         persist-credentials: false
 
-    - name: Install the cli-git release pinned in toolchain.lock.json
-      # cargo-binstall comes from the prebuilt archive the lock pins, verified by the lock's sha256, and never compiles the
-      # crate (AGENTS.md CM7). The pinned release may predate the rename of the program (2026-11-04), so the step tells the
-      # later steps which program, command word and settings file the release has (CLI_PROGRAM, CLI_WORD, CLI_SETTINGS in
-      # GITHUB_ENV). The work is one Node command, tested by catalog-specifiers-steps.unit.test.ts beside it.
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      run: node package/monorepo-task/core-exec/src/catalog-specifiers-install-policy-cli.ts
+    # The git policy CLI comes from the GitHub release archive that toolchain.lock.json pins for this runner (an alpha goes
+    # to GitHub releases only, never to crates.io), verified against the sha256 recorded beside it, by the same action
+    # that installs the other repository tools. It puts monochromatic-git-policy-cli on PATH.
+    - name: Install the git policy CLI pinned in toolchain.lock.json
+      uses: ./.github/actions/repo-tools-setup
+      with:
+        tools: git-policy-cli
 
     - name: Check every tracked manifest
       # Exit 0 means every `package.json` uses `catalog:`, `catalog:<name>` or exactly `workspace:*` (peer dependencies:
       # `*`, `catalog:` or `catalog:<name>`) and no `package.json5`, `package.yaml` or `package.yml` is tracked.
-      # Exit 2 means the policy is not listed in the repository's settings file (monochromatic-git-policy-cli.config.jsonc, or cli-git.config.jsonc for a pinned release before the rename), so the check would have run nothing; that fails too.
+      # Exit 2 means the policy is not listed in the repository's settings file (monochromatic-git-policy-cli.config.jsonc), so the check would have run nothing; that fails too.
       run: |
         set -euo pipefail
         "$CLI_PROGRAM" "$CLI_WORD" check --all --policy mono/catalog-specifiers
@@ -51,5 +55,5 @@ jobs:
     - name: Negative control, the check must reject a literal version
       # A check that cannot fail proves nothing. This stages one literal dependency in a throwaway repository and
       # requires exit 1 with the `disallowed-specifier` finding, so an exit 2 configuration failure cannot pass here.
-      # The work is one Node command, tested by catalog-specifiers-steps.unit.test.ts beside it.
+      # The work is one Node command, tested by catalog-specifiers-negative-control.unit.test.ts beside it.
       run: node package/monorepo-task/core-exec/src/catalog-specifiers-negative-control.ts

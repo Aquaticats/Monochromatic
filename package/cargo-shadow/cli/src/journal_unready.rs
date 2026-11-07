@@ -31,91 +31,21 @@ use rustix::io::Errno;
 /// Imports `rustix::process::{Pid, test_kill_process_group}` for this file.
 use rustix::process::{Pid, test_kill_process_group};
 
-/// Imports `crate::constants::LOCKFILE_NAME` for this file.
-use crate::constants::LOCKFILE_NAME;
 
 /// Imports the control group records and queries for this file.
-use crate::control_group::{Identity, LauncherState, Membership, Record, current_identity, launcher_state, parse_record, populated_at, query, read_identity_text, view_of};
+use crate::control_group::{Identity, LauncherState, Membership, Record, current_identity, parse_record, populated_at, query, read_identity_text, view_of};
 
-/// Imports `crate::crates::{LockSnapshot, read_locks}` for this file.
-use crate::crates::{LockSnapshot, read_locks};
 
 /// Imports the journal file names and the durability barrier for this file.
-use crate::journal::{ACKNOWLEDGED_FILE, ACKNOWLEDGED_HEADER, GROUPS_FILE, INDEX_FILE, MANIFEST_INDEX_FILE, OWNER_FILE, VIEW_FILE, make_durable, sync_directory};
+use crate::journal::{ACKNOWLEDGED_FILE, ACKNOWLEDGED_HEADER, GROUPS_FILE, VIEW_FILE, make_durable, sync_directory};
 
-/// Imports `crate::journal_manifests::read_manifest_index` for this file.
-use crate::journal_manifests::read_manifest_index;
 
-/// Imports `crate::journal_recover::read_journal` for this file.
-use crate::journal_recover::read_journal;
 
 /// Imports `crate::journal_transaction::mark_done_and_remove` for this file.
 use crate::journal_transaction::finish_journal;
 
-/// What:
-/// `fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<String>, String>` decides whether a journal without a ready
-/// record holds nothing that the live files do not already hold,
-/// and returns the live files to make durable before it is removed;
-/// `Err` says why it must be kept.
-/// Why:
-/// Round 6 (5b2 3):
-/// equal lockfiles do not make a manifest snapshot or an unknown file redundant,
-/// and a missing index is no proof that the directory is empty.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function unreadyVerdict(root: string, directory: string): string[]  // throws the reason to keep it
-/// ```
-fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<String>, String> {
-    let names: Vec<String> = fs::read_dir(directory)
-        .map_err(|error| { return format!("it could not be listed ({error})"); })?
-        .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().to_string(); })
-        .collect();
-    let is_lock = |name: &str| -> bool { return name.strip_suffix(".lock").is_some_and(|stem| { return !stem.is_empty() && stem.bytes().all(|byte| { return byte.is_ascii_digit(); }); }) };
-    let is_snapshot = |name: &str| -> bool { return name.strip_prefix('m').and_then(|rest| { return rest.strip_suffix(".toml"); }).is_some_and(|stem| { return !stem.is_empty() && stem.bytes().all(|byte| { return byte.is_ascii_digit(); }); }) };
-    if let Some(unknown) = names.iter().find(|name| { return ![OWNER_FILE, GROUPS_FILE, VIEW_FILE, ACKNOWLEDGED_FILE, INDEX_FILE, MANIFEST_INDEX_FILE].contains(&name.as_str()) && !is_lock(name) && !is_snapshot(name) && !name.ends_with(".tmp"); }) {
-        return Err(format!("it holds {unknown}, which this version does not know"));
-    }
-    let locks: usize = names.iter().filter(|name| { return is_lock(name); }).count();
-    let snapshots: usize = names.iter().filter(|name| { return is_snapshot(name); }).count();
-    let mut live_files: Vec<String> = Vec::new();
-    match read_journal(directory) {
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            if locks > 0 {
-                return Err("its index is missing but lockfile snapshots remain".to_string());
-            }
-        }
-        Err(error) => return Err(format!("its index is damaged ({error})")),
-        Ok(before) => {
-            if locks != before.len() {
-                return Err("it holds lockfile snapshots that its index does not list".to_string());
-            }
-            let dirs: Vec<String> = before.iter().map(LockSnapshot::crate_dir_text).collect();
-            let live = read_locks(root, &dirs).map_err(|error| { return format!("a live lockfile could not be read ({error})"); })?;
-            if !before.iter().zip(live.iter()).all(|(old, now)| { return old.source == now.source; }) {
-                return Err("it holds the only copy of a lockfile that differs from the live one".to_string());
-            }
-            live_files.extend(dirs.iter().map(|crate_dir| { return root.join(crate_dir).join(LOCKFILE_NAME).to_string_lossy().to_string(); }));
-        }
-    }
-    if names.iter().any(|name| { return name == MANIFEST_INDEX_FILE; }) {
-        let manifests = read_manifest_index(directory).map_err(|error| { return format!("its manifest index is damaged ({error})"); })?;
-        if snapshots != manifests.len() {
-            return Err("it holds manifest snapshots that its manifest index does not list".to_string());
-        }
-        for manifest in &manifests {
-            match fs::read_to_string(&manifest.path) {
-                Ok(live) if live == manifest.before => live_files.push(manifest.path.to_string_lossy().to_string()),
-                Ok(_) => return Err(format!("it holds the only copy of {}, which differs from the live file", manifest.path.display())),
-                Err(error) => return Err(format!("{} could not be read ({error})", manifest.path.display())),
-            }
-        }
-    } else if snapshots > 0 {
-        return Err("manifest snapshots remain without a manifest index".to_string());
-    }
-    return Ok(live_files);
-}
+/// The verdict on a journal that has no ready record (split out of the journal unready module).
+pub(crate) use crate::journal_unready_verdict::{is_allocatable_process_id, sync_opened, launcher_verdict_of, note_uncertain, unready_verdict};
 
 /// What:
 /// `fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>)` removes a journal that never became ready
@@ -199,15 +129,6 @@ enum Finding {
     ),
 }
 
-/// The first process id Linux never allocates:
-/// `PID_MAX_LIMIT` for 64-bit kernels (`include/linux/threads.h`),
-/// and the value of
-/// `/proc/sys/kernel/pid_max` is "one greater than the maximum PID" (`proc_sys_kernel(5)`).
-/// An acknowledgement naming zero,
-/// this number
-/// or a larger one was not written by a process.
-const FIRST_PROCESS_ID_LINUX_NEVER_ALLOCATES: u32 = 4_194_304;
-
 /// What:
 /// `fn is_acknowledged(directory: &Path) -> bool` says whether a person acknowledged this journal.
 /// Why:
@@ -228,7 +149,7 @@ pub(crate) fn is_acknowledged(directory: &Path) -> bool {
     let complete: bool = text.ends_with('\n')
         && lines.len() == 3
         && lines[0] == ACKNOWLEDGED_HEADER
-        && lines[1].parse::<u32>().is_ok_and(|pid| { return (1..FIRST_PROCESS_ID_LINUX_NEVER_ALLOCATES).contains(&pid); })
+        && lines[1].parse::<u32>().is_ok_and(is_allocatable_process_id)
         && lines[2].parse::<u64>().is_ok();
     if !complete {
         return false;
@@ -240,7 +161,7 @@ pub(crate) fn is_acknowledged(directory: &Path) -> bool {
     if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementFileSync) {
         return false;
     }
-    if !fs::File::open(&file).and_then(|opened| { return opened.sync_all(); }).is_ok() {
+    if !fs::File::open(&file).and_then(sync_opened).is_ok() {
         return false;
     }
     #[cfg(test)]
@@ -314,16 +235,14 @@ fn assess(directory: &Path) -> Option<Finding> {
     // An empty record shows that no child ever started.
     let _first_line: &str = text.lines().next()?;
     let mut uncertain: Option<String> = None;
-    let mut note_uncertain = |message: String| {
-        if uncertain.is_none() {
-            uncertain = Some(message);
-        }
-    };
     let view_text: io::Result<String> = fs::read_to_string(directory.join(VIEW_FILE));
     // A reboot of the same machine ended every process of the run (assumption a: the run's writers are inside it, and a boot ends them
     // all). The journal was made by one process in one boot, so its identity covers every record. A different boot id with the same
     // machine id discharges only the question whether the run's processes live; every other check of a recovery still runs.
-    let recorded_identity: Option<Identity> = view_text.as_ref().ok().and_then(|recorded| { return read_identity_text(recorded); });
+    let recorded_identity: Option<Identity> = match view_text.as_ref() {
+        Ok(recorded) => read_identity_text(recorded),
+        Err(_) => None,
+    };
     // Both identities must be well formed (the reader already refuses a malformed or repeated record): an id that is not an id differs
     // from every real one and is no evidence of a reboot (round 10, 9a D2).
     let rebooted: bool = match (&recorded_identity, current_identity()) {
@@ -352,14 +271,14 @@ fn assess(directory: &Path) -> Option<Finding> {
             let expected: String = recorded.lines().next().unwrap_or("").strip_prefix("view ").unwrap_or("").trim().to_string();
             match view_of(directory) {
                 Ok(seen) if seen.to_string() == expected => {}
-                Ok(seen) => note_uncertain(format!(
+                Ok(seen) => note_uncertain(&mut uncertain, format!(
                     "{}: the journal is seen through another mount or path (mount and inode {seen} here, {expected:?} when it was made), so the containment it recorded may not be the one visible here; {hint}",
                     directory.display()
                 )),
-                Err(error) => note_uncertain(format!("{}: the view of the journal cannot be examined ({error}); {hint}", directory.display())),
+                Err(error) => note_uncertain(&mut uncertain, format!("{}: the view of the journal cannot be examined ({error}); {hint}", directory.display())),
             }
         }
-        Err(error) => note_uncertain(format!("{}: the record of the journal's mount view could not be read ({error}); {hint}", directory.display())),
+        Err(error) => note_uncertain(&mut uncertain, format!("{}: the record of the journal's mount view could not be read ({error}); {hint}", directory.display())),
     }
     // A "starting" line of the weaker path that no process group line follows: a child may run that no record names.
     let mut announced_without_group: bool = false;
@@ -371,24 +290,28 @@ fn assess(directory: &Path) -> Option<Finding> {
     // A launcher line that the record ends without a line feed may be cut short (a torn write), so it is not understood (11b 2.6).
     let line_total: usize = text.lines().count();
     let ends_whole: bool = text.ends_with('\n');
-    let records: Vec<Result<Record, String>> = text
-        .lines()
-        .enumerate()
-        .map(|(index, line)| {
-            return if !ends_whole && index + 1 == line_total && line.starts_with("launcher ") {
-                Err("the launcher line is not ended by a line feed, so it may be cut short".to_string())
-            } else {
-                parse_record(line)
-            };
-        })
-        .collect();
-    let settled_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Settled { path: settled_path }) = record { Some(settled_path) } else { None }; }).collect();
-    let scope_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Scope { path: listed_path, .. }) = record { Some(listed_path) } else { None }; }).collect();
+    let mut records: Vec<Result<Record, String>> = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        if !ends_whole && index + 1 == line_total && line.starts_with("launcher ") {
+            records.push(Err("the launcher line is not ended by a line feed, so it may be cut short".to_string()));
+        } else {
+            records.push(parse_record(line));
+        }
+    }
+    let mut settled_paths: Vec<&PathBuf> = Vec::new();
+    let mut scope_paths: Vec<&PathBuf> = Vec::new();
+    for record in &records {
+        match record {
+            Ok(Record::Settled { path: settled_path }) => settled_paths.push(settled_path),
+            Ok(Record::Scope { path: listed_path, .. }) => scope_paths.push(listed_path),
+            _ => {}
+        }
+    }
     for record in &records {
         if let Ok(Record::Launcher { path: noted_path, .. }) = record
             && !scope_paths.contains(&noted_path)
         {
-            note_uncertain(format!(
+            note_uncertain(&mut uncertain, format!(
                 "{}: the record notes a launcher for the scope {}, which the journal does not list, so what it shows cannot be used; {hint}",
                 directory.display(),
                 noted_path.display()
@@ -397,7 +320,7 @@ fn assess(directory: &Path) -> Option<Finding> {
     }
     for record in records.iter().cloned() {
         match record {
-            Err(reason) => note_uncertain(format!(
+            Err(reason) => note_uncertain(&mut uncertain, format!(
                 "{}: the record of the containment of the killed run holds a line that is not understood ({reason}), so a child of that run may still be writing; {hint}",
                 directory.display()
             )),
@@ -406,17 +329,18 @@ fn assess(directory: &Path) -> Option<Finding> {
                 // The launcher is asked about before the scope is read (round 11): a launcher that is gone can never join the scope, so
                 // what the scope shows afterwards is final; one that is alive keeps blocking, and no acknowledgement overrides it.
                 let settled: bool = settled_paths.contains(&&scope_path);
-                let launcher: Option<(i32, u64, u64)> = records.iter().rev().find_map(|other| {
-                    return if let Ok(Record::Launcher { pid, start, pid_namespace, path: noted_path }) = other
+                let mut launcher: Option<(i32, u64, u64)> = None;
+                for other in records.iter().rev() {
+                    if let Ok(Record::Launcher { pid, start, pid_namespace, path: noted_path }) = other
                         && *noted_path == scope_path
                     {
-                        Some((*pid, *start, *pid_namespace))
-                    } else {
-                        None
-                    };
-                });
+                        launcher = Some((*pid, *start, *pid_namespace));
+                        break;
+                    }
+                }
                 if !settled {
-                    match launcher.map(|(pid, start, pid_namespace)| { return (pid, launcher_state(pid, start, pid_namespace)); }) {
+                    let launcher_verdict: Option<(i32, LauncherState)> = launcher.map(launcher_verdict_of);
+                    match launcher_verdict {
                         None => unsettled.push(scope_path.clone()),
                         Some((pid, LauncherState::Alive)) => {
                             return Some(Finding::Live(format!(
@@ -425,7 +349,7 @@ fn assess(directory: &Path) -> Option<Finding> {
                                 scope_path.display()
                             )));
                         }
-                        Some((pid, LauncherState::Unknown(reason))) => note_uncertain(format!(
+                        Some((pid, LauncherState::Unknown(reason))) => note_uncertain(&mut uncertain, format!(
                             "{}: whether the launcher (pid {pid}) of the scope {} is gone cannot be told ({reason}), so it may still join the scope; {hint}",
                             directory.display(),
                             scope_path.display()
@@ -442,7 +366,7 @@ fn assess(directory: &Path) -> Option<Finding> {
                             scope_path.display()
                         )));
                     }
-                    Membership::Unknown(reason) => note_uncertain(format!(
+                    Membership::Unknown(reason) => note_uncertain(&mut uncertain, format!(
                         "{}: whether the scope of the killed run still has a member cannot be told ({reason}), so a child of that run may still be writing; {hint}",
                         directory.display()
                     )),
@@ -478,7 +402,7 @@ fn assess(directory: &Path) -> Option<Finding> {
         // the scope: an absent scope may not be made yet, and one that exists and is empty may be waiting for the launcher to be
         // attached. A look at the scope, however late, does not turn this into a completed lifecycle (round 10, 9a D1); a positively
         // populated scope has already blocked.
-        note_uncertain(format!(
+        note_uncertain(&mut uncertain, format!(
             "{}: the run that was to make the scope {} did not record its end, so its launcher may not have finished entering the scope \
              (whether the scope is absent or empty now) and a program may still start in it; {hint}",
             directory.display(),
@@ -486,13 +410,13 @@ fn assess(directory: &Path) -> Option<Finding> {
         ));
     }
     if announced_without_group {
-        note_uncertain(format!(
+        note_uncertain(&mut uncertain, format!(
             "{}: the killed run announced a child (the weaker path, no delegated control group) and never recorded its process group, so that child may still be writing; {hint}",
             directory.display()
         ));
     }
     if weaker_path {
-        note_uncertain(format!(
+        note_uncertain(&mut uncertain, format!(
             "{}: the killed run had no delegated control group, so a process that left its process group cannot be found and the end of that group does not show that the run's writers stopped; {hint}",
             directory.display()
         ));

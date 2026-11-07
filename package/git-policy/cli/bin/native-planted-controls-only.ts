@@ -23,9 +23,10 @@ import { campaignPrefix } from './native-gate-proof.ts';
 import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
 import {
-  imageOptionOf,
+  gateImageTagOf,
   nativeTestImageRepository,
-} from './native-planted-parallel.ts';
+} from './native-gate-image-tag.ts';
+import { imageOptionOf } from './native-planted-parallel.ts';
 import {
   NativeVerificationError,
   runCommand,
@@ -34,9 +35,7 @@ import {
 /**
  Tag of the tested image; the launcher sets it, as for a campaign, and it names the image only for a hand-run task.
  */
-const imageTag = process.env
-  .GIT_POLICY_NATIVE_IMAGE_TAG
-  ?? 'development';
+const imageTag = gateImageTagOf(process.env);
 /**
  Container limits parsed from the command line (`--memory`, `--cpus`, `--pids-limit`).
  */

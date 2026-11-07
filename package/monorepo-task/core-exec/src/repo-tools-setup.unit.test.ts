@@ -385,7 +385,9 @@ await describe({
         await using fixture = await createStepFixture();
         const run = await runSetup({ fixture, tools: 'file-enforcer', platform: 'Windows-X64', },);
         expect(run.status,).toBe(1,);
-        expect(run.stderr,).toBe('::error::repo-tools-setup: no prebuilt archive for runner Windows-X64\n',);
+        expect(run.stderr,).toBe(
+          '::error::repo-tools-setup: no prebuilt archive for runner Windows-X64. The tools are published for Linux-X64 and Linux-ARM64 only; run the job on one of those runners.\n',
+        );
         expect(run.githubPath,).toBe('',);
       },
     },),
@@ -404,7 +406,9 @@ await describe({
         },),);
         const run = await runSetup({ fixture, tools: 'file-enforcer bogus', platform: 'Linux-X64', },);
         expect(run.status,).toBe(1,);
-        expect(run.stderr,).toBe(`::error::repo-tools-setup: unknown tool 'bogus'\n`,);
+        expect(run.stderr,).toBe(
+          `::error::repo-tools-setup: unknown tool 'bogus'. The tools input takes names separated by blanks, from: mpm-shadow, file-enforcer, cargo-shadow, git-policy-cli.\n`,
+        );
         expect(run.stdout,).toContain('file-enforcer 1.2.3-fake\n',);
         expect(run.githubPath,).toBe('',);
       },
@@ -507,7 +511,7 @@ await describe({
       },
     },),
     it({
-      name: 'ends silently with status 1 when the archive has no member named for the tool',
+      name: 'ends with status 1 and a message naming the archive and the missing file when the archive has no member named for the tool',
       fn: async function noMember() {
         await using fixture = await createStepFixture();
         await fixture.writeLock(
@@ -521,7 +525,9 @@ await describe({
         },),);
         const run = await runSetup({ fixture, tools: 'file-enforcer', platform: 'Linux-X64', },);
         expect(run.status,).toBe(1,);
-        expect(run.stderr,).toBe('',);
+        expect(run.stderr,).toBe(
+          '::error::repo-tools-setup: the archive of file-enforcer holds no file named file-enforcer, so nothing was installed. Either the archive could not be read (tar says why above) or the release lays its files out differently from what this action expects; open the release named in toolchain.lock.json and check the file names in it.\n',
+        );
       },
     },),
     it({
@@ -555,6 +561,8 @@ await describe({
         const run = await runSetup({ fixture, tools: 'file-enforcer', platform: 'Linux-X64', },);
         expect(run.status,).toBe(5,);
         expect(run.githubPath,).toBe('',);
+        expect(run.stderr,).toContain('::error::toolchain.lock.json is not valid JSON (',);
+        expect(run.stderr,).toContain(`Restore the file from git, or regenerate it with 'mpm-shadow update'`,);
       },
     },),
     it({
@@ -563,6 +571,84 @@ await describe({
         await using fixture = await createStepFixture();
         const run = await runSetup({ fixture, tools: 'file-enforcer', platform: 'Linux-X64', },);
         expect(run.status,).toBe(2,);
+        expect(run.stderr,).toContain(`::error::toolchain.lock.json could not be opened from ${fixture.checkout} (`,);
+        expect(run.stderr,).toContain('Run the step from the repository root after the checkout step',);
+      },
+    },),
+    it({
+      name: 'ends with status 127 and names the program when curl is not on PATH',
+      fn: async function curlMissing() {
+        await using fixture = await createStepFixture();
+        await fixture.writeLock(
+          lockWith('0'.repeat(64,),),
+        );
+        const run = await runSetup({ fixture, tools: 'file-enforcer', platform: 'Linux-X64', extra: { PATH: '/nonexistent', }, },);
+        expect(run.status,).toBe(127,);
+        expect(run.stderr,).toContain('::error::The program curl could not be started (',);
+        expect(run.stderr,).toContain('Install it on the runner or put it on PATH before this step',);
+      },
+    },),
+    it({
+      name: 'ends with status 1 and names the variable when the tools input is not set',
+      fn: async function toolsUnset() {
+        await using fixture = await createStepFixture();
+        const run = await fixture.run({
+          command: [
+            process.execPath,
+            PROGRAM,
+          ],
+          env: { RUNNER_PLATFORM: 'Linux-X64', },
+        },);
+        expect(run.status,).toBe(1,);
+        expect(run.stderr,).toBe(
+          '::error::The environment variable TOOLS is not set, and this step cannot run without it. Set it in the env block of the workflow step (or job) that runs this step; GitHub itself provides only the GITHUB_* and RUNNER_* variables.\n',
+        );
+      },
+    },),
+    it({
+      name: 'installs the git policy CLI from the archive row of the lock, which is a GitHub release and never crates.io',
+      fn: async function installsPolicyCli() {
+        await using fixture = await createStepFixture();
+        /**
+         The release archive the lock row names, with the program inside one top folder as a release has it.
+         */
+        const archive = await fixture.makeArchive({
+          name: 'policy-cli-x64.tar.gz',
+          top: 'monochromatic-git-policy-cli-0.6.1-x86_64-unknown-linux-gnu',
+          members: { 'monochromatic-git-policy-cli': releaseProgramSource(), },
+        },);
+        await fixture.writeLock({
+          tools: {
+            'cargo:monochromatic-git-policy-cli': {
+              version: '0.6.1',
+              artifacts: {
+                'linux-x64': { url: 'https://example.invalid/policy-cli-x64.tar.gz', sha256: archive.sha256, },
+              },
+            },
+          },
+        },);
+        await fixture.answerCurl([
+          { urlIncludes: 'https://example.invalid/policy-cli-x64.tar.gz', status: 200, bodyFile: archive.path, },
+        ],);
+        const run = await runSetup({ fixture, tools: 'git-policy-cli', platform: 'Linux-X64', },);
+        expect(run.status,).toBe(0,);
+        expect(run.stdout,).toContain('monochromatic-git-policy-cli 1.2.3-fake\n',);
+        expect(
+          await readdir(join(fixture.runnerTemp, 'repo-tools-bin',),),
+        ).toEqual(['monochromatic-git-policy-cli',],);
+        expect(run.githubPath,).toBe(`${join(fixture.runnerTemp, 'repo-tools-bin',)}\n`,);
+      },
+    },),
+    it({
+      name: 'names the lock row and the fix when the lock has no archive row of this platform for the git policy CLI',
+      fn: async function policyCliRowMissing() {
+        await using fixture = await createStepFixture();
+        await fixture.writeLock({ tools: { 'cargo:monochromatic-git-policy-cli': { version: '0.6.1', artifacts: {}, }, }, },);
+        const run = await runSetup({ fixture, tools: 'git-policy-cli', platform: 'Linux-X64', },);
+        expect(run.status,).toBe(1,);
+        expect(run.stderr,).toBe(
+          `::error::repo-tools-setup: toolchain.lock.json has no cargo:monochromatic-git-policy-cli archive row for linux-x64; run 'mpm-shadow update'\n`,
+        );
       },
     },),
     it({

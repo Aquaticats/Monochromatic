@@ -571,7 +571,13 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // `.ok()`/`.ok_or()`: converts between `Result` and `Option`.
     // Adapter `.and_then(`: transforms or selects items with a closure.
     // Typed binding: `crate_dir: Option<String>`.
-    let crate_dir: Option<String> = find_cargo_root(&start).and_then(|cargo_root| { return cargo_root.strip_prefix(&catalog_root).ok().map(|relative| { return relative.to_string_lossy().replace('\\', "/"); }); });
+    let crate_dir: Option<String> = match find_cargo_root(&start) {
+        Some(cargo_root) => match cargo_root.strip_prefix(&catalog_root) {
+            Ok(relative) => Some(relative.to_string_lossy().replace('\\', "/")),
+            Err(_) => None,
+        },
+        None => None,
+    };
     // Closure `||`: an anonymous function, like a TS arrow function.
     // Typed binding: `frozen: bool`.
     let frozen: bool = in_ci || asserts_lock(arguments);

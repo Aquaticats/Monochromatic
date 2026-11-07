@@ -59,7 +59,15 @@ pub(crate) fn read_manifest_index(directory: &Path) -> io::Result<Vec<JournaledM
     // damage and never "no manifests".
     let text: String = fs::read_to_string(directory.join(MANIFEST_INDEX_FILE))?;
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let corrupt = |why: &str| -> io::Error { return io::Error::new(io::ErrorKind::InvalidData, format!("the manifest index is corrupt: {why}")); };
+    /// What:
+    /// `fn corrupt(why: &str) -> io::Error` is the error for a record that is damaged:
+    /// "the manifest index is corrupt:
+    /// " and the reason.
+    /// Why:
+    /// A function replaces the closure that every refusal of this reader called.
+    fn corrupt(why: &str) -> io::Error {
+        return io::Error::new(io::ErrorKind::InvalidData, format!("the manifest index is corrupt: {why}"));
+    }
     // `let mut`: a binding that may change.
     let mut lines = text.lines();
     // `Some`: the present or the absent value of an `Option`.
@@ -89,7 +97,10 @@ pub(crate) fn read_manifest_index(directory: &Path) -> io::Result<Vec<JournaledM
             // ```ts
             // try { ... } catch (error) { throw new MyError(String(error)); }
             // ```
-            ended = Some(count.trim().parse().map_err(|_| { return corrupt("the end count is not a number"); })?);
+            let Ok(end_count) = count.trim().parse() else {
+                return Err(corrupt("the end count is not a number"));
+            };
+            ended = Some(end_count);
             continue;
         }
         if ended.is_some() {
@@ -98,11 +109,15 @@ pub(crate) fn read_manifest_index(directory: &Path) -> io::Result<Vec<JournaledM
         }
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // `.ok()`/`.ok_or()`: converts between `Result` and `Option`.
-        let (crate_dir, encoded) = line.split_once('\t').ok_or_else(|| { return corrupt("a line has no tab"); })?;
+        let Some((crate_dir, encoded)) = line.split_once('\t') else {
+            return Err(corrupt("a line has no tab"));
+        };
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // `.ok()`/`.ok_or()`: converts between `Result` and `Option`.
         // Typed binding: `path: PathBuf`.
-        let path: PathBuf = decode_path(encoded).ok_or_else(|| { return corrupt("a path is not hexadecimal"); })?;
+        let Some(path) = decode_path(encoded) else {
+            return Err(corrupt("a path is not hexadecimal"));
+        };
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Typed binding: `before: String`.
         // Macro `format!`: builds or prints text (or a list) from a template.
@@ -178,7 +193,13 @@ pub(crate) fn recover_manifests(manifests: &[JournaledManifest], decisions: &[(S
         // list.map(f).filter(g)
         // ```
         // Typed binding: `decision: RootDecision`.
-        let decision: RootDecision = decisions.iter().find(|(crate_dir, _)| { return *crate_dir == manifest.crate_dir; }).map(|(_, found)| { return *found; }).unwrap_or(RootDecision::Failed);
+        let mut decision: RootDecision = RootDecision::Failed;
+        for (crate_dir, found) in decisions {
+            if *crate_dir == manifest.crate_dir {
+                decision = *found;
+                break;
+            }
+        }
         if decision == RootDecision::Failed {
             all_settled = false;
             continue;

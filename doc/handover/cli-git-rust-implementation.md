@@ -1910,7 +1910,18 @@ At 2026-11-04T06:55:05-05:00 (main `a72b474e1d`):
   `index_is_hardened` replaced with `true` and with `false`);
   pass 2 did not run because the planted control "self-exclusion by identity and content" matches 0 times in `invocation/real_git_candidate.rs`.
   An agent fixes the stale control and kills both survivors (`fix/git-policy-cli-planted-control-and-durable-survivors`);
-  campaign tags need one `podman tag` of the gate image per unit (`m0528-durable0` was added by hand).
+  campaign tags no longer need a `podman tag` by hand:
+  `native:mutation:parallel` makes each unit's tag from the gate image before it starts any unit,
+  and refuses to start when a tag cannot be made
+  (`fix/mutation-launcher-makes-image-tags`;
+  `package/mutation-test/cli-cargo-mutants/README.md`,
+  "Image tags").
+  Dated note,
+  2026-11-07T18:04:24-05:00:
+  before that change a campaign needed one `podman tag` of the gate image per unit (`m0528-durable0` was added by hand),
+  and a launch without the tags started units that died at once with "image not known" while the launcher exited 0
+  (`tokio-062`,
+  21 units).
 
 Flagged for the owner (measured,
 not forecasts):
