@@ -197,12 +197,13 @@ fn every_kept_kind_is_renamed_in_place_by_an_ordinary_command() {
     remove(&fixture);
 }
 
-/// Both names of a kind: the earlier one is folded into the new one by an ordinary command,
-///  every entry of both survives,
-///  and the command says nothing about it
-///  (the six lines that every command used to print, measured 2026-11-07T08:37:00-05:00).
+/// Both names of a kind: an ordinary command folds the earlier one into the new one without a word, and every entry survives.
+///  The fold looks at this user's processes, so a process of another test that has the earlier service's journal option with a
+///  folder that cannot be resolved makes the look say "may be running" (the conservative answer the fold is built on): the
+///  command then prints exactly one line that says it will fold later, and nothing has moved. Both ends are checked, and the
+///  fold itself with a process table of its own is checked by `earlier_names_folded_into_current_tests.rs`.
 #[test]
-fn both_names_of_a_kept_kind_are_folded_into_the_new_one_without_a_word() {
+fn both_names_of_a_kept_kind_are_folded_into_the_new_one_without_a_word_or_wait_with_one_line() {
     let fixture: Fixture = fixture("rename-kept-both");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let git_dir: PathBuf = repo.join(".git");
@@ -210,9 +211,15 @@ fn both_names_of_a_kept_kind_are_folded_into_the_new_one_without_a_word() {
     std::fs::create_dir_all(git_dir.join(DATA_FOLDER.current)).expect("the new folder");
     let status: Observed = run(&fixture, repo.as_path(), &["status"]);
     assert_eq!(status.code, Some(0), "{}", stderr_text(&status));
-    assert_eq!(stderr_text(&status), "", "a fold is silent");
-    assert_eq!(read_current(git_dir.as_path(), DATA_FOLDER, true), DATA_FOLDER.earlier);
-    assert!(!git_dir.join(DATA_FOLDER.earlier).exists(), "no second name");
+    let said: String = stderr_text(&status);
+    if said.is_empty() {
+        assert_eq!(read_current(git_dir.as_path(), DATA_FOLDER, true), DATA_FOLDER.earlier);
+        assert!(!git_dir.join(DATA_FOLDER.earlier).exists(), "no second name");
+    } else {
+        assert_eq!(said.lines().count(), 1, "one line: {said}");
+        assert!(said.contains("a later command folds them into the new names"), "{said}");
+        assert_eq!(std::fs::read_to_string(git_dir.join(DATA_FOLDER.earlier).join("inner").join("record")).expect("untouched"), DATA_FOLDER.earlier);
+    }
     remove(&fixture);
 }
 
