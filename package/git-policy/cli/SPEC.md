@@ -2741,7 +2741,7 @@ section "Falling back to the Git the commit service was set up with".
   ```
 
 - The same resolution serves every start of the real Git: forwarded commands, the announced queries, the commit steps,
-  the push work, `git monochromatic-git-policy-cli doctor`, the direct commands, `service status` and `convert-worktree-to-subvolume`.
+  the push work, `git monochromatic-git-policy-cli doctor`, the direct commands, `service status`, `service settle-earlier-batches` and `convert-worktree-to-subvolume`.
   The service takes the resolved path in the `--git` of its unit as before; a fallback path is therefore written into
   the unit it came from, unchanged.
 - Limits: the unit is in the runtime directory, so it exists only after a commit has provisioned the service in this

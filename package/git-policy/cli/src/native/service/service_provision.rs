@@ -20,6 +20,11 @@
 //!  `~/.config/systemd/user` outrank the runtime ones in the unit search path, so they are recognized by their content and
 //!  removed; a unit of the same name that something else wrote is never touched, and the commit stops with a message naming
 //!  the file.
+//!  The socket that the earlier release set up for the same worktree (`cli-git@<instance>.socket`, the same instance text) is
+//!  stopped after this release's socket has started, so that the earlier helper cannot be started by a connection and the
+//!  batches it left open can be finished (`earlier_service_journal_adopted.rs`); see `stop_earlier_instance_socket`. The stop
+//!  never fails a commit. A helper of the earlier release that is running is not stopped and its socket stays; the next commit
+//!  looks again. The templates the earlier release wrote are shared by every worktree's instance and are left alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +35,8 @@ pub use crate::service_provision_unit_file_ownership_and_writes::OWN_MARKERS;
 use crate::service_provision_unit_file_ownership_and_writes::{any_named_anywhere, carries_own_marker, is_own_unit_file, own_unit_file_in_runtime_or_user_directory, remove_settled, write_atomically};
 use crate::service_messages::{ClientFailure, Platform};
 use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
-use crate::service_instance::{LEGACY_SOCKET_RELATIVE, service_unit_instance, socket_path, socket_unit_instance};
+use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
+use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
 
@@ -92,6 +98,8 @@ pub trait Manager {
     fn start(&mut self, unit: &str) -> Result<(), CallError>;
     /// Stops a unit.
     fn stop(&mut self, unit: &str) -> Result<(), CallError>;
+    /// Stops a unit and none of the units that require it.
+    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError>;
     /// The unit's state as the manager reports it (`active`, `deactivating`, `inactive`, `failed`), or nothing when the
     ///  manager holds no such unit.
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError>;
@@ -116,6 +124,10 @@ impl Manager for Bus {
 
     fn stop(&mut self, unit: &str) -> Result<(), CallError> {
         return Bus::stop_unit(self, unit);
+    }
+
+    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+        return Bus::stop_unit_alone(self, unit);
     }
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
@@ -152,7 +164,7 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 
 /// What:
 ///  Whether the installed templates are the ones this wrapper would write, the worktree's socket is there, and nothing of
-///  the single service of the earlier releases is left.
+///  the single service of the earlier releases is left, and no socket of the earlier release for this worktree listens.
 /// Why:
 ///   The socket belongs to the manager and outlives every upgrade, so its presence says nothing about which program the
 ///  service template names; the text does. A few small reads and two `stat` calls decide, and the bus is not touched when
@@ -163,6 +175,11 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 /// inPlace(host) // false: write, reload, start
 /// ```
 pub fn in_place(host: &ProvisionHost) -> bool {
+    return in_place_with(host, Path::new("/proc"));
+}
+
+/// `in_place` with the process table to read the listening sockets from.
+pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     // Every unit file holds exactly the text the wrapper would write.
     let mut all_current: bool = true;
@@ -181,9 +198,14 @@ pub fn in_place(host: &ProvisionHost) -> bool {
         }
     }
     earlier_left = earlier_left || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
-    return all_current
-        && socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists()
-        && !earlier_left;
+    if !all_current || earlier_left || !socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists() {
+        return false;
+    }
+    // The earlier release's socket of this worktree: a listener there starts the earlier helper on a connection, so the stop
+    //  has to be tried (again). The socket's file stays after the unit stops and says nothing; the table of sockets is read
+    //  only when that file is there, which a worktree the earlier release never served never has.
+    let earlier_file: PathBuf = earlier_socket_path(host.runtime_dir.as_path(), host.instance.as_str());
+    return !(earlier_file.exists() && earlier_socket_of_instance_listens(proc_root, host.instance.as_str()));
 }
 
 /// What the user's own unit directory holds under the names the wrapper uses.
@@ -444,6 +466,7 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         }
         return Err(refusal(error));
     }
+    stop_earlier_instance_socket(host, manager);
     return Ok(());
 }
 
@@ -461,6 +484,74 @@ fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool, instance: &
         }
     }
     return manager.start(socket_unit_instance(instance).as_str());
+}
+
+/// Whether a unit's state says it runs no process and listens on nothing: `inactive` or `failed`.
+fn is_at_rest(state: &str) -> bool {
+    return matches!(state, "inactive" | "failed");
+}
+
+/// The manager's failure in words for a log line.
+fn describe(error: &CallError) -> String {
+    return match error {
+        CallError::Connection(reason) => format!("the session bus could not be reached ({reason})"),
+        CallError::Authentication(reason) => format!("the session bus refused the connection ({reason})"),
+        CallError::TimedOut => String::from("the session bus did not answer in time"),
+        CallError::Manager { text, name } if text.is_empty() => format!("the service manager refused the request ({name})"),
+        CallError::Manager { text, .. } => format!("the service manager refused the request ({text})"),
+        CallError::Malformed(reason) => format!("the service manager's answer could not be read ({reason})"),
+    };
+}
+
+/// What:
+///  Stops the socket unit `cli-git@<instance>.socket` that the earlier release set up for this very worktree, when no helper
+///  of that unit runs. Nothing here fails the commit.
+/// Why:
+///   The owner's pick of 2026-11-07 ("Stop the old socket"): while that socket listens, a connection starts the earlier helper
+///  at any moment, which keeps the person's earlier batches from being settled on request
+///  (`earlier_service_journal_adopted.rs`). The instance name is the same text in both releases (the same hash of the same Git
+///  directory), so the unit is this worktree's and no other's. The earlier release wrote only two shared templates, from which
+///  every worktree's instance is made, so there is no file of this instance to remove and the templates stay; a stopped instance
+///  is unloaded by the manager. A helper that runs is left as it is: the earlier service `Requires=` its socket, so a plain stop
+///  of the socket stops it mid-batch, and the stop that is sent names the one unit. The socket file is never unlinked, because
+///  an earlier-release wrapper can make its unit listen again at that path between any answer of the manager and an unlink.
+///  Whether the stop is still to be done is read from the table of listening sockets (`in_place_with`). Every failure is logged
+///  and ignored, each call is bounded by one exchange's time, and an earlier-release wrapper that sets the unit up again
+///  undoes this (the owner accepted that).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await stopEarlierInstanceSocket(host, manager) // logs and returns on any failure
+/// ```
+fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager) {
+    let socket: String = earlier_socket_unit_instance(host.instance.as_str());
+    let service: String = earlier_service_unit_instance(host.instance.as_str());
+    // The start that came before may have used the time of its exchange; these calls have a time of their own.
+    manager.within(EXCHANGE_WAIT);
+    let unreadable = |unit: &str, error: &CallError| {
+        crate::service_warn!(
+            "the commit service of the earlier release for this worktree ({unit}) was not stopped: {}; the batches it left open stay open, and the next commit tries again",
+            describe(error)
+        );
+    };
+    // A helper that runs finishes its own batches; it is not touched.
+    match manager.active_state(service.as_str()) {
+        Ok(Some(state)) if !is_at_rest(state.as_str()) => return,
+        Ok(_) => {}
+        Err(error) => return unreadable(service.as_str(), &error),
+    }
+    let held: Option<String> = match manager.active_state(socket.as_str()) {
+        Ok(state) => state,
+        Err(error) => return unreadable(socket.as_str(), &error),
+    };
+    if !matches!(&held, Some(state) if !is_at_rest(state.as_str())) {
+        return;
+    }
+    match manager.stop_alone(socket.as_str()) {
+        Ok(()) => {}
+        Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => {}
+        Err(error) => unreadable(socket.as_str(), &error),
+    }
 }
 
 /// Provisions through the session bus, unless the units and the socket are already in place.

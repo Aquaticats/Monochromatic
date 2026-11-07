@@ -6,7 +6,7 @@ use super::tests::{World, land_with_failed_index, request, world};
 use super::*;
 use crate::service_land::Handled;
 use std::time::Duration;
-use crate::earlier_service_journal_adopted::{EarlierJournals, adopt_open_batches, earlier_commits_landed, earlier_journals_of};
+use crate::earlier_service_journal_adopted::{EarlierJournals, RequestedSettlement, earlier_commits_landed, earlier_journals_of, settle_on_request};
 use crate::earlier_service_process_look::{ServiceLook, effective_user, service_of_instance_may_run};
 use crate::service_instance::instance_of;
 use crate::service_index_lock::try_acquire;
@@ -14,11 +14,21 @@ use crate::service_journal::{DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, 
 use crate::test_support::{git_text, remove};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 
+/// The settling the person asks for, for the journals the earlier unit gives the instance of the new service's journal: the
+///  reports of the batches it dealt with, none when it found nothing open or an earlier helper may run.
+fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Path) -> Vec<RecoveryReport> {
+    let Some(earlier) = earlier_journals_of(context.journal.as_path(), instance) else { return Vec::new() };
+    return match settle_on_request(&context.git, &earlier, instance, proc_root, context.lock_ceiling) {
+        RequestedSettlement::Settled(batches) => batches.into_iter().map(|batch| { return batch.report; }).collect(),
+        RequestedSettlement::NothingOpen | RequestedSettlement::Held { .. } => Vec::new(),
+    };
+}
+
 /// The state folder name of an awkward test: a space, quotes and a newline.
 const AWKWARD_STATE: &str = "state with 'quotes' and \"more\"\nand a break";
 
 /// The instance of the world's worktree.
-fn instance_for(world: &World) -> String {
+pub(super) fn instance_for(world: &World) -> String {
     return instance_of(world.repo.join(".git").as_path());
 }
 
@@ -35,7 +45,7 @@ fn new_context(world: &World, state: &Path) -> LandContext {
 }
 
 /// The world with its journal in the place the earlier unit gave it, below `state`.
-fn world_with_earlier_journal(name: &str, state_name: &str) -> (World, PathBuf) {
+pub(super) fn world_with_earlier_journal(name: &str, state_name: &str) -> (World, PathBuf) {
     let mut world: World = world(name);
     let state: PathBuf = world.root.join(state_name);
     let earlier: PathBuf = state.join(DATA_FOLDER.earlier).join("service").join(instance_for(&world));
@@ -45,7 +55,7 @@ fn world_with_earlier_journal(name: &str, state_name: &str) -> (World, PathBuf) 
 }
 
 /// A proc root that lists no process and no socket.
-fn empty_proc(world: &World) -> PathBuf {
+pub(super) fn empty_proc(world: &World) -> PathBuf {
     let proc_root: PathBuf = world.root.join("proc-empty");
     std::fs::create_dir_all(proc_root.as_path()).expect("proc root");
     write_unix_table(proc_root.as_path(), &[]);
@@ -53,7 +63,7 @@ fn empty_proc(world: &World) -> PathBuf {
 }
 
 /// Writes a fake process with the given command line words into `proc_root`.
-fn fake_process(proc_root: &Path, pid: u32, words: &[&str]) {
+pub(super) fn fake_process(proc_root: &Path, pid: u32, words: &[&str]) {
     let directory: PathBuf = proc_root.join(pid.to_string());
     std::fs::create_dir_all(directory.as_path()).expect("process directory");
     let mut bytes: Vec<u8> = Vec::new();
@@ -424,7 +434,7 @@ fn the_adoption_says_what_it_did_with_each_batch() {
 }
 
 /// The flags column of `/proc/net/unix` for a socket that listens (`SO_ACCEPTCON`), as the kernel prints it.
-const LISTENING_FLAGS: &str = "00010000";
+pub(super) const LISTENING_FLAGS: &str = "00010000";
 
 /// The flags column of `/proc/net/unix` for a socket that does not listen.
 const CONNECTED_FLAGS: &str = "00000000";
@@ -433,18 +443,18 @@ const CONNECTED_FLAGS: &str = "00000000";
 const UNIX_TABLE_HEADER: &str = "Num       RefCount Protocol Flags    Type St Inode Path\n";
 
 /// A user's runtime directory, as the sockets of the units name it.
-const RUNTIME_DIRECTORY: &str = "/run/user/1000";
+pub(super) const RUNTIME_DIRECTORY: &str = "/run/user/1000";
 
 /// The name of the socket the single service of the first releases listened on, below the earlier program folder.
 const SHARED_SOCKET_NAME: &str = "service.sock";
 
 /// One line of `/proc/net/unix` for a socket bound at `<runtime>/<folder>/<file>`, in the columns the kernel prints.
-fn unix_table_line(flags: &str, folder: &str, file: &str) -> String {
+pub(super) fn unix_table_line(flags: &str, folder: &str, file: &str) -> String {
     return format!("000000002982a48d: 00000002 00000000 {flags} 0001 01 2269401 {RUNTIME_DIRECTORY}/{folder}/{file}\n");
 }
 
 /// Writes the unix socket table of a fake proc root.
-fn write_unix_table(proc_root: &Path, lines: &[String]) {
+pub(super) fn write_unix_table(proc_root: &Path, lines: &[String]) {
     let table: PathBuf = proc_root.join("net/unix");
     std::fs::create_dir_all(table.parent().expect("net folder")).expect("net folder");
     std::fs::write(table, format!("{UNIX_TABLE_HEADER}{}", lines.concat())).expect("unix table");

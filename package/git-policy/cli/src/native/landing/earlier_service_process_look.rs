@@ -28,7 +28,8 @@
 //! const mayRun: boolean = await withDeadline(ceiling, () => earlierSocketListens(procRoot, look) || scan(procRoot, look)) ?? true
 //! ```
 
-use crate::wrapper_names_old_and_new::DATA_FOLDER;
+use crate::earlier_unix_sockets_that_listen::{ListeningSockets, earlier_socket_ending, listening_sockets_ending_with};
+use crate::wrapper_names_old_and_new::{COMMAND_WORD, DATA_FOLDER};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -55,19 +56,27 @@ const EARLIER_SOCKET_FOLDER: &str = DATA_FOLDER.earlier;
 /// The file name of the socket the single service of the first releases listened on, in the earlier socket folder.
 const EARLIER_SHARED_SOCKET_FILE: &str = "service.sock";
 
-/// The extension of the socket file of an instance, after the instance name.
-const SOCKET_EXTENSION: &str = ".sock";
+/// Why the look cannot promise that no service of the worktree runs or will start.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Hold {
+    /// A socket of an earlier unit listens: a connection to it starts the earlier helper at any moment.
+    SocketListens,
+    /// A process has the start arguments of the earlier helper of the worktree.
+    ServiceRuns,
+    /// The sockets or the processes could not be looked at (a table or a command line that cannot be read, a look that ran out of time).
+    CannotLook,
+}
 
-/// The bit of the flags column of `/proc/net/unix` that says the socket listens: `__SO_ACCEPTCON`, `1 << 16`, in
-///  Linux `include/linux/net.h`; `net/unix/af_unix.c`, `unix_seq_show`, prints it when `sk_state == TCP_LISTEN`.
-const SOCKET_LISTENS_FLAG: u32 = 1 << 16;
-
-/// The columns of a line of `/proc/net/unix` up to and including the path:
-///  `Num RefCount Protocol Flags Type St Inode Path` (a socket with no name has no path column).
-const SOCKET_TABLE_COLUMNS: usize = 8;
-
-/// The position of the flags column in a line of `/proc/net/unix`.
-const SOCKET_FLAGS_COLUMN: usize = 3;
+impl Hold {
+    /// The reason in plain words, as a sentence part that follows "because".
+    pub fn words(self) -> &'static str {
+        return match self {
+            Hold::SocketListens => "an earlier socket of this worktree listens, and a connection to it starts the earlier helper at any moment",
+            Hold::ServiceRuns => "a process runs as the earlier helper of this worktree, and it finishes its own batches",
+            Hold::CannotLook => "the sockets and processes of the earlier helper could not be looked at in time, so it is not known whether one runs",
+        };
+    }
+}
 
 /// What a look needs to know to recognise a service of one worktree.
 #[derive(Clone, Debug)]
@@ -85,9 +94,24 @@ pub struct ServiceLook {
     pub ceiling: Duration,
 }
 
-/// Whether two neighbouring command line words are the service mode words.
-fn is_mode_pair(pair: &[&[u8]]) -> bool {
-    return pair[0] == SERVICE_MODE_WORDS[0].as_bytes() && pair[1] == SERVICE_MODE_WORDS[1].as_bytes();
+/// What:
+///  Whether the service mode words start at position `at` of the command line and are not behind the current command word.
+/// Why:
+///   The service of this release starts as `<program> monochromatic-git-policy-cli service run ...`, with the same mode words
+///  and the same instance option as the earlier units that name the earlier command word, and it is no earlier helper: it
+///  writes its own journal, and it is the service a person usually has running when they ask for the earlier batches to be
+///  settled.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isEarlierModeAt = (words: string[], at: number) => words[at] === 'service' && words[at + 1] === 'run' && words[at - 1] !== 'monochromatic-git-policy-cli'
+/// ```
+fn is_earlier_mode_at(words: &[&[u8]], at: usize) -> bool {
+    let Some(pair) = words.get(at..at + SERVICE_MODE_WORDS.len()) else {
+        return false;
+    };
+    let behind_current_word: bool = at > 0 && words[at - 1] == COMMAND_WORD.current.as_bytes();
+    return pair[0] == SERVICE_MODE_WORDS[0].as_bytes() && pair[1] == SERVICE_MODE_WORDS[1].as_bytes() && !behind_current_word;
 }
 
 /// Whether a byte ends a command line word.
@@ -180,7 +204,7 @@ fn journal_word_may_name_earlier_journal(names: &JournalNames, word: &[u8]) -> b
 /// ```
 #[cfg(unix)]
 fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> bool {
-    let mode_in_a_row: bool = words.windows(SERVICE_MODE_WORDS.len()).any(is_mode_pair);
+    let mode_in_a_row: bool = words.iter().enumerate().any(|(at, _)| { return is_earlier_mode_at(words, at); });
     let mut instance_named: bool = false;
     let mut journal_named: bool = false;
     for pair in words.windows(2) {
@@ -203,7 +227,7 @@ fn process_is_gone(error: &std::io::Error) -> bool {
 
 /// What:
 ///  Whether a socket that listens where an earlier unit's socket listens exists: the earlier socket of the worktree's instance
-///  or the single service's socket of the first releases. A table of sockets that cannot be read counts as "yes".
+///  or the single service's socket of the first releases. A table of sockets that cannot be read is told apart.
 /// Why:
 ///   A connection to such a socket starts the earlier helper at once, with no process to be seen before, so no look at the
 ///  processes can prove that none will start. The table lists the sockets that exist now and says which of them listen; the
@@ -211,60 +235,15 @@ fn process_is_gone(error: &std::io::Error) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// readLines(`${procRoot}/net/unix`).some((line) => listens(line.flags) && [instanceSocket, sharedSocket].some((s) => line.path.endsWith(s)))
+/// listeningSocketsEndingWith(procRoot, [instanceSocket, sharedSocket])
 /// ```
 #[cfg(unix)]
-fn earlier_socket_may_listen(look: &ServiceLook, proc_root: &Path) -> bool {
-    use std::io::BufRead;
-    let Ok(table) = std::fs::File::open(proc_root.join("net").join("unix")) else {
-        return true;
-    };
+fn earlier_sockets_that_listen(look: &ServiceLook, proc_root: &Path) -> ListeningSockets {
     let endings: [Vec<u8>; 2] = [
-        format!("/{EARLIER_SOCKET_FOLDER}/{}{SOCKET_EXTENSION}", look.instance).into_bytes(),
+        earlier_socket_ending(look.instance.as_str()),
         format!("/{EARLIER_SOCKET_FOLDER}/{EARLIER_SHARED_SOCKET_FILE}").into_bytes(),
     ];
-    for read in std::io::BufReader::new(table).split(b'\n') {
-        let Ok(line) = read else {
-            return true;
-        };
-        if is_listening_earlier_socket(line.as_slice(), &endings) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// The flags column of a line of `/proc/net/unix`, which the kernel prints in hexadecimal; `None` when it is not.
-#[cfg(unix)]
-fn socket_flags_of(column: &[u8]) -> Option<u32> {
-    let text: &str = std::str::from_utf8(column).ok()?;
-    return u32::from_str_radix(text, 16).ok();
-}
-
-/// Whether one line of `/proc/net/unix` is a socket that listens and whose path ends with one of `endings`.
-///  A flags column that is not hexadecimal counts as listening.
-#[cfg(unix)]
-fn is_listening_earlier_socket(line: &[u8], endings: &[Vec<u8>]) -> bool {
-    let mut columns: Vec<&[u8]> = Vec::new();
-    for column in line.split(u8::is_ascii_whitespace) {
-        if !column.is_empty() {
-            columns.push(column);
-        }
-    }
-    if columns.len() < SOCKET_TABLE_COLUMNS {
-        return false;
-    }
-    let listens: bool = match socket_flags_of(columns[SOCKET_FLAGS_COLUMN]) {
-        Some(flags) => flags & SOCKET_LISTENS_FLAG != 0,
-        None => true,
-    };
-    let path: &[u8] = columns[columns.len() - 1];
-    for ending in endings {
-        if path.ends_with(ending.as_slice()) {
-            return listens;
-        }
-    }
-    return false;
+    return listening_sockets_ending_with(proc_root, &endings);
 }
 
 /// What a look at one process found.
@@ -348,19 +327,21 @@ fn journal_identities(journals: &[PathBuf]) -> Option<Vec<FileIdentity>> {
 /// for (const pid of readdir(procRoot)) { try { if (isServiceOf(read(`${pid}/cmdline`))) return true } catch (e) { if (!gone(e)) return true } }
 /// ```
 #[cfg(unix)]
-fn scan(look: &ServiceLook, proc_root: &Path) -> bool {
-    if earlier_socket_may_listen(look, proc_root) {
-        return true;
+fn scan(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
+    match earlier_sockets_that_listen(look, proc_root) {
+        ListeningSockets::Listens => return Some(Hold::SocketListens),
+        ListeningSockets::Unreadable => return Some(Hold::CannotLook),
+        ListeningSockets::None => {}
     }
     let Some(identities) = journal_identities(look.journals.as_slice()) else {
-        return true;
+        return Some(Hold::CannotLook);
     };
     let Ok(listing) = std::fs::read_dir(proc_root) else {
-        return true;
+        return Some(Hold::CannotLook);
     };
     for listed in listing {
         let Ok(entry) = listed else {
-            return true;
+            return Some(Hold::CannotLook);
         };
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let Ok(pid) = name.parse::<u32>() else {
@@ -372,23 +353,23 @@ fn scan(look: &ServiceLook, proc_root: &Path) -> bool {
         let bytes: Vec<u8> = match command_line_of(&entry, look.own_user) {
             CommandLine::Words(bytes) => bytes,
             CommandLine::Skipped => continue,
-            CommandLine::Unproven => return true,
+            CommandLine::Unproven => return Some(Hold::CannotLook),
         };
         let process: PathBuf = entry.path();
         let names: JournalNames = JournalNames { spellings: look.journals.as_slice(), identities: identities.as_slice(), process: process.as_path() };
         // Every word ends with a NUL byte, the last one too: that last NUL ends a word, it does not start an empty one.
         let words: Vec<&[u8]> = bytes.strip_suffix(&[0]).unwrap_or(bytes.as_slice()).split(is_word_end).collect();
         if is_service_of(words.as_slice(), look, &names) {
-            return true;
+            return Some(Hold::ServiceRuns);
         }
     }
-    return false;
+    return None;
 }
 
 /// Without `/proc` and Unix users there is no look to make, so a service may be running.
 #[cfg(not(unix))]
-fn scan(_look: &ServiceLook, _proc_root: &Path) -> bool {
-    return true;
+fn scan(_look: &ServiceLook, _proc_root: &Path) -> Option<Hold> {
+    return Some(Hold::CannotLook);
 }
 
 /// The user this process runs as, whose processes are looked at.
@@ -405,33 +386,39 @@ pub fn effective_user() -> u32 {
 }
 
 /// What:
-///  Whether a service of the worktree may be running: a process other than this one has the start arguments of one, or the
-///  processes cannot be looked at within the look's ceiling.
+///  Why a service of the worktree may be running or may start, or nothing when the look can promise neither: a socket of an
+///  earlier unit listens, a process other than this one has the start arguments of one, or the sockets or the processes cannot
+///  be looked at within the look's ceiling.
 /// Why:
 ///   The scan runs on a thread of its own and is waited for up to the ceiling, because one read of a command line can wait for
-///  a process stuck in the kernel. A scan that does not answer in time counts as "may be running"; its thread is left behind (it
-///  ends when the kernel lets the read go, and the service has no work for it), and the adoption is tried at the next start.
+///  a process stuck in the kernel. A scan that does not answer in time counts as "cannot look"; its thread is left behind (it
+///  ends when the kernel lets the read go), and whoever asked is told to try again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function serviceMayRun(look: ServiceLook, procRoot: string): Promise<boolean>;
+/// async function earlierServiceHold(look: ServiceLook, procRoot: string): Promise<Hold | undefined>;
 /// ```
-pub fn service_of_instance_may_run(look: ServiceLook, proc_root: &Path) -> bool {
+pub fn earlier_service_hold(look: ServiceLook, proc_root: &Path) -> Option<Hold> {
     let ceiling: Duration = look.ceiling;
     let root: PathBuf = proc_root.to_path_buf();
-    let (sender, receiver) = std::sync::mpsc::channel::<bool>();
+    let (sender, receiver) = std::sync::mpsc::channel::<Option<Hold>>();
     let started = std::thread::Builder::new().name(String::from("earlier-service-process-look")).spawn(move || {
         let _sent = sender.send(scan(&look, root.as_path()));
     });
     if let Err(error) = started {
         crate::service_error!("cannot start the look at the processes ({error}), so a service of the worktree may be running");
-        return true;
+        return Some(Hold::CannotLook);
     }
     return match receiver.recv_timeout(ceiling) {
-        Ok(may_run) => may_run,
+        Ok(hold) => hold,
         Err(error) => {
             crate::service_error!("the look at the processes gave no answer ({error}), so a service of the worktree may be running");
-            true
+            Some(Hold::CannotLook)
         }
     };
+}
+
+/// Whether a service of the worktree may be running or may start.
+pub fn service_of_instance_may_run(look: ServiceLook, proc_root: &Path) -> bool {
+    return earlier_service_hold(look, proc_root).is_some();
 }

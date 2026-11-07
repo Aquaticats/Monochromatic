@@ -1,0 +1,173 @@
+//! Controls for settling, when the person asks, the batches an earlier release's service left open: which batches count as
+//!  the worktree's, that nothing is changed while an earlier helper may run or start, and that what is settled is the
+//!  finish-only recovery of the adoption.
+
+use super::adoption_tests::{LISTENING_FLAGS, empty_proc, fake_process, instance_for, unix_table_line, world_with_earlier_journal, write_unix_table};
+use super::tests::{World, land_with_failed_index, request};
+use super::*;
+use crate::earlier_service_journal_adopted::{RequestedSettlement, earlier_journals_in_state, open_batch_count, settle_on_request};
+use crate::earlier_service_process_look::Hold;
+use crate::service_journal::{OPEN_EXTENSION, batch_path, list_intents, parse_intent, write_intent};
+use crate::test_support::{git_text, remove};
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
+use std::time::Duration;
+
+/// The time the recovery of a control may wait for an index lock.
+const LOCK_WAIT: Duration = Duration::from_secs(5);
+
+/// The journals the earlier release kept for the world's worktree, below `state`.
+fn journals_of(world: &World, state: &Path) -> crate::earlier_service_journal_adopted::EarlierJournals {
+    return earlier_journals_in_state(state, instance_for(world).as_str());
+}
+
+/// Settles with the world's Git and the process table `proc_root`.
+fn settle(world: &World, state: &Path, proc_root: &Path) -> RequestedSettlement {
+    return settle_on_request(&world.context.git, &journals_of(world, state), instance_for(world).as_str(), proc_root, LOCK_WAIT);
+}
+
+/// The earlier journals of an instance are named from the state folder alone.
+#[test]
+fn the_earlier_journals_are_named_from_the_state_folder() {
+    let found = earlier_journals_in_state(Path::new("/home/u/.local/state"), "abc");
+    assert_eq!(found.per_instance, PathBuf::from("/home/u/.local/state/cli-git/service/abc"));
+    assert_eq!(found.shared, PathBuf::from("/home/u/.local/state/cli-git/service"));
+}
+
+/// The count is the open batches of this worktree in the per-instance journal and in the shared one; a batch of another
+///  worktree in the shared journal, a finished batch and an unreadable file are not counted, and counting changes no file.
+#[test]
+fn the_count_is_the_open_batches_of_this_worktree_and_changes_nothing() {
+    let (world, state) = world_with_earlier_journal("settle-count", "state");
+    let per_instance: PathBuf = world.context.journal.clone();
+    let landed: CommitRequest = request(&world, "counted", "counted.txt", "counted\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let shared: PathBuf = state.join(DATA_FOLDER.earlier).join("service");
+    let own_text: String = std::fs::read_to_string(batch_path(per_instance.as_path(), 1, OPEN_EXTENSION)).expect("read");
+    let mut shared_own = parse_intent(own_text.as_str()).expect("parse");
+    shared_own.seq = 7;
+    write_intent(shared.as_path(), &shared_own).expect("an open batch of this worktree in the shared journal");
+    let mut other = shared_own.clone();
+    other.seq = 8;
+    other.git_dir = world.root.join("another-worktree/.git");
+    write_intent(shared.as_path(), &other).expect("an open batch of another worktree in the shared journal");
+    std::fs::write(shared.join("9.intent"), "not an intent").expect("an unreadable file");
+    let before: Vec<String> = names_in(&[per_instance.as_path(), shared.as_path()]);
+    assert_eq!(open_batch_count(&journals_of(&world, state.as_path()), instance_for(&world).as_str()), 2);
+    assert_eq!(names_in(&[per_instance.as_path(), shared.as_path()]), before, "counting changed no file");
+    remove(world.root.as_path());
+}
+
+/// The names of the files in some folders, sorted.
+fn names_in(folders: &[&Path]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for folder in folders {
+        for entry in std::fs::read_dir(folder).expect("folder").flatten() {
+            names.push(entry.path().display().to_string());
+        }
+    }
+    names.sort();
+    return names;
+}
+
+/// With no batch open nothing is looked at: not the sockets, not the processes.
+#[test]
+fn nothing_open_means_nothing_to_look_at() {
+    let (world, state) = world_with_earlier_journal("settle-nothing", "state");
+    let proc_root: PathBuf = world.root.join("proc-unreadable");
+    assert_eq!(settle(&world, state.as_path(), proc_root.as_path()), RequestedSettlement::NothingOpen);
+    remove(world.root.as_path());
+}
+
+/// With an open batch and nothing that runs or listens, the batch is finished as the adoption finishes it, each batch is
+///  logged with its number, and a second request finds nothing.
+#[test]
+fn an_open_batch_is_finished_when_asked_and_each_batch_is_logged() {
+    let (world, state) = world_with_earlier_journal("settle-finish", "state");
+    let landed: CommitRequest = request(&world, "finish", "finish.txt", "finish\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]).lines().count(), 2, "the index shows the landed file reverted");
+    let proc_root: PathBuf = empty_proc(&world);
+    let mut settled: Option<RequestedSettlement> = None;
+    let entries = crate::service_timing::capture::entries_of(|| { settled = Some(settle(&world, state.as_path(), proc_root.as_path())); });
+    let Some(RequestedSettlement::Settled(batches)) = settled else { panic!("{settled:?}") };
+    assert_eq!(batches.iter().map(|batch| { return (batch.report.seq, batch.report.handled, batch.journal.clone()); }).collect::<Vec<_>>(), vec![(1, Handled::Finished, world.context.journal.clone())]);
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    assert!(entries.iter().any(|entry| { return entry.message.contains("batch=1") && entry.message.contains("finish"); }), "{entries:?}");
+    assert_eq!(settle(&world, state.as_path(), proc_root.as_path()), RequestedSettlement::NothingOpen);
+    remove(world.root.as_path());
+}
+
+/// Each reason the look gives for holding back is passed on, and nothing is settled while it stands: the batch stays open.
+#[test]
+fn nothing_is_settled_while_an_earlier_helper_may_run_or_start_and_the_reason_is_given() {
+    let (world, state) = world_with_earlier_journal("settle-held", "state");
+    let landed: CommitRequest = request(&world, "held", "held.txt", "held\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let instance: String = instance_for(&world);
+    let listening: PathBuf = empty_proc(&world);
+    write_unix_table(listening.as_path(), &[unix_table_line(LISTENING_FLAGS, "cli-git", format!("{instance}.sock").as_str())]);
+    assert_eq!(settle(&world, state.as_path(), listening.as_path()), RequestedSettlement::Held { open: 1, because: Hold::SocketListens });
+    let running: PathBuf = empty_proc(&world);
+    fake_process(running.as_path(), 77, &["/p/cli-git-native", "cli-git", "service", "run", "--instance", instance.as_str()]);
+    assert_eq!(settle(&world, state.as_path(), running.as_path()), RequestedSettlement::Held { open: 1, because: Hold::ServiceRuns });
+    let unreadable: PathBuf = empty_proc(&world);
+    std::fs::remove_file(unreadable.join("net/unix")).expect("the table is gone");
+    assert_eq!(settle(&world, state.as_path(), unreadable.as_path()), RequestedSettlement::Held { open: 1, because: Hold::CannotLook });
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 1, "still open");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]).lines().count(), 2, "the index is as it was");
+    remove(world.root.as_path());
+}
+
+/// A batch of another worktree in the shared journal is that worktree's: it is not counted, looked at or settled.
+#[test]
+fn the_batch_of_another_worktree_in_the_shared_journal_is_not_settled() {
+    let (world, state) = world_with_earlier_journal("settle-other", "state");
+    let shared: PathBuf = state.join(DATA_FOLDER.earlier).join("service");
+    let landed: CommitRequest = request(&world, "other", "other.txt", "other\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let text: String = std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read");
+    std::fs::remove_file(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("moved away");
+    let mut intent = parse_intent(text.as_str()).expect("parse");
+    intent.git_dir = world.root.join("another-worktree/.git");
+    write_intent(shared.as_path(), &intent).expect("the other worktree's batch");
+    assert_eq!(settle(&world, state.as_path(), empty_proc(&world).as_path()), RequestedSettlement::NothingOpen);
+    assert_eq!(list_intents(shared.as_path(), OPEN_EXTENSION).len(), 1);
+    remove(world.root.as_path());
+}
+
+/// The recovery is finish-only: a batch that looks as if it never landed keeps its intent on disk, because a landing in
+///  progress writes its intent first, and the request says so.
+#[test]
+fn a_batch_that_looks_unlanded_is_left_on_disk() {
+    let (world, state) = world_with_earlier_journal("settle-left", "state");
+    let landed: CommitRequest = request(&world, "left", "left.txt", "left\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let mut intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
+    intent.seq = 2;
+    intent.old = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    intent.new = "f".repeat(40);
+    write_intent(world.context.journal.as_path(), &intent).expect("the intent of a landing in progress");
+    let RequestedSettlement::Settled(batches) = settle(&world, state.as_path(), empty_proc(&world).as_path()) else { panic!("settled") };
+    let handled: Vec<(u64, Handled)> = batches.iter().map(|batch| { return (batch.report.seq, batch.report.handled); }).collect();
+    assert!(handled.contains(&(1, Handled::Finished)) && handled.contains(&(2, Handled::Left)), "{handled:?}");
+    assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "the intent stays");
+    remove(world.root.as_path());
+}
+
+/// Found when the settle command first ran against a real wrapper: the service of this release runs the same words
+///  (`service run --instance <instance>`) behind the current command word, and it is no earlier helper, so it does not hold the
+///  command back; the same words behind the earlier command word do.
+#[test]
+fn the_service_of_this_release_is_no_earlier_helper() {
+    let (world, state) = world_with_earlier_journal("settle-own-service", "state");
+    let landed: CommitRequest = request(&world, "own", "own.txt", "own\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let instance: String = instance_for(&world);
+    let proc_root: PathBuf = empty_proc(&world);
+    let new_journal: String = state.join("monochromatic-git-policy-cli/service").join(instance.as_str()).display().to_string();
+    std::fs::create_dir_all(new_journal.as_str()).expect("the new service's journal exists, as it does for a running service");
+    fake_process(proc_root.as_path(), 41, &["/p/monochromatic-git-policy-cli", "monochromatic-git-policy-cli", "service", "run", "--journal", new_journal.as_str(), "--instance", instance.as_str()]);
+    let RequestedSettlement::Settled(batches) = settle(&world, state.as_path(), proc_root.as_path()) else { panic!("the new service held the settling back") };
+    assert_eq!(batches.len(), 1);
+    remove(world.root.as_path());
+}

@@ -80,6 +80,25 @@ pub fn service_unit_instance(instance: &str) -> String {
     return format!("{}@{instance}.service", SERVICE_UNIT.current);
 }
 
+/// The name of the socket unit instance that the earlier release (`cli-git@<instance>.socket`) gave the same worktree. The
+///  instance is the same text as this release's: both hash the real path of the worktree's own Git directory with the same
+///  FNV-1a constants (tag `monochromatic-git-policy-cli-v0.5.34`, `service_instance.rs`, `instance_of` and `socket_unit_instance`),
+///  so the earlier unit of one worktree is never the unit of another.
+pub fn earlier_socket_unit_instance(instance: &str) -> String {
+    return format!("{}@{instance}.socket", SERVICE_UNIT.earlier);
+}
+
+/// The name of the service unit instance that the earlier release gave the same worktree.
+pub fn earlier_service_unit_instance(instance: &str) -> String {
+    return format!("{}@{instance}.service", SERVICE_UNIT.earlier);
+}
+
+/// The socket file of the earlier release's unit for an instance (`ListenStream=%t/cli-git/%i.sock`), which the manager makes
+///  and removes.
+pub fn earlier_socket_path(runtime_dir: &Path, instance: &str) -> PathBuf {
+    return runtime_dir.join(SERVICE_UNIT.earlier).join(format!("{instance}.sock"));
+}
+
 /// Instance controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_instance_tests.rs"]

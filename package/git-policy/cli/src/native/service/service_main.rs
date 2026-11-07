@@ -11,6 +11,10 @@
 //!  give `--idle-seconds <n>` and `--release <text>` (the release announced to clients; default this build's). The unit
 //!  instance of one worktree passes `--instance <name>` (`service_instance.rs`), and that service refuses messages about
 //!  any other worktree; without it a development run serves any.
+//!  The service finishes no batch of an earlier release's helper and has no option that does: the look that would guard it cannot
+//!  exclude a wrapper of the earlier release that starts the helper meanwhile (cross-vendor reviews of 2026-11-07), so only
+//!  `git monochromatic-git-policy-cli service settle-earlier-batches`, run by a person, does it
+//!  (`earlier_service_journal_adopted.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,7 +23,6 @@
 
 use crate::service_journal::{DONE_RETAINED, prune_done};
 use crate::wrapper_names_old_and_new::COMMAND_WORD;
-use crate::earlier_service_journal_adopted::adopt_open_batches;
 use crate::service_land::{LandContext, recover_instance};
 use crate::service_protocol::PROTOCOL_VERSION;
 use crate::service_timing::{log, started_line};
@@ -216,9 +219,6 @@ pub fn run(arguments: &[String]) -> i32 {
         let _reports = recover_instance(&earlier, instance);
         // Nothing reads that journal's finished batches any more; the newest are kept and the rest go, so it stops growing.
         let _pruned = prune_done(shared, DONE_RETAINED);
-        // The unit of this release keeps the journal in a state folder named after the renamed program: the batches the earlier
-        //  helper of this worktree left open in its own folder are finished here too, when no service of the worktree runs.
-        let _adopted = adopt_open_batches(&context, instance, std::path::Path::new("/proc"));
     }
     crate::service_log!("ready");
     serve(listener, &context, &settings);

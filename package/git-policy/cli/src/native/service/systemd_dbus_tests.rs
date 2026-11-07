@@ -569,3 +569,27 @@ fn the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit() {
     let _removed_service = std::fs::remove_file(units.join(format!("{name}.service")));
     assert_eq!(outcome, Ok(()));
 }
+
+/// A stop that spares the units requiring the stopped one names the job mode that says so, and the plain stop keeps `replace`.
+#[test]
+fn a_stop_that_spares_the_dependent_units_names_the_mode_that_ignores_dependencies() {
+    let root = short_directory("stop-alone");
+    let socket = root.join("bus");
+    let listener = UnixListener::bind(&socket).expect("listen");
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let script: Script = Script {
+        answers: vec![
+            vec![name_acquired(), string_return(1, ":1.42")],
+            vec![hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])],
+            vec![hand_message(METHOD_RETURN, 13, &[serial_field(3)], &[])],
+        ],
+    };
+    serve_bus(listener, script, sender);
+    let mut bus: Bus = Bus::connect(socket.as_path(), Duration::from_secs(10)).expect("connected");
+    bus.stop_unit("a.socket").expect("stopped");
+    bus.stop_unit_alone("b.socket").expect("stopped alone");
+    let (_auth, calls) = receiver.recv().expect("seen");
+    assert_eq!(calls[1], encode_call(2, &STOP_UNIT, &["a.socket", "replace"]));
+    assert_eq!(calls[2], encode_call(3, &STOP_UNIT, &["b.socket", "ignore-dependencies"]));
+    remove(root.as_path());
+}

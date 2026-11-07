@@ -430,6 +430,9 @@ git monochromatic-git-policy-cli fix -- docs/ README.md
 git monochromatic-git-policy-cli check --all --policy final-newline
 # List the hook files and configured hooks the repository holds; none of them runs.
 git monochromatic-git-policy-cli doctor
+# Whether the commit service answers, and finish the batches an earlier release's service left open (see below).
+git monochromatic-git-policy-cli service status
+git monochromatic-git-policy-cli service settle-earlier-batches
 # Convert the main checkout into a btrfs subvolume (preview first); see the section below.
 git monochromatic-git-policy-cli migrate-to-subvolume --dry-run
 git monochromatic-git-policy-cli --help
@@ -463,6 +466,23 @@ Without `--policy` an off policy is skipped without a word,
  and so it is when a commit,
  an add or a push runs.
 Events are JSON lines on standard output.
+
+`git monochromatic-git-policy-cli service settle-earlier-batches` finishes the batches that the commit service of an
+ earlier release (the program was called `cli-git-native` and its units `cli-git@<instance>`) accepted for the worktree
+ it runs in and left open, for example after a logout or a kill, so that the person's index shows the landed commit again.
+It takes no options and acts on the current worktree only.
+**It is safe only when no wrapper of the earlier release is in use in that worktree at this moment**:
+ such a wrapper sets its commit service up again and can start the earlier helper while the command runs,
+ and two services could then settle one batch.
+Before it acts, the command checks that no socket of the earlier units listens and no earlier helper runs;
+ when one does, it settles nothing, says why, and says what to do
+ (stop the earlier units with `systemctl --user stop`, or wait for the helper to exit by itself,
+ which it does when idle, three hours after its last client).
+When the checks pass it says the condition above on standard error,
+ then finishes the batches that landed, one line each on standard output,
+ and leaves the intent of a batch that looks as if it never landed on disk.
+Nothing runs it by itself, and a commit never waits for it.
+`git monochromatic-git-policy-cli doctor` says on standard error how many such batches the worktree has and names this command.
 
 `git monochromatic-git-policy-cli doctor` takes no options.
 It scans `<git-common-dir>/hooks` and the directory a configured `core.hooksPath` names,

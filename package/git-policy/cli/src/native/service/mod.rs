@@ -13,6 +13,9 @@
 //! // service/index.ts: one `export * from './file'` per module below.
 //! ```
 
+/// Whether a socket of an earlier release's unit listens, read from the table of unix sockets.
+pub mod earlier_unix_sockets_that_listen;
+
 /// Messages between the wrapper and the resident commit service.
 pub mod service_protocol;
 

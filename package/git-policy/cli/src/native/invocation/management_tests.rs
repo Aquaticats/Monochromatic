@@ -690,6 +690,49 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
     remove(root.as_path());
 }
 
+/// The doctor reports, read-only, how many batches the earlier release's commit service left open for this worktree, and names
+///  the command that settles them; the exit status and standard output do not change, and a worktree with none gets no note.
+#[test]
+fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_command() {
+    let root: PathBuf = fixture("management-doctor-earlier-batches");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let inputs: ResolutionInputs = with_git(root.as_path());
+    let state: PathBuf = root.join("state");
+    let mut environment: Vec<(OsString, OsString)> = isolated_overlay();
+    environment.push((OsString::from("XDG_STATE_HOME"), state.as_os_str().to_os_string()));
+    let global: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_os_string()];
+    let doctor = || -> (i32, String, String) {
+        return exit_parts(plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), environment.as_slice(), &inputs, &|_| { return String::new(); }));
+    };
+    let (quiet_code, _, quiet_stderr) = doctor();
+    assert_eq!(quiet_code, 0);
+    assert!(!quiet_stderr.contains("settle-earlier-batches"), "{quiet_stderr}");
+    let git_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("git directory");
+    let journal: PathBuf = state.join("cli-git/service").join(crate::service_instance::instance_of(git_dir.as_path()));
+    std::fs::create_dir_all(&journal).expect("the earlier journal");
+    let intent = crate::service_journal::Intent {
+        seq: 1,
+        repository: repo.clone(),
+        common_dir: git_dir.clone(),
+        reference: String::from("refs/heads/main"),
+        old: "a".repeat(40),
+        new: "b".repeat(40),
+        ids: vec![String::from("id")],
+        commits: vec!["c".repeat(40)],
+        paths: vec![String::from("a.txt")],
+        derived: false,
+        cleanup: None,
+        index: git_dir.join("index"),
+        git_dir: git_dir.clone(),
+    };
+    crate::service_journal::write_intent(journal.as_path(), &intent).expect("an open batch");
+    let (code, stdout, stderr) = doctor();
+    assert_eq!((code, stdout.as_str()), (0, ""));
+    assert!(stderr.contains("1 batch") && stderr.contains("git monochromatic-git-policy-cli service settle-earlier-batches"), "{stderr}");
+    assert!(crate::service_journal::batch_path(journal.as_path(), 1, crate::service_journal::OPEN_EXTENSION).exists(), "the doctor changed nothing");
+    remove(root.as_path());
+}
+
 /// The environment of a user whose own file holds `settings`,
 /// with the system configuration file left in play:
 /// the reader then
