@@ -1156,6 +1156,12 @@ proved the Wayland library step.
   The first dispatch pushed without a refusal.
   `release:wait` ended with the expected library line `PUBLISH CHECK FAILED: missing release assets`.
 
+- `monochromatic-dependency-catalog` 0.2.0 to 0.2.1:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369457223`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369535765`
+  (built from `a8923376a2`),
+  crates.io `2026-11-07T11:47:06.445839Z`, `yanked` false.
+
 ## Evidence log
 
 - crates.io API reads:
