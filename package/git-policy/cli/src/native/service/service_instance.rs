@@ -88,6 +88,52 @@ pub fn instance_of(git_dir: &Path) -> String {
     return format!("{hash:032x}");
 }
 
+/// What:
+///  Why a Git directory has no instance name:
+/// it cannot be resolved to a real path.
+/// Why:
+///  A link to a drive that is not mounted names nothing,
+/// and a name made from its text would make a socket,
+/// a unit instance and a journal directory for a place that is not there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class GitDirUnreachable extends Error { path: string; }
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitDirUnreachable {
+    /// The Git directory as given.
+    pub path: PathBuf,
+    /// The operating system's reason,
+    /// such as `No such file or directory (os error 2)`.
+    pub reason: String,
+}
+
+impl std::fmt::Display for GitDirUnreachable {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return write!(formatter, "the Git directory {} cannot be resolved: {}", self.path.display(), self.reason);
+    }
+}
+
+impl std::error::Error for GitDirUnreachable {}
+
+/// What:
+///  The instance name of a worktree,
+/// or why the Git directory has none.
+/// Why:
+///  Name a socket,
+/// a unit instance or a journal directory only through this function:
+/// it refuses a directory that cannot be resolved,
+/// where `instance_of` would hash the text as given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// tryInstanceOf(gitDir) // '3f9a...' or throws GitDirUnreachable
+/// ```
+pub fn try_instance_of(git_dir: &Path) -> Result<String, GitDirUnreachable> {
+    todo!("{}", git_dir.display())
+}
+
 /// The socket of an instance under the user's runtime directory.
 pub fn socket_path(runtime_dir: &Path, instance: &str) -> PathBuf {
     return runtime_dir.join(SOCKET_DIRECTORY).join(format!("{instance}.sock"));

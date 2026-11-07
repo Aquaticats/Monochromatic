@@ -20,8 +20,9 @@ import {
   openRepositoryRoot,
   writeIdentity,
 } from '../dist/final/node/index.mjs';
-import { mkdtemp, mkdir, rm, } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { fileURLToPath, } from 'node:url';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 const LINK = '/home/u/Monochromatic';
@@ -102,6 +103,47 @@ function probeOf(world: World,): Probe {
 async function answerFor({ identity, world, }: { identity: LinkIdentity; world: World; },) {
   return await checkRepositoryLink({ read: { found: true, identity, }, probe: probeOf(world,), },);
 }
+
+// The rows below are shared with the Rust copy of the check in the Git wrapper: the Rust suite
+// package/git-policy/cli/src/native/repository_link_check/repository_link_shared_table_tests.rs runs the same file.
+// Edit a row in the JSON and both suites follow; the crate holds the file because the container gate copies only the crate.
+const SHARED_TABLE_PATH = fileURLToPath(new URL(
+  '../../../git-policy/cli/src/native/repository_link_check/repository_link_shared_table.json',
+  import.meta.url,
+),);
+
+type SharedRow = {
+  readonly name: string;
+  readonly found: boolean;
+  readonly identity: Partial<LinkIdentity>;
+  readonly world: World;
+  readonly expect: { readonly kind: string; readonly ready: boolean; readonly message?: string; readonly contains?: readonly string[]; };
+};
+
+type SharedTable = {
+  readonly baseIdentity: LinkIdentity;
+  readonly rowCount: number;
+  readonly rows: readonly SharedRow[];
+};
+
+async function readSharedTable(): Promise<SharedTable> {
+  return JSON.parse(await readFile(SHARED_TABLE_PATH, 'utf8',),) as SharedTable;
+}
+
+/**
+ The table, or nothing when the path no longer resolves: the test of the path then fails by name instead of the whole file
+ failing at load.
+ */
+async function readSharedTableOrNothing(): Promise<SharedTable | undefined> {
+  try {
+    return await readSharedTable();
+  }
+  catch {
+    return undefined;
+  }
+}
+
+const sharedTable = await readSharedTableOrNothing();
 
 await describe({
   name: checkRepositoryLink.name,
@@ -294,6 +336,42 @@ await describe({
               (await answerFor({ identity: BEFORE, world: { ...base, entries: { [LINK]: 'directory', }, }, },)).kind,
             ).toBe('not-a-repository',);
           },
+        },),
+      ],
+    },),
+    describe({
+      name: 'the table shared with the Git wrapper',
+      children: [
+        it({
+          name: 'resolves from this suite to the file inside the Git wrapper crate, with the row count it declares',
+          fn: async () => {
+            const table = await readSharedTable();
+            expect(table.rows.length,).toBe(table.rowCount,);
+            expect(table.rowCount,).toBeGreaterThan(0,);
+          },
+        },),
+        ...(sharedTable?.rows ?? []).map(function rowTest(row,) {
+          return it({
+            name: row.name,
+            fn: async () => {
+              if (sharedTable === undefined) {
+                throw new Error(`the shared table ${SHARED_TABLE_PATH} does not resolve`,);
+              }
+              const identity: LinkIdentity = { ...sharedTable.baseIdentity, ...row.identity, };
+              const answer = await checkRepositoryLink({
+                read: { found: row.found, identity, },
+                probe: probeOf(row.world,),
+              },);
+              expect(answer.kind,).toBe(row.expect.kind,);
+              expect(answer.ready,).toBe(row.expect.ready,);
+              if (row.expect.message !== undefined) {
+                expect(answer.message,).toBe(row.expect.message,);
+              }
+              for (const part of row.expect.contains ?? []) {
+                expect(answer.message,).toContain(part,);
+              }
+            },
+          },);
         },),
       ],
     },),

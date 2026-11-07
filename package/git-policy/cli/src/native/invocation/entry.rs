@@ -497,3 +497,9 @@ mod stop_tests;
 #[cfg(test)]
 #[path = "entry_tests.rs"]
 mod tests;
+
+/// The repository link gate at the entry:
+/// a command that names a repository whose link to the 860 dangles stops with the plain message.
+#[cfg(test)]
+#[path = "entry_repository_link_tests.rs"]
+mod repository_link_tests;

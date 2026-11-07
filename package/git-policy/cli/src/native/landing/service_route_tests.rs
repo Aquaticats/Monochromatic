@@ -148,3 +148,44 @@ fn the_user_unit_directory_follows_the_configuration_home() {
     assert_eq!(user_unit_dir(None, Some(Path::new("/home/a"))), Some(PathBuf::from("/home/a/.config/systemd/user")));
     assert_eq!(user_unit_dir(None, None), None);
 }
+
+/// A Git directory that cannot be resolved has no route even when the runtime directory,
+/// the bus and the program are all there:
+/// no socket path or unit instance is named for it,
+/// and nothing is created under the runtime directory.
+#[test]
+fn an_unreachable_git_directory_has_no_route_and_names_nothing() {
+    let machine: Machine = machine("route-unreachable");
+    let address: String = add_bus(&machine);
+    add_program(&machine);
+    let link: PathBuf = machine.root.join("dangling");
+    std::os::unix::fs::symlink(machine.root.join("no-such-target"), &link).expect("dangling link");
+    let git_dir: PathBuf = link.join(".git");
+    let before: Vec<PathBuf> = entries_of(machine.runtime.as_path());
+    let mut route_inputs: RouteInputs<'_> = inputs(&machine, Some(address.as_str()));
+    route_inputs.git_dir = git_dir.as_path();
+    assert_eq!(choose_route(&route_inputs), None);
+    assert_eq!(entries_of(machine.runtime.as_path()), before, "nothing was created");
+    remove(machine.root.as_path());
+}
+
+/// The status of a worktree whose Git directory cannot be resolved says the cause,
+/// and does not connect to any socket.
+#[test]
+fn the_status_of_an_unreachable_git_directory_says_the_cause() {
+    let machine: Machine = machine("route-status-unreachable");
+    let git_dir: PathBuf = machine.root.join("absent/.git");
+    let report: StatusReport = service_status(Some(machine.runtime.as_path()), Some(git_dir.as_path()));
+    assert_eq!(report.code, 1);
+    assert!(report.stderr.contains(git_dir.to_string_lossy().as_ref()), "{}", report.stderr);
+    assert!(report.stderr.contains("cannot be resolved"), "{}", report.stderr);
+    assert!(!report.stderr.contains("sets itself up"), "{}", report.stderr);
+    remove(machine.root.as_path());
+}
+
+/// The sorted entries of a folder.
+fn entries_of(folder: &Path) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = std::fs::read_dir(folder).expect("folder").flatten().map(|entry| return entry.path()).collect();
+    found.sort();
+    return found;
+}

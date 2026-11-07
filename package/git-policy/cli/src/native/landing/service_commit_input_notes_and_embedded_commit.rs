@@ -21,7 +21,7 @@ use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_messages::{ClientFailure, render};
 use crate::service_provision::platform_without_manager;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use crate::service_server::Bind;
 use crate::service_provision::ProvisionHost;
 use crate::service_route::{Route, RouteInputs, choose_route, non_empty_path_variable, remembered_own_executable, worktree_git_dir};
@@ -286,3 +286,22 @@ pub(crate) fn managed_client_config(address: Bind, provisioning: Option<&Provisi
         keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING,
     };
 }
+
+/// What:
+///  The stop for a worktree that has no route to a service.
+/// Why:
+///  The cause is named:
+/// a Git directory that cannot be resolved (a link to a drive that is not mounted) is not a machine without a service manager.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stop = refusalWithoutRoute(gitDir);
+/// ```
+pub(crate) fn refusal_without_route(git_dir: &Path) -> TransactionStop {
+    return TransactionStop::Message(render(&ClientFailure::NoActivation(platform_without_manager())));
+}
+
+/// Controls of the stop for a worktree without a route.
+#[cfg(test)]
+#[path = "service_commit_input_notes_and_embedded_commit_tests.rs"]
+mod tests;

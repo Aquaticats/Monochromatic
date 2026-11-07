@@ -25,6 +25,11 @@ pub mod fs_kind;
 #[cfg(target_os = "linux")]
 pub mod fs_mount_options;
 
+/// The UUID of the filesystem on a mount's source device,
+/// from udev's `/dev/disk/by-uuid` links.
+#[cfg(target_os = "linux")]
+pub mod fs_uuid_of_source;
+
 /// The btrfs ioctls that create,
 /// snapshot and destroy a subvolume,
 /// called in process.
