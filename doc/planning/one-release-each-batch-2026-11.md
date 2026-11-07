@@ -1236,6 +1236,13 @@ proved the Wayland library step.
   crates.io `2026-11-07T12:48:15.573379Z`, `yanked` false.
   Exempt crate: no README notice. GitHub release `forbidden-strings-v0.6.2` holds all eight target assets. Wave 1 is complete on crates.io.
 
+- `monochromatic-pnpm-shadow` 0.1.1 to 0.1.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374326862`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374408890`
+  (built from `0172aface6`),
+  crates.io `2026-11-07T12:54:08.727833Z`, `yanked` false.
+  GitHub release `monochromatic-pnpm-shadow-v0.1.2` holds both Linux tarballs and the checksums file.
+
 ## Evidence log
 
 - crates.io API reads:
