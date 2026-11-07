@@ -3976,9 +3976,29 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     tip `944bdd30b5` after the coordinator merged main and resolved the plan-doc conflict to the branch side,
     whose only main change was the linter's whitespace reflow;
     the agent's last gate was 5209 of 5209 on `ad314ca6eb`;
-    the merged tree's gate runs as unit `tokio-merge-gate-944bdd30b5`,
-    log `~/temp/agent/tokio-merge-gate-944bdd30b5.log`;
-    then merge into main,
+    the merged tree's gate (unit `tokio-merge-gate-944bdd30b5`,
+    log `~/temp/agent/tokio-merge-gate-944bdd30b5.log`)
+    failed 5 of 5216:
+    `SIGABRT` in `push::auto_push_reconcile::tests::what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal`
+    and the two `push::push_slow_server_tests` HTTP controls,
+    `push::bounded_push::tests::a_tree_still_running_after_the_grace_is_swept_when_it_ends`
+    ("a tree that still runs is not swept"),
+    and `service::service_reply::tests::a_queued_answer_is_written_before_the_connection_closes`
+    (read `Heartbeat`,
+    expected `Landed`);
+    that last one is a race in a test main has had since `8183dcc6fd`,
+    not a tokio regression:
+    the branch changes nothing it uses,
+    the writer sends a beat after `recv_timeout` of 20 ms (`service_reply.rs:123-136`),
+    and the test asserts the queued answer is the first line (`service_reply_tests.rs:65-71`),
+    so a test thread scheduled more than 20 ms late reads a beat first;
+    the tokio agent fixes the test with a sleep control proving the race;
+    back with the tokio agent for measured causes of the four push failures;
+    the coordinator's unmeasured hypothesis is that stops now wait up to 18 s whenever a member is in `D` under disk pressure,
+    which would be a production regression too;
+    not merged;
+    after a clean gate:
+    merge into main,
     `native:perf`,
     a wrapper alpha,
     and the mutation campaign over the changed files;
@@ -4300,6 +4320,35 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `package/ide/app` Clippy `E0308` at `src/tile_scene.rs:141` after a `parley` API change;
   `package/terminal/app` lint fails in the `libghostty-vt-sys` build script fetching Ghostty;
   `cargo-shadow install` offline fails on the music player because the cached index marks `clipboard-win` 5.4.1 yanked.
+  Measured cause of the `terminal/app` failure:
+  the build script runs `git clone --no-checkout` into cargo's build folder and then `git checkout <commit>`,
+  and the Git wrapper read the clone's unwritten index as uncommitted changes
+  (`linked-worktree-only/linked-worktree-required`).
+  Wrapper fix on that branch,
+  following Git's own rule that an unborn index is an initial checkout
+  (`read-cache.c:2429-2432` `is_index_unborn`,
+  `builtin/checkout.c:829`,
+  Git 2.56.0):
+  red tests `3d81ae9d73`,
+  fix `6b33a8963c` (HEAD-only forms only;
+  `reset --hard`,
+  `checkout -f`,
+  `restore` and `clean` stay guarded),
+  lint and Clippy clean,
+  container gate running;
+  it merges into main without waiting for the tokio branch and ships in the next wrapper alpha.
+  The owner approved two `terminal/app` route edits (2026-11-07);
+  the one that strips the wrapper from `PATH` is not used,
+  and the container fallback is kept only in case the wrapper fix fails.
+- Incident (disk wear):
+  `package/ide/app` test `change_watch recovery::queue_overflow_requests_a_full_reread`
+  creates `max_queued_events / 2` files,
+  and this host's `fs.inotify.max_queued_events` is 10000000;
+  one run wrote more than 4 million files in a worktree's `target/tmp` in 20 minutes before the agent stopped and deleted them.
+  Assigned to the same agent:
+  an injected overflow event with a small fixed count,
+  never writes scaled by a host limit,
+  and a search for other tests sized from `/proc/sys`.
   The music-player ellipsis test passed three times for the zbus agent;
   its cause is still unmeasured.
 - Held settle message:
