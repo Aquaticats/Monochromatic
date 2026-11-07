@@ -4385,10 +4385,33 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   (`strace -e execve`);
   refreshing the worktree's links ended it.
   Against the owner's "We should never invoke ourselves recursively" and "nothing should ever wait forever or indefinitely".
-  Given to an agent (`fix/shadows-never-start-another-shadow`):
-  identity check plus arrival marker so no shadow starts any shadow,
-  an audit of every shadow and launcher,
-  alpha releases.
+  Fixed and merged (`ec70e4cf26`):
+  every shadow (`search-shadow`,
+  `pnpm-shadow`,
+  `cargo-shadow`,
+  `mpm-shadow`) carries
+  `MONOCHROMATIC-SHADOW-IDENTITY/1 <crate> <version>` in an ELF section,
+  skips a candidate that carries it,
+  follows launcher records up to 8 hops,
+  starts a vetted program through `/proc/self/fd/N`,
+  and stops on arrival (`MONOCHROMATIC_SHADOW_STARTED_BY`);
+  `mpm-shadow`'s launcher refuses circular records (exit 126);
+  `src/shadow_identity.rs` is byte-identical in the four crates (a test fails otherwise).
+  Before:
+  419 execs in 4 s;
+  after:
+  2 execs and the real `grep`.
+  Released as `mpm-shadow` 0.2.7-alpha.5,
+  `search-shadow` 0.2.3-alpha.1,
+  `pnpm-shadow` 0.1.3-alpha.1 and `cargo-shadow` 0.1.5-alpha.3,
+  locked `2b9a1589ae`,
+  installed;
+  about +0.2 ms per call.
+  Open:
+  cargo-shadow's install-step cargo starts without the arrival marker;
+  `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` failed twice
+  (it needs a freed time-namespace number reused,
+  shared by every session on the host).
   Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
   its worktree and branch are removed.
 - Repository-wide `monochromatic-lint`:
@@ -5212,11 +5235,27 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   against the brief's "No sudo");
   the guardrail has no `sudo` rule (`package/claude-code-plugin/guardrail/src/index.ts`,
   searched).
-  Next:
-  the preparation work (W1 first,
-  the `move-repository.ts` fixes,
-  both scripts into the repository),
-  given to an agent 2026-11-07.
+  Preparation merged (`d393987084`):
+  `package/repository-move/cli` (copy tool with records by UUID plus path,
+  separate freeze and thaw passes,
+  a total deadline,
+  external passes that report deletions;
+  the TypeScript runner `repository-move-run`,
+  run by the coordinator)
+  and `package/repository-link/check` (W1);
+  runbook `doc/runbook/repository-on-the-860-drive-guided-runner.md`.
+  The coordinator ran `prepare` (unit `repository-move-prepare`,
+  log `~/temp/agent/860-prepare.log`):
+  `i1-install-link-check`,
+  `i2-record-before` and `f1a-folder` completed;
+  `f1-images` stopped because the runner built the fixture path at plan time
+  (the dry-run placeholder `send-fixture.DRYRUN`)
+  instead of reading `f1a`'s folder (`send-fixture.zyCVij`);
+  nothing was mounted.
+  The fix goes test-first to the W2 to W15 agent (`feat/repository-move-dangling-link-items`),
+  which also builds W2 to W15 and makes the two new packages lint-clean (both exit 1 on warnings today).
+  The swap waits for W2 to W15 (owner:
+  "take care of dangling links").
 
 - The symlink plan is committed (`4f430a0683`,
   `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`;
