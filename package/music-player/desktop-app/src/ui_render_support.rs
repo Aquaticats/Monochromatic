@@ -106,7 +106,7 @@ use crate::ui_test_support::{RecordingHost, load_library, settle};
 /// Why: an animation that starts during one pass must have ended by the next, whatever the speed of the build. 150 ms is the
 /// longest animation time in `ui/*.slint` (the Settings pane cross-fade and the deck move); the test
 /// `the_pass_step_covers_the_longest_animation_time_of_the_markup` fails when a longer one is written.
-pub(crate) const PASS_STEP: Duration = Duration::ZERO;
+pub(crate) const PASS_STEP: Duration = Duration::from_millis(150);
 
 /// What: `FRAME_STEP_MS` is the length of one frame that `Rendered::wait` moves the clock by: 16 ms.
 /// Why: a timer fires once per update however far the clock jumped, so a long wait is cut into frames like a window's (the
