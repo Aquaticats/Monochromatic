@@ -308,6 +308,20 @@ The owner's answers, recorded in `ad1802df3c` (2026-11-07T06:37:42-05:00):
   The `package/git-policy/cli` rule comes with the branch named in the previous answer.
   `package/config/lfs-r2-worker`, the package the LFS work that ran the dialog-opening test is about,
   gets its rule when the owner lifts the pause on that work ("pause the lfs thread until I say unpause lfs").
+- The wrapper now does what the first answer says, in `2cdf47c5bc` (2026-11-07T07:00:17-05:00), after the red controls of `06337a9b05` (2026-11-07T06:53:59-05:00).
+  The commit service's Git and git-lfs children (landing and upkeep through the service's `GitContext`, and the push,
+  the reconcile fetch and the LFS upload through each push's environment) start from `service_child_overlay` in
+  `package/git-policy/cli/src/native/invocation/child_environment.rs`,
+  which adds `GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0`.
+  `SSH_ASKPASS` stays in the environment for OpenSSH.
+  Commands the user types and the wrapper forwards, and the probes and the LFS upload of a typed `git push`, are unchanged.
+  Before the fix the push control's recorder, standing in for `ksshaskpass` through `SSH_ASKPASS`, was asked
+  `Username for 'http://127.0.0.1:<port>'` and `Password for 'http://probe-user@127.0.0.1:<port>'`, and the LFS control's
+  stand-in `git-lfs` asked it `Username for "http://127.0.0.1"`; after the fix neither is asked and the push ends as the
+  login failure the person is told about ("terminal prompts disabled", final, no retry).
+  The LFS control uses a stand-in that follows the `creds/creds.go` order quoted above, because the gate's image has no
+  `git-lfs`; the real git-lfs is covered by the probe in "Verification", not by the wrapper's tests.
+  The `package/git-policy/cli` rule is `NDG` in that package's `README.md`, section "Git commands that may need a login".
 
 ## Upstream filing decision
 

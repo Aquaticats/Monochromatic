@@ -368,6 +368,53 @@ pub fn environment_with_overlay(
     return result;
 }
 
+/// The variable Git and git-lfs run a password program from before they read `GIT_TERMINAL_PROMPT`; set to the empty string it
+///  stops the search for one.
+pub const ASKPASS_VARIABLE: &str = "GIT_ASKPASS";
+
+/// The variable that tells Git and git-lfs not to ask on a terminal.
+pub const TERMINAL_PROMPT_VARIABLE: &str = "GIT_TERMINAL_PROMPT";
+
+/// What:
+///  The two variables that make a Git or git-lfs run that needs a login fail at once instead of asking anyone:
+///  `GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0`.
+/// Why:
+///   Git 2.56.0 (`prompt.c`) and git-lfs 3.8.1 (`creds/creds.go`) try `GIT_ASKPASS`, then `core.askPass`, then `SSH_ASKPASS`
+///  before they read `GIT_TERMINAL_PROMPT`, and the systemd user manager that starts the commit service carries
+///  `SSH_ASKPASS=/usr/bin/ksshaskpass` with a display, so `GIT_TERMINAL_PROMPT=0` alone opened a desktop dialog nobody was
+///  there to answer. A set but empty `GIT_ASKPASS` stops both programs before `core.askPass` and `SSH_ASKPASS`, and they fail
+///  with "terminal prompts disabled". `SSH_ASKPASS` stays in the environment: OpenSSH reads it for key passphrases.
+///  The owner's pick of 2026-11-07 is "Never prompt" for background Git and git-lfs
+///  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`, "What this repository does about it").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const neverPrompt: [string, string][] = [['GIT_ASKPASS', ''], ['GIT_TERMINAL_PROMPT', '0']];
+/// ```
+pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
+    return vec![
+        (OsString::from(ASKPASS_VARIABLE), OsString::new()),
+        (OsString::from(TERMINAL_PROMPT_VARIABLE), OsString::from("0")),
+    ];
+}
+
+/// What:
+///  Every variable the commit service adds for the Git and git-lfs children it starts on its own, with no person at a
+///  terminal: the lock PID injection and the never-prompt pair.
+/// Why:
+///   The service's landing, upkeep, push, reconcile fetch and LFS upload all start from this one list, so a start added
+///  later cannot miss the pair. A command the person typed (`child_environment_overlay`) is left to Git's own prompting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [...lockfilePidOverlay(environment), ...neverPrompt]
+/// ```
+pub fn service_child_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+    let mut overlay: Vec<(OsString, OsString)> = lockfile_pid_overlay(environment);
+    overlay.extend(never_prompt_overlay());
+    return overlay;
+}
+
 /// Lookup and count-parsing controls,
 ///  checked against real Git.
 #[cfg(test)]

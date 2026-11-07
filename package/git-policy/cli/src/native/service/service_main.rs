@@ -195,7 +195,7 @@ pub fn run(arguments: &[String]) -> i32 {
         }
     };
     let context: LandContext = LandContext {
-        git: GitContext { real_git: git, overlay: crate::child_environment::lockfile_pid_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
+        git: GitContext { real_git: git, overlay: crate::child_environment::service_child_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
         on_objects_written: None,
         // A control gives a short ceiling with `--lock-ceiling-millis`; a service the manager starts never passes it.
