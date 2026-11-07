@@ -265,7 +265,7 @@ fn slow_commit_git(fixture: &Fixture) -> PathBuf {
     std::fs::create_dir_all(&directory).expect("directory of the stand-in");
     let program: PathBuf = directory.join("git");
     let source: String = format!(
-        "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = commit ]; then sleep {SLOW_STEP_SECONDS}; break; fi\ndone\nexec /usr/bin/git \"$@\"\n"
+        "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = commit ]; then /usr/bin/sleep {SLOW_STEP_SECONDS}; break; fi\ndone\nexec /usr/bin/git \"$@\"\n"
     );
     std::fs::write(&program, source).expect("the stand-in");
     std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
@@ -289,9 +289,10 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
     let instance: String = instance_argument(&repo);
     let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
     let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    // Real Git is searched in the usual places first, so the stand-in is found only where the PATH has no `/usr/bin`.
     let mut path: std::ffi::OsString = slow_commit_git(&fixture).into_os_string();
     path.push(":");
-    path.push(super::support::wrapper_first_path(&fixture));
+    path.push(fixture.root.join("bin"));
     command.env("PATH", path);
     let served = observe(&mut command, b"");
     assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
@@ -301,7 +302,7 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
     let steps: &Vec<serde_json::Value> = record["steps"].as_array().unwrap_or_else(|| { panic!("the record has no steps list: {record}") });
     let slow: u64 = SLOW_STEP_SECONDS * 1000;
     let built: &serde_json::Value = steps.iter().find(|step| { return step["name"] == "git commit"; }).unwrap_or_else(|| { panic!("no git commit step: {record}") });
-    assert!(number(built, "durationMs") >= slow, "the sleeping step's duration is in the record: {built}");
+    assert!(number(built, "durationMs") >= slow, "the sleeping step's duration is in the record: {record}");
     assert!(number(built, "durationMs") <= number(record, "buildMs"), "the step lies inside the build phase: {record}");
     assert!(number(built, "offsetMs") + number(built, "durationMs") <= number(record, "totalMs"), "{record}");
     for step in steps {
