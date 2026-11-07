@@ -43,12 +43,15 @@ suppresssions that name the worker-serialization boundary.
  so the first fuzz run fails with `ReferenceError: payloadJson is not
  defined` instead of the specified outcome.
 - A `Proxy` `apply` trap avoids compilation but replaces a plain function
- with a per-call proxy whose `toString` is the trap source, not the
+ with a per-call proxy whose `toString` is the trap source,
+  not the
  fixture behavior,
  so both implementations would run identical trap text instead of the
  generated outcome.
 - String-free fixture shapes (fixed outcome tables keyed by argument count)
- cannot express the generated payload, value-list, and failure-flag space
+ cannot express the generated payload,
+  value-list,
+  and failure-flag space
  the arbitraries produce.
 
 ## Why the scoped suppression fits

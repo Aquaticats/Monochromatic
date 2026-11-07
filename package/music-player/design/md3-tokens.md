@@ -352,17 +352,31 @@ progress indicator stop-indicator-size    4px
 
 Measured from the local archive after the user caught an improvised dropdown field:
 
-- Outlined text field: container height 56dp, target size 56dp, top/bottom padding 8dp,
-  left/right padding 16dp without icons and 12dp with icons, 16dp between icon and text,
+- Outlined text field:
+  container height 56dp,
+  target size 56dp,
+  top/bottom padding 8dp,
+  left/right padding 16dp without icons and 12dp with icons,
+  16dp between icon and text,
   label vertically centered when empty and notched into the outline when populated with
-  4dp side padding, container shape corner-extra-small (4dp), 1dp outline in `outline`,
+  4dp side padding,
+  container shape corner-extra-small (4dp),
+  1dp outline in `outline`,
   trailing icon tinted `on-surface-variant`.
-- Baseline menu: container width 112dp min and 280dp max, corner radius 4dp, label text
+- Baseline menu:
+  container width 112dp min and 280dp max,
+  corner radius 4dp,
+  label text
   center-aligned vertically and start-aligned horizontally.
-- M3 Expressive recommends vertical menus (rounded corners, standard and vibrant color
-  styles, shape-morphing selection states) for new designs; the baseline variant remains
+- M3 Expressive recommends vertical menus (rounded corners,
+  standard and vibrant color
+  styles,
+  shape-morphing selection states) for new designs;
+  the baseline variant remains
   available.
-- Project deviation, disclosed in the cover form: the picker's menu panel keeps the 4dp
+- Project deviation,
+  disclosed in the cover form:
+  the picker's menu panel keeps the 4dp
   corner but exceeds the 280dp width cap because the D31 name wall needs the full panel.
 
 ## Not yet read — look these up before using them
@@ -375,8 +389,12 @@ Measured from the local archive after the user caught an improvised dropdown fie
    Barely relevant here:
    a true-black
   theme leans on outlines rather than shadows.
-- ~~Menu dimensions~~ — baseline menu now read, see "Outlined text field and baseline
-  menu" below; snackbar, FAB, icon-button and top-app-bar dimensions remain unread.
+- ~~Menu dimensions~~ — baseline menu now read,
+  see "Outlined text field and baseline
+  menu" below;
+  snackbar,
+  FAB,
+  icon-button and top-app-bar dimensions remain unread.
 - **Motion tokens** (durations,
    easing) — nothing animated has been designed yet.
 

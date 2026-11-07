@@ -23,14 +23,17 @@ jam) are ZIP archives containing:
 ## canvas.fig binary layout
 
 1. **16-byte header**:
-    8-byte ASCII prelude, little-endian uint32 format version, little-endian uint32 schema chunk length
+    8-byte ASCII prelude,
+   little-endian uint32 format version,
+   little-endian uint32 schema chunk length
    - bytes 0-7:
       prelude (`fig-kiwi`,
       `fig-deck`,
       or `fig-jam.`;
       the trailing `.` is part of the FigJam prelude)
    - bytes 8-11:
-      format version, a little-endian uint32 (101 in older exports,
+      format version,
+     a little-endian uint32 (101 in older exports,
       106 in exports from October 2026)
    - bytes 12-15:
       byte length of the schema chunk that follows
@@ -65,7 +68,9 @@ Sources read for this finding:
    `fig-jam.`,
    `fig-deck`.
 - `sunyui/figma-parser` README (`https://github.com/sunyui/figma-parser`):
-   "Version number (uint32 LE, e.g., 106)";
+   "Version number (uint32 LE,
+  e.g.,
+  106)";
    newer files (version at least about 100) use zstd for the message chunk,
    the schema chunk always raw deflate.
 - `openfig-core` README (`https://cdn.jsdelivr.net/npm/openfig-core@0.4.1/README.md`):

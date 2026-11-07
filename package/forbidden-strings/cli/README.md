@@ -29,7 +29,8 @@ secret without exposure on public CI logs.
 
 ## What's different
 
-- **Native binary startup.** Rust with `lto = true`,
+- **Native binary startup.**
+  Rust with `lto = true`,
    `codegen-units = 1`,
    `opt-level = 3`,
   `panic = "unwind"`,
@@ -40,11 +41,13 @@ secret without exposure on public CI logs.
   later invocations reload compact exact-literal groups plus regex-only engine bytes and rebuild one Aho-Corasick
   matcher,
   which meets the measured sub-100 ms pre-commit budget.
-- **Linear-time matching.** The engine is derivative and product based with no
+- **Linear-time matching.**
+  The engine is derivative and product based with no
   backtracking,
    so no rule combination can exhibit catastrophic-backtracking behaviour.
   A set-level SIMD prefilter lets clean lines skip per-rule work.
-- **Set-algebra rules.** Intersection `A & B` and complement `~(A)` are first-class in
+- **Set-algebra rules.**
+  Intersection `A & B` and complement `~(A)` are first-class in
   the dialect,
    so "match X but not Y" needs no lookaround.
    PCRE-family engines
@@ -55,7 +58,8 @@ secret without exposure on public CI logs.
    their workaround is
   per-rule allowlists,
    which scale badly.
-- **Sensitive rules can live out-of-band.** The committed baseline holds non-sensitive
+- **Sensitive rules can live out-of-band.**
+  The committed baseline holds non-sensitive
   rules;
    the gitignored appendix and the CI-only `FORBIDDEN_STRINGS_LIST` secret hold
   sensitive rules.
@@ -94,7 +98,8 @@ secret without exposure on public CI logs.
   cannot apply rule X only to YAML files.
 - **Per-rule allowlists**.
    No way to say "rule X but skip when it matches in path Y".
-- **No streaming or stdin input.** Files only;
+- **No streaming or stdin input.**
+  Files only;
    the walker enumerates from disk.
 
 If you need any of those,
@@ -205,8 +210,10 @@ The rules list is resolved in this order:
 `--rules <LIST>` flag (highest),
 then `FORBIDDEN_STRINGS_RULES` environment variable,
 then `./forbidden-strings.local.txt` in the current working directory.
-The flag replaces the variable; the two are never merged.
-A list with one entry and no trailing `?` is a plain path, the only form that existed before lists.
+The flag replaces the variable;
+the two are never merged.
+A list with one entry and no trailing `?` is a plain path,
+the only form that existed before lists.
 See "Rules list" below for the grammar.
 
 Every runtime-rules scan uses read-write caching by default with no opt-out.
@@ -255,9 +262,13 @@ while Windows reports the same path-not-found error as for an absent directory.
 
 ### Rules list
 
-`--rules`, `compile-rules --rules`, and `FORBIDDEN_STRINGS_RULES` carry a rules list:
-one or more rules files, read in order and scanned as one rule set.
-The grammar is the whole definition; there is no escape syntax.
+`--rules`,
+`compile-rules --rules`,
+and `FORBIDDEN_STRINGS_RULES` carry a rules list:
+one or more rules files,
+read in order and scanned as one rule set.
+The grammar is the whole definition;
+there is no escape syntax.
 
 ```text
 list  := entry ( "," entry )*
@@ -266,11 +277,14 @@ path  := one or more characters, none of them ","
 ```
 
 - The value is split on every `,`.
-  Nothing is trimmed, so `a.txt, b.txt` names the file ` b.txt` (with its leading space).
+  Nothing is trimmed,
+  so `a.txt, b.txt` names the file ` b.txt` (with its leading space).
 - An entry ending in `?` may be absent.
   An absent optional entry is skipped and logged once at `info` level
-  (`optional rules file is absent; skipped`, naming the path).
-  Every other entry must exist; a missing or unreadable one exits 2 and names its path.
+  (`optional rules file is absent; skipped`,
+  naming the path).
+  Every other entry must exist;
+  a missing or unreadable one exits 2 and names its path.
 - Exactly one trailing `?` is the marker.
   A path that itself ends in `?` is therefore written with a second one (`name??` is the optional file `name?`);
   it cannot be named as a required entry.
@@ -278,18 +292,26 @@ path  := one or more characters, none of them ","
 - A path containing `,` cannot be named.
   That tradeoff came with choosing a delimited list over repeating the flag.
   Reach such a file through a symbolic link or a relative path without the comma.
-- An empty value, an empty entry (`a,,b`, a leading or trailing comma, a bare `?`), and a path named twice exit 2
-  with the entry's position, before any file is read.
-- A value with no `,` and no trailing `?` is one required entry equal to the whole value, which is exactly what it
+- An empty value,
+  an empty entry (`a,,b`,
+  a leading or trailing comma,
+  a bare `?`),
+  and a path named twice exit 2
+  with the entry's position,
+  before any file is read.
+- A value with no `,` and no trailing `?` is one required entry equal to the whole value,
+  which is exactly what it
   meant before lists existed.
   The only values whose meaning changed are those containing a `,` or ending in `?`.
-- Relative entries resolve against the working directory, like the single path always did.
+- Relative entries resolve against the working directory,
+  like the single path always did.
   The monorepo anchors each entry with mise's `{{config_root}}`
   (for example `{{config_root}}/a.txt,{{config_root}}/b.txt?`),
   so a checkout whose absolute path contains a comma cannot use the list form;
   rename the directory or give the files as relative entries.
 - A path that is not valid UTF-8 can only be given through a single-entry `FORBIDDEN_STRINGS_RULES` in an embedding
-  host; the command line and `std::env::var` carry UTF-8 only.
+  host;
+  the command line and `std::env::var` carry UTF-8 only.
 
 How the files combine:
 
@@ -299,27 +321,46 @@ How the files combine:
   Joining a legacy file after a tail file would turn its lines into the body of the last section,
   so a mix exits 2 naming both files.
   A file with only blank lines and comments joins with either format.
-- A BOM is stripped from each file before the join, and a newline is added after any file that lacks one,
+- A BOM is stripped from each file before the join,
+  and a newline is added after any file that lacks one,
   so a file's last line never fuses with the next file's first.
 - Section names must stay unique across the files.
-  A failure in the joined text is re-diagnosed file by file, so the error names the file and a line number local
-  to it (`rules <path>: line 5: ...`); a repeated section name names both files.
-- If no file is present because every entry is optional and absent, the scan exits 2
-  (`no rules loaded`), unless `--builtin-rules` makes the baseline the whole rule set.
+  A failure in the joined text is re-diagnosed file by file,
+  so the error names the file and a line number local
+  to it (`rules <path>: line 5: ...`);
+  a repeated section name names both files.
+- If no file is present because every entry is optional and absent,
+  the scan exits 2
+  (`no rules loaded`),
+  unless `--builtin-rules` makes the baseline the whole rule set.
   Scanning with no rules would pass every file.
-- `--all` skips every listed file, not only the first.
+- `--all` skips every listed file,
+  not only the first.
 
-Cache identity is the SHA-256 of the joined text, with the scanner version and platform.
-The compiled rules are a pure function of that text, so the key is complete:
-an edit to any file, a file added or removed (an optional file appearing or disappearing), and a changed order
-all change the text and miss, while an unchanged list hits.
-Paths are deliberately not in the key, so two checkouts or worktrees with identical rules share one artifact.
-A one-file list joins to the file's exact bytes, so its artifact is the one a plain path always used.
-Before an artifact is published, every listed file is read again; a file that changed, vanished, or appeared
+Cache identity is the SHA-256 of the joined text,
+with the scanner version and platform.
+The compiled rules are a pure function of that text,
+so the key is complete:
+an edit to any file,
+a file added or removed (an optional file appearing or disappearing),
+and a changed order
+all change the text and miss,
+while an unchanged list hits.
+Paths are deliberately not in the key,
+so two checkouts or worktrees with identical rules share one artifact.
+A one-file list joins to the file's exact bytes,
+so its artifact is the one a plain path always used.
+Before an artifact is published,
+every listed file is read again;
+a file that changed,
+vanished,
+or appeared
 since the first read blocks publication and emits the `write-failed` warning.
 
 Embedding hosts parse the same value with `forbidden_strings::parse_rules_list` or build `RulesEntry` values
-directly, then call `Scanner::load_entries`; `Scanner::skipped_optional_rules` lists the skipped files for hosts
+directly,
+then call `Scanner::load_entries`;
+`Scanner::skipped_optional_rules` lists the skipped files for hosts
 that install no log subscriber.
 `Scanner::load` keeps the one-path contract.
 
@@ -463,7 +504,9 @@ The engine is always in multiline and verbose mode,
 ones those two modes already imply:
 
 - `m` (multiline) and `x` (verbose) are accepted as no-ops and dropped.
-- **Any other flag letter is a hard, fail-closed load error.** Silently dropping an `i` or
+- **Any other flag letter is a hard,
+  fail-closed load error.**
+  Silently dropping an `i` or
   an `s` would change match semantics (case folding,
    dot-matches-newline),
    so the loader
@@ -604,28 +647,41 @@ PATH:name:SEGMENT rule=<token>
 
 - `LINE` is the 1-based content line number.
 - `SEGMENT` is the 1-based position of the directory name or filename within
-  the logical path. The root and navigation markers (`.`, `..`) are not names.
+  the logical path.
+  The root and navigation markers (`.`,
+  `..`) are not names.
   On Windows,
-  the parts of the native volume prefix (`C:`, `\\server\share`, `\\?\C:`, `\\.\COM1`, and the other prefix forms)
+  the parts of the native volume prefix (`C:`,
+  `\\server\share`,
+  `\\?\C:`,
+  `\\.\COM1`,
+  and the other prefix forms)
   are not names either,
   whatever their spelling;
   the first component after the prefix is segment 1.
-  Each segment is matched separately, so a rule cannot match across a `/` boundary.
-  Pathname scanning is always on for every selected file, with no disable flag.
+  Each segment is matched separately,
+  so a rule cannot match across a `/` boundary.
+  Pathname scanning is always on for every selected file,
+  with no disable flag.
   It can make previously clean paths fail with exit code 1.
 - An offending segment is replaced in full with `[REDACTED]` in every finding,
   including content findings and read errors for the same file.
-  Other segments stay visible; no column range is reported.
+  Other segments stay visible;
+  no column range is reported.
   Control characters and colons in visible segments are escaped to protect
-  the output protocol. A line break within a name produces a redacted,
+  the output protocol.
+  A line break within a name produces a redacted,
   fail-closed diagnostic because the engine's anchored rules require a single line.
 - The ordinary file-selection and exclusion rules still apply.
   Repository files use repository-relative names.
   Explicit external paths or standalone scans check all segments of the supplied pathname.
 - `--name-path PATH` pairs each positional content file with a logical name,
-  in argument order, for integrations reading a historical or staged file from a
-  private temporary location. This form cannot accompany `--all` and requires
-  one name per file. Its findings append `input=N` (0-based operand index) to
+  in argument order,
+  for integrations reading a historical or staged file from a
+  private temporary location.
+  This form cannot accompany `--all` and requires
+  one name per file.
+  Its findings append `input=N` (0-based operand index) to
   correlate a redacted path with its candidate without disclosing the name.
 - The rule token is the rule's **section name** for tail-format rules (and the
   betterleaks id for baseline rules),
@@ -640,9 +696,12 @@ PATH:name:SEGMENT rule=<token>
    not spans,
    so no
   `COL_START..COL_END` segment appears.
-- One content finding is emitted per `(line, rule)` pair; one name finding per
+- One content finding is emitted per `(line, rule)` pair;
+  one name finding per
   `(segment, rule)` pair.
-- **The matched substring, the line content, and the rule pattern are never printed.**
+- **The matched substring,
+  the line content,
+  and the rule pattern are never printed.**
   Only the path,
    line number,
    and rule identity token appear,
@@ -655,13 +714,15 @@ PATH:name:SEGMENT rule=<token>
 
 Two synthetic findings keep the scan fail-closed:
 
-- **Read errors.** A file that cannot be opened (broken symlink,
+- **Read errors.**
+  A file that cannot be opened (broken symlink,
    permission denied,
    deleted
   during scan) produces `PATH: read error: <reason>` on stderr and counts toward the
   exit-1 total.
    A secret-scanning gate must not pass silently on a file it could not inspect.
-- **Engine errors.** If the matcher panics on a file,
+- **Engine errors.**
+  If the matcher panics on a file,
    the `catch_unwind` boundary in
   `scan_one_set` (`src/frx_scan.rs`) catches it and emits `PATH: engine error`,
    again
@@ -698,14 +759,16 @@ The redaction guarantee is what lets a rule body itself be a secret.
  Two boundaries carry
 it:
 
-- **Load path.** Rule compilation reports only `LoadError` (`src/rule/frx/error.rs`),
+- **Load path.**
+  Rule compilation reports only `LoadError` (`src/rule/frx/error.rs`),
    whose
   every variant is an opaque index plus the engine's static reason;
    no pattern bytes reach
   a diagnostic.
    The compiler builds through `RegexSet::new` / `RegexSet::from_bytes`,
   neither of which logs the pattern.
-- **Scan path.** Content findings use `PATH:LINE rule=N` in `src/frx_scan.rs`;
+- **Scan path.**
+  Content findings use `PATH:LINE rule=N` in `src/frx_scan.rs`;
    name findings use `PATH:name:SEGMENT rule=N` in `src/path_scan.rs`.
    The matched content and line text are never included.
    A name matching any rule is masked in the shared pathname before either finding is formatted.
@@ -890,17 +953,23 @@ delta from the newest commit whose tree a previous successful run of the workflo
  The
 `validated-tree-watermark-v1` marker names the workflow revisions whose push runs prove their
 head tree that way.
- Only successful runs establish such a baseline, so a canceled, failed, or
+ Only successful runs establish such a baseline,
+so a canceled,
+failed,
+or
 timed-out run rescans everything it left unvalidated on the next push.
  With no suitable baseline
-(the first marked run, a rewritten `main`, or an unavailable run list) the workflow scans the
+(the first marked run,
+a rewritten `main`,
+or an unavailable run list) the workflow scans the
 current tree instead.
  The same precedence applies locally and in CI:
 `--rules` > `FORBIDDEN_STRINGS_RULES` > `./forbidden-strings.local.txt`.
 
 ## Walker behaviour
 
-- **`--all` semantics.** Walks the working tree via `ignore::WalkBuilder` in `src/walk.rs`:
+- **`--all` semantics.**
+  Walks the working tree via `ignore::WalkBuilder` in `src/walk.rs`:
   `.hidden(false)` (dotfiles like `.github/`,
    `.npmrc` ARE scanned),
    `.ignore(false)` (the
@@ -910,15 +979,19 @@ current tree instead.
   `.gitignore` (`git add -f`) are recovered via an in-process `gix-index` read of
   `.git/index`;
    no git subprocess.
-- **`.git/` and `.jj/` skipped.** Internal VCS state is never scanned.
-- **Symlinks NOT followed.** `WalkBuilder`'s default `follow_links` is false;
+- **`.git/` and `.jj/` skipped.**
+  Internal VCS state is never scanned.
+- **Symlinks NOT followed.**
+  `WalkBuilder`'s default `follow_links` is false;
    symlinked
   directories are not descended,
    symlinked files surface as a read-error synthetic hit on a
   broken target.
-- **Non-UTF-8 paths silently dropped.** Index entries that are not valid UTF-8 are excluded
+- **Non-UTF-8 paths silently dropped.**
+  Index entries that are not valid UTF-8 are excluded
   from the walk.
-- **Binary-file 8 KiB tail cap.** Files whose first 8 KiB contains a NUL byte are scanned
+- **Binary-file 8 KiB tail cap.**
+  Files whose first 8 KiB contains a NUL byte are scanned
   only in the first 8 KiB.
    The leading window always runs,
    so secrets there fire;
@@ -926,7 +999,8 @@ current tree instead.
   past 8 KiB is skipped.
    Constant `BIN_PROBE_SIZE` and `read_with_binary_check` in
   `src/lib.rs`.
-- **Self-skip set.** Canonical paths are auto-skipped so rule bodies do not
+- **Self-skip set.**
+  Canonical paths are auto-skipped so rule bodies do not
   self-match.
   During `--all`,
    that is the materialised rules file (whatever `--rules` / env var / default resolves
@@ -1001,31 +1075,36 @@ commands,
 
 ## Architecture
 
-- **Two-form loader.** `src/rule/frx` owns the rule-file format
+- **Two-form loader.**
+  `src/rule/frx` owns the rule-file format
   and preserves whether each rule was written as a bare literal
   or an explicit regex.
   Bare literals still escape into the verbose dialect for the public engine compiler;
   runtime scanning instead retains their exact bytes.
   `/PATTERN/FLAGS` lines and multiline tail sections remain restricted regex rules,
   validated under their original global rule ids.
-- **Hybrid runtime matcher.** `src/runtime_matcher.rs` de-duplicates exact literals
+- **Hybrid runtime matcher.**
+  `src/runtime_matcher.rs` de-duplicates exact literals
   into one overlapping Aho-Corasick matcher
   and compiles only explicit regex rules into `RegexSet`.
   Both subset-local outputs map back to original ids,
   sort,
   and de-duplicate before finding attribution.
-- **Content-addressed runtime cache.** `src/runtime_cache/` hashes exact authoritative text,
+- **Content-addressed runtime cache.**
+  `src/runtime_cache/` hashes exact authoritative text,
   selects a scanner-version and platform partition,
   validates scanner-owned envelope metadata,
   rebuilds the literal matcher from compact groups,
   and decodes optional regex-only engine bytes.
   Scan-time repair and `compile-rules` share the same atomic publisher.
-- **Line-based batch scan.** `src/frx_scan.rs` splits each file's bytes into lines once
+- **Line-based batch scan.**
+  `src/frx_scan.rs` splits each file's bytes into lines once
   and hands the buffer plus line-start offsets through a common matcher interface.
   Runtime sets merge Aho-Corasick and regex-subset ids;
   the built-in baseline retains `RegexSet::line_matches`.
   Each set runs under a `catch_unwind` boundary so a matcher fault fails closed as a synthetic finding.
-- **Build-time baseline precompilation.** `build.rs` compiles `data/builtin-rules.txt`
+- **Build-time baseline precompilation.**
+  `build.rs` compiles `data/builtin-rules.txt`
   through the engine once at build time and serializes it (`to_bytes`);
   `lib.rs` embeds the blob with `include_bytes!` and the loader rebuilds it via the validating
   `from_bytes`,
@@ -1035,18 +1114,21 @@ commands,
   so `Cargo.toml` sets `build-override` `opt-level = 3` for the release and dev profiles,
   and the engine builds the baseline's rules on one worker thread per core
   (see [the Cargo build-override write-up](../../../doc/troubleshooting/cargo-build-override-opt-level.md)).
-- **Concurrent load and walk.** Rule loading and `--all` file walking run concurrently via
+- **Concurrent load and walk.**
+  Rule loading and `--all` file walking run concurrently via
   `rayon::join` (they share no state);
    files then fan out across the rayon thread pool for
   the parallel scan.
-- **`ignore` crate walker + in-process gix-index union.** `--all` uses `ignore::WalkBuilder`
+- **`ignore` crate walker + in-process gix-index union.**
+  `--all` uses `ignore::WalkBuilder`
   (honouring `.gitignore`,
    `.git/info/exclude`,
    and global excludes) and unions the result
   with an in-process `gix_index::File` read of `.git/index` so `git add -f` files are still
   discovered.
    See `src/walk.rs`.
-- **Bundled `data/betterleaks-default-config.toml`.** Upstream-vendored provenance for the
+- **Bundled `data/betterleaks-default-config.toml`.**
+  Upstream-vendored provenance for the
   betterleaks port;
    the embedded baseline is derived from it,
    and
@@ -1058,8 +1140,14 @@ The verification scripts in `bin` are TypeScript.
 `mise run //package/forbidden-strings/cli:lint:scripts:types` type-checks them,
 and `mise run //package/forbidden-strings/cli:lint:scripts:oxlint -- bin/<file>.ts` lints the files it is given.
 The Oxlint task takes explicit paths and has no package-wide form on purpose.
-A package-wide `lint:oxlint` run, measured on 2026-10-30, fails with 30 errors and 29 warnings,
-all in `src/mise.port-betterleaks.ts`, which the package's `tsconfig.json` includes.
-It also lints `task.ts`, which no `tsconfig.json` includes: the semantic bridge reports `project-not-found`
+A package-wide `lint:oxlint` run,
+measured on 2026-10-30,
+fails with 30 errors and 29 warnings,
+all in `src/mise.port-betterleaks.ts`,
+which the package's `tsconfig.json` includes.
+It also lints `task.ts`,
+which no `tsconfig.json` includes:
+the semantic bridge reports `project-not-found`
 and a type-aware rule throws.
-Making the package-wide task usable needs those two files fixed, not a looser rule.
+Making the package-wide task usable needs those two files fixed,
+not a looser rule.

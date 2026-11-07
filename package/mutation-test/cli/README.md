@@ -50,11 +50,13 @@ infrastructure failure.
 
 ## Work-tree copy
 
-Each shard container runs in a tmpfs work tree (`--work-tmpfs-size`, default 2g),
+Each shard container runs in a tmpfs work tree (`--work-tmpfs-size`,
+default 2g),
 so the container must not copy the whole checkout:
 ignored build output and nested agent worktrees can be gigabytes.
 The host runs `git ls-files -z --cached --others --exclude-standard` once per run
-(tracked plus untracked-not-ignored, so uncommitted edits are still tested),
+(tracked plus untracked-not-ignored,
+so uncommitted edits are still tested),
 writes the NUL-separated list next to each shard manifest,
 and the container copies exactly those paths with `rsync --files-from`.
 A tracked file deleted in the working tree is skipped,

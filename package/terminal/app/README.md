@@ -242,7 +242,8 @@ container otherwise.
  when all resolve it builds natively,
  and when any is missing it runs
 the identical cargo command in podman.
- Zig comes from the repo-wide mise `zig` tool, which follows `toolchain.lock.json`.
+ Zig comes from the repo-wide mise `zig` tool,
+which follows `toolchain.lock.json`.
  On an immutable-style
 Fedora the host libraries are layered with:
 

@@ -44,7 +44,7 @@ including the two user rule changes received mid-task:
 - "License declared in package.json only" means the repository root has no LICENSE file and GitHub detects no license,
 - but the published manifest names one.
 
-### Bolt
+## Bolt
 
 - URL:
   <https://github.com/boltpkg/bolt>
@@ -78,7 +78,7 @@ including the two user rule changes received mid-task:
   exit at G3 (no extension mechanism documentation;
   README-only docs).
 
-### drkns
+## drkns
 
 - URL:
   <https://github.com/frantzmiccoli/drkns>
@@ -112,7 +112,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3 (no extension mechanism documentation).
 
-### Nix
+## Nix
 
 - URL:
   <https://github.com/NixOS/nix>
@@ -136,7 +136,7 @@ including the two user rule changes received mid-task:
   exit at G1 (package manager and build tool,
   no workspace task model).
 
-### pnpm
+## pnpm
 
 - URL:
   <https://pnpm.io>
@@ -203,7 +203,7 @@ including the two user rule changes received mid-task:
   and Misc.
   with no links between them).
 
-### Yarn
+## Yarn
 
 - URL:
   <https://yarnpkg.com>
@@ -241,7 +241,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3 (plugin hook list missing from official docs).
 
-### Builder (FormidableLabs)
+## Builder (FormidableLabs)
 
 - URL:
   <https://github.com/FormidableLabs/builder>
@@ -262,7 +262,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1 (shared npm-script runner).
 
-### Lank
+## Lank
 
 - URL:
   <https://github.com/FormidableLabs/lank>
@@ -284,7 +284,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1 (multi-repo linker plus flat exec).
 
-### wsrun
+## wsrun
 
 - URL:
   <https://github.com/hfour/wsrun>
@@ -314,7 +314,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3 (no config or extension documentation).
 
-### Vite+ task runner (vp run)
+## Vite+ task runner (vp run)
 
 - URL:
   <https://github.com/voidzero-dev/vite-task>
@@ -351,7 +351,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3 (task-runner extension point documented only by an off-site package link).
 
-### @visulima/vis
+## @visulima/vis
 
 - URL:
   <https://visulima.com/packages/vis>
@@ -406,7 +406,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3 (hook reference summary contradicts the plugin guide).
 
-### bun-workspaces
+## bun-workspaces
 
 - URL:
   <https://bunworkspaces.com>
@@ -453,7 +453,7 @@ including the two user rule changes received mid-task:
   exit at G3 (mislabeled page title and leaked placeholder text;
   no extension mechanism).
 
-### mono-vir
+## mono-vir
 
 - URL:
   <https://github.com/electrovir/mono-vir>
@@ -481,7 +481,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### Holocron astromech (@theholocron/astromech)
+## Holocron astromech (@theholocron/astromech)
 
 - URL:
   <https://github.com/theholocron/holocron>
@@ -505,7 +505,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1 (wrapper library over Turborepo or the package manager).
 
-### yakumo
+## yakumo
 
 - URL:
   <https://github.com/cordiverse/yakumo>
@@ -538,7 +538,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3 (docs are a feature blurb).
 
-### bun-spaces
+## bun-spaces
 
 - URL:
   <https://github.com/Pckool/bun-spaces>
@@ -564,7 +564,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### @williamthorsen/nmr
+## @williamthorsen/nmr
 
 - URL:
   <https://github.com/williamthorsen/node-monorepo-tools>
@@ -589,7 +589,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1 (pnpm wrapper).
 
-### npm-recursive-runner
+## npm-recursive-runner
 
 - URL:
   <https://github.com/avi747av/npm-recursive-runner>
@@ -608,7 +608,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### @forklaunch/bunrun
+## @forklaunch/bunrun
 
 - URL:
   <https://www.npmjs.com/package/@forklaunch/bunrun> (source:
@@ -638,7 +638,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### @aklinker1/buildc
+## @aklinker1/buildc
 
 - URL:
   <https://github.com/aklinker1/buildc>
@@ -666,7 +666,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### packer-commander
+## packer-commander
 
 - URL:
   <https://github.com/Slowmoney/packer-commander>
@@ -687,7 +687,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1 (interactive script launcher).
 
-### @enspirit/emb
+## @enspirit/emb
 
 - URL:
   <https://github.com/enspirit/emb>
@@ -721,7 +721,7 @@ including the two user rule changes received mid-task:
   exit at G3 (plugin system limited to built-ins,
   no authoring docs).
 
-### run-shared-scripts
+## run-shared-scripts
 
 - URL:
   <https://github.com/bubkoo/run-shared-scripts>
@@ -741,7 +741,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### workspace-utils
+## workspace-utils
 
 - URL:
   <https://torstendittmann.github.io/workspace-utils/>
@@ -778,7 +778,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### northbrook
+## northbrook
 
 - URL:
   <https://github.com/northbrookjs/northbrook>
@@ -802,7 +802,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### scriptio
+## scriptio
 
 - URL:
   <https://github.com/michaelcocova/scriptio>
@@ -822,7 +822,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### rman
+## rman
 
 - URL:
   <https://github.com/panates/rman>
@@ -853,7 +853,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### bru
+## bru
 
 - URL:
   <https://github.com/kamilkisiela/bru>
@@ -877,7 +877,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### @nu-art/build-and-install
+## @nu-art/build-and-install
 
 - URL:
   <https://github.com/nu-art-js/thunderstorm>
@@ -914,7 +914,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### neex
+## neex
 
 - URL:
   <https://github.com/Neexjs/neex>
@@ -942,7 +942,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### @layermix/cli
+## @layermix/cli
 
 - URL:
   <https://github.com/layermix-labs/cli>
@@ -963,7 +963,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1 (single-graph task runner).
 
-### @tinyaxis/toolkit
+## @tinyaxis/toolkit
 
 - URL:
   <https://www.npmjs.com/package/@tinyaxis/toolkit>
@@ -983,7 +983,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### @halecraft/verify
+## @halecraft/verify
 
 - URL:
   <https://github.com/halecraft/verify>
@@ -1003,7 +1003,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### greenly
+## greenly
 
 - URL:
   <https://github.com/yusifaliyevpro/greenly>
@@ -1025,7 +1025,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### rune (@multiterm/rune, also @super-repo/rune)
+## rune (@multiterm/rune, also @super-repo/rune)
 
 - URL:
   <https://www.npmjs.com/package/@multiterm/rune>
@@ -1047,7 +1047,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### calviche
+## calviche
 
 - URL:
   <https://github.com/sosafeapp/calviche>
@@ -1074,7 +1074,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### laoban
+## laoban
 
 - URL:
   <https://github.com/phil-rice/laoban> (now <https://github.com/laoban-dev/laoban>)
@@ -1103,7 +1103,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### qiao-project
+## qiao-project
 
 - URL:
   <https://github.com/uikoo9/qiao-nodejs>
@@ -1128,7 +1128,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### laufen
+## laufen
 
 - URL:
   <https://github.com/zrosenbauer/lauf>
@@ -1151,7 +1151,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### crowd (also @d-fischer/crowd)
+## crowd (also @d-fischer/crowd)
 
 - URL:
   <https://github.com/d-fischer/crowd>
@@ -1179,7 +1179,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### mondorepo
+## mondorepo
 
 - URL:
   <https://github.com/sencha/mondorepo>
@@ -1199,7 +1199,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1 (multi-repo linker).
 
-### mrpm
+## mrpm
 
 - URL:
   <https://github.com/ota-meshi/mrpm>
@@ -1225,7 +1225,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### @jakehamilton/titan
+## @jakehamilton/titan
 
 - URL:
   <https://github.com/jakehamilton/packages>
@@ -1252,7 +1252,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### buildverse
+## buildverse
 
 - URL:
   <https://github.com/Typeverse/buildverse-sdk>
@@ -1272,7 +1272,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1 (also no reachable source repository).
 
-### vx (@vzn/vx, with @vzn/vx-cloud)
+## vx (@vzn/vx, with @vzn/vx-cloud)
 
 - URL:
   <https://github.com/vznjs/vx>
@@ -1312,7 +1312,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### lattice (@latticeandcompany/lattice)
+## lattice (@latticeandcompany/lattice)
 
 - URL:
   <https://latticeandcompany.github.io/lattice>
@@ -1348,7 +1348,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3 (extension only by modifying source).
 
-### monopkg
+## monopkg
 
 - URL:
   <https://github.com/beerush-id/monopkg>
@@ -1376,7 +1376,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### fiducial (@fiducial/fiducial)
+## fiducial (@fiducial/fiducial)
 
 - URL:
   <https://github.com/AleksaZCodes/fiducial>
@@ -1401,7 +1401,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### Fabr (@fabr-build/core, cli, js)
+## Fabr (@fabr-build/core, cli, js)
 
 - URL:
   <https://fabr.build/>
@@ -1440,7 +1440,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### rune (@gio-labs/rune)
+## rune (@gio-labs/rune)
 
 - URL:
   <https://github.com/giancarlosisasi/rune>
@@ -1463,7 +1463,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### unorepo
+## unorepo
 
 - URL:
   <https://github.com/0livare/unorepo>
@@ -1485,7 +1485,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### Roc with roc-plugin-repo
+## Roc with roc-plugin-repo
 
 - URL:
   <https://www.npmjs.com/package/roc-plugin-repo>
@@ -1504,7 +1504,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### changeset-releaser
+## changeset-releaser
 
 - URL:
   <https://github.com/harnyk/changeset-releaser>
@@ -1527,7 +1527,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G2.
 
-### monox (with @monoxon/* binaries)
+## monox (with @monoxon/* binaries)
 
 - URL:
   <https://github.com/monoxon/monox>
@@ -1558,7 +1558,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### @varlabs/monorun
+## @varlabs/monorun
 
 - URL:
   <https://github.com/HamzaKV/monorun>
@@ -1593,7 +1593,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### @shazhou/proman (with proman-core)
+## @shazhou/proman (with proman-core)
 
 - URL:
   <https://www.npmjs.com/package/@shazhou/proman>
@@ -1616,7 +1616,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1 (also no source repository).
 
-### bun-manage-workspace
+## bun-manage-workspace
 
 - URL:
   <https://github.com/kkiwior/bun-manage-workspace>
@@ -1645,7 +1645,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### moci
+## moci
 
 - URL:
   <https://oss.zero-one-group.com/monorepo>
@@ -1665,7 +1665,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### lerna-run
+## lerna-run
 
 - URL:
   <https://github.com/shokai/lerna-run>
@@ -1686,7 +1686,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### dragon (@bunvader/dragon)
+## dragon (@bunvader/dragon)
 
 - URL:
   <https://github.com/Flora90001/dragon>
@@ -1708,7 +1708,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G2.
 
-### @zssz-soft/zs
+## @zssz-soft/zs
 
 - URL:
   <https://github.com/zssz-soft/libraries>
@@ -1728,7 +1728,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G2.
 
-### monilla
+## monilla
 
 - URL:
   <https://github.com/ctrlplusb/monilla>
@@ -1753,7 +1753,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G1.
 
-### just-build-tools
+## just-build-tools
 
 - URL:
   <https://github.com/mattsibs/just-build-tools>
@@ -1778,7 +1778,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### mono-runner
+## mono-runner
 
 - URL:
   <https://github.com/JanNitschke/mono-runner>
@@ -1806,7 +1806,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### pmnps (with @pmnps/* plugins)
+## pmnps (with @pmnps/* plugins)
 
 - URL:
   <https://github.com/filefoxper/pmnps-workspace>
@@ -1835,7 +1835,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### @webeferen/buildable
+## @webeferen/buildable
 
 - URL:
   <https://github.com/WebEferen/buildable>
@@ -1861,7 +1861,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### monist / monist-tools
+## monist / monist-tools
 
 - URL:
   <https://github.com/lddubeau/monist>
@@ -1888,7 +1888,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### mrdr
+## mrdr
 
 - URL:
   <https://github.com/padcom/mrdr>
@@ -1913,7 +1913,7 @@ including the two user rule changes received mid-task:
 - Final:
   exit at G3.
 
-### yamat
+## yamat
 
 - URL:
   <https://github.com/cancerberoSgx/yamat>

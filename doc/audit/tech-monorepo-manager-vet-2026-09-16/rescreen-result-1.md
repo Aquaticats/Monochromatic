@@ -51,7 +51,7 @@ Method:
   A rule 1 trigger is an immediate exit;
   further triggers are listed only as corroboration.
 
-### folke/ultra-runner
+## folke/ultra-runner
 
 - Earlier reason:
   G3 coverage (c),
@@ -89,7 +89,7 @@ Method:
   G3 rule 1 (broken configuration anchor links);
   rule 3 (a) also fails.
 
-### colcon/colcon-core
+## colcon/colcon-core
 
 - Earlier reason:
   G3 coverage (c),
@@ -130,7 +130,7 @@ Method:
   G3 rule 1 (configuration reference leaves `type` values undocumented and calls its default-file list "a
 - few examples").
 
-### chrismatix/grog
+## chrismatix/grog
 
 - Earlier reason:
   G3 coverage (c),
@@ -172,7 +172,7 @@ Method:
   exit,
   G3 rule 1 (target configuration table and field details disagree).
 
-### meslzy/outdo
+## meslzy/outdo
 
 - Earlier reason:
   G3 coverage,
@@ -213,7 +213,7 @@ Method:
   examples,
   and registry).
 
-### Bolt
+## Bolt
 
 - Earlier reason:
   G3 coverage (c),
@@ -261,7 +261,7 @@ Method:
   obsolete roadmap text);
   rule 3 (a) also fails.
 
-### drkns
+## drkns
 
 - Earlier reason:
   G3 coverage (c);
@@ -290,7 +290,7 @@ Method:
   G3 rule 1 (step keys learnable only from test fixtures;
   `forget` command spelled two ways).
 
-### @enspirit/emb
+## @enspirit/emb
 
 - Earlier reason:
   G3 coverage,
@@ -327,7 +327,7 @@ Method:
   exit,
   G3 rule 1 (configuration reference omits keys and syntax it uses on the same page).
 
-### workspace-utils
+## workspace-utils
 
 - Earlier reason:
   G3 coverage (c),
@@ -370,7 +370,7 @@ Method:
   G3 rule 1 (404 links from the configuration page;
   undocumented flag in its example).
 
-### rman
+## rman
 
 - Earlier reason:
   G3 coverage (c),
@@ -419,7 +419,7 @@ Method:
   README section and config reference say it
 - is not).
 
-### lattice (@latticeandcompany/lattice)
+## lattice (@latticeandcompany/lattice)
 
 - Earlier reason:
   G3 coverage (c),
@@ -469,7 +469,7 @@ Method:
   exit,
   G3 rule 1 (introduction misdescribes the nested repos page).
 
-### monist / monist-tools
+## monist / monist-tools
 
 - Earlier reason:
   G3 coverage (c),

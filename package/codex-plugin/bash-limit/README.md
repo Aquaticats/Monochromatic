@@ -12,7 +12,10 @@ and emits a command rewrite.
 Errors exit with status 2,
 which Codex treats as a blocked hook call.
 
-The shared worker budget is 4 GiB memory, zero swap, a finite CPU quota, and 2048 tasks.
+The shared worker budget is 4 GiB memory,
+zero swap,
+a finite CPU quota,
+and 2048 tasks.
 The user increased task capacity from 256 on 2026-10-15.
 The installed parent and existing `codex` child both use the new task limit.
 

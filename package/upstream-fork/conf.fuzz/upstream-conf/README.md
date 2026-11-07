@@ -21,7 +21,8 @@ The differential oracle must compare against the same upstream the fork
 ## License
 
 Upstream `conf` is MIT,
- Copyright (c) Sindre Sorhus; see `../../conf/LICENSES/MIT.txt` for the
+ Copyright (c) Sindre Sorhus;
+see `../../conf/LICENSES/MIT.txt` for the
  verbatim notice.
  These files are test-oracle fixtures only,
  never shipped or re-exported.
@@ -34,18 +35,21 @@ Upstream `conf` is MIT,
    its type-only import specifier `./types.js` reads `./types.ts` so Node's
    type stripping can resolve it (the import statement is retained at
    runtime even though every binding is a type).
-   Apart from the added first line described below, nothing else differs from upstream bytes.
+   Apart from the added first line described below,
+  nothing else differs from upstream bytes.
 - `types.ts`:
    upstream `source/types.ts`,
    byte-for-byte.
 
-Both files also carry one added first line, a `// @ts-nocheck` comment,
+Both files also carry one added first line,
+a `// @ts-nocheck` comment,
  because upstream type-checks them under its own tsconfig rather than this repository's.
 
 ## Do not reformat or autofix
 
 These files must stay byte-for-byte upstream (plus the two edits above).
- A repository-wide autofix pass (commit `3da31bdc3a`, the `no-restricted-syntax/no-arrow-function` fixer)
+ A repository-wide autofix pass (commit `3da31bdc3a`,
+the `no-restricted-syntax/no-arrow-function` fixer)
  once rewrote the arrow function `set` inside `Conf#set` into a function declaration,
  which loses the lexical `this`,
  so every `appendToArray` and nested `set` call threw
