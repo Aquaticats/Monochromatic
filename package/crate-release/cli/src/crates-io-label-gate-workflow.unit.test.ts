@@ -156,6 +156,17 @@ function stepText(step: readonly string[]): string {
 }
 
 /**
+ A step line without its indentation and without the dash that starts the step.
+
+ @param line - one line of a step
+ @returns the line as a key and value
+ */
+function withoutDash(line: string): string {
+  const trimmed = line.trim();
+  return trimmed.startsWith('- ') ? trimmed.slice('- '.length) : trimmed;
+}
+
+/**
  The value of a `key: value` line of a step, or an empty text when there is none.
 
  @param step - lines of the step
@@ -169,16 +180,18 @@ function stepValue({
   readonly step: readonly string[];
   readonly key: string;
 }): string {
-  const line = step.find(function hasKey(candidate) {
-    return candidate.trim()
-      .replace(/^- /v, '')
-      .startsWith(`${key}:`);
-  });
-  return line === undefined ? '' : line.trim()
-    .replace(/^- /v, '')
-    .slice(key.length + 1)
+  const line = step.map(withoutDash)
+    .find(function hasKey(candidate) {
+      return candidate.startsWith(`${key}:`);
+    });
+  return line === undefined ? '' : line.slice(key.length + 1)
     .trim();
 }
+
+/**
+ Words that mark a step as one that touches crates.io.
+ */
+const cratesIoMarkers: readonly string[] = ['crates.io', 'cargo publish', 'cargo package', 'crates-io-auth'];
 
 /**
  Whether a step touches crates.io: it names crates.io, publishes, packages or logs in to the registry.
@@ -187,7 +200,10 @@ function stepValue({
  @returns true for a step that must not run for a version that never goes to crates.io
  */
 function touchesCratesIo(step: readonly string[]): boolean {
-  return /crates\.io|cargo publish|cargo package|crates-io-auth/v.test(stepText(step));
+  return cratesIoMarkers.some(function appearsInStep(marker) {
+    return stepText(step)
+      .includes(marker);
+  });
 }
 
 /**
@@ -271,6 +287,40 @@ type DetectFacts = {
 };
 
 /**
+ Read the single-quoted text that follows a marker.
+
+ @param text - script text
+ @param marker - text that ends just before the opening quote's content
+ @param job - job id, for the message
+ @returns the text up to the closing quote
+ @throws Error when the marker or the closing quote is missing
+ */
+function quotedAfter({
+  text,
+  marker,
+  job,
+}: {
+  readonly text: string;
+  readonly marker: string;
+  readonly job: string;
+}): string {
+  const start = text.indexOf(marker);
+  if (start === (-1))
+    throw new Error(`${job} does not hold ${marker}`);
+  const from = start + marker.length;
+  const end = text.indexOf(
+    '\'',
+    from
+  );
+  if (end === (-1))
+    throw new Error(`${job} does not close the quote after ${marker}`);
+  return text.slice(
+    from,
+    end
+  );
+}
+
+/**
  Read the crate, the manifest and the script of a detect job.
 
  @param job - a `detect` job
@@ -287,14 +337,18 @@ function detectFacts(job: JobBlock): DetectFacts {
   if (step === undefined)
     throw new Error(`${job.id} has no step with the id detect`);
   const text = stepText(step);
-  const manifest = /cargo_toml='([^']+)'/v.exec(text)?.[1];
-  const crate = /INPUT_CRATE" = '([^']+)'/v.exec(text)?.[1];
-  if ((manifest === undefined) || (crate === undefined))
-    throw new Error(`${job.id} does not name its manifest and its crate`);
   return {
     id: job.id,
-    crate,
-    manifest,
+    crate: quotedAfter({
+      text,
+      marker: 'INPUT_CRATE" = \'',
+      job: job.id
+    }),
+    manifest: quotedAfter({
+      text,
+      marker: 'cargo_toml=\'',
+      job: job.id
+    }),
     script: (runScripts(step)[0] ?? []).join('\n'),
   };
 }
@@ -416,7 +470,9 @@ await describe({
                 fixture,
                 version
               });
-              expect(outputs[decisionOutput]).toBe(String(goesToCratesIo(version)));
+              expect(outputs[decisionOutput]).toBe(
+                String(goesToCratesIo(version)),
+              );
               expect(outputs.label).toBe(releaseLabel(version));
             },
           });
@@ -477,7 +533,9 @@ await describe({
                   key: 'uses'
                 }) === `./${decisionActionFolder}`;
               });
-              expect(deciding.length, `${job.id} decides once`).toBe(1);
+              expect(deciding.map(function jobOf() {
+                return job.id;
+              })).toEqual([job.id]);
               const [step] = deciding;
               expect(stepText(step ?? [])).toContain(`manifest-path: '${facts.manifest}'`);
               expect(stepValue({
@@ -505,40 +563,48 @@ await describe({
         it({
           name: 'lets every step that touches crates.io, outside the decision itself, read the decision of its own crate',
           fn: async () => {
+            const ungated: string[] = [];
             let gated = 0;
             for (const job of jobs)
               for (const step of stepBlocks(job.lines))
                 if (touchesCratesIo(step) && (!stepText(step).includes(decisionActionFolder))) {
-                  expect(readsDecision(step), `${job.id}: ${step[0] ?? ''}`).toBe(true);
                   gated += 1;
+                  if (!readsDecision(step))
+                    ungated.push(`${job.id}: ${step[0] ?? ''}`);
                 }
+            expect(ungated).toEqual([]);
             expect(gated).toBeGreaterThan(registryCrateNames(registry).length);
           },
         }),
         it({
           name: 'gates each publish-crate step on the detect job of its own crate',
           fn: async () => {
+            const ungated: string[] = [];
             for (const job of publishJobs) {
               const prefix = prefixOf({
                 id: job.id,
                 suffix: 'publish-crate'
               });
               for (const step of stepBlocks(job.lines))
-                if (touchesCratesIo(step))
-                  expect(stepValue({
-                    step,
-                    key: 'if'
-                  }), `${job.id}: ${step[0] ?? ''}`).toContain(`needs.${prefix}detect.outputs.${decisionOutput} == 'true'`);
+                if (touchesCratesIo(step) && (!stepValue({
+                  step,
+                  key: 'if'
+                }).includes(`needs.${prefix}detect.outputs.${decisionOutput} == 'true'`)))
+                  ungated.push(`${job.id}: ${step[0] ?? ''}`);
             }
+            expect(ungated).toEqual([]);
           },
         }),
         it({
           name: 'never gates a publish-crate job as a whole, because a skipped job would skip the GitHub release that needs it',
           fn: async () => {
-            for (const job of publishJobs)
-              expect(job.lines.find(function isJobCondition(line) {
+            expect(publishJobs.filter(function gatesJob(job) {
+              return (job.lines.find(function isJobCondition(line) {
                 return line.startsWith('    if:');
-              }) ?? '', job.id).not.toContain(decisionOutput);
+              }) ?? '').includes(decisionOutput);
+            }).map(function idOf(job) {
+              return job.id;
+            })).toEqual([]);
           },
         }),
         it({
@@ -554,7 +620,9 @@ await describe({
                 .filter(function createsRelease(step) {
                   return stepText(step).includes('gh release create');
                 });
-              expect(notes.length, job.id).toBe(1);
+              expect(notes.map(function jobOf() {
+                return job.id;
+              })).toEqual([job.id]);
               expect(stepText(notes[0] ?? [])).toContain(`${decisionVariable}: \${{ needs.${prefix}detect.outputs.${decisionOutput} }}`);
             }
           },
@@ -594,12 +662,14 @@ await describe({
           it({
             name: `${facts.crate}: a release candidate and a plain number go to crates.io`,
             fn: async () => {
-              for (const version of ['0.2.7-rc.1', '0.2.7']) {
-                const result = await runDetect({
+              const results = await Promise.all(['0.2.7-rc.1', '0.2.7'].map(async function detectVersion(version) {
+                return await runDetect({
                   facts,
                   version,
                   event: 'workflow_dispatch'
                 });
+              }));
+              for (const result of results) {
                 expect(result.detect.should_publish).toBe('true');
                 expect(result.decision[decisionOutput]).toBe('true');
               }

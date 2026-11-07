@@ -48,7 +48,7 @@ function manifest({
  @param files - manifest text by repository-relative directory
  @param to - version being released
  @param crateDirectory - directory of the crate being released
- @returns the refusal message, or undefined when the check passed
+ @returns the refusal message, or the empty text when the check passed
  */
 async function refusalOf({
   files,
@@ -58,7 +58,7 @@ async function refusalOf({
   readonly files: Readonly<Record<string, string>>;
   readonly to: string;
   readonly crateDirectory?: string;
-}): Promise<string | undefined> {
+}): Promise<string> {
   try {
     await assertDependenciesReachCratesIo({
       crateName: 'app-cli',
@@ -76,7 +76,7 @@ async function refusalOf({
         return found[1];
       },
     });
-    return undefined;
+    return '';
   }
   catch (error) {
     if (error instanceof CrateReleaseError)
@@ -156,8 +156,8 @@ await describe({
         it({
           name: 'refuses a dependency written as a table of its own, a build dependency and a dev dependency with a version',
           fn: async () => {
-            for (const header of ['dependencies', 'build-dependencies', 'dev-dependencies']) {
-              const message = await refusalOf({
+            const messages = await Promise.all(['dependencies', 'build-dependencies', 'dev-dependencies'].map(async function refusalFor(header) {
+              return await refusalOf({
                 files: {
                   ...inlineFiles({ dependencyVersion: '0.3.0-alpha.2' }),
                   'package/app/cli': manifest({
@@ -167,8 +167,9 @@ await describe({
                 },
                 to: '1.0.0',
               });
+            }));
+            for (const message of messages)
               expect(message).toContain('dep-core');
-            }
           },
         }),
         it({
@@ -202,26 +203,27 @@ await describe({
         it({
           name: 'allows an alpha or a beta release whose dependency is at alpha, because neither goes to crates.io',
           fn: async () => {
-            for (const to of ['1.0.0-alpha.3', '1.0.0-beta.1']) {
-              const message = await refusalOf({
+            const messages = await Promise.all(['1.0.0-alpha.3', '1.0.0-beta.1'].map(async function refusalFor(to) {
+              return await refusalOf({
                 files: inlineFiles({ dependencyVersion: '0.3.0-alpha.2' }),
                 to,
               });
-              expect(message).toBe(undefined);
-            }
+            }));
+            expect(messages).toEqual(['', '']);
           },
         }),
         it({
           name: 'allows a release candidate and a plain number whose dependencies are at rc or a plain number',
           fn: async () => {
-            for (const to of ['1.0.0-rc.1', '1.0.0'])
-              for (const dependencyVersion of ['0.3.0-rc.2', '0.3.0']) {
-                const message = await refusalOf({
+            const messages = await Promise.all(['1.0.0-rc.1', '1.0.0'].flatMap(function casesOf(to) {
+              return ['0.3.0-rc.2', '0.3.0'].map(async function refusalFor(dependencyVersion) {
+                return await refusalOf({
                   files: inlineFiles({ dependencyVersion }),
                   to,
                 });
-                expect(message).toBe(undefined);
-              }
+              });
+            }));
+            expect(messages).toEqual(['', '', '', '']);
           },
         }),
         it({
@@ -238,7 +240,7 @@ await describe({
               },
               to: '1.0.0',
             });
-            expect(message).toBe(undefined);
+            expect(message).toBe('');
           },
         }),
         it({
@@ -254,7 +256,7 @@ await describe({
               },
               to: '1.0.0',
             });
-            expect(message).toBe(undefined);
+            expect(message).toBe('');
           },
         }),
         it({

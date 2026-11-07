@@ -7,7 +7,7 @@ import {
 import { maximumVersionLength } from './constants.ts';
 import { labelCases } from './crates-io-version-label-cases.ts';
 import {
-  cratesIoSkipReason,
+  cratesIoRoute,
   goesToCratesIo,
   releaseLabel,
 } from './crates-io-version-label.ts';
@@ -15,7 +15,7 @@ import {
 /**
  Labels whose versions go to crates.io, by the owner's rule: a plain number and `-rc.N`.
  */
-const cratesIoLabels: readonly string[] = ['stable', 'rc'];
+const cratesIoLabels: ReadonlySet<string> = new Set(['stable', 'rc']);
 
 await describe({
   name: '',
@@ -44,41 +44,36 @@ await describe({
     }),
     describe({
       name: goesToCratesIo.name,
-      children: [
-        ...labelCases.map(function goesCase({
-          version,
-          label,
-        }) {
-          return it({
-            name: `${cratesIoLabels.includes(label) ? 'sends' : 'never sends'} ${JSON.stringify(version)} to crates.io`,
-            fn: async () => {
-              expect(goesToCratesIo(version)).toBe(cratesIoLabels.includes(label));
-            },
-          });
-        }),
-      ],
+      children: labelCases.map(function goesCase({
+        version,
+        label,
+      }) {
+        return it({
+          name: `${cratesIoLabels.has(label) ? 'sends' : 'never sends'} ${JSON.stringify(version)} to crates.io`,
+          fn: async () => {
+            expect(goesToCratesIo(version)).toBe(cratesIoLabels.has(label));
+          },
+        });
+      }),
     }),
     describe({
-      name: cratesIoSkipReason.name,
-      children: [
-        ...labelCases.map(function reasonCase({
-          version,
-          label,
-        }) {
-          return it({
-            name: `${cratesIoLabels.includes(label) ? 'has no skip reason for' : 'names its label in the skip reason of'} ${JSON.stringify(version)}`,
-            fn: async () => {
-              const reason = cratesIoSkipReason(version);
-              if (cratesIoLabels.includes(label))
-                expect(reason).toBe(undefined);
-              else {
-                expect(reason).toContain(label);
-                expect(reason).toContain('not published to crates.io');
-              }
-            },
-          });
-        }),
-      ],
+      name: cratesIoRoute.name,
+      children: labelCases.map(function reasonCase({
+        version,
+        label,
+      }) {
+        return it({
+          name: `${cratesIoLabels.has(label) ? 'goes to crates.io for' : 'names its label in the reason it stays on GitHub for'} ${JSON.stringify(version)}`,
+          fn: async () => {
+            const route = cratesIoRoute(version);
+            expect(route.goes).toBe(cratesIoLabels.has(label));
+            if (!route.goes) {
+              expect(route.reason).toContain(label);
+              expect(route.reason).toContain('not published to crates.io');
+            }
+          },
+        });
+      }),
     }),
   ],
 });

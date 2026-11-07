@@ -18,7 +18,9 @@
  ```
  */
 export function indentOf(line: string): number {
-  return line.length - line.trimStart().length;
+  return line.length
+    - line.trimStart()
+      .length;
 }
 
 /**
@@ -147,16 +149,18 @@ export function jobBlocks(lines: readonly string[]): readonly JobBlock[] {
     line,
     index
   ): JobBlock[] {
-    if ((indentOf(line) !== 2) || (!line.trim()
-      .endsWith(':')) || line.trim()
+    if ((indentOf(line) !== 2)
+      || (!line.trim()
+        .endsWith(':'))
+      || line.trim()
         .startsWith('#'))
       return [];
     return [
       {
         id: line.trim()
           .slice(
-            0,
-            -1
+          0,
+          -1
           ),
         lines: blockBelow({
           lines: section,
@@ -209,8 +213,9 @@ export function stepBlocks(job: readonly string[]): readonly (readonly string[])
       steps,
       line
     ) {
-      if ((indentOf(line) === dashIndent) && line.trim()
-        .startsWith('- '))
+      if ((indentOf(line) === dashIndent)
+        && line.trim()
+          .startsWith('- '))
         steps.push([line]);
       else
         steps.at(-1)
