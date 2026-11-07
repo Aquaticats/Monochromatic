@@ -3579,6 +3579,11 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 - The earlier per-user scratch (`<state>/cli-git/scratch`) is still not swept; the owner's pick covered the repository scratch only.
 - The daily toolchain timer must not run for real until the batch ends (its agent was told).
 - The batch agent started after merge `73173e0f41` with the 15 crates; "go wrapper" waits for the background-prompt fix below.
+  It runs on the default subagent model because an `opus` override was refused by a permission rule;
+  the owner, asked, answered "Keep it running (Recommended)".
+- While tracing the dialog, a pattern read of another process's environment (`CLAUDE[A-Z_]*`) printed an API key and a
+  messaging token into the session log; the owner answered "I'll rotate it" and, asked whether to add an `AGENTS.md`
+  rule for exact-name environment reads, "Don't add it".
 
 ### Background Git never prompts (owner pick 2026-11-07)
 
