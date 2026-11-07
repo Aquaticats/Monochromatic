@@ -1207,6 +1207,16 @@ and removes a recorded link the lock no longer declares.
   it stays untouched, `install` prints a warning that names the path and what is there,
   and the path leaves the record so the warning appears once.
 - A link made before the record existed is not in it, so it is never removed; delete such a link by hand once.
+- A repository scope retires only links inside its own checkout, and none inside a checkout nested in it
+  (a directory with a `.git` entry between the checkout root and the link).
+  A new worktree starts as a snapshot of the checkout it was made from, `.cache` included,
+  so its first record names that checkout's links by absolute path;
+  `install` in the new worktree never inspects or removes those paths and leaves them out of the record it writes.
+  Before this rule, that install removed the source checkout's links and left its `.cache/*-bin` folders empty
+  (`doc/troubleshooting/mpm-shadow-record-copied-into-a-new-worktree-retires-the-source-links.md`).
+- The global scope keeps retiring every path its own record names, because nothing copies that record.
+- A repository scope no longer retires a link whose plan `linkDir` is an absolute path outside the checkout;
+  the plan uses only relative ones, and such a link is left where it is.
 - A partial `install` (named tools, or the `update` that installs a few) keeps the recorded links of the other tools.
 - An unreadable record retires nothing and says so.
 - Each removal is one line of the install report (`retired the postinstall link ...`).
