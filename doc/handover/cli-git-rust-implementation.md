@@ -4391,6 +4391,67 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   alpha releases.
   Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
   its worktree and branch are removed.
+- Repository-wide `monochromatic-lint`:
+  merged into main in small merges,
+  the last `cc34dc6faf`;
+  174,916 findings (main `136a40fe69`) down to 38,466.
+  Left:
+  `package/git-policy/cli` 35,006 (its own branch,
+  ready,
+  merges after the alpha);
+  `doc/decision` 1,785 (owner question in `doc/handover/questions-for-the-owner.md`);
+  about 1,675 in scope
+  (`music-player/desktop-app` rustdoc 664,
+  closures 610 across `cargo-shadow`,
+  `forbidden-strings`,
+  `file-manager` and others,
+  fenced-Rust rustdoc warnings in docs 263,
+  shell 96 in `catalog-specifiers.yml`,
+  `playwright-image.yml` and `repo-tools-setup`,
+  `max-lines` 13,
+  fuzz seeds 4 that need an approved ignore);
+  the closure check skipped five packages whose dependencies were not in the cargo cache,
+  so the closure count is low.
+  The fixer's content-changing defects (URL in a code span,
+  pipe table to HTML,
+  `///` inside fenced Rust,
+  `>` in blockquotes) are given to an agent (`fix/monochromatic-lint-fix-changes-only-whitespace`);
+  commits that only added markers are separate and revertable
+  (`c9d4e2dde5`,
+  `18b830ea58`,
+  `2f11a41621`,
+  `8a7ca6e81f`,
+  `102099f24b`,
+  `265cdbbc0c`,
+  `4b367c4a37`).
+  Why nothing caught it:
+  the commit path checks one Markdown rule,
+  CI's lint step cannot find the tool,
+  `mise run lint` runs nowhere;
+  proposal `doc/planning/repository-linter-stays-at-zero.md` (owner question).
+  It also changed release-path files after the wrapper's release gate started:
+  `.github/workflows/cargo-publish.yml` (trimmed under its ratchet)
+  and the crates.io decision action (now a Node step,
+  agreeing with the old bash on 21 manifests);
+  the release dry run exercises both.
+- Commit stalls,
+  measured 2026-11-07 from `.git/monochromatic-git-policy-cli-commit-timing.jsonl`
+  (`~/temp/agent/commit-timing-today.ts`):
+  450 commits,
+  442 landed,
+  7 stopped,
+  1 ended;
+  `totalMs` p50 2066,
+  p90 13710,
+  p99 416760,
+  max 1228797;
+  141 over 5 s.
+  The four longest (678 to 1229 s,
+  worktree `repository-passes-monochromatic-lint`) ended `stopped` after `answerWaitMs` 1200776 with `lockHolderKind`
+  `unproven`;
+  the holder was an orphaned `git commit` holding that worktree's `index.lock`.
+  Against "Commits should never fail" and the 5 s rule;
+  given to an agent (`fix/git-policy-cli-commits-never-stall-on-an-unproven-lock`).
 - Music player:
   merged into main `9944c1ffe8` (1601 of 1601 desktop-app tests,
   Clippy and e2e lint clean;
