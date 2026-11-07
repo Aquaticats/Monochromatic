@@ -35,7 +35,9 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
 
-/// Imports the check that tells a shadow, of any version, from a real tool.
+/// Imports the check that tells a shadow,
+/// of any version,
+/// from a real tool.
 use crate::shadow_identity::shadow_behind;
 
 /// What:

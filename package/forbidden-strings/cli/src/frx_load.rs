@@ -140,6 +140,21 @@ impl LoadedRules {
     }
 }
 
+/// The rule name one line of the builtin name sidecar holds,
+/// or `None` for the empty line of an unnamed rule.
+fn name_of_sidecar_line(line: &str) -> Option<String> {
+    if line.is_empty() {
+        return None;
+    }
+    return Some(line.to_string());
+}
+
+/// The fatal error for a builtin baseline that failed to load,
+/// keeping the engine's redacted reason.
+fn baseline_error<Reason: std::fmt::Display>(reason: Reason) -> anyhow::Error {
+    return anyhow!("builtin baseline: {}", reason);
+}
+
 /// Parses the builtin baseline's embedded name sidecar into a per-rule name table.
 ///
 /// The build step writes one line per baseline rule,
@@ -154,7 +169,7 @@ impl LoadedRules {
 fn parse_builtin_names(text: &str, expected: usize) -> Result<Vec<Option<String>>> {
     let names: Vec<Option<String>> = text
         .lines()
-        .map(|line| return (!line.is_empty()).then(|| return line.to_string()))
+        .map(name_of_sidecar_line)
         .collect();
     if names.len() != expected {
         return Err(anyhow!(
@@ -272,22 +287,23 @@ pub(crate) fn load_listed(
     }
 
     if builtin_rules {
-        let set = load_precompiled(precompiled)
-            .map_err(|reason| return anyhow!("builtin baseline: {}", reason))?;
+        let set = load_precompiled(precompiled).map_err(baseline_error)?;
         let names = parse_builtin_names(builtin_names, set.len())?;
         // Reject a runtime name that shadows a builtin name: both would render as
         // the same `rule=<name>` token, making findings ambiguous. Section names
         // are non-secret by design (they surface in findings), so naming the
         // collision here stays inside the redaction contract.
         let builtin_set: std::collections::HashSet<&str> =
-            names.iter().flatten().map(|name| return name.as_str()).collect();
-        for user_name in sets.iter().flat_map(|scan_set| return scan_set.names.iter().flatten()) {
-            if builtin_set.contains(user_name.as_str()) {
-                return Err(anyhow!(
-                    "rules {}: rule name '{}' collides with a builtin baseline rule name",
-                    snapshot.label(),
-                    user_name,
-                ));
+            names.iter().flatten().map(String::as_str).collect();
+        for scan_set in &sets {
+            for user_name in scan_set.names.iter().flatten() {
+                if builtin_set.contains(user_name.as_str()) {
+                    return Err(anyhow!(
+                        "rules {}: rule name '{}' collides with a builtin baseline rule name",
+                        snapshot.label(),
+                        user_name,
+                    ));
+                }
             }
         }
         sets.push(ScanSet {

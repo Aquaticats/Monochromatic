@@ -97,6 +97,17 @@ pub(super) fn is_significant(line: &str) -> bool {
     return !trimmed.is_empty() && !trimmed.starts_with('#');
 }
 
+/// Whether a flag letter is outside the two the loader supports (`m` and `x`).
+fn is_unsupported_flag(flag: &char) -> bool {
+    return *flag != 'm' && *flag != 'x';
+}
+
+/// Whether a character of the trailing run is a lowercase letter,
+/// as a flags slot requires.
+fn is_lowercase_flag(flag: char) -> bool {
+    return flag.is_ascii_lowercase();
+}
+
 /// Reports the first flag letter outside the `{m, x}` no-op set,
 ///  if any.
 ///
@@ -107,7 +118,7 @@ pub(super) fn is_significant(line: &str) -> bool {
 /// dropped (an `i` or `s`),
 ///  so the caller fails the load closed on it.
 fn first_bad_flag(flags: &str) -> Option<char> {
-    return flags.chars().find(|&c| return c != 'm' && c != 'x');
+    return flags.chars().find(is_unsupported_flag);
 }
 
 /// One classified significant rule preserving exact-literal identity before escaping.
@@ -150,7 +161,7 @@ pub(super) fn significant_line_rule(
         let flags = &trimmed[last + 1..];
         // Only an all-lowercase trailing run is a flags slot; otherwise the line is
         // a literal that merely happens to contain slashes.
-        if flags.chars().all(|c| return c.is_ascii_lowercase()) {
+        if flags.chars().all(is_lowercase_flag) {
             if let Some(flag) = first_bad_flag(flags) {
                 return Err(LoadError::UnsupportedFlag { index, flag });
             }

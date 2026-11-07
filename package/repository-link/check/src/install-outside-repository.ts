@@ -87,28 +87,29 @@ await mkdir(
   target,
   { recursive: true, },
 );
-for (const file of (await readdir(builtFolder,)).filter(function isModule(name,) {
+await Promise.all((await readdir(builtFolder,)).filter(function isModule(name,) {
   return name.endsWith('.mjs',);
-},)) {
-  await copyFile(
-    join(
-      builtFolder,
-      file,
-    ),
-    join(
-      target,
-      file,
-    ),
-  );
-  await chmod(
-    join(
-      target,
-      file,
-    ),
-    INSTALLED_BIN_MODE,
-  );
-}
-for (const [name, file,] of BINS) {
+},)
+  .map(async function copyModule(file,) {
+    await copyFile(
+      join(
+        builtFolder,
+        file,
+      ),
+      join(
+        target,
+        file,
+      ),
+    );
+    await chmod(
+      join(
+        target,
+        file,
+      ),
+      INSTALLED_BIN_MODE,
+    );
+  },),);
+await Promise.all(BINS.map(async function linkBin([name, file,],) {
   if (!await pathExists(join(
     target,
     name,
@@ -121,5 +122,5 @@ for (const [name, file,] of BINS) {
       ),
     );
   }
-}
+},),);
 console.log(`installed ${String(BINS.length,)} bins to ${target}`,);

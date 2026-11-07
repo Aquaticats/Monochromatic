@@ -1,8 +1,11 @@
 //! What:
 //! The check that the four shadow crates carry one copy of the rule "a shadow never starts a shadow".
 //! Why:
-//! `cargo-shadow`, `mpm-shadow`, `pnpm-shadow` and `search-shadow` share no dependency,
-//! so `src/shadow_identity.rs` and its tests are byte-identical copies, one per crate.
+//! `cargo-shadow`,
+//! `mpm-shadow`,
+//! `pnpm-shadow` and `search-shadow` share no dependency,
+//! so `src/shadow_identity.rs` and its tests are byte-identical copies,
+//! one per crate.
 //! A copy that changed alone would make one shadow judge another by a different identity text,
 //! and a shadow that the others skip is a shadow that can be started as a real tool.
 //!
@@ -17,7 +20,8 @@ use std::path::PathBuf;
 /// The files that must be the same in every shadow crate.
 const COPIED_FILES: &[&str] = &["src/shadow_identity.rs", "src/shadow_identity_tests.rs"];
 
-/// The other shadow crates, as folders beside this package's folder (`package/<name>/cli`).
+/// The other shadow crates,
+/// as folders beside this package's folder (`package/<name>/cli`).
 const OTHER_SHADOW_CRATES: &[&str] = &["cargo-shadow", "mpm-shadow", "pnpm-shadow"];
 
 #[test]

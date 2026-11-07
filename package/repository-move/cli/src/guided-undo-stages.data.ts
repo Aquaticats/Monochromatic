@@ -17,6 +17,13 @@ import type {
  @param c - the configuration
  
  @returns the stages
+
+ @example
+ ```ts
+ import { thawStages, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = thawStages(c,);
+ ```
  */
 export function thawStages(c: GuidedConfig,): readonly Stage[] {
   /**
@@ -77,6 +84,13 @@ if grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service ${c.wiz}/
  @param stamp - the swap's timestamp
  
  @returns the stages
+
+ @example
+ ```ts
+ import { rollbackStages, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = rollbackStages({ c, stamp, },);
+ ```
  */
 export function rollbackStages(
   {

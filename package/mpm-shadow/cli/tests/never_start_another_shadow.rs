@@ -1,6 +1,9 @@
 //! What:
-//! End-to-end tests of the rule "a shadow never starts a shadow, of any version, as its real `mpm`".
-//! Each test builds a disposable `PATH` of shadow copies, launcher records and real programs,
+//! End-to-end tests of the rule "a shadow never starts a shadow,
+//! of any version,
+//! as its real `mpm`".
+//! Each test builds a disposable `PATH` of shadow copies,
+//! launcher records and real programs,
 //! starts the built `mpm-shadow` under the name `mpm`,
 //! and gives it a deadline.
 //! Why:
@@ -37,12 +40,15 @@ const PASS_THROUGH_ARGUMENTS: &[&str] = &["some-tool-verb", "x"];
 /// The name of the environment variable the arrival marker travels in (`src/shadow_identity.rs`).
 const ARRIVAL_VARIABLE: &str = "MONOCHROMATIC_SHADOW_STARTED_BY";
 
-/// The version the built shadow carries, which the copies below change.
+/// The version the built shadow carries,
+/// which the copies below change.
 const OWN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// How long a run may take before it counts as a loop.
-/// A run that ends takes a few milliseconds; the loop it replaces never ends.
-/// The bound is far above the first and below the patience of a test run, and it only matters in the failing case.
+/// A run that ends takes a few milliseconds;
+/// the loop it replaces never ends.
+/// The bound is far above the first and below the patience of a test run,
+/// and it only matters in the failing case.
 const LOOP_BOUND: Duration = Duration::from_secs(5);
 
 /// How often a run is polled while it has not ended.
@@ -74,7 +80,8 @@ fn run_bounded(mut command: Command) -> Outcome {
     }
 }
 
-/// The output of a run that must have ended, or a failure that says it looped.
+/// The output of a run that must have ended,
+/// or a failure that says it looped.
 fn finished(outcome: Outcome) -> Output {
     match outcome {
         Outcome::Finished(output) => return output,
@@ -89,8 +96,10 @@ fn copy_program(source: &Path, target: &Path) {
     fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
 }
 
-/// A copy of the shadow that names another version: the version text inside it changes in place,
-/// so the copy is a different file with a different identity text, as an older release would be.
+/// A copy of the shadow that names another version:
+/// the version text inside it changes in place,
+/// so the copy is a different file with a different identity text,
+/// as an older release would be.
 fn copy_of_another_version(target: &Path) {
     let mut bytes: Vec<u8> = fs::read(SHADOW_EXECUTABLE).expect("read the shadow");
     let needle: &[u8] = OWN_VERSION.as_bytes();
@@ -111,14 +120,17 @@ fn copy_of_another_version(target: &Path) {
     fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
 }
 
-/// A shadow link: a symlink named after the tool, to the shadow program of its folder.
+/// A shadow link:
+/// a symlink named after the tool,
+/// to the shadow program of its folder.
 fn link_as_tool(folder: &Path) -> PathBuf {
     let link: PathBuf = folder.join(TOOL);
     std::os::unix::fs::symlink(folder.join(SHADOW_FILE), &link).expect("make the shadow link");
     return link;
 }
 
-/// A script standing in for the real tool: prints which tool answered and the arrival marker it was started with.
+/// A script standing in for the real tool:
+/// prints which tool answered and the arrival marker it was started with.
 fn write_real_script(folder: &Path) {
     fs::create_dir_all(folder).expect("make the folder");
     fs::write(folder.join(TOOL), format!("#!/bin/sh\nprintf 'REAL {TOOL} %s\\n' \"$*\"\nprintf 'MARKER %s\\n' \"${ARRIVAL_VARIABLE}\"\n")).expect("write the script");
@@ -142,7 +154,8 @@ fn command_for(link: &Path, path_folders: &[&Path]) -> Command {
     return command;
 }
 
-/// The two lines the real script prints: what ran and the marker it saw.
+/// The two lines the real script prints:
+/// what ran and the marker it saw.
 fn expected_first_line() -> String {
     return format!("REAL {TOOL} {}", PASS_THROUGH_ARGUMENTS.join(" "));
 }
@@ -255,7 +268,8 @@ fn a_script_that_starts_the_other_shadow_stops_on_arrival_with_a_message_and_a_n
     assert!(output.stdout.is_empty(), "the real tool must not have run");
 }
 
-/// The start time of a process, as `/proc/<pid>/stat` field 22 says it.
+/// The start time of a process,
+/// as `/proc/<pid>/stat` field 22 says it.
 fn birth_of(pid: u32) -> String {
     let text: String = fs::read_to_string(format!("/proc/{pid}/stat")).expect("read the stat file");
     let after_name: &str = text.rsplit_once(')').expect("the name ends with a bracket").1;
@@ -291,7 +305,8 @@ fn an_arrival_marker_left_for_the_direct_parent_stops_the_shadow_and_one_left_fo
     assert!(passed_again.status.success(), "stderr: {}", String::from_utf8_lossy(&passed_again.stderr));
 }
 
-/// A launcher: a copy of the built program with a record beside it that names the program it starts.
+/// A launcher:
+/// a copy of the built program with a record beside it that names the program it starts.
 fn make_launcher(path: &Path, real: &Path) {
     copy_program(Path::new(SHADOW_EXECUTABLE), path);
     let record = mpm_shadow::toolchain::launcher::LaunchRecord {

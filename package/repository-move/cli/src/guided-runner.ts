@@ -13,6 +13,7 @@ import {
 import { join, } from 'node:path';
 import { pathExists, } from './completion-records.ts';
 import { cutoverStages, } from './guided-cutover-stages.data.ts';
+import { canonicalPath, } from './canonical-path.ts';
 import { runPhase, } from './guided-engine.ts';
 import {
   compactTimestamp,
@@ -96,6 +97,13 @@ function valuesOf(
  @returns the flags
  
  @throws GuidedStopError with the precondition status when the command is unknown
+
+ @example
+ ```ts
+ import { parseGuidedFlags, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = parseGuidedFlags(argv,);
+ ```
  */
 export function parseGuidedFlags(argv: readonly string[],): GuidedFlags {
   /**
@@ -190,13 +198,14 @@ async function stagesFor(
       'fixture-path',
     );
     /**
-     The fixture folder.
+     The fixture folder in its canonical spelling, so a folder recorded before the stage resolved links still matches the
+     mount table and Git's registry.
      */
     const fixture = await pathExists(fixturePath,)
-      ? (await readFile(
+      ? await canonicalPath((await readFile(
         fixturePath,
         'utf8',
-      )).trim()
+      )).trim(),)
       : `${config.fixtureParent}/send-fixture.DRYRUN`;
     return await prepareStages({
       c: config,
@@ -347,6 +356,13 @@ async function reportStop(
  @param out - the output
  
  @returns the exit status
+
+ @example
+ ```ts
+ import { runGuided, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await runGuided({ config, flags, out, },);
+ ```
  */
 export async function runGuided(
   {

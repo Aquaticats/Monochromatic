@@ -63,7 +63,9 @@ use crate::launch::replace_process;
 /// Imports the record every policy reads and the function that asks the policies for a refusal.
 use crate::policy::{Invocation, refusal_for};
 
-/// Imports the arrival stop: the marker a shadow leaves for the program it starts, the line printed on arrival and the exit code.
+/// Imports the arrival stop:
+/// the marker a shadow leaves for the program it starts,
+/// the line printed on arrival and the exit code.
 use crate::shadow_identity::{ARRIVAL_EXIT_CODE, arrival_at_this_process, arrival_line};
 
 /// Imports the function that lowers the disk priority.

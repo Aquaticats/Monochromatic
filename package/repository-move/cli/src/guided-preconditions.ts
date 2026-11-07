@@ -74,6 +74,13 @@ async function isSymbolicLink(path: string,): Promise<boolean> {
  A compact UTC timestamp for folder names, such as `20261107T183000Z`.
 
  @returns the stamp
+
+ @example
+ ```ts
+ import { compactTimestamp, } from './guided-preconditions.ts';
+ 
+ const result = compactTimestamp();
+ ```
  */
 export function compactTimestamp(): string {
   return `${new Date().toISOString()
@@ -97,6 +104,13 @@ export function compactTimestamp(): string {
  @param create - whether to make and keep one when none exists
  
  @returns the stamp
+
+ @example
+ ```ts
+ import { swapStamp, } from './guided-preconditions.ts';
+ 
+ const result = await swapStamp({ config, create, },);
+ ```
  */
 export async function swapStamp(
   {
@@ -145,6 +159,13 @@ export async function swapStamp(
  @param flags - the flags
  
  @throws GuidedStopError with the precondition status when a condition is not met
+
+ @example
+ ```ts
+ import { requirePreconditions, } from './guided-preconditions.ts';
+ 
+ await requirePreconditions({ config, flags, },);
+ ```
  */
 export async function requirePreconditions(
   {

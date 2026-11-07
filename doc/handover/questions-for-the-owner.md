@@ -18,6 +18,96 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: may an agent time a signed commit with your real signing setup? (not asked yet)
+
+A commit on 2026-11-07 (request `72c24f69`) spent 241 s in its build step,
+and 18 landed commits today spent 20 to 406 s there.
+Your global Git config signs every commit (`commit.gpgsign true`,
+`gpg.format ssh`),
+so each build runs one `ssh-keygen -Y sign`,
+exactly as native Git would.
+The commit-stall agent could not name the slow step from the records,
+and when it tried to time a signed commit with your real setup in a throwaway repository
+(with `SSH_ASKPASS` and `DISPLAY` as the commit service has them,
+against a native `git commit` as the control),
+the auto-mode classifier refused it as credential exploration.
+Neither the agent nor the coordinator will run that without your word.
+Meanwhile the wrapper is being taught to record each Git step's duration,
+so the next slow commit names its step without touching the key.
+- A:
+  allow the timing probe (it signs throwaway commits with your key and prints only durations).
+- B:
+  do not;
+  wait for the per-step records.
+
+## Open: may the service remove an index.lock that no process holds? (not asked yet)
+
+Four commits on 2026-11-07 stopped after up to 20 minutes behind one `index.lock`
+(size 0,
+no Git PID file,
+no process found holding it;
+who created it is not known:
+no retained record names it,
+and neither journal shows an out-of-memory or systemd kill between 12:50 and 13:10,
+though a direct kill such as a tool timeout is not journaled).
+An agent finally removed it by hand.
+The fix on branch `fix/git-policy-cli-commits-never-stall-on-an-unproven-lock` (gate 5205 of 5205,
+not merged yet)
+stops such a commit after 1 minute instead of 10,
+names the holder when one is alive,
+refuses at once the commits queued behind the same lock,
+and keeps every withdrawn commit on a side ref.
+Today a lock with no provable holder is never removed
+(the `flock`-on-the-lock rule from the index reclamation work,
+`doc/handover/cli-git-rust-implementation.md` "Index reclamation");
+the person is told within seconds and removes it.
+- A (today):
+  keep it;
+  the person removes it.
+- B:
+  after a complete scan of every readable process finds no holder and there is no PID file,
+  the service removes it and lands the commit.
+  Limit:
+  processes in other user namespaces and a native `git commit --only` in its hook phase cannot be seen,
+  so B can remove a lock that is in fact held.
+
+## Open: what a stop of the commit service does to the Git a commit it is preparing has started (not asked yet)
+
+From the tokio work,
+step T7 (branch `feat/git-policy-cli-tokio-steps-6-onward`,
+gate 5224 of 5224;
+the plan `doc/planning/git-policy-cli-full-tokio.md`,
+open choice 12).
+The owner's earlier pick for choice 6 was "Only that operation's children (Recommended)".
+- A (built):
+  the service's stop has its own handling and signals no commit's Git;
+  that Git runs on after the service stops and holds its index lock until it ends.
+- B:
+  the stop signals every child of every operation
+  (the recipient rule the owner declined;
+  needs a bounded table with a proof).
+- C:
+  the stop handler only records the stop,
+  and the service's own shutdown signals the children it is waiting for,
+  through a registry
+  (not designed yet).
+The agent's ranking:
+C > A > B;
+C ends no stray Git and still treats the stop as an operation of its own,
+A is what the earlier rule says as worded,
+B is the rule the owner declined.
+Choosing C starts its design;
+saying nothing keeps A.
+
+Also open to veto,
+from the same step:
+`std::thread::sleep` stays in exactly one place,
+`sleep_for` in `push/start_retry.rs`,
+the pause before a forwarded command's start is retried,
+because a forwarded command builds no runtime
+(guarded by `binary_forwarded_command_makes_no_thread_tests.rs`);
+the T13 lint against `thread::sleep` allows that one function.
+
 ## Open: may the decision records get the linter's whitespace-only line breaks? (not asked yet)
 
 The repository-wide lint pass left `doc/decision/` alone (rule:
