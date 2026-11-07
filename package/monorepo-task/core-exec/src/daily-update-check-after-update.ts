@@ -213,13 +213,47 @@ export async function toolchainMoves({
 }
 
 /**
- Writes what the owner is told about the issues and the checks that could not be compared.
+ Issues named one per line in the notification; the journal names them all.
+ The desktop shows the first thousand characters of a notification, which fits this many lines of the form
+ `package: check fails after the daily update (code): issue opened (address)`.
+ */
+export const LISTED_ISSUE_LINES = 5;
+
+/**
+ Words that say what became of one issue, with where to find it.
+
+ @param outcome - what came of publishing it
+
+ @returns the words
+
+ @example
+ ```ts
+ const words = outcomeWords(outcome,);
+ ```
+ */
+export function outcomeWords(outcome: PublishOutcome,): string {
+  if (outcome.action === 'failed')
+    return `the issue could not be published and is kept for the next run (${outcome.reason})`;
+  /**
+   Where the issue is: its address when `gh` printed one, otherwise its number.
+   */
+  const where = outcome.address !== undefined && outcome.address !== ''
+    ? outcome.address
+    : outcome.issueNumber === undefined
+    ? ''
+    : `#${outcome.issueNumber}`;
+  return `${outcome.action === 'created' ? 'issue opened' : 'comment added'}${where === '' ? '' : ` (${where})`}`;
+}
+
+/**
+ Writes what the owner is told about the issues and the checks that could not be compared: one text for all issues and
+ one for all unknown checks, however many packages there are.
 
  @param comparisons - every check compared
 
  @param outcomes - what came of publishing the issues
 
- @returns one text per thing to tell
+ @returns the texts to tell, none when there is nothing to tell
 
  @example
  ```ts
@@ -234,35 +268,37 @@ export function problemsOf({
   readonly outcomes: readonly PublishOutcome[];
 },): readonly string[] {
   /**
-   One line per issue.
-   */
-  const issueLines = outcomes.map(function lineOf(outcome,) {
-    if (outcome.action === 'failed') {
-      return `${outcome.issue
-        .title}: the issue could not be published and is kept for the next run (${outcome.reason})`;
-    }
-    return `${outcome.issue
-      .title}: ${outcome.action === 'created' ? 'issue opened' : 'comment added'}${
-      outcome.issueNumber === undefined ? '' : ` (#${outcome.issueNumber})`
-    }`;
-  },);
-  /**
    Checks whose result was not a clear pass or fail.
    */
   const unknown = comparisons.filter(function isUnknown(comparison,) {
     return comparison.verdict === 'unknown';
   },);
-  if (unknown.length === 0)
-    return issueLines;
-  return [
-    ...issueLines,
-    `${unknown.length} package checks could not be compared across the update, so no issue was opened for them; first ${
-      Math.min(
-        unknown.length,
-        LISTED_UNKNOWN_CHECKS,
+  /**
+   The text for the issues.
+   */
+  const issuesText = outcomes.length === 0 ? [] : [
+    [
+      `${outcomes.length} ${outcomes.length === 1 ? 'package' : 'packages'} broke in the update; the issues:`,
+      ...outcomes.slice(
+        0,
+        LISTED_ISSUE_LINES,
       )
-    }:\n${
-      unknown.slice(
+        .map(function lineOf(outcome,) {
+          return `${outcome.issue
+            .title}: ${outcomeWords(outcome,)}`;
+        },),
+      ...outcomes.length > LISTED_ISSUE_LINES
+        ? [`and ${outcomes.length - LISTED_ISSUE_LINES} more; the journal lists them all.`,]
+        : [],
+    ].join('\n',),
+  ];
+  /**
+   The text for the checks that could not be compared.
+   */
+  const unknownText = unknown.length === 0 ? [] : [
+    [
+      `${unknown.length} package checks could not be compared across the update, so no issue was opened for them:`,
+      ...unknown.slice(
         0,
         LISTED_UNKNOWN_CHECKS,
       )
@@ -270,9 +306,15 @@ export function problemsOf({
           return `${comparison.check
             .package} ${comparison.check
               .task}: ${comparison.reason}`;
-        },)
-        .join('\n',)
-    }`,
+        },),
+      ...unknown.length > LISTED_UNKNOWN_CHECKS
+        ? [`and ${unknown.length - LISTED_UNKNOWN_CHECKS} more; the journal lists them all.`,]
+        : [],
+    ].join('\n',),
+  ];
+  return [
+    ...issuesText,
+    ...unknownText,
   ];
 }
 

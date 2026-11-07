@@ -23,7 +23,10 @@ import type {
   CheckReport,
 } from './daily-update-package-check-types.ts';
 import type { UpdateGroup, } from './daily-update-plan.ts';
-import { runDailyUpdate, } from './daily-update-run.ts';
+import {
+  groupProblems,
+  runGroups,
+} from './daily-update-run.ts';
 import type {
   DailyUpdateEffects,
   GroupReport,
@@ -151,7 +154,7 @@ export async function runUpdateWithChecks({
   /**
    What the update's groups did.
    */
-  const reports = await runDailyUpdate({
+  const reports = await runGroups({
     effects,
     groups,
   },);
@@ -172,10 +175,18 @@ export async function runUpdateWithChecks({
       },);
     },
   },);
-  if (problems.length > 0) {
+  // One notification for the whole run: the groups' problems and the checks' problems together.
+  /**
+   Everything the owner is told, the update's own problems first.
+   */
+  const told = [
+    ...groupProblems(reports,),
+    ...problems,
+  ];
+  if (told.length > 0) {
     await effects.notify({
-      title: 'Daily update: package checks need a look',
-      body: `${problems.join('\n\n',)}\n\nThe journal has the full output: journalctl --user --unit toolchain-daily-update`,
+      title: 'Daily update needs a look',
+      body: `${told.join('\n\n',)}\n\nThe journal has the full output: journalctl --user --unit toolchain-daily-update`,
     },);
   }
   return {

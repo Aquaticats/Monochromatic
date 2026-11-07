@@ -277,6 +277,10 @@ export type PublishOutcome = {
    */
   readonly issueNumber?: number;
   /**
+   Web address of the issue `gh` created, absent for a comment, a failure, or when `gh` printed none.
+   */
+  readonly address?: string;
+  /**
    Why it failed, empty otherwise.
    */
   readonly reason: string;

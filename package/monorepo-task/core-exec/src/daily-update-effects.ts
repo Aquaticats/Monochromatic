@@ -75,6 +75,28 @@ export function splitNul(output: string,): readonly string[] {
 }
 
 /**
+ The environment the desktop notifier runs with: the caller's, with the session bus address exactly as the caller has
+ it. An address the caller does not have is never invented, so a process that was given no bus (a test, a fixture) can
+ never reach the owner's desktop by a guessed path; the timer's unit sets the address itself.
+
+ @param environment - the caller's environment
+
+ @returns a copy to give the notifier
+
+ @example
+ ```ts
+ notifierEnvironment({ environment: { DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus', }, },);
+ ```
+ */
+export function notifierEnvironment({
+  environment,
+}: {
+  readonly environment: NodeJS.ProcessEnv;
+},): NodeJS.ProcessEnv {
+  return { ...environment, };
+}
+
+/**
  Sends a desktop notification and writes the same text to the journal.
 
  @param title - notification title
@@ -114,18 +136,28 @@ export async function notifyOwner({
         shown,
       ],
       {
-        env: { DBUS_SESSION_BUS_ADDRESS: process.env
-          .DBUS_SESSION_BUS_ADDRESS
-          ?? `unix:path=/run/user/${process.getuid?.() ?? 0}/bus`, },
+        env: notifierEnvironment({ environment: process.env, },),
+        timeout: NOTIFY_TIMEOUT_MS,
       },
     );
   }
   catch (error) {
     // A missing desktop must not turn a reported problem into a crash; the journal already has the text.
     process.stderr
-      .write(`daily-update: no desktop notification was shown: ${String(error,)}\n`,);
+      .write(
+      `daily-update: no desktop notification was shown: ${String(error,)} ${
+          (Error.isError(error,)) && ('stderr' in error) ? String(error.stderr,) : ''
+        }\n`,
+      );
   }
 }
+
+/**
+ Longest `notify-send` may take, in milliseconds.
+ GLib's D-Bus calls wait 25 seconds for an answer at most, which is the longest `notify-send` can wait on a bus whose
+ service does not answer; measured 2026-11-07: 0.6 seconds against a private bus with no notification service.
+ */
+export const NOTIFY_TIMEOUT_MS = 30_000;
 
 /**
  Characters of a notification body that are sent to the desktop.

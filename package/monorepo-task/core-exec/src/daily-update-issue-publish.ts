@@ -422,6 +422,10 @@ export async function publishIssues({
         issue,
         action: 'created',
         issueNumber,
+        address: answer.stdout
+          .trim()
+          .split('\n',)[0]
+          ?? '',
         reason: '',
       };
     },

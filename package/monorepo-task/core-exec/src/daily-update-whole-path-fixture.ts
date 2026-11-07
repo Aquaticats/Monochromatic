@@ -14,9 +14,11 @@ import { once, } from 'node:events';
 import {
   chmod,
   mkdir,
+  mkdtemp,
   mkdtempDisposable,
   readFile,
   realpath,
+  rm,
   stat,
   symlink,
   writeFile,
@@ -59,20 +61,6 @@ export type RecordedGhCall = {
 };
 
 /**
- A desktop notification the stand-in `notify-send` received.
- */
-export type RecordedNotification = {
-  /**
-   Arguments after `notify-send`: the options, the title and the text.
-   */
-  readonly args: readonly string[];
-  /**
-   The session bus address the notifier was given.
-   */
-  readonly bus: string;
-};
-
-/**
  What the whole run left behind.
  */
 export type WholePathResult = {
@@ -89,9 +77,10 @@ export type WholePathResult = {
    */
   readonly ghCalls: readonly RecordedGhCall[];
   /**
-   Desktop notifications the stand-in `notify-send` received, in order.
+   Titles of the notifications the update sent, one per notification, read from its journal where `notifyOwner` writes
+   each title and body before it calls `notify-send`.
    */
-  readonly notifications: readonly RecordedNotification[];
+  readonly notificationTitles: readonly string[];
   /**
    Commit subjects of the repository, newest first.
    */
@@ -126,15 +115,6 @@ if (exitCode !== 0) { process.stderr.write('error connecting to api.github.com\\
 const verb = process.argv[3];
 if (verb === 'list') process.stdout.write('[]');
 if (verb === 'create') process.stdout.write('https://github.com/example/fixture/issues/1\\n');
-`;
-
-/**
- The fake `notify-send`: records the call and its bus address and shows nothing, so no run of the fixture can reach the
- owner's desktop.
- */
-const FAKE_NOTIFY_SEND = `#!/usr/bin/env node
-const { appendFileSync } = require('node:fs');
-appendFileSync(process.env.FIXTURE_NOTIFY_LOG, JSON.stringify({ args: process.argv.slice(2), bus: process.env.DBUS_SESSION_BUS_ADDRESS ?? '(unset)' }) + '\\n');
 `;
 
 /**
@@ -214,6 +194,192 @@ run = "node -e 0"
 `;
 
 /**
+ Title of the notification the daily update sends, which it also writes to its journal.
+ */
+const NOTIFICATION_TITLE = 'Daily update needs a look';
+
+/**
+ A session bus that exists only for one fixture run.
+ */
+export type PrivateBus = AsyncDisposable & {
+  /**
+   Address to give to `DBUS_SESSION_BUS_ADDRESS`.
+   */
+  readonly address: string;
+  /**
+   Folder that holds the bus socket, which the guard requires the address to lead into.
+   */
+  readonly directory: string;
+};
+
+/**
+ Refuses an environment from which a desktop notification could reach any bus but the fixture's private one.
+ `notify-send` finds the session bus by `DBUS_SESSION_BUS_ADDRESS` and otherwise by the runtime directory, so the
+ address must lead into the private directory and no runtime directory may be set.
+
+ @param environment - the environment a process of the fixture is about to get
+
+ @param privateDirectory - folder that holds the private bus socket
+
+ @throws Error when the environment could reach the host's session bus
+
+ @example
+ ```ts
+ assertPrivateBus({ environment, privateDirectory: '/scratch/private-bus', },);
+ ```
+ */
+export function assertPrivateBus({
+  environment,
+  privateDirectory,
+}: {
+  readonly environment: NodeJS.ProcessEnv;
+  readonly privateDirectory: string;
+},): void {
+  /**
+   The session bus address the environment carries.
+   */
+  const address = environment.DBUS_SESSION_BUS_ADDRESS ?? '';
+  if (!address.startsWith(`unix:path=${privateDirectory}/`,)) {
+    throw new Error(
+      `the whole-path fixture must run on a private session bus under ${privateDirectory}, but the address is "${address}"`,
+    );
+  }
+  if (environment.XDG_RUNTIME_DIR !== undefined) {
+    throw new Error(
+      'the whole-path fixture must run with no runtime directory, which would lead notify-send to the host session bus, not the private one',
+    );
+  }
+}
+
+/**
+ Starts a disposable `dbus-daemon` with no service directories, so no host service can be started through it.
+ It has no notification service: the real `notify-send` is refused there with `ServiceUnknown`, which proves the
+ notification went to this bus and not to the owner's desktop.
+ The recording notification service that `package/nested-wayland-session/cli` carries is the better stand-in and
+ replaces this when that crate offers it without a compositor.
+
+ The socket lives in a short folder under the caller's runtime directory because a Unix socket path is limited to about a
+ hundred characters, which the scratch root's paths exceed.
+
+ @param parent - folder to make the bus folder in; a runtime directory, whose paths are short
+
+ @returns the address, the bus folder and a disposer that stops the daemon and removes the folder
+
+ @throws Error when `dbus-daemon` does not create its socket
+
+ @example
+ ```ts
+ await using bus = await startPrivateBus('/run/user/1000',);
+ ```
+ */
+export async function startPrivateBus(parent: string,): Promise<PrivateBus> {
+  /**
+   Short folder that holds the socket and the configuration.
+   */
+  const directory = await mkdtemp(join(
+    parent,
+    'dub-',
+  ),);
+  /**
+   Socket and configuration paths.
+   */
+  const socket = join(
+    directory,
+    'bus.sock',
+  );
+  const configuration = join(
+    directory,
+    'bus.conf',
+  );
+  await writeFile(
+    configuration,
+    [
+      '<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"',
+      ' "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">',
+      '<busconfig>',
+      '  <type>session</type>',
+      `  <listen>unix:path=${socket}</listen>`,
+      '  <auth>EXTERNAL</auth>',
+      '  <policy context="default"><allow send_destination="*"/><allow receive_sender="*"/><allow own="*"/></policy>',
+      '</busconfig>',
+      '',
+    ].join('\n',),
+  );
+  /**
+   The daemon, in the foreground so stopping it stops the bus.
+   */
+  const daemon = spawn(
+    'dbus-daemon',
+    [
+      `--config-file=${configuration}`,
+      '--nofork',
+      '--nopidfile',
+      '--nosyslog',
+    ],
+    {
+      stdio: 'ignore',
+    },
+  );
+  for (let attempt = 0; attempt < BUS_START_ATTEMPTS; attempt += 1) {
+    if ((await stat(
+      socket,
+      { throwIfNoEntry: false, },
+    )) !== undefined)
+      break;
+    await new Promise<void>(function wait(resolve,) {
+      setTimeout(
+        resolve,
+        BUS_START_POLL_MS,
+      );
+    },);
+  }
+  if ((await stat(
+    socket,
+    { throwIfNoEntry: false, },
+  )) === undefined) {
+    daemon.kill();
+    await rm(
+      directory,
+      {
+        recursive: true,
+        force: true,
+      },
+    );
+    throw new Error(`dbus-daemon did not create ${socket}`,);
+  }
+  return {
+    address: `unix:path=${socket}`,
+    directory,
+    [Symbol.asyncDispose]: async function stopBus() {
+      // The close is awaited from before the signal, so a daemon that exits at once is not missed.
+      const closed = once(
+        daemon,
+        'close',
+      );
+      daemon.kill();
+      await closed;
+      await rm(
+        directory,
+        {
+          recursive: true,
+          force: true,
+        },
+      );
+    },
+  };
+}
+
+/**
+ Times the private bus start is polled, with the wait between polls; together a few seconds, long enough for a loaded host.
+ */
+const BUS_START_ATTEMPTS = 100;
+
+/**
+ Milliseconds between polls for the private bus socket.
+ */
+const BUS_START_POLL_MS = 50;
+
+/**
  Writes a file, making its folder first.
 
  @param path - absolute path
@@ -232,8 +398,14 @@ export async function put({
   readonly path: string;
   readonly content: string;
 },): Promise<void> {
-  await mkdir(dirname(path,), { recursive: true, },);
-  await writeFile(path, content,);
+  await mkdir(
+    dirname(path,),
+    { recursive: true, },
+  );
+  await writeFile(
+    path,
+    content,
+  );
 }
 
 /**
@@ -266,28 +438,39 @@ export async function run({
   readonly args: readonly string[];
   readonly directory: string;
   readonly environment: NodeJS.ProcessEnv;
-},): Promise<{ readonly exitCode: number; readonly stdout: string; readonly stderr: string; }> {
+},): Promise<{
+  readonly exitCode: number;
+  readonly stdout: string;
+  readonly stderr: string
+}> {
   /**
    The process, stopped when it runs past the bound.
    */
-  const child = spawn(program, [...args,], {
-    cwd: directory,
-    env: environment,
-    timeout: WHOLE_PATH_TIMEOUT_MS,
-    stdio: [
-      'ignore',
-      'pipe',
-      'pipe',
-    ],
-  },);
+  const child = spawn(
+    program,
+    [...args,],
+    {
+      cwd: directory,
+      env: environment,
+      timeout: WHOLE_PATH_TIMEOUT_MS,
+      stdio: [
+        'ignore',
+        'pipe',
+        'pipe',
+      ],
+    },
+  );
   // Reading both streams to their end while waiting for the exit keeps a full pipe from stalling the child.
   const [stdout, stderr,] = await Promise.all([
     text(child.stdout,),
     text(child.stderr,),
-    once(child, 'close',),
+    once(
+      child,
+      'close',
+    ),
   ],);
   return {
-    exitCode: child.exitCode ?? -1,
+    exitCode: child.exitCode ?? (-1),
     stdout,
     stderr,
   };
@@ -319,9 +502,18 @@ export async function putExecutable({
   /**
    Absolute path of the executable.
    */
-  const path = join(directory, name,);
-  await put({ path, content, },);
-  await chmod(path, 0o755,);
+  const path = join(
+    directory,
+    name,
+  );
+  await put({
+    path,
+    content,
+  },);
+  await chmod(
+    path,
+    0o755,
+  );
 }
 
 /**
@@ -344,23 +536,91 @@ export async function layOutRepository({
   readonly environment: NodeJS.ProcessEnv;
 },): Promise<void> {
   await Promise.all([
-    put({ path: join(root, 'mise.toml',), content: ROOT_MISE, },),
-    put({ path: join(root, '.gitignore',), content: '.cache/\n', },),
-    put({ path: join(root, 'toolchain.lock.json',), content: '{"tools":{"rust":{"version":"nightly-1"}}}\n', },),
-    put({ path: join(root, 'steps', 'move.ts',), content: MOVE_SCRIPT, },),
-    put({ path: join(root, 'steps', 'clippy.ts',), content: CLIPPY_SCRIPT, },),
     put({
-      path: join(root, 'package', 'a', 'broken-crate', 'mise.toml',),
+      path: join(
+        root,
+        'mise.toml',
+      ),
+      content: ROOT_MISE,
+    },),
+    put({
+      path: join(
+        root,
+        '.gitignore',
+      ),
+      content: '.cache/\n',
+    },),
+    put({
+      path: join(
+        root,
+        'toolchain.lock.json',
+      ),
+      content: '{"tools":{"rust":{"version":"nightly-1"}}}\n',
+    },),
+    put({
+      path: join(
+        root,
+        'steps',
+        'move.ts',
+      ),
+      content: MOVE_SCRIPT,
+    },),
+    put({
+      path: join(
+        root,
+        'steps',
+        'clippy.ts',
+      ),
+      content: CLIPPY_SCRIPT,
+    },),
+    put({
+      path: join(
+        root,
+        'package',
+        'a',
+        'broken-crate',
+        'mise.toml',
+      ),
       content: '[tasks."lint:clippy"]\nrun = "node ../../../steps/clippy.ts E0433"\n',
     },),
-    put({ path: join(root, 'package', 'a', 'broken-crate', 'Cargo.lock',), content: CARGO_LOCK, },),
     put({
-      path: join(root, 'package', 'c', 'red-crate', 'mise.toml',),
+      path: join(
+        root,
+        'package',
+        'a',
+        'broken-crate',
+        'Cargo.lock',
+      ),
+      content: CARGO_LOCK,
+    },),
+    put({
+      path: join(
+        root,
+        'package',
+        'c',
+        'red-crate',
+        'mise.toml',
+      ),
       content: '[tasks."lint:clippy"]\nrun = "node ../../../steps/clippy.ts E0277 always"\n',
     },),
-    put({ path: join(root, 'package', 'c', 'red-crate', 'Cargo.lock',), content: CARGO_LOCK, },),
     put({
-      path: join(root, 'package', 'e', 'ts-package', 'mise.toml',),
+      path: join(
+        root,
+        'package',
+        'c',
+        'red-crate',
+        'Cargo.lock',
+      ),
+      content: CARGO_LOCK,
+    },),
+    put({
+      path: join(
+        root,
+        'package',
+        'e',
+        'ts-package',
+        'mise.toml',
+      ),
       content: '[tasks."lint:types"]\nrun = "node -e 0"\n',
     },),
   ],);
@@ -375,9 +635,23 @@ export async function layOutRepository({
     'package',
   ];
   for (const args of [
-    ['init', '--quiet',],
-    ['add', '--', ...committed,],
-    ['commit', '--quiet', '--message', 'fixture: first commit', '--', ...committed,],
+    [
+      'init',
+      '--quiet',
+    ],
+    [
+      'add',
+      '--',
+      ...committed,
+    ],
+    [
+      'commit',
+      '--quiet',
+      '--message',
+      'fixture: first commit',
+      '--',
+      ...committed,
+    ],
   ]) {
     /**
      How the `git` step ended.
@@ -408,13 +682,26 @@ export async function layOutRepository({
  ```
  */
 export async function directoryOf(name: string,): Promise<string> {
-  for (const directory of (process.env.PATH ?? '').split(delimiter,)) {
+  for (const directory of (process.env
+    .PATH
+    ?? '').split(delimiter,)) {
     /**
      Metadata of the candidate, absent when the folder has no such file.
      */
-    const metadata = await stat(join(directory, name,), { throwIfNoEntry: false, },);
+    const metadata = await stat(
+      join(
+        directory,
+        name,
+      ),
+      { throwIfNoEntry: false, },
+    );
     if (metadata?.isFile() === true)
-      return dirname(await realpath(join(directory, name,),),);
+      return dirname(
+        await realpath(join(
+          directory,
+          name,
+        ),),
+      );
   }
   throw new Error(`${name} is required on PATH for the whole-path test`,);
 }
@@ -436,7 +723,10 @@ export async function directoryOf(name: string,): Promise<string> {
 export async function runWholePath({
   ghExitCode,
 }: WholePathOptions,): Promise<WholePathResult> {
-  await using disposable = await mkdtempDisposable(join(scratchRoot(), 'daily-update-whole-path-',),);
+  await using disposable = await mkdtempDisposable(join(
+    scratchRoot(),
+    'daily-update-whole-path-',
+  ),);
   /**
    Canonical path of the fixture root.
    */
@@ -444,11 +734,29 @@ export async function runWholePath({
   /**
    Repository, home and the folder of stand-in programs.
    */
-  const root = join(base, 'repository',);
-  const bin = join(base, 'bin',);
-  const ghLog = join(base, 'gh-calls.jsonl',);
-  const notifyLog = join(base, 'notifications.jsonl',);
-  const globalLock = join(base, 'global', 'toolchain.lock.json',);
+  const root = join(
+    base,
+    'repository',
+  );
+  const bin = join(
+    base,
+    'bin',
+  );
+  const ghLog = join(
+    base,
+    'gh-calls.jsonl',
+  );
+  const globalLock = join(
+    base,
+    'global',
+    'toolchain.lock.json',
+  );
+  /**
+   The private session bus, which no host service can be started through.
+   */
+  await using bus = await startPrivateBus(process.env
+    .XDG_RUNTIME_DIR
+    ?? base,);
   /**
    Environment of every process: the stand-ins first on `PATH`, fixture-owned homes, no ambient credentials.
    */
@@ -458,12 +766,30 @@ export async function runWholePath({
       '/usr/bin',
       '/bin',
     ].join(delimiter,),
-    HOME: join(base, 'home',),
-    XDG_CONFIG_HOME: join(base, 'config',),
-    XDG_CACHE_HOME: join(base, 'cache',),
-    XDG_DATA_HOME: join(base, 'data',),
-    XDG_STATE_HOME: join(base, 'state',),
-    GIT_CONFIG_GLOBAL: join(base, 'gitconfig',),
+    HOME: join(
+      base,
+      'home',
+    ),
+    XDG_CONFIG_HOME: join(
+      base,
+      'config',
+    ),
+    XDG_CACHE_HOME: join(
+      base,
+      'cache',
+    ),
+    XDG_DATA_HOME: join(
+      base,
+      'data',
+    ),
+    XDG_STATE_HOME: join(
+      base,
+      'state',
+    ),
+    GIT_CONFIG_GLOBAL: join(
+      base,
+      'gitconfig',
+    ),
     GIT_AUTHOR_NAME: 'Fixture',
     GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
     GIT_COMMITTER_NAME: 'Fixture',
@@ -473,37 +799,80 @@ export async function runWholePath({
     MISE_TASK_RUN_AUTO_INSTALL: 'false',
     MISE_YES: '1',
     NO_COLOR: '1',
-    // A session bus address that leads nowhere, so even a notifier that was not the stand-in could show nothing.
-    DBUS_SESSION_BUS_ADDRESS: `unix:path=${join(base, 'no-session-bus',)}`,
-    FIXTURE_NOTIFY_LOG: notifyLog,
+    DBUS_SESSION_BUS_ADDRESS: bus.address,
     FIXTURE_GH_LOG: ghLog,
     FIXTURE_GH_EXIT: String(ghExitCode,),
     FIXTURE_GLOBAL_LOCK: globalLock,
   };
   // Only the program folders the fixture names are on `PATH`: the folder that holds `mise` also holds the repository's
   // Git wrapper, which needs a user service manager that a disposable repository must not start.
-  await mkdir(bin, { recursive: true, },);
+  await mkdir(
+    bin,
+    { recursive: true, },
+  );
   await Promise.all([
-    symlink(await realpath(join(await directoryOf('mise',), 'mise',),), join(bin, 'mise',),),
-    symlink(process.execPath, join(bin, 'node',),),
+    symlink(
+      await realpath(join(
+        await directoryOf('mise',),
+        'mise',
+      ),),
+      join(
+        bin,
+        'mise',
+      ),
+    ),
+    symlink(
+      process.execPath,
+      join(
+        bin,
+        'node',
+      ),
+    ),
   ],);
   await Promise.all([
-    putExecutable({ directory: bin, name: 'gh', content: FAKE_GH, },),
-    putExecutable({ directory: bin, name: 'notify-send', content: FAKE_NOTIFY_SEND, },),
-    putExecutable({ directory: bin, name: 'cargo-shadow', content: FAKE_CARGO_SHADOW, },),
-    putExecutable({ directory: bin, name: 'pnpm', content: FAKE_PNPM, },),
-    put({ path: globalLock, content: '{"tools":{"rust":{"version":"nightly-1"}}}\n', },),
-    put({ path: ghLog, content: '', },),
-    put({ path: notifyLog, content: '', },),
+    putExecutable({
+      directory: bin,
+      name: 'gh',
+      content: FAKE_GH,
+    },),
+    putExecutable({
+      directory: bin,
+      name: 'cargo-shadow',
+      content: FAKE_CARGO_SHADOW,
+    },),
+    putExecutable({
+      directory: bin,
+      name: 'pnpm',
+      content: FAKE_PNPM,
+    },),
+    put({
+      path: globalLock,
+      content: '{"tools":{"rust":{"version":"nightly-1"}}}\n',
+    },),
+    put({
+      path: ghLog,
+      content: '',
+    },),
   ],);
-  await layOutRepository({ root, environment, },);
+  // The real `notify-send` runs in this fixture, so the guard stands before anything else can start it.
+  assertPrivateBus({
+    environment,
+    privateDirectory: bus.directory,
+  },);
+  await layOutRepository({
+    root,
+    environment,
+  },);
   /**
    The daily update, run the way the task runs it.
    */
   const update = await run({
     program: process.execPath,
     args: [
-      join(SOURCE_DIRECTORY, 'daily-update.ts',),
+      join(
+        SOURCE_DIRECTORY,
+        'daily-update.ts',
+      ),
       '--repository',
       root,
       '--global-lock',
@@ -527,14 +896,24 @@ export async function runWholePath({
   /**
    Text of the pending file, empty when absent.
    */
-  const pendingText = await readFile(join(root, '.cache', 'toolchain-daily-update-pending-issues.json',), 'utf8',)
+  const pendingText = await readFile(
+    join(
+      root,
+      '.cache',
+      'toolchain-daily-update-pending-issues.json',
+    ),
+    'utf8',
+  )
     .catch(function absent() {
       return '';
     },);
   return {
     exitCode: update.exitCode,
     journal: update.stderr,
-    ghCalls: (await readFile(ghLog, 'utf8',))
+    ghCalls: (await readFile(
+      ghLog,
+      'utf8',
+    ))
       .split('\n',)
       .filter(function nonEmpty(line,) {
         return line !== '';
@@ -542,15 +921,13 @@ export async function runWholePath({
       .map(function parse(line,): RecordedGhCall {
         return JSON.parse(line,) as RecordedGhCall;
       },),
-    notifications: (await readFile(notifyLog, 'utf8',))
+    notificationTitles: update.stderr
       .split('\n',)
-      .filter(function nonEmpty(line,) {
-        return line !== '';
-      },)
-      .map(function parse(line,): RecordedNotification {
-        return JSON.parse(line,) as RecordedNotification;
+      .filter(function isTitle(line,) {
+        return line === NOTIFICATION_TITLE;
       },),
-    commitSubjects: log.stdout.split('\n',)
+    commitSubjects: log.stdout
+      .split('\n',)
       .filter(function nonEmpty(line,) {
         return line !== '';
       },),
