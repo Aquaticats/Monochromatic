@@ -1,6 +1,10 @@
-//! What: Manifest, configuration and source path selection, with every case of
+//! What:
+//! Manifest,
+//! configuration and source path selection,
+//! with every case of
 //!       `source-imports.unit.test.ts` for `isNonTestSourcePath`.
-//! Why: The planner selects every file it reads with these predicates.
+//! Why:
+//! The planner selects every file it reads with these predicates.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -40,7 +44,8 @@ fn derives_the_package_directory() {
     );
 }
 
-/// Ported: source files under the package `src` directory are accepted.
+/// Ported:
+/// source files under the package `src` directory are accepted.
 #[test]
 fn accepts_source_files_under_src() {
     assert!(is_non_test_source_path(
@@ -61,7 +66,10 @@ fn accepts_source_files_under_src() {
     ));
 }
 
-/// Ported: tests, other extensions, other directories and sibling prefixes are rejected.
+/// Ported:
+/// tests,
+/// other extensions,
+/// other directories and sibling prefixes are rejected.
 #[test]
 fn rejects_tests_other_extensions_directories_and_siblings() {
     assert!(!is_non_test_source_path(
@@ -82,7 +90,8 @@ fn rejects_tests_other_extensions_directories_and_siblings() {
     ));
 }
 
-/// A `.test.` segment anywhere in the file name marks a test; one in a directory does not.
+/// A `.test.` segment anywhere in the file name marks a test;
+/// one in a directory does not.
 #[test]
 fn reads_the_test_marker_in_the_file_name_only() {
     assert!(!is_non_test_source_path(

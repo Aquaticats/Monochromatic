@@ -1,6 +1,11 @@
-//! What: The byte-preserving version rewrite, with every `replaceManifestVersion` case of
-//!       `manifest-text.unit.test.ts` and the scanner's depth, escape and resume rules.
-//! Why: The patch is the whole file, so one wrong byte is a wrong commit.
+//! What:
+//! The byte-preserving version rewrite,
+//! with every `replaceManifestVersion` case of
+//!       `manifest-text.unit.test.ts` and the scanner's depth,
+//! escape and resume rules.
+//! Why:
+//! The patch is the whole file,
+//! so one wrong byte is a wrong commit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,7 +32,8 @@ fn problem(message: &str) -> Result<String, PolicyIncomplete> {
     });
 }
 
-/// Ported: only the top-level version value changes and formatting is kept.
+/// Ported:
+/// only the top-level version value changes and formatting is kept.
 #[test]
 fn changes_only_the_top_level_version_and_keeps_formatting() {
     let text: &str = "{\n  \"name\": \"a\",\n  \"description\": \"version \\\"x\\\"\",\n  \"publishConfig\": { \"version\": \"9.9.9\" },\n  \"version\" :  \"1.0.0\",\n  \"tail\": [\"version\"]\n}\n";
@@ -39,7 +45,11 @@ fn changes_only_the_top_level_version_and_keeps_formatting() {
     );
 }
 
-/// Ported: a different version, no top-level version, a non-string one, an open literal.
+/// Ported:
+/// a different version,
+/// no top-level version,
+/// a non-string one,
+/// an open literal.
 #[test]
 fn rejects_the_incumbent_cases() {
     assert_eq!(
@@ -87,7 +97,9 @@ fn tracks_depth_through_arrays_and_objects() {
     );
 }
 
-/// Whitespace around the colon, a string value spelled `version`, and a key at the end.
+/// Whitespace around the colon,
+/// a string value spelled `version`,
+/// and a key at the end.
 #[test]
 fn reads_keys_by_the_colon_after_them() {
     assert_eq!(
@@ -129,7 +141,8 @@ fn compares_raw_spellings() {
     );
 }
 
-/// Backslashes hide the next byte; text outside the value is kept byte for byte.
+/// Backslashes hide the next byte;
+/// text outside the value is kept byte for byte.
 #[test]
 fn honours_escapes_and_keeps_other_text() {
     assert_eq!(
