@@ -20,10 +20,40 @@ export const defaultUnitMemoryMax = '12G';
 export const defaultUnitCpuQuota = '500%';
 
 /**
- Disk weight, as a systemd `IOWeight` value, of one campaign unit.
- The owner's rule (AGENTS.md, RXS) is never above 50; a unit left without the property gets systemd's default of 100.
+ Task limit, as a systemd `TasksMax` value (a whole number), of one campaign unit.
+ A control group counts threads as well as processes, so the limit bounds both together.
+
+ One unit is one file's campaign and holds only the host side of it: the shell, the slot limiter, `mise`, the task's
+ Node process and its container client (`podman build` for the image, then `podman run`). The container's own processes
+ sit in a `libpod-<id>.scope` outside the unit and carry the container's `--pids-limit`, so neither the slot count nor
+ the container's process count multiplies into this value.
+
+ No earlier campaign record carries a process count, so the value is derived from a measurement made on 2026-11-07
+ without starting a campaign. `pids.peak` of a `systemd-run --user --scope` that ran
+ `sh -c 'mise run <package>:campaign:gate-slot -- mise run //package/mutation-test/cli:run -- --help'` was 39 in
+ three runs, and 40 with a `podman run --rm` of a local image added after it. A bare `sh` that ran `podman run --rm`
+ alone peaked at 18 or 19, and one that ran `podman build` at 21. The widest host side is the chain (40) with one more
+ container client beside it (about 20), so about 60. The value, 256, is a power of two over three times that, because
+ a start that hits the limit fails with a bare `EAGAIN` that names no limit (see `src/process-limits.ts`), while a
+ runaway fork loop is still stopped far below the user manager's own limit (`pids.max` 32768 of `user-1000.slice`).
+ Raise it with `--unit-tasks-max` when a unit reports that failure.
  */
-export const unitIoWeight = 50;
+export const defaultUnitTasksMax = 256;
+
+/**
+ Disk weight, as a systemd `IOWeight` value, of one campaign unit.
+ The owner's rule (`CLAUDE.md`, rule RXS) is never above 10, and lower for disk-heavy work; a unit left without the
+ property gets systemd's default of 100. 10 is the value every other capped unit of the repository and every started
+ campaign container (`lowestDiskWeight` in `src/container-limits.ts`) already uses, so the unit's own build, image and
+ report writes weigh the same as the container's, which ignores the unit's value because it sits in its own scope.
+ */
+export const unitIoWeight = 10;
+
+/**
+ Highest `IOWeight` a unit this package starts may carry.
+ The owner's rule (`CLAUDE.md`, rule RXS) is that a per-command cgroup never sets `IOWeight` above 10.
+ */
+export const maximumUnitIoWeight = 10;
 
 //endregion Per-unit systemd caps
 

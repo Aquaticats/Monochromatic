@@ -15,6 +15,8 @@ import {
  
  @param cpuQuota - systemd `CPUQuota` value for the whole unit
  
+ @param tasksMax - systemd `TasksMax` value for the whole unit, which counts threads and processes
+ 
  @param workingDirectory - directory the unit starts in
  
  @param environment - `NAME=value` entries set inside the unit, in the order given
@@ -25,13 +27,14 @@ import {
 
  @example
  ```ts
- buildSystemdRunArguments({ unit: 'u', memoryMax: '12G', cpuQuota: '500%', workingDirectory: '/w', environment: [], body: 'true' });
+ buildSystemdRunArguments({ unit: 'u', memoryMax: '12G', cpuQuota: '500%', tasksMax: 256, workingDirectory: '/w', environment: [], body: 'true' });
  ```
  */
 export function buildSystemdRunArguments({
   unit,
   memoryMax,
   cpuQuota,
+  tasksMax,
   workingDirectory,
   environment,
   body,
@@ -39,6 +42,7 @@ export function buildSystemdRunArguments({
   readonly unit: string;
   readonly memoryMax: string;
   readonly cpuQuota: string;
+  readonly tasksMax: number;
   readonly workingDirectory: string;
   readonly environment: readonly string[];
   readonly body: string;
@@ -49,6 +53,7 @@ export function buildSystemdRunArguments({
     '--collect',
     `--property=MemoryMax=${memoryMax}`,
     `--property=CPUQuota=${cpuQuota}`,
+    `--property=TasksMax=${String(tasksMax)}`,
     `--property=IOWeight=${String(unitIoWeight)}`,
     `--working-directory=${workingDirectory}`,
     ...environment.map(function setenvArgument(entry) {
