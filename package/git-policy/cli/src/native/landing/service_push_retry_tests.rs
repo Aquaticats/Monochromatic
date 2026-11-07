@@ -490,7 +490,7 @@ fn a_failed_push_whose_output_names_a_url_with_a_password_leaves_it_in_no_file_t
     let mut leaks: Vec<PathBuf> = Vec::new();
     let planted: PathBuf = stage.root.join("planted.txt");
     std::fs::write(planted.as_path(), format!("https://{SENTINEL_URL_USERINFO}@example.test/")).expect("planted file");
-    assert_eq!(files_holding(stage.root.as_path(), SENTINEL_URL_USERINFO, &[hooks.clone()]), vec![planted.clone()], "the scan finds a file that holds the credentials");
+    assert_eq!(files_holding(stage.root.as_path(), SENTINEL_URL_USERINFO, std::slice::from_ref(&hooks)), vec![planted.clone()], "the scan finds a file that holds the credentials");
     std::fs::remove_file(planted.as_path()).expect("the planted file goes");
     let direct = crate::test_support::git_output(stage.repo.as_path(), &["push", "origin", "main"]);
     assert!(String::from_utf8_lossy(direct.stderr.as_slice()).contains(SENTINEL_URL_USERINFO), "Git's own words carry the credentials, so the scan below is not vacuous");
@@ -499,9 +499,9 @@ fn a_failed_push_whose_output_names_a_url_with_a_password_leaves_it_in_no_file_t
     let entries = crate::service_timing::capture::entries_of(|| { let _wake = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries); });
     let record: String = notice_text(&stage);
     assert!(record.contains("log in at https://") && record.contains("<credentials>"), "the person is shown the words with the credentials masked: {record}");
-    leaks.extend(files_holding(stage.root.as_path(), SENTINEL_URL_USERINFO, &[hooks.clone()]));
+    leaks.extend(files_holding(stage.root.as_path(), SENTINEL_URL_USERINFO, std::slice::from_ref(&hooks)));
     for part in SENTINEL_URL_USERINFO.split(':') {
-        leaks.extend(files_holding(stage.root.as_path(), part, &[hooks.clone()]));
+        leaks.extend(files_holding(stage.root.as_path(), part, std::slice::from_ref(&hooks)));
         assert!(entries.iter().all(|entry| { return !entry.message.contains(part); }), "the journal keeps the credentials of a URL: {part}");
     }
     assert!(leaks.is_empty(), "files that hold the credentials: {leaks:?}");
