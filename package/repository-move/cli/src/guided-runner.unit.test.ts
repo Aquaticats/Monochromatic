@@ -401,7 +401,10 @@ await describe({
               await mkdir(config.wiz, { recursive: true, },);
               await writeFile(join(config.wiz, 'main-du.txt',), 'Total Exclusive Set shared Filename\n1000 1000 1000 /x\n',);
               await writeFile(join(config.wiz, 'external-du.txt',), '2000\t/y\n',);
-              expect(await preflight(config,),).toContain('pre-flight passed',);
+              const passed = await preflight(config,);
+              expect(passed,).toContain('pre-flight passed',);
+              expect(passed,).toContain('clone-limit allowance: 13038362624 bytes',);
+              expect(passed,).toContain('estimate: 12 GiB',);
               const tight = await createGuidedConfig({
                 env: { HOME: home, MOVE_DRIVE: home, MOVE_MIN_FREE_GIB: '99999999', },
                 nodePath: process.execPath,
@@ -790,6 +793,38 @@ await describe({
                   }
                 }
               }
+            },);
+          },
+        },),
+        it({
+          name: 'status says not to delete the old tree after the swap until the checksum verification of the final copies is done',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              await mkdir(join(config.wiz, 'done', 'cutover',), { recursive: true, },);
+              await writeFile(join(config.wiz, 'swap-timestamp',), '20260101T000000Z\n',);
+              const before: string[] = [];
+              await runGuided({ config, flags: { command: 'status', dryRun: false, redo: [], asserted: [], }, out: (text,) => {
+                before.push(text,);
+              }, },);
+              expect(before.join('',),).toContain('DO NOT DELETE the old tree',);
+              await writeFile(join(config.wiz, 'done', 'cutover', 'c22-verify-final-checksum',), 'done\n',);
+              const after: string[] = [];
+              await runGuided({ config, flags: { command: 'status', dryRun: false, redo: [], asserted: [], }, out: (text,) => {
+                after.push(text,);
+              }, },);
+              expect(after.join('',),).toContain('may be deleted by you',);
+            },);
+          },
+        },),
+        it({
+          name: 'the cut-over verifies the final copies inside the window after the final pass and by checksum after the release',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const ids = (await cutoverStages({ c: config, stamp: 'S', },)).map((s,) => s.id);
+              const at = (id: string,) => ids.indexOf(id,);
+              expect(at('c10-final-pass',),).toBeLessThan(at('c10b-verify-final',),);
+              expect(at('c10b-verify-final',),).toBeLessThan(at('c19-swap',),);
+              expect(at('c21-release',),).toBeLessThan(at('c22-verify-final-checksum',),);
             },);
           },
         },),

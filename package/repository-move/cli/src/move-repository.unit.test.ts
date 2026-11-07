@@ -593,7 +593,7 @@ await describe({
             expect(result.status,).toBe(0,);
             expect(result.stderr,).toContain('pass final finished',);
             expect(await records(fixture,),).toContain('f001.placed.json',);
-            const sends = (await readFile(fixture.doubleLog, 'utf8',)).split('\n',).filter((line,) => line.startsWith('["send"',));
+            const sends = (await readFile(fixture.doubleLog, 'utf8',)).split('\n',).filter((line,) => line.startsWith('["send"',) && (!line.includes('--no-data',)));
             const onFirstCopy = sends.filter((line,) => ['s000', 's001',].some((name,) => line.includes(`"-p","${join(fixture.base, 'snap', name,)}"`,)));
             expect(onFirstCopy,).toHaveLength(2,);
           },
@@ -609,6 +609,71 @@ await describe({
             const result = await runCopyTool({ fixture, pass: 'final', },);
             expect(result.status,).toBe(0,);
             expect(result.stderr,).toContain('has no first-pass copy',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'what the final pass changed since the first pass, by btrfs\'s own comparison',
+      children: [
+        it({
+          name: 'records for every subvolume with a first-pass copy whether btrfs finds a change between the two snapshots, and says which',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            const result = await runCopyTool({ fixture, pass: 'final', env: { CHANGED_SNAPSHOTS: 'f001', }, },);
+            expect(result.status,).toBe(0,);
+            expect(result.stderr,).toContain('f000: unchanged since the first pass',);
+            expect(result.stderr,).toContain('f001: changed since the first pass',);
+            expect(await readFile(join(fixture.base, 'state', 'f000.diff.json',), 'utf8',),).toContain('"changed":"no"',);
+            expect(await readFile(join(fixture.base, 'state', 'f001.diff.json',), 'utf8',),).toContain('"changed":"yes"',);
+          },
+        },),
+        it({
+          name: 'print mode shows the comparison command of every subvolume that has a first-pass copy',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            const result = await runCopyTool({ fixture, pass: 'final', run: false, },);
+            expect(result.status,).toBe(0,);
+            expect(result.stdout,).toContain(`btrfs send --no-data -p ${join(fixture.base, 'snap', 's000',)} ${join(fixture.base, 'snap', 'f000',)} | btrfs receive --dump`,);
+          },
+        },),
+        it({
+          name: 'verify-final leaves out a final copy btrfs found unchanged since the first pass',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            expect((await runCopyTool({ fixture, pass: 'final', env: { CHANGED_SNAPSHOTS: 'f001', }, },)).status,).toBe(0,);
+            await alignCopies({ fixture, names: ['f000', 'f001',], },);
+            await mkdir(join(fixture.base, 'recv', 'f000', 'wt',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 'f000', 'wt', 'a',), { recursive: true, },);
+            await writeFile(join(fixture.base, 'recv', 'f000', 'unchanged-but-different',), 'x',);
+            const result = await runCopyTool({ fixture, pass: 'verify-final', },);
+            expect(result.status,).toBe(0,);
+            expect(result.stderr,).toContain('f000: unchanged since the first pass, not compared',);
+          },
+        },),
+        it({
+          name: 'verify-final compares a changed final copy and a copy that has no first-pass copy, and refuses a difference',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            await addWorktree({ fixture, name: 'late', uuid: 'u-late', },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',], ['late', 'u-late',],], },);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            expect((await runCopyTool({ fixture, pass: 'final', env: { CHANGED_SNAPSHOTS: 'f001', }, },)).status,).toBe(0,);
+            await alignCopies({ fixture, names: ['f000', 'f001', 'f002',], },);
+            await mkdir(join(fixture.base, 'recv', 'f000', 'wt',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 'f000', 'wt', 'a',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 'f000', 'wt', 'late',), { recursive: true, },);
+            await writeFile(join(fixture.base, 'recv', 'f002', 'late-only',), 'x',);
+            const refused = await runCopyTool({ fixture, pass: 'verify-final', },);
+            expect(refused.status,).toBe(1,);
+            expect(refused.stderr,).toContain('f002',);
           },
         },),
       ],
@@ -660,7 +725,8 @@ await describe({
             const again = await runCopyTool({ fixture, pass: 'final', },);
             expect(again.status,).toBe(0,);
             expect(await records(fixture,),).toContain('f001.placed.json',);
-            expect(await sendCalls({ fixture, snapshot: 'f000', },),).toBe(1,);
+            // One comparison (`--no-data`) and one send of the first run; the rerun repeats neither.
+            expect(await sendCalls({ fixture, snapshot: 'f000', },),).toBe(2,);
           },
         },),
       ],
