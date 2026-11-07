@@ -205,7 +205,8 @@ export async function freeze(
 /**
  Thaws exactly the subvolumes the freeze recorded; in print mode with no manifest, the current list.
 
- @param current - the reconciled list, used only in print mode without a manifest
+ @param loadCurrent - builds the reconciled list; called only in print mode without a manifest, so a thaw never
+   depends on an inventory that worktrees changed since the freeze
  
  @param runner - the runner
  
@@ -217,12 +218,12 @@ export async function freeze(
  */
 export async function thaw(
   {
-    current,
+    loadCurrent,
     runner,
     stateFolder,
     run,
   }: {
-    readonly current: readonly Subvolume[];
+    readonly loadCurrent: () => Promise<readonly Subvolume[]>;
     readonly runner: Runner;
     readonly stateFolder: string;
     readonly run: boolean;
@@ -232,7 +233,7 @@ export async function thaw(
   if ((!manifest.present) && run) {
     throw new MoveStopError(`no ${FREEZE_MANIFEST} in ${stateFolder}: this tool froze nothing, so it thaws nothing`,);
   }
-  const subvolumes = manifest.present ? manifest.frozen : current;
+  const subvolumes = manifest.present ? manifest.frozen : await loadCurrent();
   await setReadOnly({
     runner,
     subvolumes,

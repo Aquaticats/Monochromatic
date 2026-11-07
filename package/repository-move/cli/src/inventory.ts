@@ -134,32 +134,91 @@ export async function isSubvolume(
 }
 
 /**
+ One row of `btrfs subvolume list -u` as printed: its ID, the ID of its parent subvolume (the `top level` column), its
+ UUID, and the path column.
+
+ The path column is relative to the subvolume named by `top level` on the real filesystem (the checkout's row reads
+ `top level 257 ... path user/Monochromatic` where 257 is `home`, measured by the coordinator with root on
+ 2026-11-07), and a row nested in a nested subvolume may print a path that already includes its parent's path;
+ `resolveFullPaths` accepts both.
+ */
+export type ListedRow = {
+  readonly id: string;
+  readonly topLevel: string;
+  readonly uuid: string;
+  readonly path: string;
+};
+
+/**
+ Label before the ID in an inventory row.
+ */
+const ID_LABEL = 'ID ';
+
+/**
+ Label before the parent ID in an inventory row.
+ */
+const TOP_LEVEL_LABEL = ' top level ';
+
+/**
  Parses one inventory row.
 
  @param row - a row of `btrfs subvolume list -u`
- 
- @returns the UUID and the top-level path
- 
- @throws {MoveStopError} when the row has no UUID or no path
+ @returns the row's columns
+ @throws {MoveStopError} when the row lacks an ID, a parent ID, a UUID or a path
  */
-function parseRow(row: string,): Subvolume {
+function parseRow(row: string,): ListedRow {
   const uuidAt = row.indexOf(UUID_LABEL,);
-  const pathAt = row.indexOf(
-    PATH_LABEL,
-    uuidAt,
-  );
-  if ((uuidAt === (-1)) || (pathAt === (-1))) {
+  const pathAt = row.indexOf(PATH_LABEL, uuidAt,);
+  const topAt = row.indexOf(TOP_LEVEL_LABEL,);
+  if (!row.startsWith(ID_LABEL,) || uuidAt < 0 || pathAt < 0 || topAt < 0) {
     throw new MoveStopError(
       `inventory line not understood or without a UUID (list the filesystem with 'btrfs subvolume list -u'): ${row}`,
     );
   }
   return {
-    uuid: row.slice(
-      uuidAt + UUID_LABEL.length,
-      pathAt,
-    ),
+    id: row.slice(ID_LABEL.length, row.indexOf(' ', ID_LABEL.length,),),
+    topLevel: row.slice(topAt + TOP_LEVEL_LABEL.length, row.indexOf(' ', topAt + TOP_LEVEL_LABEL.length,),),
+    uuid: row.slice(uuidAt + UUID_LABEL.length, pathAt,),
     path: row.slice(pathAt + PATH_LABEL.length,),
   };
+}
+
+/**
+ Builds each row's path from the top of the filesystem by following the parent chain.
+
+ A row whose parent is not in the list (the top level, ID 5) keeps its path. A row whose path starts with its parent's
+ own path plus a slash is taken as already relative to the parent's anchor; any other path is taken as relative to the
+ parent.
+
+ @param rows - every listed row
+ @returns the rows with full paths, in the same order
+ */
+export function resolveFullPaths(rows: readonly ListedRow[],): readonly Subvolume[] {
+  const byId = new Map(rows.map(function toEntry(row,) {
+    return [row.id, row,] as const;
+  },),);
+
+  /**
+   Full path of one row, following parents.
+
+   @param row - the row
+   @param depth - recursion guard against a cycle in malformed input
+   @returns the full path
+   */
+  function fullPath({ row, depth, }: { readonly row: ListedRow; readonly depth: number; },): string {
+    const parent = byId.get(row.topLevel,);
+    if (parent === undefined || parent.id === row.id || depth > rows.length) {
+      return row.path;
+    }
+    const parentFull = fullPath({ row: parent, depth: depth + 1, },);
+    return row.path.startsWith(`${parent.path}/`,)
+      ? `${parentFull}${row.path.slice(parent.path.length,)}`
+      : `${parentFull}/${row.path}`;
+  }
+
+  return rows.map(function toSubvolume(row,) {
+    return { uuid: row.uuid, path: fullPath({ row, depth: 0, },), };
+  },);
 }
 
 /**
@@ -169,7 +228,7 @@ function parseRow(row: string,): Subvolume {
  
  @param options - the options naming the main checkout's listing path and the prefix mapping
  
- @returns the main checkout (empty path when it has no row) and the nested subvolumes mapped to real paths, sorted
+ @returns the main checkout's row as listed, unmapped, because only its UUID is used (empty path when it has no row), and the nested subvolumes mapped to real paths, sorted
  
  @throws {MoveStopError} when a row cannot be understood or a path is outside the prefix
  */
@@ -185,11 +244,11 @@ export function parseInventory(
   readonly main: Subvolume;
   readonly nested: readonly Subvolume[];
 } {
-  const rows = text.split('\n',)
+  const rows = resolveFullPaths(text.split('\n',)
     .filter(function notBlank(row,) {
       return row.trim() !== '';
     },)
-    .map(parseRow,);
+    .map(parseRow,),);
 
   /**
    Maps a top-level path to a real path.
@@ -218,10 +277,10 @@ export function parseInventory(
     return row.path === options.inventoryMain;
   },);
   return {
-    main: main === undefined ? {
+    main: main ?? {
       path: '',
       uuid: UNKNOWN_UUID,
-    } : mapped(main,),
+    },
     nested: rows.filter(function isBelowMain(row,) {
       return row.path
         .startsWith(`${options.inventoryMain}/`,);

@@ -185,6 +185,19 @@ await describe({
           },
         },),
         it({
+          name: 'thaws exactly the frozen subvolumes even when worktrees changed since, without reading the inventory',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            await addWorktree({ fixture, name: 'late', uuid: 'u-late', },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',], ['hidden', 'u-hidden',],], },);
+            const result = await runCopyTool({ fixture, pass: 'thaw', },);
+            expect(result.status,).toBe(0,);
+            expect(await metaOf(fixture.main,),).toContain('ro=false',);
+            expect(await metaOf(join(fixture.main, 'wt', 'a',),),).toContain('ro=false',);
+          },
+        },),
+        it({
           name: 'refuses thaw when nothing was frozen',
           fn: async () => {
             await using fixture = await makeFixture({ names: ['a',], },);

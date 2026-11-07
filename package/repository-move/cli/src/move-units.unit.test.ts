@@ -84,7 +84,7 @@ await describe({
             ],);
             const parsed = parseInventory({
               text: [
-                'ID 5 gen 1 top level 5 parent_uuid - received_uuid - uuid u-x path other/place',
+                'ID 99 gen 1 top level 5 parent_uuid - received_uuid - uuid u-x path other/place',
                 'ID 6 gen 1 top level 5 uuid u-main path home/user/repo',
                 'ID 8 gen 1 top level 6 uuid u-b path home/user/repo/b w',
                 'ID 7 gen 1 top level 6 uuid u-a path home/user/repo/a',
@@ -92,10 +92,38 @@ await describe({
               ].join('\n',),
               options,
             },);
-            expect(parsed.main,).toEqual({ uuid: 'u-main', path: '/var/home/user/repo', },);
+            expect(parsed.main,).toEqual({ uuid: 'u-main', path: 'home/user/repo', },);
             expect(parsed.nested.map((row,) => row.path),).toEqual([
               '/var/home/user/repo/a',
               '/var/home/user/repo/b w',
+            ],);
+          },
+        },),
+        it({
+          name: 'rebuilds full paths from the real list, where the path column is relative to the parent named by top level',
+          fn: async () => {
+            const options = parseMoveOptions([
+              ...REQUIRED,
+              '--inventory-main=home/user/Monochromatic',
+              '--inventory-prefix=home/=/var/home/',
+            ],);
+            const parsed = parseInventory({
+              text: [
+                'ID 256 gen 815068 top level 5 uuid 1e647278-be05-1b4a-9277-4bd783bf076f path root',
+                'ID 257 gen 815137 top level 5 uuid 3c579a80-eb6a-d742-8cab-f0447fa31d28 path home',
+                'ID 3569 gen 815138 top level 257 uuid 61d41cbe-834d-1c41-b18d-65f75135642a path user/Monochromatic',
+                'ID 3600 gen 815138 top level 3569 uuid u-a path .claude/worktrees/a',
+                'ID 3601 gen 815138 top level 3569 uuid u-b path user/Monochromatic/.claude/worktrees/b',
+                'ID 3602 gen 815138 top level 3600 uuid u-c path .claude/worktrees/a/inner',
+                'ID 3700 gen 815138 top level 257 uuid u-other path user/other',
+              ].join('\n',),
+              options,
+            },);
+            expect(parsed.main.uuid,).toBe('61d41cbe-834d-1c41-b18d-65f75135642a',);
+            expect(parsed.nested.map((row,) => row.path),).toEqual([
+              '/var/home/user/Monochromatic/.claude/worktrees/a',
+              '/var/home/user/Monochromatic/.claude/worktrees/a/inner',
+              '/var/home/user/Monochromatic/.claude/worktrees/b',
             ],);
           },
         },),

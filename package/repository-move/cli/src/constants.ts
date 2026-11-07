@@ -41,7 +41,7 @@ export const DEFAULT_MIN_FREE_GIB = 150;
 /**
  Bytes in a GiB.
  */
-export const BYTES_PER_GIB = 2 ** 30;
+export const BYTES_PER_GIB: number = 2 ** 30;
 
 /**
  Milliseconds in a second.
@@ -51,7 +51,7 @@ export const MILLISECONDS_PER_SECOND = 1_000;
 /**
  Most output a child command may print, in bytes.
  */
-export const MAX_OUTPUT_BYTES = 64 * 1_024
+export const MAX_OUTPUT_BYTES: number = 64 * 1_024
   * 1_024;
 
 /**
@@ -111,7 +111,7 @@ export const EXTERNAL_RSYNC_ARGUMENTS: readonly string[] = [
 /**
  Pattern of an external worktree folder name the tool accepts.
  */
-export const PLAIN_NAME = /^[\w.@+\-]+$/v;
+export const PLAIN_NAME: RegExp = /^[\w.@+\-]+$/v;
 
 /**
  Exit status of `timeout` when it ended the command at its deadline.
@@ -126,7 +126,7 @@ export const STATE_FOLDER_MODE = 0o700;
 /**
  Most output one Git call of the scan may print, in bytes: a status listing of a worktree with many untracked files.
  */
-export const SCAN_MAX_OUTPUT_BYTES = 256 * 1_024
+export const SCAN_MAX_OUTPUT_BYTES: number = 256 * 1_024
   * 1_024;
 
 /**

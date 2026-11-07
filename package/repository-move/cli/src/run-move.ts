@@ -36,6 +36,17 @@ export async function runMove(argv: readonly string[],): Promise<void> {
     },);
     return;
   }
+  if (options.pass === 'thaw') {
+    await thaw({
+      loadCurrent: async function loadCurrent() {
+        return await reconcileInventory({ options, log: runner.log, },);
+      },
+      runner,
+      stateFolder: options.stateFolder,
+      run: options.run,
+    },);
+    return;
+  }
   const subvolumes = await reconcileInventory({
     options,
     log: runner.log,
@@ -43,14 +54,6 @@ export async function runMove(argv: readonly string[],): Promise<void> {
   if (options.pass === 'freeze') {
     await freeze({
       subvolumes,
-      runner,
-      stateFolder: options.stateFolder,
-      run: options.run,
-    },);
-  }
-  else if (options.pass === 'thaw') {
-    await thaw({
-      current: subvolumes,
       runner,
       stateFolder: options.stateFolder,
       run: options.run,
