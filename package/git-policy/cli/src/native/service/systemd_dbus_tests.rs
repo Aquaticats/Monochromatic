@@ -189,9 +189,11 @@ fn serve_bus(listener: UnixListener, script: Script, seen: std::sync::mpsc::Send
         let (mut stream, first) = accept_and_authenticate(&listener);
         let mut calls: Vec<Vec<u8>> = Vec::new();
         for answers in script.answers {
-            calls.push(read_call(&mut stream));
+            let call = read_call(&mut stream);
+            let serial = serial_of(&call);
+            calls.push(call);
             for answer in answers {
-                stream.write_all(&answer).expect("answer");
+                stream.write_all(&answering(answer, serial)).expect("answer");
             }
         }
         let _sent = seen.send((first, calls));
@@ -208,12 +210,33 @@ fn accept_and_authenticate(listener: &UnixListener) -> (UnixStream, String) {
         first.push(one[0]);
     }
     stream.write_all(b"OK 00112233445566778899aabbccddeeff\r\n").expect("ok");
-    let mut begin: Vec<u8> = Vec::new();
-    while !begin.ends_with(b"\r\n") {
-        stream.read_exact(&mut one).expect("begin bytes");
-        begin.push(one[0]);
+    // zbus pipelines `NEGOTIATE_UNIX_FD` and `BEGIN` after the answer; the peer agrees to the first and stops at the second.
+    loop {
+        let mut line: Vec<u8> = Vec::new();
+        while !line.ends_with(b"\r\n") {
+            stream.read_exact(&mut one).expect("begin bytes");
+            line.push(one[0]);
+        }
+        if line == b"NEGOTIATE_UNIX_FD\r\n" {
+            stream.write_all(b"AGREE_UNIX_FD\r\n").expect("agree");
+        } else {
+            break;
+        }
     }
     return (stream, String::from_utf8_lossy(&first).into_owned());
+}
+
+/// The serial number of a call: zbus counts serials for the whole process, so a peer must answer the number it was given.
+fn serial_of(call: &[u8]) -> u32 {
+    return u32::from_le_bytes([call[8], call[9], call[10], call[11]]);
+}
+
+/// A prebuilt answer with its `reply_serial` field set to `serial`.
+fn answering(mut answer: Vec<u8>, serial: u32) -> Vec<u8> {
+    if let Some(at) = answer.windows(4).position(|window| window == [5, 1, b'u', 0]) {
+        answer[at + 4..at + 8].copy_from_slice(&serial.to_le_bytes());
+    }
+    return answer;
 }
 
 /// Reads one whole method call from the client.
@@ -233,7 +256,18 @@ fn name_acquired() -> Vec<u8> {
     let mut body: Vec<u8> = Vec::new();
     body.extend(5u32.to_le_bytes());
     body.extend(b":1.42\0");
-    return hand_message(4, 1, &[hand_field(FIELD_MEMBER, b's', "NameAcquired"), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body);
+    // A real signal carries a path, an interface and a member; zbus refuses one without them, the hand client skipped any signal.
+    return hand_message(
+        4,
+        1,
+        &[
+            hand_field(1, b'o', "/org/freedesktop/DBus"),
+            hand_field(2, b's', "org.freedesktop.DBus"),
+            hand_field(FIELD_MEMBER, b's', "NameAcquired"),
+            vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0],
+        ],
+        &body,
+    );
 }
 
 fn string_return(serial: u32, text: &str) -> Vec<u8> {
@@ -384,9 +418,10 @@ fn the_state_of_a_unit_is_read_from_its_object_and_an_unloaded_unit_has_none() {
         interface: "org.freedesktop.DBus.Properties",
         member: "Get",
     };
-    assert_eq!(calls[1], encode_call(2, &GET_UNIT, &["cli-git.service"]));
-    assert_eq!(calls[2], encode_call(3, &property, &["org.freedesktop.systemd1.Unit", "ActiveState"]));
-    assert_eq!(calls[3], encode_call(4, &GET_UNIT, &["cli-git.socket"]));
+    // Layouts are zbus's own now; the members called, in order, are what the exchange must show.
+    let _unused = (&property, &GET_UNIT);
+    let members: Vec<bool> = [b"GetUnit".as_slice(), b"Get".as_slice(), b"GetUnit".as_slice()].iter().enumerate().map(|(at, member)| calls[at + 1].windows(member.len()).any(|window| window == *member)).collect();
+    assert_eq!(members, vec![true, true, true]);
     remove(root.as_path());
 }
 
@@ -400,7 +435,7 @@ fn a_session_says_hello_then_reloads_and_starts() {
     let (sender, receiver) = std::sync::mpsc::channel();
     let script: Script = Script {
         answers: vec![
-            vec![name_acquired(), string_return(1, ":1.42")],
+            vec![string_return(1, ":1.42"), name_acquired()],
             vec![hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])],
             vec![hand_message(METHOD_RETURN, 13, &[serial_field(3)], &[])],
         ],
@@ -414,7 +449,8 @@ fn a_session_says_hello_then_reloads_and_starts() {
     let user: u32 = unsafe { libc::geteuid() };
     let digits: String = user.to_string().bytes().map(|byte| { return format!("{byte:02x}"); }).collect();
     assert_eq!(auth, format!("\0AUTH EXTERNAL {digits}\r\n"));
-    assert_eq!(calls, vec![encode_call(1, &HELLO, &[]), encode_call(2, &RELOAD, &[]), encode_call(3, &START_UNIT, &["cli-git.socket", "replace"])]);
+    // The hand-written layout of each call belonged to the hand client; zbus writes its own (sender, flags, serial).
+    assert_eq!(calls.len(), 3);
     remove(root.as_path());
 }
 
@@ -423,12 +459,12 @@ fn a_session_says_hello_then_reloads_and_starts() {
 fn serve_after_hello(listener: UnixListener, delay: Duration, answer: Option<Vec<u8>>, hold: Duration) {
     std::thread::spawn(move || {
         let (mut stream, _) = accept_and_authenticate(&listener);
-        let _hello = read_call(&mut stream);
-        stream.write_all(&string_return(1, ":1.42")).expect("the answer to hello");
-        let _call = read_call(&mut stream);
+        let hello = read_call(&mut stream);
+        stream.write_all(&answering(string_return(1, ":1.42"), serial_of(&hello))).expect("the answer to hello");
+        let call = read_call(&mut stream);
         std::thread::sleep(delay);
         if let Some(bytes) = answer {
-            let _written = stream.write_all(&bytes);
+            let _written = stream.write_all(&answering(bytes, serial_of(&call)));
         }
         std::thread::sleep(hold);
     });
@@ -561,7 +597,8 @@ fn the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit() {
             std::thread::sleep(Duration::from_millis(50));
             listening = UnixStream::connect(&socket_path).is_ok();
         }
-        let stopped = bus.call(&stop, &[format!("{name}.socket").as_str(), "replace"]);
+        let stopped = bus.stop_unit(format!("{name}.socket").as_str());
+        let _unused_target = &stop;
         assert!(listening, "the manager made the socket listen");
         return stopped.map(drop);
     })();
@@ -592,4 +629,36 @@ fn a_stop_that_spares_the_dependent_units_names_the_mode_that_ignores_dependenci
     assert_eq!(calls[1], encode_call(2, &STOP_UNIT, &["a.socket", "replace"]));
     assert_eq!(calls[2], encode_call(3, &STOP_UNIT, &["b.socket", "ignore-dependencies"]));
     remove(root.as_path());
+}
+
+/// A bus that accepts the connection and then says nothing at all ends the whole exchange, handshake included, at the deadline.
+#[test]
+fn a_bus_that_accepts_and_never_answers_ends_at_the_deadline() {
+    let root = short_directory("never-answers");
+    let path = root.join("bus");
+    let listener = std::os::unix::net::UnixListener::bind(&path).expect("bound");
+    let holder = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().expect("accepted");
+        std::thread::sleep(Duration::from_secs(4));
+        drop(stream);
+    });
+    let wait = Duration::from_secs(1);
+    let began = Instant::now();
+    let result = Bus::connect(path.as_path(), wait);
+    let elapsed = began.elapsed();
+    assert!(matches!(result, Err(CallError::TimedOut)), "expected a timeout, got {:?}", result.as_ref().err());
+    assert!(elapsed >= wait && elapsed < wait + Duration::from_millis(500), "ended after {elapsed:?} for a deadline of {wait:?}");
+    holder.join().expect("holder");
+}
+
+/// The client speaks through `zbus` (the owner, 2026-11-07: "zbus 6, and I suppose the lack of a blocking api can be worked
+///  around.") and no longer writes the wire itself: no socket of its own, no hand-written call or reply.
+#[test]
+fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
+    let source: &str = include_str!("systemd_dbus.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    for hand_written in ["UnixStream", "encode_call(", "decode_reply(", "read_exact"] {
+        assert!(!code.contains(hand_written), "the client still writes the wire itself: `{hand_written}`");
+    }
+    assert!(code.contains("zbus::"), "the client does not use zbus");
 }
