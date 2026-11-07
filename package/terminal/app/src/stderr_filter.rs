@@ -392,11 +392,20 @@ fn forward_filtered_stderr(reader_file: File, mut writer_file: File) {
 /// Why:
 ///       Tests can lock the exact filtering rule without touching process stderr.
 fn should_suppress_stderr_line(line: &[u8]) -> bool {
-    // What:     `.windows(...).any(|window| ...)` scans overlapping byte windows with
-    //           a Rust closure. It is the byte-slice sibling of string `includes`.
+    // What:     `.windows(...).any(is_suppressed_window)` scans overlapping byte windows
+    //           with a named function. It is the byte-slice sibling of string `includes`.
     // Why:      This finds the marker without regex or UTF-8 assumptions.
     return line.windows(SUPPRESSED_GHOSTTY_OSC_LOG.len())
-        .any(|window| return window == SUPPRESSED_GHOSTTY_OSC_LOG)
+        .any(is_suppressed_window)
+}
+
+/// What:
+///  `fn is_suppressed_window(window: &[u8]) -> bool` compares one byte window with the Ghostty noise marker.
+/// Why:
+///  `should_suppress_stderr_line` passes it by path,
+///  so no closure is needed for a comparison that captures nothing.
+fn is_suppressed_window(window: &[u8]) -> bool {
+    return window == SUPPRESSED_GHOSTTY_OSC_LOG;
 }
 
 /// What:
