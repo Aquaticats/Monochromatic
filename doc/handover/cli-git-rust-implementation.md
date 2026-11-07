@@ -3563,6 +3563,26 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
 
+### After the restart (2026-11-07T10:15:54-05:00, eight agents)
+
+- Survived the restart: publish run 42384840600 succeeded (`monochromatic-mpm-shadow-v0.2.7-alpha.1`, not a prerelease,
+  two Linux tarballs plus checksums); `tokio-gate-merge2` passed 5165 of 5165. Tokio checkpoint merged into main as
+  `48611f7e09` (T5 plus the `decide` race fix; not released).
+- Owner, verbatim: "Please track latest zig and edit the decision records." Both records amended in main
+  (`8bfa833de3`): `doc/decision/ide-releases.md` and `doc/decision/desktop-app-podman-build.md`, each with the old
+  statement kept in an amended note.
+- Running (briefs and resume notes in `~/temp/agent/coordinator-briefs/`):
+  - Zig: finish lint, Clippy and nextest, image tasks that rebuild when their lock-driven arguments change, the
+    prelude's missing build arguments, the music-player `branches` 0.4.6 break on the new nightly, the plan doc
+    (`fix/containers-zig-from-lock`);
+  - the `mpm-shadow` alpha: crates.io absence check, lock update, install, worktree check, records;
+  - `core-exec`: finish the lint cleanup and gate (`fix/monorepo-task-core-exec-depends-test-time`);
+  - fold late lines: read-lease design (`fix/git-policy-cli-fold-keeps-late-lines`);
+  - tokio: the three coordinator settlements, then T8 and T9 (`feat/git-policy-cli-on-tokio`);
+  - index lock without links or no-replace rename (`fix/git-policy-cli-index-lock-without-links`);
+  - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`);
+  - the settle-command test that fails only in its suite (`fix/git-policy-cli-settle-test-in-suite`).
+
 ### Claude Code restart (2026-11-07, about 10:00 -05:00; owner raising the subagent limit to 8)
 
 - Owner: "Do whatever you need to do, but don't abandon any work."
