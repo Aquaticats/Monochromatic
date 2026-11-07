@@ -7,7 +7,9 @@ not individual key-label questions.
 [The self-contained behavior demonstration](../questions/keyboard-map.prototype.html)
 presents one coherent proposal with optional observations.
 D25 settled the Search/picker assignments,
-and the human accepted the whole map, including the playback-region scope, as built (D102) on 2026-10-10.
+and the human accepted the whole map,
+including the playback-region scope,
+as built (D102) on 2026-10-10.
 No production keyboard implementation is authorized.
 
 [The planning record](../../../../doc/planning/music-player-keyboard-map.md)

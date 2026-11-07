@@ -29,7 +29,7 @@ With the scope running,
 the bare name,
 prints a stub and exits 0:
 
-```
+```text
 Id=rr-sysd-doc-probe.service
 LoadState=not-found
 CPUQuotaPerSecUSec=infinity
@@ -51,7 +51,7 @@ The queries that work:
 systemctl --user show rr-sysd-doc-probe.scope -p Id -p LoadState -p ControlGroup -p CPUQuotaPerSecUSec -p MemoryMax
 ```
 
-```
+```text
 Id=rr-sysd-doc-probe.scope
 LoadState=loaded
 ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/rr-sysd-doc-probe.scope

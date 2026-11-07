@@ -1163,7 +1163,8 @@ The whole pinned shape is checked:
 an answer of another shape fails the lookup instead of being half-read.
 
 No program of the machine is looked up for the lookup itself:
-`mise run toolchain:install` links `mpm-shadow` into the worktree, and that link is the only program run.
+`mise run toolchain:install` links `mpm-shadow` into the worktree,
+and that link is the only program run.
 
 The answer is kept for the session.
 It is asked again only when it may have changed:
@@ -1227,7 +1228,8 @@ that the toolchain lookup could not be used for the folder,
 the remedy,
 and the lookup's own message.
 The remedy names the commands the user runs
-(`mpm-shadow bin --json` at the worktree root, and `mise run toolchain:install` when nothing is installed yet);
+(`mpm-shadow bin --json` at the worktree root,
+and `mise run toolchain:install` when nothing is installed yet);
 the application never repairs the toolchain.
 A lookup that does not finish in 10 seconds is stopped and reported the same way.
 A sandbox that cannot be set up is not a lookup failure:
@@ -4362,10 +4364,12 @@ and the arguments are read only when the level is enabled,
 so a build that does not log pays nothing.
 The record is written by the log writer thread,
 so on a busy disk a press that was handled at once can reach the file more than a second later
-(0.6 to 1.7 s in the sampled sessions, 2.75 s the slowest of 3,350):
+(0.6 to 1.7 s in the sampled sessions,
+2.75 s the slowest of 3,350):
 a reader waits for the line and reads again after the session has ended
 before it calls a press missing
-(`doc/troubleshooting/nested-wayland-gui-test-footguns.md`, "A click whose log line is not in the file yet").
+(`doc/troubleshooting/nested-wayland-gui-test-footguns.md`,
+"A click whose log line is not in the file yet").
 Verify a press by comparing `line_number` with that formula for the frame stamped before the press,
 and read the gutter of a screenshot to prove the formula against the picture:
 the compositor's screenshot is its last committed frame,
@@ -6263,7 +6267,8 @@ Just it."
 - `Containerfile` and `Containerfile.release` install the cargo-about version `toolchain.lock.json` records
   into the build image
   (`mise run //package/ide/app:image` passes it as the build argument `CARGO_ABOUT_VERSION`;
-  0.9.2 is the version this section vetted, and the lock has moved on).
+  0.9.2 is the version this section vetted,
+  and the lock has moved on).
   The `notices` task first checks `cargo-about --version` against the lock and,
   in an image built before the lock moved,
   stops and names the `image` task.

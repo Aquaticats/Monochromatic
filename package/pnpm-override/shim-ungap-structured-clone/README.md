@@ -7,7 +7,9 @@ Its `index.cjs` is a single line:
  `module.exports = globalThis.structuredClone`,
  identical to what the upstream package's default export resolves to
  on every runtime where native `structuredClone` exists
- (Node 17+, Bun, all modern browsers per the Firefox ESR 140 baseline
+ (Node 17+,
+Bun,
+all modern browsers per the Firefox ESR 140 baseline
  in `PHILOSOPHY.browser-support.md`).
 
 `pnpm-workspace.yaml` substitutes the deprecated upstream package with this shim

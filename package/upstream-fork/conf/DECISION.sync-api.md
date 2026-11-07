@@ -62,7 +62,8 @@ Keep the upstream synchronous contract.
 ## Rejected alternatives
 
 - An asynchronous fork.
-   It would not be behaviorally compatible with upstream `conf`, which is
+   It would not be behaviorally compatible with upstream `conf`,
+  which is
    the whole point of the fork.
 - A file-scoped oxlint override for `src/file-io.ts`.
    Unconditional suppression loses per-call justification and loosens a

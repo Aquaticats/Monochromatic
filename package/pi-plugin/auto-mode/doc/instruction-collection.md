@@ -3,14 +3,17 @@
 ## Incoming messages and owned bookkeeping
 
 The session instrumentation records original inputs and their publications.
-These are package-owned records, not additional contracts imposed by Pi.
+These are package-owned records,
+not additional contracts imposed by Pi.
 The original growth gate rejects normal `steer` and `followUp` calls by comparing their origin labels
 with a hand-maintained list.
 That rejection opens a manual approval prompt for ordinary input handling and is a product defect.
 
 The category-specific repair is superseded by removal of that list and its new classifier helper.
 Appended original data inputs keep the existing session ownership and no-authority checks.
-The enclosing collector independently checks governing policy, resource inputs, executable tools and run material.
+The enclosing collector independently checks governing policy,
+resource inputs,
+executable tools and run material.
 Its need for further internal snapshot checks remains part of the architecture reduction review.
 This change requires fresh native-session and configured Pi verification before qualification.
 
@@ -20,7 +23,8 @@ follow-ups wait until the agent would otherwise stop.
 An authored string asking to stop does not itself exercise that cancellation API.
 The unmodified-SDK delivery probe and the native catalog must distinguish these behaviors.
 The bounded unmodified Pi 1.2.0 Agent probe confirms both queued delivery modes execute the current tool
-before delivering even text asking to stop; the separate actual abort control executes no tool.
+before delivering even text asking to stop;
+the separate actual abort control executes no tool.
 The category-gate removal at `4913ea2cd0` passes fresh JavaScript/native builds,
 both actual-session inflight delivery cases,
 source-binding capacity,
@@ -246,7 +250,8 @@ then passes on the maintained snapshot implementation at 483,453 microseconds.
 These CPU measurements describe the bounded Node 26 Linux fixture.
 The private snapshot probe retains more final heap than its baseline,
 about 95.6 MB against 90.8 MB;
-the measured benefit is append work, not a retained-memory reduction.
+the measured benefit is append work,
+not a retained-memory reduction.
 
 Input-only publication views share a function that always rejects message-payload eligibility.
 They retain their distinct occurrence and publication identities without retaining the full text-projection owner.

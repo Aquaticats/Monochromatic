@@ -3,7 +3,9 @@
 Shared model-selection logic for pi plugins and harness-neutral agent packages.
 
 This package lives under `package/agent-harness-shared/` because multiple agent harnesses consume it:
- pi plugins (advisor, goal, thinking-defaults) and the harness-neutral advisor core
+ pi plugins (advisor,
+goal,
+thinking-defaults) and the harness-neutral advisor core
  shared by the pi and DSH advisor variants.
  It moved here from `package/pi-shared/model-selection` on 2026-10-20;
  that category required two pi consumers,

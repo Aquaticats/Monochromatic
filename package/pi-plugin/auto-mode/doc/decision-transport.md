@@ -60,11 +60,15 @@ Retry failure still withholds an automatic answer.
 The configured content-aligned replay on 2026-10-19 received an HTTP 503 during tool 18.
 The sender classified it as permanent and the host requested confirmation.
 The preserved capture contains 35 HTTP 200 responses and one HTTP 503 response.
-This is an observed assessment-service failure, not evidence that page storage caused the failure.
+This is an observed assessment-service failure,
+not evidence that page storage caused the failure.
 [RFC 9110, section 15.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.4)
 defines 503 as temporary overload or maintenance.
-Retry eligibility uses the known response status, never borrowed error text.
-The existing judgment still owns the sole retry, caller cancellation, and physical-call allowance.
+Retry eligibility uses the known response status,
+never borrowed error text.
+The existing judgment still owns the sole retry,
+caller cancellation,
+and physical-call allowance.
 No retry loop or new timer is introduced inside fetch.
 
 ## Alternatives

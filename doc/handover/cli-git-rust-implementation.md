@@ -3973,8 +3973,21 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     a file system
     without leases makes the fold fail with its one-line message and keep every byte;
   - tokio (`feat/git-policy-cli-on-tokio`,
-    tip `1dc503d259`,
-    not merged):
+    tip `944bdd30b5` after the coordinator merged main and resolved the plan-doc conflict to the branch side,
+    whose only main change was the linter's whitespace reflow;
+    the agent's last gate was 5209 of 5209 on `ad314ca6eb`;
+    the merged tree's gate runs as unit `tokio-merge-gate-944bdd30b5`,
+    log `~/temp/agent/tokio-merge-gate-944bdd30b5.log`;
+    then merge into main,
+    `native:perf`,
+    a wrapper alpha,
+    and the mutation campaign over the changed files;
+    the D-state stop and the 18 s held-name wait are in;
+    one unexplained failure in that agent's first gate,
+    `repair::package_repair_command::tests::a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run`
+    (0.506 s against 0.32 s,
+    untouched code),
+    is open):
     the three settlements (one-shot pipe reader,
     futex name-claim wait,
     measured bounds),
@@ -4241,6 +4254,35 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     the agent proposes the smallest shared piece,
     keeps a red-first guard against reaching the owner's bus,
     and limits a real run to one summary notification.
+- `monochromatic-lint` package clean on its own gates
+  (rustfmt,
+  README line breaks,
+  71 repository-lint findings,
+  merge `b75b3755ea`)
+  and released as `0.5.2-alpha.1`,
+  locked `86ce4da394`,
+  installed.
+  Fixer output measured unchanged on all 3051 Markdown files with three binaries.
+  `mutation:coverage` passes:
+  new scopes `--layout` (415 mutants) and `--workflow-shell` (741),
+  two files added to `--semantic`.
+  Campaigns over those three running (`test/monochromatic-lint-layout-and-workflow-mutants`).
+- zbus 6:
+  `package/nested-wayland-session/cli` and `package/music-player/desktop-app` ported to zbus 6 async
+  (`zbus::block_on` on zbus's own runtime;
+  every D-Bus step bounded,
+  5 s and 3 s,
+  measured connect 1.2 to 1.4 ms)
+  and merged into main `83b7328102` (293 and 1600 tests);
+  the `zbus-5` hold is gone.
+  Commit `566c50665d` over-claims its subject;
+  corrected by commit comment 208708911.
+  Found on main and given to an agent (`fix/three-packages-red-after-the-daily-update`):
+  `package/ide/app` Clippy `E0308` at `src/tile_scene.rs:141` after a `parley` API change;
+  `package/terminal/app` lint fails in the `libghostty-vt-sys` build script fetching Ghostty;
+  `cargo-shadow install` offline fails on the music player because the cached index marks `clipboard-win` 5.4.1 yanked.
+  The music-player ellipsis test passed three times for the zbus agent;
+  its cause is still unmeasured.
 - Held settle message:
   merged into main `66dbb1ca27` (gate 5194 of 5194,
   lint clean).
@@ -4873,6 +4915,26 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Its worktree `.claude/worktrees/lfs-credential-fix` is still there.
 
 ### Repository on the 860: plan revised, owner questions next
+
+- Owner,
+  2026-11-07T12:46:40-05:00,
+  on the one remaining decision (the cut-over window),
+  verbatim:
+  "No need to wait for me.
+  Do it whenever you see fit."
+  Recorded in the plan (`06184a2f7d`,
+  section "The owner's go-ahead on timing").
+  The coordinator picks the window when no agent works in a worktree.
+  Every copy step needs root,
+  so the owner runs them from one guided script
+  (fixture test,
+  `R0` inventory,
+  first pass,
+  then the final pass and the link at the chosen moment).
+  Next:
+  build that script with the `wizard` skill from the plan's runbook and its `move-repository.ts`,
+  dry-run it in print mode,
+  at the first free agent slot.
 
 - The symlink plan is committed (`4f430a0683`,
   `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`;

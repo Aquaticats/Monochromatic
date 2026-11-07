@@ -1,4 +1,4 @@
-# `api.openai.com` (ChatGPT OAuth, pi `openai` provider, codex-cli 0.162.1):
+# `api.openai.com` (ChatGPT OAuth, pi `openai` provider, codex-cli 0.162.1)
 every credentialed request returns Cloudflare `520`,
 while unauthenticated requests return clean `401` JSON
 

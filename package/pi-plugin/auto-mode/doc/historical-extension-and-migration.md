@@ -1,7 +1,10 @@
 # Historical extension and migration record
 
 Captured before the 2026-10-17 consolidation.
-The extension entry and its exclusive signal, model-selection, trust, and approval-reuse implementation
+The extension entry and its exclusive signal,
+model-selection,
+trust,
+and approval-reuse implementation
 were removed on that date.
 The current native responsibilities are described in [architecture](architecture.md).
 Legacy source identifiers in this snapshot name removed implementations.
@@ -9,7 +12,7 @@ The historical native document link now resolves from this archive directory.
 The former README used `../../../doc/` for repository documentation links.
 Their current prefix in this archive is `../../../../doc/` (moved 2026-10-17).
 
-# @monochromatic-dev/pi-plugin-auto-mode
+## @monochromatic-dev/pi-plugin-auto-mode
 
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
@@ -31,20 +34,33 @@ not a measured accuracy guarantee.
 Complete assessments are split into provider requests of at most 200 questions,
 with up to three parallel calls per bundle and three sequential bundles per judgment.
 Every call shares original cancellation and preparation-inclusive timing.
-Fifteen seconds is an advisory performance target; elapsed time never expires review evidence.
+Fifteen seconds is an advisory performance target;
+elapsed time never expires review evidence.
 No average USD 0.001 per judgment cost limit applies.
 Question identities and complete shared context survive partitioning;
 partial answer sets cannot authorize execution.
 
 Assessment concerns execution permission and required consent.
-Tool-use, formatting, naming, and workflow conventions remain agent guidance.
-Review inputs contain the proposed operation, readable project policy excerpts,
+Tool-use,
+formatting,
+naming,
+and workflow conventions remain agent guidance.
+Review inputs contain the proposed operation,
+readable project policy excerpts,
 and the larger of the latest five visible messages or the span from the latest user message.
-Pi's hidden prompts, tool metadata, and skill catalog remain outside model review.
+Pi's hidden prompts,
+tool metadata,
+and skill catalog remain outside model review.
 Assistant thinking and provider signatures are excluded from conversation and proposed-operation inputs.
-Bash is parsed locally into command, argument, quoting, control-flow, redirect, and expansion structure.
+Bash is parsed locally into command,
+argument,
+quoting,
+control-flow,
+redirect,
+and expansion structure.
 Complete Bash source stays local for execution and human confirmation.
-Literal arguments and quoted here-document bodies remain data, including text resembling shell syntax.
+Literal arguments and quoted here-document bodies remain data,
+including text resembling shell syntax.
 Incomplete or unsupported parsed structure routes the original operation to human confirmation.
 The [review input verification record](../native/review-input-verification.md)
 documents request-capture coverage and complete-session replay requirements.
@@ -53,18 +69,25 @@ Older conversation receipts stay local for provenance.
 Each clause question includes the complete proposed operation beside the selected clause.
 
 Initialization and reload consult the persistent rule-relevance cache and send only changed or missing
-tagged rules, individually with heading context, to Luna.
-Tagged root rules scoring below `0.60`, including uncertain rules, are excluded from operation review.
+tagged rules,
+individually with heading context,
+to Luna.
+Tagged root rules scoring below `0.60`,
+including uncertain rules,
+are excluded from operation review.
 Complete `AGENTS.md` documents are never sent as policy context.
 The original file and source spans remain local for freshness checks.
 Relevance estimates grant no execution permission.
 Startup classification failure preserves ordinary chat and routes tool calls to scoped confirmation;
-without a UI, execution remains withheld.
+without a UI,
+execution remains withheld.
 
 Established permission allows the operation automatically.
 An established governing prohibition blocks it.
 An explicit fresh-confirmation requirement or uncertain clause assessment first reaches a whole-operation
-decision-model review using selected policy excerpts, visible conversation, and prepared operations.
+decision-model review using selected policy excerpts,
+visible conversation,
+and prepared operations.
 The same Luna model and `0.60` selected-probability cutoff apply.
 Only unresolved or failed automatic paths open the original operation's dialog when a UI is available.
 The dialog offers `Allow` and `Stop`.
@@ -83,24 +106,41 @@ operation,
 authorization,
 and cancellation checks remain active.
 Recoverable clause-assessment failures try the decision model within the original deadline and transport allowance.
-Missing observation evidence, exhausted automatic review, and unresolved final decisions
+Missing observation evidence,
+exhausted automatic review,
+and unresolved final decisions
 fall back to manual approval of the complete prepared operation.
-This fallback retains native operation identity, tool and argument checks, and cancellation.
+This fallback retains native operation identity,
+tool and argument checks,
+and cancellation.
 It does not create automatic evidence or replace an established policy decision after its dependencies change.
-Without a usable approval interface, execution remains withheld.
+Without a usable approval interface,
+execution remains withheld.
 The local tagged logs correlate complete assessment inputs and replies with per-clause admission,
-source references, errors, fallback choices, and the final verdict.
+source references,
+errors,
+fallback choices,
+and the final verdict.
 `test:native:decision-fallback` exercises these paths and verifies reconstructable diagnostic records.
 Provider request metadata supplies context and is not independently subject to tool-call approval.
 
-Provider switching, retries, navigation, reload, and ordinary chat remain owned by Pi.
+Provider switching,
+retries,
+navigation,
+reload,
+and ordinary chat remain owned by Pi.
 Prompt and request capture failures are retained for tool review without rejecting the native chat request.
 Each tool decision captures the current native branch;
 navigation invalidates that decision without retiring later prompts.
 
 Native Shift+Tab bypass executes supported native programs without semantic profile admission.
-The fixed virtual-input guard, original execution ownership, cancellation, status, and audit entries remain active.
-With bypass disabled, automatic review covers direct Bash calls and the inspected program profiles in the native README.
+The fixed virtual-input guard,
+original execution ownership,
+cancellation,
+status,
+and audit entries remain active.
+With bypass disabled,
+automatic review covers direct Bash calls and the inspected program profiles in the native README.
 
 The extension export remains available for legacy consumers.
 The remaining sections describe that legacy implementation;
@@ -680,7 +720,10 @@ Direct Bash admission requires the original native `bash` operation with a strin
 The assessment receives the complete command and every operation in its prepared group.
 An uncertain answer still requires scoped confirmation;
 headless consumers withhold execution when no approval host is available.
-`test:native:direct-bash` covers permission, prohibition, unknown answers, and a mixed Bash/program group.
+`test:native:direct-bash` covers permission,
+prohibition,
+unknown answers,
+and a mixed Bash/program group.
 The native adapter fixes the expected model from its actual wire contract,
 not an action argument.
 A matching scope selects a consumer;

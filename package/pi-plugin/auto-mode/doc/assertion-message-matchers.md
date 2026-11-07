@@ -13,7 +13,9 @@ cleanup,
  not new validation.
 
 Incoming SDK message inspection is a different boundary:
- parsing or categorizing live steering, prompt, or request text to decide what
+ parsing or categorizing live steering,
+prompt,
+or request text to decide what
  the fixture does next invents behavior the SDK never promised
  (for example,
  treating queued steering text as immediate cancellation).
@@ -21,7 +23,9 @@ That class of message-category validation stays forbidden in these catalogs.
 
 ## Fixture values
 
-`src/native-producer-lifetime-values.ts` authors the model, context, response,
+`src/native-producer-lifetime-values.ts` authors the model,
+context,
+response,
 and stream fixtures as valid SDK values using `normalizeContext` and
 `createAssistantMessageEventStream`.
 Test-only response correlation names live in fixture-owned weak tables,

@@ -77,7 +77,7 @@ one target holds both strings.
 
 ### (a) absent compiled cache compiles from text (F)
 
-```
+```text
 $ forbidden-strings --rules rules.txt target.txt      # cache dir empty
 exit=1
 stderr: {"type":"forbidden-strings/cache-warning","schemaVersion":1,"reason":"missing","recovery":"compile-from-text"}
@@ -96,7 +96,7 @@ no warning (warm path,
 
 ### (b) changed rule with warm cache (F)
 
-```
+```text
 cp rules-v2.txt rules.txt    # cache warm for v1
 exit=1  stderr: {"...","reason":"missing","recovery":"compile-from-text"}  target.txt:3 rule=newrule
 cache afterwards: two digest dirs (b0d42a09... and 1dc2b421...)
@@ -126,7 +126,7 @@ message at `:233`).
 
 ### (c) baseline for missing path and comma-joined value (F)
 
-```
+```text
 --rules missing.txt target.txt                 exit=2  forbidden-strings: read rules missing.txt: No such file or directory (os error 2)
 --rules rules.txt missing-target.txt           exit=1  missing-target.txt: read error: No such file or directory (os error 2)
 --rules rules-v1.txt,rules-v2.txt target.txt   exit=2  forbidden-strings: read rules rules-v1.txt,rules-v2.txt: No such file or directory (os error 2)
@@ -197,7 +197,7 @@ output `gates/p2/rust.out`.
 
 Outputs (F):
 
-```
+```text
 Rust A resolve(7 explicit queries)         ["and_chr 151","and_ff 153","android 151","chrome 151","firefox 140","node 26.8.0" ... "node 26.0.0"]   (14 items)
 Rust B execute(config file, env production)   identical to A
 Rust C execute(path dir copy, env production) identical to A
@@ -251,7 +251,7 @@ TS conversion (F):
 run with node v26.12.0 type stripping,
 `exists` and `importJson` injected:
 
-```
+```text
 rust array  browser -> ["chrome151","firefox140"]   node -> ["node26.0.0"]
 js array    browser -> ["chrome156","firefox153"]   node -> ["node26.0.0"]
 control ['ie 11'] -> TypeError: Browserslist target is unsupported by tsdown target mapping: ie 11   (probe able to fail)
@@ -326,7 +326,7 @@ source `cli_explore.py` `installed` ~431 and `outdated` ~517):
 
 Results (F):
 
-```
+```text
 installed older than latest:   outdated -> pnpm cowsay installed_version 1.5.0 latest_version 1.6.0 ; uvx pycowsay installed 0.0.0.1 latest 0.0.0.2
 installed equal to latest:     outdated -> NO row for mkdirp (3.0.1) or uvx cowsay (6.1); installed -> mkdirp installed_version 3.0.1, cowsay 6.1
 not installed (rimraf):        installed rimraf and outdated rimraf -> "packages": [] for both managers, errors []
@@ -342,7 +342,7 @@ registry unreachable (container --network=none): outdated exit 0, packages [] fo
 Extra cases (F),
 run last:
 
-```
+```text
 installed NEWER than registry latest: pnpm global yaml@3.0.0-2 (npm latest 2.9.1; dist-tag next is 3.0.0-2)
   mpm installed --exact yaml -> installed_version "3.0.0-2"
   mpm outdated  --exact yaml -> packages [] errors []        (no row)
