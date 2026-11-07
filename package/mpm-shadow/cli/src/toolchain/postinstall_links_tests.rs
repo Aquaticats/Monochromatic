@@ -259,7 +259,7 @@ fn a_link_the_global_scope_made_in_the_users_bin_directory_is_still_retired() {
     let global = super::scope::global_scope(&rig.env).expect("a global scope");
     write_executable(&current_link(&global.toolchain_root, "monochromatic-mpm-shadow").join("bin").join(PROGRAM));
     let mut tools = rig.lock.tools.clone();
-    let tool = tools.iter_mut().find(|tool| return tool.declaration.id == LINKED).expect("the sample lock holds the tool");
+    let tool = tools.iter_mut().find(|candidate| return candidate.declaration.id == LINKED).expect("the sample lock holds the tool");
     let Some(Postinstall::Link(link)) = tool.declaration.options.postinstall.clone() else {
         panic!("the sample tool declares a postinstall link");
     };
@@ -269,7 +269,7 @@ fn a_link_the_global_scope_made_in_the_users_bin_directory_is_still_retired() {
     sync_postinstall_links(&global_context(&rig, &global, &tools), &linked).expect("the first pass succeeds");
     assert!(exists_at(&path), "the global pass links into the user's bin directory");
 
-    tools.iter_mut().find(|tool| return tool.declaration.id == LINKED).expect("the tool").declaration.options.postinstall = None;
+    tools.iter_mut().find(|candidate| return candidate.declaration.id == LINKED).expect("the tool").declaration.options.postinstall = None;
     let dropped: Vec<&LockedTool> = tools.iter().collect();
     let notices = sync_postinstall_links(&global_context(&rig, &global, &tools), &dropped).expect("the second pass succeeds");
     assert!(!exists_at(&path), "the dropped global link is gone");
