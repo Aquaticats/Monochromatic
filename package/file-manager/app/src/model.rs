@@ -136,7 +136,11 @@ impl PaneStripState {
             self.active = Some(existing);
             return existing;
         }
-        let column = self.panes.get(&parent).map_or(0, |pane| return pane.column) + 1;
+        let parent_column = match self.panes.get(&parent) {
+            Some(pane) => pane.column,
+            None => 0,
+        };
+        let column = parent_column + 1;
         let id = self.insert_pane(location, column, Some(parent), !force_duplicate);
         self.relayout();
         return id
@@ -172,7 +176,7 @@ impl PaneStripState {
     ///  spawn-on-descent accumulates panes,
     ///  so bulk-close is required early.
     pub fn close_column(&mut self, column: usize) {
-        for id in self.ids_where(|pane| return pane.column == column) {
+        for id in self.ids_in_column(column) {
             self.remove_pane(id);
         }
         self.relayout();
@@ -185,7 +189,7 @@ impl PaneStripState {
     ///  descending then backing up leaves a tail of panes;
     ///  one gesture clears the tail.
     pub fn close_right_of(&mut self, column: usize) {
-        for id in self.ids_where(|pane| return pane.column > column) {
+        for id in self.ids_right_of(column) {
             self.remove_pane(id);
         }
         self.relayout();
@@ -222,11 +226,11 @@ impl PaneStripState {
     /// Why:
     ///  keyboard navigation clamps a Left/Right move to the existing columns.
     pub fn column_count(&self) -> usize {
-        return self.panes
-            .values()
-            .map(|pane| return pane.column + 1)
-            .max()
-            .unwrap_or(0)
+        let mut count = 0;
+        for pane in self.panes.values() {
+            count = count.max(pane.column + 1);
+        }
+        return count
     }
 
     /// What:
@@ -235,11 +239,17 @@ impl PaneStripState {
     /// Why:
     ///  Left/Right navigation moves focus to a column's first (lowest-row) pane.
     pub fn first_pane_in_column(&self, column: usize) -> Option<PaneId> {
-        return self.panes
-            .values()
-            .filter(|pane| return pane.column == column)
-            .min_by_key(|pane| return pane.row)
-            .map(|pane| return pane.id)
+        let mut first: Option<&Pane> = None;
+        for pane in self.panes.values() {
+            if pane.column != column {
+                continue;
+            }
+            match first {
+                Some(best) if best.row <= pane.row => {}
+                _ => first = Some(pane),
+            }
+        }
+        return Some(first?.id)
     }
 
     /// What:
@@ -280,17 +290,35 @@ impl PaneStripState {
     }
 
     /// What:
-    ///  the ids of every pane matching `predicate`,
+    ///  the ids of every pane in `column`,
     ///  snapshotted into a vector.
     /// Why:
-    ///  callers mutate the map while closing,
+    ///  `close_column` mutates the map while closing,
     ///  so the ids are collected first.
-    fn ids_where(&self, predicate: impl Fn(&Pane) -> bool) -> Vec<PaneId> {
-        return self.panes
-            .values()
-            .filter(|pane| return predicate(pane))
-            .map(|pane| return pane.id)
-            .collect()
+    fn ids_in_column(&self, column: usize) -> Vec<PaneId> {
+        let mut ids = Vec::new();
+        for pane in self.panes.values() {
+            if pane.column == column {
+                ids.push(pane.id);
+            }
+        }
+        return ids
+    }
+
+    /// What:
+    ///  the ids of every pane right of `column`,
+    ///  snapshotted into a vector.
+    /// Why:
+    ///  `close_right_of` mutates the map while closing,
+    ///  so the ids are collected first.
+    fn ids_right_of(&self, column: usize) -> Vec<PaneId> {
+        let mut ids = Vec::new();
+        for pane in self.panes.values() {
+            if pane.column > column {
+                ids.push(pane.id);
+            }
+        }
+        return ids
     }
 
     /// What:
@@ -301,13 +329,14 @@ impl PaneStripState {
     ///  a pane whose parent was closed
     ///      counts as a root.
     fn ordered_children(&self, parent: Option<PaneId>) -> Vec<PaneId> {
-        let mut children: Vec<&Pane> = self
-            .panes
-            .values()
-            .filter(|pane| return self.effective_parent(pane) == parent)
-            .collect();
-        children.sort_by_key(|pane| return pane.id);
-        return children.iter().map(|pane| return pane.id).collect()
+        let mut children: Vec<PaneId> = Vec::new();
+        for pane in self.panes.values() {
+            if self.effective_parent(pane) == parent {
+                children.push(pane.id);
+            }
+        }
+        children.sort();
+        return children
     }
 
     /// What:
@@ -317,7 +346,10 @@ impl PaneStripState {
     ///  closing a parent orphans its children;
     ///  they lay out as roots rather than vanish.
     fn effective_parent(&self, pane: &Pane) -> Option<PaneId> {
-        return pane.parent.filter(|id| return self.panes.contains_key(id))
+        match pane.parent {
+            Some(id) if self.panes.contains_key(&id) => return Some(id),
+            _ => return None,
+        }
     }
 
     /// What:

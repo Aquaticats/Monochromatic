@@ -69,8 +69,17 @@ fn to_file_entry(entry: &fs::DirEntry) -> FileEntry {
         path: entry.path(),
         kind: entry.file_type().map(kind_of).unwrap_or(EntryKind::File),
         size: metadata.as_ref().map(fs::Metadata::len),
-        modified: metadata.as_ref().and_then(|meta| return meta.modified().ok()),
+        modified: metadata.as_ref().and_then(modified_of),
     }
+}
+
+/// What:
+///  read an entry's modification time,
+///  or nothing when the platform or the entry cannot provide it.
+/// Why:
+///  a named function lets `and_then` take it by path instead of through a closure.
+fn modified_of(metadata: &fs::Metadata) -> Option<std::time::SystemTime> {
+    return metadata.modified().ok()
 }
 
 /// What:
@@ -98,11 +107,21 @@ fn kind_of(file_type: fs::FileType) -> EntryKind {
 ///  symlinks
 ///      sort with files since their target is unresolved.
 pub fn sort_entries(entries: &mut [FileEntry]) {
-    entries.sort_by(|left, right| match (is_dir(left), is_dir(right)) {
+    entries.sort_by(compare_entries);
+}
+
+/// What:
+///  order two entries directories-first,
+///  then case-insensitively by name.
+/// Why:
+///  a named comparator lets `sort_by` take it by path instead of through a closure;
+///  the order is the one `sort_entries` documents.
+fn compare_entries(left: &FileEntry, right: &FileEntry) -> Ordering {
+    match (is_dir(left), is_dir(right)) {
         (true, false) => return Ordering::Less,
         (false, true) => return Ordering::Greater,
         _ => return left.name.to_lowercase().cmp(&right.name.to_lowercase()),
-    });
+    }
 }
 
 /// What:

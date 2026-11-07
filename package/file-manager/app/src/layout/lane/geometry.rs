@@ -58,28 +58,39 @@ pub(super) fn direct_child_groups(
 }
 
 /// What:
-///  look up a placement by id.
-/// Why:
-///  lane maps store parent ids but geometry needs the parent placement snapshot.
-pub(super) fn placement_by_id(
-    placements: &[PanePlacement],
-    id: PaneId,
-) -> Option<PanePlacement> {
-    return placements
-        .iter()
-        .find(|placement| return placement.id == id)
-        .copied()
-}
-
-/// What:
 ///  base-coordinate bottom edge for a parent-plus-direct-children lane.
 /// Why:
 ///  the lane rectangle includes the parent pane and the deepest direct child pane.
 pub(super) fn lane_base_bottom(parent: PanePlacement, children: &[PanePlacement]) -> f64 {
-    return children.iter().fold(
-        scroll::row_y(parent.row) + f64::from(PANE_HEIGHT),
-        |current, child| return current.max(scroll::row_y(child.row) + f64::from(PANE_HEIGHT)),
-    )
+    let mut bottom = scroll::row_y(parent.row) + f64::from(PANE_HEIGHT);
+    for child in children {
+        bottom = bottom.max(scroll::row_y(child.row) + f64::from(PANE_HEIGHT));
+    }
+    return bottom
+}
+
+/// What:
+///  the larger of `candidate` and the bound so far,
+///  or `candidate` when there is no bound yet.
+/// Why:
+///  the rail floor is the lowest top edge that every containing lane allows.
+pub(super) fn raised_bound(current: Option<f64>, candidate: f64) -> f64 {
+    match current {
+        Some(bound) => return bound.max(candidate),
+        None => return candidate,
+    }
+}
+
+/// What:
+///  the smaller of `candidate` and the bound so far,
+///  or `candidate` when there is no bound yet.
+/// Why:
+///  the rail ceiling is the highest bottom edge that every containing lane allows.
+pub(super) fn lowered_bound(current: Option<f64>, candidate: f64) -> f64 {
+    match current {
+        Some(bound) => return bound.min(candidate),
+        None => return candidate,
+    }
 }
 
 /// What:
