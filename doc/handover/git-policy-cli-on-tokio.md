@@ -3,7 +3,7 @@
 ## Current state
 
 - Written:
-  2026-11-07T10:40:00-05:00.
+  2026-11-07T13:30:00-05:00.
 - Branch and worktree:
   `feat/git-policy-cli-on-tokio` in `.claude/worktrees/wrapper-on-tokio`.
   Main merged into it by fast-forward at `cb0b734efa` (the coordinator had merged the branch at `5e441f25d3`); the coordinator may merge gated checkpoints.
@@ -34,29 +34,25 @@
 
 ## Open work, in order
 
-- T4 is done on Linux (descriptor-limit sweeps landed). T5 landed as a task behind an unchanged synchronous face; its one-shot
-  pidfd form (`output_watched_within`, `EndAt` reads pipes and returns all output, the pidfd helper keeps only a tail) needs an owner-visible
-  decision first; the plan says why.
-- Next, in the order that needs no async callers: T9 (`hyper`) and the `zbus` 6 client of T8; T6 to T12 are the leaf-first conversion of the
-  callers (T11's work in practice), see the plan, "Where the remaining steps stand after T5".
-- Running at this checkpoint: the user unit `tokio-gate-merge2` (container gate of the tree after the merge `d628f74005`; log
-  `${HOME}/temp/agent/tokio-steps/gate-merge2.log`). It writes its own log; read it, then record its count in the plan beside
-  "Main merged again at `d628f74005`". Previous gates: step 1 5133 of 5133, T5 5134 of 5134, both Clippy clean.
-- Exact next step for the next agent: T9 (`hyper`) or the `zbus` 6 client of T8; the catalog already names `zbus >=6.2.1`, `hyper >=1.12.0`,
-  `hyper-util`, `hyper-rustls`, and the local registry cache holds `zbus-6.2.1` and `hyper-1.12.0`, so the plan's "floor 5.19" is out of date.
-  `native:perf` was not run (the plan asks for it after T10, T12, T13). Scratch logs: `${HOME}/temp/agent/tokio-steps/`.
-- The `HELD_NAME_WAIT` and `WATCHER_END_BOUND` values (five seconds each, the start retry's budget) have no measurement beside them; they
-  are open to the owner's veto. The name claim is a bounded wait, not lock-free, which deviates from "add no lock" for the coordinator to accept.
-- T5 to T13 as listed in the plan, with the owner's answers applied (task-local state instead of a `LocalSet`, the registry of
-  children for the relay, no inline fallback when no thread starts).
-- `foundation/private_storage.rs`: the exclusive publish is `tempfile::persist_noclobber` with the owner's checked-rename fallback (G1 answered, "Keep the fallback (Recommended)"); the module's other faces move to `tokio::fs` with the callers in T11. Two facts for the owner are in the plan ("Safe file saving: the publish replaced"): the in-process race of `decide` on a filesystem with neither, and the service's index-lock refusal there.
-- `zbus` 6 for the service client (step T8): main's `toolchain.lock.json` now names `nightly-2026-11-07`, so it compiles; the catalog
-  floor is 5.19 and the release-age exclusion names `zbus@5.19.0`, both to be moved to 6.
-- The mutation campaign: the user told this agent not to run mutation campaigns and to delegate them to the coordinator. Scope for the coordinator: `src/native/foundation/name_held_while_one_thread_publishes_it.rs`, `src/native/foundation/lazy_runtime.rs`, `src/native/foundation/runtime_plan.rs`, `src/native/push/child_watch.rs`, `src/native/push/child_watch_clock_marks_and_stopping.rs`, `src/native/foundation/private_storage.rs`, `src/native/service/service_busy.rs`, `src/native/process/child_awaited_through_a_pidfd.rs`, `src/native/process/captured_child_run_to_its_end.rs` and the T3 files under `src/native/foundation/` (`runtime_limits.rs`, `runtime_plan.rs`, `lazy_runtime.rs`, `blocking_job.rs`), against a gate image of this branch. A scoped run for the first two was started and stopped at the planted-controls stage; it produced no mutant results.
-- Not started in this session: T5 to T13. T5 (the watchers) follows the T4 pattern: the synchronous callers keep a bridge (`output_of_blocking` enters the lazy runtime and refuses from inside it) until their own callers become asynchronous at T11, as the plan's T4 text says.
-- The owner's G1 answer was recorded at 2026-11-07T07:40:00-05:00 (the commit `1cff4935cd`).
-- Main merged again at `ae740e9e6d` (toolchain lock, archive route, daily update): the only conflict was `package/git-policy/cli/Cargo.lock`; it was rebuilt from main's lock by the toolchain's `cargo fetch` (the offline index lacked the new gix releases) and `native:lock:members` (61 versions checked; `cpufeatures@0.3.1` set aside by the policy, 0.3.0 locked). Gate after that merge: see the plan, "Gates after the merges".
-- Main merged in at `9156ca885b` (wrapper 0.6.0 released; `child_environment.rs` from the background-never-prompts change came with it). Container gate after that merge: 5127 tests run, 5127 passed (1 slow), 8 skipped; Clippy clean.
+- Done since the previous handover (details and figures: the plan, "The coordinator's three settlements after T5", "The two gate failures
+  of main at `85e6d2ab99`", "Step T8" and "Step T9"): the T5 one-shot form on runtime pipes that keep all output, the futex wait of the
+  name claim, the measured `HELD_NAME_WAIT` (60.3 s, because a hold of 6.03 s was seen) and `WATCHER_END_BOUND` (stop grace plus one
+  second), the test-helper fix for the `DirectoryNotEmpty` gate failure, the measured cause of the left ref lock, T8 (`zbus` 6) and T9
+  (`hyper`, `ureq` gone).
+- Not started, in the plan's order: T6 (`start_retry`, `try_wait` loops, `sweep_after_exit`), T7 (the signal relay on a pidfd with the
+  registry of children), T10 (the service), T11 (the callers become `async`, the synchronous bridges go), T12 (the parallel runner),
+  T13 (removal of what nothing uses: the hand wire format `service/systemd_dbus_wire_format.rs` and its fuzz target, the thread helpers,
+  the poll constants; the source guards; `native:perf` with a same-binary control; the mutation campaign). T6 to T12 convert code whose
+  callers are synchronous, so they are in practice T11's leaf-first conversion.
+- Left on purpose by the settlements: the `LeaveRunning` waiter thread and the `Unbounded` blocking `wait` of `output_watched_within`
+  (a reaper that does not end the child when dropped is needed first).
+- Open for the coordinator and the owner: the exposure that `STOP_GRACE` (5 s) is below the longest measured disk stall (6.03 s), so a `SIGKILL`
+  at the end of a grace can cut Git's cleanup between its two unlinks and leave a ref lock (plan, "The two gate failures"); the factor
+  ten of `HELD_NAME_WAIT`; the index-lock fallback belongs to another agent.
+- The mutation campaign is the coordinator's. Files changed since the last list: `src/native/process/step_output_read_whole_through_pipes.rs`,
+  `src/native/push/child_watch.rs`, `src/native/foundation/name_held_while_one_thread_publishes_it.rs`, `src/native/foundation/private_storage.rs`,
+  `src/native/service/systemd_dbus.rs`, `src/native/standards_review/standards_review_client.rs` (the test helper
+  `src/native/testing/test_support.rs` is not mutated code).
 
 ## Rules that bit during this work
 

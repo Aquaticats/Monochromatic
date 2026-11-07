@@ -2033,6 +2033,53 @@ The coordinator's gate under a load average of about 70 failed two controls that
   uninterruptible call (state `D` in `/proc/<pid>/stat`, where `SIGKILL` cannot end it anyway and only cuts what follows), bounded
   by a further wait; it needs a decision on that bound, and a way to test it, which the injection above does not give.
 
+### Step T8, the user-manager D-Bus client on `zbus` 6, 2026-11-07T12:40:00-05:00
+
+- Red `afa89f5ffc`, green `959a79f6ac`, lint fixes `768f215ae3`. `service/systemd_dbus.rs`: the hand-written connection (authentication
+  lines, serial counting, message reading, the reply decoder's use) is replaced by `zbus` 6.2.1 (`default-features = false`, feature
+  `tokio`; the prototype of `doc/research/wrapper-git-free-jobs-and-published-crates.md`, "The prototype", was the model). `Bus` keeps its
+  synchronous face (`connect`, `within`, `reload`, `reset_failed`, `stop_unit`, `stop_unit_alone`, `start_unit`, `active_state`) so
+  `service/service_provision.rs` and `service/service_client_settings_and_watches.rs` are unchanged; each call enters the process's runtime
+  through `lazy_runtime::run_on_runtime` under `tokio::time::timeout` of what is left of the exchange's deadline, connect and `Hello`
+  included. A call from inside the runtime is refused with a plain connection error. The "lack of a blocking api" is worked around by
+  that bridge, which goes when the callers become asynchronous (T11). The `zbus` errors map to the old `CallError` (`MethodError` to
+  `Manager`, handshake to `Authentication`, address and connect failures to `Connection`, a socket timeout and an elapsed deadline to `TimedOut`).
+- Locked: `zbus` 6.2.1 with `zbus_macros`, `zbus_utils`, `zcheapstr`, `zruntime`, `winnow`, `uuid` 1.29.0 (1.29.1 set aside by the release-age and
+  trust policy) and the crates for the platforms the owner said to ignore (`uds_windows`, four `wasm-bindgen` crates, `js-sys`); 25 versions
+  were listed by `native:lock:members` (the whole list is in `${HOME}/temp/agent/tokio-steps/t8-lock1.log`), every one found in the local
+  registry cache, so no `cargo fetch` was needed.
+- Controls: the fake bus of `service/systemd_dbus_tests.rs` follows `zbus`'s handshake (`NEGOTIATE_UNIX_FD`, signals with a path and an
+  interface, a reply before `NameAcquired`, the serial of each call echoed) and its byte-for-byte call comparisons became checks of the
+  member, the unit and the job mode (the plain stop keeps `replace`; the stop that spares dependents names `ignore-dependencies`); a bus that
+  accepts and never answers ends at the deadline (red-proof of the bound: it passed with the hand client as well, so it is a preservation
+  control); `the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself` was the red one. The hand wire format
+  (`service/systemd_dbus_wire_format.rs`) stays for the fake bus, its own controls and the fuzz target `dbus_reply` until T13; its two
+  message-type constants are now `#[cfg(test)]`.
+- Not run: the ignored control against the real user manager (`the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit`; it
+  writes unit files to the account's real service manager).
+
+### Step T9, the standards-review call on `hyper`, 2026-11-07T13:20:00-05:00
+
+- Red `84404ca225`, green `e4773d1976`. `standards_review/standards_review_client.rs`: `hyper` 1.12 with `hyper-util`'s legacy client,
+  `hyper-rustls` 0.27.10 (`http1`, `ring`, `webpki-tokio`, `tls12`; no system roots), `http-body-util`, `rustls` with the `ring` provider,
+  `webpki-roots` for the embedded roots; the trusted authority is read with `rustls`'s PEM reader. `ureq` and its packages are gone from the
+  manifest and the lock. The call runs through `run_on_runtime` (the plan's inventory puts the review after landing, not on the
+  wait path). The quiet window is one clock: `Marking` wraps every connection the connector makes and marks every read or write that moves
+  bytes, the connect and TLS handshake included, and the call is raced against `silence` (the call ends with "The operation was aborted due to
+  timeout" after a quiet window); the ceiling is `tokio::time::timeout` and ends with the same sentence as before. `ureq` set one timeout per phase;
+  this is one clock over "no byte moved", which is the rule the module's doc states. No redirect is followed, no proxy variable is read, plain
+  `http` is accepted for the loopback mock, the error text carries the whole cause chain.
+- Catalog: `rustls`, `webpki-roots`, `bytes` and `tower-service` joined `rust-catalog.toml` (the other `hyper` entries were there already).
+- Controls: the existing client controls pass unchanged on `hyper` (loopback mock: request line, headers and body, error status as a reply,
+  chunked body, redirect not followed, silent server ends at the window, refused connection, unreadable authority, a reply that keeps
+  arriving is never cut off and is cut at the ceiling); new: `a_tls_server_is_reached_only_through_a_trusted_authority` (a throwaway authority
+  and a leaf made by the `openssl` tool, which the gate image has, and a `rustls` server in the test; the trusted authority is reached with the
+  bearer header, and the embedded roots refuse it; it passed with `ureq` first, so it proves the control reaches TLS), the guard literal
+  of `source_guard/standards_review_boundary_tests.rs` (the library paths `hyper::`, `hyper_util::`, `hyper_rustls::`, `http_body_util::`
+  replace `ureq`, with its fixture controls), and `the_client_is_built_on_hyper_and_no_longer_on_ureq` (red before).
+- Known from the research and not changed: `hyper-util`'s resolver runs `getaddrinfo` on tokio's blocking pool when the URL has a host name,
+  and that thread stays idle for tokio's keep-alive; the endpoint is one fixed host.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`, the `try_wait` loops of
