@@ -3993,12 +3993,29 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     and the test asserts the queued answer is the first line (`service_reply_tests.rs:65-71`),
     so a test thread scheduled more than 20 ms late reads a beat first;
     the tokio agent fixes the test with a sleep control proving the race;
-    back with the tokio agent for measured causes of the four push failures;
-    the coordinator's unmeasured hypothesis is that stops now wait up to 18 s whenever a member is in `D` under disk pressure,
-    which would be a production regression too;
-    not merged;
-    after a clean gate:
-    merge into main,
+    the coordinator's hypothesis that stops now wait up to 18 s whenever a member is in `D` was measured false
+    (stop controls took 2.6 to 8.1 s before and after the change;
+    a temporary probe counted zero looks finding a member in `D` across 86 stop controls at load 24 to 47;
+    the three aborted push controls log no stop at all);
+    those three were victims of a host stall episode
+    (tests needing no wait took 0.04 s to 122 s,
+    0.02 s to 35 s;
+    total test time 2108 s against 1289 s;
+    alone afterwards at normal speed);
+    `bounded_push` sweep control and the `service_reply` control fixed red-first;
+    the tokio agent's narrowing proposal (wait past the grace for a member in `D` only while the ledger names an unproven
+    lock born since the step began) is recorded in the plan,
+    not built,
+    because nothing measured shows the owner's 3x costing anything.
+    Clean gate on `9afcac4a26`:
+    5217 of 5217,
+    Clippy and lint clean;
+    main merged again `8b8c9440de` without conflict.
+    Order:
+    the branch stays frozen until the wrapper alpha cut from main `d2598b2842` is out
+    (the release tool releases whatever main holds),
+    then merge into main,
+    gate,
     `native:perf`,
     a wrapper alpha,
     and the mutation campaign over the changed files;
