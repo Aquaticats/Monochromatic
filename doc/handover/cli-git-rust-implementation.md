@@ -4214,6 +4214,17 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     running (`feat/monorepo-task-daily-update-opens-fix-forward-issues`;
     start
     recorded by `1a47d9353f`).
+    Incident:
+    the owner got many desktop notifications with the app name `toolchain-daily-update`
+    while the timer had never fired;
+    the agent's measurement unit `daily-measure-pass.service`
+    (started 11:54:15,
+    real check effects over every package)
+    was the only run on that code path and was stopped by the coordinator,
+    after which nothing ran in that worktree.
+    The agent is finding the exact call path,
+    adding a red-first guard that no test or measurement can reach `notify-send` or the session bus,
+    and limiting a real run to one summary notification.
 - `monochromatic-lint` group folders merged into main `62874c227d` (869 of 869 tests;
   every new check red first).
   A group is any folder holding child folders (`mod.rs` plus at least one source folder);
