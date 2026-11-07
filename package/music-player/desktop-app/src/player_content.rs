@@ -25,8 +25,6 @@ use crate::pagination::PageEntry;
 use crate::track::Track;
 /// Track row types and the helpers that build rows and titles.
 use crate::track_entries::{TrackListEntry, TrackRowModel, track_list_entries, track_title_for};
-/// Template fields that the supporting-line function reads.
-use crate::template_model::TrackFields;
 /// Imports the per-track measure that the rows show.
 use crate::track_measure::TrackMeasure;
 /// Imports the map type that looks measures up by name.
@@ -165,7 +163,7 @@ fn row_entry(entry: &TrackListEntry) -> Option<&TrackRowModel> {
 /// ```ts
 /// export function buildPlayerContent(input: PlayerContentInput, supportingLine: (f: TrackFields) => string | null): PlayerContentModel { /* ... */ }
 /// ```
-pub fn build_player_content(input: &PlayerContentInput, supporting_line: &dyn Fn(&TrackFields) -> Option<String>) -> PlayerContentModel {
+pub fn build_player_content(input: &PlayerContentInput, supporting_line: &dyn crate::track_supporting_line::SupportingLine) -> PlayerContentModel {
     let sections: Vec<RailSection> = rail_for(&input.page_labels);
     let current_folder: Option<String> = input.page_labels.get(input.selected_page).cloned();
     let folder_title: String = current_folder.clone().unwrap_or_default();

@@ -20,8 +20,6 @@ use music_player::page_index::PageIndex;
 use std::sync::Arc;
 /// Imports the player content input and its builder.
 use music_player::player_content::{PlayerContentInput, build_player_content};
-/// Imports the fields that a track template reads.
-use music_player::template_model::TrackFields;
 /// Imports the deck folder label and the track title.
 use music_player::track_entries::{deck_folder_label, track_title_for};
 /// Imports the track measure and the position lookup.
@@ -395,7 +393,7 @@ fn deck_title_of(state: &ScreenState, pages: &PageIndex) -> String {
 /// ```ts
 /// const view = (state: ScreenState, supportingLine: (t: TrackFields) => string | null): ScreenView => { ... };
 /// ```
-pub fn view(state: &ScreenState, supporting_line: &dyn Fn(&TrackFields) -> Option<String>) -> ScreenView {
+pub fn view(state: &ScreenState, supporting_line: &dyn music_player::track_supporting_line::SupportingLine) -> ScreenView {
     let all_pages = state.current_pages();
     let mut labels: Vec<String> = Vec::new();
     for page in all_pages.pages() {

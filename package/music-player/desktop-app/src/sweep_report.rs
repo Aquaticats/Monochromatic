@@ -100,6 +100,22 @@ pub type SweepSink = Arc<dyn Fn(SweepReport) + Send + Sync>;
 fn drop_report(_report: SweepReport) {}
 
 /// What:
+///      `pub fn sink_from(report: impl Fn(SweepReport) + Send + Sync + 'static) -> SweepSink`.
+///  Wraps a callable that delivers a report into the shared sink type.
+/// Why:
+///       The engine's sink owns the engine's command sender,
+/// so it is a callable that the sink type keeps for as long as sweeps run;
+/// taking it as a `'static` parameter says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sinkFrom = (report: (r: SweepReport) => void): SweepSink => report;
+/// ```
+pub fn sink_from(report: impl Fn(SweepReport) + Send + Sync + 'static) -> SweepSink {
+    return Arc::new(report);
+}
+
+/// What:
 ///      `pub fn noop_sink() -> SweepSink`.
 ///  A sink that drops every report.
 /// Why:

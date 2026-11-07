@@ -37,22 +37,27 @@ and `capture.rs` reads `tcx.upvars_mentioned`.
 
 The proof for each site is the signature in the sysroot source of the toolchain that builds the lint
 (`nightly-2026-11-07`,
-`library/std/src/thread/scoped.rs` and `library/std/src/panic.rs`):
+`library/std/src/thread/scoped.rs`,
+lines 141 to 143 and 201 to 204,
+and `library/std/src/panic.rs`,
+line 358):
 
 - `std::thread::scope`:
   `scope<'env, F, T>(f: F) -> T where F: for<'scope> FnOnce(&'scope Scope<'scope, 'env>) -> T`.
   The callable is bounded by the scope,
   not by `'static`,
   because the threads borrow the caller's data for the scope only.
-  Its `Scope::spawn` takes `F: FnOnce() -> T + Send + 'scope` and no argument,
-  so the thread body must carry its state.
+- `std::thread::Scope::spawn`:
+  `spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T> where F: FnOnce() -> T + Send + 'scope, T: Send + 'scope`.
+  The thread body takes no argument and is bounded by `'scope`,
+  so it must carry its state.
 - `std::panic::catch_unwind`:
   `catch_unwind<F: FnOnce() -> R + UnwindSafe, R>(f: F) -> Result<R>`.
   The guarded call takes no arguments,
   so the arguments it needs must be captured.
 
 No named function can replace these closures,
-because neither function passes an argument to its callable.
+because none of the three functions passes an argument to its callable.
 No loop can,
 because a loop cannot run on another thread,
 and `catch_unwind` is the only way to turn a panic into a value.
@@ -72,31 +77,18 @@ The sites:
   the closure carries the sweep job.
   The fail-closed worker depends on turning a panic of one sweep into a value instead of ending the worker.
 
-## Callables that the callee stores and a named type cannot be
+## What replaced the other suppressions
 
-The Fn traits cannot be implemented for a named type on stable Rust
-(`impl Fn for T` needs the unstable `unboxed_closures` and `fn_traits` features),
-so a value that must be passed where a `dyn Fn` or an `impl Fn` is expected and that owns state is a closure:
-
-- `src/engine.rs`,
-  `run` (the statement `let sweep_sink: SweepSink = Arc::new(move |report| ...)`):
-  `SweepSink` is `Arc<dyn Fn(SweepReport) + Send + Sync>` and the closure owns the engine's command sender.
-  The type is shared with `measure.rs`,
-  `sweep_report.rs` and the controller tests,
-  which build their sinks as closures too.
-- `src/track_supporting_line.rs`,
-  `supporting_line_from_template`:
-  the function returns the callable that owns the parsed template and the field list,
-  and its consumers (`view`,
-  `build_player_content`,
-  `track_list_entries`) take `&dyn Fn(&TrackFields) -> Option<String>`.
-- `src/ui_search.rs`,
-  `posting_delivery`:
-  `SearchService::start` keeps the delivery callable for the life of the service and takes it as
-  `impl Fn(SearchAnswer) + Send + 'static`,
-  so the callable owns the window handle.
-  The lint does not see the callee through the `return`,
-  so the attribute sits on the function that builds the callable.
+Three callables need no suppression.
+`sweep_report::sink_from` takes the engine's sink callable as an `impl Fn + Send + Sync + 'static` parameter,
+so the closure in `engine.rs` is a direct argument of a callee that keeps it.
+The Search delivery closure is written as the direct argument of `ui_search::install`,
+whose `deliver` parameter requires `'static`.
+`supporting_line_from_template` returns a `TemplateSupportingLine` that implements the `SupportingLine` trait,
+and the row builders take `&dyn SupportingLine`.
+The walk's batch callback (`scan_stream::BatchListener`) and the search feed's sinks (`search_feed::BatchSink`) are traits
+with named implementations,
+and a blanket implementation lets a test pass a plain callable.
 
 ## Clap's derive in `cli.rs`
 

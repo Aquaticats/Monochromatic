@@ -103,7 +103,15 @@ impl Drop for ServiceShutdown {
 /// `main` starts it before the engine,
 /// because the engine thread feeds scan batches to the same service.
 pub(crate) fn start_service(app: &AppWindow) -> Arc<SearchService> {
-    install(app, posting_delivery(app.as_weak()));
+    let weak = app.as_weak();
+    install(app, move |answer: SearchAnswer| {
+        let target = weak.clone();
+        let _posted = slint::invoke_from_event_loop(move || {
+            if let Some(window) = target.upgrade() {
+                apply_answer(&window, answer);
+            }
+        });
+    });
     return service().expect("the Search service was just installed");
 }
 
@@ -116,29 +124,6 @@ pub(crate) fn install(app: &AppWindow, deliver: impl Fn(SearchAnswer) + Send + '
     install_rows_model(app);
     let started: Arc<SearchService> = Arc::new(SearchService::start(deliver));
     SERVICE.set(Some(started));
-}
-
-/// What:
-/// `posting_delivery` makes a delivery that hands each answer to the window thread.
-/// Why:
-/// the service answers on its worker;
-/// the window may only be touched on the event-loop thread.
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "SearchService::start keeps the delivery callable for the life of the service and takes it as impl Fn + Send + 'static, so the callable must own the window handle; the lint does not see the callee through the return"
-    )
-)]
-fn posting_delivery(weak: slint::Weak<AppWindow>) -> impl Fn(SearchAnswer) + Send + 'static {
-    return move |answer: SearchAnswer| {
-        let target = weak.clone();
-        let _posted = slint::invoke_from_event_loop(move || {
-            if let Some(window) = target.upgrade() {
-                apply_answer(&window, answer);
-            }
-        });
-    };
 }
 
 /// What:
