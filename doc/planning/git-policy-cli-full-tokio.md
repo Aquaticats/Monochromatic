@@ -2962,6 +2962,12 @@ branch's own gate on `ad314ca6eb` had passed 5209 of 5209. The coordinator's hyp
   gone and before the lock is; with no such lock a member in `D` is only doing input and output and the kill goes at the grace as before. It needs a decision
   on whether the extra look (a directory walk of the ledger's roots at the stop's 10 ms interval, or once per 100 ms) is worth it.
 
+### Gate after the fixes, with main merged again at `8b8c9440de`, 2026-11-07T18:20:00-05:00
+
+- Main merged again: no conflict, no source file of the wrapper changed besides one version line in its `Cargo.toml` and `Cargo.lock`; `sync:files` left the tree clean.
+- Unit `tokio-gate-final3` (`gate-final3.log`), load average about 66 during the run: 5217 run, 5217 passed (3 slow), 11 skipped, container Clippy clean. The package lint
+  before it was clean.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
