@@ -81,7 +81,11 @@ fn the_ide_without_artifacts_is_skipped() {
 fn locations_read_by_the_ide_build_script(out_directory: &Path) -> (PathBuf, PathBuf) {
     let profile: &Path = out_directory
         .ancestors()
-        .find(|ancestor| return ancestor.file_name().is_some_and(|name| return name == "build"))
+        .find(|ancestor| {
+            return ancestor
+                .file_name()
+                .is_some_and(|name| return name == "build");
+        })
         .and_then(Path::parent)
         .expect("an ancestor is named build");
     return (

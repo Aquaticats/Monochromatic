@@ -223,3 +223,46 @@ fn a_ready_package_carries_the_qmake_variable() {
 fn file_exists(value: OsString) -> bool {
     return Path::new(&value).is_file();
 }
+
+/// The libghostty offline inputs decide readiness through `prepare`:
+/// absent they skip the package and name the fetch task,
+/// complete they add the two variables the crate reads.
+#[test]
+fn the_libghostty_offline_inputs_decide_readiness() {
+    let fixture: Fixture = Fixture::new();
+    let prerequisites: Vec<Prerequisite> = vec![Prerequisite::LibghosttyOfflineInputs];
+    let absent: Readiness = prepare(
+        prerequisites.as_slice(),
+        &fixture.path,
+        Path::new("cargo"),
+        &search_of(&[&fixture.path]),
+    );
+    match absent {
+        Readiness::Skipped(reason) => {
+            assert!(reason.contains("fetch:ghostty-offline-inputs"), "{reason}")
+        }
+        Readiness::Ready(_) => panic!("absent inputs were accepted"),
+    }
+    let root: PathBuf = fixture.path.join("target").join("ghostty-offline");
+    std::fs::create_dir_all(root.join("source")).expect("source directory");
+    std::fs::write(root.join("source").join("build.zig"), "").expect("build.zig");
+    std::fs::create_dir_all(root.join("packages")).expect("packages directory");
+    std::fs::write(root.join("ready"), "").expect("ready marker");
+    let present: Readiness = prepare(
+        prerequisites.as_slice(),
+        &fixture.path,
+        Path::new("cargo"),
+        &search_of(&[&fixture.path]),
+    );
+    match present {
+        Readiness::Ready(setup) => {
+            let names: Vec<&str> = setup
+                .environment
+                .iter()
+                .map(|(name, _)| return name.as_str())
+                .collect();
+            assert_eq!(names, vec!["GHOSTTY_SOURCE_DIR", "GHOSTTY_ZIG_SYSTEM_DIR"]);
+        }
+        Readiness::Skipped(reason) => panic!("{reason}"),
+    }
+}
