@@ -1,5 +1,9 @@
-//! The switches read from a command line, and the orchestration with fixture tools: nothing starts for `--no-checkout`,
-//!  the tools run side by side, a failure is reported and never raised, and `--quiet` silences only success.
+//! The switches read from a command line,
+//! and the orchestration with fixture tools:
+//! nothing starts for `--no-checkout`,
+//!  the tools run side by side,
+//! a failure is reported and never raised,
+//! and `--quiet` silences only success.
 
 use super::*;
 use crate::test_support::executable;
@@ -14,7 +18,8 @@ fn words(values: &[&str]) -> Vec<OsString> {
     return values.iter().map(OsString::from).collect();
 }
 
-/// `--quiet` and `-q` after `worktree add` are quiet; so is a bundle that holds `q`.
+/// `--quiet` and `-q` after `worktree add` are quiet;
+/// so is a bundle that holds `q`.
 #[test]
 fn reads_quiet_in_each_spelling() {
     for spelling in ["--quiet", "-q", "-dq"] {
@@ -24,7 +29,8 @@ fn reads_quiet_in_each_spelling() {
     }
 }
 
-/// `--no-checkout` is read, and global options before the subcommand do not hide it.
+/// `--no-checkout` is read,
+/// and global options before the subcommand do not hide it.
 #[test]
 fn reads_no_checkout_behind_global_options() {
     let found: RepairSwitch = RepairSwitch::from_arguments(&words(&["-C", "repo", "-c", "a.b=c", "worktree", "add", "--no-checkout", "../topic"]));
@@ -32,7 +38,9 @@ fn reads_no_checkout_behind_global_options() {
     assert!(!found.quiet);
 }
 
-/// Neither switch is read from a value, an operand after `--`, or another command.
+/// Neither switch is read from a value,
+/// an operand after `--`,
+/// or another command.
 #[test]
 fn ignores_look_alikes() {
     assert_eq!(RepairSwitch::from_arguments(&words(&["worktree", "add", "-b", "--quiet", "../topic"])), RepairSwitch::default());
@@ -41,9 +49,12 @@ fn ignores_look_alikes() {
     assert_eq!(RepairSwitch::from_arguments(&[]), RepairSwitch::default());
 }
 
-/// A destination holding a lockfile and a `node_modules`, a source beside it, and a search path of one fixture directory.
+/// A destination holding a lockfile and a `node_modules`,
+/// a source beside it,
+/// and a search path of one fixture directory.
 struct Scene {
-    /// The fixture root, removed at the end.
+    /// The fixture root,
+    /// removed at the end.
     root: PathBuf,
     /// The source checkout.
     source: PathBuf,
@@ -53,7 +64,8 @@ struct Scene {
     bin: PathBuf,
     /// Where fixture tools append one line per start.
     record: PathBuf,
-    /// The repair environment, searching only the fixture directory.
+    /// The repair environment,
+    /// searching only the fixture directory.
     environment: RepairEnvironment,
 }
 
@@ -89,7 +101,8 @@ fn repair(scene: &Scene, switch: RepairSwitch) -> (Vec<Finding>, String) {
     return (findings, sink.text());
 }
 
-/// `--no-checkout` starts nothing, even though the lockfile and `node_modules` are there.
+/// `--no-checkout` starts nothing,
+/// even though the lockfile and `node_modules` are there.
 #[test]
 fn no_checkout_starts_nothing() {
     let scene: Scene = scene("repair-no-checkout");
@@ -101,7 +114,8 @@ fn no_checkout_starts_nothing() {
     remove(&scene.root);
 }
 
-/// A repair that works is one success finding and one printed line; `--quiet` prints nothing.
+/// A repair that works is one success finding and one printed line;
+/// `--quiet` prints nothing.
 #[test]
 fn a_working_repair_reports_one_line_unless_quiet() {
     let scene: Scene = scene("repair-works");
@@ -116,7 +130,9 @@ fn a_working_repair_reports_one_line_unless_quiet() {
     remove(&scene.root);
 }
 
-/// A failing tool is a failure finding and a printed line naming the command, even under `--quiet`; nothing is raised.
+/// A failing tool is a failure finding and a printed line naming the command,
+/// even under `--quiet`;
+/// nothing is raised.
 #[test]
 fn a_failing_repair_names_its_command_even_when_quiet() {
     let scene: Scene = scene("repair-fails");
@@ -127,7 +143,8 @@ fn a_failing_repair_names_its_command_even_when_quiet() {
     remove(&scene.root);
 }
 
-/// A tool the environment does not provide is a failure finding that names the command, not an error.
+/// A tool the environment does not provide is a failure finding that names the command,
+/// not an error.
 #[test]
 fn a_missing_tool_names_the_command_to_run() {
     let scene: Scene = scene("repair-missing");
@@ -151,7 +168,9 @@ fn nothing_to_repair_prints_nothing() {
     remove(&scene.root);
 }
 
-/// The repairs may use as many threads as the host offers, not a fixed few: the work is independent per workspace and per tool.
+/// The repairs may use as many threads as the host offers,
+/// not a fixed few:
+/// the work is independent per workspace and per tool.
 #[test]
 fn the_workers_are_what_the_host_offers() {
     let large_host: usize = 64;
