@@ -55,3 +55,8 @@ pub fn printable(bytes: &[u8]) -> String {
     }
     return shown;
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "earlier_service_unsure_program_tests.rs"]
+mod tests;
