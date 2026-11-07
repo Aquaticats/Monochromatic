@@ -3628,14 +3628,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   34,817 `markdown/semantic-line-breaks` errors in 1,087 files (`SPEC.md` 2,896, `README.md` 1,478, the rest mostly
   Rust doc comments through the `**/*.rs/*.md` rustdoc section), 3 `rust/max-lines` errors, 45
   `rust/avoidable-closure` warnings (an earlier pass had reached zero). The rule has been `error` since at least
-  `0b49ae109e` (2026-10-06); the package `lint` task never ran `monochromatic-lint`. Agent running since
-  2026-11-07T12:30-05:00 on `fix/git-policy-cli-passes-the-repository-linter`: wire it into the package lint, the
+  `0b49ae109e` (2026-10-06); the package `lint` task never ran `monochromatic-lint`. Agent running on
+  `fix/git-policy-cli-passes-the-repository-linter` (start recorded by `9ccef551a8`): wire it into the package lint, the
   repository fixer for line breaks (whitespace-only proof), hand fixes for the rest, and a conflict recipe for the
   tokio and held-settle branches. Repo-wide baseline running as unit `repo-wide-monochromatic-lint-136a40fe69`.
 - systemd-run limits audit: merged `aab8488b0b` (2026-11-07). `crate-release` publish dry run, music-player e2e units,
   `nested-wayland-session` app scope and the guardrail refusal text now carry `MemoryMax`, `CPUQuota`, `TasksMax` and
-  `IOWeight=10`, each cited to a measurement. Queued, all eight agent slots full at 2026-11-07T11:40-05:00 (start
-  each when a slot frees):
+  `IOWeight=10`, each cited to a measurement. Queued while all eight agent slots were full (recorded by
+  `1f7726b7d8`; start each when a slot frees):
   - Daily update has no post-update build check: `d61dc1934a` raised the zbus floor to `>=6.2.1` and
     `nested-wayland-session` stopped compiling (no `zbus::blocking` in 6); no fix-forward issue was opened (`gh issue
     list` empty). The owner's pick, `doc/planning/rust-nightly-always-latest.md:228`: "the lock goes to the newest
@@ -3646,17 +3646,23 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     caller's `cargo` build escapes the caller's caps. Adopted by the coordinator from repo precedent
     (`package/wg/cli-quicker-exempt/src/inherited_limits.rs`): the scope copies the launcher's own `memory.max`,
     `pids.max`, `cpu.max` and `io.weight`. Contract doc `doc/planning/cargo-shadow-guarantees.md` gains the clause.
-    Running since 2026-11-07T12:05-05:00 (`fix/cargo-shadow-cli-scope-keeps-caller-limits`), with an alpha release
+    Running (`fix/cargo-shadow-cli-scope-keeps-caller-limits`; start recorded by `f191d45681`), with an alpha release
     and lock move. Separately unmerged since 2026-11-04: round 21 `feat/cargo-shadow-check-to-start-race`
     (16 commits, worktree `.claude/worktrees/cargo-shadow-r21`, no agent on it).
   - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text; a
     rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
     Rebuild deliberately through its task, attribute the drift to source commits, run the plugin's tests, commit.
   - `package/music-player/desktop-e2e` lint: 11 errors and 89 warnings, older than the audit (not counted on an
-    unmodified main yet). Owner: "Principle 1: Lint issues need to be taken care of asap." Running since
-    2026-11-07T11:55-05:00 (`fix/music-player-desktop-e2e-lint-clean`).
-  - Daily-update fix-forward issues: running since 2026-11-07T11:55-05:00
-    (`feat/monorepo-task-daily-update-opens-fix-forward-issues`).
+    unmodified main yet). Owner: "Principle 1: Lint issues need to be taken care of asap." Running
+    (`fix/music-player-desktop-e2e-lint-clean`; start recorded by `1a47d9353f`).
+  - Daily-update fix-forward issues: running (`feat/monorepo-task-daily-update-opens-fix-forward-issues`; start
+    recorded by `1a47d9353f`).
+- `monochromatic-lint` group folders merged into main `62874c227d` (869 of 869 tests; every new check red first).
+  A group is any folder holding child folders (`mod.rs` plus at least one source folder); settled by the coordinator
+  in the layout plan. Running: the linter package's own gates (`lint:rustfmt` fails on 25 older files; README line
+  breaks; no `layout_*` module in any mutation scope since 2026-11-04), then an alpha release and lock move
+  (`fix/monochromatic-lint-package-gates-clean`). Mutation campaign over the `layout_*` scopes waits for the main
+  session.
 - Settle test in suite: merged `58d910f99e` (gate 5166 of 5166, lint clean; test-only). Cause shown by sharing state:
   another test's fixture service shows the earlier `--journal` word before it creates that folder (measured median
   1.7 ms, max 485 ms alone), and the settle command's process look counts it as `Hold::HelperUnsure`, settles nothing
