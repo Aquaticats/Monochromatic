@@ -4474,15 +4474,28 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Docs:
   `doc/troubleshooting/slint-render-test-fade-in-reads-the-wall-clock.md`,
   `doc/troubleshooting/music-player-e2e-search-answer-and-headless-start.md`.
-  Queued for the next free agent slot:
-  make the e2e runner headless by default for agents
-  (the working wrapper lives only in scratch,
-  `~/temp/agent/four-tests/headless-compositor.ts`,
-  with `--headless --gpu /dev/dri/renderD129`;
-  `--gpu auto` took about 56 s to open the control socket against the runner's 30 s poll),
-  fix the start stall,
-  keep each failing check's text and last `ui_state` lines,
-  then measure the three open checks and the wall-clock read in `ui_render_support.rs`.
+  The follow-up is merged (`8f12e9c0ba`):
+  the runner starts the nested session headless unless `--visible` or `E2E_VISIBLE=1`,
+  picks the render node from the compositor's `--list-gpus`,
+  and removes `WAYLAND_DISPLAY`,
+  `WAYLAND_SOCKET`,
+  `DISPLAY` and `XAUTHORITY` from the unit (tests assert both modes);
+  the start stall was a cold page cache (socket 9.9 to 34.9 s cold against 0.06 to 0.26 s warm),
+  now bounded by `COLD_START_BOUND_MS` (120 s,
+  measurements cited) with a message naming how far a start got;
+  each failing check writes its text and last ten `ui_state` changes under `<E2E_OUT>/failures/`;
+  the settings pair failed 9 of 15 headless runs because the track and folder lists' focus timers called `focus()` while
+  Settings covered the player and Slint moved the keyboard to Back
+  (red test first;
+  fix requires `Focus.player-active`;
+  after:
+  60 of 60 settings checks,
+  40 of 40 browse checks);
+  `ui_render_support.rs` no longer reads the wall clock (1603 of 1603).
+  Open:
+  one `session/wide` click-through setup timeout,
+  seen once on both the fixed and the earlier binary,
+  cause not measured.
 - Held settle message:
   merged into main `66dbb1ca27` (gate 5194 of 5194,
   lint clean).
