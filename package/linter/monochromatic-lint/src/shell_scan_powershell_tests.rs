@@ -11,18 +11,53 @@
 //! describe('powershell scan', () => { /* operators, quoting, call operator, here-strings */ });
 //! ```
 
-/// Import the scanner and the construct names.
+/// Import the scanner,
+///  the construct names and the deadline that ends a scan which stops advancing.
 use super::scan;
 use crate::shell_dialect::Construct;
+use crate::shell_scan::Hit;
+use crate::test_deadline::finished_within_deadline;
+
+/// The hits of a scan that must finish before the deadline.
+fn hits(text: &str) -> Vec<Hit> {
+    let owned: String = String::from(text);
+    return finished_within_deadline(move || return scan(owned.as_str()));
+}
 
 /// The constructs found,
 ///  in source order.
 fn kinds(text: &str) -> Vec<Construct> {
     let mut found: Vec<Construct> = Vec::new();
-    for hit in scan(text) {
+    for hit in hits(text) {
         found.push(hit.construct);
     }
     return found;
+}
+
+/// The byte range of the `nth` occurrence of `needle` in `text`,
+///  counted from zero.
+fn nth_span(text: &str, needle: &str, nth: usize) -> (usize, usize) {
+    let start: usize = text
+        .match_indices(needle)
+        .nth(nth)
+        .expect("the needle occurs often enough")
+        .0;
+    return (start, start + needle.len());
+}
+
+/// Assert that a scan finds exactly the given constructs,
+///  each over exactly the given occurrence of the given text.
+fn assert_hits(text: &str, expected: &[(Construct, &str, usize)]) {
+    let mut wanted: Vec<(Construct, usize, usize)> = Vec::new();
+    for (construct, needle, nth) in expected {
+        let span: (usize, usize) = nth_span(text, needle, *nth);
+        wanted.push((*construct, span.0, span.1));
+    }
+    let mut found: Vec<(Construct, usize, usize)> = Vec::new();
+    for hit in hits(text) {
+        found.push((hit.construct, hit.start, hit.end));
+    }
+    assert_eq!(found, wanted, "{text:?}");
 }
 
 /// Each PowerShell 7 operator is found once.
@@ -98,4 +133,99 @@ fn here_strings() {
 #[test]
 fn expressions_are_skipped() {
     assert_eq!(kinds("echo ${{ a && b }} | x"), [Construct::Pipe]);
+}
+
+/// Each operator is reported over exactly its own bytes.
+#[test]
+fn operators_are_reported_over_their_own_bytes() {
+    assert_hits("abc | d", &[(Construct::Pipe, "|", 0)]);
+    assert_hits("abc || d", &[(Construct::OrChain, "||", 0)]);
+    assert_hits("abc && d", &[(Construct::AndChain, "&&", 0)]);
+    assert_hits("abc ; d", &[(Construct::Semicolon, ";", 0)]);
+    assert_hits("abc & d", &[(Construct::Ampersand, "&", 0)]);
+    assert_hits("abc $(d)", &[(Construct::DollarParen, "$(", 0)]);
+}
+
+/// Single-quoted text ends at its closing quote,
+///  a doubled quote is one literal quote,
+///  and an unclosed quote runs to the end.
+#[test]
+fn single_quotes_resume_scanning_at_the_byte_after_them() {
+    assert_hits("ab 'x' | y", &[(Construct::Pipe, "|", 0)]);
+    assert_hits("ab 'it''s | x' | y", &[(Construct::Pipe, "|", 1)]);
+    assert_hits("ab 'abc | d", &[]);
+    assert_hits("ab 'a''", &[]);
+    assert_hits("ab 'a'", &[]);
+}
+
+/// Double-quoted text ends at its closing quote,
+///  a backtick or a doubled quote keeps it open,
+///  and `$(` inside runs code.
+#[test]
+fn double_quotes_resume_scanning_at_the_byte_after_them() {
+    assert_hits("ab \"a `\" | b\" | c", &[(Construct::Pipe, "|", 1)]);
+    assert_hits(
+        "ab \"say \"\"a | b\"\" x\" | c",
+        &[(Construct::Pipe, "|", 1)],
+    );
+    assert_hits(
+        "ab \"$(a | b)\" | c",
+        &[
+            (Construct::DollarParen, "$(", 0),
+            (Construct::Pipe, "|", 0),
+            (Construct::Pipe, "|", 1),
+        ],
+    );
+    assert_hits("ab \"x\" | c", &[(Construct::Pipe, "|", 0)]);
+    assert_hits(
+        "$((1 + 2) | x)",
+        &[(Construct::DollarParen, "$(", 0), (Construct::Pipe, "|", 0)],
+    );
+}
+
+/// A here-string body is skipped from its opener line to its closer,
+///  at exact bytes,
+///  with every `$(` of a live one reported.
+#[test]
+fn here_strings_end_at_their_closer_and_report_every_live_substitution() {
+    assert_hits("ab\n@'\na | b\n'@\nc | d", &[(Construct::Pipe, "|", 1)]);
+    assert_hits(
+        "ab\n@'  \t\r\na | b\n'@\nc | d",
+        &[(Construct::Pipe, "|", 1)],
+    );
+    assert_hits("@'\r\na | b\r\n'@\r\nc | d", &[(Construct::Pipe, "|", 1)]);
+    assert_hits(
+        "ab\n@\"\n$(x)\n\"@\nc | d",
+        &[(Construct::DollarParen, "$(", 0), (Construct::Pipe, "|", 0)],
+    );
+    assert_hits(
+        "@\"\n$(a) $(b)\n\"@\nc | d",
+        &[
+            (Construct::DollarParen, "$(", 0),
+            (Construct::DollarParen, "$(", 1),
+            (Construct::Pipe, "|", 0),
+        ],
+    );
+    assert_hits("@\"\n$(x) | y", &[(Construct::DollarParen, "$(", 0)]);
+    assert_hits("@'\nnever ends | x", &[]);
+}
+
+/// An `@` that does not open a here-string is plain text.
+#[test]
+fn an_at_sign_that_opens_no_here_string_is_text() {
+    assert_hits("@x\n a | b", &[(Construct::Pipe, "|", 0)]);
+    assert_hits("@'x\n a | b", &[]);
+    assert_hits("@'", &[]);
+    assert_hits("@\"", &[]);
+    assert_hits("@", &[]);
+    assert_hits("@'a' | b", &[(Construct::Pipe, "|", 0)]);
+}
+
+/// A comment starts only at the start of a word,
+///  and a block comment ends at its closer.
+#[test]
+fn comments_end_where_they_end() {
+    assert_hits("a # b | c\nd | e", &[(Construct::Pipe, "|", 1)]);
+    assert_hits("xy <# a | b #>| d", &[(Construct::Pipe, "|", 1)]);
+    assert_hits("xy <# a | b", &[]);
 }

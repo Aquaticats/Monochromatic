@@ -11,18 +11,53 @@
 //! describe('posix scan', () => { /* operators, quoting, redirections, heredocs */ });
 //! ```
 
-/// Import the scanner and the construct names.
+/// Import the scanner,
+///  the construct names and the deadline that ends a scan which stops advancing.
 use super::scan;
 use crate::shell_dialect::Construct;
+use crate::shell_scan::Hit;
+use crate::test_deadline::finished_within_deadline;
+
+/// The hits of a scan that must finish before the deadline.
+fn hits(text: &str, fish: bool) -> Vec<Hit> {
+    let owned: String = String::from(text);
+    return finished_within_deadline(move || return scan(owned.as_str(), fish));
+}
 
 /// The constructs found,
 ///  in source order.
 fn kinds(text: &str, fish: bool) -> Vec<Construct> {
     let mut found: Vec<Construct> = Vec::new();
-    for hit in scan(text, fish) {
+    for hit in hits(text, fish) {
         found.push(hit.construct);
     }
     return found;
+}
+
+/// The byte range of the `nth` occurrence of `needle` in `text`,
+///  counted from zero.
+fn nth_span(text: &str, needle: &str, nth: usize) -> (usize, usize) {
+    let start: usize = text
+        .match_indices(needle)
+        .nth(nth)
+        .expect("the needle occurs often enough")
+        .0;
+    return (start, start + needle.len());
+}
+
+/// Assert that a scan finds exactly the given constructs,
+///  each over exactly the given occurrence of the given text.
+fn assert_hits(text: &str, fish: bool, expected: &[(Construct, &str, usize)]) {
+    let mut wanted: Vec<(Construct, usize, usize)> = Vec::new();
+    for (construct, needle, nth) in expected {
+        let span: (usize, usize) = nth_span(text, needle, *nth);
+        wanted.push((*construct, span.0, span.1));
+    }
+    let mut found: Vec<(Construct, usize, usize)> = Vec::new();
+    for hit in hits(text, fish) {
+        found.push((hit.construct, hit.start, hit.end));
+    }
+    assert_eq!(found, wanted, "{text:?}");
 }
 
 /// Each operator is found once,
@@ -155,4 +190,138 @@ fn fish_differs_in_three_places() {
     assert_eq!(kinds("echo 'it\\'s | x'", false), [Construct::Pipe]);
     assert_eq!(kinds("echo `x`", true), []);
     assert_eq!(kinds("cat <<EOF | x", true), [Construct::Pipe]);
+}
+
+/// A here-document opener ends at its word,
+///  and only that body is data:
+///  the code after the opener on its line and after the end word is still scanned.
+#[test]
+fn heredoc_openers_skip_exactly_their_own_bodies() {
+    let pipe_after: &[(Construct, &str, usize)] = &[(Construct::Pipe, "|", 1)];
+    assert_hits("cat <<EOF\nx | y\nEOF\na | b", false, pipe_after);
+    assert_hits("cat << EOF\nx | y\nEOF\na | b", false, pipe_after);
+    assert_hits("cat <<\tEOF\nx | y\nEOF\na | b", false, pipe_after);
+    assert_hits("cat <<-EOF\n\tx | y\n\tEOF\na | b", false, pipe_after);
+    assert_hits("cat <<- EOF\n\tx | y\n\tEOF\na | b", false, pipe_after);
+    assert_hits("cat <<'EOF'\nx | y\nEOF\na | b", false, pipe_after);
+    assert_hits("cat <<\"EOF\"\nx | y\nEOF\na | b", false, pipe_after);
+    assert_hits("cat <<'A B'\nx | y\nA B\na | b", false, pipe_after);
+    assert_hits("cat <<\\EOF\nx | y\nEOF\na | b", false, pipe_after);
+    assert_hits(
+        "cat <<'EOF' | tr a b\nx; y\nEOF\nc; d",
+        false,
+        &[(Construct::Pipe, "|", 0), (Construct::Semicolon, ";", 1)],
+    );
+    assert_hits(
+        "cat <<EOF;ls | x\nbody | y\nEOF\n",
+        false,
+        &[(Construct::Semicolon, ";", 0), (Construct::Pipe, "|", 0)],
+    );
+    // A line that only starts with the word does not end the body.
+    assert_hits("cat <<EOF\nEOF x | y\nEOF\nz | w", false, pipe_after);
+    // A tab before the word ends a body only for `<<-`.
+    assert_hits(
+        "cat <<EOF\n\tEOF\nx | y\nEOF\nz | w",
+        false,
+        &[(Construct::Pipe, "|", 1)],
+    );
+    assert_hits(
+        "cat <<A <<B\nx | y\nA\np | q\nB\nz | w",
+        false,
+        &[(Construct::Pipe, "|", 2)],
+    );
+    assert_hits("cat <<A <<B\nx | y\nA\np | q\nB", false, &[]);
+}
+
+/// Text that only looks like a here-document opener opens none,
+///  so the lines after it are code.
+#[test]
+fn text_that_is_not_a_heredoc_opener_leaves_the_next_lines_as_code() {
+    let first_pipe: &[(Construct, &str, usize)] = &[(Construct::Pipe, "|", 0)];
+    assert_hits("cat <<<EOF\nx | y\nEOF\n", false, first_pipe);
+    assert_hits("cat <<\n x | y", false, first_pipe);
+    assert_hits("cat <<\\\n x | y", false, first_pipe);
+    assert_hits("cat <<-\n x | y", false, first_pipe);
+    assert_hits("cat <<EOF\nx | y", true, first_pipe);
+    assert_hits("cat <<", false, &[]);
+    assert_hits("cat << ", false, &[]);
+    assert_hits("cat <<-", false, &[]);
+    assert_hits("cat <<EOF", false, &[]);
+    assert_hits("cat <<'EOF", false, &[]);
+    assert_hits(
+        "cat <<(x) | y\nz | w",
+        false,
+        &[(Construct::Pipe, "|", 0), (Construct::Pipe, "|", 1)],
+    );
+}
+
+/// A scan resumes after quoted text,
+///  escaped bytes and substitutions at exactly the byte after them.
+#[test]
+fn quoting_resumes_scanning_at_the_byte_after_the_quote() {
+    let second_pipe: &[(Construct, &str, usize)] = &[(Construct::Pipe, "|", 1)];
+    assert_hits("echo 'a | b' | c", false, second_pipe);
+    assert_hits(
+        "echo `a\\`b | c` | d",
+        false,
+        &[(Construct::Backtick, "`", 0), (Construct::Pipe, "|", 1)],
+    );
+    assert_hits("echo $'a\\'b | c' | d", false, second_pipe);
+    assert_hits("echo 'it\\'s | x' | y", true, second_pipe);
+    assert_hits("echo `abc | d", false, &[(Construct::Backtick, "`", 0)]);
+    assert_hits("echo 'abc | d", false, &[]);
+    assert_hits("echo $'abc | d", false, &[]);
+    assert_hits("echo \"a \\\" | b\" | c", false, second_pipe);
+    assert_hits(
+        "echo \"$(a | b)\" | c",
+        false,
+        &[
+            (Construct::DollarParen, "$(", 0),
+            (Construct::Pipe, "|", 0),
+            (Construct::Pipe, "|", 1),
+        ],
+    );
+    assert_hits(
+        "echo \"$((1 + 2))\" | c",
+        false,
+        &[(Construct::Pipe, "|", 0)],
+    );
+    assert_hits(
+        "echo \"`a | b`\" | c",
+        false,
+        &[(Construct::Backtick, "`", 0), (Construct::Pipe, "|", 1)],
+    );
+    assert_hits("echo \"`a | b`\" | c", true, second_pipe);
+    assert_hits(
+        "echo \"$(date)\"",
+        false,
+        &[(Construct::DollarParen, "$(", 0)],
+    );
+}
+
+/// Arithmetic and substitutions are skipped or entered at exact bytes.
+#[test]
+fn arithmetic_and_substitutions_end_where_their_parentheses_do() {
+    assert_hits("echo $((1 + 2)) | c", false, &[(Construct::Pipe, "|", 0)]);
+    assert_hits("echo $((1 + 2", false, &[]);
+    assert_hits(
+        "echo $(date) | c",
+        false,
+        &[(Construct::DollarParen, "$(", 0), (Construct::Pipe, "|", 0)],
+    );
+    assert_hits("echo $'x' | c", false, &[(Construct::Pipe, "|", 0)]);
+    assert_hits(
+        "echo $((a)) | b",
+        true,
+        &[(Construct::DollarParen, "$(", 0), (Construct::Pipe, "|", 0)],
+    );
+    assert_hits(
+        "echo $(a (b) | c) | d",
+        false,
+        &[
+            (Construct::DollarParen, "$(", 0),
+            (Construct::Pipe, "|", 0),
+            (Construct::Pipe, "|", 1),
+        ],
+    );
 }
