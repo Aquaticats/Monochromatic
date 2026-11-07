@@ -3569,10 +3569,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   registration merged (`a6104c0f64`), the `jsonc-edit` dry run passed (run 42363884326),
   the settle fixes, rename audit and never-at-login guards are merged (`2fa2df5d68`, gate 5069/5069).
 - Its agent could not start: five subagents were already running (the limit).
-  It starts when one finishes, with the 15 crates other than the wrapper in wave order;
-  the wrapper (0.5.34 to 0.6.0) waits for the earlier-scratch-name pairing branch
-  (`fix/git-policy-cli-pair-earlier-scratch-name`) and the cross-vendor review of `2fa2df5d68`
-  (`~/temp/agent/issue-6261/sol-review-audit-8/`).
+  It starts when one finishes, with the 15 crates other than the wrapper in wave order.
+- The wrapper's two preconditions are met as of merge `73173e0f41` (2026-11-07T06:30:33-05:00):
+  the cross-vendor review of `2fa2df5d68` (`~/temp/agent/issue-6261/sol-review-audit-8/review.txt`)
+  found one test race (closed-stderr settle test), fixed by closing the pipe's read end before the wrapper starts;
+  that fix and the owner's "Pair the names" scratch sweep merged to main from
+  `fix/git-policy-cli-pair-earlier-scratch-name` (tip `7e2284d7d9`, container gate 5071/5071).
+  The wrapper (0.5.34 to 0.6.0) can go after the other 15 crates.
+- The earlier per-user scratch (`<state>/cli-git/scratch`) is still not swept; the owner's pick covered the repository scratch only.
 - The daily toolchain timer must not run for real until the batch ends (its agent was told).
 
 ### Known flakes and failures not yet fixed
