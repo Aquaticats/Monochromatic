@@ -76,11 +76,8 @@ serde_json = { workspace = true }
 # Already in the lockfile through the scanner's `tempfile`.
 getrandom = { workspace = true }
 # The standards-review shadow run's one HTTPS call, in-process instead of `node` and `fetch`
-# (doc/planning/cli-git-standards-review-port.md, "HTTP client choice"): blocking, no runtime, no threads of its own,
-# `ring` for TLS and the embedded Mozilla roots, so nothing is read from the system. `rustls` selects exactly those.
-ureq = { workspace = true, default-features = false, features = ["rustls"] }
-# The standards-review call's replacement for `ureq` (owner, 2026-11-07: "Adopt tokio, do not adopt ureq, use the `hyper` set of https
-# libs."): `hyper` with `hyper-util`'s legacy client and `hyper-rustls`, `ring` for TLS and the embedded Mozilla roots, so nothing is
+# (doc/planning/cli-git-standards-review-port.md, "HTTP client choice"), on the process's tokio runtime (owner, 2026-11-07: "Adopt tokio,
+# do not adopt ureq, use the `hyper` set of https libs."): `hyper` with `hyper-util`'s legacy client and `hyper-rustls`, `ring` for TLS and the embedded Mozilla roots, so nothing is
 # read from the system. `rustls` builds the client configuration and reads the trusted authority.
 hyper = { workspace = true, default-features = false, features = ["client", "http1"] }
 hyper-util = { workspace = true, default-features = false, features = ["client", "client-legacy", "http1", "tokio"] }
@@ -197,7 +194,6 @@ sysinfo = { version = ">=0.40.1", default-features = false }
 tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
 tower-service = ">=0.3.3"
-ureq = { version = ">=3.5.1", default-features = false }
 webpki-roots = ">=1.0.11"
 zbus = { version = ">=6.2.1", default-features = false }
 
