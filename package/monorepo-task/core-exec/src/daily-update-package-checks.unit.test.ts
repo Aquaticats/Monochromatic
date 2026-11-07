@@ -294,6 +294,14 @@ await describe({
           },
         },),
         it({
+          name: 'ends the excerpt before the line mise prints after a failed task',
+          fn: async () => {
+            const error = errorIn('error[E0433]: failed\n --> src/a.rs:1:1\n[//package/a/b:lint:clippy] ERROR task failed',);
+            expect(error.excerpt,).toContain('src/a.rs:1:1',);
+            expect(error.excerpt,).not.toContain('ERROR task failed',);
+          },
+        },),
+        it({
           name: 'answers nothing for output without an error',
           fn: async () => {
             expect(firstErrorOf('all good\nwarning: something',),).toBe(NO_ERROR_IN_OUTPUT,);
@@ -456,6 +464,22 @@ await describe({
             expect(issue.body.trimEnd().endsWith(issue.marker,),).toBe(true,);
             expect(issue.comment,).toContain('d61dc1934a',);
             expect(issue.comment,).toContain('E0433',);
+          },
+        },),
+        it({
+          name: 'separates its sections with one blank line, never two',
+          fn: async () => {
+            const issue = renderIssue({
+              check: redResult('package/a/b',).check,
+              firstError: ZBUS_ERROR,
+              updateCommits: ['d61dc1934a',],
+              baselineCommit: 'c0ffee0001',
+              moves: [
+                { source: 'package/a/b/Cargo.lock', moves: [{ name: 'zbus', from: '5.19.0', to: '6.2.1', },], },
+                { source: 'toolchain.lock.json', moves: [{ name: 'rust', from: 'a', to: 'b', },], },
+              ],
+            },);
+            expect(issue.body.includes('\n\n\n',),).toBe(false,);
           },
         },),
         it({
