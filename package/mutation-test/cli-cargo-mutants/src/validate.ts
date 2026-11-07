@@ -7,6 +7,9 @@ import {
 } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 import {
   environmentNameCharacters,
+  imageRepositoryCharacters,
+  imageTagCharacters,
+  maximumImageTagLength,
   maximumWholeNumberDigits,
   plainNameCharacters,
   systemdValueCharacters,
@@ -169,4 +172,74 @@ export function environmentEntry(entry: string): string {
     })))
     throw new CargoMutantsToolingError(`--setenv must look like NAME=value, got ${JSON.stringify(entry)}.`);
   return entry;
+}
+
+/**
+ Accept the repository part of an image reference, such as `localhost/product-test`.
+
+ @param option - option name for the message
+ 
+ @param value - text under test
+ 
+ @returns the value unchanged
+ 
+ @throws CargoMutantsToolingError when the text does not start with a letter or digit or has other characters than
+ letters, digits, underscores, dots, hyphens, slashes and colons
+ 
+ @example
+ ```ts
+ imageRepositoryName({ option: '--image-repository', value: 'localhost/product-test' });
+ ```
+ */
+export function imageRepositoryName({
+  option,
+  value,
+}: {
+  readonly option: string;
+  readonly value: string;
+}): string {
+  if (!startsThenUses({
+    text: value,
+    first: alphanumericCharacters,
+    rest: imageRepositoryCharacters,
+  }))
+    throw new CargoMutantsToolingError(
+      `${option} must start with a letter or digit and use only letters, digits, underscores, dots, hyphens, slashes and colons, got ${JSON.stringify(value)}.`,
+    );
+  return value;
+}
+
+/**
+ Accept an image tag by itself, the part after the colon of an image reference.
+
+ @param option - option name for the message
+ 
+ @param value - text under test
+ 
+ @returns the value unchanged
+ 
+ @throws CargoMutantsToolingError when the tag is too long, does not start with a letter, digit or underscore, or has
+ other characters than letters, digits, underscores, dots and hyphens
+ 
+ @example
+ ```ts
+ imageTagName({ option: '--from-tag', value: 'development' });
+ ```
+ */
+export function imageTagName({
+  option,
+  value,
+}: {
+  readonly option: string;
+  readonly value: string;
+}): string {
+  if ((value.length > maximumImageTagLength) || (!startsThenUses({
+    text: value,
+    first: alphanumericCharacters + wordStartCharacters,
+    rest: imageTagCharacters,
+  })))
+    throw new CargoMutantsToolingError(
+      `${option} must be an image tag of up to ${maximumImageTagLength} letters, digits, underscores, dots and hyphens that does not start with a dot or hyphen, got ${JSON.stringify(value)}.`,
+    );
+  return value;
 }

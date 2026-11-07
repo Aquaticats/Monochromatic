@@ -21,7 +21,11 @@ import {
 } from './fake-podman-fixture.ts';
 import { parseLauncherOptions } from './options.ts';
 import { planUnits } from './plan.ts';
-import { ensureUnitImages } from './unit-images.ts';
+import {
+  ensureUnitImages,
+  imageReferenceOf,
+  inspectionEnvironment,
+} from './unit-images.ts';
 
 /**
  Repository the cases give the launcher.
@@ -218,7 +222,8 @@ await describe({
               [referenceOf('w51')]: gateImage,
               [referenceOf('w52')]: gateImage,
             });
-            expect(writes(await podmanCalls(fake))).toEqual(plans.map(function tagCall(plan) {
+            const calls = await podmanCalls(fake);
+            expect(writes(calls)).toEqual(plans.map(function tagCall(plan) {
               return [
                 'tag',
                 gateImage,
@@ -299,7 +304,8 @@ await describe({
               labelAndFiles: ['w5', 'a.rs'],
             });
             await ensureUnitImages({ options, plans });
-            expect(writes(await podmanCalls(fake))).toEqual([]);
+            const calls = await podmanCalls(fake);
+            expect(writes(calls)).toEqual([]);
           },
         }),
         it({
@@ -317,9 +323,11 @@ await describe({
             });
             const thrown = await refusal({ options, plans });
             expect(thrown).toBeInstanceOf(CargoMutantsToolingError);
-            expect((thrown as Error).message).toContain(referenceOf(gateTag));
-            expect((thrown as Error).message).toContain('--from-tag');
-            expect(writes(await podmanCalls(fake))).toEqual([]);
+            const { message } = thrown as Error;
+            expect(message).toContain(referenceOf(gateTag));
+            expect(message).toContain('--from-tag');
+            const calls = await podmanCalls(fake);
+            expect(writes(calls)).toEqual([]);
           },
         }),
         it({
@@ -340,7 +348,7 @@ await describe({
               ],
               labelAndFiles: ['w5', 'a.rs'],
             });
-            const message = ((await refusal({ options, plans })) as Error).message;
+            const { message } = (await refusal({ options, plans })) as Error;
             expect(message).toContain(referenceOf('w50'));
             expect(message).toContain(gateImage);
             expect(message).toContain(otherImage);
@@ -365,7 +373,7 @@ await describe({
               ],
               labelAndFiles: ['w5', 'a.rs'],
             });
-            const message = ((await refusal({ options, plans })) as Error).message;
+            const { message } = (await refusal({ options, plans })) as Error;
             expect(message).toContain(referenceOf('w50'));
             expect(message).toContain('fake podman failure: tag');
           },
@@ -392,8 +400,9 @@ await describe({
               labelAndFiles: ['w5', 'a.rs', 'b.rs'],
             });
             await ensureUnitImages({ options, plans });
-            expect(writes(await podmanCalls(fake))).toEqual([]);
-            expect((await podmanCalls(fake)).length).toBe(plans.length);
+            const calls = await podmanCalls(fake);
+            expect(writes(calls)).toEqual([]);
+            expect(calls.length).toBe(plans.length);
           },
         }),
         it({
@@ -411,13 +420,14 @@ await describe({
             });
             const thrown = await refusal({ options, plans });
             expect(thrown).toBeInstanceOf(CargoMutantsToolingError);
-            const message = (thrown as Error).message;
+            const { message } = thrown as Error;
             expect(message).toContain(referenceOf('w51'));
             expect(message).toContain(referenceOf('w52'));
             expect(message).not.toContain(referenceOf('w50'));
             expect(message).toContain(`podman tag ${referenceOf('<gate-tag>')} ${referenceOf('w51')}`);
             expect(message).toContain('--from-tag');
-            expect(writes(await podmanCalls(fake))).toEqual([]);
+            const calls = await podmanCalls(fake);
+            expect(writes(calls)).toEqual([]);
           },
         }),
         it({
@@ -434,6 +444,62 @@ await describe({
               labelAndFiles: ['w5', 'a.rs'],
             });
             expect(((await refusal({ options, plans })) as Error).message).toContain(referenceOf('w50'));
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: inspectionEnvironment.name,
+      children: [
+        it({
+          name: 'is the unit\'s own assignments, final TMPDIR, PATH and HOME included, with nothing else inherited but the runtime directory',
+          fn: async () => {
+            await using fake = await createFakePodman();
+            const { options } = launch({
+              fake,
+              argv: [
+                '--setenv',
+                'CONTAINERS_STORAGE_CONF=/alternate/storage.conf',
+                '--setenv',
+                'HOME=/alternate-home',
+              ],
+              labelAndFiles: ['w5', 'a.rs'],
+            });
+            // The launcher's HOME wins over a --setenv of HOME, as it does for the unit.
+            expect(inspectionEnvironment({
+              options,
+              tag: 'w50',
+              runtimeDirectory: '/run/user/1000',
+            })).toEqual({
+              XDG_RUNTIME_DIR: '/run/user/1000',
+              IMG_TAG: 'w50',
+              FAKE_DIR: fake.directory,
+              CONTAINERS_STORAGE_CONF: '/alternate/storage.conf',
+              TMPDIR: options.temporaryDirectory,
+              PATH: fake.environment.PATH,
+              HOME: fake.directory,
+            });
+            expect(Object.hasOwn(
+              inspectionEnvironment({
+                options,
+                tag: 'w50',
+              }),
+              'XDG_RUNTIME_DIR',
+            )).toBe(false);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: imageReferenceOf.name,
+      children: [
+        it({
+          name: 'joins the repository and the tag with a colon',
+          fn: async () => {
+            expect(imageReferenceOf({
+              repository,
+              tag: 'w50',
+            })).toBe('localhost/product-test:w50');
           },
         }),
       ],

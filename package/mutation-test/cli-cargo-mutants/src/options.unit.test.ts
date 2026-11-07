@@ -289,7 +289,7 @@ await describe({
           ['a missing task', ['--tag-env', 'X', '--image-repository', 'r', 'l', 'f.rs']],
           ['a missing tag variable', ['--task', 't', '--image-repository', 'r', 'l', 'f.rs']],
           ['a missing image repository', ['--task', 't', '--tag-env', 'X', 'l', 'f.rs']],
-          ['an image repository that starts with a hyphen', [...required, '--image-repository', '--root', 'l', 'f.rs']],
+          ['an image repository that starts with a hyphen', [...required, '--image-repository=-r', 'l', 'f.rs']],
           ['an image repository with a space', [...required, '--image-repository', 'a b', 'l', 'f.rs']],
           ['an image repository with a shell metacharacter', [...required, '--image-repository', 'a;b', 'l', 'f.rs']],
           ['an image repository with an at sign', [...required, '--image-repository', 'a@sha256', 'l', 'f.rs']],

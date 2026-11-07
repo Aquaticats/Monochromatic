@@ -7,6 +7,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  inspectionEnvironment,
   type LauncherOptions,
   parseLauncherOptions,
   planUnits,
@@ -27,7 +28,6 @@ import { nativeTestImageRepository } from './native-gate-image-tag.ts';
 import {
   type ImageInspector,
   imageOptionOf,
-  inspectionEnvironment,
   planControlsUnit,
   plantedTask,
   skipPlantedEntry,

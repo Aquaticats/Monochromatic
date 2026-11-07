@@ -12,7 +12,10 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
 import {
+  ensureUnitImages,
   formatWaitHint,
+  imageReferenceOf,
+  inspectionEnvironment,
   isContentAddressedId,
   parseLauncherOptions,
   planUnits,
@@ -20,19 +23,22 @@ import {
   startUnit,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
-import { inspectUnit } from './native-planted-controls-unit.ts';
 import {
-  inspectionEnvironment,
+  launcherImageArguments,
   nativeTestImageRepository,
-  startPlantedControls,
-} from './native-planted-parallel.ts';
+} from './native-gate-image-tag.ts';
+import { inspectUnit } from './native-planted-controls-unit.ts';
+import { startPlantedControls } from './native-planted-parallel.ts';
 
 /**
  Options of this launch, validated before anything starts.
  */
 const options = parseLauncherOptions({
-  argv: process.argv
-    .slice(2),
+  argv: [
+    ...launcherImageArguments(process.env),
+    ...process.argv
+      .slice(2),
+  ],
   environment: process.env,
   home: homedir(),
   packageDirectory: resolve(
@@ -48,6 +54,20 @@ const options = parseLauncherOptions({
  Campaign units, planned before anything starts so a bad name stops the whole launch.
  */
 const plans = planUnits(options);
+/**
+ Lines about the unit image tags, made from the gate image or checked, before anything starts: a unit whose image is
+ missing dies at once, and the launcher would still exit 0.
+ */
+const imageLines = await ensureUnitImages({
+  options,
+  plans,
+  ...(process.env
+    .XDG_RUNTIME_DIR
+    === undefined ? {} : { runtimeDirectory: process.env
+      .XDG_RUNTIME_DIR, }),
+});
+for (const line of imageLines)
+  console.log(line);
 await mkdir(
   options.logDirectory,
   { recursive: true },
@@ -79,7 +99,10 @@ const planted = await startPlantedControls({
       args: [
         'image',
         'inspect',
-        `${nativeTestImageRepository}:${tag}`,
+        imageReferenceOf({
+          repository: nativeTestImageRepository,
+          tag,
+        }),
         '--format',
         '{{.Id}}',
       ],

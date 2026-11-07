@@ -19,6 +19,10 @@ import {
   parseContainerLimitOptions,
   runLimitArguments,
 } from './container-limits.ts';
+import {
+  gateImageTagOf,
+  nativeTestImageRepository,
+} from './native-gate-image-tag.ts';
 import { gatePassedRecord, } from './native-gate-proof.ts';
 import {
   imageRootDirectory,
@@ -70,13 +74,11 @@ await mkdir(
 /**
  Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image.
  */
-const imageTag = process.env
-  .GIT_POLICY_NATIVE_IMAGE_TAG
-  ?? 'development';
+const imageTag = gateImageTagOf(process.env);
 /**
  Source snapshot image this gate builds, tests, and lints.
  */
-const testImage = `localhost/git-policy-native-test:${imageTag}`;
+const testImage = `${nativeTestImageRepository}:${imageTag}`;
 
 // Build one mount-free source image, then run tests and Clippy against that exact image identity.
 /**
