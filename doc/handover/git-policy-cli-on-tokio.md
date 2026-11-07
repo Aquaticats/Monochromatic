@@ -39,7 +39,8 @@
 - `zbus` 6 for the service client (step T8): main's `toolchain.lock.json` now names `nightly-2026-11-07`, so it compiles; the catalog
   floor is 5.19 and the release-age exclusion names `zbus@5.19.0`, both to be moved to 6.
 - The mutation campaign: the user told this agent not to run mutation campaigns and to delegate them to the coordinator. Scope for the coordinator: `src/native/foundation/private_storage.rs`, `src/native/service/service_busy.rs`, `src/native/process/child_awaited_through_a_pidfd.rs`, `src/native/process/captured_child_run_to_its_end.rs` and the T3 files under `src/native/foundation/` (`runtime_limits.rs`, `runtime_plan.rs`, `lazy_runtime.rs`, `blocking_job.rs`), against a gate image of this branch. A scoped run for the first two was started and stopped at the planted-controls stage; it produced no mutant results.
-- Not started: T5 to T13. T5 (watchers) cannot be done alone: `ChildWatch` guards blocking reads in `candidate/candidate_reader.rs` and the callers of `bounded_push`/`bounded_query`, which stay synchronous until T11, so T5 and T6 need a design for the blocking-to-async bridge first (see the plan, step T4's note on bridges).
+- Not started in this session: T5 to T13. T5 (the watchers) follows the T4 pattern: the synchronous callers keep a bridge (`output_of_blocking` enters the lazy runtime and refuses from inside it) until their own callers become asynchronous at T11, as the plan's T4 text says.
+- The owner's G1 answer was recorded at 2026-11-07T07:40:00-05:00 (the commit `1cff4935cd`).
 - Main merged in at `9156ca885b` (wrapper 0.6.0 released; `child_environment.rs` from the background-never-prompts change came with it). Container gate after that merge: 5127 tests run, 5127 passed (1 slow), 8 skipped; Clippy clean.
 
 ## Rules that bit during this work
