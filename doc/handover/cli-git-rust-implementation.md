@@ -5330,7 +5330,9 @@ the slow-job runner control (it shared the production runner with the ceiling co
 and the repair helper control
 (the output capture files shared one offset between writers,
 which loses a line;
-they are in append mode now).
+they and the scratch files that hold a child's standard error,
+used by the LFS upload and the held-lock retry,
+are in append mode now).
 
 - `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` failed
   once in a full
@@ -5348,15 +5350,15 @@ they are in append mode now).
   (`hermetic()` in `binary_support.rs` clears the environment),
   and the variable is read as a whole number of seconds,
   so a fraction falls back to the 10 s default.
-  Passing the variable through `commit_file`'s environment argument from the two threads hangs the test
-  (killed at 300 s by nextest,
-  and at 130 s by hand without the slow upload),
-  while the same variable set on the command alone passes in 4 s with no notice and no positive control;
-  the mechanism of the hang is not measured
-  (`give_service_environment` takes the environment lock and then the service lock;
-  the order of the service start was not read),
-  and the shipped test passes an empty environment,
-  so it never reaches that path.
+  Passing the variable through `commit_file`'s environment argument from the two threads hung the test;
+  that was a lock-order inversion of the test harness alone
+  (`gdb` showed one thread in `service_runtime` at the environment lock
+  and the other in `give_service_environment` at the service lock,
+  with no wrapper or service process started),
+  and no shipped code takes those locks.
+  It is fixed on `fix/git-policy-cli-flakes-and-open-findings`.
+  The same variable set on the command alone passed in 4 s with no notice and no positive control,
+  so the notice hypothesis is still untested.
   Open until a failure keeps its output.
 - Found 2026-11-07 by the same study:
   `zbus` 5.19.0 and 6.x do not compile on the pinned `nightly-2026-11-01`
