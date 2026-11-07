@@ -193,7 +193,9 @@ fn moved_archive_record(directory: &Path, recorded: &str, now: &str) -> LaunchRe
     for version in [recorded, now] {
         fs::create_dir_all(tool_dir.join(version).join(format!("demo-release-{version}-linux"))).expect("make");
     }
-    fs::write(tool_dir.join(now).join(format!("demo-release-{now}-linux")).join("tool"), "x").expect("write");
+    let program: PathBuf = tool_dir.join(now).join(format!("demo-release-{now}-linux")).join("tool");
+    fs::write(&program, "x").expect("write");
+    fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("make the program executable");
     std::os::unix::fs::symlink(now, tool_dir.join("current")).expect("link current");
     fs::remove_dir_all(tool_dir.join(recorded)).expect("remove the recorded version");
     return LaunchRecord {
@@ -210,7 +212,7 @@ fn a_recorded_program_that_was_deleted_is_replaced_by_the_one_under_current() {
     let record = moved_archive_record(rig._directory.path(), "0.1.4", "0.1.5");
     let launch = prepare_launch(&record, Some("{\"schemaVersion\":1,\"tools\":{\"demo-release\":{\"version\":\"0.1.4\"}}}"));
     assert_eq!(launch.program, rig._directory.path().join("demo-release").join("current").join("demo-release-0.1.5-linux").join("tool"));
-    assert!(launch.warning.is_some_and(|text| text.contains("0.1.4") && text.contains("0.1.5")));
+    assert!(launch.warning.is_some_and(|text| return text.contains("0.1.4") && text.contains("0.1.5")));
 }
 
 #[test]
