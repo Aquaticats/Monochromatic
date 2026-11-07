@@ -89,6 +89,9 @@ use jni::sys::{jfloat, jint, jlong};
 /// ```
 use jni::EnvUnowned;
 
+/// Runs a body with the call's `Env`,
+/// catching a panic and logging it,
+/// as every entry point of this crate does.
 use crate::jni_call::run_with_env;
 
 /// What:
@@ -341,7 +344,10 @@ enum Mutation {
     /// ```ts
     /// { kind: "write", write }
     /// ```
-    Write(Write),
+    Write(
+        /// The decision to store.
+        Write,
+    ),
     /// What:
     ///      `Forget(Forget)`.
     ///  Remove one decision.
@@ -352,7 +358,10 @@ enum Mutation {
     /// ```ts
     /// { kind: "forget", forget }
     /// ```
-    Forget(Forget),
+    Forget(
+        /// The track whose decision to remove.
+        Forget,
+    ),
 }
 
 /// What:
@@ -713,7 +722,9 @@ async fn put(cache: Option<&DecisionCache>, identity: CacheIdentity, request: Wr
     }
 }
 
-// Remove one track's row; a degraded run has nothing stored, so nothing is removed.
+/// Remove one track's row;
+/// a degraded run has nothing stored,
+/// so nothing is removed.
 async fn forget(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerprint: u64) -> bool {
     let Some(decision_cache) = cache else {
         return false;

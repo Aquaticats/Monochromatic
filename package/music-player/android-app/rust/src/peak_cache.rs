@@ -7,12 +7,21 @@
 //! the peek only reads,
 //! and the invalidate only removes.
 
+/// The class and float-array references the entry points receive from the host runtime.
 use jni::objects::{JClass, JFloatArray};
+/// The raw boolean,
+/// float-array and long types of the entry points' signatures.
 use jni::sys::{jboolean, jfloatArray, jlong};
+/// The per-call handle and the `Env` it lends.
 use jni::{Env, EnvUnowned};
+/// The peak kind a cached decision reports,
+/// and the peak measurement a miss falls back to.
 use truepeak_core::{PeakKind, peak_dbtp};
 
+/// Runs a body with the call's `Env`,
+/// catching a panic and logging it.
 use crate::jni_call::run_with_env;
+/// The handle to the decision cache service the entry points read and clear.
 use crate::service::service_ref;
 
 /// What:

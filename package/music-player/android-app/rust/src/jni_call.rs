@@ -11,7 +11,11 @@
 //! own sentinel,
 //! exactly as the former `match` on each `Result` did.
 
+/// The `Result` a body returns when a call into the host runtime fails.
 use jni::errors::Result as JniResult;
+/// The call's `Env` lent to the body,
+/// the per-call handle it arrives in,
+/// and the outcome of running the body under the panic guard.
 use jni::{Env, EnvUnowned, Outcome};
 
 /// What:

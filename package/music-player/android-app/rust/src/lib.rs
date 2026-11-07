@@ -345,6 +345,9 @@ use jni::sys::{jboolean, jdouble, jfloat, jint, jlong};
 /// type EnvUnowned = RuntimeContext; // per-call handle to talk to the host runtime
 /// ```
 use jni::EnvUnowned;
+/// Runs a body with the call's `Env`,
+/// catching a panic and logging it,
+/// as every entry point of this crate does.
 use crate::jni_call::run_with_env;
 
 // What:     `#[unsafe(no_mangle)]` is an ATTRIBUTE (a compiler annotation, written
