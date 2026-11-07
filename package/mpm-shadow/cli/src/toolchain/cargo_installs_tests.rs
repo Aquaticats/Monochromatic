@@ -257,8 +257,10 @@ fn a_third_party_tool_and_another_operating_system_never_warn() {
     assert_eq!(linux, vec![older_lock_message(PUBLISHED, "0.4.0", "0.4.4")]);
 }
 
-/// Two pre-releases of one version, whose numbers differ in length:
-/// semver reads the identifier after `alpha` as a number, so `.10` is newer than `.9`.
+/// Two pre-releases of one version,
+/// whose numbers differ in length:
+/// semver reads the identifier after `alpha` as a number,
+/// so `.10` is newer than `.9`.
 const EARLIER_ALPHA: &str = "0.4.5-alpha.9";
 
 /// The newer pre-release of the same version as `EARLIER_ALPHA`.

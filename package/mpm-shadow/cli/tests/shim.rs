@@ -33,7 +33,8 @@ use mpm_shadow::nesting::MAX_NESTING as NESTING_LIMIT;
 
 /// What:
 /// `use mpm_shadow::cli::declared_verbs;` imports the function that lists every verb the shadow declares (its
-///           pnpm-named toolchain verbs and `prune`), each with its name and aliases.
+///           pnpm-named toolchain verbs and `prune`),
+/// each with its name and aliases.
 /// Why:
 /// The pnpm-verb tests walk that one table,
 /// so a verb added to it is tested as an `mpm` word with no list kept here.
@@ -94,7 +95,8 @@ fn start_shadow(root: &Path, arguments: &[&str]) -> Output {
     return start_shadow_with(root, arguments, &[]);
 }
 
-/// Like `start_shadow`, with extra environment variables for the shadow.
+/// Like `start_shadow`,
+/// with extra environment variables for the shadow.
 fn start_shadow_with(root: &Path, arguments: &[&str], extra_env: &[(&str, &str)]) -> Output {
     let links: std::path::PathBuf = root.join("links");
     fs::create_dir_all(&links).expect("make the link directory");
@@ -368,7 +370,8 @@ fn write_many_stale_copies(root: &Path) {
     .expect("write the install record");
 }
 
-/// Many removals are one line by default, and the line says it is cleanup after the mpm command.
+/// Many removals are one line by default,
+/// and the line says it is cleanup after the mpm command.
 #[test]
 fn many_stale_copies_are_one_post_run_cleanup_line_by_default() {
     let root = fixture_root();
@@ -397,7 +400,8 @@ fn the_verbose_variable_lists_every_removed_path_after_the_summary() {
     assert_eq!(stderr.matches("deleted stale").count(), MANY_STALE, "{stderr}");
 }
 
-/// Nothing stale, nothing printed.
+/// Nothing stale,
+/// nothing printed.
 #[test]
 fn a_run_with_nothing_stale_prints_no_cleanup_line_even_when_verbose() {
     let root = fixture_root();
@@ -409,7 +413,8 @@ fn a_run_with_nothing_stale_prints_no_cleanup_line_even_when_verbose() {
 }
 
 /// A real mpm that cannot be started (its interpreter is missing) gets the full explanation,
-/// the exit status 126, and no cleanup.
+/// the exit status 126,
+/// and no cleanup.
 #[test]
 fn a_real_mpm_that_cannot_start_is_explained_with_command_program_stage_cause_and_status() {
     let root = fixture_root();
@@ -459,7 +464,8 @@ fn a_shadow_nested_to_the_limit_refuses_to_start_another_program() {
 }
 
 /// The failure of 2026-11-03 (issue 6259):
-/// the link `install` makes resolves to a per-tree launcher, which starts the real shadow binary under the name `mpm`;
+/// the link `install` makes resolves to a per-tree launcher,
+/// which starts the real shadow binary under the name `mpm`;
 /// that shadow must not take the launcher for the real mpm and start it again.
 #[test]
 fn the_per_tree_launcher_of_the_running_shadow_is_not_taken_for_the_real_mpm() {
@@ -528,7 +534,8 @@ fn write_marking_mpm(root: &Path) -> std::path::PathBuf {
 /// Why:
 /// The owner wants pnpm's verbs on `mpm` itself:
 /// "I want pnpm style verbs.
-/// We talked about this!" (2026-11-03,
+/// We talked about this!"
+/// (2026-11-03,
 ///           after `mpm i -g` reached mpm 8.2.0 and failed with "No such command 'i'").
 ///
 /// In TS you'd write (pseudocode):

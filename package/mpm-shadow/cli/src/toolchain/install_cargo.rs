@@ -44,7 +44,10 @@ use super::runner::{RunOutcome, RunRequest};
 /// root,
 /// passing the GitHub token when one is available.
 /// A crate this repository publishes also gets `--disable-strategies compile,quick-install`
-/// (owner decision 2026-11-04, "A: one flag, our crates"):
+/// (owner decision 2026-11-04,
+/// "A:
+/// one flag,
+/// our crates"):
 /// cargo-binstall resolves the release archive from the crate's own published metadata (no URL is passed here),
 /// and the install fails with a message naming what to do when none fits;
 /// only a third-party crate may fall back to compiling or to the third-party quick-install host.

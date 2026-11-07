@@ -1,5 +1,8 @@
 //! Unit tests of the post-run cleanup text:
-//! zero, one and many removals, the verbose list, and failures.
+//! zero,
+//! one and many removals,
+//! the verbose list,
+//! and failures.
 
 use std::path::{Path, PathBuf};
 
