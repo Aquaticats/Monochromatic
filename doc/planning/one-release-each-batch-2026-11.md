@@ -1201,6 +1201,13 @@ proved the Wayland library step.
   (built from `f6239c698a`),
   crates.io `2026-11-07T12:13:51.127758Z`, `yanked` false.
 
+- `monochromatic-file-enforcer` 0.1.1 to 0.1.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371620801`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371722087`
+  (built from `f86710023d`),
+  crates.io `2026-11-07T12:17:42.698494Z`, `yanked` false.
+  One dispatch was refused before any run by the origin-holds-main check (another session's local commit was not yet pushed); dispatched again after it was pushed.
+
 ## Evidence log
 
 - crates.io API reads:
