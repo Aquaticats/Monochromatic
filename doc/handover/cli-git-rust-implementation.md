@@ -4217,14 +4217,30 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     Incident:
     the owner got many desktop notifications with the app name `toolchain-daily-update`
     while the timer had never fired;
-    the agent's measurement unit `daily-measure-pass.service`
-    (started 11:54:15,
-    real check effects over every package)
-    was the only run on that code path and was stopped by the coordinator,
-    after which nothing ran in that worktree.
-    The agent is finding the exact call path,
-    adding a red-first guard that no test or measurement can reach `notify-send` or the session bus,
-    and limiting a real run to one summary notification.
+    the coordinator stopped the agent's measurement unit `daily-measure-pass.service`
+    (started 11:54:15) on a wrong inference:
+    its check effects (`daily-update-check-effects.ts`) do not import `daily-update-effects.ts`,
+    so it had no path to `notifyOwner`.
+    Read from the code:
+    on main the only code that sends with the app name `toolchain-daily-update` is `notifyOwner`,
+    reached only through `realEffects` from `daily-update-process.ts:77`,
+    which only `daily-update.ts` runs (`main()` at load),
+    and nothing imports that file;
+    so the notifications came from runs of `toolchain:update:daily` or `node daily-update.ts`
+    outside the timer and outside a journaled unit.
+    Which agent ran them is not yet known;
+    the daily-update agent is asked to name it.
+    Owner,
+    verbatim:
+    "You can send real desktop notifications.
+    But you can also make sure I don't see them.
+    We already have the nested wayland compositor.
+    And we might not need it in full."
+    So tests and runs may send real notifications into a private session bus the owner never sees,
+    reusing what `package/nested-wayland-session/cli` has (its stand-in notification service);
+    the agent proposes the smallest shared piece,
+    keeps a red-first guard against reaching the owner's bus,
+    and limits a real run to one summary notification.
 - `monochromatic-lint` group folders merged into main `62874c227d` (869 of 869 tests;
   every new check red first).
   A group is any folder holding child folders (`mod.rs` plus at least one source folder);
