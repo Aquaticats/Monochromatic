@@ -265,7 +265,7 @@ version = "0.1.3"
 
 [[package]]
 name = "monochromatic-pnpm-shadow"
-version = "0.1.2"
+version = "0.1.3-alpha.1"
 dependencies = [
  "clap",
  "ignore",
