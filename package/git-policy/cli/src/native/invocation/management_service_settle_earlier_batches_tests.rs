@@ -187,7 +187,7 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
     run_process(&world, &[String::from("/p/cli-git"), String::from("cli-git"), String::from("service"), String::from("run"), String::from("--instance"), instance.clone()]);
     let ((process_code, _, process_err), _) = run(&world.request());
     assert_eq!(process_code, 1);
-    for wanted in ["runs as the earlier helper", "Nothing was changed", own_units.as_str(), "three hours"] {
+    for wanted in ["is running as the commit service of this worktree", "Nothing was changed", own_units.as_str(), "three hours"] {
         assert!(process_err.contains(wanted), "{wanted}: {process_err}");
     }
     run_process(&world, &[String::from("/p/cli-git-native"), String::from("--journal"), world.state.join("cli-git/service").display().to_string()]);
@@ -214,14 +214,15 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
 fn the_condition_is_said_before_the_command_acts_and_a_batch_git_cannot_answer_for_is_named() {
     let world: Setup = setup("settle-command-condition");
     world.leave_open_batches(1);
-    let ((code, _, stderr), before) = run(&world.request());
+    let ((code, stdout, stderr), before) = run(&world.request());
     for wanted in ["no wrapper of the earlier release is in use in this worktree", "sets its commit service up again", "start the earlier helper"] {
         assert!(before.contains(wanted), "{wanted}: {before}");
     }
     assert_eq!(code, 1);
-    for wanted in ["batch 1", "could not be examined", "stays on disk", "nothing was discarded"] {
-        assert!(stderr.contains(wanted), "{wanted}: {stderr}");
+    for wanted in ["batch 1", "could not be examined", "stays on disk"] {
+        assert!(stdout.contains(wanted), "{wanted}: {stdout}");
     }
+    assert!(stderr.contains("nothing was discarded"), "{stderr}");
     assert_eq!(world.open_files(), 1);
     remove(world.root.as_path());
 }

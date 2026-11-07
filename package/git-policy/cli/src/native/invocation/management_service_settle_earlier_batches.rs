@@ -18,7 +18,7 @@
 
 use crate::action::Action;
 use crate::child_environment::{child_environment_overlay, environment_value};
-use crate::earlier_service_journal_adopted::{RequestedSettlement, SettledBatch, earlier_journals_in_state, hold_on_earlier_helper, open_batch_count, settle_on_request};
+use crate::earlier_service_journal_adopted::{RequestedSettlement, SettledBatch, UnansweredBatch, earlier_journals_in_state, hold_on_earlier_helper, open_batch_count, settle_on_request};
 use crate::earlier_service_process_look::Hold;
 use crate::management_service_repository_selection::{Selection, status_git_dir};
 use crate::service_instance::{earlier_service_unit_instance, earlier_socket_unit_instance, instance_of};
@@ -75,14 +75,47 @@ fn refused(reason: &str) -> Action {
     return Action::Exit { code: 1, stdout: String::new(), stderr: format!("{COMMAND}: {reason}\n") };
 }
 
-/// What to do about an earlier helper that may run or start, in plain words.
-fn way_on(instance: &str) -> String {
-    return format!(
-        "To go on, stop the earlier helper when no commit by the earlier release is running (`systemctl --user stop {} {}`), or wait for it to exit by itself, which it does when idle, three hours after its last client. Then run `{COMMAND}` again.",
-        earlier_socket_unit_instance(instance),
-        earlier_service_unit_instance(instance)
-    );
+/// What:
+///  What to do about the cause of a hold, in plain words, with the units that are the cause and no others.
+/// Why:
+///   The look tells this worktree's own socket and helper from the single service of the first releases, which serves every
+///  worktree; the units to stop differ, and stopping the wrong ones would leave the command refusing again. A listening socket
+///  does not stop by waiting, so the wait for an idle exit is offered only for a helper that runs with no socket listening,
+///  which the look reports after the sockets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wayOn = (hold: Hold, instance: string): string => ...
+/// ```
+fn way_on(because: Hold, instance: &str) -> String {
+    let own_units: String = format!("`systemctl --user stop {} {}`", earlier_socket_unit_instance(instance), earlier_service_unit_instance(instance));
+    let shared_units: String = format!("`systemctl --user stop {SHARED_SOCKET_UNIT} {SHARED_SERVICE_UNIT}`");
+    let again: String = format!("Then run `{COMMAND}` again.");
+    return match because {
+        Hold::InstanceSocketListens => format!(
+            "To go on, stop this worktree's earlier units with {own_units} when no commit by the earlier release is running here (the next commit made with this release stops the socket by itself unless its service is running). {again}"
+        ),
+        Hold::InstanceHelperRuns => format!(
+            "To go on, either stop it with {own_units} when no commit by the earlier release is running here, or wait: nothing listens that could start it again, and it exits by itself when idle, three hours after its last client. {again}"
+        ),
+        Hold::SharedSocketListens => format!(
+            "That service serves every worktree of this account, so stopping it ends it for all of them. To go on, stop it with {shared_units} when no commit by the earlier release is running in any worktree. {again}"
+        ),
+        Hold::SharedHelperRuns => format!(
+            "That service serves every worktree of this account. To go on, either stop it with {shared_units} when no commit by the earlier release is running in any worktree, or wait: nothing listens that could start it again, and it exits by itself when idle, three hours after its last client. {again}"
+        ),
+        Hold::HelperUnsure => format!(
+            "It is not known which one, so to go on, stop this worktree's earlier units with {own_units} and the single service of the first releases with {shared_units} (that one serves every worktree), when no commit by the earlier release is running. {again}"
+        ),
+        Hold::CannotLook => format!("To go on, try again in a moment. If it keeps happening, this program cannot read the list of running programs and sockets on this machine, and the batches stay open. {again}"),
+    };
 }
+
+/// The socket unit of the single service of the first releases, which served every worktree.
+const SHARED_SOCKET_UNIT: &str = "cli-git.socket";
+
+/// The service unit of the single service of the first releases.
+const SHARED_SERVICE_UNIT: &str = "cli-git.service";
 
 /// What is said before the command acts: the condition it is safe under.
 const CONDITION: &str = "Settling is safe only when no wrapper of the earlier release is in use in this worktree at this moment: such a wrapper sets its commit service up again and can start the earlier helper while this runs, and two services could then settle one batch. No earlier socket listens and no earlier helper runs now, so the command goes on.\n";
@@ -129,7 +162,7 @@ pub(crate) fn settle_earlier_batches_action(request: &SettleRequest<'_>, conditi
         return Action::Exit {
             code: 1,
             stdout: String::new(),
-            stderr: format!("{} the earlier release's commit service left open for this worktree were not settled, because {}. Nothing was changed. {}\n", batches(open), because.words(), way_on(instance.as_str())),
+            stderr: format!("{} the earlier release's commit service left open for this worktree were not settled, because {}. Nothing was changed. {}\n", batches(open), because.words(), way_on(because, instance.as_str())),
         };
     };
     if let Some(because) = hold_on_earlier_helper(&earlier, instance.as_str(), request.proc_root) {
@@ -138,27 +171,35 @@ pub(crate) fn settle_earlier_batches_action(request: &SettleRequest<'_>, conditi
     let Some(git) = request.git.as_ref() else {
         return refused("no real Git was found to finish the batches with, so nothing was settled.");
     };
-    let _said = condition_out.write_all(CONDITION.as_bytes());
-    let _flushed = condition_out.flush();
-    let settled = match settle_on_request(git, &earlier, instance.as_str(), request.proc_root, LOCK_CEILING) {
-        RequestedSettlement::Settled { batches, .. } => batches,
+    // The condition reaches the person before anything is changed; when it cannot be delivered, nothing is.
+    if let Err(error) = condition_out.write_all(CONDITION.as_bytes()).and_then(|()| { return condition_out.flush(); }) {
+        return refused(format!("the safety condition could not be written to standard error ({error}), so nothing was settled.").as_str());
+    }
+    let (settled, unanswered) = match settle_on_request(git, &earlier, instance.as_str(), request.proc_root, LOCK_CEILING) {
+        RequestedSettlement::Settled { batches, unanswered } => (batches, unanswered),
         RequestedSettlement::Held { because, .. } => return held(because),
         RequestedSettlement::NothingOpen => return Action::Exit { code: 0, stdout: String::from("No batch of the earlier release is left open for this worktree. Nothing to settle.\n"), stderr: String::new() },
     };
-    if settled.is_empty() {
-        return Action::Exit {
-            code: 1,
-            stdout: String::new(),
-            stderr: format!("{} could not be settled now: Git gave no answer about them, so nothing was discarded and they stay open. Run `{COMMAND}` again.\n", batches(open)),
-        };
+    let mut lines: String = settled.iter().map(line_of).collect();
+    for batch in &unanswered {
+        lines.push_str(unanswered_line(batch).as_str());
     }
-    let lines: String = settled.iter().map(line_of).collect();
     let still_open: bool = settled.iter().any(|batch| { return batch.report.handled == Handled::StillOpen; });
+    let problems: bool = still_open || !unanswered.is_empty();
     return Action::Exit {
-        code: i32::from(still_open),
+        code: i32::from(problems),
         stdout: lines,
-        stderr: if still_open { format!("Some batches stay open; run `{COMMAND}` again.\n") } else { String::new() },
+        stderr: if problems { format!("Some batches were not settled and stay on disk; nothing was discarded. Run `{COMMAND}` again.\n") } else { String::new() },
     };
+}
+
+/// A line about a batch the recovery could not examine, naming it and its journal.
+fn unanswered_line(batch: &UnansweredBatch) -> String {
+    return format!(
+        "batch {} in {} could not be examined: Git gave no answer about its branch (its repository may be unavailable); it stays on disk, nothing was discarded\n",
+        batch.seq,
+        batch.journal.display()
+    );
 }
 
 /// What:

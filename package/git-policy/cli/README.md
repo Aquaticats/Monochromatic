@@ -475,12 +475,17 @@ It takes no options and acts on the current worktree only.
  such a wrapper sets its commit service up again and can start the earlier helper while the command runs,
  and two services could then settle one batch.
 Before it acts, the command checks that no socket of the earlier units listens and no earlier helper runs;
- when one does, it settles nothing, says why, and says what to do
- (stop the earlier units with `systemctl --user stop`, or wait for the helper to exit by itself,
- which it does when idle, three hours after its last client).
+ when one does, it settles nothing, says which one it is, and says what to stop for that one:
+ this worktree's earlier units, or the single service of the first releases (`cli-git.socket` and `cli-git.service`),
+ which serves every worktree.
+It offers to wait for a helper's idle exit (three hours after its last client) only when no socket is left listening,
+ because a listening socket starts the helper again and does not stop by waiting.
 When the checks pass it says the condition above on standard error,
  then finishes the batches that landed, one line each on standard output,
  and leaves the intent of a batch that looks as if it never landed on disk.
+A batch it could not examine (Git gave no answer, for example because its repository is gone) is named in that output,
+ stays on disk, and makes the exit status 1.
+The command also refuses, changing nothing, when it cannot write that condition to standard error.
 Nothing runs it by itself, and a commit never waits for it.
 `git monochromatic-git-policy-cli doctor` says on standard error how many such batches the worktree has and names this command.
 

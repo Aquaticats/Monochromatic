@@ -627,6 +627,12 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   old-release wrapper is in use in that worktree; `doctor` reports the count. Sixth review (`sol-review-socket-6/review.txt`):
   both findings fixed (option removed; no unlink, retry read from `/proc/net/unix`). Cost while an old helper runs: about one
   millisecond per commit. Plan doc, "Changes after the fifth review" and "Changes after the sixth review".
+  Seventh cross-vendor run (`sol-review-settle-7/review.txt`, 2026-11-07): three defects in the settle command, fixed on
+  `fix/git-policy-cli-settle-command-review-fixes` (condition write failure refuses; unexamined batches are named and exit 1;
+  the hold keeps which socket or helper caused it and the remedy fits; plan doc, "Changes after the seventh review").
+  Open question found on the way: `LEGACY_SOCKET_RELATIVE` in `service_instance.rs` reads `monochromatic-git-policy-cli/service.sock`
+  where the first releases wrote `cli-git/service.sock` (tag line 26), so the retirement of the single service looks for the wrong
+  socket file.
   After the one release, every later release carries `-alpha.N` and skips crates.io, but this machine installs our
   seven tools through crates.io (`cargo-binstall`); until they install from GitHub releases (the `archive` route
   `mpm-shadow` uses, task #167), no later fix can be installed here. The owner has not yet said whether that route

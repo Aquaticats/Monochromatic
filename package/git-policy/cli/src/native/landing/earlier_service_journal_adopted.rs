@@ -49,7 +49,7 @@ use crate::service_instance::instance_of;
 use crate::transaction_git::GitContext;
 /// The log of the service.
 use crate::journald_native::Priority;
-use crate::service_journal::{OPEN_EXTENSION, Recovery, list_intents_read_only};
+use crate::service_journal::{OPEN_EXTENSION, Recovery, batch_path, list_intents_read_only};
 use crate::service_timing::log_entry;
 /// The names of the folders.
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
@@ -115,15 +115,20 @@ pub fn earlier_journals_in_state(state: &Path, instance: &str) -> EarlierJournal
 /// function openBatchCount(earlier: EarlierJournals, instance: string): number;
 /// ```
 pub fn open_batch_count(earlier: &EarlierJournals, instance: &str) -> usize {
-    let mut count: usize = 0;
-    for journal in [&earlier.per_instance, &earlier.shared] {
-        for (_path, parsed) in list_intents_read_only(journal.as_path(), OPEN_EXTENSION) {
-            if parsed.is_some_and(|intent| { return instance_of(intent.git_dir.as_path()) == instance; }) {
-                count += 1;
-            }
+    return open_batches_of(earlier.per_instance.as_path(), instance).len() + open_batches_of(earlier.shared.as_path(), instance).len();
+}
+
+/// The numbers of the open batches of the worktree that one journal holds, read without changing a file.
+fn open_batches_of(journal: &Path, instance: &str) -> Vec<u64> {
+    let mut seqs: Vec<u64> = Vec::new();
+    for (_path, parsed) in list_intents_read_only(journal, OPEN_EXTENSION) {
+        if let Some(intent) = parsed
+            && instance_of(intent.git_dir.as_path()) == instance
+        {
+            seqs.push(intent.seq);
         }
     }
-    return count;
+    return seqs;
 }
 
 /// One batch an on-request settling dealt with, and the journal it was found in.
@@ -205,16 +210,26 @@ pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: 
         return RequestedSettlement::Held { open, because };
     }
     let mut settled: Vec<SettledBatch> = Vec::new();
+    let mut unanswered: Vec<UnansweredBatch> = Vec::new();
     for journal in [earlier.per_instance.clone(), earlier.shared.clone()] {
         if !journal.is_dir() {
             continue;
         }
+        let selected: Vec<u64> = open_batches_of(journal.as_path(), instance);
         let earlier_context: LandContext = LandContext { git: git.clone(), journal: journal.clone(), on_objects_written: None, lock_ceiling };
         let reports: Vec<RecoveryReport> = recover_instance_without_drops(&earlier_context, instance);
         log_adopted_batches(reports.as_slice(), journal.as_path());
+        // The recovery leaves out a batch Git gave no answer for. It is named, with its intent still on disk, so the person is
+        //  never told that everything was dealt with when a batch was not even examined.
+        for seq in selected {
+            let reported: bool = reports.iter().any(|report| { return report.seq == seq; });
+            if !reported && batch_path(journal.as_path(), seq, OPEN_EXTENSION).exists() {
+                unanswered.push(UnansweredBatch { journal: journal.clone(), seq });
+            }
+        }
         settled.extend(reports.into_iter().map(|report| { return SettledBatch { journal: journal.clone(), report }; }));
     }
-    return RequestedSettlement::Settled { batches: settled, unanswered: Vec::new() };
+    return RequestedSettlement::Settled { batches: settled, unanswered };
 }
 
 /// What:

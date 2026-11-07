@@ -56,22 +56,18 @@ const EARLIER_SOCKET_FOLDER: &str = DATA_FOLDER.earlier;
 /// The file name of the socket the single service of the first releases listened on, in the earlier socket folder.
 const EARLIER_SHARED_SOCKET_FILE: &str = "service.sock";
 
-/// Why the look cannot promise that no service of the worktree runs or will start.
+/// Why the look cannot promise that no service of the worktree runs or will start, and which one it is.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Hold {
-    /// A socket of an earlier unit listens: a connection to it starts the earlier helper at any moment.
-    SocketListens,
-    /// The earlier release's socket of this worktree (`cli-git/<instance>.sock`) listens.
+    /// The earlier release's socket of this worktree (`cli-git/<instance>.sock`) listens: a connection to it starts the helper.
     InstanceSocketListens,
-    /// The socket of the single service of the first releases (`cli-git/service.sock`) listens; it serves every worktree.
+    /// The socket of the single service of the first releases (`cli-git/service.sock`) listens; that service serves every worktree.
     SharedSocketListens,
-    /// A process has the start arguments of the earlier helper of the worktree.
-    ServiceRuns,
-    /// A process runs as the earlier helper of this worktree (its journal or its instance is this worktree's).
+    /// A process runs as the earlier helper of this worktree: its journal is this worktree's, or its mode words and instance are.
     InstanceHelperRuns,
-    /// A process runs as the single service of the first releases (its journal is the shared one); it serves every worktree.
+    /// A process runs as the single service of the first releases: its journal is the shared one; it serves every worktree.
     SharedHelperRuns,
-    /// A process has a journal option whose folder could not be resolved, so it may be an earlier helper.
+    /// A process has a journal option whose folder could not be resolved, so it may be an earlier helper of either kind.
     HelperUnsure,
     /// The sockets or the processes could not be looked at (a table or a command line that cannot be read, a look that ran out of time).
     CannotLook,
@@ -81,9 +77,11 @@ impl Hold {
     /// The reason in plain words, as a sentence part that follows "because".
     pub fn words(self) -> &'static str {
         return match self {
-            Hold::InstanceSocketListens | Hold::SharedSocketListens | Hold::InstanceHelperRuns | Hold::SharedHelperRuns | Hold::HelperUnsure => "",
-            Hold::SocketListens => "an earlier socket of this worktree listens, and a connection to it starts the earlier helper at any moment",
-            Hold::ServiceRuns => "a process runs as the earlier helper of this worktree, and it finishes its own batches",
+            Hold::InstanceSocketListens => "the socket of the earlier release's commit service for this worktree listens, and a connection to it starts that service at any moment",
+            Hold::SharedSocketListens => "the socket of the single commit service of the first releases listens (it serves every worktree), and a connection to it starts that service at any moment",
+            Hold::InstanceHelperRuns => "a program of the earlier release is running as the commit service of this worktree, and it finishes its own batches",
+            Hold::SharedHelperRuns => "a program of the first releases is running as the single commit service of every worktree, and it finishes its own batches",
+            Hold::HelperUnsure => "a running program has the earlier commit service's journal option with a folder this check could not resolve, so it may be that service",
             Hold::CannotLook => "the sockets and processes of the earlier helper could not be looked at in time, so it is not known whether one runs",
         };
     }
@@ -94,8 +92,9 @@ impl Hold {
 pub struct ServiceLook {
     /// The worktree's instance name.
     pub instance: String,
-    /// The folders an earlier release's service of the worktree kept its journal in, per instance and shared:
-    ///  a process that was started with one of them as its journal is a service of the worktree.
+    /// The folders an earlier release's service of the worktree kept its journal in: the instance's own first, the shared one
+    ///  second. A process that was started with one of them as its journal is a service of the worktree, and which one it is
+    ///  tells the person what to stop.
     pub journals: Vec<PathBuf>,
     /// This process, which is never another service.
     pub own_pid: u32,
@@ -143,16 +142,6 @@ fn path_word(path: &Path) -> Vec<u8> {
     return path.to_string_lossy().into_owned().into_bytes();
 }
 
-/// Whether a command line word spells one of the earlier journal folders, byte for byte.
-fn is_earlier_journal(journals: &[PathBuf], word: &[u8]) -> bool {
-    for journal in journals {
-        if path_word(journal.as_path()).as_slice() == word {
-            return true;
-        }
-    }
-    return false;
-}
-
 /// The identity of a folder or file: the device it is on and its inode, which every spelling of one folder shares.
 #[cfg(unix)]
 type FileIdentity = (u64, u64);
@@ -162,39 +151,45 @@ type FileIdentity = (u64, u64);
 struct JournalNames<'a> {
     /// The earlier journals, as the service spells them.
     spellings: &'a [PathBuf],
-    /// The identity of each earlier journal that exists.
-    identities: &'a [FileIdentity],
     /// `<proc root>/<pid>` of the process, whose `cwd` is the folder a relative word is resolved in.
     process: &'a Path,
 }
 
 /// What:
-///  Whether a journal word of a command line may name one of the earlier journals: it spells one byte for byte, it resolves to
-///  the same folder (device and inode), or it cannot be resolved at all.
-///  `bool` is "may name": a word that resolves to another folder is the only `false`.
+///  Which earlier journal a journal word of a command line names: the instance's own (the first of the look's journals), the
+///  shared one (the second), or one that cannot be resolved; nothing when it names another folder.
 /// Why:
-///   The service derives `/var/home/user/...`, and an earlier helper started with `/home/user/...` names the same folder through
-///  the link `/home`; a relative word means the folder in the working directory of the process that was started with it, which
-///  `/proc/<pid>/cwd` gives (the kernel follows it). A stat that fails says nothing about which folder the word names, and an
-///  open question must not start a second service on the journal.
+///   The word is compared as it is spelled, then by the folder it resolves to (device and inode): the service derives
+///  `/var/home/user/...`, and an earlier helper started with `/home/user/...` names the same folder through the link `/home`; a
+///  relative word means the folder in the working directory of the process that was started with it, which `/proc/<pid>/cwd`
+///  gives (the kernel follows it). A stat that fails says nothing about which folder the word names, and an open question must
+///  not start a second service on the journal. Which journal it is decides what the person is told to stop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const mayName = (word: string, names: JournalNames) => spells(word) || sameFolder(resolve(word, names.process + '/cwd'), names.identities) || !resolvable(word)
+/// const journalNamed = (word: string, names: JournalNames) => spelled(word) ?? sameFolderAs(resolve(word, names.process + '/cwd')) ?? (resolvable(word) ? undefined : 'unsure')
 /// ```
 #[cfg(unix)]
-fn journal_word_may_name_earlier_journal(names: &JournalNames, word: &[u8]) -> bool {
+fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<Hold> {
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::MetadataExt;
-    if is_earlier_journal(names.spellings, word) {
-        return true;
+    let hold_of = |index: usize| -> Hold { return if index == 1 { Hold::SharedHelperRuns } else { Hold::InstanceHelperRuns }; };
+    for (index, journal) in names.spellings.iter().enumerate() {
+        if path_word(journal.as_path()).as_slice() == word {
+            return Some(hold_of(index));
+        }
     }
     let spelled: &Path = Path::new(std::ffi::OsStr::from_bytes(word));
     let resolved: PathBuf = if spelled.is_absolute() { spelled.to_path_buf() } else { names.process.join("cwd").join(spelled) };
-    return match std::fs::metadata(resolved.as_path()) {
-        Ok(found) => names.identities.contains(&(found.dev(), found.ino())),
-        Err(_) => true,
+    let Ok(found) = std::fs::metadata(resolved.as_path()) else {
+        return Some(Hold::HelperUnsure);
     };
+    for (index, journal) in names.spellings.iter().enumerate() {
+        if matches!(std::fs::metadata(journal), Ok(known) if (known.dev(), known.ino()) == (found.dev(), found.ino())) {
+            return Some(hold_of(index));
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -214,19 +209,25 @@ fn journal_word_may_name_earlier_journal(names: &JournalNames, word: &[u8]) -> b
 ///   || (hasPair(words, 'service', 'run') && hasPair(words, '--instance', look.instance))
 /// ```
 #[cfg(unix)]
-fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> bool {
+fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> Option<Hold> {
     let mode_in_a_row: bool = words.iter().enumerate().any(|(at, _)| { return is_earlier_mode_at(words, at); });
     let mut instance_named: bool = false;
-    let mut journal_named: bool = false;
+    let mut journal_named: Option<Hold> = None;
     for pair in words.windows(2) {
         if pair[0] == INSTANCE_OPTION.as_bytes() && pair[1] == look.instance.as_bytes() {
             instance_named = true;
         }
-        if pair[0] == JOURNAL_OPTION.as_bytes() && journal_word_may_name_earlier_journal(names, pair[1]) {
-            journal_named = true;
+        if pair[0] == JOURNAL_OPTION.as_bytes()
+            && journal_named.is_none()
+            && let Some(named) = journal_word_names(names, pair[1])
+        {
+            journal_named = Some(named);
         }
     }
-    return journal_named || (mode_in_a_row && instance_named);
+    if journal_named.is_some() {
+        return journal_named;
+    }
+    return if mode_in_a_row && instance_named { Some(Hold::InstanceHelperRuns) } else { None };
 }
 
 /// Whether an error says the process ended while it was looked at: its entry is gone (`ENOENT`) or `read` found no process
@@ -237,24 +238,30 @@ fn process_is_gone(error: &std::io::Error) -> bool {
 }
 
 /// What:
-///  Whether a socket that listens where an earlier unit's socket listens exists: the earlier socket of the worktree's instance
-///  or the single service's socket of the first releases. A table of sockets that cannot be read is told apart.
+///  Which socket of the earlier units listens, if one does: this worktree's own first, then the single service's of the first
+///  releases. A table of sockets that cannot be read is told apart.
 /// Why:
 ///   A connection to such a socket starts the earlier helper at once, with no process to be seen before, so no look at the
 ///  processes can prove that none will start. The table lists the sockets that exist now and says which of them listen; the
 ///  file of a socket whose unit stopped stays in the runtime directory, and a connection to test it would start the helper.
+///  The two sockets are told apart because stopping them takes different units, and the shared one serves every worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// listeningSocketsEndingWith(procRoot, [instanceSocket, sharedSocket])
+/// listeningSocketsEndingWith(procRoot, [instanceSocket]) || listeningSocketsEndingWith(procRoot, [sharedSocket])
 /// ```
 #[cfg(unix)]
-fn earlier_sockets_that_listen(look: &ServiceLook, proc_root: &Path) -> ListeningSockets {
-    let endings: [Vec<u8>; 2] = [
-        earlier_socket_ending(look.instance.as_str()),
-        format!("/{EARLIER_SOCKET_FOLDER}/{EARLIER_SHARED_SOCKET_FILE}").into_bytes(),
-    ];
-    return listening_sockets_ending_with(proc_root, &endings);
+fn earlier_socket_that_listens(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
+    let shared: Vec<u8> = format!("/{EARLIER_SOCKET_FOLDER}/{EARLIER_SHARED_SOCKET_FILE}").into_bytes();
+    return match listening_sockets_ending_with(proc_root, &[earlier_socket_ending(look.instance.as_str())]) {
+        ListeningSockets::Listens => Some(Hold::InstanceSocketListens),
+        ListeningSockets::Unreadable => Some(Hold::CannotLook),
+        ListeningSockets::None => match listening_sockets_ending_with(proc_root, &[shared]) {
+            ListeningSockets::Listens => Some(Hold::SharedSocketListens),
+            ListeningSockets::Unreadable => Some(Hold::CannotLook),
+            ListeningSockets::None => None,
+        },
+    };
 }
 
 /// What a look at one process found.
@@ -339,14 +346,13 @@ fn journal_identities(journals: &[PathBuf]) -> Option<Vec<FileIdentity>> {
 /// ```
 #[cfg(unix)]
 fn scan(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
-    match earlier_sockets_that_listen(look, proc_root) {
-        ListeningSockets::Listens => return Some(Hold::SocketListens),
-        ListeningSockets::Unreadable => return Some(Hold::CannotLook),
-        ListeningSockets::None => {}
+    if let Some(hold) = earlier_socket_that_listens(look, proc_root) {
+        return Some(hold);
     }
-    let Some(identities) = journal_identities(look.journals.as_slice()) else {
+    // A journal folder that cannot be looked at for a reason other than its absence leaves the question open.
+    if journal_identities(look.journals.as_slice()).is_none() {
         return Some(Hold::CannotLook);
-    };
+    }
     let Ok(listing) = std::fs::read_dir(proc_root) else {
         return Some(Hold::CannotLook);
     };
@@ -367,11 +373,11 @@ fn scan(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
             CommandLine::Unproven => return Some(Hold::CannotLook),
         };
         let process: PathBuf = entry.path();
-        let names: JournalNames = JournalNames { spellings: look.journals.as_slice(), identities: identities.as_slice(), process: process.as_path() };
+        let names: JournalNames = JournalNames { spellings: look.journals.as_slice(), process: process.as_path() };
         // Every word ends with a NUL byte, the last one too: that last NUL ends a word, it does not start an empty one.
         let words: Vec<&[u8]> = bytes.strip_suffix(&[0]).unwrap_or(bytes.as_slice()).split(is_word_end).collect();
-        if is_service_of(words.as_slice(), look, &names) {
-            return Some(Hold::ServiceRuns);
+        if let Some(hold) = is_service_of(words.as_slice(), look, &names) {
+            return Some(hold);
         }
     }
     return None;

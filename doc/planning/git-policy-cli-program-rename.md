@@ -374,6 +374,30 @@ Recorded 2026-11-07, after the owner's pick and the sixth cross-vendor run
 - Not covered: the command against a real systemd and a real earlier helper (the machine's `cli-git@` units are live and were
   not touched); a helper in another PID namespace; the Windows build.
 
+#### Changes after the seventh review
+
+Recorded 2026-11-07, after the seventh cross-vendor run (`~/temp/agent/issue-6261/sol-review-settle-7/review.txt`) on the settle
+command found three defects, fixed on `fix/git-policy-cli-settle-command-review-fixes`, each with a red test committed first.
+
+- The safety condition's write and flush errors were ignored, so a closed standard error let the command change the journal
+  without the condition being delivered. A failure now refuses before any recovery starts (unit test with a failing writer;
+  binary test with the reader of standard error gone: the batch stays open).
+- A batch Git could not answer for was left out of the recovery's result, and the command noticed only an empty result. The
+  settling now reconciles its result against the open batches it selected: each one that is neither reported nor gone is an
+  `UnansweredBatch`, named with its journal in the output, left on disk, and the exit status is 1 (also for a batch left open).
+- The hold kept only "a socket listens" and the remedy always named this worktree's units. The hold now says which one:
+  this worktree's own socket, the single service's socket of the first releases (`cli-git/service.sock`), a helper started with
+  this worktree's journal or mode words, a helper started with the shared journal, a helper whose journal folder cannot be
+  resolved, or a look that could not be made.
+  Remedies match: this worktree's units for the first and third; `cli-git.socket cli-git.service` for the single service, with
+  the sentence that it serves every worktree; both sets for the unresolved one.
+  The wait for the three-hour idle exit is offered only for a helper that runs with no socket listening, because a listening
+  socket starts the helper again and does not stop by waiting.
+  A claim left out on purpose: that the next commit with this release retires the single service.
+  The code that retires it (`retire_earlier_service`) looks for its socket file under the new folder name
+  (`LEGACY_SOCKET_RELATIVE`), where the first releases wrote `cli-git/service.sock`; that is a separate question to check
+  before the message may promise it.
+
 ### Where the plan was wrong or incomplete
 
 - The plan's units section says a running old helper "keeps landing commits until replaced".
