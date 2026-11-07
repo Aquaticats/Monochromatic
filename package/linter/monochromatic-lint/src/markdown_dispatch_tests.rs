@@ -13,13 +13,13 @@
 
 /// Import the dispatcher and its typed inputs.
 use super::check_markdown_rules;
+use crate::configuration_rules::RULE_IDS;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::markdown_lfs_context::{LfsImageContext, LfsImageTarget};
 use crate::markdown_rule_settings::{MarkdownRuleSettings, markdown_rule_settings};
 use crate::markdown_source::MarkdownSource;
 use monochromatic_jsonc_edit::parse_jsonc;
 use std::collections::BTreeMap;
-use crate::configuration_rules::RULE_IDS;
 use std::path::PathBuf;
 
 /// The Markdown LFS rule, which needs an LFS context the other rules never read.
@@ -35,7 +35,7 @@ fn ids() -> Vec<&'static str> {
         .iter()
         .copied()
         .filter(|id| return id.starts_with("markdown/") && *id != LFS_RULE)
-        .collect()
+        .collect();
 }
 
 /// Parse the shared fixture.

@@ -269,7 +269,10 @@ fn lint_threads_hold_the_documented_eight_mebibyte_stack() {
         .expect("the probe returns");
     assert!(reached >= PROBE_BYTES, "{reached}");
     // The measured span is the configured stack minus the thread's start-up needs.
-    assert!(reached <= WORKER_STACK_BYTES, "{reached} exceeds the lint stack");
+    assert!(
+        reached <= WORKER_STACK_BYTES,
+        "{reached} exceeds the lint stack"
+    );
 }
 
 /// A writer that panics,

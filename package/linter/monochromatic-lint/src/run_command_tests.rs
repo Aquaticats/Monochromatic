@@ -421,10 +421,7 @@ fn processing_failures_exit_two_and_do_not_hide_other_findings() {
     assert_eq!(output.exit_code, 2);
     assert_eq!(
         codes(output.stdout.as_str()),
-        [
-            "markdown/no-trailing-punctuation",
-            PROCESSING_FAILURE
-        ]
+        ["markdown/no-trailing-punctuation", PROCESSING_FAILURE]
     );
     assert_eq!(filenames(output.stdout.as_str()), ["a.md", "broken.mdx"]);
     // Silent output still exits 2: unavailable coverage never looks clean.

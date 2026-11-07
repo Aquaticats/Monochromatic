@@ -75,7 +75,7 @@ fn summary(found: &[Diagnostic]) -> Vec<String> {
 
 /// One expected finding: the diagnostic code and the source line that carries it.
 fn expected(code: &str, line: usize) -> String {
-    return format!("{code}@{line}")
+    return format!("{code}@{line}");
 }
 
 /// Rust fixture findings:
@@ -114,7 +114,10 @@ fn disable_line_covers_only_its_own_line() {
     );
     assert_eq!(
         summary(&found),
-        [expected("rust/tests-in-sidecars", 1), expected("rust/tests-in-sidecars", 3)]
+        [
+            expected("rust/tests-in-sidecars", 1),
+            expected("rust/tests-in-sidecars", 3)
+        ]
     );
 }
 
@@ -144,7 +147,10 @@ fn disable_lasts_until_enable_or_end_of_file() {
     );
     assert_eq!(
         summary(&found),
-        [expected("rust/tests-in-sidecars", 1), expected("rust/tests-in-sidecars", 5)]
+        [
+            expected("rust/tests-in-sidecars", 1),
+            expected("rust/tests-in-sidecars", 5)
+        ]
     );
     let open: &str = "fn before() {}\n// monochromatic-lint-disable rust/tests-in-sidecars -- r\nfn inside() {}\nfn after() {}\n";
     let rest: Vec<Diagnostic> = apply(
@@ -234,7 +240,10 @@ fn line_directives_apply_inside_and_outside_ranges() {
     let found: Vec<Diagnostic> = apply(Language::Rust, source, findings, None);
     assert_eq!(
         summary(&found),
-        [expected("rust/tests-in-sidecars", 5), expected("markdown/no-bare-urls", 5)]
+        [
+            expected("rust/tests-in-sidecars", 5),
+            expected("markdown/no-bare-urls", 5)
+        ]
     );
 }
 
@@ -251,7 +260,10 @@ fn a_bare_directive_leaves_unsuppressible_rules_alone() {
     let found: Vec<Diagnostic> = apply(Language::Rust, source, findings, Some(Severity::Warn));
     assert_eq!(
         summary(&found),
-        [expected("rust/max-lines", 2), expected("rust/require-rustdoc", 2)]
+        [
+            expected("rust/max-lines", 2),
+            expected("rust/require-rustdoc", 2)
+        ]
     );
 }
 
@@ -414,7 +426,10 @@ fn malformed_comments_are_reported() {
         );
         assert_eq!(
             summary(&found),
-            [expected("rust/tests-in-sidecars", 2), expected(MALFORMED, 1)],
+            [
+                expected("rust/tests-in-sidecars", 2),
+                expected(MALFORMED, 1)
+            ],
             "{comment}"
         );
         assert_eq!(found[1].severity, Severity::Error);
@@ -435,7 +450,10 @@ fn multi_line_line_directives_are_malformed_but_ranges_may_span_lines() {
     );
     assert_eq!(
         summary(&found),
-        [expected("rust/tests-in-sidecars", 3), expected(MALFORMED, 1)]
+        [
+            expected("rust/tests-in-sidecars", 3),
+            expected(MALFORMED, 1)
+        ]
     );
     assert!(found[1].message.contains("must be written on one line"));
     let range: &str = "/* monochromatic-lint-disable rust/tests-in-sidecars\n -- r */\nfn a() {}\n";
@@ -594,7 +612,10 @@ fn markdown_directives_and_inert_text() {
     );
     assert_eq!(
         summary(&found),
-        [expected("markdown/no-bare-urls", 4), expected("markdown/single-h1", 9)]
+        [
+            expected("markdown/no-bare-urls", 4),
+            expected("markdown/single-h1", 9)
+        ]
     );
 }
 

@@ -11,11 +11,11 @@
 
 /// Import the actual interface and rule settings used by executable integration.
 use super::{ProcessorLanguage, VirtualSource, extract};
-/// Inspect original-host wire findings and apply real atomic groups.
-use crate::run_failure::PROCESSING_FAILURE;
 use crate::diagnostic::{Diagnostic, Severity};
 /// Fix application is always the production grouped edit implementation.
 use crate::edits::{Edit, Fix, apply_fixes};
+/// Inspect original-host wire findings and apply real atomic groups.
+use crate::run_failure::PROCESSING_FAILURE;
 /// Exercise selected rule behavior,
 ///  including the authored code-line budget.
 use crate::rust_rule_settings::{LineBudget, RustRuleSettings};
