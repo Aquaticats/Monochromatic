@@ -4767,7 +4767,27 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The old notice and its flaky test are gone.
   The late-line gap is closed in main
   (`baf4c039f2`).
-  The next wrapper release waits only for the tokio agent's measured cause of the leftover ref lock.
+  The next wrapper release waited for the tokio agent's measured cause of the leftover ref lock;
+  that cause is measured
+  (Git's own SIGTERM cleanup removes the lock's pid file and then the lock,
+  and a 5 s stop can land between the two),
+  and the race is the same in the installed 0.6.0,
+  so the alpha no longer waits for the tokio branch.
+  Measured 2026-11-07:
+  the installed 0.6.0 still prints six old-name lines on every command;
+  the old files in the main Git directory were last written between 07:06 and 08:24
+  and nothing under `.git/cli-git` changed after 08:25.
+  Next:
+  after the no-checkout clone fix merges,
+  one container gate on main,
+  then a wrapper alpha from main (fold,
+  late-line fix,
+  no-checkout fix,
+  held message,
+  index-lock fallback),
+  lock,
+  install,
+  and a check that the six lines are gone and the old logs' lines are in the current logs.
   Another suite-only failure seen once in its gates:
   `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
   gates;
