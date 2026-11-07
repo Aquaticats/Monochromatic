@@ -475,12 +475,17 @@ It takes no options and acts on the current worktree only.
  such a wrapper sets its commit service up again and can start the earlier helper while the command runs,
  and two services could then settle one batch.
 Before it acts, the command checks that no socket of the earlier units listens and no earlier helper runs;
- when one does, it settles nothing, says why, and says what to do
- (stop the earlier units with `systemctl --user stop`, or wait for the helper to exit by itself,
- which it does when idle, three hours after its last client).
+ when one does, it settles nothing, says which one it is, and says what to stop for that one:
+ this worktree's earlier units, or the single service of the first releases (`cli-git.socket` and `cli-git.service`),
+ which serves every worktree.
+It offers to wait for a helper's idle exit (three hours after its last client) only when no socket is left listening,
+ because a listening socket starts the helper again and does not stop by waiting.
 When the checks pass it says the condition above on standard error,
  then finishes the batches that landed, one line each on standard output,
  and leaves the intent of a batch that looks as if it never landed on disk.
+A batch it could not examine (Git gave no answer, for example because its repository is gone) is named in that output,
+ stays on disk, and makes the exit status 1.
+The command also refuses, changing nothing, when it cannot write that condition to standard error.
 Nothing runs it by itself, and a commit never waits for it.
 `git monochromatic-git-policy-cli doctor` says on standard error how many such batches the worktree has and names this command.
 
@@ -2546,6 +2551,16 @@ service instead of by the wrapper itself. The service is a mode of the same exec
 starts on demand; the wrapper never starts it, and typed by hand with no socket from the manager and no address it refuses
 and starts nothing. The release archive holds that one executable, as cargo-binstall requires of every `[[bin]]`. Commits queue in arrival order, a batch of whatever is queued lands with one
 durable write, and a commit that waits says how many commits go first. There is nothing to install and no setting.
+
+**The service never starts at system startup or at login** (owner, 2026-11-07: "Were you implying our wrapper or something in it
+auto starts itself on system startup or user login? It should never do that! Follow Bazel."; then: "Systemd units are fine.").
+It is started by the first command that needs it, and exits after three idle hours, like Bazel's server.
+The units are runtime units with no `[Install]` section (no `WantedBy=`, `RequiredBy=` or `Also=`), so `systemctl --user enable`
+has nothing to link; provisioning links nothing, writes only below `$XDG_RUNTIME_DIR/systemd/user` (the one other thing it does
+there is remove files an earlier release put in `~/.config/systemd/user`), and asks the manager only to reload, reset a failed
+unit, start, stop and report a state.
+Guard tests keep it so: `src/native/source_guard/no_start_at_login_tests.rs` and
+`src/native/service/service_provision_never_starts_at_login_tests.rs`.
 
 - The first commit that needs the service sets up its socket activation itself, and every later one checks it is still
   right: it compares the two installed units with what this release would write and, only when they differ (an upgrade or

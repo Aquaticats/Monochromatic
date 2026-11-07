@@ -19,7 +19,7 @@ use crate::wrapper_names_old_and_new::DATA_FOLDER;
 fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Path) -> Vec<RecoveryReport> {
     let Some(earlier) = earlier_journals_of(context.journal.as_path(), instance) else { return Vec::new() };
     return match settle_on_request(&context.git, &earlier, instance, proc_root, context.lock_ceiling) {
-        RequestedSettlement::Settled(batches) => batches.into_iter().map(|batch| { return batch.report; }).collect(),
+        RequestedSettlement::Settled { batches, .. } => batches.into_iter().map(|batch| { return batch.report; }).collect(),
         RequestedSettlement::NothingOpen | RequestedSettlement::Held { .. } => Vec::new(),
     };
 }

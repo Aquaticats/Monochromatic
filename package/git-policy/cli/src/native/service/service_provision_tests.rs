@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 /// A manager that records what it is asked and can be made to fail.
 #[derive(Clone, Default)]
-struct Recorder {
+pub(super) struct Recorder {
     calls: Arc<Mutex<Vec<String>>>,
     failure: Arc<Mutex<Option<CallError>>>,
     /// What a stop is answered with, when it is not the general failure.
@@ -103,17 +103,17 @@ impl Recorder {
         }
     }
 
-    fn calls(&self) -> Vec<String> {
+    pub(super) fn calls(&self) -> Vec<String> {
         return self.calls.lock().expect("lock").clone();
     }
 }
 
-struct Machine {
-    root: PathBuf,
-    host: ProvisionHost,
+pub(super) struct Machine {
+    pub(super) root: PathBuf,
+    pub(super) host: ProvisionHost,
 }
 
-fn machine(name: &str) -> Machine {
+pub(super) fn machine(name: &str) -> Machine {
     let root: PathBuf = fixture(name);
     let host: ProvisionHost = ProvisionHost {
         runtime_dir: root.join("run"),
@@ -186,7 +186,7 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
 }
 
 /// The socket the units activate, as the manager would have made it.
-fn add_socket(machine: &Machine) {
+pub(super) fn add_socket(machine: &Machine) {
     let socket: PathBuf = socket_path(machine.host.runtime_dir.as_path(), machine.host.instance.as_str());
     std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("directories");
     std::fs::write(&socket, b"").expect("socket stand-in");
@@ -444,7 +444,7 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
 }
 
 /// The wrapper's units of the earlier single service in `directory`, and the socket file it listened on.
-fn earlier_service_files(machine: &Machine, directory: &Path) -> PathBuf {
+pub(super) fn earlier_service_files(machine: &Machine, directory: &Path) -> PathBuf {
     std::fs::create_dir_all(directory).expect("unit directory");
     for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
         std::fs::write(directory.join(name), "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("earlier unit");
@@ -933,6 +933,58 @@ fn an_earlier_socket_that_listens_keeps_the_installation_from_being_in_place_and
     std::fs::remove_file(machine.root.join("proc/net/unix")).expect("table removed");
     assert!(!in_place_with(&machine.host, machine.root.join("proc").as_path()), "a table that cannot be read leaves the question open");
     assert!(own_file.exists());
+    remove(machine.root.as_path());
+}
+//endregion
+
+//region the shared socket of the first releases
+//  Found by the audit of the names the rename changed: the single service of the first releases listened on
+//  `<runtime>/cli-git/service.sock` (tag `monochromatic-git-policy-cli-v0.5.34`, `service_instance.rs` line 26), a path of the
+//  earlier program, which the rename had turned into this release's folder name.
+
+/// The socket file of the single service of the first releases, spelled out.
+fn shared_earlier_socket(machine: &Machine) -> PathBuf {
+    return machine.host.runtime_dir.join("cli-git").join("service.sock");
+}
+
+/// The constant names that file, and not a file of this release's folder.
+#[test]
+fn the_shared_earlier_socket_is_in_the_earlier_programs_folder() {
+    assert_eq!(LEGACY_SOCKET_RELATIVE, "cli-git/service.sock");
+}
+
+/// A socket file of the single service of the first releases keeps the installation from counting as in place, and a file of
+///  that name in this release's folder (which nothing makes) does not.
+#[test]
+fn the_shared_earlier_socket_file_keeps_the_installation_from_being_in_place() {
+    let machine: Machine = machine("provision-shared-earlier-in-place-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    assert!(in_place(&machine.host));
+    let elsewhere: PathBuf = machine.host.runtime_dir.join("monochromatic-git-policy-cli").join("service.sock");
+    std::fs::write(&elsewhere, b"").expect("a file of this release's folder");
+    assert!(in_place(&machine.host), "this release's folder is not the single service's");
+    std::fs::remove_file(&elsewhere).expect("removed");
+    let shared: PathBuf = shared_earlier_socket(&machine);
+    std::fs::create_dir_all(shared.parent().expect("socket directory")).expect("directories");
+    std::fs::write(&shared, b"").expect("the single service's socket file");
+    assert!(!in_place(&machine.host));
+    remove(machine.root.as_path());
+}
+
+/// The single service's socket file with no unit file anywhere is what a release that removed the files but not the service left
+///  behind: both unit names are stopped, and the file is removed afterwards.
+#[test]
+fn a_shared_earlier_socket_file_without_unit_files_retires_the_service_at_its_own_path() {
+    let machine: Machine = machine("provision-shared-earlier-retire-lib");
+    let shared: PathBuf = shared_earlier_socket(&machine);
+    std::fs::create_dir_all(shared.parent().expect("socket directory")).expect("directories");
+    std::fs::write(&shared, b"").expect("the single service's socket file");
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let calls: Vec<String> = recorder.calls();
+    assert!(calls.contains(&format!("stop {LEGACY_SOCKET_UNIT_NAME}")) && calls.contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "{calls:?}");
+    assert!(!shared.exists(), "its socket file is gone");
     remove(machine.root.as_path());
 }
 //endregion

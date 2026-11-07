@@ -5,7 +5,7 @@
 use super::adoption_tests::{LISTENING_FLAGS, empty_proc, fake_process, instance_for, unix_table_line, world_with_earlier_journal, write_unix_table};
 use super::tests::{World, land_with_failed_index, request};
 use super::*;
-use crate::earlier_service_journal_adopted::{RequestedSettlement, earlier_journals_in_state, open_batch_count, settle_on_request};
+use crate::earlier_service_journal_adopted::{RequestedSettlement, UnansweredBatch, earlier_journals_in_state, open_batch_count, settle_on_request};
 use crate::earlier_service_process_look::Hold;
 use crate::service_journal::{OPEN_EXTENSION, batch_path, list_intents, parse_intent, write_intent};
 use crate::test_support::{git_text, remove};
@@ -89,7 +89,7 @@ fn an_open_batch_is_finished_when_asked_and_each_batch_is_logged() {
     let proc_root: PathBuf = empty_proc(&world);
     let mut settled: Option<RequestedSettlement> = None;
     let entries = crate::service_timing::capture::entries_of(|| { settled = Some(settle(&world, state.as_path(), proc_root.as_path())); });
-    let Some(RequestedSettlement::Settled(batches)) = settled else { panic!("{settled:?}") };
+    let Some(RequestedSettlement::Settled { batches, .. }) = settled else { panic!("{settled:?}") };
     assert_eq!(batches.iter().map(|batch| { return (batch.report.seq, batch.report.handled, batch.journal.clone()); }).collect::<Vec<_>>(), vec![(1, Handled::Finished, world.context.journal.clone())]);
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
     assert!(entries.iter().any(|entry| { return entry.message.contains("batch=1") && entry.message.contains("finish"); }), "{entries:?}");
@@ -106,10 +106,10 @@ fn nothing_is_settled_while_an_earlier_helper_may_run_or_start_and_the_reason_is
     let instance: String = instance_for(&world);
     let listening: PathBuf = empty_proc(&world);
     write_unix_table(listening.as_path(), &[unix_table_line(LISTENING_FLAGS, "cli-git", format!("{instance}.sock").as_str())]);
-    assert_eq!(settle(&world, state.as_path(), listening.as_path()), RequestedSettlement::Held { open: 1, because: Hold::SocketListens });
+    assert_eq!(settle(&world, state.as_path(), listening.as_path()), RequestedSettlement::Held { open: 1, because: Hold::InstanceSocketListens });
     let running: PathBuf = empty_proc(&world);
     fake_process(running.as_path(), 77, &["/p/cli-git-native", "cli-git", "service", "run", "--instance", instance.as_str()]);
-    assert_eq!(settle(&world, state.as_path(), running.as_path()), RequestedSettlement::Held { open: 1, because: Hold::ServiceRuns });
+    assert_eq!(settle(&world, state.as_path(), running.as_path()), RequestedSettlement::Held { open: 1, because: Hold::InstanceHelperRuns });
     let unreadable: PathBuf = empty_proc(&world);
     std::fs::remove_file(unreadable.join("net/unix")).expect("the table is gone");
     assert_eq!(settle(&world, state.as_path(), unreadable.as_path()), RequestedSettlement::Held { open: 1, because: Hold::CannotLook });
@@ -147,7 +147,7 @@ fn a_batch_that_looks_unlanded_is_left_on_disk() {
     intent.old = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     intent.new = "f".repeat(40);
     write_intent(world.context.journal.as_path(), &intent).expect("the intent of a landing in progress");
-    let RequestedSettlement::Settled(batches) = settle(&world, state.as_path(), empty_proc(&world).as_path()) else { panic!("settled") };
+    let RequestedSettlement::Settled { batches, .. } = settle(&world, state.as_path(), empty_proc(&world).as_path()) else { panic!("settled") };
     let handled: Vec<(u64, Handled)> = batches.iter().map(|batch| { return (batch.report.seq, batch.report.handled); }).collect();
     assert!(handled.contains(&(1, Handled::Finished)) && handled.contains(&(2, Handled::Left)), "{handled:?}");
     assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "the intent stays");
@@ -167,7 +167,57 @@ fn the_service_of_this_release_is_no_earlier_helper() {
     let new_journal: String = state.join("monochromatic-git-policy-cli/service").join(instance.as_str()).display().to_string();
     std::fs::create_dir_all(new_journal.as_str()).expect("the new service's journal exists, as it does for a running service");
     fake_process(proc_root.as_path(), 41, &["/p/monochromatic-git-policy-cli", "monochromatic-git-policy-cli", "service", "run", "--journal", new_journal.as_str(), "--instance", instance.as_str()]);
-    let RequestedSettlement::Settled(batches) = settle(&world, state.as_path(), proc_root.as_path()) else { panic!("the new service held the settling back") };
+    let RequestedSettlement::Settled { batches, .. } = settle(&world, state.as_path(), proc_root.as_path()) else { panic!("the new service held the settling back") };
     assert_eq!(batches.len(), 1);
+    remove(world.root.as_path());
+}
+
+/// The listener of the single service of the first releases, and a process started with the shared journal, serve every
+///  worktree, so the hold names them as such and not as this worktree's; a process whose journal folder cannot be resolved may be
+///  either and is told apart too.
+#[test]
+fn the_hold_keeps_which_socket_or_helper_caused_it() {
+    let (world, state) = world_with_earlier_journal("settle-which", "state");
+    let landed: CommitRequest = request(&world, "which", "which.txt", "which\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let instance: String = instance_for(&world);
+    let shared: String = state.join(DATA_FOLDER.earlier).join("service").display().to_string();
+    let own: String = world.context.journal.display().to_string();
+    let held = |proc_root: &Path| -> RequestedSettlement { return settle(&world, state.as_path(), proc_root); };
+    let shared_socket: PathBuf = empty_proc(&world);
+    write_unix_table(shared_socket.as_path(), &[unix_table_line(LISTENING_FLAGS, "cli-git", "service.sock")]);
+    assert_eq!(held(shared_socket.as_path()), RequestedSettlement::Held { open: 1, because: Hold::SharedSocketListens });
+    let own_socket: PathBuf = empty_proc(&world);
+    write_unix_table(own_socket.as_path(), &[unix_table_line(LISTENING_FLAGS, "cli-git", "service.sock"), unix_table_line(LISTENING_FLAGS, "cli-git", format!("{instance}.sock").as_str())]);
+    assert_eq!(held(own_socket.as_path()), RequestedSettlement::Held { open: 1, because: Hold::InstanceSocketListens }, "this worktree's own socket is named first");
+    for (label, words, expected) in [
+        ("shared journal", vec!["/p/cli-git-native", "--journal", shared.as_str(), "--git", "/usr/bin/git"], Hold::SharedHelperRuns),
+        ("own journal", vec!["/p/cli-git-native", "--journal", own.as_str(), "--git", "/usr/bin/git", "--instance", instance.as_str()], Hold::InstanceHelperRuns),
+        ("mode words", vec!["/p/cli-git-native", "cli-git", "service", "run", "--instance", instance.as_str()], Hold::InstanceHelperRuns),
+        ("unresolvable", vec!["/p/cli-git-native", "--journal", "/nowhere/at/all"], Hold::HelperUnsure),
+    ] {
+        let proc_root: PathBuf = empty_proc(&world);
+        fake_process(proc_root.as_path(), 52, &words);
+        assert_eq!(held(proc_root.as_path()), RequestedSettlement::Held { open: 1, because: expected }, "{label}");
+    }
+    remove(world.root.as_path());
+}
+
+/// A batch Git cannot answer for is named, not left out: here one ordinary landed batch and another valid intent of the same
+///  worktree whose repository is unavailable. The first is finished, the second is reported as unanswered with its journal,
+///  and its intent stays on disk (nothing is discarded).
+#[test]
+fn a_batch_git_cannot_answer_for_is_named_and_stays_on_disk() {
+    let (world, state) = world_with_earlier_journal("settle-unanswered", "state");
+    let landed: CommitRequest = request(&world, "unanswered", "unanswered.txt", "unanswered\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let mut intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
+    intent.seq = 2;
+    intent.repository = world.root.join("repository-that-is-not-there");
+    write_intent(world.context.journal.as_path(), &intent).expect("an intent whose repository is unavailable");
+    let RequestedSettlement::Settled { batches, unanswered } = settle(&world, state.as_path(), empty_proc(&world).as_path()) else { panic!("settled") };
+    assert_eq!(batches.iter().map(|batch| { return (batch.report.seq, batch.report.handled); }).collect::<Vec<_>>(), vec![(1, Handled::Finished)]);
+    assert_eq!(unanswered, vec![UnansweredBatch { journal: world.context.journal.clone(), seq: 2 }]);
+    assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "its intent stays");
     remove(world.root.as_path());
 }

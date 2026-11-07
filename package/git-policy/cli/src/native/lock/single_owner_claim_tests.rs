@@ -151,6 +151,26 @@ fn a_file_that_is_not_a_claim_stops_the_claimant_untouched() {
     remove(directory.as_path());
 }
 
+/// Found by the audit of the names the rename changed: a claim file an earlier release wrote starts with its own spelling of the
+///  first line, and the files are named as before (`cli-git-convert.owner.N`), so a released or dead claim of the earlier release
+///  must be replaced like any other, and a live one must still stop the claimant. Writing stays in the current spelling.
+#[test]
+fn a_claim_an_earlier_release_wrote_is_read_as_a_claim() {
+    let earlier = |text: String| -> String { return text.replacen("monochromatic-git-policy-cli ", "cli-git ", 1); };
+    let released: String = earlier(encode(&Record::Released));
+    assert!(released.starts_with("cli-git owner-claim v1\n"), "{released}");
+    assert_eq!(decode(released.as_str()), Some(Record::Released));
+    let owned: Record = Record::Owned { pid: i64::from(std::process::id()), birth: String::from("linux:42"), namespace: None };
+    assert_eq!(decode(earlier(encode(&owned)).as_str()), Some(owned));
+    assert!(encode(&Record::Released).starts_with("monochromatic-git-policy-cli owner-claim v1\n"), "new claims are written in the current spelling");
+    let directory: PathBuf = fixture("claim-earlier-release");
+    std::fs::write(path_of(directory.as_path(), prefix(), FIRST), released).expect("an earlier release's released claim");
+    let claim: OwnerClaim = held(take_claim(directory.as_path(), prefix()));
+    assert_eq!(present(directory.as_path()), vec![FIRST + 1], "it is replaced by the next generation");
+    drop(claim);
+    remove(directory.as_path());
+}
+
 /// A claim from a PID namespace this process is not in counts as alive while its file is young.
 #[test]
 fn an_owner_in_another_pid_namespace_is_alive_while_its_claim_is_young() {

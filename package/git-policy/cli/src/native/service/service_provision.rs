@@ -570,3 +570,9 @@ pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
 #[cfg(test)]
 #[path = "service_provision_tests.rs"]
 mod tests;
+
+/// The owner's rule that nothing of the wrapper starts at system startup or at login, held by guards that fail when a unit, a link, a
+///  file outside the runtime directory or a call to the manager would make it so.
+#[cfg(test)]
+#[path = "service_provision_never_starts_at_login_tests.rs"]
+mod never_starts_at_login_tests;

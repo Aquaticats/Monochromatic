@@ -25,6 +25,7 @@ use crate::lfs_output_mask::mask_userinfo_text;
 pub use crate::push_failure_notice_machine_output::is_machine_read;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::service_messages::RESTART_COMMAND;
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::path::{Path, PathBuf};
 
 /// Directory under the worktree's own Git directory that holds the records for the person.
@@ -301,13 +302,31 @@ enum RecordKind<'a> {
     Lost,
 }
 
-/// The branch, the commit and the kind of a record written by this release.
+/// What:
+///  The current first line a record's first line stands for: the line itself, or the same line in the spelling an earlier
+///  release wrote (`cli-git push notice 1`).
+/// Why:
+///   The folder of the records is moved to its current name in place, so records written before the rename are still there with
+///  their own first lines, and they are records of the same fields.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const currentMagic = (line: string) => MAGICS.find((magic) => line === magic || line === magic.replace(CURRENT, EARLIER))
+/// ```
+fn current_magic_of(line: &str) -> Option<&'static str> {
+    for current in [RECORD_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
+        let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(|rest| { return format!("{}{rest}", DATA_FOLDER.earlier); });
+        if line == current || earlier.as_deref() == Some(line) {
+            return Some(current);
+        }
+    }
+    return None;
+}
+
+/// The branch, the commit and the kind of a record written by this release or by the release before the rename.
 fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
     let mut lines = text.splitn(5, '\n');
-    let magic: &str = lines.next()?;
-    if ![RECORD_MAGIC, SKIPPED_MAGIC, LOST_MAGIC].contains(&magic) {
-        return None;
-    }
+    let magic: &str = current_magic_of(lines.next()?)?;
     let branch: &str = lines.next()?.strip_prefix(BRANCH_FIELD)?;
     let commit: &str = lines.next()?.strip_prefix(COMMIT_FIELD)?;
     if !lines.next()?.is_empty() {
