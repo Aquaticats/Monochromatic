@@ -6,6 +6,7 @@
 //! verification runs need a fixed light or dark window,
 //! and the default follows the system.
 
+/// Imports the formatting traits that render `ColorSchemeError` as text.
 use std::fmt;
 
 /// What:
@@ -52,10 +53,19 @@ pub const DARK: i32 = 2;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ColorSchemeError {
     /// The value that was given.
-    Unknown(String),
+    Unknown(
+        /// The variable's text,
+        /// as it was given.
+        String,
+    ),
 }
 
+/// Text of a `ColorSchemeError` for the log and for the startup message.
 impl fmt::Display for ColorSchemeError {
+    /// What:
+    /// Writes the sentence that names the rejected value and the accepted ones.
+    /// Why:
+    /// The startup message and the log show this text.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         return match self {
             Self::Unknown(value) => formatter.write_str(&format!(
@@ -65,6 +75,7 @@ impl fmt::Display for ColorSchemeError {
     }
 }
 
+/// Lets `ColorSchemeError` travel as a standard error value.
 impl std::error::Error for ColorSchemeError {}
 
 /// What:
@@ -103,6 +114,10 @@ pub fn scheme_override(value: Option<&str>) -> Result<i32, ColorSchemeError> {
     };
 }
 
+/// Unit tests of `color_scheme`,
+/// in the sidecar file `color_scheme_tests.rs`.
+/// Role of the module:
+/// the color scheme override that the environment variable `MUSIC_PLAYER_COLOR_SCHEME` selects.
 #[cfg(test)]
 #[path = "color_scheme_tests.rs"]
 mod tests;

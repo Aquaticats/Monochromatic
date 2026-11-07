@@ -9,18 +9,31 @@
 //! this module keeps the editor value in the screen
 //! state while either page is open and applies the valid templates to the track rows and the deck.
 
+/// Imports the supporting text of the auto-play setting.
 use music_player::row_activation::auto_play_on_select_supporting_text;
+/// Imports the session that stores the settings.
 use music_player::session::Session;
+/// Imports the template editor state that the page edits.
 use music_player::template_editor_state::TemplateEditorState;
+/// Imports the edit type that the editor applies.
 use music_player::template_editor::TemplateEditorEdit;
+/// Imports the template kind that a row opens.
 use music_player::template_model::TemplateKind;
+/// Imports the lookup of measures by name.
 use music_player::track_measure::lookup_by_name;
+/// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
+/// Imports the model builder,
+/// the projection and the state accessors of the screen.
 use crate::ui_screen::{model_of, project, read_state, update_state};
+/// Imports the route and the screen state.
 use crate::ui_screen_view::{Route, ScreenState};
+/// Imports the pure rows and editor view and the kind and index conversions.
 use crate::ui_settings_model::{editor_view, index_of_kind, kind_of_index, settings_rows, EditorView, SettingsRow};
+/// Imports the editor library and the offset conversion.
 use crate::ui_templates::{editor_library, utf16_offset};
+/// Imports the window and the generated settings row types.
 use crate::{AppWindow, EditorFieldRow, EditorPreviewRow, SettingsTemplateRow};
 
 /// What:
@@ -595,6 +608,10 @@ pub(crate) fn project_pages(window: &AppWindow) {
     window.set_editor_can_reset(page.can_reset);
 }
 
+/// Unit tests of `ui_settings`,
+/// in the sidecar file `ui_settings_tests.rs`.
+/// Role of the module:
+/// window binding for the Settings page and the template editor.
 #[cfg(test)]
 #[path = "ui_settings_tests.rs"]
 mod tests;

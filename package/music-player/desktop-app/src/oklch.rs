@@ -459,6 +459,13 @@ pub fn delta_e_ok(first: Srgb8, second: Srgb8) -> f64 {
     return 100.0 * (delta_l * delta_l + (first_a - second_a).powi(2) + (first_b - second_b).powi(2)).sqrt();
 }
 
+/// Unit tests of `oklch`,
+/// in the sidecar file `oklch_tests.rs`.
+/// Role of the module:
+/// oKLCH color math:
+/// sRGB conversion,
+/// gamut mapping,
+/// WCAG contrast and mixing.
 #[cfg(test)]
 #[path = "oklch_tests.rs"]
 mod tests;

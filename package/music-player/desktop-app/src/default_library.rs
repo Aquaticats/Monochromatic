@@ -19,6 +19,7 @@
 //! const musicDir = [env.XDG_MUSIC_DIR, userDirs.audio, xdgUserDir("MUSIC"), join(homedir(), "Music")].find(isDir);
 //! ```
 
+/// Imports the path types that candidates and the chosen folder use.
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -70,6 +71,11 @@ pub fn first_existing_dir<I: Iterator<Item = Option<PathBuf>>>(candidates: I) ->
     return None;
 }
 
+/// Unit tests of `default_library`,
+/// in the sidecar file `default_library_tests.rs`.
+/// Role of the module:
+/// the folder the player opens when no session names one:
+/// the user's music folder.
 #[cfg(test)]
 #[path = "default_library_tests.rs"]
 mod tests;

@@ -14,7 +14,9 @@
 //! so a click on a row
 //! leaves the scroll position where it is.
 
+/// Imports the row type and the current row lookup.
 use crate::ui_screen_rows::{ListRow, current_row_position};
+/// Imports the state and the view that a scroll decision compares.
 use crate::ui_screen_view::{ScreenState, ScreenView};
 
 /// Height of a track row without a second line,
@@ -280,6 +282,12 @@ pub fn next_scroll_request(state: &mut ScreenState, screen: &ScreenView) -> Opti
     return request;
 }
 
+/// Unit tests of `ui_screen_scroll`,
+/// in the sidecar file `ui_screen_scroll_tests.rs`.
+/// Role of the module:
+/// scroll requests for the track list:
+/// which projection scrolls the list,
+/// and to which row.
 #[cfg(test)]
 #[path = "ui_screen_scroll_tests.rs"]
 mod tests;

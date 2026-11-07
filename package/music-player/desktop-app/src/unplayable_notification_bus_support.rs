@@ -7,29 +7,55 @@
 //! `Recorder` answers `Notify` and keeps every call,
 //! so a test can assert the exact arguments.
 
+/// Imports the map type of the hints that a recorded call carries.
 use std::collections::HashMap;
+/// Imports the line reader that reads the daemon's address.
 use std::io::{BufRead, BufReader};
+/// Imports the path type of the daemon's socket folder.
 use std::path::PathBuf;
+/// Imports the process types that start the daemon.
 use std::process::{Child, Command, Stdio};
+/// Imports the shared ownership and lock types that share the recorded calls.
 use std::sync::{Arc, Mutex};
+/// Imports the duration type of the service's reply delay.
 use std::time::Duration;
 
+/// Imports the stream extension that reads messages one at a time.
 use futures_util::StreamExt;
+/// Imports the connection,
+/// message stream and variant types of the D-Bus client.
 use zbus::{Connection, MessageStream, OwnedVariant};
 
 /// One recorded `Notify` call,
 /// reduced to what the tests assert.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Call {
+    /// Application name that the caller gave.
     pub app_name: String,
+    /// Identifier of the notification that the call replaces,
+    /// zero for a new one.
     pub replaces_id: u32,
+    /// Icon name or path.
     pub app_icon: String,
+    /// Headline of the notification.
     pub summary: String,
+    /// Body text of the notification.
     pub body: String,
+    /// Action keys and labels,
+    /// alternating,
+    /// as the call sends them.
     pub actions: Vec<String>,
+    /// The names of the hints that the call carried,
+    /// in sorted order.
     pub hint_names: Vec<String>,
+    /// The urgency hint,
+    /// when the call carried one.
     pub urgency: Option<u8>,
+    /// The desktop entry hint,
+    /// when the call carried one.
     pub desktop_entry: Option<String>,
+    /// Milliseconds until the notification expires,
+    /// or the server default.
     pub expire_timeout: i32,
 }
 
@@ -57,7 +83,9 @@ fn record(body: NotifyBody) -> Call {
 /// the start that it refuses with an error reply and does not record.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Behavior {
+    /// How long the service waits before it answers each call.
     pub delay: Duration,
+    /// How many of the first calls the service refuses with an error reply.
     pub refuse_first: usize,
 }
 
@@ -109,11 +137,18 @@ async fn answer_notify_calls_async(connection: &Connection, mut incoming: Messag
 /// A `dbus-daemon` on a private socket,
 /// killed and cleaned up on drop.
 pub(crate) struct PrivateBus {
+    /// The daemon process,
+    /// killed on drop.
     child: Child,
+    /// The private folder that holds the daemon's socket,
+    /// removed on drop.
     folder: PathBuf,
+    /// The bus address that clients connect to.
     pub address: String,
 }
 
+/// Methods of `PrivateBus` that start the daemon,
+/// connect to it and serve the notification service on it.
 impl PrivateBus {
     /// Starts the daemon and reads its address.
     ///
@@ -180,7 +215,13 @@ impl PrivateBus {
     }
 }
 
+/// Kills the daemon and removes its socket folder,
+/// so that no test leaves a process behind.
 impl Drop for PrivateBus {
+    /// What:
+    /// Kills the daemon and removes its socket folder.
+    /// Why:
+    /// A test that panics must still leave no process or folder behind.
     fn drop(&mut self) {
         if let Err(error) = self.child.kill() {
             tracing::debug!(error = %error, "the private bus daemon was already gone");

@@ -37,8 +37,10 @@
 //!   because no later tick would send them.
 //! - Within a track the percent never moves backward except by a seek.
 
+/// Imports the duration type that measures the gap between sent updates.
 use std::time::Duration;
 
+/// Imports the engine update that the taskbar state follows.
 use crate::command::Update;
 
 /// What:
@@ -97,13 +99,19 @@ pub enum TaskbarInput {
     /// the position restarts at zero.
     /// Why:
     /// this is the only place the duration and the position change together.
-    NowPlaying { duration_secs: f64 },
+    NowPlaying {
+        /// Length of the new track in seconds.
+        duration_secs: f64,
+    },
     /// What:
     /// an ordinary playback tick,
     /// in seconds from the start of the track.
     /// Why:
     /// a tick that would move backward is dropped as stale.
-    Position { secs: f64 },
+    Position {
+        /// Playback position in seconds from the start of the track.
+        secs: f64,
+    },
     /// What:
     /// the position jumped,
     /// in seconds from the start of the track.
@@ -112,12 +120,18 @@ pub enum TaskbarInput {
     /// the first one after ordinary playback is sent at
     /// once,
     /// and the rest of a drag are held to the rate limit while playing.
-    Seek { secs: f64 },
+    Seek {
+        /// Seek target in seconds from the start of the track.
+        secs: f64,
+    },
     /// What:
     /// playback started (`true`) or paused or stopped (`false`).
     /// Why:
     /// it decides whether a paused track at position zero shows a bar.
-    Playing(bool),
+    Playing(
+        /// Whether playback is running.
+        bool,
+    ),
     /// What:
     /// no track is loaded.
     /// Why:
@@ -147,6 +161,7 @@ pub struct TaskbarUpdate {
     pub visible: bool,
 }
 
+/// Method of `TaskbarUpdate` that turns an update into the fraction the taskbar bar shows.
 impl TaskbarUpdate {
     /// What:
     /// the bar hidden.
@@ -173,7 +188,10 @@ impl TaskbarUpdate {
 /// and the gap is measured from it.
 #[derive(Clone, Copy, Debug)]
 struct Sent {
+    /// The update that was sent.
     value: TaskbarUpdate,
+    /// When it was sent,
+    /// measured from the start of the run.
     at: Duration,
     /// What:
     /// whether a seek caused this send.
@@ -230,6 +248,7 @@ pub struct TaskbarProgress {
     sent: Option<Sent>,
 }
 
+/// Methods of `TaskbarProgress` that feed it updates and read back what to send.
 impl TaskbarProgress {
     /// What:
     /// a machine with nothing loaded and nothing sent.
@@ -395,6 +414,11 @@ impl TaskbarProgress {
     }
 }
 
+/// Unit tests of `taskbar_state`,
+/// in the sidecar file `taskbar_state_tests.rs`.
+/// Role of the module:
+/// the decision logic of the KDE taskbar progress bar,
+/// free of D-Bus and of the window.
 #[cfg(test)]
 #[path = "taskbar_state_tests.rs"]
 mod tests;

@@ -11,17 +11,27 @@
 //! so the tests share one setup and one
 //! recording host instead of each file inventing its own.
 
+/// Imports the cell types that the recording host keeps its log in.
 use std::cell::{Cell, RefCell};
+/// Imports the shared ownership type that shares the log with the test.
 use std::rc::Rc;
 
+/// Imports the command that the recording host logs.
 use music_player::command::Command;
+/// Imports the menu action that the recording host logs.
 use music_player::track_menu::TrackMenuAction;
+/// Imports the key and window event types that tests dispatch.
 use slint::platform::{Key, WindowEvent};
+/// Imports the component handle and the shared string that build events.
 use slint::{ComponentHandle, SharedString};
 
+/// Imports the window under test.
 use crate::AppWindow;
+/// Imports the host trait that the recording host implements.
 use crate::ui_host::Host;
+/// Imports the projection and the state updater of the screen.
 use crate::ui_screen::{project, update_state};
+/// Imports the screen state that tests fill.
 use crate::ui_screen_view::ScreenState;
 
 /// What:
@@ -291,6 +301,7 @@ pub(crate) const LIBRARY: [&str; 8] = [
 /// the keys act on the library and on the playing track,
 /// and the updates are the production way to set them.
 pub(crate) fn load_library(app: &AppWindow) {
+    /// Imports the update type that tests send into the window.
     use music_player::command::Update;
     let names: Vec<String> = LIBRARY.iter().map(|name| return (*name).to_owned()).collect();
     let paths: Vec<std::path::PathBuf> = LIBRARY.iter().map(|name| return std::path::PathBuf::from("/nonexistent-library").join(name)).collect();

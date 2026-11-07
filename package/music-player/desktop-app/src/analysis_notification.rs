@@ -33,24 +33,35 @@
 //! for example).
 //! Off Linux the handle exists and does nothing.
 
+/// Imports the queue that holds the indicator updates waiting for the next send slot.
 #[cfg(target_os = "linux")]
 use std::collections::VecDeque;
+/// Imports the channel ends and the receive error through which the worker thread takes its inputs.
 #[cfg(target_os = "linux")]
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+/// Imports the channel module whose `channel` function creates the worker's input queue.
 #[cfg(target_os = "linux")]
 use std::sync::mpsc;
+/// Imports the shared ownership and lock types that let every clone of the notifier reach one worker.
 #[cfg(target_os = "linux")]
 use std::sync::{Arc, Mutex};
+/// Imports the handle through which the last notifier clone joins the worker thread.
 #[cfg(target_os = "linux")]
 use std::thread::JoinHandle;
+/// Imports the duration and instant types that pace the indicator updates.
 #[cfg(target_os = "linux")]
 use std::time::{Duration, Instant};
 
+/// Imports the D-Bus session connection that the indicator's calls travel over.
 #[cfg(target_os = "linux")]
 use zbus::Connection;
 
+/// Imports the pure state machine and the effects,
+/// views and outcomes it exchanges with this thread.
 #[cfg(target_os = "linux")]
 use crate::analysis_notification_logic::{Effect, IndicatorView, Machine, Outcome};
+/// Imports the D-Bus names,
+/// signals and call wrappers that carry the indicator over the bus.
 #[cfg(target_os = "linux")]
 use crate::analysis_notification_wire::{
     ACTION_PAUSE, ACTION_RESUME, Backend, BusSignal, CLOSED_BY_EXPIRY, CLOSED_BY_USER, FdoNotification, JobView,
@@ -140,9 +151,24 @@ pub(crate) fn connect_session() -> zbus::Result<Connection> {
 /// so it has one wait point.
 #[cfg(target_os = "linux")]
 enum Input {
-    Progress { done: usize, total: usize },
-    Fail(String),
-    Signal(BusSignal),
+    /// The sweep reported progress.
+    Progress {
+        /// Tracks visited so far.
+        done: usize,
+        /// Tracks the sweep will visit.
+        total: usize,
+    },
+    /// The engine failed.
+    Fail(
+        /// The message to show the user.
+        String,
+    ),
+    /// A listener read a bus signal.
+    Signal(
+        /// The signal that the listener read.
+        BusSignal,
+    ),
+    /// Close the indicator and end the thread.
     Stop,
 }
 
@@ -153,7 +179,10 @@ enum Input {
 /// `Drop` cannot run per clone.
 #[cfg(target_os = "linux")]
 struct Shared {
+    /// Queue through which the app and the signal listeners send the thread its inputs.
     sender: Sender<Input>,
+    /// Handle of the notifier thread,
+    /// kept so that shutdown can join it.
     thread: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -181,6 +210,7 @@ impl Drop for Shared {
 #[cfg(target_os = "linux")]
 #[derive(Clone)]
 pub struct AnalysisNotifier {
+    /// The part of the handle that every clone points at.
     shared: Arc<Shared>,
 }
 
@@ -192,16 +222,36 @@ pub struct AnalysisNotifier {
 /// the open indicator and the one-warning flag live together on that thread.
 #[cfg(target_os = "linux")]
 struct Worker {
+    /// The names with which the player introduces itself to the Plasma job and the notification service.
     config_identity: Identity,
+    /// Whether the app has a pause to offer,
+    /// which decides whether the indicator shows a Pause button.
     suspendable: bool,
+    /// Pauses (`true`) or resumes (`false`) the engine's analysis when the user presses the indicator's button.
     on_pause: Box<dyn Fn(bool) + Send + 'static>,
+    /// Opens the session bus connection;
+    /// taken on first use so that the connect happens once,
+    /// on this thread.
     connect: Option<Box<dyn FnOnce() -> zbus::Result<Connection> + Send + 'static>>,
+    /// The open session bus connection,
+    /// once the connect succeeded.
     connection: Option<Connection>,
+    /// Sender into this thread's own queue,
+    /// handed to the signal listeners.
     events: Sender<Input>,
+    /// The pure state machine that decides what the indicator shows and when.
     machine: Machine,
+    /// The Plasma job,
+    /// while the job backend shows the indicator.
     job: Option<JobView>,
+    /// The freedesktop notification,
+    /// while the notification backend shows the indicator.
     notification: Option<FdoNotification>,
+    /// Whether a listener for the job's signals is already running,
+    /// so that it starts once.
     listening_job: bool,
+    /// Whether a listener for the notification's signals is already running,
+    /// so that it starts once.
     listening_notification: bool,
 }
 

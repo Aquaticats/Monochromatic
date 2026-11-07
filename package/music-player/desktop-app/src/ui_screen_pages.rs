@@ -22,14 +22,21 @@
 //! const page = state.currentPages().page(state.selectedPagePosition());
 //! ```
 
+/// Imports the clone-on-write type that lets the current page index be borrowed from the cache or built fresh.
 use std::borrow::Cow;
+/// Imports the set type that holds the paths of a page.
 use std::collections::HashSet;
+/// Imports the path type that names a track.
 use std::path::PathBuf;
+/// Imports the shared ownership type of the name list that the state hands out.
 use std::sync::Arc;
 
+/// Imports the page index that the state caches.
 use music_player::page_index::PageIndex;
+/// Imports the measure of each track.
 use music_player::track_measure::TrackMeasure;
 
+/// Imports the screen state that these methods extend.
 use crate::ui_screen_view::ScreenState;
 
 /// What:

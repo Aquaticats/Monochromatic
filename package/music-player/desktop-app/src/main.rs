@@ -50,6 +50,8 @@ mod slint_generated;
 /// Imports every public Slint binding from the generated-only lint boundary.
 use slint_generated::*;
 
+/// Imports the color scheme environment variable,
+/// its follow-system value and the override parser.
 use music_player::color_scheme::{COLOR_SCHEME_ENV, FOLLOW_SYSTEM, scheme_override};
 
 /// What:
@@ -70,54 +72,111 @@ mod ui_progress;
 /// Playback mode conversion and displayed-page scope projection.
 mod ui_playback;
 
+/// Window binding for the library screen:
+/// applies engine updates to the UI-thread state and pushes the projected view into `AppWindow`.
 mod ui_screen;
 
+/// Pure conversions from the shared player-content model into the flat track list and the folder picker lists that the window shows.
 mod ui_screen_rows;
 
+/// Plain-language message for an event the user did not ask about:
+/// a file that left the folder.
 mod ui_notices;
 
+/// Page selection on the screen state:
+/// the cached page index,
+/// the selected page,
+/// and the pages' measures.
 mod ui_screen_pages;
 
+/// Scroll requests for the track list:
+/// which projection scrolls the list,
+/// and to which row.
 mod ui_screen_scroll;
 
+/// Coalesced projection for updates that arrive in bursts.
 mod ui_screen_throttle;
 
+/// Pure library screen state and its projection into the window's view model.
 mod ui_screen_view;
 
+/// Window binding for the Licenses page that the Licenses row of Settings opens.
 mod ui_licenses;
 
+/// Window binding for the Search route:
+/// opens and closes it,
+/// sends each query edit to the Search service,
+/// and activates a result.
 mod ui_search;
 
+/// Window binding for the Settings page and the template editor.
 mod ui_settings;
 
+/// Pure models for the Settings template rows and the template editor page.
 mod ui_settings_model;
 
+/// Window binding for the Text size setting:
+/// the stepper and reset callbacks of Settings,
+/// and the `TextSize` global.
 mod ui_text_size;
 
+/// Pure template helpers for the desktop window:
+/// track fields from display paths,
+/// the playing-track subtitle,
+/// and the offset conversion the template editor needs.
 mod ui_templates;
 
+/// Pure Search page model:
+/// the rows,
+/// emphasis segments and status text for one query.
 mod ui_search_model;
 
+/// Scroll anchoring for Search results that are re-ranked while the user looks at them (D111).
 mod ui_search_anchor;
 
+/// Applying Search answers to the window,
+/// in place.
 mod ui_search_apply;
 
+/// Window callbacks for the library screen:
+/// each user action becomes engine commands.
 mod ui_wire;
 
+/// Platform file actions behind the track menu:
+/// show in the file manager,
+/// copy the file name,
+/// move to the trash,
+/// and restore from the trash for Undo.
 mod ui_files;
 
+/// Keyboard shortcuts for the player:
+/// each key becomes a `ShortcutRequest`,
+/// the `keymap` classifier names the action,
+/// and the action runs against the window and the host (D102,
+/// D106).
 mod ui_keys;
 
+/// What each classified shortcut does (D102,
+/// D106).
 mod ui_keys_actions;
 
+/// Requests for keyboard focus from the Rust side (Alt+1,
+/// Alt+2,
+/// Escape out of a field).
 mod ui_keys_focus;
 
+/// The host of keyboard actions:
+/// what a shortcut can ask of the application beyond the window.
 mod ui_host;
 
+/// The keyboard ring inside the folder picker and the track list (D106).
 mod ui_lists;
 
+/// Key hint badges and shortcut texts on the window (D106).
 mod ui_hints;
 
+/// The window's observable state as one log line,
+/// for the end-to-end run.
 mod ui_state_log;
 
 /// Shared helpers of the window tests that press real key events.
@@ -232,12 +291,20 @@ mod ui_focus_ring_menu_tests;
 #[cfg(test)]
 mod ui_focus_ring_fixture_tests;
 
+/// Window binding for the track menu:
+/// opens it for a row,
+/// and runs the chosen action.
 mod ui_menu;
 
+/// Pure track menu model:
+/// the rows,
+/// icons and dividers for one track.
 mod ui_menu_model;
 
+/// Window binding for the feedback messages and the first-run pane.
 mod ui_overlays;
 
+/// Pure models for the first-run pane and the feedback messages.
 mod ui_overlays_model;
 
 /// Headless layout tests for the composed window at the cover and unfolded widths.
@@ -1004,6 +1071,7 @@ fn start_unplayable_notifier() -> UnplayableNotifier {
 ///           path as a real one.
 #[cfg(all(windows, debug_assertions))]
 fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError> {
+    /// Imports the startup failure injection variable and the helpers that read it.
     use music_player::startup_failure::{FORCE_STARTUP_FAILURE_ENV, forced_failure_detail, forced_startup_failure};
     let value = std::env::var(FORCE_STARTUP_FAILURE_ENV).ok();
     if forced_startup_failure(value.as_deref()) == Some(step) {

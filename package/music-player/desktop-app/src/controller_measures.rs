@@ -10,15 +10,22 @@
 //! the controller owns the queue generation and the cache handle,
 //! so stale reports are dropped here.
 
+/// Imports the path types that name tracks and the opened folder.
 use std::path::{Path, PathBuf};
+/// Imports the shared ownership type that the refresh tests use to share a cache.
 #[cfg(test)]
 use std::sync::Arc;
 
+/// Imports the cached decision that a measure is derived from.
 use truepeak_core::Decision;
 
+/// Imports the update that carries measures to the window.
 use crate::command::Update;
+/// Imports the controller whose measure handling this module extends.
 use crate::controller::Controller;
+/// Imports the sweep report whose measures the controller forwards.
 use crate::sweep_report::SweepReport;
+/// Imports the conversion from a cached decision to a track measure.
 use crate::track_measure::measure_from_decision;
 
 /// What:
@@ -39,6 +46,8 @@ pub(crate) fn display_name_of(root: &Path) -> String {
         .map_or_else(|| return root.display().to_string(), |name| return name.to_string_lossy().into_owned());
 }
 
+/// Methods of `Controller` for the per-track measures:
+/// forwarding sweep reports and refreshing measures when files change.
 impl Controller {
     /// What:
     ///      `pub(crate) fn emit_source_root(&self)`.
@@ -164,14 +173,35 @@ impl Controller {
     }
 }
 
+/// Unit tests of `controller_measures`,
+/// in the sidecar file `controller_measures_tests.rs`.
+/// Role of the module:
+/// controller side of the per-track measures:
+/// forwards sweep reports,
+/// refreshes them when files change,
+/// and names the opened folder.
 #[cfg(test)]
 #[path = "controller_measures_tests.rs"]
 mod tests;
 
+/// Unit tests of `controller_measures`,
+/// in the sidecar file `controller_refresh_tests.rs`.
+/// Role of the module:
+/// controller side of the per-track measures:
+/// forwards sweep reports,
+/// refreshes them when files change,
+/// and names the opened folder.
 #[cfg(test)]
 #[path = "controller_refresh_tests.rs"]
 mod refresh_tests;
 
+/// Unit tests of `controller_measures`,
+/// in the sidecar file `refresh_cost_tests.rs`.
+/// Role of the module:
+/// controller side of the per-track measures:
+/// forwards sweep reports,
+/// refreshes them when files change,
+/// and names the opened folder.
 #[cfg(test)]
 #[path = "refresh_cost_tests.rs"]
 mod refresh_cost_tests;

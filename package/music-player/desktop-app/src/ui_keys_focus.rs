@@ -11,6 +11,7 @@
 //! a target number and a tick instead,
 //! and a list created after the request takes focus when it appears.
 
+/// Imports the window whose focus requests this module bumps.
 use crate::AppWindow;
 
 /// What:

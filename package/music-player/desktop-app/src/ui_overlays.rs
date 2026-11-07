@@ -9,18 +9,30 @@
 //! the feedback queue is a pure value (`feedback.rs`);
 //! this module owns the one copy and its timer.
 
+/// Imports the cell type that holds the overlay state on the window thread.
 use std::cell::RefCell;
+/// Imports the path type that names a trashed file.
 use std::path::PathBuf;
+/// Imports the shared ownership type that shares the engine with the callbacks.
 use std::rc::Rc;
+/// Imports the duration and instant types that time the message expiry.
 use std::time::{Duration, Instant};
 
+/// Imports the engine that receives the commands.
 use music_player::engine::Engine;
+/// Imports the feedback kinds,
+/// messages and queue that the overlays show.
 use music_player::feedback::{FeedbackKind, FeedbackMessage, FeedbackQueue};
+/// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
+/// Imports the file error type and the restore action.
 use crate::ui_files::{FileActionError, restore_from_trash};
+/// Imports the pure models of the overlays.
 use crate::ui_overlays_model::{Hold, feedback_rows, first_run_view, visible_time_ms};
+/// Imports the model builder and the state reader of the screen.
 use crate::ui_screen::{model_of, read_state};
+/// Imports the window and the generated feedback row type.
 use crate::{AppWindow, FeedbackItem};
 
 /// What:

@@ -17,6 +17,7 @@
 //! `KeyboardPlatform::from_name` before a request can be built,
 //!  so `shortcut_action` never sees one.
 
+/// Imports the binding scopes and lookups that map a request to a row of the table.
 use crate::keymap_bindings::{Scope, binding_matching, popup_binding_matching};
 
 /// What:
@@ -375,7 +376,10 @@ pub enum ShortcutAction {
     /// Activates the entry under the list focus ring.
     ListActivate,
     /// Moves the folder focus ring to the first folder that starts with this letter.
-    ListLetter(char),
+    ListLetter(
+        /// The letter that was pressed.
+        char,
+    ),
     /// Opens the system folder dialog.
     OpenFolderDialog,
     /// Quits the application.
@@ -389,7 +393,10 @@ pub enum ShortcutAction {
     /// Shows the focused track row in the file manager.
     RowShow,
     /// Runs the track menu row whose access letter was pressed while the menu is open.
-    MenuAccess(char),
+    MenuAccess(
+        /// The access letter that was pressed.
+        char,
+    ),
     /// Moves the track menu's highlighted row up.
     MenuUp,
     /// Moves the track menu's highlighted row down.

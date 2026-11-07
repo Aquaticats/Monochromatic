@@ -12,16 +12,27 @@
 //! and the
 //! window tests can press every key through a recording host.
 
+/// Imports the commands and the playback mode that shortcuts send to the engine.
 use music_player::command::{Command, PlaybackMode};
+/// Imports the shortcut action type that `run` matches.
 use music_player::keymap::ShortcutAction;
+/// Imports the track menu actions and the lookups of its letters and list.
 use music_player::track_menu::{TrackMenuAction, access_action, track_menu_actions_for};
 
+/// Imports the window that actions change.
 use crate::AppWindow;
+/// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
+/// Imports the key context that tells where the key was pressed.
 use crate::ui_keys::KeyContext;
+/// Imports the focus target and the calls that move keyboard focus.
 use crate::ui_keys_focus::{FocusTarget, request_focus, set_target};
+/// Imports the projection and the state accessors of the screen.
 use crate::ui_screen::{project, read_state, update_state};
+/// Imports the scroll request and the row offset calculation.
 use crate::ui_screen_scroll::{ScrollRequest, row_offset_px};
+/// Imports the route,
+/// the screen state and the page scope lookup.
 use crate::ui_screen_view::{Route, ScreenState, selected_page_scope};
 
 /// Seconds a plain seek moves.

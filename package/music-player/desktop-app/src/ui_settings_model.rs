@@ -10,7 +10,9 @@
 //! fields) come from `template_editor_state`;
 //! this module only reshapes them for the window.
 
+/// Imports the template editor state that the model reads.
 use music_player::template_editor_state::TemplateEditorState;
+/// Imports the template kind that a row stands for.
 use music_player::template_model::TemplateKind;
 
 /// What:
@@ -167,6 +169,10 @@ pub fn editor_view(editor: &TemplateEditorState) -> EditorView {
     };
 }
 
+/// Unit tests of `ui_settings_model`,
+/// in the sidecar file `ui_settings_model_tests.rs`.
+/// Role of the module:
+/// pure models for the Settings template rows and the template editor page.
 #[cfg(test)]
 #[path = "ui_settings_model_tests.rs"]
 mod tests;

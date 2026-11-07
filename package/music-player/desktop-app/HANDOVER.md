@@ -361,17 +361,36 @@ Sources cloned at `/tmp/agent/symphonia-20260601` (checked out tag `v0.5.4`) and
 `src/decode.rs` public surface:
 
 ```rust
-#[derive(Clone, Copy, Debug)]
-pub struct AudioSpec { pub rate: u32, pub channels: u16, pub duration_secs: f64 }
+//! The designed public surface of `src/decode.rs`.
 
+/// The format of a decoded track.
+#[derive(Clone, Copy, Debug)]
+pub struct AudioSpec {
+    /// Samples per second of each channel.
+    pub rate: u32,
+    /// Number of interleaved channels.
+    pub channels: u16,
+    /// Length of the track in seconds.
+    pub duration_secs: f64,
+}
+
+/// A decoder that yields interleaved samples chunk by chunk.
 pub trait Source: Send {
+    /// The format of the samples that `next_chunk` yields.
     fn spec(&self) -> AudioSpec;
-    fn next_chunk(&mut self) -> Result<Vec<f32>, PlayerError>; // empty Vec == EOF
+    /// The next chunk of samples;
+    /// an empty `Vec` means the end of the track.
+    fn next_chunk(&mut self) -> Result<Vec<f32>, PlayerError>;
+    /// Moves the next chunk to this many seconds from the start.
     fn seek(&mut self, secs: f64) -> Result<(), PlayerError>;
 }
 
-pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError>; // probe, clone params, route Opus vs symphonia
-pub fn decode_all(path: &Path) -> Result<(AudioSpec, Vec<f32>), PlayerError>; // test helper: drain to end
+/// Probes the file,
+/// clones its parameters
+/// and routes Opus and the other codecs to their decoders.
+pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError>;
+/// Test helper that drains a whole file into one buffer.
+pub fn decode_all(path: &Path) -> Result<(AudioSpec, Vec<f32>), PlayerError>;
 ```
 
 - `SymphoniaSource` (in `decode.rs`):

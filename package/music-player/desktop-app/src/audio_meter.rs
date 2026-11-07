@@ -13,7 +13,10 @@
 //!  `meter.shortCallbacks++` inside the audio callback,
 //!  and a timer in the worker that reads them every second.
 
+/// Imports the atomic counter and its ordering,
+/// which let the realtime callback count underruns without locking.
 use std::sync::atomic::{AtomicU64, Ordering};
+/// Imports the duration and instant types that time the once-a-second report.
 use std::time::{Duration, Instant};
 
 /// What:
@@ -145,6 +148,7 @@ pub struct MeterSnapshot {
     pub last_buffer_frames: u64,
 }
 
+/// Method of `MeterSnapshot` that reads what changed since an earlier snapshot.
 impl MeterSnapshot {
     /// What:
     ///      `pub fn since(self, earlier: MeterSnapshot) -> MeterSnapshot`.
@@ -167,6 +171,7 @@ impl MeterSnapshot {
     }
 }
 
+/// Methods of `AudioMeter` that the realtime callback counts with and the engine thread reads with.
 impl AudioMeter {
     /// What:
     ///      `pub fn new() -> AudioMeter`.
@@ -240,6 +245,7 @@ impl AudioMeter {
     }
 }
 
+/// The default `AudioMeter` starts with every counter at zero.
 impl Default for AudioMeter {
     /// What:
     ///      `fn default() -> AudioMeter`.
@@ -307,6 +313,7 @@ pub struct MeterReporter {
     announced: bool,
 }
 
+/// Methods of `MeterReporter` that create it and take the change that is worth logging.
 impl MeterReporter {
     /// What:
     ///      `pub fn new() -> MeterReporter`.
@@ -361,6 +368,7 @@ impl MeterReporter {
     }
 }
 
+/// The default `MeterReporter` has reported nothing yet.
 impl Default for MeterReporter {
     /// What:
     ///      `fn default() -> MeterReporter`.
@@ -377,6 +385,10 @@ impl Default for MeterReporter {
     }
 }
 
+/// Unit tests of `audio_meter`,
+/// in the sidecar file `audio_meter_tests.rs`.
+/// Role of the module:
+/// underrun meter for the audio output.
 #[cfg(test)]
 #[path = "audio_meter_tests.rs"]
 mod tests;

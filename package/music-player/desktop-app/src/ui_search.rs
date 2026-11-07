@@ -19,24 +19,42 @@
 //! and a library that is still
 //! being fed refreshes the open results in place) are applied here.
 
+/// Imports the cell type that holds the service slot on the window thread.
 use std::cell::RefCell;
+/// Imports the shared ownership type that shares the service with the callbacks.
 use std::rc::Rc;
+/// Imports the atomic shared ownership type that lets the service be shared with its worker threads.
 use std::sync::Arc;
+/// Imports the duration type of the pause between the batches that the library feed hands over.
 use std::time::Duration;
 
+/// Imports the command that the search sends to the engine.
 use music_player::command::Command;
+/// Imports the engine that receives the commands.
 use music_player::engine::Engine;
+/// Imports the library feeder and its batch size.
 use music_player::search_feed::{FEED_BATCH, feed_library};
+/// Imports the query splitter.
 use music_player::search_matcher::search_terms;
+/// Imports the result kind and the search state.
 use music_player::search_results::{SearchResultKind, SearchState};
+/// Imports the answer type and the service that answers queries.
 use music_player::search_service::{SearchAnswer, SearchService};
+/// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
+/// Imports the window that shows the search.
 use crate::AppWindow;
+/// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
+/// Imports the projection and the state accessors of the screen.
 use crate::ui_screen::{project, read_state, update_state};
+/// Imports the route,
+/// the screen state and the folder selection.
 use crate::ui_screen_view::{Route, ScreenState, select_folder_label};
+/// Imports the application of an answer to the window.
 use crate::ui_search_apply::{apply_answer, install_rows_model, show_view};
+/// Imports the pure search view builder.
 use crate::ui_search_model::search_view_of;
 
 thread_local! {
@@ -63,6 +81,7 @@ pub(crate) fn service() -> Option<Arc<SearchService>> {
 /// A guard in `main` joins them first.
 pub(crate) struct ServiceShutdown;
 
+/// Joins the Search service's threads when the guard is dropped.
 impl Drop for ServiceShutdown {
     /// What:
     /// `drop` shuts down the installed Search service,
