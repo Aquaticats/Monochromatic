@@ -4349,8 +4349,37 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   an injected overflow event with a small fixed count,
   never writes scaled by a host limit,
   and a search for other tests sized from `/proc/sys`.
-  The music-player ellipsis test passed three times for the zbus agent;
-  its cause is still unmeasured.
+- Music player:
+  merged into main `9944c1ffe8` (1601 of 1601 desktop-app tests,
+  Clippy and e2e lint clean;
+  worktree and branch removed).
+  The ellipsis test failed only in release builds,
+  because the Search page's fade-in read the wall clock and a release build drew before the fade ended
+  (red `80e9ead693`,
+  fix `96c1da743a`:
+  the test clock advances by `Theme.motion-enter` per draw pass);
+  `src/ui_render_support.rs` also reads the wall clock.
+  `click-through/unreadable-row` raced a fixed 1500 ms pause;
+  the app now writes a state line on each search answer and the check waits for it
+  (red `25c717f5b9`,
+  fixes `c0d7b7dcf6`,
+  `6f2c48339e`).
+  `settings/licenses-row` and `settings/escape-ladder` did not reproduce headless,
+  and no failure text was kept from the reported runs,
+  which used the visible nested window;
+  `browse/alt-down-up` failed once and is untouched.
+  Docs:
+  `doc/troubleshooting/slint-render-test-fade-in-reads-the-wall-clock.md`,
+  `doc/troubleshooting/music-player-e2e-search-answer-and-headless-start.md`.
+  Queued for the next free agent slot:
+  make the e2e runner headless by default for agents
+  (the working wrapper lives only in scratch,
+  `~/temp/agent/four-tests/headless-compositor.ts`,
+  with `--headless --gpu /dev/dri/renderD129`;
+  `--gpu auto` took about 56 s to open the control socket against the runner's 30 s poll),
+  fix the start stall,
+  keep each failing check's text and last `ui_state` lines,
+  then measure the three open checks and the wall-clock read in `ui_render_support.rs`.
 - Held settle message:
   merged into main `66dbb1ca27` (gate 5194 of 5194,
   lint clean).
@@ -4738,7 +4767,27 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The old notice and its flaky test are gone.
   The late-line gap is closed in main
   (`baf4c039f2`).
-  The next wrapper release waits only for the tokio agent's measured cause of the leftover ref lock.
+  The next wrapper release waited for the tokio agent's measured cause of the leftover ref lock;
+  that cause is measured
+  (Git's own SIGTERM cleanup removes the lock's pid file and then the lock,
+  and a 5 s stop can land between the two),
+  and the race is the same in the installed 0.6.0,
+  so the alpha no longer waits for the tokio branch.
+  Measured 2026-11-07:
+  the installed 0.6.0 still prints six old-name lines on every command;
+  the old files in the main Git directory were last written between 07:06 and 08:24
+  and nothing under `.git/cli-git` changed after 08:25.
+  Next:
+  after the no-checkout clone fix merges,
+  one container gate on main,
+  then a wrapper alpha from main (fold,
+  late-line fix,
+  no-checkout fix,
+  held message,
+  index-lock fallback),
+  lock,
+  install,
+  and a check that the six lines are gone and the old logs' lines are in the current logs.
   Another suite-only failure seen once in its gates:
   `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
   gates;
@@ -4999,10 +5048,42 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `R0` inventory,
   first pass,
   then the final pass and the link at the chosen moment).
+  The guided script is merged (`4980c200ea`):
+  `doc/runbook/repository-on-the-860-drive-guided-root-script.sh` and its `.md`,
+  commands `prepare` (25 stages,
+  fixture test to first pass) and `cutover` (24 stages,
+  window clock,
+  freeze,
+  final pass,
+  verification,
+  guard,
+  swap,
+  release),
+  dry runs and a failing stand-in step checked without root.
+  Not ready to run:
+  W1 to W15 (the dangling-link checks per tool) are not built,
+  the 860 lacks `user_subvol_rm_allowed`,
+  `move-repository.ts` keys its records by position (a resume after a worktree change refuses),
+  the window maximum's allowance is the agent's choice,
+  the 860's free space leaves about 160 GiB against the plan's 150,
+  and the two scripts the wizard needs live in `~/temp/agent/dangling`.
+  The plan's own commands had defects the script works around (`sudo node` with mise's node,
+  F5 reusing F3's folders,
+  `list -o` not recursive,
+  `--freeze` joined to the copy,
+  no `--delete` in the second external pass,
+  root `git` in verification).
+  Incident:
+  that agent ran `sudo -n true` once to check for passwordless sudo
+  (a no-op that changed nothing,
+  against the brief's "No sudo");
+  the guardrail has no `sudo` rule (`package/claude-code-plugin/guardrail/src/index.ts`,
+  searched).
   Next:
-  build that script with the `wizard` skill from the plan's runbook and its `move-repository.ts`,
-  dry-run it in print mode,
-  at the first free agent slot.
+  the preparation work (W1 first,
+  the `move-repository.ts` fixes,
+  both scripts into the repository),
+  given to an agent 2026-11-07.
 
 - The symlink plan is committed (`4f430a0683`,
   `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`;

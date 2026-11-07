@@ -3,11 +3,11 @@
 Recorded 2026-11-07T13:05:00-05:00.
 
 Status:
-the launcher follows the tool's `current` link when the folder its record names is gone,
-in the release of `monochromatic-mpm-shadow` that follows 0.2.7-alpha.2
-(the version and its release record are filled in `doc/planning/one-release-each-batch-2026-11.md`,
-section "Release record: `monochromatic-mpm-shadow` launcher follows current").
-A tree whose launcher binary predates that release keeps failing until `mise run toolchain:install` runs in it.
+fixed in `monochromatic-mpm-shadow` 0.2.7-alpha.4 (the launcher follows `current` since 0.2.7-alpha.3 and rewrites its stale record since alpha.4)
+and `monochromatic-lint` 0.5.2-alpha.2 (the closure check fails instead of skipping);
+the lock has named them since commits `ee2d870060` and `5cd86b210f`
+(`doc/planning/one-release-each-batch-2026-11.md`, section "Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.3 and 0.2.7-alpha.4").
+A tree whose launcher binary predates alpha.4 keeps failing until `mise run toolchain:install` runs in it.
 The tool is `package/mpm-shadow/cli`,
 which this repository owns,
 so there is no upstream to file against.
