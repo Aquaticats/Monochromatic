@@ -173,7 +173,8 @@ Design:
 
 ```rust
 // package/wg/cli-quicker-exempt/src/error.rs
-/// One place deciding which `ErrorKind` a failure carries, so the mapping is a
+/// One place deciding which `ErrorKind` a failure carries,
+/// so the mapping is a
 /// reviewable table instead of 11 independent choices.
 pub(crate) fn invalidInput(message: impl Into<String>) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidInput, message.into())
