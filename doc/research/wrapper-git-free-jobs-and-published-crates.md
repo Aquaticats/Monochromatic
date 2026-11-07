@@ -58,14 +58,15 @@ with the evidence;
   replace with `jiff`, already linked.
   Equal to our text on 2933 of 2933 instants.
 - JavaScript text rules (`js_text`) and JSON quoting (`json_record`):
-  replace with the standard library and `serde_json`, which the code already uses for quoting.
-  The JavaScript parity is no longer required.
+  `serde_json` already does the quoting;
+  `js_text` could become `std` after its readers are compared (the ruling frees output text, not accepted input).
 - Linux file and disk calls (`linux-file-and-disk-calls`):
   partly.
   `rustix`, already linked, does every call except the btrfs ioctls,
   and its behavior on the probe equals what the wrapper needs.
-  The btrfs ioctls stay ours,
-  because the one crate for them needs `bindgen` and `libclang` to build.
+  The btrfs ioctls stay ours for now:
+  the one crate for them (`btrfs-uapi`) needs `bindgen` and `libclang` at build time,
+  which is not recommended before the build environments are checked (not done).
 - Safe file saving (`safe-file-saving`):
   partly.
   `tempfile`, already linked, takes the staging name and the no-replace publish;
@@ -79,11 +80,15 @@ with the evidence;
   partly.
   `sysinfo` reproduced our memory headroom figure under two cgroup caps and could replace the host reader;
   the ordered runner and the start-or-run-here fallback stay,
-  because `rayon` panics where our code runs the job in turn.
+  because the global `rayon` pool panics where our code runs the job in turn
+  (other `rayon` setups were not evaluated).
 - Text, time and log line formats (`text-time-and-log-line-formats`):
-  replace the time and JSON parts,
-  keep `shell_quote` (no crate produces output free of control characters;
-  measured) and the small `diagnostic_line`.
+  replace the time part with `jiff`, the JSON quoting is already `serde_json`,
+  and `shell-quote` 0.8.0 with its Bash quoter is a candidate for `shell_quote`:
+  it printed control-free text that bash read back byte for byte on every input but NUL, which bash cannot hold
+  (the other three crates tried did not);
+  the cost is a less readable spelling.
+  Keep the small `diagnostic_line`.
   Little is left to be a crate of ours.
 - Talking to the systemd user manager (`talking-to-the-systemd-user-manager`):
   keep the connection.
@@ -94,13 +99,13 @@ with the evidence;
 - Fix packages after copying a folder (`fix-packages-after-copying-a-folder`):
   no candidate found.
 - Dependent version bump check (`dependent-version-bump-check`):
-  no candidate found.
+  candidates found (release tools), library suitability not evaluated.
 - Disposable test folders (`disposable-test-folders`):
   partly.
   `tempfile` makes the folders;
   the watchdog, process-group ownership and core-dump helpers have no crate counterpart.
 - Journal writer:
-  keep.
+  keep (blocking socket in both crates read; a full-queue probe was not run).
   The two journal crates send entries with a blocking `send_to`,
   and the wrapper must never wait for the journal.
 - Three-way text merge (`word_merge`):
@@ -109,11 +114,13 @@ with the evidence;
   `diffy` and `flickzeug` on 31 of 41;
   `reconcile-text` never reports a conflict.
 - Crash points for tests:
-  keep.
-  `fail` has no kill action and no marker file,
-  and its pause is released only in process.
-- Durable work items, btrfs subvolume conversion, Markdown autofix runner, saved-copies store, audit log rotation:
+  keep, with a limit:
+  `fail` has no kill action and no marker file, and its pause is released only in process;
+  its callback hook was not evaluated for partial reuse.
+- Btrfs subvolume conversion, Markdown autofix runner, saved-copies store:
   no candidate found.
+- Durable work items and audit log rotation:
+  unresolved; candidates were named and not tested against the wrapper's contract.
 - Unified-diff reader and reverse-apply check:
   keep (not differentially tested against Git; reason in its section).
 - Inotify wait:
@@ -137,6 +144,8 @@ Gates that ran:
   with the crate version and the path read.
 - Behavior probes on throwaway code for the pinned behaviors:
   hashing, shell quoting, three-way merge, time text, `rustix` calls, memory headroom, `procfs` parsing, `zbus`.
+  The journal crates, `fail`, `kill_tree`, `cap-primitives`, `atomic-write-file`
+  and the sock-diag crate were read, not run.
 - Maintenance sample for the finalists:
   last commit date from the repository host,
   not the full sample of issues and pull requests the skill asks for.
@@ -234,8 +243,10 @@ Candidates:
   Names come from `getrandom` (the `getrandom` feature is on in the tree).
   Differences from our code:
   it does not synchronize the file or the directory,
-  it does not fall back to a rename when links are refused (our `publish_exclusive` does, after checking the name),
-  and it ignores an `unlink` error after the link.
+  its order is rename-no-replace first and hard link second, ours is hard link first and a checked rename second,
+  so a filesystem that refuses links but supports `renameat2` works with both, and a filesystem that supports neither
+  fails with `tempfile` where ours renames after checking the name (this combination was not tested),
+  and it ignores an `unlink` error after the link (whether that breaks the wrapper's cleanup rule was not checked).
 - `atomic-write-file` 0.3.1 (BSD-3-Clause, last commit 2026-08-11, 6 added packages: `nix`, `rand`, `chacha20`,
   `cpufeatures`, `rand_core`).
   It always replaces the target through `renameat` and synchronizes the file and the directory
@@ -261,7 +272,8 @@ so it is no reason against `tempfile`.
 
 Verdict: partly.
 `tempfile::Builder` with `persist_noclobber` can take the staging-name and no-replace-publish code (tens of lines),
-if the owner accepts losing the checked rename fallback or keeps it beside the call.
+once the existing publish controls (`private_storage_publish_tests.rs`) are run against it with the combinations above;
+whatever fallback they show necessary stays beside the call.
 The synchronizing order, the private modes, the no-follow reads with a size limit and the directory-sync tolerance
 have no crate counterpart and stay.
 What remains is smaller than the library proposed and is still a Git-free job,
@@ -310,7 +322,9 @@ Candidates:
   Its `Cargo.toml` lists `bindgen` 0.72.1 as a build dependency that is not optional,
   so a build needs `libclang`.
   It built on this host in 21.1 s;
-  whether the container images of the wrapper carry `libclang` was not checked.
+  whether the container images of the wrapper carry `libclang` was not checked,
+  and no repository rule against a native build prerequisite was looked up.
+  `btrfs-transaction` 0.13.0 (same author, appeared in the search) was not evaluated.
 - `procfs-core` 0.18.0 has a `MountInfo` parser; see the next section for `procfs`.
   The wrapper has two mountinfo parsers (`fs_mount_options.rs` and `filesystem_identity_mount.rs`),
   one that skips unreadable lines and one that declines the whole table.
@@ -320,7 +334,8 @@ Candidates:
 
 Verdict: partly.
 Replace the syscall layer with `rustix` (no new package):
-about 30 `unsafe` sites in `fs_beneath`, `fs_clone_exchange`, `fs_kind` and `rename_that_never_replaces`,
+the `unsafe` sites in `fs_beneath` (14), `fs_clone_exchange` (2), `fs_kind` (4) and `rename_that_never_replaces` (1),
+20 or 21 in all by the counts above (the 11 in `fs_btrfs_ioctl` mostly stay),
 and the inotify read loop in `service_index_watch.rs` (248 lines).
 Keep the btrfs ioctl definitions (`fs_btrfs_ioctl.rs`),
 the mount-option reader unless `procfs-core` is shown to match,
@@ -328,7 +343,8 @@ and `fs_primitive_error.rs`.
 The tests of the five files pin errno values (`EXDEV`, `ELOOP`, `EINVAL` mapping),
 so the swap needs the same controls to run against `rustix` errors;
 this was not run.
-What remains is the btrfs ioctl layer, a few hundred lines with no published crate that builds without `bindgen`.
+What remains is `fs_btrfs_ioctl.rs` (455 lines), `fs_mount_options.rs` (340) and `fs_primitive_error.rs` (109),
+904 lines, of which only the ioctl layer has no published counterpart that builds without `bindgen`.
 
 ### Starting and watching programs
 
@@ -388,8 +404,8 @@ Candidates:
   The wrapper's identity strings, the time-namespace offset of field 22 and the lock-holder matching were not
   compared.
 - Socket diagnostics.
-  `netlink-packet-sock-diag` 0.5.0 (MIT, 4 added packages) has `TcpInfo` with `bytes_acked` (the 0.4.2 source has
-  the field in `src/inet/nlas.rs`), with `netlink-sys` 0.9.0 (1 more).
+  `netlink-packet-sock-diag` 0.5.0 (MIT, 4 added packages) has `TcpInfo` with both `bytes_acked` and `bytes_received`
+  (0.5.0 source, `src/inet/nlas.rs` lines 599 and 600), with `netlink-sys` 0.9.0 (1 more).
   It was not run against `tcp_sockets.rs` (318 lines of netlink written by hand) and is unvalidated.
   `procfs` offers `/proc/net/tcp` with queue lengths and no byte counters,
   which the wrapper's own documentation gives as the reason for sock_diag.
@@ -459,7 +475,9 @@ Time (`iso_time.rs`, and `days_from_civil` in `conflict/discarded_prune_stamps.r
   spread over 1970 to 9999, and on -1 ms.
   Its `Display` drops the fraction at zero (`1970-01-01T00:00:00Z`), as does `time`'s RFC 3339 writer
   (`time` 0.3.55, 5 added packages),
-  so a plain `Display` loses the fixed width that string ordering needs.
+  so a plain `Display` loses the fixed width that string ordering would need.
+Whether any code orders these strings is the untraced claim below; fixed width is kept as a precaution, not as a
+demonstrated requirement.
   `humantime::format_rfc3339_millis` (2.4.0, 1 added package) keeps the three digits.
   Above year 9999 `jiff` returns an error where ours prints a JavaScript-style `275760-09-13`;
   nothing in the wrapper needs it.
@@ -468,28 +486,58 @@ Time (`iso_time.rs`, and `days_from_civil` in `conflict/discarded_prune_stamps.r
 
 JavaScript text rules (`js_text.rs`): `trim_javascript`, `is_javascript_whitespace` and `decimal_attempt` emulate
 JavaScript.
-With the ruling they can become `str::trim` and `str::parse`;
-the difference is the set of whitespace code points (JavaScript includes U+FEFF and excludes U+0085).
+The ruling frees the output text, not necessarily what the readers accept.
+Replacing them with `str::trim` and `str::parse` changes the whitespace set (JavaScript includes U+FEFF and excludes
+U+0085); a difference in accepted inputs, overflow and sign handling of `decimal_attempt` was not compared,
+and its consumers were not listed.
+That comparison comes before any change.
 
 JSON (`json_record.rs`): `quote` already calls `serde_json::to_string`.
 `serde_json` does not keep insertion order without its `preserve_order` feature (an extra package),
-so the small ordered object writer stays unless key order is dropped as a requirement.
-The reader rules "safe integers follow JavaScript" lose their reason with the ruling.
+so whether the small ordered object writer can go depends on whether any reader needs key order;
+none was found (the TypeScript reader uses `JSON.parse`), and the question is unresolved.
+The reader rules "safe integers follow JavaScript" (accepted number range, duplicate keys) are input semantics that the
+ruling does not decide; they stay until the readers of those records are checked.
 
-Shell quoting (`shell_quote.rs`): the probe `probes/shq` ran our function and four crates on eleven inputs.
-Our output contains no control character for any input:
+Shell quoting (`shell_quote.rs`): the probe `probes/shq` ran our function and four crates on eleven inputs
+(an empty value, a bare path, a space, a single quote, `$(rm -rf x)`, a newline, an escape sequence, a NUL,
+an invalid byte, two accented letters, a tab).
+Calls: `shlex::bytes::try_quote(&[u8])`, `shell_words::quote(&str)` and `shell_escape::unix::escape` on the lossy
+`String` of the bytes (so the last two never saw an invalid byte as a byte), and
+`shell_quote::Bash::quote_into_vec(&[u8])` and `shell_quote::Sh::quote_into_vec`.
+Our output contains no literal control character for any input:
 `it's` gives `'it'\''s'`, a newline gives `$'a\nb'`, an escape sequence gives `$'\x1b[31mred'`,
 a NUL gives `$'a\x00b'`, an invalid byte gives `$'\xffa'`.
-For a newline, a tab and an escape sequence, `shlex` 2.0.1, `shell-words` 1.1.1 and `shell-escape` 0.1.5 print the raw
-control character, so a person who copies the line from a terminal copies it;
-`shlex` returns an error for NUL, `shell-words` prints it raw, and `shlex` writes `it's` as `"it's"`.
-All three replace an invalid byte with U+FFFD, which names a different file.
-`shlex` records the missing style in its source (`src/bytes.rs` line 241: "TODO: add $'xxx'").
-`snailquote` 0.3.1 is GPL-3.0-only, and the wrapper is LGPL-3.0-or-later, so it was not tested.
-Verdict: keep, with the measured reason.
-The module's top doc names a TypeScript twin (`package/wg/cli-quicker/src/shell-quote.ts`) as the source of the
-rules; the ruling frees us from that twin but not from the control-free requirement,
-which is a security property of printed text (rule `SYB` in `AGENTS.md`: text obeys the grammar of its destination).
+- `shlex` 2.0.1, `shell-words` 1.1.1 and `shell-escape` 0.1.5 printed the raw control character for a newline, a tab and
+  an escape sequence, so a person who copies the line from a terminal copies it;
+  `shlex` returned an error for NUL, `shell-words` printed it raw, and `shlex` wrote `it's` as `"it's"`.
+  The invalid byte came out as U+FFFD from `shlex` (bytes in, so the crate or its lossy output converted it)
+  and from the other two (they were given the lossy string).
+  `shlex` records the missing style in its source (`src/bytes.rs` line 241: "TODO: add $'xxx'").
+- `shell-quote` 0.8.0 (Apache-2.0, last release 2026-08-07, 3.5 million downloads, 1 added package with only the
+  `bash` feature) is the exception.
+  Its Bash quoter printed no control character on any input and wrote the invalid byte as `$'\xFFa'` and NUL as
+  `$'a\x00b'`.
+  It spells more bytes as escapes than ours does: a space gives `$'a b'` (ours `'a b'`),
+  `it's` gives `$'it\'s'`, and the accented letters give `$'\xC3\xA9 \xC3\xBC'` (ours `'é ü'`).
+  Its Sh quoter printed raw control characters for a newline, a tab, an escape sequence and NUL.
+  Round trip: the Bash-quoted text and ours were each given to bash 5 (`printf %s <quoted> | od`) and gave the input
+  bytes back on every input without a NUL; the NUL case cannot be given to a bash argument at all, so the value is a
+  diagnostic spelling there.
+  The empty value in the script failed for both because of a harness slip (the script shifts its arguments), not a
+  quoting fault, and was not rerun.
+- `snailquote` 0.3.1 is GPL-3.0-only and was not evaluated pending a licensing review
+  (the wrapper declares LGPL-3.0-or-later; no repository policy on copyleft dependencies was read).
+Verdict: `shell-quote`'s Bash quoter is a replacement candidate,
+the only tested crate API that meets the module's own contract (printed text holds no control character and no line
+break, `shell_quote.rs` top doc),
+with a readability cost the owner decides (open choice 10).
+Three other tested APIs fail that contract.
+The module's top doc names a TypeScript twin (`package/wg/cli-quicker/src/shell-quote.ts`) as the source of its
+rules; the ruling frees us from that twin.
+The control-free rule is the module's own stated contract for text printed to a terminal and is kept separate from
+shell grammar (rule `SYB` in `AGENTS.md` covers the grammar of the destination, not terminal display).
+The module's tests pin exact strings (`shell_quote_tests.rs`) and would change with the spelling.
 
 Log lines (`diagnostic_log.rs`): the line is
 `[level] [time] [monochromatic-git-policy-cli] [tag] message\n` with control characters turned into spaces.
@@ -537,11 +585,10 @@ Tests that pin a shape other code reads and so should stay or move with the read
 `transaction_owner_tests.rs`, `discarded_prune_tests.rs` and `discard_audit_tests.rs` (the stamp prefix).
 
 Verdict for the job:
-replace `iso_time` with `jiff` (and the second calendar with it), replace `js_text` with `std`,
-keep `quote` on `serde_json`,
-keep `shell_quote` and `diagnostic_line`.
-After that, `text-time-and-log-line-formats` has no job that is general and not covered by a crate except shell
-quoting that keeps control characters out, about a hundred lines;
+replace `iso_time` with `jiff` (and the second calendar with it), keep `quote` on `serde_json`,
+treat `js_text` as replaceable by `std` only after its readers are compared (see the next paragraph),
+take `shell-quote` for `shell_quote` if the owner accepts its spelling, keep `diagnostic_line`.
+After that, `text-time-and-log-line-formats` has no job that is general and not covered by a crate;
 it no longer justifies a crate of ours.
 
 ### Talking to the systemd user manager
@@ -578,7 +625,8 @@ Candidates, with the recorded reason ("roughly fifty crates and an executor",
   The catalog entry for `zbus` is `>=5.19.0` (`rust-catalog.toml` line 128), so a new dependency would resolve 6.x,
   not the 5.x that the nested-wayland-session sibling locks.
   With `default-features = false` it compiles only the wire format and names: 6 added packages, an encoded
-  `("cli.socket", "replace")` of 28 bytes round-tripped, and the probe was 285 KB larger than an empty one.
+  `("cli.socket", "replace")` of 28 bytes round-tripped,
+  and the standalone probe was 285 KB larger than an empty one (not measured inside the wrapper).
 - `rustbus` 0.19.3 (MIT, last release 2023-08-29, near-zero recent downloads): the recorded reason "not in the offline
   registry cache" was an environment limit;
   the crate is on crates.io, but it has not been released for more than three years.
@@ -591,7 +639,8 @@ Verdict: keep the connection, with the recorded reason now measured:
 +52 lockfile packages, +2.47 MB, 4 more major faults on a cold start,
 no deadline over the handshake, and no blocking API in the current major version.
 Partly, if the owner wants it:
-the 316-line encoder and reader could use the wire-format-only build of `zbus` 6 (6 added packages, +285 KB);
+the 316-line encoder and reader could use the wire-format-only build of `zbus` 6
+(6 added packages, +285 KB in a standalone probe, not measured inside the wrapper);
 this was not run against the fuzz target or the `damaged_replies_are_refused` controls.
 
 ### Fix packages after copying a folder
@@ -620,12 +669,14 @@ about 2,600 lines of non-test files in `dependent_version/`
 Candidates: queries "package.json dependent version bump" (186 results), "monorepo version bump dependents"
 (180), "workspace dependents bump npm" (296), "semver bump package.json" (64) returned release tools:
 `changesette`, `changepacks`, `cargo-monorepo`, `sampo`, `monochange`, `ferrflow`, `vup-rs`, `bver`.
-These are command-line tools that decide a release; none was read as a library.
+These are mostly command-line tools that decide a release; none was read as a library.
 `semver` 1.0.28 is locked and adds 0 packages; whether the planner already parses versions by hand was not checked.
 
-Verdict: no candidate found that takes the planner's input (a changed package's version, a workspace of
-`package.json` files) and returns the dependents to bump.
-A finalist reading of `changesette` or `changepacks-core` against `dependent_version_plan_tests.rs` was not done.
+Verdict: candidates found, library suitability not evaluated.
+Nothing read takes the planner's input (a changed package's version, a workspace of `package.json` files) and returns
+the dependents to bump,
+but `changesette` and `changepacks-core` were not read against `dependent_version_plan_tests.rs`,
+and that reading comes before any statement that the job is unique.
 
 ### Disposable test folders
 
@@ -646,8 +697,13 @@ Each is named in the proposal's section "Jobs found buried in the program".
 - System journal writer (`journald_native.rs` 557 lines with `journald_native_socket_target.rs` 46 and
   `client_journal.rs` 116).
   `systemd-journal-logger` 2.2.2 (MIT or Apache-2.0, 1 added package) sends with `UnixDatagram::send_to`
-  (`src/client.rs` line 51); a search of its source for `nonblock` and `WouldBlock` found nothing.
-  `tracing-journald` 0.3.2: the same search found nothing.
+  (`src/client.rs` line 51);
+  its socket is `UnixDatagram::unbound()` (line 37) and the send is `send_to(payload, JOURNALD_PATH)` with no
+  `set_nonblocking`, so the send blocks when journald's queue is full (a search for `nonblock` and `WouldBlock` found
+  nothing).
+  `tracing-journald` 0.3.2: `UnixDatagram::unbound()` at `src/lib.rs` line 106 and `send_to` at line 245, same search
+  result.
+  A full-queue probe of either crate was not run.
   Both use the `log` or `tracing` facade, not a call with fields.
   `libsystemd` 0.7.2 adds 15 packages and `systemd-journal-sdk-*` is GPL-3.0-or-later.
   The wrapper pins `a_full_journal_queue_falls_back_instead_of_waiting` and
@@ -673,6 +729,8 @@ Each is named in the proposal's section "Jobs found buried in the program".
   It has no `SIGKILL`, no `.reached` marker file, and its `pause` ends when the configuration changes in process, not
   when a file appears.
   The wrapper's `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill:<dir>` needs all three.
+  A callback could do the kill and the marker, but the variable parsing, the refusal of a malformed value and the
+  release-file wait would stay ours; how much code that saves was not measured.
   Verdict: keep.
 - Durable work items (`work_item.rs` 540, `work_item_recovery.rs` 271, claim names 116).
   Queries "durable queue files", "file based work queue", "claim work item rename" returned 1,175, 2,521 and 475
@@ -682,7 +740,9 @@ Each is named in the proposal's section "Jobs found buried in the program".
   the wrapper's design needs several processes claiming by atomic rename
   and recovering stale claims by process identity.
   Their semantics were read from their descriptions, not tested.
-  Verdict: no candidate found that was tested.
+  Whether claim-by-rename directories are binding, or only the durability, concurrency and recovery they give,
+  was not separated.
+  Verdict: unresolved.
 - Btrfs subvolume conversion core (about ten files of `converting_the_main_checkout`).
   Queries "btrfs subvolume" (56), "btrfs snapshot create ioctl" (7), "convert directory to subvolume" (4):
   the hits are `btrfs-uapi`/`btrfs-transaction` (ioctl layer, see above), backup tools and the wrapper itself.
@@ -692,10 +752,13 @@ Each is named in the proposal's section "Jobs found buried in the program".
   `rumdl` 0.3.2 is a different linter with its own rules.
   Verdict: not applicable.
 - SHA-1 and SHA-256 digests: see the next section.
-- Saved copies with age and size limits, rotating audit log (`discard_audit_generations`):
-  `file-rotate` 0.8.0 adds 25 packages (`chrono`, `flate2`) and rotates by size or lines;
-  `trash` 5.3.0 is the desktop trash.
-  Verdict: no candidate found for an age and size pruned store.
+- Saved copies with age and size limits:
+  `trash` 5.3.0 is the desktop trash;
+  verdict: no candidate found for an age and size pruned store.
+- Rotating audit log (`discard_audit_generations`):
+  `file-rotate` 0.8.0 adds 25 packages (`chrono`, `flate2`) and rotates by size or lines.
+  The audit log's contract was not read against it.
+  Verdict: unresolved.
 - Unified-diff reader and reverse-apply check (`replay_patch.rs` 379, `replay_reverse_apply.rs` 255):
   its header says it is "the exact emulation of `git apply --reverse --check`" and a seeded differential run compares
   it with real Git.
@@ -722,19 +785,20 @@ Candidates:
   The catalog holds `sha2 = ">=0.11.1"` (`rust-catalog.toml` line 105) for the siblings,
   so `workspace = true` resolves 0.11.1, which adds 7 packages (`digest` 0.11.3, `block-buffer`, `crypto-common`,
   `cpufeatures` 0.3, `hybrid-array`, `const-oid`) beside the 0.10 set;
-  `sha1` 0.11.0 adds the same 7.
+  `sha1` 0.11.0 adds the same six supporting packages and itself, so both together add 8 (the six are shared).
 - Speed (`probes/sha`, 15 batches, ours copied unchanged, median in microseconds per digest):
   index-sized input of 521,631 bytes: ours SHA-1 772.9, `sha1` 0.10.6 182.1 (4.2 times), 0.11.0 181.5;
   ours SHA-256 1,359.3, `sha2` 0.10.9 194.8 (7.0 times), 0.11.1 194.9.
   The same-function control (ours again) differed by 1.5 and 0.9 microseconds.
   A 64-byte input: ours SHA-1 0.28, `sha1` 0.07 and 0.05; ours SHA-256 0.39, `sha2` 0.06 and 0.07.
   All four agreed on 305 inputs (every length to 300 and four larger).
-  So a commit saves about 0.6 ms of SHA-1 per index checksum on this host (one index checksum per landing),
-  nowhere near the 5 s budget either way.
+  So one digest of an index-sized input saves about 0.6 ms of SHA-1 on this host;
+  how many such digests a commit makes was not counted, and the commit path was not measured.
 - The wrapper with the crates: `subvolume_sha.rs` replaced by 12 lines calling `sha1::Sha1::digest` and
   `sha2::Sha256::digest`, `sha1 =0.10.6` and `sha2 =0.10.9` added, lockfile delta 0 packages.
-  `cargo test --lib -- subvolume_sha index_full_write index_reset_file index_full` ran 43 tests, all passed, 1 ignored
-  (the 512 MiB control), including `index_reset_file::tests::a_sha256_repository_equals_git`,
+  `cargo test --lib -- subvolume_sha index_full_write index_reset_file index_full` ended with
+  `43 passed; 0 failed; 1 ignored` (the ignored one is the 512 MiB control),
+  including `index_reset_file::tests::a_sha256_repository_equals_git`,
   `every_index_version_equals_git` and `subvolume_sha::tests::sha1_matches_the_published_vectors`.
   Real Git accepts the checksums written through the crates in those tests.
   Release binary: 16,955,248 bytes, 219,496 more (+1.3%) than the baseline, because the crates' block code was not
@@ -772,16 +836,16 @@ The only open question is the version (open choice 2).
   the README, SPEC and DESIGN of the wrapper and `git log --grep` of its folder, for:
   atomic file saving, the watcher and the `/proc` readers, the parallel budget, the time and text formats,
   the version planner, the package repair and the work-item queue.
-  Those were written because no one asked the question; this document is the first answer.
+  No rationale was found in the searched records.
 
 ## What changes in the crate split
 
 - `text-time-and-log-line-formats` leaves the list:
-  time goes to `jiff`, JavaScript rules to `std`, JSON quoting is already `serde_json`;
-  what remains (`shell_quote`, `diagnostic_line`, the ordered object writer) is about 400 lines
-  that fold into the program, and the crate was the one the proposal graded as tier two.
+  time goes to `jiff`, JSON quoting is already `serde_json`, `shell_quote` may go to `shell-quote`;
+  what remains (`diagnostic_line`, the ordered object writer, `js_text` until its readers are compared) folds into the
+  program, and the crate was the one the proposal graded as tier two.
 - `linux-file-and-disk-calls` shrinks to the btrfs ioctl layer and the mount reader,
-  or leaves as a crate if the owner prefers those two files as folders of the program.
+  or becomes folders of the program if the owner prefers.
 - `safe-file-saving` shrinks by the staging and publish code;
   it stays a candidate for a crate of ours with the synchronizing and no-follow record primitives.
 - `starting-and-watching-programs` stays, with a smaller `/proc` part if `procfs` is adopted after validation.
@@ -790,8 +854,10 @@ The only open question is the version (open choice 2).
   stay: no published crate covers them.
 - `disposable-test-folders` stays with fewer helpers.
 - Folded jobs: the digests are replaced; everything else folded stays folded.
-- Of the eight production libraries of the proposal, between five and seven remain,
-  depending on open choice 1.
+- Of the eight production libraries of the proposal (plus the test-only ninth), option (a) of open choice 1 keeps six
+  production libraries (`safe-file-saving` smaller, `starting-and-watching-programs`,
+  `parallel-work-within-a-budget`, `talking-to-the-systemd-user-manager`, `fix-packages-after-copying-a-folder`,
+  `dependent-version-bump-check`), option (b) keeps eight, option (c) keeps five or six.
 
 ## Open choices for the owner
 
@@ -800,22 +866,25 @@ Each has options, pros and cons, and a ranking with a reason for each adjacent p
 ### 1. What to do with the crates this research shrinks
 
 Options:
-(a) keep only the libraries that still hold a job no crate does (`starting-and-watching-programs`,
+(a) keep the production libraries that still hold a job no crate does (`starting-and-watching-programs`,
 `parallel-work-within-a-budget`, `talking-to-the-systemd-user-manager`, `fix-packages-after-copying-a-folder`,
-`dependent-version-bump-check`, and a smaller `safe-file-saving` and `disposable-test-folders`), and fold the rest;
+`dependent-version-bump-check`, and a smaller `safe-file-saving`), keep `disposable-test-folders` smaller, and fold
+`text-time-and-log-line-formats` and `linux-file-and-disk-calls`;
 (b) keep all eight as proposed and let each swap crates inside;
-(c) fold everything shrunk below a few hundred lines.
+(c) as (a), and also fold `safe-file-saving` and `disposable-test-folders`.
 
 Pros and cons:
 (a) matches the "reuse before build" rule and keeps crates that have a demonstrated job, but it changes the count the
 owner already saw.
 (b) keeps the plan stable, but keeps crates whose job is mostly someone else's crate.
-(c) is the least to maintain, but folds `safe-file-saving`, whose primitives the siblings `cargo-shadow` and
-`file-enforcer` copy today (the proposal's tier-one evidence).
+(c) is the least to maintain, but folds `safe-file-saving`,
+whose write-and-sync primitives the siblings `cargo-shadow` and `file-enforcer` copy today
+(the proposal's tier-one evidence).
 
 Ranking: (a) > (b) > (c).
 (a) beats (b) because a crate of ours that wraps `tempfile`, `rustix` and `jiff` mostly adds a name to remember.
-(b) beats (c) because folding `safe-file-saving` throws away the one place two siblings could share code.
+(b) beats (c) because (c) also folds `safe-file-saving`, the place where the proposal found two siblings carrying their
+own copy; (b) keeps it, at the price of keeping `text-time-and-log-line-formats` as a thin crate.
 
 ### 2. The version of `sha1` and `sha2`
 
@@ -825,14 +894,14 @@ Options: (a) a named catalog pin at 0.10.x (`[catalogs.pinned]`, runbook section
 Pros and cons:
 (a) adds 0 packages and no second `digest` in the wrapper's lock, but the wrapper then differs from four siblings
 and the pin needs a comment explaining why (`PIN` in `AGENTS.md`).
-(b) matches the siblings and moves with the update tool, but adds 7 packages and a second copy of `digest` next to
+(b) matches the siblings and moves with the update tool,
+but adds 8 packages with both crates (7 with one) and a second copy of `digest` next to
 the 0.10 one that the scanner still locks, and the measured speed is the same.
 
 Ranking: (b) > (a).
-(b) beats (a) because the speed is equal, the siblings already follow the floor,
-and the extra packages are a lockfile cost, not a binary cost that was measured.
-This is the one place the ranking leans on an unmeasured binary effect;
-the owner may value a smaller lock more.
+(b) beats (a) only provisionally: the speed is equal and the siblings already follow the floor,
+but the 0.11 variant of the wrapper was not built, so its binary and lock cost beyond the package count is unknown.
+The owner may value a smaller lock more.
 
 ### 3. How far to move the Linux calls to `rustix`
 
@@ -840,12 +909,14 @@ Options: (a) the syscall files and the inotify loop; (b) leave `libc`.
 The signal relay stays on `libc` either way, because `rustix` hides its handler interface.
 
 Pros and cons:
-(a) removes about 30 `unsafe` sites at 0 new packages, but every errno mapping control must run again against `rustix`
-errors.
+(a) removes 20 or 21 `unsafe` sites at 0 new packages, but every errno mapping control must run again against `rustix`
+errors, and reachable code from more `rustix` features is not measured.
 (b) keeps tested code, but keeps the `unsafe`.
 
-Ranking: (a) > (b).
-(a) beats (b) because the probe showed `rustix` behaves as the wrapper needs on a btrfs folder and nothing is added.
+Ranking: (a) > (b), provisional.
+(a) beats (b) because the probe showed `rustix` behaving as the wrapper needs on a btrfs folder for the calls tried
+and no package is added;
+the ranking stands only if the errno controls and the inotify replacement pass, which was not run.
 
 ### 4. The D-Bus client
 
@@ -854,14 +925,19 @@ reader; (c) `zbus` 5.19 blocking; (d) `zbus` 6 with its async runtime.
 
 Pros and cons:
 (a) is measured at 693 lines, fuzzed, with one deadline over everything.
-(b) removes 316 lines for 6 packages and 285 KB, but ties the fuzz target to a new reader.
+(b) removes 316 lines for 6 packages and about 285 KB (standalone probe), but the fuzz target and the damaged-reply
+controls must be re-pointed at a reader the crate owns.
 (c) removes both files but adds 52 packages, 2.47 MB, an executor thread and an unbounded handshake.
 (d) needs an async runtime in a binary that starts on every command.
 
 Ranking: (a) > (b) > (c) > (d).
-(a) beats (b) because the saved lines are fewer than the new surface to re-fuzz.
-(b) beats (c) because (c) costs a measured 2.47 MB for no deadline.
-(c) beats (d) because (c) at least has a blocking API.
+(a) beats (b) because the reader is already fuzzed and bounded, and (b) saves 316 lines at a cost not measured inside
+the wrapper; if a later measurement shows the crate's reader is total over arbitrary bytes, (b) could rank first.
+(b) beats (c) because (c) was measured at +52 lockfile packages and +2.47 MB inside the wrapper while (b) was only
+measured standalone, and (c) has no handshake deadline in the files read, so the single 20 s deadline would need a
+helper thread.
+(c) and (d) are not ranked against each other on evidence: (d) was not built, so its startup, cancellation and
+deadline behavior are unknown; (c) is listed first only because it was measured.
 
 ### 5. Whether to validate `procfs` and `netlink-packet-sock-diag`
 
@@ -874,8 +950,12 @@ Pros and cons:
 (b) is zero work and keeps tested guards.
 
 Ranking: (a) > (b).
-(a) beats (b) only because the cost is bounded and the measured parse (745 of 745) leaves the question open;
-if the owner counts the `openat2` guard as binding, (b) wins.
+(a) beats (b) only on expected information: the parse of every process of this host succeeded (745 of 745) and the
+crate holds a directory descriptor per process, but the decisive gaps (the `openat2` guard, identity races,
+time-namespace offsets, socket counters) are untested.
+A bounded plan: run the existing identity, start-time, tree and holder controls against `procfs`, and the socket
+controls against the sock-diag crate, in a worktree, and stop at the first control that cannot be met.
+If the owner counts the `openat2` guard as binding, (b) wins.
 
 ### 6. The time stamp shape
 
@@ -883,16 +963,19 @@ Options: (a) fixed-width `YYYY-MM-DDTHH:MM:SS.mmmZ` through `jiff`'s `strftime`;
 (variable fraction).
 
 Ranking: (a) > (b).
-(a) beats (b) because string ordering and the 19-character stamp prefix keep working; (b) drops `.000`.
+(a) beats (b) because the 19-character stamp prefix of `conflict_sides.rs` and any string ordering keep working;
+(b) drops `.000`, and whether anything orders these strings is untraced.
 
 ### 7. What happens to the JavaScript-parity tests
 
-Options: (a) delete or rewrite the tests named in "Text, time and log line formats" as standard-format tests;
+Options: (a) classify each assertion of the tests named in "Text, time and log line formats" as obsolete byte
+identity, retained format contract or retained input safety (decoding, number range), then rewrite only the first;
 (b) keep them as they are.
 
 Ranking: (a) > (b).
-(a) beats (b) because the owner ruled the parity unnecessary on 2026-11-07, and (b) keeps the code that exists only
-for it.
+(a) beats (b) because the owner ruled output parity unnecessary on 2026-11-07, which makes the first kind of assertion
+obsolete; the other two kinds stay, and (b) keeps tests whose only reason is gone.
+Keeping a test does not require keeping its implementation.
 
 ### 8. Documents that name the twin tools
 
@@ -909,9 +992,47 @@ Options: (a) this session class again, extended to saturation and scoring for th
 `sha2`, `jiff`, `rustix`, `tempfile`, `sysinfo`, and `procfs` if chosen); (b) a cheaper model the owner names;
 (c) the owner.
 
-Ranking: (a) > (b) > (c).
-(a) beats (b) because the probes and scripts already exist in the scratch folder;
-(b) beats (c) because the owner's time is the scarcest.
+Ranking: (a) > (b) > (c), on a stated preference rather than evidence.
+(a) beats (b) because the probes, scripts and read sources are in this session's scratch folder, which saves a
+handoff (another reviewer could reuse them at the cost of reading them);
+(b) beats (c) because the owner spends no time on enumeration, which assumes the owner would rather not;
+if the owner prefers to run it, (c) first.
+
+### 10. The shell quoting spelling
+
+Options: (a) keep `shell_quote.rs`; (b) adopt `shell-quote` 0.8.0's Bash quoter (1 added package) and accept its
+spelling, which escapes spaces, quotes and non-ASCII letters inside `$'...'`; (c) adopt it and wrap it so bare words
+and plain single-quoted text keep their present look.
+
+Pros and cons:
+(a) keeps readable output, 103 lines of ours and tests pinning exact text.
+(b) removes the module for 1 package with byte-exact, control-free output, but a person reading
+`$'\xC3\xA9 \xC3\xBC'` instead of `'é ü'` loses readability.
+(c) keeps readability, but keeps a wrapper that is most of the module.
+
+Ranking: (a) > (b) > (c), provisional.
+(a) beats (b) only because readability of the printed command is a person-facing feature the owner has not ruled on;
+if the owner takes byte-exact escapes as fine, (b) first.
+(b) beats (c) because (c) keeps most of the code (b) would remove.
+
+## Cross-vendor review of this document
+
+Reviewed by `openai/gpt-6.1-sol` (no tools, reading only this document, run 2026-11-07, output in
+`${HOME}/temp/agent/published-crates/sol-review.txt`).
+It is a different vendor from the author.
+Findings taken (the text was changed): input semantics are not freed by the output ruling; timestamp ordering is
+precautionary; startup and digest figures are not commit-path figures; the five-second sentence is not an allowance;
+the shell-quoting conclusion was too broad (a further crate, `shell-quote`, was then tested and passes);
+the sock-diag version was checked at 0.5.0 for both counters; the journal sockets were read, not only searched;
+the `rayon` claim is limited to the global pool; the `bindgen` point is a pending build-policy question;
+version planning, work items and audit rotation are unresolved rather than "no candidate";
+the `fail` callback is noted; unsafe counts, retained line totals, the library count, the combined SHA delta (8,
+measured), the number of shell crates, the test summary line and the standalone-probe qualifier were corrected;
+rankings were restated with their conditions; omitted crates (`nix`, `duct`, `subprocess`, `command-group`, `chrono`,
+`shell-quote`) were added.
+Findings not taken as written: none rejected;
+the request to probe a full journal queue and to run the tempfile publish combinations was not done and is listed as
+not done.
 
 ## Queries
 
@@ -924,6 +1045,12 @@ Totals found: "inactivity timeout child process" 72, "idle timeout subprocess" 1
 "atomic file write" 4986, "three-way merge text" 105, "diff3 merge" 24, "word-level merge" 86,
 "systemd dbus StartUnit" 0, "journald native protocol" 18, "sock_diag netlink tcp" 6, "mountinfo parse" 9,
 "shell quote ansi-c" 18, "RFC 3339 timestamp millis" 16, "crash point fault injection" 156, "failpoint kill" 3.
+Crates the review of this document named that were checked only by metadata and the lockfile delta, not run:
+`nix` 0.31.3 (1 added package; used by `atomic-write-file`, `fs_at`, `kill_tree`), `duct` 1.1.2 (7),
+`subprocess` 1.2.3 (1), `command-group` 5.0.1 (last release 2023-11-18, superseded by `process-wrap`) and `chrono`
+0.4.45 (20).
+None of these has a no-progress deadline in its description, and `chrono` is dominated by `jiff` for the time job on
+the wrapper (already linked); a closer look at `duct` and `subprocess` for output capture is not done.
 The registry ranks by text match and returns many generated or agent products,
 so a first page is a weak sample;
 for each job the decisive candidates were the ones the brief or the repository named,
@@ -941,8 +1068,9 @@ and the sample only adds the crates listed above.
   Within a run the control differed by at most 0.2 ms,
   but the sign of the SHA variant's difference flipped between sessions, so no cold wall-time claim is made.
   The stable cold metric is major page faults: 5, 7 and 9.
-  For scale, a +5 ms cold start is far under the owner's 5 s commit budget;
-  none of these effects is near it.
+  The owner's sentence is "commits vs native git should not take 5s longer";
+  the effects measured here are milliseconds,
+  and no allowance below that figure is read into the sentence.
 - The SHA tests ran with `cargo test --lib` (debug profile) and name filters, not the package's `mise` tasks;
   the full suite of the package was not run for any candidate.
 - No candidate's own CI, fuzz or mutation suites were run.
