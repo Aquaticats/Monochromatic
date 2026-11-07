@@ -123,6 +123,13 @@ pub(crate) fn install(app: &AppWindow, deliver: impl Fn(SearchAnswer) + Send + '
 /// Why:
 /// the service answers on its worker;
 /// the window may only be touched on the event-loop thread.
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "SearchService::start keeps the delivery callable for the life of the service and takes it as impl Fn + Send + 'static, so the callable must own the window handle; the lint does not see the callee through the return"
+    )
+)]
 fn posting_delivery(weak: slint::Weak<AppWindow>) -> impl Fn(SearchAnswer) + Send + 'static {
     return move |answer: SearchAnswer| {
         let target = weak.clone();
@@ -334,7 +341,10 @@ pub(crate) fn move_ring(window: &AppWindow, delta: isize) {
         state.search_ring = Some(here.saturating_add_signed(delta).min(count - 1));
     }
     let ring = read_screen().search_ring;
-    window.set_search_ring(ring.and_then(|row| return i32::try_from(row).ok()).unwrap_or(-1));
+    window.set_search_ring(match ring {
+        Some(row) => i32::try_from(row).unwrap_or(-1),
+        None => -1,
+    });
     tracing::debug!(?ring, "the Search highlight moved");
 }
 

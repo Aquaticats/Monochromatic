@@ -71,6 +71,27 @@ impl fmt::Display for AccentError {
 impl std::error::Error for AccentError {}
 
 /// What:
+///      `fn hex_channel(digits: &str, text: &str, start: usize) -> Result<u8, AccentError>`.
+///  Reads the two hex digits that begin at byte `start` of `digits` as one color channel.
+/// Why:
+///       The accent has three channels read the same way,
+///  and a rejected channel names the whole text that was given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hexChannel = (digits: string, text: string, start: number): number => { ...throws Malformed(text) when not hex... };
+/// ```
+fn hex_channel(digits: &str, text: &str, start: usize) -> Result<u8, AccentError> {
+    return match u8::from_str_radix(&digits[start..start + 2], 16) {
+        Ok(channel) => Ok(channel),
+        Err(error) => {
+            tracing::warn!(error = %error, value = text, "the accent override has an unreadable channel");
+            Err(AccentError::Malformed(text.to_string()))
+        }
+    };
+}
+
+/// What:
 ///      `pub fn accent_override(value: Option<&str>) -> Result<Option<Srgb8>, AccentError>`:
 /// `None` or an empty
 ///  text follows the system,
@@ -105,13 +126,11 @@ pub fn accent_override(value: Option<&str>) -> Result<Option<Srgb8>, AccentError
         tracing::warn!(value = text, "the accent override is not six hex digits");
         return Err(AccentError::Malformed(text.to_string()));
     }
-    let channel = |start: usize| -> Result<u8, AccentError> {
-        return u8::from_str_radix(&digits[start..start + 2], 16).map_err(|error| {
-            tracing::warn!(error = %error, value = text, "the accent override has an unreadable channel");
-            return AccentError::Malformed(text.to_string());
-        });
-    };
-    return Ok(Some(Srgb8 { red: channel(0)?, green: channel(2)?, blue: channel(4)? }));
+    return Ok(Some(Srgb8 {
+        red: hex_channel(digits, text, 0)?,
+        green: hex_channel(digits, text, 2)?,
+        blue: hex_channel(digits, text, 4)?,
+    }));
 }
 
 /// Unit tests of `accent_override`,

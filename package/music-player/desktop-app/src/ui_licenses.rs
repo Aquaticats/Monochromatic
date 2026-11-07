@@ -52,7 +52,9 @@ impl NoticeLines {
     pub(crate) fn new(full_text: &'static str) -> Self {
         let text = full_text.strip_suffix('\n').unwrap_or(full_text);
         let mut starts = vec![0];
-        starts.extend(text.match_indices('\n').map(|(index, _)| return index + 1));
+        for (index, _newline) in text.match_indices('\n') {
+            starts.push(index + 1);
+        }
         return Self { text, starts };
     }
 }
@@ -80,7 +82,10 @@ impl Model for NoticeLines {
     /// so a row is only sliced out.
     fn row_data(&self, row: usize) -> Option<SharedString> {
         let start = *self.starts.get(row)?;
-        let end = self.starts.get(row + 1).map_or(self.text.len(), |next| return next - 1);
+        let end = match self.starts.get(row + 1) {
+            Some(next) => next - 1,
+            None => self.text.len(),
+        };
         return Some(SharedString::from(self.text[start..end].trim_end_matches('\r')));
     }
 

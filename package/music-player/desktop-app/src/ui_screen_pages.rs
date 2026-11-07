@@ -152,7 +152,10 @@ impl ScreenState {
     pub fn page_key_of_index(&self, index: usize) -> Option<String> {
         let pages: Cow<'_, PageIndex> = self.current_pages();
         let position: usize = pages.page_of_index(index)?;
-        return pages.page(position).map(|page| return page.identity.clone());
+        return match pages.page(position) {
+            Some(page) => Some(page.identity.clone()),
+            None => None,
+        };
     }
 
     /// What:
@@ -163,9 +166,16 @@ impl ScreenState {
     pub fn selected_page_scope_indices(&self) -> Vec<usize> {
         let pages: Cow<'_, PageIndex> = self.current_pages();
         let position: usize = pages.position_of_identity(&self.selected_key).unwrap_or(0);
-        return pages.page(position).map_or_else(Vec::new, |page| {
-            return page.indices().iter().map(|index| return *index as usize).collect();
-        });
+        return match pages.page(position) {
+            Some(page) => {
+                let mut scope: Vec<usize> = Vec::with_capacity(page.indices().len());
+                for index in page.indices() {
+                    scope.push(*index as usize);
+                }
+                scope
+            }
+            None => Vec::new(),
+        };
     }
 
     /// What:
@@ -179,17 +189,26 @@ impl ScreenState {
         let stale: bool = !matches!(&self.watched_page, Some(watched) if watched.generation == self.queue_generation && watched.page == position);
         if stale {
             let indices: Vec<usize> = self.selected_page_scope_indices();
-            let paths: HashSet<PathBuf> = indices.iter().filter_map(|index| return self.paths.get(*index).cloned()).collect();
+            let mut paths: HashSet<PathBuf> = HashSet::new();
+            for index in &indices {
+                if let Some(path) = self.paths.get(*index) {
+                    paths.insert(path.clone());
+                }
+            }
             self.watched_page = Some(WatchedPage {
                 generation: self.queue_generation,
                 page: position,
                 paths,
             });
         }
-        return self
-            .watched_page
-            .as_ref()
-            .is_some_and(|watched| return reported.iter().any(|(path, _measure)| return watched.paths.contains(path)));
+        if let Some(watched) = self.watched_page.as_ref() {
+            for (path, _measure) in reported {
+                if watched.paths.contains(path) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
 

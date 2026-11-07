@@ -264,9 +264,13 @@ fn track_fields_for(display_path: &str) -> TrackFields {
 /// ```
 fn supporting_line_for(display_path: &str, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn Fn(&TrackFields) -> Option<String>) -> Option<String> {
     let fields = fields_with_measure(track_fields_for(display_path), measures.get(display_path));
-    return supporting_line(&fields)
-        .map(|text| return text.trim().to_string())
-        .filter(|text| return !text.is_empty());
+    return match supporting_line(&fields) {
+        Some(text) => {
+            let trimmed: String = text.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        }
+        None => None,
+    };
 }
 
 /// What:
@@ -325,11 +329,11 @@ fn entry_for(item: &FolderListItem, current_index: Option<usize>, measures: &Has
 /// }
 /// ```
 pub fn track_list_entries(folder: &FolderEntry, current_index_in_library: Option<usize>, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn Fn(&TrackFields) -> Option<String>) -> Vec<TrackListEntry> {
-    return folder
-        .items
-        .iter()
-        .map(|item| return entry_for(item, current_index_in_library, measures, supporting_line))
-        .collect();
+    let mut entries: Vec<TrackListEntry> = Vec::with_capacity(folder.items.len());
+    for item in &folder.items {
+        entries.push(entry_for(item, current_index_in_library, measures, supporting_line));
+    }
+    return entries;
 }
 
 /// What:

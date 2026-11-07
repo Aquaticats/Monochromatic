@@ -32,7 +32,7 @@ use music_player::text_size::TextElement;
 use slint::ComponentHandle;
 
 /// Imports the state reader of the screen.
-use crate::ui_screen::read_state;
+use crate::ui_screen::read_screen;
 /// Imports the window and the generated globals that the line reads.
 use crate::{AppWindow, Focus, FolderLayout, Keys, TrackLayout};
 
@@ -90,11 +90,13 @@ fn badges_shown(window: &AppWindow) -> Vec<String> {
         ("deck-folder", &badges.deck_folder),
         ("editor-reset", &badges.editor_reset),
     ];
-    return pairs
-        .iter()
-        .filter(|(_, text)| return !text.is_empty())
-        .map(|(name, text)| return format!("{name}={text}"))
-        .collect();
+    let mut shown: Vec<String> = Vec::new();
+    for (name, text) in pairs.iter() {
+        if !text.is_empty() {
+            shown.push(format!("{name}={text}"));
+        }
+    }
+    return shown;
 }
 
 /// What:
@@ -221,12 +223,18 @@ pub(crate) fn emit(window: &AppWindow, reason: &str) {
     let sequence = SEQUENCE.get();
     let zone = FocusZone::from_int(window.global::<Focus>().get_zone());
     let badges = badges_shown(window);
-    let snapshot = read_state(|state| {
-        let ring_title = state
-            .ring_track
-            .and_then(|ring| return state.shown_rows.iter().find(|row| return row.kind == 0 && row.index == ring))
-            .map(|row| return row.title.clone());
-        return StateSnapshot {
+    let snapshot = {
+        let state = read_screen();
+        let mut ring_title: Option<String> = None;
+        if let Some(ring) = state.ring_track {
+            for row in &state.shown_rows {
+                if row.kind == 0 && row.index == ring {
+                    ring_title = Some(row.title.clone());
+                    break;
+                }
+            }
+        }
+        StateSnapshot {
             seq: sequence,
             reason: reason.to_owned(),
             route: format!("{:?}", state.route),
@@ -264,8 +272,8 @@ pub(crate) fn emit(window: &AppWindow, reason: &str) {
             text_size_group_heading_px: state.text_sizes.get(TextElement::GroupHeading),
             text_size_folder_name_px: state.text_sizes.get(TextElement::FolderName),
             text_size_track_title_px: state.text_sizes.get(TextElement::TrackTitle),
-        };
-    });
+        }
+    };
     let line = match serde_json::to_string(&snapshot) {
         Ok(text) => text,
         Err(error) => {

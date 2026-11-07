@@ -267,9 +267,16 @@ impl SearchService {
         let (same, generation): (bool, u64) = {
             let guard = read_index(&self.shared);
             let count: usize = names.len();
-            let same: bool = guard.track_count() == count
-                && count > 0
-                && (0..16_usize).map(|step| return step * (count - 1) / 15).all(|position| return guard.path(position) == names[position]);
+            let mut same: bool = guard.track_count() == count && count > 0;
+            if same {
+                for step in 0..16_usize {
+                    let position: usize = step * (count - 1) / 15;
+                    if guard.path(position) != names[position] {
+                        same = false;
+                        break;
+                    }
+                }
+            }
             (same, guard.generation())
         };
         if same {

@@ -151,6 +151,36 @@ fn sort_naturally(paths: &mut Vec<PathBuf>) {
 pub(crate) fn ignore_batch(_batch: &[PathBuf]) {}
 
 /// What:
+/// `BatchListener` receives each batch of tracks that the folder walk reports while it is still walking.
+/// Why:
+/// the controller that announces batches to the window keeps a counter and a pause between them,
+/// and a trait with a named implementation carries that state without a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface BatchListener { onBatch(batch: string[]): void }
+/// ```
+pub(crate) trait BatchListener {
+    /// What:
+    /// `on_batch` takes one batch of newly found tracks.
+    /// Why:
+    /// the walk calls it each time a batch is due.
+    fn on_batch(&mut self, batch: &[PathBuf]);
+}
+
+/// A callable of the same shape is a listener too,
+/// so a test or a caller without state can pass one.
+impl<F: FnMut(&[PathBuf])> BatchListener for F {
+    /// What:
+    /// `on_batch` calls the callable.
+    /// Why:
+    /// it lets a plain callable stand in for a listener.
+    fn on_batch(&mut self, batch: &[PathBuf]) {
+        self(batch);
+    }
+}
+
+/// What:
 ///      `pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut(&[PathBuf])) -> Vec<PathBuf>`.
 ///  Walks `root` and returns every audio file in queue order,
 /// reporting new runs of at least `batch` paths on the way.
@@ -162,7 +192,7 @@ pub(crate) fn ignore_batch(_batch: &[PathBuf]) {}
 /// ```ts
 /// function scanStreaming(root: string, batch: number, onBatch: (paths: string[]) => void): string[] { /* DFS */ }
 /// ```
-pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut(&[PathBuf])) -> Vec<PathBuf> {
+pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn BatchListener) -> Vec<PathBuf> {
     let started: Instant = Instant::now();
     tracing::info!(root = %root.display(), "folder walk started");
     let mut out: Vec<PathBuf> = Vec::new();
@@ -200,12 +230,12 @@ pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut
         let due: bool = waiting >= batch || (reported == 0 && waiting > 0 && started.elapsed() >= FIRST_BATCH_AFTER);
         if due {
             tracing::debug!(first = reported, found = out.len() - reported, elapsed_ms = started.elapsed().as_millis(), "folder walk reports a batch");
-            on_batch(&out[reported..]);
+            on_batch.on_batch(&out[reported..]);
             reported = out.len();
         }
     }
     if reported < out.len() {
-        on_batch(&out[reported..]);
+        on_batch.on_batch(&out[reported..]);
     }
     tracing::info!(tracks = out.len(), elapsed_ms = started.elapsed().as_millis(), "folder walk finished");
     return out;

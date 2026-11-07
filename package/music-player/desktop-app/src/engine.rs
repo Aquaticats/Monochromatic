@@ -723,7 +723,15 @@ fn run(
     // controller.sweepSink = (report) => selfSender.send({ kind: "sweepReport", report });
     // ```
     let sweep_sender = self_sender.clone();
-    controller.sweep_sink = Arc::new(move |report| return sweep_sender.send(Command::SweepReport(report)));
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "SweepSink is Arc<dyn Fn(SweepReport) + Send + Sync> and the closure owns the engine's command sender; implementing the Fn traits for a named type is unstable, so no named type can stand in for it"
+        )
+    )]
+    let sweep_sink: crate::sweep_report::SweepSink = Arc::new(move |report| return sweep_sender.send(Command::SweepReport(report)));
+    controller.sweep_sink = sweep_sink;
     // What:     no `emit_source_root` here any more; `Command::NoLibrary` says "nothing to open" when that is true.
     // Why:      The old start-up signal said "no folder is open" before the launch had decided whether a saved folder or the
     //           music folder was about to open, so a library being read showed the "No folder is open" copy (EM1).

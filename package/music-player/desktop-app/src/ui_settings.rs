@@ -292,7 +292,10 @@ fn select_template(window: &AppWindow, index: i32) {
         tracing::warn!(index, "ignored a selection of a Settings row that does not exist");
         return;
     };
-    let already_selected = { let state = read_screen(); state.editor.as_ref().is_some_and(|editor| return editor.kind() == kind) };
+    let already_selected = match read_screen().editor.as_ref() {
+        Some(editor) => editor.kind() == kind,
+        None => false,
+    };
     if already_selected {
         tracing::debug!(?kind, "the selected Settings row was chosen again; nothing changes");
         return;

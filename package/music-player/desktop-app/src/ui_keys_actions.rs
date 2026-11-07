@@ -29,7 +29,7 @@ use crate::ui_keys::KeyContext;
 /// Imports the focus target and the calls that move keyboard focus.
 use crate::ui_keys_focus::{FocusTarget, request_focus, set_target};
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_screen, read_state, update_state, write_screen};
+use crate::ui_screen::{project, read_screen, read_state, write_screen};
 /// Imports the scroll request that revealing the playing row sends.
 use crate::ui_screen_scroll::ScrollRequest;
 /// Imports the route,
@@ -301,20 +301,32 @@ fn close_picker(window: &AppWindow) {
 /// Alt+Up and Alt+Down move to the previous and next folder (D106);
 /// the ends do not wrap.
 fn step_folder(window: &AppWindow, host: &dyn Host, delta: isize) {
-    let mut chosen: Option<Vec<usize>> = None;
-    update_state(|state| {
+    let chosen: Option<Vec<usize>> = {
+        let mut state = write_screen();
         let target_identity = {
             let pages = state.current_pages();
             let count = pages.pages().count();
             let here = state.selected_page_position();
-            let target = here.checked_add_signed(delta).filter(|position| return *position < count);
-            target.and_then(|position| return pages.page(position).map(|page| return page.identity.clone()))
+            let target = match here.checked_add_signed(delta) {
+                Some(position) if position < count => Some(position),
+                _ => None,
+            };
+            match target {
+                Some(position) => match pages.page(position) {
+                    Some(page) => Some(page.identity.clone()),
+                    None => None,
+                },
+                None => None,
+            }
         };
-        if let Some(identity) = target_identity {
-            state.selected_key = identity;
-            chosen = Some(state.selected_page_scope_indices());
+        match target_identity {
+            Some(identity) => {
+                state.selected_key = identity;
+                Some(state.selected_page_scope_indices())
+            }
+            None => None,
         }
-    });
+    };
     match chosen {
         Some(scope) => {
             crate::ui_wire::mark_user_acted();

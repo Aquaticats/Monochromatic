@@ -88,7 +88,12 @@ pub(super) fn run_row_action(window: &AppWindow, host: &dyn Host, action: Shortc
 /// and with no ring nothing happens.
 fn run_chord_on_row(window: &AppWindow, host: &dyn Host, action: TrackMenuAction, popup_open: bool) {
     if !popup_open {
-        let Some(index) = read_screen().ring_track.and_then(|ring| return usize::try_from(ring).ok()) else {
+        let ring_track = read_screen().ring_track;
+        let ring_index: Option<usize> = match ring_track {
+            Some(ring) => usize::try_from(ring).ok(),
+            None => None,
+        };
+        let Some(index) = ring_index else {
             tracing::debug!("a track row chord was ignored: no row has the keyboard ring");
             return;
         };
@@ -112,7 +117,14 @@ fn run_chord_on_row(window: &AppWindow, host: &dyn Host, action: TrackMenuAction
 /// the list knows where the row is on screen.
 fn request_row_menu(window: &AppWindow) {
     let (rows, ring) = { let state = read_screen(); (state.shown_rows.clone(), state.ring_track) };
-    let Some(position) = rows.iter().position(|row| return row.kind == 0 && Some(row.index) == ring) else {
+    let mut ring_position: Option<usize> = None;
+    for (at, row) in rows.iter().enumerate() {
+        if row.kind == 0 && Some(row.index) == ring {
+            ring_position = Some(at);
+            break;
+        }
+    }
+    let Some(position) = ring_position else {
         tracing::debug!("the menu key was ignored: no row has the keyboard ring");
         return;
     };

@@ -206,7 +206,13 @@ pub(crate) fn show_long_notice(window: &AppWindow, text: &str) {
 fn dismiss(id: &str) {
     let mut state = overlays().borrow_mut();
     state.queue = state.queue.dismiss(id);
-    state.undo_targets.retain(|(target_id, _)| return target_id != id);
+    let mut kept_targets: Vec<(String, PathBuf)> = Vec::new();
+    for target in state.undo_targets.drain(..) {
+        if target.0 != id {
+            kept_targets.push(target);
+        }
+    }
+    state.undo_targets = kept_targets;
 }
 
 /// What:
@@ -216,7 +222,14 @@ fn dismiss(id: &str) {
 /// so the target leaves the list when it is taken.
 fn take_undo_target(id: &str) -> Option<PathBuf> {
     let mut state = overlays().borrow_mut();
-    let position = state.undo_targets.iter().position(|(target_id, _)| return target_id == id)?;
+    let mut found: Option<usize> = None;
+    for (at, target) in state.undo_targets.iter().enumerate() {
+        if target.0 == id {
+            found = Some(at);
+            break;
+        }
+    }
+    let position = found?;
     return Some(state.undo_targets.remove(position).1);
 }
 
@@ -232,8 +245,17 @@ fn expire(window: &AppWindow) {
         let before = state.queue.visible().len();
         state.queue = state.queue.expire(now_ms());
         let remaining = state.queue.visible();
-        let ids: Vec<String> = remaining.iter().map(|message| return message.id().to_string()).collect();
-        state.undo_targets.retain(|(target_id, _)| return ids.contains(target_id));
+        let mut ids: Vec<String> = Vec::with_capacity(remaining.len());
+        for message in &remaining {
+            ids.push(message.id().to_string());
+        }
+        let mut kept_targets: Vec<(String, PathBuf)> = Vec::new();
+        for target in state.undo_targets.drain(..) {
+            if ids.contains(&target.0) {
+                kept_targets.push(target);
+            }
+        }
+        state.undo_targets = kept_targets;
         before != remaining.len()
     };
     if changed {
@@ -248,25 +270,27 @@ fn expire(window: &AppWindow) {
 /// so they are projected from the same state read.
 pub(crate) fn project(window: &AppWindow) {
     let rows = feedback_rows(&overlays().borrow().queue);
-    window.set_feedback_items(model_of(
-        rows.into_iter()
-            .map(|row| return FeedbackItem {
-                id: row.id.as_str().into(),
-                text: row.text.as_str().into(),
-                kind: row.kind,
-                action_label: row.action_label.as_str().into(),
-            })
-            .collect(),
-    ));
+    let mut items: Vec<FeedbackItem> = Vec::with_capacity(rows.len());
+    for row in rows {
+        items.push(FeedbackItem {
+            id: row.id.as_str().into(),
+            text: row.text.as_str().into(),
+            kind: row.kind,
+            action_label: row.action_label.as_str().into(),
+        });
+    }
+    window.set_feedback_items(model_of(items));
     let first_run = read_state(first_run_view);
     window.set_first_run_state(if first_run.is_some() { 1 } else { 0 });
     if let Some(view) = first_run {
         window.set_first_run_title(view.title.as_str().into());
         window.set_first_run_body(view.body.as_str().into());
         window.set_first_run_primary_label(view.primary_label.as_str().into());
-        window.set_first_run_secondary_labels(model_of(
-            view.secondary_labels.iter().map(|label| return label.as_str().into()).collect(),
-        ));
+        let mut secondary_labels: Vec<slint::SharedString> = Vec::with_capacity(view.secondary_labels.len());
+        for label in &view.secondary_labels {
+            secondary_labels.push(label.as_str().into());
+        }
+        window.set_first_run_secondary_labels(model_of(secondary_labels));
         window.set_first_run_explanation(view.explanation.as_str().into());
     }
 }

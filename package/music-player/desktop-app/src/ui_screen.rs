@@ -248,7 +248,10 @@ pub(crate) fn set_now_playing(app: &AppWindow, index: Option<usize>, name: &str,
     app.set_track_name(name.into());
     app.set_duration(duration as f32);
     app.set_duration_text(format_time(duration).into());
-    app.set_current_index(index.map_or(-1, |i| return i32::try_from(i).unwrap_or(-1)));
+    app.set_current_index(match index {
+        Some(position) => i32::try_from(position).unwrap_or(-1),
+        None => -1,
+    });
 }
 
 /// What:
@@ -315,30 +318,24 @@ pub(crate) fn project(app: &AppWindow) {
     app.set_track_rows(model_of(screen.rows.iter().map(track_row).collect()));
     crate::ui_lists::publish_track_layout(app, &screen.rows);
     apply_scroll_request(app, request, &screen.rows);
-    app.set_rail_cells(model_of(
-        screen
-            .picker
-            .cells
-            .iter()
-            .map(|cell| return FolderRailCell {
-                key: cell.key.as_str().into(),
-                label: cell.label.as_str().into(),
-                section_start: cell.section_start,
-            })
-            .collect(),
-    ));
-    app.set_folder_names(model_of(
-        screen
-            .picker
-            .names
-            .iter()
-            .map(|row| return FolderName {
-                name: row.name.as_str().into(),
-                section_start: row.section_start,
-                heading: row.heading.as_str().into(),
-            })
-            .collect(),
-    ));
+    let mut rail_cells: Vec<FolderRailCell> = Vec::with_capacity(screen.picker.cells.len());
+    for cell in &screen.picker.cells {
+        rail_cells.push(FolderRailCell {
+            key: cell.key.as_str().into(),
+            label: cell.label.as_str().into(),
+            section_start: cell.section_start,
+        });
+    }
+    app.set_rail_cells(model_of(rail_cells));
+    let mut folder_names: Vec<FolderName> = Vec::with_capacity(screen.picker.names.len());
+    for row in &screen.picker.names {
+        folder_names.push(FolderName {
+            name: row.name.as_str().into(),
+            section_start: row.section_start,
+            heading: row.heading.as_str().into(),
+        });
+    }
+    app.set_folder_names(model_of(folder_names));
     app.set_current_folder(screen.folder_title.as_str().into());
     app.set_current_cell(screen.picker.current_cell.as_str().into());
     {
@@ -445,8 +442,9 @@ pub(crate) fn read_state<T>(read: impl FnOnce(&ScreenState) -> T) -> T {
 /// What:
 /// `update_state` runs a mutating closure over the UI-thread state.
 /// Why:
-/// all writes go through this one function,
-/// so the borrow stays short.
+/// the window tests fill the state through it;
+/// production code borrows `write_screen` for the same short span.
+#[cfg(test)]
 pub(crate) fn update_state(update: impl FnOnce(&mut ScreenState)) {
     update(&mut write_screen());
 }

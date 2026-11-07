@@ -202,15 +202,15 @@ pub(crate) fn project_pages(window: &AppWindow) {
         };
         (rows, view)
     };
-    window.set_settings_rows(model_of(
-        rows.into_iter()
-            .map(|row| return SettingsTemplateRow {
-                label: row.label.as_str().into(),
-                line: row.line.as_str().into(),
-                icon: row.icon.into(),
-            })
-            .collect(),
-    ));
+    let mut settings_rows: Vec<SettingsTemplateRow> = Vec::with_capacity(rows.len());
+    for row in rows {
+        settings_rows.push(SettingsTemplateRow {
+            label: row.label.as_str().into(),
+            line: row.line.as_str().into(),
+            icon: row.icon.into(),
+        });
+    }
+    window.set_settings_rows(model_of(settings_rows));
     crate::ui_text_size::project_sizes(window);
     let auto_play_on_select = read_screen().auto_play_on_select;
     window.set_auto_play_on_select(auto_play_on_select);
@@ -225,30 +225,36 @@ pub(crate) fn project_pages(window: &AppWindow) {
     };
     window.set_editor_title(page.title.as_str().into());
     window.set_editor_text(page.text.as_str().into());
-    window.set_editor_preview_rows(model_of(
-        page.preview
-            .iter()
-            .map(|(title, supporting)| return EditorPreviewRow {
-                title: title.as_str().into(),
-                supporting: supporting.as_str().into(),
-            })
-            .collect(),
-    ));
-    window.set_editor_mistakes(model_of(page.mistakes.iter().map(|line| return line.as_str().into()).collect()));
+    let mut preview_rows: Vec<EditorPreviewRow> = Vec::with_capacity(page.preview.len());
+    for (title, supporting) in &page.preview {
+        preview_rows.push(EditorPreviewRow {
+            title: title.as_str().into(),
+            supporting: supporting.as_str().into(),
+        });
+    }
+    window.set_editor_preview_rows(model_of(preview_rows));
+    let mut mistakes: Vec<slint::SharedString> = Vec::with_capacity(page.mistakes.len());
+    for line in &page.mistakes {
+        mistakes.push(line.as_str().into());
+    }
+    window.set_editor_mistakes(model_of(mistakes));
     window.set_editor_help_signature(page.help_signature.as_str().into());
     window.set_editor_help_description(page.help_description.as_str().into());
     window.set_editor_has_help(page.has_help);
-    window.set_editor_fields(model_of(
-        page.fields
-            .iter()
-            .map(|field| return EditorFieldRow {
-                label: field.label.as_str().into(),
-                insert: field.insert.as_str().into(),
-                value: field.value.as_str().into(),
-            })
-            .collect(),
-    ));
-    window.set_editor_notes(model_of(page.notes.iter().map(|note| return note.as_str().into()).collect()));
+    let mut field_rows: Vec<EditorFieldRow> = Vec::with_capacity(page.fields.len());
+    for field in &page.fields {
+        field_rows.push(EditorFieldRow {
+            label: field.label.as_str().into(),
+            insert: field.insert.as_str().into(),
+            value: field.value.as_str().into(),
+        });
+    }
+    window.set_editor_fields(model_of(field_rows));
+    let mut notes: Vec<slint::SharedString> = Vec::with_capacity(page.notes.len());
+    for note in &page.notes {
+        notes.push(note.as_str().into());
+    }
+    window.set_editor_notes(model_of(notes));
     window.set_editor_kept_note(page.kept_note.as_str().into());
     window.set_editor_can_reset(page.can_reset);
 }

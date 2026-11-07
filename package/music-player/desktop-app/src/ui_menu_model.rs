@@ -118,10 +118,13 @@ pub fn shortcut_action_of(action: TrackMenuAction) -> Option<ShortcutAction> {
 pub fn menu_items(size_text: Option<&str>, platform: KeyboardPlatform) -> Vec<MenuItemView> {
     let actions = track_menu_actions_for();
     let dividers = track_menu_divider_flags(actions);
-    return actions
-        .iter()
-        .zip(dividers)
-        .map(|(action, divider)| return MenuItemView {
+    let mut items: Vec<MenuItemView> = Vec::with_capacity(actions.len());
+    for (action, divider) in actions.iter().zip(dividers) {
+        let shortcut: String = match shortcut_action_of(*action) {
+            Some(chord) => shortcut_text(chord, platform),
+            None => String::new(),
+        };
+        items.push(MenuItemView {
             label: label(*action).to_string(),
             label_before: access_label(*action).0,
             access: access_label(*action).1,
@@ -133,9 +136,10 @@ pub fn menu_items(size_text: Option<&str>, platform: KeyboardPlatform) -> Vec<Me
                 TrackMenuAction::Details => size_text.unwrap_or("").to_string(),
                 _ => String::new(),
             },
-            shortcut: shortcut_action_of(*action).map_or_else(String::new, |chord| return shortcut_text(chord, platform)),
-        })
-        .collect();
+            shortcut,
+        });
+    }
+    return items;
 }
 
 /// What:

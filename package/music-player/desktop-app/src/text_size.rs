@@ -101,7 +101,10 @@ impl TextElement {
     /// an index outside the four is no element.
     #[must_use]
     pub fn from_index(index: i32) -> Option<TextElement> {
-        return usize::try_from(index).ok().and_then(|position| return TextElement::ALL.get(position).copied());
+        return match usize::try_from(index) {
+            Ok(position) => TextElement::ALL.get(position).copied(),
+            Err(_error) => None,
+        };
     }
 }
 
@@ -231,10 +234,13 @@ pub fn size_or_default(element: TextElement, stored: Option<&serde_json::Value>)
     let Some(value) = stored else {
         return element.default_px();
     };
-    let held = value
-        .as_u64()
-        .and_then(|number| return u16::try_from(number).ok())
-        .filter(|number| return (MIN_TEXT_SIZE_PX..=MAX_TEXT_SIZE_PX).contains(number));
+    let held: Option<u16> = match value.as_u64() {
+        Some(number) => match u16::try_from(number) {
+            Ok(px) if (MIN_TEXT_SIZE_PX..=MAX_TEXT_SIZE_PX).contains(&px) => Some(px),
+            _ => None,
+        },
+        None => None,
+    };
     if let Some(px) = held {
         return px;
     }

@@ -163,7 +163,15 @@ pub(crate) fn spawn_queue_measurement(job: SweepJob) {
         let sink: SweepSink = Arc::clone(&job.sink);
         let (generation, refresh_id): (u64, Option<u64>) = (job.generation, job.refresh_id);
         // A refresh sweep tells the coalescer it ended even when the coordinator panicked, or the follow-up would never start.
-        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| return run_sweep(job))).is_err() {
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "std::panic::catch_unwind takes only a callable that passes no argument to its body, so the job the sweep runs must be captured; catch_unwind is the only way to turn a panic of the sweep into a value"
+            )
+        )]
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| return run_sweep(job)));
+        if outcome.is_err() {
             tracing::error!(generation, "the sweep coordinator panicked");
         }
         if let Some(id) = refresh_id {

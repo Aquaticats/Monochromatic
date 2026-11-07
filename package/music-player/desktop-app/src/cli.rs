@@ -7,6 +7,14 @@
 //!  so it can be unit-tested with `clap`'s
 //! `try_parse_from` without building the Slint window or starting an audio backend.
 
+#![cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "clap's derive generates the missing-argument closures in its FromArgMatches implementation with the field type as their span, so no author-written closure exists to refactor; same cause as package/file-enforcer/cli/src/args.rs records"
+    )
+)]
+
 /// What:
 ///      `use std::path::PathBuf;`.
 ///  The OWNED filesystem path type:

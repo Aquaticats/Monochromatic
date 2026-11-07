@@ -173,6 +173,47 @@ pub(crate) struct StagedTrack {
 }
 
 /// What:
+///      `struct ScanBatchAnnouncer { controller, root, next_index, pause }`.
+///  The listener that tells the window about each batch of tracks the folder walk finds.
+/// Why:
+///       Search works while the library is still being scanned (D111),
+/// so each batch is announced with its queue position as the walk goes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ScanBatchAnnouncer implements BatchListener { onBatch(batch) { emit({ firstIndex: this.nextIndex, names: batchNames(root, batch) }); this.nextIndex += batch.length; } }
+/// ```
+struct ScanBatchAnnouncer<'controller> {
+    /// The controller that sends the updates.
+    controller: &'controller Controller,
+    /// The opened folder that the names are relative to.
+    root: &'controller std::path::Path,
+    /// The queue position of the next batch's first track.
+    next_index: usize,
+    /// The pause after each batch,
+    /// which tests lengthen to imitate a slow scan.
+    pause: std::time::Duration,
+}
+
+/// The announcer receives the batches of the walk.
+impl crate::scan_stream::BatchListener for ScanBatchAnnouncer<'_> {
+    /// What:
+    /// `on_batch` announces one batch and advances the queue position.
+    /// Why:
+    /// the window and the Search index learn the new names while the walk goes on.
+    fn on_batch(&mut self, batch: &[PathBuf]) {
+        self.controller.emit(Update::ScanBatch {
+            first_index: self.next_index,
+            names: crate::scan_stream::batch_names(self.root, batch),
+        });
+        self.next_index += batch.len();
+        if !self.pause.is_zero() {
+            std::thread::sleep(self.pause);
+        }
+    }
+}
+
+/// What:
 ///      `impl Controller { ... }`.
 ///  The loading/audio half of the behaviour (a SECOND
 ///           inherent `impl` block for `Controller`,
@@ -480,18 +521,9 @@ impl Controller {
         // Why:      D111: Search works while the library is still being scanned. The batch's first position is its
         //           queue position, because the queue is exactly this list.
         let tracks: Vec<PathBuf> = if root.is_dir() {
-            let mut next_index: usize = 0;
             let pause: std::time::Duration = crate::scan_stream::pause_from_environment();
-            crate::scan_stream::scan_streaming(&root, crate::scan_stream::STREAM_BATCH, &mut |batch| {
-                self.emit(Update::ScanBatch {
-                    first_index: next_index,
-                    names: crate::scan_stream::batch_names(&root, batch),
-                });
-                next_index += batch.len();
-                if !pause.is_zero() {
-                    std::thread::sleep(pause);
-                }
-            })
+            let mut announcer = ScanBatchAnnouncer { controller: &*self, root: &root, next_index: 0, pause };
+            crate::scan_stream::scan_streaming(&root, crate::scan_stream::STREAM_BATCH, &mut announcer)
         } else {
             expand_paths(vec![root])
         };

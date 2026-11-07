@@ -45,12 +45,22 @@ use crate::template_model::{TemplateField, TemplateResult, TrackFields, track_te
 ///   return result.text.trim() || null;
 /// };
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "the returned callable owns the parsed template and the field list, and its consumers take a dyn Fn; implementing the Fn traits for a named type is unstable, so no named type can stand in for this closure"
+    )
+)]
 pub fn supporting_line_from_template(template: &str) -> impl Fn(&TrackFields) -> Option<String> {
     let parsed = parse_template(template);
     let fields: Vec<TemplateField> = track_template_fields();
     return move |track: &TrackFields| -> Option<String> {
         return match evaluate_parsed_template(&parsed, track, &fields) {
-            TemplateResult::Shown(text) => Some(text.trim().to_string()).filter(|trimmed| return !trimmed.is_empty()),
+            TemplateResult::Shown(text) => {
+                let trimmed: String = text.trim().to_string();
+                if trimmed.is_empty() { None } else { Some(trimmed) }
+            }
             TemplateResult::Refused(_) => None,
         };
     };
