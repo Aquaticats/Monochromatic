@@ -1,11 +1,16 @@
-//! The unit tests of the scratch root's location: outside a checkout and outside the system temporary directory.
+//! The unit tests of the scratch root's location:
+//! outside a checkout and outside the system temporary directory.
 
 use super::{assumed_absent_above, scratch_root};
 use std::path::PathBuf;
 
 /// Tests such as `outside_a_work_tree_nothing_is_ignored` and
-///  `a_worktree_that_is_not_above_the_project_does_not_serve_it` need a folder with no repository, no toolchain entry
-///  point, and no TypeScript install above it, so the scratch root must not sit inside a checkout, whatever the build
+///  `a_worktree_that_is_not_above_the_project_does_not_serve_it` need a folder with no repository,
+/// no toolchain entry
+///  point,
+/// and no TypeScript install above it,
+/// so the scratch root must not sit inside a checkout,
+/// whatever the build
 ///  directory is.
 #[test]
 fn the_scratch_root_has_no_repository_entry_point_or_typescript_install_above_it() {
