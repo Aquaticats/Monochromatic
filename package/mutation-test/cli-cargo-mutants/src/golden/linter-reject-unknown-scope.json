@@ -1,6 +1,6 @@
 {
   "status": 1,
-  "errorMessage": "Unknown scope --bogus; expected one of --rust-style, --markdown, --markdown-parent, --processors, --inferred-constants, --executable, --core, --semantic.",
+  "errorMessage": "Unknown scope --bogus; expected one of --rust-style, --markdown, --markdown-parent, --processors, --inferred-constants, --executable, --core, --layout, --workflow-shell, --semantic.",
   "stdout": "",
   "calls": [],
   "containerfiles": [],

@@ -40,11 +40,6 @@ import {
 } from './native-planted-controls-units.ts';
 
 /**
- Image repository of the tested images the campaign units resolve their tags in.
- */
-export const nativeTestImageRepository = 'localhost/git-policy-native-test';
-
-/**
  Mise task that runs only the planted controls over one image and records their pass.
  */
 export const plantedTask = '//package/git-policy/cli:native:mutation:planted';
@@ -73,55 +68,6 @@ export function authoritativeVariables(options: LauncherOptions): readonly strin
     options.tagEnvironmentVariable,
     plantedUnitsEnvironmentVariable,
   ];
-}
-
-/**
- The environment the launcher inspects images with: the assignments a unit with that tag gets (the tag, the person's
- `--setenv` entries, and the launcher's own `TMPDIR`, `PATH` and `HOME` last), and nothing inherited from the launcher's
- shell, so it looks in the container storage the units will use. Only `XDG_RUNTIME_DIR`, which rootless Podman needs and
- the user service manager sets to the same value for a unit, is taken over.
-
- @param options - the launcher options of this launch
-
- @param tag - the image tag being inspected
-
- @param runtimeDirectory - the launcher's `XDG_RUNTIME_DIR`, when it has one
-
- @returns the variables, later assignments replacing earlier ones of the same name
-
- @example
- ```ts
- inspectionEnvironment({ options, tag: 'w50', runtimeDirectory: '/run/user/1000' });
- ```
- */
-export function inspectionEnvironment({
-  options,
-  tag,
-  runtimeDirectory,
-}: {
-  readonly options: LauncherOptions;
-  readonly tag: string;
-  readonly runtimeDirectory?: string;
-}): Readonly<Record<string, string>> {
-  return Object.fromEntries([
-    ...(runtimeDirectory === undefined ? [] : [`XDG_RUNTIME_DIR=${runtimeDirectory}`]),
-    ...buildUnitEnvironment({
-      options,
-      tag,
-    }),
-  ].map(function pairOf(entry) {
-    /**
-     Position of the first equals sign, which ends the name.
-     */
-    const separator = entry.indexOf('=');
-    return [
-      entry.slice(
-        0,
-        separator,
-      ),
-      entry.slice(separator + 1),
-    ];
-  }));
 }
 
 /**
