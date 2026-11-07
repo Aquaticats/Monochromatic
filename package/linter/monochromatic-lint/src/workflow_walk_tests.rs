@@ -11,19 +11,27 @@
 
 /// Import the walk,
 ///  the walker whose value skipping is checked directly,
-///  and its records.
+///  its records and the deadline that ends a walk which stops advancing.
 use super::{Walker, walk};
+use crate::test_deadline::finished_within_deadline;
 use crate::workflow_lines::{Content, parse_entry, read_lines};
 use crate::workflow_model::{RunBody, WalkError, Workflow};
 
+/// Walk a fixture under the deadline,
+///  so a walk that stops advancing fails the test instead of hanging it.
+fn walk_bounded(text: &str) -> Result<Workflow, WalkError> {
+    let owned: String = String::from(text);
+    return finished_within_deadline(move || return walk(owned.as_str()));
+}
+
 /// Walk a fixture that must be readable.
 fn read(text: &str) -> Workflow {
-    return walk(text).expect("readable workflow");
+    return walk_bounded(text).expect("readable workflow");
 }
 
 /// Walk a fixture that must be refused.
 fn refused(text: &str) -> WalkError {
-    return walk(text).expect_err("refused workflow");
+    return walk_bounded(text).expect_err("refused workflow");
 }
 
 /// The script text of a step as one string,
@@ -148,7 +156,7 @@ fn noise_is_skipped() {
 ///  inside `jobs` it is refused.
 #[test]
 fn odd_keys_are_refused_inside_structure() {
-    assert!(walk("\"on\": push\njobs:\n  a:\n    steps:\n      - run: x\n").is_ok());
+    assert!(walk_bounded("\"on\": push\njobs:\n  a:\n    steps:\n      - run: x\n").is_ok());
     for text in [
         "jobs:\n  \"a\":\n    steps:\n      - run: x\n",
         "jobs:\n  a:\n    steps:\n      - \"run\": x\n",
@@ -193,7 +201,7 @@ fn inline_structure_and_scalar_steps_are_refused() {
         "jobs:\n  a:\n    steps:\n      - {run: x}\n",
         "jobs:\n  a:\n    steps:\n      - [x]\n",
     ] {
-        assert!(walk(text).is_err(), "{text:?}");
+        assert!(walk_bounded(text).is_err(), "{text:?}");
     }
 }
 
@@ -207,10 +215,10 @@ fn value_refusals_surface() {
         text.find("\"quoted\"").expect("quote")
     );
     assert!(
-        walk("jobs:\n  a:\n    steps:\n      - run: x\n        shell: |\n          bash\n")
+        walk_bounded("jobs:\n  a:\n    steps:\n      - run: x\n        shell: |\n          bash\n")
             .is_err()
     );
-    assert!(walk("defaults:\n  run:\n    shell: [bash]\n").is_err());
+    assert!(walk_bounded("defaults:\n  run:\n    shell: [bash]\n").is_err());
 }
 
 /// Document structure the walk does not model is refused.
@@ -219,7 +227,7 @@ fn documents_and_tabs() {
     assert!(refused("a: 1\n---\nb: 2\n").message.contains("second"));
     assert!(refused("a: 1\n...\n").message.contains("end marker"));
     assert!(refused("jobs:\n\ta: 1\n").message.contains("tab"));
-    assert!(walk("%YAML 1.2\n---\njobs:\n  a:\n    steps:\n      - run: x\n").is_ok());
+    assert!(walk_bounded("%YAML 1.2\n---\njobs:\n  a:\n    steps:\n      - run: x\n").is_ok());
 }
 
 /// Mapping and sequence keys after a step do not leak into it.
