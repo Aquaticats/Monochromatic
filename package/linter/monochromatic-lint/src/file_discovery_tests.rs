@@ -157,14 +157,20 @@ fn layout_uses_links_are_never_entered_by_the_walk() {
     }
     let mut expected: Vec<PathBuf> = vec![top, middle, bottom];
     expected.sort();
-    assert_eq!(discover_literal_path(&fixture.path, &options(&fixture)).expect("walk"), expected);
+    assert_eq!(
+        discover_literal_path(&fixture.path, &options(&fixture)).expect("walk"),
+        expected
+    );
     // The same holds when the package folder is named from inside the tree.
     assert_eq!(
         discover_literal_path(&fixture.path.join("src"), &options(&fixture)).expect("walk of src"),
         expected
     );
     // Only a link that the user names themselves is entered, and then once.
-    let named: Vec<PathBuf> =
-        discover_literal_path(&fixture.path.join("src/top/uses/middle"), &options(&fixture)).expect("named link");
+    let named: Vec<PathBuf> = discover_literal_path(
+        &fixture.path.join("src/top/uses/middle"),
+        &options(&fixture),
+    )
+    .expect("named link");
     assert_eq!(named, [fixture.path.join("src/top/uses/middle/mod.rs")]);
 }

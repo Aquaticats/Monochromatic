@@ -19,10 +19,10 @@
 use crate::{
     cli_options::CliOptions,
     closure_step::{ClosureOutcome, run_closure_step, with_messages},
-    layout_step::{LayoutOutcome, run_layout_step},
     config_lookup::CONFIG_NAME,
     diagnostic::Diagnostic,
     file_discovery::DiscoveryOptions,
+    layout_step::{LayoutOutcome, run_layout_step},
     path_inputs::collect_inputs,
     run_file::FileOutcome,
     run_finish::{PROGRAM, engine, finish},

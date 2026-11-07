@@ -31,7 +31,9 @@ use crate::{
     run_modes::SetupError,
     run_output::exit_status,
     run_plan::ConfigStore,
-    run_source::{SourceRun, lint_source_bytes, require_absolute_directory, require_supported_name},
+    run_source::{
+        SourceRun, lint_source_bytes, require_absolute_directory, require_supported_name,
+    },
 };
 /// Import native paths.
 use std::path::{Path, PathBuf};
@@ -116,7 +118,8 @@ pub struct EmbeddedFailure {
 /// What:
 ///  The explanation of a run whose findings include an error or a processing failure.
 /// Why:
-///  The executable prints those findings as records; the person needs their messages.
+///  The executable prints those findings as records;
+/// the person needs their messages.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,8 +197,8 @@ pub fn fix_source(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, Embedded
         request.configuration,
     )
     .map_err(config_failure)?;
-    let mut store: ConfigStore = ConfigStore::from_source(request.top_level, described)
-        .map_err(config_failure)?;
+    let mut store: ConfigStore =
+        ConfigStore::from_source(request.top_level, described).map_err(config_failure)?;
     require_supported_name(request.name).map_err(setup_failure)?;
     let run: SourceRun = lint_source_bytes(
         &mut store,

@@ -10,14 +10,14 @@
 
 /// Import the real guard boundary and installed arena construction API.
 use super::{MarkdownError, MarkdownSource, traversal};
-/// Import the finding model and every rule that walks ancestors or descendants,
-///  to observe how a walk failure is reported.
-use crate::run_failure::PROCESSING_FAILURE;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::markdown_duplicate_headings::no_duplicate_heading;
 use crate::markdown_headings::no_emphasis_as_heading;
 use crate::markdown_punctuation::no_trailing_punctuation;
 use crate::markdown_semantic_breaks::semantic_line_breaks;
+/// Import the finding model and every rule that walks ancestors or descendants,
+///  to observe how a walk failure is reported.
+use crate::run_failure::PROCESSING_FAILURE;
 use satteri_arena::{Arena, Mdast};
 use satteri_ast::mdast::MdastNodeType;
 

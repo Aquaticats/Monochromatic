@@ -22,8 +22,8 @@ use crate::configuration_rules::RULE_IDS;
 use crate::directive_findings::UNUSED;
 use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_plan::ConfigStore;
-use crate::rust_rule_settings::DEFAULT_MAX_LINES;
 use crate::run_test_support::{read, records, write};
+use crate::rust_rule_settings::DEFAULT_MAX_LINES;
 use crate::test_fs::Fixture;
 use monochromatic_jsonc_edit::{
     JsoncPathSegment, JsoncValue, jsonc_key_path, jsonc_lookup, parse_jsonc,
@@ -98,8 +98,7 @@ fn only_the_budget_rustdoc_closure_and_shell_rules_declare_themselves_unsuppress
     // Suppressibility is exactly the rules outside the shell namespace and the five crate-wide Rust ratchets.
     for id in RULE_IDS {
         let rule = rule_info(*id).expect("registered rule is described");
-        let suppressible: bool =
-            !(id.starts_with("shell/") || UNSUPPRESSIBLE_RUST.contains(id));
+        let suppressible: bool = !(id.starts_with("shell/") || UNSUPPRESSIBLE_RUST.contains(id));
         assert_eq!(rule.suppressible, suppressible, "{id}");
     }
     // Core and directive findings are not rules, so they are outside the registry and never suppressible.
@@ -200,7 +199,10 @@ fn effective_configuration_distinguishes_its_four_states() {
     let strict: serde_json::Value =
         serde_json::from_str::<serde_json::Value>(configured_text.as_str()).expect("strict JSON");
     assert_eq!(strict["rules"]["rust/max-lines"]["severity"], "warn");
-    assert_eq!(strict["rules"]["rust/max-lines"]["max"].as_u64(), Some(DEFAULT_MAX_LINES as u64));
+    assert_eq!(
+        strict["rules"]["rust/max-lines"]["max"].as_u64(),
+        Some(DEFAULT_MAX_LINES as u64)
+    );
     assert_eq!(strict["state"], "configured");
     let configured: JsoncValue = parse_jsonc(configured_text.as_str()).expect("parses");
     assert_eq!(member(&configured, "state").as_deref(), Some("configured"));
