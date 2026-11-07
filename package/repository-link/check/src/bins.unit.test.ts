@@ -11,6 +11,7 @@ import { execFile, } from 'node:child_process';
 import {
   mkdir,
   mkdtemp,
+  readFile,
   rm,
   symlink,
   writeFile,
@@ -50,9 +51,11 @@ const INSTALLER = new URL('install-outside-repository.ts', import.meta.url,).pat
 
 type Run = { status: number; stdout: string; stderr: string; };
 
-async function run({ file, args, cwd = '/', }: { file: string; args: readonly string[]; cwd?: string; },): Promise<Run> {
+async function run(
+  { file, args, cwd = '/', env = process.env, }: { file: string; args: readonly string[]; cwd?: string; env?: NodeJS.ProcessEnv; },
+): Promise<Run> {
   try {
-    const result = await execFileAsync('node', [file, ...args,], { cwd, encoding: 'utf8', },);
+    const result = await execFileAsync('node', [file, ...args,], { cwd, env, encoding: 'utf8', },);
     return { status: 0, stdout: result.stdout, stderr: result.stderr, };
   }
   catch (error) {
@@ -395,6 +398,53 @@ await describe({
               expect(again.status,).toBe(0,);
               const badPhase = await run({ file: join(BIN_FOLDER, 'record.mjs',), args: ['--phase=sideways',], },);
               expect(badPhase.status,).toBe(75,);
+            },);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'repository-link-launch',
+      children: [
+        it({
+          name: 'runs the program its link names, with the arguments, after the check passes; refuses when the repository is not ready; refuses a name it does not know',
+          fn: async () => {
+            await withHome(async (home,) => {
+              const uuid = await realProbe.uuidOf(home,);
+              if (uuid === '') {
+                return;
+              }
+              const folder = join(home, 'Monochromatic',);
+              const program = join(folder, 'package', 'claude-code-plugin', 'source', 'src', 'cli', 'spawn-claude.ts',);
+              await mkdir(join(folder, '.git',), { recursive: true, },);
+              await mkdir(join(program, '..',), { recursive: true, },);
+              await writeFile(program, `import { writeFileSync, } from 'node:fs';\nwriteFileSync(${JSON.stringify(join(home, 'ran',),)}, JSON.stringify(process.argv.slice(2,),),);\nconsole.log('spawn-claude ran',);\n`,);
+              await writeIdentity({
+                path: join(home, '.config', 'monochromatic-dev', 'repository-link.json',),
+                identity: identityOf({ linkPath: folder, nvmeUuid: uuid, phase: 'before', },),
+              },);
+              const bin = join(home, 'bin',);
+              await mkdir(bin, { recursive: true, },);
+              await symlink(join(BIN_FOLDER, 'launch.mjs',), join(bin, 'spawn-claude',),);
+              await symlink(join(BIN_FOLDER, 'launch.mjs',), join(bin, 'no-such-program',),);
+              const env = { ...process.env, HOME: home, };
+              const ran = await run({ file: join(bin, 'spawn-claude',), args: ['a', 'b c',], env, },);
+              expect(ran.status,).toBe(0,);
+              expect(ran.stdout,).toContain('spawn-claude ran',);
+              expect(JSON.parse(await readFile(join(home, 'ran',), 'utf8',),),).toEqual(['a', 'b c',],);
+              await rm(join(home, 'ran',),);
+              // A real folder where the link should be: the repository is not ready, so nothing runs.
+              await writeIdentity({
+                path: join(home, '.config', 'monochromatic-dev', 'repository-link.json',),
+                identity: identityOf({ linkPath: folder, linkText: join(home, 'elsewhere',), mountPoint: home, driveUuid: uuid, phase: 'after', },),
+              },);
+              const refused = await run({ file: join(bin, 'spawn-claude',), args: [], env, },);
+              expect(refused.status,).toBe(75,);
+              expect(refused.stderr,).toContain('is a real folder, not the link to the 860',);
+              await expect(readFile(join(home, 'ran',), 'utf8',),).rejects.toThrow();
+              const unknown = await run({ file: join(bin, 'no-such-program',), args: [], env, },);
+              expect(unknown.status,).toBe(2,);
+              expect(unknown.stderr,).toContain('no-such-program',);
             },);
           },
         },),
