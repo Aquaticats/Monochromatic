@@ -1,15 +1,19 @@
-//! Controls for the run, the options and the bounded runner, against the loopback mock and a fixed clock.
+//! Controls for the run,
+//! the options and the bounded runner,
+//! against the loopback mock and a fixed clock.
 
 use super::*;
 
-/// A function-like value with the right shape is a lookup in these controls: the shipped caller writes a small struct that holds the key.
+/// A function-like value with the right shape is a lookup in these controls:
+/// the shipped caller writes a small struct that holds the key.
 impl<Lookup: Fn(&str) -> Option<String>> EnvironmentVariables for Lookup {
     fn variable(&self, name: &str) -> Option<String> {
         return self(name);
     }
 }
 
-/// A function-like value with the right shape is a reader in these controls: the shipped caller writes a small struct that holds the state.
+/// A function-like value with the right shape is a reader in these controls:
+/// the shipped caller writes a small struct that holds the state.
 impl<Read: Fn(&[String]) -> Result<LandedCommit, String>> LandedCommitReader for Read {
     fn read(&self, files: &[String]) -> Result<LandedCommit, String> {
         return self(files);
@@ -30,7 +34,9 @@ const START_MS: u64 = 1_791_344_041_123;
 /// A quiet window short enough for the timeout test.
 const SHORT: Duration = Duration::from_millis(400);
 
-/// A clock that reads `START_MS`, then `START_MS + ELAPSED_MS`, and stays there.
+/// A clock that reads `START_MS`,
+/// then `START_MS + ELAPSED_MS`,
+/// and stays there.
 fn clock() -> impl Fn() -> u64 {
     let readings: Cell<u64> = Cell::new(0);
     return move || {
@@ -58,7 +64,10 @@ fn options(directory: &Path, endpoint: &str, key: Option<&str>) -> ReviewOptions
     return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), quiet_window: SHORT, call_ceiling: Duration::from_secs(3600), trusted_pem: None };
 }
 
-/// A full review: the request the mock sees is the built body, and the entry holds the verdict, date and seconds.
+/// A full review:
+/// the request the mock sees is the built body,
+/// and the entry holds the verdict,
+/// date and seconds.
 #[test]
 fn a_review_sends_the_built_input_and_logs_the_verdict() {
     let directory: PathBuf = fixture("run-review");
@@ -79,7 +88,9 @@ fn a_review_sends_the_built_input_and_logs_the_verdict() {
     remove(directory.as_path());
 }
 
-/// No credential, an empty credential and a failing gateway each write an entry that says why, and `unjudged` results.
+/// No credential,
+/// an empty credential and a failing gateway each write an entry that says why,
+/// and `unjudged` results.
 #[test]
 fn failures_are_logged_as_entries() {
     let directory: PathBuf = fixture("run-failures");
@@ -111,7 +122,9 @@ fn a_silent_gateway_costs_at_most_the_quiet_window() {
     remove(directory.as_path());
 }
 
-/// Log-only and code-free commits never call the reader; the first writes nothing, the second the skip entry.
+/// Log-only and code-free commits never call the reader;
+/// the first writes nothing,
+/// the second the skip entry.
 #[test]
 fn silent_and_skipped_commits_read_nothing() {
     let directory: PathBuf = fixture("run-skip");
@@ -125,7 +138,9 @@ fn silent_and_skipped_commits_read_nothing() {
     remove(directory.as_path());
 }
 
-/// A commit that cannot be read leaves no entry, and an unwritable log is reported, not raised.
+/// A commit that cannot be read leaves no entry,
+/// and an unwritable log is reported,
+/// not raised.
 #[test]
 fn read_and_write_failures_are_outcomes() {
     let directory: PathBuf = fixture("run-faults");
@@ -141,7 +156,9 @@ fn read_and_write_failures_are_outcomes() {
     remove(directory.as_path());
 }
 
-/// The environment gives the live log under the common Git directory by default, honors the override, and an empty first key stays empty.
+/// The environment gives the live log under the common Git directory by default,
+/// honors the override,
+/// and an empty first key stays empty.
 #[test]
 fn options_follow_the_script_environment() {
     let root: &Path = Path::new("/repo");
@@ -173,7 +190,38 @@ fn options_follow_the_script_environment() {
     assert!(!full_review_requested(&none));
 }
 
-/// The contained runner returns a job's value however long the job takes up to the ceiling, and survives a panic.
+/// The controls of the contained runner each use a runner of their own,
+/// so none of them can find the production runner busy with
+/// another control's job when the tests of one process run on threads (measured:
+/// with `the_runner_` as the filter the slow-job
+/// control got `Busy` instead of `Finished(7)`,
+/// because the ceiling control had left the production runner outstanding).
+/// Exactly
+/// one control,
+/// the one about the production runner itself,
+/// names the production call.
+#[test]
+fn the_controls_share_no_production_runner_except_the_one_about_it() {
+    let own_text: &str = include_str!("standards_review_run_tests.rs");
+    // The call is built from two pieces, so this control does not count itself.
+    let production_call: String = ["run_contained", "("].concat();
+    assert_eq!(
+        own_text.matches(production_call.as_str()).count(),
+        1,
+        "a control that needs a runner makes its own with `static OWN: Containment` and calls `run_contained_in(&OWN, ..)`"
+    );
+}
+
+/// The production runner returns a job's value and is free again for the next job.
+#[test]
+fn the_production_runner_returns_a_jobs_value_and_is_free_again() {
+    let roomy: Duration = Duration::from_secs(3600);
+    assert_eq!(run_contained(|| return 7_u8, roomy), Contained::Finished(7));
+    assert_eq!(RUNNER.outstanding(), 0);
+}
+
+/// The contained runner returns a job's value however long the job takes up to the ceiling,
+/// and survives a panic.
 #[test]
 fn the_runner_waits_for_a_slow_job_and_contains_a_panic() {
     let roomy: Duration = Duration::from_secs(3600);
@@ -187,8 +235,13 @@ fn the_runner_waits_for_a_slow_job_and_contains_a_panic() {
     assert_eq!(run_contained(|| -> u8 { panic!("job failure") }, roomy), Contained::Panicked);
 }
 
-/// Owner, 2026-11-04, "Silence plus a ceiling (Recommended)": a job that is still running when the ceiling passes is not waited for
-/// any longer, though it is working; the runner answers while the job still runs.
+/// Owner,
+/// 2026-11-04,
+/// "Silence plus a ceiling (Recommended)":
+/// a job that is still running when the ceiling passes is not waited for
+/// any longer,
+/// though it is working;
+/// the runner answers while the job still runs.
 #[test]
 fn the_runner_stops_waiting_for_a_job_at_its_ceiling() {
     let ceiling: Duration = Duration::from_millis(600);
@@ -204,7 +257,8 @@ fn the_runner_stops_waiting_for_a_job_at_its_ceiling() {
     assert!(waited >= ceiling && waited < ceiling * 20, "{waited:?}");
 }
 
-/// A commit the log already names is not asked about again, and a log that does not exist yet is created by the first entry.
+/// A commit the log already names is not asked about again,
+/// and a log that does not exist yet is created by the first entry.
 #[test]
 fn a_repeated_item_asks_nothing_and_a_missing_log_is_created() {
     let directory: PathBuf = fixture("run-repeat");
@@ -222,8 +276,12 @@ fn a_repeated_item_asks_nothing_and_a_missing_log_is_created() {
     remove(directory.as_path());
 }
 
-/// A job the runner stopped waiting for is outstanding until it ends, and no second job starts behind it (sol-2, B): the second is
-/// refused without a thread, and the runner takes work again once the first has ended.
+/// A job the runner stopped waiting for is outstanding until it ends,
+/// and no second job starts behind it (sol-2,
+/// B):
+/// the second is
+/// refused without a thread,
+/// and the runner takes work again once the first has ended.
 #[test]
 fn no_second_job_starts_while_a_job_the_runner_stopped_waiting_for_is_still_running() {
     static OWN: Containment = Containment::new();
@@ -251,7 +309,9 @@ fn no_second_job_starts_while_a_job_the_runner_stopped_waiting_for_is_still_runn
     assert_eq!(run_contained_in(&OWN, || return 3_u8, Duration::from_secs(60)), Contained::Finished(3));
 }
 
-/// A job that ends just as the runner gives up is not left counted as outstanding: whichever side is first, the count returns to
+/// A job that ends just as the runner gives up is not left counted as outstanding:
+/// whichever side is first,
+/// the count returns to
 /// zero and the runner takes work.
 #[test]
 fn a_job_that_ends_as_the_runner_gives_up_leaves_nothing_outstanding() {
@@ -268,9 +328,16 @@ fn a_job_that_ends_as_the_runner_gives_up_leaves_nothing_outstanding() {
     }
 }
 
-/// A review that panics after the runner stopped waiting for it is no longer outstanding (sol-2 round 2, P1): the accounting is
-/// released by a guard that runs on unwinding, so later reviews are not refused for ever. The control times out, lets the worker
-/// panic, sees zero outstanding, and starts a new review.
+/// A review that panics after the runner stopped waiting for it is no longer outstanding (sol-2 round 2,
+/// P1):
+/// the accounting is
+/// released by a guard that runs on unwinding,
+/// so later reviews are not refused for ever.
+/// The control times out,
+/// lets the worker
+/// panic,
+/// sees zero outstanding,
+/// and starts a new review.
 #[test]
 fn a_review_that_panics_after_its_timeout_leaves_nothing_outstanding() {
     static OWN: Containment = Containment::new();
@@ -290,8 +357,12 @@ fn a_review_that_panics_after_its_timeout_leaves_nothing_outstanding() {
     assert_eq!(run_contained_in(&OWN, || return 5_u8, Duration::from_secs(60)), Contained::Finished(5), "a new review starts");
 }
 
-/// Two callers that arrive together are never both admitted (sol-2 round 2, P2): each job counts how many jobs run at once while it
-/// does, so the control sees a second admission whichever way the threads are scheduled, and the count never passes one.
+/// Two callers that arrive together are never both admitted (sol-2 round 2,
+/// P2):
+/// each job counts how many jobs run at once while it
+/// does,
+/// so the control sees a second admission whichever way the threads are scheduled,
+/// and the count never passes one.
 #[test]
 fn two_callers_that_arrive_together_are_never_admitted_at_once() {
     static OWN: Containment = Containment::new();
@@ -320,10 +391,22 @@ fn two_callers_that_arrive_together_are_never_admitted_at_once() {
     }
 }
 
-/// A worker that released the runner and stalls before it sends its value (sol-1 round 3, P1 D): the caller's wait for the value is
-/// bounded, so the call returns, as a ceiling, and the next job runs. The job returns at once and the ceiling is long beside it, so the
-/// worker has released the runner (and stands at the gate, withholding the send) before the caller's wait runs out: the caller meets a
-/// runner that is idle, which is the schedule of the review, every time. The control has a deadline of its own around the call.
+/// A worker that released the runner and stalls before it sends its value (sol-1 round 3,
+/// P1 D):
+/// the caller's wait for the value is
+/// bounded,
+/// so the call returns,
+/// as a ceiling,
+/// and the next job runs.
+/// The job returns at once and the ceiling is long beside it,
+/// so the
+/// worker has released the runner (and stands at the gate,
+/// withholding the send) before the caller's wait runs out:
+/// the caller meets a
+/// runner that is idle,
+/// which is the schedule of the review,
+/// every time.
+/// The control has a deadline of its own around the call.
 #[test]
 fn a_worker_that_stalls_between_its_release_and_its_send_does_not_hold_the_caller() {
     static OWN: Containment = Containment::with_handoff_wait(Duration::from_millis(300));
@@ -343,7 +426,10 @@ fn a_worker_that_stalls_between_its_release_and_its_send_does_not_hold_the_calle
     assert_eq!(run_contained_in(&OWN, || { return 8_u32; }, Duration::from_secs(30)), Contained::Finished(8));
 }
 
-/// While a job is admitted and running, no other is: one controlled step, no scheduling luck (sol-1 round 3).
+/// While a job is admitted and running,
+/// no other is:
+/// one controlled step,
+/// no scheduling luck (sol-1 round 3).
 #[test]
 fn a_runner_with_a_running_job_admits_no_other() {
     static OWN: Containment = Containment::new();
