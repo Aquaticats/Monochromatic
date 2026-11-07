@@ -41,22 +41,37 @@ Run it alone:
    `pgrep`,
    ImageMagick (`magick`),
    and `wl-paste`.
-- The nested compositor `monochromatic-nested-wayland-session`, installed through mise
+- The nested compositor `monochromatic-nested-wayland-session`,
+  installed through mise
    (`"cargo:monochromatic-nested-wayland-session" = "latest"` in the root `mise.toml`),
    or any executable named by `E2E_COMPOSITOR`.
   The run starts the install that mise reports for `mise where cargo:monochromatic-nested-wayland-session`,
-   whatever its version: the runner pins no version, and the path it uses is absolute,
+   whatever its version:
+  the runner pins no version,
+  and the path it uses is absolute,
    because the mise shim needs a trusted config that the compositor's systemd unit does not have.
-  Before it starts, the run asks the compositor for `--version` and requires 0.4.0 or newer
-   (`FIRST_VERSION_WITH_RUNNER_CONTROLS` in `src/compositor-version.ts`, the first version with the controls below);
-   a newer version, including a pre-release build, is always accepted.
-  An older version, or output with no version, is refused with a plain message that names
+  Before it starts,
+  the run asks the compositor for `--version` and requires 0.4.0 or newer
+   (`FIRST_VERSION_WITH_RUNNER_CONTROLS` in `src/compositor-version.ts`,
+  the first version with the controls below);
+   a newer version,
+  including a pre-release build,
+  is always accepted.
+  An older version,
+  or output with no version,
+  is refused with a plain message that names
    `mise upgrade cargo:monochromatic-nested-wayland-session` and `E2E_COMPOSITOR` as the ways out.
-  Version 0.4.0 added the key names the checks press (Menu, F10 and the other F keys,
-   chords, `hold` with the client's key repeat), Unicode typing, exact odd sizes,
-   focus return after a dialog, and the `windows` and `repeat-info` commands.
+  Version 0.4.0 added the key names the checks press (Menu,
+  F10 and the other F keys,
+   chords,
+  `hold` with the client's key repeat),
+  Unicode typing,
+  exact odd sizes,
+   focus return after a dialog,
+  and the `windows` and `repeat-info` commands.
   One check stays recorded as not injectable:
-   a held Shift with repeats cannot occur, because modifier keys never repeat on Wayland.
+   a held Shift with repeats cannot occur,
+  because modifier keys never repeat on Wayland.
 
 ## Isolation
 
@@ -91,7 +106,8 @@ Run it alone:
    created with mode 0700.
 - `E2E_COMPOSITOR`:
    path of the compositor executable;
-   default the active mise install, found with `mise where` from the app directory.
+   default the active mise install,
+  found with `mise where` from the app directory.
    Use it to run against a build that is not installed yet,
    such as `package/nested-wayland-session/cli/target/release/monochromatic-nested-wayland-session`.
 - `E2E_LIBRARY_GENERATOR`:
@@ -105,7 +121,8 @@ Run it alone:
    thirty loose files,
    one artist folder of thirty short tracks between the two tone folders,
    and the tone folders themselves.
-   The full suite passes with the fallback (every check, and 1 not injectable),
+   The full suite passes with the fallback (every check,
+  and 1 not injectable),
    so the suite needs no out-of-repository input.
 
 ## Layout
@@ -131,15 +148,19 @@ Run it alone:
    print the table and summary,
    and apply the filter.
 - `src/wide-interaction.ts` and `src/narrow-interaction.ts` hold the click-through checks:
-   while Search covers the player, a click on its empty area changes nothing under it (wide and narrow window),
+   while Search covers the player,
+  a click on its empty area changes nothing under it (wide and narrow window),
    and a click on the body of a toast does not reach the track row under it.
   Each proves its click points are live first
    (the same click selects a row,
    or toggles play on the selected one,
    or changes the mode,
    once the page or the toast is gone).
-- `src/wide-select.ts` holds the select-only checks (D124, D127, D128):
-   a Search result for another track selects it paused and stops the playing track, the same result again plays it,
+- `src/wide-select.ts` holds the select-only checks (D124,
+  D127,
+  D128):
+   a Search result for another track selects it paused and stops the playing track,
+  the same result again plays it,
    and a row whose file cannot be opened (an unreadable file the check writes into the scratch library) stays the
    selected row until a click loads it once the file has been repaired.
 - `src/wide-menu.ts` holds the menu placement checks:
@@ -147,7 +168,10 @@ Run it alone:
    and the menu is wider than the 280 px that cut its longest shortcut hint.
    The app reports the menu card's position and size
    in its `ui_state` lines
-   (`menu_x`, `menu_y`, `menu_width`, `menu_height`).
+   (`menu_x`,
+  `menu_y`,
+  `menu_width`,
+  `menu_height`).
 - `src/wide-*.ts`,
    `src/narrow-session.ts`,
    `src/dialog-session.ts`,
