@@ -9,8 +9,11 @@
 //! describe('workflow walk', () => { /* steps, defaults, runs-on, refusals */ });
 //! ```
 
-/// Import the walk and its records.
-use super::walk;
+/// Import the walk,
+///  the walker whose value skipping is checked directly,
+///  and its records.
+use super::{Walker, walk};
+use crate::workflow_lines::{Content, parse_entry, read_lines};
 use crate::workflow_model::{RunBody, WalkError, Workflow};
 
 /// Walk a fixture that must be readable.
@@ -227,4 +230,112 @@ fn later_keys_do_not_leak_into_the_last_step() {
     assert_eq!(workflow.steps.len(), 1);
     assert_eq!(workflow.steps[0].shell, None);
     assert_eq!(script(text, &workflow, 0), "one");
+}
+
+/// Where the walker resumes after the value of the key on the first line,
+///  as a line index.
+fn resumes_at(text: &str) -> usize {
+    let walker: Walker<'_> = Walker {
+        lines: read_lines(text).expect("lines"),
+        frames: Vec::new(),
+        found: Workflow::default(),
+        runs_on: None,
+        content_seen: false,
+    };
+    let entry = parse_entry(&walker.lines[0]);
+    let Content::Key { column, value, .. } = entry.content else {
+        panic!("fixture has no key");
+    };
+    return walker.skip_value(0, column, value);
+}
+
+/// A key with no value leaves its lines to the walk,
+///  and a one-line flow collection ends on its own line.
+#[test]
+fn an_empty_value_and_a_one_line_flow_collection_end_on_their_own_line() {
+    assert_eq!(resumes_at("k:\n  a\n  b\nnext: 1\n"), 1);
+    assert_eq!(resumes_at("k: { a: 1 }\nnext: 1\n"), 1);
+    assert_eq!(resumes_at("k: [a, b]\nnext: 1\n"), 1);
+    assert_eq!(resumes_at("k: {}\nnext: 1\n"), 1);
+    assert_eq!(resumes_at("k: [a, b] # ]\nnext: 1\n"), 1);
+}
+
+/// A flow collection runs to the line where its brackets balance,
+///  across nested brackets of both kinds,
+///  or to the end of the file when they never do.
+#[test]
+fn a_flow_collection_runs_to_the_line_where_its_brackets_balance() {
+    assert_eq!(
+        resumes_at("k: {\n  a: [1,\n    2],\n  b: 3\n}\nnext: 1\n"),
+        5
+    );
+    assert_eq!(resumes_at("k: [ { a: 1 },\n  { b: 2 } ]\nnext: 1\n"), 2);
+    assert_eq!(resumes_at("k: [a,\n  b\n"), 2);
+    assert_eq!(resumes_at("k: [a,\n  b\nnext: 1\n"), 3);
+}
+
+/// A scalar continues over deeper lines and over blank and comment lines,
+///  and stops at the first other line that is no deeper than its key.
+#[test]
+fn a_scalar_continues_over_deeper_lines_and_skippable_lines() {
+    assert_eq!(
+        resumes_at("k: plain # c\n  more\n\n# note\n  more2\nnext: 1\n"),
+        5
+    );
+    assert_eq!(resumes_at("k: |\n  text\n  more\nnext: 1\n"), 3);
+    assert_eq!(resumes_at("k: \"quoted\n  continues\"\nnext: 1\n"), 2);
+    assert_eq!(resumes_at("k: x\nnext: 1\n"), 1);
+    assert_eq!(resumes_at("k: x\n  more\n"), 2);
+}
+
+/// A scalar value at a deeper column stops at its own sibling.
+#[test]
+fn a_nested_scalar_stops_at_its_own_sibling() {
+    let text: &str = "a:\n  k: x\n    deeper\n  # top\n    deeper still\n  sibling: 1\n";
+    let walker: Walker<'_> = Walker {
+        lines: read_lines(text).expect("lines"),
+        frames: Vec::new(),
+        found: Workflow::default(),
+        runs_on: None,
+        content_seen: false,
+    };
+    let entry = parse_entry(&walker.lines[1]);
+    let Content::Key { column, value, .. } = entry.content else {
+        panic!("fixture has no key");
+    };
+    assert_eq!(walker.skip_value(1, column, value), 5);
+}
+
+/// A quoted key next to a plain sibling inside structure is still refused,
+///  because only the keys above its column are its path.
+#[test]
+fn an_odd_key_is_judged_by_the_keys_above_its_column() {
+    for text in [
+        "jobs:\n  a:\n    runs-on: x\n    \"b\": y\n    steps:\n      - run: x\n",
+        "jobs:\n  a:\n    steps:\n      - run: x\n        shell: bash\n        'q': y\n",
+    ] {
+        let error: WalkError = refused(text);
+        assert!(
+            error.message.contains("plain key"),
+            "{text:?}: {}",
+            error.message
+        );
+    }
+}
+
+/// A step is anchored at its dash.
+#[test]
+fn a_step_is_anchored_at_its_dash() {
+    let text: &str = "jobs:\n  a:\n    steps:\n      - run: x\n      - run: y\n";
+    let workflow: Workflow = read(text);
+    let dashes: Vec<usize> = text
+        .match_indices("- run")
+        .map(|(offset, _)| return offset)
+        .collect::<Vec<usize>>();
+    let anchors: Vec<usize> = workflow
+        .steps
+        .iter()
+        .map(|step| return step.anchor)
+        .collect::<Vec<usize>>();
+    assert_eq!(anchors, dashes);
 }
