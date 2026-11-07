@@ -127,7 +127,11 @@ fn render_window_with(width: usize, height: usize, names: &[String], playing: Op
     let mut pixels = vec![Rgb8Pixel::default(); width * height];
     // The first draw builds what the properties asked for (a page that has just become visible, a list that has just been given
     // rows), and the second draws it.
+    // Each pass moves the clock by one fade-in, so a fade that starts during a pass has ended by the next one, whatever the
+    // speed of the build.
+    let fade_in = Duration::from_millis(u64::try_from(app.global::<crate::Theme>().get_motion_enter()).unwrap_or(0));
     for _ in 0..3 {
+        CLOCK.set(CLOCK.get() + fade_in);
         slint::platform::update_timers_and_animations();
         window.request_redraw();
         window.draw_if_needed(|renderer| {
