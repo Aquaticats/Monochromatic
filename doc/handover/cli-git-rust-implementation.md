@@ -3658,9 +3658,15 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`
   and `mise run prepare:pnpm:install -- --frozen-lockfile` (a no-copy worktree has no `node_modules`; the wrapper's
   container gate then fails with `ERR_MODULE_NOT_FOUND` for `@monochromatic-dev/mutation-test-cli-cargo-mutants`),
-  or reinstall main afterwards. Seen 2026-11-07: that failed gate ran in a user unit that ended `Result=success`,
-  `ExecMainStatus=0`, although the task printed "ERROR task failed"; whether `mise run` returns 0 on a failed task is
-  being checked with an exit-status line in the rerun's log.
+  or reinstall main afterwards. A failed gate in a user unit once read `Result=success`, `ExecMainStatus=0` although
+  the task printed "ERROR task failed": not a mise defect (a probe shows `mise run` exits 1 for a failing `false` task
+  and for a failing Node import), but the reading of a unit started with `--collect`, which systemd unloads when it
+  ends, after which `systemctl show` prints default values. Read a collected unit's outcome from its log, where the
+  gate command now appends "mise exit status: N".
+- `mpm-shadow` `0.2.7-alpha.1` is installed (lock `fb7e05141c`, records `724c6a14fd`); a plain copy-route
+  `git worktree add` from main left main's four link folders byte-identical, so `--no-worktree-copy` is no longer
+  needed. The label gate kept it off crates.io (crates.io 404 for that version; publish log "label alpha, goes to
+  crates.io: false"; five crates.io steps skipped).
 - Release of the fix, first try (stopped before dispatch, nothing published): the installed 0.2.6 does resolve an
   unflagged `-alpha.N` GitHub release through `@latest` (fixture test on `test/mpm-shadow-cli-resolver-picks-alpha-release`,
   `aee8bf86c0`), but nothing enforces "only publish rc and stable releases on crates.io": `cargo-publish.yml` runs
