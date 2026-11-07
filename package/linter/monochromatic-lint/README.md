@@ -1244,14 +1244,24 @@ as in cargo-mutants) so that its shards can run in separate bounded containers a
 name by name,
 and fails when any mutant is outside every scope.
 A campaign with a missed or timed-out mutant exits nonzero and is not a passing gate.
-The session's main agent starts every campaign and waits on it, never a subagent
+The session's main agent starts every campaign and waits on it,
+never a subagent
 ([why](../../mutation-test/cli-cargo-mutants/README.md#who-runs-a-campaign)).
 Every campaign is resumable:
-after a kill, a reboot or an out-of-memory stop, run the same task with the same options on the same test image and
-it scores only the mutants that no earlier run scored, whatever their outcome.
+after a kill,
+a reboot or an out-of-memory stop,
+run the same task with the same options on the same test image and
+it scores only the mutants that no earlier run scored,
+whatever their outcome.
 Its results are in `target/verification/mutation-<key>/mutants.out/` (`processors-mutation-<key>` for the processor
-campaign; `caught.txt`, `missed.txt`, `timeout.txt`,
-`unviable.txt`, `outcomes.json`), the union of every attempt, and its `exit.json` records the status of the whole
+campaign;
+`caught.txt`,
+`missed.txt`,
+`timeout.txt`,
+`unviable.txt`,
+`outcomes.json`),
+the union of every attempt,
+and its `exit.json` records the status of the whole
 campaign.
 Delete that directory to score everything again.
 The mechanism and its limits are in `package/mutation-test/cli-cargo-mutants/README.md`.
@@ -1298,13 +1308,17 @@ The verification scripts in `bin` are TypeScript.
 `mise run //package/linter/monochromatic-lint:lint:scripts:types` type-checks them,
 and `mise run //package/linter/monochromatic-lint:lint:scripts:oxlint -- bin/<file>.ts` lints the files it is given.
 The Oxlint task takes explicit paths and has no package-wide form on purpose.
-A package-wide `lint:oxlint` also lints `task.ts`, which no `tsconfig.json` includes:
+A package-wide `lint:oxlint` also lints `task.ts`,
+which no `tsconfig.json` includes:
 it does not satisfy the isolated-declarations setting of the shared TypeScript preset,
 so adding it to the project fails the type check.
-Measured on 2026-10-30, that run exits 0 but the semantic bridge reports `api-unavailable` for six files
-and the type-aware rules (`prefer-readonly-parameter-type`, for one) throw instead of checking,
+Measured on 2026-10-30,
+that run exits 0 but the semantic bridge reports `api-unavailable` for six files
+and the type-aware rules (`prefer-readonly-parameter-type`,
+for one) throw instead of checking,
 so a green package-wide run would not mean the scripts passed those rules.
-Making the package-wide task usable needs `task.ts` to be fixed or excluded, not a looser rule.
+Making the package-wide task usable needs `task.ts` to be fixed or excluded,
+not a looser rule.
 
 ## License
 
