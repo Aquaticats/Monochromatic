@@ -3265,7 +3265,8 @@ Resolve them this way:
    merge the words by hand:
    the fixer does not choose between two wordings.
 4. Run `mise run //:format:monochromatic-lint -- <the conflicted files>`.
-   It must print nothing and exit 0.
+   Anything it still prints is not a line break;
+   fix it by hand.
 5. Search the files for leftover markers (`<<<<<<<`,
    `=======`,
    `>>>>>>>`),
