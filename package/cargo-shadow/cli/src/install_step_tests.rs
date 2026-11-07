@@ -916,7 +916,11 @@ fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permiss
     assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore: an earlier refusal left the fault armed");
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}"),
+        StepOutcome::Refused(message) => {
+            assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}");
+            // Sixth pass, group 5: the refusal of the policy travels with the rollback failure.
+            assert!(message.contains("The policy refused it"), "the policy refusal was dropped: {message}");
+        }
         other => panic!("the command would build the refused lockfile: {other:?}"),
     }
 }
@@ -1138,7 +1142,11 @@ fn a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_fa
     assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore");
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}"),
+        StepOutcome::Refused(message) => {
+            assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}");
+            // Sixth pass, group 5: what cargo itself reported before the rollback failed is not dropped.
+            assert!(message.contains("failed after writing"), "the original failure of cargo was dropped: {message}");
+        }
         other => panic!("the command would fall back onto the unrestored lockfile: {other:?}"),
     }
 }
@@ -1159,7 +1167,7 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     let calls: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let seen: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::clone(&calls);
     let script: String = format!(
-        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; cat /proc/self/cgroup > {ready}.group; : > {ready}.seen; exit 0",
         ready = ready.display()
     );
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
@@ -1187,6 +1195,15 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     if let Some(scope) = &scope_path {
         let _ = fs::write(scope.join("cgroup.kill"), "1");
     }
+    // Sixth certification pass: the armed fault was consumed by the stop of this run, the writer was ready before the payload ended, and
+    // the payload ran in the very scope the journal recorded (not merely a scope that was planned).
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck), "the stop fault was never reached, so the refusal has another cause");
+    assert!(root.path().join("writer-ready.seen").exists(), "the payload ended without having seen the writer ready");
+    crate::cgroup_test_support::assert_ran_in_recorded_scope(
+        &journals[0].join("groups").display().to_string(),
+        &fs::read_to_string(root.path().join("writer-ready.group")).expect("the payload's group"),
+        &crate::cgroup_test_support::wrapper_group(),
+    );
     match outcome {
         StepOutcome::Refused(message) => assert!(message.contains("may still") && message.contains("journal"), "{message}"),
         other => panic!("a run that could not show quiescence read as {other:?}"),

@@ -526,8 +526,22 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         write_ready(&directory, &listed, false)?;
         at_step("ready");
     }
-    sync_directory(&directory)?;
-    sync_directory(&journals)?;
+    // The journal and then the name that lists it are made durable before any recorded child can start. A test replaces the result of
+    // each barrier, so a failure takes the path of a failure of the kernel (round 21, sixth pass, V3).
+    #[cfg(test)]
+    let own_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalDirectorySync) { Err(io::Error::other("injected failure to make the journal directory durable")) } else { sync_directory(&directory) };
+    #[cfg(not(test))]
+    let own_barrier: io::Result<()> = sync_directory(&directory);
+    own_barrier?;
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return "journal directory synced".to_string(); });
+    #[cfg(test)]
+    let parent_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalParentSync) { Err(io::Error::other("injected failure to make the journal's name durable")) } else { sync_directory(&journals) };
+    #[cfg(not(test))]
+    let parent_barrier: io::Result<()> = sync_directory(&journals);
+    parent_barrier?;
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return "journal published".to_string(); });
     // `Some`: the present or the absent value of an `Option`.
     let scope: RunScope = RunScope::open(directory.join(GROUPS_FILE));
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -863,6 +877,23 @@ pub fn finish_journal(directory: &Path) -> Result<(), FinishError> {
 /// ```
 fn is_kept_beside_a_lockfile(name: &str) -> bool {
     return name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp"));
+}
+
+/// What:
+/// `pub fn announce_kept_files_for(root: &Path, crate_roots: &[String])` prints the kept-files warning for a run that starts no
+/// transaction, when the inventory is past the count.
+/// Why:
+/// The warning is promised on every run past the count, an ordinary run that finds every lockfile already satisfied included (sixth
+/// pass, group 7); a run that begins a transaction announces through the transaction instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function announceKeptFilesFor(root: string, crateRoots: string[]): void
+/// ```
+pub fn announce_kept_files_for(root: &Path, crate_roots: &[String]) {
+    if let Some(notice) = kept_folder_notice(root, crate_roots) {
+        announce_kept_notice(&notice);
+    }
 }
 
 /// What:

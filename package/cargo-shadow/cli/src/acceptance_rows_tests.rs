@@ -205,7 +205,7 @@ fn kept_entries_with_huge_sparse_lengths_are_summed_exactly_and_never_refuse() {
     for name in big_names {
         let file = fs::File::create(kept.join(name)).expect("a kept entry");
         if let Err(error) = file.set_len(huge) {
-            eprintln!("skipped: this file system refuses a length of {huge} bytes ({error}), so the overflow schedule cannot be built here");
+            crate::test_scratch::skip_or_fail(&format!("this file system refuses a length of {huge} bytes ({error}), so the overflow schedule cannot be built here"));
             return;
         }
     }
@@ -239,7 +239,7 @@ fn an_inventory_that_could_not_be_read_is_reported_as_unknown_and_never_taken_as
     let examinable: bool = fs::symlink_metadata(kept.join("Cargo.lock.displaced.0")).is_ok();
     if examinable {
         fs::set_permissions(&kept, fs::Permissions::from_mode(0o755)).expect("restore");
-        eprintln!("skipped: permissions do not stop this user from examining the entries, so the unreadable inventory cannot be built this way");
+        crate::test_scratch::skip_or_fail("permissions do not stop this user from examining the entries, so the unreadable inventory cannot be built this way");
         return;
     }
 
