@@ -330,7 +330,8 @@ From the pnpm release notes and docs
 
 - No `workspace:` protocol for crates.
   Searches that returned nothing for it:
-  `rg '"workspace:|workspace:[*^~]|workspace:\.\.'` over `pnpm/crates/cargo-resolver`, `pnpm/crates/cli/src/cargo_deps` and
+  `rg '"workspace:|workspace:[*^~]|workspace:\.\.'` over `pnpm/crates/cargo-resolver`,
+  `pnpm/crates/cli/src/cargo_deps` and
   `pnpm/crates/cli/src/cargo_deps.rs`;
   `gh search issues --repo pnpm/pnpm` for "cargo workspace: protocol", "crate path dependency publish",
   "cargo independent workspace roots" and "Cargo path dependency version rewrite publish"
@@ -366,9 +367,12 @@ From the pnpm release notes and docs
   An internal dependency with `registry = "pnpr"` would be rejected by `cargo.enabled`
   unless pnpr is the workspace's one declared index,
   in which case crates.io dependencies would need pnpr's upstream proxy.
-- No release-age, trust-policy or catalog for crates:
-  `minimumReleaseAge` appears in `pnpm/crates/config` but a search of `pnpm/crates/cargo-resolver/src` and
-  `pnpm/crates/cli/src/cargo_deps` for release-age, publish-time and catalog terms returned nothing.
+- No release-age, trust-policy or catalog for crates was found:
+  `minimumReleaseAge` appears in `pnpm/crates/config`, but a search of `pnpm/crates/cargo-resolver/src` and
+  `pnpm/crates/cli/src/cargo_deps` for release-age, publish-time and catalog terms returned nothing,
+  and the settings and Cargo docs name no such setting for crates.
+  That is "none found in these searches", not a trace of every settings path into Cargo resolution;
+  a test with the policy enabled and a too-new crate was not run.
   The repository's `rust-catalog.toml` and `cargo-shadow` provide those today
   (`doc/decision/rust-dependency-catalog.md`).
 - No Cargo publish: `pnpm publish` and `pnpm pack` docs mention no crates,
@@ -381,11 +385,15 @@ From the pnpm release notes and docs
 
 ### Could it serve (a) or (b)?
 
-- (a): partly overlapping, not serving.
-  pnpm would vendor third-party crates for offline builds,
-  but this repository already does version policy through `cargo-shadow`,
-  and the cross-root path dependencies that matter for (a) need a Cargo-generated lock first,
-  with the `git` wrapper collision (see "What it does not do, from source and probes").
+- (a): not served, though parts overlap.
+  pnpm provides materialization (a content-addressed store, vendored sources, offline builds)
+  that `cargo-shadow` does not,
+  and `cargo-shadow` provides update and admission policy that pnpm was not found to provide for crates;
+  they are complementary rather than redundant.
+  What (a) needs, the links between our own crates and their publication, is not something pnpm does:
+  cross-root path dependencies need a Cargo-generated lock first
+  (and the `git` wrapper collision applies where Cargo must generate it; see "What it does not do,
+  from source and probes").
 - (b): no.
   The seven tools are programs installed by `mpm-shadow`; pnpm's Rust support installs a toolchain and library crates.
 - Worth watching, not adopting now:
@@ -403,8 +411,9 @@ From the pnpm release notes and docs
   ([Introduction to GitHub Packages][ghp-intro]),
   and "Working with a GitHub Packages registry" lists the Container registry,
   RubyGems, npm, Maven, Gradle and NuGet; no Cargo.
-- "GitHub Packages only supports authentication using a personal access token (classic)" ([same page][ghp-auth]),
-  which fits poorly with anonymous Cargo reads.
+- On authentication the same page says "GitHub Packages only supports authentication using a personal access token
+  (classic)" ([same page][ghp-auth]); it does not say whether a public read needs one, so no conclusion about
+  anonymous Cargo reads is drawn from it.
 - Community discussion 12067, "Cargo (Rust) registry support for Github Packages",
   is category Packages, 16 comments, no accepted answer, last updated 2026-08-28T09:41:16Z
   (last comment 2026-08-28: "When are we getting this?"); discussion 11926 last updated 2023-05-11
@@ -435,11 +444,16 @@ and where the bytes of an installed tool come from (use b).
     a named hosted registry,
     and one `packages:` entry per crate (exact names or `**`);
   - `mpm-shadow`: optionally an origin that reads the version from the checkout's `Cargo.toml`
-    (the prior note's `workspace:`-like origin).
+    (the prior note's `workspace:`-like origin, a convenience over an exact request, not a requirement).
   `cargo-shadow` needs no change for internal dependencies, since their lock entries have no registry source.
 - How "Label decides" fits: pnpr takes every label;
   crates.io takes rc and plain versions after the crate's whole dependency closure is on crates.io.
-  The dependency check on the crates.io side is the server's, not `cargo publish --dry-run`'s (prior note).
+  Two checks are involved.
+  The client check (Cargo resolving the dependency in the target registry's index while packaging)
+  ran here against pnpr.
+  The server check (crates.io refusing a dependency that names another registry)
+  is the prior note's reading of crates.io's
+  code; `cargo publish --dry-run` does not exercise it and no real publish to crates.io was run.
 - How an `-alpha` release reaches this machine:
   today `github:Aquaticats/Monochromatic@latest` with `options.tagPrefix` skips releases GitHub flags as `prerelease`
   (`latest_release_with_prefix` in `package/mpm-shadow/cli/src/toolchain/update_github.rs`, lines 162 to 164,
@@ -449,10 +463,18 @@ and where the bytes of an installed tool come from (use b).
   so alphas are not skipped today, and are skipped the day a workflow marks them.
   Separately, `compare_versions` in `package/mpm-shadow/cli/src/version.rs` compares pre-release tails as text
   (`left_pre.cmp(right_pre)`),
-  so `0.6.1-alpha.10` sorts below `0.6.1-alpha.9` (source reading, not run).
+  so `0.6.1-alpha.10` is ordered before `0.6.1-alpha.9`;
+  `latest_release_with_prefix` calls it (source reading, not run:
+  the built selector was not exercised with these inputs).
   An exact request (`github:...@0.6.1-alpha.10` with the prefix) goes through `release_by_tag`,
-  which does no comparison and no
-  prerelease filtering, so the checkout-version origin avoids both.
+  which in the source does no comparison and no prerelease filtering,
+  so the predicted effect is that an exact request, and an origin that builds that request from the checkout's version,
+  avoids both.
+  An exact request in the lock plan already exists today as the baseline;
+  the new origin only makes the lock follow the checkout instead of a hand-written version.
+  Its contract would need: a missing release is an error that names the tag (the archive route never compiles),
+  the release tag is created by the workflow after the version-bump commit, so a checkout with edits since that commit
+  or ahead of the release has no matching bytes, and the lock then says nothing about those edits.
 - Risks: the pnpr Cargo workload patch is not written; "No copies, like npm" means a lost store breaks outside locks
   (accepted by the owner for npm and crates);
   a crate rc needs everything it uses to be rc or stable on crates.io first;
@@ -478,6 +500,9 @@ and where the bytes of an installed tool come from (use b).
   the index is a generated artifact instead of a server.
 - Use (b): `cargo-binstall --index` worked on a fixture, but `mpm-shadow` passes no `--index`,
   and the lock would record no hash.
+  The prior note saw `--disable-strategies compile` stop with "Fallback to cargo-install is disabled" when the
+  archive was
+  missing (404), so a missing archive fails without compiling there; that was a fixture, not our tools.
 - Needs built: an index generator and a workflow; Pages replaces the whole site on each deploy;
   `cargo publish` is refused (`api: null`).
 - How "Label decides" fits: any label, but it ignores the owner's decision to deploy all releases on pnpr.
@@ -489,7 +514,9 @@ and where the bytes of an installed tool come from (use b).
   2026-11-07).
 - Use (b): works (the seven tools on the `archive` route; install measured 31.7 s with none compiled,
   per `doc/planning/crates-io-footprint.md`).
-- Gap: nothing outside the repository can use a crate at an `-alpha` version,
+- Gap: under the owner's rule that crates.io takes only rc and stable,
+  no registry resolves an `-alpha` version for anyone outside the repository
+  (a git dependency still reaches any commit, prior note),
   and the owner's "deploy all releases on pnpr" is unmet.
 
 ### Option 5: pnpm `cargo.enabled` and the pnpm Rust toolchain
@@ -498,7 +525,7 @@ and where the bytes of an installed tool come from (use b).
   `git` wrapper collision).
 - Use (b): not served (`crate:` cannot be a global tool).
 - Fit: Rust toolchain provisioning overlaps `mpm-shadow`;
-  vendoring overlaps `cargo-shadow` without its release-age and trust policy.
+  pnpm's vendoring and `cargo-shadow`'s update and admission policy are complementary, not redundant.
 - Marked experimental by pnpm; revisit under the conditions listed in Question 3.
 
 ### Option 6: floating git
@@ -514,24 +541,33 @@ and where the bytes of an installed tool come from (use b).
 
 ### Ranking
 
+The two axes rank separately.
+Crate registry: pnpr (Options 1 and 2) > static index (Option 3) > no registry (Option 4).
+Tool bytes: GitHub archives chosen by the checkout's version (Option 1) > npm packages on pnpr (Option 2).
+Option 3 conflicts with the recorded decision to deploy all releases on pnpr,
+so it competes only if the owner reopens that
+decision; it is ranked as reference material, not as a live choice.
+Pnpm's Cargo support, floating git and GitHub Packages serve neither axis.
+The combined order is:
+
 Option 1 > Option 2 > Option 3 > Option 4 > Option 5 > Option 6 > Option 7.
 
 - Option 1 over Option 2: Option 1's registry half was run end to end (publish of an alpha, anonymous build,
   checksums, dependency order)
-  and its tool half already exists as the `archive` route plus one small origin;
+  and its tool half already exists as the `archive` route plus an optional origin;
   Option 2 adds per-platform packaging and a configurable npm registry in `mpm-shadow` that were not probed.
   Option 2 would move the tool bytes off GitHub, which Option 1 does not.
 - Option 2 over Option 3: this is a judgment about the owner's recorded decision, not a measured gap.
   Option 2 follows "deploy all releases on pnpr" and needs no index generator;
   Option 3 needs a generator and whole-site deploys for the registry protocol pnpr already serves,
   and `cargo publish` cannot target it.
-  Option 3 has a fixture run that Option 2 lacks, so the order flips if the owner prefers fewer unprobed parts.
-- Option 3 over Option 4: Option 3 lets outside consumers resolve any label anonymously (a fixture resolved and
-  installed from it);
-  Option 4 cannot, since crates.io takes only rc and stable.
+- Option 3 over Option 4: Option 3 lets outside consumers resolve any label from a registry anonymously (a fixture
+  resolved
+  and installed from it);
+  Option 4 offers no registry for the labels that crates.io does not take under the owner's rule.
 - Option 4 over Option 5: Option 4 works today with measured installs;
   Option 5 failed on cross-root path dependencies without a prior lock,
-  collided with the `git` wrapper, and installs no tool.
+  collided with the `git` wrapper on the Cargo-generated-lock path, and installs no tool.
 - Option 5 over Option 6: Option 5 ran on independent roots once the locks existed;
   Option 6 is blocked by the catalog and compiles.
 - Option 6 over Option 7: Option 6 serves outside consumers (prior note's test); Option 7 holds no crates.
@@ -548,6 +584,42 @@ Option 1 > Option 2 > Option 3 > Option 4 > Option 5 > Option 6 > Option 7.
 - Whether tool bytes stay on GitHub (Option 1) or move to pnpr (Option 2).
 - Whether `cargo.enabled` is wanted at all, given the `git` wrapper collision (the wrapper rule is the owner's).
 - Whether a pnpr `packages:` entry per crate or `**` is wanted.
+
+## Cross-vendor review
+
+A review by `openai/gpt-6.1-sol` (no tools, whole note supplied, run 2026-11-07, output kept in
+`~/temp/agent/pnpm-rust-2026-11-07/sol-review.txt`) raised findings.
+Each was fixed or recorded as follows.
+
+- Dependency-first conclusion too broad (high): narrowed to the tested `cargo publish` workflow;
+  the batch route needs a release tool that builds the archive without Cargo resolving against the registry;
+  both unprobed.
+- Version substitution omitted: added the property-by-property comparison and a local version-validation probe;
+  Cargo does not substitute versions.
+- Claim about what the npm registry checks: removed, since the pnpm page does not support it and it was not probed.
+- Two dependency checks conflated: named the client check (run) and the server check (prior note's source reading,
+  not run).
+- Source-replacement lock conclusion too broad: narrowed to the tested checksum-less lock,
+  with the untried variants listed.
+- pnpm summary contradicted the seeded-lock result (high): rewritten; the fixture had no third-party crates,
+  which is now stated.
+- Git-wrapper collision promoted without inventory: inventory added (no `[patch]`,
+  two manifests with `git` dependencies,
+  every manifest has a lock), and the collision is now conditional.
+- Policy absence overstated: reworded to "none found in these searches", with the missing test listed.
+- Vendoring and policy treated as one capability: now complementary.
+- `--locked` in a clean checkout: ran `cargo build --locked --offline` with the generated lock and narrowed the claim.
+- Checkout-version origin had no contract: contract and exact-request baseline added; "small" removed.
+- Source-reading conclusions stated as behaviour: labelled predicted.
+- Binstall fixture and compile fallback: cited the prior note's observed failure message; not run for our tools.
+- Status quo overstated: reworded to registry resolution under the owner's rule, with git noted.
+- Ranking mixed axes and a binding decision: per-axis ranking added;
+  Option 3 treated as reference unless the decision reopens.
+- "No credential read" claim: replaced by exact statements about `gh`, `CARGO_HOME` and the throwaway token.
+- Local publication versus "never publish anything":
+  kept as a disclosed deviation from the brief for the caller to judge.
+- GitHub authentication excerpt: inference about anonymous reads removed.
+- "sorts below": reworded.
 
 ## Not verified
 
