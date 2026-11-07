@@ -1184,6 +1184,11 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   (measured 2026-11-07: 122 of the 853 launcher records in this repository's checkouts named a deleted folder).
   A launcher whose record is stale therefore runs the newest copy without a new `install` in its tree,
   and the older-lock warning still names the locked version and the version that runs.
+  The launcher also rewrites its own record to name the program it started (atomically, only that field),
+  because the shadows behind it (`cargo-shadow`, `pnpm-shadow`, `search-shadow`) skip a `PATH` candidate only when its record leads back to them,
+  and a record that names a deleted folder cannot be resolved:
+  without the rewrite `cargo-shadow` took the launcher for the real `cargo`, started it again, and its recursion guard stopped the run.
+  A record that cannot be rewritten is one warning line on standard error and the program still runs.
   The launcher file is a hard link of the `mpm-shadow` that last ran `install` in that tree,
   so a tree that has not run `install` since this rule shipped still has the older launcher binary,
   which exits 127 for a deleted folder until `mise run toolchain:install` or `mpm install` runs in that tree

@@ -127,6 +127,21 @@ otherwise the program of the same file name found under the `current` link above
 and `missing_program_advice` is the sentence printed after `could not start` when nothing is found.
 The README section "The launcher" of `package/mpm-shadow/cli` describes both.
 
+### Third layer: the shadow behind the launcher took the launcher for the real tool
+
+With the first fix alone, a launcher whose record was stale ran `cargo-shadow`, which looked for the real `cargo` on `PATH`.
+Its launcher skip (`leads_back_to` in `package/cargo-shadow/cli/src/real_binary.rs`) canonicalizes the record's `real` path;
+the deleted folder cannot be resolved, so the launcher was not skipped, was chosen as the real `cargo`, started `cargo-shadow` again,
+and the recursion guard stopped `mise run //package/mpm-shadow/cli:lint` with
+`cargo-shadow: stopped at once, before doing anything, because cargo-shadow was started by cargo-shadow.`
+(measured 2026-11-07 in the disposable worktree with a copy of the fixed launcher and a record that named the deleted 0.1.4 folder).
+The launcher now rewrites its own record to the program it started
+(`refresh_stale_record` in `launcher.rs`; tests `a_launcher_rewrites_a_stale_record_to_the_program_it_started_so_a_shadow_behind_it_can_see_where_it_leads`
+and `a_record_that_cannot_be_rewritten_is_a_warning_and_the_program_still_runs`),
+so the record is true again before any shadow reads it.
+`pnpm-shadow` and `search-shadow` have the same skip rule and are covered by the same rewrite;
+only `cargo-shadow` was run in this measurement.
+
 ## Limits
 
 - A launcher is a hard link of the binary that last ran `install` in its tree,
