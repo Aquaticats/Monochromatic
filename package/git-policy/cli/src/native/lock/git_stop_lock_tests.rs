@@ -28,6 +28,14 @@ const HOLD_DEADLINE: Duration = Duration::from_millis(2500);
 ///  host to run its handler, which a loaded gate does not do within a few hundred milliseconds.
 const SHORT_GRACE: Duration = Duration::from_secs(2);
 
+/// The grace of a stop whose holder answers the request: Git's handler removes the pid file of the lock and then the lock, 130
+///  microseconds apart on a quiet disk (`strace` of `git update-ref --stdin` told to prepare, then sent `SIGTERM`, 2026-11-07), and
+///  a kill between the two leaves the lock with no pid file, which the sweep rightly leaves alone as unproven. A single metadata
+///  call on this host's disk has taken 6.03 s (`doc/planning/git-policy-cli-full-tokio.md`, "The coordinator's three settlements",
+///  item c), so the handler of a responsive holder is given twice that; a holder that answers ends at once and never waits it out.
+///  The gate of `85e6d2ab99` left such a lock after the 2 s grace of `SHORT_GRACE` while the host load was about 70.
+const RESPONSIVE_GRACE: Duration = Duration::from_micros(6_031_986).saturating_mul(2);
+
 /// The tracking ref the incident left locked.
 const HELD_REF: &str = "refs/remotes/origin/main";
 
@@ -171,7 +179,11 @@ fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
 /// A push-style bounded run stops the holder at its deadline and leaves no lock.
 fn bounded_run_leaves_no_lock(kind: Holder, name: &str) {
     let stage: Stage = stage(name);
-    let attempt = run_bounded_push(holder(&stage, kind), Patience::Fixed(HOLD_DEADLINE), SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
+    let grace: Duration = match kind {
+        Holder::Responsive => RESPONSIVE_GRACE,
+        Holder::Unresponsive => SHORT_GRACE,
+    };
+    let attempt = run_bounded_push(holder(&stage, kind), Patience::Fixed(HOLD_DEADLINE), grace, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
     assert_clean_after_stop(&stage, kind, "bounded run");
     remove(stage.root.as_path());
