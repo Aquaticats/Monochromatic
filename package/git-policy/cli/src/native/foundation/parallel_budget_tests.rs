@@ -126,3 +126,28 @@ fn sliced_jobs_take_the_budget_up_to_their_ceiling() {
     let tight: HostResources = host(large.parallelism, Some(SLICE_MEMORY * MEMORY_SHARE_DIVISOR * 3));
     assert_eq!(sliced_workers(usize::MAX, ceiling, &tight), 3);
 }
+
+/// The owner's ruling of 2026-11-07 ("Memory headroom: sysinfo") moves the reading of the system's available memory and of the
+///  control groups' limits to the published crate, so this file holds neither the `/proc/meminfo` label nor the group files.
+#[test]
+fn the_budget_reads_no_memory_file_itself() {
+    let source: &str = include_str!("parallel_budget.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    for needle in ["MemAvailable", "memory.max", "memory.current", "/proc/meminfo"] {
+        assert!(!code.contains(needle), "parallel_budget.rs still holds `{needle}`: the memory figures come from the sysinfo crate");
+    }
+}
+
+/// The available memory the budget reads is a figure no larger than the system's total, and the read gives one on this host.
+#[test]
+fn the_read_memory_is_a_figure_below_the_system_total() {
+    let host: HostResources = HostResources::read();
+    let total: u64 = std::fs::read_to_string("/proc/meminfo")
+        .expect("meminfo")
+        .lines()
+        .find_map(|line| { return line.strip_prefix("MemTotal:")?.split_whitespace().next()?.parse::<u64>().ok(); })
+        .expect("MemTotal")
+        * 1024;
+    let available: u64 = host.memory_available.expect("this host reports its available memory");
+    assert!(available > 0 && available <= total, "{available} of {total}");
+}
