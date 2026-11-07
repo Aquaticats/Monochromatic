@@ -24,6 +24,7 @@ import {
 import { MoveStopError, } from './errors.ts';
 import { checkDestination, } from './destination-check.ts';
 import { emptyParentStep, } from './empty-parent-step.ts';
+import { diffStep, } from './final-diff-step.ts';
 import { requireSharedFilesystems, } from './filesystem-preflight.ts';
 import { requireFrozen, } from './freeze-pass.ts';
 import type { Subvolume, } from './inventory.ts';
@@ -234,6 +235,17 @@ export async function runCopyPass(
       cloneSources: options.cloneSources,
     },);
     runner.log(`${subvolume.name}: ${plan.reason}`,);
+    if (parent !== undefined) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
+      await diffStep({
+        context,
+        firstSnapshot: join(
+          options.snapshotFolder,
+          parent.name,
+        ),
+        snapshot,
+      },);
+    }
     /**
      The send options of this step.
      */

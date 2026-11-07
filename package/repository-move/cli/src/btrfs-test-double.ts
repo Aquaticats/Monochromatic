@@ -213,6 +213,11 @@ async function send(args: readonly string[],): Promise<void> {
       name,
       parent: options.includes('-p',) ? basename(parent,) : '-',
       clones: clones.join(',',),
+      // The real `--no-data` stream between two snapshots of one subvolume holds a command per change and only a header
+      // when nothing changed; `CHANGED_SNAPSHOTS` names the snapshots that changed.
+      changed: options.includes('--no-data',)
+        && (env.CHANGED_SNAPSHOTS ?? '').split(',',)
+          .includes(name,) ? 'yes' : 'no',
     },)
   }\n`,);
 }
@@ -223,6 +228,17 @@ async function send(args: readonly string[],): Promise<void> {
  @param args - the arguments after `receive`
  */
 async function receive(args: readonly string[],): Promise<void> {
+  if (args.includes('--dump',)) {
+    /**
+     The stream of a `send --no-data`.
+     */
+    const dumped = parseTextFields((await readStandardInput()).trim(),);
+    console.log(`snapshot ./${dumped.name ?? ''} uuid=${dumped.uuid ?? ''}`,);
+    if (dumped.changed === 'yes') {
+      console.log('write ./file offset=0 len=1',);
+    }
+    return;
+  }
   /**
    The input of this step.
    */

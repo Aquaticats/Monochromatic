@@ -22,6 +22,7 @@ import {
   FIRST_PREFIX,
 } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
+import { foundUnchanged, } from './final-diff-step.ts';
 import type { MoveOptions, } from './move-options.ts';
 
 /**
@@ -143,6 +144,14 @@ export async function runVerifyPass(
       name: entry.name,
       step,
     },)) {
+      continue;
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- copies are compared one at a time: each rsync reads two trees from the same disks, and a record after each lets a rerun resume; see doc/lint/sequential-awaits.md
+    if ((options.pass === 'verify-final') && await foundUnchanged({
+      stateFolder: options.stateFolder,
+      name: entry.name,
+    },)) {
+      runner.log(`${entry.name}: unchanged since the first pass, not compared`,);
       continue;
     }
     /**
