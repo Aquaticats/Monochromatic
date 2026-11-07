@@ -1997,6 +1997,72 @@ not to crates.io.
   `cargo new` and `cargo build` of a scratch crate through that directory (capped scope) finished and
   the program printed `Hello, world!`.
 
+### Release record: `monochromatic-git-policy-cli` 0.6.1-alpha.1, the earlier names fold and a no-checkout clone checks out (2026-11-07T20:02:01Z)
+
+Released by the coordinator from main,
+not waiting for the tokio branch:
+the leftover-ref-lock cause the release had waited for was measured
+(Git's own SIGTERM cleanup cut by a 5 s stop),
+and the same race is in 0.6.0.
+
+- Content:
+  the fold of earlier `cli-git` names into the current ones (`baf4c039f2`),
+  a checkout in a clone made with `--no-checkout` (merge `d2598b2842`),
+  the held-settle message naming the earlier commit service's program,
+  and the index-lock fallback.
+- Gate:
+  `native:test:container` on main `d2598b2842` in a throwaway worktree,
+  unit `wrapper-alpha-gate-d2598b2842`:
+  `Summary [ 976.843s] 5199 tests run: 5199 passed (4 slow), 8 skipped`.
+  Between the gate and the dispatch,
+  nothing under `package/git-policy/cli`,
+  `rust-catalog.toml` or `Cargo.lock` changed;
+  `.github/workflows/cargo-publish.yml` and the crates.io decision action did (the repository-wide lint pass),
+  so the dry run went first.
+- Dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42408755184`:
+  `success`
+  (release `success`,
+  publish skipped).
+  The first dispatch was refused locally:
+  the note was 217 characters against the tool's 200.
+- Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42409052182`
+  (2026-11-07T20:02:01Z to 20:05:36Z,
+  `success`),
+  bump commit `215d3dd3a1` (2026-11-07T20:05:23Z),
+  0.6.0 to 0.6.1-alpha.1.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42409350167`
+  (2026-11-07T20:05:33Z to 20:10:34Z,
+  `success`);
+  `native:release:wait` printed
+  `crates.io 0.6.1-alpha.1: skipped, the alpha label is not published to crates.io (only a plain number and -rc.N are)`
+  and the release assets for `aarch64` and `x86_64` Linux.
+- Lock commit `4c06805b71`:
+  `mise run toolchain:update` reported `1 tools moved`;
+  the diff (read whole) changes only `cargo:monochromatic-git-policy-cli`
+  (version,
+  four artifact URLs,
+  sha256 `04476eca...0deb` for `aarch64` and `12963df1...b35b` for `x86_64`) and the lock digest.
+  `toolchain:install` reported `1 installed, 65 unchanged, 0 failed`.
+- Installed binary:
+  `.cache/toolchain-bin/monochromatic-git-policy-cli --version` prints
+  `monochromatic-git-policy-cli 0.6.1-alpha.1, shadowing git at /usr/bin/git`;
+  the lock commit itself went through it and printed "Updating the commit service...".
+- The fold:
+  the six earlier-name lines had already stopped before the install;
+  `.git/cli-git` and the earlier logs were gone and `.git/monochromatic-git-policy-cli` last changed at
+  2026-11-07T14:57:11-05:00,
+  so a build of main's code (which has the fold) ran against the shared Git directory before 0.6.1-alpha.1 was
+  installed;
+  which program did it is not identified.
+  Nothing was lost:
+  0.5.34 wrote only the earlier names,
+  and the current logs hold its records
+  (257 commit-timing,
+  22 audit,
+  73 push-trigger,
+  41 worktree-add-timing lines),
+  matching the earlier files' sizes.
+
 ## Evidence log
 
 - crates.io API reads:
