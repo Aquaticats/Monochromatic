@@ -4241,6 +4241,37 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     the agent proposes the smallest shared piece,
     keeps a red-first guard against reaching the owner's bus,
     and limits a real run to one summary notification.
+- Future task,
+  not now (owner,
+  verbatim:
+  "That means we missed porting notifications on changes of managed files in watch mode when we rewrote it to rust from ts.
+  Add this as a future task and persist it,
+  but do not do it now as it's not immediately fatal."):
+  issue #6264.
+  The TypeScript `file-enforcer` sent a desktop notification after watch mode changed managed files
+  (`package/file-enforcer/core/src/watch/notify.ts` at `e7b5130459^`,
+  the commit that deleted it);
+  the Rust watch loop (`core-rust/src/watch.rs`) has none.
+  Linux only;
+  tests on a private session bus with the stand-in server from `nested-wayland-session`.
+- Plugin bundles now match their sources:
+  guardrail `b8e5bf3b0c`,
+  `bash-output-filter` and `terminal-title` `6873d8e020`
+  (unbash 6.0.1 to 6.0.3;
+  the only visible change is a terminal title that now ends at a NUL escape,
+  as bash does).
+  The drift-check proposal (A:
+  a task that rebuilds every plugin bundle in scratch and compares,
+  run in CI;
+  B:
+  a new `file-enforcer` rule kind;
+  C:
+  a commit-time guard) is in `package/claude-code-plugin/guardrail/README.md` "Maintenance";
+  not built,
+  for the owner.
+  A leftover:
+  `.claude/worktrees/guardrail-bundle-matches-sources` holds two uncommitted,
+  regenerable sibling builds.
 - `monochromatic-lint` group folders merged into main `62874c227d` (869 of 869 tests;
   every new check red first).
   A group is any folder holding child folders (`mod.rs` plus at least one source folder);
