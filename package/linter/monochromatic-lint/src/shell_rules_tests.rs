@@ -157,3 +157,39 @@ fn both_budgets_report_together() {
     assert_eq!(found[0].code, "shell/max-lines");
     assert_eq!(found[1].code, "shell/no-semicolon");
 }
+
+/// In `cmd`, a line that is only `rem` (any case) is a comment and every other line counts.
+#[test]
+fn shell_a_bare_rem_line_is_a_cmd_comment_and_other_lines_count() {
+    let comment_only: &str = "rem\nREM\n  Rem  \necho a\n";
+    assert!(check_shell("x.cmd", comment_only, ShellDialect::Cmd, &lines(1)).is_empty());
+    let found: Vec<Diagnostic> = check_shell(
+        "x.cmd",
+        "echo a\necho b\necho c\n",
+        ShellDialect::Cmd,
+        &lines(2),
+    );
+    assert_eq!(found.len(), 1);
+    assert!(
+        found[0].message.contains("3 code lines"),
+        "{}",
+        found[0].message
+    );
+}
+
+/// A finding names the construct as the author wrote it.
+#[test]
+fn shell_a_construct_finding_quotes_the_token_as_written() {
+    let found: Vec<Diagnostic> = check_shell(
+        "x.sh",
+        "a | b\n",
+        ShellDialect::Posix,
+        &construct(Construct::Pipe, 0, Severity::Error),
+    );
+    assert_eq!(found.len(), 1);
+    assert!(
+        found[0].message.starts_with("`|` composes commands"),
+        "{}",
+        found[0].message
+    );
+}
