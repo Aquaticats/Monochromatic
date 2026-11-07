@@ -42,7 +42,7 @@ fn a_forbidden_import_in_a_nested_production_file_is_discovered_and_rejected() {
             ("forwarding/mod.rs", "mod extra;\n"),
             ("forwarding/extra.rs", "use super::super::standards_review_client::post_decision;\n"),
             ("entry/mod.rs", "mod agent;\n"),
-            ("entry/agent.rs", "let agent = ureq::Agent::new_with_defaults();\n"),
+            ("entry/agent.rs", "let client = hyper_util::client::legacy::Client::builder(executor);\n"),
         ],
     )
     .expect("a resolvable layout");
@@ -65,10 +65,10 @@ fn a_nested_file_with_the_name_of_an_exempt_file_is_still_checked() {
         &[
             ("lib.rs", "mod standards_review;\nmod nested;\n"),
             ("standards_review/mod.rs", "mod standards_review_client;\nmod standards_review_run;\n"),
-            ("standards_review/standards_review_client.rs", "let agent = ureq::Agent::new_with_defaults();\n"),
+            ("standards_review/standards_review_client.rs", "let client = hyper_util::client::legacy::Client::builder(executor);\n"),
             ("standards_review/standards_review_run.rs", "use super::standards_review_client::post_decision;\n"),
             ("nested/mod.rs", "mod standards_review_client;\nmod standards_review_run;\n"),
-            ("nested/standards_review_client.rs", "let agent = ureq::Agent::new_with_defaults();\n"),
+            ("nested/standards_review_client.rs", "let client = hyper_util::client::legacy::Client::builder(executor);\n"),
             ("nested/standards_review_run.rs", "use crate::service_review::run;\n"),
         ],
     )
@@ -128,7 +128,7 @@ fn a_declared_module_without_a_file_is_an_error() {
 /// so the scan is an error and not a pass.
 #[test]
 fn a_source_file_no_declaration_reaches_is_an_error() {
-    let outcome = scan("boundary-scan-orphan", &[("lib.rs", ""), ("forwarding/forgotten.rs", "use ureq;\n")]);
+    let outcome = scan("boundary-scan-orphan", &[("lib.rs", ""), ("forwarding/forgotten.rs", "use hyper::Request;\n")]);
     let error: String = outcome.expect_err("an unreached file is an error");
     assert!(error.contains("forwarding/forgotten.rs"), "{error}");
 }

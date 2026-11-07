@@ -49,14 +49,34 @@ use std::time::Duration;
 /// How long the checked rename waits for another thread of this process that is publishing the same name:
 /// the bound of "nothing
 ///  should ever wait forever" for a step that takes a check and a rename.
-/// No measurement picked it;
-/// it is the budget the start
-///  retry gives a refused start (`push/start_retry.rs`,
-/// `START_RETRY_BUDGET`),
-/// open to the owner's veto,
-/// and it is only reached by a
-///  rename that stalls on a disk that has neither exclusive publish.
-const HELD_NAME_WAIT: Duration = Duration::from_secs(5);
+/// It is the owner's multiple of the longest delay measured
+///  (`foundation/worst_delay_seen_on_this_host.rs`:
+/// 6.03 s of wall time for a check and a rename,
+/// once,
+/// under a load average of about
+///  70;
+/// the owner,
+/// 2026-11-07,
+/// "3x worst case"),
+/// so about 18.1 s.
+/// Measurements:
+/// `foundation/private_storage_hold_time_measurement_tests.rs`
+///  (20,000 publishes:
+/// median 181 us,
+/// 99.9th percentile 312143 us;
+/// three runs of 4,000:
+/// longest 93 to 296227 us;
+/// eight threads:
+/// longest
+///  453 to 1126 us;
+/// a rerun in a scope capped at twenty-four processors:
+/// longest 94 us).
+/// Whether the disk or the scheduler caused the 6.03 s
+///  is not measured.
+/// Only a filesystem with neither exclusive publish reaches this wait,
+/// and none was available to measure (an S3
+///  bucket through `s3fs-fuse`).
+const HELD_NAME_WAIT: Duration = crate::worst_delay_seen_on_this_host::WORST_CASE_WITH_MARGIN;
 
 /// Mode of every private directory the wrapper creates:
 ///  owner only.
@@ -847,3 +867,9 @@ mod tests;
 #[cfg(test)]
 #[path = "private_storage_publish_tests.rs"]
 mod publish_tests;
+
+/// The measurement of how long a name is held,
+/// kept out of the release executable.
+#[cfg(test)]
+#[path = "private_storage_hold_time_measurement_tests.rs"]
+mod hold_time_measurement_tests;

@@ -113,3 +113,65 @@ fn the_claim_makes_a_read_and_a_write_one_step() {
     }
     assert_eq!(counter.load(Ordering::SeqCst), THREADS * ROUNDS);
 }
+
+/// The wait for a held name is a wake on the flag,
+/// not a poll:
+/// the module offers no turn with `yield_now` and sleeps with no
+///  `thread::sleep`,
+/// which is also the rule of the one-wait guard of the whole move (plan step T13).
+#[test]
+fn the_wait_for_a_held_name_is_a_wake_on_the_flag_and_not_a_poll() {
+    let source: &str = include_str!("name_held_while_one_thread_publishes_it.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    for forbidden in ["thread::sleep", "yield_now"] {
+        assert!(!code.contains(forbidden), "the wait for a held name still polls with `{forbidden}`");
+    }
+}
+
+/// A wait for a name that is never given back ends at its bound,
+/// not before it and not long after it.
+#[test]
+fn a_wait_for_a_name_that_is_never_given_back_ends_at_its_bound() {
+    const BOUND: Duration = Duration::from_millis(150);
+    const GENEROUS_SLACK: Duration = Duration::from_secs(10);
+    let path: PathBuf = PathBuf::from("claim-control-bounded-wait");
+    let _held: HeldName = hold_name_while_publishing(path.as_path(), Duration::ZERO).expect("held");
+    let started: Instant = Instant::now();
+    let refused: std::io::Error = hold_name_while_publishing(path.as_path(), BOUND).err().expect("the name is never given back");
+    let waited: Duration = started.elapsed();
+    assert_eq!(refused.kind(), std::io::ErrorKind::TimedOut);
+    assert!(waited >= BOUND, "the wait ended at {waited:?}, before its bound of {BOUND:?}");
+    assert!(waited < BOUND + GENEROUS_SLACK, "the wait took {waited:?} for a bound of {BOUND:?}");
+}
+
+/// Waiters that are woken one after another by a name that is taken and given back many times all get it inside their bound:
+///  a wake lost between a waiter's last look at the flag and its sleep would leave one of them to run out its bound.
+#[test]
+fn no_wake_is_lost_when_many_threads_take_and_give_back_one_name() {
+    const THREADS: usize = 8;
+    const ROUNDS: usize = 300;
+    const BOUND: Duration = Duration::from_secs(30);
+    let timed_out: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let workers: Vec<_> = (0..THREADS)
+        .map(|_| {
+            let missed: Arc<AtomicUsize> = Arc::clone(&timed_out);
+            return std::thread::spawn(move || {
+                for _ in 0..ROUNDS {
+                    match hold_name_while_publishing(Path::new("claim-control-wakes"), BOUND) {
+                        Ok(held) => {
+                            std::thread::sleep(Duration::from_micros(50));
+                            drop(held);
+                        }
+                        Err(_) => {
+                            missed.fetch_add(1, Ordering::SeqCst);
+                        }
+                    }
+                }
+            });
+        })
+        .collect();
+    for worker in workers {
+        worker.join().expect("a worker");
+    }
+    assert_eq!(timed_out.load(Ordering::SeqCst), 0, "a waiter ran out its bound while the name was being given back");
+}
