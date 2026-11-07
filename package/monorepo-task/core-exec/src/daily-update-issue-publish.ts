@@ -20,7 +20,8 @@ export type { PublishOutcome, } from './daily-update-package-check-types.ts';
 
 /**
  Most open reports one search returns.
- PLACEHOLDER
+ Measured 2026-11-07: the search answers in 0.5 seconds and no open issue carries the report phrase; a day's run opens
+ at most one report per newly red package, so two hundred is far above any day's open reports.
  */
 export const OPEN_REPORT_LIMIT = 200;
 

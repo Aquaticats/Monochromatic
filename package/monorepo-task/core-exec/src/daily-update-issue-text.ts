@@ -16,9 +16,11 @@ import type {
 
 /**
  Lines of moved versions an issue lists.
- PLACEHOLDER
+ Measured on the first daily update (commit `d61dc1934a`): across 28 `Cargo.lock` files the median package had 52 moved
+ crates and the largest three 206, 124 and 104. A hundred lines of about seventy characters stay far below the 65,536
+ characters GitHub accepts, and the entries the first error names come first, so the cap cuts the unrelated ones.
  */
-export const MAXIMUM_MOVE_LINES = 40;
+export const MAXIMUM_MOVE_LINES = 100;
 
 /**
  The label every issue carries: nobody has evaluated an automatic report yet (`doc/agent/triage-labels.md`).
