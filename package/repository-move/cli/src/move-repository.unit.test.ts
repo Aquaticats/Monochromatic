@@ -224,6 +224,74 @@ await describe({
       ],
     },),
     describe({
+      name: 'send plan: which earlier copy a send may start from',
+      children: [
+        it({
+          name: 'sends a worktree snapshotted from main as an increment on the snapshot of main, an unrelated one in full, and says which',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a', 'b',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a', 'u-main',], ['b', 'u-b',],], },);
+            const result = await runCopyTool({ fixture, pass: 'first', },);
+            expect(result.status,).toBe(0,);
+            expect(await metaOf(join(fixture.base, 'recv', 's001',),),).toContain('sentParent=s000',);
+            expect(await metaOf(join(fixture.base, 'recv', 's002',),),).toContain('sentParent=-',);
+            expect(await metaOf(join(fixture.base, 'recv', 's002',),),).toContain('sentClones=\n',);
+            expect(result.stderr,).toContain('s001',);
+            expect(result.stderr,).toContain('incremental on s000',);
+            expect(result.stderr,).toContain('full send',);
+          },
+        },),
+        it({
+          name: 'finds the related copy through a chain of parents, and never starts from a copy that is not sent yet',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a', 'b',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a', 'u-b',], ['b', 'u-b', 'u-main',],], },);
+            const result = await runCopyTool({ fixture, pass: 'first', },);
+            expect(result.status,).toBe(0,);
+            expect(await metaOf(join(fixture.base, 'recv', 's001',),),).toContain('sentParent=s000',);
+            expect(await metaOf(join(fixture.base, 'recv', 's002',),),).toContain('sentParent=s000',);
+          },
+        },),
+        it({
+          name: 'print mode names the choice of every row and shows a send without clone sources for an unrelated worktree',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a', 'b',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a', 'u-main',], ['b', 'u-b',],], },);
+            const result = await runCopyTool({ fixture, pass: 'first', run: false, },);
+            expect(result.status,).toBe(0,);
+            expect(result.stdout,).toContain(`btrfs send -p ${join(fixture.base, 'snap', 's000',)} ${join(fixture.base, 'snap', 's001',)} |`,);
+            expect(result.stdout,).toContain(`btrfs send ${join(fixture.base, 'snap', 's002',)} |`,);
+            expect(result.stderr,).toContain('incremental on s000',);
+            expect(result.stderr,).toContain('full send',);
+          },
+        },),
+        it({
+          name: 'refuses to run when the inventory was taken without the parent column, naming the command that has it',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',],], withParents: false, },);
+            const result = await runCopyTool({ fixture, pass: 'first', },);
+            expect(result.status,).toBe(1,);
+            expect(result.stderr,).toContain('btrfs subvolume list -u -q',);
+            expect(await exists(join(fixture.base, 'snap', 's000',),),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'a rerun after a failed send of a related worktree sends it again from the same parent and keeps the earlier records',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a', 'u-main',],], },);
+            const failed = await runCopyTool({ fixture, pass: 'first', env: { FAIL_SEND: 's001', }, },);
+            expect(failed.status,).toBe(1,);
+            const again = await runCopyTool({ fixture, pass: 'first', },);
+            expect(again.status,).toBe(0,);
+            expect(await sendCalls({ fixture, snapshot: 's000', },),).toBe(1,);
+            expect(await metaOf(join(fixture.base, 'recv', 's001',),),).toContain('sentParent=s000',);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: 'filesystems a btrfs snapshot and a placement need to share',
       children: [
         it({

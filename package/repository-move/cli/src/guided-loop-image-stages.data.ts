@@ -102,7 +102,7 @@ for name in source dest; do findmnt --noheadings --output SOURCE,TARGET --mountp
     {
       id: 'f2-populate',
       title: 'Fixture: source tree',
-      says: 'Fixture F2: a main checkout that is a subvolume with a Git repository and two worktree subvolumes sharing one 300 MiB extent by reflink; the filesystem list is taken with UUIDs (list -u).',
+      says: 'Fixture F2: a main checkout that is a subvolume with a Git repository and two worktree subvolumes: a is a snapshot of main (its parent UUID is that of the main checkout, so its send is an increment on the copy of the main checkout) and b is made fresh (no parent, a full send); each shares a 300 MiB extent with its own copy by reflink; the filesystem list is taken with UUIDs and parent UUIDs (list -u -q).',
       command: `sudo btrfs subvolume create ${fx}/source/main
 sudo chown ${c.userName}:${c.groupName} ${fx}/source/main
 /usr/bin/git -C ${fx}/source/main init --quiet
@@ -110,15 +110,16 @@ head --bytes=300M /dev/urandom > ${fx}/source/main/big
 /usr/bin/git -C ${fx}/source/main add big
 /usr/bin/git -C ${fx}/source/main -c user.name=t -c user.email=t@t commit --quiet --message base
 mkdir --parents ${fx}/source/main/.claude/worktrees
-sudo btrfs subvolume create ${fx}/source/main/.claude/worktrees/a
+sudo btrfs subvolume snapshot ${fx}/source/main ${fx}/source/main/.claude/worktrees/a
 sudo btrfs subvolume create ${fx}/source/main/.claude/worktrees/b
 sudo chown ${c.userName}:${c.groupName} ${fx}/source/main/.claude/worktrees/a ${fx}/source/main/.claude/worktrees/b
+rm --recursive --force ${fx}/source/main/.claude/worktrees/a/.git ${fx}/source/main/.claude/worktrees/a/big ${fx}/source/main/.claude/worktrees/a/.claude
 /usr/bin/git -C ${fx}/source/main worktree add --force --quiet ${fx}/source/main/.claude/worktrees/a -b a
 /usr/bin/git -C ${fx}/source/main worktree add --force --quiet ${fx}/source/main/.claude/worktrees/b -b b
 cp --reflink=always ${fx}/source/main/big ${fx}/source/main/.claude/worktrees/a/big.copy
 cp --reflink=always ${fx}/source/main/big ${fx}/source/main/.claude/worktrees/b/big.copy
 sudo btrfs filesystem du --summarize ${fx}/source/main | tee ${fx}/source-baseline.txt
-sudo btrfs subvolume list -u ${fx}/source > ${fx}/inventory.txt`,
+sudo btrfs subvolume list -u -q ${fx}/source > ${fx}/inventory.txt`,
       check: `test "$(grep --count -E ' uuid [0-9a-f-]+ path (main|(main/)?\\.claude/worktrees/[ab])$' ${fx}/inventory.txt)" = 3`,
       checkText: 'the filesystem list with UUIDs shows main and its two worktree subvolumes',
       rollback: 'nothing outside the fixture changed',
@@ -145,8 +146,8 @@ findmnt --noheadings --output SOURCE --mountpoint ${fx}/source`,
       title: 'Fixture F3a: print mode',
       says: 'Fixture F3a: the copy tool in print mode against the fixture. It runs nothing; it proves the inventory path rebuild.',
       command: `${copy} --pass=first ${args} > ${fx}/print-first.txt`,
-      check: `test "$(grep --count '^btrfs subvolume snapshot -r' ${fx}/print-first.txt)" = 3 && grep --fixed-strings 'inventory agrees: 2 nested subvolumes' "$OUTPUT_FILE"`,
-      checkText: 'three snapshots printed and the inventory agrees with Git (main, a, b)',
+      check: `test "$(grep --count '^btrfs subvolume snapshot -r' ${fx}/print-first.txt)" = 3 && grep --fixed-strings 'inventory agrees: 2 nested subvolumes' "$OUTPUT_FILE" && grep --fixed-strings 's001: incremental on s000' "$OUTPUT_FILE" && grep --fixed-strings 's002: full send' "$OUTPUT_FILE"`,
+      checkText: 'three snapshots printed, the inventory agrees with Git (main, a, b), a is an increment on the main copy and b is a full send',
       rollback: 'nothing ran',
       root: 'no',
       unprivileged: 'not needed: print mode runs as the user',

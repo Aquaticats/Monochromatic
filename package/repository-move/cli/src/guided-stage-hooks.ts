@@ -20,6 +20,13 @@ import type { InternalContext, } from './guided-types.ts';
  @param config - the runner's configuration
  
  @returns the lines to show
+
+ @example
+ ```ts
+ import { hookPreflight, } from './guided-stage-hooks.ts';
+ 
+ const result = await hookPreflight();
+ ```
  */
 export async function hookPreflight({ config, }: InternalContext,): Promise<string> {
   return await preflight(config,);
@@ -31,6 +38,13 @@ export async function hookPreflight({ config, }: InternalContext,): Promise<stri
  @param config - the runner's configuration
  
  @returns the lines to show
+
+ @example
+ ```ts
+ import { hookWindowMaximum, } from './guided-stage-hooks.ts';
+ 
+ const result = await hookWindowMaximum();
+ ```
  */
 export async function hookWindowMaximum({ config, }: InternalContext,): Promise<string> {
   return await windowMaximum(config,);
@@ -42,6 +56,13 @@ export async function hookWindowMaximum({ config, }: InternalContext,): Promise<
  @param config - the runner's configuration
  
  @returns the line to show
+
+ @example
+ ```ts
+ import { hookSelectVerify, } from './guided-stage-hooks.ts';
+ 
+ const result = await hookSelectVerify();
+ ```
  */
 export async function hookSelectVerify({ config, }: InternalContext,): Promise<string> {
   return await selectVerify(config,);
@@ -53,6 +74,13 @@ export async function hookSelectVerify({ config, }: InternalContext,): Promise<s
  @param config - the runner's configuration
  
  @returns the lines to show
+
+ @example
+ ```ts
+ import { hookUnitEdit, } from './guided-stage-hooks.ts';
+ 
+ const result = await hookUnitEdit();
+ ```
  */
 export async function hookUnitEdit({ config, }: InternalContext,): Promise<string> {
   return await prepareUnitEdit(config,);
@@ -64,6 +92,13 @@ export async function hookUnitEdit({ config, }: InternalContext,): Promise<strin
  @param config - the runner's configuration
  
  @returns the shell text
+
+ @example
+ ```ts
+ import { hookHoldersBefore, } from './guided-stage-hooks.ts';
+ 
+ const result = await hookHoldersBefore();
+ ```
  */
 export async function hookHoldersBefore({ config, }: InternalContext,): Promise<string> {
   return await holderScanCommand({
@@ -78,6 +113,13 @@ export async function hookHoldersBefore({ config, }: InternalContext,): Promise<
  @param config - the runner's configuration
  
  @returns the shell text
+
+ @example
+ ```ts
+ import { hookHoldersFrozen, } from './guided-stage-hooks.ts';
+ 
+ const result = await hookHoldersFrozen();
+ ```
  */
 export async function hookHoldersFrozen({ config, }: InternalContext,): Promise<string> {
   return await holderScanCommand({

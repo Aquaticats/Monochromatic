@@ -32,6 +32,13 @@ const UNIT_MOUNT_OPTIONS = 'compress=zstd:3,noatime';
  @returns the lines to show, including the changed line
  
  @throws Error when the unit does not hold the expected line exactly once, or already has the option
+
+ @example
+ ```ts
+ import { prepareUnitEdit, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await prepareUnitEdit(config,);
+ ```
  */
 export async function prepareUnitEdit(config: GuidedConfig,): Promise<string> {
   /**

@@ -73,6 +73,13 @@ export type SnapshotEntry = {
  @param path - the path
  
  @returns true when it exists
+
+ @example
+ ```ts
+ import { pathExists, } from './completion-records.ts';
+ 
+ const result = await pathExists(path,);
+ ```
  */
 export async function pathExists(path: string,): Promise<boolean> {
   try {
@@ -93,6 +100,13 @@ export async function pathExists(path: string,): Promise<boolean> {
  @param path - the file
  
  @param text - its content
+
+ @example
+ ```ts
+ import { writeTextAtomically, } from './completion-records.ts';
+ 
+ await writeTextAtomically({ path, text, },);
+ ```
  */
 export async function writeTextAtomically(
   {
@@ -121,6 +135,13 @@ export async function writeTextAtomically(
  @param writable - false in print mode, where nothing is written
  
  @returns the store
+
+ @example
+ ```ts
+ import { createRecords, } from './completion-records.ts';
+ 
+ const result = createRecords({ stateFolder, writable, },);
+ ```
  */
 export function createRecords(
   {
@@ -211,6 +232,13 @@ export function createRecords(
  @param prefix - `s` for the first pass, `f` for the final pass
  
  @returns the entries, sorted by name
+
+ @example
+ ```ts
+ import { readSnapshotEntries, } from './completion-records.ts';
+ 
+ const result = await readSnapshotEntries({ stateFolder, prefix, },);
+ ```
  */
 export async function readSnapshotEntries(
   {

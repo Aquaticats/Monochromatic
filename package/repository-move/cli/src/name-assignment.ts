@@ -168,6 +168,13 @@ function describeNew(
  @param folders - folders whose entries also reserve numbers (the snapshot folder and the state folder)
  
  @returns the named subvolumes in the same order, and the changes since the ledger was written
+
+ @example
+ ```ts
+ import { assignNames, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await assignNames({ current, ledger, prefix, folders, },);
+ ```
  */
 export async function assignNames(
   {
