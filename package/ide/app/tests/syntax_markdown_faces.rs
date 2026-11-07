@@ -110,7 +110,10 @@ fn faces(source: &str, styles: &[StyleSpan]) -> Vec<(bool, i16)> {
                 let run = glyph_run.run();
                 let italic = run.font().data.as_ref() == CODE_ITALIC;
                 assert!(italic || run.font().data.as_ref() == CODE_ROMAN);
-                let weight = run.normalized_coords().first().copied().unwrap_or(0);
+                let weight = run
+                    .normalized_coords()
+                    .first()
+                    .map_or(0, |coord| return coord.to_bits());
                 seen.push((italic, weight));
             }
         }

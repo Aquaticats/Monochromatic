@@ -316,9 +316,9 @@ fn wrap_gapped(line: &str, limit: usize) -> Vec<(String, Option<&'static str>)> 
             needed += columns(character);
         }
         if started && width + 1 + needed > limit {
-            rows.push((current, gap));
+            // `take` leaves an empty string behind, so the row that starts here begins from nothing.
+            rows.push((std::mem::take(&mut current), gap));
             gap = Some(" ");
-            current = String::new();
             width = 0;
             started = false;
         }
@@ -328,9 +328,8 @@ fn wrap_gapped(line: &str, limit: usize) -> Vec<(String, Option<&'static str>)> 
         }
         for character in word.chars() {
             if width + columns(character) > limit && width > 0 {
-                rows.push((current, gap));
+                rows.push((std::mem::take(&mut current), gap));
                 gap = Some("");
-                current = String::new();
                 width = 0;
             }
             current.push(character);
