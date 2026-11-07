@@ -194,7 +194,10 @@ the mechanisms below are the verified options for a future re-registration.
 
 - A per-server protocol or revision knob:
   the user-managed `[[mcp_servers]]` fields are
-  `prompt`, `sampling_enabled`, `disabled`, `disabled_tools`
+  `prompt`,
+  `sampling_enabled`,
+  `disabled`,
+  `disabled_tools`
   only,
   so the handshake cannot be configured away.
 - Upgrading Vibe:
@@ -228,7 +231,9 @@ The six constraints:
 3. Supporting the use case:
    yes,
    MCP servers are a documented Vibe feature
-   (`/mcp`, `vibe mcp add`, the `[[mcp_servers]]` config schema).
+   (`/mcp`,
+   `vibe mcp add`,
+   the `[[mcp_servers]]` config schema).
 4. Contributions welcome:
    not run.
    The upstream contribution policy was not read yet.

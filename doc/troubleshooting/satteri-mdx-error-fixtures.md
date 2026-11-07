@@ -141,14 +141,20 @@ the parser's ESM node construction is not a complete JavaScript syntax-validatio
 The inspected `.out-of-scope/` filenames contain no Sätteri-specific exemption.
 No external issue or comment is proposed.
 
-1.  Upstream fault for the test failure: no.
+1.  Upstream fault for the test failure:
+    no.
     The local test assumed a stronger boundary than it exercised.
-2.  Fixability: the consumer error-boundary test has been corrected and run.
-3.  Supported use: the adapter consumes the native tree and reported-error vector;
+2.  Fixability:
+    the consumer error-boundary test has been corrected and run.
+3.  Supported use:
+    the adapter consumes the native tree and reported-error vector;
     independent JavaScript validation was not its implemented contract.
-4.  Contribution policy: not evaluated for filing because this record is a consumer-test correction.
-5.  Expected upstream action: none is requested for that correction.
-6.  Upstream prototype: not applicable to the local fixture mistake;
+4.  Contribution policy:
+    not evaluated for filing because this record is a consumer-test correction.
+5.  Expected upstream action:
+    none is requested for that correction.
+6.  Upstream prototype:
+    not applicable to the local fixture mistake;
     the corrected consumer controls provide the relevant runnable evidence.
 
 Upstream filing artifact:

@@ -1,7 +1,8 @@
 # Slint 1.18.1 femtovg draws a `Path` wrongly when a contour ends with a line back to its start before `Z`
 
 Tool under test:
-Slint 1.18.1 (`slint`, `i-slint-backend-winit`) with the `winit-femtovg` renderer,
+Slint 1.18.1 (`slint`,
+`i-slint-backend-winit`) with the `winit-femtovg` renderer,
 hosted in the nested Wayland compositor 0.3.0 on Fedora 44.
 
 ## Symptom
@@ -35,7 +36,8 @@ so any icon converted from those SVGs needs the closing line removed.
 
 - The probe is `/home/user/temp/agent/agent-desktop-settings/probe2.slint`,
   hosted in the nested compositor with `PROBE_BACKEND=winit-femtovg`.
-  It is a scratch file on the machine that found it, not in the repository.
+  It is a scratch file on the machine that found it,
+  not in the repository.
 - The cause inside femtovg or Slint's path conversion was not investigated.
 - No upstream issue was searched for or filed.
 - Only Slint 1.18.1 was tested.

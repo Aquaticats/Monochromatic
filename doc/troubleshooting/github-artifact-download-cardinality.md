@@ -72,7 +72,8 @@ Its complete expected-outcome catalog passed:
 The harness is retained on `research/depot-pool-routing-20261018`.
 To reproduce its corrected positive comparison at the retained branch,
 dispatch the existing workflow with explicit inputs
-(this works only on the retained research branch; on `main` there is no `music-player-windows.yml` to dispatch,
+(this works only on the retained research branch;
+on `main` there is no `music-player-windows.yml` to dispatch,
 and the production tests run through `music-player-release.yml`):
 
 ```sh

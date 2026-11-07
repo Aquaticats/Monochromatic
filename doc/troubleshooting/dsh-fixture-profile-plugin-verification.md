@@ -67,7 +67,8 @@ and `tool-cordis` nested in its `preset-cordis` plugins list
 ### Route credentials resolve per composition, not per machine
 
 The `headless` template's `agent-default-model` row
-names `provider: deepseek-official`, `model: deepseek-flash`.
+names `provider: deepseek-official`,
+`model: deepseek-flash`.
 The `MISSING_CREDENTIAL` diagnostics
 describe the resolution order:
 the launching environment first,
@@ -140,7 +141,8 @@ Catalog that works cleanly:
 - The fixture agent boots and answers a task
   on `llmgateway-devpass`/`mimo-v2.6-pro`.
 
-Catalog that fails, by variant:
+Catalog that fails,
+by variant:
 
 1. Boot without exported route keys
    and without an overlay:
@@ -229,7 +231,8 @@ which do not resolve the live profile's store.
 ## Upstream filing decision
 
 `.out-of-scope/` holds no entry covering dsh fixture composition
-(checked `bun-install.md`, `codex-harness.md`,
+(checked `bun-install.md`,
+`codex-harness.md`,
 and the other listed exemptions).
 
 1. Is it really upstream's fault?

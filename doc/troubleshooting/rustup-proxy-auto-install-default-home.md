@@ -64,7 +64,9 @@ This is POSIX shell,
 behaviour reachable by accident.
 
 Second,
- a rustup proxy (`~/.cargo/bin/rustc`, `~/.cargo/bin/cargo`, and the rest)
+ a rustup proxy (`~/.cargo/bin/rustc`,
+`~/.cargo/bin/cargo`,
+and the rest)
 invoked with a `+toolchain` argument installs that toolchain when it is missing,
 rather than failing.
  Verified directly,

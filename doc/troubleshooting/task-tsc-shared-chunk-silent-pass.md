@@ -1,7 +1,8 @@
 # `lint:types` exits 0 without running tsc after `task-util` testing seam
 
 Once `task-util` was rebuilt after commit `b7ae0cb92`
-(`feat(task-util): add built testing seam`, 2026-08-18),
+(`feat(task-util): add built testing seam`,
+2026-08-18),
 every package `lint:types` task passed without type-checking anything
 until `edd680e89`.
 The broken `dist/final/node/tsc-filter.mjs` in use was built on 2026-09-09;

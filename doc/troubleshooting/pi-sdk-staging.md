@@ -425,17 +425,23 @@ Repeating completed requests to repair a verifier discards usable evidence and c
 
 ### Upstream filing decision
 
-1.  Fault: these failures belong to our authored inputs,
+1.  Fault:
+    these failures belong to our authored inputs,
     verifier projection,
     and attempted cross-session replay.
-2.  Fixability: corrections belong in those local controllers;
+2.  Fixability:
+    corrections belong in those local controllers;
     the production identity and input checks remain intact.
-3.  Supported use: current-input assessment works through the native host;
+3.  Supported use:
+    current-input assessment works through the native host;
     applying old answers to different input is outside this verification contract.
-4.  Contribution policy: no third-party source change or public report is proposed.
-5.  Upstream disposition: no external defect is established,
+4.  Contribution policy:
+    no third-party source change or public report is proposed.
+5.  Upstream disposition:
+    no external defect is established,
     so there is no candidate upstream issue or duplicate search to pursue.
-6.  Prototype: the occurrence-qualified fixture,
+6.  Prototype:
+    the occurrence-qualified fixture,
     preserved-response projection,
     and fresh-request bridge each have the passing controls named here.
 
@@ -488,13 +494,19 @@ Discarding the diagnostics or treating all startup output as a shutdown defect i
 
 ### Upstream filing decision
 
-1.  Fault: the failing assertion belongs to our disposable controller.
-2.  Fixability: our verifier can distinguish model selection from its separate diagnostic assertion.
-3.  Supported use: ordinary model selection is supported;
+1.  Fault:
+    the failing assertion belongs to our disposable controller.
+2.  Fixability:
+    our verifier can distinguish model selection from its separate diagnostic assertion.
+3.  Supported use:
+    ordinary model selection is supported;
     silence from every configured extension is our additional fixture expectation.
-4.  Contribution policy: no external code change or report is proposed for this local assertion.
-5.  Upstream disposition: this result establishes no new upstream defect to assess or search for duplicates.
-6.  Prototype: the local artifact verifier passes while retaining the original failed assertion and all diagnostics.
+4.  Contribution policy:
+    no external code change or report is proposed for this local assertion.
+5.  Upstream disposition:
+    this result establishes no new upstream defect to assess or search for duplicates.
+6.  Prototype:
+    the local artifact verifier passes while retaining the original failed assertion and all diagnostics.
 
 Nothing is filed upstream.
 The existing Synthetic troubleshooting record remains a separate incident.
@@ -723,19 +735,25 @@ mise run //package/pi-plugin/auto-mode:test:native:direct-imports
 
 ### Upstream filing decision
 
-- Fault: the demonstrated cycle includes owned instrumentation and eager bootstrap construction.
+- Fault:
+  the demonstrated cycle includes owned instrumentation and eager bootstrap construction.
   An upstream defect has not been established.
-- Fixability: the owned graph can remove its eager dependency;
+- Fixability:
+  the owned graph can remove its eager dependency;
   no upstream architectural limitation was found.
-- Supported use: upstream supports native SDK construction,
+- Supported use:
+  upstream supports native SDK construction,
   but the failing generated graph is repository-owned.
-- Contribution policy: the checked `CONTRIBUTING.md:43` requires the author's own issue voice;
+- Contribution policy:
+  the checked `CONTRIBUTING.md:43` requires the author's own issue voice;
   an autonomous generated issue would not meet that requirement.
-- Maintainer direction: searches for `"SessionManager" "initialization"` returned no issues and
+- Maintainer direction:
+  searches for `"SessionManager" "initialization"` returned no issues and
   [PR 10789](https://github.com/earendil-works/pi/pull/10789).
   Its complete body and comments concern JSONL write coalescing,
   not this import cycle.
-- Prototype: the dedicated policy entry fixes the owned graph locally.
+- Prototype:
+  the dedicated policy entry fixes the owned graph locally.
   No upstream patch is justified by this evidence.
 
 The `.out-of-scope/` catalog was checked;
@@ -850,16 +868,22 @@ Read-only `gh search issues` for `resolveTranscript identity`
 and `gh search prs` for `collapseSystemMessages identity`
 in `earendil-works/pi` both returned empty results on 2026-10-14.
 
-- Upstream fault: no;
+- Upstream fault:
+  no;
   the migration compared different original call boundaries.
-- Fixability: the consumer owns and corrects this comparison without an upstream change.
-- Supported use: the source explicitly implements collapsed system-message replay;
+- Fixability:
+  the consumer owns and corrects this comparison without an upstream change.
+- Supported use:
+  the source explicitly implements collapsed system-message replay;
   it does not promise unchanged array identity.
-- Contribution policy: `CONTRIBUTING.md:43` requires the reporter's own voice and restricts generated issue text;
+- Contribution policy:
+  `CONTRIBUTING.md:43` requires the reporter's own voice and restricts generated issue text;
   the README and bug template point to that policy.
   No filing is proposed.
-- Maintainer disposition: the empty searches establish no position about this consumer integration.
-- Prototype: the native consumer correction and built emission controls pass;
+- Maintainer disposition:
+  the empty searches establish no position about this consumer integration.
+- Prototype:
+  the native consumer correction and built emission controls pass;
   no upstream patch is needed.
 
 There is nothing to file upstream from this owned identity error.
@@ -7466,7 +7490,8 @@ or attributing the delay to load without an emitting-process trace would not res
 
 ### Upstream filing decision
 
-- Upstream fault is not established; the emitter belongs to this repository.
+- Upstream fault is not established;
+  the emitter belongs to this repository.
 - Fixability depends on identifying the delayed operation.
 - No unsupported Pi API use is established by this diagnostic.
 - No external contribution or contribution-policy claim is proposed.
@@ -8125,12 +8150,14 @@ No linter or compiler setting changed.
 
 The upstream-filing checks yield no filing:
 
-- Fault belongs to the owned test import choice; no TypeScript defect is established.
+- Fault belongs to the owned test import choice;
+  no TypeScript defect is established.
 - An upstream change is unnecessary for the corrected consumer.
 - The compiler source explicitly implements composite source membership.
 - Contribution policy was not investigated because no upstream change is proposed.
 - Maintainer willingness is untested and irrelevant to this owned correction.
-- No upstream prototype is needed; the local consumer correction passed its type and runtime checks.
+- No upstream prototype is needed;
+  the local consumer correction passed its type and runtime checks.
 
 There is nothing to add upstream from this incident.
 
@@ -8955,14 +8982,19 @@ An inspector allocation sample at 100,000 receipts retains its explicit 2,097,16
 It attributes 476,526,736 sampled bytes to `bindOriginalRunMessage`
 and 153,547,688 to `createMessagePublication`.
 Its total sampled live allocation is 1,150,318,896 bytes.
-These are allocation samples, not exact object counts or exclusive proof of a complete-session cause.
+These are allocation samples,
+not exact object counts or exclusive proof of a complete-session cause.
 The private source is `allocation-summary.json` for fixture `pi-mimo-failure-rpc-e8GtWu`
 in the incident scratch.
 
 `package/pi-plugin/auto-mode/native/contract/integration/policy-source/run-messages.mjs:33`
 now owns shared checking methods within each governing snapshot.
 A private weak set authenticates the original frozen plain binding before its view is read.
-The source view, request, occurrence, ordering, and parent freshness remain independently checked.
+The source view,
+request,
+occurrence,
+ordering,
+and parent freshness remain independently checked.
 This removes checking closures per source while preserving separate records and original publications.
 
 Three unchanged 120,000-binding probes retain 48,742,376 to 48,742,952 bytes.
@@ -8970,7 +9002,10 @@ Three shared-method probes retain 30,762,600 to 30,763,960 bytes.
 The committed capacity regression fails on the old output at 48,724,128 bytes,
 against a 36 MiB budget.
 The rebuilt `native-release-2vxGY8` passes at 30,747,064 bytes,
-including foreign receivers, cross-snapshot borrowing, substituted sources, and retired parents.
+including foreign receivers,
+cross-snapshot borrowing,
+substituted sources,
+and retired parents.
 A private receiver-guard mutation makes the forged-receiver assertion fail;
 the production owner hash remains `0ad7cf1e86d17bcde704bb0d610b986eef81d1b7132bb948a965bca8e43724e7`.
 Complete configured-host replay remains required after this isolated improvement.
@@ -9006,12 +9041,18 @@ Neither harness filesystem error nor missing executable establishes a product pr
 
 ### Upstream filing decision
 
-- Ownership: unused aggregate accounting and retained input storage belong to this repository.
-- Fixability: local owner and dispatcher changes repair the traced boundaries.
-- Supported use: this package promises configured native callbacks and repeated session turns.
-- Contribution policy: no external repository contribution is proposed.
-- Maintainer disposition: no external maintainer decision is inferred.
-- Prototype: original failing controls and genuine native regressions exist;
+- Ownership:
+  unused aggregate accounting and retained input storage belong to this repository.
+- Fixability:
+  local owner and dispatcher changes repair the traced boundaries.
+- Supported use:
+  this package promises configured native callbacks and repeated session turns.
+- Contribution policy:
+  no external repository contribution is proposed.
+- Maintainer disposition:
+  no external maintainer decision is inferred.
+- Prototype:
+  original failing controls and genuine native regressions exist;
   final full-consumer verification is still pending.
 
 There is nothing to file upstream for these owned implementation defects.
@@ -9304,13 +9345,19 @@ The actual repaired MiMo session still needs its own completed editing and final
 
 ### Upstream filing decision
 
-1.  Upstream fault: no demonstrated Pi or Node defect;
+1.  Upstream fault:
+    no demonstrated Pi or Node defect;
     our complete-prefix cache owns the reproduced retention.
-2.  Upstream fixability: no upstream change is required for the verified consumer repair.
-3.  Supported use: Pi explicitly forwards streamed message updates to extension callbacks.
-4.  Contribution policy: not assessed because no external contribution is proposed.
-5.  Upstream movement: not assessed because no upstream defect is established.
-6.  Prototype: the owned consumer repair is built and tested;
+2.  Upstream fixability:
+    no upstream change is required for the verified consumer repair.
+3.  Supported use:
+    Pi explicitly forwards streamed message updates to extension callbacks.
+4.  Contribution policy:
+    not assessed because no external contribution is proposed.
+5.  Upstream movement:
+    not assessed because no upstream defect is established.
+6.  Prototype:
+    the owned consumer repair is built and tested;
     an upstream patch is neither needed nor drafted.
 
 The `.out-of-scope/` catalog was checked.
@@ -9325,15 +9372,20 @@ no external issue is proposed for this owned defect.
 
 [Issue #1786](https://github.com/Aquaticats/Monochromatic/issues/1786) reports Node's
 `ERR_MODULE_NOT_FOUND: Cannot find package 'cross-spawn'` from the copied Pi distribution.
-The active release was `native-release-kFkBoY`, with Pi 1.2.0 recorded in its source manifest.
+The active release was `native-release-kFkBoY`,
+with Pi 1.2.0 recorded in its source manifest.
 The ordinary installed Pi package inspected for comparison was 1.3.0.
-The user subsequently removed auto-mode's `dist`, `bin`, and `native` directories.
-This section records the evidence captured before removal, not the state of a working replacement.
+The user subsequently removed auto-mode's `dist`,
+`bin`,
+and `native` directories.
+This section records the evidence captured before removal,
+not the state of a working replacement.
 
 ### Owned modification and dependency failure
 
 The old launcher imported `../dist/native/cli.mjs` at `native/command.ts:13`.
-That generated CLI loaded `./loader.mjs`, then `./pi/coding-agent/dist/cli.js`.
+That generated CLI loaded `./loader.mjs`,
+then `./pi/coding-agent/dist/cli.js`.
 The source is preserved in the pre-rebuild worktree at
 `~/temp/agent/pi-auto-mode-before-rebuild-20261019/package/pi-plugin/auto-mode/`.
 
@@ -9359,30 +9411,42 @@ Its child-process module imported the dependency unconditionally:
 import crossSpawn from "cross-spawn";
 ```
 
-The dangling link is observed evidence. The issue's theory about a particular install changing hoisting remains unproven.
+The dangling link is observed evidence.
+The issue's theory about a particular install changing hoisting remains unproven.
 
 ### Verification and retirement
 
-Before deletion, `mise run probe-pi-1786` in the private visual-review scratch directory
+Before deletion,
+`mise run probe-pi-1786` in the private visual-review scratch directory
 imported that child-process module directly without launching Pi or contacting a model.
 It reproduced `ERR_MODULE_NOT_FOUND` naming `cross-spawn` and the active copied-release path.
 The positive control imported the installed Pi child-process module and checked its `spawnProcess` export successfully.
-These are import checks, not a complete configured CLI session test.
+These are import checks,
+not a complete configured CLI session test.
 The probe requires the now-removed release and must not be rerun by rebuilding that release.
 
 The remedy selected by the user is retirement of the copied/transformed Pi architecture.
 An ordinary TypeScript plugin must use public Pi APIs.
-Normal plugin output may use `dist`; private loading hooks and rebuilding Pi remain prohibited.
+Normal plugin output may use `dist`;
+private loading hooks and rebuilding Pi remain prohibited.
 Adding another dependency link would not satisfy that requirement.
 There is no claimed replacement-plugin runtime verification yet.
 
 ### Upstream filing decision
 
-No upstream filing is appropriate: this is an owned relocated build with a broken dependency link.
-The first filing condition, an upstream defect, is not met.
-Upstream fixability, supported use case, contribution policy, willingness, and patch prototyping
+No upstream filing is appropriate:
+this is an owned relocated build with a broken dependency link.
+The first filing condition,
+an upstream defect,
+is not met.
+Upstream fixability,
+supported use case,
+contribution policy,
+willingness,
+and patch prototyping
 do not change that conclusion and were not investigated for a proposed upstream report.
-The existing repository issue is the incident record; no duplicate or external comment was sent.
+The existing repository issue is the incident record;
+no duplicate or external comment was sent.
 
 ## Pi 1.3.0 selective blocking misunderstood as atomic batch execution, 2026-10-19
 
@@ -9390,7 +9454,8 @@ The existing repository issue is the incident record; no duplicate or external c
 
 The rebuild proposal incorrectly required rejecting every member of a parallel batch
 when one member was denied.
-This was an agent design error, not a Pi diagnostic or runtime failure.
+This was an agent design error,
+not a Pi diagnostic or runtime failure.
 The earlier prototype's whole-run abort was mistaken for a host constraint.
 
 Pi's installed public `ToolCallEventResult` at
@@ -9436,8 +9501,10 @@ Its `results.json` records 20 asserted cases;
 `results-18-cases.json` preserves the previous results.
 
 The working mixed-outcome catalog contains `member-allow-a-block-b` and `member-block-a-allow-b`.
-Both record the whole pending batch, return a blocking result for the denied ID,
-execute only the allowed sibling, and reach the scripted final response without `ctx.abort()`.
+Both record the whole pending batch,
+return a blocking result for the denied ID,
+execute only the allowed sibling,
+and reach the scripted final response without `ctx.abort()`.
 The reversed order is the control for accidentally granting only the first member.
 
 The rejected design catalog contains the assertion that a shared review group must execute atomically,
@@ -9454,12 +9521,19 @@ Those limits are recorded in the [working understanding](../../package/pi-plugin
 
 ### Upstream filing decision
 
-1.  Upstream fault: none demonstrated; the incorrect atomic-batch assumption was ours.
-2.  Fixability: supported per-event blocking already satisfies the exercised case.
-3.  Supported use: the public event result explicitly exposes blocking.
-4.  Contribution policy: not investigated because no external contribution is proposed.
-5.  Upstream movement: no defect claim or duplicate-tracker claim is made.
-6.  Prototype: the owned public consumer demonstrates both mixed-outcome orders;
+1.  Upstream fault:
+    none demonstrated;
+    the incorrect atomic-batch assumption was ours.
+2.  Fixability:
+    supported per-event blocking already satisfies the exercised case.
+3.  Supported use:
+    the public event result explicitly exposes blocking.
+4.  Contribution policy:
+    not investigated because no external contribution is proposed.
+5.  Upstream movement:
+    no defect claim or duplicate-tracker claim is made.
+6.  Prototype:
+    the owned public consumer demonstrates both mixed-outcome orders;
     no Pi source was modified and no upstream patch is required.
 
 There is nothing to file upstream for this correction.

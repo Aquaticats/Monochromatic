@@ -117,13 +117,19 @@ It is not a completed upstream bug audit or a recommendation to file.
 The `.out-of-scope/` filenames were checked;
 none identified a Homebrew exemption.
 
-- Upstream fault: the observed command failed in the installed Homebrew source;
+- Upstream fault:
+  the observed command failed in the installed Homebrew source;
   a clean upstream reproduction was not run.
-- Fixability: no architectural fix was evaluated.
-- Supported combination: support for untapping an untrusted installed formula was not researched.
-- Contribution acceptance: upstream intake policies were not reviewed.
-- Maintainer intent: issue duplicates and ongoing fixes were not searched.
-- Prototype: none was created;
+- Fixability:
+  no architectural fix was evaluated.
+- Supported combination:
+  support for untapping an untrusted installed formula was not researched.
+- Contribution acceptance:
+  upstream intake policies were not reviewed.
+- Maintainer intent:
+  issue duplicates and ongoing fixes were not searched.
+- Prototype:
+  none was created;
   the verified application-removal sequence completed the task.
 
 No upstream filing artifact is proposed from this bounded incident record.

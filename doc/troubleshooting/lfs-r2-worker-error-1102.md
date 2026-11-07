@@ -19,14 +19,19 @@ Large batches were answered with HTTP 503 and this JSON body:
 
 Read-only probes (an `upload` batch naming objects the server already holds) showed:
 
-- 10, 25 and 50 objects: HTTP 200 twice each;
-- 75 and 100 objects: HTTP 503, Error 1102;
+- 10,
+  25 and 50 objects:
+  HTTP 200 twice each;
+- 75 and 100 objects:
+  HTTP 503,
+  Error 1102;
 - earlier the same day 100-object batches sometimes passed,
   and a later push at `lfs.transfer.batchSize=25` failed 56 of 87 batches,
   so the failure is not a clean batch-size threshold.
 
 git-lfs treats the 503 as fatal and does not shrink the batch
-(see "Root cause", client behavior),
+(see "Root cause",
+client behavior),
  so a push died part way (`35% (769/2169)`).
 
 ## Root cause
@@ -68,7 +73,8 @@ Memory is therefore not the cause,
 
 Per-object cost on the live account (successful invocations only):
 
-- original version `b0009f5d`: 25 objects 6 to 7 ms,
+- original version `b0009f5d`:
+  25 objects 6 to 7 ms,
   75 objects 23 ms,
   100 objects 28 ms,
   so roughly 0.25 to 0.3 ms per object;
@@ -147,7 +153,12 @@ The committed `.lfsconfig` therefore cannot shrink batches for other clones.
 
 The four git-lfs links were loaded in `agent-browser` on 2026-11-01,
  and the first and last lines of each range read as quoted
- (`#LC75`, `#LC586`, `#LC610`, `#LC198`, `#LC182`, `#LC191`).
+ (`#LC75`,
+`#LC586`,
+`#LC610`,
+`#LC198`,
+`#LC182`,
+`#LC191`).
 The Cloudflare limits link is a heading anchor,
  not a text fragment,
  and was not loaded in `agent-browser`;
@@ -187,16 +198,19 @@ R2 stays the source of truth.
  A row proves the object exists,
  a missing row proves nothing:
 
-- upload batch: an index hit gets no action,
+- upload batch:
+  an index hit gets no action,
   a miss gets an upload action without asking R2
   (git-lfs `PUT`s it,
   which is idempotent,
   and the `PUT` records the oid);
-- download batch: an index hit gets a download action,
+- download batch:
+  an index hit gets a download action,
   and the first 10 misses are confirmed with `head` and recorded when R2 has them,
   so a stale index heals toward R2,
   and misses beyond 10 are reported absent
-  (the one wrong answer the design allows: a stored object beyond the cap gets a per-object 404,
+  (the one wrong answer the design allows:
+  a stored object beyond the cap gets a per-object 404,
   and git-lfs fails that checkout until later batches record the object;
   the cap exists because each `head` costs 0.25 to 0.45 ms and a fresh isolate already uses 5 to 9 ms,
   so 10 misses add 2.5 to 4.5 ms and stay under 10 ms where 20 would reach about 14 ms);
@@ -233,7 +247,9 @@ Versions deployed this session:
 
 Failing catalog on `b0009f5d`:
  six consecutive 100-object `upload` batches answered 503 Error 1102,
- and the tail showed `exceededCpu`, `cpuTime` 10 ms, `wallTime` about 32 ms for each.
+ and the tail showed `exceededCpu`,
+`cpuTime` 10 ms,
+`wallTime` about 32 ms for each.
 
 Working catalog on `8028faf7`,
  probes of already-stored objects,
@@ -242,9 +258,12 @@ Working catalog on `8028faf7`,
 - 100-object upload batches:
   5 sequential,
   plus 6 started in parallel;
-- 200-object upload batches: 5 sequential;
-- 25-object upload batches: 20 back to back with no pause;
-- anonymous download batches of 100 objects: 3;
+- 200-object upload batches:
+  5 sequential;
+- 25-object upload batches:
+  20 back to back with no pause;
+- anonymous download batches of 100 objects:
+  3;
 - one batch with a stored and a fabricated oid:
   upload gave "no action" and an `upload` action,
   download gave a `download` action and a per-object 404.
@@ -265,7 +284,8 @@ It is kept because the probe Worker measured the default logger's first call at 
  because the sink choice is not observable from the Node test harness.
 
 Final version `00c0cac8-0932-41c2-a778-d0e37cf041d1` (cap of 10 download misses),
- same probes: 100-object upload x5,
+ same probes:
+100-object upload x5,
  200-object upload x3,
  25-object upload x20 back to back,
  anonymous 100-object download x3,
@@ -275,7 +295,8 @@ Final version `00c0cac8-0932-41c2-a778-d0e37cf041d1` (cap of 10 download misses)
 Every response was HTTP 200 and the tail held 28 invocations,
  all `ok`:
  100-object invocations read 1 to 4 ms and one 10 ms,
- 200-object invocations 3, 5 and 7 ms,
+ 200-object invocations 3,
+5 and 7 ms,
  25-object invocations 1 to 2 ms,
  and the first request of the fresh isolate (1 object) 9 ms.
 
@@ -311,10 +332,14 @@ Each guard was shown to fail without its fix:
 
 ## What does not work
 
-- A 413 guard for oversized batches: git-lfs does not shrink the batch on a 413.
-- Bounded concurrency and `list`-based membership: measured above.
-- Setting the batch size in the committed `.lfsconfig`: the key is ignored there.
-- Workers Paid: it would lift the CPU limit,
+- A 413 guard for oversized batches:
+  git-lfs does not shrink the batch on a 413.
+- Bounded concurrency and `list`-based membership:
+  measured above.
+- Setting the batch size in the committed `.lfsconfig`:
+  the key is ignored there.
+- Workers Paid:
+  it would lift the CPU limit,
   but it is a billing change and was not needed.
 
 ## Open items
@@ -322,7 +347,8 @@ Each guard was shown to fail without its fix:
 - The cold-start cost (5 to 9 ms in a fresh isolate for one object) leaves 1 to 5 ms for the batch itself,
   and a 100-object batch costs 1 to 8 ms warm.
   A 100-object request read 13 ms once and was not killed.
-  If failures return, `wrangler tail` will show `exceededCpu` with a small object count,
+  If failures return,
+  `wrangler tail` will show `exceededCpu` with a small object count,
   and Workers Paid is the remaining remedy.
 - The plan was inferred,
   not read from the account.

@@ -117,19 +117,35 @@ After the fix,
 the minimap crop of a first click at the bottom of the file (y=1700 of the 1080 by 1880 logical window at scale 2)
 differed by 994 px (device rows 2500 to 3238) from the crop after a visit to another place.
 The earlier guess was that the server's first answer is incomplete (68 hints against 72).
-Measured on 2026-10-24, that guess does not hold, and the picture is not what differs.
+Measured on 2026-10-24,
+that guess does not hold,
+and the picture is not what differs.
 
 - The server's first answer is complete.
   On a disposable project with the project's own server and the IDE's settings,
-  five answers in a row for the ranges the IDE asks ([0, 154), [137, 287), [137, 287), [0, 154), [137, 287))
-  were identical hint by hint for equal ranges (68 and 68 and 68, 41 and 41),
-  after delays of 0, 100, 500, 2000 and 6000 ms between opening the file and the first request.
+  five answers in a row for the ranges the IDE asks ([0,
+  154),
+  [137,
+  287),
+  [137,
+  287),
+  [0,
+  154),
+  [137,
+  287))
+  were identical hint by hint for equal ranges (68 and 68 and 68,
+  41 and 41),
+  after delays of 0,
+  100,
+  500,
+  2000 and 6000 ms between opening the file and the first request.
   For eight ranges the hints standing on the asked lines equal the same lines of the full-file answer (90 hints),
   with 0 missing and 0 extra.
   The 72 of the earlier note was not reproduced;
   68 is the whole answer for [137, 287) of which 61 stand on the asked lines.
 - The picture is the same.
-  The 994 px are the outline of the minimap's viewport box, drawn about 120 device rows lower in the warm crop (top edge at row 2501 against 2622),
+  The 994 px are the outline of the minimap's viewport box,
+  drawn about 120 device rows lower in the warm crop (top edge at row 2501 against 2622),
   and a few scattered pixels.
   A first click lower (y=1870) and the click at y=1700 after a visit elsewhere give crops that differ by 0.43 px,
   and the second click gives the same crop whether it follows the first visit or the visit elsewhere.
@@ -137,62 +153,100 @@ Measured on 2026-10-24, that guess does not hold, and the picture is not what di
   The first click showed lines 215 to 273 (the view's top line reported to the hint request is 214),
   the same click after a visit elsewhere showed lines 224 to 287 (top line 223).
   The minimap request posted after the first click was for a layout of 8688 logical px,
-  because only the hints of the first answer ([0, 154), 41 hints) were in the layout when the click was mapped to a scroll offset;
+  because only the hints of the first answer ([0,
+  154),
+  41 hints) were in the layout when the click was mapped to a scroll offset;
   the answer for [137, 287) arrived 20 ms after the visible lines were reported and made the layout 9522 px.
   After a visit elsewhere every line already holds its hints,
-  the layout is 9522 px from the click on, and the same click lands at the end of the file.
+  the layout is 9522 px from the click on,
+  and the same click lands at the end of the file.
 - A window that is tall enough for the first request to cover the whole file is the control.
-  At 1080 by 3760 logical px the first request asked for [0, 287), the answer held all 90 hints,
-  the layout was 9522 px at once, and the first visit against the visit after another place differed by 0 px in all three pairs.
+  At 1080 by 3760 logical px the first request asked for [0,
+  287),
+  the answer held all 90 hints,
+  the layout was 9522 px at once,
+  and the first visit against the visit after another place differed by 0 px in all three pairs.
 
 So the IDE does what it is built to do:
 a click on the minimap is mapped through the layout the window has at that moment,
 and a line that was never asked about holds no hint rows yet.
 The first visit to a place that no earlier request covered therefore lands where the incomplete layout puts it,
 and the box moves to the place the final layout gives only on the next click.
-No picture is left stale, and no answer is lost.
+No picture is left stale,
+and no answer is lost.
 
-Options, best first (the owner chose the first on 2026-10-24, and it was built the same day:
-see the section "Re-aim once of a minimap press: built" below):
+Options,
+best first (the owner chose the first on 2026-10-24,
+and it was built the same day:
+see the section "Re-aim once of a minimap press:
+built" below):
 
-- Re-aim once: when an answer changes the layout height while the view still stands where the last minimap click put it,
+- Re-aim once:
+  when an answer changes the layout height while the view still stands where the last minimap click put it,
   scroll to the place the same click gives in the new layout.
-  Pro: the click means the same place on the first and on every later visit, with no extra requests.
-  Con: a second scroll step shortly after the first, and a rule for when the view counts as untouched.
-- Ask for the hints of the whole file once the visible lines have settled, for files up to a size bound.
-  Pro: the layout is complete after the first answer, so no click is ever mapped through an incomplete layout.
-  Con: the server does work for lines nobody looks at, and a bound has to be chosen; a file over the bound still shows the difference.
+  Pro:
+  the click means the same place on the first and on every later visit,
+  with no extra requests.
+  Con:
+  a second scroll step shortly after the first,
+  and a rule for when the view counts as untouched.
+- Ask for the hints of the whole file once the visible lines have settled,
+  for files up to a size bound.
+  Pro:
+  the layout is complete after the first answer,
+  so no click is ever mapped through an incomplete layout.
+  Con:
+  the server does work for lines nobody looks at,
+  and a bound has to be chosen;
+  a file over the bound still shows the difference.
 - Leave it.
-  Pro: no new behavior.
-  Con: the first click at a far place lands about nine lines from where the next click lands.
+  Pro:
+  no new behavior.
+  Con:
+  the first click at a far place lands about nine lines from where the next click lands.
 
-Ranking: re-aim once > ask for the whole file > leave it,
+Ranking:
+re-aim once > ask for the whole file > leave it,
 because the first fixes the cause (the click is mapped through a layout that is about to change) for files of every size,
 the second removes the cause only for files under a bound and costs server work,
 and the third keeps a visible difference that has a known cause.
 
-Probes: `~/temp/agent/mm2/cold.ts`, `ranges.ts`, `exp6.ts` (scratch, not kept in the repository).
+Probes:
+`~/temp/agent/mm2/cold.ts`,
+`ranges.ts`,
+`exp6.ts` (scratch,
+not kept in the repository).
 
 ## Re-aim once of a minimap press: built
 
 Built on 2026-10-24 after the owner chose "Re-aim once" through the question tool.
 The code is `src/native/minimap/aim.rs` in `package/ide/app`,
-with the calls in `src/native/rows.rs` (`settle`), `src/native/viewport.rs` (`place`),
+with the calls in `src/native/rows.rs` (`settle`),
+`src/native/viewport.rs` (`place`),
 and `src/native/minimap/pointer.rs` (`jump`).
 
 ### The rule
 
 A press on the minimap outside the box is kept as three things:
-its place on the track (the pointer's distance from the top and from the left edge, and whether Shift was held),
+its place on the track (the pointer's distance from the top and from the left edge,
+and whether Shift was held),
 the share of the scroll range the view stood at before the press
-(the picture slides by that share of its overhang, so the share is part of what a press means),
+(the picture slides by that share of its overhang,
+so the share is part of what a press means),
 and what the press left behind
-(the scroll offset, the anchor and head and side of the caret, the stamp of the text, and the size of the view).
+(the scroll offset,
+the anchor and head and side of the caret,
+the stamp of the text,
+and the size of the view).
 
-When a layout is installed (`rows::settle`, after the new map replaced the old one),
+When a layout is installed (`rows::settle`,
+after the new map replaced the old one),
 the remembered press is mapped through the new layout by the same code that maps a press,
 with the old share applied to the new scroll range,
-when the offset the window shows, the caret, the text stamp, and the view size all still equal what the press left.
+when the offset the window shows,
+the caret,
+the text stamp,
+and the view size all still equal what the press left.
 The view and the caret then go to the new place in the same call that keeps the view still across new rows,
 so the correction is part of the frame that brings the rows,
 and what the press left is replaced by the new place,
@@ -200,9 +254,14 @@ so the next change of the layout is judged by the same rule.
 
 The press is forgotten as soon as anything else happens:
 
-- `viewport::place`, through which every placement of the view passes,
+- `viewport::place`,
+  through which every placement of the view passes,
   forgets it when the offset is not the one the press left.
-  This covers a wheel step, a key that scrolls, a drag that moved the view, a page step, a find jump,
+  This covers a wheel step,
+  a key that scrolls,
+  a drag that moved the view,
+  a page step,
+  a find jump,
   and a tree click.
   It also covers a wheel that comes back to the very offset of the press,
   which the comparison of offsets alone would not see.
@@ -211,35 +270,57 @@ The press is forgotten as soon as anything else happens:
   (rows that arrive below the view do not wait for scrolling to stop,
   and would otherwise take the view away from the step),
   a caret that moved without scrolling (a key with the caret in view),
-  another text (an edit, a reload, another file),
+  another text (an edit,
+  a reload,
+  another file),
   and another size of the view.
 - A press that is still held has not been followed.
-  The drag it started takes the aimed offset as its start, and then follows the live layout as before;
-  a drag that moved the view has followed the press, and the next change keeps the view still.
+  The drag it started takes the aimed offset as its start,
+  and then follows the live layout as before;
+  a drag that moved the view has followed the press,
+  and the next change keeps the view still.
 
 ### What was measured
 
 The disposable project is `/tmp/ide-mm-proj-8MEEkc`
 (a copy of `package/css/cli/src/build.unit.test.ts`,
 with stubs for its two workspace imports and the TypeScript 7.1.0-beta server),
-the window is 1080 by 1880 logical px, and the sessions run in the nested compositor with the real server.
-Both binaries were built from the same tree, before and after the change.
+the window is 1080 by 1880 logical px,
+and the sessions run in the nested compositor with the real server.
+Both binaries were built from the same tree,
+before and after the change.
 
-- The first click of a session at y=1700, from the debug log.
-  Before: the press took offset 6840 px (layout 8688 px);
+- The first click of a session at y=1700,
+  from the debug log.
+  Before:
+  the press took offset 6840 px (layout 8688 px);
   the answer for lines 137 to 287 (68 hints) made the layout 9522 px;
-  the rule that keeps the view still moved the offset to 7310 px, with the same top line, 214,
+  the rule that keeps the view still moved the offset to 7310 px,
+  with the same top line,
+  214,
   which stayed the last one reported.
-  After: the press took 6840 px, and the same layout change aimed it again, 6840 to 7674 px (line 286, row 0);
-  the next report for hints names top line 223, 223 ms later.
-- The same click after a click at y=1000 (the visit elsewhere): 7674 px, top line 223, in both binaries.
+  After:
+  the press took 6840 px,
+  and the same layout change aimed it again,
+  6840 to 7674 px (line 286,
+  row 0);
+  the next report for hints names top line 223,
+  223 ms later.
+- The same click after a click at y=1000 (the visit elsewhere):
+  7674 px,
+  top line 223,
+  in both binaries.
   So the first visit and the later visit land on the same first line after the change (223 and 223),
   where they landed on 214 and 223 before.
 - The minimap crops of the first visit and of the later visit differ by 994.01 px before the change (the box outline,
   120 device rows apart)
   and by 0.38 px after it.
-- The click at y=1000 is aimed again as well: 4884 to 4878 px, from line 178 to line 171 (row 1) of the caret,
-  seven lines, about 260 ms after the press, with the answer for the rows,
+- The click at y=1000 is aimed again as well:
+  4884 to 4878 px,
+  from line 178 to line 171 (row 1) of the caret,
+  seven lines,
+  about 260 ms after the press,
+  with the answer for the rows,
   as a later press at that place does in the complete layout.
   The caret moves with the view because the press names a place in the layout and the caret goes to the place it names.
 
@@ -248,37 +329,61 @@ Both binaries were built from the same tree, before and after the change.
 The recording at scale 2 captured 37 frames in 1.97 s (18.8 per second),
 because 2160 by 3760 px per frame is more than the capture pipeline reads back in a tick,
 so the frames were taken at scale 1 (1080 by 1880 px) as uncompressed BMP.
-Three recordings of each binary, alternating, 0.4 s before the click to 1.5 s after it,
+Three recordings of each binary,
+alternating,
+0.4 s before the click to 1.5 s after it,
 53.0 to 56.1 frames per second captured,
 0 dropped and 0 failed in all six:
 
-- Every recording shows the same three states of the code view in the same order, for both binaries:
-  before the press, after the press, and after the rows arrived.
+- Every recording shows the same three states of the code view in the same order,
+  for both binaries:
+  before the press,
+  after the press,
+  and after the rows arrived.
   The change from the second to the third state is one step with no frame between,
   in the one frame that also shows the hint rows.
   The press state is held 14 to 15 frames (about 270 ms)
   after the change in the three recordings of the new binary and 13 to 16 frames in the old.
-- After the change the minimap shows, in order, the box at its new place (371 px differ from the press state),
-  the picture rebuilt for the new layout (2083 px differ), and a step of 0.01 px that is noise of the render.
-  Before the change the minimap passed through two states after the code step, and after it through three,
+- After the change the minimap shows,
+  in order,
+  the box at its new place (371 px differ from the press state),
+  the picture rebuilt for the new layout (2083 px differ),
+  and a step of 0.01 px that is noise of the render.
+  Before the change the minimap passed through two states after the code step,
+  and after it through three,
   the last 0.01 px from the one before.
-- The view is not corrected twice: after the correction the layout does not change again, and the view stays.
+- The view is not corrected twice:
+  after the correction the layout does not change again,
+  and the view stays.
 
 ### Costs
 
 - One more request for hints on the first visit.
   The correction puts the view on other lines,
-  so the hints of those lines are asked for after the settling time (`HINT_SETTLE`, 200 ms).
-  Counted in the debug log of the first click: one report of visible lines before the change (top line 214, 68 hints),
-  two after it (top line 214, then top line 223, 62 hints).
-  A press after a visit elsewhere costs one report for the press, in both binaries.
+  so the hints of those lines are asked for after the settling time (`HINT_SETTLE`,
+  200 ms).
+  Counted in the debug log of the first click:
+  one report of visible lines before the change (top line 214,
+  68 hints),
+  two after it (top line 214,
+  then top line 223,
+  62 hints).
+  A press after a visit elsewhere costs one report for the press,
+  in both binaries.
   The second range is within the first answered range,
   so a rule in the hint request that skips a window the last answer already covers
-  would remove the extra request; it was not built, because it was not asked for.
-  (Built on 2026-10-24 after the owner asked for it: see the section "Skip a hint request that stored answers cover: built".)
-- The view moves about a quarter of a second after the press, once, by the difference the missing rows made
+  would remove the extra request;
+  it was not built,
+  because it was not asked for.
+  (Built on 2026-10-24 after the owner asked for it:
+  see the section "Skip a hint request that stored answers cover:
+  built".)
+- The view moves about a quarter of a second after the press,
+  once,
+  by the difference the missing rows made
   (834 px for this file at the bottom).
-  That is the correction the owner asked for, and it is the one visible step.
+  That is the correction the owner asked for,
+  and it is the one visible step.
 
 ### Proof that the tests and the guards see the rule
 
@@ -286,19 +391,41 @@ Three recordings of each binary, alternating, 0.4 s before the click to 1.5 s af
   before the rule existed
   (the view stayed at 21162 px where the same press lands at 13374 px in the layout after the hints,
   and in the second change at 22436 against 16624),
-  and all eight pass after it (the eighth, an unreported scroll step, starts from the same aimed press).
+  and all eight pass after it (the eighth,
+  an unreported scroll step,
+  starts from the same aimed press).
   The tests of an input after the press start from a press that was aimed again,
   so each fails without the rule rather than passing for lack of it.
-- Ten cases in `bin/inspect-source-guards.ts` (`minimap-aim-remembered`, `minimap-aim-share`,
+- Ten cases in `bin/inspect-source-guards.ts` (`minimap-aim-remembered`,
+  `minimap-aim-share`,
   `minimap-aim-after-install`,
-  `minimap-aim-placed-away`, `minimap-aim-place-forgets`, `minimap-aim-unreported-step`, `minimap-aim-caret`,
-  `minimap-aim-text`, `minimap-aim-view`, `minimap-aim-drag-start`) remove one line each in a disposable copy.
-  All ten tests fail with the line removed, with the expected assertion message, and pass again with it restored:
-  28 runs (8 baseline, 10 removed, 10 restored), all accepted.
-- The gates on the final tree: `lint` 0, `test:native` 299 passed and 5 skipped in one run,
-  `test` 804 passed and 1 skipped, `test:bin` 71 passed, `inspect:no-software-renderer` 0.
+  `minimap-aim-placed-away`,
+  `minimap-aim-place-forgets`,
+  `minimap-aim-unreported-step`,
+  `minimap-aim-caret`,
+  `minimap-aim-text`,
+  `minimap-aim-view`,
+  `minimap-aim-drag-start`) remove one line each in a disposable copy.
+  All ten tests fail with the line removed,
+  with the expected assertion message,
+  and pass again with it restored:
+  28 runs (8 baseline,
+  10 removed,
+  10 restored),
+  all accepted.
+- The gates on the final tree:
+  `lint` 0,
+  `test:native` 299 passed and 5 skipped in one run,
+  `test` 804 passed and 1 skipped,
+  `test:bin` 71 passed,
+  `inspect:no-software-renderer` 0.
 
-Probes and recordings: `~/temp/agent/reaim/` (`arm.ts`, `compare.ts`, `rec.ts`, `runs.ts`; scratch,
+Probes and recordings:
+`~/temp/agent/reaim/` (`arm.ts`,
+`compare.ts`,
+`rec.ts`,
+`runs.ts`;
+scratch,
 not kept in the repository).
 
 ## Skip a hint request that stored answers cover: built
@@ -336,11 +463,13 @@ asked about:
   Opening the file in the worker again (an explicit action that restarts failed servers) forgets all lines too,
   because the new worker holds no earlier request.
 - An answer counts only when it put a hint on one of the lines it asked about (a hint that stands on another line,
-  as TypeScript 7 gives for a statement that began above the range, does not count).
+  as TypeScript 7 gives for a statement that began above the range,
+  does not count).
   An answer without one covers nothing and takes the lines it asked about out of the earlier coverage,
   because it replaced their hints with none.
   A server that is still loading the project answers with no hint or with some,
-  and the view that settles over those lines then asks again, as it did before the rule.
+  and the view that settles over those lines then asks again,
+  as it did before the rule.
   Lines that really hold no hint are asked again on each settle for the same reason.
 - Ranges that overlap or touch are joined,
   so two answers can cover a range together,
@@ -424,15 +553,28 @@ The counts are those of the earlier runs.
 ### Servers the IDE starts, and what they answer while loading
 
 The IDE uses Helix's built-in definitions with its own overrides (`src/language/config.rs`),
-so the servers are those of Helix's languages: `rust-analyzer`, the TypeScript 7 server for the TypeScript family
-(`src/language/config/typescript.rs`), `slint-lsp` and `qmlls` (which announce no inlay hints on this host), and others.
-Measured on 2026-10-24 with a direct probe (`~/temp/agent/cr/ra.ts`, a 23-line crate, whole-file requests every 250 ms
-after `didOpen`, `rust-analyzer` 1.98.1 from the stable toolchain):
-0 hints at 7 ms, 5 at 261 ms, error `-32801 content modified` at 514 and 858 ms, then 15 from 2057 ms on, stable until 12 s.
+so the servers are those of Helix's languages:
+`rust-analyzer`,
+the TypeScript 7 server for the TypeScript family
+(`src/language/config/typescript.rs`),
+`slint-lsp` and `qmlls` (which announce no inlay hints on this host),
+and others.
+Measured on 2026-10-24 with a direct probe (`~/temp/agent/cr/ra.ts`,
+a 23-line crate,
+whole-file requests every 250 ms
+after `didOpen`,
+`rust-analyzer` 1.98.1 from the stable toolchain):
+0 hints at 7 ms,
+5 at 261 ms,
+error `-32801 content modified` at 514 and 858 ms,
+then 15 from 2057 ms on,
+stable until 12 s.
 So a loading server does answer with no hint (the case the rule treats as covering nothing)
-and with part of its hints (the case it does not catch: the 5 of 15 would cover their lines).
+and with part of its hints (the case it does not catch:
+the 5 of 15 would cover their lines).
 The TypeScript 7 server answered completely from 0 ms in the section "Residual first-visit difference of the minimap"
-(68 and 68 hints after delays of 0 to 6000 ms), and its `content modified` errors are retried by the worker.
+(68 and 68 hints after delays of 0 to 6000 ms),
+and its `content modified` errors are retried by the worker.
 
 ### Known costs
 
@@ -449,8 +591,12 @@ The TypeScript 7 server answered completely from 0 ms in the section "Residual f
   and then one starting at line 186 (the view);
   a tree without the rule was not measured for this.
   The answer for the earlier window is dropped as "no longer wanted" when the current window differs.
-- A partial answer of a loading server (some of its hints, not all) covers its lines until an edit, a reload,
-  reopening the file in the worker, or a view that leaves them; the rule cannot tell it from a complete answer.
+- A partial answer of a loading server (some of its hints,
+  not all) covers its lines until an edit,
+  a reload,
+  reopening the file in the worker,
+  or a view that leaves them;
+  the rule cannot tell it from a complete answer.
 - With several servers one stored answer covers the lines for all of them,
   although a server that started later has answered fewer lines.
 - A later press that lies wholly inside what an earlier visit asked costs no request,
@@ -590,11 +736,13 @@ a model reset inside the notifier removes its instances,
 and nothing asks for the frame that builds them again.
 The test harness shows the same blank when the change is a reset or a new model;
 what it shows in the same frame is a row replaced in the list the window already holds
-(`set_row_data`, the case of a tile whose textures kept their number).
+(`set_row_data`,
+the case of a tile whose textures kept their number).
 The full trace with Slint's source lines is in
 `slint-repeater-model-change-inside-rendering-notifier.md`,
 and the tests that count the pixels of the very frame after a hand-over are in the section
-"The frame after a hand-over, counted in pixels" below.
+"The frame after a hand-over,
+counted in pixels" below.
 
 ### Fix
 
@@ -749,12 +897,16 @@ the gap above the line-number row of line 96 is read by template):
   Without the fix the window holds the slices of the earlier tile after the press
   (`the window holds the slices of the earlier tile after the press`,
   `the window still holds the slices of the tile before the press`).
-- The first tests could not see the blank column, and a later pair can (section "The frame after a hand-over, counted
+- The first tests could not see the blank column,
+  and a later pair can (section "The frame after a hand-over,
+  counted
   in pixels").
   A first version compared the last frame an event loop would draw with a frame drawn right after it and passed on the
   tree without any fix:
-  the press it used kept the tile's number of textures, so the notifier replaced a row of the list
-  (`set_row_data`), which the frame does show.
+  the press it used kept the tile's number of textures,
+  so the notifier replaced a row of the list
+  (`set_row_data`),
+  which the frame does show.
   A version that compared the tile's text pixels with the frame measured the antialiased glyph edges,
   not the staleness.
   A third counted the frames drawn when a frame asks for the next (commit `e0b6493f30`) and failed without the ask,

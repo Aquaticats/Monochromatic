@@ -6,8 +6,11 @@ The workflow file named in this document is the isolated research branch's copy 
 `.github/workflows/music-player-windows.yml`.
 On `main` the production workflow of that name moved into the `test-windows` job of
 `.github/workflows/music-player-release.yml` on 2026-10-22,
-so the file exists only on the retained research branch; to repeat the dispatch, use that branch,
-and to dispatch the production tests, run `music-player-release.yml`.
+so the file exists only on the retained research branch;
+to repeat the dispatch,
+use that branch,
+and to dispatch the production tests,
+run `music-player-release.yml`.
 
 On 2026-10-18,
 the isolated pnpm cache experiment's first cache-disabled dispatch failed before allocating jobs.
