@@ -22,8 +22,14 @@ use std::io::{Error, ErrorKind};
 /// Imports the borrowed path type.
 use std::path::Path;
 
+/// The exit status of a start that failed before the real `mpm` ran,
+/// which the message tells the reader to expect.
 use crate::constants::EXEC_FAILED_EXIT_CODE;
+/// The deepest nesting of shadow starts allowed,
+/// named in the message about a nested start.
 use crate::nesting::MAX_NESTING;
+/// What the retry of a refused start did,
+/// which the message reports.
 use crate::start_retry::RetryReport;
 
 /// Everything the message needs to know.

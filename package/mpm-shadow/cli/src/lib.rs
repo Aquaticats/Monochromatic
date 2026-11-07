@@ -112,15 +112,19 @@ mod real_binary_tests;
 #[cfg(test)]
 mod shim_tests;
 
+/// The unit tests of the retry of a refused start.
 #[cfg(test)]
 mod start_retry_tests;
 
+/// The unit tests of the nesting depth guard.
 #[cfg(test)]
 mod nesting_tests;
 
+/// The unit tests of the text printed after a run's cleanup.
 #[cfg(test)]
 mod cleanup_report_tests;
 
+/// The unit tests of the message for a real `mpm` that could not be started.
 #[cfg(test)]
 mod start_failure_tests;
 
