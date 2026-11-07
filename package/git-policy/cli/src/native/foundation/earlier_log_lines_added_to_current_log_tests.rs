@@ -146,6 +146,50 @@ fn a_line_added_to_the_moved_log_after_the_move_is_folded_too() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
+/// An earlier release's wrapper that opened the earlier log before the fold's rename and writes its line after the fold's last
+///  size check, the instant before the fold would remove the moved log.
+struct LateWriterWithTheLogOpen {
+    /// The descriptor opened by name before the fold started; a rename does not close it.
+    log: std::fs::File,
+    /// The line written through the descriptor.
+    line: &'static [u8],
+    /// Whether the line was written.
+    wrote: bool,
+}
+
+impl FoldSteps for LateWriterWithTheLogOpen {
+    fn may_continue(&mut self, step: &'static str) -> bool {
+        if step == "before-remove-moved-log" && !self.wrote {
+            self.wrote = true;
+            self.log.write_all(self.line).expect("late line");
+        }
+        return true;
+    }
+}
+
+/// The line the late writer adds.
+const LATE_LINE: &[u8] = b"{\"time\":\"2026-11-07T10:00:00.000Z\",\"from\":\"late writer\"}\n";
+
+/// A line that a program writes through a descriptor it opened before the move, after the fold's last size check, ends up in the
+///  current log once that program has closed the file: the fold never removes a log a writer still holds open.
+#[test]
+fn a_line_written_after_the_last_size_check_by_a_writer_that_opened_before_the_move_is_not_lost() {
+    let root: PathBuf = fixture("late-writer");
+    plant(root.as_path());
+    let log = std::fs::OpenOptions::new().append(true).open(root.join(COMMIT_TIMING_LOG.earlier)).expect("earlier log opened by the writer");
+    let mut writer: LateWriterWithTheLogOpen = LateWriterWithTheLogOpen { log, line: LATE_LINE, wrote: false };
+    fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut writer).expect("first fold");
+    assert!(writer.wrote, "the control reached the step after the last size check");
+    drop(writer);
+    fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold after the writer closed the file");
+    let text: String = current_text(root.as_path());
+    let late: &str = std::str::from_utf8(LATE_LINE).expect("text");
+    assert_eq!(text.matches(late).count(), 1, "{text}");
+    assert!(text.starts_with(CURRENT_LINES), "{text}");
+    assert_clean(root.as_path());
+    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+}
+
 /// The next append of the current log rotated it after the kill: the added bytes are in the older copy, and the restart does not
 ///  add them again.
 #[test]
