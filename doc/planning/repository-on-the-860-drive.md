@@ -138,10 +138,17 @@ and where the text is.
     Measured at user level:
     at 2026-11-07T06:57:00-05:00 the 248 directories under `.claude/worktrees` equal the 248 registered ones (243 subvolumes,
     5 plain directories),
-    and a depth-3 `find -xdev -inum 256` of the main checkout found no other subvolume root.
-    A subvolume deeper inside a worktree needs `btrfs subvolume list -o`,
-    which needs root:
-    unverified until the owner runs step R0.
+    and a depth-3 `find -xdev -inum 256` of the main checkout,
+    excluding the worktree folders,
+    found no other
+    subvolume root.
+    That search does not descend into the worktree subvolumes (`-xdev` stops at each),
+    so it says nothing about subvolumes inside a worktree.
+    The complete answer is the filesystem's own list,
+    which needs root (step R0 lists the whole filesystem and filters
+    by path,
+    because `btrfs subvolume list -o` is documented as not recursive):
+    unverified until the owner runs it.
 3.  "Ready" did not establish identity:
     fixed.
     The check now compares the btrfs filesystem UUID,
@@ -1331,7 +1338,7 @@ the mounted 860,
 with no `i` flag.
 
 Whether a mount can be placed over an immutable directory is proven before any login depends on it,
-in the loop-file test F8 below.
+in the loop-file test F7 below.
 The next login then repeats the proof with the real mount:
 `mount-860.service` mounts at login and notifies on failure.
 If the real mount fails with the flag set,
@@ -2194,8 +2201,20 @@ The mechanisms and their measured limits:
   `btrfs property set -ts /var/home/user/Monochromatic ro true` on the real main checkout by mistake and ran
   `ro false` within about a minute (`ro=false` confirmed at 2026-11-07T06:52:28-05:00;
   a write test then succeeded).
-  Any session that wrote to the main checkout in that minute would have seen `Read-only file system`.
-  No data was changed by the agent.
+  `.git` is inside that subvolume,
+  so a commit or any other write to the main checkout in that minute would have been refused with
+  `Read-only file system`.
+  Measured afterwards:
+  the commit service's finished records (`*.done`) between 06:50 and 06:55 start at 06:52:29,
+  the first seconds after the flag was cleared,
+  so no commit landed while it was set;
+  `journalctl --user --grep 'Read-only'` for 06:50 to 06:55 printed no entries;
+  a commit that was refused would have been answered to its caller and may not be journaled,
+  so a failed attempt in that minute can be neither confirmed nor excluded.
+  The agent changed no file.
+  This was a mutation of the real repository's flags,
+  reverted,
+  and it is reported as such.
   The freeze is a destructive-adjacent action and happens only in the owner-run cut-over.
 
 Steps:
@@ -2390,8 +2409,9 @@ then the nested ones in sorted order):
 2.  `btrfs subvolume snapshot -r <source> <snapshot folder>/<name>`,
     then a completion record
     (`<name>.snapshot.json` with the subvolume UUID).
-3.  `systemd-run --scope ... timeout --kill-after=30 <deadline> bash -o pipefail -c 'btrfs send [-p <first-pass parent>]
-    [-c <earlier snapshot>]... <snapshot> | btrfs receive <received folder>'`.
+3.  Inside `systemd-run --scope` and `timeout --kill-after=30 <deadline>`,
+    `bash -o pipefail -c` runs `btrfs send` (with `-p <first-pass parent>` and one `-c <earlier snapshot>` per clone source)
+    piped into `btrfs receive <received folder>`.
     The pipeline fails if either side fails.
 4.  Verification of the receive:
     `btrfs property get -ts <received> ro` must print `ro=true`,
@@ -2415,13 +2435,18 @@ Before anything is generated,
 the owner runs as root:
 
 ```bash
-# R0: every nested subvolume of the main checkout, as the filesystem knows them.
-sudo btrfs subvolume list -o /var/home/user/Monochromatic > /var/home/user/temp/agent/dangling/inventory-nested.txt
+# R0: every subvolume of the NVMe filesystem; the script keeps those below the main checkout, at any depth.
+sudo btrfs subvolume list /var/home > /var/home/user/temp/agent/dangling/inventory-nested.txt
 sudo findmnt --list --output TARGET,SOURCE,FSTYPE | grep -F /var/home/user/Monochromatic
 ```
 
+`btrfs-subvolume(8)` documents `list -o` as not recursive,
+so the command lists the whole filesystem instead (paths are relative to the top level,
+so the checkout appears as
+`home/user/Monochromatic`).
 The script reads the file with `--inventory`,
-maps the `home/` prefix of each path to `/var/home/` (the prefix is a flag,
+keeps only the lines below `--inventory-main` (`home/user/Monochromatic`) at any depth and skips every other line,
+maps the `home/` prefix of each kept path to `/var/home/` (the prefix is a flag,
 `--inventory-prefix`),
 and refuses to run when the filesystem's list and Git's registered subvolumes differ in either direction,
 printing the differences.
@@ -2444,7 +2469,7 @@ mkdir -m 0700 /var/mnt/encrypted/repository/received-read-only
 node /var/home/user/temp/agent/dangling/move-repository.ts --pass=first --main=/var/home/user/Monochromatic \
   --snapshots=/var/home/user/repository-move-snapshots --received=/var/mnt/encrypted/repository/received-read-only \
   --final=/var/mnt/encrypted/repository/Monochromatic --state=/var/home/user/repository-move-state \
-  --inventory=/var/home/user/temp/agent/dangling/inventory-nested.txt
+  --inventory=/var/home/user/temp/agent/dangling/inventory-nested.txt --inventory-main=home/user/Monochromatic
 sudo node /var/home/user/temp/agent/dangling/move-repository.ts --run --pass=first ...same arguments...
 ```
 
@@ -2537,6 +2562,8 @@ sudo mkfs.btrfs --quiet "$fixture/dest.img"
 sudo mkdir "$fixture/source" "$fixture/dest"
 sudo mount -o loop "$fixture/source.img" "$fixture/source"
 sudo mount -o loop "$fixture/dest.img" "$fixture/dest"
+sudo mkdir "$fixture/dest/recv"
+mkdir "$fixture/snap" "$fixture/state"
 findmnt --noheadings --output SOURCE,TARGET "$fixture/source" "$fixture/dest"
 ```
 
@@ -2557,18 +2584,20 @@ sudo btrfs subvolume create "$fixture/source/main/.claude/worktrees/b"
 sudo chown user:user "$fixture/source/main/.claude/worktrees/a" "$fixture/source/main/.claude/worktrees/b"
 git -C "$fixture/source/main" worktree add --force --quiet "$fixture/source/main/.claude/worktrees/a" -b a
 git -C "$fixture/source/main" worktree add --force --quiet "$fixture/source/main/.claude/worktrees/b" -b b
+cp --reflink=always "$fixture/source/main/big" "$fixture/source/main/.claude/worktrees/a/big.copy"
+cp --reflink=always "$fixture/source/main/big" "$fixture/source/main/.claude/worktrees/b/big.copy"
+sudo btrfs filesystem du --summarize "$fixture/source/main" | tee "$fixture/source-baseline.txt"
 sudo btrfs subvolume list -o "$fixture/source/main" > "$fixture/inventory.txt"
 ```
 
 Expected:
-the checkout of `big` in each worktree is a copy,
-not a reflink,
-so sharing in this fixture comes from `-c` only for the shared objects;
-the destination size is compared with the source's in F3.
+each worktree's `big.copy` is a reflink of `big`,
+so the source shares one 300 MiB extent three ways,
+and `source-baseline.txt` records the source's own total and shared figures for F4 to compare with.
 
 ```bash
 # F3: the first pass with the real script, then a change, then the final pass with a freeze.
-sudo node move-repository.ts --run --pass=first --main="$fixture/source/main" --snapshots="$fixture/snap" \
+sudo node /var/home/user/temp/agent/dangling/move-repository.ts --run --pass=first --main="$fixture/source/main" --snapshots="$fixture/snap" \
   --received="$fixture/dest/recv" --final="$fixture/dest/final" --state="$fixture/state" --inventory="$fixture/inventory.txt" \
   --inventory-prefix="<path prefix reported by the list>=$fixture/" --deadline-seconds=600 --min-free-gib=1
 echo changed >> "$fixture/source/main/.claude/worktrees/b/extra.txt"
@@ -2595,10 +2624,9 @@ df --block-size=1M "$fixture/source" "$fixture/dest"
 
 Each `rsync` must print nothing.
 `ro=true` and a `Received UUID` equal to the source snapshot's `UUID` are required.
-The destination must use close to the size of the objects once,
-not once per worktree;
-if it uses about three times as much the clone sources did not keep sharing and the method is wrong for this
-repository.
+The destination's total and `Set shared` must match `source-baseline.txt` within metadata overhead;
+if the destination holds three separate copies of the 300 MiB extent where the source holds one shared extent,
+the clone sources did not keep sharing and the method is wrong for this repository.
 
 ```bash
 # F5: an interrupted receive is detected, and a corrupted stream fails on a flipped known byte.
@@ -2621,21 +2649,15 @@ sudo unshare --mount --propagation private bash -euo pipefail -c "
   mount --bind '$fixture/dest/final' '$fixture/source/main'
   git -C '$fixture/source/main' worktree list
   git -C '$fixture/source/main' fsck --full
-  node list-uncommitted-work.ts '$fixture/source/main' '$fixture/staged.tsv' 60
+  node /var/home/user/temp/agent/dangling/list-uncommitted-work.ts '$fixture/source/main' '$fixture/staged.tsv' 60
 "
 ```
 
 `worktree list` must show the same paths as before the namespace and `staged.tsv` must be a table of the staged tree.
 
 ```bash
-# F7: cleanup of exactly what F1 created.
+# F7: can a mount cover an immutable directory? (the destination image is unmounted first; it is mounted only once)
 sudo umount "$fixture/source" "$fixture/dest"
-sudo rmdir "$fixture/source" "$fixture/dest"
-rm -- "$fixture/source.img" "$fixture/dest.img"
-```
-
-```bash
-# F8: can a mount cover an immutable directory? (loop files, nothing real)
 sudo mkdir "$fixture/mp"
 sudo chattr +i "$fixture/mp"
 sudo mount -o loop "$fixture/dest.img" "$fixture/mp"
@@ -2643,13 +2665,17 @@ lsattr -d "$fixture/mp"
 sudo umount "$fixture/mp"
 lsattr -d "$fixture/mp"
 sudo chattr -i "$fixture/mp"
-sudo rmdir "$fixture/mp"
 ```
 
 The mount must succeed;
 `lsattr -d` while mounted shows the mounted filesystem's flags (no `i`);
 after the unmount the directory shows `i` again.
-F8 runs before F7's image removal.
+
+```bash
+# F8: cleanup of exactly what F1 created.
+sudo rmdir "$fixture/mp" "$fixture/source" "$fixture/dest"
+rm -- "$fixture/source.img" "$fixture/dest.img"
+```
 
 ### Verification of the real copy
 
@@ -2829,7 +2855,11 @@ Until the swap the NVMe tree is the repository.
     which must print the plain message in well under a second,
     and `systemctl --user status claude-cpu-watch.service` must show `activating (auto-restart)`.
     Then remove the drop-in,
-    run `sudo systemctl start --no-block mount-860.service`,
+    run `sudo systemctl daemon-reload`,
+    and `sudo systemctl restart --no-block mount-860.service`
+    (the unit is still `active` from the `/bin/true` run because it has `RemainAfterExit=yes`,
+    so `start` would do nothing;
+    its stop path runs first and is harmless with nothing mounted),
     poll `systemctl is-active` for at most 180 s,
     and confirm `repository-link-check` prints ready and the unit becomes active within one retry delay.
 
@@ -2951,7 +2981,7 @@ so its length depends on what changed since the first pass.
 - Nothing that needs root was run:
   the mountpoint's real owner,
   mode and flags,
-  whether a mount covers an immutable directory (F8),
+  whether a mount covers an immutable directory (F7),
   the root inventory (R0) and its path mapping,
   the real `btrfs send` and `receive` including `-c` sharing and `-p` increments,
   and the reverse migration.
