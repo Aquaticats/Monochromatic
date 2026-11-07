@@ -28,6 +28,42 @@ configuration,
 and npm workload-publishing checks,
 with a link to the completed production verification.
 
+## The owner's answers at 2026-11-07T02:03:01-05:00
+
+- "My thinking is to deploy all releases on pnpr,
+  but only publish rc and stable releases on crates.io".
+  So the published crate set is every crate,
+  every release;
+  the crates.io side is in `doc/planning/crates-io-footprint.md`.
+- Cargo login from GitHub Actions:
+  "Patch pnpr in your fork".
+  Add Cargo to pnpr's tokenless (workload) publishing in `Aquaticat/pnpm`,
+  run that image,
+  and offer the patch upstream,
+  as the 2026-09-15 npm decision did (`doc/decision/private-npm-registry.md`, lines 30 to 44).
+  Checked at `pnpr@0.1.0-alpha.18` (released 2026-11-05T01:03:59Z):
+  `pnpr/crates/pnpr/src/server/oidc.rs` still refuses it,
+  line 274 "OIDC workloads require a hosted npm registry and explicit packages"
+  and `check_ecosystem` at line 381 accepting only npm.
+- pnpr version:
+  "Together with Cargo".
+  The Cargo patch is written against alpha.18 or newer,
+  and the deployment moves to it in the same step.
+  alpha.18 keeps package metadata in SQLite and reads no earlier store,
+  so all npm packages are published again then (release notes of `pnpr@0.1.0-alpha.18`).
+- Crate archive retention:
+  "No copies, like npm".
+  The no-backup rule of the npm registry covers crates too;
+  a lost store breaks outside lock files that pin older crate versions,
+  and that is accepted.
+- Timing:
+  this work waits behind the layout and lint work the owner put first
+  ("aside from layout + linting fixes, pause everything else").
+- Checked live at 2026-11-07T06:43:38Z:
+  `https://pnpr.c.aquati.cat/-/ready` answers `{"status":"ok","storage":"ok","auth":"ok"}`,
+  and `https://pnpr.c.aquati.cat/cargo/~monochromatic-crates/index/config.json` answers `404`
+  (no Cargo registry is configured yet).
+
 ## Authentication is the missing integration
 
 The inspected alpha.17 revision is `6b5b8ac53a6120a644c3693ecac8aaed8af88174`.

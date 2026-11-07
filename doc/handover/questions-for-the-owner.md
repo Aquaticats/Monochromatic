@@ -12,186 +12,23 @@ this session."
 So this file holds only choices that are destructive, reach outside this machine, or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end, so any of them can be undone.
 
-## The rename note in old records (asked 2026-11-05T04:41:34Z)
+## Answered 2026-11-07T02:03:01-05:00 (in the question tool, with the owner present)
 
-The rename branch (merged to `main` as `ca6cd899b3`) added the same seven-line note under the title of 117 older
-records (audits, handovers, planning, troubleshooting, and 6 files in `doc/decision/`), saying that
-`cli-git-native`, `git cli-git` and `cli-git.config.jsonc` "is now" `monochromatic-git-policy-cli` and so on.
-The repository's rule for moved names in old records asks for such a note.
-Two things are wrong with it:
+Each answer now lives in its canonical doc; nothing here needs an answer.
 
-- 6 of the files are decision records (`ci-caching.md`, `cli-git-concurrent-commits.md`,
-  `cli-git-policies-platform.md`, `file-enforcer-rust-rewrite.md`, `mpm-toolchain-adoption.md`,
-  `slint-ide-0x-scope.md`), which change only with your approval.
-- It says "is now", but nothing is renamed on this machine until the release and the lock step;
-  and the settings file keeps the name `cli-git.config.jsonc` until then (the session's choice listed at the end).
-
-A fix is ready: a scratch script removes the note from the 6 decision records and rewords the other 111 to say the
-new names arrive with the first release after 2026-11-04, and that this repository switches its installed program and
-settings file when it installs that release.
-The tool that guards this session refused to let it rewrite 117 shared files without you, so nothing is changed yet.
-
-Options:
-
-- Run the fix as described: note out of decision records, reworded elsewhere (recommended).
-  Pros: decision records stay as you approved them; the note is true today.
-  Cons: decision records get no pointer to the new names.
-- Reword everywhere, decision records included.
-  Pros: every old record points to the new names. Cons: edits 6 decision records.
-- Leave the note as merged until the release, when "is now" becomes true (the settings-file line stays wrong until
-  the lock step). Pros: no edit now. Cons: 117 files say something untrue for a while; 6 decision records stay edited.
-
-Ranking: fix as described > reword everywhere > leave it,
-because the first keeps decision records unedited and makes every note true today,
-the second makes the notes true but edits decision records without a decision of yours behind it,
-and the third leaves untrue text in 117 files.
-
-Your answer:
-
-## The wrapper's target layout, before anything moves (asked 2026-11-05T02:28:53Z)
-
-You asked to see the whole tree before any file moves. It is drafted, nothing has moved:
-`doc/planning/cli-git-source-layout-target-tree.md` (start at its section "What to look at and how to answer",
-then "The crate split" and "Open points for the owner"),
-with every file's old path, new name and one-line job in `doc/planning/cli-git-source-layout-target-tree-files.md`.
-A reviewer from another vendor read it and its findings are folded in.
-
-In short:
-
-- The wrapper becomes one library crate per job found, each its own package `package/git-policy/<name>`,
-  with no loops between crates, the command-line program on top.
-  As drafted that is 46 libraries (for example `safe-file-saving`, `read-git-files-without-git`,
-  `push-with-a-deadline`, `land-prepared-commits`), a crate of test fixtures, and the program.
-- Inside each crate, folders named as plain sentences with `uses/` links; 276 of 580 files get clearer names.
-- 105 items move and 7 calls change before files move, which takes the 17 loops between files down to none.
-
-What I need from you:
-
-- Is the tree right? Say which crates or names are wrong, or "go".
-- How far to split:
-  - The 46 libraries as the target, built in-package first, then lifted into packages one at a time from the
-    bottom, asking you again after the lower half (recommended).
-    Pros: every crate is one reusable job, as you asked; the lift can stop early if the cost shows.
-    Cons: many packages to keep in step; each bump of a lower crate edits every crate above it.
-  - Fewer, bigger crates (the proposal names its weakest entries, which would merge back first).
-    Pros: fewer packages. Cons: crates that hold more than one job, which you rejected before.
-  Ranking: the 46 as a target > fewer now, because you said splitting must not mean fewer crates,
-  and lifting one at a time keeps every step reversible.
-- One shared build folder for all of these packages (`CARGO_TARGET_DIR` set in their `mise.toml`)?
-  Without it, each of the ~48 packages compiles its dependencies again in its own build folder.
-  Recommended: yes. Asked because build folders are a setting you have strong rules about.
-- The program's package folder `package/git-policy/cli`: keep the name `cli`, or rename it so it explains itself
-  (for example `package/git-policy/git-command-wrapper-program`)?
-  Recommended: rename, since a package folder name still has to make sense alone, the reviewer agrees,
-  and the release archive and the lock row can follow in the same release as the planned program rename.
-
-Your answer:
-
-## Which of our crates still go to a registry, and which one (asked 2026-11-05T00:56:04Z)
-
-The research you asked for is done: `doc/research/cargo-crates-and-tools-without-crates-io.md`.
-In short:
-
-- Your first pick, a `workspace:`-like way, works.
-  Cargo's form of it is `path` plus an exact version, which our crates already use.
-  Our tools can then install from their GitHub releases, the way `mpm-shadow` already does, with no crates.io at all.
-  So the session chose it for the tools (see the list at the end).
-- Floating git does not work for us: Cargo can link a crate by git,
-  but our catalog refuses moving git links,
-  and no installer here can fetch a ready-built tool from git without compiling it, which the repository forbids.
-- "GitHub package registry" as GitHub Packages has no support for Rust crates at all.
-  What does work on GitHub is a plain index of files published to GitHub Pages, with the crate files kept as release
-  downloads; tools such as `margo` do this. That is the reading used below; say so if you meant something else.
-- One rule binds every option: a crate on crates.io may depend only on crates that are also on crates.io.
-
-So the tools leave crates.io after their one release each.
-What remains open is where the libraries go
-(`monochromatic-jsonc-edit`, `monochromatic-xml-edit`, `monochromatic-catalog-specifier`,
-`monochromatic-dependency-catalog`, `monochromatic-file-enforcer`, `monochromatic-browserslist`):
-
-- Only `forbidden-strings` and `forbidden-regex` stay on crates.io; every other crate stops publishing after its one
-  release, and outside use of the others waits for the pnpr registry you chose earlier
-  (`doc/planning/self-hosted-cargo-registry.md`) (recommended).
-  Pros: from then on crates.io gets only the two crates you exempted; no extra rules to keep.
-  Cons: until pnpr serves crates, someone outside can use our other libraries only through git or a local path.
-- The libraries also stay on crates.io, released less often.
-  Pros: anyone can add them from crates.io.
-  Cons: more crates.io versions; each one must keep every dependency on crates.io; nobody outside uses them today.
-- The libraries go to a file index on GitHub Pages instead.
-  Pros: no crates.io; versions, checksums and yanks still work.
-  Cons: new code in `mpm-shadow`, the dependency catalog and `cargo-shadow`, the same work the pnpr registry needs;
-  it would be a second home next to the pnpr one you chose.
-
-Ranking: only the two exempted crates > libraries on crates.io > GitHub Pages index.
-The first beats the second because no one outside depends on any of these libraries
-and their README says not to use them, so their crates.io versions add to crates.io with no user.
-The second beats the third because the third repeats the pnpr registry's work in a second place.
-
-Your answer:
-
-## When the one release of each crate happens (asked 2026-11-05T00:43:32Z)
-
-You decided "One release each. And we publish less to crates.io".
-A crates.io publish cannot be undone; a yank only hides a version.
-Two facts set the timing:
-
-- The wrapper's (`monochromatic-git-policy-cli`) lint clean-up is on `main`
-  (all four lint branches merged; container run 4930 of 4930 passed),
-  and so is the follow-up that removes most closure-lint suppressions.
-- The rename of the wrapper's program and command word
-  (`doc/planning/git-policy-cli-program-rename.md`) is merged to `main` (`ca6cd899b3`, 2026-11-05T04:41:34Z;
-  container run 5005 of 5005 passed) and needs a wrapper release of its own; nothing is released or installed.
-  Its follow-up, which lets the renamed program finish work an old background helper left half done, is merged too
-  (container run 5019 of 5019). A reviewer from another vendor did not answer on that part in three one-hour tries
-  (it answers short prompts); the session tries once more just before the release.
-- Our tools pin our libraries to exact versions,
-  so a new library version means a new version of every tool that pins it, in the same batch.
-
-Options:
-
-- After the lint container run and the rename, in one batch (recommended).
-  Each crate gets one new version carrying the README notice, the lint clean-up and the renamed program.
-  Cons: the notice shows on crates.io a day or so later.
-- Right after the lint container run, in one batch.
-  Pros: the notice shows sooner.
-  Cons: the rename then needs a second wrapper version, against "publish less".
-- Now, from `main` as it is.
-  Pros: the notice shows today.
-  Cons: ships the wrapper's untested half-done clean-up, and the lint merge then needs another release.
-
-Ranking: after the rename > after the lint run > now.
-After the rename beats after the lint run because it saves a second wrapper version for a delay of about a day.
-After the lint run beats now because now ships untested code and still needs another release.
-
-In each case the older version of each crate is yanked right after its new one is published, as you asked.
-
-Your answer:
-
-## Add this way of asking to AGENTS.md (asked 2026-11-05T00:43:32Z)
-
-You wanted questions asked "async": a question file open in an editor that reloads on change,
-updated as questions come up, in place of the question tool.
-`AGENTS.md` now says the opposite (UQT: "put it in the question tool").
-Proposed new rule (unused code, checked against both forbidden-strings lists before adding):
-
-```md
-QFL:
- When the owner asks for questions async,
- keep them in `doc/handover/questions-for-the-owner.md`, opened in Zed (it reloads unchanged files),
- and update it as questions arise, instead of the question tool.
-```
-
-Options:
-
-- Add it as written (recommended).
-- Add it with changes you write here.
-- Do not add it; this stays a one-session arrangement.
-
-Ranking: as written > with changes > not at all,
-because without a rule the next session falls back to the question tool,
-and the wording above already names the file and the editor.
-
-Your answer:
+- The rename note in old records: "Run the fix as described". Done in `31f3223d25`
+  (the note left the 6 decision records and was reworded in the other 111).
+- Which crates go to a registry: replaced by "deploy all releases on pnpr, but only publish rc and stable releases on
+  crates.io", with "Label decides" for what counts as rc and stable (`doc/planning/crates-io-footprint.md`).
+- pnpr login for crates, pnpr version, crate copies: "Patch pnpr in your fork", "Together with Cargo",
+  "No copies, like npm" (`doc/planning/self-hosted-cargo-registry.md`).
+- When the one release of each crate happens: "After the test gap is fixed" (`doc/planning/crates-io-footprint.md`).
+- Adding QFL to AGENTS.md: "Do not add it".
+- One shared build folder for the split packages: "One shared build folder, but first, I'd like you to confirm with me
+  each pkg can stand on its own itself." (`doc/planning/cli-git-source-layout-target-tree.md`).
+- The wrapper's target layout: "Not good enough, assume every crate must stand on its own and no one else is going to
+  use our crates to build a git wrapper." The crate split is being redone against that rule; no file moves until the
+  owner confirms the redone tree. The open points on how far to split and the program folder's name come back with it.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 

@@ -4,6 +4,11 @@ Status:
 proposal only,
 nothing moved,
 renamed or edited in the wrapper's source.
+The owner rejected the crate split on 2026-11-07T02:03:01-05:00
+("Not good enough, assume every crate must stand on its own
+and no one else is going to use our crates to build a git wrapper.");
+section "The crate split" is being redone against that rule,
+and no file moves until the owner confirms the redone tree.
 Drafted 2026-11-04 for the owner's review,
 on top of `doc/planning/cli-git-source-layout.md`
 (the owner's words and the group order live there).
@@ -60,6 +65,26 @@ verbatim:
   "A:
   Cargo.toml between crates,
   uses/ inside (Recommended)".
+- 2026-11-07,
+  on the drafted split of 46 libraries:
+  "Not good enough,
+  assume every crate must stand on its own
+  and no one else is going to use our crates to build a git wrapper."
+  So a crate whose only other user would be a Git wrapper,
+  a front end for the commit service,
+  a push service or a commit-landing service does not count as standing on its own.
+- 2026-11-07,
+  on one shared build folder (`CARGO_TARGET_DIR`) for the split packages:
+  "One shared build folder,
+  but first,
+  I'd like you to confirm with me each pkg can stand on its own itself."
+- 2026-11-07,
+  where releases go:
+  "deploy all releases on pnpr,
+  but only publish rc and stable releases on crates.io"
+  (versions ending `-alpha.N` or `-beta.N` go to pnpr only;
+  `-rc.N` and plain numbers go to pnpr and crates.io;
+  owner's pick "Label decides").
 
 `AGENTS.md`,
 verbatim:
@@ -109,11 +134,14 @@ Decision records that bear on it:
   profiles belong to each package,
   which is why a repository-wide Cargo workspace
   is out of scope.
-- Since 2026-11-05 the split crates are `publish = false` (`doc/planning/cli-git-source-layout.md`,
+- Since 2026-11-05 the split crates were to be `publish = false` (`doc/planning/cli-git-source-layout.md`,
   end of section
   "Splitting into crates",
-  and `doc/planning/crates-io-footprint.md`);
-  the wrapper's one release must happen before it depends on an unpublished crate.
+  and `doc/planning/crates-io-footprint.md`).
+  Superseded 2026-11-07:
+  every release of every crate goes to pnpr,
+  and only `-rc.N` and plain-number releases also go to crates.io.
+  The wrapper's one crates.io release still happens before it depends on a crate crates.io does not hold.
 
 ## Rescan of main
 

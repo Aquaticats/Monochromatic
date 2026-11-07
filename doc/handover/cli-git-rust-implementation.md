@@ -595,9 +595,29 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Still uncovered (plan doc, "Open batches of the old helper"): a helper in another PID namespace; an intent left on
   disk is never settled if the old units are removed; the Windows build of the new module was not compiled (owner:
   Windows paused).
-  Open from the merge: the rename note added to 117 old records says "is now" (untrue until the release and the lock)
-  and sits in 6 `doc/decision/` records; a scripted fix was refused by the session's permission guard, so it waits
-  for the owner (`doc/handover/questions-for-the-owner.md`, "The rename note in old records").
+  The rename note added to 117 old records said "is now" and sat in 6 `doc/decision/` records; on the owner's
+  "Run the fix as described" (2026-11-07T02:03:01-05:00) `31f3223d25` removed it from the decision records and
+  reworded it in the other 111.
+  Release blockers at 2026-11-07T02:03:01-05:00 (owner: the one release goes out "After the test gap is fixed"):
+  - The fourth cross-vendor run answered (`~/temp/agent/issue-6261/sol-review-retry-4/review.txt`) with three
+    defects, all to fix with red tests before the release:
+    (1) `earlier_service_journal_adopted.rs` lines 132 to 141: an old helper can start between the `/proc` scan and
+    the adoption, and nothing both sides honour excludes it;
+    (2) `earlier_service_process_look.rs` lines 74 to 80 compare journal paths by spelling, so a helper started with
+    `/home/user/...` is missed when the service derives `/var/home/user/...` (on this machine `/home` is a link to
+    `/var/home`); compare by file identity, and an error means "may be running";
+    (3) `earlier_service_process_look.rs` lines 165 to 175 read at most 65,536 bytes of a command line and treat a
+    full read as complete; a longer command line must mean "may be running".
+  - The planted-defect run over the suppression image reached 38 of 48 before a machine shutdown stopped its unit
+    (systemd stopped it at 2026-11-05T04:27:26-05:00, then a new boot); 37 noticed, and
+    "worktree copy installation batches" was not noticed by
+    `worktree_copying::worktree_copy_install::tests::records_grow_by_batch_not_by_entry`.
+    Fix that test, then run the fixed control and the ten the shutdown never reached.
+    The `fewer-closure-suppressions` worktree is removed after that rerun.
+  After the one release, every later release carries `-alpha.N` and skips crates.io, but this machine installs our
+  seven tools through crates.io (`cargo-binstall`); until they install from GitHub releases (the `archive` route
+  `mpm-shadow` uses, task #167), no later fix can be installed here. The owner has not yet said whether that route
+  change comes right after the release or after layout and lint.
   B done at `7fe6ac14ff`: `landing/earlier_service_journal_adopted.rs` finishes, at service start, batches left open
   in the old journal (`<state>/cli-git/service/<instance>` and the shared `<state>/cli-git/service`) when no service
   of that instance shows in `/proc`, and counts their finished identities as landed (host lib 4313, binary 691).

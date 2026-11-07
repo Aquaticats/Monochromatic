@@ -24,6 +24,29 @@ nothing on crates.io, in the toolchain lock or in the publish workflow has been 
   "\"some Linux distro packagers do that\" - that's not enough research."
   Open: who runs the tests of a published crate needs evidence before the choice.
 
+## The owner's answers at 2026-11-07T02:03:01-05:00
+
+- Where releases go, verbatim:
+  "My thinking is to deploy all releases on pnpr, but only publish rc and stable releases on crates.io".
+  This replaces the open question "which of our crates still go to a registry".
+- Which versions count as rc and stable (owner's pick "Label decides"):
+  versions ending `-alpha.N` or `-beta.N` go to pnpr only;
+  versions ending `-rc.N`, and plain numbers, go to pnpr and crates.io.
+  Day-to-day releases carry `-alpha.N` from now on.
+  crates.io refuses a crate that uses a crate it does not hold,
+  so a crate can become rc only once everything it uses is rc or stable;
+  the release tool refuses such a release and names the dependency.
+- The one release of each crate (README notice, renamed wrapper program) goes out
+  "After the test gap is fixed":
+  the planted-defect check `records_grow_by_batch_not_by_entry` missed its planted defect
+  in the run over the suppression image (`~/temp/agent/issue-6261/planted-controls-after-suppressions.log`).
+  The three defects the cross-vendor review found in the old-helper hand-over
+  (`~/temp/agent/issue-6261/sol-review-retry-4/review.txt`) are fixed before it too.
+  That release is a plain-number release, so it counts as stable under the rule above;
+  the older versions are yanked right after it.
+- pnpr's side of this (Cargo login, pnpr version, crate copies) is in `doc/planning/self-hosted-cargo-registry.md`,
+  section "The owner's answers at 2026-11-07T02:03:01-05:00".
+
 ## Research results (2026-11-05)
 
 - Routes: `doc/research/cargo-crates-and-tools-without-crates-io.md` (`54c6511df7`, `62ccbc6fa5`).
