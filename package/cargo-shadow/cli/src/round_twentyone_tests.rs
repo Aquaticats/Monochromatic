@@ -23,8 +23,9 @@ use crate::test_scratch::scratch;
 /// The crate root every case uses.
 const CRATE_DIR: &str = "package/n/one";
 
-/// The largest process id Linux allows (`PID_MAX_LIMIT` for 64-bit kernels, `include/linux/threads.h`).
-const LARGEST_LINUX_PROCESS_ID: u64 = 4_194_304;
+/// The first process id Linux never allocates: `PID_MAX_LIMIT` for 64-bit kernels (`include/linux/threads.h`), and the value of
+/// `/proc/sys/kernel/pid_max` is "one greater than the maximum PID" (`proc_sys_kernel(5)`), so the largest real id is one below it.
+const FIRST_PROCESS_ID_LINUX_NEVER_ALLOCATES: u64 = 4_194_304;
 
 /// A disposable repository with a ready weaker-path journal whose acknowledgement is `marker`.
 fn journal_acknowledged_with(marker: &str) -> (tempfile::TempDir, PathBuf) {
@@ -38,15 +39,15 @@ fn journal_acknowledged_with(marker: &str) -> (tempfile::TempDir, PathBuf) {
 }
 
 /// Group 13 (sixth pass, production defect): a process id that no process can have is not an acknowledging process.
-/// Zero and a number above the largest Linux process id are refused, the smallest and the largest real ones count; none of them has to
-/// name a process that still exists.
+/// Zero, the first id Linux never allocates and every larger number are refused; the smallest and the largest real ones count; none of
+/// them has to name a process that still exists.
 #[test]
 fn an_acknowledgement_naming_a_process_id_no_process_can_have_does_not_count() {
-    for impossible in [0, LARGEST_LINUX_PROCESS_ID + 1, u64::from(u32::MAX)] {
+    for impossible in [0, FIRST_PROCESS_ID_LINUX_NEVER_ALLOCATES, FIRST_PROCESS_ID_LINUX_NEVER_ALLOCATES + 1, u64::from(u32::MAX)] {
         let (_root, journal) = journal_acknowledged_with(&format!("acknowledged v1\n{impossible}\n456\n"));
         assert!(survivor_note(&journal).is_some(), "process id {impossible} counted as an acknowledgement");
     }
-    for possible in [1, LARGEST_LINUX_PROCESS_ID] {
+    for possible in [1, FIRST_PROCESS_ID_LINUX_NEVER_ALLOCATES - 1] {
         let (_root, journal) = journal_acknowledged_with(&format!("acknowledged v1\n{possible}\n456\n"));
         assert_eq!(survivor_note(&journal), None, "process id {possible} did not count as an acknowledgement");
     }
