@@ -88,6 +88,22 @@ pub(crate) fn is_not_empty_field(field: &&str) -> bool {
     return !field.is_empty();
 }
 
+/// Whether the repository's configuration signs commits:
+/// `commit.gpgsign` is set to anything but a false word.
+pub fn config_signs(snapshot: Option<&ConfigSnapshot>) -> bool {
+    let Some(found) = snapshot else { return false };
+    for entry in found.entries().iter() {
+        let value: String = match entry.value.as_deref() {
+            Some(bytes) => String::from_utf8_lossy(bytes).to_lowercase(),
+            None => String::new(),
+        };
+        if entry.key == "commit.gpgsign" && !["false", "no", "off", "0"].contains(&value.as_str()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Whether the repository's configuration makes native `git commit` do something the service does not:
 /// sign,
 /// apply a

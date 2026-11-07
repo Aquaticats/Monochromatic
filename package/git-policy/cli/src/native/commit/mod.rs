@@ -102,6 +102,9 @@ pub mod commit_index_copying;
 /// the prepared commit read back and `prepared.json`.
 pub mod commit_preparation;
 
+/// The waiting notice of the commit Git builds in the scratch repository.
+pub mod native_commit_waiting_notice;
+
 /// The post-commit gate over a landed commit:
 /// its events,
 /// its blocking and the backup it allows.
