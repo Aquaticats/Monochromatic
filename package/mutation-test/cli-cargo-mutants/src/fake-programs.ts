@@ -109,3 +109,19 @@ const files = args.flatMap((argument, index) => (args[index - 1] === '--file' ? 
 const lines = files.length === 0 ? ['zz:1:1: unscoped one', 'zz:2:1: unscoped two'] : files.map((file) => file + ':1:1: replace f in ' + file);
 process.stdout.write(lines.join('\\n') + '\\n');
 `;
+
+/**
+ Stand-in for `systemd-run`: records the unit name of every call in `systemd-run.log` of the fixture directory, one line
+ per call, starts nothing, and fails with a systemd-style error for the unit named by `FAKE_SYSTEMD_FAIL_UNIT`.
+ */
+export const fakeSystemdRunSource: string = `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const args = process.argv.slice(2);
+const unit = (args.find((argument) => argument.startsWith('--unit=')) ?? '--unit=').slice('--unit='.length);
+fs.appendFileSync(path.join(process.env.FAKE_DIR, 'systemd-run.log'), unit + '\\n');
+if (unit === process.env.FAKE_SYSTEMD_FAIL_UNIT) {
+  process.stderr.write('Failed to start transient service unit: fake systemd-run failure for ' + unit + '\\n');
+  process.exit(1);
+}
+`;

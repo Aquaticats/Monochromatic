@@ -3602,6 +3602,13 @@ A running unit keeps the image it started with,
 and a resumed campaign over a new image is another campaign directory.
 If the gate image does not exist,
 nothing starts and the message names the image and `--from-tag`.
+The launcher exits 0 only when every file unit started:
+a unit that `systemd-run` refuses is named with its error and the launcher exits 1,
+while the other units keep running
+(the shared launcher's README,
+"Exit status and errors").
+A refused launch prints only the plain message,
+with no stack trace.
 Before this change the launcher started units whose tags did not exist,
 every one died at once with "image not known",
 and the launcher exited 0 (2026-11-07).
