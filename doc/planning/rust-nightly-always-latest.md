@@ -1,7 +1,9 @@
 # Rust nightly always latest
 
 Status: the lock moved to the newest nightly and was verified (2026-11-07T05:22:22-05:00);
-the proposal for keeping it latest is open and needs the owner's choice.
+the proposal for keeping it latest was answered by the owner (move anyway, fix forward; update everything daily)
+and is carried out in [`toolchain-always-latest.md`](toolchain-always-latest.md),
+which supersedes the proposal and the open question below.
 
 ## Owner's rule
 
