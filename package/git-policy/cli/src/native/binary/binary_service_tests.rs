@@ -16,6 +16,7 @@
 use super::commit::{git_text, remove_settled};
 use super::support::{Fixture, ServiceLaunch, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
+use git_policy_cli::earlier_service_process_look::Hold;
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE};
 use git_policy_cli::service_instance::instance_of;
 use git_policy_cli::service_journal::{DONE_EXTENSION, DONE_RETAINED, landed_commits};
@@ -271,44 +272,32 @@ fn leave_a_batch_open(fixture: &Fixture, repo: &Path, instance: &str, earlier: &
 /// The words after the program that make it settle the batches an earlier release left open.
 const SETTLE_WORDS: [&str; 3] = ["monochromatic-git-policy-cli", "service", "settle-earlier-batches"];
 
-/// The program that gives a command a process table of its own.
-const NAMESPACE_PROGRAM: &str = "/usr/bin/unshare";
+/// How long a settle run waits before it asks again when the look could not resolve another process's journal word.
+const SETTLE_ASK_AGAIN_PAUSE: Duration = Duration::from_millis(20);
 
 /// What:
-///  The wrapped command of the fixture, with a PID namespace between its time bound and the wrapper, so that `/proc` shows the
-///  wrapper only the processes it starts itself.
+///  Runs the settle command of the fixture's worktree and gives what the caller saw; while the command answers that it could
+///  not resolve the `--journal` word of a running program, it is asked again after a short pause, for at most `PATIENCE`.
 /// Why:
-///   The settle command looks at the command line of every process of the user, and any process whose `--journal` folder
-///  cannot be resolved (the service another control is starting, one whose fixture was just removed, a program another session
-///  runs) holds it back with nothing settled. That answer is the product's, and what this control checks is what the command
-///  does when nothing of the worktree's earlier helper runs, so the process table it looks at is its own. The time bound stays
-///  outside the namespace and ends the namespace's first process with `--kill-child`. A system that refuses the namespace
-///  fails the control with the program's own words, never by skipping it.
-fn wrapped_in_own_process_table(fixture: &Fixture) -> Command {
-    let bounded: Command = super::support::wrapped(fixture);
-    let words: Vec<&OsStr> = bounded.get_args().collect();
-    let (wrapper, bound) = words.split_last().expect("the bounded command names the wrapper last");
-    let mut command: Command = Command::new(bounded.get_program());
-    command
-        .args(bound)
-        .arg(NAMESPACE_PROGRAM)
-        .args(["--user", "--map-root-user", "--pid", "--fork", "--kill-child", "--mount-proc", "--"])
-        .arg(wrapper);
-    command.env_clear();
-    for (name, value) in bounded.get_envs() {
-        if let Some(set) = value {
-            command.env(name, set);
+///   The look reads the command line of every process of the user, and a process whose `--journal` folder does not exist yet
+///  (a service another control is starting, one whose fixture was just removed, a program another session runs) is counted as an
+///  earlier helper that may be running. That answer is the product's, it changes nothing, and its own words tell the person to
+///  run the command again, which is what this does. Every other answer, held or not, is what the control checks, so it is returned
+///  at once. A word that never clears fails the control with the last answer after `PATIENCE`. A PID namespace of its own would
+///  keep other processes out of the look, but the gate's container refuses its `/proc` mount (`unshare: mount /proc failed:
+///  Permission denied`).
+fn run_settle_when_the_look_is_unsure(fixture: &Fixture, repo: &Path) -> super::support::Observed {
+    let begun: Instant = Instant::now();
+    loop {
+        let observed = super::support::run_wrapped(fixture, repo, &SETTLE_WORDS);
+        let unsure: bool = observed.code == Some(1)
+            && observed.stdout.is_empty()
+            && String::from_utf8_lossy(observed.stderr.as_slice()).contains(Hold::HelperUnsure.words());
+        if !unsure || begun.elapsed() >= PATIENCE {
+            return observed;
         }
+        std::thread::sleep(SETTLE_ASK_AGAIN_PAUSE);
     }
-    if let Some(directory) = bounded.get_current_dir() {
-        command.current_dir(directory);
-    }
-    return command;
-}
-
-/// Runs the settle command of the fixture's worktree in a process table of its own and gives what the caller saw.
-fn run_settle_in_own_process_table(fixture: &Fixture, repo: &Path) -> super::support::Observed {
-    return super::support::observe(wrapped_in_own_process_table(fixture).current_dir(repo).args(SETTLE_WORDS), b"");
 }
 
 /// The owner's rule is "never discard user data", and the owner's pick of 2026-11-07 ("Off, settle on request"): a batch that
@@ -323,14 +312,14 @@ fn the_settle_command_finishes_a_batch_the_earlier_helper_left_open() {
     // The wrapper reads the state folder from the home folder the hermetic environment gives it.
     let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
     let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "settle");
-    let settled = run_settle_in_own_process_table(&fixture, &repo);
+    let settled = run_settle_when_the_look_is_unsure(&fixture, &repo);
     let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
     assert_eq!(settled.code, Some(0), "{stderr}");
     assert!(stderr.contains("no wrapper of the earlier release is in use in this worktree"), "the condition is said before it acts: {stderr}");
     assert!(String::from_utf8_lossy(settled.stdout.as_slice()).contains("finished batch 1"), "{}", String::from_utf8_lossy(settled.stdout.as_slice()));
     assert!(!open.exists(), "the open batch of the earlier journal was finished");
     assert!(finished.exists(), "and is remembered as finished where it was");
-    let again = run_settle_in_own_process_table(&fixture, &repo);
+    let again = run_settle_when_the_look_is_unsure(&fixture, &repo);
     assert_eq!(again.code, Some(0));
     assert!(String::from_utf8_lossy(again.stdout.as_slice()).contains("No batch of the earlier release is left open"), "{}", String::from_utf8_lossy(again.stdout.as_slice()));
     remove_settled(&fixture);
@@ -350,7 +339,7 @@ fn the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero() {
     intent.repository = fixture.root.join("repository-that-is-not-there");
     git_policy_cli::service_journal::write_intent(earlier.as_path(), &intent).expect("an intent whose repository is gone");
     let unavailable: PathBuf = earlier.join(format!("{}.intent", intent.seq));
-    let settled = run_settle_in_own_process_table(&fixture, &repo);
+    let settled = run_settle_when_the_look_is_unsure(&fixture, &repo);
     let stdout: String = String::from_utf8_lossy(settled.stdout.as_slice()).into_owned();
     let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
     assert_eq!(settled.code, Some(1), "{stdout}{stderr}");
@@ -378,9 +367,10 @@ const SERVICE_START_DELAY_SECONDS: &str = "3";
 
 /// Review finding of 2026-11-07 ("passes alone, fails in its suite"): the look that the settle command makes reads the command
 ///  line of every process of the user, and a process whose `--journal` folder cannot be resolved counts as a service that may be
-///  running. The services other controls start show that word for as long as their start takes, so a settle command that runs
-///  beside them stopped with nothing on standard output. A settle command is held back by an earlier helper of its own worktree,
-///  never by what another fixture's service is doing, so the batch must be finished here although the other service is starting.
+///  running. The services other controls start show that word for as long as their start takes, so a settle command that ran
+///  beside them stopped with nothing on standard output, and every settle control did the same whenever one was starting. The
+///  hold is the product's answer and changes nothing; the controls ask again, as its words say, so the batch must be finished
+///  once the other service has made its folder, and no control may end on the hold while that is only a start.
 #[test]
 fn the_settle_command_is_not_held_by_a_service_another_control_is_starting() {
     let fixture: Fixture = fixture("service-settle-beside-a-start");
@@ -403,7 +393,7 @@ fn the_settle_command_is_not_held_by_a_service_another_control_is_starting() {
             std::thread::sleep(Duration::from_millis(10));
         }
         assert!(!other_journal.exists(), "the other service has not made its folder yet, so its word cannot be resolved");
-        let settled = run_settle_in_own_process_table(&fixture, &repo);
+        let settled = run_settle_when_the_look_is_unsure(&fixture, &repo);
         let stdout: String = String::from_utf8_lossy(settled.stdout.as_slice()).into_owned();
         let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
         assert_eq!(settled.code, Some(0), "{stdout}{stderr}");
@@ -432,7 +422,7 @@ fn the_settle_command_changes_nothing_when_its_condition_cannot_be_written() {
         // SAFETY: both descriptors were just made by `close_on_exec_pipe` and are owned here; each is used once.
         let (read_owned, write_owned) = unsafe { (std::os::fd::OwnedFd::from_raw_fd(read_end), std::os::fd::OwnedFd::from_raw_fd(write_end)) };
         drop(read_owned);
-        let mut command: Command = wrapped_in_own_process_table(&fixture);
+        let mut command: Command = super::support::wrapped(&fixture);
         command
             .current_dir(&repo)
             .args(SETTLE_WORDS)
