@@ -20,7 +20,6 @@ use crate::policy_trigger::Trigger;
 use crate::private_index_stage::{PrivateStage, stage_correction};
 use crate::candidate_object::CandidateMode;
 use crate::repository_facts::git_facts;
-use crate::signal_relay::SignalGuardActive;
 use crate::test_support::REAL_GIT;
 use crate::wrapper_controls::no_controls;
 use std::ffi::OsString;
@@ -281,63 +280,6 @@ fn the_final_newline_correction_reaches_the_prepared_commit() {
     remove(root.as_path());
 }
 
-/// The wait for the guard ends with the first success, passes over only the "already active" failure, and gives up
-///  after the limit with the failure itself. Every closure panics past its call cap, so a mutated guard that retries
-///  too often fails the test at once instead of looping.
-#[test]
-fn the_guard_wait_retries_only_while_another_holder_is_active() {
-    let delay = std::time::Duration::from_millis(1);
-    let active = || { return std::io::Error::other(SignalGuardActive); };
-    let mut calls: u32 = 0;
-    let waited: std::io::Result<u32> = retry_while_active(
-        || {
-            calls += 1;
-            assert!(calls <= 3, "the success on the third call ends the wait");
-            if calls < 3 { return Err(active()); }
-            return Ok(calls);
-        },
-        5,
-        delay,
-    );
-    assert_eq!(waited.expect("success after two active failures"), 3);
-    let mut other_calls: u32 = 0;
-    let other: std::io::Result<u32> = retry_while_active(
-        || {
-            other_calls += 1;
-            assert!(other_calls <= 1, "another failure is returned at once, never retried");
-            return Err(std::io::Error::other("no handler could be installed"));
-        },
-        5,
-        delay,
-    );
-    assert!(other.is_err());
-    assert_eq!(other_calls, 1);
-    let mut limited_calls: u32 = 0;
-    let limited: std::io::Result<u32> = retry_while_active(
-        || {
-            limited_calls += 1;
-            assert!(limited_calls <= 4, "the first try and three retries are all there is");
-            return Err(active());
-        },
-        3,
-        delay,
-    );
-    assert!(limited.is_err());
-    assert_eq!(limited_calls, 4, "the first try and three retries");
-    let mut zero_calls: u32 = 0;
-    let zero: std::io::Result<u32> = retry_while_active(
-        || {
-            zero_calls += 1;
-            assert!(zero_calls <= 1, "a limit of zero allows no retry");
-            return Err(active());
-        },
-        0,
-        delay,
-    );
-    assert!(zero.is_err());
-    assert_eq!(zero_calls, 1);
-}
-
 /// Both signature header spellings mark the prepared commit as signed, and a signature-looking message line does not.
 #[test]
 fn either_signature_header_marks_the_commit_signed() {
@@ -385,23 +327,6 @@ fn either_signature_header_marks_the_commit_signed() {
 #[test]
 fn each_preparation_failure_displays_its_own_words() {
     assert_eq!(PreparationError::Git(GitFailure(String::from("git words"))).to_string(), "git words");
-}
-
-/// The wait recognizes the occupied guard by its type: an error that only repeats the wording is final (issue 1346).
-#[test]
-fn an_error_with_the_guard_wording_but_not_its_type_is_not_retried() {
-    let mut calls: u32 = 0;
-    let waited: std::io::Result<u32> = retry_while_active(
-        || {
-            calls += 1;
-            assert!(calls <= 1, "a look-alike error is returned at once");
-            return Err(std::io::Error::other("a signal guard is already active in this process"));
-        },
-        5,
-        std::time::Duration::from_millis(1),
-    );
-    assert!(waited.is_err());
-    assert_eq!(calls, 1);
 }
 
 /// The shadow shows what a policy and a commit need: `HEAD` at the base, the upstream, the `onbranch:` include, and its

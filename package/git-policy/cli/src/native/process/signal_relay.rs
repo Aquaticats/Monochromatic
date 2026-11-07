@@ -20,59 +20,27 @@
 //! ```
 //!
 //! Limits:
-//!  Handlers are process-wide, so one guard may be active at a time;
+//!  Handlers are process-wide, so the first guard of a process owns them and relays to its own child; a guard made while
+//!  another owns them, or in a process whose service owns its stop signals, relays nothing and refuses nothing
+//!  (owner, 2026-11-07, "Registry of children" with "Only that operation's children": a signal reaches only the children of
+//!  the operation it belongs to, and a stop of the service is an operation of its own).
 //!  `SA_RESTART` keeps other system calls from failing with `EINTR`.
-//!  Only Linux reads the child's exit without reaping it, so the PID is cleared before reaping there;
-//!  elsewhere a signal that arrives in the instant between the child's exit and its reaping
+//!  On Linux the relay signals the child through a pidfd that stands on one descriptor number kept for the life of the
+//!  process, so a signal after the child was reaped finds nothing, and a recycled PID is never reached.
+//!  Elsewhere a signal that arrives in the instant between the child's exit and its reaping
 //!  could reach a recycled PID.
-
-/// What:
-///  The typed reason a second signal guard is refused while one is active.
-/// Why:
-///   Callers that wait for the guard to be free must recognize this refusal by its type, not by its wording
-///  (issue 1346).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class SignalGuardActiveError extends Error {}
-/// ```
-#[derive(Debug)]
-pub struct SignalGuardActive;
-
-/// The wording of the refusal.
-impl std::fmt::Display for SignalGuardActive {
-    /// Writes the wording of the refusal.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str("a signal guard is already active in this process");
-    }
-}
-
-impl std::error::Error for SignalGuardActive {}
-
-/// What:
-///  Whether an installation failure is the refusal of a second guard.
-/// Why:
-///   Only this refusal clears by itself when the other holder lets go; every other failure is final.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// error instanceof SignalGuardActiveError
-/// ```
-pub fn is_guard_active_refusal(error: &io::Error) -> bool {
-    // An error without an inner error cannot be the guard refusal.
-    let Some(inner) = error.get_ref() else {
-        return false;
-    };
-    return inner.is::<SignalGuardActive>();
-}
 
 /// `c_int` is the C integer type signal numbers and status codes use.
 #[cfg(unix)]
 use std::ffi::c_int;
 /// `io` is the input and output error type the spawn and wait calls return.
 use std::io;
-/// Starts that ride out a short shortage of processes.
-use crate::start_retry::RetryStart;
+/// The start of the child, pausing on the runtime's timer when the system refuses a process.
+use crate::start_retry::spawn_retrying_without_blocking;
+/// The process's runtime, which the synchronous face enters.
+use crate::lazy_runtime::run_on_runtime;
+/// A child owned until it is reaped, awaited through its pidfd.
+use crate::child_awaited_through_a_pidfd::adopt;
 /// `Command` builds the child, and `ExitStatus` is how it ended.
 use std::process::{Command, ExitStatus};
 
@@ -132,11 +100,35 @@ const PROCESS_SENDER_CODES: [c_int; 2] = [libc::SI_USER, libc::SI_QUEUE];
 pub const RELAYED_SIGNALS: [c_int; 4] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
-///  PID of the Git child being waited for, or zero when none is.
+///  Whether a child is published to the handler: on Linux the descriptor `RELAY_FD` stands for it, elsewhere `CHILD_PID` names it.
 /// Why:
 ///   The handler runs asynchronously, so it can only read state through atomics.
 #[cfg(unix)]
+static CHILD_PUBLISHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// What:
+///  PID of the Git child being waited for, or zero when none is, on the systems that have no pidfd.
+/// Why:
+///   Without a pidfd the handler signals by number, with the recycled-number window the module's limits name.
+#[cfg(all(unix, not(target_os = "linux")))]
 static CHILD_PID: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+
+/// What:
+///  The one descriptor number the relay signals through, made by the first guard and never closed.
+/// Why:
+///   A descriptor that is closed while a handler reads its number can be reused by an unrelated pidfd and then signal the wrong
+///  process. This number is never closed, so it always names either the published child or `/dev/null`: publishing and
+///  retiring replace what it refers to with `dup3`, atomically, and no other code can be handed this number. A signal that finds
+///  `/dev/null` fails harmlessly.
+#[cfg(target_os = "linux")]
+static RELAY_FD: std::sync::OnceLock<std::os::fd::RawFd> = std::sync::OnceLock::new();
+
+/// What:
+///  Whether a service owns this process's stop signals, so no guard relays them.
+/// Why:
+///   A stop of the service is an operation of its own (owner, 2026-11-07): it must not be taken for the signal of a commit.
+#[cfg(unix)]
+static SERVICE_OWNS_SIGNALS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// What:
 ///  One slot per relayed signal, holding a signal number that has not been relayed yet, or zero.
@@ -147,11 +139,12 @@ static PENDING: [std::sync::atomic::AtomicI32; 4] =
     [const { std::sync::atomic::AtomicI32::new(0) }; 4];
 
 /// What:
-///  Whether a guard is installed in this process.
+///  Whether a guard owns the handlers of this process.
 /// Why:
-///   Handlers and their saved dispositions are process-wide, so two guards would overwrite each other's record.
+///   Handlers and their saved dispositions are process-wide, so two guards would overwrite each other's record: the first owns them,
+///  and a guard made meanwhile relays nothing.
 #[cfg(unix)]
-static GUARD_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static RELAYING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// What:
 ///  The first three fields of `siginfo_t` on every Unix system: signal number, error number and code.
@@ -210,7 +203,7 @@ extern "C" fn relay_handler(
 }
 
 /// What:
-///  Send every pending signal to the recorded child, claiming each slot so it is sent once.
+///  Send every pending signal to the published child, claiming each slot so it is sent once.
 /// Why:
 ///   Both the handler and the waiting code call this; the atomic swap decides which one sends a given signal.
 ///
@@ -220,16 +213,56 @@ extern "C" fn relay_handler(
 /// ```
 #[cfg(unix)]
 fn relay_pending() {
-    let pid: i32 = CHILD_PID.load(std::sync::atomic::Ordering::SeqCst);
-    if pid <= 0 {
+    if !CHILD_PUBLISHED.load(std::sync::atomic::Ordering::SeqCst) {
         return;
     }
     for slot in &PENDING {
         let signal: c_int = slot.swap(0, std::sync::atomic::Ordering::SeqCst);
         if signal != 0 {
-            // SAFETY: `kill` sends one signal to a PID this module recorded; a failure is ignored because the child may have ended.
-            unsafe { libc::kill(pid, signal) };
+            send_to_published_child(signal);
         }
+    }
+}
+
+/// What:
+///  Send `signal` to the published child through its pidfd.
+/// Why:
+///   The call is a raw system call of `rustix`'s Linux backend, which neither allocates nor touches `errno`, so the handler leaves
+///  the interrupted code's `errno` as it found it. A child that was reaped, or the `/dev/null` that stands in when none is
+///  published, makes the call fail, and the failure is ignored.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// child.kill(signal); // by the pidfd, never by a number that may have been reused
+/// ```
+#[cfg(target_os = "linux")]
+fn send_to_published_child(signal: c_int) {
+    let Some(descriptor) = RELAY_FD.get() else {
+        return;
+    };
+    let Some(named) = rustix::process::Signal::from_named_raw(signal) else {
+        return;
+    };
+    // SAFETY: the descriptor number is never closed (see `RELAY_FD`), so it stays open for the whole process.
+    let borrowed: std::os::fd::BorrowedFd<'_> = unsafe { std::os::fd::BorrowedFd::borrow_raw(*descriptor) };
+    let _failed_harmlessly = rustix::process::pidfd_send_signal(borrowed, named);
+}
+
+/// What:
+///  Send `signal` to the child whose number is published, on the systems that have no pidfd.
+/// Why:
+///   The limit named on the module: a number reused between the child's exit and its reaping would be signalled.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.kill(pid, signal);
+/// ```
+#[cfg(all(unix, not(target_os = "linux")))]
+fn send_to_published_child(signal: c_int) {
+    let pid: i32 = CHILD_PID.load(std::sync::atomic::Ordering::SeqCst);
+    if pid > 0 {
+        // SAFETY: `kill` sends one signal to a PID this module recorded; a failure is ignored because the child may have ended.
+        unsafe { libc::kill(pid, signal) };
     }
 }
 
@@ -287,55 +320,10 @@ fn restore(saved: &[(c_int, libc::sigaction)]) {
 }
 
 /// What:
-///  Wait for the child to exit without reaping it, so its PID still names it.
-/// Why:
-///   Clearing the recorded PID before reaping stops a relay to a PID that the system may have reused.
-///  `waitid` with `WNOWAIT` reports the exit and leaves the child waitable.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await waitForExitWithoutReaping(pid);
-/// ```
-#[cfg(target_os = "linux")]
-fn wait_without_reaping(pid: libc::pid_t) -> io::Result<()> {
-    loop {
-        // SAFETY: `waitid` writes into the zeroed buffer this function owns, and only for a child it names.
-        let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-        // SAFETY: `P_PID` names one child; `WEXITED | WNOWAIT` only observes its exit.
-        let result: c_int = unsafe {
-            libc::waitid(
-                libc::P_PID,
-                libc::id_t::try_from(pid).unwrap_or(0),
-                &mut info,
-                libc::WEXITED | libc::WNOWAIT,
-            )
-        };
-        if result == 0 {
-            return Ok(());
-        }
-        let error: io::Error = io::Error::last_os_error();
-        match error.raw_os_error() {
-            Some(libc::EINTR) => continue,
-            Some(libc::ECHILD) => return Ok(()),
-            _ => return Err(error),
-        }
-    }
-}
-
-/// What:
-///  Non-Linux Unix placeholder for the wait that leaves the child unreaped.
-/// Why:
-///   `waitid` is not in the `libc` crate for these systems; the window it closes is documented on the module.
-#[cfg(all(unix, not(target_os = "linux")))]
-fn wait_without_reaping(_pid: libc::pid_t) -> io::Result<()> {
-    return Ok(());
-}
-
-/// What:
-///  Owns the relaying handlers for its lifetime.
+///  Owns the relaying handlers for its lifetime when it is the first guard of the process; otherwise it relays nothing.
 ///  Install one guard, run the Git child through it, then drop it after cleanup.
 /// Why:
-///   Dropping it restores the previous dispositions, so a signal after cleanup behaves as it did before.
+///   Dropping the owning guard restores the previous dispositions, so a signal after cleanup behaves as it did before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -344,25 +332,46 @@ fn wait_without_reaping(_pid: libc::pid_t) -> io::Result<()> {
 #[cfg(unix)]
 #[must_use = "the handlers last only while the guard lives"]
 pub struct SignalGuard {
-    /// Dispositions to restore on drop, one per signal that was replaced.
+    /// Dispositions to restore on drop, one per signal that was replaced; empty for a guard that owns no handlers.
     saved: Vec<(c_int, libc::sigaction)>,
+    /// Whether this guard owns the process's handlers and so relays to its child.
+    relaying: bool,
+}
+
+/// What:
+///  Records that a service owns this process's stop signals, so no guard installs handlers or relays from here on.
+/// Why:
+///   The owner's rule (2026-11-07, "Only that operation's children"): a stop of the service is an operation of its own and does
+///  not reach the Git child of a commit that the service happens to be preparing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// leaveSignalsToTheService();
+/// ```
+#[cfg(unix)]
+pub fn leave_signals_to_the_service() {
+    SERVICE_OWNS_SIGNALS.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
 /// Methods over an installed guard.
 #[cfg(unix)]
 impl SignalGuard {
     /// What:
-    ///  Install the relaying handlers.
-    ///  Fails when another guard is already active in this process.
+    ///  Install the relaying handlers when no other guard owns them and no service owns the stop signals; otherwise make a guard
+    ///  that relays nothing. It does not fail for another guard's presence.
     /// Why:
-    ///   The handlers are process-wide, so a second guard would record the first one's handler as the old disposition.
+    ///   The handlers are process-wide, so a second owner would record the first one's handler as the old disposition. Refusing or
+    ///  waiting for the first is the loop the registry replaces: the second operation simply has no process signal of its own.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// static install(): SignalGuard // throws when already installed
+    /// static install(): SignalGuard // never waits for another guard
     /// ```
     pub fn install() -> io::Result<Self> {
-        if GUARD_ACTIVE
+        if SERVICE_OWNS_SIGNALS.load(std::sync::atomic::Ordering::SeqCst) {
+            return Ok(Self { saved: Vec::new(), relaying: false });
+        }
+        if RELAYING
             .compare_exchange(
                 false,
                 true,
@@ -371,7 +380,7 @@ impl SignalGuard {
             )
             .is_err()
         {
-            return Err(io::Error::other(SignalGuardActive));
+            return Ok(Self { saved: Vec::new(), relaying: false });
         }
         // `mut` lets each installed disposition be recorded as it is replaced.
         let mut saved: Vec<(c_int, libc::sigaction)> = Vec::with_capacity(RELAYED_SIGNALS.len());
@@ -381,59 +390,196 @@ impl SignalGuard {
                 Ok(None) => {}
                 Err(error) => {
                     restore(&saved);
-                    GUARD_ACTIVE.store(false, std::sync::atomic::Ordering::SeqCst);
+                    RELAYING.store(false, std::sync::atomic::Ordering::SeqCst);
                     return Err(error);
                 }
             }
         }
-        return Ok(Self { saved });
+        return Ok(Self { saved, relaying: true });
     }
 
     /// What:
-    ///  Start `command`, wait for it while relaying signals, and return how it ended.
+    ///  Start `command`, wait for it while relaying signals, and return how it ended; the synchronous face of
+    ///  `run_child_awaiting`, which refuses from inside the runtime.
     ///  The guard does not exit the process; the caller releases its locks and removes its state, then exits.
     /// Why:
-    ///   Signals that arrived before the child started are relayed as soon as it has a PID.
+    ///   The callers are synchronous until they become asynchronous themselves (step T11).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// async runChild(command: SpawnOptions): Promise<ChildOutcome>
+    /// runChild(command: SpawnOptions): ChildOutcome // only until every caller is async
     /// ```
     pub fn run_child(&self, command: &mut Command) -> io::Result<ChildOutcome> {
-        return run_relayed(command);
+        return match run_on_runtime(self.run_child_awaiting(command)) {
+            Ok(outcome) => outcome,
+            Err(refusal) => Err(io::Error::other(refusal.to_string())),
+        };
+    }
+
+    /// What:
+    ///  Start `command`, wait for it on its pidfd while relaying signals, and return how it ended.
+    /// Why:
+    ///   Signals that arrived before the child started are relayed as soon as it is published. A guard that owns no handlers
+    ///  starts and waits the same way and publishes nothing.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await guard.runChildAwaiting(command): Promise<ChildOutcome>
+    /// ```
+    pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
+        return run_relayed(command, self.relaying).await;
     }
 }
 
-/// Spawns the child, then relays any signal that was caught before the child existed.
+/// What:
+///  Make the descriptor number the relay signals through, once for the process.
+/// Why:
+///   `/dev/null` stands on the number until a child is published; the number is never closed (see `RELAY_FD`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// relayDescriptor ??= openDevNull();
+/// ```
+#[cfg(target_os = "linux")]
+fn ensure_relay_descriptor() -> io::Result<()> {
+    if RELAY_FD.get().is_some() {
+        return Ok(());
+    }
+    let nothing: std::os::fd::OwnedFd = rustix::fs::open("/dev/null", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
+        .map_err(io::Error::from)?;
+    let number: std::os::fd::RawFd = std::os::fd::IntoRawFd::into_raw_fd(nothing);
+    // A guard that lost the race closes its own descriptor; the winner's number is the only one that is kept.
+    if RELAY_FD.set(number).is_err() {
+        // SAFETY: the number was just made here and was not published, so nothing else holds or reads it.
+        drop(unsafe { <std::os::fd::OwnedFd as std::os::fd::FromRawFd>::from_raw_fd(number) });
+    }
+    return Ok(());
+}
+
+/// What:
+///  Make the relay descriptor name `child` (a pidfd opened for it), or `/dev/null` when `child` is nothing.
+/// Why:
+///   `dup3` replaces what the number refers to in one step, so the handler never sees a closed number and never a descriptor of
+///  another process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pointRelayAt(child);
+/// ```
+#[cfg(target_os = "linux")]
+fn point_relay_at(child: Option<&std::os::fd::OwnedFd>) -> io::Result<()> {
+    let Some(target) = RELAY_FD.get() else {
+        return Err(io::Error::other("the relay descriptor was never made"));
+    };
+    let nothing: std::os::fd::OwnedFd;
+    let source: std::os::fd::RawFd = match child {
+        Some(pidfd) => std::os::fd::AsRawFd::as_raw_fd(pidfd),
+        None => {
+            nothing = rustix::fs::open("/dev/null", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
+                .map_err(io::Error::from)?;
+            std::os::fd::AsRawFd::as_raw_fd(&nothing)
+        }
+    };
+    // SAFETY: `dup3` takes two descriptor numbers and no memory; `source` is open for this call and `target` is the process's own
+    //  never-closed number. `O_CLOEXEC` keeps the child from inheriting the copy.
+    let replaced: c_int = unsafe { libc::dup3(source, *target, libc::O_CLOEXEC) };
+    if replaced < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    return Ok(());
+}
+
+/// Spawns the child, publishes it to the handler when `relaying`, relays any signal that was caught before the child existed,
+/// and waits for it on its pidfd.
 ///
 /// A handler that runs before the spawn keeps its signal in `PENDING` and finds no child.
-/// The PID is published before the drain, so that signal is relayed here, not lost.
+/// The child is published before the drain, so that signal is relayed here, not lost.
 #[cfg(unix)]
-fn run_relayed(command: &mut Command) -> io::Result<ChildOutcome> {
-    let mut child: std::process::Child = command.spawn_retrying()?;
-    let pid: libc::pid_t = libc::pid_t::try_from(child.id())
-        .map_err(io::Error::other)?;
-    CHILD_PID.store(pid, std::sync::atomic::Ordering::SeqCst);
+async fn run_relayed(command: &mut Command, relaying: bool) -> io::Result<ChildOutcome> {
+    let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
+    let mut owned = adopt(started);
+    let published: Published = if relaying { publish(owned.id()) } else { Published::Nothing };
+    let waited: io::Result<ExitStatus> = owned.wait().await;
+    // The child is reaped, so a signal that finds the descriptor still pointing at it fails with `ESRCH`; the descriptor is
+    //  repointed before the next child all the same.
+    retire(published);
+    return Ok(crate::forwarding::outcome_of(waited?));
+}
+
+/// What a published child leaves to clean up.
+#[cfg(unix)]
+enum Published {
+    /// Nothing was published.
+    Nothing,
+    /// A child was published.
+    Child,
+}
+
+/// Publish the child with this id to the handler and relay what was waiting for it; a failure to publish leaves the child
+/// unrelayed and is logged, because the commit must go on.
+#[cfg(target_os = "linux")]
+fn publish(child_id: u32) -> Published {
+    let opened: Option<std::os::fd::OwnedFd> = i32::try_from(child_id)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+        .and_then(|pid| { return rustix::process::pidfd_open(pid, rustix::process::PidfdFlags::empty()).ok(); });
+    if let Err(error) = ensure_relay_descriptor() {
+        // The commit must go on: without the descriptor the child is not relayed to, and the log says so.
+        crate::diagnostic_log::warn("signalRelay", format!("no descriptor for the relay ({error}), so signals will not be relayed to the child").as_str());
+        return Published::Nothing;
+    }
+    let Some(pidfd) = opened else {
+        crate::diagnostic_log::warn("signalRelay", "the child could not be given a pidfd, so signals sent to this process will not be relayed to it");
+        return Published::Nothing;
+    };
+    if let Err(error) = point_relay_at(Some(&pidfd)) {
+        crate::diagnostic_log::warn("signalRelay", format!("the relay could not be pointed at the child ({error}), so signals will not be relayed to it").as_str());
+        return Published::Nothing;
+    }
+    CHILD_PUBLISHED.store(true, std::sync::atomic::Ordering::SeqCst);
     relay_pending();
-    let waited: io::Result<()> = wait_without_reaping(pid);
-    // Linux has waited for the child's end without reaping it, so the PID cannot be recycled yet and is cleared first.
-    #[cfg(target_os = "linux")]
+    return Published::Child;
+}
+
+/// Publish the child with this id by its number, on the systems that have no pidfd.
+#[cfg(all(unix, not(target_os = "linux")))]
+fn publish(child_id: u32) -> Published {
+    let Ok(pid) = libc::pid_t::try_from(child_id) else {
+        return Published::Nothing;
+    };
+    CHILD_PID.store(pid, std::sync::atomic::Ordering::SeqCst);
+    CHILD_PUBLISHED.store(true, std::sync::atomic::Ordering::SeqCst);
+    relay_pending();
+    return Published::Child;
+}
+
+/// Stop publishing the child and point the relay at nothing.
+#[cfg(target_os = "linux")]
+fn retire(published: Published) {
+    if matches!(published, Published::Nothing) {
+        return;
+    }
+    CHILD_PUBLISHED.store(false, std::sync::atomic::Ordering::SeqCst);
+    if let Err(error) = point_relay_at(None) {
+        crate::diagnostic_log::warn("signalRelay", format!("the relay could not be pointed away from the ended child: {error}").as_str());
+    }
+}
+
+/// Stop publishing the child, on the systems that have no pidfd.
+#[cfg(all(unix, not(target_os = "linux")))]
+fn retire(published: Published) {
+    if matches!(published, Published::Nothing) {
+        return;
+    }
+    CHILD_PUBLISHED.store(false, std::sync::atomic::Ordering::SeqCst);
     CHILD_PID.store(0, std::sync::atomic::Ordering::SeqCst);
-    let reaped: io::Result<ExitStatus> = child.wait();
-    // Elsewhere `wait_without_reaping` returns at once, so the PID must stay published through the blocking wait
-    //  or a signal arriving during it would find no child; the recycled-PID window is the limit named on the module.
-    #[cfg(not(target_os = "linux"))]
-    CHILD_PID.store(0, std::sync::atomic::Ordering::SeqCst);
-    let status: ExitStatus = reaped?;
-    waited?;
-    return Ok(crate::forwarding::outcome_of(status));
 }
 
 /// Restore the previous dispositions and release the process-wide slot.
 #[cfg(unix)]
 impl Drop for SignalGuard {
     /// What:
-    ///  Restore the saved dispositions and clear the active flag.
+    ///  Restore the saved dispositions and release the process's handlers when this guard owned them.
     /// Why:
     ///   The next guard, or the process default after the guard, must see the original handlers.
     ///
@@ -442,8 +588,11 @@ impl Drop for SignalGuard {
     /// [Symbol.dispose]() { restore(saved); }
     /// ```
     fn drop(&mut self) {
+        if !self.relaying {
+            return;
+        }
         restore(&self.saved);
-        GUARD_ACTIVE.store(false, std::sync::atomic::Ordering::SeqCst);
+        RELAYING.store(false, std::sync::atomic::Ordering::SeqCst);
     }
 }
 
@@ -482,7 +631,7 @@ impl SignalGuard {
     /// async runChild(command): Promise<ChildOutcome>
     /// ```
     pub fn run_child(&self, command: &mut Command) -> io::Result<ChildOutcome> {
-        let mut child: std::process::Child = command.spawn_retrying()?;
+        let mut child: std::process::Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
         let status: ExitStatus = child.wait()?;
         return Ok(crate::forwarding::outcome_of(status));
     }
