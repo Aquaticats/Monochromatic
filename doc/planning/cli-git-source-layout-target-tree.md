@@ -4,11 +4,16 @@ Status:
 proposal only,
 nothing moved,
 renamed or edited in the wrapper's source.
-The owner rejected the crate split on 2026-11-07T02:03:01-05:00
-("Not good enough, assume every crate must stand on its own
-and no one else is going to use our crates to build a git wrapper.");
-section "The crate split" is being redone against that rule,
-and no file moves until the owner confirms the redone tree.
+The owner rejected the draft crate split of 46 libraries on 2026-11-07T02:03:01-05:00
+("Not good enough,
+assume every crate must stand on its own
+and no one else is going to use our crates to build a git wrapper."),
+and then tightened the rule ("Assume no one else is going to use anything related to git from us.").
+Section "The crate split" is redone against both:
+eight libraries,
+a ninth for tests,
+and the program crate with everything Git-related inside it as folders.
+No file moves until the owner confirms the redone tree.
 Drafted 2026-11-04 for the owner's review,
 on top of `doc/planning/cli-git-source-layout.md`
 (the owner's words and the group order live there).
@@ -19,22 +24,25 @@ the machine-readable map is [`cli-git-source-layout-groups.json`](cli-git-source
 
 - Purpose:
   decide whether this tree,
-  these crates and this move order are what the owner wants before any file moves.
-- What changed since the planning doc:
-  the lint split added files,
-  so the group map was rescanned and extended;
-  the groups were then cut into crates;
-  every folder and file got a plain name;
-  every change the tree needs is named.
+  the eight libraries plus the test-folders library and the program,
+  and this move order are what the owner wants before any file moves.
+- What changed since the previous version of this file:
+  the owner's two rulings of 2026-11-07 removed 38 of the 46 libraries;
+  they fold into the program crate as folders with `uses/` links.
+  Every library that stays had to give up its Git-bound files and some of its names,
+  so seven named changes were added (section "Changes so that a library stands alone").
+  The stand-alone test used to judge them is the coordinator's reading of the owner's words,
+  not something the owner approved.
 - Inspect first:
-  the crate graph (section "The crate split"),
-  the open points (section "Open points for the owner"),
-  and the rejected crates (section "Crates considered and rejected").
+  the stand-alone test and the verdicts (section "The crate split"),
+  what each of the eight changes (same section),
+  and the open points (section "Open points for the owner").
 - Respond by:
   accepting or vetoing each open point;
   a veto on a crate or a name can be answered in one line,
-  because the tree is generated from a table (`spec/spec3.txt` and `spec/renames.txt` in the scratch folder,
-  summarised by `cli-git-source-layout-groups.json`).
+  because the tree is generated from one table kept in `cli-git-source-layout-groups.json` under `target`.
+  The first open point asks which of the eight libraries to keep,
+  so a one-line answer ("keep the four with tier-one evidence") settles most of the file.
 
 ## The owner's words and the rules that bind this
 
@@ -62,6 +70,8 @@ verbatim:
   each is its own package `package/git-policy/<name>` (crate `monochromatic-git-policy-<name>`),
   its own Cargo workspace root,
   depending on the others by `path` with an exact version pin;
+  (Open again on 2026-11-07:
+  the libraries' path is open point "Where the libraries live and what they are named".)
   "A:
   Cargo.toml between crates,
   uses/ inside (Recommended)".
@@ -73,7 +83,8 @@ verbatim:
   So a crate whose only other user would be a Git wrapper,
   a front end for the commit service,
   a push service or a commit-landing service does not count as standing on its own.
-- 2026-11-07T02:14:26-05:00 (the time this proposal recorded it, shortly after the owner said it),
+- 2026-11-07T02:14:26-05:00 (the time this proposal recorded it,
+  shortly after the owner said it),
   tightening the same rule,
   verbatim:
   "Assume no one else is going to use anything related to git from us."
@@ -236,11 +247,18 @@ with no re-exports.
 
 ## The crate split
 
+Redone 2026-11-07T02:30:00-05:00 against the owner's rule that every crate must stand on its own
+and that nobody else will use anything related to Git from us.
+The draft of 46 libraries is withdrawn;
+what it got right (the folders,
+the file order inside each folder,
+the named changes that break loops) is kept,
+and most of its crates become folders of the program crate.
+
 ### Method
 
 Each crate is a union of whole target folders;
-the group order of the planning doc makes any union of consecutive
-groups acyclic,
+the group order of the planning doc makes any union of consecutive groups acyclic,
 and cutting inside a group was checked with a script,
 not by eye:
 `engine.ts` reads the table,
@@ -248,481 +266,819 @@ applies the named changes of section "Changes the tree needs before files can mo
 and reports loops between crates,
 between folders of one crate,
 and between any files (global).
-With the changes applied it reports zero at all three levels.
-Without them (same placement,
-no named change) it reports one crate loop and 16 global file loops,
-so the changes are what makes the cut valid,
-not the cut alone.
-Two checks were added after an early version looked clean for the wrong reasons:
-named re-exports (`pub use crate::a::X;` in `b.rs`) are resolved so a use through `b` counts as a use of `a`
+Named re-exports (`pub use crate::a::X;` in `b.rs`) are resolved so a use through `b` counts as a use of `a`
 (284 re-export names found),
 and every moved item's own uses are cut out of its source and charged to its new file.
 
-### The crates
+The redo added one check to a copy of `engine.ts` (`scan/engine5.ts` in the scratch folder):
+for every file of a surviving library,
+every use of a file that goes into the program is printed with the item names,
+and the run reports how many there are.
+A surviving library must show none.
+The check was proven able to fail:
+with the final placement but without this redo's named changes it prints 18 uses in 11 files;
+with the first guess of 15 surviving libraries it printed 44 uses in 14 files.
 
-Forty-six libraries,
-the test-fixtures library,
-and the program.
-Each line:
-the one job,
-then a plausible outside consumer.
+Numbers printed by the final run,
+2026-11-07T02:21:12-05:00,
+on the scan of `main` at `f44d921e24`:
+
+- crates:
+  9 (8 libraries and the program);
+  crate loops 0.
+- folders:
+  87 (74 in the program);
+  folder loops 0.
+- files placed:
+  590 (68 in libraries,
+  522 in the program);
+  loops between any files 0;
+  loops between files of one folder 0.
+- uses of a program file by a library file:
+  0.
+- test references from a library's sidecar to a module outside its own crate and outside the test helpers:
+  2 (named in section "Tests that name a higher crate");
+  42 more name the test helpers that move to the test-folders crate.
+
+### The stand-alone test
+
+The owner's words are in section "The owner's words and the rules that bind this".
+This test is the coordinator's reading of them,
+a suggestion the owner can revise:
+the owner has not approved it.
+A library crate stands on its own only if all of these hold:
+
+- Its README's first paragraph states its job without mentioning a Git wrapper,
+  the commit service,
+  our policies or any other crate of this split.
+- Its job,
+  README,
+  name and public API mention nothing related to Git
+  (owner,
+  2026-11-07:
+  "Assume no one else is going to use anything related to git from us.").
+- The program it names as a plausible other user is not a Git wrapper,
+  a Git front end,
+  a push service,
+  a merge driver or a commit-landing service.
+  A real sibling tool of this repository that is not a Git wrapper counts (the pnpm wrapper,
+  for example).
+- Its public API exposes no type from a crate that fails the test.
+- It builds,
+  lints and passes its tests from its own `Cargo.toml` alone
+  (the test-folders crate counts only if it passes too).
+- Its name passes the monkey test alone.
+- It may depend on lower libraries of this split that also pass
+  (crates list their dependencies in `Cargo.toml`,
+  never in `uses/`),
+  never on anything that goes into the program.
+
+To make the third point checkable the redo used a bar the owner has not seen:
+a plausible user is named only by the path of a sibling that today carries its own copy of the job (evidence tier one),
+or whose own job would call it (evidence tier two,
+weaker).
+"Any program that saves files" names nobody and does not pass.
+
+### Result
+
+Eight of the 46 libraries pass,
+four with tier-one evidence and four with tier-two evidence.
+The fixtures crate passes only in its Git-free half,
+as a ninth library used only by tests.
+The other 38 libraries fold into the program crate as folders with `uses/` links,
+or give some of their files to a passing library.
+The program crate holds 74 folders and 522 files.
+
+How this squares with "I refuse to believe C means splitting into fewer crates":
+the number of crates now follows from the Git-free jobs the repository's other tools can use,
+as the owner asked,
+and not from a target;
+the program crate keeps principle 3 inside itself,
+because each of its folders holds a `uses/` folder of links,
+so fewer crates is not everything in one crate.
+If the owner reads that sentence as still too few,
+open point "Which Git-free jobs become crates" has the wider option.
+
+### The 46 libraries and the fixtures crate, one by one
+
+Passing,
+each with the sibling that could use it:
+
+- `safe-file-saving`
+  (tier one):
+  saves a file so a crash never leaves half of it,
+  makes private scratch folders.
+  `package/cargo-shadow/cli/src/journal_replace.rs` and `journal.rs` write,
+  synchronize and replace files the same way;
+  `package/file-enforcer/core-rust/src/publish.rs` synchronizes published files.
+- `linux-file-and-disk-calls`
+  (tier one;
+  was `linux-filesystem-primitives`,
+  "primitives" fails the monkey test):
+  `package/cargo-shadow/cli/src/journal_replace.rs` swaps two paths with `renameat2`,
+  and `package/wg/cli-quicker-exempt/src/pin.rs` calls `renameat2` itself.
+  It takes three buried folder-removal files.
+- `starting-and-watching-programs`
+  (tier one):
+  `package/cargo-shadow/cli/src/bounded_run.rs` runs a child under a bound and contains what it started.
+  It loses seven Git-bound files and takes four.
+- `parallel-work-within-a-budget`
+  (tier one):
+  `package/forbidden-strings/core/src/parallel.rs` is its own copy of the job,
+  and `package/linter/monochromatic-lint/src/run_command.rs` asks for the available threads.
+- `text-time-and-log-line-formats`
+  (tier two):
+  `package/cargo-shadow/cli/src/time_text.rs` reads and writes time text,
+  and that tool's README says its catalog tools used to be a TypeScript package.
+  It loses two Git-bound files.
+- `talking-to-the-systemd-user-manager`
+  (tier two;
+  was `systemd-user-manager-client`):
+  `package/nested-wayland-session/cli/src/systemd.rs` starts transient user scopes by running `systemd-run`.
+- `fix-packages-after-copying-a-folder`
+  (tier two):
+  `package/pnpm-shadow/cli` and `package/cargo-shadow/cli` own the pnpm and Cargo state such a repair rewrites.
+  Weakest of the eight:
+  no sibling carries a copy or asks for it.
+- `dependent-version-bump-check`
+  (tier two):
+  `package/pnpm-shadow/cli` reads the same workspace of `package.json` files.
+  The coordinator named the pnpm wrapper as the sibling.
+  It loses three policy-bound files.
+
+Failing (the other 38 libraries and the fixtures crate),
+in the draft's order,
+each with the reason and what happens to it
+("folds" means the crate becomes folders of the program crate;
+the folder names are in section "Inside each crate"):
 
 - `git-environment-variables`:
-  Says which environment variables the wrapper adds when it starts the real Git,
-  and reads them back.
-  Another program that could depend on it:
-  any program that starts Git with a controlled environment.
+  its job is the environment of a Git child.
+  Folds.
 - `git-index-file`:
-  Reads and writes the index file that Git keeps in the hidden `.git` folder (the list of files in the next commit),
-  with its extensions.
-  Another program that could depend on it:
-  any tool that edits a Git index without starting Git.
-- `text-time-and-log-line-formats`:
-  Writes text,
-  time stamps,
-  JSON records and warning lines the way JavaScript and the old TypeScript tools write them.
-  Another program that could depend on it:
-  the TypeScript twin and any tool that must print byte-identical text.
-- `safe-file-saving`:
-  Saves a file so a crash never leaves half of it,
-  makes private scratch places,
-  and cleans up paths.
-  Another program that could depend on it:
-  any program that saves files.
+  the Git index format.
+  Folds.
 - `read-git-files-without-git`:
-  Answers questions about a repository by reading the files in `.git` directly,
-  which is faster than starting Git.
-  Another program that could depend on it:
-  any tool that wants commit,
-  tree,
-  ref and setting data without starting Git.
-- `linux-filesystem-primitives`:
-  Calls the Linux disk functions the wrapper needs:
-  mount tables,
-  disk kind,
-  btrfs folder copies,
-  file cloning,
-  swapping two paths,
-  and file operations that never follow a link.
-  Another program that could depend on it:
-  any Linux file tool.
-- `starting-and-watching-programs`:
-  Starts another program,
-  tells which programs are running,
-  and ends one that stops making progress.
-  Another program that could depend on it:
-  any program that runs children under a progress deadline.
+  reads `.git`.
+  Folds.
 - `git-lock-files`:
-  Finds who holds a lock file and clears the reference locks that a crashed Git left behind.
-  Another program that could depend on it:
-  any tool that must wait for or clear Git locks.
+  Git's lock files.
+  Folds,
+  except three Git-free files (which processes hold a file open,
+  and process numbers inside nested containers)
+  that go to `starting-and-watching-programs`.
 - `typed-command-reader`:
-  Reads the words typed after `git` the way Git reads them,
-  plus the words meant for this wrapper.
-  Another program that could depend on it:
-  any Git wrapper or shell hook that needs to know what a command line means.
+  reads Git command lines.
+  Folds.
 - `start-the-real-git`:
-  Finds the real `git` program on the computer,
-  starts it,
-  and answers some of its questions without starting it.
-  Another program that could depend on it:
-  any Git wrapper.
+  starts Git.
+  Folds.
 - `wrapper-settings`:
-  Reads `cli-git.config.jsonc`,
-  Git's own settings,
-  and the hooks a repository configures.
-  Another program that could depend on it:
-  the sibling tools that read the same settings file.
+  reads the wrapper's settings file and Git's settings.
+  Folds.
 - `commit-candidate-content`:
-  Loads the exact bytes a commit would save and scans them for forbidden strings.
-  Another program that could depend on it:
-  any pre-commit checker.
+  the bytes a commit would save.
+  Folds.
 - `commit-service-messages`:
-  Defines the messages the wrapper and the background commit service send each other,
-  one JSON object per line,
-  and names a worktree's service.
-  Another program that could depend on it:
-  another front end for the commit service.
+  the commit service's messages.
+  Folds.
 - `system-journal-entries`:
-  Sends log entries to the systemd journal over its native socket.
-  Another program that could depend on it:
-  any Linux service that logs to the journal.
+  a Git-free job (a datagram to the journal socket) with only the text formats below it,
+  but no sibling writes to the journal today
+  (a search of the other packages' Rust sources for `journald` finds nothing).
+  Folds;
+  three files,
+  lifts again the day a sibling needs it.
 - `commit-service-log-lines`:
-  Writes the lines that say where time went in a commit and which Git runs the service started.
-  Another program that could depend on it:
-  a log reader.
+  the commit service's log lines.
+  Folds.
 - `crash-points-for-tests`:
-  Lets a test stop the program at a named step by setting an environment variable.
-  Another program that could depend on it:
-  any crash-safety test suite.
+  widening it leaves only the arm,
+  kill and pause half of `transaction_phase` (a named step read from an environment variable),
+  because `service_fault` holds the service's own switches and both hold this wrapper's phase names.
+  The sibling `package/cargo-shadow/cli/src/failpoints.rs` has a different design (armed in process,
+  once,
+  on one thread).
+  Folds.
 - `durable-work-items`:
-  Keeps small files that say "this landed commit still needs a push" so a crash loses nothing.
-  Another program that could depend on it:
-  a job queue on files.
+  a Git-free file queue,
+  but widening it changes four files' API (the kind list,
+  the Git object-name rule,
+  the `cli-git/work` folder and the service log call),
+  and no sibling keeps such a queue.
+  Folds.
 - `rules-about-git-command-lines`:
-  Decides,
-  from the words typed,
-  whether a command may run here and what words to add.
-  Another program that could depend on it:
-  any command-line guard.
+  Git command lines.
+  Folds.
 - `policy-engine`:
-  Runs the configured policies in order for one point in a commit or push,
-  and settles their corrections.
-  Another program that could depend on it:
-  a policy runner.
+  the wrapper's own policies;
+  `event_hints` alone names Git 35 times.
+  Folds.
 - `standards-review-log`:
-  Reviews landed commits against the written standards with one HTTPS call and keeps the log of the answers.
-  Another program that could depend on it:
-  a review runner.
-- `systemd-user-manager-client`:
-  Talks to the systemd user manager over D-Bus to start and look up units.
-  Another program that could depend on it:
-  any program that starts user units without libsystemd.
+  reviews landed commits.
+  Folds.
 - `commit-service-client`:
-  Asks the background commit service to save a commit,
-  starting it first when nothing answers.
-  Another program that could depend on it:
-  another Git front end.
+  talks to the commit service.
+  Folds.
 - `isolated-merge-recovery`:
-  Records an isolated merge and finishes or discards it if the process died.
-  Another program that could depend on it:
-  a merge tool.
-- `parallel-work-within-a-budget`:
-  Runs independent jobs side by side on as many threads as the computer can spare.
-  Another program that could depend on it:
-  any batch tool.
+  Git merges.
+  Folds.
 - `sha-1-and-sha-256-digests`:
-  Computes SHA-1 and SHA-256 of bytes,
-  written out in full.
-  Another program that could depend on it:
-  any program (a published crate could replace it).
+  a Git-free job,
+  but `package/mpm-shadow/cli`,
+  `package/cargo-shadow/cli`,
+  `package/browserslist/core-rust` and `package/file-enforcer/core-rust` already use the published `sha2` crate,
+  so no sibling would pick ours.
+  Folds;
+  open point "SHA digests".
 - `commit-service-index-lock`:
-  Takes and holds Git's `index.lock` for the background commit service,
-  and waits for any program's hold on it.
-  Another program that could depend on it:
-  another writer that must share the index with Git.
+  Git's `index.lock` for the commit service.
+  Folds.
 - `three-way-text-merge`:
-  Merges text three ways by line and,
-  where both sides changed a line,
-  word by word.
-  Another program that could depend on it:
-  any merge tool.
+  a Git-free job (one file),
+  but a search of the other packages finds no text merge.
+  Folds;
+  lifts again the day a sibling needs it.
 - `merge-conflicts-word-by-word`:
-  Tries again word by word on the files a Git merge left conflicted.
-  Another program that could depend on it:
-  a merge driver.
-- `push-with-a-deadline`:
-  Runs `git push` with its own deadline,
-  stops it when it shows no sign of work,
-  and runs one push at a time.
-  Another program that could depend on it:
-  any program that pushes.
-- `upload-large-files-before-a-push`:
-  Uploads Git LFS files (large pictures and videos) before a push.
-  Another program that could depend on it:
-  any tool that pushes LFS repositories.
-- `background-push-after-commit`:
-  Pushes a landed commit in the background,
-  retries,
-  and merges when someone else pushed first.
-  Another program that could depend on it:
-  a push service.
-- `hidden-git-copy-for-preparing-commits`:
-  Makes a hidden second Git folder that shares the saved commits,
-  so a commit can be prepared without touching your work.
-  Another program that could depend on it:
-  a tool that prepares commits aside.
-- `keep-copies-of-discarded-work`:
-  Saves a copy of work that a command would throw away,
-  records it,
-  and removes old copies.
-  Another program that could depend on it:
-  a safety net for destructive Git commands.
-- `land-prepared-commits`:
-  Lands a batch of prepared commits on a branch and updates the index without starting Git.
-  Another program that could depend on it:
-  a commit-landing service.
+  merge driver.
+  Folds.
+- `push-with-a-deadline`,
+  `upload-large-files-before-a-push`,
+  `background-push-after-commit`:
+  pushes and LFS.
+  Fold.
+- `hidden-git-copy-for-preparing-commits`,
+  `land-prepared-commits`,
+  `keep-copies-of-discarded-work`:
+  Git repositories and commits.
+  Fold.
+  `keep-copies-of-discarded-work` holds a Git-free store of saved copies with age and size limits,
+  with no sibling that needs one.
 - `markdown-autofix-check`:
-  Fixes Markdown files in the same process,
-  with a guard against a stuck linter.
-  Another program that could depend on it:
-  a Markdown policy.
+  its policy file and its config types name the wrapper's policy and settings types
+  (17 uses of program files by 5 of its 6 files in the engine's first run),
+  and no sibling runs the Markdown linter in process with a guard.
+  Folds.
 - `convert-a-checkout-to-a-btrfs-subvolume`:
-  Turns a project folder into a btrfs subvolume,
-  which can be copied instantly,
-  and can undo it.
-  Another program that could depend on it:
-  any btrfs migration.
-- `fix-packages-after-copying-a-folder`:
-  Repairs installed packages (`node_modules`,
-  Cargo build state,
-  toolchain launchers) after a project folder is copied.
-  Another program that could depend on it:
-  any worktree copy tool.
+  five of its 23 files name Git heavily (the checks before,
+  the index files,
+  the arguments,
+  the command),
+  and no sibling converts folders to subvolumes
+  (a search for `btrfs` and `subvolume` finds only tests,
+  a container file and documents).
+  Folds;
+  its Git-free core (journal,
+  copy of attributes,
+  entry count) would lift on the day a sibling needs it.
 - `new-worktrees-quickly`:
-  Makes `git worktree add` fast by copying,
-  cloning or snapshotting,
-  copies the ignored files,
-  and removes or converts worktrees.
-  Another program that could depend on it:
-  a worktree manager.
-- `dependent-version-bump-check`:
-  Plans a version bump for every package that depends on a package whose version was raised.
-  Another program that could depend on it:
-  the pnpm wrapper.
+  Git worktrees.
+  Folds.
 - `shipped-policies`:
-  Holds the policies the wrapper ships and the one pass that runs them all.
-  Another program that could depend on it:
-  a policy bundle.
-- `commit-command`:
-  The `git commit` command:
-  prepares the commit aside,
-  asks the service to land it,
-  and reports.
-  Another program that could depend on it:
-  none above the program.
-- `service-after-commit-work`:
-  Does the work left after a landing:
-  push,
-  tidy-up and review.
-  Another program that could depend on it:
-  none above the program.
-- `commit-service-program`:
-  The background commit service itself:
-  accepts requests,
-  lands them in batches and answers.
-  Another program that could depend on it:
-  none above the program.
-- `doctor-report`:
-  Prints the `git cli-git doctor` report on hooks,
-  settings,
-  the disk and file watching.
-  Another program that could depend on it:
-  none above the program.
-- `merge-in-isolation`:
-  Completes `git merge` and `git pull` without touching staged work.
-  Another program that could depend on it:
-  none above the program.
-- `typed-push-planning`:
-  Works out what a typed `git push` would send and merges in a race that was lost.
-  Another program that could depend on it:
-  none above the program.
-- `cli`:
-  The command-line program `cli-git-native`:
-  decides what each command does and runs it.
-  Another program that could depend on it:
-  users.
+  our policies.
+  Folds.
+- `commit-command`,
+  `service-after-commit-work`,
+  `commit-service-program`,
+  `doctor-report`,
+  `merge-in-isolation`,
+  `typed-push-planning`:
+  orchestration with no outside user even in the draft.
+  Fold.
 - `disposable-test-fixtures`:
-  Makes disposable folders and real-Git repositories for tests,
-  outside the shipped code.
-  Another program that could depend on it:
-  every crate's tests,
-  as a dev-dependency.
+  half of it makes disposable folders,
+  helper child processes and output sinks with no Git in them;
+  the other half makes Git repositories,
+  a recording Git and an HTTP server for Git.
+  The Git-free half becomes the ninth library,
+  `disposable-test-folders`;
+  the rest stays with the program's tests.
+  Its sibling users are the test suites of the eight libraries,
+  and the test helpers of `package/cargo-shadow/cli` (`cgroup_test_support.rs`).
+
+### What each passing library changes
+
+For each:
+the first paragraph of its README,
+what leaves or joins,
+what changes in its API,
+and how it will be shown to stand alone.
+The line numbers are of the scanned files in `package/git-policy/cli/src/native/` at `f44d921e24`.
+
+#### safe-file-saving
+
+README,
+first paragraph:
+"Saves a file so a crash never leaves half of it,
+makes private scratch folders and random names,
+and cleans up paths."
+
+- Leaves:
+  nothing.
+  Joins:
+  `environment_value` (look a variable up the way `getenv` does) from `child_environment`,
+  because `scratch_location` uses it (lines 24,
+  97,
+  103).
+- API:
+  `scratch_location` names the program `cli-git` in seven places (lines 38,
+  41,
+  100,
+  107,
+  125,
+  156,
+  162).
+  The program name,
+  the scratch folder name and the state folder name become values the caller passes in;
+  the constants move to the program.
+- Tests:
+  the sidecars use the folder helpers and `run_child_under_file_size_limit` (to the test-folders crate);
+  one names `child_class` (a local stand-in).
+- Depends on:
+  `text-time-and-log-line-formats` (two uses of `diagnostic_log`).
+
+#### linux-file-and-disk-calls
+
+README,
+first paragraph:
+"Calls the Linux functions for files and disks:
+which kind of disk and mount a folder is on,
+btrfs folder copies,
+cloning a file's data,
+swapping two paths in one step,
+and opening and removing files without following links."
+
+- Joins three files that remove a folder tree below a held parent without following links or crossing mounts
+  (`worktree_trash_remove`,
+  `subvolume_remove`,
+  `subvolume_remove_walk`).
+  They use only `fs_beneath`.
+  The engine shows no other use.
+- API:
+  comments say "the wrapper needs";
+  reworded.
+  Public names carry no Git words (checked by search).
+- Depends on:
+  `text-time-and-log-line-formats` (one use of `diagnostic_log`).
+
+#### starting-and-watching-programs
+
+README,
+first paragraph:
+"Starts another program with its output kept in files,
+passes signals to it,
+tells which programs are running and since when and which hold a file open,
+and ends a program that shows no sign of work."
+
+- Leaves for the program:
+  `child_class` (the kinds of Git step),
+  `push_deadline_and_patience_settings`,
+  `wait_ceilings`,
+  `add_timing` (worktree add),
+  `transaction_owner` (the commit transaction's owner record),
+  `pid_namespace` (reads `LOCK_CEILING` from `wait_ceilings`),
+  and the new `current_step_record`.
+- Joins:
+  `index_lock_holders` and `index_lock_holder_parsers` (which processes hold a file open,
+  renamed
+  `programs_holding_a_file_open` and `reading_the_output_of_a_holder_scan`),
+  `stale_ref_lock_nested_numbers` (process numbers inside nested containers),
+  and the new `how_a_child_program_ended`,
+  which receives `ChildOutcome` and `outcome_of` from `forwarding`.
+- Items that move into it so it needs nothing above:
+  `Patience` into the progress file,
+  `positive_seconds` into the notice clock,
+  `STOP_GRACE` into the watch clock file,
+  `CONNECTED_PUSH_QUIET_WINDOW` into the progress file with its measurement beside it.
+- API:
+  the watcher takes plain terms (quiet window,
+  notice grace,
+  and the name of the variable that changes the window) instead of a Git step class
+  (`child_watch_clock_marks_and_stopping` lines 14,
+  54,
+  67,
+  81;
+  `child_watch` lines 33,
+  303,
+  317,
+  319);
+  the program's `child_class` builds the terms.
+  The default ceiling of `output_watched` (`OBJECT_STEP_CEILING`,
+  line 35 and 361) and the subject text
+  `git cat-file --batch` (line 303) are passed in.
+  The environment variable names (`CLI_GIT_WAIT_NOTICE_SECONDS`,
+  `CLI_GIT_CHILD_WAIT_SECONDS`) and the program name in
+  thread names,
+  the anonymous file name and notices become values the caller passes in.
+  The after-stop lock sweep is already handed in by the draft's "After-stop action".
+- Tests:
+  three sidecar references need a Git repository (`REAL_GIT`,
+  `repository`,
+  `isolated_overlay`);
+  those tests move to the program.
+- Depends on:
+  `text-time-and-log-line-formats` (nine uses).
+
+#### parallel-work-within-a-budget
+
+README,
+first paragraph:
+"Runs independent jobs side by side on as many threads as the computer can spare."
+
+- Nothing leaves or joins,
+  nothing changes in its API,
+  no use of any other crate.
+  Its sidecars use helper children from the test-folders crate.
+
+#### text-time-and-log-line-formats
+
+README,
+first paragraph:
+"Writes text,
+UTC time stamps and compact JSON records byte for byte as JavaScript does,
+quotes text for a shell command,
+and prints tagged debug and warning lines."
+
+- Leaves:
+  `lfs_output_mask` and `worktree_path_failure_message`
+  (to the program folder `lines_about_worktrees_and_large_files`).
+- API:
+  `diagnostic_log` prints `[cli-git]` (line 105);
+  the tag becomes a value the caller passes in.
+  Comments that say "both wrappers" and "the incumbent" are reworded to say what the format is.
+- Depends on:
+  nothing.
+
+#### talking-to-the-systemd-user-manager
+
+README,
+first paragraph:
+"Starts and looks up systemd user units by speaking D-Bus to the user manager directly."
+
+- Nothing leaves or joins,
+  nothing in its API changes,
+  no use of any other crate;
+  one sidecar uses the folder helper from the test-folders crate.
+
+#### fix-packages-after-copying-a-folder
+
+README,
+first paragraph:
+"Repairs the installed packages of a copied folder
+(linked `node_modules`,
+Cargo build state,
+toolchain launchers)
+so they work at the new location."
+
+- API:
+  `package_repair_cargo_workspaces` runs `git ls-files -z -- *Cargo.toml` (lines 132 to 138),
+  and `RepairRequest` carries a Git context (`package_repair_request` line 192).
+  The request carries the list of manifest directories instead,
+  and the program builds that list with Git before it calls.
+  No closure is handed (the other branch removes closures).
+- API:
+  `package_repair` and `package_repair_cargo` call `add_timing::work` around steps.
+  The repair reports its step durations in its report,
+  and the program records them in `add_timing` (new use by `worktree_copy`).
+- `REPAIR_TOOL_CEILING` moves into `package_repair_request` with its measurement.
+  `repair_worktree` is renamed (`repair_copied_folder`),
+  and the notices that say "cli-git" and "the worktree" take the program name and the word "folder".
+- Tests:
+  one sidecar builds a Git context (`git_context`) and moves to the program.
+- Depends on:
+  `parallel-work-within-a-budget`,
+  `safe-file-saving`,
+  `starting-and-watching-programs`,
+  `text-time-and-log-line-formats`.
+
+#### dependent-version-bump-check
+
+README,
+first paragraph:
+"Plans a version bump for every package that depends on a package whose version was raised."
+
+- Leaves:
+  `dependent_version_lifecycle` (reads the commit candidates),
+  `dependent_version_policy` (takes the policy `Trigger`),
+  and `policy_dependent_version` (the policy adapter).
+  They go to the program folder `checking_version_bumps_in_a_commit`.
+- API:
+  `PolicyIncomplete` of `dependent_version_content` is renamed.
+- Depends on:
+  nothing.
+
+#### disposable-test-folders
+
+The test-only ninth library.
+README,
+first paragraph:
+"Makes disposable folders,
+helper child processes and output sinks for tests,
+and runs a child under a file-size limit."
+
+- Takes the Git-free helpers of `test_support`
+  (`fixture`,
+  `fixture_with_prefix`,
+  `fixture_root`,
+  `settle_fixture`,
+  `remove`,
+  `age`,
+  `spawn_owned`,
+  `own_group`,
+  `this_test_binary`,
+  `SharedSink`,
+  `ActionSink`,
+  `arm_watchdog`,
+  `forbid_core_dumps`,
+  `run_child_under_file_size_limit`),
+  `no_threads_child_test_support`,
+  `parallel_test_support`,
+  `umask_child_test_support`,
+  `fixture_executable` and `test_alive`.
+  Variable names such as `CLI_GIT_KEEP_FIXTURES` become values the caller passes in.
+- Stays with the program's tests:
+  `git`,
+  `git_output`,
+  `git_text`,
+  `repository`,
+  `isolated_overlay`,
+  `git_context`,
+  `REAL_GIT`,
+  `dead_copy_owner`,
+  `strip_hint_fields`,
+  `recording_git` and `smart_http_support`.
+
+#### How standing alone will be shown
+
+Before the shared build folder is set (owner:
+"One shared build folder,
+but first,
+I'd like you to confirm with me each pkg can stand on its own itself."),
+each of the nine is lifted bottom first and shown,
+one at a time:
+
+- It has its own `Cargo.toml` that lists only the libraries named above as `path` dependencies with an exact `=` pin,
+  and `disposable-test-folders` as a dev-dependency.
+- Its README opens with the paragraph above;
+  a search of its README,
+  public names and `Cargo.toml` for the Git words (`git`,
+  `lfs`,
+  `push`,
+  `commit`,
+  `worktree`,
+  `cli-git`,
+  `wrapper`,
+  `policy`) finds none.
+- Its own tests pass from its own folder with `CARGO_TARGET_DIR` unset,
+  through its `mise.toml` tasks,
+  in a throwaway copy that holds only that package and its listed dependencies.
+  The test output is read for the expected suite and test names (`TRV`).
+- `cargo tree` lists exactly the dependencies of its `Cargo.toml`.
+- The owner is told the result for each before the next one is lifted.
+
+### Jobs found buried in the program
+
+The owner asked to look for general jobs that sit inside the program.
+Two groups joined passing libraries and are counted above:
+three files that tell which processes hold a file open
+(they used only `/proc`,
+`lsof` and the process facts),
+and three that remove a folder tree without following links.
+
+Git-free clusters that stay in the program because no sibling needs them today.
+Each lifts again the day one does:
+
+- `three-way-text-merge`:
+  `word_merge`,
+  one file,
+  no use of anything.
+- `system-journal-entries`:
+  three files,
+  uses only the text formats.
+- `sha-1-and-sha-256-digests`:
+  one file;
+  replace by `sha2` instead.
+- The conversion core of a folder into a btrfs subvolume:
+  about ten files of `converting_the_main_checkout`
+  (journal,
+  entry count,
+  attribute copying,
+  file write steps,
+  error).
+- The folder of saved copies with age and size limits,
+  and the rotating audit log (`discard_audit_generations`).
+- The unified-diff reader and reverse-apply check of `replaying_changes_onto_new_commits`
+  (`replay_patch`,
+  `replay_reverse_apply`).
+- The durable work-item queue (four files).
+- The inotify wait on a folder (`service_index_watch`).
+- The test switches that stop or pause a program at a named step.
+
+### Files of `main` added after the scan
+
+The scan is of `f44d921e24`.
+`HEAD` has 24 added files under `package/git-policy/cli/src/`,
+one deleted,
+two service-unit files renamed for the program rename,
+and 462 changed.
+New production files that look like library material:
+`foundation/side_by_side_threads.rs` (parallel work),
+`foundation/rename_that_never_replaces.rs` (file saving),
+`foundation/line_sink.rs` and `foundation/call_catching_panics.rs`;
+new ones that are Git or wrapper bound:
+`foundation/kept_names_in_the_git_directories.rs`,
+`foundation/wrapper_names_old_and_new.rs`,
+`foundation/earlier_name_moved_to_current_in_place.rs`,
+`landing/earlier_service_journal_adopted.rs`,
+`landing/earlier_service_process_look.rs`,
+`push/manual_push_probe_error.rs`,
+`push/push_failure_notice_machine_output.rs`,
+`subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+`worktree/worktree_snapshot_source_changed_paths.rs`.
+They are unplaced until the scan is rerun;
+the first four may add to the passing libraries.
+The new `.service` and `.socket` file names carry the program rename.
+
+### The program crate
+
+The program crate `package/git-policy/cli` keeps `monochromatic-git-policy-cli` as its name.
+Its `src/` holds 74 folders and `main.rs` and `lib.rs`;
+each folder is a former crate or a folder of a former crate,
+listed in section "Inside each crate" with its `uses/` links.
+It depends on the eight libraries in its `Cargo.toml`.
+The folders do not nest,
+so the linter never sees a parent that uses its child;
+open point "Flat folders or one level of grouping" has the other choice.
+
+Former crates and the program folders they became,
+in the order of the draft:
+
+- `git-environment-variables`:
+  `environment_variables_for_git_children`
+- `system-journal-entries`:
+  `sending_log_entries_to_the_system_journal`
+- `sha-1-and-sha-256-digests`:
+  `sha_1_and_sha_256_of_bytes`
+- `git-lock-files`:
+  `clearing_leftover_reference_locks`,
+  `finding_who_holds_a_lock_file`
+- `commit-service-index-lock`:
+  `waiting_for_the_index_lock_of_git`,
+  `holding_the_index_lock_for_the_commit_service`,
+  `syncing_files_off_the_waiting_path`
+- `push-with-a-deadline`:
+  `running_git_push_until_it_ends_or_stalls`
+- `wrapper-settings`:
+  `the_settings_file_cli_git_config_jsonc`,
+  `git_settings_read_once`,
+  `hooks_a_repository_configures`
+- `three-way-text-merge`:
+  `merging_text_by_line_and_by_word`
+- `isolated-merge-recovery`:
+  `recovering_a_merge_that_was_cut_short`
+- `commit-service-messages`:
+  `messages_between_the_wrapper_and_the_commit_service`,
+  `naming_the_service_of_one_worktree`
+- `commit-service-log-lines`:
+  `log_lines_of_the_commit_service`
+- `durable-work-items`:
+  `work_left_for_the_service_to_finish_later`
+- `commit-service-client`:
+  `asking_the_commit_service_to_save_a_commit`
+- `hidden-git-copy-for-preparing-commits`:
+  `the_hidden_second_git_folder`,
+  `replaying_changes_onto_new_commits`
+- `convert-a-checkout-to-a-btrfs-subvolume`:
+  `converting_the_main_checkout`
+- `upload-large-files-before-a-push`:
+  `uploading_large_files`
+- `background-push-after-commit`:
+  `pushing_what_the_commit_service_saved`
+- `merge-in-isolation`:
+  `merging_without_touching_your_files`
+- `doctor-report`:
+  `checking_that_your_setup_works`
+- `git-index-file`:
+  `reading_and_writing_the_index_file_of_git`
+- `read-git-files-without-git`:
+  `settings_that_decide_how_the_index_is_read`,
+  `reading_branches_tags_and_markers`,
+  `reading_saved_commits_and_files`,
+  `reading_git_settings_from_files`,
+  `finding_the_git_folders`,
+  `state_shared_by_preparing_and_landing_a_commit`
+- `typed-command-reader`:
+  `reading_options_the_way_git_does`,
+  `spellings_that_switch_the_wrapper_off`,
+  `what_each_git_command_accepts`,
+  `the_words_meant_for_this_wrapper`
+- `commit-candidate-content`:
+  `reading_the_bytes_a_commit_would_save`,
+  `scanning_those_bytes_for_forbidden_strings`,
+  `putting_corrected_files_into_the_private_index`
+- `rules-about-git-command-lines`:
+  `rules_about_where_a_command_may_run`,
+  `rules_that_add_flags_to_a_command`,
+  `rules_about_what_a_commit_may_contain`
+- `standards-review-log`:
+  `reviewing_landed_commits_against_standards`
+- `policy-engine`:
+  `running_policies_and_settling_their_corrections`
+- `shipped-policies`:
+  `the_built_in_policies`,
+  `the_list_of_checks_every_commit_runs`
+- `markdown-autofix-check`:
+  `fixing_markdown_in_process`
+- `keep-copies-of-discarded-work`:
+  `saving_copies_of_what_a_command_would_throw_away`
+- `merge-conflicts-word-by-word`:
+  `rerunning_a_merge_word_by_word`
+- `land-prepared-commits`:
+  `landing_commits`
+- `service-after-commit-work`:
+  `after_commit_work_of_the_service`
+- `commit-service-program`:
+  `the_service_program`
+- `commit-command`:
+  `the_commit_command`
+- `typed-push-planning`:
+  `working_out_what_a_typed_push_would_send`
+- `start-the-real-git`:
+  `finding_the_real_git_program`,
+  `starting_git_and_describing_a_run`,
+  `answering_questions_without_starting_git`,
+  `running_git_for_a_transaction`,
+  `what_the_wrapper_asks_git_about_a_repository`
+- `new-worktrees-quickly`:
+  `planning_a_worktree_add_and_what_git_made`,
+  `is_the_worktree_clean`,
+  `copying_ignored_files_into_a_stage`,
+  `making_a_worktree_quickly`,
+  `copying_ignored_files_around_one_git_command`,
+  `converting_a_linked_worktree`,
+  `removing_a_linked_worktree`
+- `crash-points-for-tests`:
+  `stopping_the_program_at_a_named_step_for_tests`
 
 ### Dependency graph
 
 Listed from the bottom:
-a crate appears after every crate it uses.
+a package appears after every package it uses.
 It is acyclic (checked),
-and each crate's `Cargo.toml` lists exactly these `path` dependencies with an exact `=` pin.
-The program reaches `commit-service-program` through service mode (edge added after the review),
-and
-`start-the-real-git` reaches `git-lock-files` because the runner now builds and sweeps the lock ledger
-(second edge added after the review;
-both checked acyclic).
+and each package's `Cargo.toml` lists exactly these `path` dependencies with an exact `=` pin.
 
 ```text
-git-environment-variables
+dependent-version-bump-check
     uses crates: none
-git-index-file
+parallel-work-within-a-budget
     uses crates: none
 text-time-and-log-line-formats
     uses crates: none
 safe-file-saving
-    uses crates: git-environment-variables, text-time-and-log-line-formats
-read-git-files-without-git
-    uses crates: git-environment-variables, git-index-file, safe-file-saving
-linux-filesystem-primitives
-    uses crates: none
+    uses crates: text-time-and-log-line-formats
 starting-and-watching-programs
     uses crates: text-time-and-log-line-formats
-git-lock-files
-    uses crates: git-environment-variables, linux-filesystem-primitives, read-git-files-without-git, safe-file-saving, starting-and-watching-programs, text-time-and-log-line-formats
-typed-command-reader
-    uses crates: git-environment-variables, starting-and-watching-programs
-start-the-real-git
-    uses crates: git-environment-variables, git-index-file, git-lock-files, read-git-files-without-git, safe-file-saving, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader
-wrapper-settings
-    uses crates: safe-file-saving, start-the-real-git, text-time-and-log-line-formats, typed-command-reader
-commit-candidate-content
-    uses crates: read-git-files-without-git, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, wrapper-settings
-commit-service-messages
-    uses crates: none
-system-journal-entries
-    uses crates: text-time-and-log-line-formats
-commit-service-log-lines
-    uses crates: commit-service-messages, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats
-crash-points-for-tests
-    uses crates: starting-and-watching-programs, text-time-and-log-line-formats
-durable-work-items
-    uses crates: commit-service-log-lines, safe-file-saving
-rules-about-git-command-lines
-    uses crates: start-the-real-git, typed-command-reader
-policy-engine
-    uses crates: commit-candidate-content, read-git-files-without-git, rules-about-git-command-lines, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
-standards-review-log
-    uses crates: commit-service-messages, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
-systemd-user-manager-client
-    uses crates: none
-commit-service-client
-    uses crates: commit-candidate-content, commit-service-log-lines, commit-service-messages, crash-points-for-tests, durable-work-items, policy-engine, read-git-files-without-git, safe-file-saving, standards-review-log, start-the-real-git, starting-and-watching-programs, systemd-user-manager-client, text-time-and-log-line-formats, wrapper-settings
-isolated-merge-recovery
-    uses crates: commit-service-log-lines, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
-parallel-work-within-a-budget
-    uses crates: none
-sha-1-and-sha-256-digests
-    uses crates: none
-commit-service-index-lock
-    uses crates: commit-service-log-lines, commit-service-messages, crash-points-for-tests, git-lock-files, linux-filesystem-primitives, parallel-work-within-a-budget, safe-file-saving, sha-1-and-sha-256-digests, start-the-real-git, starting-and-watching-programs, typed-command-reader
-three-way-text-merge
-    uses crates: none
-merge-conflicts-word-by-word
-    uses crates: commit-service-index-lock, git-environment-variables, read-git-files-without-git, safe-file-saving, start-the-real-git, system-journal-entries, text-time-and-log-line-formats, three-way-text-merge
-push-with-a-deadline
-    uses crates: git-lock-files, read-git-files-without-git, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
-upload-large-files-before-a-push
-    uses crates: git-environment-variables, push-with-a-deadline, read-git-files-without-git, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
-background-push-after-commit
-    uses crates: commit-service-client, commit-service-log-lines, commit-service-messages, durable-work-items, isolated-merge-recovery, merge-conflicts-word-by-word, parallel-work-within-a-budget, push-with-a-deadline, read-git-files-without-git, safe-file-saving, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats, upload-large-files-before-a-push, wrapper-settings
-hidden-git-copy-for-preparing-commits
-    uses crates: commit-candidate-content, commit-service-log-lines, git-environment-variables, merge-conflicts-word-by-word, read-git-files-without-git, safe-file-saving, start-the-real-git, system-journal-entries, text-time-and-log-line-formats, wrapper-settings
-keep-copies-of-discarded-work
-    uses crates: commit-service-messages, hidden-git-copy-for-preparing-commits, linux-filesystem-primitives, read-git-files-without-git, rules-about-git-command-lines, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
-land-prepared-commits
-    uses crates: commit-service-client, commit-service-index-lock, commit-service-log-lines, commit-service-messages, crash-points-for-tests, git-index-file, hidden-git-copy-for-preparing-commits, keep-copies-of-discarded-work, push-with-a-deadline, read-git-files-without-git, safe-file-saving, sha-1-and-sha-256-digests, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats, wrapper-settings
-markdown-autofix-check
-    uses crates: commit-candidate-content, policy-engine, start-the-real-git, starting-and-watching-programs, wrapper-settings
-convert-a-checkout-to-a-btrfs-subvolume
-    uses crates: linux-filesystem-primitives, parallel-work-within-a-budget, read-git-files-without-git, safe-file-saving, sha-1-and-sha-256-digests, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
 fix-packages-after-copying-a-folder
-    uses crates: parallel-work-within-a-budget, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
-new-worktrees-quickly
-    uses crates: background-push-after-commit, commit-candidate-content, commit-service-client, commit-service-log-lines, commit-service-messages, convert-a-checkout-to-a-btrfs-subvolume, durable-work-items, fix-packages-after-copying-a-folder, linux-filesystem-primitives, parallel-work-within-a-budget, read-git-files-without-git, safe-file-saving, sha-1-and-sha-256-digests, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
-dependent-version-bump-check
-    uses crates: commit-candidate-content, policy-engine, start-the-real-git, wrapper-settings
-shipped-policies
-    uses crates: commit-candidate-content, dependent-version-bump-check, keep-copies-of-discarded-work, markdown-autofix-check, policy-engine, rules-about-git-command-lines, safe-file-saving, start-the-real-git, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
-commit-command
-    uses crates: commit-candidate-content, commit-service-client, commit-service-log-lines, commit-service-messages, crash-points-for-tests, durable-work-items, git-environment-variables, git-index-file, hidden-git-copy-for-preparing-commits, keep-copies-of-discarded-work, land-prepared-commits, markdown-autofix-check, merge-conflicts-word-by-word, new-worktrees-quickly, policy-engine, read-git-files-without-git, rules-about-git-command-lines, safe-file-saving, shipped-policies, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats, typed-command-reader, upload-large-files-before-a-push, wrapper-settings
-service-after-commit-work
-    uses crates: background-push-after-commit, commit-service-index-lock, commit-service-log-lines, commit-service-messages, durable-work-items, git-environment-variables, land-prepared-commits, new-worktrees-quickly, parallel-work-within-a-budget, push-with-a-deadline, read-git-files-without-git, safe-file-saving, standards-review-log, start-the-real-git, starting-and-watching-programs, system-journal-entries, upload-large-files-before-a-push, wrapper-settings
-commit-service-program
-    uses crates: background-push-after-commit, commit-service-index-lock, commit-service-log-lines, commit-service-messages, crash-points-for-tests, durable-work-items, git-environment-variables, land-prepared-commits, push-with-a-deadline, safe-file-saving, service-after-commit-work, start-the-real-git, starting-and-watching-programs, system-journal-entries
-doctor-report
-    uses crates: keep-copies-of-discarded-work, linux-filesystem-primitives, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, wrapper-settings
-merge-in-isolation
-    uses crates: background-push-after-commit, commit-service-index-lock, commit-service-log-lines, crash-points-for-tests, git-environment-variables, isolated-merge-recovery, merge-conflicts-word-by-word, policy-engine, safe-file-saving, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
-typed-push-planning
-    uses crates: background-push-after-commit, commit-candidate-content, git-environment-variables, parallel-work-within-a-budget, push-with-a-deadline, rules-about-git-command-lines, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, upload-large-files-before-a-push
-cli
-    uses crates: background-push-after-commit, commit-candidate-content, commit-command, commit-service-client, commit-service-index-lock, commit-service-program, convert-a-checkout-to-a-btrfs-subvolume, doctor-report, fix-packages-after-copying-a-folder, git-environment-variables, git-lock-files, isolated-merge-recovery, keep-copies-of-discarded-work, merge-conflicts-word-by-word, merge-in-isolation, new-worktrees-quickly, policy-engine, push-with-a-deadline, read-git-files-without-git, rules-about-git-command-lines, safe-file-saving, service-after-commit-work, shipped-policies, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, typed-push-planning, upload-large-files-before-a-push, wrapper-settings
-disposable-test-fixtures
-    uses crates: none (every other crate lists it under dev-dependencies)
+    uses crates: parallel-work-within-a-budget, safe-file-saving, starting-and-watching-programs, text-time-and-log-line-formats
+linux-file-and-disk-calls
+    uses crates: text-time-and-log-line-formats
+talking-to-the-systemd-user-manager
+    uses crates: none
+cli (the program, monochromatic-git-policy-cli)
+    uses crates: dependent-version-bump-check, fix-packages-after-copying-a-folder, linux-file-and-disk-calls, parallel-work-within-a-budget, safe-file-saving, starting-and-watching-programs, talking-to-the-systemd-user-manager, text-time-and-log-line-formats
+disposable-test-folders
+    uses crates: none (every other package lists it under dev-dependencies)
 ```
 
 ### Crates considered and rejected
 
+- The draft's 46 libraries:
+  rejected by the owner on 2026-11-07;
+  the verdicts are above.
 - One crate per top-level folder of the planning doc (23 groups):
   rejected,
   because a group is a layer,
   not a job.
-  `basic_tools` alone holds file saving,
-  JavaScript-style formats,
-  parallel work,
-  process facts,
-  child watching,
-  the journal,
-  hashing and disk calls.
 - A few layer crates (the owner's option B and C sketches):
   rejected by the owner's own words above.
 - One crate:
   rejected by the owner ("We should not put everything in one crate.").
-- `durable-syncs-and-fault-points` (`service_durable`,
-  `service_fault`):
-  rejected as a crate.
-  `service_fault` is the service's test switch and is read by lock code below the service,
-  so it is a layering fact,
-  not a job.
-  It becomes `crash-points-for-tests` together with `transaction_phase` (the same job:
-  stop at a named step),
-  and `service_durable` goes to `commit-service-index-lock`,
-  its lowest user.
-- `commit-transaction-records`:
-  dissolved.
-  `recovery_files` and `recovery_error` are file saving;
-  `transaction_owner` is
-  a process fact;
-  `transaction_phase` is a crash point.
 - `process-facts`,
   `how-long-to-wait` and `watched-child-programs`:
-  merged into `starting-and-watching-programs`.
+  merged into `starting-and-watching-programs`,
+  as in the draft.
   `pid_namespace` reads `LOCK_CEILING` from the waits table and the watcher reads process facts,
-  so any two of the three
-  would loop,
-  and no outside program wants the waits table without the watcher.
-- `javascript-style-text-and-time` and `lines-printed-for-people`:
-  merged into `text-time-and-log-line-formats`.
-  Neither has a job of its own that a stranger would depend on.
-- `hook-warnings` (two files):
-  merged into `wrapper-settings`;
-  both read settings and nothing else uses them.
-- `built-in-policies` and `run-all-policies`:
-  merged into `shipped-policies`;
-  one is the list,
-  the other runs it.
-- `commit-service-log-lines` merged into `commit-service-messages`:
-  tried twice and rejected.
-  First by measurement:
-  the log lines read `WaitNotes` from the index-lock crate,
-  and the index-lock crate reads the
-  protocol's failure code,
-  so the merge made a crate loop.
-  Then `WaitNotes` (plain data) moved down into the log-lines
-  crate and the loop went;
-  but the merged crate would give the protocol crate,
-  which now has no crate dependency at all,
-  a dependency on `start-the-real-git`,
-  the journal and the watcher.
-  It stays a crate of its own and is the weakest entry:
-  its outside consumer is only a log reader.
-- Weakest entries that stay,
-  for the owner to veto:
-  `crash-points-for-tests`,
-  `commit-service-log-lines`,
-  `durable-work-items`,
-  `shipped-policies`,
-  `markdown-autofix-check`,
-  `standards-review-log`,
-  `rules-about-git-command-lines`.
-  Each is a unit with a use of its own inside the wrapper;
-  none has a measured outside user.
-- `new-worktrees-quickly` stays one crate although it is the largest:
-  copying,
-  the quick routes,
-  the clean check,
-  removal and conversion reach each other,
-  and cutting it into crates made a folder loop (measured) that needs more
-  code changes than the owner approved.
-  It can be cut later along `is_the_worktree_clean` and `converting_a_linked_worktree`.
-- `git-environment-variables`,
-  `sha-1-and-sha-256-digests` and `three-way-text-merge` are one-file crates.
-  They stay because other crates below the wrapper's middle (readers,
-  locks,
-  merge code) need them and no merge keeps
-  the graph acyclic without giving a lower crate a reason to depend on a higher one.
-  The SHA code duplicates what published crates do;
-  replacing it is a separate choice,
-  not part of this tree.
+  so any two of the three would have looped.
+  The waits table and `pid_namespace` now leave for the program;
+  the other process facts stay.
+- Cutting the draft's `new-worktrees-quickly` into crates:
+  moot,
+  since it folds.
+  The folder cut along `is_the_worktree_clean` stays possible inside the program.
+- A Git-aware library crate for reading `.git`,
+  the index and lock files:
+  rejected by the owner on 2026-11-07,
+  however general.
 
 ### What a crate costs
 
@@ -733,14 +1089,18 @@ besides `src/` it carries `Cargo.toml` (50 lines),
 `mise.toml` (43 lines),
 `README.md` (114 lines) and a `LICENSES/` folder with two licence texts (about 43 kB),
 plus its own `target` folder.
-Multiplied by the new libraries that is a few dozen of each file and about 2 MB of licence text.
+Nine new libraries mean nine of each,
+about 390 kB of licence text,
+against 47 in the draft.
 The wrapper's `target` is 1.4 GB today,
 and each package is its own workspace,
-so dependencies such as `serde_json`
-compile once per package unless the packages share one `CARGO_TARGET_DIR`.
-File-enforcer's manifests globs (`package/*/*/Cargo.toml`) already cover new packages,
-so the lints and workspace blocks
-arrive without a new entry.
+so dependencies such as `serde_json` compile once per package unless the packages share one `CARGO_TARGET_DIR`
+(open point "One shared build folder").
+File-enforcer's manifests globs (`package/*/*/Cargo.toml`) already cover new packages
+two folders deep,
+so the lints and workspace blocks arrive without a new entry.
+The exact-pin cascade (a bump at the bottom edits every dependent `Cargo.toml` and lockfile)
+now reaches the program and a few libraries instead of dozens of manifests.
 
 ## Inside each crate
 
@@ -756,49 +1116,50 @@ arrive without a new entry.
   the lint then never sees a parent that uses its child.
 - Folder names are plain sentences.
   The folders that exist on disk,
-  with their `uses/` links:
+  with their `uses/` links.
+  A program folder never links to a library;
+  the program's `Cargo.toml` lists the libraries it uses.
+  The single-folder libraries (`safe-file-saving`,
+  `parallel-work-within-a-budget`,
+  `talking-to-the-systemd-user-manager`,
+  `fix-packages-after-copying-a-folder`,
+  `dependent-version-bump-check`) keep their files directly in `src/`
+  and have no folder list here:
 
-- `text-time-and-log-line-formats`
+- `text-time-and-log-line-formats` (2 folders,
+  5 files)
   - `text_time_and_records_written_like_javascript/`:
     Formats that must equal JavaScript's output.
     `uses/` links:
     none.
-  - `lines_the_wrapper_prints_for_the_person/`:
-    Warning and debug lines,
-    shell quoting for copy and run,
-    and hiding passwords in URLs.
+  - `lines_printed_for_the_person/`:
+    Debug and warning lines on standard error,
+    and quoting text for a shell command.
     `uses/` links:
     `text_time_and_records_written_like_javascript`.
-- `read-git-files-without-git`
-  - `reading_git_settings_from_files/`:
-    Reads Git's settings files and proves what they say at startup.
+- `starting-and-watching-programs` (3 folders,
+  19 files)
+  - `starting_programs_catching_signals_and_keeping_their_output/`:
+    Starts children,
+    relays signals and keeps their output in files.
     `uses/` links:
     none.
-  - `finding_the_git_folders/`:
-    Finds the Git folder and the shared Git folder of a command without starting Git.
-    `uses/` links:
-    `reading_git_settings_from_files`.
-  - `reading_saved_commits_and_files/`:
-    Reads objects,
-    packs,
-    trees and index entries.
-    `uses/` links:
-    `finding_the_git_folders`.
-  - `state_shared_by_preparing_and_landing_a_commit/`:
-    The repository state that preparing and landing a commit both name.
+  - `which_programs_are_running_and_since_when/`:
+    Process facts:
+    birth identity,
+    start time,
+    tree,
+    users of a file,
+    and network connections.
     `uses/` links:
     none.
-  - `reading_branches_tags_and_markers/`:
-    Reads branches,
-    tags and the markers of a merge or rebase in progress.
+  - `watching_a_started_program_until_it_stops_making_progress/`:
+    Watches a child and ends it when it shows no sign of work.
     `uses/` links:
-    `reading_saved_commits_and_files`,
-    `state_shared_by_preparing_and_landing_a_commit`.
-  - `settings_that_decide_how_the_index_is_read/`:
-    The settings that decide what Git does to index extensions.
-    `uses/` links:
-    `reading_git_settings_from_files`.
-- `linux-filesystem-primitives`
+    `starting_programs_catching_signals_and_keeping_their_output`,
+    `which_programs_are_running_and_since_when`.
+- `linux-file-and-disk-calls` (3 folders,
+  9 files)
   - `which_disk_a_folder_is_on/`:
     Mount tables,
     the kind of disk,
@@ -813,49 +1174,47 @@ arrive without a new entry.
     File operations relative to an open folder that never follow a link.
     `uses/` links:
     none.
-- `starting-and-watching-programs`
-  - `how_long_the_wrapper_waits_for_each_thing/`:
-    The longest waits and the push deadline setting.
+- `cli` (74 folders,
+  522 files)
+  - `environment_variables_for_git_children/`:
+    The environment variables added for every real Git the program starts.
     `uses/` links:
     none.
-  - `starting_programs_catching_signals_and_keeping_their_output/`:
-    Starts children,
-    relays signals and keeps their output in files.
+  - `reading_git_settings_from_files/`:
+    Reads Git's settings files and proves what they say at startup.
     `uses/` links:
-    `how_long_the_wrapper_waits_for_each_thing`.
-  - `which_programs_are_running_and_since_when/`:
-    Process facts:
-    birth identity,
-    start time,
-    tree,
-    users of a file,
-    and network connections.
+    `environment_variables_for_git_children`.
+  - `finding_the_git_folders/`:
+    Finds the Git folder and the shared Git folder of a command without starting Git.
     `uses/` links:
-    `how_long_the_wrapper_waits_for_each_thing`.
-  - `watching_a_started_program_until_it_stops_making_progress/`:
-    Watches a child and ends it when it shows no sign of work.
-    `uses/` links:
-    `how_long_the_wrapper_waits_for_each_thing`,
-    `starting_programs_catching_signals_and_keeping_their_output`,
-    `which_programs_are_running_and_since_when`.
-  - `recording_where_time_went/`:
-    Records where one `git worktree add` spent its time.
-    `uses/` links:
-    `watching_a_started_program_until_it_stops_making_progress`.
-  - `who_owns_a_folder/`:
-    The record of which process owns a transaction folder.
-    `uses/` links:
-    `which_programs_are_running_and_since_when`.
-- `git-lock-files`
-  - `clearing_leftover_reference_locks/`:
-    Judges and removes the reference lock files a killed Git left behind.
+    `environment_variables_for_git_children`,
+    `reading_git_settings_from_files`.
+  - `reading_and_writing_the_index_file_of_git/`:
+    Reads and writes the index file Git keeps in the hidden `.git` folder,
+    with its extensions.
     `uses/` links:
     none.
-  - `finding_who_holds_a_lock_file/`:
-    Finds the programs that hold a lock file open and gathers the evidence.
+  - `reading_saved_commits_and_files/`:
+    Reads objects,
+    packs,
+    trees and index entries.
+    `uses/` links:
+    `finding_the_git_folders`,
+    `reading_and_writing_the_index_file_of_git`.
+  - `state_shared_by_preparing_and_landing_a_commit/`:
+    The repository state that preparing and landing a commit both name.
     `uses/` links:
     none.
-- `typed-command-reader`
+  - `reading_branches_tags_and_markers/`:
+    Reads branches,
+    tags and the markers of a merge or rebase in progress.
+    `uses/` links:
+    `reading_saved_commits_and_files`,
+    `state_shared_by_preparing_and_landing_a_commit`.
+  - `finding_the_real_git_program/`:
+    Finds the real `git` on the computer and checks its version.
+    `uses/` links:
+    `environment_variables_for_git_children`.
   - `reading_options_the_way_git_does/`:
     Reads one command's options exactly as Git reads them.
     `uses/` links:
@@ -878,129 +1237,340 @@ arrive without a new entry.
     `reading_options_the_way_git_does`,
     `spellings_that_switch_the_wrapper_off`,
     `what_each_git_command_accepts`.
-- `start-the-real-git`
-  - `finding_the_real_git_program/`:
-    Finds the real `git` on the computer and checks its version.
-    `uses/` links:
-    none.
   - `starting_git_and_describing_a_run/`:
     Starts real Git with hooks off or with the caller's arguments,
     and describes a run and its answer.
     `uses/` links:
-    `finding_the_real_git_program`.
+    `environment_variables_for_git_children`,
+    `finding_the_real_git_program`,
+    `the_words_meant_for_this_wrapper`,
+    `what_each_git_command_accepts`.
   - `answering_questions_without_starting_git/`:
     Answers the wrapper's own read-only Git queries from files.
     `uses/` links:
+    `finding_the_git_folders`,
+    `reading_and_writing_the_index_file_of_git`,
+    `reading_branches_tags_and_markers`,
+    `reading_git_settings_from_files`,
+    `reading_saved_commits_and_files`,
     `starting_git_and_describing_a_run`.
+  - `how_long_the_program_waits_for_git_steps/`:
+    The kinds of Git step,
+    the longest waits,
+    and the push deadline setting.
+    `uses/` links:
+    none.
+  - `who_owns_a_transaction_folder/`:
+    The record of which process owns a commit-transaction folder,
+    and the rule for owners in other containers.
+    `uses/` links:
+    `how_long_the_program_waits_for_git_steps`.
+  - `clearing_leftover_reference_locks/`:
+    Judges and removes the reference lock files a killed Git left behind.
+    `uses/` links:
+    `finding_the_git_folders`,
+    `who_owns_a_transaction_folder`.
+  - `recording_where_worktree_add_spent_its_time/`:
+    The record of where one wrapped worktree creation spent its time.
+    `uses/` links:
+    none.
   - `running_git_for_a_transaction/`:
     Runs real Git for a commit,
     with its limits and the rules for running a step again.
     `uses/` links:
     `answering_questions_without_starting_git`,
+    `clearing_leftover_reference_locks`,
     `finding_the_real_git_program`,
-    `starting_git_and_describing_a_run`.
-  - `what_the_wrapper_asks_git_about_a_repository/`:
-    Asks Git where the repository is and which worktree a command targets.
-    `uses/` links:
-    `answering_questions_without_starting_git`,
-    `running_git_for_a_transaction`,
-    `starting_git_and_describing_a_run`.
-- `wrapper-settings`
+    `how_long_the_program_waits_for_git_steps`,
+    `recording_where_worktree_add_spent_its_time`,
+    `starting_git_and_describing_a_run`,
+    `what_each_git_command_accepts`.
   - `git_settings_read_once/`:
     One read of every Git setting,
     and which parts Git flushes to disk.
     `uses/` links:
-    none.
-  - `the_settings_file_cli_git_config_jsonc/`:
-    Finds,
-    reads and checks `cli-git.config.jsonc`.
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`.
+  - `finding_who_holds_a_lock_file/`:
+    Finds the programs that hold a lock file open and gathers the evidence.
     `uses/` links:
     none.
-  - `hooks_a_repository_configures/`:
-    Reads the hooks a repository sets and warns about hooks in the hooks folder.
-    `uses/` links:
-    `git_settings_read_once`,
-    `the_settings_file_cli_git_config_jsonc`.
-- `commit-candidate-content`
-  - `reading_the_bytes_a_commit_would_save/`:
-    Loads each file a commit would save,
-    from the index,
-    the commit before it or a prepared copy.
-    `uses/` links:
-    none.
-  - `putting_corrected_files_into_the_private_index/`:
-    Writes a corrected file into the private index a commit is prepared in.
-    `uses/` links:
-    `reading_the_bytes_a_commit_would_save`.
-  - `scanning_those_bytes_for_forbidden_strings/`:
-    Runs the repository scanner over those bytes and names its failures.
-    `uses/` links:
-    `putting_corrected_files_into_the_private_index`,
-    `reading_the_bytes_a_commit_would_save`.
-- `commit-service-messages`
-  - `messages_between_the_wrapper_and_the_commit_service/`:
-    The typed messages,
-    their wire form and the checks on names.
+  - `lines_about_worktrees_and_large_files/`:
+    Hides passwords in LFS URLs and words the message for a failed step on a worktree path.
     `uses/` links:
     none.
   - `naming_the_service_of_one_worktree/`:
     The name of the service instance that belongs to a worktree.
     `uses/` links:
     none.
-- `rules-about-git-command-lines`
-  - `rules_that_add_flags_to_a_command/`:
-    Rules that add words to a command line before it runs.
+  - `sending_log_entries_to_the_system_journal/`:
+    Sends log entries to the systemd journal over its native socket.
     `uses/` links:
     none.
-  - `rules_about_what_a_commit_may_contain/`:
-    Rules about what a commit may contain and why a push scope is unknown.
+  - `log_lines_of_the_commit_service/`:
+    The lines that say where time went in a commit and which Git runs the service started.
     `uses/` links:
-    `rules_that_add_flags_to_a_command`.
-  - `rules_about_where_a_command_may_run/`:
-    Rules that say a command may run only in a certain kind of worktree.
+    `lines_about_worktrees_and_large_files`,
+    `naming_the_service_of_one_worktree`,
+    `recording_where_worktree_add_spent_its_time`,
+    `sending_log_entries_to_the_system_journal`,
+    `starting_git_and_describing_a_run`.
+  - `reviewing_landed_commits_against_standards/`:
+    Reviews landed commits against the written standards with one HTTPS call and keeps the log of the answers.
+    `uses/` links:
+    `how_long_the_program_waits_for_git_steps`,
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`.
+  - `messages_between_the_wrapper_and_the_commit_service/`:
+    The typed messages,
+    their wire form and the checks on names.
+    `uses/` links:
+    `reviewing_landed_commits_against_standards`.
+  - `sha_1_and_sha_256_of_bytes/`:
+    Computes SHA-1 and SHA-256 of bytes,
+    written out in full.
     `uses/` links:
     none.
-- `commit-service-index-lock`
+  - `stopping_the_program_at_a_named_step_for_tests/`:
+    Lets a test stop or pause the program at a named step by setting an environment variable.
+    `uses/` links:
+    `how_long_the_program_waits_for_git_steps`.
   - `syncing_files_off_the_waiting_path/`:
     Decides where the service's file flushes wait.
     `uses/` links:
-    none.
+    `stopping_the_program_at_a_named_step_for_tests`.
   - `holding_the_index_lock_for_the_commit_service/`:
     Places,
     marks,
     holds and reclaims `index.lock` for the service.
     `uses/` links:
+    `finding_who_holds_a_lock_file`,
+    `how_long_the_program_waits_for_git_steps`,
+    `log_lines_of_the_commit_service`,
+    `messages_between_the_wrapper_and_the_commit_service`,
+    `sha_1_and_sha_256_of_bytes`,
+    `stopping_the_program_at_a_named_step_for_tests`,
     `syncing_files_off_the_waiting_path`.
-  - `waiting_for_the_index_lock_of_git/`:
-    Waits for any program's hold on the lock before a command changes the checkout.
+  - `reading_the_bytes_a_commit_would_save/`:
+    Loads each file a commit would save,
+    from the index,
+    the commit before it or a prepared copy.
     `uses/` links:
-    `holding_the_index_lock_for_the_commit_service`.
-- `hidden-git-copy-for-preparing-commits`
+    `answering_questions_without_starting_git`,
+    `finding_the_git_folders`,
+    `how_long_the_program_waits_for_git_steps`,
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`.
+  - `putting_corrected_files_into_the_private_index/`:
+    Writes a corrected file into the private index a commit is prepared in.
+    `uses/` links:
+    `reading_the_bytes_a_commit_would_save`,
+    `running_git_for_a_transaction`.
+  - `rules_that_add_flags_to_a_command/`:
+    Rules that add words to a command line before it runs.
+    `uses/` links:
+    `reading_options_the_way_git_does`,
+    `what_each_git_command_accepts`.
+  - `what_the_wrapper_asks_git_about_a_repository/`:
+    Asks Git where the repository is and which worktree a command targets.
+    `uses/` links:
+    `answering_questions_without_starting_git`,
+    `finding_the_git_folders`,
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`,
+    `the_words_meant_for_this_wrapper`.
+  - `rules_about_what_a_commit_may_contain/`:
+    Rules about what a commit may contain and why a push scope is unknown.
+    `uses/` links:
+    `reading_options_the_way_git_does`,
+    `rules_that_add_flags_to_a_command`,
+    `what_each_git_command_accepts`,
+    `what_the_wrapper_asks_git_about_a_repository`.
+  - `rules_about_where_a_command_may_run/`:
+    Rules that say a command may run only in a certain kind of worktree.
+    `uses/` links:
+    `answering_questions_without_starting_git`,
+    `reading_options_the_way_git_does`,
+    `spellings_that_switch_the_wrapper_off`,
+    `the_words_meant_for_this_wrapper`,
+    `what_each_git_command_accepts`.
+  - `the_settings_file_cli_git_config_jsonc/`:
+    Finds,
+    reads and checks `cli-git.config.jsonc`.
+    `uses/` links:
+    `the_words_meant_for_this_wrapper`,
+    `what_each_git_command_accepts`,
+    `what_the_wrapper_asks_git_about_a_repository`.
+  - `scanning_those_bytes_for_forbidden_strings/`:
+    Runs the repository scanner over those bytes and names its failures.
+    `uses/` links:
+    `putting_corrected_files_into_the_private_index`,
+    `reading_the_bytes_a_commit_would_save`,
+    `running_git_for_a_transaction`,
+    `the_settings_file_cli_git_config_jsonc`.
+  - `running_policies_and_settling_their_corrections/`:
+    Runs the configured policies in order for one point in a commit or push,
+    and settles their corrections.
+    `uses/` links:
+    `answering_questions_without_starting_git`,
+    `finding_the_git_folders`,
+    `how_long_the_program_waits_for_git_steps`,
+    `putting_corrected_files_into_the_private_index`,
+    `reading_options_the_way_git_does`,
+    `reading_the_bytes_a_commit_would_save`,
+    `rules_about_what_a_commit_may_contain`,
+    `rules_about_where_a_command_may_run`,
+    `rules_that_add_flags_to_a_command`,
+    `running_git_for_a_transaction`,
+    `scanning_those_bytes_for_forbidden_strings`,
+    `starting_git_and_describing_a_run`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `the_words_meant_for_this_wrapper`,
+    `what_the_wrapper_asks_git_about_a_repository`.
+  - `work_left_for_the_service_to_finish_later/`:
+    Keeps small files that say "this landed commit still needs a push" so a crash loses nothing.
+    `uses/` links:
+    `log_lines_of_the_commit_service`.
+  - `asking_the_commit_service_to_save_a_commit/`:
+    Asks the background commit service to save a commit,
+    starting the service first when nothing answers.
+    `uses/` links:
+    `finding_the_git_folders`,
+    `git_settings_read_once`,
+    `log_lines_of_the_commit_service`,
+    `messages_between_the_wrapper_and_the_commit_service`,
+    `naming_the_service_of_one_worktree`,
+    `reading_saved_commits_and_files`,
+    `reading_the_bytes_a_commit_would_save`,
+    `recording_where_worktree_add_spent_its_time`,
+    `reviewing_landed_commits_against_standards`,
+    `running_git_for_a_transaction`,
+    `running_policies_and_settling_their_corrections`,
+    `starting_git_and_describing_a_run`,
+    `stopping_the_program_at_a_named_step_for_tests`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `work_left_for_the_service_to_finish_later`.
+  - `running_git_push_until_it_ends_or_stalls/`:
+    Runs `git push` with its own deadline,
+    stops it when it shows no sign of work,
+    and runs one push at a time.
+    `uses/` links:
+    `answering_questions_without_starting_git`,
+    `clearing_leftover_reference_locks`,
+    `finding_the_git_folders`,
+    `finding_the_real_git_program`,
+    `how_long_the_program_waits_for_git_steps`,
+    `starting_git_and_describing_a_run`.
   - `the_hidden_second_git_folder/`:
     Creates the hidden second Git folder and copies merge state into it.
     `uses/` links:
-    none.
-  - `replaying_changes_onto_new_commits/`:
-    Re-applies prepared changes onto commits that landed in the meantime.
+    `finding_the_git_folders`,
+    `git_settings_read_once`,
+    `log_lines_of_the_commit_service`,
+    `reading_branches_tags_and_markers`,
+    `running_git_for_a_transaction`,
+    `sending_log_entries_to_the_system_journal`,
+    `starting_git_and_describing_a_run`,
+    `state_shared_by_preparing_and_landing_a_commit`,
+    `what_the_wrapper_asks_git_about_a_repository`.
+  - `saving_copies_of_what_a_command_would_throw_away/`:
+    Saves a copy of work that a command would throw away,
+    records it,
+    and removes old copies.
     `uses/` links:
-    `the_hidden_second_git_folder`.
-- `new-worktrees-quickly`
-  - `is_the_worktree_clean/`:
-    Decides without Git whether a worktree is clean enough to copy from or remove.
+    `finding_the_git_folders`,
+    `messages_between_the_wrapper_and_the_commit_service`,
+    `reading_branches_tags_and_markers`,
+    `reading_options_the_way_git_does`,
+    `reading_saved_commits_and_files`,
+    `recording_where_worktree_add_spent_its_time`,
+    `rules_about_where_a_command_may_run`,
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`,
+    `the_hidden_second_git_folder`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `the_words_meant_for_this_wrapper`,
+    `what_each_git_command_accepts`.
+  - `settings_that_decide_how_the_index_is_read/`:
+    The settings that decide what Git does to index extensions.
     `uses/` links:
-    none.
-  - `converting_a_linked_worktree/`:
-    Converts a linked worktree into a btrfs subvolume with a journal.
+    `reading_git_settings_from_files`.
+  - `waiting_for_the_index_lock_of_git/`:
+    Waits for any program's hold on the lock before a command changes the checkout.
     `uses/` links:
-    `is_the_worktree_clean`.
+    `finding_who_holds_a_lock_file`,
+    `holding_the_index_lock_for_the_commit_service`,
+    `how_long_the_program_waits_for_git_steps`,
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`,
+    `the_words_meant_for_this_wrapper`.
+  - `landing_commits/`:
+    Lands a batch of prepared commits on a branch and updates the index without starting Git.
+    `uses/` links:
+    `answering_questions_without_starting_git`,
+    `asking_the_commit_service_to_save_a_commit`,
+    `finding_the_git_folders`,
+    `git_settings_read_once`,
+    `holding_the_index_lock_for_the_commit_service`,
+    `how_long_the_program_waits_for_git_steps`,
+    `log_lines_of_the_commit_service`,
+    `messages_between_the_wrapper_and_the_commit_service`,
+    `naming_the_service_of_one_worktree`,
+    `reading_and_writing_the_index_file_of_git`,
+    `reading_git_settings_from_files`,
+    `reading_saved_commits_and_files`,
+    `running_git_for_a_transaction`,
+    `running_git_push_until_it_ends_or_stalls`,
+    `saving_copies_of_what_a_command_would_throw_away`,
+    `sending_log_entries_to_the_system_journal`,
+    `settings_that_decide_how_the_index_is_read`,
+    `sha_1_and_sha_256_of_bytes`,
+    `starting_git_and_describing_a_run`,
+    `state_shared_by_preparing_and_landing_a_commit`,
+    `stopping_the_program_at_a_named_step_for_tests`,
+    `syncing_files_off_the_waiting_path`,
+    `the_hidden_second_git_folder`,
+    `waiting_for_the_index_lock_of_git`.
+  - `converting_the_main_checkout/`:
+    Turns a project folder into a btrfs subvolume,
+    which can be copied instantly,
+    and can undo it.
+    `uses/` links:
+    `how_long_the_program_waits_for_git_steps`,
+    `reading_git_settings_from_files`,
+    `sha_1_and_sha_256_of_bytes`,
+    `starting_git_and_describing_a_run`,
+    `who_owns_a_transaction_folder`.
   - `planning_a_worktree_add_and_what_git_made/`:
     Plans a `git worktree add` and binds it to what real Git created.
     `uses/` links:
-    none.
+    `git_settings_read_once`,
+    `how_long_the_program_waits_for_git_steps`,
+    `lines_about_worktrees_and_large_files`,
+    `starting_git_and_describing_a_run`,
+    `what_each_git_command_accepts`.
   - `copying_ignored_files_into_a_stage/`:
     Copies the ignored state of a worktree into a private stage with a journal.
     `uses/` links:
-    `planning_a_worktree_add_and_what_git_made`.
+    `planning_a_worktree_add_and_what_git_made`,
+    `recording_where_worktree_add_spent_its_time`,
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`,
+    `the_words_meant_for_this_wrapper`,
+    `who_owns_a_transaction_folder`.
+  - `is_the_worktree_clean/`:
+    Decides without Git whether a worktree is clean enough to copy from or remove.
+    `uses/` links:
+    `converting_the_main_checkout`,
+    `finding_the_git_folders`,
+    `lines_about_worktrees_and_large_files`,
+    `reading_branches_tags_and_markers`,
+    `reading_git_settings_from_files`,
+    `reading_saved_commits_and_files`,
+    `recording_where_worktree_add_spent_its_time`,
+    `running_git_for_a_transaction`,
+    `sha_1_and_sha_256_of_bytes`,
+    `starting_git_and_describing_a_run`.
   - `making_a_worktree_quickly/`:
     The rungs that make a new worktree:
     snapshot,
@@ -1008,36 +1578,365 @@ arrive without a new entry.
     slow route,
     trash handling.
     `uses/` links:
+    `asking_the_commit_service_to_save_a_commit`,
+    `converting_the_main_checkout`,
     `copying_ignored_files_into_a_stage`,
+    `finding_the_git_folders`,
+    `git_settings_read_once`,
+    `how_long_the_program_waits_for_git_steps`,
     `is_the_worktree_clean`,
-    `planning_a_worktree_add_and_what_git_made`.
+    `lines_about_worktrees_and_large_files`,
+    `log_lines_of_the_commit_service`,
+    `messages_between_the_wrapper_and_the_commit_service`,
+    `planning_a_worktree_add_and_what_git_made`,
+    `reading_saved_commits_and_files`,
+    `reading_the_bytes_a_commit_would_save`,
+    `recording_where_worktree_add_spent_its_time`,
+    `running_git_for_a_transaction`,
+    `sending_log_entries_to_the_system_journal`,
+    `starting_git_and_describing_a_run`,
+    `state_shared_by_preparing_and_landing_a_commit`,
+    `the_words_meant_for_this_wrapper`,
+    `work_left_for_the_service_to_finish_later`.
+  - `recovering_a_merge_that_was_cut_short/`:
+    Records an isolated merge and finishes or discards it if the process died.
+    `uses/` links:
+    `log_lines_of_the_commit_service`,
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`,
+    `who_owns_a_transaction_folder`.
+  - `merging_text_by_line_and_by_word/`:
+    Merges text three ways by line and,
+    where both sides changed a line,
+    word by word.
+    `uses/` links:
+    none.
+  - `rerunning_a_merge_word_by_word/`:
+    Tries again word by word on the files a Git merge left conflicted.
+    `uses/` links:
+    `environment_variables_for_git_children`,
+    `finding_the_git_folders`,
+    `merging_text_by_line_and_by_word`,
+    `reading_branches_tags_and_markers`,
+    `reading_git_settings_from_files`,
+    `reading_saved_commits_and_files`,
+    `running_git_for_a_transaction`,
+    `sending_log_entries_to_the_system_journal`,
+    `starting_git_and_describing_a_run`,
+    `waiting_for_the_index_lock_of_git`.
+  - `uploading_large_files/`:
+    Uploads Git LFS files (large pictures and videos) before a push.
+    `uses/` links:
+    `finding_the_git_folders`,
+    `git_settings_read_once`,
+    `how_long_the_program_waits_for_git_steps`,
+    `lines_about_worktrees_and_large_files`,
+    `reading_branches_tags_and_markers`,
+    `reading_saved_commits_and_files`,
+    `running_git_push_until_it_ends_or_stalls`,
+    `starting_git_and_describing_a_run`,
+    `the_words_meant_for_this_wrapper`,
+    `what_each_git_command_accepts`.
+  - `pushing_what_the_commit_service_saved/`:
+    Pushes a landed commit in the background,
+    retries,
+    and merges when someone else pushed first.
+    `uses/` links:
+    `answering_questions_without_starting_git`,
+    `asking_the_commit_service_to_save_a_commit`,
+    `finding_the_git_folders`,
+    `git_settings_read_once`,
+    `how_long_the_program_waits_for_git_steps`,
+    `lines_about_worktrees_and_large_files`,
+    `log_lines_of_the_commit_service`,
+    `messages_between_the_wrapper_and_the_commit_service`,
+    `naming_the_service_of_one_worktree`,
+    `reading_branches_tags_and_markers`,
+    `reading_git_settings_from_files`,
+    `reading_saved_commits_and_files`,
+    `recording_where_worktree_add_spent_its_time`,
+    `recovering_a_merge_that_was_cut_short`,
+    `rerunning_a_merge_word_by_word`,
+    `running_git_push_until_it_ends_or_stalls`,
+    `sending_log_entries_to_the_system_journal`,
+    `starting_git_and_describing_a_run`,
+    `uploading_large_files`,
+    `who_owns_a_transaction_folder`,
+    `work_left_for_the_service_to_finish_later`.
+  - `after_commit_work_of_the_service/`:
+    The work the service does after a landing:
+    push,
+    tidy-up and review.
+    `uses/` links:
+    `environment_variables_for_git_children`,
+    `git_settings_read_once`,
+    `holding_the_index_lock_for_the_commit_service`,
+    `how_long_the_program_waits_for_git_steps`,
+    `landing_commits`,
+    `log_lines_of_the_commit_service`,
+    `making_a_worktree_quickly`,
+    `naming_the_service_of_one_worktree`,
+    `pushing_what_the_commit_service_saved`,
+    `reading_git_settings_from_files`,
+    `reviewing_landed_commits_against_standards`,
+    `running_git_for_a_transaction`,
+    `running_git_push_until_it_ends_or_stalls`,
+    `sending_log_entries_to_the_system_journal`,
+    `starting_git_and_describing_a_run`,
+    `uploading_large_files`,
+    `work_left_for_the_service_to_finish_later`.
+  - `hooks_a_repository_configures/`:
+    Reads the hooks a repository sets and warns about hooks in the hooks folder.
+    `uses/` links:
+    `git_settings_read_once`,
+    `starting_git_and_describing_a_run`,
+    `the_settings_file_cli_git_config_jsonc`.
+  - `checking_that_your_setup_works/`:
+    Prints the doctor report on hooks,
+    settings,
+    the disk and file watching.
+    `uses/` links:
+    `git_settings_read_once`,
+    `hooks_a_repository_configures`,
+    `how_long_the_program_waits_for_git_steps`,
+    `running_git_for_a_transaction`,
+    `saving_copies_of_what_a_command_would_throw_away`,
+    `starting_git_and_describing_a_run`,
+    `the_settings_file_cli_git_config_jsonc`.
+  - `checking_version_bumps_in_a_commit/`:
+    Reads the commit candidates for the version bump check and turns its plan into policy findings.
+    `uses/` links:
+    `putting_corrected_files_into_the_private_index`,
+    `reading_the_bytes_a_commit_would_save`,
+    `running_git_for_a_transaction`,
+    `running_policies_and_settling_their_corrections`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `what_the_wrapper_asks_git_about_a_repository`.
+  - `converting_a_linked_worktree/`:
+    Converts a linked worktree into a btrfs subvolume with a journal.
+    `uses/` links:
+    `converting_the_main_checkout`,
+    `is_the_worktree_clean`,
+    `lines_about_worktrees_and_large_files`.
   - `copying_ignored_files_around_one_git_command/`:
     Runs the ignored-file copy around one forwarded command.
     `uses/` links:
     `copying_ignored_files_into_a_stage`,
-    `making_a_worktree_quickly`.
+    `making_a_worktree_quickly`,
+    `recording_where_worktree_add_spent_its_time`,
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`,
+    `the_words_meant_for_this_wrapper`.
+  - `fixing_markdown_in_process/`:
+    Fixes Markdown files in the same process,
+    with a guard against a stuck linter.
+    `uses/` links:
+    `how_long_the_program_waits_for_git_steps`,
+    `reading_the_bytes_a_commit_would_save`,
+    `running_git_for_a_transaction`,
+    `running_policies_and_settling_their_corrections`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `what_the_wrapper_asks_git_about_a_repository`.
+  - `merging_without_touching_your_files/`:
+    Completes a merge or pull without touching staged work.
+    `uses/` links:
+    `environment_variables_for_git_children`,
+    `holding_the_index_lock_for_the_commit_service`,
+    `log_lines_of_the_commit_service`,
+    `pushing_what_the_commit_service_saved`,
+    `recovering_a_merge_that_was_cut_short`,
+    `rerunning_a_merge_word_by_word`,
+    `running_git_for_a_transaction`,
+    `running_policies_and_settling_their_corrections`,
+    `sending_log_entries_to_the_system_journal`,
+    `starting_git_and_describing_a_run`,
+    `stopping_the_program_at_a_named_step_for_tests`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `the_words_meant_for_this_wrapper`,
+    `waiting_for_the_index_lock_of_git`,
+    `who_owns_a_transaction_folder`.
   - `removing_a_linked_worktree/`:
     Removes a linked worktree that is a subvolume and rescues its unshown notices.
     `uses/` links:
-    `is_the_worktree_clean`.
-- `shipped-policies`
-  - `the_built_in_policies/`: 
+    `is_the_worktree_clean`,
+    `lines_about_worktrees_and_large_files`,
+    `naming_the_service_of_one_worktree`,
+    `pushing_what_the_commit_service_saved`,
+    `starting_git_and_describing_a_run`,
+    `work_left_for_the_service_to_finish_later`.
+  - `replaying_changes_onto_new_commits/`:
+    Re-applies prepared changes onto commits that landed in the meantime.
     `uses/` links:
-    none.
-  - `the_list_of_checks_every_commit_runs/`: 
+    `environment_variables_for_git_children`,
+    `reading_the_bytes_a_commit_would_save`,
+    `rerunning_a_merge_word_by_word`,
+    `running_git_for_a_transaction`,
+    `starting_git_and_describing_a_run`,
+    `the_hidden_second_git_folder`.
+  - `the_built_in_policies/`:
+    The policies the program ships.
     `uses/` links:
-    `the_built_in_policies`.
+    `reading_the_bytes_a_commit_would_save`,
+    `running_policies_and_settling_their_corrections`,
+    `scanning_those_bytes_for_forbidden_strings`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `what_the_wrapper_asks_git_about_a_repository`.
+  - `the_list_of_checks_every_commit_runs/`:
+    The one pass that runs every shipped policy.
+    `uses/` links:
+    `checking_version_bumps_in_a_commit`,
+    `fixing_markdown_in_process`,
+    `putting_corrected_files_into_the_private_index`,
+    `rules_about_where_a_command_may_run`,
+    `rules_that_add_flags_to_a_command`,
+    `running_policies_and_settling_their_corrections`,
+    `saving_copies_of_what_a_command_would_throw_away`,
+    `the_built_in_policies`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `the_words_meant_for_this_wrapper`,
+    `what_the_wrapper_asks_git_about_a_repository`.
+  - `the_commit_command/`:
+    The `git commit` command:
+    prepares the commit aside,
+    asks the service to land it,
+    and reports.
+    `uses/` links:
+    `answering_questions_without_starting_git`,
+    `asking_the_commit_service_to_save_a_commit`,
+    `environment_variables_for_git_children`,
+    `fixing_markdown_in_process`,
+    `git_settings_read_once`,
+    `hooks_a_repository_configures`,
+    `how_long_the_program_waits_for_git_steps`,
+    `landing_commits`,
+    `log_lines_of_the_commit_service`,
+    `making_a_worktree_quickly`,
+    `messages_between_the_wrapper_and_the_commit_service`,
+    `putting_corrected_files_into_the_private_index`,
+    `reading_and_writing_the_index_file_of_git`,
+    `reading_options_the_way_git_does`,
+    `reading_the_bytes_a_commit_would_save`,
+    `replaying_changes_onto_new_commits`,
+    `rerunning_a_merge_word_by_word`,
+    `rules_about_what_a_commit_may_contain`,
+    `rules_about_where_a_command_may_run`,
+    `running_git_for_a_transaction`,
+    `running_policies_and_settling_their_corrections`,
+    `saving_copies_of_what_a_command_would_throw_away`,
+    `scanning_those_bytes_for_forbidden_strings`,
+    `sending_log_entries_to_the_system_journal`,
+    `starting_git_and_describing_a_run`,
+    `state_shared_by_preparing_and_landing_a_commit`,
+    `stopping_the_program_at_a_named_step_for_tests`,
+    `the_built_in_policies`,
+    `the_hidden_second_git_folder`,
+    `the_list_of_checks_every_commit_runs`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `the_words_meant_for_this_wrapper`,
+    `uploading_large_files`,
+    `what_each_git_command_accepts`,
+    `what_the_wrapper_asks_git_about_a_repository`,
+    `work_left_for_the_service_to_finish_later`.
+  - `the_service_program/`:
+    The background commit service itself:
+    accepts requests,
+    lands them in batches and answers.
+    `uses/` links:
+    `after_commit_work_of_the_service`,
+    `environment_variables_for_git_children`,
+    `finding_the_real_git_program`,
+    `holding_the_index_lock_for_the_commit_service`,
+    `how_long_the_program_waits_for_git_steps`,
+    `landing_commits`,
+    `log_lines_of_the_commit_service`,
+    `messages_between_the_wrapper_and_the_commit_service`,
+    `naming_the_service_of_one_worktree`,
+    `pushing_what_the_commit_service_saved`,
+    `recording_where_worktree_add_spent_its_time`,
+    `running_git_push_until_it_ends_or_stalls`,
+    `sending_log_entries_to_the_system_journal`,
+    `starting_git_and_describing_a_run`,
+    `stopping_the_program_at_a_named_step_for_tests`,
+    `syncing_files_off_the_waiting_path`,
+    `work_left_for_the_service_to_finish_later`.
+  - `working_out_what_a_typed_push_would_send/`:
+    Works out what a typed `git push` would send and merges in a race that was lost.
+    `uses/` links:
+    `environment_variables_for_git_children`,
+    `finding_the_real_git_program`,
+    `how_long_the_program_waits_for_git_steps`,
+    `lines_about_worktrees_and_large_files`,
+    `pushing_what_the_commit_service_saved`,
+    `reading_options_the_way_git_does`,
+    `reading_the_bytes_a_commit_would_save`,
+    `rules_about_what_a_commit_may_contain`,
+    `running_git_for_a_transaction`,
+    `running_git_push_until_it_ends_or_stalls`,
+    `starting_git_and_describing_a_run`,
+    `uploading_large_files`,
+    `what_each_git_command_accepts`.
+  - `what_happens_when_you_type_a_command/`:
+    The first stop of every command:
+    reads what was typed,
+    then hands it to the real Git,
+    runs one of the other folders,
+    or refuses and says why.
+    `uses/` links:
+    `after_commit_work_of_the_service`,
+    `asking_the_commit_service_to_save_a_commit`,
+    `checking_that_your_setup_works`,
+    `clearing_leftover_reference_locks`,
+    `converting_a_linked_worktree`,
+    `converting_the_main_checkout`,
+    `copying_ignored_files_around_one_git_command`,
+    `copying_ignored_files_into_a_stage`,
+    `environment_variables_for_git_children`,
+    `finding_the_git_folders`,
+    `finding_the_real_git_program`,
+    `git_settings_read_once`,
+    `holding_the_index_lock_for_the_commit_service`,
+    `hooks_a_repository_configures`,
+    `how_long_the_program_waits_for_git_steps`,
+    `merging_without_touching_your_files`,
+    `planning_a_worktree_add_and_what_git_made`,
+    `pushing_what_the_commit_service_saved`,
+    `reading_options_the_way_git_does`,
+    `reading_the_bytes_a_commit_would_save`,
+    `recovering_a_merge_that_was_cut_short`,
+    `removing_a_linked_worktree`,
+    `rerunning_a_merge_word_by_word`,
+    `rules_about_what_a_commit_may_contain`,
+    `rules_about_where_a_command_may_run`,
+    `running_git_for_a_transaction`,
+    `running_git_push_until_it_ends_or_stalls`,
+    `running_policies_and_settling_their_corrections`,
+    `saving_copies_of_what_a_command_would_throw_away`,
+    `scanning_those_bytes_for_forbidden_strings`,
+    `starting_git_and_describing_a_run`,
+    `the_commit_command`,
+    `the_list_of_checks_every_commit_runs`,
+    `the_service_program`,
+    `the_settings_file_cli_git_config_jsonc`,
+    `the_words_meant_for_this_wrapper`,
+    `uploading_large_files`,
+    `waiting_for_the_index_lock_of_git`,
+    `what_each_git_command_accepts`,
+    `what_the_wrapper_asks_git_about_a_repository`,
+    `working_out_what_a_typed_push_would_send`.
 
 - Every file's old path,
   new path and one-line explanation are in the companion file
   [`cli-git-source-layout-target-tree-files.md`](cli-git-source-layout-target-tree-files.md),
   one fenced tree per crate,
   files in the dependency order each top doc must list.
+  The explanation of a file in a library is still the first sentence of its old top doc,
+  so it may say Git;
+  the new top doc is written without it (section "The crate split").
 - File names:
-  276 of the 580 existing files get a new name (the `target` table of the group map),
+  279 of the 590 placed files get a new name (the `target` table of the group map),
   the rest keep theirs because
   the name already says what the file does.
-  Eight files are new (section "Changes the tree needs before files can move").
+  Ten files are new (section "Changes the tree needs before files can move").
   The old folder `mod.rs` files and the old `lib.rs` are replaced by the new index files.
 - Sidecar tests follow their subject:
   `<subject>_tests.rs` becomes `<new subject name>_tests.rs`,
@@ -1056,6 +1955,8 @@ arrive without a new entry.
 
 Every change is a commit that keeps the single crate building and its tests passing (see "Move order").
 The loop checks above hold only with all of these applied.
+Where this section says "crate" for one of the draft's 46 libraries that is gone,
+read the program folders listed in section "The crate split" under "Former crates and the program folders they became".
 
 ### Loops between files, as they stand
 
@@ -1463,15 +2364,19 @@ Measured on `main` at `f44d921e24` with the target groups (the first number of e
   `Verdict` moves from `stale_ref_lock_judge` to `stale_ref_lock_found`.
 - Holder scan:
   `Holder` moves from `index_lock_holders` to `index_lock_holder_parsers`.
-- Log lines and the index-lock crate:
+- Log lines and the index-lock hold (the two were draft crates;
+  now two program folders):
   `WaitNotes` (plain data) moves from `service_index_found` to `service_timing`,
-  so `commit-service-log-lines` does not depend on `commit-service-index-lock`.
+  so the log-lines folder does not use the index-lock folder.
+  Kept:
+  it also keeps the two liftable.
 - Review key:
   `service_review_key` (75 lines,
-  uses nothing) moves from `standards-review-log` to
-  `commit-service-messages`,
-  so the protocol crate has no crate dependency and the index-lock crate does not pull the
-  HTTPS client and `start-the-real-git` in through the protocol.
+  uses nothing) moves from the review folder to
+  the messages folder,
+  so the messages folder uses no other folder and the index-lock folder does not pull the
+  HTTPS client and the real-Git folder in through the protocol.
+  Kept for the same reason.
 - Push runner (four files):
   new file `push_attempt_and_failure` receives `PushAttempt` and `SingleFlightError`;
   new file `bounded_push_waiting` receives `MAX_PUSH_OUTPUT`,
@@ -1513,7 +2418,7 @@ Drift in signatures from that branch is expected and harmless to the layout.
 
 - Run this next (replaces the two in-process recursions `entry::plan_invocation` from `stacked_merge_push` and
   `entry::run_process` from `merge_second_pass_finish`).
-  New file `what_a_command_hands_back` in `start-the-real-git`
+  New file `what_a_command_hands_back` in the program folder `starting_git_and_describing_a_run`
   defines `NextCommand { arguments, environment }` and `Finished { code, stdout, stderr }`.
   - `gated_merge_push` returns `Result<NextCommand, SingleFlightError>` (the marked arguments and environment it builds
     today) and no longer calls `plan_invocation`,
@@ -1534,9 +2439,10 @@ Drift in signatures from that branch is expected and harmless to the layout.
     A depth guard replaces the counter.
 - Current step record:
   `transaction_git` stops calling `service_busy::enter_step` and `on_landing_thread`.
-  A thread-local record (step file path and detail) moves to the crate `starting-and-watching-programs`
-  (the file `kinds_of_git_step` neighbour,
-  new name `current_step_record`);
+  A thread-local record (step file path and detail) moves to the new program file `current_step_record`
+  in the folder `how_long_the_program_waits_for_git_steps`
+  (it names Git steps,
+  so it does not go to a library);
   the runner writes it,
   the landing code
   registers its file path there,
@@ -1550,7 +2456,8 @@ Drift in signatures from that branch is expected and harmless to the layout.
   The watcher returns the `StopReport` it already has;
   the caller in `bounded_push` and `transaction_git` builds the
   `LockLedger` before the start and sweeps after the stop.
-  The lock crate sits above the watcher,
+  The lock folder is in the program,
+  above the watcher library,
   so the watcher cannot
   name it.
 - System settings path:
@@ -1575,15 +2482,73 @@ Two more call changes were found by the moved-item check and are new:
   `engine_failure_hint` and `push_hint_field` move with them.
   Compile check expected.
 
-### Plain data types that three crates share
+### Changes so that a library stands alone
+
+The loop checks of this section hold only with all of these applied too.
+They exist because a surviving library used files that go into the program
+(18 uses in 11 files before them,
+0 after;
+section "The crate split").
+Each is a commit that keeps the single crate building and its tests passing (see "Move order").
+None hands a closure.
+
+- Plain terms for the watcher.
+  `WatchTerms::for_class(ChildClass)` and `grace_for(class, ...)` leave `child_watch_clock_marks_and_stopping`;
+  the watcher takes a quiet window,
+  a notice grace and the name of the variable that changes the window,
+  and the program's `child_class` builds them from its step classes.
+  `child_watch` stops naming `ChildClass`,
+  `CHILD_WAIT_VARIABLE` and `OBJECT_STEP_CEILING`;
+  its callers pass the ceiling and the subject text.
+- Items that move down into the libraries:
+  - `ChildOutcome` to `how_a_child_program_ended` in `starting-and-watching-programs` (from `starting_git_with_the_callers_arguments` in the program folder `starting_git_and_describing_a_run` (old file `forwarding`)).
+  - `outcome_of` to `how_a_child_program_ended` in `starting-and-watching-programs` (from `starting_git_with_the_callers_arguments` in the program folder `starting_git_and_describing_a_run` (old file `forwarding`)).
+  - `STOP_GRACE` to `watch_clock_marks_and_stopping` in `starting-and-watching-programs` (from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) or `longest_waits` in the program folder `how_long_the_program_waits_for_git_steps` (old file `wait_ceilings`)).
+  - `Patience` to `measuring_progress_of_a_program_and_what_it_started` in `starting-and-watching-programs` (from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) or `how_long_a_push_may_show_nothing` in the program folder `how_long_the_program_waits_for_git_steps` (old file `push_deadline_and_patience_settings`)).
+  - `positive_seconds` to `wait_notice_clock` in `starting-and-watching-programs` (from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) or `how_long_a_push_may_show_nothing` in the program folder `how_long_the_program_waits_for_git_steps` (old file `push_deadline_and_patience_settings`)).
+  - `CONNECTED_PUSH_QUIET_WINDOW` to `measuring_progress_of_a_program_and_what_it_started` in `starting-and-watching-programs` (from `longest_waits` in the program folder `how_long_the_program_waits_for_git_steps` (old file `wait_ceilings`)).
+  - `REPAIR_TOOL_CEILING` to `package_repair_request` in `fix-packages-after-copying-a-folder` (from `longest_waits` in the program folder `how_long_the_program_waits_for_git_steps` (old file `wait_ceilings`)).
+  - `environment_value` to `private_scratch_places` in `safe-file-saving` (from `environment_variables_for_git_children` in the program folder `environment_variables_for_git_children` (old file `child_environment`)).
+- Program name and variable names passed in.
+  `scratch_location`,
+  `diagnostic_log`,
+  `child_watch`,
+  `wait_progress`,
+  `output_capture`,
+  `thread_quiet` and `package_repair_report` print or build names that say `cli-git` or `CLI_GIT_...`;
+  each takes the name from its caller,
+  and the constants move to the program.
+- The repair is given the manifest folders.
+  `RepairRequest` loses its Git context;
+  it carries the list of folders that hold a `Cargo.toml`,
+  which the program builds by running `git ls-files` before it calls
+  (edges dropped:
+  `package_repair_cargo_workspaces` to `transaction_git` and its request types;
+  `package_repair_request` to the same types).
+- The repair reports its step times.
+  `package_repair` and `package_repair_cargo` stop calling `add_timing::work`;
+  the report carries the durations and the program records them
+  (edge dropped:
+  `package_repair` and `package_repair_cargo` to `add_timing`;
+  edge added:
+  `worktree_copy` to `add_timing` and to `transaction_git`).
+- Policy-bound version files stay out.
+  `dependent_version_lifecycle`,
+  `dependent_version_policy` and `policy_dependent_version` are program files;
+  the eleven others take no program type.
+- The test helpers split.
+  The Git-free half of `test_support` and its neighbours go to `disposable-test-folders`;
+  the Git half stays with the program's tests.
+
+### Plain data types that three folders share
 
 `CopyFacts` (with `AddPlan` and `RemovePlan`,
 which are plain structs) moves to the new file `worktree_command_facts`
-in `start-the-real-git`,
+in the program folder `starting_git_and_describing_a_run`,
 because `PushForward` and `CoordinatedForward`,
 which the planning doc already moves down,
 hold it;
-leaving it in `worktree_copy_forward` would make the lock and push crates depend on the worktree crate.
+leaving it in `worktree_copy_forward` would make the lock and push folders use the worktree folder.
 The planning functions stay where they are.
 
 ### Moves of single items
@@ -1598,221 +2563,218 @@ where it is defined today,
 and its new file:
 
 - `ChildOutcome`:
-  from `starting_git_with_the_callers_arguments` in `start-the-real-git` (old file `forwarding`) to `kinds_of_git_step` in `starting-and-watching-programs`
+  from `starting_git_with_the_callers_arguments` in the program folder `starting_git_and_describing_a_run` (old file `forwarding`) to `how_a_child_program_ended` in `starting-and-watching-programs`
 - `outcome_of`:
-  from `starting_git_with_the_callers_arguments` in `start-the-real-git` (old file `forwarding`) to `kinds_of_git_step` in `starting-and-watching-programs`
+  from `starting_git_with_the_callers_arguments` in the program folder `starting_git_and_describing_a_run` (old file `forwarding`) to `how_a_child_program_ended` in `starting-and-watching-programs`
 - `subcommand_of`:
-  from `which_git_steps_run_again_or_end_early` in `start-the-real-git` (old file `transaction_git_step_rerun_and_end_rules`) to `kinds_of_git_step` in `starting-and-watching-programs`
+  from `which_git_steps_run_again_or_end_early` in the program folder `running_git_for_a_transaction` (old file `transaction_git_step_rerun_and_end_rules`) to `kinds_of_git_step` in the program folder `how_long_the_program_waits_for_git_steps`
 - `shell_quote`:
-  from `words_about_reference_locks` in `git-lock-files` (old file `stale_ref_lock_message`) to `process_numbers_in_other_containers` in `starting-and-watching-programs`
+  from `words_about_reference_locks` in the program folder `clearing_leftover_reference_locks` (old file `stale_ref_lock_message`) to `process_numbers_in_other_containers` in the program folder `who_owns_a_transaction_folder`
 - `current_boot_id`:
-  from `claim_time` in `durable-work-items` (old file `claim_time`) to `telling_one_process_from_a_reused_number` in `starting-and-watching-programs`
+  from `claim_time` in the program folder `work_left_for_the_service_to_finish_later` (old file `claim_time`) to `telling_one_process_from_a_reused_number` in `starting-and-watching-programs`
 - `current_machine_id`:
-  from `claim_time` in `durable-work-items` (old file `claim_time`) to `telling_one_process_from_a_reused_number` in `starting-and-watching-programs`
+  from `claim_time` in the program folder `work_left_for_the_service_to_finish_later` (old file `claim_time`) to `telling_one_process_from_a_reused_number` in `starting-and-watching-programs`
 - `is_machine_id`:
-  from `claim_time` in `durable-work-items` (old file `claim_time`) to `telling_one_process_from_a_reused_number` in `starting-and-watching-programs`
+  from `claim_time` in the program folder `work_left_for_the_service_to_finish_later` (old file `claim_time`) to `telling_one_process_from_a_reused_number` in `starting-and-watching-programs`
 - `SERVICE_UNIT_NAME`:
-  from `service_provision` in `commit-service-client` (old file `service_provision`) to `real_git_the_service_was_set_up_with` in `start-the-real-git`
+  from `service_provision` in the program folder `asking_the_commit_service_to_save_a_commit` (old file `service_provision`) to `real_git_the_service_was_set_up_with` in the program folder `finding_the_real_git_program`
 - `runtime_unit_dir`:
-  from `service_provision` in `commit-service-client` (old file `service_provision`) to `real_git_the_service_was_set_up_with` in `start-the-real-git`
+  from `service_provision` in the program folder `asking_the_commit_service_to_save_a_commit` (old file `service_provision`) to `real_git_the_service_was_set_up_with` in the program folder `finding_the_real_git_program`
 - `remember_own_executable`:
-  from `service_route` in `commit-service-client` (old file `service_route`) to `finding_the_real_git` in `start-the-real-git`
+  from `service_route` in the program folder `asking_the_commit_service_to_save_a_commit` (old file `service_route`) to `finding_the_real_git` in the program folder `finding_the_real_git_program`
 - `Limits`:
-  from `binary_supervisor` (old file `binary_supervisor`) to `discarded_copies_settings` in `wrapper-settings`
+  from `binary_supervisor` (old file `binary_supervisor`) to `discarded_copies_settings` in the program folder `the_settings_file_cli_git_config_jsonc`
 - `append_line`:
-  from `discard_audit` in `keep-copies-of-discarded-work` (old file `discard_audit`) to `debug_and_warning_lines_on_standard_error` in `text-time-and-log-line-formats`
+  from `discard_audit` in the program folder `saving_copies_of_what_a_command_would_throw_away` (old file `discard_audit`) to `debug_and_warning_lines_on_standard_error` in `text-time-and-log-line-formats`
 - `effective_directory`:
-  from `commit_command` in `commit-command` (old file `commit_command`) to `which_worktree_a_command_targets` in `typed-command-reader`
+  from `commit_command` in the program folder `the_commit_command` (old file `commit_command`) to `which_worktree_a_command_targets` in the program folder `the_words_meant_for_this_wrapper`
 - `SequencerFacts`:
-  from `is_a_merge_or_rebase_in_progress` in `rules-about-git-command-lines` (old file `rule_commit_sequencer`) to `answer_shapes_built_from_a_repository_layout` in `start-the-real-git`
+  from `is_a_merge_or_rebase_in_progress` in the program folder `rules_about_what_a_commit_may_contain` (old file `rule_commit_sequencer`) to `answer_shapes_built_from_a_repository_layout` in the program folder `what_the_wrapper_asks_git_about_a_repository`
 - `SequencerState`:
-  from `is_a_merge_or_rebase_in_progress` in `rules-about-git-command-lines` (old file `rule_commit_sequencer`) to `answer_shapes_built_from_a_repository_layout` in `start-the-real-git`
+  from `is_a_merge_or_rebase_in_progress` in the program folder `rules_about_what_a_commit_may_contain` (old file `rule_commit_sequencer`) to `answer_shapes_built_from_a_repository_layout` in the program folder `what_the_wrapper_asks_git_about_a_repository`
 - `sequencer_state`:
-  from `is_a_merge_or_rebase_in_progress` in `rules-about-git-command-lines` (old file `rule_commit_sequencer`) to `answer_shapes_built_from_a_repository_layout` in `start-the-real-git`
+  from `is_a_merge_or_rebase_in_progress` in the program folder `rules_about_what_a_commit_may_contain` (old file `rule_commit_sequencer`) to `answer_shapes_built_from_a_repository_layout` in the program folder `what_the_wrapper_asks_git_about_a_repository`
 - `capture_stamp`:
-  from `service_replay` in `commit-command` (old file `service_replay`) to `claim_time` in `durable-work-items`
+  from `service_replay` in the program folder `the_commit_command` (old file `service_replay`) to `claim_time` in the program folder `work_left_for_the_service_to_finish_later`
 - `LANDING_ATTEMPTS`:
-  from `service_land` in `land-prepared-commits` (old file `service_land`) to `service_protocol` in `commit-service-messages`
+  from `service_land` in the program folder `landing_commits` (old file `service_land`) to `service_protocol` in the program folder `messages_between_the_wrapper_and_the_commit_service`
 - `Bind`:
-  from `service_server_socket_binding` in `commit-service-program` (old file `service_server_socket_binding`) to `service_protocol` in `commit-service-messages`
+  from `service_server_socket_binding` in the program folder `the_service_program` (old file `service_server_socket_binding`) to `service_protocol` in the program folder `messages_between_the_wrapper_and_the_commit_service`
 - `work_directory`:
-  from `service_work_handlers_replanning_and_acceptance` in `service-after-commit-work` (old file `service_work_handlers_replanning_and_acceptance`) to `work_item` in `durable-work-items`
+  from `service_work_handlers_replanning_and_acceptance` in the program folder `after_commit_work_of_the_service` (old file `service_work_handlers_replanning_and_acceptance`) to `work_item` in the program folder `work_left_for_the_service_to_finish_later`
 - `ConversionEnvironment`:
-  from `worktree_clean_content_attribute_sources` in `new-worktrees-quickly` (old file `worktree_clean_content_attribute_sources`) to `subvolume_platform` in `convert-a-checkout-to-a-btrfs-subvolume`
+  from `worktree_clean_content_attribute_sources` in the program folder `is_the_worktree_clean` (old file `worktree_clean_content_attribute_sources`) to `subvolume_platform` in the program folder `converting_the_main_checkout`
 - `SystemAttributes`:
-  from `worktree_clean_content_attribute_sources` in `new-worktrees-quickly` (old file `worktree_clean_content_attribute_sources`) to `subvolume_platform` in `convert-a-checkout-to-a-btrfs-subvolume`
+  from `worktree_clean_content_attribute_sources` in the program folder `is_the_worktree_clean` (old file `worktree_clean_content_attribute_sources`) to `subvolume_platform` in the program folder `converting_the_main_checkout`
 - `CLAIM_PREFIX`:
-  from `worktree_convert_journal` in `new-worktrees-quickly` (old file `worktree_convert_journal`) to `subvolume_preflight` in `convert-a-checkout-to-a-btrfs-subvolume`
+  from `worktree_convert_journal` in the program folder `converting_a_linked_worktree` (old file `worktree_convert_journal`) to `subvolume_preflight` in the program folder `converting_the_main_checkout`
 - `enabled`:
-  from `trying_in_process_answers_first` in `start-the-real-git` (old file `repo_read_hook`) to `repository_location_without_git` in `read-git-files-without-git`
+  from `trying_in_process_answers_first` in the program folder `answering_questions_without_starting_git` (old file `repo_read_hook`) to `repository_location_without_git` in the program folder `finding_the_git_folders`
 - `STOP_GRACE`:
-  from `pushing_until_it_ends_or_stalls` in `push-with-a-deadline` (old file `bounded_push`) to `longest_waits` in `starting-and-watching-programs`
+  from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) to `watch_clock_marks_and_stopping` in `starting-and-watching-programs`
 - `positive_seconds`:
-  from `how_long_a_push_may_show_nothing` in `starting-and-watching-programs` (old file `push_deadline_and_patience_settings`) to `watching_a_child_program` in `starting-and-watching-programs`
+  from `how_long_a_push_may_show_nothing` in the program folder `how_long_the_program_waits_for_git_steps` (old file `push_deadline_and_patience_settings`) to `wait_notice_clock` in `starting-and-watching-programs`
 - `Patience`:
-  from `how_long_a_push_may_show_nothing` in `starting-and-watching-programs` (old file `push_deadline_and_patience_settings`) to `how_long_a_push_may_show_nothing` in `starting-and-watching-programs`
+  from `how_long_a_push_may_show_nothing` in the program folder `how_long_the_program_waits_for_git_steps` (old file `push_deadline_and_patience_settings`) to `measuring_progress_of_a_program_and_what_it_started` in `starting-and-watching-programs`
 - `StopCause`:
-  from `pushing_until_it_ends_or_stalls` in `push-with-a-deadline` (old file `bounded_push`) to `measuring_progress_of_a_push` in `starting-and-watching-programs`
+  from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) to `measuring_progress_of_a_program_and_what_it_started` in `starting-and-watching-programs`
 - `RESTART_COMMAND`:
-  from `service_messages` in `commit-service-client` (old file `service_messages`) to `how_to_change_the_push_deadline` in `push-with-a-deadline`
+  from `service_messages` in the program folder `asking_the_commit_service_to_save_a_commit` (old file `service_messages`) to `how_to_change_the_push_deadline` in the program folder `running_git_push_until_it_ends_or_stalls`
 - `RELEASE`:
-  from `service_protocol_messages_and_name_checks` in `commit-service-messages` (old file `service_protocol_messages_and_name_checks`) to `where_worktree_add_spent_its_time` in `starting-and-watching-programs`
+  from `service_protocol_messages_and_name_checks` in the program folder `messages_between_the_wrapper_and_the_commit_service` (old file `service_protocol_messages_and_name_checks`) to `where_worktree_add_spent_its_time` in the program folder `recording_where_worktree_add_spent_its_time`
 - `SHADOW_NO_HOOKS_NAME`:
-  from `shadow_git` in `hidden-git-copy-for-preparing-commits` (old file `shadow_git`) to `warning_about_hooks_in_the_hooks_folder` in `wrapper-settings`
+  from `shadow_git` in the program folder `the_hidden_second_git_folder` (old file `shadow_git`) to `warning_about_hooks_in_the_hooks_folder` in the program folder `hooks_a_repository_configures`
 - `SHADOW_ROOT_NAME`:
-  from `shadow_git` in `hidden-git-copy-for-preparing-commits` (old file `shadow_git`) to `warning_about_hooks_in_the_hooks_folder` in `wrapper-settings`
+  from `shadow_git` in the program folder `the_hidden_second_git_folder` (old file `shadow_git`) to `warning_about_hooks_in_the_hooks_folder` in the program folder `hooks_a_repository_configures`
 - `parse_size`:
-  from `reading_a_cat_file_batch_reply` in `commit-candidate-content` (old file `candidate_batch`) to `discarded_copies_settings` in `wrapper-settings`
+  from `reading_a_cat_file_batch_reply` in the program folder `reading_the_bytes_a_commit_would_save` (old file `candidate_batch`) to `discarded_copies_settings` in the program folder `the_settings_file_cli_git_config_jsonc`
 - `ENGINE_FAILURE_EXIT_CODE`:
-  from `the_decision_one_command_ends_in` in `cli` (old file `action`) to `kinds_of_git_step` in `starting-and-watching-programs`
+  from `the_decision_one_command_ends_in` in the program folder `what_happens_when_you_type_a_command` (old file `action`) to `kinds_of_git_step` in the program folder `how_long_the_program_waits_for_git_steps`
 - `WorktreeIdentity`:
-  from `asking_git_which_worktree_this_is` in `start-the-real-git` (old file `worktree_identity`) to `which_worktree_a_command_targets` in `typed-command-reader`
+  from `asking_git_which_worktree_this_is` in the program folder `what_the_wrapper_asks_git_about_a_repository` (old file `worktree_identity`) to `which_worktree_a_command_targets` in the program folder `the_words_meant_for_this_wrapper`
 - `StopReport`:
-  from `pushing_until_it_ends_or_stalls` in `push-with-a-deadline` (old file `bounded_push`) to `measuring_progress_of_a_push` in `starting-and-watching-programs`
+  from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) to `measuring_progress_of_a_program_and_what_it_started` in `starting-and-watching-programs`
 - `EngineFailureCode`:
-  from `messages_as_json_lines` in `policy-engine` (old file `diagnostics`) to `settings_of_the_worktree_a_command_runs_in` in `wrapper-settings`
+  from `messages_as_json_lines` in the program folder `running_policies_and_settling_their_corrections` (old file `diagnostics`) to `settings_of_the_worktree_a_command_runs_in` in the program folder `the_settings_file_cli_git_config_jsonc`
 - `LEGACY_CONFIG_IGNORED_CODE`:
-  from `messages_as_json_lines` in `policy-engine` (old file `diagnostics`) to `settings_of_the_worktree_a_command_runs_in` in `wrapper-settings`
+  from `messages_as_json_lines` in the program folder `running_policies_and_settling_their_corrections` (old file `diagnostics`) to `settings_of_the_worktree_a_command_runs_in` in the program folder `the_settings_file_cli_git_config_jsonc`
 - `render_configuration_warning`:
-  from `messages_as_json_lines` in `policy-engine` (old file `diagnostics`) to `settings_of_the_worktree_a_command_runs_in` in `wrapper-settings`
+  from `messages_as_json_lines` in the program folder `running_policies_and_settling_their_corrections` (old file `diagnostics`) to `settings_of_the_worktree_a_command_runs_in` in the program folder `the_settings_file_cli_git_config_jsonc`
 - `render_engine_failure`:
-  from `messages_as_json_lines` in `policy-engine` (old file `diagnostics`) to `settings_of_the_worktree_a_command_runs_in` in `wrapper-settings`
+  from `messages_as_json_lines` in the program folder `running_policies_and_settling_their_corrections` (old file `diagnostics`) to `settings_of_the_worktree_a_command_runs_in` in the program folder `the_settings_file_cli_git_config_jsonc`
 - `start_directory`:
-  from `worktree_add_plan` in `new-worktrees-quickly` (old file `worktree_add_plan`) to `clearing_locks_before_fetch_and_push` in `git-lock-files`
+  from `worktree_add_plan` in the program folder `planning_a_worktree_add_and_what_git_made` (old file `worktree_add_plan`) to `clearing_locks_before_fetch_and_push` in the program folder `clearing_leftover_reference_locks`
 - `read_plain_file`:
-  from `worktree_convert_journal` in `new-worktrees-quickly` (old file `worktree_convert_journal`) to `saving_private_files` in `safe-file-saving`
+  from `worktree_convert_journal` in the program folder `converting_a_linked_worktree` (old file `worktree_convert_journal`) to `saving_private_files` in `safe-file-saving`
 - `copy_file_exclusive`:
-  from `worktree_copy_stage_leaf_copying` in `new-worktrees-quickly` (old file `worktree_copy_stage_leaf_copying`) to `saving_private_files` in `safe-file-saving`
+  from `worktree_copy_stage_leaf_copying` in the program folder `copying_ignored_files_into_a_stage` (old file `worktree_copy_stage_leaf_copying`) to `saving_private_files` in `safe-file-saving`
 - `Verdict`:
-  from `service_work_handlers_replanning_and_acceptance` in `service-after-commit-work` (old file `service_work_handlers_replanning_and_acceptance`) to `work_item` in `durable-work-items`
+  from `service_work_handlers_replanning_and_acceptance` in the program folder `after_commit_work_of_the_service` (old file `service_work_handlers_replanning_and_acceptance`) to `work_item` in the program folder `work_left_for_the_service_to_finish_later`
 - `PushForward`:
-  from `the_decision_one_command_ends_in` in `cli` (old file `action`) to `typed_push_that_lost_a_race` in `typed-push-planning`
+  from `the_decision_one_command_ends_in` in the program folder `what_happens_when_you_type_a_command` (old file `action`) to `typed_push_that_lost_a_race` in the program folder `working_out_what_a_typed_push_would_send`
 - `CoordinatedForward`:
-  from `index_writer_forward` in `cli` (old file `index_writer_forward`) to `waiting_for_any_programs_hold_on_the_index_lock` in `commit-service-index-lock`
+  from `index_writer_forward` in the program folder `what_happens_when_you_type_a_command` (old file `index_writer_forward`) to `waiting_for_any_programs_hold_on_the_index_lock` in the program folder `waiting_for_the_index_lock_of_git`
 - `CoordinatedRun`:
-  from `index_writer_forward` in `cli` (old file `index_writer_forward`) to `waiting_for_any_programs_hold_on_the_index_lock` in `commit-service-index-lock`
+  from `index_writer_forward` in the program folder `what_happens_when_you_type_a_command` (old file `index_writer_forward`) to `waiting_for_any_programs_hold_on_the_index_lock` in the program folder `waiting_for_the_index_lock_of_git`
 - `ForwardedRun`:
-  from `worktree_copy_forward` in `cli` (old file `worktree_copy_forward`) to `the_git_command_a_forward_runs` in `start-the-real-git`
+  from `worktree_copy_forward` in the program folder `what_happens_when_you_type_a_command` (old file `worktree_copy_forward`) to `the_git_command_a_forward_runs` in the program folder `running_git_for_a_transaction`
 - `run_forwarded_git`:
-  from `worktree_copy_forward` in `cli` (old file `worktree_copy_forward`) to `the_git_command_a_forward_runs` in `start-the-real-git`
+  from `worktree_copy_forward` in the program folder `what_happens_when_you_type_a_command` (old file `worktree_copy_forward`) to `the_git_command_a_forward_runs` in the program folder `running_git_for_a_transaction`
 - `ShippedChecks`:
-  from `the_list_of_shipped_checks` in `shipped-policies` (old file `policy_checks`) to `one_complete_policy_pass` in `shipped-policies`
+  from `the_list_of_shipped_checks` in the program folder `the_list_of_checks_every_commit_runs` (old file `policy_checks`) to `one_complete_policy_pass` in the program folder `the_list_of_checks_every_commit_runs`
 - `editor_would_open`:
-  from `merge_isolation_git_reads` in `merge-in-isolation` (old file `merge_isolation_git_reads`) to `merge_second_pass_git_runner` in `merge-conflicts-word-by-word`
+  from `merge_isolation_git_reads` in the program folder `merging_without_touching_your_files` (old file `merge_isolation_git_reads`) to `merge_second_pass_git_runner` in the program folder `rerunning_a_merge_word_by_word`
 - `stdin_and_stdout_are_one_terminal`:
-  from `merge_isolation_git_reads` in `merge-in-isolation` (old file `merge_isolation_git_reads`) to `merge_second_pass_git_runner` in `merge-conflicts-word-by-word`
+  from `merge_isolation_git_reads` in the program folder `merging_without_touching_your_files` (old file `merge_isolation_git_reads`) to `merge_second_pass_git_runner` in the program folder `rerunning_a_merge_word_by_word`
 - `Occurrence`:
-  from `reading_a_command_line_option_by_option` in `typed-command-reader` (old file `command_options`) to `types_of_option_reading` in `typed-command-reader`
+  from `reading_a_command_line_option_by_option` in the program folder `reading_options_the_way_git_does` (old file `command_options`) to `types_of_option_reading` in the program folder `reading_options_the_way_git_does`
 - `OptionError`:
-  from `reading_a_command_line_option_by_option` in `typed-command-reader` (old file `command_options`) to `types_of_option_reading` in `typed-command-reader`
+  from `reading_a_command_line_option_by_option` in the program folder `reading_options_the_way_git_does` (old file `command_options`) to `types_of_option_reading` in the program folder `reading_options_the_way_git_does`
 - `OptionErrorKind`:
-  from `reading_a_command_line_option_by_option` in `typed-command-reader` (old file `command_options`) to `types_of_option_reading` in `typed-command-reader`
+  from `reading_a_command_line_option_by_option` in the program folder `reading_options_the_way_git_does` (old file `command_options`) to `types_of_option_reading` in the program folder `reading_options_the_way_git_does`
 - `OptionSpec`:
-  from `reading_a_command_line_option_by_option` in `typed-command-reader` (old file `command_options`) to `types_of_option_reading` in `typed-command-reader`
+  from `reading_a_command_line_option_by_option` in the program folder `reading_options_the_way_git_does` (old file `command_options`) to `types_of_option_reading` in the program folder `reading_options_the_way_git_does`
 - `OptionValue`:
-  from `reading_a_command_line_option_by_option` in `typed-command-reader` (old file `command_options`) to `types_of_option_reading` in `typed-command-reader`
+  from `reading_a_command_line_option_by_option` in the program folder `reading_options_the_way_git_does` (old file `command_options`) to `types_of_option_reading` in the program folder `reading_options_the_way_git_does`
 - `ParseMode`:
-  from `reading_a_command_line_option_by_option` in `typed-command-reader` (old file `command_options`) to `types_of_option_reading` in `typed-command-reader`
+  from `reading_a_command_line_option_by_option` in the program folder `reading_options_the_way_git_does` (old file `command_options`) to `types_of_option_reading` in the program folder `reading_options_the_way_git_does`
 - `ParsedOptions`:
-  from `reading_a_command_line_option_by_option` in `typed-command-reader` (old file `command_options`) to `types_of_option_reading` in `typed-command-reader`
+  from `reading_a_command_line_option_by_option` in the program folder `reading_options_the_way_git_does` (old file `command_options`) to `types_of_option_reading` in the program folder `reading_options_the_way_git_does`
 - `Arity`:
-  from `reading_a_command_line_option_by_option` in `typed-command-reader` (old file `command_options`) to `types_of_option_reading` in `typed-command-reader`
+  from `reading_a_command_line_option_by_option` in the program folder `reading_options_the_way_git_does` (old file `command_options`) to `types_of_option_reading` in the program folder `reading_options_the_way_git_does`
 - `GuardedCommand`:
-  from `rule_linked_worktree_only` in `rules-about-git-command-lines` (old file `rule_linked_worktree`) to `rejection_texts_of_the_linked_worktree_rule` in `rules-about-git-command-lines`
+  from `rule_linked_worktree_only` in the program folder `rules_about_where_a_command_may_run` (old file `rule_linked_worktree`) to `rejection_texts_of_the_linked_worktree_rule` in the program folder `rules_about_where_a_command_may_run`
 - `SavedCopy`:
-  from `conflict_sides` in `keep-copies-of-discarded-work` (old file `conflict_sides`) to `conflict_side_notice` in `keep-copies-of-discarded-work`
+  from `conflict_sides` in the program folder `saving_copies_of_what_a_command_would_throw_away` (old file `conflict_sides`) to `conflict_side_notice` in the program folder `saving_copies_of_what_a_command_would_throw_away`
 - `IndexPaths`:
-  from `service_land_follow` in `land-prepared-commits` (old file `service_land_follow`) to `index_reset_file` in `land-prepared-commits`
+  from `service_land_follow` in the program folder `landing_commits` (old file `service_land_follow`) to `index_reset_file` in the program folder `landing_commits`
 - `PrivateCopy`:
-  from `service_land_copy` in `land-prepared-commits` (old file `service_land_copy`) to `service_land_copy` in `land-prepared-commits`
+  from `service_land_copy` in the program folder `landing_commits` (old file `service_land_copy`) to `service_land_copy` in the program folder `landing_commits`
 - `RealGitNotFound`:
-  from `finding_the_real_git` in `start-the-real-git` (old file `real_git`) to `deciding_if_a_path_is_real_git` in `start-the-real-git`
+  from `finding_the_real_git` in the program folder `finding_the_real_git_program` (old file `real_git`) to `deciding_if_a_path_is_real_git` in the program folder `finding_the_real_git_program`
 - `ResolutionInputs`:
-  from `finding_the_real_git` in `start-the-real-git` (old file `real_git`) to `deciding_if_a_path_is_real_git` in `start-the-real-git`
+  from `finding_the_real_git` in the program folder `finding_the_real_git_program` (old file `real_git`) to `deciding_if_a_path_is_real_git` in the program folder `finding_the_real_git_program`
 - `SearchedCandidate`:
-  from `finding_the_real_git` in `start-the-real-git` (old file `real_git`) to `deciding_if_a_path_is_real_git` in `start-the-real-git`
+  from `finding_the_real_git` in the program folder `finding_the_real_git_program` (old file `real_git`) to `deciding_if_a_path_is_real_git` in the program folder `finding_the_real_git_program`
 - `search_path_for_real_git`:
-  from `finding_the_real_git` in `start-the-real-git` (old file `real_git`) to `deciding_if_a_path_is_real_git` in `start-the-real-git`
+  from `finding_the_real_git` in the program folder `finding_the_real_git_program` (old file `real_git`) to `deciding_if_a_path_is_real_git` in the program folder `finding_the_real_git_program`
 - `MetadataOutput`:
-  from `running_a_read_only_git_query` in `start-the-real-git` (old file `git_metadata`) to `query_request_answer_and_context` in `start-the-real-git`
+  from `running_a_read_only_git_query` in the program folder `running_git_for_a_transaction` (old file `git_metadata`) to `query_request_answer_and_context` in the program folder `answering_questions_without_starting_git`
 - `LandingLocation`:
-  from `where_the_real_index_lives` in `start-the-real-git` (old file `landing_location`) to `answer_shapes_built_from_a_repository_layout` in `start-the-real-git`
+  from `where_the_real_index_lives` in the program folder `what_the_wrapper_asks_git_about_a_repository` (old file `landing_location`) to `answer_shapes_built_from_a_repository_layout` in the program folder `what_the_wrapper_asks_git_about_a_repository`
 - `marker_of`:
-  from `marker_inside_the_held_lock` in `commit-service-index-lock` (old file `service_index_marker`) to `who_a_lock_holder_is` in `commit-service-index-lock`
+  from `marker_inside_the_held_lock` in the program folder `holding_the_index_lock_for_the_commit_service` (old file `service_index_marker`) to `who_a_lock_holder_is` in the program folder `holding_the_index_lock_for_the_commit_service`
 - `Marked`:
-  from `marker_inside_the_held_lock` in `commit-service-index-lock` (old file `service_index_marker`) to `who_a_lock_holder_is` in `commit-service-index-lock`
+  from `marker_inside_the_held_lock` in the program folder `holding_the_index_lock_for_the_commit_service` (old file `service_index_marker`) to `who_a_lock_holder_is` in the program folder `holding_the_index_lock_for_the_commit_service`
 - `Announce`:
-  from `the_hold_on_the_index_lock` in `commit-service-index-lock` (old file `service_index_lock`) to `lock_names_and_failures` in `commit-service-index-lock`
+  from `the_hold_on_the_index_lock` in the program folder `holding_the_index_lock_for_the_commit_service` (old file `service_index_lock`) to `lock_names_and_failures` in the program folder `holding_the_index_lock_for_the_commit_service`
 - `LockFailure`:
-  from `the_hold_on_the_index_lock` in `commit-service-index-lock` (old file `service_index_lock`) to `lock_names_and_failures` in `commit-service-index-lock`
+  from `the_hold_on_the_index_lock` in the program folder `holding_the_index_lock_for_the_commit_service` (old file `service_index_lock`) to `lock_names_and_failures` in the program folder `holding_the_index_lock_for_the_commit_service`
 - `lock_path_of`:
-  from `the_hold_on_the_index_lock` in `commit-service-index-lock` (old file `service_index_lock`) to `lock_names_and_failures` in `commit-service-index-lock`
+  from `the_hold_on_the_index_lock` in the program folder `holding_the_index_lock_for_the_commit_service` (old file `service_index_lock`) to `lock_names_and_failures` in the program folder `holding_the_index_lock_for_the_commit_service`
 - `notice_every`:
-  from `the_hold_on_the_index_lock` in `commit-service-index-lock` (old file `service_index_lock`) to `lock_names_and_failures` in `commit-service-index-lock`
+  from `the_hold_on_the_index_lock` in the program folder `holding_the_index_lock_for_the_commit_service` (old file `service_index_lock`) to `lock_names_and_failures` in the program folder `holding_the_index_lock_for_the_commit_service`
 - `storage_failure`:
-  from `service_land_follow` in `land-prepared-commits` (old file `service_land_follow`) to `lock_names_and_failures` in `commit-service-index-lock`
+  from `service_land_follow` in the program folder `landing_commits` (old file `service_land_follow`) to `lock_names_and_failures` in the program folder `holding_the_index_lock_for_the_commit_service`
 - `reclaim`:
-  from `putting_the_marked_file_in_place_as_the_lock` in `commit-service-index-lock` (old file `service_index_placement`) to `removing_a_stale_index_lock` in `commit-service-index-lock`
+  from `putting_the_marked_file_in_place_as_the_lock` in the program folder `holding_the_index_lock_for_the_commit_service` (old file `service_index_placement`) to `removing_a_stale_index_lock` in the program folder `holding_the_index_lock_for_the_commit_service`
 - `LOCK_SUFFIX`:
-  from `locks_a_stopped_git_may_leave` in `git-lock-files` (old file `stopped_git_locks`) to `names_of_reference_lock_files` in `git-lock-files`
+  from `locks_a_stopped_git_may_leave` in the program folder `clearing_leftover_reference_locks` (old file `stopped_git_locks`) to `names_of_reference_lock_files` in the program folder `clearing_leftover_reference_locks`
 - `PID_LOCK_SUFFIX`:
-  from `locks_a_stopped_git_may_leave` in `git-lock-files` (old file `stopped_git_locks`) to `names_of_reference_lock_files` in `git-lock-files`
+  from `locks_a_stopped_git_may_leave` in the program folder `clearing_leftover_reference_locks` (old file `stopped_git_locks`) to `names_of_reference_lock_files` in the program folder `clearing_leftover_reference_locks`
 - `pid_named_by`:
-  from `locks_a_stopped_git_may_leave` in `git-lock-files` (old file `stopped_git_locks`) to `names_of_reference_lock_files` in `git-lock-files`
+  from `locks_a_stopped_git_may_leave` in the program folder `clearing_leftover_reference_locks` (old file `stopped_git_locks`) to `names_of_reference_lock_files` in the program folder `clearing_leftover_reference_locks`
 - `pid_file_beside`:
-  from `finding_reference_lock_files` in `git-lock-files` (old file `stale_ref_lock_walk`) to `names_of_reference_lock_files` in `git-lock-files`
+  from `finding_reference_lock_files` in the program folder `clearing_leftover_reference_locks` (old file `stale_ref_lock_walk`) to `names_of_reference_lock_files` in the program folder `clearing_leftover_reference_locks`
 - `Verdict`:
-  from `judging_one_reference_lock` in `git-lock-files` (old file `stale_ref_lock_judge`) to `record_of_a_judged_reference_lock` in `git-lock-files`
+  from `judging_one_reference_lock` in the program folder `clearing_leftover_reference_locks` (old file `stale_ref_lock_judge`) to `record_of_a_judged_reference_lock` in the program folder `clearing_leftover_reference_locks`
 - `Holder`:
-  from `programs_holding_a_lock_file_open` in `git-lock-files` (old file `index_lock_holders`) to `reading_the_output_of_a_holder_scan` in `git-lock-files`
+  from `programs_holding_a_file_open` in `starting-and-watching-programs` (old file `index_lock_holders`) to `reading_the_output_of_a_holder_scan` in `starting-and-watching-programs`
 - `PushAttempt`:
-  from `running_one_push_at_a_time` in `push-with-a-deadline` (old file `auto_push_single_flight`) to `one_push_attempt_and_its_failure` in `push-with-a-deadline`
+  from `running_one_push_at_a_time` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `auto_push_single_flight`) to `one_push_attempt_and_its_failure` in the program folder `running_git_push_until_it_ends_or_stalls`
 - `SingleFlightError`:
-  from `running_one_push_at_a_time` in `push-with-a-deadline` (old file `auto_push_single_flight`) to `one_push_attempt_and_its_failure` in `push-with-a-deadline`
+  from `running_one_push_at_a_time` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `auto_push_single_flight`) to `one_push_attempt_and_its_failure` in the program folder `running_git_push_until_it_ends_or_stalls`
 - `MAX_PUSH_OUTPUT`:
-  from `pushing_until_it_ends_or_stalls` in `push-with-a-deadline` (old file `bounded_push`) to `waiting_for_a_push_to_end` in `push-with-a-deadline`
+  from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) to `waiting_for_a_push_to_end` in the program folder `running_git_push_until_it_ends_or_stalls`
 - `stop_push`:
-  from `pushing_until_it_ends_or_stalls` in `push-with-a-deadline` (old file `bounded_push`) to `waiting_for_a_push_to_end` in `push-with-a-deadline`
+  from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) to `waiting_for_a_push_to_end` in the program folder `running_git_push_until_it_ends_or_stalls`
 - `wait_until_done`:
-  from `pushing_until_it_ends_or_stalls` in `push-with-a-deadline` (old file `bounded_push`) to `waiting_for_a_push_to_end` in `push-with-a-deadline`
+  from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) to `waiting_for_a_push_to_end` in the program folder `running_git_push_until_it_ends_or_stalls`
 - `run_bounded_push_once`:
-  from `pushing_until_it_ends_or_stalls` in `push-with-a-deadline` (old file `bounded_push`) to `waiting_for_a_push_to_end` in `push-with-a-deadline`
+  from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) to `waiting_for_a_push_to_end` in the program folder `running_git_push_until_it_ends_or_stalls`
 - `fnv_hex`:
-  from `record_of_a_failed_backup_push` in `background-push-after-commit` (old file `push_failure_notice`) to `file_name_of_one_branch` in `background-push-after-commit`
+  from `record_of_a_failed_backup_push` in the program folder `pushing_what_the_commit_service_saved` (old file `push_failure_notice`) to `file_name_of_one_branch` in the program folder `pushing_what_the_commit_service_saved`
 - `PUSH_FAILED_NOTE`:
-  from `pushing_a_landed_commit` in `background-push-after-commit` (old file `auto_push`) to `record_of_a_failed_backup_push` in `background-push-after-commit`
+  from `pushing_a_landed_commit` in the program folder `pushing_what_the_commit_service_saved` (old file `auto_push`) to `record_of_a_failed_backup_push` in the program folder `pushing_what_the_commit_service_saved`
 - `CONFLICT_PHRASE`:
-  from `retrying_a_stopped_push` in `background-push-after-commit` (old file `push_retry`) to `words_and_limits_of_a_reconcile` in `background-push-after-commit`
+  from `retrying_a_stopped_push` in the program folder `pushing_what_the_commit_service_saved` (old file `push_retry`) to `words_and_limits_of_a_reconcile` in the program folder `pushing_what_the_commit_service_saved`
 - `trash_location_is_ignored`:
-  from `worktree_trash` in `new-worktrees-quickly` (old file `worktree_trash`) to `worktree_snapshot_source` in `new-worktrees-quickly`
+  from `worktree_trash` in the program folder `making_a_worktree_quickly` (old file `worktree_trash`) to `worktree_snapshot_source` in the program folder `making_a_worktree_quickly`
 - `TRASH_PARENT`:
-  from `worktree_trash` in `new-worktrees-quickly` (old file `worktree_trash`) to `worktree_trash_manifest` in `new-worktrees-quickly`
+  from `worktree_trash` in the program folder `making_a_worktree_quickly` (old file `worktree_trash`) to `worktree_trash_manifest` in the program folder `making_a_worktree_quickly`
 - `GitRunner`:
-  from `worktree_copy` in `new-worktrees-quickly` (old file `worktree_copy`) to `worktree_copy_git_steps` in `new-worktrees-quickly`
+  from `worktree_copy` in the program folder `copying_ignored_files_around_one_git_command` (old file `worktree_copy`) to `worktree_copy_git_steps` in the program folder `copying_ignored_files_into_a_stage`
 - `GitStatus`:
-  from `worktree_copy` in `new-worktrees-quickly` (old file `worktree_copy`) to `worktree_copy_git_steps` in `new-worktrees-quickly`
+  from `worktree_copy` in the program folder `copying_ignored_files_around_one_git_command` (old file `worktree_copy`) to `worktree_copy_git_steps` in the program folder `copying_ignored_files_into_a_stage`
 - `GitStep`:
-  from `worktree_copy` in `new-worktrees-quickly` (old file `worktree_copy`) to `worktree_copy_git_steps` in `new-worktrees-quickly`
+  from `worktree_copy` in the program folder `copying_ignored_files_around_one_git_command` (old file `worktree_copy`) to `worktree_copy_git_steps` in the program folder `copying_ignored_files_into_a_stage`
 - `rename_noreplace`:
-  from `putting_the_marked_file_in_place_as_the_lock` in `commit-service-index-lock` (old file `service_index_placement`) to `saving_private_files` in `safe-file-saving`
+  from `putting_the_marked_file_in_place_as_the_lock` in the program folder `holding_the_index_lock_for_the_commit_service` (old file `service_index_placement`) to `saving_private_files` in `safe-file-saving`
 - `CopyFacts`:
-  from `worktree_copy_forward` in `cli` (old file `worktree_copy_forward`) to `worktree_command_facts` in `start-the-real-git`
+  from `worktree_copy_forward` in the program folder `what_happens_when_you_type_a_command` (old file `worktree_copy_forward`) to `worktree_command_facts` in the program folder `starting_git_and_describing_a_run`
 - `AddPlan`:
-  from `worktree_add_plan` in `new-worktrees-quickly` (old file `worktree_add_plan`) to `worktree_command_facts` in `start-the-real-git`
+  from `worktree_add_plan` in the program folder `planning_a_worktree_add_and_what_git_made` (old file `worktree_add_plan`) to `worktree_command_facts` in the program folder `starting_git_and_describing_a_run`
 - `RemovePlan`:
-  from `worktree_remove_plan` in `new-worktrees-quickly` (old file `worktree_remove_plan`) to `worktree_command_facts` in `start-the-real-git`
+  from `worktree_remove_plan` in the program folder `removing_a_linked_worktree` (old file `worktree_remove_plan`) to `worktree_command_facts` in the program folder `starting_git_and_describing_a_run`
 - `engine_failure_hint`:
-  from `hints_after_a_finding` in `policy-engine` (old file `event_hints`) to `settings_of_the_worktree_a_command_runs_in` in `wrapper-settings`
+  from `hints_after_a_finding` in the program folder `running_policies_and_settling_their_corrections` (old file `event_hints`) to `settings_of_the_worktree_a_command_runs_in` in the program folder `the_settings_file_cli_git_config_jsonc`
 - `push_hint_field`:
-  from `hints_after_a_finding` in `policy-engine` (old file `event_hints`) to `settings_of_the_worktree_a_command_runs_in` in `wrapper-settings`
+  from `hints_after_a_finding` in the program folder `running_policies_and_settling_their_corrections` (old file `event_hints`) to `settings_of_the_worktree_a_command_runs_in` in the program folder `the_settings_file_cli_git_config_jsonc`
 - `WaitNotes`:
-  from `what_waiting_for_the_lock_found` in `commit-service-index-lock` (old file `service_index_found`) to `service_timing` in `commit-service-log-lines`
+  from `what_waiting_for_the_lock_found` in the program folder `holding_the_index_lock_for_the_commit_service` (old file `service_index_found`) to `service_timing` in the program folder `log_lines_of_the_commit_service`
 
-The scan does not follow what a moved item itself uses.
-This proposal's check cut every moved item out of its source
-and listed its uses;
-each use is at or below the new file except the ones named in the two paragraphs above.
-The compiler still has the last word.
+The moves that make a library stand alone are listed in "Changes so that a library stands alone"
+and replace the destination of the same items here.
 
 ### Moves of whole files not listed above
 
@@ -1821,10 +2783,15 @@ The compiler still has the last word.
   which
   moves to the lock notice,
   uses it.
-- `service_durable` and `service_fault` move down to the lock-hold crate and the crash-points crate (see rejected crates).
+- `service_durable` and `service_fault` stay in the program,
+  in the folders of the lock hold and of the test switches.
+- `index_lock_holders`,
+  `index_lock_holder_parsers` and `stale_ref_lock_nested_numbers` move to `starting-and-watching-programs`;
+  `worktree_trash_remove`,
+  `subvolume_remove` and `subvolume_remove_walk` move to `linux-file-and-disk-calls`.
 - `conflict_side_state`,
   `editor_would_open` and `stdin_and_stdout_are_one_terminal` as in the rescan.
-- `service_review_key` moves to `commit-service-messages` (above).
+- `service_review_key` moves to the program folder `messages_between_the_wrapper_and_the_commit_service`.
 
 ### Removal of the flat re-exports
 
@@ -1836,12 +2803,10 @@ Every `use crate::<file>::Item;` names the folder and the file instead:
 515 production files hold 3073 lines that name a sibling through `crate::` or `super::`,
 and 513 test files hold
 2418 more.
-Across crates the path is `monochromatic_git_policy_<crate>::<folder>::<file>::Item`.
-Of the 1029 items one crate uses from another,
-1011 are already `pub`,
-15 are `pub(crate)` and 3 are not plain
-declarations;
-so 15 items widen to `pub`.
+Across packages the path is `monochromatic_<job>::<folder>::<file>::Item` for the eight libraries;
+inside the program it is `crate::<folder>::<file>::Item`.
+The draft counted 1029 items one of its 47 crates used from another;
+with 9 packages the count is smaller and is redone when each library is lifted.
 In addition,
 126 non-index `pub use` lines re-export a name by name;
 each is
@@ -1850,132 +2815,32 @@ because each is a hidden use the tree cannot show.
 
 ### Tests that name a higher crate
 
-`engine.ts` plus `testrefs.ts` list the test files whose references reach a crate the subject's crate does not use.
-Thirty crate pairs,
-49 test references.
-For each,
-the sidecar either gets a local stand-in,
-or moves into the higher
-crate's `tests/` folder as an integration test (which can only use that crate's public items),
-or,
-for `action`,
-into the
-program crate.
+`scan/testcheck5.ts` lists the test files of the eight libraries whose references reach a module outside their crate.
+Forty-four references:
+two name a program file,
+and the other 42 name test helpers.
+
+- `safe-file-saving` tests name `child_class`:
+  `scratch_location`.
+  The sidecar gets a local stand-in for the one constant it reads.
+- `fix-packages-after-copying-a-folder` tests name `wait_ceilings`:
+  `package_repair_report`.
+  The constant it reads is now `REPAIR_TOOL_CEILING` in `package_repair_request`,
+  so the sidecar names that.
+- The 42 references to test helpers go to `disposable-test-folders`
+  (the generic helpers of `test_support`,
+  the child-process helpers),
+  or to a helper file that moves with its subject
+  (`dependent_version_test_support`,
+  `fs_btrfs_test_support`).
+- Three sidecar references of `starting-and-watching-programs` and one of `fix-packages-after-copying-a-folder`
+  need a Git repository or Git context;
+  those tests move to the program.
+
+Inside the program crate a test may name any folder's files,
+because they are one crate.
+The draft's thirty crate pairs and 49 references no longer apply.
 Nothing in production changes for them.
-
-- `commit-candidate-content` tests name `commit-service-messages`:
-  candidate_prediction->service_protocol
-- `commit-candidate-content` tests name `policy-engine`:
-  candidate_known_content->policy_content,
-  candidate_known_content->policy_test_support,
-  scanner_failure_code->diagnostics
-- `commit-service-client` tests name `commit-service-program`:
-  service_handoff->service_server
-- `commit-service-index-lock` tests name `durable-work-items`:
-  service_index_lock->claim_time,
-  service_index_prestage->claim_time
-- `commit-service-index-lock` tests name `land-prepared-commits`:
-  service_index_hold->service_land_start
-- `commit-service-log-lines` tests name `git-lock-files`:
-  commit_timing->index_lock_evidence
-- `commit-service-log-lines` tests name `keep-copies-of-discarded-work`:
-  commit_timing->discard_audit
-- `convert-a-checkout-to-a-btrfs-subvolume` tests name `new-worktrees-quickly`:
-  subvolume_command->worktree_convert_journal,
-  subvolume_index_files->worktree_clean,
-  subvolume_platform->worktree_clean_content,
-  subvolume_test_support->worktree_clean_content
-- `doctor-report` tests name `cli`:
-  doctor_filesystem->action,
-  doctor_fsmonitor->action
-- `git-index-file` tests name `land-prepared-commits`:
-  index_full->index_reset_support_probe,
-  index_untracked_io->index_reset_support_probe
-- `git-index-file` tests name `sha-1-and-sha-256-digests`:
-  index_full->subvolume_sha,
-  index_full_write->subvolume_sha
-- `keep-copies-of-discarded-work` tests name `background-push-after-commit`:
-  discard_audit->push_trigger_log
-- `land-prepared-commits` tests name `commit-service-program`:
-  service_land->service_server
-- `new-worktrees-quickly` tests name `commit-service-program`:
-  worktree_trash->service_server
-- `new-worktrees-quickly` tests name `service-after-commit-work`:
-  worktree_removal_rescue->service_work,
-  worktree_trash->service_work
-- `policy-engine` tests name `cli`:
-  policy_engine->action
-- `policy-engine` tests name `dependent-version-bump-check`:
-  event_hints->dependent_version_policy
-- `policy-engine` tests name `markdown-autofix-check`:
-  event_hints->policy_markdown
-- `policy-engine` tests name `shipped-policies`:
-  event_hints->policy_final_newline,
-  event_hints->policy_forbidden_strings,
-  event_hints->policy_root_context
-- `read-git-files-without-git` tests name `hidden-git-copy-for-preparing-commits`:
-  sequencer_marker->capture_invocation
-- `read-git-files-without-git` tests name `start-the-real-git`:
-  repo_read_config_typed->repo_read_query,
-  repo_read_tree_cached->repo_read_query,
-  sequencer_marker->recording_git,
-  sequencer_marker->transaction_git
-- `safe-file-saving` tests name `starting-and-watching-programs`:
-  scratch_location->child_class
-- `service-after-commit-work` tests name `commit-service-program`:
-  service_work->service_server
-- `start-the-real-git` tests name `commit-service-client`:
-  real_git->service_provision,
-  real_git_record->service_provision
-- `start-the-real-git` tests name `land-prepared-commits`:
-  transaction_git->service_busy,
-  transaction_git->service_busy_step_record_on_this_thread
-- `starting-and-watching-programs` tests name `typed-command-reader`:
-  add_timing->command_test_support
-- `system-journal-entries` tests name `typed-command-reader`:
-  journald_native->command_test_support
-- `typed-command-reader` tests name `keep-copies-of-discarded-work`:
-  command_test_support->discard_audit
-- `typed-command-reader` tests name `start-the-real-git`:
-  announced_query->forwarding,
-  effective_target->worktree_identity
-- `wrapper-settings` tests name `keep-copies-of-discarded-work`:
-  config_discarded->discarded_prune
-- `wrapper-settings` tests name `land-prepared-commits`:
-  config_snapshot->maintenance_decision
-- `wrapper-settings` tests name `policy-engine`:
-  invocation_config->repository_facts
-
-- `test_support` (280 sidecars use it) depends on `transaction_git`,
-  `worktree_copy_owner`,
-  `pid_namespace` and
-  `process_identity` through two functions:
-  `git_context` moves to the test support of `start-the-real-git`
-  and `dead_copy_owner` to the test support of `new-worktrees-quickly`.
-  The rest (disposable folders,
-  the `git` runner,
-  the watchdog) is the crate `disposable-test-fixtures`,
-  a dev-dependency
-  of every crate,
-  with no wrapper dependency.
-- `recording_git` goes with `start-the-real-git`'s test support;
-  `smart_http_support`,
-  `umask_child_test_support`,
-  `no_threads_child_test_support`,
-  `parallel_test_support`,
-  `fixture_executable` and `test_alive` go to the fixtures crate.
-- The other test-only modules go to the crate of their subject (`spec/tests.txt`,
-  also in the group map under
-  `target_test_only_modules`).
-- The sixteen `binary/*` files,
-  `binary_tests.rs` and the controls that start the built program go to the program crate's
-  `tests/` folder;
-  `source_guard/` and its tests,
-  which read the crate's own source text,
-  go there too
-  and read the sibling packages' `src/` folders (open point below).
-- `[[test]] native_binary` (`src/native/binary/binary_tests.rs`) moves to the program crate;
-  `[[test]] native_candidates` (`src/native/candidate/candidate_consumer_tests.rs`) moves to `commit-candidate-content`.
 
 ## Cargo packaging facts that bear on the tree
 
@@ -1995,16 +2860,18 @@ Nothing in production changes for them.
     including a nested copy `src/c/uses/b/uses/a/mod.rs`;
   - `include = ["src/**/*.rs", "!src/**/uses/**", "/Cargo.toml", "README.md"]` lists each file once;
   - `exclude = ["**/uses"]` without `include` lists each file once.
-- After the split every package is `publish = false`,
-  so nothing needs `cargo package` for crates.io,
-  and an `include`
-  list is not needed;
-  the wrapper's one last release happens before the first `uses/` link exists
+- Releases (owner,
+  2026-11-07):
+  every release of every package goes to pnpr,
+  and only `-rc.N` and plain-number releases also go to crates.io.
+  So `cargo package` matters for the program and the libraries,
+  and the program's `uses/` links would be packed many times over;
+  keep `exclude = ["**/uses"]` or the `!src/**/uses/**` pattern in `include`,
+  and use `cargo package --list` as the check.
+  A `toml-keys` entry in `file-enforcer.config.jsonc` can set it.
+  The wrapper's one last release from the unsplit crate happens before the first `uses/` link exists
   (move order,
   step 0).
-  If the owner wants the `!src/**/uses/**` pattern kept anyway for archive builds,
-  `cargo package --list` is the check,
-  and a `toml-keys` entry in `file-enforcer.config.jsonc` can set it.
 - Exact pins:
   `doc/decision/rust-dependency-catalog.md`,
   line 57,
@@ -2012,9 +2879,8 @@ Nothing in production changes for them.
   as `=<target package.version>`;
   `package/file-enforcer/cli/Cargo.toml` shows the form
   (`monochromatic-file-enforcer = { path = "../core-rust", version = "=0.1.1" }`).
-  A version bump at the bottom crate therefore edits every dependent `Cargo.toml` and lockfile through that sync;
-  the cascade is mechanical but touches many manifests,
-  which is part of the cost of a fine split.
+  A version bump at the bottom library therefore edits every dependent `Cargo.toml` and lockfile through that sync;
+  the cascade is mechanical and now reaches the program and a few libraries.
 
 ## Move order
 
@@ -2024,9 +2890,11 @@ and passes the crate's tests.
 
 0.  Step 0:
     release the wrapper's last crates.io version from the unsplit crate (the planning doc requires this before it
-    depends on an unpublished crate).
+    depends on an unpublished crate;
+    the owner's release answers of 2026-11-07 are in the section "Cargo packaging facts that bear on the tree").
     Nothing below runs earlier.
-1.  Every change listed above that is not a loop break also gets its own commit before the first grouping that needs it:
+1.  Rescan `main` (open point "Rescan before step 0") and place the files added since `f44d921e24`.
+2.  Every change listed above that is not a loop break also gets its own commit before the first grouping that needs it:
     the `worktree_command_facts` move,
     the `copy_file_exclusive` error type,
     the hint-function moves,
@@ -2038,10 +2906,10 @@ and passes the crate's tests.
     type paths,
     `super::`),
     not only in `use crate::<file>` lines.
-2.  Loop breaks inside the one crate:
+3.  Loop breaks inside the one crate:
     each bullet of "Breaking each loop" is a commit (a type moves,
     imports change).
-3.  The call changes,
+4.  The call changes,
     one commit each,
     in this order:
     finished results,
@@ -2050,51 +2918,54 @@ and passes the crate's tests.
     current step record,
     run this next.
     Each keeps `mise run //package/git-policy/cli:test` green.
-4.  Remove the flat re-exports:
+5.  The seven changes of "Changes so that a library stands alone",
+    one commit each.
+6.  Remove the flat re-exports:
     first rewrite every `use crate::<file>` to name the current folder
     (`crate::<old_folder>::<file>`),
     then delete the 28 `pub use` lines;
     the build proves the rewrite.
-5.  Group the files into the target crates as folders of the same package:
-    `src/<crate>/<folder>/<file>.rs`,
-    one commit per crate,
+7.  Group the files into the target folders of the same package:
+    `src/<folder>/<file>.rs` for the program,
+    and `src/<crate>/<folder>/<file>.rs` for the eight libraries while they still live inside it,
+    one commit per former crate,
     bottom first;
     here also the renames,
     the new index files with their top docs,
     the sidecar renames,
     the `test_support` split and the planted-control path updates (next section).
-6.  Add every `uses/` link in one commit,
+8.  Add every `uses/` link in one commit,
     then switch the two layout lint rules on for the whole package
-    (enabling them crate by crate would leave the rest failing).
+    (enabling them folder by folder would leave the rest failing).
     They then guard acyclicity and the links;
-    a use of a higher crate folder is caught only when it closes a loop,
-    so the layer order itself is kept by the
-    per-crate `Cargo.toml` after step 7.
+    a use of a higher folder is caught only when it closes a loop,
+    so the order between the libraries and the program is kept by the per-package `Cargo.toml` after step 10.
     The linter's `LIST_MARKER` one-line form is used in every top doc.
-7.  Lift the crate folders into packages,
+9.  Extract `disposable-test-folders` (every lifted library uses it as a dev-dependency).
+10. Lift the libraries,
     one per commit,
     in the order of the dependency graph:
-    new `Cargo.toml`
-    with `path` dependencies pinned `=<version>`,
-    a README,
+    new `Cargo.toml` with `path` dependencies pinned `=<version>`,
+    a README whose first paragraph is the job line,
     a `mise.toml` like a sibling,
     the sidecars with it,
-    the 15 `pub(crate)` items widened,
-    the test references that name a higher crate fixed (see above).
-    The wrapper's `Cargo.toml` loses the dependencies it no longer needs.
-8.  Before the first lift,
-    extract `disposable-test-fixtures` (every lifted crate uses it as a dev-dependency).
-    Every generated index file declares its folders and files `pub mod` where another crate names them;
-    the 15 widened items are not the only visibility work.
-9.  The program crate is what is left;
+    the `pub(crate)` items that another package names widened.
+    After each lift,
+    show that the library stands alone (section "The crate split",
+    "How standing alone will be shown")
+    and tell the owner before the next lift.
+    The shared build folder is set only after all are shown.
+    Every generated index file declares its folders and files `pub mod` where another crate names them.
+11. The program crate is what is left;
     its `Cargo.toml` keeps `[[bin]]`,
     the one `[[test]]` target for the built program,
-    the binstall metadata and the release profile.
+    the binstall metadata and the release profile,
+    and loses the dependencies the libraries took.
 
-Steps 5 and 6 can be done before the owner decides on the crate count,
+Steps 7 and 8 can be done before the owner decides on the libraries,
 because they only need the folder table;
-the lift step is where the owner's decision on granularity bites,
-and it can stop after any crate.
+the lift step is where the owner's decision bites,
+and it can stop after any library.
 
 ### How the tests and scripts follow
 
@@ -2113,76 +2984,76 @@ and it can stop after any crate.
   Production files they name exactly,
   with their new homes:
 
-- `src/native/candidate/candidate_batch.rs` to `package/git-policy/commit-candidate-content/src/reading_the_bytes_a_commit_would_save/reading_a_cat_file_batch_reply.rs`
-- `src/native/candidate/candidate_stage.rs` to `package/git-policy/commit-candidate-content/src/reading_the_bytes_a_commit_would_save/reading_stage_records.rs`
-- `src/native/command/command_add.rs` to `package/git-policy/typed-command-reader/src/what_each_git_command_accepts/command_add.rs`
-- `src/native/commit/capture_invocation.rs` to `package/git-policy/hidden-git-copy-for-preparing-commits/src/the_hidden_second_git_folder/capture_invocation.rs`
-- `src/native/commit/commit_args.rs` to `package/git-policy/commit-command/src/commit_args.rs`
-- `src/native/commit/commit_index.rs` to `package/git-policy/commit-command/src/commit_index.rs`
-- `src/native/commit/commit_preparation.rs` to `package/git-policy/commit-command/src/commit_preparation.rs`
-- `src/native/commit/commit_transaction.rs` to `package/git-policy/commit-command/src/commit_transaction.rs`
-- `src/native/commit/conclusion_copy.rs` to `package/git-policy/hidden-git-copy-for-preparing-commits/src/the_hidden_second_git_folder/conclusion_copy.rs`
-- `src/native/commit/post_commit.rs` to `package/git-policy/commit-command/src/post_commit.rs`
-- `src/native/commit/private_index_stage.rs` to `package/git-policy/commit-command/src/private_index_stage.rs`
-- `src/native/config/config_file.rs` to `package/git-policy/wrapper-settings/src/the_settings_file_cli_git_config_jsonc/finding_and_reading_the_settings_file.rs`
-- `src/native/config/config_loading.rs` to `package/git-policy/wrapper-settings/src/the_settings_file_cli_git_config_jsonc/deciding_how_to_load_settings.rs`
-- `src/native/config/config_parse.rs` to `package/git-policy/wrapper-settings/src/the_settings_file_cli_git_config_jsonc/turning_settings_text_into_typed_settings.rs`
-- `src/native/config/config_rules_file.rs` to `package/git-policy/wrapper-settings/src/the_settings_file_cli_git_config_jsonc/the_rules_file_option.rs`
-- `src/native/dependent_version/dependent_version_imports.rs` to `package/git-policy/dependent-version-bump-check/src/dependent_version_imports.rs`
-- `src/native/dependent_version/dependent_version_text.rs` to `package/git-policy/dependent-version-bump-check/src/dependent_version_text.rs`
-- `src/native/health/external_hooks.rs` to `package/git-policy/wrapper-settings/src/hooks_a_repository_configures/hooks_set_in_git_settings.rs`
-- `src/native/invocation/entry.rs` to `package/git-policy/cli/src/deciding_what_one_git_command_does.rs`
-- `src/native/invocation/git_version.rs` to `package/git-policy/start-the-real-git/src/running_git_for_a_transaction/checking_the_real_git_version.rs`
-- `src/native/invocation/global_arguments.rs` to `package/git-policy/typed-command-reader/src/what_each_git_command_accepts/global_arguments.rs`
-- `src/native/invocation/hooks_off.rs` to `package/git-policy/start-the-real-git/src/starting_git_and_describing_a_run/starting_git_with_hooks_off.rs`
-- `src/native/invocation/real_git_candidate.rs` to `package/git-policy/start-the-real-git/src/finding_the_real_git_program/deciding_if_a_path_is_real_git.rs`
-- `src/native/invocation/startup_gate.rs` to `package/git-policy/cli/src/first_step_of_a_command.rs`
-- `src/native/invocation/wrapped_command.rs` to `package/git-policy/cli/src/deciding_what_a_wrapped_command_does.rs`
-- `src/native/invocation/wrapper_controls.rs` to `package/git-policy/typed-command-reader/src/the_words_meant_for_this_wrapper/control_words_for_the_wrapper.rs`
-- `src/native/invocation/wrapper_invocation.rs` to `package/git-policy/typed-command-reader/src/the_words_meant_for_this_wrapper/removing_control_words_from_a_command.rs`
-- `src/native/landing/maintenance_decision.rs` to `package/git-policy/land-prepared-commits/src/maintenance_decision.rs`
-- `src/native/landing/maintenance_run.rs` to `package/git-policy/land-prepared-commits/src/maintenance_run.rs`
-- `src/native/landing/service_claim_watch.rs` to `package/git-policy/service-after-commit-work/src/service_claim_watch.rs`
-- `src/native/landing/service_replay.rs` to `package/git-policy/commit-command/src/service_replay.rs`
-- `src/native/landing/service_work.rs` to `package/git-policy/service-after-commit-work/src/service_work.rs`
-- `src/native/lock/index_lock_evidence.rs` to `package/git-policy/git-lock-files/src/finding_who_holds_a_lock_file/evidence_about_a_foreign_index_lock.rs`
-- `src/native/lock/single_owner_claim.rs` to `package/git-policy/convert-a-checkout-to-a-btrfs-subvolume/src/single_owner_claim.rs`
-- `src/native/markdown/markdown_linter_config.rs` to `package/git-policy/markdown-autofix-check/src/markdown_linter_config.rs`
-- `src/native/markdown/markdown_linter_output.rs` to `package/git-policy/markdown-autofix-check/src/markdown_linter_output.rs`
+- `src/native/candidate/candidate_batch.rs` to `package/git-policy/cli/src/reading_the_bytes_a_commit_would_save/reading_a_cat_file_batch_reply.rs`
+- `src/native/candidate/candidate_stage.rs` to `package/git-policy/cli/src/reading_the_bytes_a_commit_would_save/reading_stage_records.rs`
+- `src/native/command/command_add.rs` to `package/git-policy/cli/src/what_each_git_command_accepts/command_add.rs`
+- `src/native/commit/capture_invocation.rs` to `package/git-policy/cli/src/the_hidden_second_git_folder/capture_invocation.rs`
+- `src/native/commit/commit_args.rs` to `package/git-policy/cli/src/the_commit_command/commit_args.rs`
+- `src/native/commit/commit_index.rs` to `package/git-policy/cli/src/the_commit_command/commit_index.rs`
+- `src/native/commit/commit_preparation.rs` to `package/git-policy/cli/src/the_commit_command/commit_preparation.rs`
+- `src/native/commit/commit_transaction.rs` to `package/git-policy/cli/src/the_commit_command/commit_transaction.rs`
+- `src/native/commit/conclusion_copy.rs` to `package/git-policy/cli/src/the_hidden_second_git_folder/conclusion_copy.rs`
+- `src/native/commit/post_commit.rs` to `package/git-policy/cli/src/the_commit_command/post_commit.rs`
+- `src/native/commit/private_index_stage.rs` to `package/git-policy/cli/src/the_commit_command/private_index_stage.rs`
+- `src/native/config/config_file.rs` to `package/git-policy/cli/src/the_settings_file_cli_git_config_jsonc/finding_and_reading_the_settings_file.rs`
+- `src/native/config/config_loading.rs` to `package/git-policy/cli/src/the_settings_file_cli_git_config_jsonc/deciding_how_to_load_settings.rs`
+- `src/native/config/config_parse.rs` to `package/git-policy/cli/src/the_settings_file_cli_git_config_jsonc/turning_settings_text_into_typed_settings.rs`
+- `src/native/config/config_rules_file.rs` to `package/git-policy/cli/src/the_settings_file_cli_git_config_jsonc/the_rules_file_option.rs`
+- `src/native/dependent_version/dependent_version_imports.rs` to `package/dependent-version-bump-check/core-rust/src/dependent_version_imports.rs`
+- `src/native/dependent_version/dependent_version_text.rs` to `package/dependent-version-bump-check/core-rust/src/dependent_version_text.rs`
+- `src/native/health/external_hooks.rs` to `package/git-policy/cli/src/hooks_a_repository_configures/hooks_set_in_git_settings.rs`
+- `src/native/invocation/entry.rs` to `package/git-policy/cli/src/what_happens_when_you_type_a_command/deciding_what_one_git_command_does.rs`
+- `src/native/invocation/git_version.rs` to `package/git-policy/cli/src/running_git_for_a_transaction/checking_the_real_git_version.rs`
+- `src/native/invocation/global_arguments.rs` to `package/git-policy/cli/src/what_each_git_command_accepts/global_arguments.rs`
+- `src/native/invocation/hooks_off.rs` to `package/git-policy/cli/src/starting_git_and_describing_a_run/starting_git_with_hooks_off.rs`
+- `src/native/invocation/real_git_candidate.rs` to `package/git-policy/cli/src/finding_the_real_git_program/deciding_if_a_path_is_real_git.rs`
+- `src/native/invocation/startup_gate.rs` to `package/git-policy/cli/src/what_happens_when_you_type_a_command/first_step_of_a_command.rs`
+- `src/native/invocation/wrapped_command.rs` to `package/git-policy/cli/src/what_happens_when_you_type_a_command/deciding_what_a_wrapped_command_does.rs`
+- `src/native/invocation/wrapper_controls.rs` to `package/git-policy/cli/src/the_words_meant_for_this_wrapper/control_words_for_the_wrapper.rs`
+- `src/native/invocation/wrapper_invocation.rs` to `package/git-policy/cli/src/the_words_meant_for_this_wrapper/removing_control_words_from_a_command.rs`
+- `src/native/landing/maintenance_decision.rs` to `package/git-policy/cli/src/landing_commits/maintenance_decision.rs`
+- `src/native/landing/maintenance_run.rs` to `package/git-policy/cli/src/landing_commits/maintenance_run.rs`
+- `src/native/landing/service_claim_watch.rs` to `package/git-policy/cli/src/after_commit_work_of_the_service/service_claim_watch.rs`
+- `src/native/landing/service_replay.rs` to `package/git-policy/cli/src/the_commit_command/service_replay.rs`
+- `src/native/landing/service_work.rs` to `package/git-policy/cli/src/after_commit_work_of_the_service/service_work.rs`
+- `src/native/lock/index_lock_evidence.rs` to `package/git-policy/cli/src/finding_who_holds_a_lock_file/evidence_about_a_foreign_index_lock.rs`
+- `src/native/lock/single_owner_claim.rs` to `package/git-policy/cli/src/converting_the_main_checkout/single_owner_claim.rs`
+- `src/native/markdown/markdown_linter_config.rs` to `package/git-policy/cli/src/fixing_markdown_in_process/markdown_linter_config.rs`
+- `src/native/markdown/markdown_linter_output.rs` to `package/git-policy/cli/src/fixing_markdown_in_process/markdown_linter_output.rs`
 - `src/native/outer/inner.rs` (not a production module of the scan:
   test support or a path in a test)
-- `src/native/policy/event_path.rs` to `package/git-policy/policy-engine/src/repository_path_in_an_event.rs`
-- `src/native/policy/policy_final_newline.rs` to `package/git-policy/shipped-policies/src/the_built_in_policies/policy_final_newline.rs`
-- `src/native/policy/policy_registry.rs` to `package/git-policy/typed-command-reader/src/the_words_meant_for_this_wrapper/names_of_the_built_in_policies.rs`
-- `src/native/process/process_identity.rs` to `package/git-policy/starting-and-watching-programs/src/which_programs_are_running_and_since_when/telling_one_process_from_a_reused_number.rs`
-- `src/native/process/process_start.rs` to `package/git-policy/starting-and-watching-programs/src/which_programs_are_running_and_since_when/when_a_process_started.rs`
-- `src/native/process/signal_relay.rs` to `package/git-policy/starting-and-watching-programs/src/starting_programs_catching_signals_and_keeping_their_output/passing_signals_to_the_child.rs`
-- `src/native/push/auto_push_reconcile.rs` to `package/git-policy/background-push-after-commit/src/publishing_after_the_remote_moved.rs`
-- `src/native/push/auto_push.rs` to `package/git-policy/background-push-after-commit/src/pushing_a_landed_commit.rs`
-- `src/native/push/manual_push_probe.rs` to `package/git-policy/typed-push-planning/src/what_a_dry_run_push_would_send.rs`
-- `src/native/push/manual_push_range.rs` to `package/git-policy/typed-push-planning/src/commits_a_push_newly_publishes.rs`
-- `src/native/push/push_failure_notice.rs` to `package/git-policy/background-push-after-commit/src/record_of_a_failed_backup_push.rs`
-- `src/native/push/wait_progress.rs` to `package/git-policy/starting-and-watching-programs/src/watching_a_started_program_until_it_stops_making_progress/wait_notice_clock.rs`
-- `src/native/repo_read/object_abbreviation.rs` to `package/git-policy/read-git-files-without-git/src/reading_saved_commits_and_files/short_object_names.rs`
-- `src/native/repo_read/repo_read_layout.rs` to `package/git-policy/read-git-files-without-git/src/finding_the_git_folders/repository_location_without_git.rs`
-- `src/native/service/service_fault.rs` to `package/git-policy/crash-points-for-tests/src/fault_points_the_service_can_be_told_to_hit.rs`
-- `src/native/service/service_instance.rs` to `package/git-policy/commit-service-messages/src/naming_the_service_of_one_worktree/service_instance.rs`
-- `src/native/service/service_main.rs` to `package/git-policy/commit-service-program/src/the_service_as_a_mode_of_the_program.rs`
-- `src/native/service/service_server.rs` to `package/git-policy/commit-service-program/src/service_server.rs`
-- `src/native/shadow/replay_patch.rs` to `package/git-policy/hidden-git-copy-for-preparing-commits/src/replaying_changes_onto_new_commits/replay_patch.rs`
-- `src/native/shadow/replay_reverse_apply.rs` to `package/git-policy/hidden-git-copy-for-preparing-commits/src/replaying_changes_onto_new_commits/replay_reverse_apply.rs`
-- `src/native/shadow/replay_subsumption.rs` to `package/git-policy/hidden-git-copy-for-preparing-commits/src/replaying_changes_onto_new_commits/replay_subsumption.rs`
-- `src/native/shadow/shadow_config.rs` to `package/git-policy/hidden-git-copy-for-preparing-commits/src/the_hidden_second_git_folder/shadow_config.rs`
-- `src/native/shadow/shadow_links.rs` to `package/git-policy/hidden-git-copy-for-preparing-commits/src/the_hidden_second_git_folder/shadow_links.rs`
-- `src/native/shadow/shadow_refs.rs` to `package/git-policy/hidden-git-copy-for-preparing-commits/src/the_hidden_second_git_folder/shadow_refs.rs`
-- `src/native/transaction/transaction_phase.rs` to `package/git-policy/crash-points-for-tests/src/phase_markers_for_crash_tests.rs`
-- `src/native/worktree_copying/worktree_copy_install_log.rs` to `package/git-policy/new-worktrees-quickly/src/copying_ignored_files_into_a_stage/worktree_copy_install_log.rs`
-- `src/native/worktree_copying/worktree_copy_install.rs` to `package/git-policy/new-worktrees-quickly/src/copying_ignored_files_into_a_stage/worktree_copy_install.rs`
-- `src/native/worktree_copying/worktree_copy_journal.rs` to `package/git-policy/new-worktrees-quickly/src/copying_ignored_files_into_a_stage/worktree_copy_journal.rs`
-- `src/native/worktree_copying/worktree_copy_recovery.rs` to `package/git-policy/new-worktrees-quickly/src/copying_ignored_files_into_a_stage/worktree_copy_recovery.rs`
-- `src/native/worktree_copying/worktree_copy_rollback.rs` to `package/git-policy/new-worktrees-quickly/src/copying_ignored_files_into_a_stage/worktree_copy_rollback.rs`
-- `src/native/worktree_copying/worktree_copy.rs` to `package/git-policy/new-worktrees-quickly/src/copying_ignored_files_around_one_git_command/worktree_copy.rs`
-- `src/native/worktree/worktree_convert_journal.rs` to `package/git-policy/new-worktrees-quickly/src/converting_a_linked_worktree/worktree_convert_journal.rs`
+- `src/native/policy/event_path.rs` to `package/git-policy/cli/src/running_policies_and_settling_their_corrections/repository_path_in_an_event.rs`
+- `src/native/policy/policy_final_newline.rs` to `package/git-policy/cli/src/the_built_in_policies/policy_final_newline.rs`
+- `src/native/policy/policy_registry.rs` to `package/git-policy/cli/src/the_words_meant_for_this_wrapper/names_of_the_built_in_policies.rs`
+- `src/native/process/process_identity.rs` to `package/starting-and-watching-programs/core-rust/src/which_programs_are_running_and_since_when/telling_one_process_from_a_reused_number.rs`
+- `src/native/process/process_start.rs` to `package/starting-and-watching-programs/core-rust/src/which_programs_are_running_and_since_when/when_a_process_started.rs`
+- `src/native/process/signal_relay.rs` to `package/starting-and-watching-programs/core-rust/src/starting_programs_catching_signals_and_keeping_their_output/passing_signals_to_the_child.rs`
+- `src/native/push/auto_push_reconcile.rs` to `package/git-policy/cli/src/pushing_what_the_commit_service_saved/publishing_after_the_remote_moved.rs`
+- `src/native/push/auto_push.rs` to `package/git-policy/cli/src/pushing_what_the_commit_service_saved/pushing_a_landed_commit.rs`
+- `src/native/push/manual_push_probe.rs` to `package/git-policy/cli/src/working_out_what_a_typed_push_would_send/what_a_dry_run_push_would_send.rs`
+- `src/native/push/manual_push_range.rs` to `package/git-policy/cli/src/working_out_what_a_typed_push_would_send/commits_a_push_newly_publishes.rs`
+- `src/native/push/push_failure_notice.rs` to `package/git-policy/cli/src/pushing_what_the_commit_service_saved/record_of_a_failed_backup_push.rs`
+- `src/native/push/wait_progress.rs` to `package/starting-and-watching-programs/core-rust/src/watching_a_started_program_until_it_stops_making_progress/wait_notice_clock.rs`
+- `src/native/repo_read/object_abbreviation.rs` to `package/git-policy/cli/src/reading_saved_commits_and_files/short_object_names.rs`
+- `src/native/repo_read/repo_read_layout.rs` to `package/git-policy/cli/src/finding_the_git_folders/repository_location_without_git.rs`
+- `src/native/service/service_fault.rs` to `package/git-policy/cli/src/stopping_the_program_at_a_named_step_for_tests/fault_points_the_service_can_be_told_to_hit.rs`
+- `src/native/service/service_instance.rs` to `package/git-policy/cli/src/naming_the_service_of_one_worktree/service_instance.rs`
+- `src/native/service/service_main.rs` to `package/git-policy/cli/src/the_service_program/the_service_as_a_mode_of_the_program.rs`
+- `src/native/service/service_server.rs` to `package/git-policy/cli/src/the_service_program/service_server.rs`
+- `src/native/shadow/replay_patch.rs` to `package/git-policy/cli/src/replaying_changes_onto_new_commits/replay_patch.rs`
+- `src/native/shadow/replay_reverse_apply.rs` to `package/git-policy/cli/src/replaying_changes_onto_new_commits/replay_reverse_apply.rs`
+- `src/native/shadow/replay_subsumption.rs` to `package/git-policy/cli/src/replaying_changes_onto_new_commits/replay_subsumption.rs`
+- `src/native/shadow/shadow_config.rs` to `package/git-policy/cli/src/the_hidden_second_git_folder/shadow_config.rs`
+- `src/native/shadow/shadow_links.rs` to `package/git-policy/cli/src/the_hidden_second_git_folder/shadow_links.rs`
+- `src/native/shadow/shadow_refs.rs` to `package/git-policy/cli/src/the_hidden_second_git_folder/shadow_refs.rs`
+- `src/native/transaction/transaction_phase.rs` to `package/git-policy/cli/src/stopping_the_program_at_a_named_step_for_tests/phase_markers_for_crash_tests.rs`
+- `src/native/worktree_copying/worktree_copy_install_log.rs` to `package/git-policy/cli/src/copying_ignored_files_into_a_stage/worktree_copy_install_log.rs`
+- `src/native/worktree_copying/worktree_copy_install.rs` to `package/git-policy/cli/src/copying_ignored_files_into_a_stage/worktree_copy_install.rs`
+- `src/native/worktree_copying/worktree_copy_journal.rs` to `package/git-policy/cli/src/copying_ignored_files_into_a_stage/worktree_copy_journal.rs`
+- `src/native/worktree_copying/worktree_copy_recovery.rs` to `package/git-policy/cli/src/copying_ignored_files_into_a_stage/worktree_copy_recovery.rs`
+- `src/native/worktree_copying/worktree_copy_rollback.rs` to `package/git-policy/cli/src/copying_ignored_files_into_a_stage/worktree_copy_rollback.rs`
+- `src/native/worktree_copying/worktree_copy.rs` to `package/git-policy/cli/src/copying_ignored_files_around_one_git_command/worktree_copy.rs`
+- `src/native/worktree/worktree_convert_journal.rs` to `package/git-policy/cli/src/converting_a_linked_worktree/worktree_convert_journal.rs`
 
 - After each planted-control path update,
   `bin/native-planted-controls-proof.ts` is the check that the mutated line still
@@ -2199,80 +3070,220 @@ and it can stop after any crate.
 
 ## Open points for the owner
 
-Each has a recommendation;
-they go into the owner's question file.
+Each has options with pros and cons and a ranking;
+the recommendation is the first option.
 
-- Crate count.
-  The tree has one library per job found,
-  46 of them plus the fixtures crate.
-  Cost is in "What a crate costs".
-  Recommendation:
-  accept the list as the target,
-  do the in-package steps (grouping and lint) now,
-  and lift crates one at a time from the
-  bottom,
-  stopping to ask whether to continue after the lower half;
-  the weak entries listed above are the first to merge back.
-- One shared `CARGO_TARGET_DIR` for all packages of the family.
-  Without it each of about 48 packages compiles
-  its dependencies again.
-  Recommendation:
-  yes,
-  set in the packages' `mise.toml` environment;
-  profiles still come from each
-  package.
-- Where `FailureCode` lives.
-  It is the service's closed list of refusal reasons,
-  defined in the protocol;
-  the index-lock
-  crate reports with it,
-  so `commit-service-index-lock` depends on `commit-service-messages`,
-  which depends on no crate
-  (the review key moved into it).
-  Recommendation:
-  accept;
-  the alternative is a tiny crate for the code list.
-- Where `service_fault` and `service_durable` live (crash-points crate and index-lock crate).
-  Recommendation:
-  accept.
-- Source-text controls (`source_guard` and its tests) in the program crate reading the sibling packages' `src/` folders.
-  Recommendation:
-  accept,
-  since they police the whole family and the program is the only crate that sees all of it.
+- Which Git-free jobs become libraries.
+  The eight pass the coordinator's stand-alone test (section "The crate split");
+  four have a sibling that carries its own copy today (tier one),
+  four only a sibling whose job would call them (tier two).
+  Options:
+  - A,
+    the eight and the test-folders library.
+    Pros:
+    every Git-free job with a plausible sibling is a library,
+    which is what "crates obviously have to be reusable" asks for.
+    Cons:
+    four of them have no sibling that asks;
+    needs all seven named changes,
+    which are code changes beyond the four the owner approved.
+  - B,
+    only the four with tier-one evidence
+    (`safe-file-saving`,
+    `linux-file-and-disk-calls`,
+    `starting-and-watching-programs`,
+    `parallel-work-within-a-budget`) and the test-folders library.
+    Pros:
+    each has a sibling that already does the job;
+    fewer named changes
+    (the watcher terms,
+    the items moving down,
+    the program name and the test split;
+    not the two repair changes nor the version files).
+    Cons:
+    `text-time-and-log-line-formats` is needed by three of the four,
+    so it would have to come along or its few files be copied,
+    and the repair and version jobs go into the program although they are Git-free.
+  - C,
+    A plus the Git-free clusters with no user today
+    (section "Jobs found buried in the program";
+    about seven more libraries).
+    Pros:
+    the program shrinks;
+    the owner's "do not put everything in one crate" is read widest.
+    Cons:
+    each extra library costs a manifest,
+    a README,
+    licence texts and a place in the pin cascade,
+    and none has a sibling that asks.
+  Ranking:
+  A > B > C.
+  A over B because the four tier-two jobs are as Git-free as the others and a sibling plausibly calls each,
+  while B's cut line (a sibling already carries a copy) is stricter than anything the owner said;
+  B over C because C adds libraries no sibling asks for,
+  and any of them lifts later for the price of moving one folder.
+- The test helpers.
+  Options:
+  - A,
+    `disposable-test-folders` as a ninth library,
+    the Git-free half of the test helpers.
+    Pros:
+    one copy,
+    and the eight libraries' tests run from their own folders.
+    Cons:
+    one more package with its own README and licences.
+  - B,
+    every library keeps its own small helpers.
+    Pros:
+    no ninth package.
+    Cons:
+    the same dozen helpers copied eight times that drift apart.
+  - C,
+    the helpers stay in the program and the libraries' tests use only `std`.
+    Pros:
+    nothing to split.
+    Cons:
+    the libraries' tests could not run alone,
+    which fails the stand-alone test.
+  Ranking:
+  A > B > C.
+  A over B because a copy per library drifts;
+  B over C because C fails the test the owner asked for.
+- Flat folders or one level of grouping in the program.
+  The program has 74 folders directly in `src/`.
+  Options:
+  - A,
+    flat,
+    as the draft.
+    Pros:
+    the linter never sees a parent folder that uses its child;
+    `uses/` links stay the whole story.
+    Cons:
+    a long list of folders.
+  - B,
+    one level of group folders (one per former crate).
+    Pros:
+    the tree reads in about two dozen groups.
+    Cons:
+    a group's top folder would hold the folders of its children,
+    and the rule "two source folders never use each other" would have to say how a parent and a child relate;
+    that needs the owner's wording.
+  Ranking:
+  A > B.
+  A because it is the only choice the existing lint rules already cover;
+  B is a good second only after the owner words the parent and child rule.
+- Where the libraries live and what they are named.
+  Options:
+  - A,
+    `package/<job>/core-rust`,
+    crate `monochromatic-<job>`,
+    as `package/catalog-specifier/core-rust` does.
+    Pros:
+    nothing Git-related in the path or the name;
+    matches the sibling Rust libraries.
+    Cons:
+    the rule that directory segments are singular (`doc/planning/singular-dir-name-invariant.md`) would call
+    `starting-and-watching-programs`,
+    `parallel-work-within-a-budget`,
+    `fix-packages-after-copying-a-folder` and others plural,
+    unless the owner exempts job names.
+  - B,
+    `package/git-policy/<job>`,
+    as the draft.
+    Pros:
+    the family stays together.
+    Cons:
+    puts "git-policy" in the path of a library whose job and name must mention nothing related to Git.
+  Ranking:
+  A > B.
+  A because the new rule is about the name and the path is part of it.
+  Also asked:
+  keep the job names and exempt them from the singular rule,
+  or singularize them.
+- SHA digests.
+  `sha-1-and-sha-256-digests` folds into the program.
+  Options:
+  - A,
+    replace the hand-written code with the catalog's `sha2` crate,
+    which four sibling packages already use.
+    Pros:
+    less code of our own to keep correct.
+    Cons:
+    a code change nobody has authorized,
+    and the Git index code needs SHA-1 as well.
+  - B,
+    keep the hand-written file as a program folder.
+    Pros:
+    no change.
+    Cons:
+    our own copy of what a published crate does.
+  Ranking:
+  A > B.
+  A because four siblings already chose `sha2`;
+  B only if the owner will not authorize the change now.
+- Rescan before step 0.
+  `main` has moved since `f44d921e24` (section "The crate split",
+  "Files of `main` added after the scan").
+  Options:
+  - A,
+    rerun the scanners and place the new files first.
+    Pros:
+    the loop counts and the table describe the code that will move.
+    Cons:
+    the table must be extended by hand for about eight new files.
+  - B,
+    move on the old scan and place the new files at lift time.
+    Pros:
+    nothing to do now.
+    Cons:
+    loops that the new files add are found late.
+  Ranking:
+  A > B.
+  A because the measured zero loops are of an old tree.
+
+Carried over from the previous version,
+with the recommendation unchanged unless noted:
+
+- Source-text controls (`source_guard` and its tests) stay in the program crate and read the sibling packages' `src/`
+  folders.
+  Accept,
+  since they police the whole family and the program is the only package that sees all of it.
 - `cli` as a package folder name does not pass MKY alone (VGW exempts package folders,
   MKY does not).
-  Recommendation:
-  keep `cli`,
+  Keep `cli`,
   because the lock row `cargo:monochromatic-git-policy-cli` and the release archive name it,
-  and explain it in
-  the README;
-  the new package names are plain.
+  and explain it in the README.
 - `PKG` says a package is complete only with tests covering every exported code path;
-  the new libraries export about a
-  thousand items between them (all but 15 are `pub` today).
-  Recommendation:
-  the sidecars move with their subjects
-  and keep covering them;
+  the sidecars move with their subjects and keep covering them;
   no new tests are written for the move.
-- The linter README example of the file list is split over two lines and fails the rule it documents (above).
-  Recommendation:
-  fix the README to one line;
+- The linter README example of the file list is split over two lines and fails the rule it documents.
+  Fix the README to one line;
   it is outside this proposal.
-- Two new call changes (copy error type,
+- Two call changes (copy error type,
   hint functions) were found by the moved-item check.
-  Recommendation:
-  accept both.
+  Accept both.
 - The `include` list:
-  drop it at the split,
-  because nothing is published afterwards.
-  Recommendation:
-  drop.
-- The exact-pin cascade touches every dependent manifest on each bump.
-  Recommendation:
-  rely on the catalog sync and
-  say in the sync's doc that the wrapper family needs it.
+  nothing is published afterwards from the unsplit crate's `uses/` links,
+  so drop it at the split.
+- The exact-pin cascade now touches the program and a few libraries on a bump;
+  rely on the catalog sync and say in the sync's doc that the family needs it.
+- Module visibility,
+  the scanner's `cfg` scope and surfaces it may not see (`self::`,
+  macros,
+  trait impls),
+  and the manifest migration inventory stay open from the first review.
 
-## Review by the cross-vendor reviewer
+Withdrawn with the 46-library split:
+the places of `FailureCode`,
+`service_fault` and `service_durable`,
+the crate count,
+and the folding of `commit-command`,
+`doctor-report`,
+`merge-in-isolation`,
+`typed-push-planning` and `service-after-commit-work`
+(they fold now by the owner's rule).
+
+## First review, of the 46-library draft (2026-11-04)
 
 The reviewer was `openai/gpt-6.1-sol` (thinking xhigh),
 given the proposal,
@@ -2354,7 +3365,8 @@ and what changed:
   grouped imports and named re-exports;
   other surfaces are unchecked).
 
-Open points added by the review:
+Open points added by that review,
+with its folding advice overtaken by the owner's rule of 2026-11-07 (those crates now fold):
 
 - Fold `commit-command`,
   `doctor-report`,
@@ -2374,8 +3386,13 @@ Open points added by the review:
   yes,
   as the first lift after the lower half.
 
+## Second review, of the redone split (2026-11-07)
+
+Requested from the cross-vendor reviewer on the section "The crate split" and the stand-alone test;
+the answer had not returned when this version was committed.
+
 ## Next
 
 The owner answers the open points;
-then step 0 and steps 2 to 4 start,
+then step 0 and steps 3 to 6 start,
 each on its own branch.
