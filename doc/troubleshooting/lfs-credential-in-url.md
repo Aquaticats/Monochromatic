@@ -109,11 +109,23 @@ So the token was never given to Actions.
   token
   or its Basic-header form.
   The token was never committed.
-- Tracked files at the main checkout: see the transcript and tool-state results below.
+- Tracked files at the main checkout: 21550 files searched, none holds the token.
 
 ### Agent transcripts and tool state
 
-Pending: the scan of `~/.claude`, `~/.codex`, `~/.cache`, `~/.local/share`, `~/.local/state` and the tracked files
+- `~/.claude/projects/-var-home-user-Monochromatic`: 17 transcript files hold the token (2 session files and 15 subagent
+  files under `<session>/subagents/`), written between 2026-10-05 and 2026-11-07.
+  The files are the owner's data and were not edited.
+  The transcript of the session that produced this inventory is one more copy: it printed the `locksverify` key name
+  (which embeds the token) from a `--name-only` listing before any masking was applied, and the scan began before
+  that file was complete.
+- `~/.codex`: no file holds the token.
+- `~/.local/state` and `~/.config` (including `~/.config/.wrangler/logs`): no file holds the token.
+- Not scanned, outside the brief's list or too large for the time spent: `~/.pi` (4.2 GB), `~/.cache`,
+  `~/.local/share` (model and tool installs), the kopia snapshots of `~/.claude`, `~/.pi` and `~/.config`
+  (kopia snapshots the transcripts, so the 17 files above are in them from the time they were written).
+  The scan script and its fake-value proof are scratch under `~/temp/agent/lfs-scan`; resume with
+  `node scan.ts real cache` there for `~/.cache`.
 runs in user unit `lfs-inventory-scan2`; `~/.pi` (4.2 GB) is not in the brief's list and was not scanned.
 
 ## What was done in the repository
