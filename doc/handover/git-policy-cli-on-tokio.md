@@ -3,7 +3,7 @@
 ## Current state
 
 - Written:
-  2026-11-07T07:56:00-05:00.
+  2026-11-07T09:20:00-05:00.
 - Branch and worktree:
   `feat/git-policy-cli-on-tokio` in `.claude/worktrees/wrapper-on-tokio`.
   Not merged into main until the coordinator says the wrapper's release is out; keep it current by merging main into it.
@@ -38,7 +38,9 @@
 - `foundation/private_storage.rs`: the exclusive publish is `tempfile::persist_noclobber` with the owner's checked-rename fallback (G1 answered, "Keep the fallback (Recommended)"); the module's other faces move to `tokio::fs` with the callers in T11. Two facts for the owner are in the plan ("Safe file saving: the publish replaced"): the in-process race of `decide` on a filesystem with neither, and the service's index-lock refusal there.
 - `zbus` 6 for the service client (step T8): main's `toolchain.lock.json` now names `nightly-2026-11-07`, so it compiles; the catalog
   floor is 5.19 and the release-age exclusion names `zbus@5.19.0`, both to be moved to 6.
-- The mutation campaign (`native:mutation:scoped`) over the new files and the planted controls.
+- The mutation campaign: the user told this agent not to run mutation campaigns and to delegate them to the coordinator. Scope for the coordinator: `src/native/foundation/private_storage.rs`, `src/native/service/service_busy.rs`, `src/native/process/child_awaited_through_a_pidfd.rs`, `src/native/process/captured_child_run_to_its_end.rs` and the T3 files under `src/native/foundation/` (`runtime_limits.rs`, `runtime_plan.rs`, `lazy_runtime.rs`, `blocking_job.rs`), against a gate image of this branch. A scoped run for the first two was started and stopped at the planted-controls stage; it produced no mutant results.
+- Not started: T5 to T13. T5 (watchers) cannot be done alone: `ChildWatch` guards blocking reads in `candidate/candidate_reader.rs` and the callers of `bounded_push`/`bounded_query`, which stay synchronous until T11, so T5 and T6 need a design for the blocking-to-async bridge first (see the plan, step T4's note on bridges).
+- Main merged in at `9156ca885b` (wrapper 0.6.0 released; `child_environment.rs` from the background-never-prompts change came with it). Container gate after that merge: 5127 tests run, 5127 passed (1 slow), 8 skipped; Clippy clean.
 
 ## Rules that bit during this work
 
