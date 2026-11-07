@@ -3604,6 +3604,25 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
   "semantic evidence unavailable for .../core-exec/task.ts: project-not-found" (a preference log line, not a finding;
   not investigated).
+- systemd-run limits audit: merged `aab8488b0b` (2026-11-07). `crate-release` publish dry run, music-player e2e units,
+  `nested-wayland-session` app scope and the guardrail refusal text now carry `MemoryMax`, `CPUQuota`, `TasksMax` and
+  `IOWeight=10`, each cited to a measurement. Queued, all eight agent slots full at 2026-11-07T11:40-05:00 (start
+  each when a slot frees):
+  - Daily update has no post-update build check: `d61dc1934a` raised the zbus floor to `>=6.2.1` and
+    `nested-wayland-session` stopped compiling (no `zbus::blocking` in 6); no fix-forward issue was opened (`gh issue
+    list` empty). The owner's pick, `doc/planning/rust-nightly-always-latest.md:228`: "the lock goes to the newest
+    nightly regardless, and the failing package gets a fix-forward issue." Build: after the update, check each package
+    and open one issue per failing package; the move itself never waits. The crate port runs now
+    (`fix/nested-wayland-session-cli-zbus-6-async`).
+  - `cargo-shadow` launcher scope (`control_group.rs`) is created under its own slice with no limits, so a capped
+    caller's `cargo` build escapes the caller's caps. Adopted by the coordinator from repo precedent
+    (`package/wg/cli-quicker-exempt/src/inherited_limits.rs`): the scope copies the launcher's own `memory.max`,
+    `pids.max`, `cpu.max` and `io.weight`. Contract doc `doc/planning/cargo-shadow-guarantees.md` gains the clause.
+  - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text; a
+    rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
+    Rebuild deliberately through its task, attribute the drift to source commits, run the plugin's tests, commit.
+  - `package/music-player/desktop-e2e` lint: 11 errors and 89 warnings, older than the audit (not counted on an
+    unmodified main yet). Owner: "Principle 1: Lint issues need to be taken care of asap."
 - Settle test in suite: merged `58d910f99e` (gate 5166 of 5166, lint clean; test-only). Cause shown by sharing state:
   another test's fixture service shows the earlier `--journal` word before it creates that folder (measured median
   1.7 ms, max 485 ms alone), and the settle command's process look counts it as `Hold::HelperUnsure`, settles nothing

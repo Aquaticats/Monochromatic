@@ -92,13 +92,11 @@ Now `@latest`;
   bump both together."
 Now `@latest`;
   the lock moved 0.15.2 to 0.17.1.
-  **Fix-forward candidate**:
-  `ZIG_VERSION=0.15.2` is still hand-kept in `package/terminal/app/Containerfile`,
-  `package/terminal/app/Containerfile.release` and `package/music-player/desktop-app/Containerfile`,
-  so containers and host now differ,
-  and the host tasks of `package/terminal/app` and
-  `package/music-player/desktop-app` use the host Zig when it is on `PATH`.
-  Whether `cargo-zigbuild` and the Slint builds work on 0.17 was not run.
+  **Fixed forward** on 2026-11-07:
+  the Containerfiles of `package/terminal/app` (two) and `package/music-player/desktop-app` no longer carry a Zig version,
+  they take the archive and SHA-256 of the lock's row (section "Containers follow the lock"),
+  and the vendored Ghostty that needs Zig 0.15 moved to a `libghostty-rs` revision that builds with 0.17.1
+  (`doc/troubleshooting/ghostty-requirezig-rejects-zig-0-17.md`).
 - `llama.cpp`:
   `github:ggml-org/llama.cpp@b9829`.
   Reason:
@@ -230,11 +228,21 @@ None does now.
   beside the existing `cachyos-image` command,
   and each image task (the `mise.toml` files and the translated `task.ts` files) adds it to `podman build`.
 - `PINNED` in `package/cargo-shadow/cli/src/toolchain_tests.rs` is read from the repository lock.
-- Limit:
-  tasks that build an image only when it is missing keep an old image until someone runs the package's `image`
-  task,
-  so a running machine follows the lock at its next image build,
-  not at the lock change.
+- The same holds for Zig and `cargo-about`:
+  the Containerfiles declare `ZIG_ARCHIVE_URL`, `ZIG_ARCHIVE_SHA256` and `CARGO_ABOUT_VERSION` with no default,
+  and their callers read the values from `package/test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts`
+  (`zig` or `cargo-about`).
+  The Zig install checks the SHA-256 and prints `zig version`.
+- Images follow the lock after it changes:
+  `package/test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts` labels each image with a digest of
+  its build arguments (and the ids of the local images it starts from),
+  and every task that built "only when missing" now builds when the label differs from the digest of the arguments it
+  would pass now.
+  The explicit `image` tasks always build and label.
+  Limits:
+  an image built before the label existed has none and rebuilds once;
+  the digest covers build arguments and base images, not the contents of a Containerfile;
+  the `image:windows-gnu` task and `package/nested-wayland-session/cli` still use the old exists check.
 - Built on 2026-11-07 with the lock's nightly-2026-11-07:
   see "Images built".
 
@@ -388,6 +396,38 @@ the lock's `nightly-2026-11-07`.
   nothing was skipped.
   `package/ide/app` images start `FROM` the terminal images and set no toolchain of their own,
   so they follow the rebuilt base.
+
+## Zig 0.17.1 results
+
+Run on 2026-11-07 in containers capped with `--cpus`, `--memory`, `--pids-limit` and `--blkio-weight` inside a `systemd-run --user --scope`
+with `IOWeight` 10.
+
+- The five images below were rebuilt by `container-image-build-if-inputs-changed` (each carried no label, so each was stale):
+  `localhost/monochromatic/terminal`, `terminal-release`, `music-player`, `ide` and `ide-release`.
+  `zig version` printed 0.17.1 in `terminal`, `terminal-release`, `music-player` and `ide`
+  (`ide-release` starts from `terminal-release`),
+  and `cargo-about --version` printed 0.9.3 in `ide`.
+  A second run of the command on each image built nothing, so the labels match the digests the tasks compute.
+- `package/terminal/app`:
+  `cargo clippy --locked --release --all-targets -- --deny warnings` passed,
+  and `cargo nextest run --locked --release` ran 16 tests, 16 passed.
+- `package/music-player/desktop-app`:
+  `cargo zigbuild --locked --release --target x86_64-unknown-linux-gnu.2.39` finished in 5m09s on Zig 0.17.1
+  after the `branches` and `zbus` repairs;
+  `cargo clippy --locked --release --all-targets -- -D warnings` passed after five findings of the newest nightly's Clippy
+  (a shadowed binding, two constant assertions and two needless borrows in tests) were fixed.
+  `cargo nextest run --locked --release --no-fail-fast` with `SLINT_EMIT_DEBUG_INFO=1` ran 1594 tests, 1593 passed,
+  1 skipped, 1 failed:
+  `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis`
+  ("the long title ends in an ellipsis", `src/ui_lists_render_tests.rs:227`).
+  That is a text-layout assertion in the Slint renderer test;
+  it was not investigated and nothing in this change touches it.
+- The terminal task `mise run //package/terminal/app:test:container` ran through the rewired dispatch:
+  the image was current (no build),
+  and 16 of 16 tests passed.
+- Found on the way, separate from Zig:
+  the open-ended `zbus` floor and the `branches` feature unification
+  (section "Fix-forward items").
 
 ## Measured run
 
@@ -551,10 +591,20 @@ on the branch with the new locks:
 - bun 1.4.4 in both locks:
   nothing has run on it;
   the pin's reason was a doubt about the rewrite.
-- zig 0.17.1 against `ZIG_VERSION=0.15.2` in the terminal and music-player Containerfiles:
-  make the Containerfiles take
-  the lock's Zig the way they now take the Rust toolchain,
-  then run the Slint and `cargo-zigbuild` builds.
+- zig 0.17.1: done (section "Containers follow the lock").
+  The Slint and `cargo-zigbuild` builds of the music player and the terminal's Clippy and nextest ran on 0.17.1
+  (section "Zig 0.17.1 results").
+- `libghostty-vt` comes from a `libghostty-rs` git revision;
+  return to a crates.io release once one vendors a Ghostty that builds with the current Zig.
+- `branches` 0.4 and `turso_core`:
+  the named catalog `branches-0-4` enables `std` on the line `turso_core` uses;
+  remove it when `turso_core` requires `branches` 0.5 or newer
+  (`doc/troubleshooting/branches-0-4-calls-removed-core-intrinsics-abort.md`).
+- zbus 6: the daily update locked 6.2.1, which removed `zbus::blocking`.
+  `package/music-player/desktop-app` is held on 5.x by the named catalog `zbus-5`;
+  `package/nested-wayland-session/cli` uses `zbus::blocking` too and was not built;
+  the port to `zbus::block_on` is open
+  (`doc/troubleshooting/zbus-6-removed-the-blocking-api.md`).
 - cargo-fuzz:
   the next point release may break the fuzz crates;
   the pin's reason says it has before.

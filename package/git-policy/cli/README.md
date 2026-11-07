@@ -41,6 +41,12 @@ Every earlier name keeps working in this release:
   The fold waits while a process has the start arguments of the earlier commit service of the Git directory's worktree
    (a socket that only listens does not hold it), says one line per process what to do in plain words, and folds on a later command.
   A kill at any instruction leaves each byte under one of the two names, and the next command finishes the fold.
+  A program of an earlier release that opened a log before the fold moved it may still write a line to it, so the fold removes
+   the moved log only when no process on the machine has it open for writing (a read lease that is taken and given back at once
+   answers that, for any user and any namespace, and takes nothing from anyone).
+  While one does, the fold leaves the moved log and a journal beside the current log, says nothing, and each later command adds
+   only the lines written since and tries again, until that program has closed the log; no line is lost or added twice.
+   Each such command also looks at the running processes once (about 10 ms) while the moved log waits.
   Logs are not interleaved by time stamp: the current log is never rewritten, because other programs append to it without a lock.
   If a rename fails (a read-only Git directory), the earlier name is used for that run and the next command tries again.
 - The commit service units.

@@ -338,6 +338,21 @@ so a host whose loader wrongly reports v4 would build and run the v4 image and f
 [cachyos-repo-script]: https://mirror.cachyos.org/cachyos-repo.tar.xz
 [cachyos-wiki-repos]: https://wiki.cachyos.org/features/optimized_repos/
 
+## Container builds that follow `toolchain.lock.json`
+
+Containerfiles in this repository declare the tools they install themselves as build arguments with no default,
+and their callers read the values from the lock through three commands that run from any directory below the lock.
+
+- `locked-rust-toolchain --build-argument` prints `RUST_TOOLCHAIN=<name>`.
+- `locked-tool-build-arguments zig` prints `ZIG_ARCHIVE_URL=<url>` and `ZIG_ARCHIVE_SHA256=<hash>` for the host's architecture;
+  `locked-tool-build-arguments cargo-about` prints `CARGO_ABOUT_VERSION=<version>`.
+  A missing lock, an unknown tool, or a host architecture with no Zig archive exits 1 and says so.
+- `container-image-build-if-inputs-changed --image <name> --containerfile <file> [--base-image <name>]...
+  [--bounding-flag=<flag>]... [--force] -- <podman build arguments>` builds the image when it is missing or its label
+  `dev.monochromatic.image-build-inputs-sha256` differs from the digest of the build arguments and the ids of the base images.
+  `--force` builds regardless, and `--bounding-flag` passes a CPU or memory limit that stays out of the digest.
+  Exit status is 0 when the image is current or built, 1 when the build fails, 2 for a malformed command line.
+
 ## Supported runtimes
 
 - **bun**:

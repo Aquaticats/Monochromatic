@@ -13,6 +13,7 @@ import {
   loadRunConfig,
   overridesFromEnvironment,
 } from './config.ts';
+import { DEFAULT_UNIT_LIMITS, } from './session-launch.ts';
 
 await describe({
   name: loadRunConfig.name,
@@ -34,6 +35,7 @@ await describe({
           outputRoot: '/work/app/target/e2e',
           releaseBinary: '/work/app/target/release/music-player',
           scratchRoot: '/home/tester/temp/agent/music-player-e2e',
+          unitLimits: DEFAULT_UNIT_LIMITS,
         },);
       },
     },),
@@ -51,6 +53,30 @@ await describe({
         expect(config.outputRoot,).toBe('/out',);
         expect(config.scratchRoot,).toBe('/tmp-x',);
         expect(config.releaseBinary,).toBe('/work/app/target/release/music-player',);
+      },
+    },),
+    it({
+      name: 'lets the overrides replace the memory, CPU and task limits of a session unit',
+      fn: async ({ expect, }) => {
+        const config = loadRunConfig({
+          appDir: '/work/app',
+          home: '/home/tester',
+          overrides: { unitMemoryMax: '3G', unitCpuQuota: '700%', unitTasksMax: '77', },
+          defaultCompositorPath: '/mise/installs/nested/bin/nested',
+        },);
+        expect(config.unitLimits,).toEqual({ memoryMax: '3G', cpuQuota: '700%', tasksMax: '77', },);
+      },
+    },),
+    it({
+      name: 'gives every session unit a memory, CPU and task limit when no override is set',
+      fn: async ({ expect, }) => {
+        const config = loadRunConfig({
+          appDir: '/work/app',
+          home: '/home/tester',
+          overrides: {},
+          defaultCompositorPath: '/mise/installs/nested/bin/nested',
+        },);
+        expect(Object.keys(config.unitLimits,).toSorted(),).toEqual(['cpuQuota', 'memoryMax', 'tasksMax',],);
       },
     },),
     it({
@@ -73,9 +99,37 @@ await describe({
   concurrency: 1,
   children: [
     it({
+      name: 'reads the unit limits from E2E_UNIT_MEMORY_MAX, E2E_UNIT_CPU_QUOTA and E2E_UNIT_TASKS_MAX',
+      fn: async ({ expect, }) => {
+        const names = ['E2E_UNIT_MEMORY_MAX', 'E2E_UNIT_CPU_QUOTA', 'E2E_UNIT_TASKS_MAX',] as const;
+        const saved = names.map((name,) => [name, process.env[name],] as const);
+        process.env.E2E_UNIT_MEMORY_MAX = '3G';
+        process.env.E2E_UNIT_CPU_QUOTA = '700%';
+        process.env.E2E_UNIT_TASKS_MAX = '77';
+        const read = overridesFromEnvironment();
+        for (const [name, value,] of saved)
+          if (value === undefined)
+            Reflect.deleteProperty(process.env, name,);
+          else
+            process.env[name] = value;
+        expect(read.unitMemoryMax,).toBe('3G',);
+        expect(read.unitCpuQuota,).toBe('700%',);
+        expect(read.unitTasksMax,).toBe('77',);
+      },
+    },),
+    it({
       name: 'reads only the variables that are set',
       fn: async ({ expect, }) => {
-        const names = ['E2E_COMPOSITOR', 'E2E_LIBRARY_GENERATOR', 'E2E_ONLY', 'E2E_OUT', 'E2E_TMP',] as const;
+        const names = [
+          'E2E_COMPOSITOR',
+          'E2E_LIBRARY_GENERATOR',
+          'E2E_ONLY',
+          'E2E_OUT',
+          'E2E_TMP',
+          'E2E_UNIT_CPU_QUOTA',
+          'E2E_UNIT_MEMORY_MAX',
+          'E2E_UNIT_TASKS_MAX',
+        ] as const;
         const saved = names.map((name,) => [name, process.env[name],] as const);
         for (const name of names)
           Reflect.deleteProperty(process.env, name,);

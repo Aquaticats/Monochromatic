@@ -77,6 +77,9 @@ pub enum Outcome {
     Nothing,
     /// The earlier name is gone and its content is under the current name.
     Folded,
+    /// A program still has the moved log open for writing: every byte it held so far is in the current log, nothing is said,
+    ///  and a later command adds what the program writes next and removes the moved log once the program has closed it.
+    LeftForALaterCommand,
     /// Another process is folding it.
     Busy,
     /// Entries of the earlier folder stayed where they were; each is listed.
@@ -171,6 +174,7 @@ fn fold_one(directory: &Path, kept: KeptName, steps: &mut dyn FoldSteps) -> Outc
                 (Ok(LogFold::Nothing), Ok(())) => Outcome::Nothing,
                 (Ok(LogFold::Folded), Ok(())) => Outcome::Folded,
                 (Ok(LogFold::Busy), Ok(())) => Outcome::Busy,
+                (Ok(LogFold::LeftForALaterCommand), Ok(())) => Outcome::LeftForALaterCommand,
                 (Ok(LogFold::Stopped(step)), Ok(())) => Outcome::Stopped(step),
             };
         }

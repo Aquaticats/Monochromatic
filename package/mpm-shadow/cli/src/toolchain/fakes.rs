@@ -36,6 +36,9 @@ pub(crate) struct FakeRunner {
     calls: RefCell<Vec<RunRequest>>,
     /// Answers by request-line prefix.
     rules: RefCell<Vec<(String, RunOutcome)>>,
+    /// Answers that apply only once a request with the trigger prefix has been received:
+    /// the trigger, the request-line prefix to answer and the outcome.
+    after_rules: RefCell<Vec<(String, String, RunOutcome)>>,
     /// Side effects run when a request-line prefix matches.
     effects: RefCell<Vec<(String, Box<dyn Fn(&RunRequest)>)>>,
 }
@@ -57,6 +60,14 @@ impl FakeRunner {
     /// Answers requests whose line starts with `prefix` with this stdout and exit code.
     pub(crate) fn answer(&self, prefix: &str, stdout: &str, code: i32) {
         self.rules.borrow_mut().push((prefix.to_string(), RunOutcome { stdout: stdout.to_string(), stderr: String::new(), code }));
+    }
+
+    /// Answers requests whose line starts with `prefix` with this stdout and exit code,
+    /// but only after a request whose line starts with `trigger` was received
+    /// (a listing that shows a package only once `add` ran).
+    pub(crate) fn answer_after(&self, trigger: &str, prefix: &str, stdout: &str, code: i32) {
+        let outcome: RunOutcome = RunOutcome { stdout: stdout.to_string(), stderr: String::new(), code };
+        self.after_rules.borrow_mut().push((trigger.to_string(), prefix.to_string(), outcome));
     }
 
     /// Answers requests whose line starts with `prefix` with a failure printing `stderr`.
@@ -99,6 +110,12 @@ impl Runner for FakeRunner {
         for (prefix, effect) in self.effects.borrow().iter() {
             if line.starts_with(prefix.as_str()) {
                 effect(request);
+            }
+        }
+        for (trigger, prefix, outcome) in self.after_rules.borrow().iter() {
+            let triggered: bool = self.calls.borrow().iter().any(|call| return matching_line(call).starts_with(trigger.as_str()));
+            if triggered && line.starts_with(prefix.as_str()) {
+                return outcome.clone();
             }
         }
         for (prefix, outcome) in self.rules.borrow().iter() {
