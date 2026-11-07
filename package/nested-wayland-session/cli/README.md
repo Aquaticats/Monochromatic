@@ -1853,7 +1853,9 @@ in-process features rather than external tools:
   and a helper thread of zbus keeps a live service connection answering between calls.
   The compositor's Smithay loop stays synchronous,
   and no second runtime runs beside it.
-  A connect, a signal send and a method call each end with an error after five seconds
+  A connect,
+  a signal send
+  and a method call each end with an error after five seconds
   (`BUS_STEP_BOUND` in `src/bus_step_bound.rs`),
   and a whole accessibility tree read ends after five seconds.
   The launcher listener alone waits without a bound,
