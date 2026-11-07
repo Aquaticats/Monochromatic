@@ -4,7 +4,8 @@
 //!  or the reason the run cannot be trusted.
 //! Why:
 //!  The linter's own contract (`package/linter/monochromatic-lint/src/run_embedded.rs`) is the executable's
-//!  `--stdin --fix` run with its one-rule configuration: status 0 with the fixed source and warning findings,
+//!  `--stdin --fix` run with its one-rule configuration:
+//! status 0 with the fixed source and warning findings,
 //!  because the policy's configuration gives the rule severity `warn`;
 //!  1 only for error findings or a warning limit,
 //!  neither of which that configuration can produce;
@@ -38,7 +39,8 @@ pub const MAX_FIXED_BYTES: usize = 64 << 20;
 
 /// The most bytes of findings the policy accepts from one run:
 ///  the bound the former child process had on its standard error.
-///  A finding counts its message, code and file name.
+///  A finding counts its message,
+/// code and file name.
 pub const MAX_FINDINGS_BYTES: usize = 4 << 20;
 
 /// The status the linter reports for a run that could not finish.
@@ -115,7 +117,8 @@ fn selected_rule(code: &str, rules: &[MarkdownRule]) -> Option<MarkdownRule> {
 /// What:
 ///  A one-based line or column as the whole number the policy reports.
 /// Why:
-///  A count too large for the type is not a position, so the run is refused.
+///  A count too large for the type is not a position,
+/// so the run is refused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

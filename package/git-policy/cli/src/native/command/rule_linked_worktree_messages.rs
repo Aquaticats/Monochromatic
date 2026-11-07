@@ -1,10 +1,19 @@
 //! What:
-//!  The rejection texts of the linked-worktree policy: outside any worktree, in the main worktree, and in a
+//!  The rejection texts of the linked-worktree policy:
+//! outside any worktree,
+//! in the main worktree,
+//! and in a
 //!  worktree that holds uncommitted state.
 //! Why:
-//!  Each text names the command, says what it could destroy, guesses what the person was trying to do, and names a
-//!  sanctioned way to do that without losing work; the deliberate way to discard anyway comes last. Every
-//!  alternative named here is run through the built executable by `binary_discard_tests.rs`, and the README lists
+//!  Each text names the command,
+//! says what it could destroy,
+//! guesses what the person was trying to do,
+//! and names a
+//!  sanctioned way to do that without losing work;
+//! the deliberate way to discard anyway comes last.
+//! Every
+//!  alternative named here is run through the built executable by `binary_discard_tests.rs`,
+//! and the README lists
 //!  each form with the same alternatives.
 //!
 //! In TS you'd write (pseudocode):
@@ -14,14 +23,22 @@
 
 use crate::rule_linked_worktree::GuardedCommand;
 
-/// The sentence every text ends with: the one deliberate way to discard work anyway.
+/// The sentence every text ends with:
+/// the one deliberate way to discard work anyway.
 const HATCH_ADVICE: &str = "If you have decided to discard the work on purpose, save a copy first (git diff > backup.patch) and pass --no-enforce-worktree directly after the subcommand, for example git restore --no-enforce-worktree -- <path>.";
 
 /// What:
-///  How a text names the guarded form, what the form can destroy, and what the person most likely wanted.
-///  A tuple is a fixed group of values, here (name, risk, alternatives).
+///  How a text names the guarded form,
+/// what the form can destroy,
+/// and what the person most likely wanted.
+///  A tuple is a fixed group of values,
+/// here (name,
+/// risk,
+/// alternatives).
 /// Why:
-///   One subcommand serves several intents, so the alternatives differ by form: unstaging is not reverting.
+///   One subcommand serves several intents,
+/// so the alternatives differ by form:
+/// unstaging is not reverting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -159,7 +176,8 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 /// What:
 ///  The rejection text for a command run in a worktree that holds uncommitted state.
 /// Why:
-///   The state is what the command could destroy; committing it with explicit paths or moving to a clean linked
+///   The state is what the command could destroy;
+/// committing it with explicit paths or moving to a clean linked
 ///  worktree are the ways forward that lose nothing.
 ///
 /// In TS you'd write (pseudocode):

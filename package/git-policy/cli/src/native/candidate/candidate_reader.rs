@@ -75,10 +75,14 @@ use std::process::{Child, ChildStdin, ChildStdout, Stdio};
 use std::rc::Rc;
 
 /// What:
-///  The start of the message for a candidate object that Git does not have; the object name follows.
+///  The start of the message for a candidate object that Git does not have;
+/// the object name follows.
 /// Why:
-///   A commit the service takes reads its content back through the policies, and an object removed meanwhile (a pruning
-///  `git gc`) fails there. The commit path recognizes that message by this start, so the producer and the reader of
+///   A commit the service takes reads its content back through the policies,
+/// and an object removed meanwhile (a pruning
+///  `git gc`) fails there.
+/// The commit path recognizes that message by this start,
+/// so the producer and the reader of
 ///  the text cannot drift apart.
 ///
 /// In TS you'd write (pseudocode):
@@ -182,7 +186,8 @@ pub fn start_object_reader(
 }
 
 /// What:
-///  `start_object_reader` with the notice cadence, the bound and the notice sink of its requests chosen by the caller.
+///  `start_object_reader` with the notice cadence,
+/// the bound and the notice sink of its requests chosen by the caller.
 /// Why:
 ///   The production entry reads them from the environment;
 ///  tests choose short ones and read the notices from a buffer.
@@ -306,7 +311,8 @@ impl ObjectReader {
     }
 
     /// What:
-    ///  One request line and its reply, without the watch.
+    ///  One request line and its reply,
+    /// without the watch.
     /// Why:
     ///   `request` marks the wait around it.
     ///

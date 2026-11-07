@@ -1,12 +1,20 @@
 //! What:
 //!  Running automatic maintenance after a landing:
 //!  one `git config` read for the maintenance keys (or the commit's configuration snapshot),
-//!  then `git maintenance run --auto`, detached or not, in the real worktree, with Git's words kept in the journal.
-//!  Its exit status is returned for the caller to ignore, as native Git does.
+//!  then `git maintenance run --auto`,
+//! detached or not,
+//! in the real worktree,
+//! with Git's words kept in the journal.
+//!  Its exit status is returned for the caller to ignore,
+//! as native Git does.
 //! Why:
-//!  A landing writes its objects with `git fast-import`, which leaves them loose when the batch holds at most
-//!  `fastimport.unpackLimit` objects (100 by default; Git 2.56.0 `builtin/fast-import.c`, `end_packfile`) and keeps one pack
-//!  otherwise; without this step the loose objects and packs accumulate and every later Git process searches them all.
+//!  A landing writes its objects with `git fast-import`,
+//! which leaves them loose when the batch holds at most
+//!  `fastimport.unpackLimit` objects (100 by default;
+//! Git 2.56.0 `builtin/fast-import.c`,
+//! `end_packfile`) and keeps one pack
+//!  otherwise;
+//! without this step the loose objects and packs accumulate and every later Git process searches them all.
 //!  Failures are logged and never fail the landed commit.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,7 +28,8 @@ use crate::maintenance_decision::{
     MAINTENANCE_CONFIG_PATTERN, MaintenanceDecision, MaintenanceError, auto_maintenance_arguments,
     parse_config_records,
 };
-/// Diagnostics on standard error, switched like the incumbent's console sink.
+/// Diagnostics on standard error,
+/// switched like the incumbent's console sink.
 use crate::diagnostic_log;
 /// Where Git's words go now that the run carries no `--quiet`.
 use crate::inner_git_words::record_words;
@@ -31,7 +40,8 @@ use std::collections::BTreeMap;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
-/// Tag the incumbent's logger prints for this function, so diagnostics match.
+/// Tag the incumbent's logger prints for this function,
+/// so diagnostics match.
 const TAG: &str = "runAutoMaintenance";
 
 /// Exit status `parse_options` uses for an unknown option,
@@ -44,7 +54,8 @@ const CONFIG_UNSET_EXIT_CODE: i32 = 1;
 /// What:
 ///  What automatic maintenance did.
 /// Why:
-///   Configuration can turn it off, which is not an exit status;
+///   Configuration can turn it off,
+/// which is not an exit status;
 ///  the caller distinguishes the two.
 ///
 /// In TS you'd write (pseudocode):
@@ -53,14 +64,17 @@ const CONFIG_UNSET_EXIT_CODE: i32 = 1;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AutoMaintenanceOutcome {
-    /// Configuration disabled maintenance; no maintenance Git ran.
+    /// Configuration disabled maintenance;
+    /// no maintenance Git ran.
     Disabled,
-    /// Git's exit status for the maintenance run, or for the config read when that read failed.
+    /// Git's exit status for the maintenance run,
+    /// or for the config read when that read failed.
     Exited(i32),
 }
 
 /// What:
-///  Git's exit status, where a signal ending Git counts as `1`.
+///  Git's exit status,
+/// where a signal ending Git counts as `1`.
 /// Why:
 ///   The incumbent reads a missing exit code as `1` (`exitCode ?? 1`).
 ///
@@ -112,9 +126,11 @@ fn start_failure(command: &str, error: std::io::Error) -> MaintenanceError {
 }
 
 /// What:
-///  The maintenance keys as the decision reads them, or the status of a config read that failed.
+///  The maintenance keys as the decision reads them,
+/// or the status of a config read that failed.
 /// Why:
-///   A failed read ends maintenance with Git's status, which is not an error and not a decision.
+///   A failed read ends maintenance with Git's status,
+/// which is not an error and not a decision.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,7 +146,8 @@ enum MaintenanceConfig {
 /// What:
 ///  Read the maintenance keys by starting `git config`.
 /// Why:
-///   The incumbent's read, kept for a repository whose snapshot is missing or holds a value it does not model.
+///   The incumbent's read,
+/// kept for a repository whose snapshot is missing or holds a value it does not model.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -192,12 +209,16 @@ pub fn run_auto_maintenance(
 }
 
 /// What:
-///  Run automatic maintenance, taking the maintenance keys from the commit's configuration snapshot when it
+///  Run automatic maintenance,
+/// taking the maintenance keys from the commit's configuration snapshot when it
 ///  models them.
 /// Why:
-///   The snapshot was read when the commit began, so a configuration that changed during the commit is not seen
+///   The snapshot was read when the commit began,
+/// so a configuration that changed during the commit is not seen
 ///  (a hook that sets `maintenance.auto` is the example);
-///  a snapshot read with global options, or one holding a value it does not model, starts `git config` as before.
+///  a snapshot read with global options,
+/// or one holding a value it does not model,
+/// starts `git config` as before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

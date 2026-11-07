@@ -1,4 +1,6 @@
-//! Controls for the commit facts: rules read the real repository, candidates read the private index.
+//! Controls for the commit facts:
+//! rules read the real repository,
+//! candidates read the private index.
 
 use super::*;
 use crate::candidate_prediction::CandidateRequest;
@@ -21,7 +23,9 @@ fn names(facts: &mut PrivateIndexFacts<crate::repository_facts::GitFacts>, scope
         .collect();
 }
 
-/// Candidates come from the named private index; naming another index changes them; the real index is not read.
+/// Candidates come from the named private index;
+/// naming another index changes them;
+/// the real index is not read.
 #[test]
 fn candidates_come_from_the_private_index_and_follow_a_replacement() {
     let root: PathBuf = fixture("commit-facts");
@@ -54,7 +58,8 @@ fn candidates_come_from_the_private_index_and_follow_a_replacement() {
     remove(root.as_path());
 }
 
-/// The rule facts answer from the wrapped provider: the location is asked once and remembered.
+/// The rule facts answer from the wrapped provider:
+/// the location is asked once and remembered.
 #[test]
 fn rule_facts_are_the_wrapped_providers() {
     let root: PathBuf = fixture("commit-facts-rules");

@@ -1,7 +1,9 @@
 //! What:
-//!  The reading of Git's NUL-separated status and diff listings, and the overlap between them.
+//!  The reading of Git's NUL-separated status and diff listings,
+//! and the overlap between them.
 //! Why:
-//!  A rename read as one path would let a move overwrite the staged work under its old name; a count that is off
+//!  A rename read as one path would let a move overwrite the staged work under its old name;
+//! a count that is off
 //!  by one would name the wrong files to the person.
 //!
 //! In TS you'd write (pseudocode):
@@ -17,7 +19,9 @@ fn paths(values: &[&str]) -> Vec<Vec<u8>> {
     return values.iter().map(|value| { return value.as_bytes().to_vec(); }).collect();
 }
 
-/// Each entry gives its path; a rename or copy gives its original path too, in either status column.
+/// Each entry gives its path;
+/// a rename or copy gives its original path too,
+/// in either status column.
 #[test]
 fn status_entries_give_their_paths_and_renames_give_both() {
     assert_eq!(status_paths(b""), Vec::<Vec<u8>>::new());
@@ -46,7 +50,8 @@ fn the_diff_listing_is_the_names() {
     assert_eq!(diff_paths(b"a.txt\0dir/b.txt\0"), paths(&["a.txt", "dir/b.txt"]));
 }
 
-/// Only a path in both lists overlaps, once.
+/// Only a path in both lists overlaps,
+/// once.
 #[test]
 fn only_paths_in_both_lists_overlap() {
     assert_eq!(
@@ -58,7 +63,8 @@ fn only_paths_in_both_lists_overlap() {
     assert_eq!(overlapping_paths(&[], &paths(&["b"])), Vec::<Vec<u8>>::new());
 }
 
-/// Five names are listed in full, more are counted.
+/// Five names are listed in full,
+/// more are counted.
 #[test]
 fn the_report_names_five_and_counts_the_rest() {
     assert_eq!(listed(&paths(&["a"])), "a");
@@ -68,7 +74,9 @@ fn the_report_names_five_and_counts_the_rest() {
     assert_eq!(listed(&[b"t\xffp".to_vec()]), "t\u{fffd}p");
 }
 
-/// An entry of two letters, a space and a one-byte path is the shortest valid one; anything shorter has no path.
+/// An entry of two letters,
+/// a space and a one-byte path is the shortest valid one;
+/// anything shorter has no path.
 #[test]
 fn the_shortest_valid_entry_is_four_bytes() {
     assert_eq!(status_paths(b"M  a\0"), paths(&["a"]));

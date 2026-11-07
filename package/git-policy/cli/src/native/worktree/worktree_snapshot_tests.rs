@@ -1,5 +1,9 @@
-//! Controls for the snapshot mechanics on btrfs: the stage becomes a private snapshot with the new worktree's pointer, no
-//!  stubs and the source's index; a source that changed after the clean check is refused; and the swap leaves the
+//! Controls for the snapshot mechanics on btrfs:
+//! the stage becomes a private snapshot with the new worktree's pointer,
+//! no
+//!  stubs and the source's index;
+//! a source that changed after the clean check is refused;
+//! and the swap leaves the
 //!  stage name holding what Git made.
 
 use super::*;
@@ -26,7 +30,9 @@ fn id_of_directory(path: &Path) -> ObjectId {
     return identity_at(&parent, path.file_name().expect("name")).expect("identity");
 }
 
-/// Git's own `--no-checkout` worktree beside the repository: the empty directory with a `.git` file, and its
+/// Git's own `--no-checkout` worktree beside the repository:
+/// the empty directory with a `.git` file,
+/// and its
 ///  administrative directory.
 fn no_checkout_worktree(repo: &Path, name: &str) -> (PathBuf, PathBuf, Vec<u8>) {
     git(repo, &["worktree", "add", "--quiet", "--no-checkout", "-b", name, format!("../{name}").as_str()]);
@@ -36,7 +42,10 @@ fn no_checkout_worktree(repo: &Path, name: &str) -> (PathBuf, PathBuf, Vec<u8>) 
     return (destination, admin, pointer);
 }
 
-/// The snapshot is a private subvolume that holds the files, the new pointer, the index, and no stub of the destination.
+/// The snapshot is a private subvolume that holds the files,
+/// the new pointer,
+/// the index,
+/// and no stub of the destination.
 #[test]
 fn btrfs_the_stage_becomes_a_worktree_with_the_new_pointer_and_the_sources_index() {
     let Some(root) = btrfs_fixture("snapshot-stage") else { return };
@@ -98,7 +107,8 @@ fn btrfs_the_swap_puts_the_stage_at_the_destination() {
     remove(root.as_path());
 }
 
-/// A stage on any filesystem, with the source root `/src` as the paths of the stubs name it.
+/// A stage on any filesystem,
+/// with the source root `/src` as the paths of the stubs name it.
 fn stage_for_stubs(name: &str) -> (PathBuf, File) {
     let root: PathBuf = crate::test_support::fixture(name);
     std::fs::create_dir_all(root.join("stage")).expect("stage");
@@ -107,7 +117,9 @@ fn stage_for_stubs(name: &str) -> (PathBuf, File) {
 }
 
 /// A path that reaches the snapshot through a link left where a directory was moved removes nothing in the tree the link
-///  points at, for a nested stub and for the destination's own directory, and a real path through real directories is
+///  points at,
+/// for a nested stub and for the destination's own directory,
+/// and a real path through real directories is
 ///  removed as before.
 #[test]
 fn a_stub_reached_through_a_link_removes_nothing_the_link_points_at() {
@@ -133,7 +145,9 @@ fn a_stub_reached_through_a_link_removes_nothing_the_link_points_at() {
     remove(root.as_path());
 }
 
-/// A nested stub that holds anything is not an empty stub: it stays and the rung ends, so no nested worktree's files are
+/// A nested stub that holds anything is not an empty stub:
+/// it stays and the rung ends,
+/// so no nested worktree's files are
 ///  deleted one by one.
 #[test]
 fn a_nested_stub_is_removed_only_as_an_empty_directory() {
@@ -149,7 +163,8 @@ fn a_nested_stub_is_removed_only_as_an_empty_directory() {
     remove(root.as_path());
 }
 
-/// A destination that was swapped for another directory after Git made it is not exchanged, and the stage is untouched.
+/// A destination that was swapped for another directory after Git made it is not exchanged,
+/// and the stage is untouched.
 #[test]
 fn btrfs_a_destination_swapped_before_the_exchange_is_refused() {
     let Some(root) = btrfs_fixture("snapshot-swap-destination") else { return };
@@ -185,7 +200,8 @@ fn btrfs_a_destination_replaced_by_a_link_is_refused() {
     remove(root.as_path());
 }
 
-/// A held `index.lock` in the new worktree's administrative directory ends the rung before anything is written: the index
+/// A held `index.lock` in the new worktree's administrative directory ends the rung before anything is written:
+/// the index
 ///  is neither created nor changed.
 #[test]
 fn btrfs_a_held_index_lock_leaves_the_index_alone() {
@@ -207,7 +223,9 @@ fn btrfs_a_held_index_lock_leaves_the_index_alone() {
     remove(root.as_path());
 }
 
-/// The snapshot is checked against the index that was proven clean, not a second read of the file: a source that moved to
+/// The snapshot is checked against the index that was proven clean,
+/// not a second read of the file:
+/// a source that moved to
 ///  another commit after the check is refused.
 #[test]
 fn btrfs_the_snapshot_is_checked_against_the_frozen_index() {
@@ -226,7 +244,8 @@ fn btrfs_the_snapshot_is_checked_against_the_frozen_index() {
     remove(root.as_path());
 }
 
-/// A snapshot taken and ready to swap, with Git's destination and the identity of the directory Git made.
+/// A snapshot taken and ready to swap,
+/// with Git's destination and the identity of the directory Git made.
 fn ready_to_swap(root: &Path, name: &str) -> (PathBuf, PathBuf, ObjectId, Vec<u8>) {
     let repo: PathBuf = subvolume_repository(root);
     let (destination, admin, pointer) = no_checkout_worktree(repo.as_path(), name);
@@ -238,9 +257,18 @@ fn ready_to_swap(root: &Path, name: &str) -> (PathBuf, PathBuf, ObjectId, Vec<u8
     return (destination, stage, made, pointer);
 }
 
-/// A file another process adds to the destination after it was looked at, and before the exchange, is not deleted: it stays in
-///  the displaced directory, which stays, and the notes name each file. (A snapshot is a subvolume of its own, and a rename
-///  into another subvolume is refused, so nothing is moved on btrfs; where the rename is allowed the file is moved.)
+/// A file another process adds to the destination after it was looked at,
+/// and before the exchange,
+/// is not deleted:
+/// it stays in
+///  the displaced directory,
+/// which stays,
+/// and the notes name each file.
+/// (A snapshot is a subvolume of its own,
+/// and a rename
+///  into another subvolume is refused,
+/// so nothing is moved on btrfs;
+/// where the rename is allowed the file is moved.)
 #[test]
 fn btrfs_files_added_to_the_destination_before_the_exchange_are_kept() {
     let Some(root) = btrfs_fixture("snapshot-added-before-swap") else { return };
@@ -261,7 +289,10 @@ fn btrfs_files_added_to_the_destination_before_the_exchange_are_kept() {
     remove(root.as_path());
 }
 
-/// With nothing added, the displaced directory is Git's pointer alone: the pointer and the directory are removed, and nothing
+/// With nothing added,
+/// the displaced directory is Git's pointer alone:
+/// the pointer and the directory are removed,
+/// and nothing
 ///  else is looked for.
 #[test]
 fn btrfs_a_displaced_directory_with_only_gits_pointer_is_removed() {
@@ -273,7 +304,9 @@ fn btrfs_a_displaced_directory_with_only_gits_pointer_is_removed() {
     remove(root.as_path());
 }
 
-/// A displaced directory that is not the one Git made, or holds a `.git` other than Git's pointer, is left alone.
+/// A displaced directory that is not the one Git made,
+/// or holds a `.git` other than Git's pointer,
+/// is left alone.
 #[test]
 fn btrfs_a_displaced_directory_that_is_not_gits_is_left_alone() {
     let Some(root) = btrfs_fixture("snapshot-displaced-foreign") else { return };
@@ -290,8 +323,11 @@ fn btrfs_a_displaced_directory_that_is_not_gits_is_left_alone() {
     remove(root.as_path());
 }
 
-/// A destination replaced between the check and the exchange is swapped back: the replacement is where it was, the snapshot is
-///  at the stage name, and the error says the stage is the wrapper's own.
+/// A destination replaced between the check and the exchange is swapped back:
+/// the replacement is where it was,
+/// the snapshot is
+///  at the stage name,
+/// and the error says the stage is the wrapper's own.
 #[test]
 fn btrfs_a_destination_replaced_at_the_exchange_is_swapped_back() {
     let Some(root) = btrfs_fixture("snapshot-replaced-at-swap") else { return };
@@ -308,7 +344,8 @@ fn btrfs_a_destination_replaced_at_the_exchange_is_swapped_back() {
     remove(root.as_path());
 }
 
-/// When the swap back fails too, the stage name holds somebody else's directory and the error says it is not the wrapper's:
+/// When the swap back fails too,
+/// the stage name holds somebody else's directory and the error says it is not the wrapper's:
 ///  the caller must not destroy it.
 #[test]
 fn btrfs_a_failed_swap_back_does_not_claim_the_stage() {
@@ -328,8 +365,10 @@ fn btrfs_a_failed_swap_back_does_not_claim_the_stage() {
     remove(root.as_path());
 }
 
-/// A snapshot that is taken reports the identity of the stage it made; a snapshot that fails after the stage exists reports it
-///  too, so that the stage the failed run made is the one it may remove.
+/// A snapshot that is taken reports the identity of the stage it made;
+/// a snapshot that fails after the stage exists reports it
+///  too,
+/// so that the stage the failed run made is the one it may remove.
 #[test]
 fn btrfs_the_stage_a_snapshot_made_is_identified_even_when_the_snapshot_fails() {
     let Some(root) = btrfs_fixture("snapshot-stage-identity") else { return };

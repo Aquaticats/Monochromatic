@@ -1,8 +1,11 @@
 //! What:
-//!  A reader of Git configuration file text that gives the entries in file order, and gives up on any spelling it
+//!  A reader of Git configuration file text that gives the entries in file order,
+//! and gives up on any spelling it
 //!  cannot prove it reads as Git reads it.
 //! Why:
-//!  The in-process repository reads (location, remotes, upstream) need a few configuration values;
+//!  The in-process repository reads (location,
+//! remotes,
+//! upstream) need a few configuration values;
 //!  Git answers a wrong or surprising spelling with its own error,
 //!  so every spelling outside the plain grammar returns `None` and the caller asks Git.
 //!
@@ -12,18 +15,27 @@
 //! ```
 
 /// The largest configuration file this reader looks at.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 pub const CONFIG_TEXT_LIMIT: usize = 1 << 20;
 
 /// What:
-///  One `name = value` line with its section: the canonical key and the value,
+///  One `name = value` line with its section:
+/// the canonical key and the value,
 ///  or no value for a bare name (Git reads that as the boolean true).
 /// Why:
 ///   Section and name are lower case and the subsection keeps its case,
-///  exactly the spelling `git config --list` prints, so a caller compares keys as text.
+///  exactly the spelling `git config --list` prints,
+/// so a caller compares keys as text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -31,9 +43,11 @@ pub const CONFIG_TEXT_LIMIT: usize = 1 << 20;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigEntry {
-    /// `section.subsection.name`, or `section.name` without a subsection.
+    /// `section.subsection.name`,
+    /// or `section.name` without a subsection.
     pub key: String,
-    /// The value after escapes and quotes; `None` for a name with no `=`.
+    /// The value after escapes and quotes;
+    /// `None` for a name with no `=`.
     pub value: Option<Vec<u8>>,
 }
 
@@ -54,7 +68,8 @@ struct Cursor<'a> {
 }
 
 impl Cursor<'_> {
-    /// The next byte, or `None` at the end.
+    /// The next byte,
+    /// or `None` at the end.
     fn peek(&self) -> Option<u8> {
         return self.bytes.get(self.at).copied();
     }
@@ -64,7 +79,8 @@ impl Cursor<'_> {
         self.at += 1;
     }
 
-    /// Step past the rest of the line, newline included.
+    /// Step past the rest of the line,
+    /// newline included.
     fn skip_line(&mut self) {
         while let Some(byte) = self.peek() {
             self.advance();
@@ -80,7 +96,8 @@ fn is_name_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || byte == b'-';
 }
 
-/// Read a `[section]`, `[section "sub"]` or `[section.sub]` header after its `[` and give the key prefix.
+/// Read a `[section]`,
+/// `[section "sub"]` or `[section.sub]` header after its `[` and give the key prefix.
 ///  A newline or any byte outside the grammar returns `None`.
 fn read_header(cursor: &mut Cursor<'_>) -> Option<String> {
     let mut section: String = String::new();
@@ -139,8 +156,13 @@ fn read_header(cursor: &mut Cursor<'_>) -> Option<String> {
     return Some(section);
 }
 
-/// Read the value after `=`: quotes, the escapes `\n \t \b \\ \"`, a backslash-newline continuation, and a `#` or `;`
-///  comment that ends the value. A bad escape or an open quote returns `None`.
+/// Read the value after `=`:
+/// quotes,
+/// the escapes `\n \t \b \\ \"`,
+/// a backslash-newline continuation,
+/// and a `#` or `;`
+///  comment that ends the value.
+/// A bad escape or an open quote returns `None`.
 fn read_value(cursor: &mut Cursor<'_>) -> Option<Vec<u8>> {
     let mut value: Vec<u8> = Vec::new();
     let mut spaces: usize = 0;
@@ -195,9 +217,11 @@ fn read_value(cursor: &mut Cursor<'_>) -> Option<Vec<u8>> {
 }
 
 /// What:
-///  Parse the text of one configuration file into its entries, in file order.
+///  Parse the text of one configuration file into its entries,
+/// in file order.
 /// Why:
-///   `None` means "some spelling here is outside the plain grammar", never "the file is empty".
+///   `None` means "some spelling here is outside the plain grammar",
+/// never "the file is empty".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -249,7 +273,8 @@ pub fn parse_config_text(text: &[u8]) -> Option<Vec<ConfigEntry>> {
 }
 
 /// What:
-///  The last value of `key`, with `Some(None)` for a bare name and `None` when the key is absent.
+///  The last value of `key`,
+/// with `Some(None)` for a bare name and `None` when the key is absent.
 /// Why:
 ///   Git's single-valued reads take the last entry of the files in order.
 ///
@@ -267,9 +292,13 @@ pub fn last_entry<'a>(entries: &'a [ConfigEntry], key: &str) -> Option<&'a Confi
 }
 
 /// What:
-///  Git's boolean reading of a value: `true yes on 1` and a bare name are true, `false no off 0` are false.
+///  Git's boolean reading of a value:
+/// `true yes on 1` and a bare name are true,
+/// `false no off 0` are false.
 /// Why:
-///   Any other spelling (an empty value, a larger number) is left to Git, so the answer is `None`.
+///   Any other spelling (an empty value,
+/// a larger number) is left to Git,
+/// so the answer is `None`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

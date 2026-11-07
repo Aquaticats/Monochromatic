@@ -24,7 +24,8 @@
 /// // string[] argv, but byte-preserving.
 /// ```
 use std::ffi::OsString;
-/// The grammar of the subvolume migration command, parsed apart.
+/// The grammar of the subvolume migration command,
+/// parsed apart.
 use crate::subvolume_arguments::{MigrateArguments, parse_migrate_arguments};
 use crate::worktree_convert_arguments::{ConvertArguments, parse_convert_arguments};
 
@@ -134,13 +135,21 @@ pub enum ManagementAction {
     /// `doctor`:
     ///  list the traditional hooks the repository holds.
     Doctor,
-    /// `migrate-to-subvolume`: the parsed options, or the reason they were refused.
+    /// `migrate-to-subvolume`:
+    /// the parsed options,
+    /// or the reason they were refused.
     MigrateToSubvolume(Result<MigrateArguments, String>),
-    /// `convert-worktree-to-subvolume`: the parsed options, or the reason they were refused.
+    /// `convert-worktree-to-subvolume`:
+    /// the parsed options,
+    /// or the reason they were refused.
     ConvertWorktree(Result<ConvertArguments, String>),
-    /// `service status`: whether the commit service answers (a diagnostic; the wrapper sets the service up itself).
+    /// `service status`:
+    /// whether the commit service answers (a diagnostic;
+    /// the wrapper sets the service up itself).
     ServiceStatus,
-    /// `service settle-earlier-batches`: finish the batches an earlier release's commit service left open, when no earlier
+    /// `service settle-earlier-batches`:
+    /// finish the batches an earlier release's commit service left open,
+    /// when no earlier
     ///  helper runs or can start.
     SettleEarlierBatches,
     /// `check` or `fix` over exactly one scope.

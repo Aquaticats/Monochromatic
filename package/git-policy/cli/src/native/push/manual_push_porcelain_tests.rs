@@ -1,4 +1,5 @@
-//! Controls for the porcelain dry-run parser, on output Git 2.56.0 gave.
+//! Controls for the porcelain dry-run parser,
+//! on output Git 2.56.0 gave.
 
 use super::*;
 
@@ -7,7 +8,10 @@ fn oid(digit: char) -> String {
     return digit.to_string().repeat(40);
 }
 
-/// A new branch, an update, a forced update, a deletion and a refusal read as the report says.
+/// A new branch,
+/// an update,
+/// a forced update,
+/// a deletion and a refusal read as the report says.
 #[test]
 fn every_kind_of_line_reads_as_the_report_says() {
     let (old, new) = (oid('a'), oid('b'));
@@ -35,7 +39,8 @@ fn every_kind_of_line_reads_as_the_report_says() {
     assert_eq!(kinds[5], ("refs/heads/y", &RemoteBefore::Unknown, None));
 }
 
-/// Up-to-date refs are left out, and each destination gets its own block.
+/// Up-to-date refs are left out,
+/// and each destination gets its own block.
 #[test]
 fn up_to_date_refs_are_left_out_and_destinations_are_separate() {
     let output: &str = "To one\n=\trefs/heads/main:refs/heads/main\t[up to date]\nTo two\n*\ta:refs/heads/a\t[new branch]\nDone\n";
@@ -45,7 +50,8 @@ fn up_to_date_refs_are_left_out_and_destinations_are_separate() {
     assert_eq!(blocks[1].updates.len(), 1);
 }
 
-/// Text that is not in the format is an error naming the line, never a guess.
+/// Text that is not in the format is an error naming the line,
+/// never a guess.
 #[test]
 fn text_outside_the_format_is_refused() {
     let refusal: String = parse_porcelain("no tab here\n").expect_err("a line outside the format");
@@ -63,7 +69,8 @@ fn a_source_with_a_colon_keeps_it() {
     assert_eq!((blocks[0].updates[0].from.as_str(), blocks[0].updates[0].to.as_str()), (":/unique message", "refs/heads/new"));
 }
 
-/// The line Git adds when the push would set an upstream is skipped, and the real updates around it still read.
+/// The line Git adds when the push would set an upstream is skipped,
+/// and the real updates around it still read.
 #[test]
 fn the_set_upstream_line_is_skipped() {
     let output: &str = "To /srv/origin.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\n\

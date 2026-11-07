@@ -1,13 +1,28 @@
 //! What:
-//!  `git monochromatic-git-policy-cli convert-worktree-to-subvolume`: parse the options, find the worktrees to convert, run the conversion on each,
+//!  `git monochromatic-git-policy-cli convert-worktree-to-subvolume`:
+//! parse the options,
+//! find the worktrees to convert,
+//! run the conversion on each,
 //!  and turn the results into lines and an exit status.
 //! Why:
-//!  A conversion takes seconds to minutes per worktree and is bound by the filesystem's metadata work, not by any one
-//!  worktree's state, so the worktrees are converted side by side within a budget the host allows (`parallel_budget.rs`);
-//!  progress lines go to standard error as they happen for the first unfinished worktree, and every worktree's lines come in
-//!  input order (`parallel_runner.rs`). Exit status 0 means every worktree is converted, already a subvolume, previewed, or
-//!  skipped under `--all`; 1 means a named worktree was refused before anything changed; 2 means a step failed after the
-//!  journal began, with the way forward. One worktree's failure never stops another: each has its own journal and claim.
+//!  A conversion takes seconds to minutes per worktree and is bound by the filesystem's metadata work,
+//! not by any one
+//!  worktree's state,
+//! so the worktrees are converted side by side within a budget the host allows (`parallel_budget.rs`);
+//!  progress lines go to standard error as they happen for the first unfinished worktree,
+//! and every worktree's lines come in
+//!  input order (`parallel_runner.rs`).
+//! Exit status 0 means every worktree is converted,
+//! already a subvolume,
+//! previewed,
+//! or
+//!  skipped under `--all`;
+//! 1 means a named worktree was refused before anything changed;
+//! 2 means a step failed after the
+//!  journal began,
+//! with the way forward.
+//! One worktree's failure never stops another:
+//! each has its own journal and claim.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,13 +48,16 @@ use std::path::{Path, PathBuf};
 /// The tag of the diagnostic lines of this command.
 const TAG: &str = "convertWorktrees";
 
-/// The exit status of a refusal: a condition stood in the way of a named worktree and nothing was changed.
+/// The exit status of a refusal:
+/// a condition stood in the way of a named worktree and nothing was changed.
 pub const REFUSED_EXIT_CODE: i32 = 1;
 
 /// The exit status of a failure after the journal began.
 pub const FAILED_EXIT_CODE: i32 = 2;
 
-/// The worktrees a run covers: every linked worktree inside the main checkout, or the named paths resolved from `cwd`.
+/// The worktrees a run covers:
+/// every linked worktree inside the main checkout,
+/// or the named paths resolved from `cwd`.
 fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Vec<PathBuf>, String> {
     if arguments.all {
         let root: PathBuf = main_checkout_root(cwd)?;
@@ -57,11 +75,16 @@ fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Vec<PathBuf>, Str
 }
 
 /// What:
-///  The bytes one conversion holds at its peak, rounded up for a worktree of about two hundred thousand files.
+///  The bytes one conversion holds at its peak,
+/// rounded up for a worktree of about two hundred thousand files.
 /// Why:
-///   The budget divides the free memory by it. A conversion holds the index entries and the tree-walk state of one worktree and
-///  streams the file data through the kernel's clone call, so its peak follows the number of files and not their size: measured
-///  on 2026-11-03 at 7484 KiB resident for a worktree of 16 thousand files (about 0.45 KiB per file), which is about 90 MiB at
+///   The budget divides the free memory by it.
+/// A conversion holds the index entries and the tree-walk state of one worktree and
+///  streams the file data through the kernel's clone call,
+/// so its peak follows the number of files and not their size:
+/// measured
+///  on 2026-11-03 at 7484 KiB resident for a worktree of 16 thousand files (about 0.45 KiB per file),
+/// which is about 90 MiB at
 ///  two hundred thousand files.
 ///
 /// In TS you'd write (pseudocode):
@@ -73,10 +96,29 @@ pub const CONVERSION_MEMORY: u64 = 128 << 20;
 /// What:
 ///  The most worktrees converted at once however many CPUs and bytes the host has.
 /// Why:
-///   The conversions are bound by the filesystem's metadata work, which stops scaling past a point. Measured on 2026-11-03 on a
-///  btrfs volume (32 worktrees of about ten thousand files each, 28 threads, other sessions running, medians of three or more
-///  runs at 1, 2, 4, 8, 16 and 18 workers: 61, 35, 19, 14, 12 and 12 seconds; further runs at 12, 16 and 24 workers: 11 to 30, 11
-///  to 16 and 16 to 18 seconds): more than sixteen workers were never faster.
+///   The conversions are bound by the filesystem's metadata work,
+/// which stops scaling past a point.
+/// Measured on 2026-11-03 on a
+///  btrfs volume (32 worktrees of about ten thousand files each,
+/// 28 threads,
+/// other sessions running,
+/// medians of three or more
+///  runs at 1,
+/// 2,
+/// 4,
+/// 8,
+/// 16 and 18 workers:
+/// 61,
+/// 35,
+/// 19,
+/// 14,
+/// 12 and 12 seconds;
+/// further runs at 12,
+/// 16 and 24 workers:
+/// 11 to 30,
+/// 11
+///  to 16 and 16 to 18 seconds):
+/// more than sixteen workers were never faster.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,7 +126,8 @@ pub const CONVERSION_MEMORY: u64 = 128 << 20;
 /// ```
 pub const CONVERSION_STORAGE_CEILING: usize = 16;
 
-/// The workers a run of `lanes` independent conversions uses on `host`, with the person's `cap`.
+/// The workers a run of `lanes` independent conversions uses on `host`,
+/// with the person's `cap`.
 pub fn conversion_workers(lanes: usize, cap: Option<usize>, host: &HostResources) -> usize {
     return worker_budget(&BudgetRequest { items: lanes, per_item_memory: CONVERSION_MEMORY, ceiling: Some(CONVERSION_STORAGE_CEILING), cap, host });
 }
@@ -92,7 +135,8 @@ pub fn conversion_workers(lanes: usize, cap: Option<usize>, host: &HostResources
 /// What:
 ///  Everything one run of the command needs besides the line sink.
 /// Why:
-///   The platform, the interrupt and the host's resources are injected so the controls run the real command on any filesystem
+///   The platform,
+/// the interrupt and the host's resources are injected so the controls run the real command on any filesystem
 ///  and with a host of any size.
 ///
 /// In TS you'd write (pseudocode):
@@ -100,20 +144,23 @@ pub fn conversion_workers(lanes: usize, cap: Option<usize>, host: &HostResources
 /// type ConvertRun = { platform: Platform; arguments: ConvertArguments; cwd: string; interrupt: Interrupt; host: HostResources };
 /// ```
 pub struct ConvertRun<'run> {
-    /// The filesystem operations; shared by every worktree converted at once.
+    /// The filesystem operations;
+    /// shared by every worktree converted at once.
     pub platform: &'run (dyn Platform + Sync),
     /// The parsed options.
     pub arguments: &'run ConvertArguments,
     /// The directory relative paths and `--all` are resolved from.
     pub cwd: &'run Path,
-    /// The simulated kill; shared by every worktree converted at once.
+    /// The simulated kill;
+    /// shared by every worktree converted at once.
     pub interrupt: &'run Interrupt,
     /// The CPUs and memory the budget is derived from.
     pub host: &'run HostResources,
 }
 
 /// What:
-///  Run the command over its targets and return the exit status; every line goes through `say`.
+///  Run the command over its targets and return the exit status;
+/// every line goes through `say`.
 /// Why:
 ///   The platform and the interrupt are injected so the controls run the real command on any filesystem.
 ///
@@ -126,11 +173,18 @@ pub fn execute(platform: &(dyn Platform + Sync), arguments: &ConvertArguments, c
 }
 
 /// What:
-///  The lanes of a run: the targets that name one worktree share a lane, so they run one after another, and every other
+///  The lanes of a run:
+/// the targets that name one worktree share a lane,
+/// so they run one after another,
+/// and every other
 ///  target has a lane of its own.
 /// Why:
-///   The same worktree named twice (`wt wt`, `wt ./wt`) is converted by the first and found converted by the second, as in
-///  a run of one after another; run side by side, the second would meet the claim of the first and be refused as busy with itself.
+///   The same worktree named twice (`wt wt`,
+/// `wt ./wt`) is converted by the first and found converted by the second,
+/// as in
+///  a run of one after another;
+/// run side by side,
+/// the second would meet the claim of the first and be refused as busy with itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -157,9 +211,12 @@ fn lanes_of(list: &[PathBuf]) -> Vec<Vec<usize>> {
 }
 
 /// What:
-///  The conversion of one worktree, run by a worker of the ordered runner.
+///  The conversion of one worktree,
+/// run by a worker of the ordered runner.
 /// Why:
-///   The platform, the options and the interrupt are what the conversion reads; the runner shares them among its worker threads,
+///   The platform,
+/// the options and the interrupt are what the conversion reads;
+/// the runner shares them among its worker threads,
 ///  so they are plain borrowed fields of a value that is `Sync`.
 ///
 /// In TS you'd write (pseudocode):
@@ -182,9 +239,13 @@ impl OrderedWork<PathBuf, Result<Verdict, MigrateError>> for ConvertEachWorktree
 }
 
 /// What:
-///  What the person is told as the conversions finish, in input order, and how many of each kind there were.
+///  What the person is told as the conversions finish,
+/// in input order,
+/// and how many of each kind there were.
 /// Why:
-///   The runner calls the report on the calling thread only, one event at a time, so the counts need no lock.
+///   The runner calls the report on the calling thread only,
+/// one event at a time,
+/// so the counts need no lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -193,7 +254,8 @@ impl OrderedWork<PathBuf, Result<Verdict, MigrateError>> for ConvertEachWorktree
 struct ConversionReport<'a> {
     /// Where the lines go.
     say: &'a mut dyn FnMut(&str),
-    /// The worktrees, in the order their output is reported.
+    /// The worktrees,
+    /// in the order their output is reported.
     list: &'a [PathBuf],
     /// Whether the run only lists what it would do.
     dry_run: bool,
@@ -277,7 +339,8 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
 /// What:
 ///  Say one line of progress on standard error.
 /// Why:
-///   The command prints progress as it goes; a write that fails (a closed pipe) must not stop the conversion.
+///   The command prints progress as it goes;
+/// a write that fails (a closed pipe) must not stop the conversion.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -289,11 +352,19 @@ fn say_on_standard_error(text: &str) {
 }
 
 /// What:
-///  The action of the command: help, a refusal, or the run on the real platform with progress on standard error.
+///  The action of the command:
+/// help,
+/// a refusal,
+/// or the run on the real platform with progress on standard error.
 /// Why:
-///   The command reads `.git` itself and calls the filesystem, and starts no Git. It still needs to know which Git the wrapper
-///  forwards to (`real_git`, resolved by the caller), because where that Git reads its system files from is a fact only that
-///  Git reports, and the wrapper's own environment does not name it.
+///   The command reads `.git` itself and calls the filesystem,
+/// and starts no Git.
+/// It still needs to know which Git the wrapper
+///  forwards to (`real_git`,
+/// resolved by the caller),
+/// because where that Git reads its system files from is a fact only that
+///  Git reports,
+/// and the wrapper's own environment does not name it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

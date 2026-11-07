@@ -1,9 +1,17 @@
-//! Controls for the service's own retry of a push that was stopped or failed: a local bare remote whose `pre-receive` hook
-//! stalls the first push and accepts the next, real Git pushing, and the service's work loop driven by hand.
+//! Controls for the service's own retry of a push that was stopped or failed:
+//! a local bare remote whose `pre-receive` hook
+//! stalls the first push and accepts the next,
+//! real Git pushing,
+//! and the service's work loop driven by hand.
 //! Why:
 //!  At 05:40 on 2026-11-03 a stopped auto-push of `main` was never tried again until a person pushed by hand 15 minutes
-//!  later, which also blocked a release (the owner's rule, `SPEC.md` "Merges and commits never fail": auto-push must
-//!  land). The retry needs no new commit: the work loop looks at the repository again when the pause is over.
+//!  later,
+//! which also blocked a release (the owner's rule,
+//! `SPEC.md` "Merges and commits never fail":
+//! auto-push must
+//!  land).
+//! The retry needs no new commit:
+//! the work loop looks at the repository again when the pause is over.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,22 +37,29 @@ use std::sync::mpsc::{Sender, channel};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// One round over a single directory, the way the service's loop runs it: what is due comes out of `retries`, the worker's changes
-/// go back into it, and the wait is when to look at the directory again.
+/// One round over a single directory,
+/// the way the service's loop runs it:
+/// what is due comes out of `retries`,
+/// the worker's changes
+/// go back into it,
+/// and the wait is when to look at the directory again.
 fn round_of<H: WorkHandlers + Sync>(git_dir: &Path, handlers: &H, retries: &mut PushRetries) -> Option<Duration> {
     let asked: Vec<(PathBuf, Duration)> = run_planned_round(&HostResources::read(), &[git_dir.to_path_buf()], handlers, retries, &ClaimTime::read());
     return asked.into_iter().find(|(directory, _)| { return directory == git_dir; }).map(|(_, wait)| { return wait; });
 }
 
-/// The stall window of the controls, short enough to wait for and longer than a healthy local push.
+/// The stall window of the controls,
+/// short enough to wait for and longer than a healthy local push.
 const STALL_SECONDS: &str = "2";
 
-/// The first pause before a push is tried again, in the controls.
+/// The first pause before a push is tried again,
+/// in the controls.
 const PAUSE: Duration = Duration::from_millis(800);
 
 /// A repository tracking a bare remote whose hook stalls the first push it sees after the setup.
 struct Stage {
-    /// The fixture directory, removed at the end.
+    /// The fixture directory,
+    /// removed at the end.
     root: PathBuf,
     /// The working repository.
     repo: PathBuf,
@@ -54,7 +69,11 @@ struct Stage {
     landed: String,
 }
 
-/// Build the stage: an initial commit pushed with no hook, the hook installed, a new commit landed, its work item written.
+/// Build the stage:
+/// an initial commit pushed with no hook,
+/// the hook installed,
+/// a new commit landed,
+/// its work item written.
 fn stage(name: &str) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -96,8 +115,13 @@ fn notices(stage: &Stage) -> usize {
     return std::fs::read_dir(notice_directory(stage.repo.join(".git").as_path())).map_or(0, |entries| { return entries.flatten().count(); });
 }
 
-/// A push the service stopped is tried again by the service alone, after a pause, with no new commit: the first drain stops
-///  the stalled push and says when it will try again, the second (the work loop's wake after the pause) delivers, and the
+/// A push the service stopped is tried again by the service alone,
+/// after a pause,
+/// with no new commit:
+/// the first drain stops
+///  the stalled push and says when it will try again,
+/// the second (the work loop's wake after the pause) delivers,
+/// and the
 ///  person's failure record is gone.
 #[test]
 fn a_stopped_push_is_tried_again_without_a_new_commit_and_lands() {
@@ -118,9 +142,14 @@ fn a_stopped_push_is_tried_again_without_a_new_commit_and_lands() {
     remove(stage.root.as_path());
 }
 
-/// Handlers whose pushes answer from a script, one verdict per push.
+/// Handlers whose pushes answer from a script,
+/// one verdict per push.
 struct Scripted {
-    /// The verdicts still to give, the next last. A test double: the round's workers share the handlers, and a script is read in order.
+    /// The verdicts still to give,
+    /// the next last.
+    /// A test double:
+    /// the round's workers share the handlers,
+    /// and a script is read in order.
     verdicts: Mutex<Vec<Verdict>>,
     /// How many pushes ran.
     pushes: AtomicUsize,
@@ -144,7 +173,8 @@ impl WorkHandlers for Scripted {
 /// The first pause of the scripted controls.
 const SCRIPTED_PAUSE: Duration = Duration::from_millis(300);
 
-/// A directory standing for a repository, with a push item written for it.
+/// A directory standing for a repository,
+/// with a push item written for it.
 fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Scripted, PushRetries) {
     let root: PathBuf = fixture(name);
     let git_dir: PathBuf = root.join("common");
@@ -166,8 +196,12 @@ fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Scri
     return (root, git_dir, handlers, PushRetries::with_first_pause(SCRIPTED_PAUSE));
 }
 
-/// Every failure that can pass is tried again, each time after a longer pause, until the push lands; the record of the failure
-/// says the service keeps trying, and goes when the push lands.
+/// Every failure that can pass is tried again,
+/// each time after a longer pause,
+/// until the push lands;
+/// the record of the failure
+/// says the service keeps trying,
+/// and goes when the push lands.
 #[test]
 fn a_push_that_keeps_failing_is_tried_again_with_longer_pauses_until_it_lands() {
     // The script is read from the end: two failures, then success.
@@ -188,7 +222,9 @@ fn a_push_that_keeps_failing_is_tried_again_with_longer_pauses_until_it_lands() 
     remove(root.as_path());
 }
 
-/// A conflict is final: the push is not tried again, and the person's record stays.
+/// A conflict is final:
+/// the push is not tried again,
+/// and the person's record stays.
 #[test]
 fn a_conflict_is_not_tried_again() {
     let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Scripted, PushRetries) =
@@ -202,7 +238,8 @@ fn a_conflict_is_not_tried_again() {
     remove(root.as_path());
 }
 
-/// A new commit's push replaces the plan of its branch: a push that lands needs no retry.
+/// A new commit's push replaces the plan of its branch:
+/// a push that lands needs no retry.
 #[test]
 fn a_push_that_lands_cancels_the_plan_of_its_branch() {
     let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Scripted, PushRetries) = scripted_world("push-retry-cancelled", vec![Verdict::Retry(String::from("stalled"))]);
@@ -216,24 +253,35 @@ fn a_push_that_lands_cancels_the_plan_of_its_branch() {
 /// How often the restart control looks at what the services have done.
 const LOOK_EVERY: Duration = Duration::from_millis(50);
 
-/// The margin the restart control adds for a loaded host: many times the stall window of the controls, which is itself longer than
-/// a healthy local push, so a slow start is waited for and a plan that was lost is still found out within a fixed time.
+/// The margin the restart control adds for a loaded host:
+/// many times the stall window of the controls,
+/// which is itself longer than
+/// a healthy local push,
+/// so a slow start is waited for and a plan that was lost is still found out within a fixed time.
 const RESTART_MARGIN: Duration = Duration::from_secs(STALL_SECONDS_NUMBER * 5);
 
 /// The stall window of the controls as a number.
 const STALL_SECONDS_NUMBER: u64 = 2;
 
-/// How long the restart control gives a restarted service to deliver: its first pause, the slack the schedule adds, and the margin.
+/// How long the restart control gives a restarted service to deliver:
+/// its first pause,
+/// the slack the schedule adds,
+/// and the margin.
 const RESTART_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
 
-/// Run `work_loop` on a thread, as the service does, and give the way to wake it; dropping the sender stops it.
+/// Run `work_loop` on a thread,
+/// as the service does,
+/// and give the way to wake it;
+/// dropping the sender stops it.
 fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
     let (sender, receiver) = channel::<Wake>();
     let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(PAUSE, plans), ClaimWatch::in_memory()); });
     return (sender, running);
 }
 
-/// Wait until `done` holds, looking every `LOOK_EVERY` for at most `RESTART_PATIENCE`; gives whether it held.
+/// Wait until `done` holds,
+/// looking every `LOOK_EVERY` for at most `RESTART_PATIENCE`;
+/// gives whether it held.
 fn wait_until(done: &dyn Fn() -> bool) -> bool {
     let began: Instant = Instant::now();
     while began.elapsed() < RESTART_PATIENCE {
@@ -245,9 +293,13 @@ fn wait_until(done: &dyn Fn() -> bool) -> bool {
     return done();
 }
 
-/// A service that is stopped while a push waits for a new try does not take the plan with it: the service started in its place
-///  delivers the commit by itself, with no new commit and no wake from a wrapper command. The plan is not the person's failure
-///  record, which the next wrapper command shows and removes.
+/// A service that is stopped while a push waits for a new try does not take the plan with it:
+/// the service started in its place
+///  delivers the commit by itself,
+/// with no new commit and no wake from a wrapper command.
+/// The plan is not the person's failure
+///  record,
+/// which the next wrapper command shows and removes.
 #[test]
 fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
     assert_eq!(STALL_SECONDS, STALL_SECONDS_NUMBER.to_string(), "the two spellings of the stall window agree");
@@ -277,11 +329,16 @@ fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
     remove(stage.root.as_path());
 }
 
-/// What a hook that declines every push says; the person is shown it.
+/// What a hook that declines every push says;
+/// the person is shown it.
 const DECLINE_MESSAGE: &str = "protected: pushes to main need a review";
 
-/// The variables of the controls that go with a remote the service has no login for: no prompt, and no program that asks a
-/// person (the desktop's askpass helper, which the host's own settings may name and which waits on a window), may be waited for.
+/// The variables of the controls that go with a remote the service has no login for:
+/// no prompt,
+/// and no program that asks a
+/// person (the desktop's askpass helper,
+/// which the host's own settings may name and which waits on a window),
+/// may be waited for.
 const NO_PROMPT: [(&str, &str); 2] = [("GIT_TERMINAL_PROMPT", "0"), ("GIT_ASKPASS", "/bin/true")];
 
 /// The text of every record of a failed push the person has not been shown yet.
@@ -296,13 +353,15 @@ fn point_remote_at(stage: &Stage, url: &str) {
     git(stage.repo.as_path(), &["remote", "set-url", "origin", url]);
 }
 
-/// One round of the service over the stage's repository with real Git, the way the work loop runs it.
+/// One round of the service over the stage's repository with real Git,
+/// the way the work loop runs it.
 fn round_with_real_git(stage: &Stage, retries: &mut PushRetries) -> Option<Duration> {
     let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
     return round_of(stage.repo.join(".git").as_path(), &handlers, retries);
 }
 
-/// A server that answers every request with a 401 and the request for a login, until it is dropped.
+/// A server that answers every request with a 401 and the request for a login,
+/// until it is dropped.
 struct LoginServer {
     /// The address it listens on.
     address: std::net::SocketAddr,
@@ -345,8 +404,10 @@ impl Drop for LoginServer {
     }
 }
 
-/// A push the server's hook declines is not tried again: the person is told what the server said and that the service stops until
-///  their next commit, and the plan stays empty.
+/// A push the server's hook declines is not tried again:
+/// the person is told what the server said and that the service stops until
+///  their next commit,
+/// and the plan stays empty.
 #[test]
 fn a_push_a_server_hook_declines_is_not_tried_again() {
     let stage: Stage = stage("push-retry-declined");
@@ -361,7 +422,8 @@ fn a_push_a_server_hook_declines_is_not_tried_again() {
     remove(stage.root.as_path());
 }
 
-/// A push that needs a login the service does not have is not tried again, and the person is told to log in.
+/// A push that needs a login the service does not have is not tried again,
+/// and the person is told to log in.
 #[test]
 fn a_push_that_needs_a_login_is_not_tried_again() {
     let stage: Stage = stage("push-retry-login");
@@ -375,15 +437,20 @@ fn a_push_that_needs_a_login_is_not_tried_again() {
     remove(stage.root.as_path());
 }
 
-/// The program that stands in for the desktop's password dialog (`SSH_ASKPASS`): it writes the prompt it was given to `log` and
-///  answers a user name, so no window ever opens, and the log shows whether anything asked.
+/// The program that stands in for the desktop's password dialog (`SSH_ASKPASS`):
+/// it writes the prompt it was given to `log` and
+///  answers a user name,
+/// so no window ever opens,
+/// and the log shows whether anything asked.
 fn recorder(root: &Path, log: &Path) -> PathBuf {
     let program: PathBuf = root.join("recorded-askpass");
     crate::test_support::executable(program.as_path(), format!("#!/bin/sh\nprintf '%s\\n' \"$1\" >> '{}'\nprintf 'probe-user\\n'\n", log.display()).as_bytes());
     return program;
 }
 
-/// What the recorder was asked, one prompt per line; nothing when it was never started.
+/// What the recorder was asked,
+/// one prompt per line;
+/// nothing when it was never started.
 fn prompts_recorded(log: &Path) -> String {
     return std::fs::read_to_string(log).unwrap_or_default();
 }
@@ -393,9 +460,14 @@ fn assert_askpass_is_unset_here() {
     assert!(std::env::var_os("GIT_ASKPASS").is_none(), "this control shows what an unset GIT_ASKPASS does; run it without GIT_ASKPASS in the environment");
 }
 
-/// A push to a server that answers 401 never starts the program the host names as its askpass helper: Git tries `GIT_ASKPASS`,
-///  then `core.askPass`, then `SSH_ASKPASS` before it reads `GIT_TERMINAL_PROMPT` (Git 2.56.0 `prompt.c`), so the service sets
-///  `GIT_ASKPASS` to the empty string. The failure is the login failure the person is told about, reached without a wait.
+/// A push to a server that answers 401 never starts the program the host names as its askpass helper:
+/// Git tries `GIT_ASKPASS`,
+///  then `core.askPass`,
+/// then `SSH_ASKPASS` before it reads `GIT_TERMINAL_PROMPT` (Git 2.56.0 `prompt.c`),
+/// so the service sets
+///  `GIT_ASKPASS` to the empty string.
+/// The failure is the login failure the person is told about,
+/// reached without a wait.
 #[test]
 fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program() {
     assert_askpass_is_unset_here();
@@ -415,9 +487,16 @@ fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program()
     remove(stage.root.as_path());
 }
 
-/// The Git LFS upload of a background push gets the same environment: `git-lfs` reads `GIT_ASKPASS`, then `core.askpass`, then
-///  `SSH_ASKPASS` itself (`creds/creds.go`, v3.8.1), so the stand-in below follows that order and asks the recorder when it may,
-///  and it keeps the `GIT_TERMINAL_PROMPT` it was given. The real `git-lfs` is not in the gate's image; the troubleshooting note
+/// The Git LFS upload of a background push gets the same environment:
+/// `git-lfs` reads `GIT_ASKPASS`,
+/// then `core.askpass`,
+/// then
+///  `SSH_ASKPASS` itself (`creds/creds.go`,
+/// v3.8.1),
+/// so the stand-in below follows that order and asks the recorder when it may,
+///  and it keeps the `GIT_TERMINAL_PROMPT` it was given.
+/// The real `git-lfs` is not in the gate's image;
+/// the troubleshooting note
 ///  holds the run of the real one.
 #[test]
 fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
@@ -460,7 +539,8 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
 /// The user and password of a URL a server's hook prints in the push controls that look for leaked credentials.
 const SENTINEL_URL_USERINFO: &str = "sentinel-user:sentinel-password-4f9c";
 
-/// Every file below `root` that holds `needle`, skipping the directories named in `skip`.
+/// Every file below `root` that holds `needle`,
+/// skipping the directories named in `skip`.
 fn files_holding(root: &Path, needle: &str, skip: &[PathBuf]) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     for entry in std::fs::read_dir(root).expect("a readable directory").flatten() {
@@ -478,10 +558,17 @@ fn files_holding(root: &Path, needle: &str, skip: &[PathBuf]) -> Vec<PathBuf> {
     return found;
 }
 
-/// A server's words can carry a URL with a user and a password (a hook that prints where to log in is one way; an older Git printed
-///  the remote's own URL that way), and the push output is stored for the person in the failure record, the work records and the
-///  journal. None of them keeps the password or the user part: the scan covers every file of the fixture except the hook that
-///  prints it, with a planted file first to show the scan finds a leak, and the Git run of the push to show the words do carry it.
+/// A server's words can carry a URL with a user and a password (a hook that prints where to log in is one way;
+/// an older Git printed
+///  the remote's own URL that way),
+/// and the push output is stored for the person in the failure record,
+/// the work records and the
+///  journal.
+/// None of them keeps the password or the user part:
+/// the scan covers every file of the fixture except the hook that
+///  prints it,
+/// with a planted file first to show the scan finds a leak,
+/// and the Git run of the push to show the words do carry it.
 #[test]
 fn a_failed_push_whose_output_names_a_url_with_a_password_leaves_it_in_no_file_the_wrapper_writes() {
     let stage: Stage = stage("push-output-keeps-no-password");
@@ -524,9 +611,13 @@ fn an_offline_push_is_still_tried_again() {
     remove(stage.root.as_path());
 }
 
-/// A rejection by the server for a reason this release does not know is tried again, and the journal names the line it did not
-///  recognise. Git 2.56.0 refuses a reference that `receive.hideRefs` hides with `deny updating a hidden ref`
-///  (`builtin/receive-pack.c`), which is no hook and no login, so it stands for a reason nobody has listed.
+/// A rejection by the server for a reason this release does not know is tried again,
+/// and the journal names the line it did not
+///  recognise.
+/// Git 2.56.0 refuses a reference that `receive.hideRefs` hides with `deny updating a hidden ref`
+///  (`builtin/receive-pack.c`),
+/// which is no hook and no login,
+/// so it stands for a reason nobody has listed.
 #[test]
 fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal() {
     use crate::journald_native::Priority;
@@ -554,19 +645,22 @@ fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal
     remove(stage.root.as_path());
 }
 
-/// The directories a service of this instance was woken for, as the journal of a service that ended holds them.
+/// The directories a service of this instance was woken for,
+/// as the journal of a service that ended holds them.
 fn watched_by_an_earlier_service(stage: &Stage) -> PathBuf {
     let store: PathBuf = stage.root.join("journal").join(WATCH_DIRECTORY);
     ClaimWatch::restored(store.as_path(), None).remember(stage.repo.join(".git").as_path());
     return store;
 }
 
-/// Lets the stage's hook accept pushes, as it does after its first stall.
+/// Lets the stage's hook accept pushes,
+/// as it does after its first stall.
 fn let_pushes_through(stage: &Stage) {
     std::fs::write(stage.root.join("stalled-once"), b"").expect("the marker that makes the hook accept");
 }
 
-/// Moves the item of `commit` to `claimed` as a service would have claimed it `age` ago, and gives the claim's path.
+/// Moves the item of `commit` to `claimed` as a service would have claimed it `age` ago,
+/// and gives the claim's path.
 fn claim_as_a_dead_service_did(stage: &Stage, commit: &str, age: Duration) -> PathBuf {
     let work: PathBuf = work_directory(stage.repo.join(".git").as_path());
     let id: String = format!("push-{commit}");
@@ -577,7 +671,9 @@ fn claim_as_a_dead_service_did(stage: &Stage, commit: &str, age: Duration) -> Pa
     return claimed;
 }
 
-/// Run `work_loop` on a thread as a service that has just started: the plan and the watch are read from the journal, and no wake is sent.
+/// Run `work_loop` on a thread as a service that has just started:
+/// the plan and the watch are read from the journal,
+/// and no wake is sent.
 fn start_service_watching<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
     return start_service_watching_with(scope, handlers, PAUSE, plans, watched, busy);
 }
@@ -589,9 +685,13 @@ fn start_service_watching_with<'scope>(scope: &'scope std::thread::Scope<'scope,
     return (sender, running);
 }
 
-/// A service killed while it holds a claim is followed by one that runs the claim without any wake: nobody commits after the kill,
-///  no wrapper command runs, and the service started in its place looks at the repository an earlier service was woken for, finds
-///  the claim held by a holder that does not renew it, and pushes once the lease is over.
+/// A service killed while it holds a claim is followed by one that runs the claim without any wake:
+/// nobody commits after the kill,
+///  no wrapper command runs,
+/// and the service started in its place looks at the repository an earlier service was woken for,
+/// finds
+///  the claim held by a holder that does not renew it,
+/// and pushes once the lease is over.
 #[test]
 fn a_claim_left_by_a_killed_service_is_run_by_its_successor_with_no_wake() {
     let stage: Stage = stage("push-claim-no-wake");
@@ -612,8 +712,10 @@ fn a_claim_left_by_a_killed_service_is_run_by_its_successor_with_no_wake() {
     remove(stage.root.as_path());
 }
 
-/// The wake of a repository is written down by the worker before it drains, so that a service killed in the middle of the first
-///  claim is followed by one that knows where to look; a service that restarts finds the file.
+/// The wake of a repository is written down by the worker before it drains,
+/// so that a service killed in the middle of the first
+///  claim is followed by one that knows where to look;
+/// a service that restarts finds the file.
 #[test]
 fn a_wake_writes_the_repository_down_for_the_next_service() {
     let stage: Stage = stage("push-claim-wake-written");
@@ -636,7 +738,10 @@ fn a_wake_writes_the_repository_down_for_the_next_service() {
 }
 
 /// The service that starts in place of another runs what is pending at once but leaves a claim whose holder renewed it a moment
-///  ago alone: the lease decides that a holder is dead, never the start of a successor, so the work is not run twice.
+///  ago alone:
+/// the lease decides that a holder is dead,
+/// never the start of a successor,
+/// so the work is not run twice.
 #[test]
 fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
     let stage: Stage = stage("push-claim-live-holder");
@@ -673,11 +778,14 @@ fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
     remove(stage.root.as_path());
 }
 
-/// How far off the first try of a push plan is in the control that has one: far past what the control waits for.
+/// How far off the first try of a push plan is in the control that has one:
+/// far past what the control waits for.
 const FAR_PLAN_PAUSE: Duration = Duration::from_secs(600);
 
-/// A repository that has a push plan due much later is still looked at at once when the service starts: the plan is the push's
-///  own schedule and must not hide the claim of a dead holder, which runs out its lease long before.
+/// A repository that has a push plan due much later is still looked at at once when the service starts:
+/// the plan is the push's
+///  own schedule and must not hide the claim of a dead holder,
+/// which runs out its lease long before.
 #[test]
 fn a_push_plan_due_later_does_not_hide_the_startup_look() {
     let stage: Stage = stage("push-claim-plan-later");
@@ -709,18 +817,26 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
     remove(stage.root.as_path());
 }
 
-/// How long the controls of a fault in the notes wait for the service to try again: the pause, the slack and a margin for a loaded host.
+/// How long the controls of a fault in the notes wait for the service to try again:
+/// the pause,
+/// the slack and a margin for a loaded host.
 const NOTE_RETRY_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
 
-/// Puts a file where the notes' directory should be, so that nothing can be written or listed under it, and gives the store's path.
+/// Puts a file where the notes' directory should be,
+/// so that nothing can be written or listed under it,
+/// and gives the store's path.
 fn block_the_notes(stage: &Stage) -> (PathBuf, PathBuf) {
     let blocker: PathBuf = stage.root.join("note-blocker");
     std::fs::write(&blocker, b"not a directory\n").expect("the blocker");
     return (blocker.clone(), blocker.join(WATCH_DIRECTORY));
 }
 
-/// A note that cannot be written when the service first drains a repository does not stop the work, and is written once the fault
-/// is mended, without another wake: a service killed after that finds the repository, so a full disk at the first commit does not
+/// A note that cannot be written when the service first drains a repository does not stop the work,
+/// and is written once the fault
+/// is mended,
+/// without another wake:
+/// a service killed after that finds the repository,
+/// so a full disk at the first commit does not
 /// leave the last commit's push to wait for a commit that may never come.
 #[test]
 fn a_note_that_could_not_be_written_is_written_after_the_fault_is_mended() {
@@ -748,8 +864,11 @@ fn a_note_that_could_not_be_written_is_written_after_the_fault_is_mended() {
     remove(stage.root.as_path());
 }
 
-/// A store of notes that cannot be listed when the service starts does not end the look: the service stays up, lists it again
-/// after a pause, and runs the claim of the repository the note names.
+/// A store of notes that cannot be listed when the service starts does not end the look:
+/// the service stays up,
+/// lists it again
+/// after a pause,
+/// and runs the claim of the repository the note names.
 #[test]
 fn a_store_that_could_not_be_listed_at_the_start_is_listed_again_and_its_claim_is_run() {
     let stage: Stage = stage("push-claim-store-unlistable");

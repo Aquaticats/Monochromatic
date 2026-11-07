@@ -1,11 +1,22 @@
 //! What:
-//!  The durable work-item record: a small file in the Git directory that says "this landed object needs this
-//!  asynchronous work", written by the wrapper and drained by a separate resident consumer.
+//!  The durable work-item record:
+//! a small file in the Git directory that says "this landed object needs this
+//!  asynchronous work",
+//! written by the wrapper and drained by a separate resident consumer.
 //! Why:
-//!  A wrapper process exits when its command ends, and it may start no program, so work that must not delay a landing
-//!  (the standards review, later auto-push and maintenance) is left as a record instead. The record is generic: a kind,
-//!  the landed object and an id derived from both, so a retry cannot duplicate it. The design, its failure cases and
-//!  the consumer contract are in `doc/planning/cli-git-standards-review-port.md`. Nothing calls this yet.
+//!  A wrapper process exits when its command ends,
+//! and it may start no program,
+//! so work that must not delay a landing
+//!  (the standards review,
+//! later auto-push and maintenance) is left as a record instead.
+//! The record is generic:
+//! a kind,
+//!  the landed object and an id derived from both,
+//! so a retry cannot duplicate it.
+//! The design,
+//! its failure cases and
+//!  the consumer contract are in `doc/planning/cli-git-standards-review-port.md`.
+//! Nothing calls this yet.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +41,8 @@ pub const WORK_DIRECTORY: &str = "monochromatic-git-policy-cli/work";
 /// What:
 ///  The kind of work an item asks for.
 /// Why:
-///   One record format carries every asynchronous job; the kind picks the consumer's handler.
+///   One record format carries every asynchronous job;
+/// the kind picks the consumer's handler.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,7 +62,8 @@ pub enum WorkKind {
 
 /// Methods over a kind.
 impl WorkKind {
-    /// The kind's name, which is also the start of an item's id.
+    /// The kind's name,
+    /// which is also the start of an item's id.
     pub fn name(self) -> &'static str {
         return match self {
             WorkKind::Review => "review",
@@ -72,9 +85,13 @@ impl WorkKind {
 }
 
 /// What:
-///  One work item: what to do, to which landed object, and where.
+///  One work item:
+/// what to do,
+/// to which landed object,
+/// and where.
 /// Why:
-///   The consumer needs only the object name and the places to find the repository; it reads the patch itself.
+///   The consumer needs only the object name and the places to find the repository;
+/// it reads the patch itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,15 +103,20 @@ pub struct WorkItem {
     pub kind: WorkKind,
     /// The worktree root.
     pub repository: String,
-    /// The Git directory of the worktree that made the commit and whose service instance runs the item: the common directory
-    ///  for the main worktree, `<common>/worktrees/<name>` for a linked one. The work records are under it, and
+    /// The Git directory of the worktree that made the commit and whose service instance runs the item:
+    /// the common directory
+    ///  for the main worktree,
+    /// `<common>/worktrees/<name>` for a linked one.
+    /// The work records are under it,
+    /// and
     ///  `is_acceptable` refuses an item whose value is not the directory it is read from.
     pub git_dir: String,
     /// The branch reference that received the commit.
     pub branch_ref: String,
     /// The landed commit.
     pub oid: String,
-    /// Its first parent, or empty for a root commit.
+    /// Its first parent,
+    /// or empty for a root commit.
     pub parent: String,
     /// `toISOString` text of the enqueue time.
     pub created: String,
@@ -104,7 +126,9 @@ pub struct WorkItem {
 
 /// Methods over an item.
 impl WorkItem {
-    /// The id and file name: the kind and the landed object, so the same landing always yields the same id.
+    /// The id and file name:
+    /// the kind and the landed object,
+    /// so the same landing always yields the same id.
     pub fn id(&self) -> String {
         return format!("{}-{}", self.kind.name(), self.oid);
     }
@@ -129,7 +153,10 @@ impl WorkItem {
         return format!("{}\n", Value::Object(fields));
     }
 
-    /// Read a record; any other version, an unknown kind, a missing field or an id that is not derived from the kind and
+    /// Read a record;
+    /// any other version,
+    /// an unknown kind,
+    /// a missing field or an id that is not derived from the kind and
     /// object is refused with a message.
     pub fn decode(text: &str) -> Result<WorkItem, String> {
         let value: Value = match serde_json::from_str(text) {
@@ -170,7 +197,10 @@ impl WorkItem {
 /// What:
 ///  Whether an enqueue added the item or found it already known.
 /// Why:
-///   A landing that is replayed, or a daemon that restarts, enqueues again; the second time must change nothing.
+///   A landing that is replayed,
+/// or a daemon that restarts,
+/// enqueues again;
+/// the second time must change nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -187,7 +217,8 @@ pub enum Enqueued {
 /// What:
 ///  A named field of a work record as text.
 /// Why:
-///  `WorkItem::decode` reads every text field of the record, and a field that is missing or not text refuses the record.
+///  `WorkItem::decode` reads every text field of the record,
+/// and a field that is missing or not text refuses the record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -221,10 +252,13 @@ fn is_claimed_or_recovering(work_dir: &Path, id: &str) -> bool {
 }
 
 /// What:
-///  Write the item as a pending record, whole or absent, unless its id is already in any state.
+///  Write the item as a pending record,
+/// whole or absent,
+/// unless its id is already in any state.
 ///  The producer never waits for a consumer and never reads anything back.
 /// Why:
-///   The id is the idempotency key; the exclusive publish makes two racing producers agree on one winner.
+///   The id is the idempotency key;
+/// the exclusive publish makes two racing producers agree on one winner.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,10 +288,17 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
 }
 
 /// What:
-///  A held item: the decoded record, its id, and the name of the file that holds it.
+///  A held item:
+/// the decoded record,
+/// its id,
+/// and the name of the file that holds it.
 /// Why:
-///   Finishing needs the claim's file name, not the id: the name carries the generation of the claim, so a settlement or a
-///  renewal reaches only the claim it was made for. The consumer needs the item.
+///   Finishing needs the claim's file name,
+/// not the id:
+/// the name carries the generation of the claim,
+/// so a settlement or a
+///  renewal reaches only the claim it was made for.
+/// The consumer needs the item.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -265,20 +306,32 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Claimed {
-    /// File name in every state directory but `claimed` and `recovering`, where the file name is `name`.
+    /// File name in every state directory but `claimed` and `recovering`,
+    /// where the file name is `name`.
     pub id: String,
-    /// File name in `claimed` as of the claim or the last renewal: the id, the claim's generation and the clock reading.
+    /// File name in `claimed` as of the claim or the last renewal:
+    /// the id,
+    /// the claim's generation and the clock reading.
     pub name: String,
     /// The decoded record.
     pub item: WorkItem,
 }
 
-/// The most characters an object name has: 64 hexadecimal digits of a SHA-256 name. With the longest kind, a generation, a reading that
-/// fills every field and the suffix of a recovery's temporary file, such an id still makes a name of at most 223 bytes, under
-/// the 255 a file name may have; a longer id could make a claim's name fit and the name of its temporary file not.
+/// The most characters an object name has:
+/// 64 hexadecimal digits of a SHA-256 name.
+/// With the longest kind,
+/// a generation,
+/// a reading that
+/// fills every field and the suffix of a recovery's temporary file,
+/// such an id still makes a name of at most 223 bytes,
+/// under
+/// the 255 a file name may have;
+/// a longer id could make a claim's name fit and the name of its temporary file not.
 pub(crate) const MAX_OBJECT_NAME_LENGTH: usize = 64;
 
-/// Whether `object_name` is what follows the kind in an id: 1 to `MAX_OBJECT_NAME_LENGTH` ASCII letters and digits, so it
+/// Whether `object_name` is what follows the kind in an id:
+/// 1 to `MAX_OBJECT_NAME_LENGTH` ASCII letters and digits,
+/// so it
 /// holds no separator of a claim's name and no character a file name treats specially.
 fn is_object_name(object_name: &str) -> bool {
     return !object_name.is_empty() && object_name.len() <= MAX_OBJECT_NAME_LENGTH && object_name.as_bytes().iter().all(u8::is_ascii_alphanumeric);
@@ -287,8 +340,12 @@ fn is_object_name(object_name: &str) -> bool {
 /// What:
 ///  Set the modification time of the file at `path` to now.
 /// Why:
-///   A release that cannot read the reading in a claim's name ages the claim by the file's modification time, which a rename
-///  keeps. Claims and renewals are renames, so without this such a reader sees the time the item was queued, not the last
+///   A release that cannot read the reading in a claim's name ages the claim by the file's modification time,
+/// which a rename
+///  keeps.
+/// Claims and renewals are renames,
+/// so without this such a reader sees the time the item was queued,
+/// not the last
 ///  renewal,
 /// and takes a live holder's claim.
 /// A failure is returned,
@@ -319,7 +376,8 @@ pub(crate) fn is_valid_id(id: &str) -> bool {
     return false;
 }
 
-/// The path of the file that holds the claim of `id` now, or nothing when it is not claimed or being recovered.
+/// The path of the file that holds the claim of `id` now,
+/// or nothing when it is not claimed or being recovered.
 pub fn find_claim(work_dir: &Path, id: &str) -> Option<PathBuf> {
     // `claimed` first, then `recovering`, each oldest first; the first entry that is the claim of `id`.
     for state in [CLAIMED, RECOVERING] {
@@ -334,10 +392,16 @@ pub fn find_claim(work_dir: &Path, id: &str) -> Option<PathBuf> {
 
 /// What:
 ///  Claim the oldest pending item by renaming it into `claimed` under a name that carries a fresh generation and the
-///  reading `now`. A record that does not decode is moved to `failed` so it cannot block the queue.
+///  reading `now`.
+/// A record that does not decode is moved to `failed` so it cannot block the queue.
 /// Why:
-///   A rename is atomic: of two consumers racing for one item, the loser sees the file gone and takes the next one. The
-///  generation and the reading are in the name, so the claim is whole from the instant it exists; nothing is written to it.
+///   A rename is atomic:
+/// of two consumers racing for one item,
+/// the loser sees the file gone and takes the next one.
+/// The
+///  generation and the reading are in the name,
+/// so the claim is whole from the instant it exists;
+/// nothing is written to it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -348,9 +412,13 @@ pub fn claim_next(work_dir: &Path, now: &ClaimTime) -> Result<Option<Claimed>, S
 }
 
 /// What:
-///  Claim the oldest pending item of the given kinds, leaving every other kind where it is.
+///  Claim the oldest pending item of the given kinds,
+/// leaving every other kind where it is.
 /// Why:
-///   Consumers of different kinds share one queue; the kind starts the file name, so a consumer never opens, moves or
+///   Consumers of different kinds share one queue;
+/// the kind starts the file name,
+/// so a consumer never opens,
+/// moves or
 ///   stamps an item that belongs to another.
 ///
 /// In TS you'd write (pseudocode):
@@ -454,10 +522,16 @@ fn quarantine_pending(work_dir: &Path, id: &str, reason: &str) {
 }
 
 /// What:
-///  Move a claimed item to `done` (or to `failed`), after the consumer's result is durable.
+///  Move a claimed item to `done` (or to `failed`),
+/// after the consumer's result is durable.
 /// Why:
-///   A crash before this rename leaves the item claimed, and its lease runs out; the work is then done again, so a
-///   handler must tolerate a repeat. The rename names the claim's generation, so a holder whose claim was taken over and
+///   A crash before this rename leaves the item claimed,
+/// and its lease runs out;
+/// the work is then done again,
+/// so a
+///   handler must tolerate a repeat.
+/// The rename names the claim's generation,
+/// so a holder whose claim was taken over and
 ///  claimed again by another settles nothing of the other's.
 ///
 /// In TS you'd write (pseudocode):
@@ -468,7 +542,8 @@ pub fn settle(work_dir: &Path, claimed: &Claimed, state: &str) -> Result<(), Str
     return settle_named(work_dir, claimed.name.as_str(), state);
 }
 
-/// `settle` for the claim file `name`, whose id is the part of the name before the generation.
+/// `settle` for the claim file `name`,
+/// whose id is the part of the name before the generation.
 pub fn settle_named(work_dir: &Path, name: &str, state: &str) -> Result<(), String> {
     let id: &str = id_of_entry(name);
     return match std::fs::rename(state_directory(work_dir, CLAIMED).join(name), state_directory(work_dir, state).join(id)) {
@@ -478,13 +553,21 @@ pub fn settle_named(work_dir: &Path, name: &str, state: &str) -> Result<(), Stri
 }
 
 /// What:
-///  Start the lease of the claim file `name` again at `now`, returning its new name; nothing when the claim is no longer in
+///  Start the lease of the claim file `name` again at `now`,
+/// returning its new name;
+/// nothing when the claim is no longer in
 ///  `claimed` under that name or its modification time could not be set.
 /// Why:
-///   A holder that is still working must not look abandoned: every consumer of a directory that several consumers drain reads
-///   the reading in the name as the proof of life. The renewal is a rename of the exact name the holder last wrote, so a
-///  claim that was taken over, settled, or taken over and claimed again by someone else is not found and is never brought
-///  back or renewed on the other's behalf; and an instance that looked at the old name and means to take it finds nothing.
+///   A holder that is still working must not look abandoned:
+/// every consumer of a directory that several consumers drain reads
+///   the reading in the name as the proof of life.
+/// The renewal is a rename of the exact name the holder last wrote,
+/// so a
+///  claim that was taken over,
+/// settled,
+/// or taken over and claimed again by someone else is not found and is never brought
+///  back or renewed on the other's behalf;
+/// and an instance that looked at the old name and means to take it finds nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -519,9 +602,11 @@ fn renew_claim_stamped(work_dir: &Path, name: &str, now: &ClaimTime, stamp: Stam
 }
 
 /// What:
-///  How long the oldest pending item has waited, or `None` when nothing is pending.
+///  How long the oldest pending item has waited,
+/// or `None` when nothing is pending.
 /// Why:
-///   The wrapper's one-line notice that no consumer is draining the queue is this age past a bound; a process id in a
+///   The wrapper's one-line notice that no consumer is draining the queue is this age past a bound;
+/// a process id in a
 ///   file would be meaningless across process-id namespaces.
 ///
 /// In TS you'd write (pseudocode):

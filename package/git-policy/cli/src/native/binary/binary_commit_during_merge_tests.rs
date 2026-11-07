@@ -1,12 +1,23 @@
 //! What:
-//!  A commit of named paths made while another session's merge is unfinished (`MERGE_HEAD` exists), through the built
+//!  A commit of named paths made while another session's merge is unfinished (`MERGE_HEAD` exists),
+//! through the built
 //!  wrapper and the resident service.
 //! Why:
-//!  The owner's rule (`SPEC.md`, "Merges and commits never fail"): "Commits should never fail." Real Git refuses a partial
-//!  commit during a merge (`fatal: cannot do a partial commit during a merge.`), and in a checkout many sessions share, one
-//!  person's unfinished merge must not make another session's unrelated commit fail. The commit lands on `HEAD` as an
-//!  ordinary commit of its paths, and the merge is carried forward: `MERGE_HEAD`, the staged merge result and the merge message
-//!  stay, and the commit that concludes the merge sits on the new head.
+//!  The owner's rule (`SPEC.md`,
+//! "Merges and commits never fail"):
+//! "Commits should never fail."
+//! Real Git refuses a partial
+//!  commit during a merge (`fatal: cannot do a partial commit during a merge.`),
+//! and in a checkout many sessions share,
+//! one
+//!  person's unfinished merge must not make another session's unrelated commit fail.
+//! The commit lands on `HEAD` as an
+//!  ordinary commit of its paths,
+//! and the merge is carried forward:
+//! `MERGE_HEAD`,
+//! the staged merge result and the merge message
+//!  stay,
+//! and the commit that concludes the merge sits on the new head.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,8 +31,11 @@ use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::Output;
 
-/// A repository where `other` changes `y.txt`, `main` changes `z.txt`, and `git merge --no-commit --no-ff other` is unfinished:
-///  `y.txt` is staged by the merge, and `x.txt` is a tracked file the merge does not touch.
+/// A repository where `other` changes `y.txt`,
+/// `main` changes `z.txt`,
+/// and `git merge --no-commit --no-ff other` is unfinished:
+///  `y.txt` is staged by the merge,
+/// and `x.txt` is a tracked file the merge does not touch.
 fn unfinished_merge(fixture: &Fixture, name: &str) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     git(fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
@@ -40,7 +54,8 @@ fn unfinished_merge(fixture: &Fixture, name: &str) -> PathBuf {
     return repo;
 }
 
-/// An unrelated commit of named paths during an unfinished merge lands as an ordinary commit, and the merge is carried on.
+/// An unrelated commit of named paths during an unfinished merge lands as an ordinary commit,
+/// and the merge is carried on.
 #[test]
 fn a_path_commit_during_an_unfinished_merge_lands_and_the_merge_is_carried_forward() {
     let fixture: Fixture = fixture("commit-during-merge");
@@ -70,7 +85,9 @@ fn a_path_commit_during_an_unfinished_merge_lands_and_the_merge_is_carried_forwa
     remove_settled(&fixture);
 }
 
-/// During a merge that stopped on a conflict, an unrelated path lands like any other, and the merge is carried on.
+/// During a merge that stopped on a conflict,
+/// an unrelated path lands like any other,
+/// and the merge is carried on.
 #[test]
 fn during_a_conflicted_merge_an_unrelated_path_lands_and_the_conflict_is_carried_on() {
     let fixture: Fixture = fixture("commit-during-conflict");
@@ -102,9 +119,18 @@ fn during_a_conflicted_merge_an_unrelated_path_lands_and_the_conflict_is_carried
     remove_settled(&fixture);
 }
 
-/// The owner (2026-11-03): "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be
-///  committed." A commit that names the path a merge left in conflict lands, the committed blob holds the markers, the merge is
-///  carried on, and standard error says in plain words that the path still has conflict markers, that they were committed, and
+/// The owner (2026-11-03):
+/// "Committing a conflicted path is fine.
+/// Warn and commit anyway,
+/// even if conflict markers will be
+///  committed."
+/// A commit that names the path a merge left in conflict lands,
+/// the committed blob holds the markers,
+/// the merge is
+///  carried on,
+/// and standard error says in plain words that the path still has conflict markers,
+/// that they were committed,
+/// and
 ///  how to fix them in a follow-up commit.
 #[test]
 fn a_commit_naming_a_conflicted_path_lands_with_its_markers_and_warns() {
@@ -144,7 +170,9 @@ fn conflicted_merge(fixture: &Fixture, name: &str) -> PathBuf {
     return conflicted_merge_with_attributes(fixture, name, None);
 }
 
-/// The same, with `.gitattributes` holding `attributes` from the base commit on, so Git writes the markers its lines ask for.
+/// The same,
+/// with `.gitattributes` holding `attributes` from the base commit on,
+/// so Git writes the markers its lines ask for.
 fn conflicted_merge_with_attributes(fixture: &Fixture, name: &str, attributes: Option<&str>) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     git(fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
@@ -166,9 +194,14 @@ fn conflicted_merge_with_attributes(fixture: &Fixture, name: &str, attributes: O
     return repo;
 }
 
-/// The owner (2026-11-03, question tool): "Warn and finish the merge (Recommended)". A plain `git commit` with no paths while
-///  files are still unmerged lands as the merge commit with the markers in those files, instead of Git's "Committing is not
-///  possible because you have unmerged files", and the warning is worded as the named-path warning is.
+/// The owner (2026-11-03,
+/// question tool):
+/// "Warn and finish the merge (Recommended)".
+/// A plain `git commit` with no paths while
+///  files are still unmerged lands as the merge commit with the markers in those files,
+/// instead of Git's "Committing is not
+///  possible because you have unmerged files",
+/// and the warning is worded as the named-path warning is.
 #[test]
 fn a_plain_commit_with_unmerged_files_finishes_the_merge_with_their_markers_and_warns() {
     let fixture: Fixture = fixture("plain-commit-conflicted");
@@ -189,8 +222,14 @@ fn a_plain_commit_with_unmerged_files_finishes_the_merge_with_their_markers_and_
     remove_settled(&fixture);
 }
 
-/// The owner (2026-11-03): "Committing a conflicted path is fine. Warn and commit anyway". `git commit -a` stages the working
-///  copy of every tracked file, an unmerged one included, so it commits the markers too, and it warns for each such file in the
+/// The owner (2026-11-03):
+/// "Committing a conflicted path is fine.
+/// Warn and commit anyway".
+/// `git commit -a` stages the working
+///  copy of every tracked file,
+/// an unmerged one included,
+/// so it commits the markers too,
+/// and it warns for each such file in the
 ///  same words as a plain commit.
 #[test]
 fn a_commit_with_all_over_unmerged_files_commits_their_markers_and_warns() {
@@ -210,14 +249,21 @@ fn a_commit_with_all_over_unmerged_files_commits_their_markers_and_warns() {
     remove_settled(&fixture);
 }
 
-/// The line a named-path commit prints when it leaves the merge open: that the merge is still in progress and the commands that
+/// The line a named-path commit prints when it leaves the merge open:
+/// that the merge is still in progress and the commands that
 ///  finish it.
 fn says_the_merge_is_open(stderr: &str) -> bool {
     return stderr.contains("merge is still in progress") && stderr.contains("git merge --continue") && stderr.contains("git commit");
 }
 
-/// A path the person resolved by editing, with no marker line left and not staged, committed by name during the merge: the commit
-///  lands and the merge is carried on (the SPEC design), but no marker is claimed, since the committed blob has none, and the
+/// A path the person resolved by editing,
+/// with no marker line left and not staged,
+/// committed by name during the merge:
+/// the commit
+///  lands and the merge is carried on (the SPEC design),
+/// but no marker is claimed,
+/// since the committed blob has none,
+/// and the
 ///  one line says the merge is still open and how to finish it.
 #[test]
 fn a_resolved_but_unstaged_path_committed_by_name_makes_no_marker_claim_and_says_how_to_finish() {
@@ -241,7 +287,9 @@ fn a_resolved_but_unstaged_path_committed_by_name_makes_no_marker_claim_and_says
     remove_settled(&fixture);
 }
 
-/// A path that really holds marker lines keeps the claim, and the merge-open line comes too, whether or not markers were committed.
+/// A path that really holds marker lines keeps the claim,
+/// and the merge-open line comes too,
+/// whether or not markers were committed.
 #[test]
 fn a_path_committed_by_name_with_marker_lines_keeps_the_claim_and_says_the_merge_is_open() {
     let fixture: Fixture = fixture("commit-markers-open");
@@ -260,8 +308,10 @@ fn a_path_committed_by_name_with_marker_lines_keeps_the_claim_and_says_the_merge
     remove_settled(&fixture);
 }
 
-/// The marker size comes from the `conflict-marker-size` attribute as Git reads it: a path with size 9 that holds nine-character
-///  markers is claimed, and a path with size 9 that holds only seven-character lines is not.
+/// The marker size comes from the `conflict-marker-size` attribute as Git reads it:
+/// a path with size 9 that holds nine-character
+///  markers is claimed,
+/// and a path with size 9 that holds only seven-character lines is not.
 #[test]
 fn the_claim_follows_the_conflict_marker_size_attribute() {
     for (label, rewrite) in [("nine", false), ("seven", true)] {

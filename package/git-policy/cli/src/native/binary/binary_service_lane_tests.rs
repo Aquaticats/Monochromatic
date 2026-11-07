@@ -1,11 +1,19 @@
 //! What:
-//!  One commit service per worktree: a landing that waits for a foreign holder of one worktree's index lock does not delay
-//!  another worktree's commits, and a service refuses a request that names another worktree.
+//!  One commit service per worktree:
+//! a landing that waits for a foreign holder of one worktree's index lock does not delay
+//!  another worktree's commits,
+//! and a service refuses a request that names another worktree.
 //! Why:
-//!  Every worktree has its own service instance, the way Bazel runs one server per workspace, so a wait in one worktree (a
-//!  foreign `index.lock`, a slow push) is a wait for that worktree only. An instance serves the worktree it was started for,
-//!  and a request that reaches the wrong socket is refused where it can be seen, never landed in the wrong worktree
-//!  (`doc/planning/cli-git-resident-service.md`, "One service per worktree").
+//!  Every worktree has its own service instance,
+//! the way Bazel runs one server per workspace,
+//! so a wait in one worktree (a
+//!  foreign `index.lock`,
+//! a slow push) is a wait for that worktree only.
+//! An instance serves the worktree it was started for,
+//!  and a request that reaches the wrong socket is refused where it can be seen,
+//! never landed in the wrong worktree
+//!  (`doc/planning/cli-git-resident-service.md`,
+//! "One service per worktree").
 
 use super::support::{Fixture, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
@@ -22,17 +30,23 @@ use std::time::{Duration, Instant};
 
 const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 
-/// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
+/// The longest a control waits for anything:
+/// far beyond what a healthy run needs,
+/// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// How long a landing in a free worktree may take while another worktree's landing waits: far below the time the other worktree's
-///  landing is made to wait, so a landing that waited behind the other would miss it.
+/// How long a landing in a free worktree may take while another worktree's landing waits:
+/// far below the time the other worktree's
+///  landing is made to wait,
+/// so a landing that waited behind the other would miss it.
 const FREE_WORKTREE_BOUND: Duration = Duration::from_secs(60);
 
-/// How long the control gives a request to reach its service and start waiting, when the service has nothing to say about it.
+/// How long the control gives a request to reach its service and start waiting,
+/// when the service has nothing to say about it.
 const ARRIVAL_PAUSE: Duration = Duration::from_secs(3);
 
-/// A repository with its main worktree and one linked worktree, each with its own Git directory.
+/// A repository with its main worktree and one linked worktree,
+/// each with its own Git directory.
 struct Worktrees {
     main: PathBuf,
     linked: PathBuf,
@@ -51,7 +65,9 @@ fn worktrees(fixture: &Fixture) -> Worktrees {
     return Worktrees { main, linked, main_git_dir, linked_git_dir };
 }
 
-/// The instances of both worktrees, each on its own socket, killed with the control.
+/// The instances of both worktrees,
+/// each on its own socket,
+/// killed with the control.
 struct Services {
     children: Vec<Child>,
     runtime: PathBuf,
@@ -107,7 +123,9 @@ fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
     };
 }
 
-/// A request that sets `path` to `content` in the worktree at `root`, whose own Git directory is `git_dir`, on `branch`.
+/// A request that sets `path` to `content` in the worktree at `root`,
+/// whose own Git directory is `git_dir`,
+/// on `branch`.
 fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &str, path: &str) -> CommitRequest {
     std::fs::write(root.join(path), format!("{id}\n")).expect("write");
     let query = |arguments: &[&str]| -> String { return super::commit::git_text(fixture, root, arguments).trim_end().to_string(); };
@@ -132,7 +150,8 @@ fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &st
     };
 }
 
-/// A notice sink that tells the control when the service first said something, which for a landing is that it waits.
+/// A notice sink that tells the control when the service first said something,
+/// which for a landing is that it waits.
 struct Heard(Sender<()>);
 
 impl Write for Heard {
@@ -155,7 +174,10 @@ fn submitted_in_thread(config: ClientConfig, sent: CommitRequest, heard: Sender<
 }
 
 /// A landing that waits for a foreign holder of one worktree's index lock does not delay the landing in another worktree of
-///  the same repository, and lands itself, in its turn, once the holder is gone.
+///  the same repository,
+/// and lands itself,
+/// in its turn,
+/// once the holder is gone.
 #[test]
 fn a_landing_waiting_for_a_foreign_index_lock_does_not_delay_another_worktree() {
     let fixture: Fixture = fixture("service-worktrees");
@@ -190,7 +212,8 @@ fn a_landing_waiting_for_a_foreign_index_lock_does_not_delay_another_worktree() 
     super::commit::remove_settled(&fixture);
 }
 
-/// A request for one worktree that reaches another worktree's socket is refused, and nothing moves in either worktree.
+/// A request for one worktree that reaches another worktree's socket is refused,
+/// and nothing moves in either worktree.
 #[test]
 fn a_service_refuses_a_request_for_another_worktree() {
     let fixture: Fixture = fixture("service-worktrees-refused");

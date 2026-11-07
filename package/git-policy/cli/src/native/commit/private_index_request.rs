@@ -1,7 +1,10 @@
 //! What:
-//!  The private index and object store a commit's preparation reads and writes, and the Git request that selects them.
+//!  The private index and object store a commit's preparation reads and writes,
+//! and the Git request that selects them.
 //! Why:
-//!  Staging and listing read the private commit index, and only staging writes objects, into the scratch object store;
+//!  Staging and listing read the private commit index,
+//! and only staging writes objects,
+//! into the scratch object store;
 //!  `GIT_INDEX_FILE` and `GIT_OBJECT_DIRECTORY` select that private state while the invocation's global options are ignored,
 //!  as the incumbent does.
 //!

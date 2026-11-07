@@ -1,9 +1,16 @@
 //! What:
-//!  How a watched step may be ended and the errors that say it was: the bound a step runs under, the error of a step ended at
-//!  its ceiling, the error of a step left running, and the text that names them.
+//!  How a watched step may be ended and the errors that say it was:
+//! the bound a step runs under,
+//! the error of a step ended at
+//!  its ceiling,
+//! the error of a step left running,
+//! and the text that names them.
 //! Why:
-//!  `child_watch.rs` runs the watched steps; callers and tests only need these names to tell the endings apart, and they do
-//!  not use the running code, so they sit in a file of their own and `child_watch.rs` re-exports them.
+//!  `child_watch.rs` runs the watched steps;
+//! callers and tests only need these names to tell the endings apart,
+//! and they do
+//!  not use the running code,
+//! so they sit in a file of their own and `child_watch.rs` re-exports them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,13 +23,25 @@ use std::process::Output;
 use std::time::Duration;
 
 /// What:
-///  How long a watched step is waited for, and what happens at the end.
+///  How long a watched step is waited for,
+/// and what happens at the end.
 /// Why:
-///   A step that can be run twice is ended at a ceiling (owner, 2026-11-03: "nothing should ever wait forever or indefinitely"). A
-///  write in place that cannot be run twice is never ended (owner, 2026-11-04: "Never cut a branch write (Recommended)"): the
+///   A step that can be run twice is ended at a ceiling (owner,
+/// 2026-11-03:
+/// "nothing should ever wait forever or indefinitely").
+/// A
+///  write in place that cannot be run twice is never ended (owner,
+/// 2026-11-04:
+/// "Never cut a branch write (Recommended)"):
+/// the
 ///  command that started it returns at its own bound plus a short extra wait with an error that says the result is not known,
-///  and the step is left running (owner, commit protocol revision 12, "Short extra wait (Recommended)"); only the commit service's
-///  landing thread, whose clients are told through the protocol, waits for it without a bound.
+///  and the step is left running (owner,
+/// commit protocol revision 12,
+/// "Short extra wait (Recommended)");
+/// only the commit service's
+///  landing thread,
+/// whose clients are told through the protocol,
+/// waits for it without a bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,7 +49,10 @@ use std::time::Duration;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StepBound {
-    /// The step is ended, with its whole process tree, when it has run this long, whatever it shows.
+    /// The step is ended,
+    /// with its whole process tree,
+    /// when it has run this long,
+    /// whatever it shows.
     EndAt(Duration),
     /// The command stops waiting `after` plus `extra` after the step began and returns an error saying the result is not known;
     ///  the step is left running and reaped when it ends.
@@ -44,7 +66,9 @@ pub enum StepBound {
     Unbounded,
 }
 
-/// The error of a step ended at its ceiling, which tells it apart from a step ended for being quiet: a step that may be run again
+/// The error of a step ended at its ceiling,
+/// which tells it apart from a step ended for being quiet:
+/// a step that may be run again
 ///  is run again after the second and not after the first.
 #[derive(Debug)]
 pub struct CeilingReached(
@@ -60,7 +84,8 @@ impl std::fmt::Display for CeilingReached {
 
 impl std::error::Error for CeilingReached {}
 
-/// The output of a step that ended: its status and what it wrote to the captured files.
+/// The output of a step that ended:
+/// its status and what it wrote to the captured files.
 pub(crate) fn output_of(status: std::process::ExitStatus, captured: Option<&Capture>) -> Output {
     let Some(files) = captured else {
         return Output { status, stdout: Vec::new(), stderr: Vec::new() };
@@ -76,10 +101,17 @@ pub(crate) fn output_of(status: std::process::ExitStatus, captured: Option<&Capt
 }
 
 /// What:
-///  The sentence for a step left running: what it was, how long it was waited for, and what to check.
+///  The sentence for a step left running:
+/// what it was,
+/// how long it was waited for,
+/// and what to check.
 /// Why:
-///   The owner's rule for a write the command started and cannot confirm (commit protocol revision 12, "Short extra wait"): exit
-///  non-zero saying the result is not known and what to look at. The step is a write in place, so the repository is what to check.
+///   The owner's rule for a write the command started and cannot confirm (commit protocol revision 12,
+/// "Short extra wait"):
+/// exit
+///  non-zero saying the result is not known and what to look at.
+/// The step is a write in place,
+/// so the repository is what to check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,10 +128,14 @@ pub fn not_known_text(waiting_for: &str, after: Duration, extra: Duration) -> St
     );
 }
 
-/// The error of a step left running: the command stopped waiting for it, so it is not known whether it finished.
+/// The error of a step left running:
+/// the command stopped waiting for it,
+/// so it is not known whether it finished.
 #[derive(Debug)]
 pub struct NotKnown(
-    /// The sentence that names the step, how long it was waited for, and what to check.
+    /// The sentence that names the step,
+    /// how long it was waited for,
+    /// and what to check.
     pub String,
 );
 

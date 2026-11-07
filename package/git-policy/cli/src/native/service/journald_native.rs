@@ -1,16 +1,33 @@
 //! What:
-//!  The service's way into the journal: the native journal protocol over a datagram socket when the service's standard
-//!  error is the journal, and a plain line on standard error otherwise.
+//!  The service's way into the journal:
+//! the native journal protocol over a datagram socket when the service's standard
+//!  error is the journal,
+//! and a plain line on standard error otherwise.
 //! Why:
-//!  A line on a journal stream socket is stamped by journald when it processes it, so under load the times are seconds
-//!  late and out of order with the service manager's own lines. A datagram on the native socket carries the kernel's
-//!  time from the moment it was sent (measured in `doc/handover/cli-git-logging.md`), and the entry can carry a
-//!  priority and fields a reader filters on (`journalctl CLI_GIT_REQUEST_ID=<id>`). The protocol is at
-//!  <https://systemd.io/JOURNAL_NATIVE_PROTOCOL/>, and `$JOURNAL_STREAM` is described in `systemd.exec(5)`.
-//!  No lock is taken on the native path: the socket is unconnected and non-blocking, one `sendto` per entry, and an entry
-//!  that cannot be sent (journald restarting, a full queue) goes to standard error instead, so a commit never waits for the
-//!  journal. A value is carried as written, one with a newline in the protocol's length-prefixed form. On the fallback a line
-//!  that finds no room is dropped and counted, never waited for, and a line the stream took only in part is finished before
+//!  A line on a journal stream socket is stamped by journald when it processes it,
+//! so under load the times are seconds
+//!  late and out of order with the service manager's own lines.
+//! A datagram on the native socket carries the kernel's
+//!  time from the moment it was sent (measured in `doc/handover/cli-git-logging.md`),
+//! and the entry can carry a
+//!  priority and fields a reader filters on (`journalctl CLI_GIT_REQUEST_ID=<id>`).
+//! The protocol is at
+//!  <https://systemd.io/JOURNAL_NATIVE_PROTOCOL/>,
+//! and `$JOURNAL_STREAM` is described in `systemd.exec(5)`.
+//!  No lock is taken on the native path:
+//! the socket is unconnected and non-blocking,
+//! one `sendto` per entry,
+//! and an entry
+//!  that cannot be sent (journald restarting,
+//! a full queue) goes to standard error instead,
+//! so a commit never waits for the
+//!  journal.
+//! A value is carried as written,
+//! one with a newline in the protocol's length-prefixed form.
+//! On the fallback a line
+//!  that finds no room is dropped and counted,
+//! never waited for,
+//! and a line the stream took only in part is finished before
 //!  the next one starts.
 //!
 //! In TS you'd write (pseudocode):
@@ -25,41 +42,74 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixDatagram};
 
-/// Test-only: names another socket to send entries to, as a path or, after an `@`, as an abstract name (a fixture path
-/// can be longer than a socket path may be). Detection by `$JOURNAL_STREAM` still applies, so a test points the
+/// Test-only:
+/// names another socket to send entries to,
+/// as a path or,
+/// after an `@`,
+/// as an abstract name (a fixture path
+/// can be longer than a socket path may be).
+/// Detection by `$JOURNAL_STREAM` still applies,
+/// so a test points the
 /// variable at the file it gave the process as standard error.
 pub const TEST_SOCKET_VARIABLE: &str = "CLI_GIT_TEST_ONLY_JOURNAL_SOCKET";
 
 /// The variable the service manager sets to the device and inode of the stream it connected to the journal.
 pub const STREAM_VARIABLE: &str = "JOURNAL_STREAM";
 
-/// The `SYSLOG_IDENTIFIER` of every entry, the name `journalctl` shows after the host.
+/// The `SYSLOG_IDENTIFIER` of every entry,
+/// the name `journalctl` shows after the host.
 pub const IDENTIFIER: &str = "monochromatic-git-policy-cli-service";
 
-/// The `SYSLOG_IDENTIFIER` of an entry the wrapper itself sends, as the command a person ran, beside the service's own.
+/// The `SYSLOG_IDENTIFIER` of an entry the wrapper itself sends,
+/// as the command a person ran,
+/// beside the service's own.
 pub const CLIENT_IDENTIFIER: &str = "monochromatic-git-policy-cli";
 
-/// The most characters of a message an entry carries; longer text is cut. The limits count characters, not encoded bytes,
-/// and bound no total, so an entry made of very many or very wide fields can still exceed what a socket takes; the send then
-/// fails with `EMSGSIZE` and the entry goes to standard error, as every entry that cannot be sent does.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+/// The most characters of a message an entry carries;
+/// longer text is cut.
+/// The limits count characters,
+/// not encoded bytes,
+/// and bound no total,
+/// so an entry made of very many or very wide fields can still exceed what a socket takes;
+/// the send then
+/// fails with `EMSGSIZE` and the entry goes to standard error,
+/// as every entry that cannot be sent does.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 pub const MESSAGE_LIMIT: usize = 16 * 1024;
 
 /// The most characters of a field value an entry carries.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 pub const FIELD_LIMIT: usize = 1024;
 
 /// What is appended to a cut message.
 const CUT_MARK: &str = " [cut]";
 
-/// How serious an entry is, as journald's `PRIORITY` (syslog levels).
+/// How serious an entry is,
+/// as journald's `PRIORITY` (syslog levels).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Priority {
-    /// Something the service needed failed; `journalctl --priority=err` shows it.
+    /// Something the service needed failed;
+    /// `journalctl --priority=err` shows it.
     Error,
     /// Something did not go as intended and the service went on.
     Warning,
@@ -79,10 +129,14 @@ impl Priority {
 }
 
 /// What:
-///  The text cut to `limit` characters, with the mark appended when it was cut; control characters and newlines are kept.
+///  The text cut to `limit` characters,
+/// with the mark appended when it was cut;
+/// control characters and newlines are kept.
 /// Why:
-///   The native protocol carries any bytes (a value with a newline in the length-prefixed form), so a value is cut and not
-///  changed; only the line on standard error needs `one_line`.
+///   The native protocol carries any bytes (a value with a newline in the length-prefixed form),
+/// so a value is cut and not
+///  changed;
+/// only the line on standard error needs `one_line`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,9 +150,11 @@ pub fn cut(text: &str, limit: usize) -> String {
 }
 
 /// What:
-///  The text with every control character (a newline included) replaced by a space, and cut to `limit` characters.
+///  The text with every control character (a newline included) replaced by a space,
+/// and cut to `limit` characters.
 /// Why:
-///   A line on standard error is one line whatever a client or an error message held: a newline in a message could
+///   A line on standard error is one line whatever a client or an error message held:
+/// a newline in a message could
 ///  otherwise start a second line in the stream.
 ///
 /// In TS you'd write (pseudocode):
@@ -117,17 +173,25 @@ pub fn one_line(text: &str, limit: usize) -> String {
     return single;
 }
 
-/// The longest field name journald takes, in characters.
+/// The longest field name journald takes,
+/// in characters.
 pub const FIELD_NAME_LIMIT: usize = 64;
 
 /// What:
-///  Whether a field name is one journald accepts from a client: 1 to 64 upper-case letters, digits and underscores, not
+///  Whether a field name is one journald accepts from a client:
+/// 1 to 64 upper-case letters,
+/// digits and underscores,
+/// not
 ///  starting with an underscore (the journal's own fields) or a digit.
 /// Why:
 ///   This is systemd's `journal_field_valid` called with `allow_protected` false (`src/libsystemd/sd-journal/journal-file.c`,
-///  read from the `main` branch; its comments say names longer than 64 are refused and a digit may not come first), which
-///  `manager_process_entry` in `src/journal/journald-native.c` applies to both forms of a field. A refused name is dropped by
-///  journald without a word, so the entry is built without it.
+///  read from the `main` branch;
+/// its comments say names longer than 64 are refused and a digit may not come first),
+/// which
+///  `manager_process_entry` in `src/journal/journald-native.c` applies to both forms of a field.
+/// A refused name is dropped by
+///  journald without a word,
+/// so the entry is built without it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,9 +205,12 @@ pub fn valid_field_name(name: &str) -> bool {
 }
 
 /// What:
-///  Whether a byte may appear in a field name after the first: an uppercase ASCII letter, a digit or an underscore.
+///  Whether a byte may appear in a field name after the first:
+/// an uppercase ASCII letter,
+/// a digit or an underscore.
 /// Why:
-///  `valid_field_name` checks every byte, as the journal's native protocol allows no other.
+///  `valid_field_name` checks every byte,
+/// as the journal's native protocol allows no other.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -153,8 +220,13 @@ fn is_field_name_byte(byte: &u8) -> bool {
     return byte.is_ascii_uppercase() || byte.is_ascii_digit() || *byte == b'_';
 }
 
-/// Appends one field: `NAME=value\n` when the value has no newline, otherwise the length-prefixed form, `NAME\n`, the byte
-/// length as eight little-endian bytes, the value and `\n`.
+/// Appends one field:
+/// `NAME=value\n` when the value has no newline,
+/// otherwise the length-prefixed form,
+/// `NAME\n`,
+/// the byte
+/// length as eight little-endian bytes,
+/// the value and `\n`.
 fn push_field(entry: &mut Vec<u8>, name: &str, value: &str) {
     if value.contains('\n') {
         entry.extend_from_slice(name.as_bytes());
@@ -170,7 +242,8 @@ fn push_field(entry: &mut Vec<u8>, name: &str, value: &str) {
 }
 
 /// What:
-///  The bytes of one native entry of the service: see `datagram_as`.
+///  The bytes of one native entry of the service:
+/// see `datagram_as`.
 /// Why:
 ///   Every entry of the service carries the service's identifier.
 ///
@@ -183,12 +256,24 @@ pub fn datagram(priority: Priority, message: &str, fields: &[(&str, String)]) ->
 }
 
 /// What:
-///  The bytes of one native entry: `PRIORITY`, `SYSLOG_IDENTIFIER`, `MESSAGE`, then each field, each value as written (cut
-///  to its limit), in the length-prefixed form when it holds a newline.
+///  The bytes of one native entry:
+/// `PRIORITY`,
+/// `SYSLOG_IDENTIFIER`,
+/// `MESSAGE`,
+/// then each field,
+/// each value as written (cut
+///  to its limit),
+/// in the length-prefixed form when it holds a newline.
 /// Why:
-///   A newline cannot be written in the simple `NAME=value` form without starting a field, and the length-prefixed form
-///  carries any bytes, so a value reads back in the journal as it was sent. A field whose name journald would refuse is left
-///  out. The identifier names the sender: the service, or the wrapper a person ran.
+///   A newline cannot be written in the simple `NAME=value` form without starting a field,
+/// and the length-prefixed form
+///  carries any bytes,
+/// so a value reads back in the journal as it was sent.
+/// A field whose name journald would refuse is left
+///  out.
+/// The identifier names the sender:
+/// the service,
+/// or the wrapper a person ran.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -207,8 +292,11 @@ pub fn datagram_as(identifier: &str, priority: Priority, message: &str, fields: 
     return entry;
 }
 
-/// Whether `$JOURNAL_STREAM` names the file with this device and inode, which is how `systemd.exec(5)` says to tell that
-/// standard error is still the journal: the variable alone is not enough, because a redirection leaves it set.
+/// Whether `$JOURNAL_STREAM` names the file with this device and inode,
+/// which is how `systemd.exec(5)` says to tell that
+/// standard error is still the journal:
+/// the variable alone is not enough,
+/// because a redirection leaves it set.
 pub fn stream_matches(variable: Option<&str>, device: u64, inode: u64) -> bool {
     let Some(text) = variable else {
         return false;
@@ -219,7 +307,8 @@ pub fn stream_matches(variable: Option<&str>, device: u64, inode: u64) -> bool {
     return named_device.parse::<u64>().ok() == Some(device) && named_inode.parse::<u64>().ok() == Some(inode);
 }
 
-/// The device and inode of standard error, or nothing when it cannot be read.
+/// The device and inode of standard error,
+/// or nothing when it cannot be read.
 pub fn stderr_identity() -> Option<(u64, u64)> {
     let mut status: libc::stat = unsafe { std::mem::zeroed() };
     // SAFETY: `status` is valid for the call to write one `stat`.
@@ -231,9 +320,13 @@ pub fn stderr_identity() -> Option<(u64, u64)> {
 }
 
 /// What:
-///  The address as the C structure `sendto` takes, and its length, or nothing when the name does not fit.
+///  The address as the C structure `sendto` takes,
+/// and its length,
+/// or nothing when the name does not fit.
 /// Why:
-///   A signal handler may not build it (the standard library allocates), so it is made once, ahead of the signal.
+///   A signal handler may not build it (the standard library allocates),
+/// so it is made once,
+/// ahead of the signal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -265,29 +358,48 @@ pub fn raw_address(address: &SocketAddr) -> Option<(libc::sockaddr_un, libc::soc
 pub enum Delivery {
     /// As a datagram on the native socket.
     Native,
-    /// As a line on standard error (all of it, or the start of it with the rest kept to finish before the next line).
+    /// As a line on standard error (all of it,
+    /// or the start of it with the rest kept to finish before the next line).
     Stderr,
-    /// Nowhere: the journal's socket refused it and standard error had no room, so the entry was dropped and counted.
+    /// Nowhere:
+    /// the journal's socket refused it and standard error had no room,
+    /// so the entry was dropped and counted.
     Dropped,
 }
 
-/// Where the service's entries go, decided once.
+/// Where the service's entries go,
+/// decided once.
 #[derive(Debug)]
 pub struct Sink {
-    /// The unconnected, non-blocking socket, when standard error is the journal and a socket could be made.
+    /// The unconnected,
+    /// non-blocking socket,
+    /// when standard error is the journal and a socket could be made.
     native: Option<UnixDatagram>,
     /// The journal's socket.
     address: Option<SocketAddr>,
-    /// Whether standard error is the journal's stream, so that a line there may carry a `<priority>` prefix.
+    /// Whether standard error is the journal's stream,
+    /// so that a line there may carry a `<priority>` prefix.
     stream: bool,
-    /// The rest of a line the stream took only in part, to be written before any other line.
+    /// The rest of a line the stream took only in part,
+    /// to be written before any other line.
     ///
-    /// Lock kept: every thread of the service logs, the journal's stream is a byte stream that may take a line in parts, and
-    /// two lines must never run together, so the unfinished rest of a line and the write that finishes it are one critical
-    /// section. The section is one non-blocking write of what fits (the stream is never waited for), so a thread that finds
-    /// the lock held waits for one system call and never for the journal. A design without the lock needs a thread and a
-    /// queue for every entry, or a rule that drops an entry whenever another thread is mid-line; both give up the guarantee
-    /// that an entry is lost only when the stream is full. The lock covers one sink's pending bytes, the smallest unit there is.
+    /// Lock kept:
+    /// every thread of the service logs,
+    /// the journal's stream is a byte stream that may take a line in parts,
+    /// and
+    /// two lines must never run together,
+    /// so the unfinished rest of a line and the write that finishes it are one critical
+    /// section.
+    /// The section is one non-blocking write of what fits (the stream is never waited for),
+    /// so a thread that finds
+    /// the lock held waits for one system call and never for the journal.
+    /// A design without the lock needs a thread and a
+    /// queue for every entry,
+    /// or a rule that drops an entry whenever another thread is mid-line;
+    /// both give up the guarantee
+    /// that an entry is lost only when the stream is full.
+    /// The lock covers one sink's pending bytes,
+    /// the smallest unit there is.
     pending: Mutex<Vec<u8>>,
     /// How many entries were dropped since one last said so.
     lost: AtomicU64,
@@ -295,11 +407,16 @@ pub struct Sink {
 
 impl Sink {
     /// What:
-    ///  The sink for a process whose `$JOURNAL_STREAM` is `variable`, whose standard error is the file `stderr`, and
+    ///  The sink for a process whose `$JOURNAL_STREAM` is `variable`,
+    /// whose standard error is the file `stderr`,
+    /// and
     ///  whose journal socket is at `socket`.
     /// Why:
-    ///   The native socket is used only when standard error is the journal; a terminal, a file or a pipe keeps its plain
-    ///  lines, and a service run by hand reads as before.
+    ///   The native socket is used only when standard error is the journal;
+    /// a terminal,
+    /// a file or a pipe keeps its plain
+    ///  lines,
+    /// and a service run by hand reads as before.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -314,14 +431,18 @@ impl Sink {
         return Self { native, address: socket.address(), stream, pending: Mutex::new(Vec::new()), lost: AtomicU64::new(0) };
     }
 
-    /// An unconnected datagram socket that never blocks, or nothing.
+    /// An unconnected datagram socket that never blocks,
+    /// or nothing.
     fn open() -> Option<UnixDatagram> {
         let socket: UnixDatagram = UnixDatagram::unbound().ok()?;
         socket.set_nonblocking(true).ok()?;
         return Some(socket);
     }
 
-    /// The sink of this process: the environment's `$JOURNAL_STREAM`, the real standard error, and the real socket or the
+    /// The sink of this process:
+    /// the environment's `$JOURNAL_STREAM`,
+    /// the real standard error,
+    /// and the real socket or the
     /// test-only one.
     pub fn from_environment() -> Self {
         let variable: Option<String> = std::env::var(STREAM_VARIABLE).ok();
@@ -333,7 +454,8 @@ impl Sink {
         return Self::choose(variable.as_deref(), stderr_identity(), &socket);
     }
 
-    /// Whether standard error is the journal's stream, so that a write there may carry a `<priority>` prefix and must not wait.
+    /// Whether standard error is the journal's stream,
+    /// so that a write there may carry a `<priority>` prefix and must not wait.
     pub fn on_stream(&self) -> bool {
         return self.stream;
     }
@@ -343,7 +465,8 @@ impl Sink {
         return self.native.is_some();
     }
 
-    /// The raw descriptor and socket address a signal handler sends its entry with, when this sink is native.
+    /// The raw descriptor and socket address a signal handler sends its entry with,
+    /// when this sink is native.
     pub fn signal_target(&self) -> Option<(std::os::fd::RawFd, &SocketAddr)> {
         use std::os::fd::AsRawFd;
         let socket: &UnixDatagram = self.native.as_ref()?;
@@ -352,13 +475,24 @@ impl Sink {
     }
 
     /// What:
-    ///  Sends one entry, and gives where it went: a datagram when the sink is native and the socket takes it, otherwise
-    ///  `line` on `stderr`, otherwise nowhere.
+    ///  Sends one entry,
+    /// and gives where it went:
+    /// a datagram when the sink is native and the socket takes it,
+    /// otherwise
+    ///  `line` on `stderr`,
+    /// otherwise nowhere.
     /// Why:
-    ///   A journal that is restarting, absent or full is no reason for the service to wait or to lose the entry, and standard
-    ///  error that has no room is no reason to wait either: that entry is dropped and counted, and the next one that gets
-    ///  through says how many were. On the journal's stream a `<priority>` prefix keeps the level, and a line taken in part is
-    ///  finished before another starts, so two lines never run together.
+    ///   A journal that is restarting,
+    /// absent or full is no reason for the service to wait or to lose the entry,
+    /// and standard
+    ///  error that has no room is no reason to wait either:
+    /// that entry is dropped and counted,
+    /// and the next one that gets
+    ///  through says how many were.
+    /// On the journal's stream a `<priority>` prefix keeps the level,
+    /// and a line taken in part is
+    ///  finished before another starts,
+    /// so two lines never run together.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -383,7 +517,9 @@ impl Sink {
 
     /// Takes `count` off the dropped-entry count without going below zero.
     ///
-    /// Two threads can each have said the same count (one on the native path, one on the stream), so the second
+    /// Two threads can each have said the same count (one on the native path,
+    /// one on the stream),
+    /// so the second
     /// subtraction must find less than it expects and stop at zero instead of wrapping.
     fn forgive(&self, count: u64) {
         let mut current: u64 = self.lost.load(Ordering::Relaxed);
@@ -393,11 +529,17 @@ impl Sink {
     }
 
     /// What:
-    ///  Writes the line to `stderr` without waiting: finishes what an earlier line left unwritten first, says how many
-    ///  entries were dropped before this one, and keeps the rest of a line the stream takes only in part.
+    ///  Writes the line to `stderr` without waiting:
+    /// finishes what an earlier line left unwritten first,
+    /// says how many
+    ///  entries were dropped before this one,
+    /// and keeps the rest of a line the stream takes only in part.
     /// Why:
-    ///   Only the journal's stream needs this care; any other standard error gets its plain line as it always did. Entries
-    ///  that find no room are counted (`lost`) and reported with the next that gets through, because a dropped entry nobody
+    ///   Only the journal's stream needs this care;
+    /// any other standard error gets its plain line as it always did.
+    /// Entries
+    ///  that find no room are counted (`lost`) and reported with the next that gets through,
+    /// because a dropped entry nobody
     ///  hears of is a gap nobody can explain.
     ///
     /// In TS you'd write (pseudocode):
@@ -446,7 +588,8 @@ const LOST_NOTICE_HEAD: &str = "monochromatic-git-policy-cli-service: ";
 /// What it says after the count.
 const LOST_NOTICE_TAIL: &str = " log entries were dropped before this one because the log stream had no room";
 
-/// Writes as much of `bytes` as `stream` takes without waiting, and gives how much it took.
+/// Writes as much of `bytes` as `stream` takes without waiting,
+/// and gives how much it took.
 fn write_what_fits(stream: &mut dyn Write, bytes: &[u8]) -> usize {
     let mut done: usize = 0;
     while done < bytes.len() {
@@ -463,11 +606,19 @@ fn write_what_fits(stream: &mut dyn Write, bytes: &[u8]) -> usize {
 /// What:
 ///  A writer to the journal's stream (standard error as the service manager connected it) that never waits for room.
 /// Why:
-///   `O_NONBLOCK` on the datagram socket does not make standard error non-blocking, and a journal that stops reading would
-///  fill the stream and block the service, and so the commits that wait for it. Each write is `MSG_DONTWAIT` on a socket, or,
-///  on a pipe or file a test or a redirection put there, a write made only after a poll shows room and of no more than a
-///  pipe takes whole; a write that finds no room is refused with `WouldBlock`, and one that takes part of the bytes says how
-///  many, so the caller keeps the rest (`Sink::deliver` does) instead of the writer waiting for room.
+///   `O_NONBLOCK` on the datagram socket does not make standard error non-blocking,
+/// and a journal that stops reading would
+///  fill the stream and block the service,
+/// and so the commits that wait for it.
+/// Each write is `MSG_DONTWAIT` on a socket,
+/// or,
+///  on a pipe or file a test or a redirection put there,
+/// a write made only after a poll shows room and of no more than a
+///  pipe takes whole;
+/// a write that finds no room is refused with `WouldBlock`,
+/// and one that takes part of the bytes says how
+///  many,
+/// so the caller keeps the rest (`Sink::deliver` does) instead of the writer waiting for room.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -479,17 +630,31 @@ pub struct StreamWriter {
     descriptor: std::os::fd::RawFd,
 }
 
-/// The most a pipe takes in one write once a poll shows room: a page, which a pipe holding a free slot takes whole.
+/// The most a pipe takes in one write once a poll shows room:
+/// a page,
+/// which a pipe holding a free slot takes whole.
 pub const PIPE_CHUNK: usize = 4096;
 
 /// What:
-///  Sends bytes to a descriptor without ever waiting for room, and gives the count taken or the error number.
+///  Sends bytes to a descriptor without ever waiting for room,
+/// and gives the count taken or the error number.
 /// Why:
-///   One rule for every write the service makes to standard error, including the signal handler's, which may call only
-///  functions that `signal-safety(7)` lists (read from <https://man7.org/linux/man-pages/man7/signal-safety.7.html>): `send`,
-///  `poll` and `write` are, and this uses nothing else, allocates nothing and takes no lock. A socket is written with
-///  `MSG_DONTWAIT`. A pipe or file a test or a redirection put there is written only after a poll shows room, and in a piece
-///  of at most a page, which a pipe holding a free slot takes whole; so the write cannot block. No room is `EAGAIN`.
+///   One rule for every write the service makes to standard error,
+/// including the signal handler's,
+/// which may call only
+///  functions that `signal-safety(7)` lists (read from <https://man7.org/linux/man-pages/man7/signal-safety.7.html>):
+/// `send`,
+///  `poll` and `write` are,
+/// and this uses nothing else,
+/// allocates nothing and takes no lock.
+/// A socket is written with
+///  `MSG_DONTWAIT`.
+/// A pipe or file a test or a redirection put there is written only after a poll shows room,
+/// and in a piece
+///  of at most a page,
+/// which a pipe holding a free slot takes whole;
+/// so the write cannot block.
+/// No room is `EAGAIN`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -497,7 +662,8 @@ pub const PIPE_CHUNK: usize = 4096;
 /// ```
 ///
 /// # Errors
-/// The error number of the failed call, `EAGAIN` when there is no room.
+/// The error number of the failed call,
+/// `EAGAIN` when there is no room.
 pub fn send_without_waiting(descriptor: std::os::fd::RawFd, bytes: &[u8]) -> Result<usize, libc::c_int> {
     // SAFETY: `bytes` is valid for its length for the call, and `send` is safe in a signal handler.
     let sent: isize = unsafe { libc::send(descriptor, bytes.as_ptr().cast(), bytes.len(), libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL) };
@@ -551,7 +717,9 @@ impl Write for StreamWriter {
     }
 }
 
-/// The datagram, the detection, the fallback.
+/// The datagram,
+/// the detection,
+/// the fallback.
 #[cfg(test)]
 #[path = "journald_native_tests.rs"]
 mod tests;

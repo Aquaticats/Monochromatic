@@ -1,11 +1,13 @@
 //! What:
-//!  The deterministic, parent-first list of entries a copy transfers,
+//!  The deterministic,
+//! parent-first list of entries a copy transfers,
 //!  read without following symbolic links,
 //!  and the application of the retained permission bits to a staged copy.
 //! Why:
 //!  The stage and the source are compared entry by entry,
 //!  so both sides must enumerate in the same order and classify the same way.
-//!  Sockets, FIFOs and device nodes stop the walk before any of them is opened.
+//!  Sockets,
+//! FIFOs and device nodes stop the walk before any of them is opened.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,7 +25,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The permission and special-mode bits the copy contract retains.
 /// Why:
-///   Only these bits are compared and applied; file-type bits are never copied.
+///   Only these bits are compared and applied;
+/// file-type bits are never copied.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,7 +38,8 @@ const PERMISSION_BITS: u32 = 0o7777;
 /// What:
 ///  The kind of one copied entry.
 /// Why:
-///   Each kind is copied, compared and modified differently.
+///   Each kind is copied,
+/// compared and modified differently.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,16 +47,21 @@ const PERMISSION_BITS: u32 = 0o7777;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EntryKind {
-    /// A directory, recreated rather than copied.
+    /// A directory,
+    /// recreated rather than copied.
     Directory,
-    /// A regular file, copied byte for byte.
+    /// A regular file,
+    /// copied byte for byte.
     File,
-    /// A symbolic link, recreated with its exact target text.
+    /// A symbolic link,
+    /// recreated with its exact target text.
     Symlink,
 }
 
 /// What:
-///  One entry of a manifest: its kind, its retained mode and its repository path.
+///  One entry of a manifest:
+/// its kind,
+/// its retained mode and its repository path.
 /// Why:
 ///   A manifest is compared with another manifest entry by entry.
 ///
@@ -72,9 +81,11 @@ pub struct WorktreeCopyEntry {
 }
 
 /// What:
-///  One pending walk item: its native path and its repository path.
+///  One pending walk item:
+/// its native path and its repository path.
 /// Why:
-///   The walk keeps both, because exclusion works on native paths and output on repository paths.
+///   The walk keeps both,
+/// because exclusion works on native paths and output on repository paths.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,9 +100,11 @@ struct WalkItem {
 
 /// What:
 ///  The copy kind of one no-follow filesystem entry,
-///  or the failure for a socket, FIFO or device node.
+///  or the failure for a socket,
+/// FIFO or device node.
 /// Why:
-///   Only three kinds can be copied; anything else must fail before it is opened.
+///   Only three kinds can be copied;
+/// anything else must fail before it is opened.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,9 +129,11 @@ fn entry_kind(file_type: std::fs::FileType, path: &Path) -> Result<EntryKind, Wo
 }
 
 /// What:
-///  The permission bits of one no-follow entry, as the copy contract retains them.
+///  The permission bits of one no-follow entry,
+/// as the copy contract retains them.
 /// Why:
-///   The mode is read from the entry itself, never from what a symbolic link points to.
+///   The mode is read from the entry itself,
+/// never from what a symbolic link points to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,7 +148,8 @@ pub fn retained_mode(metadata: &std::fs::Metadata) -> u32 {
 /// What:
 ///  The permission bits of one entry on a platform without Unix mode bits.
 /// Why:
-///   The copy is Unix-only in this lane; the zero mode keeps non-Unix builds compiling
+///   The copy is Unix-only in this lane;
+/// the zero mode keeps non-Unix builds compiling
 ///  without claiming the mode parity the incumbent provides there.
 ///
 /// In TS you'd write (pseudocode):
@@ -147,10 +163,12 @@ pub fn retained_mode(_metadata: &std::fs::Metadata) -> u32 {
 }
 
 /// What:
-///  Whether the running user can read an entry that the walk found, as a file or as a directory to list.
+///  Whether the running user can read an entry that the walk found,
+/// as a file or as a directory to list.
 /// Why:
 ///   A file or directory the user cannot read (a root-owned log in a dependency tree) cannot be part of a copy a user
-///  makes, so the walk leaves it out and says so instead of failing the whole copy.
+///  makes,
+/// so the walk leaves it out and says so instead of failing the whole copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -173,7 +191,8 @@ fn readable_by_user(path: &Path, kind: EntryKind) -> bool {
 /// What:
 ///  Every entry is readable on a platform without Unix permission checks in this lane.
 /// Why:
-///   Keeps the walk identical on every platform; a refused open then fails the copy as before.
+///   Keeps the walk identical on every platform;
+/// a refused open then fails the copy as before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -186,9 +205,12 @@ fn readable_by_user(_path: &Path, _kind: EntryKind) -> bool {
 }
 
 /// What:
-///  The complete manifest of a set of selected roots, parent before child, in JavaScript sort order.
+///  The complete manifest of a set of selected roots,
+/// parent before child,
+/// in JavaScript sort order.
 /// Why:
-///   A deterministic order makes the stage, the comparison and the journal reproducible.
+///   A deterministic order makes the stage,
+/// the comparison and the journal reproducible.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -204,10 +226,13 @@ pub fn collect_entry_manifest(
 }
 
 /// What:
-///  The manifest of a set of selected roots under a leave-out rule, with the unreadable entries it left out.
+///  The manifest of a set of selected roots under a leave-out rule,
+/// with the unreadable entries it left out.
 /// Why:
-///   A copy from a main checkout leaves out caches and other checkouts, and never fails over an entry the user cannot
-///  read; the caller reports those so the person sees what the new worktree lacks.
+///   A copy from a main checkout leaves out caches and other checkouts,
+/// and never fails over an entry the user cannot
+///  read;
+/// the caller reports those so the person sees what the new worktree lacks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -277,9 +302,13 @@ pub fn collect_pruned_manifest(
 }
 
 /// What:
-///  The identity of a regular file's content as the filesystem reports it: size, modification time, change time and inode.
+///  The identity of a regular file's content as the filesystem reports it:
+/// size,
+/// modification time,
+/// change time and inode.
 /// Why:
-///   A cloned file shares its data blocks with the source, so equal stamps before and after the clone and again at the
+///   A cloned file shares its data blocks with the source,
+/// so equal stamps before and after the clone and again at the
 ///  end of the copy prove the source did not change in between without reading a byte.
 ///
 /// In TS you'd write (pseudocode):
@@ -290,18 +319,25 @@ pub fn collect_pruned_manifest(
 pub struct FileStamp {
     /// Size in bytes.
     pub size: u64,
-    /// Modification time, seconds and nanoseconds.
+    /// Modification time,
+    /// seconds and nanoseconds.
     pub modified: (i64, i64),
-    /// Change time, seconds and nanoseconds; no program can set it, so a write always moves it.
+    /// Change time,
+    /// seconds and nanoseconds;
+    /// no program can set it,
+    /// so a write always moves it.
     pub changed: (i64, i64),
-    /// Inode number, so a replacement by rename is a difference.
+    /// Inode number,
+    /// so a replacement by rename is a difference.
     pub inode: u64,
 }
 
 /// What:
-///  The stamp of one no-follow entry, or nothing on a platform that reports no change time.
+///  The stamp of one no-follow entry,
+/// or nothing on a platform that reports no change time.
 /// Why:
-///   Without a stamp the caller compares bytes, which is always correct.
+///   Without a stamp the caller compares bytes,
+/// which is always correct.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -319,7 +355,8 @@ pub fn stamp_of(metadata: &std::fs::Metadata) -> Option<FileStamp> {
 }
 
 /// What:
-///  No stamp on a platform without a change time, so every cloned file is compared byte for byte.
+///  No stamp on a platform without a change time,
+/// so every cloned file is compared byte for byte.
 /// Why:
 ///   Keeps the call sites identical on every platform.
 ///
@@ -336,7 +373,9 @@ pub fn stamp_of(_metadata: &std::fs::Metadata) -> Option<FileStamp> {
 /// What:
 ///  Whether a path is at or below any of the roots.
 /// Why:
-///   Excluded roots, such as registered worktrees and the stage, are never walked.
+///   Excluded roots,
+/// such as registered worktrees and the stage,
+/// are never walked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -368,9 +407,11 @@ fn set_entry_mode(root: &Path, entry: &WorktreeCopyEntry) -> Result<(), Worktree
 }
 
 /// What:
-///  Applies each staged entry's retained mode, files first and then directories deepest first.
+///  Applies each staged entry's retained mode,
+/// files first and then directories deepest first.
 /// Why:
-///   A restrictive directory mode would block changes to its children, so directories change last.
+///   A restrictive directory mode would block changes to its children,
+/// so directories change last.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -396,7 +437,8 @@ pub fn apply_entry_modes(
 }
 
 /// What:
-///  Applies modes on a platform without Unix mode bits, which leaves them untouched.
+///  Applies modes on a platform without Unix mode bits,
+/// which leaves them untouched.
 /// Why:
 ///   Keeps the call sites identical on every platform.
 ///

@@ -1,12 +1,27 @@
 //! What:
-//!  The LFS objects a push introduces, found in process: the pointer blobs that the commits to be pushed add.
+//!  The LFS objects a push introduces,
+//! found in process:
+//! the pointer blobs that the commits to be pushed add.
 //! Why:
-//!  `git-lfs push` starts a scanner (`git rev-list`, `git cat-file`, `git ls-remote`) and, when it finds anything, asks
-//!  the LFS server about it; most pushes add no pointer at all, so the wrapper reads the commits itself with the
-//!  in-process readers and starts `git-lfs` only when a pointer is found. The commits are those reachable from the pushed
-//!  tips and not reached before a known-good tip (the remote's tracking refs, when they describe the destination). Every
-//!  commit is compared with each of its parents, so a pointer added in one commit and removed in the next is still found.
-//!  Anything the readers do not fully understand, and any walk that grows past its limits, returns `None`, so the caller
+//!  `git-lfs push` starts a scanner (`git rev-list`,
+//! `git cat-file`,
+//! `git ls-remote`) and,
+//! when it finds anything,
+//! asks
+//!  the LFS server about it;
+//! most pushes add no pointer at all,
+//! so the wrapper reads the commits itself with the
+//!  in-process readers and starts `git-lfs` only when a pointer is found.
+//! The commits are those reachable from the pushed
+//!  tips and not reached before a known-good tip (the remote's tracking refs,
+//! when they describe the destination).
+//! Every
+//!  commit is compared with each of its parents,
+//! so a pointer added in one commit and removed in the next is still found.
+//!  Anything the readers do not fully understand,
+//! and any walk that grows past its limits,
+//! returns `None`,
+//! so the caller
 //!  asks `git-lfs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -38,19 +53,26 @@ struct Scan<'a> {
     format: ObjectFormat,
     /// Parsed commits by name.
     commits: HashMap<Vec<u8>, CommitFields>,
-    /// Committer times of the parsed commits, in seconds.
+    /// Committer times of the parsed commits,
+    /// in seconds.
     times: HashMap<Vec<u8>, i64>,
-    /// Comparisons already made: a tree followed by the parent trees it was compared with. The same tree compared with
+    /// Comparisons already made:
+    /// a tree followed by the parent trees it was compared with.
+    /// The same tree compared with
     ///  other parents (a root commit holding what a later commit also holds) is a different comparison.
     seen_trees: HashSet<Vec<Vec<u8>>>,
-    /// Blobs that are new relative to some parent, by name.
+    /// Blobs that are new relative to some parent,
+    /// by name.
     candidates: BTreeSet<Vec<u8>>,
     /// When the scan gives up.
     deadline: Instant,
 }
 
 impl Scan<'_> {
-    /// The parsed commit `name`; `None` when it is missing, not a commit, or in a spelling the reader declines.
+    /// The parsed commit `name`;
+    /// `None` when it is missing,
+    /// not a commit,
+    /// or in a spelling the reader declines.
     fn commit(&mut self, name: &[u8]) -> Option<CommitFields> {
         if let Some(known) = self.commits.get(name) {
             return Some(known.clone());
@@ -139,18 +161,23 @@ impl Scan<'_> {
     }
 }
 
-/// Whether one byte is the line feed that ends a line of a commit. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the line feed that ends a line of a commit.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 fn is_line_feed_byte(byte: &u8) -> bool {
     return *byte == b'\n';
 }
 
-/// Whether one byte is the `>` that closes the email address of a committer line. `&u8` borrows the byte, as
+/// Whether one byte is the `>` that closes the email address of a committer line.
+/// `&u8` borrows the byte,
+/// as
 ///  `rposition` hands it over.
 fn is_closing_angle_byte(byte: &u8) -> bool {
     return *byte == b'>';
 }
 
-/// How many commits are still popped after only known commits remain queued, because committer times can run backwards.
+/// How many commits are still popped after only known commits remain queued,
+/// because committer times can run backwards.
 const CLOCK_SKEW_SLOP: usize = 5;
 
 /// The committer time in seconds of a commit object's content.
@@ -176,9 +203,11 @@ fn committer_time(bytes: &[u8]) -> Option<i64> {
     return text.split_whitespace().next()?.parse::<i64>().ok();
 }
 
-/// The queue of a date-ordered walk, with each commit marked as known to the destination or not.
+/// The queue of a date-ordered walk,
+/// with each commit marked as known to the destination or not.
 struct Walk {
-    /// Commits waiting to be read, newest first.
+    /// Commits waiting to be read,
+    /// newest first.
     queue: std::collections::BinaryHeap<(i64, Vec<u8>)>,
     /// Whether each commit seen is known to the destination (`true`) or to be pushed (`false`).
     known: HashMap<Vec<u8>, bool>,
@@ -191,8 +220,11 @@ struct Walk {
 }
 
 impl Walk {
-    /// Note that `name` is known (or unknown) to the destination, queueing it the first time and, when a commit already
-    ///  followed turns out to be known, marking everything behind it as known too.
+    /// Note that `name` is known (or unknown) to the destination,
+    /// queueing it the first time and,
+    /// when a commit already
+    ///  followed turns out to be known,
+    /// marking everything behind it as known too.
     fn mark(&mut self, scan: &mut Scan<'_>, name: &[u8], known: bool) -> Option<()> {
         let mut pending: Vec<Vec<u8>> = vec![name.to_vec()];
         while let Some(current) = pending.pop() {
@@ -222,13 +254,21 @@ impl Walk {
 }
 
 /// What:
-///  The commits reachable from `include` and not from `stop`, found by a walk ordered by committer time as `git rev-list`
+///  The commits reachable from `include` and not from `stop`,
+/// found by a walk ordered by committer time as `git rev-list`
 ///  orders it.
 /// Why:
-///   A commit behind a known tip is known, even when it is reached first through another branch, so a merge of an old side
-///  branch does not drag the already-pushed history behind it into the scan. The walk ends once only known commits are
-///  queued, after a few more pops for clock skew; a wrong order can only keep a known commit in the answer, never drop
-///  a new one, because only a real parent chain from a known tip marks a commit known.
+///   A commit behind a known tip is known,
+/// even when it is reached first through another branch,
+/// so a merge of an old side
+///  branch does not drag the already-pushed history behind it into the scan.
+/// The walk ends once only known commits are
+///  queued,
+/// after a few more pops for clock skew;
+/// a wrong order can only keep a known commit in the answer,
+/// never drop
+///  a new one,
+/// because only a real parent chain from a known tip marks a commit known.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -286,13 +326,23 @@ fn new_commits(scan: &mut Scan<'_>, include: &[Vec<u8>], stop: &[Vec<u8>]) -> Op
 }
 
 /// What:
-///  The names of the LFS objects that the commits reachable from `include` and not from `stop` introduce, sorted, or
+///  The names of the LFS objects that the commits reachable from `include` and not from `stop` introduce,
+/// sorted,
+/// or
 ///  `None` when the readers cannot answer.
 /// Why:
-///   The walk follows parents from the tips and does not cross a commit named in `stop`. A pointer counts when its blob is
-///  not what a parent holds at the same path, for every parent of a merge, so an object that exists anywhere in the
-///  pushed history is found once. A root commit is compared with an empty tree. Every blob read is decoded like
-///  `git-lfs` decodes it (`lfs_pointer`); a read that fails, a malformed tree, a missing parent (a shallow clone) or a
+///   The walk follows parents from the tips and does not cross a commit named in `stop`.
+/// A pointer counts when its blob is
+///  not what a parent holds at the same path,
+/// for every parent of a merge,
+/// so an object that exists anywhere in the
+///  pushed history is found once.
+/// A root commit is compared with an empty tree.
+/// Every blob read is decoded like
+///  `git-lfs` decodes it (`lfs_pointer`);
+/// a read that fails,
+/// a malformed tree,
+/// a missing parent (a shallow clone) or a
 ///  walk past [`MAX_COMMITS`] or [`SCAN_BUDGET`] declines.
 ///
 /// In TS you'd write (pseudocode):

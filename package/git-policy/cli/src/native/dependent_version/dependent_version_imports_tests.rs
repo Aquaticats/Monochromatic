@@ -1,6 +1,10 @@
-//! What: Specifier detection, with every `importsPackage` case of
+//! What:
+//! Specifier detection,
+//! with every `importsPackage` case of
 //!       `source-imports.unit.test.ts` and each boundary of the keyword and quote rules.
-//! Why: A missed import drops a bundled edge; a false one adds a bump.
+//! Why:
+//! A missed import drops a bundled edge;
+//! a false one adds a bump.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +19,8 @@ fn imports(text: &str) -> bool {
     return imports_package(text, "@scope/b");
 }
 
-/// Ported: every specifier form the incumbent detects.
+/// Ported:
+/// every specifier form the incumbent detects.
 #[test]
 fn detects_the_incumbent_forms() {
     for text in [
@@ -32,7 +37,8 @@ fn detects_the_incumbent_forms() {
     }
 }
 
-/// Ported: every non-specifier the incumbent ignores.
+/// Ported:
+/// every non-specifier the incumbent ignores.
 #[test]
 fn ignores_the_incumbent_non_specifiers() {
     for text in [
@@ -48,7 +54,8 @@ fn ignores_the_incumbent_non_specifiers() {
     }
 }
 
-/// Ported: a later specifier is found after an earlier mention.
+/// Ported:
+/// a later specifier is found after an earlier mention.
 #[test]
 fn finds_a_later_specifier_after_an_earlier_mention() {
     assert!(imports(
@@ -71,7 +78,8 @@ fn requires_a_whole_keyword() {
     assert!(imports("x=require\t(\r'@scope/b')"));
 }
 
-/// The quotes must match, or the name must continue as a subpath.
+/// The quotes must match,
+/// or the name must continue as a subpath.
 #[test]
 fn requires_a_closing_quote_or_a_subpath() {
     assert!(!imports("import '@scope/b\";"));

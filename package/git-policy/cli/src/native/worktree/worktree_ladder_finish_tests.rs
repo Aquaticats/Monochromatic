@@ -1,6 +1,9 @@
-//! Controls for the steps after real Git returned: the snapshot rung serves a clean source with or without a tree
-//!  difference and prints Git's line; every refusal destroys the stage and completes the worktree with `reset --hard`;
-//!  `--quiet` is honored on both; and no step runs a hook.
+//! Controls for the steps after real Git returned:
+//! the snapshot rung serves a clean source with or without a tree
+//!  difference and prints Git's line;
+//! every refusal destroys the stage and completes the worktree with `reset --hard`;
+//!  `--quiet` is honored on both;
+//! and no step runs a hook.
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
@@ -16,7 +19,8 @@ use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, su
 use std::cell::RefCell;
 use std::process::{Command, Stdio};
 
-/// Every step the runner was asked for, as the words of its arguments.
+/// Every step the runner was asked for,
+/// as the words of its arguments.
 type Steps = RefCell<Vec<Vec<String>>>;
 
 /// A runner that records each step and runs the commands of `Other` steps with real Git in an isolated environment.
@@ -45,7 +49,10 @@ fn recording_runner(steps: &Steps, fail_reset: bool) -> impl FnMut(&GitStep<'_>)
     };
 }
 
-/// Run Git without a checkout the way the lifecycle does, then the ladder's `finish`; return the result, the steps and
+/// Run Git without a checkout the way the lifecycle does,
+/// then the ladder's `finish`;
+/// return the result,
+/// the steps and
 ///  what was printed.
 fn add_through_the_ladder(repo: &Path, root: &Path, extra: &[&str], fail_reset: bool, spoil: impl FnOnce(&Path)) -> (LadderResult, Vec<Vec<String>>, String) {
     let destination: PathBuf = root.join("topic");
@@ -67,7 +74,8 @@ fn add_through_the_ladder(repo: &Path, root: &Path, extra: &[&str], fail_reset: 
     return (result, steps.into_inner(), String::from_utf8_lossy(printed.as_slice()).into_owned());
 }
 
-/// The first, unchanged tree needs no Git step at all and prints Git's line.
+/// The first,
+/// unchanged tree needs no Git step at all and prints Git's line.
 #[test]
 fn btrfs_a_source_at_the_target_commit_is_served_with_no_git_step() {
     let Some(root) = btrfs_fixture("finish-same") else { return };
@@ -82,14 +90,20 @@ fn btrfs_a_source_at_the_target_commit_is_served_with_no_git_step() {
     remove(root.as_path());
 }
 
-/// The names of the files this thread flushed to disk that carry `infix` in their name, in call order.
+/// The names of the files this thread flushed to disk that carry `infix` in their name,
+/// in call order.
 fn flushed_with(infix: &str) -> Vec<String> {
     return take_file_syncs().into_iter().map(|path: PathBuf| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default(); }).filter(|name: &String| { return name.contains(infix); }).collect();
 }
 
-/// A snapshot swapped into place marks the add complete without flushing the marker: the swap of a subvolume makes every flush
-///  after it in the same btrfs transaction a commit of the whole filesystem, which waits for every other writer's data; the
-///  marker is published whole by a rename, and a lost marker costs a notice, never the worktree.
+/// A snapshot swapped into place marks the add complete without flushing the marker:
+/// the swap of a subvolume makes every flush
+///  after it in the same btrfs transaction a commit of the whole filesystem,
+/// which waits for every other writer's data;
+/// the
+///  marker is published whole by a rename,
+/// and a lost marker costs a notice,
+/// never the worktree.
 #[test]
 fn btrfs_a_served_snapshot_marks_itself_complete_without_a_flush() {
     let Some(root) = btrfs_fixture("finish-lazy-marker") else { return };
@@ -104,7 +118,8 @@ fn btrfs_a_served_snapshot_marks_itself_complete_without_a_flush() {
     remove(root.as_path());
 }
 
-/// An add that Git's own checkout completed after the snapshot was refused has no swap behind it, so its marker is still flushed.
+/// An add that Git's own checkout completed after the snapshot was refused has no swap behind it,
+/// so its marker is still flushed.
 #[test]
 fn btrfs_a_checkout_completed_by_git_still_flushes_its_marker() {
     let Some(root) = btrfs_fixture("finish-flushed-marker") else { return };
@@ -129,8 +144,11 @@ fn btrfs_quiet_prints_no_line() {
     remove(root.as_path());
 }
 
-/// A destination that holds more than Git's pointer is not served: the stage is destroyed, `reset --hard` completes the
-///  worktree with the work tree and git directory Git gives its own checkout, and nothing is carried.
+/// A destination that holds more than Git's pointer is not served:
+/// the stage is destroyed,
+/// `reset --hard` completes the
+///  worktree with the work tree and git directory Git gives its own checkout,
+/// and nothing is carried.
 #[test]
 fn btrfs_a_refused_step_destroys_the_stage_and_completes_the_checkout_like_git() {
     let Some(root) = btrfs_fixture("finish-fallback") else { return };
@@ -149,7 +167,9 @@ fn btrfs_a_refused_step_destroys_the_stage_and_completes_the_checkout_like_git()
     remove(root.as_path());
 }
 
-/// A failing `reset --hard` gives its status to the person, as Git's own would, and the worktree and its registration stay as
+/// A failing `reset --hard` gives its status to the person,
+/// as Git's own would,
+/// and the worktree and its registration stay as
 ///  they are for the person to finish or remove.
 #[test]
 fn btrfs_a_failing_checkout_step_gives_its_status() {
@@ -164,7 +184,8 @@ fn btrfs_a_failing_checkout_step_gives_its_status() {
     remove(root.as_path());
 }
 
-/// A clean ordinary repository with two commits: the clone rung serves it.
+/// A clean ordinary repository with two commits:
+/// the clone rung serves it.
 fn ordinary_repository(root: &Path) -> PathBuf {
     let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
     tracked(repo.as_path(), "shared.txt", b"first\n");
@@ -174,8 +195,11 @@ fn ordinary_repository(root: &Path) -> PathBuf {
     return repo;
 }
 
-/// A file another process put into the destination after Git made it is no clone's to remove: the destination holds more
-///  than Git's pointer, so the rung is refused, and Git's own checkout leaves a file it has no entry for.
+/// A file another process put into the destination after Git made it is no clone's to remove:
+/// the destination holds more
+///  than Git's pointer,
+/// so the rung is refused,
+/// and Git's own checkout leaves a file it has no entry for.
 #[test]
 fn btrfs_a_refused_clone_rung_leaves_a_file_it_did_not_create() {
     let Some(root) = btrfs_fixture("finish-clone-stray") else { return };
@@ -190,8 +214,11 @@ fn btrfs_a_refused_clone_rung_leaves_a_file_it_did_not_create() {
     remove(root.as_path());
 }
 
-/// When the checkout that completes a refused clone rung fails, the worktree and its registration stay, including the file
-///  that was in it, and the failing status is the person's.
+/// When the checkout that completes a refused clone rung fails,
+/// the worktree and its registration stay,
+/// including the file
+///  that was in it,
+/// and the failing status is the person's.
 #[test]
 fn btrfs_a_failing_checkout_after_a_refused_clone_rung_leaves_the_worktree_and_its_registration() {
     let Some(root) = btrfs_fixture("finish-clone-rollback") else { return };
@@ -232,7 +259,8 @@ impl Write for MarkerProbe {
     }
 }
 
-/// Both rungs write the completion marker before the person is told, and release the add's records after.
+/// Both rungs write the completion marker before the person is told,
+/// and release the add's records after.
 #[test]
 fn btrfs_each_rung_marks_the_add_complete_before_it_prints_and_releases_the_records_after() {
     for (name, ordinary) in [("finish-marker-clone", true), ("finish-marker-snapshot", false)] {
@@ -268,8 +296,11 @@ fn an_error_from_a_failed_swap_back_does_not_own_the_stage() {
     assert!(Ended::from(String::from("a plain reason")).stage_is_ours, "an error before the exchange left the stage ours");
 }
 
-/// When the records cannot be written, the add still succeeds: the marker only keeps a later report from calling a whole
-///  worktree interrupted, and nothing is deleted either way.
+/// When the records cannot be written,
+/// the add still succeeds:
+/// the marker only keeps a later report from calling a whole
+///  worktree interrupted,
+/// and nothing is deleted either way.
 #[test]
 fn btrfs_an_add_whose_records_cannot_be_written_still_succeeds_and_keeps_everything() {
     let Some(root) = btrfs_fixture("finish-records-unwritable") else { return };
@@ -292,8 +323,14 @@ fn btrfs_an_add_whose_records_cannot_be_written_still_succeeds_and_keeps_everyth
     remove(root.as_path());
 }
 
-/// A worktree that was moved away after the add was bound, with another worktree made at its path, is never reset: the fallback
-///  checkout verifies the binding and stops, the replacement keeps its edits, the moved worktree keeps its registration, and the
+/// A worktree that was moved away after the add was bound,
+/// with another worktree made at its path,
+/// is never reset:
+/// the fallback
+///  checkout verifies the binding and stops,
+/// the replacement keeps its edits,
+/// the moved worktree keeps its registration,
+/// and the
 ///  add fails with a report.
 #[test]
 fn btrfs_a_fallback_never_resets_a_replacement_at_the_destination() {
@@ -325,8 +362,11 @@ fn btrfs_a_fallback_never_resets_a_replacement_at_the_destination() {
     remove(root.as_path());
 }
 
-/// A checkout that succeeded while the worktree was being moved and replaced is not taken for the add's: the status is a
-///  failure, the replacement is untouched by anything the wrapper does afterwards, and no completion marker is written.
+/// A checkout that succeeded while the worktree was being moved and replaced is not taken for the add's:
+/// the status is a
+///  failure,
+/// the replacement is untouched by anything the wrapper does afterwards,
+/// and no completion marker is written.
 #[test]
 fn btrfs_a_checkout_that_ran_against_a_replacement_is_not_taken_for_the_adds() {
     let Some(root) = btrfs_fixture("finish-checkout-replaced") else { return };
@@ -350,8 +390,10 @@ fn btrfs_a_checkout_that_ran_against_a_replacement_is_not_taken_for_the_adds() {
     remove(root.as_path());
 }
 
-/// A registration replaced after the add was bound stops the clone rung before it writes anything: the destination keeps only
-///  Git's pointer, and the clones never reach the replacement's neighbourhood.
+/// A registration replaced after the add was bound stops the clone rung before it writes anything:
+/// the destination keeps only
+///  Git's pointer,
+/// and the clones never reach the replacement's neighbourhood.
 #[test]
 fn btrfs_the_clone_rung_writes_nothing_when_the_registration_was_replaced() {
     let Some(root) = btrfs_fixture("finish-clone-registration-replaced") else { return };

@@ -66,7 +66,8 @@ use std::path::{Path, PathBuf};
 pub const MANAGEMENT_COMMAND: &str = COMMAND_WORD.current;
 
 /// The line on standard error that an invocation spelled with the earlier word gets before the same output:
-///  the earlier spelling works, and the new one is named.
+///  the earlier spelling works,
+/// and the new one is named.
 pub const EARLIER_COMMAND_WORD_NOTICE: &str = "monochromatic-git-policy-cli: `git cli-git` is the earlier spelling of this \
                                                command; `git monochromatic-git-policy-cli` does the same, so use that from now on.\n";
 
@@ -430,7 +431,8 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
 ///  print the announcement when Git exited with status 0,
 ///  and return Git's status.
 /// Why:
-///   The child shares the caller's streams, so Git's own answer is untouched and comes first;
+///   The child shares the caller's streams,
+/// so Git's own answer is untouched and comes first;
 ///  the announcement follows it only when Git answered.
 ///
 /// In TS you'd write (pseudocode):
@@ -472,7 +474,10 @@ fn run_announced(
 mod command_word_tests;
 
 /// Plans of the announced queries,
-///  `--version`, `-v`, `--help` and `-h`, against the queries that stay exact.
+///  `--version`,
+/// `-v`,
+/// `--help` and `-h`,
+/// against the queries that stay exact.
 #[cfg(test)]
 #[path = "entry_announced_tests.rs"]
 mod announced_tests;

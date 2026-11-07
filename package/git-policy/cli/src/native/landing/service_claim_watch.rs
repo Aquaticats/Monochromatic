@@ -1,26 +1,59 @@
 //! What:
-//!  The Git directories whose after-commit work this service instance has been woken for, kept on disk in the instance's own
-//!  journal, so that a service that starts again looks at them by itself.
+//!  The Git directories whose after-commit work this service instance has been woken for,
+//! kept on disk in the instance's own
+//!  journal,
+//! so that a service that starts again looks at them by itself.
 //! Why:
-//!  The service learns which repository to drain only from a client's wake, and a client wakes it only after a commit. A service
-//!  that was killed while it held a claim, or that ended with work still pending, was started again by the next connection and
-//!  then had nothing to drain until the next commit, which might never come: the backup push of the last commit of the day waited
-//!  without a bound. The journal survives a restart and has one writer, so it can name the directories to look at when the service
-//!  starts. The name is written by the worker thread before it drains a directory for the first time in a process, never by the
+//!  The service learns which repository to drain only from a client's wake,
+//! and a client wakes it only after a commit.
+//! A service
+//!  that was killed while it held a claim,
+//! or that ended with work still pending,
+//! was started again by the next connection and
+//!  then had nothing to drain until the next commit,
+//! which might never come:
+//! the backup push of the last commit of the day waited
+//!  without a bound.
+//! The journal survives a restart and has one writer,
+//! so it can name the directories to look at when the service
+//!  starts.
+//! The name is written by the worker thread before it drains a directory for the first time in a process,
+//! never by the
 //!  thread that lands commits.
 //!
-//! Identity: an instance is named by a hash of the canonical path of its worktree's Git directory (`service_instance::instance_of`),
-//!  so the instance is the repository. A file is kept only when the path it holds names this instance, which a path that now
-//!  resolves through a link elsewhere, a copied journal or a damaged file does not; the work directory it names must be a real
-//!  directory, not a link. A repository that moved is another instance and is found by its own wake.
-//! Errors: only a file that is certainly of no use is removed (it holds no path, names another instance, or its work directory is
-//!  absent or not a directory). A read or write that fails for any other reason leaves the file where it is and is tried again
-//!  after a growing pause (`needs_retry`, `retry`), so a refused read or a full disk delays the look and never ends it.
-//! Durability: a file is written whole under a staging name and published by one rename (`write_private_file_unsynced`), so a kill
-//!  leaves a complete file or none. It is not synced: it survives the end of the process, like the work records it points at,
+//! Identity:
+//! an instance is named by a hash of the canonical path of its worktree's Git directory (`service_instance::instance_of`),
+//!  so the instance is the repository.
+//! A file is kept only when the path it holds names this instance,
+//! which a path that now
+//!  resolves through a link elsewhere,
+//! a copied journal or a damaged file does not;
+//! the work directory it names must be a real
+//!  directory,
+//! not a link.
+//! A repository that moved is another instance and is found by its own wake.
+//! Errors:
+//! only a file that is certainly of no use is removed (it holds no path,
+//! names another instance,
+//! or its work directory is
+//!  absent or not a directory).
+//! A read or write that fails for any other reason leaves the file where it is and is tried again
+//!  after a growing pause (`needs_retry`,
+//! `retry`),
+//! so a refused read or a full disk delays the look and never ends it.
+//! Durability:
+//! a file is written whole under a staging name and published by one rename (`write_private_file_unsynced`),
+//! so a kill
+//!  leaves a complete file or none.
+//! It is not synced:
+//! it survives the end of the process,
+//! like the work records it points at,
 //!  and not a power cut.
-//! Size: a journal belongs to one instance, so it holds one file per spelling of that instance's Git directory that clients have
-//!  used, and a file is removed at the start once its work directory is gone.
+//! Size:
+//! a journal belongs to one instance,
+//! so it holds one file per spelling of that instance's Git directory that clients have
+//!  used,
+//! and a file is removed at the start once its work directory is gone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,24 +69,34 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// Directory, under the service instance's journal, that holds one small file per watched Git directory.
+/// Directory,
+/// under the service instance's journal,
+/// that holds one small file per watched Git directory.
 pub const WATCH_DIRECTORY: &str = "claim-watch";
 
 /// The extension of a watch file.
 const WATCH_EXTENSION: &str = "watch";
 
-/// The first words of a watch file, which also say its format.
+/// The first words of a watch file,
+/// which also say its format.
 const FORMAT_PREFIX: &str = "claim-watch-1 ";
 
-/// How a read of a watch file is done; a control replaces it to make a read fail.
+/// How a read of a watch file is done;
+/// a control replaces it to make a read fail.
 pub type ReadFile<'a> = &'a dyn Fn(&Path) -> std::io::Result<Vec<u8>>;
 
 /// What:
-///  The Git directories to look at when the service starts, the ones whose file could not be written yet, and whether a read of
+///  The Git directories to look at when the service starts,
+/// the ones whose file could not be written yet,
+/// and whether a read of
 ///  the store failed and must be made again.
 /// Why:
-///   A directory that was written down is not written again, so the file system is touched once per directory per process; one
-///  that could not be written, or a store that could not be read, is tried again until it works.
+///   A directory that was written down is not written again,
+/// so the file system is touched once per directory per process;
+/// one
+///  that could not be written,
+/// or a store that could not be read,
+/// is tried again until it works.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,22 +104,28 @@ pub type ReadFile<'a> = &'a dyn Fn(&Path) -> std::io::Result<Vec<u8>>;
 /// ```
 #[derive(Debug, Default)]
 pub struct ClaimWatch {
-    /// The directory the watch files are kept in; nothing for a watch kept in memory only.
+    /// The directory the watch files are kept in;
+    /// nothing for a watch kept in memory only.
     store: Option<PathBuf>,
-    /// The instance this journal belongs to, or nothing for a run that serves any worktree.
+    /// The instance this journal belongs to,
+    /// or nothing for a run that serves any worktree.
     instance: Option<String>,
-    /// The Git directories known to this process, from the files read or written.
+    /// The Git directories known to this process,
+    /// from the files read or written.
     known: Vec<PathBuf>,
     /// The Git directories this process was woken for whose file could not be written.
     unwritten: Vec<PathBuf>,
-    /// Whether the store or one of its files could not be read, so that a file may hold a directory this process does not know.
+    /// Whether the store or one of its files could not be read,
+    /// so that a file may hold a directory this process does not know.
     unread: bool,
-    /// How many times in a row the store has failed, for the growth of the pause.
+    /// How many times in a row the store has failed,
+    /// for the growth of the pause.
     failures: u32,
 }
 
 /// What:
-///  The value of one hexadecimal digit, nothing for a character that is not one.
+///  The value of one hexadecimal digit,
+/// nothing for a character that is not one.
 /// Why:
 ///  `decode` turns the digits of a note into numbers before it pairs them into bytes.
 ///
@@ -89,9 +138,11 @@ fn hex_digit_value(digit: char) -> Option<u32> {
 }
 
 /// What:
-///  The byte two hexadecimal digit values make, nothing when they do not fit one byte.
+///  The byte two hexadecimal digit values make,
+/// nothing when they do not fit one byte.
 /// Why:
-///  `decode` pairs the digits of a note, high digit first.
+///  `decode` pairs the digits of a note,
+/// high digit first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,7 +168,8 @@ fn hex_of_byte(byte: &u8) -> String {
 /// What:
 ///  Reads a whole file.
 /// Why:
-///  `restored` and `retry` hand it to the versions that take the reading as a parameter, so a control can make a read fail.
+///  `restored` and `retry` hand it to the versions that take the reading as a parameter,
+/// so a control can make a read fail.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -127,7 +179,8 @@ fn read_file(path: &Path) -> std::io::Result<Vec<u8>> {
     return std::fs::read(path);
 }
 
-/// What a file holds, or why it holds nothing.
+/// What a file holds,
+/// or why it holds nothing.
 fn decode(bytes: &[u8]) -> Result<PathBuf, String> {
     let text: &str = match std::str::from_utf8(bytes) {
         Ok(found) => found,
@@ -151,13 +204,18 @@ fn decode(bytes: &[u8]) -> Result<PathBuf, String> {
     return Ok(path);
 }
 
-/// The text of the file of `git_dir`: the format words and the bytes of the path in hexadecimal, so that any path is kept as it is.
+/// The text of the file of `git_dir`:
+/// the format words and the bytes of the path in hexadecimal,
+/// so that any path is kept as it is.
 fn encode(git_dir: &Path) -> String {
     let hex: String = git_dir.as_os_str().as_bytes().iter().map(hex_of_byte).collect();
     return format!("{FORMAT_PREFIX}{hex}\n");
 }
 
-/// The file name of the `attempt`th candidate for `git_dir`: a hash of its bytes, and the number of the candidate, which only
+/// The file name of the `attempt`th candidate for `git_dir`:
+/// a hash of its bytes,
+/// and the number of the candidate,
+/// which only
 /// differs from zero when another directory's file holds the first name.
 fn watch_name(git_dir: &Path, attempt: u32) -> String {
     return format!("{}-{attempt}.{WATCH_EXTENSION}", fnv_hex(encode(git_dir).as_str()));
@@ -171,9 +229,12 @@ impl ClaimWatch {
     }
 
     /// What:
-    ///  A watch kept in `directory`, holding the Git directories the service before this one wrote down for `instance`.
+    ///  A watch kept in `directory`,
+    /// holding the Git directories the service before this one wrote down for `instance`.
     /// Why:
-    ///   See the module words: what is kept, what is removed and what is tried again.
+    ///   See the module words:
+    /// what is kept,
+    /// what is removed and what is tried again.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -183,35 +244,44 @@ impl ClaimWatch {
         return Self::restored_reading(directory, instance, &read_file);
     }
 
-    /// `restored` with the reading of the files given, so that a control can make one fail.
+    /// `restored` with the reading of the files given,
+    /// so that a control can make one fail.
     pub fn restored_reading(directory: &Path, instance: Option<&str>, read: ReadFile<'_>) -> Self {
         let mut watch: Self = Self { store: Some(directory.to_path_buf()), instance: instance.map(str::to_string), ..Self::default() };
         let _found: Vec<PathBuf> = watch.scan(read);
         return watch;
     }
 
-    /// The Git directories to look at, each once.
+    /// The Git directories to look at,
+    /// each once.
     pub fn directories(&self) -> Vec<PathBuf> {
         return self.known.clone();
     }
 
-    /// The directory the store lives in, which names the watch's own entry in the work loop's schedule.
+    /// The directory the store lives in,
+    /// which names the watch's own entry in the work loop's schedule.
     pub fn key(&self) -> Option<PathBuf> {
         return self.store.clone();
     }
 
-    /// Whether something failed that a later try can mend: a file that could not be written, or a read that could not be made.
+    /// Whether something failed that a later try can mend:
+    /// a file that could not be written,
+    /// or a read that could not be made.
     pub fn needs_retry(&self) -> bool {
         return self.store.is_some() && (self.unread || !self.unwritten.is_empty());
     }
 
-    /// How long to wait before the next try: `first`, the first pause of a push that is tried again, doubled for each failure in a row,
+    /// How long to wait before the next try:
+    /// `first`,
+    /// the first pause of a push that is tried again,
+    /// doubled for each failure in a row,
     /// never past those pushes' longest.
     pub fn pause(&self, first: Duration) -> Duration {
         return crate::push_retry::pause_before(self.failures.max(1), first);
     }
 
-    /// Whether `git_dir` is a directory of another instance, which this journal does not hold.
+    /// Whether `git_dir` is a directory of another instance,
+    /// which this journal does not hold.
     fn is_foreign(&self, git_dir: &Path) -> bool {
         return match self.instance.as_deref() {
             Some(mine) => instance_of(git_dir) != mine,
@@ -219,8 +289,11 @@ impl ClaimWatch {
         };
     }
 
-    /// Writes `git_dir` down unless this process has done so. A write that fails is said and kept for `retry`; the caller goes on
-    /// with the work either way, because a failed note must not stop a backup.
+    /// Writes `git_dir` down unless this process has done so.
+    /// A write that fails is said and kept for `retry`;
+    /// the caller goes on
+    /// with the work either way,
+    /// because a failed note must not stop a backup.
     pub fn remember(&mut self, git_dir: &Path) {
         for known in self.known.iter().chain(self.unwritten.iter()) {
             if known == git_dir {
@@ -245,8 +318,12 @@ impl ClaimWatch {
         }
     }
 
-    /// Tries again what failed: the files that could not be written, and the reading of the store. Gives the directories this made
-    /// known, which the caller looks at.
+    /// Tries again what failed:
+    /// the files that could not be written,
+    /// and the reading of the store.
+    /// Gives the directories this made
+    /// known,
+    /// which the caller looks at.
     pub fn retry(&mut self) -> Vec<PathBuf> {
         return self.retry_reading(&read_file);
     }
@@ -272,8 +349,13 @@ impl ClaimWatch {
         return found;
     }
 
-    /// Reads the store: keeps the directories whose file is whole, names this instance and has a work directory, removes the files
-    /// that are certainly of no use, and notes a failure to read as `unread`. Gives the directories that were not known before.
+    /// Reads the store:
+    /// keeps the directories whose file is whole,
+    /// names this instance and has a work directory,
+    /// removes the files
+    /// that are certainly of no use,
+    /// and notes a failure to read as `unread`.
+    /// Gives the directories that were not known before.
     fn scan(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
         let Some(directory) = self.store.clone() else { return Vec::new() };
         self.unread = false;
@@ -346,8 +428,11 @@ impl ClaimWatch {
     }
 }
 
-/// Writes the file of `git_dir` under the first name that is free or already holds this directory. A file that holds no whole path is
-/// replaced; one that holds another directory's path is left, and the next name is tried.
+/// Writes the file of `git_dir` under the first name that is free or already holds this directory.
+/// A file that holds no whole path is
+/// replaced;
+/// one that holds another directory's path is left,
+/// and the next name is tried.
 fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
     if let Err(error) = create_private_directory_all(directory) {
         return Err(format!("creating the note directory failed: {error}"));

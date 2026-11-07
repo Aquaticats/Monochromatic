@@ -1,11 +1,17 @@
 //! What:
 //!  The journal of one conversion of a worktree into a subvolume.
 //! Why:
-//!  The journal is the only proof that the converting subvolume and the index lock are this command's, and it names the
-//!  identity of the old root and of the subvolume it created, which is what every later phase checks before it reuses,
-//!  exchanges, destroys or deletes anything. The journal is written through exclusively created files and never replaces
-//!  a file it did not make. One command at a time owns a conversion through a numbered claim file
-//!  (`single_owner_claim.rs`) taken before the journal is read, so no kernel lock is held.
+//!  The journal is the only proof that the converting subvolume and the index lock are this command's,
+//! and it names the
+//!  identity of the old root and of the subvolume it created,
+//! which is what every later phase checks before it reuses,
+//!  exchanges,
+//! destroys or deletes anything.
+//! The journal is written through exclusively created files and never replaces
+//!  a file it did not make.
+//! One command at a time owns a conversion through a numbered claim file
+//!  (`single_owner_claim.rs`) taken before the journal is read,
+//! so no kernel lock is held.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,7 +30,8 @@ use std::path::{Path, PathBuf};
 /// The name of the journal inside the worktree's administrative directory.
 pub const JOURNAL_NAME: &str = "cli-git-convert";
 
-/// The name of the kernel lock file that releases up to 0.5.20 left in the administrative directory; this release only probes for
+/// The name of the kernel lock file that releases up to 0.5.20 left in the administrative directory;
+/// this release only probes for
 ///  it and removes it when nothing holds it.
 pub const LOCK_NAME: &str = "cli-git-convert.lock";
 
@@ -38,7 +45,8 @@ const SMALL_FILE_LIMIT: u64 = 1 << 20;
 const JOURNAL_HEADER: &str = "cli-git-convert v1";
 
 /// What:
-///  The phase a conversion has reached, in order.
+///  The phase a conversion has reached,
+/// in order.
 /// Why:
 ///   A rerun reads it to skip the finished phases and to decide whether an abandon is still possible.
 ///
@@ -48,18 +56,26 @@ const JOURNAL_HEADER: &str = "cli-git-convert v1";
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Phase {
-    /// The journal exists; nothing else (Git's `index.lock` is taken only for the proving pass, and a release up to 0.5.20 took it
-    ///  here, which a rerun accepts).
+    /// The journal exists;
+    /// nothing else (Git's `index.lock` is taken only for the proving pass,
+    /// and a release up to 0.5.20 took it
+    ///  here,
+    /// which a rerun accepts).
     Started,
-    /// The converting subvolume is being created, or exists.
+    /// The converting subvolume is being created,
+    /// or exists.
     Creating,
-    /// The copy was made and proved equal to the original; provisional until the swap, because a writer may act after it.
+    /// The copy was made and proved equal to the original;
+    /// provisional until the swap,
+    /// because a writer may act after it.
     Synced,
-    /// The path names the subvolume; the old tree sits at the converting name.
+    /// The path names the subvolume;
+    /// the old tree sits at the converting name.
     Exchanged,
     /// The index stat fields describe the files of the subvolume.
     Refreshed,
-    /// The old tree is gone; only the journal remains.
+    /// The old tree is gone;
+    /// only the journal remains.
     Removed,
 }
 
@@ -88,7 +104,8 @@ impl Phase {
 }
 
 /// What:
-///  The journal of one conversion, kept in the worktree's administrative directory.
+///  The journal of one conversion,
+/// kept in the worktree's administrative directory.
 /// Why:
 ///   See the module description.
 ///
@@ -104,12 +121,20 @@ pub struct Journal {
     pub token: String,
     /// The worktree path as raw bytes.
     pub path: Vec<u8>,
-    /// The identity of the old root: device, inode and, where the filesystem gives one, the birth time, which tells the recorded
+    /// The identity of the old root:
+    /// device,
+    /// inode and,
+    /// where the filesystem gives one,
+    /// the birth time,
+    /// which tells the recorded
     ///  directory from another that later got the same inode number.
     pub old_identity: ObjectId,
     /// The exact bytes of the `.git` file.
     pub git_file: Vec<u8>,
-    /// The identity of the subvolume this command created, recorded right after the creation; absent until then, so a
+    /// The identity of the subvolume this command created,
+    /// recorded right after the creation;
+    /// absent until then,
+    /// so a
     ///  directory at the converting name that the journal has no identity for is foreign.
     pub new_identity: Option<ObjectId>,
 }
@@ -117,7 +142,8 @@ pub struct Journal {
 /// What:
 ///  The error of a conversion journal whose text has a shape this command does not know.
 /// Why:
-///   Every field that is missing or unreadable is the same refusal, and nothing was changed.
+///   Every field that is missing or unreadable is the same refusal,
+/// and nothing was changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -128,9 +154,11 @@ fn unknown_shape() -> MigrateError {
 }
 
 /// What:
-///  The value of the first line `<name>=<value>` of a journal's text, if any line has that name.
+///  The value of the first line `<name>=<value>` of a journal's text,
+/// if any line has that name.
 /// Why:
-///   The journal is a list of `name=value` lines in no fixed order, and a field is looked up by name.
+///   The journal is a list of `name=value` lines in no fixed order,
+/// and a field is looked up by name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -148,7 +176,8 @@ fn field_of(text: &str, name: &str) -> Option<String> {
 }
 
 /// What:
-///  A field's digits read as a number, or nothing when they are not one.
+///  A field's digits read as a number,
+/// or nothing when they are not one.
 /// Why:
 ///   The old device and inode of a journal written before identities carried a birth time are plain decimal fields.
 ///
@@ -179,7 +208,8 @@ fn sync_directory_of(admin: &Path) -> std::io::Result<()> {
 /// What:
 ///  An input or output outcome with its failure turned into a conversion error that names the action and the path.
 /// Why:
-///   Many steps of the conversion report the same way, and a named function replaces a closure at each.
+///   Many steps of the conversion report the same way,
+/// and a named function replaces a closure at each.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -217,7 +247,9 @@ fn unhex(text: &str) -> Option<Vec<u8>> {
     return Some(bytes);
 }
 
-/// A name for a temporary file that no other file has: this process and the clock make it, and the creation is exclusive.
+/// A name for a temporary file that no other file has:
+/// this process and the clock make it,
+/// and the creation is exclusive.
 fn temporary_name() -> String {
     let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(elapsed) => elapsed.as_nanos(),
@@ -272,7 +304,9 @@ impl Journal {
         });
     }
 
-    /// Write the journal into a file made for it alone: created exclusively, so nothing that is there is truncated or followed.
+    /// Write the journal into a file made for it alone:
+    /// created exclusively,
+    /// so nothing that is there is truncated or followed.
     fn write_temporary(&self, admin: &Path) -> std::io::Result<PathBuf> {
         let temporary: PathBuf = admin.join(temporary_name());
         let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temporary)?;
@@ -287,13 +321,17 @@ impl Journal {
         return Ok(temporary);
     }
 
-    /// Replace the journal with this one: written beside it, synchronized, renamed into place.
+    /// Replace the journal with this one:
+    /// written beside it,
+    /// synchronized,
+    /// renamed into place.
     pub fn save(&self, admin: &Path) -> Result<(), MigrateError> {
         let target: PathBuf = admin.join(JOURNAL_NAME);
         return io_step(self.write_and_publish(admin, target.as_path()), "write the conversion journal", target.as_path());
     }
 
-    /// Write the journal to a temporary file, rename it over `target` and make the directory durable.
+    /// Write the journal to a temporary file,
+    /// rename it over `target` and make the directory durable.
     fn write_and_publish(&self, admin: &Path, target: &Path) -> std::io::Result<()> {
         let temporary: PathBuf = self.write_temporary(admin)?;
         if let Err(error) = std::fs::rename(&temporary, target) {
@@ -303,14 +341,17 @@ impl Journal {
         return sync_directory_of(admin);
     }
 
-    /// Make this the journal of a conversion that has none: it fails when any journal exists, so a journal another command
+    /// Make this the journal of a conversion that has none:
+    /// it fails when any journal exists,
+    /// so a journal another command
     ///  made is never replaced.
     pub fn create_new(&self, admin: &Path) -> Result<(), MigrateError> {
         let target: PathBuf = admin.join(JOURNAL_NAME);
         return io_step(self.write_and_link(admin, target.as_path()), "create the conversion journal", target.as_path());
     }
 
-    /// Write the journal to a temporary file, link it at `target` only if nothing is there and make the directory durable.
+    /// Write the journal to a temporary file,
+    /// link it at `target` only if nothing is there and make the directory durable.
     fn write_and_link(&self, admin: &Path, target: &Path) -> std::io::Result<()> {
         let temporary: PathBuf = self.write_temporary(admin)?;
         let linked: std::io::Result<()> = std::fs::hard_link(&temporary, target);
@@ -319,7 +360,8 @@ impl Journal {
         return sync_directory_of(admin);
     }
 
-    /// The journal of an administrative directory, if one exists.
+    /// The journal of an administrative directory,
+    /// if one exists.
     pub fn load(admin: &Path) -> Result<Option<Journal>, MigrateError> {
         let path: PathBuf = admin.join(JOURNAL_NAME);
         match read_plain_file(path.as_path(), SMALL_FILE_LIMIT) {
@@ -331,11 +373,16 @@ impl Journal {
 }
 
 /// What:
-///  The bytes of the plain file at `path`, opened without blocking and without following a link, refused when it is anything
+///  The bytes of the plain file at `path`,
+/// opened without blocking and without following a link,
+/// refused when it is anything
 ///  else or larger than `limit`.
 /// Why:
-///   Opening a named pipe for reading waits for a writer, and a command that waits while it owns the conversion blocks every
-///  other command that wants it; the type is read from the open handle, and the read is bounded.
+///   Opening a named pipe for reading waits for a writer,
+/// and a command that waits while it owns the conversion blocks every
+///  other command that wants it;
+/// the type is read from the open handle,
+/// and the read is bounded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -354,7 +401,8 @@ pub fn read_plain_file(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
     return Ok(bytes);
 }
 
-/// The text of the plain file at `path`, read like `read_plain_file`.
+/// The text of the plain file at `path`,
+/// read like `read_plain_file`.
 pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
     return match String::from_utf8(read_plain_file(path, SMALL_FILE_LIMIT)?) {
         Ok(text) => Ok(text),
@@ -362,21 +410,33 @@ pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
     };
 }
 
-/// Whether `found` is the object the journal recorded as `recorded`: the same device and inode and, when a birth time was
-///  recorded, the same birth time.
+/// Whether `found` is the object the journal recorded as `recorded`:
+/// the same device and inode and,
+/// when a birth time was
+///  recorded,
+/// the same birth time.
 pub fn is_recorded_object(recorded: &ObjectId, found: &ObjectId) -> bool {
     return recorded.device == found.device && recorded.inode == found.inode && (recorded.birth.is_none() || recorded.birth == found.birth);
 }
 
 /// What:
-///  Whether a command of an older release still holds the conversion's kernel lock on `admin`, retiring the lock file when
+///  Whether a command of an older release still holds the conversion's kernel lock on `admin`,
+/// retiring the lock file when
 ///  none does.
 /// Why:
 ///   Releases up to 0.5.20 serialized conversions with an advisory kernel lock on `cli-git-convert.lock` and left the file
-///  in place. This release serializes with a claim file instead and takes no kernel lock, but an older command may still be
-///  converting the worktree, and two commands must never convert one worktree at once. The probe asks without waiting and
-///  gives the lock straight back; a file nobody holds is removed, so the leftover disappears after the upgrade. A file that
-///  is absent costs nothing, and a file that is not a plain file is left where it is.
+///  in place.
+/// This release serializes with a claim file instead and takes no kernel lock,
+/// but an older command may still be
+///  converting the worktree,
+/// and two commands must never convert one worktree at once.
+/// The probe asks without waiting and
+///  gives the lock straight back;
+/// a file nobody holds is removed,
+/// so the leftover disappears after the upgrade.
+/// A file that
+///  is absent costs nothing,
+/// and a file that is not a plain file is left where it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

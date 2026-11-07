@@ -1,9 +1,12 @@
-//! The runtime plan: how many workers the budget and the limits allow, and when the plan is the current-thread runtime.
+//! The runtime plan:
+//! how many workers the budget and the limits allow,
+//! and when the plan is the current-thread runtime.
 
 use super::*;
 use crate::parallel_budget::cpu_margin;
 
-/// A host with this many threads, memory not limiting.
+/// A host with this many threads,
+/// memory not limiting.
 fn host(parallelism: usize) -> HostResources {
     return HostResources { parallelism, memory_available: None };
 }
@@ -11,7 +14,8 @@ fn host(parallelism: usize) -> HostResources {
 /// Limits that bound nothing.
 const NO_LIMITS: RuntimeLimits = RuntimeLimits { address_space_left: None, threads_left: None };
 
-/// With no limits the workers are the budget's: the CPUs less the margin.
+/// With no limits the workers are the budget's:
+/// the CPUs less the margin.
 #[test]
 fn without_limits_the_workers_are_the_budgets() {
     let large: HostResources = host(32);
@@ -19,15 +23,19 @@ fn without_limits_the_workers_are_the_budgets() {
     assert_eq!(plan_runtime(&large, &NO_LIMITS), RuntimePlan::MultiThread { workers: expected, blocking_threads: expected });
 }
 
-/// A budget of one worker is a multi-thread runtime of one worker, because the watchers of waits run as tasks beside a thread that
-///  is blocked in a read or a wait, and a current-thread runtime has no thread to run them on. Only a limit that leaves no thread
+/// A budget of one worker is a multi-thread runtime of one worker,
+/// because the watchers of waits run as tasks beside a thread that
+///  is blocked in a read or a wait,
+/// and a current-thread runtime has no thread to run them on.
+/// Only a limit that leaves no thread
 ///  makes the plan the current-thread runtime.
 #[test]
 fn a_budget_of_one_worker_is_a_multi_thread_runtime_of_one_worker() {
     assert_eq!(plan_runtime(&host(1), &NO_LIMITS), RuntimePlan::MultiThread { workers: 1, blocking_threads: 1 });
 }
 
-/// The process limit bounds the workers: every worker and every blocking thread and the building thread must fit.
+/// The process limit bounds the workers:
+/// every worker and every blocking thread and the building thread must fit.
 #[test]
 fn the_threads_left_bound_the_workers() {
     let large: HostResources = host(32);
@@ -37,7 +45,9 @@ fn the_threads_left_bound_the_workers() {
     assert_eq!(plan_runtime(&large, &none), RuntimePlan::CurrentThread);
 }
 
-/// The address space bounds the workers: each thread maps a stack, and the rest of the command keeps its reserve.
+/// The address space bounds the workers:
+/// each thread maps a stack,
+/// and the rest of the command keeps its reserve.
 #[test]
 fn the_address_space_left_bounds_the_workers() {
     let large: HostResources = host(32);

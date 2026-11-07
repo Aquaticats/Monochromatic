@@ -1,7 +1,11 @@
 //! What:
-//!  The add timing record's step accounting, its line, and its writer.
+//!  The add timing record's step accounting,
+//! its line,
+//! and its writer.
 //! Why:
-//!  A record that counts one stretch twice, loses a stretch, or breaks its line cannot split a slow `git worktree add`;
+//!  A record that counts one stretch twice,
+//! loses a stretch,
+//! or breaks its line cannot split a slow `git worktree add`;
 //!  one that changes what the add does would be a new way to break work.
 //!
 //! In TS you'd write (pseudocode):
@@ -16,7 +20,9 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// Milliseconds of the controls' clock; all different, so a field read from the wrong step shows.
+/// Milliseconds of the controls' clock;
+/// all different,
+/// so a field read from the wrong step shows.
 const OUTER_ENTER_MS: u64 = 10;
 const INNER_ENTER_MS: u64 = 30;
 const INNER_LEAVE_MS: u64 = 70;
@@ -30,7 +36,8 @@ fn at(millis: u64) -> Duration {
     return Duration::from_millis(millis);
 }
 
-/// A recorder with an outer step that holds an inner one, and a later step of the outer's name.
+/// A recorder with an outer step that holds an inner one,
+/// and a later step of the outer's name.
 fn nested() -> Recorder {
     let mut recorder: Recorder = Recorder::new(PathBuf::from("/nonexistent"));
     recorder.enter("outer", at(OUTER_ENTER_MS));
@@ -52,7 +59,8 @@ fn step_ms(record: &serde_json::Value, name: &str) -> f64 {
     return record["steps"][name]["ms"].as_f64().expect("the step has milliseconds");
 }
 
-/// A step inside another is taken out of the outer one, so the steps are disjoint and add up to at most the total.
+/// A step inside another is taken out of the outer one,
+/// so the steps are disjoint and add up to at most the total.
 #[test]
 fn a_step_inside_another_is_not_counted_twice() {
     let record = parsed(nested().line(at(TOTAL_MS), 0).as_str());
@@ -71,7 +79,8 @@ fn a_step_entered_twice_counts_its_calls() {
     assert_eq!(record["steps"]["inner"]["calls"], 1);
 }
 
-/// What no step covers is reported, never hidden.
+/// What no step covers is reported,
+/// never hidden.
 #[test]
 fn the_steps_and_the_rest_add_up_to_the_total() {
     let record = parsed(nested().line(at(TOTAL_MS), 0).as_str());
@@ -81,7 +90,9 @@ fn the_steps_and_the_rest_add_up_to_the_total() {
     assert_eq!(record["totalMs"].as_f64(), Some(TOTAL_MS as f64));
 }
 
-/// The exit code, the schema version and a note reach the line, with a note's quote escaped.
+/// The exit code,
+/// the schema version and a note reach the line,
+/// with a note's quote escaped.
 #[test]
 fn the_line_carries_the_exit_code_and_notes_escaped() {
     let mut recorder: Recorder = nested();
@@ -94,7 +105,8 @@ fn the_line_carries_the_exit_code_and_notes_escaped() {
     assert_eq!(record["notes"]["route"], "snapshot \"quoted\"\nline");
 }
 
-/// With no recorder begun, a step is its body and nothing else.
+/// With no recorder begun,
+/// a step is its body and nothing else.
 #[test]
 fn a_step_without_a_recorder_returns_its_body() {
     note("route", "ignored");
@@ -157,7 +169,9 @@ fn a_git_run_is_named_by_its_subcommand() {
     assert_eq!(git_step_label(words(&["--no-optional-locks"]).as_slice()), "git");
 }
 
-/// Work done on other threads is summed by name beside the steps, outside the sum rule, because threads overlap in time.
+/// Work done on other threads is summed by name beside the steps,
+/// outside the sum rule,
+/// because threads overlap in time.
 #[test]
 fn work_on_other_threads_is_summed_by_name() {
     let root: PathBuf = fixture("add-timing-work");
@@ -182,7 +196,8 @@ fn work_on_other_threads_is_summed_by_name() {
     remove(root.as_path());
 }
 
-/// Work with no recording begun is its body, and a later recording does not inherit it.
+/// Work with no recording begun is its body,
+/// and a later recording does not inherit it.
 #[test]
 fn work_without_a_recording_is_forgotten() {
     end_work("early", begin_work());
@@ -197,7 +212,8 @@ fn work_without_a_recording_is_forgotten() {
     remove(root.as_path());
 }
 
-/// The line carries the quiet gap of each step and tool the add ran, by name.
+/// The line carries the quiet gap of each step and tool the add ran,
+/// by name.
 #[test]
 fn the_line_carries_the_quiet_gaps() {
     let mut recorder: Recorder = nested();

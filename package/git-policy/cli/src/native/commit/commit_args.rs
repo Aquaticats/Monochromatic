@@ -5,12 +5,14 @@
 //!       the removal of `-a`/`--all`,
 //!       and the arguments of the real `git commit` that run against the complete private index.
 //! Why:
-//!  Native `git commit` must see the policy-settled index, not worktree bytes again,
+//!  Native `git commit` must see the policy-settled index,
+//! not worktree bytes again,
 //!  so selection controls and pathspecs are removed once the private index already holds them
 //!  (`src/policy-engine/commit-preparation-native.ts`,
 //!  `commit-transaction-selection.ts`,
 //!  `src/parser/commit-normalise.ts`).
-//!  The removals match the incumbent token for token, including its use of `lastIndexOf`,
+//!  The removals match the incumbent token for token,
+//! including its use of `lastIndexOf`,
 //!  so a `-m` value equal to a pathspec is removed from the same position.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,13 +21,15 @@
 //! const commitArgs = withoutAllFlag(invocation.commitArgs);
 //! ```
 
-/// Pathspec separator token, shared with the escape hatch module.
+/// Pathspec separator token,
+/// shared with the escape hatch module.
 /// The pathspec separator that ends option parsing in Git and in the incumbent.
 const PATHSPEC_SEPARATOR: &str = "--";
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
 
-/// Global options that redirect native Git away from the shadow repository, so they are dropped.
+/// Global options that redirect native Git away from the shadow repository,
+/// so they are dropped.
 const REDIRECTING_VALUE_OPTIONS: [&str; 3] = ["-C", "--git-dir", "--work-tree"];
 
 /// Global options that consume the next token as their value.
@@ -66,13 +70,15 @@ const COMMIT_VALUE_OPTIONS: [&str; 20] = [
 /// Short-value options whose clustered form can carry the value in the same token.
 const SHORT_VALUE_OPTIONS: [&str; 6] = ["-m", "-F", "-C", "-c", "-t", "-U"];
 
-/// Short commit options with an optional attached value (`-S[<keyid>]`, `-u[<mode>]`).
+/// Short commit options with an optional attached value (`-S[<keyid>]`,
+/// `-u[<mode>]`).
 const OPTIONAL_VALUE_LETTERS: [char; 2] = ['S', 'u'];
 
 /// What:
 ///  Finds the first value-taking short option letter inside a cluster token.
 /// Why:
-///   A cluster such as `-am` carries `m`, whose value is the following token or the rest of the cluster.
+///   A cluster such as `-am` carries `m`,
+/// whose value is the following token or the rest of the cluster.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,7 +97,10 @@ fn find_value_option_index(letters: &[char]) -> Option<usize> {
 /// What:
 ///  Splits one short cluster that carries its value inline into the separated form.
 /// Why:
-///   `-amhello` becomes `-a`, `-m`, `hello`, so the value is a token of its own.
+///   `-amhello` becomes `-a`,
+/// `-m`,
+/// `hello`,
+/// so the value is a token of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -120,8 +129,10 @@ fn normalise_inline_short(token: &str) -> Vec<String> {
 /// What:
 ///  Whether a commit option token takes the next token as its value.
 /// Why:
-///   A value can be spelled like the separator (`-m --`), and only a token in option position can end the options.
-///  A short cluster takes the next token when its value letter ends it; `-S` and `-u` take their value attached only.
+///   A value can be spelled like the separator (`-m --`),
+/// and only a token in option position can end the options.
+///  A short cluster takes the next token when its value letter ends it;
+/// `-S` and `-u` take their value attached only.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -149,9 +160,12 @@ fn takes_next_token(token: &str) -> bool {
 }
 
 /// What:
-///  The index of the `--` that ends the options of a commit region, or nothing when the person typed none.
+///  The index of the `--` that ends the options of a commit region,
+/// or nothing when the person typed none.
 /// Why:
-///   Everything after it is a path, so a wrapper option must never follow it; a `--` that is the value of an option such as
+///   Everything after it is a path,
+/// so a wrapper option must never follow it;
+/// a `--` that is the value of an option such as
 ///  `-m` is a message and not the separator.
 ///
 /// In TS you'd write (pseudocode):
@@ -174,9 +188,11 @@ pub fn separator_index(region: &[String]) -> Option<usize> {
 }
 
 /// What:
-///  Normalises the post-`commit` argument region, keeping the pathspec tail verbatim.
+///  Normalises the post-`commit` argument region,
+/// keeping the pathspec tail verbatim.
 /// Why:
-///   Later transforms recognize separated values only, and the pathspec tail after `--` must not change.
+///   Later transforms recognize separated values only,
+/// and the pathspec tail after `--` must not change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -207,8 +223,12 @@ pub fn normalise_commit_args(args: &[String]) -> Vec<String> {
 /// What:
 ///  Splits a transformed argument list into the kept global options and the commit region.
 /// Why:
-///   Redirecting options (`-C`, `--git-dir`, `--work-tree`, `--bare`) would send native commit elsewhere,
-///  so they are dropped with their values, and every other global option is kept in order.
+///   Redirecting options (`-C`,
+/// `--git-dir`,
+/// `--work-tree`,
+/// `--bare`) would send native commit elsewhere,
+///  so they are dropped with their values,
+/// and every other global option is kept in order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -246,9 +266,11 @@ pub fn split_commit_invocation(args: &[String], subcommand_index: usize) -> (Vec
 }
 
 /// What:
-///  Removes `-a`/`--all` from the commit region, keeping clustered short options.
+///  Removes `-a`/`--all` from the commit region,
+/// keeping clustered short options.
 /// Why:
-///   The private index already holds every tracked change, so native commit must not restage worktree bytes.
+///   The private index already holds every tracked change,
+/// so native commit must not restage worktree bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -306,10 +328,13 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 
 /// What:
 ///  Removes the pathspec-file controls and the explicit pathspecs,
-///  then the `--` separator and `-o`/`--only`, from the commit region.
+///  then the `--` separator and `-o`/`--only`,
+/// from the commit region.
 /// Why:
-///   The private index already holds the selected paths, so the real commit names none of them.
-///  The pathspec removal runs from the last pathspec backwards with `lastIndexOf`, as the incumbent does.
+///   The private index already holds the selected paths,
+/// so the real commit names none of them.
+///  The pathspec removal runs from the last pathspec backwards with `lastIndexOf`,
+/// as the incumbent does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -377,7 +402,10 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
 /// What:
 ///  Removes the selection controls once the private index holds the exact user choice.
 /// Why:
-///   `-i`, `-p`, `--include`, `--interactive` and `--patch` already ran against the private index.
+///   `-i`,
+/// `-p`,
+/// `--include`,
+/// `--interactive` and `--patch` already ran against the private index.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -395,7 +423,8 @@ pub fn private_selection_commit_args(args: &[String], pathspecs: &[String]) -> V
 
 /// What:
 ///  Whether a letter of a short-option cluster takes an optional value.
-///  `&char` borrows the letter, as `position` hands it over.
+///  `&char` borrows the letter,
+/// as `position` hands it over.
 /// Why:
 ///   `position` takes this function by path where a closure would otherwise stand.
 ///
@@ -410,7 +439,8 @@ fn is_optional_value_letter(letter: &char) -> bool {
 /// What:
 ///  Chooses the arguments of the real `git commit` for the commit mode.
 /// Why:
-///   Explicit-path commits drop their pathspecs; index commits drop selection controls only
+///   Explicit-path commits drop their pathspecs;
+/// index commits drop selection controls only
 ///  when selection ran privately.
 ///
 /// In TS you'd write (pseudocode):

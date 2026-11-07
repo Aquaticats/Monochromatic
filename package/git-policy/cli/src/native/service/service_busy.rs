@@ -1,28 +1,77 @@
 //! What:
-//!  What the commit service's one landing thread is doing, shared with the threads that talk to waiting clients: the write it is
-//!  inside when that write is one the wrapper never ends, the requests of the group it lands, and the withdrawals of requests
+//!  What the commit service's one landing thread is doing,
+//! shared with the threads that talk to waiting clients:
+//! the write it is
+//!  inside when that write is one the wrapper never ends,
+//! the requests of the group it lands,
+//! and the withdrawals of requests
 //!  queued behind it that can be answered while it is stuck.
 //! Why:
-//!  The owner, 2026-11-04: "Never cut a branch write (Recommended)" (the option read: "Con: a truly hung write keeps the service
-//!  busy, and later commits fail at their own 20-minute ceiling with an error naming it"). With no ceiling on the branch write, a
-//!  write that never returns holds the one landing thread, which also answers every withdrawal between two landings
-//!  (`service_server.rs`); a client queued behind it would reach its answer ceiling, ask to be withdrawn, hear nothing for the
-//!  withdrawal ceiling and end with an error that names nothing. This record lets the thread that reads each connection (a) tell
-//!  the client what the service is stuck in, and (b) answer the withdrawal of a request that has not begun to land.
-//!  The record holds no lock (the owner: "Use as few locks as possible."; the lock inventory guard,
-//!  `source_guard/service_lock_inventory_tests.rs`): one owner per item and exclusive creation, in a directory of the journal.
-//!  Admission and cancellation are one decision per request, made by publishing the file `<id>.decision` without replacing (`private_storage`:
-//!  `renameat2` with `RENAME_NOREPLACE`, or a hard link, either of which fails when the name exists and shows the file whole; on a
-//!  filesystem with neither, a checked rename, which is atomic but not exclusive): the landing thread tries to create it with the content `landing` before it
-//!  lands the request, a connection thread tries to create it with `withdrawn` before it answers a withdrawal, and exactly one
-//!  creation succeeds. The loser reads what the winner wrote. A request that is `landing` is the landing thread's to answer; a
-//!  request that is `withdrawn` is dropped whenever a copy of it reaches a group, as often as it comes, until the retention forgets it
-//!  (the same bounded memory a normal withdrawal has; only the landing thread forgets, between two groups). A `withdrawn` decision
-//!  carries the token of its maker and counts as a cancellation for anyone else only when the file `<id>.<token>.cancelled` exists. A `landing` file is removed when its group is done, after the batch is in the
-//!  journal, so a withdrawal that wins afterwards asks the journal again before it answers, and answers `landed` for a request the
-//!  journal names. Anything that cannot be established, a file that cannot be made or read, a journal that cannot be read, is never
-//!  evidence of a cancellation: the withdrawal is left to the landing thread, and a request that cannot be admitted is answered
-//!  with a failure, never dropped silently and never landed on a decision that was not made.
+//!  The owner,
+//! 2026-11-04:
+//! "Never cut a branch write (Recommended)" (the option read:
+//! "Con:
+//! a truly hung write keeps the service
+//!  busy,
+//! and later commits fail at their own 20-minute ceiling with an error naming it").
+//! With no ceiling on the branch write,
+//! a
+//!  write that never returns holds the one landing thread,
+//! which also answers every withdrawal between two landings
+//!  (`service_server.rs`);
+//! a client queued behind it would reach its answer ceiling,
+//! ask to be withdrawn,
+//! hear nothing for the
+//!  withdrawal ceiling and end with an error that names nothing.
+//! This record lets the thread that reads each connection (a) tell
+//!  the client what the service is stuck in,
+//! and (b) answer the withdrawal of a request that has not begun to land.
+//!  The record holds no lock (the owner:
+//! "Use as few locks as possible.";
+//! the lock inventory guard,
+//!  `source_guard/service_lock_inventory_tests.rs`):
+//! one owner per item and exclusive creation,
+//! in a directory of the journal.
+//!  Admission and cancellation are one decision per request,
+//! made by publishing the file `<id>.decision` without replacing (`private_storage`:
+//!  `renameat2` with `RENAME_NOREPLACE`,
+//! or a hard link,
+//! either of which fails when the name exists and shows the file whole;
+//! on a
+//!  filesystem with neither,
+//! a checked rename,
+//! which is atomic but not exclusive):
+//! the landing thread tries to create it with the content `landing` before it
+//!  lands the request,
+//! a connection thread tries to create it with `withdrawn` before it answers a withdrawal,
+//! and exactly one
+//!  creation succeeds.
+//! The loser reads what the winner wrote.
+//! A request that is `landing` is the landing thread's to answer;
+//! a
+//!  request that is `withdrawn` is dropped whenever a copy of it reaches a group,
+//! as often as it comes,
+//! until the retention forgets it
+//!  (the same bounded memory a normal withdrawal has;
+//! only the landing thread forgets,
+//! between two groups).
+//! A `withdrawn` decision
+//!  carries the token of its maker and counts as a cancellation for anyone else only when the file `<id>.<token>.cancelled` exists.
+//! A `landing` file is removed when its group is done,
+//! after the batch is in the
+//!  journal,
+//! so a withdrawal that wins afterwards asks the journal again before it answers,
+//! and answers `landed` for a request the
+//!  journal names.
+//! Anything that cannot be established,
+//! a file that cannot be made or read,
+//! a journal that cannot be read,
+//! is never
+//!  evidence of a cancellation:
+//! the withdrawal is left to the landing thread,
+//! and a request that cannot be admitted is answered
+//!  with a failure,
+//! never dropped silently and never landed on a decision that was not made.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -55,18 +104,29 @@ const DECISION_EXTENSION: &str = "decision";
 /// What the decision file says when the landing thread took the request.
 const LANDING: &str = "landing";
 
-/// How many withdrawals the record remembers: the same as the finished batches the journal remembers, and as the service's own
-///  memory of normal withdrawals (`service_server.rs`, `WITHDRAWN_RETAINED`), since a client that withdrew sends nothing more for
+/// How many withdrawals the record remembers:
+/// the same as the finished batches the journal remembers,
+/// and as the service's own
+///  memory of normal withdrawals (`service_server.rs`,
+/// `WITHDRAWN_RETAINED`),
+/// since a client that withdrew sends nothing more for
 ///  its request.
 const WITHDRAWALS_RETAINED: usize = DONE_RETAINED;
 
-/// The most confirmed withdrawals the record holds at any moment, twice what it retains: only the landing thread forgets (between two
-///  groups, so there is one pruner), and while it is stuck in a write that is never ended nothing is forgotten, so past this number
-///  the connection threads leave further withdrawals to the landing thread instead of growing the record without a bound. Two connection
+/// The most confirmed withdrawals the record holds at any moment,
+/// twice what it retains:
+/// only the landing thread forgets (between two
+///  groups,
+/// so there is one pruner),
+/// and while it is stuck in a write that is never ended nothing is forgotten,
+/// so past this number
+///  the connection threads leave further withdrawals to the landing thread instead of growing the record without a bound.
+/// Two connection
 ///  threads that count together can pass it by the number of connection threads at that moment.
 const WITHDRAWALS_CEILING: usize = 2 * WITHDRAWALS_RETAINED;
 
-/// Milliseconds since 1970, or zero when the clock is before it.
+/// Milliseconds since 1970,
+/// or zero when the clock is before it.
 pub(crate) fn now_millis() -> u128 {
     return match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(elapsed) => elapsed.as_millis(),
@@ -77,7 +137,9 @@ pub(crate) fn now_millis() -> u128 {
 /// Distinguishes the tokens of withdrawals.
 static TEMPORARY_NUMBER: AtomicU64 = AtomicU64::new(0);
 
-/// A token no other withdrawal in any service has, made of letters, digits and hyphens so it can stand in a file name.
+/// A token no other withdrawal in any service has,
+/// made of letters,
+/// digits and hyphens so it can stand in a file name.
 fn new_token() -> String {
     return format!("{}-{}-{}", std::process::id(), TEMPORARY_NUMBER.fetch_add(1, Ordering::Relaxed), now_millis());
 }
@@ -92,17 +154,24 @@ fn new_token() -> String {
 /// class LandingBoard { beginGroup(ids): GroupAdmission; endGroup(ids): void; describe(): string | undefined; withdrawEarly(id): EarlyAnswer }
 /// ```
 pub struct LandingBoard {
-    /// How long a write runs before it counts as stuck (`wait_ceilings.rs`, `NEVER_ENDED_STEP_SLOW_AFTER`; shorter in a control).
+    /// How long a write runs before it counts as stuck (`wait_ceilings.rs`,
+    /// `NEVER_ENDED_STEP_SLOW_AFTER`;
+    /// shorter in a control).
     slow_after: Duration,
-    /// The journal the finished and open batches are read from, for the answer to a withdrawal of a request that already landed.
+    /// The journal the finished and open batches are read from,
+    /// for the answer to a withdrawal of a request that already landed.
     journal: PathBuf,
     /// The directory of the record.
     pub(crate) directory: PathBuf,
 }
 
 impl LandingBoard {
-    /// A board for the service whose journal is `journal`, where a write counts as stuck after `slow_after`. Whatever an earlier
-    ///  service left in the record's directory is removed: none of it describes a running thread, and a normal withdrawal's memory
+    /// A board for the service whose journal is `journal`,
+    /// where a write counts as stuck after `slow_after`.
+    /// Whatever an earlier
+    ///  service left in the record's directory is removed:
+    /// none of it describes a running thread,
+    /// and a normal withdrawal's memory
     ///  does not outlive the service either.
     pub fn new(journal: PathBuf, slow_after: Duration) -> Arc<Self> {
         let directory: PathBuf = journal.join(DIRECTORY);
@@ -124,11 +193,21 @@ impl LandingBoard {
     /// What:
     ///  Try to make the decision of `id` with the content `outcome`.
     /// Why:
-    ///   The file is written whole beside its name and then published without replacing it, so it never shows partly written, and
-    ///  the publish fails when the name exists, so exactly one side makes the decision (on a filesystem that has neither an exclusive
-    ///  rename nor hard links, the checked rename is made one step to the threads of this service by an in-memory claim,
-    ///  `name_held_while_one_thread_publishes_it.rs`, so the landing thread and a connection thread never both win; only another
-    ///  program could still overwrite the file there, as the owner was told when he kept that fallback, 2026-11-07). Any other failure is an error: nothing was decided.
+    ///   The file is written whole beside its name and then published without replacing it,
+    /// so it never shows partly written,
+    /// and
+    ///  the publish fails when the name exists,
+    /// so exactly one side makes the decision (on a filesystem that has neither an exclusive
+    ///  rename nor hard links,
+    /// the checked rename is made one step to the threads of this service by an in-memory claim,
+    ///  `name_held_while_one_thread_publishes_it.rs`,
+    /// so the landing thread and a connection thread never both win;
+    /// only another
+    ///  program could still overwrite the file there,
+    /// as the owner was told when he kept that fallback,
+    /// 2026-11-07).
+    /// Any other failure is an error:
+    /// nothing was decided.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -145,7 +224,9 @@ impl LandingBoard {
         };
     }
 
-    /// What the journal says about `id`: read whole, and `Unknown` for anything that cannot be read or understood.
+    /// What the journal says about `id`:
+    /// read whole,
+    /// and `Unknown` for anything that cannot be read or understood.
     fn naming(&self, id: &str) -> Naming {
         let Ok(entries) = std::fs::read_dir(self.journal.as_path()) else {
             return Naming::Unknown;
@@ -185,10 +266,15 @@ impl LandingBoard {
     }
 
     /// What:
-    ///  Take the requests of a group for landing: decide each as `landing`, learn which a withdrawal took, and which could not be
+    ///  Take the requests of a group for landing:
+    /// decide each as `landing`,
+    /// learn which a withdrawal took,
+    /// and which could not be
     ///  decided.
     /// Why:
-    ///   A request a withdrawal took is dropped, however many copies of it come; one that cannot be decided is not landed on a
+    ///   A request a withdrawal took is dropped,
+    /// however many copies of it come;
+    /// one that cannot be decided is not landed on a
     ///  decision that was not made.
     ///
     /// In TS you'd write (pseudocode):
@@ -211,7 +297,9 @@ impl LandingBoard {
         return admission;
     }
 
-    /// The group is landed (or given up): its requests are the landing thread's no more, and each is in the journal if it landed.
+    /// The group is landed (or given up):
+    /// its requests are the landing thread's no more,
+    /// and each is in the journal if it landed.
     ///  A tombstone of a withdrawal stays.
     pub fn end_group(&self, ids: &[String]) {
         self.prune_withdrawals();
@@ -230,7 +318,9 @@ impl LandingBoard {
         return is_plain(id) && matches!(std::fs::read_to_string(self.decision_path(id)), Ok(content) if content == LANDING);
     }
 
-    /// The write the landing thread is inside, as `(millis when it began, command, detail, millis it has run)`, when there is one.
+    /// The write the landing thread is inside,
+    /// as `(millis when it began, command, detail, millis it has run)`,
+    /// when there is one.
     fn running(&self) -> Option<(u128, String, Option<String>, u128)> {
         let text: String = std::fs::read_to_string(self.directory.join(STEP_FILE)).ok()?;
         let mut lines = text.lines();
@@ -243,8 +333,10 @@ impl LandingBoard {
         return Some((began, command, detail, now_millis().saturating_sub(began)));
     }
 
-    /// The words that tell a client what the service is stuck in, when the landing thread has been inside a write that is never
-    ///  ended for longer than the board's `slow_after`; nothing otherwise.
+    /// The words that tell a client what the service is stuck in,
+    /// when the landing thread has been inside a write that is never
+    ///  ended for longer than the board's `slow_after`;
+    /// nothing otherwise.
     pub fn describe(&self) -> Option<String> {
         let (_, command, found, running) = self.running()?;
         if running <= self.slow_after.as_millis() {
@@ -264,10 +356,15 @@ impl LandingBoard {
 
     /// What:
     ///  The notice for the client whose own request is in the group being landed while the landing thread is inside a write that is
-    ///  never ended: a key that changes when the notice should be sent again, and the words.
+    ///  never ended:
+    /// a key that changes when the notice should be sent again,
+    /// and the words.
     /// Why:
-    ///   The client must learn that its commit may be on the branch when the write starts, not a minute later (owner, 2026-11-04,
-    ///  "Short extra wait"); the words that follow a minute's stuck write are the longer ones.
+    ///   The client must learn that its commit may be on the branch when the write starts,
+    /// not a minute later (owner,
+    /// 2026-11-04,
+    ///  "Short extra wait");
+    /// the words that follow a minute's stuck write are the longer ones.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -296,9 +393,14 @@ impl LandingBoard {
     ///  Answer a withdrawal on the connection thread when the landing thread is stuck in a write that is never ended and the
     ///  request is not the landing thread's.
     /// Why:
-    ///   The landing thread answers withdrawals between two landings, so behind a stuck write none would be answered. A request
-    ///  that has not begun cannot land while the thread is stuck, and the decision keeps it from beginning later. The journal is
-    ///  asked before the decision is tried and again after it is won, because a request that landed and was let go of between the
+    ///   The landing thread answers withdrawals between two landings,
+    /// so behind a stuck write none would be answered.
+    /// A request
+    ///  that has not begun cannot land while the thread is stuck,
+    /// and the decision keeps it from beginning later.
+    /// The journal is
+    ///  asked before the decision is tried and again after it is won,
+    /// because a request that landed and was let go of between the
     ///  two looks like a request nobody took.
     ///
     /// In TS you'd write (pseudocode):
@@ -362,7 +464,9 @@ impl LandingBoard {
         }
     }
 
-    /// How many confirmed withdrawals the record holds; the ceiling is reached when the directory cannot be listed, so that a record that
+    /// How many confirmed withdrawals the record holds;
+    /// the ceiling is reached when the directory cannot be listed,
+    /// so that a record that
     ///  cannot be counted is not grown.
     fn confirmed_withdrawals(&self) -> usize {
         let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else { return usize::MAX };
@@ -375,10 +479,16 @@ impl LandingBoard {
     /// What:
     ///  Forget the oldest confirmed withdrawals once more than `WITHDRAWALS_RETAINED` are remembered.
     /// Why:
-    ///   Only the landing thread calls this (from `end_group`), so there is one pruner and no two work from the same listing. A
-    ///  decision is removed only while it still carries the token of the confirmation being removed, and before that
-    ///  confirmation: a decision that replaced it has another token and stays, and a confirmation left standing without its decision
-    ///  (a pause between the two removals) confirms nothing of any later decision, which has a token of its own.
+    ///   Only the landing thread calls this (from `end_group`),
+    /// so there is one pruner and no two work from the same listing.
+    /// A
+    ///  decision is removed only while it still carries the token of the confirmation being removed,
+    /// and before that
+    ///  confirmation:
+    /// a decision that replaced it has another token and stays,
+    /// and a confirmation left standing without its decision
+    ///  (a pause between the two removals) confirms nothing of any later decision,
+    /// which has a token of its own.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -416,7 +526,8 @@ impl LandingBoard {
 
 #[cfg(test)]
 thread_local! {
-    /// A control may stop the retention on this thread between its listing and its removals, where another decision can replace one.
+    /// A control may stop the retention on this thread between its listing and its removals,
+    /// where another decision can replace one.
     pub(crate) static AFTER_THE_LISTING: RefCell<Option<Box<dyn Fn()>>> = const { RefCell::new(None) };
     /// A control may stop a withdrawal on this thread between the moment it wins the decision and the moment it asks the journal again,
     ///  which is where the reviews found the window.

@@ -1,13 +1,24 @@
 //! What:
-//!  Run one read-only Git query that is ended only when it shows no sign of work, with separate output streams.
+//!  Run one read-only Git query that is ended only when it shows no sign of work,
+//! with separate output streams.
 //! Why:
 //!  The auto-push asks Git a handful of questions before it pushes,
 //!  and a question that never returns would hold the service's push for good.
-//!  A query that shows no sign of work for the quiet window is stopped and reported, so the commit stays saved. A query that
-//!  works is never stopped for being slow: no total time bounds it (owner, 2026-11-03: "Stop only on no progress"; the
-//!  coordinator's scope addition to picks 4 and 9 of `doc/planning/cli-git-shipped-limits-audit.md`, open to the owner's
-//!  veto). Before this, a query shared the push's wall-clock stop and the journal showed a `git status` stopped at
-//!  2026-11-03T08:28 with `outcome=retrying push_ms=97398`. The longest quiet gap of every query is kept in the ledger.
+//!  A query that shows no sign of work for the quiet window is stopped and reported,
+//! so the commit stays saved.
+//! A query that
+//!  works is never stopped for being slow:
+//! no total time bounds it (owner,
+//! 2026-11-03:
+//! "Stop only on no progress";
+//! the
+//!  coordinator's scope addition to picks 4 and 9 of `doc/planning/cli-git-shipped-limits-audit.md`,
+//! open to the owner's
+//!  veto).
+//! Before this,
+//! a query shared the push's wall-clock stop and the journal showed a `git status` stopped at
+//!  2026-11-03T08:28 with `outcome=retrying push_ms=97398`.
+//! The longest quiet gap of every query is kept in the ledger.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,15 +27,19 @@
 
 /// The failure type of the auto-push coordination.
 use crate::auto_push_single_flight::SingleFlightError;
-/// The deadline runner shared with the push, and its stop causes.
+/// The deadline runner shared with the push,
+/// and its stop causes.
 use crate::bounded_push::{MAX_PUSH_OUTPUT, StopCause, stop_push, wait_until_done};
 use crate::push_deadline_and_patience_settings::{Patience, push_deadline};
-/// The longest quiet gap of each step, kept for the timing records.
+/// The longest quiet gap of each step,
+/// kept for the timing records.
 use crate::quiet_ledger;
-/// The lock files a stopped query leaves, and the ledger that finds them.
+/// The lock files a stopped query leaves,
+/// and the ledger that finds them.
 use crate::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
-/// The anonymous output files of the query, made in the per-user scratch directory.
+/// The anonymous output files of the query,
+/// made in the per-user scratch directory.
 use crate::scratch_location::scratch_file;
 use crate::start_retry::RetryStart;
 /// Owned OS strings of the child environment.
@@ -32,7 +47,8 @@ use std::ffi::OsString;
 /// The anonymous output files and their reading back.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-/// `Command` describes the query; `Stdio` connects its streams.
+/// `Command` describes the query;
+/// `Stdio` connects its streams.
 use std::process::{Command, ExitStatus, Stdio};
 /// Time spans.
 use std::time::Duration;
@@ -40,7 +56,8 @@ use std::time::Duration;
 /// What:
 ///  What a finished query printed and how it ended.
 /// Why:
-///   Callers read an exit code as an answer ("not an ancestor") or a failure, never both.
+///   Callers read an exit code as an answer ("not an ancestor") or a failure,
+/// never both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -48,18 +65,23 @@ use std::time::Duration;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QueryOutput {
-    /// Exit code, or nothing when a signal ended the process.
+    /// Exit code,
+    /// or nothing when a signal ended the process.
     pub code: Option<i32>,
-    /// Complete standard output, up to the output cap.
+    /// Complete standard output,
+    /// up to the output cap.
     pub stdout: Vec<u8>,
-    /// Complete standard error, up to the output cap.
+    /// Complete standard error,
+    /// up to the output cap.
     pub stderr: Vec<u8>,
 }
 
 /// What:
-///  The quiet window of a query: the push's stall window.
+///  The quiet window of a query:
+/// the push's stall window.
 /// Why:
-///   One setting bounds how long every Git child of the auto-push may show no sign of work. The cap of 120 seconds a query
+///   One setting bounds how long every Git child of the auto-push may show no sign of work.
+/// The cap of 120 seconds a query
 ///  used to have is gone with the wall-clock stop it belonged to.
 ///
 /// In TS you'd write (pseudocode):
@@ -70,7 +92,8 @@ pub fn query_window(environment: &[(OsString, OsString)]) -> Duration {
     return push_deadline(environment);
 }
 
-/// Read one output file back from its start, up to the output cap.
+/// Read one output file back from its start,
+/// up to the output cap.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,10 +110,13 @@ fn read_back(file: &mut File) -> Result<Vec<u8>, SingleFlightError> {
 }
 
 /// What:
-///  Run a query command to its end, or until it has shown no sign of work for the quiet window.
+///  Run a query command to its end,
+/// or until it has shown no sign of work for the quiet window.
 /// Why:
-///   Both streams go to anonymous files, so no reader thread can outlive a stopped query.
-///  A query that was stopped for being quiet is a coordination failure, not an answer.
+///   Both streams go to anonymous files,
+/// so no reader thread can outlive a stopped query.
+///  A query that was stopped for being quiet is a coordination failure,
+/// not an answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

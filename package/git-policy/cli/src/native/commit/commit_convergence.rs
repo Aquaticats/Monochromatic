@@ -8,7 +8,8 @@
 //!  The loop is the shared `converge`;
 //!       this module supplies the commit path's three operations,
 //!       as the direct fix does for the worktree.
-//!  Exact prior states are compared in memory; the incumbent also streams them to snapshot files,
+//!  Exact prior states are compared in memory;
+//! the incumbent also streams them to snapshot files,
 //!       which only serve the same comparison.
 //!
 //! In TS you'd write (pseudocode):
@@ -35,7 +36,8 @@ use std::ffi::OsString;
 /// What:
 ///  The message of a commit-path loop that repeated an exact prior state.
 /// Why:
-///   The wording is the incumbent's, so the two paths report the same failure.
+///   The wording is the incumbent's,
+/// so the two paths report the same failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,7 +48,9 @@ pub const COMMIT_CYCLE_MESSAGE: &str = "Policy patches repeated an exact prior c
 /// What:
 ///  Everything one commit-path convergence reads and writes.
 /// Why:
-///   The request, the shipped checks and the private index travel together, so no caller can pair them wrongly.
+///   The request,
+/// the shipped checks and the private index travel together,
+/// so no caller can pair them wrongly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,7 +68,9 @@ pub struct CommitConvergenceInput<'a, F: RepositoryFacts> {
 /// What:
 ///  The settled or stopped result of one commit-path convergence.
 /// Why:
-///   The caller needs the outcome, the events that explain it, and the paths the loop corrected.
+///   The caller needs the outcome,
+/// the events that explain it,
+/// and the paths the loop corrected.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -75,14 +81,16 @@ pub struct CommitConvergence {
     pub convergence: Convergence,
     /// The pass whose events describe the outcome.
     pub pass: PassResult,
-    /// Paths whose private-index entry a correction wrote, in first-write order.
+    /// Paths whose private-index entry a correction wrote,
+    /// in first-write order.
     pub changed_paths: Vec<Vec<u8>>,
 }
 
 /// What:
 ///  The commit path's three loop operations over the private index.
 /// Why:
-///   The loop calls these in order; holding the state here keeps each pass's proposals with its own writes.
+///   The loop calls these in order;
+/// holding the state here keeps each pass's proposals with its own writes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,11 +105,14 @@ struct CommitPasses<'a, F: RepositoryFacts> {
     stage: PrivateStage<'a>,
     /// The most recent pass.
     last: Option<PassResult>,
-    /// The pass that failed to write its corrections, when that is why the loop stopped.
+    /// The pass that failed to write its corrections,
+    /// when that is why the loop stopped.
     blocked: Option<PassResult>,
-    /// Exact corrected state after each changed pass, starting from the uncorrected state.
+    /// Exact corrected state after each changed pass,
+    /// starting from the uncorrected state.
     states: Vec<BTreeMap<Vec<u8>, InstallChange>>,
-    /// Paths written so far, in first-write order.
+    /// Paths written so far,
+    /// in first-write order.
     changed_paths: Vec<Vec<u8>>,
 }
 
@@ -168,9 +179,11 @@ impl<F: RepositoryFacts> FixPasses for CommitPasses<'_, F> {
 }
 
 /// What:
-///  Add a correction's path to the written list once, keeping first-write order.
+///  Add a correction's path to the written list once,
+/// keeping first-write order.
 /// Why:
-///   The summary names each path once, however many passes correct it.
+///   The summary names each path once,
+/// however many passes correct it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -185,7 +198,8 @@ fn record_path(changed: &mut Vec<Vec<u8>>, correction: &Correction) {
 /// What:
 ///  The pass that stops the commit path because a correction did not write to the private index.
 /// Why:
-///   The incumbent maps a failed patch application to `patch-conflict`, naming the path.
+///   The incumbent maps a failed patch application to `patch-conflict`,
+/// naming the path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -210,7 +224,8 @@ fn patch_conflict_pass(arguments: &[OsString], path: &[u8], message: String) -> 
 /// What:
 ///  A pass that stops the commit path with an engine failure code and message.
 /// Why:
-///   Cycle and pass-limit failures are engine failures, not policy findings.
+///   Cycle and pass-limit failures are engine failures,
+/// not policy findings.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -234,7 +249,8 @@ fn engine_failure_pass(arguments: &[OsString], code: EngineFailureCode, message:
 /// What:
 ///  Run the bounded commit-path convergence and return the pass that describes its outcome.
 /// Why:
-///   Settled passes keep their own events; each stop reports its cause as the incumbent does.
+///   Settled passes keep their own events;
+/// each stop reports its cause as the incumbent does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -258,7 +274,8 @@ pub fn converge_commit_policies<F: RepositoryFacts>(input: CommitConvergenceInpu
 /// What:
 ///  Choose the pass that describes a convergence outcome.
 /// Why:
-///   A blocked loop reports the write that failed when there was one, otherwise the pass that blocked it.
+///   A blocked loop reports the write that failed when there was one,
+/// otherwise the pass that blocked it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,7 +1,10 @@
 //! What:
-//!  Recognition of the announced query spellings, the text built for them and the status gate.
+//!  Recognition of the announced query spellings,
+//! the text built for them and the status gate.
 //! Why:
-//!  Only `--version`, `-v`, `--help` and `-h` at the query position are announced,
+//!  Only `--version`,
+//! `-v`,
+//! `--help` and `-h` at the query position are announced,
 //!  the text is a promise to people and scripts that read it,
 //!  and Git that did not exit with status 0 must leave the caller with Git's output alone.
 //!
@@ -28,13 +31,15 @@ fn arguments(values: &[&str]) -> Vec<OsString> {
     return result;
 }
 
-/// The query of these arguments, read the way the planner reads it.
+/// The query of these arguments,
+/// read the way the planner reads it.
 fn query_of(values: &[&str]) -> Option<AnnouncedQuery> {
     let owned: Vec<OsString> = arguments(values);
     return announced_query(owned.as_slice(), &global_layout(owned.as_slice()));
 }
 
-/// The four spellings are recognized, alone and behind global options.
+/// The four spellings are recognized,
+/// alone and behind global options.
 #[test]
 fn the_four_spellings_are_recognized() {
     for (values, expected) in [
@@ -50,7 +55,9 @@ fn the_four_spellings_are_recognized() {
     }
 }
 
-/// Other queries, commands, errors and look-alikes are not announced.
+/// Other queries,
+/// commands,
+/// errors and look-alikes are not announced.
 #[test]
 fn everything_else_is_not_announced() {
     for values in [
@@ -74,7 +81,9 @@ fn everything_else_is_not_announced() {
     }
 }
 
-/// The banner is one line with the version, then Git's path, ending in a line feed.
+/// The banner is one line with the version,
+/// then Git's path,
+/// ending in a line feed.
 #[test]
 fn the_banner_is_one_exact_line() {
     assert_eq!(
@@ -83,7 +92,9 @@ fn the_banner_is_one_exact_line() {
     );
 }
 
-/// The help section starts with a blank line, names the wrapper and Git, and stays short.
+/// The help section starts with a blank line,
+/// names the wrapper and Git,
+/// and stays short.
 #[test]
 fn the_help_section_is_short_and_exact() {
     let section: String =

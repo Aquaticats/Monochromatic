@@ -1,13 +1,33 @@
 //! What:
-//!  The preparation of a commit that goes through the resident service: the private index, the selection UI, the policies,
-//!  the settled changes, and the facts the landing needs, for every command line.
+//!  The preparation of a commit that goes through the resident service:
+//! the private index,
+//! the selection UI,
+//! the policies,
+//!  the settled changes,
+//! and the facts the landing needs,
+//! for every command line.
 //! Why:
-//!  The service lands what is prepared here, so the preparation covers every shape of commit: a branch, a detached head or a
-//!  branch that does not exist yet, an ordinary commit or the conclusion of a merge, a cherry-pick or a revert, a selection
-//!  by path, by `--include`, by `--patch`/`--interactive` or by a pathspec file, and a policy that rewrote a file. Whatever
-//!  Git alone can answer (an unmerged index, nothing to commit) is marked for Git to answer in the scratch repository, so its
-//!  words and its exit status are the person's. Nothing here locks anything, and nothing is registered
-//!  (`doc/planning/cli-git-resident-service.md`, "Landing every command line").
+//!  The service lands what is prepared here,
+//! so the preparation covers every shape of commit:
+//! a branch,
+//! a detached head or a
+//!  branch that does not exist yet,
+//! an ordinary commit or the conclusion of a merge,
+//! a cherry-pick or a revert,
+//! a selection
+//!  by path,
+//! by `--include`,
+//! by `--patch`/`--interactive` or by a pathspec file,
+//! and a policy that rewrote a file.
+//! Whatever
+//!  Git alone can answer (an unmerged index,
+//! nothing to commit) is marked for Git to answer in the scratch repository,
+//! so its
+//!  words and its exit status are the person's.
+//! Nothing here locks anything,
+//! and nothing is registered
+//!  (`doc/planning/cli-git-resident-service.md`,
+//! "Landing every command line").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -61,10 +81,14 @@ pub struct PrepareInputs<'a> {
     pub allow_empty: bool,
     /// The bytes of standard input when a pathspec file is read from it.
     pub standard_input: Option<&'a [u8]>,
-    /// Whether this is the first preparation of the command, which says what a configuration warns about.
+    /// Whether this is the first preparation of the command,
+    /// which says what a configuration warns about.
     pub first: bool,
-    /// The change the first preparation captured, when the service sent the commit back because the branch moved: it is
-    ///  merged onto the branch as it is now, and the worktree is not read again.
+    /// The change the first preparation captured,
+    /// when the service sent the commit back because the branch moved:
+    /// it is
+    ///  merged onto the branch as it is now,
+    /// and the worktree is not read again.
     pub replay: Option<Retry<'a>>,
 }
 

@@ -1,10 +1,19 @@
 //! What:
-//!  Which kind of filesystem holds a path (btrfs, overlayfs, other), whether a directory is the root of a btrfs
-//!  subvolume, and how many bytes a user can still write there.
+//!  Which kind of filesystem holds a path (btrfs,
+//! overlayfs,
+//! other),
+//! whether a directory is the root of a btrfs
+//!  subvolume,
+//! and how many bytes a user can still write there.
 //! Why:
-//!  Every rung of the cheap-worktree ladder starts from these three facts, which the kernel answers in one
-//!  `statfs` call and one inode number, so nothing is spawned: a snapshot needs btrfs and a subvolume root
-//!  (inode 256), a reflink works on btrfs and inside an overlay, and everything else keeps Git's own checkout.
+//!  Every rung of the cheap-worktree ladder starts from these three facts,
+//! which the kernel answers in one
+//!  `statfs` call and one inode number,
+//! so nothing is spawned:
+//! a snapshot needs btrfs and a subvolume root
+//!  (inode 256),
+//! a reflink works on btrfs and inside an overlay,
+//! and everything else keeps Git's own checkout.
 //!  `doc/planning/cli-git-btrfs-worktree.md` (section "Degradation ladder") has the measurements behind the ladder.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,9 +32,12 @@ pub const BTRFS_SUBVOLUME_ROOT_INODE: u64 = 256;
 
 /// What:
 ///  The filesystem kinds the ladder tells apart.
-///  `#[derive(...)]` generates copying, debug printing and `==`.
+///  `#[derive(...)]` generates copying,
+/// debug printing and `==`.
 /// Why:
-///   Btrfs allows snapshots and reflinks, overlayfs allows reflinks of files inside it, anything else gets Git's checkout.
+///   Btrfs allows snapshots and reflinks,
+/// overlayfs allows reflinks of files inside it,
+/// anything else gets Git's checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,7 +47,8 @@ pub const BTRFS_SUBVOLUME_ROOT_INODE: u64 = 256;
 pub enum FilesystemKind {
     /// `BTRFS_SUPER_MAGIC`.
     Btrfs,
-    /// `OVERLAYFS_SUPER_MAGIC`, the root of a container.
+    /// `OVERLAYFS_SUPER_MAGIC`,
+    /// the root of a container.
     Overlayfs,
     /// Every other `f_type`.
     Other,
@@ -43,10 +56,13 @@ pub enum FilesystemKind {
 
 /// What:
 ///  Map the `f_type` of a `statfs` answer to a kind.
-///  `u64` is the widest unsigned integer; siblings `u32` and `i64` are what the C field is on some targets.
+///  `u64` is the widest unsigned integer;
+/// siblings `u32` and `i64` are what the C field is on some targets.
 /// Why:
-///   The C field is a signed word on some targets and an unsigned one on others, so only its low 32 bits are compared
-///  with the magic numbers, which are all 32-bit values.
+///   The C field is a signed word on some targets and an unsigned one on others,
+/// so only its low 32 bits are compared
+///  with the magic numbers,
+/// which are all 32-bit values.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,9 +80,12 @@ pub fn classify_magic(f_type: u64) -> FilesystemKind {
 }
 
 /// What:
-///  The kind of filesystem that holds `path`, and the bytes a user can write there, from one `statfs` call.
+///  The kind of filesystem that holds `path`,
+/// and the bytes a user can write there,
+/// from one `statfs` call.
 /// Why:
-///   The two answers come from the same call, so a caller that wants both pays once.
+///   The two answers come from the same call,
+/// so a caller that wants both pays once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -101,7 +120,9 @@ pub fn filesystem_kind(path: &Path) -> Result<FilesystemKind, PrimitiveError> {
 /// What:
 ///  Whether `path` is on an XFS filesystem.
 /// Why:
-///   XFS shares data blocks between files when it was made with reflink support, which the first clone reveals, so the
+///   XFS shares data blocks between files when it was made with reflink support,
+/// which the first clone reveals,
+/// so the
 ///  clone rung of the cheap-worktree ladder is tried there although the ladder's `FilesystemKind` has no XFS.
 ///
 /// In TS you'd write (pseudocode):
@@ -122,8 +143,11 @@ pub fn is_xfs(path: &Path) -> Result<bool, PrimitiveError> {
 /// What:
 ///  Whether `path` is the root directory of a btrfs subvolume.
 /// Why:
-///   Only a subvolume root can be the source of a snapshot. Inode 256 is the root of every subvolume; on another
-///  filesystem the same inode number means nothing, so the filesystem is checked first and a directory on a
+///   Only a subvolume root can be the source of a snapshot.
+/// Inode 256 is the root of every subvolume;
+/// on another
+///  filesystem the same inode number means nothing,
+/// so the filesystem is checked first and a directory on a
 ///  filesystem other than btrfs is never a subvolume root.
 ///
 /// In TS you'd write (pseudocode):

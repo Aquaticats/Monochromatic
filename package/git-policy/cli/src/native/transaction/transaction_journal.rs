@@ -1,9 +1,17 @@
 //! What:
-//!  The values a commit's preparation and the service's landing share about the repository state they work on: the base,
-//!  the symbolic head, the private index mode, the sequencer conclusion, the ref storage format and a policy-added path.
+//!  The values a commit's preparation and the service's landing share about the repository state they work on:
+//! the base,
+//!  the symbolic head,
+//! the private index mode,
+//! the sequencer conclusion,
+//! the ref storage format and a policy-added path.
 //! Why:
-//!  The records the earlier transaction wrote into its registry (preparing, prepared, ref-updated, landing and index-lock
-//!  records) are gone with the transaction; only the types the service route still passes between its steps remain
+//!  The records the earlier transaction wrote into its registry (preparing,
+//! prepared,
+//! ref-updated,
+//! landing and index-lock
+//!  records) are gone with the transaction;
+//! only the types the service route still passes between its steps remain
 //!  (`src/policy-engine/commit-transaction-journal-states.ts` is their incumbent).
 //!
 //! In TS you'd write (pseudocode):
@@ -124,7 +132,8 @@ pub enum RefFormat {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AddedPath {
-    /// Repository-relative path, the exact bytes Git reported.
+    /// Repository-relative path,
+    /// the exact bytes Git reported.
     pub path: Vec<u8>,
     /// `100644` or `100755`.
     pub git_mode: String,

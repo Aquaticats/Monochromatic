@@ -1,4 +1,6 @@
-//! Controls for the snapshot source: a clean subvolume main checkout is one, and each condition that rules a source out is
+//! Controls for the snapshot source:
+//! a clean subvolume main checkout is one,
+//! and each condition that rules a source out is
 //!  refused with its reason.
 
 use super::*;
@@ -6,7 +8,8 @@ use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{age, git, git_context, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 
-/// A clean subvolume main checkout is a source, and it names the commit and tree of its `HEAD`.
+/// A clean subvolume main checkout is a source,
+/// and it names the commit and tree of its `HEAD`.
 #[test]
 fn btrfs_a_clean_subvolume_main_checkout_is_a_source() {
     let Some(root) = btrfs_fixture("source-clean") else { return };
@@ -19,7 +22,8 @@ fn btrfs_a_clean_subvolume_main_checkout_is_a_source() {
     remove(root.as_path());
 }
 
-/// Each refusal names its reason, and the refused source is left as it was.
+/// Each refusal names its reason,
+/// and the refused source is left as it was.
 #[test]
 fn btrfs_each_condition_that_rules_a_source_out_is_refused_with_its_reason() {
     let Some(root) = btrfs_fixture("source-refused") else { return };
@@ -67,8 +71,10 @@ fn btrfs_each_condition_that_rules_a_source_out_is_refused_with_its_reason() {
     remove(root.as_path());
 }
 
-/// A registered nested worktree whose recorded path passes through a link is a blocker of the snapshot rung; one reached by
-///  its real path is not, and one that is gone is nothing.
+/// A registered nested worktree whose recorded path passes through a link is a blocker of the snapshot rung;
+/// one reached by
+///  its real path is not,
+/// and one that is gone is nothing.
 #[test]
 fn a_nested_worktree_reached_through_a_link_is_found() {
     let root: PathBuf = crate::test_support::fixture("source-nested-link");
@@ -80,8 +86,12 @@ fn a_nested_worktree_reached_through_a_link_is_found() {
     crate::test_support::remove(root.as_path());
 }
 
-/// A worktree whose every file equals its commit by content has an answer, not a failure: nothing is listed, whether the stat
-///  data of a tracked file is stale or the index is older than the files; a real edit is listed with its path.
+/// A worktree whose every file equals its commit by content has an answer,
+/// not a failure:
+/// nothing is listed,
+/// whether the stat
+///  data of a tracked file is stale or the index is older than the files;
+/// a real edit is listed with its path.
 #[test]
 fn changed_paths_lists_nothing_for_files_the_stat_data_cannot_vouch_for_and_one_path_for_an_edit() {
     let root: PathBuf = crate::test_support::fixture("changed-paths-empty");
@@ -104,7 +114,10 @@ fn changed_paths_lists_nothing_for_files_the_stat_data_cannot_vouch_for_and_one_
     remove(root.as_path());
 }
 
-/// Git failing is a failure with its words: the run, the exit code and what Git said, so the person can read the same error.
+/// Git failing is a failure with its words:
+/// the run,
+/// the exit code and what Git said,
+/// so the person can read the same error.
 #[test]
 fn changed_paths_names_the_run_the_exit_code_and_what_git_said_when_git_fails() {
     let root: PathBuf = crate::test_support::fixture("changed-paths-failure");

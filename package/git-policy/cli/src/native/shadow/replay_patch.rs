@@ -19,7 +19,9 @@ use std::fmt;
 
 /// What:
 ///  One patch line:
-///       its marker (`b' '`, `b'-'`, `b'+'`) and its bytes.
+///       its marker (`b' '`,
+/// `b'-'`,
+/// `b'+'`) and its bytes.
 /// Why:
 ///   The reverse check and the containment check both read the markers.
 ///
@@ -29,7 +31,9 @@ use std::fmt;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PatchLine {
-    /// Context, removal, or addition.
+    /// Context,
+    /// removal,
+    /// or addition.
     pub op: u8,
     /// Line bytes with their newline,
     ///  without it for an incomplete last line.
@@ -48,9 +52,11 @@ pub struct PatchLine {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PatchHunk {
-    /// First line of the old side, `0` for an empty old side.
+    /// First line of the old side,
+    /// `0` for an empty old side.
     pub old_start: i64,
-    /// First line of the new side, `0` for an empty new side.
+    /// First line of the new side,
+    /// `0` for an empty new side.
     pub new_start: i64,
     /// Hunk lines in order.
     pub lines: Vec<PatchLine>,
@@ -81,17 +87,21 @@ const HUNK_HEADER: &[u8] = b"@@ -";
 /// Marker of a `\ No newline at end of file` line.
 const INCOMPLETE_MARKER: u8 = b'\\';
 
-/// Whether one byte is the line feed that ends a line. `&u8` borrows the byte, as `position` hands it over.
+/// Whether one byte is the line feed that ends a line.
+/// `&u8` borrows the byte,
+/// as `position` hands it over.
 fn is_line_feed_byte(byte: &u8) -> bool {
     return *byte == b'\n';
 }
 
-/// Whether one byte is the comma that separates the start of a hunk range from its count. `&u8` borrows the byte.
+/// Whether one byte is the comma that separates the start of a hunk range from its count.
+/// `&u8` borrows the byte.
 fn is_comma_byte(byte: &u8) -> bool {
     return *byte == b',';
 }
 
-/// Whether one byte is the space that separates the parts of a hunk or section header. `&u8` borrows the byte.
+/// Whether one byte is the space that separates the parts of a hunk or section header.
+/// `&u8` borrows the byte.
 fn is_space_byte(byte: &u8) -> bool {
     return *byte == b' ';
 }
@@ -102,7 +112,8 @@ fn is_space_byte(byte: &u8) -> bool {
 ///       an unterminated last line stays as it is.
 /// Why:
 ///   Hunk bodies and blob contents are compared line by line,
-///       newline included, the way Git's `xdiff` compares them.
+///       newline included,
+/// the way Git's `xdiff` compares them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

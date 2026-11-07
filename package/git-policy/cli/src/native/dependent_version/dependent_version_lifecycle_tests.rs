@@ -1,6 +1,14 @@
-//! What: Controls for the planner's view of a candidate state over real Git: the tracked
-//!       listing, the overlaid bytes, `HEAD`'s copy, and every refusal.
-//! Why: A file listed wrongly, a correction not read back, or a `HEAD` copy read from the
+//! What:
+//! Controls for the planner's view of a candidate state over real Git:
+//! the tracked
+//!       listing,
+//! the overlaid bytes,
+//! `HEAD`'s copy,
+//! and every refusal.
+//! Why:
+//! A file listed wrongly,
+//! a correction not read back,
+//! or a `HEAD` copy read from the
 //!      wrong place would plan a different ripple than the installed wrapper does.
 //!
 //! In TS you'd write (pseudocode):
@@ -29,7 +37,8 @@ use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
 use std::collections::BTreeMap;
 /// Owned operating-system text.
 use std::ffi::OsString;
-/// Unix permission bits, for the executable file.
+/// Unix permission bits,
+/// for the executable file.
 use std::os::unix::fs::PermissionsExt;
 /// Borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
@@ -51,7 +60,8 @@ fn object(repository: &Path, revision: &str) -> ObjectId {
     return parse_object_id(strip_git_line(output.stdout.as_slice())).expect("object name");
 }
 
-/// The failure a read returned, which the control requires.
+/// The failure a read returned,
+/// which the control requires.
 fn refusal<T: std::fmt::Debug>(result: Result<T, ContentUnavailable>) -> ContentUnavailable {
     match result {
         Ok(value) => panic!("expected a refusal, got {value:?}"),
@@ -59,8 +69,11 @@ fn refusal<T: std::fmt::Debug>(result: Result<T, ContentUnavailable>) -> Content
     }
 }
 
-/// A repository whose `HEAD` holds a manifest, an executable and a link; the index then
-/// stages a changed manifest and a new file, and the worktree changes the manifest again.
+/// A repository whose `HEAD` holds a manifest,
+/// an executable and a link;
+/// the index then
+/// stages a changed manifest and a new file,
+/// and the worktree changes the manifest again.
 fn staged_repository(root: &Path) -> PathBuf {
     let repo: PathBuf = repository(root, "repo");
     std::fs::create_dir_all(repo.join("package/module/a")).expect("directories");
@@ -90,8 +103,12 @@ fn staged_repository(root: &Path) -> PathBuf {
     return repo;
 }
 
-/// The listing holds every index entry with its mode from any directory; bytes are the
-/// index's, not the worktree's; `HEAD` reads its own copy, and a new file has none.
+/// The listing holds every index entry with its mode from any directory;
+/// bytes are the
+/// index's,
+/// not the worktree's;
+/// `HEAD` reads its own copy,
+/// and a new file has none.
 #[test]
 fn reads_the_index_and_head_from_any_directory() {
     let root: PathBuf = fixture("lifecycle-reads");
@@ -160,7 +177,8 @@ fn reads_the_index_and_head_from_any_directory() {
     remove(root.as_path());
 }
 
-/// A corrected file is read back from the correction, every other file from the index.
+/// A corrected file is read back from the correction,
+/// every other file from the index.
 #[test]
 fn corrections_are_read_before_the_index() {
     let root: PathBuf = fixture("lifecycle-overlay");
@@ -208,8 +226,11 @@ fn an_unborn_head_has_no_copies() {
     remove(root.as_path());
 }
 
-/// An unmerged entry, a candidate the listing lacks, and listings Git refuses each stop
-/// the plan, naming the path when one is concerned.
+/// An unmerged entry,
+/// a candidate the listing lacks,
+/// and listings Git refuses each stop
+/// the plan,
+/// naming the path when one is concerned.
 #[test]
 fn refuses_listings_that_are_not_the_candidate_state() {
     let root: PathBuf = fixture("lifecycle-refusals");

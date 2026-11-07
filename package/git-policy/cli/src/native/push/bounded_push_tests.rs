@@ -1,5 +1,8 @@
 //! Controls for the deadline-bound push runner:
-//!  real child processes that finish, fail, stall, ignore the stop request or flood their output,
+//!  real child processes that finish,
+//! fail,
+//! stall,
+//! ignore the stop request or flood their output,
 //!  and the limits derived from the environment.
 
 use super::*;
@@ -47,7 +50,10 @@ fn the_deadline_comes_from_the_variable_or_the_default() {
     );
 }
 
-/// A zero, negative, fractional, empty or non-numeric value never means "no deadline".
+/// A zero,
+/// negative,
+/// fractional,
+/// empty or non-numeric value never means "no deadline".
 #[test]
 fn an_unusable_deadline_falls_back_to_the_default() {
     for value in ["0", "-5", "1.5", "", "soon", "10s"] {
@@ -71,8 +77,10 @@ fn a_non_text_deadline_falls_back_to_the_default() {
     assert_eq!(push_deadline(&pairs), DEFAULT_PUSH_DEADLINE);
 }
 
-/// A run goes by the file name of its program and its first word that is not an option, with the values of `-c` and `-C`
-///  skipped; a program with no such word goes by its name alone.
+/// A run goes by the file name of its program and its first word that is not an option,
+/// with the values of `-c` and `-C`
+///  skipped;
+/// a program with no such word goes by its name alone.
 #[test]
 fn a_run_goes_by_its_program_and_its_first_subcommand() {
     let mut push: Command = Command::new("/nonexistent/bin/git");
@@ -86,7 +94,8 @@ fn a_run_goes_by_its_program_and_its_first_subcommand() {
     assert_eq!(command_label(&bare), "git");
 }
 
-/// Exactly one trailing line break goes, of either kind.
+/// Exactly one trailing line break goes,
+/// of either kind.
 #[test]
 fn one_trailing_line_break_is_removed() {
     assert_eq!(strip_one_line_break("a\n"), "a");
@@ -284,7 +293,8 @@ fn a_flooding_push_is_stopped_and_its_output_capped() {
     );
 }
 
-/// A program that cannot start is a start failure, not a push result.
+/// A program that cannot start is a start failure,
+/// not a push result.
 #[test]
 fn a_program_that_cannot_start_is_a_start_failure() {
     let failure: SingleFlightError = run_bounded_push(
@@ -297,7 +307,8 @@ fn a_program_that_cannot_start_is_a_start_failure() {
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
 }
 
-/// A child the kernel releases only after the push was reported has its lock swept when it ends, on a thread of its own.
+/// A child the kernel releases only after the push was reported has its lock swept when it ends,
+/// on a thread of its own.
 #[cfg(unix)]
 #[test]
 fn a_child_released_late_has_its_lock_swept_when_it_ends() {
@@ -317,11 +328,14 @@ fn a_child_released_late_has_its_lock_swept_when_it_ends() {
     crate::test_support::remove(root.as_path());
 }
 
-/// How long the member of a stopped tree outlives the stop in the control below, longer than the grace it is given.
+/// How long the member of a stopped tree outlives the stop in the control below,
+/// longer than the grace it is given.
 const LINGERING_MEMBER_SECONDS: &str = "1";
 
-/// A tree that has not ended when the grace is over is not swept then, which would remove nothing and never be tried again:
-/// the sweep waits for it on a thread of its own, and removes the lock once it has ended.
+/// A tree that has not ended when the grace is over is not swept then,
+/// which would remove nothing and never be tried again:
+/// the sweep waits for it on a thread of its own,
+/// and removes the lock once it has ended.
 #[cfg(unix)]
 #[test]
 fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {

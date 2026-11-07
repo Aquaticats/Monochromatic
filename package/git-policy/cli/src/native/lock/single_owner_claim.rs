@@ -1,19 +1,40 @@
 //! What:
-//!  The right of one running command to work on one item (a worktree being converted, a checkout being migrated), held
+//!  The right of one running command to work on one item (a worktree being converted,
+//! a checkout being migrated),
+//! held
 //!  as a numbered claim file that exactly one command creates and that names its owner by process birth.
 //! Why:
-//!  Two commands that both pass the preflight would both write the journal, share a token on a resume and exchange the
-//!  directories back, so one command must own the item for as long as it works. The claim is lock-free: a claim file is
-//!  made whole in a private temporary file and published with one exclusive `link` under the next generation number, so
-//!  the kernel lets exactly one command create generation `n + 1`; no lock is held, no command ever waits, and a command
-//!  that finds a live owner stops with the owner's process id. The newest generation is the claim. A newer generation
+//!  Two commands that both pass the preflight would both write the journal,
+//! share a token on a resume and exchange the
+//!  directories back,
+//! so one command must own the item for as long as it works.
+//! The claim is lock-free:
+//! a claim file is
+//!  made whole in a private temporary file and published with one exclusive `link` under the next generation number,
+//! so
+//!  the kernel lets exactly one command create generation `n + 1`;
+//! no lock is held,
+//! no command ever waits,
+//! and a command
+//!  that finds a live owner stops with the owner's process id.
+//! The newest generation is the claim.
+//! A newer generation
 //!  replaces an older one only when the older one records a released claim or an owner whose process no longer exists
-//!  with that birth (the PID alone is not trusted, because it is reused), so a killed command leaves nothing to clean up
-//!  by hand: the next command takes the next generation. The newest generation file is never removed, because removing
-//!  it would let a command that read an older generation create the same number again; a released claim is rewritten in
-//!  place by renaming a one-line record over it. Older generations are removed by the command that took the newer one.
-//!  An owner in another PID namespace cannot be probed; it counts as alive until its claim file is older than
-//!  `FOREIGN_OWNER_PATIENCE`, as every owner record of the wrapper does.
+//!  with that birth (the PID alone is not trusted,
+//! because it is reused),
+//! so a killed command leaves nothing to clean up
+//!  by hand:
+//! the next command takes the next generation.
+//! The newest generation file is never removed,
+//! because removing
+//!  it would let a command that read an older generation create the same number again;
+//! a released claim is rewritten in
+//!  place by renaming a one-line record over it.
+//! Older generations are removed by the command that took the newer one.
+//!  An owner in another PID namespace cannot be probed;
+//! it counts as alive until its claim file is older than
+//!  `FOREIGN_OWNER_PATIENCE`,
+//! as every owner record of the wrapper does.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,18 +60,26 @@ const CLAIM_HEADER: &str = "monochromatic-git-policy-cli owner-claim v1";
 /// The line of a released claim.
 const RELEASED_LINE: &str = "released";
 
-/// The most rounds one `take_claim` call makes. Each round after the first follows the progress of another command (it
-///  created the generation this one wanted, or a newer one), so more rounds than this mean claimants keep arriving faster
-///  than this command can look; it then reports that instead of looping.
+/// The most rounds one `take_claim` call makes.
+/// Each round after the first follows the progress of another command (it
+///  created the generation this one wanted,
+/// or a newer one),
+/// so more rounds than this mean claimants keep arriving faster
+///  than this command can look;
+/// it then reports that instead of looping.
 const MOST_ROUNDS: u32 = 64;
 
 /// Distinguishes the temporary files of claims taken by one process at the same instant.
 static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// What:
-///  A claim this process holds: the right to work on one item.
+///  A claim this process holds:
+/// the right to work on one item.
 /// Why:
-///   Dropping it releases the claim, so every way out of the command, an early error included, gives the item back.
+///   Dropping it releases the claim,
+/// so every way out of the command,
+/// an early error included,
+/// gives the item back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,7 +98,8 @@ pub struct OwnerClaim {
 /// What:
 ///  The live owner that stopped a claim.
 /// Why:
-///   The refusal names the process and the file, so the person can see which command runs and where its claim is.
+///   The refusal names the process and the file,
+/// so the person can see which command runs and where its claim is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,7 +116,8 @@ pub struct BusyOwner {
 /// What:
 ///  How a claim attempt ended.
 /// Why:
-///   A busy item is a normal answer (the other command is working), not a failure.
+///   A busy item is a normal answer (the other command is working),
+/// not a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,7 +136,9 @@ pub enum ClaimOutcome {
 enum Record {
     /// The owner gave the item back.
     Released,
-    /// A process owns the item: its id, birth identity and PID namespace (`-` when unknown).
+    /// A process owns the item:
+    /// its id,
+    /// birth identity and PID namespace (`-` when unknown).
     Owned { pid: i64, birth: String, namespace: Option<String> },
 }
 
@@ -117,7 +150,8 @@ fn encode(record: &Record) -> String {
     };
 }
 
-/// The record a claim file's text holds, or nothing when the text is not a claim of this command.
+/// The record a claim file's text holds,
+/// or nothing when the text is not a claim of this command.
 fn decode(text: &str) -> Option<Record> {
     let mut lines = text.lines();
     // The files are named as before the rename, so a claim of the earlier release is found, and read in its own spelling.
@@ -142,7 +176,8 @@ fn decode(text: &str) -> Option<Record> {
     return Some(Record::Owned { pid, birth, namespace: if namespace == "-" { None } else { Some(namespace) } });
 }
 
-/// The generation a directory entry names under `prefix`, or nothing for any other name.
+/// The generation a directory entry names under `prefix`,
+/// or nothing for any other name.
 fn generation_of(name: &OsStr, prefix: &OsStr) -> Option<u64> {
     let digits: &[u8] = name.as_bytes().strip_prefix(prefix.as_bytes())?.strip_prefix(b".")?;
     if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
@@ -151,7 +186,8 @@ fn generation_of(name: &OsStr, prefix: &OsStr) -> Option<u64> {
     return std::str::from_utf8(digits).ok()?.parse().ok();
 }
 
-/// Every generation of `prefix` in `directory`, ascending.
+/// Every generation of `prefix` in `directory`,
+/// ascending.
 fn generations(directory: &Path, prefix: &OsStr) -> Result<Vec<u64>, MigrateError> {
     let entries: std::fs::ReadDir = match std::fs::read_dir(directory) {
         Ok(listing) => listing,
@@ -174,7 +210,9 @@ fn path_of(directory: &Path, prefix: &OsStr, generation: u64) -> PathBuf {
     return directory.join(name);
 }
 
-/// Write `record` into a new private file beside the claims, synchronized, and return its path.
+/// Write `record` into a new private file beside the claims,
+/// synchronized,
+/// and return its path.
 fn write_private(directory: &Path, record: &Record) -> std::io::Result<PathBuf> {
     let unique: u64 = TEMPORARY_COUNTER.fetch_add(1, Ordering::Relaxed);
     let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
@@ -201,7 +239,8 @@ fn sync_directory(directory: &Path) -> std::io::Result<()> {
     return handle.sync_all();
 }
 
-/// Publish `record` as `target` without replacing anything: `AlreadyExists` when the generation exists.
+/// Publish `record` as `target` without replacing anything:
+/// `AlreadyExists` when the generation exists.
 fn publish_new(directory: &Path, target: &Path, record: &Record) -> std::io::Result<()> {
     let private: PathBuf = write_private(directory, record)?;
     let linked: std::io::Result<()> = std::fs::hard_link(&private, target);
@@ -210,7 +249,9 @@ fn publish_new(directory: &Path, target: &Path, record: &Record) -> std::io::Res
     return sync_directory(directory);
 }
 
-/// The claim file's record, or nothing when the file is gone, or an error when it is not a claim of this command.
+/// The claim file's record,
+/// or nothing when the file is gone,
+/// or an error when it is not a claim of this command.
 fn read_record(path: &Path) -> Result<Option<Record>, MigrateError> {
     let bytes: Vec<u8> = match crate::worktree_convert_journal::read_plain_file(path, SMALL_RECORD_LIMIT) {
         Ok(found) => found,
@@ -229,8 +270,10 @@ fn read_record(path: &Path) -> Result<Option<Record>, MigrateError> {
 /// The most bytes of a claim file that are read.
 const SMALL_RECORD_LIMIT: u64 = 4096;
 
-/// The process id of the owner a record names when that process is alive, nothing when the claim is released or its owner is
-///  gone, and an error when that cannot be decided.
+/// The process id of the owner a record names when that process is alive,
+/// nothing when the claim is released or its owner is
+///  gone,
+/// and an error when that cannot be decided.
 fn live_owner(record: &Record, path: &Path) -> Result<Option<i64>, MigrateError> {
     let Record::Owned { pid, birth, namespace } = record else { return Ok(None) };
     match foreign_owner_standing(namespace.as_deref(), path) {
@@ -259,10 +302,15 @@ fn own_record() -> Result<Record, MigrateError> {
 }
 
 /// What:
-///  Take the claim on the item whose claim files are `<prefix>.<generation>` in `directory`, or report the live owner.
+///  Take the claim on the item whose claim files are `<prefix>.<generation>` in `directory`,
+/// or report the live owner.
 /// Why:
-///   See the module description. The call never waits: it reads the newest generation, creates the next one exclusively,
-///  confirms that no newer one appeared, and removes the older ones.
+///   See the module description.
+/// The call never waits:
+/// it reads the newest generation,
+/// creates the next one exclusively,
+///  confirms that no newer one appeared,
+/// and removes the older ones.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -272,10 +320,12 @@ pub fn take_claim(directory: &Path, prefix: &OsStr) -> Result<ClaimOutcome, Migr
     return take_claim_seamed(directory, prefix, &mut do_nothing);
 }
 
-/// The call `take_claim` makes between the listing and the creation: none.
+/// The call `take_claim` makes between the listing and the creation:
+/// none.
 fn do_nothing() {}
 
-/// `take_claim` with a call between the listing of the generations and the creation of the next one, where a control may let
+/// `take_claim` with a call between the listing of the generations and the creation of the next one,
+/// where a control may let
 ///  another command act.
 pub fn take_claim_seamed(directory: &Path, prefix: &OsStr, after_listing: &mut dyn FnMut()) -> Result<ClaimOutcome, MigrateError> {
     let record: Record = own_record()?;
@@ -318,10 +368,14 @@ pub fn take_claim_seamed(directory: &Path, prefix: &OsStr, after_listing: &mut d
 }
 
 /// What:
-///  The live owner of the item whose claim files are `<prefix>.<generation>` in `directory`, if any; nothing is created.
+///  The live owner of the item whose claim files are `<prefix>.<generation>` in `directory`,
+/// if any;
+/// nothing is created.
 /// Why:
-///   A command that works on a different item inside the same checkout (a migration of the checkout, a conversion of a worktree
-///  in it) must not start while the other runs, and reading the claim is enough to know.
+///   A command that works on a different item inside the same checkout (a migration of the checkout,
+/// a conversion of a worktree
+///  in it) must not start while the other runs,
+/// and reading the claim is enough to know.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -341,7 +395,8 @@ pub fn live_owner_of(directory: &Path, prefix: &OsStr) -> Result<Option<BusyOwne
     };
 }
 
-/// Replace the claim file at `path` by a released record through a new private file and a rename, then make it durable.
+/// Replace the claim file at `path` by a released record through a new private file and a rename,
+/// then make it durable.
 fn rewrite_as_released(directory: &Path, path: &Path) -> std::io::Result<()> {
     let private: PathBuf = write_private(directory, &Record::Released)?;
     if let Err(error) = std::fs::rename(&private, path) {
@@ -352,7 +407,11 @@ fn rewrite_as_released(directory: &Path, path: &Path) -> std::io::Result<()> {
 }
 
 impl OwnerClaim {
-    /// Give the item back: the claim file is rewritten, atomically, as a released claim, so the next command takes the next
+    /// Give the item back:
+    /// the claim file is rewritten,
+    /// atomically,
+    /// as a released claim,
+    /// so the next command takes the next
     ///  generation without judging a process.
     pub fn release(&mut self) -> Result<(), MigrateError> {
         if self.released {
@@ -381,7 +440,8 @@ pub(crate) fn plant_claim_for_tests(directory: &Path, prefix: &OsStr, generation
     std::fs::write(path_of(directory, prefix, generation), encode(&record)).expect("planted claim");
 }
 
-/// A process id that names no process: the first number the kernel never hands out.
+/// A process id that names no process:
+/// the first number the kernel never hands out.
 #[cfg(test)]
 pub(crate) fn unused_pid_for_tests() -> i64 {
     let text: String = std::fs::read_to_string("/proc/sys/kernel/pid_max").expect("pid_max");

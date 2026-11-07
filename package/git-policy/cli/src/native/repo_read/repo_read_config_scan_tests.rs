@@ -1,10 +1,13 @@
 //! Controls for the discovery-key scan of the configuration scopes:
-//!  a key in the file or in any included file is found, a missing file passes, and an include loop is declined.
+//!  a key in the file or in any included file is found,
+//! a missing file passes,
+//! and an include loop is declined.
 
 use super::*;
 use crate::test_support::{fixture, remove};
 
-/// A file that sets `core.bare` is found, and so is one that includes such a file by a relative path.
+/// A file that sets `core.bare` is found,
+/// and so is one that includes such a file by a relative path.
 #[test]
 fn a_key_is_found_in_the_file_and_in_its_includes() {
     let root = fixture("repo-read-scan-keys");
@@ -17,7 +20,9 @@ fn a_key_is_found_in_the_file_and_in_its_includes() {
     remove(root.as_path());
 }
 
-/// A missing file passes, like an empty one in Git, and a `~/` include is read below the given home.
+/// A missing file passes,
+/// like an empty one in Git,
+/// and a `~/` include is read below the given home.
 #[test]
 fn a_missing_file_passes_and_a_home_include_is_followed() {
     let root = fixture("repo-read-scan-home");
@@ -38,7 +43,8 @@ fn an_include_loop_is_declined() {
     remove(root.as_path());
 }
 
-/// `GIT_CONFIG_NOSYSTEM` is a boolean, and a relative path cannot be settled without the directory Git runs in.
+/// `GIT_CONFIG_NOSYSTEM` is a boolean,
+/// and a relative path cannot be settled without the directory Git runs in.
 #[test]
 fn the_scope_environment_reads_booleans_and_refuses_relative_paths() {
     let variables = |items: &[(&str, &str)]| -> Vec<(OsString, OsString)> {
@@ -55,7 +61,9 @@ fn the_scope_environment_reads_booleans_and_refuses_relative_paths() {
     assert_eq!(outer_scopes_avoid_keys(&unresolved, &discovery_key), None);
 }
 
-/// The scope files follow `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_SYSTEM`, `GIT_CONFIG_GLOBAL` and the XDG directory.
+/// The scope files follow `GIT_CONFIG_NOSYSTEM`,
+/// `GIT_CONFIG_SYSTEM`,
+/// `GIT_CONFIG_GLOBAL` and the XDG directory.
 #[test]
 fn the_scope_environment_chooses_the_files() {
     let home = PathBuf::from("/home/someone");

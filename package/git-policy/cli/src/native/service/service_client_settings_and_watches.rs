@@ -1,8 +1,11 @@
 //! What:
-//!  The settings of one client run (how it reaches the service, how long it waits, what it keeps fresh) and the watch it can
+//!  The settings of one client run (how it reaches the service,
+//! how long it waits,
+//! what it keeps fresh) and the watch it can
 //!  keep on the service manager's answer about the unit.
 //! Why:
-//!  Reaching the service and submitting a request both read these; keeping them in a file that uses neither lets both use it.
+//!  Reaching the service and submitting a request both read these;
+//! keeping them in a file that uses neither lets both use it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -40,32 +43,46 @@ pub struct ClientConfig {
     pub address: Bind,
     /// What the operating system can do about a service that is not running.
     pub activation: Activation,
-    /// Longest wait for a start when `start_watch` is absent; with a watch the wait ends only when the manager says the start
-    ///  failed, and this is the wait for an older service to retire.
+    /// Longest wait for a start when `start_watch` is absent;
+    /// with a watch the wait ends only when the manager says the start
+    ///  failed,
+    /// and this is the wait for an older service to retire.
     pub start_wait: Duration,
-    /// How long the service may send nothing, heartbeats included, before the client treats it as stopped. There is no limit
+    /// How long the service may send nothing,
+    /// heartbeats included,
+    /// before the client treats it as stopped.
+    /// There is no limit
     ///  on how long a request waits while the service keeps sending.
     pub heartbeat_silence: Duration,
-    /// How to ask the service manager whether the service failed to start; absent where the client cannot ask.
+    /// How to ask the service manager whether the service failed to start;
+    /// absent where the client cannot ask.
     pub start_watch: Option<ManagerWatch>,
     /// A scratch directory of this command to keep from being swept as stale while the command waits.
     pub keep_fresh: Option<FreshScratch>,
-    /// The longest the client waits for the service's answer; then it withdraws the request (`wait_ceilings.rs`).
+    /// The longest the client waits for the service's answer;
+    /// then it withdraws the request (`wait_ceilings.rs`).
     pub answer_ceiling: Duration,
     /// The longest the client waits for the service to answer the withdrawal.
     pub withdraw_ceiling: Duration,
-    /// How much longer a client whose own request is inside the service's branch write waits, after its answer ceiling, for that
-    ///  write to end before it reports that the result is not known (`wait_ceilings.rs`, `SHORT_EXTRA_WAIT`).
+    /// How much longer a client whose own request is inside the service's branch write waits,
+    /// after its answer ceiling,
+    /// for that
+    ///  write to end before it reports that the result is not known (`wait_ceilings.rs`,
+    /// `SHORT_EXTRA_WAIT`).
     pub extra_wait: Duration,
     /// The longest a start is waited for when the service manager can be asked.
     pub start_ceiling: Duration,
 }
 
 /// What:
-///  A scratch directory a waiting command keeps fresh, and how often.
+///  A scratch directory a waiting command keeps fresh,
+/// and how often.
 /// Why:
-///   The scratch sweep removes entries by age, and a wait with no bound can outlast any age; a waiter that is alive says so by
-///  touching its directory, one that died stops and the sweep collects the directory.
+///   The scratch sweep removes entries by age,
+/// and a wait with no bound can outlast any age;
+/// a waiter that is alive says so by
+///  touching its directory,
+/// one that died stops and the sweep collects the directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -82,8 +99,11 @@ pub struct FreshScratch {
 /// What:
 ///  How the client asks the service manager whether the service unit has failed.
 /// Why:
-///   A service that is starting sends nothing, so the wait for its first greeting has no heartbeat to listen for. The manager
-///  knows whether the start failed, which is the one thing that ends that wait.
+///   A service that is starting sends nothing,
+/// so the wait for its first greeting has no heartbeat to listen for.
+/// The manager
+///  knows whether the start failed,
+/// which is the one thing that ends that wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,23 +117,33 @@ pub struct ManagerWatch {
     pub unit: String,
     /// How often the manager is asked while the greeting has not come.
     pub every: Duration,
-    /// The unit's `ActiveState` now (`active`, `activating`, `inactive`, `failed`, ...); nothing when the manager cannot be
-    ///  asked, which leaves the wait to the start wait.
+    /// The unit's `ActiveState` now (`active`,
+    /// `activating`,
+    /// `inactive`,
+    /// `failed`,
+    /// ...);
+    /// nothing when the manager cannot be
+    ///  asked,
+    /// which leaves the wait to the start wait.
     pub state: fn(&std::path::Path, &str) -> Option<String>,
-    /// Asks the manager to start the unit; whether the manager took the request.
+    /// Asks the manager to start the unit;
+    /// whether the manager took the request.
     pub start: fn(&std::path::Path, &str) -> bool,
 }
 
-/// How often the service manager is asked whether the service unit failed, while a start is waited for.
+/// How often the service manager is asked whether the service unit failed,
+/// while a start is waited for.
 pub const MANAGER_ASK_EVERY: Duration = START_NOTICE_GRACE;
 
-/// The manager's `ActiveState` of `unit`: nothing when the bus or the unit cannot be asked about.
+/// The manager's `ActiveState` of `unit`:
+/// nothing when the bus or the unit cannot be asked about.
 pub(crate) fn unit_state(bus: &std::path::Path, unit: &str) -> Option<String> {
     let mut connection: Bus = Bus::connect(bus, EXCHANGE_WAIT).ok()?;
     return connection.active_state(unit).ok()?;
 }
 
-/// Asks the manager to start `unit`; whether the request was taken.
+/// Asks the manager to start `unit`;
+/// whether the request was taken.
 pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
     let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
     return connection.start_unit(unit).is_ok();
@@ -122,7 +152,8 @@ pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
 /// What:
 ///  The watch that asks the account's service manager about the worktree's service unit.
 /// Why:
-///   The route knows the session bus and the worktree's instance, which is all the unit's name needs.
+///   The route knows the session bus and the worktree's instance,
+/// which is all the unit's name needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

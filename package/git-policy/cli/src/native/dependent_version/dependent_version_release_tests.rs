@@ -1,6 +1,10 @@
-//! What: Release checks, exact increments and `JSON.stringify` quoting, with every
+//! What:
+//! Release checks,
+//! exact increments and `JSON.stringify` quoting,
+//! with every
 //!       `patchBumpVersion` case of `dependent-version-bump.unit.test.ts`.
-//! Why: A wrong increment or a wrong quote changes a patch or a finding message.
+//! Why:
+//! A wrong increment or a wrong quote changes a patch or a finding message.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,7 +21,8 @@ fn units(text: &str) -> Vec<u16> {
     return text.encode_utf16().collect();
 }
 
-/// The bumped version, or the unsupported one.
+/// The bumped version,
+/// or the unsupported one.
 fn bump(version: &str) -> Result<String, Vec<u16>> {
     return patch_bump_version("@scope/a", &units(version))
         .map(|done: ReleaseBump| {
@@ -30,7 +35,8 @@ fn bump(version: &str) -> Result<String, Vec<u16>> {
         });
 }
 
-/// Ported: the patch component is incremented numerically.
+/// Ported:
+/// the patch component is incremented numerically.
 #[test]
 fn increments_the_patch_component() {
     assert_eq!(bump("1.2.3"), Ok(String::from("1.2.4")));
@@ -53,7 +59,11 @@ fn increments_exactly_at_any_size() {
     );
 }
 
-/// Ported: prereleases, build metadata, leading zeros, short and non-numeric versions.
+/// Ported:
+/// prereleases,
+/// build metadata,
+/// leading zeros,
+/// short and non-numeric versions.
 #[test]
 fn rejects_versions_that_are_not_plain_releases() {
     for version in ["1.0.0-alpha.1", "1.0.0+build", "01.0.0", "1.0", "1.0.x", ""] {
@@ -61,7 +71,11 @@ fn rejects_versions_that_are_not_plain_releases() {
     }
 }
 
-/// Every component is checked: empty, leading zero, extra, and digits outside ASCII.
+/// Every component is checked:
+/// empty,
+/// leading zero,
+/// extra,
+/// and digits outside ASCII.
 #[test]
 fn checks_every_component() {
     for version in [
@@ -81,7 +95,8 @@ fn checks_every_component() {
     assert_eq!(bump("10.0.0"), Ok(String::from("10.0.1")));
 }
 
-/// The incumbent's message, with the version quoted as `JSON.stringify` quotes it.
+/// The incumbent's message,
+/// with the version quoted as `JSON.stringify` quotes it.
 #[test]
 fn states_the_unsupported_message() {
     assert_eq!(
@@ -94,7 +109,9 @@ fn states_the_unsupported_message() {
     );
 }
 
-/// `JSON.stringify` escapes, lower-case `\u` escapes, and literal text.
+/// `JSON.stringify` escapes,
+/// lower-case `\u` escapes,
+/// and literal text.
 #[test]
 fn quotes_as_json_stringify() {
     assert_eq!(json_quote_units(&units("a\"b\\c")), "\"a\\\"b\\\\c\"");

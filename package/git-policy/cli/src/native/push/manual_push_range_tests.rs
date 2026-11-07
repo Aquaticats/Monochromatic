@@ -1,6 +1,8 @@
 //! Controls for the manual-push published set and range against real repositories.
-//! The TypeScript corpus is `src/policy-engine/manual-push-scope.unit.test.ts`; the cases that apply to commit
-//! pushes are reproduced here (tag, tree and blob targets are not ported and fail closed).
+//! The TypeScript corpus is `src/policy-engine/manual-push-scope.unit.test.ts`;
+//! the cases that apply to commit
+//! pushes are reproduced here (tag,
+//! tree and blob targets are not ported and fail closed).
 
 use super::*;
 use crate::auto_push_single_flight::PushGit;
@@ -97,7 +99,8 @@ fn only_locally_present_commits_are_peeled() {
     remove(repo.parent().expect("root"));
 }
 
-/// Tracking refs count only in their own remote's namespace, matched literally.
+/// Tracking refs count only in their own remote's namespace,
+/// matched literally.
 #[test]
 fn tracking_refs_are_matched_per_remote_literally() {
     let (repo, base) = published_repository("mp-range-tracking");
@@ -146,7 +149,8 @@ fn a_known_base_scans_only_the_new_commits() {
     remove(repo.parent().expect("root"));
 }
 
-/// With no published base, the pushed tip's whole tree is the scope.
+/// With no published base,
+/// the pushed tip's whole tree is the scope.
 #[test]
 fn an_unknown_base_scans_the_final_tree() {
     let (repo, _base) = published_repository("mp-range-final");
@@ -174,7 +178,8 @@ fn a_deletion_has_no_scope() {
     remove(repo.parent().expect("root"));
 }
 
-/// A pushed object that is not a commit fails closed, never an empty scope.
+/// A pushed object that is not a commit fails closed,
+/// never an empty scope.
 #[test]
 fn a_non_commit_target_fails_closed() {
     let (repo, _base) = published_repository("mp-range-tree");
@@ -186,7 +191,8 @@ fn a_non_commit_target_fails_closed() {
     remove(repo.parent().expect("root"));
 }
 
-/// The pushed scope lists each new commit's own delta and each tip tree's blobs, with no staged state.
+/// The pushed scope lists each new commit's own delta and each tip tree's blobs,
+/// with no staged state.
 #[test]
 fn the_pushed_scope_lists_commit_deltas_and_tree_blobs() {
     let (repo, base) = published_repository("mp-range-candidates");
@@ -248,7 +254,8 @@ fn the_pushed_scope_lists_commit_deltas_and_tree_blobs() {
     remove(repo.parent().expect("root"));
 }
 
-/// The range error prints as its diagnostic, so a refused push names the failed query.
+/// The range error prints as its diagnostic,
+/// so a refused push names the failed query.
 #[test]
 fn the_range_error_displays_its_message() {
     let error = ManualPushRangeError {

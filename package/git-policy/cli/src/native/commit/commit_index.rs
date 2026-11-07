@@ -4,30 +4,36 @@
 //!       its initialization for each selection mode,
 //!       the intended tree written from it,
 //!       its path listings,
-//!       the pathspec-file source, and
+//!       the pathspec-file source,
+//! and
 //!       interactive and patch selection run against it.
 //! Why:
 //!  Git's staging and selection run against a private index and the shadow object store,
 //!  so the real index and object store change only at landing.
-//!  A copy keeps the real index's timestamps, because Git re-reads a stat entry
-//!  whose time is not older than the index file (`index-file-timestamps.ts`, issue #544).
+//!  A copy keeps the real index's timestamps,
+//! because Git re-reads a stat entry
+//!  whose time is not older than the index file (`index-file-timestamps.ts`,
+//! issue #544).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await initializeCommitIndex({ workspace, gitPath, cwd, mode, pathspecs, baseRevision, ... });
 //! ```
 
-/// One required Git start, its request builder and the failure text.
+/// One required Git start,
+/// its request builder and the failure text.
 use crate::private_index_request::{CaptureIndexes, indexed_request};
 use crate::start_retry::RetryStart;
-/// Staged additions carried into the explicit-path index, and the pathspec-file reader.
+/// Staged additions carried into the explicit-path index,
+/// and the pathspec-file reader.
 use crate::commit_staged_additions::{
     StagedAddition, carry_additions, explain_ignored_refusal, pathspecs_of_file, staged_additions_selected,
 };
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
-/// The index copy steps, kept in a file of their own.
+/// The index copy steps,
+/// kept in a file of their own.
 pub use crate::commit_index_copying::copy_index_with_timestamps;
 use crate::commit_index_copying::{copy_index_failure, seeds_private_index};
 /// Real-Git command builder shared with the forwarded commands.
@@ -57,21 +63,25 @@ pub struct IndexSelection<'selection> {
     /// Positional pathspecs of the command,
     ///  exactly as the command line gave them.
     pub pathspecs: &'selection [OsString],
-    /// Materialized pathspec file, when the command names one.
+    /// Materialized pathspec file,
+    /// when the command names one.
     pub pathspec_file: Option<&'selection Path>,
     /// Whether the pathspec file separates records with NUL.
     pub pathspec_file_nul: bool,
     /// Whether an index commit stages the selected worktree content into its copy.
     pub stage_into_index: bool,
-    /// Whether an index commit stages every tracked change, as `commit -a` does.
+    /// Whether an index commit stages every tracked change,
+    /// as `commit -a` does.
     pub stage_tracked_changes: bool,
-    /// Recorded base commit, or the empty tree for an unborn base.
+    /// Recorded base commit,
+    /// or the empty tree for an unborn base.
     pub base_revision: &'selection str,
 }
 
 /// What:
 ///  The selection arguments of `git add`:
-///  the pathspecs after `--`, or the pathspec-file controls.
+///  the pathspecs after `--`,
+/// or the pathspec-file controls.
 /// Why:
 ///   Staging reads the same selection the policies were given.
 ///
@@ -123,7 +133,8 @@ fn private_git<S: AsRef<OsStr>>(
 
 /// What:
 ///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
-///  `&u8` borrows the byte, as `split` hands it over.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
 /// Why:
 ///   `split` takes this function by path where a closure would otherwise stand.
 ///
@@ -137,7 +148,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 
 /// What:
 ///  Whether one byte is the tab that separates the stage columns from the path in `git ls-files -u`.
-///  `&u8` borrows the byte, as `position` hands it over.
+///  `&u8` borrows the byte,
+/// as `position` hands it over.
 /// Why:
 ///   `position` takes this function by path where a closure would otherwise stand.
 ///
@@ -152,8 +164,10 @@ fn is_tab_byte(byte: &u8) -> bool {
 /// What:
 ///  Copies or builds the private commit index and snapshots the real index at invocation.
 /// Why:
-///   Index commits start from the real index, so their staged state is the state at invocation;
-///  explicit-path commits start from the recorded base, never live `HEAD`,
+///   Index commits start from the real index,
+/// so their staged state is the state at invocation;
+///  explicit-path commits start from the recorded base,
+/// never live `HEAD`,
 ///  because another landing may have moved it since invocation.
 ///
 /// In TS you'd write (pseudocode):
@@ -230,10 +244,14 @@ pub fn initialize_commit_index(
 }
 
 /// What:
-///  Stages the named paths into the private index, as Git's partial commit does: what the worktree holds at them, deletions
+///  Stages the named paths into the private index,
+/// as Git's partial commit does:
+/// what the worktree holds at them,
+/// deletions
 ///  included.
 /// Why:
-///   Both ways of making the private index (reset to the base, or the real index kept as it is) end here.
+///   Both ways of making the private index (reset to the base,
+/// or the real index kept as it is) end here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -259,11 +277,18 @@ fn add_selected_paths(
 }
 
 /// What:
-///  Whether the captured index holds exactly the tree of the base revision, answered without starting Git.
+///  Whether the captured index holds exactly the tree of the base revision,
+/// answered without starting Git.
 /// Why:
-///   The in-process reader of `diff-index --cached` lists the paths whose entry differs from the tree; it declines an index
-///  it does not fully understand (unmerged, intent-to-add, sparse, split) and a tree it cannot read, and a declined question
-///  is "not known to be equal", which takes the slow way.
+///   The in-process reader of `diff-index --cached` lists the paths whose entry differs from the tree;
+/// it declines an index
+///  it does not fully understand (unmerged,
+/// intent-to-add,
+/// sparse,
+/// split) and a tree it cannot read,
+/// and a declined question
+///  is "not known to be equal",
+/// which takes the slow way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -286,7 +311,9 @@ fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes,
 ///  Makes the selected paths that the real index stages as additions tracked in the private index.
 /// Why:
 ///   Native `git commit -- <path>` takes such a path's worktree content without asking an ignore rule,
-///  and the private index, which starts from the base, would otherwise apply the rule (issue #1807).
+///  and the private index,
+/// which starts from the base,
+/// would otherwise apply the rule (issue #1807).
 ///  A pathspec file that this wrapper cannot read leaves the selection to Git alone.
 ///
 /// In TS you'd write (pseudocode):
@@ -360,9 +387,12 @@ pub fn write_private_tree(
 }
 
 /// What:
-///  Lists the repository paths with unmerged stages, once each, in first-seen order.
+///  Lists the repository paths with unmerged stages,
+/// once each,
+/// in first-seen order.
 /// Why:
-///   A conflicted path cannot be committed by automatic fixes, so preparation refuses it.
+///   A conflicted path cannot be committed by automatic fixes,
+/// so preparation refuses it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -393,7 +423,8 @@ pub fn list_unmerged_index_paths(
 /// What:
 ///  Lists the paths the private index changes against the recorded base.
 /// Why:
-///   The base is the recorded one, so a landing that moved `HEAD` since invocation changes nothing here.
+///   The base is the recorded one,
+/// so a landing that moved `HEAD` since invocation changes nothing here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -427,7 +458,8 @@ pub fn list_changed_index_paths(
 /// What:
 ///  Runs `git add --patch` or `git add --interactive` against the private index with inherited stdio.
 /// Why:
-///   The user's terminal answers the selection, and the choice lands only in the private copy.
+///   The user's terminal answers the selection,
+/// and the choice lands only in the private copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

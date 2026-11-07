@@ -1,14 +1,32 @@
 //! What:
-//!  The filesystem section of `git monochromatic-git-policy-cli doctor`: what the repository's main checkout sits on (btrfs subvolume,
-//!  btrfs directory, overlayfs, other), whether the mount allows a regular user to delete a subvolume, and the exact
+//!  The filesystem section of `git monochromatic-git-policy-cli doctor`:
+//! what the repository's main checkout sits on (btrfs subvolume,
+//!  btrfs directory,
+//! overlayfs,
+//! other),
+//! whether the mount allows a regular user to delete a subvolume,
+//! and the exact
 //!  commands that change what can be changed.
 //! Why:
-//!  Cheap worktrees need a btrfs subvolume, and deleting a worktree that is a subvolume in one step needs the mount
-//!  option `user_subvol_rm_allowed`. Neither is visible to the person until something is slow, so the doctor says what
-//!  holds and prints the command, never runs it. Everything is informational: the section goes to standard error after
-//!  the hook report and never changes the exit status. It reads `statfs`, one inode number, `/proc/self/mountinfo`,
-//!  `/run/ostree-booted` and `/proc/cmdline`, and starts nothing. The facts are gathered apart from the wording
-//!  (`FilesystemFacts` in, text out), so the wording is tested on built facts and the exact-output controls of the
+//!  Cheap worktrees need a btrfs subvolume,
+//! and deleting a worktree that is a subvolume in one step needs the mount
+//!  option `user_subvol_rm_allowed`.
+//! Neither is visible to the person until something is slow,
+//! so the doctor says what
+//!  holds and prints the command,
+//! never runs it.
+//! Everything is informational:
+//! the section goes to standard error after
+//!  the hook report and never changes the exit status.
+//! It reads `statfs`,
+//! one inode number,
+//! `/proc/self/mountinfo`,
+//!  `/run/ostree-booted` and `/proc/cmdline`,
+//! and starts nothing.
+//! The facts are gathered apart from the wording
+//!  (`FilesystemFacts` in,
+//! text out),
+//! so the wording is tested on built facts and the exact-output controls of the
 //!  doctor and the management command stay independent of the host they run on.
 //!
 //! In TS you'd write (pseudocode):
@@ -22,7 +40,8 @@ use crate::shell_quote::shell_quote;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
-/// The first words of the first line of the section, which a caller can cut the section off at.
+/// The first words of the first line of the section,
+/// which a caller can cut the section off at.
 pub const SECTION_MARKER: &str = "git monochromatic-git-policy-cli doctor: filesystem:";
 
 /// The mount option that lets a regular user delete a subvolume in one step.
@@ -31,7 +50,8 @@ pub const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
 /// The marker file that systemd creates on an ostree or bootc host.
 const OSTREE_BOOTED_PATH: &str = "/run/ostree-booted";
 
-/// Where an ostree or bootc host mounts the filesystem that the kernel command line's `root=` and `rootflags=` name; `/`
+/// Where an ostree or bootc host mounts the filesystem that the kernel command line's `root=` and `rootflags=` name;
+/// `/`
 ///  there is a composefs overlay.
 const SYSROOT_PATH: &str = "/sysroot";
 
@@ -39,9 +59,11 @@ const SYSROOT_PATH: &str = "/sysroot";
 const CMDLINE_PATH: &str = "/proc/cmdline";
 
 /// What:
-///  The mount that holds the checkout, reduced to what the section needs.
+///  The mount that holds the checkout,
+/// reduced to what the section needs.
 /// Why:
-///   The remount command names the mount point, and the option check reads both option lists of the mount.
+///   The remount command names the mount point,
+/// and the option check reads both option lists of the mount.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,7 +83,8 @@ pub struct MountSummary {
 ///  Everything the section is written from.
 ///  `Vec<String>` is an owned list of owned text.
 /// Why:
-///   One value holds the host facts, so the wording is a pure function of it.
+///   One value holds the host facts,
+/// so the wording is a pure function of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -75,21 +98,29 @@ pub struct FilesystemFacts {
     pub kind: FilesystemKind,
     /// Whether the checkout is a subvolume root (inode 256 on btrfs).
     pub root_is_subvolume: bool,
-    /// The mount holding it, when the mount table could be read.
+    /// The mount holding it,
+    /// when the mount table could be read.
     pub mount: Option<MountSummary>,
-    /// The source of the filesystem the kernel command line's `rootflags=` configures: the mount at `/sysroot` on an
-    /// ostree host, else the mount at `/`.
+    /// The source of the filesystem the kernel command line's `rootflags=` configures:
+    /// the mount at `/sysroot` on an
+    /// ostree host,
+    /// else the mount at `/`.
     pub root_source: Option<String>,
     /// Whether the host is an ostree or bootc deployment (`/run/ostree-booted` exists).
     pub ostree_booted: bool,
-    /// The values of every `rootflags=` word on the running kernel command line, as written there (quotes included).
+    /// The values of every `rootflags=` word on the running kernel command line,
+    /// as written there (quotes included).
     pub kernel_rootflags: Vec<String>,
 }
 
 /// What:
-///  The words of a kernel command line, split as the kernel splits it: at whitespace outside double quotes.
+///  The words of a kernel command line,
+/// split as the kernel splits it:
+/// at whitespace outside double quotes.
 /// Why:
-///   A double quote toggles quoting wherever it stands in a word, so `rootflags="subvol=@my root"` is one word; the
+///   A double quote toggles quoting wherever it stands in a word,
+/// so `rootflags="subvol=@my root"` is one word;
+/// the
 ///  kernel's `next_arg` (`lib/cmdline.c` and `kernel/params.c`) counts quotes the same way and strips them afterwards.
 ///
 /// In TS you'd write (pseudocode):
@@ -123,8 +154,10 @@ fn command_line_words(command_line: &str) -> Vec<&str> {
 /// What:
 ///  A kernel argument value without the quote that opens it and the quote that closes it.
 /// Why:
-///   The kernel strips a leading quote from a value and a trailing one when the value had a leading one; quotes inside a
-///  value stay (they only toggled the splitting). The option check reads this form.
+///   The kernel strips a leading quote from a value and a trailing one when the value had a leading one;
+/// quotes inside a
+///  value stay (they only toggled the splitting).
+/// The option check reads this form.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -136,11 +169,17 @@ pub fn kernel_value(raw: &str) -> String {
 }
 
 /// What:
-///  The values of the `rootflags=` words of a kernel command line, as written there (a quoted value keeps its quotes).
+///  The values of the `rootflags=` words of a kernel command line,
+/// as written there (a quoted value keeps its quotes).
 /// Why:
-///   The persistent command on an ostree host replaces that exact value, so it is read from the running system and
-///  never guessed. The value is everything after the first `=`, because the value itself contains `=`. A word quoted as
-///  a whole (`"rootflags=a b"`) is unwrapped first, as the kernel does.
+///   The persistent command on an ostree host replaces that exact value,
+/// so it is read from the running system and
+///  never guessed.
+/// The value is everything after the first `=`,
+/// because the value itself contains `=`.
+/// A word quoted as
+///  a whole (`"rootflags=a b"`) is unwrapped first,
+/// as the kernel does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -167,7 +206,10 @@ pub fn parse_rootflags(command_line: &str) -> Vec<String> {
 /// What:
 ///  Read the facts for a checkout from the running system.
 /// Why:
-///   A fact that cannot be read becomes the plain answer (`None`, empty list, `false`), and the wording states less.
+///   A fact that cannot be read becomes the plain answer (`None`,
+/// empty list,
+/// `false`),
+/// and the wording states less.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -215,7 +257,9 @@ fn overlay_lines(facts: &FilesystemFacts) -> Vec<String> {
     ];
 }
 
-/// The value with the option added: inside the closing quote of a quoted value, at the end of any other.
+/// The value with the option added:
+/// inside the closing quote of a quoted value,
+/// at the end of any other.
 fn with_removal_option(raw: &str) -> String {
     if raw.starts_with('"') && raw.len() > 1 && let Some(inner) = raw.strip_suffix('"') {
         return format!("{inner},{REMOVAL_OPTION}\"");
@@ -233,7 +277,8 @@ fn lists_removal_option(options: &str) -> bool {
     return false;
 }
 
-/// The persistent way to set the option on an ostree host, for the filesystem the kernel command line configures.
+/// The persistent way to set the option on an ostree host,
+/// for the filesystem the kernel command line configures.
 fn kernel_argument_lines(facts: &FilesystemFacts) -> Vec<String> {
     return match facts.kernel_rootflags.as_slice() {
         [old] if lists_removal_option(&kernel_value(old)) => vec![format!(
@@ -253,7 +298,8 @@ fn kernel_argument_lines(facts: &FilesystemFacts) -> Vec<String> {
     };
 }
 
-/// The commands that make the removal option active, for the host the facts describe.
+/// The commands that make the removal option active,
+/// for the host the facts describe.
 fn removal_option_lines(facts: &FilesystemFacts, mount: &MountSummary) -> Vec<String> {
     let mount_point: &Path = mount.mount_point.as_path();
     let mut lines: Vec<String> = vec![
@@ -296,9 +342,12 @@ fn btrfs_lines(facts: &FilesystemFacts) -> Vec<String> {
 }
 
 /// What:
-///  The section text for the facts: lines ending in a line feed, the first beginning with `SECTION_MARKER`.
+///  The section text for the facts:
+/// lines ending in a line feed,
+/// the first beginning with `SECTION_MARKER`.
 /// Why:
-///   Pure wording, so every case is tested without the host.
+///   Pure wording,
+/// so every case is tested without the host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -316,12 +365,18 @@ pub fn render_section(facts: &FilesystemFacts) -> String {
 }
 
 /// What:
-///  The section for the repository whose common Git directory is given, read from the running system; empty when that
+///  The section for the repository whose common Git directory is given,
+/// read from the running system;
+/// empty when that
 ///  directory is not a `.git` directory (a bare repository has no main checkout) or its filesystem cannot be identified.
 /// Why:
-///   This is what the command appends to the doctor's standard error. Git chose the common directory, so a worktree,
-///  `-C` and `--git-dir` all lead to the right main checkout without a second guess. A repository the command cannot
-///  place adds no line, because a guess about the wrong directory would mislead.
+///   This is what the command appends to the doctor's standard error.
+/// Git chose the common directory,
+/// so a worktree,
+///  `-C` and `--git-dir` all lead to the right main checkout without a second guess.
+/// A repository the command cannot
+///  place adds no line,
+/// because a guess about the wrong directory would mislead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

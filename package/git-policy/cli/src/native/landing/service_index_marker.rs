@@ -24,9 +24,14 @@ use std::path::Path;
 /// the holding process and its birth identity.
 pub const LOCK_MARKER: &str = "cli-git-service ";
 
-/// What follows `LOCK_MARKER` in a marker of this release: a word that no earlier release's reader reads as a batch number, so
-///  an earlier release that finds such a lock reads no marker in it, and leaves it to a person as a lock it does not know. The
-///  stale-lock exclusion of this release (the claim chain) and the one of earlier releases (a `flock`) do not see each other, and
+/// What follows `LOCK_MARKER` in a marker of this release:
+/// a word that no earlier release's reader reads as a batch number,
+/// so
+///  an earlier release that finds such a lock reads no marker in it,
+/// and leaves it to a person as a lock it does not know.
+/// The
+///  stale-lock exclusion of this release (the claim chain) and the one of earlier releases (a `flock`) do not see each other,
+/// and
 ///  this keeps each release's reclaimers to the locks written in its own format.
 pub const MARKER_VERSION: &str = "v2 ";
 
@@ -41,7 +46,8 @@ pub struct Marked {
     /// The holding process and its birth identity;
     /// none in a marker a release before this one wrote.
     pub holder: Option<(i64, String)>,
-    /// Whether the marker is in the format of this release (`MARKER_VERSION`), as opposed to an earlier release's.
+    /// Whether the marker is in the format of this release (`MARKER_VERSION`),
+    /// as opposed to an earlier release's.
     pub current: bool,
 }
 
@@ -122,7 +128,9 @@ pub fn is_reclaimable(lock: &Path) -> bool {
     return matches!(marker_of(lock), Some(marked) if holder_is_gone(marked.holder.as_ref()));
 }
 
-/// The marker of the already open `file`, read from its start, when it holds one.
+/// The marker of the already open `file`,
+/// read from its start,
+/// when it holds one.
 pub fn marker_of_file(file: &std::fs::File) -> Option<Marked> {
     let mut text: String = String::new();
     // A shared reference reads from the file's own position, which a fresh descriptor has at the start.

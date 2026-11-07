@@ -10,7 +10,11 @@ fn pointer(size: &str) -> String {
     return format!("version https://git-lfs.github.com/spec/v1\noid sha256:{OID}\nsize {size}\n");
 }
 
-/// The canonical pointer, the older versions, and tolerated spellings (no final line feed, carriage returns, blank lines,
+/// The canonical pointer,
+/// the older versions,
+/// and tolerated spellings (no final line feed,
+/// carriage returns,
+/// blank lines,
 ///  a leading `+` on the size) are pointers.
 #[test]
 fn pointers_in_every_accepted_spelling_name_their_object() {
@@ -26,7 +30,8 @@ fn pointers_in_every_accepted_spelling_name_their_object() {
     }
 }
 
-/// White space around the text, trailing spaces after a value and a missing final line feed do not change the verdict.
+/// White space around the text,
+/// trailing spaces after a value and a missing final line feed do not change the verdict.
 #[test]
 fn white_space_around_the_text_is_ignored() {
     let expected: Verdict = Verdict::Pointer(OID.to_owned());
@@ -35,8 +40,16 @@ fn white_space_around_the_text_is_ignored() {
     assert_eq!(decode_pointer(pointer("5").trim_end().as_bytes()), expected);
 }
 
-/// Everything that is not a pointer for `git-lfs` uploads nothing: plain text, a wrong version, a bad object name, a bad
-///  size, keys out of order, a missing key, an extra line, an empty blob and a pointer of size zero.
+/// Everything that is not a pointer for `git-lfs` uploads nothing:
+/// plain text,
+/// a wrong version,
+/// a bad object name,
+/// a bad
+///  size,
+/// keys out of order,
+/// a missing key,
+/// an extra line,
+/// an empty blob and a pointer of size zero.
 #[test]
 fn text_that_git_lfs_would_not_take_for_a_pointer_uploads_nothing() {
     let canonical: String = pointer("9");
@@ -63,7 +76,8 @@ fn text_that_git_lfs_would_not_take_for_a_pointer_uploads_nothing() {
     }
 }
 
-/// A blob of the cutoff size or more is never read as a pointer, one byte under it still is.
+/// A blob of the cutoff size or more is never read as a pointer,
+/// one byte under it still is.
 #[test]
 fn the_size_cutoff_is_exclusive() {
     let canonical: String = pointer("9");
@@ -76,7 +90,8 @@ fn the_size_cutoff_is_exclusive() {
     assert_eq!(decode_pointer(&vec![b'a'; BLOB_SIZE_CUTOFF * 4]), Verdict::NotUploadable);
 }
 
-/// Extension lines and non-ASCII edges around a text the port cannot judge are declined, never guessed.
+/// Extension lines and non-ASCII edges around a text the port cannot judge are declined,
+/// never guessed.
 #[test]
 fn spellings_the_port_cannot_judge_are_declined() {
     let with_extension: String = format!(
@@ -89,7 +104,8 @@ fn spellings_the_port_cannot_judge_are_declined() {
     assert_eq!(decode_pointer(edged.as_slice()), Verdict::Decline);
 }
 
-/// The real `git-lfs` on the test process's PATH, if any.
+/// The real `git-lfs` on the test process's PATH,
+/// if any.
 fn real_git_lfs() -> Option<std::path::PathBuf> {
     let path: std::ffi::OsString = std::env::var_os("PATH")?;
     return std::env::split_paths(&path)
@@ -97,7 +113,8 @@ fn real_git_lfs() -> Option<std::path::PathBuf> {
         .find(|candidate| { return candidate.is_file(); });
 }
 
-/// Whether `git-lfs pointer --check` takes the text for a pointer (`DecodePointerFromFile`, the decoder `git-lfs` uses).
+/// Whether `git-lfs pointer --check` takes the text for a pointer (`DecodePointerFromFile`,
+/// the decoder `git-lfs` uses).
 fn oracle_accepts(program: &std::path::Path, directory: &std::path::Path, text: &[u8]) -> bool {
     let file: std::path::PathBuf = directory.join("blob.txt");
     std::fs::write(&file, text).expect("blob");
@@ -117,9 +134,16 @@ fn oracle_accepts(program: &std::path::Path, directory: &std::path::Path, text: 
     };
 }
 
-/// The port agrees with the real decoder: whatever it names as a pointer `git-lfs` accepts, and whatever `git-lfs` rejects
-///  it does not name; the only accepted texts it does not name are the ones that upload nothing (empty, size zero) and the
-///  ones it declines (extension lines). Skipped, with a note, on hosts without `git-lfs`.
+/// The port agrees with the real decoder:
+/// whatever it names as a pointer `git-lfs` accepts,
+/// and whatever `git-lfs` rejects
+///  it does not name;
+/// the only accepted texts it does not name are the ones that upload nothing (empty,
+/// size zero) and the
+///  ones it declines (extension lines).
+/// Skipped,
+/// with a note,
+/// on hosts without `git-lfs`.
 #[test]
 fn the_port_agrees_with_the_real_decoder() {
     let Some(program) = real_git_lfs() else {

@@ -4,7 +4,10 @@
 //!  Controls on the two spellings of the management command word.
 //! Why:
 //!  The owner renamed `git monochromatic-git-policy-cli <command>` to `git monochromatic-git-policy-cli <command>` and decided the earlier
-//!  spelling "still works, with a one-line notice": the same behaviour for every command, and exactly one line more on
+//!  spelling "still works,
+//! with a one-line notice":
+//! the same behaviour for every command,
+//! and exactly one line more on
 //!  standard error that names the new spelling.
 //!
 //! In TS you'd write (pseudocode):

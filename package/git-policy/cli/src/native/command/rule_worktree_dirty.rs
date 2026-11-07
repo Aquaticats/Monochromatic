@@ -1,8 +1,13 @@
 //! What:
-//!  The question "does this worktree hold uncommitted state?" as one Git query and its reading.
+//!  The question "does this worktree hold uncommitted state?"
+//! as one Git query and its reading.
 //! Why:
-//!  A command that can discard uncommitted state is judged by whether any exists: a clean linked worktree has
-//!  nothing to lose, a dirty one does. Tracked changes (staged or not) always count; untracked files count only
+//!  A command that can discard uncommitted state is judged by whether any exists:
+//! a clean linked worktree has
+//!  nothing to lose,
+//! a dirty one does.
+//! Tracked changes (staged or not) always count;
+//! untracked files count only
 //!  for the commands that delete them.
 //!
 //! In TS you'd write (pseudocode):
@@ -18,7 +23,9 @@ use std::path::Path;
 ///  Which files count as uncommitted state.
 ///  An `enum` is a closed set of named alternatives.
 /// Why:
-///   A `reset --hard` loses tracked changes only, a `clean` loses untracked files only; asking for the
+///   A `reset --hard` loses tracked changes only,
+/// a `clean` loses untracked files only;
+/// asking for the
 ///  wrong set would reject a harmless command or let a destructive one through.
 ///
 /// In TS you'd write (pseudocode):
@@ -34,10 +41,12 @@ pub enum DirtyScope {
 }
 
 /// What:
-///  The arguments of the status query, after the invocation's global options.
+///  The arguments of the status query,
+/// after the invocation's global options.
 ///  `Vec<OsString>` is an owned list of byte-preserving text.
 /// Why:
-///   `--no-optional-locks` keeps a read from writing the index, and the porcelain form is stable across
+///   `--no-optional-locks` keeps a read from writing the index,
+/// and the porcelain form is stable across
 ///  Git versions.
 ///
 /// In TS you'd write (pseudocode):
@@ -58,10 +67,13 @@ pub fn dirty_query_arguments(global_prefix: &[OsString], scope: DirtyScope) -> V
 }
 
 /// What:
-///  Read the query: any output line means uncommitted state exists.
-///  `Result<bool, String>` is "the answer, or why Git could not give one".
+///  Read the query:
+/// any output line means uncommitted state exists.
+///  `Result<bool, String>` is "the answer,
+/// or why Git could not give one".
 /// Why:
-///   A status that failed says nothing, and a safety check must not read a failure as "clean".
+///   A status that failed says nothing,
+/// and a safety check must not read a failure as "clean".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -81,16 +93,29 @@ pub fn dirty_from_output(output: &MetadataOutput) -> Result<bool, String> {
 }
 
 /// What:
-///  Whether a Git directory has never had an index file: the state `git clone --no-checkout` leaves.
-///  `Option<&Path>` is "a borrowed path or nothing"; the second argument is the value of `GIT_INDEX_FILE`, injected so tests
+///  Whether a Git directory has never had an index file:
+/// the state `git clone --no-checkout` leaves.
+///  `Option<&Path>` is "a borrowed path or nothing";
+/// the second argument is the value of `GIT_INDEX_FILE`,
+/// injected so tests
 ///  never read the process environment.
 /// Why:
-///   With no index file Git sees an initial checkout and has nothing of the user's to protect: `builtin/checkout.c` sets
+///   With no index file Git sees an initial checkout and has nothing of the user's to protect:
+/// `builtin/checkout.c` sets
 ///  `initial_checkout = is_index_unborn(...)` and `is_index_unborn` in `read-cache.c` is `!istate->cache_nr && !istate->timestamp.sec`,
-///  so `unpack-trees.c` skips the rejection of a staged deletion (`if (oldtree && !o->initial_checkout)`). `git status` still lists every
-///  committed file as a staged deletion there, which the guard read as uncommitted work. The definition stays as narrow as Git's: an index
-///  file that exists, empty or not, is never absent, so a staged deletion of every file still counts; a `GIT_INDEX_FILE` that names
-///  another index, an unreadable Git directory and a Git directory that does not exist all answer false and leave the question to `git status`.
+///  so `unpack-trees.c` skips the rejection of a staged deletion (`if (oldtree && !o->initial_checkout)`).
+/// `git status` still lists every
+///  committed file as a staged deletion there,
+/// which the guard read as uncommitted work.
+/// The definition stays as narrow as Git's:
+/// an index
+///  file that exists,
+/// empty or not,
+/// is never absent,
+/// so a staged deletion of every file still counts;
+/// a `GIT_INDEX_FILE` that names
+///  another index,
+/// an unreadable Git directory and a Git directory that does not exist all answer false and leave the question to `git status`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,7 +135,9 @@ pub fn index_file_is_absent(git_directory: Option<&Path>, index_file_variable: O
     };
 }
 
-/// Arguments of each scope and the reading of a successful, empty, non-empty and failed status.
+/// Arguments of each scope and the reading of a successful,
+/// empty,
+/// non-empty and failed status.
 #[cfg(test)]
 #[path = "rule_worktree_dirty_tests.rs"]
 mod tests;

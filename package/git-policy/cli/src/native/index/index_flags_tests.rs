@@ -1,16 +1,19 @@
-//! Controls for the index flag reader, each compared with what real Git reports for the same index:
+//! Controls for the index flag reader,
+//! each compared with what real Git reports for the same index:
 //!  `git ls-files -v` tags an assume-unchanged entry with a lower-case letter and a skip-worktree entry with `S`.
 
 use super::*;
 use crate::test_support::{fixture, git, git_text, remove, repository};
 use std::path::{Path, PathBuf};
 
-/// Names of every length from one character up, so every padding of an entry is read.
+/// Names of every length from one character up,
+/// so every padding of an entry is read.
 fn names_of_every_length() -> Vec<String> {
     return (1..=18).map(|length| { return "n".repeat(length); }).collect();
 }
 
-/// A repository with the files committed, plus a path longer than one directory name can be.
+/// A repository with the files committed,
+/// plus a path longer than one directory name can be.
 fn populated_repository(root: &Path) -> PathBuf {
     let repo: PathBuf = repository(root, "repo");
     let deep: PathBuf = repo.join("d".repeat(200)).join("e".repeat(200));
@@ -30,7 +33,8 @@ fn read(repo: &Path) -> IndexFlags {
     return read_index_flags(bytes.as_slice());
 }
 
-/// What real Git says: whether any entry is tagged assume-unchanged (lower case) or skip-worktree (`S`).
+/// What real Git says:
+/// whether any entry is tagged assume-unchanged (lower case) or skip-worktree (`S`).
 fn git_says_marked(repo: &Path) -> bool {
     let listing: String = git_text(repo, &["ls-files", "-v"]);
     return listing.lines().any(|line| {
@@ -45,7 +49,9 @@ fn assert_agrees(repo: &Path, expected_marked: bool) {
     assert_eq!(read(repo), expected);
 }
 
-/// An index with no mark is plain, whatever the version, entry padding and name length.
+/// An index with no mark is plain,
+/// whatever the version,
+/// entry padding and name length.
 #[test]
 fn an_unmarked_index_is_plain_in_every_version() {
     let root: PathBuf = fixture("index-flags-plain");
@@ -58,7 +64,10 @@ fn an_unmarked_index_is_plain_in_every_version() {
     remove(root.as_path());
 }
 
-/// An assume-unchanged entry marks the index, in the old and the prefix-compressed layout, for the first, a middle and
+/// An assume-unchanged entry marks the index,
+/// in the old and the prefix-compressed layout,
+/// for the first,
+/// a middle and
 ///  the last entry.
 #[test]
 fn an_assume_unchanged_entry_marks_the_index() {
@@ -78,12 +87,16 @@ fn an_assume_unchanged_entry_marks_the_index() {
     remove(root.as_path());
 }
 
-/// Whether real Git reports an intent-to-add entry: `git status --porcelain` prints it as ` A` (index unchanged, work tree added).
+/// Whether real Git reports an intent-to-add entry:
+/// `git status --porcelain` prints it as ` A` (index unchanged,
+/// work tree added).
 fn git_says_intent_to_add(repo: &Path) -> bool {
     return git_text(repo, &["status", "--porcelain"]).lines().any(|line| { return line.starts_with(" A "); });
 }
 
-/// An intent-to-add entry marks the index, in both entry layouts that carry extended flags, and clearing it unmarks it.
+/// An intent-to-add entry marks the index,
+/// in both entry layouts that carry extended flags,
+/// and clearing it unmarks it.
 #[test]
 fn an_intent_to_add_entry_marks_the_index() {
     let root: PathBuf = fixture("index-flags-intent");
@@ -116,7 +129,8 @@ fn a_skip_worktree_entry_marks_the_index() {
     remove(root.as_path());
 }
 
-/// A SHA-256 repository has longer object names; the reader finds the marks there too.
+/// A SHA-256 repository has longer object names;
+/// the reader finds the marks there too.
 #[test]
 fn a_sha256_index_is_read_with_its_longer_object_names() {
     let root: PathBuf = fixture("index-flags-sha256");
@@ -133,7 +147,8 @@ fn a_sha256_index_is_read_with_its_longer_object_names() {
     remove(root.as_path());
 }
 
-/// A split index keeps entries in another file, so nothing is known about its marks.
+/// A split index keeps entries in another file,
+/// so nothing is known about its marks.
 #[test]
 fn a_split_index_is_unreadable() {
     let root: PathBuf = fixture("index-flags-split");
@@ -143,7 +158,9 @@ fn a_split_index_is_unreadable() {
     remove(root.as_path());
 }
 
-/// An index with no entries is plain, and anything that is not a whole index is unreadable, never plain.
+/// An index with no entries is plain,
+/// and anything that is not a whole index is unreadable,
+/// never plain.
 #[test]
 fn an_empty_index_is_plain_and_damaged_bytes_are_unreadable() {
     let root: PathBuf = fixture("index-flags-damaged");

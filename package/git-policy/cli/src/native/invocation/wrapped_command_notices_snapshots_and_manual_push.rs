@@ -1,10 +1,16 @@
 //! What:
-//!  Steps of a wrapped command that do not decide its ending: the escape-hatch use record, the push failure notices
-//!  shown before the next command, the snapshot taken before a linked worktree is removed, and the preparation of a
+//!  Steps of a wrapped command that do not decide its ending:
+//! the escape-hatch use record,
+//! the push failure notices
+//!  shown before the next command,
+//! the snapshot taken before a linked worktree is removed,
+//! and the preparation of a
 //!  manual push.
 //! Why:
-//!  `wrapped_command.rs` runs the guarded stages in order; these steps stand beside them and depend on none of its
-//!  outcome types, so they sit in a file it uses.
+//!  `wrapped_command.rs` runs the guarded stages in order;
+//! these steps stand beside them and depend on none of its
+//!  outcome types,
+//! so they sit in a file it uses.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -52,8 +58,10 @@ use std::path::{Path, PathBuf};
 ///  Record a guarded command form that runs because the invocation carries the escape for the linked-worktree-only
 ///  policy.
 /// Why:
-///   The policy never runs under its escape, so nothing else would say that a discarding form was deliberately let
-///  through; a later loss must be attributable to the escape.
+///   The policy never runs under its escape,
+/// so nothing else would say that a discarding form was deliberately let
+///  through;
+/// a later loss must be attributable to the escape.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,13 +81,21 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
 }
 
 /// What:
-///  Shows, on standard error, each backup push failure the service recorded since one was last shown and that belongs to this
-///  worktree, before the command runs.
+///  Shows,
+/// on standard error,
+/// each backup push failure the service recorded since one was last shown and that belongs to this
+///  worktree,
+/// before the command runs.
 /// Why:
-///   The service pushes after a commit returned, so the command that made the commit cannot print the failure; the next
-///  command in the worktree whose commit it was does, because the records live under that worktree's own Git directory.
+///   The service pushes after a commit returned,
+/// so the command that made the commit cannot print the failure;
+/// the next
+///  command in the worktree whose commit it was does,
+/// because the records live under that worktree's own Git directory.
 ///  A command whose output a program reads shows nothing and takes
-///  nothing, and neither does a command run where the repository is not found without starting Git. When nothing
+///  nothing,
+/// and neither does a command run where the repository is not found without starting Git.
+/// When nothing
 ///  failed the check is one directory read.
 ///
 /// In TS you'd write (pseudocode):
@@ -126,9 +142,12 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
 }
 
 /// What:
-///  The name Git gives a commit in this repository as it is now, for the failure notices.
+///  The name Git gives a commit in this repository as it is now,
+/// for the failure notices.
 /// Why:
-///   The notices abbreviate each commit the way Git does at the moment they are shown; the Git context, the directory and the
+///   The notices abbreviate each commit the way Git does at the moment they are shown;
+/// the Git context,
+/// the directory and the
 ///  object directory are the state each question needs.
 ///
 /// In TS you'd write (pseudocode):
@@ -151,12 +170,18 @@ impl CommitNamer for GitShortName<'_> {
 }
 
 /// What:
-///  Before `git worktree remove` or `git worktree prune`, copies the records of the linked worktrees into snapshots that
+///  Before `git worktree remove` or `git worktree prune`,
+/// copies the records of the linked worktrees into snapshots that
 ///  survive the removal.
 /// Why:
-///   Git deletes a removed worktree's Git directory, and with it the failed pushes nobody was told about and the pushes the
-///  service had not run yet; the process is handed to Git, so only a copy made first can keep them. Which worktrees go is
-///  decided later, from whether each still exists (`worktree_removal_rescue.rs`).
+///   Git deletes a removed worktree's Git directory,
+/// and with it the failed pushes nobody was told about and the pushes the
+///  service had not run yet;
+/// the process is handed to Git,
+/// so only a copy made first can keep them.
+/// Which worktrees go is
+///  decided later,
+/// from whether each still exists (`worktree_removal_rescue.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -187,8 +212,10 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 /// What:
 ///  Discover the scope of a manual push and hand it to the manual-push stage as its candidates.
 /// Why:
-///   The stage reads only what the push publishes, and the discovery runs against the repository the
-///  command targets, with the invocation's global options and environment.
+///   The stage reads only what the push publishes,
+/// and the discovery runs against the repository the
+///  command targets,
+/// with the invocation's global options and environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

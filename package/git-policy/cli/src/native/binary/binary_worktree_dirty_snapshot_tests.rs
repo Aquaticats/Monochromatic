@@ -1,11 +1,20 @@
 //! What:
-//!  A main checkout with uncommitted changes is still snapshotted, and the new worktree equals what a clean `git worktree add`
-//!  makes, through the built executable.
+//!  A main checkout with uncommitted changes is still snapshotted,
+//! and the new worktree equals what a clean `git worktree add`
+//!  makes,
+//! through the built executable.
 //! Why:
-//!  The owner works in the main checkout, which is dirty most of the time; refusing the snapshot then costs minutes. The new
-//!  worktree must hold the committed bytes, no staged change, no untracked file that Git shows and all of the ignored state,
-//!  and the main checkout must not change by one byte. Every control compares with a worktree real Git made from the same
-//!  commit, and the sign that a snapshot served the command is the ignored state only a snapshot carries.
+//!  The owner works in the main checkout,
+//! which is dirty most of the time;
+//! refusing the snapshot then costs minutes.
+//! The new
+//!  worktree must hold the committed bytes,
+//! no staged change,
+//! no untracked file that Git shows and all of the ignored state,
+//!  and the main checkout must not change by one byte.
+//! Every control compares with a worktree real Git made from the same
+//!  commit,
+//! and the sign that a snapshot served the command is the ignored state only a snapshot carries.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,7 +22,8 @@
 //! // expect(snapshotOf('repo')).toEqual(snapshotBefore); // the main checkout is untouched
 //! ```
 
-/// Import the shared fixtures, and the helpers of the snapshot controls.
+/// Import the shared fixtures,
+/// and the helpers of the snapshot controls.
 use super::support::{Fixture, Observed, fixture, git, observe, remove, run_wrapped, stderr_of, wrapped};
 use super::worktree_snapshot::{add_pair, carries_ignored_state, commit_all, on_btrfs_or_acknowledged, subvolume_repository, tracked, tracked_content};
 use std::collections::BTreeMap;
@@ -23,12 +33,24 @@ use std::path::{Path, PathBuf};
 /// The words that mark the line saying an add was not made as a snapshot.
 const SLOW_MARK: &str = "not made as a snapshot";
 
-/// What the person is told after a snapshot of a dirty main checkout: the changes were left out.
+/// What the person is told after a snapshot of a dirty main checkout:
+/// the changes were left out.
 const LEFT_OUT_MARK: &str = "uncommitted changes";
 
-/// A main checkout that is a subvolume, with a third commit that adds the files the changes below need, then every kind of
-///  change: an unstaged edit, a file staged and then edited again, a staged deletion, an unstaged deletion, a staged rename,
-///  a mode change, untracked files, an untracked directory with an ignored file in it, an empty untracked directory, and
+/// A main checkout that is a subvolume,
+/// with a third commit that adds the files the changes below need,
+/// then every kind of
+///  change:
+/// an unstaged edit,
+/// a file staged and then edited again,
+/// a staged deletion,
+/// an unstaged deletion,
+/// a staged rename,
+///  a mode change,
+/// untracked files,
+/// an untracked directory with an ignored file in it,
+/// an empty untracked directory,
+/// and
 ///  installed dependencies in an ignored `node_modules`.
 fn dirty_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = subvolume_repository(fixture);
@@ -59,7 +81,9 @@ fn dirty_repository(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// Every file below `root` outside `.git` with its mode and bytes, and the index of `.git`, as they are now.
+/// Every file below `root` outside `.git` with its mode and bytes,
+/// and the index of `.git`,
+/// as they are now.
 fn state_of(root: &Path) -> BTreeMap<String, (u32, Vec<u8>)> {
     fn walk(base: &Path, directory: &Path, found: &mut BTreeMap<String, (u32, Vec<u8>)>) {
         for entry in std::fs::read_dir(directory).expect("listing").flatten() {
@@ -85,7 +109,8 @@ fn state_of(root: &Path) -> BTreeMap<String, (u32, Vec<u8>)> {
     return found;
 }
 
-/// The new worktree equals a worktree real Git made from the same commit, and everything else about it is as a snapshot leaves it.
+/// The new worktree equals a worktree real Git made from the same commit,
+/// and everything else about it is as a snapshot leaves it.
 fn assert_equals_gits_checkout(fixture: &Fixture, created: &Observed, topic: &Path, control: &Path, repo: &Path) {
     assert_eq!(created.code, Some(0), "{}", stderr_of(created));
     assert_eq!(tracked_content(fixture, topic), tracked_content(fixture, control), "tracked files equal Git's checkout");
@@ -103,8 +128,11 @@ fn assert_equals_gits_checkout(fixture: &Fixture, created: &Observed, topic: &Pa
     assert!(!repo.join(".git/index.lock").exists());
 }
 
-/// A dirty main checkout is snapshotted: the new worktree equals Git's own checkout, the person is told the changes were left
-///  out, and the main checkout is byte for byte what it was.
+/// A dirty main checkout is snapshotted:
+/// the new worktree equals Git's own checkout,
+/// the person is told the changes were left
+///  out,
+/// and the main checkout is byte for byte what it was.
 #[test]
 fn a_dirty_main_checkout_is_snapshotted_and_restored_to_gits_own_result() {
     let fixture: Fixture = fixture("dirty-snapshot");
@@ -124,7 +152,8 @@ fn a_dirty_main_checkout_is_snapshotted_and_restored_to_gits_own_result() {
     remove(&fixture);
 }
 
-/// The same, for a target commit older than the source's `HEAD`.
+/// The same,
+/// for a target commit older than the source's `HEAD`.
 #[test]
 fn a_dirty_main_checkout_with_an_older_target_commit_equals_gits_checkout() {
     let fixture: Fixture = fixture("dirty-older");
@@ -162,8 +191,12 @@ fn quiet_silences_the_note_about_left_out_changes() {
     remove(&fixture);
 }
 
-/// Every refusal that is not an ordinary change still holds: an unfinished merge, a running Git command, a skip-worktree entry
-///  and an assume-unchanged entry each send the add the slow way, with the sentence that names the cause.
+/// Every refusal that is not an ordinary change still holds:
+/// an unfinished merge,
+/// a running Git command,
+/// a skip-worktree entry
+///  and an assume-unchanged entry each send the add the slow way,
+/// with the sentence that names the cause.
 #[test]
 fn the_refusals_that_are_no_ordinary_change_still_hold() {
     let fixture: Fixture = fixture("dirty-refusals");
@@ -204,7 +237,8 @@ fn the_refusals_that_are_no_ordinary_change_still_hold() {
     remove(&fixture);
 }
 
-/// A changed `.gitattributes` file could change how the restore writes other files, so that source is left to Git's checkout.
+/// A changed `.gitattributes` file could change how the restore writes other files,
+/// so that source is left to Git's checkout.
 #[test]
 fn a_changed_attributes_file_sends_the_add_the_slow_way() {
     let fixture: Fixture = fixture("dirty-attributes");
@@ -221,19 +255,26 @@ fn a_changed_attributes_file_sends_the_add_the_slow_way() {
     remove(&fixture);
 }
 
-/// Move a path's modification time `seconds` into the past, so a stat comparison sees a time that Git's index never recorded.
+/// Move a path's modification time `seconds` into the past,
+/// so a stat comparison sees a time that Git's index never recorded.
 fn set_mtime_seconds_ago(path: &Path, seconds: u64) {
     let file: std::fs::File = std::fs::File::options().write(true).open(path).expect("open to set the time");
     file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(seconds)).expect("set the modification time");
 }
 
-/// Whether any stderr line says changes were left out of the new worktree; with none to leave out, the line would be false.
+/// Whether any stderr line says changes were left out of the new worktree;
+/// with none to leave out,
+/// the line would be false.
 fn says_changes_were_left_out(text: &str) -> bool {
     return text.lines().any(|line: &str| { return line.starts_with("monochromatic-git-policy-cli: ") && line.contains(LEFT_OUT_MARK); });
 }
 
-/// What the person sees when the main checkout holds no change at all: a snapshot, equal to Git's checkout, with nothing said about
-///  changes, and the main checkout byte for byte what it was.
+/// What the person sees when the main checkout holds no change at all:
+/// a snapshot,
+/// equal to Git's checkout,
+/// with nothing said about
+///  changes,
+/// and the main checkout byte for byte what it was.
 fn assert_snapshotted_without_changes(fixture: &Fixture, repo: &Path) {
     let before = state_of(repo);
     let (created, _control) = add_pair(fixture, repo, "topic", "control", &["-b", "NAME", "../NAME"]);
@@ -252,8 +293,10 @@ fn assert_snapshotted_without_changes(fixture: &Fixture, repo: &Path) {
     assert_eq!(state_of(repo), before, "the main checkout is untouched");
 }
 
-/// A main checkout whose index is as new as its files (a merge or a pull just wrote both) has no change, and Git says so by content;
-///  the stat data cannot vouch for the files, and that alone must not cost the snapshot.
+/// A main checkout whose index is as new as its files (a merge or a pull just wrote both) has no change,
+/// and Git says so by content;
+///  the stat data cannot vouch for the files,
+/// and that alone must not cost the snapshot.
 #[test]
 fn a_main_checkout_whose_files_are_as_new_as_its_index_is_snapshotted() {
     let fixture: Fixture = fixture("dirty-racy-index");
@@ -269,8 +312,11 @@ fn a_main_checkout_whose_files_are_as_new_as_its_index_is_snapshotted() {
     remove(&fixture);
 }
 
-/// A main checkout whose tracked file has another modification time than its index entry records, with the same bytes (a file
-///  touched, or written again with the same content), has no change either.
+/// A main checkout whose tracked file has another modification time than its index entry records,
+/// with the same bytes (a file
+///  touched,
+/// or written again with the same content),
+/// has no change either.
 #[test]
 fn a_main_checkout_with_a_touched_file_of_the_same_bytes_is_snapshotted() {
     let fixture: Fixture = fixture("dirty-stale-index");
@@ -285,8 +331,10 @@ fn a_main_checkout_with_a_touched_file_of_the_same_bytes_is_snapshotted() {
     remove(&fixture);
 }
 
-/// The journal receives one ordinary-level entry that a snapshot left the changes out, with the destination and the number of
-///  paths, also under `--quiet`.
+/// The journal receives one ordinary-level entry that a snapshot left the changes out,
+/// with the destination and the number of
+///  paths,
+/// also under `--quiet`.
 #[test]
 fn the_journal_records_that_changes_were_left_out_even_when_quiet() {
     use std::os::linux::net::SocketAddrExt;
@@ -329,9 +377,14 @@ fn the_journal_records_that_changes_were_left_out_even_when_quiet() {
 /// What:
 ///  What a snapshot add of a dirty main checkout prints on standard output.
 /// Why:
-///   The restore of the stage runs `git clean` without `--quiet` (the owner's rule), and Git then says "Removing <path>" for each
-///  untracked file of the stage, a stage the person's command never names and native `git worktree add` has no such lines for.
-///  Those words are kept in the journal, so the person sees only what native Git's add prints: the line of the checkout, and
+///   The restore of the stage runs `git clean` without `--quiet` (the owner's rule),
+/// and Git then says "Removing <path>" for each
+///  untracked file of the stage,
+/// a stage the person's command never names and native `git worktree add` has no such lines for.
+///  Those words are kept in the journal,
+/// so the person sees only what native Git's add prints:
+/// the line of the checkout,
+/// and
 ///  nothing under `--quiet`.
 ///
 /// In TS you'd write (pseudocode):

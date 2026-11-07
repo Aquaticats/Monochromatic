@@ -1,12 +1,17 @@
-//! The owner of a copy transaction's items: its token, and the proof of whether it still runs.
+//! The owner of a copy transaction's items:
+//! its token,
+//! and the proof of whether it still runs.
 
 use super::*;
 use std::path::PathBuf;
 
-/// A process id no running process has, large enough that the kernel's default limit never reaches it.
+/// A process id no running process has,
+/// large enough that the kernel's default limit never reaches it.
 const UNUSED_PID: i64 = 4_000_000_000;
 
-/// A token names its owner exactly, holds no dot or other character that would split a journal's name, and stays short.
+/// A token names its owner exactly,
+/// holds no dot or other character that would split a journal's name,
+/// and stays short.
 #[test]
 fn a_token_round_trips_and_is_safe_in_a_file_name() {
     let owner: CopyOwner = CopyOwner { pid: 77, birth_identity: String::from("linux:123"), pid_namespace: Some(String::from("pid:[4026531836]")) };
@@ -22,7 +27,10 @@ fn a_token_round_trips_and_is_safe_in_a_file_name() {
     assert_eq!(CopyOwner::from_token(awkward_token.as_str()), Some(awkward));
 }
 
-/// Text that is no token names nobody: a name an older release wrote, a stranger's file, or a damaged token.
+/// Text that is no token names nobody:
+/// a name an older release wrote,
+/// a stranger's file,
+/// or a damaged token.
 #[test]
 fn text_that_is_not_a_token_names_nobody() {
     assert_eq!(CopyOwner::from_token("json"), None);
@@ -34,7 +42,9 @@ fn text_that_is_not_a_token_names_nobody() {
     assert_eq!(CopyOwner::from_token("5~linux:%4~"), None, "an escape cut short");
 }
 
-/// The running process is alive; a killed and reaped process is dead, and so is a live pid with another birth.
+/// The running process is alive;
+/// a killed and reaped process is dead,
+/// and so is a live pid with another birth.
 #[test]
 fn the_running_process_is_alive_and_a_killed_one_is_dead() {
     let here: CopyOwner = current_copy_owner().expect("current owner");
@@ -63,7 +73,8 @@ fn only_a_proven_dead_or_nameless_owner_is_dead() {
     assert!(token_owner_is_dead(Some("json"), anchor).expect("judged"));
 }
 
-/// An owner in another process-id namespace cannot be judged by its id: it stays alive while its item is recent.
+/// An owner in another process-id namespace cannot be judged by its id:
+/// it stays alive while its item is recent.
 #[test]
 fn an_owner_of_another_namespace_stays_while_its_item_is_recent() {
     let root: PathBuf = crate::test_support::fixture("owner-foreign");
@@ -75,9 +86,17 @@ fn an_owner_of_another_namespace_stays_while_its_item_is_recent() {
     assert!(judged.expect("answer"));
 }
 
-/// An owner of another namespace whose item is older than the patience is neither alive nor dead (owner, 2026-11-04, "Refuse and
-/// name it (Recommended)"): judging it is an error that names the item, the owner, its namespace, the age and the `rm`; the callers
-/// stop, and the item is not touched.
+/// An owner of another namespace whose item is older than the patience is neither alive nor dead (owner,
+/// 2026-11-04,
+/// "Refuse and
+/// name it (Recommended)"):
+/// judging it is an error that names the item,
+/// the owner,
+/// its namespace,
+/// the age and the `rm`;
+/// the callers
+/// stop,
+/// and the item is not touched.
 #[test]
 fn an_owner_of_another_namespace_with_an_old_item_is_refused_and_named() {
     let root: PathBuf = crate::test_support::fixture("owner-foreign-expired");
@@ -94,8 +113,11 @@ fn an_owner_of_another_namespace_with_an_old_item_is_refused_and_named() {
     crate::test_support::remove(root.as_path());
 }
 
-/// One decision is made from one reading of the item's age (sol-1 round 3, P1 C): an owner that is young at the first look cannot be
-/// found expired at a second one, and the refusal is never read as "not dead".
+/// One decision is made from one reading of the item's age (sol-1 round 3,
+/// P1 C):
+/// an owner that is young at the first look cannot be
+/// found expired at a second one,
+/// and the refusal is never read as "not dead".
 #[test]
 fn an_owner_of_another_namespace_is_judged_from_one_reading_of_its_item() {
     let item: PathBuf = crate::test_support::fixture("copy-owner-one-reading").join("item");

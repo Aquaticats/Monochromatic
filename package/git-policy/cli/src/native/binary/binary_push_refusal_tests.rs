@@ -1,23 +1,38 @@
-//! Binary-level controls for a push that Git itself refuses: the wrapper reports Git's refusal and exit status, and never
+//! Binary-level controls for a push that Git itself refuses:
+//! the wrapper reports Git's refusal and exit status,
+//! and never
 //! an engine failure of its own with a hint about missing content.
 //!
 //! What:
-//!  Each case runs a push that Git's dry run refuses before it transfers anything, once with plain Git and once through the
-//!  wrapper with a manual-push policy configured, and requires the same exit status and Git's message.
+//!  Each case runs a push that Git's dry run refuses before it transfers anything,
+//! once with plain Git and once through the
+//!  wrapper with a manual-push policy configured,
+//! and requires the same exit status and Git's message.
 //! Why:
-//!  The wrapper asks Git for the push's updates with `push --dry-run --porcelain` before any policy reads content. When
-//!  Git refuses the push there (a branch to delete that the remote does not have, a refspec that names nothing, a remote
-//!  that does not exist, an option Git does not know), nothing could be published, and Git's own words are the answer. A
-//!  wrapper failure that said the content was unavailable, with a hint to fetch history, named a cause that was not the case.
+//!  The wrapper asks Git for the push's updates with `push --dry-run --porcelain` before any policy reads content.
+//! When
+//!  Git refuses the push there (a branch to delete that the remote does not have,
+//! a refspec that names nothing,
+//! a remote
+//!  that does not exist,
+//! an option Git does not know),
+//! nothing could be published,
+//! and Git's own words are the answer.
+//! A
+//!  wrapper failure that said the content was unavailable,
+//! with a hint to fetch history,
+//! named a cause that was not the case.
 
 use super::commit::remove_settled;
 use super::lfs_pre_push::{World, commit_directly, ref_of, wrapped, world};
 use super::support::{Fixture, Observed, direct, fixture, git, observe, stderr_of};
 
-/// What the wrapper's own failure report carries for this refusal, which a refusal by Git must never show.
+/// What the wrapper's own failure report carries for this refusal,
+/// which a refusal by Git must never show.
 const ENGINE_FAILURE_MARKERS: [&str; 3] = ["engine-failure", "content-unavailable", "Hint: if you are committing or pushing content"];
 
-/// A repository whose policy file turns a manual-push policy on, with one commit published to `origin`.
+/// A repository whose policy file turns a manual-push policy on,
+/// with one commit published to `origin`.
 fn policy_world(fixture: &Fixture) -> World {
     let world: World = world(fixture, false, None);
     let policy: &str = "{ \"policies\": { \"final-newline\": \"error\" } }\n";
@@ -26,12 +41,14 @@ fn policy_world(fixture: &Fixture) -> World {
     return world;
 }
 
-/// Runs `region` with plain Git in the repository, for the status and message Git gives.
+/// Runs `region` with plain Git in the repository,
+/// for the status and message Git gives.
 fn plain(fixture: &Fixture, world: &World, region: &[&str]) -> Observed {
     return observe(direct(fixture).current_dir(world.repo.as_path()).args(region), b"");
 }
 
-/// Requires that the wrapped `region` ends exactly as plain Git ends it, with no engine failure and no hint.
+/// Requires that the wrapped `region` ends exactly as plain Git ends it,
+/// with no engine failure and no hint.
 fn assert_ends_as_git(fixture: &Fixture, world: &World, region: &[&str]) {
     let expected: Observed = plain(fixture, world, region);
     assert_ne!(expected.code, Some(0), "{region:?}: the case must be a push Git refuses: {}", stderr_of(&expected));
@@ -82,7 +99,8 @@ fn a_remote_that_does_not_exist_ends_as_git_ends_it() {
     remove_settled(&fixture);
 }
 
-/// An option Git does not know ends as Git ends it, with its usage text.
+/// An option Git does not know ends as Git ends it,
+/// with its usage text.
 #[test]
 fn an_option_git_does_not_know_ends_as_git_ends_it() {
     let fixture: Fixture = fixture("refusal-option");
@@ -100,8 +118,10 @@ fn options_that_cannot_be_combined_end_as_git_ends_them() {
     remove_settled(&fixture);
 }
 
-/// A tag that the remote has at another commit is rejected by Git's own push after the policies passed, with Git's message.
-///  (A branch that is not a fast-forward is not this case: the wrapper integrates it by design.)
+/// A tag that the remote has at another commit is rejected by Git's own push after the policies passed,
+/// with Git's message.
+///  (A branch that is not a fast-forward is not this case:
+/// the wrapper integrates it by design.)
 #[test]
 fn a_rejected_update_ends_as_git_ends_it() {
     let fixture: Fixture = fixture("refusal-rejected");

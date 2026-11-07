@@ -170,7 +170,8 @@ fn script_inspection_bound_is_exact() {
 /// A launcher padded to the last byte under the bound,
 ///  with its marker in the last bytes,
 ///  is still recognised:
-///  the case is sized from the constant, so the bound may move without breaking it.
+///  the case is sized from the constant,
+/// so the bound may move without breaking it.
 #[test]
 fn script_inspection_bound_matches_the_incumbent() {
     let root: PathBuf = fixture("classify-bound-value");
@@ -251,7 +252,9 @@ fn unusable_candidates_are_skipped() {
     remove(root.as_path());
 }
 
-/// The record of a launcher of this wrapper, as `mpm-shadow` writes it, for a tool id and a `real` path.
+/// The record of a launcher of this wrapper,
+/// as `mpm-shadow` writes it,
+/// for a tool id and a `real` path.
 fn record(tool_id: &str, real: &Path) -> String {
     return format!(
         "{{\"toolId\":\"{tool_id}\",\"lockFile\":\"/nonexistent/toolchain.lock.json\",\"real\":\"{}\",\"scope\":\"repo\"}}",
@@ -259,8 +262,11 @@ fn record(tool_id: &str, real: &Path) -> String {
     );
 }
 
-/// A native executable with a launch record naming this wrapper's tool is a wrapper, through its own name and through a
-///  symlink to it; no process is started, so the native branch is shown without running a launcher.
+/// A native executable with a launch record naming this wrapper's tool is a wrapper,
+/// through its own name and through a
+///  symlink to it;
+/// no process is started,
+/// so the native branch is shown without running a launcher.
 #[test]
 fn a_native_launcher_with_a_record_of_this_wrapper_is_a_wrapper() {
     let root: PathBuf = fixture("classify-launcher");
@@ -287,7 +293,8 @@ fn a_native_launcher_with_a_record_of_this_wrapper_is_a_wrapper() {
 }
 
 /// A launcher is a wrapper whichever spelling of the program's name it carries:
-///  the current name and the name an older install gave the file, each with the record beside it.
+///  the current name and the name an older install gave the file,
+/// each with the record beside it.
 #[test]
 fn a_native_launcher_named_like_either_spelling_of_the_program_is_a_wrapper() {
     for program in [PROGRAM.current, PROGRAM.earlier] {
@@ -302,7 +309,10 @@ fn a_native_launcher_named_like_either_spelling_of_the_program_is_a_wrapper() {
     }
 }
 
-/// A record decides by the tool it names or by the file it leads to; any other record, or none, leaves real Git alone.
+/// A record decides by the tool it names or by the file it leads to;
+/// any other record,
+/// or none,
+/// leaves real Git alone.
 #[test]
 fn a_launcher_of_another_tool_or_a_broken_record_is_real_git() {
     let root: PathBuf = fixture("classify-launcher-others");

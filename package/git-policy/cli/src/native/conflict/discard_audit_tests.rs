@@ -1,7 +1,10 @@
 //! What:
-//!  The audit record's line, its place, its appending and its size limit.
+//!  The audit record's line,
+//! its place,
+//! its appending and its size limit.
 //! Why:
-//!  A record that names the wrong directory or loses a field cannot attribute a loss; one that fails the command it
+//!  A record that names the wrong directory or loses a field cannot attribute a loss;
+//! one that fails the command it
 //!  describes would turn a safety log into a new way to break work.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,7 +12,8 @@
 //! // expect(JSON.parse(auditLine(record)).outcome).toBe('rejected');
 //! ```
 
-/// The record, its line and the writer.
+/// The record,
+/// its line and the writer.
 use super::{
     AUDIT_FILE, AuditOutcome, AuditRecord, ROTATE_AT_BYTES, RotationStep, append_line, audit_line, audit_place, move_aside_between,
     move_aside_if_still_named, parent_process, record_audit,
@@ -29,7 +33,8 @@ fn main_identity(root: &Path) -> WorktreeIdentity {
     };
 }
 
-/// Every field of the line, as JSON.
+/// Every field of the line,
+/// as JSON.
 #[test]
 fn the_line_states_who_ran_what_where_and_what_was_decided() {
     let place: (PathBuf, &'static str) = (PathBuf::from("/r/.git"), "main");
@@ -113,7 +118,8 @@ fn each_outcome_has_its_own_word() {
     assert_eq!(words, vec!["rejected", "allowed", "exempt", "hatch"]);
 }
 
-/// The record lives in the common Git directory of every kind of repository, and nowhere outside one.
+/// The record lives in the common Git directory of every kind of repository,
+/// and nowhere outside one.
 #[test]
 fn the_place_is_the_common_directory_with_the_worktree_kind() {
     let root = Path::new("/r");
@@ -139,7 +145,8 @@ fn the_place_is_the_common_directory_with_the_worktree_kind() {
     );
 }
 
-/// Records append in order to one file in the common directory; the directory is never created.
+/// Records append in order to one file in the common directory;
+/// the directory is never created.
 #[test]
 fn records_append_in_order_and_the_directory_is_never_created() {
     let root: PathBuf = fixture("audit-append");
@@ -165,7 +172,8 @@ fn records_append_in_order_and_the_directory_is_never_created() {
     remove(root.as_path());
 }
 
-/// A file at the size limit moves aside to `.1` and a new one starts; below the limit nothing moves.
+/// A file at the size limit moves aside to `.1` and a new one starts;
+/// below the limit nothing moves.
 #[test]
 fn a_full_file_moves_aside() {
     let root: PathBuf = fixture("audit-rotate");
@@ -185,13 +193,15 @@ fn a_full_file_moves_aside() {
     remove(root.as_path());
 }
 
-/// A zero size limit would move the audit file aside before every write, so the limit has to be positive.
+/// A zero size limit would move the audit file aside before every write,
+/// so the limit has to be positive.
 #[test]
 fn the_size_limit_is_positive() {
     const { assert!(ROTATE_AT_BYTES > 0) };
 }
 
-/// The parent is the process that started the test, never the placeholder zero or one.
+/// The parent is the process that started the test,
+/// never the placeholder zero or one.
 #[cfg(unix)]
 #[test]
 fn the_parent_is_the_process_that_started_this_one() {
@@ -200,8 +210,10 @@ fn the_parent_is_the_process_that_started_this_one() {
     assert!(parent > 1, "parent {parent}");
 }
 
-/// A write a full disk or a signal cut short leaves a last line without its newline; the next record starts on a line of its
-/// own, so the torn line is lost alone and the record after it still parses.
+/// A write a full disk or a signal cut short leaves a last line without its newline;
+/// the next record starts on a line of its
+/// own,
+/// so the torn line is lost alone and the record after it still parses.
 #[test]
 fn a_torn_last_line_does_not_swallow_the_next_record() {
     let root: PathBuf = fixture("audit-torn");
@@ -216,8 +228,11 @@ fn a_torn_last_line_does_not_swallow_the_next_record() {
     remove(root.as_path());
 }
 
-/// A writer that saw a full file but lost the race to another writer's rotation must not move the new, small file over
-/// the history that is already in `.1` (a timing log keeps one generation; the audit file keeps many, in its own tests).
+/// A writer that saw a full file but lost the race to another writer's rotation must not move the new,
+/// small file over
+/// the history that is already in `.1` (a timing log keeps one generation;
+/// the audit file keeps many,
+/// in its own tests).
 #[test]
 fn a_second_rotation_does_not_replace_the_history_with_the_new_file() {
     let root: PathBuf = fixture("audit-rotate-race");
@@ -239,8 +254,11 @@ fn a_second_rotation_does_not_replace_the_history_with_the_new_file() {
     remove(root.as_path());
 }
 
-/// A writer that saw a full file and passed its check, but whose file another writer rotated before it moved anything, must
-/// not move the other writer's new file over the history: the history stays in `.1` and the new file stays where it is.
+/// A writer that saw a full file and passed its check,
+/// but whose file another writer rotated before it moved anything,
+/// must
+/// not move the other writer's new file over the history:
+/// the history stays in `.1` and the new file stays where it is.
 #[test]
 fn a_rotation_that_loses_the_race_after_its_check_leaves_the_history_and_the_new_file() {
     let root: PathBuf = fixture("audit-rotate-check-race");
@@ -264,7 +282,9 @@ fn a_rotation_that_loses_the_race_after_its_check_leaves_the_history_and_the_new
     remove(root.as_path());
 }
 
-/// A file another writer rotated away after this writer's check leaves nothing to move, which is not an error: an error
+/// A file another writer rotated away after this writer's check leaves nothing to move,
+/// which is not an error:
+/// an error
 /// would drop the record this writer is about to append.
 #[test]
 fn a_file_that_vanished_after_the_check_is_not_an_error() {
@@ -283,7 +303,10 @@ fn a_file_that_vanished_after_the_check_is_not_an_error() {
     remove(root.as_path());
 }
 
-/// A rotation that cannot finish, here because `.1` of a timing log is a directory, never costs the record: it lands in the file.
+/// A rotation that cannot finish,
+/// here because `.1` of a timing log is a directory,
+/// never costs the record:
+/// it lands in the file.
 #[test]
 fn a_rotation_that_fails_does_not_drop_the_record() {
     let root: PathBuf = fixture("audit-rotate-fails");
@@ -300,7 +323,9 @@ fn a_rotation_that_fails_does_not_drop_the_record() {
 }
 
 /// A rotation that took a newer file by mistake gives it back even when a writer has started yet another file at the name in the
-/// meantime: nothing is replaced, and the newer file stays on disk beside it with every line.
+/// meantime:
+/// nothing is replaced,
+/// and the newer file stays on disk beside it with every line.
 #[test]
 fn a_newer_file_taken_by_mistake_is_kept_when_the_name_is_already_used_again() {
     let root: PathBuf = fixture("audit-rotate-double-race");
@@ -347,7 +372,9 @@ fn a_rotation_leaves_only_the_history_in_dot_one() {
     remove(root.as_path());
 }
 
-/// Writers in several threads each append whole lines: none is lost, torn or joined to another.
+/// Writers in several threads each append whole lines:
+/// none is lost,
+/// torn or joined to another.
 #[test]
 fn concurrent_appenders_lose_no_line_and_tear_none() {
     let root: PathBuf = fixture("audit-concurrent");
@@ -377,7 +404,9 @@ fn concurrent_appenders_lose_no_line_and_tear_none() {
     remove(root.as_path());
 }
 
-/// A file the user may write but not read still gets its records: the check of the last byte is skipped, not the record.
+/// A file the user may write but not read still gets its records:
+/// the check of the last byte is skipped,
+/// not the record.
 #[test]
 fn a_file_that_cannot_be_read_is_still_appended_to() {
     use std::os::unix::fs::PermissionsExt;
@@ -391,7 +420,9 @@ fn a_file_that_cannot_be_read_is_still_appended_to() {
     remove(root.as_path());
 }
 
-/// A disk that is full is an error the caller can see, in one call, with nothing retried.
+/// A disk that is full is an error the caller can see,
+/// in one call,
+/// with nothing retried.
 #[test]
 fn a_full_disk_is_an_error_not_a_second_write() {
     let error = append_line(Path::new("/dev/full"), b"{\"x\":1}\n").expect_err("the device refuses every write");

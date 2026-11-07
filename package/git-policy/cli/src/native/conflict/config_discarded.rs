@@ -1,11 +1,21 @@
 //! What:
-//!  The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`: how long and how much the folder of saved copies of conflicted
-//!  files may keep (`maxAgeDays`, `maxSize`).
+//!  The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`:
+//! how long and how much the folder of saved copies of conflicted
+//!  files may keep (`maxAgeDays`,
+//! `maxSize`).
 //! Why:
-//!  The settings of the wrapper live in one file with one validation, so a limit is a key there and not a second source in
-//!  Git configuration. A value that is no limit (zero, negative, a fraction, text that is not a size) is a configuration
-//!  failure that names the key, like every other bad value, and so is never read as "no limit" or as a zero that would remove
-//!  every copy. Pruning itself is `discarded_prune.rs`.
+//!  The settings of the wrapper live in one file with one validation,
+//! so a limit is a key there and not a second source in
+//!  Git configuration.
+//! A value that is no limit (zero,
+//! negative,
+//! a fraction,
+//! text that is not a size) is a configuration
+//!  failure that names the key,
+//! like every other bad value,
+//! and so is never read as "no limit" or as a zero that would remove
+//!  every copy.
+//! Pruning itself is `discarded_prune.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,16 +30,24 @@ use monochromatic_jsonc_edit::{JsoncKind, JsoncValue};
 /// The name of the section.
 pub const SECTION: &str = "discardedCopies";
 
-/// The key for the age limit, in whole days from 1.
+/// The key for the age limit,
+/// in whole days from 1.
 pub const AGE_KEY: &str = "maxAgeDays";
 
-/// The key for the size limit: a whole number of bytes from 1, or text such as `"256m"` (Git's `k`, `m`, `g` suffixes).
+/// The key for the size limit:
+/// a whole number of bytes from 1,
+/// or text such as `"256m"` (Git's `k`,
+/// `m`,
+/// `g` suffixes).
 pub const SIZE_KEY: &str = "maxSize";
 
 /// What:
-///  Read the size limit: a JSON number of bytes, or a string in Git's integer spelling.
+///  Read the size limit:
+/// a JSON number of bytes,
+/// or a string in Git's integer spelling.
 /// Why:
-///   `"1g"` is how a person writes a gibibyte; a plain number is accepted so that a script can write the exact byte count.
+///   `"1g"` is how a person writes a gibibyte;
+/// a plain number is accepted so that a script can write the exact byte count.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,7 +72,8 @@ fn size_limit(value: &JsoncValue, path: &str) -> Result<u64, ConfigError> {
 /// What:
 ///  Validate the `discardedCopies` section and apply its keys over the defaults.
 /// Why:
-///   Both keys are optional; an unknown key is refused with the accepted ones named.
+///   Both keys are optional;
+/// an unknown key is refused with the accepted ones named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

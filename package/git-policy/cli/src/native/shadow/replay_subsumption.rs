@@ -1,6 +1,7 @@
 //! What:
 //!  Subsumption before replay's three-way merge:
-//!       the per-path rules, and the synthetic merge base that makes `git merge-tree` take the prepared bytes
+//!       the per-path rules,
+//! and the synthetic merge base that makes `git merge-tree` take the prepared bytes
 //!       for every subsumed path and the landed bytes for every path capture order drops.
 //! Why:
 //!  A path whose prepared bytes already contain the landed change keeps the prepared entry,
@@ -27,7 +28,9 @@ use std::path::Path;
 
 /// What:
 ///  Why a subsumption step failed:
-///       a listing, the text check, or a Git command that writes the synthetic base.
+///       a listing,
+/// the text check,
+/// or a Git command that writes the synthetic base.
 /// Why:
 ///   The replay reports each as `transaction-failed`.
 ///
@@ -46,9 +49,11 @@ pub enum SubsumptionError {
 }
 
 /// What:
-///  The effective merge base of one replay, and the paths each side keeps.
+///  The effective merge base of one replay,
+/// and the paths each side keeps.
 /// Why:
-///   The replay merges against `merge_base`, and reports the prepared and landed paths it settled without a merge.
+///   The replay merges against `merge_base`,
+/// and reports the prepared and landed paths it settled without a merge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,17 +63,22 @@ pub enum SubsumptionError {
 pub struct SubsumptionBase {
     /// Commit to pass as `--merge-base`.
     pub merge_base: String,
-    /// Paths whose prepared entries replay as they are: subsumed ones and those the prepared commit captured later, in Git order.
+    /// Paths whose prepared entries replay as they are:
+    /// subsumed ones and those the prepared commit captured later,
+    /// in Git order.
     pub subsumed_paths: Vec<String>,
-    /// Paths whose landed entries stay because a landed commit captured them later, in Git order.
+    /// Paths whose landed entries stay because a landed commit captured them later,
+    /// in Git order.
     pub kept_landed_paths: Vec<String>,
 }
 
 /// What:
 ///  How the synthetic base settles one path.
 /// Why:
-///   A subsumed path takes the landed content, a prepared-ordered path takes the landed entry,
-///       and a landed-ordered path takes the prepared entry, so the merge keeps the wanted side.
+///   A subsumed path takes the landed content,
+/// a prepared-ordered path takes the landed entry,
+///       and a landed-ordered path takes the prepared entry,
+/// so the merge keeps the wanted side.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,16 +86,21 @@ pub struct SubsumptionBase {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BaseRule {
-    /// Subsumed by the text check, identity, or deletion on both sides.
+    /// Subsumed by the text check,
+    /// identity,
+    /// or deletion on both sides.
     Subsumed,
-    /// Captured later by the prepared commit: the synthetic base takes the landed entry.
+    /// Captured later by the prepared commit:
+    /// the synthetic base takes the landed entry.
     Prepared,
-    /// Captured later by a landed commit: the synthetic base takes the prepared entry.
+    /// Captured later by a landed commit:
+    /// the synthetic base takes the prepared entry.
     Landed,
 }
 
 /// What:
-///  One synthetic-base edit: the path and its rule.
+///  One synthetic-base edit:
+/// the path and its rule.
 /// Why:
 ///   The edits are written as one `update-index --index-info` batch.
 ///
@@ -102,7 +117,8 @@ pub struct BaseEdit {
 }
 
 /// What:
-///  The object ID width of a shared path's present entries; zero when all are absent.
+///  The object ID width of a shared path's present entries;
+/// zero when all are absent.
 /// Why:
 ///   Absent-entry records write zeros of the repository's width.
 ///
@@ -180,9 +196,11 @@ pub fn base_record(edit: &BaseEdit) -> Vec<u8> {
 
 /// What:
 ///  Writes the synthetic merge base:
-///       the preparation base with every edit's record applied, then a commit over that tree.
+///       the preparation base with every edit's record applied,
+/// then a commit over that tree.
 /// Why:
-///   The merge base holds the landed content at each subsumed path, so a three-way merge takes the prepared bytes there.
+///   The merge base holds the landed content at each subsumed path,
+/// so a three-way merge takes the prepared bytes there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -235,10 +253,13 @@ fn write_subsumed_base(
 }
 
 /// What:
-///  Whether a shared path is decided by identity or the text check, before capture order applies:
-///       identical entries, or a text candidate the text check subsumes.
+///  Whether a shared path is decided by identity or the text check,
+/// before capture order applies:
+///       identical entries,
+/// or a text candidate the text check subsumes.
 /// Why:
-///   Capture order decides first; only the remaining paths go through these rules.
+///   Capture order decides first;
+/// only the remaining paths go through these rules.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -248,7 +269,8 @@ pub fn is_identical(shared: &SharedPath) -> bool {
     return same_entry(&shared.prepared, &shared.landed);
 }
 
-/// The capture-order decision for one shared path; a path the order does not name is unordered.
+/// The capture-order decision for one shared path;
+/// a path the order does not name is unordered.
 fn decision_of(order: &BTreeMap<String, CaptureOrderDecision>, shared_path: &SharedPath) -> CaptureOrderDecision {
     return order.get(&shared_path.path).copied().unwrap_or(CaptureOrderDecision::Unordered);
 }
@@ -256,7 +278,8 @@ fn decision_of(order: &BTreeMap<String, CaptureOrderDecision>, shared_path: &Sha
 /// What:
 ///  Computes the effective merge base of one replay from the shared paths the caller listed once.
 /// Why:
-///   The result carries the synthetic base when any path settles before the merge, otherwise the preparation base.
+///   The result carries the synthetic base when any path settles before the merge,
+/// otherwise the preparation base.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

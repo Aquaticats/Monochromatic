@@ -1,7 +1,10 @@
 //! What:
-//!  Small text steps of the replay of captured changes: a path as Latin-1 text and back, and whether a line of Git's output is empty.
+//!  Small text steps of the replay of captured changes:
+//! a path as Latin-1 text and back,
+//! and whether a line of Git's output is empty.
 //! Why:
-//!  `service_replay.rs` compares paths by their bytes and reads Git's output by lines; these steps depend on nothing in it.
+//!  `service_replay.rs` compares paths by their bytes and reads Git's output by lines;
+//! these steps depend on nothing in it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,7 +14,8 @@
 /// What:
 ///  A byte as the Latin-1 character with that code.
 /// Why:
-///  `latin1` names a path by its bytes, one character per byte.
+///  `latin1` names a path by its bytes,
+/// one character per byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,7 +39,8 @@ pub(crate) fn latin1_of_path(path: &Vec<u8>) -> String {
 }
 
 /// What:
-///  The byte a Latin-1 character stands for, nothing for a character beyond Latin-1.
+///  The byte a Latin-1 character stands for,
+/// nothing for a character beyond Latin-1.
 /// Why:
 ///  `capture_order` turns the text of a shared path back into the bytes of the path.
 ///
@@ -50,7 +55,8 @@ pub(crate) fn byte_of_character(character: char) -> Option<u8> {
 /// What:
 ///  Whether a line of Git's output is not empty.
 /// Why:
-///  The output ends in a line break, so the last line of a split is empty and is no line.
+///  The output ends in a line break,
+/// so the last line of a split is empty and is no line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,7 +66,8 @@ pub(crate) fn is_not_empty_line(line: &&str) -> bool {
     return !line.is_empty();
 }
 
-/// The path as the Latin-1 text the shared-path listing names it by, so every byte survives the comparison.
+/// The path as the Latin-1 text the shared-path listing names it by,
+/// so every byte survives the comparison.
 pub(crate) fn latin1(bytes: &[u8]) -> String {
     return bytes.iter().map(char_of_byte).collect();
 }

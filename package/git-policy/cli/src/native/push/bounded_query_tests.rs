@@ -1,4 +1,7 @@
-//! Controls for the deadline-bound Git query: real children that answer, fail, stall or flood.
+//! Controls for the deadline-bound Git query:
+//! real children that answer,
+//! fail,
+//! stall or flood.
 
 use super::*;
 use crate::test_support::scratch_environment;
@@ -11,7 +14,9 @@ fn shell(script: &str) -> Command {
     return command;
 }
 
-/// The query window is the push's stall window, set by the same variable, with no ceiling of its own.
+/// The query window is the push's stall window,
+/// set by the same variable,
+/// with no ceiling of its own.
 #[test]
 fn the_query_window_is_the_push_stall_window() {
     let set = |value: &str| -> Vec<(OsString, OsString)> {
@@ -133,8 +138,11 @@ fn a_program_that_cannot_start_is_a_start_failure() {
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
 }
 
-/// A query that keeps writing is never stopped however long it runs: the window judges quiet time, not wall time.
-///  The fixture writes a line every pause for a multiple of the window, with no busy loop.
+/// A query that keeps writing is never stopped however long it runs:
+/// the window judges quiet time,
+/// not wall time.
+///  The fixture writes a line every pause for a multiple of the window,
+/// with no busy loop.
 #[cfg(unix)]
 #[test]
 fn a_query_that_keeps_working_is_never_stopped_however_long_it_runs() {

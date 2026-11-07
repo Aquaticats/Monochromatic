@@ -1,14 +1,30 @@
 //! What:
-//!  The witness of the live index file as the landing found it under the index lock, recorded in the journal, and the comparison
+//!  The witness of the live index file as the landing found it under the index lock,
+//! recorded in the journal,
+//! and the comparison
 //!  a replay makes with it.
 //! Why:
-//!  An index update that never installed is replayed by a restart after the lock was given up, and another session may have
-//!  staged into the index since. What the index holds at a path cannot tell a path nobody staged from a path staged back to the
-//!  same entry (stage another version, then the old one again): both read the same. The file itself can tell. Every program
-//!  that changes an index writes a new file and renames it over the old one, so a file that is still the one the landing saw
-//!  (same inode, size, change time, modification time and checksum) has been written by nobody since, and a replay over it
-//!  discards nothing. Any other file might hold staging, so the replay is not made over it
-//!  (`doc/planning/cli-git-main-commit-within-native-plus-five.md`, "A replay only over the index the landing saw").
+//!  An index update that never installed is replayed by a restart after the lock was given up,
+//! and another session may have
+//!  staged into the index since.
+//! What the index holds at a path cannot tell a path nobody staged from a path staged back to the
+//!  same entry (stage another version,
+//! then the old one again):
+//! both read the same.
+//! The file itself can tell.
+//! Every program
+//!  that changes an index writes a new file and renames it over the old one,
+//! so a file that is still the one the landing saw
+//!  (same inode,
+//! size,
+//! change time,
+//! modification time and checksum) has been written by nobody since,
+//! and a replay over it
+//!  discards nothing.
+//! Any other file might hold staging,
+//! so the replay is not made over it
+//!  (`doc/planning/cli-git-main-commit-within-native-plus-five.md`,
+//! "A replay only over the index the landing saw").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,7 +35,8 @@ use std::io::{Read as _, Seek as _, SeekFrom};
 use std::os::unix::fs::MetadataExt as _;
 use std::path::Path;
 
-/// How many bytes at the end of the index file the witness keeps: the checksum of either object format (SHA-1 and SHA-256),
+/// How many bytes at the end of the index file the witness keeps:
+/// the checksum of either object format (SHA-1 and SHA-256),
 ///  which the file ends with.
 const TRAILER_BYTES: u64 = 32;
 
@@ -34,11 +51,15 @@ pub enum IndexWitness {
         inode: u64,
         /// The size in bytes.
         size: u64,
-        /// The modification time, seconds and nanoseconds.
+        /// The modification time,
+        /// seconds and nanoseconds.
         modified: (i64, i64),
-        /// The time of the last change of the inode, seconds and nanoseconds; a rename onto the path moves it.
+        /// The time of the last change of the inode,
+        /// seconds and nanoseconds;
+        /// a rename onto the path moves it.
         changed: (i64, i64),
-        /// The last bytes of the file, in hexadecimal.
+        /// The last bytes of the file,
+        /// in hexadecimal.
         trailer: String,
     },
 }
@@ -64,7 +85,8 @@ fn hex(bytes: &[u8]) -> String {
 /// What:
 ///  The witness of the index file at `index`.
 /// Why:
-///   The landing records it while it holds the index lock and a replay reads it again under the lock it takes, so the two are
+///   The landing records it while it holds the index lock and a replay reads it again under the lock it takes,
+/// so the two are
 ///  compared by one function.
 ///
 /// In TS you'd write (pseudocode):
@@ -74,7 +96,10 @@ fn hex(bytes: &[u8]) -> String {
 ///
 /// # Errors
 ///
-/// The error of the open, the metadata or the read; a file that is not there is `Absent`, not an error.
+/// The error of the open,
+/// the metadata or the read;
+/// a file that is not there is `Absent`,
+/// not an error.
 pub fn witness_of(index: &Path) -> std::io::Result<IndexWitness> {
     let mut file: std::fs::File = match std::fs::File::open(index) {
         Ok(opened) => opened,
@@ -97,7 +122,9 @@ pub fn witness_of(index: &Path) -> std::io::Result<IndexWitness> {
     });
 }
 
-/// The text of a witness: `absent`, or `file` and its fields separated by colons.
+/// The text of a witness:
+/// `absent`,
+/// or `file` and its fields separated by colons.
 pub fn encode(witness: &IndexWitness) -> String {
     return match witness {
         IndexWitness::Absent => String::from("absent"),
@@ -107,7 +134,8 @@ pub fn encode(witness: &IndexWitness) -> String {
     };
 }
 
-/// The witness a text spells, or nothing when it is damaged.
+/// The witness a text spells,
+/// or nothing when it is damaged.
 pub fn decode(text: &str) -> Option<IndexWitness> {
     if text == "absent" {
         return Some(IndexWitness::Absent);

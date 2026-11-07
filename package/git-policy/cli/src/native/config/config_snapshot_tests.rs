@@ -1,5 +1,8 @@
 //! Controls for the configuration snapshot:
-//!  the listing parser, each conversion, each lookup, and generated cases checked against real Git as the oracle.
+//!  the listing parser,
+//! each conversion,
+//! each lookup,
+//! and generated cases checked against real Git as the oracle.
 
 use super::*;
 use crate::maintenance_decision::parse_config_records;
@@ -24,7 +27,8 @@ fn snapshot_of(records: &[(&str, &str)]) -> ConfigSnapshot {
     return ConfigSnapshot::parse(listing(records).as_slice(), true).expect("a well-formed listing");
 }
 
-/// A key with a value, a valueless key and a value holding a newline keep their shape.
+/// A key with a value,
+/// a valueless key and a value holding a newline keep their shape.
 #[test]
 fn parse_reads_values_valueless_keys_and_newlines_in_values() {
     let snapshot: ConfigSnapshot = snapshot_of(&[
@@ -42,7 +46,8 @@ fn parse_reads_values_valueless_keys_and_newlines_in_values() {
     assert_eq!(entries[3].value.as_deref(), Some(&b""[..]));
 }
 
-/// An empty listing is an empty configuration, and any malformed listing is refused whole.
+/// An empty listing is an empty configuration,
+/// and any malformed listing is refused whole.
 #[test]
 fn parse_refuses_a_listing_that_is_not_scope_record_pairs() {
     assert_eq!(snapshot_of(&[]).entries().len(), 0);
@@ -52,7 +57,8 @@ fn parse_refuses_a_listing_that_is_not_scope_record_pairs() {
     assert!(ConfigSnapshot::parse(b"local\0\xff.b\nc\0", true).is_none(), "a key that is not UTF-8");
 }
 
-/// The last entry of a key wins, and a key nobody set is unset.
+/// The last entry of a key wins,
+/// and a key nobody set is unset.
 #[test]
 fn the_last_entry_of_a_key_wins() {
     let snapshot: ConfigSnapshot = snapshot_of(&[
@@ -103,7 +109,8 @@ fn booleans_convert_as_git_converts_them() {
     }
 }
 
-/// The bool-or-int text is a word, or the decimal number itself.
+/// The bool-or-int text is a word,
+/// or the decimal number itself.
 #[test]
 fn bool_or_int_prints_words_and_plain_numbers() {
     for (value, expected) in [
@@ -121,7 +128,8 @@ fn bool_or_int_prints_words_and_plain_numbers() {
     }
 }
 
-/// Paths Git would expand, an empty path and a valueless path are left to Git.
+/// Paths Git would expand,
+/// an empty path and a valueless path are left to Git.
 #[test]
 fn paths_that_git_expands_or_refuses_are_left_to_git() {
     for (value, expected) in [
@@ -159,7 +167,8 @@ fn maintenance_records_hold_the_last_value_of_each_key() {
     assert_eq!(unhandled.maintenance_records(), None);
 }
 
-/// A listing read with global options never proves the ref storage, and one that names the key never does.
+/// A listing read with global options never proves the ref storage,
+/// and one that names the key never does.
 #[test]
 fn ref_storage_is_proven_only_without_options_and_without_the_key() {
     assert!(snapshot_of(&[("local", "core.repositoryformatversion\n0")]).proves_files_ref_storage());
@@ -178,7 +187,9 @@ fn oracle(context: &GitContext, repo: &Path, kind: &str, key: &str) -> (Option<i
     return (output.code, String::from(text.strip_suffix('\n').unwrap_or(text.as_str())));
 }
 
-/// Require `lookup` to agree with Git's answer, or decline; return whether it answered.
+/// Require `lookup` to agree with Git's answer,
+/// or decline;
+/// return whether it answered.
 fn agrees<Value: std::fmt::Debug + PartialEq>(
     lookup: &Lookup<Value>,
     (code, text): &(Option<i32>, String),
@@ -199,7 +210,8 @@ fn agrees<Value: std::fmt::Debug + PartialEq>(
     }
 }
 
-/// A small deterministic generator, so every run draws the same cases.
+/// A small deterministic generator,
+/// so every run draws the same cases.
 struct Draw(u64);
 
 impl Draw {
@@ -212,13 +224,17 @@ impl Draw {
     }
 }
 
-/// Values the generated cases draw from: boolean words, integers, bad booleans and paths Git expands.
+/// Values the generated cases draw from:
+/// boolean words,
+/// integers,
+/// bad booleans and paths Git expands.
 const VALUES: [&str; 24] = [
     "", "true", "TRUE", "yes", "on", "off", "No", "false", "0", "1", "2", "007", "08", "-1", "1k", "0x10", "x",
     "~/h", "%(prefix)/p", ":(optional)p", "rel/p", "/abs/p", " 1", "a~b",
 ];
 
-/// Keys the generated cases set, with the `--type` the consumer reads each with.
+/// Keys the generated cases set,
+/// with the `--type` the consumer reads each with.
 const KEYS: [(&str, &str); 4] = [
     ("core.hooksPath", "--type=path"),
     ("hook.pre-commit.enabled", "--type=bool"),
@@ -226,7 +242,8 @@ const KEYS: [(&str, &str); 4] = [
     ("maintenance.auto", "--type=bool-or-int"),
 ];
 
-/// One generated config line for a random key and value, or a valueless key.
+/// One generated config line for a random key and value,
+/// or a valueless key.
 fn generated_line(draw: &mut Draw) -> String {
     let (key, _kind): (&str, &str) = KEYS[draw.below(KEYS.len())];
     let (section, variable): (&str, &str) = key.rsplit_once('.').expect("dotted key");
@@ -241,7 +258,8 @@ fn generated_line(draw: &mut Draw) -> String {
     return format!("{section_header}\n\t{variable} = \"{value}\"\n");
 }
 
-/// Several generated lines, 0 to 3 of them.
+/// Several generated lines,
+/// 0 to 3 of them.
 fn generated_block(draw: &mut Draw) -> String {
     let mut text: String = String::new();
     for _ in 0..draw.below(4) {
@@ -250,7 +268,8 @@ fn generated_block(draw: &mut Draw) -> String {
     return text;
 }
 
-/// The counts a differential run reports, so a run that declines everything cannot pass.
+/// The counts a differential run reports,
+/// so a run that declines everything cannot pass.
 #[derive(Default)]
 struct Tally {
     /// Lookups that answered and matched Git.
@@ -311,7 +330,12 @@ fn compare_case(context: &GitContext, repo: &Path, label: &str, tally: &mut Tall
     }
 }
 
-/// Generated configurations, over files, includes, conditional includes, `-c` and `GIT_CONFIG_*`, agree with Git.
+/// Generated configurations,
+/// over files,
+/// includes,
+/// conditional includes,
+/// `-c` and `GIT_CONFIG_*`,
+/// agree with Git.
 #[test]
 fn generated_configurations_agree_with_git() {
     let root: PathBuf = fixture("config-snapshot-differential");
@@ -366,7 +390,9 @@ fn generated_configurations_agree_with_git() {
     remove(root.as_path());
 }
 
-/// A repeated key, a valueless key and a bad boolean each give the answer Git gives, or are declined.
+/// A repeated key,
+/// a valueless key and a bad boolean each give the answer Git gives,
+/// or are declined.
 #[test]
 fn repeated_valueless_and_bad_values_agree_with_git() {
     let root: PathBuf = fixture("config-snapshot-shapes");
@@ -394,7 +420,8 @@ fn repeated_valueless_and_bad_values_agree_with_git() {
     remove(root.as_path());
 }
 
-/// The files backend is proven for an ordinary repository, and a reftable repository is not.
+/// The files backend is proven for an ordinary repository,
+/// and a reftable repository is not.
 #[test]
 fn ref_storage_proof_agrees_with_rev_parse() {
     let root: PathBuf = fixture("config-snapshot-ref-storage");
@@ -425,9 +452,15 @@ fn a_configuration_git_refuses_gives_no_snapshot() {
     remove(root.as_path());
 }
 
-/// `core.fsync` names the index only through `index`, `added` or `all`, read as Git 2.56.0 reads it: the last entry decides alone,
-/// from the default (`committed,-loose-object`) which names no index; a word names every component it is a prefix of; the result
-/// is the set without the removed words plus the added ones; `none` clears the set when it is the whole rest of the value.
+/// `core.fsync` names the index only through `index`,
+/// `added` or `all`,
+/// read as Git 2.56.0 reads it:
+/// the last entry decides alone,
+/// from the default (`committed,-loose-object`) which names no index;
+/// a word names every component it is a prefix of;
+/// the result
+/// is the set without the removed words plus the added ones;
+/// `none` clears the set when it is the whole rest of the value.
 #[test]
 fn core_fsync_names_the_index_as_git_reads_it() {
     let names = |values: &[&str]| -> Option<bool> {
@@ -450,8 +483,12 @@ fn core_fsync_names_the_index_as_git_reads_it() {
     assert_eq!(names(&["bogus"]), Some(false), "a word that names no component is ignored, as Git ignores it");
 }
 
-/// The import step of a landing is given a `core.fsync` without the packs only where loose objects are not flushed: the default
-/// and any set without `loose-object` get it, a set with `loose-object`, the deprecated switch for object files, or a value
+/// The import step of a landing is given a `core.fsync` without the packs only where loose objects are not flushed:
+/// the default
+/// and any set without `loose-object` get it,
+/// a set with `loose-object`,
+/// the deprecated switch for object files,
+/// or a value
 /// that is not modelled leaves the import as the repository has it.
 #[test]
 fn the_import_gets_a_value_without_packs_only_where_loose_objects_are_not_flushed() {

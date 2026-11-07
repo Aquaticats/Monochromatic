@@ -1,10 +1,16 @@
-//! Controls for the count of a checkout's entries: every kind of entry counts once, a link is not followed, and an
+//! Controls for the count of a checkout's entries:
+//! every kind of entry counts once,
+//! a link is not followed,
+//! and an
 //!  unreadable or missing directory counts what could be read instead of failing.
 
 use super::*;
 use crate::test_support::{fixture, remove};
 
-/// Files, directories, an empty directory and a link to a directory each count once, and the link's target is not walked.
+/// Files,
+/// directories,
+/// an empty directory and a link to a directory each count once,
+/// and the link's target is not walked.
 #[test]
 fn every_entry_counts_once_and_links_are_not_followed() {
     let parent: PathBuf = fixture("entry-count-kinds");
@@ -23,7 +29,8 @@ fn every_entry_counts_once_and_links_are_not_followed() {
     remove(parent.as_path());
 }
 
-/// A root that cannot be listed has no entries to count, and a file has none either.
+/// A root that cannot be listed has no entries to count,
+/// and a file has none either.
 #[test]
 fn a_missing_root_and_a_plain_file_count_nothing() {
     let parent: PathBuf = fixture("entry-count-nothing");

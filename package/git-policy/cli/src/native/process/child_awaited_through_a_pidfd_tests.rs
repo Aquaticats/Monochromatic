@@ -1,12 +1,17 @@
-//! The child helper: a child started with the standard library is awaited without a thread, owned through every failure after
-//! its start, and reaped or handed over, never reported as a failed start.
+//! The child helper:
+//! a child started with the standard library is awaited without a thread,
+//! owned through every failure after
+//! its start,
+//! and reaped or handed over,
+//! never reported as a failed start.
 
 use super::*;
 use crate::lazy_runtime::run_on_runtime;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// A shell child that sleeps `seconds` and exits with `code`. A shell is the one program every host has.
+/// A shell child that sleeps `seconds` and exits with `code`.
+/// A shell is the one program every host has.
 fn sleeper(seconds: &str, code: i32) -> std::process::Child {
     return Command::new("/bin/sh")
         .arg("-c")
@@ -23,10 +28,12 @@ fn exists(pid: u32) -> bool {
     return std::path::Path::new(format!("/proc/{pid}").as_str()).exists();
 }
 
-/// Every way the helper can fail after the start, plus none.
+/// Every way the helper can fail after the start,
+/// plus none.
 const ALL_FAILURES: [InjectedFailure; 3] = [InjectedFailure::None, InjectedFailure::PidfdOpen, InjectedFailure::Registration];
 
-/// A child that exits is awaited and its status comes back, whatever failed after its start.
+/// A child that exits is awaited and its status comes back,
+/// whatever failed after its start.
 #[test]
 fn a_child_that_exits_gives_its_status_after_every_failure_after_the_start() {
     for failure in ALL_FAILURES {
@@ -40,7 +47,10 @@ fn a_child_that_exits_gives_its_status_after_every_failure_after_the_start() {
     }
 }
 
-/// After a failure the helper still owns a live child: it was not reported failed, it is not lost, and it can be reaped.
+/// After a failure the helper still owns a live child:
+/// it was not reported failed,
+/// it is not lost,
+/// and it can be reaped.
 #[test]
 fn a_failure_after_the_start_leaves_the_live_child_owned_and_reapable() {
     for failure in [InjectedFailure::PidfdOpen, InjectedFailure::Registration] {
@@ -54,7 +64,8 @@ fn a_failure_after_the_start_leaves_the_live_child_owned_and_reapable() {
     }
 }
 
-/// Dropping an owned live child ends and reaps it, so the caller's cleanup never runs beside a live child.
+/// Dropping an owned live child ends and reaps it,
+/// so the caller's cleanup never runs beside a live child.
 #[test]
 fn dropping_an_owned_live_child_ends_and_reaps_it() {
     let child = sleeper("5", 0);
@@ -73,7 +84,9 @@ fn a_handed_over_child_is_not_ended_by_the_helper() {
     assert!(back.wait().expect("the caller waits").success());
 }
 
-/// Waiting uses no thread of its own: many children are awaited at once on a current-thread runtime, in about the time of one.
+/// Waiting uses no thread of its own:
+/// many children are awaited at once on a current-thread runtime,
+/// in about the time of one.
 #[test]
 fn many_children_are_awaited_at_once_without_a_thread_each() {
     let started: Instant = Instant::now();

@@ -1,4 +1,7 @@
-//! The pnpm repair with a fixture `pnpm`: when it applies, how it is started, and what each end is called.
+//! The pnpm repair with a fixture `pnpm`:
+//! when it applies,
+//! how it is started,
+//! and what each end is called.
 
 use super::*;
 use crate::test_support::executable;
@@ -7,7 +10,9 @@ use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// A destination, a fixture directory for tools, a record file and the environment that searches only that directory.
+/// A destination,
+/// a fixture directory for tools,
+/// a record file and the environment that searches only that directory.
 fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf, RepairEnvironment) {
     let root: PathBuf = fixture(name);
     let destination: PathBuf = root.join("destination");
@@ -19,7 +24,8 @@ fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf, RepairEnvironment) {
     return (root, destination, bin, environment);
 }
 
-/// pnpm is started in the worktree with the offline and frozen-lockfile switches, the words the owner asked for.
+/// pnpm is started in the worktree with the offline and frozen-lockfile switches,
+/// the words the owner asked for.
 #[test]
 fn starts_pnpm_offline_and_frozen_in_the_worktree() {
     let (root, destination, bin, environment) = scene("pnpm-args");
@@ -49,7 +55,8 @@ fn applies_only_with_a_lockfile_and_node_modules() {
     remove(&root);
 }
 
-/// A failing pnpm is a failure whose command names the worktree, so it runs from anywhere.
+/// A failing pnpm is a failure whose command names the worktree,
+/// so it runs from anywhere.
 #[test]
 fn a_failure_names_a_command_that_runs_from_anywhere() {
     let (root, destination, bin, environment) = scene("pnpm-fails");
@@ -61,7 +68,8 @@ fn a_failure_names_a_command_that_runs_from_anywhere() {
     remove(&root);
 }
 
-/// A pnpm that shows no sign of work for its window is stopped and reported, not waited for.
+/// A pnpm that shows no sign of work for its window is stopped and reported,
+/// not waited for.
 #[test]
 fn a_slow_pnpm_is_stopped_and_reported() {
     let (root, destination, bin, mut environment) = scene("pnpm-slow");

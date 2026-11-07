@@ -1,9 +1,13 @@
 //! Controls for the lock files a stopped Git child must not leave behind.
 //! Why:
 //!  A Git child stopped at its deadline while it holds a ref lock leaves `<ref>.lock` behind when it cannot clean up
-//!  after itself (it was killed, or never ran its signal handler), and every later Git command that updates the same ref
+//!  after itself (it was killed,
+//! or never ran its signal handler),
+//! and every later Git command that updates the same ref
 //!  then fails with "Unable to create ... File exists".
-//!  Each control holds a real lock with real Git in a disposable repository, stops the holder at its deadline, and
+//!  Each control holds a real lock with real Git in a disposable repository,
+//! stops the holder at its deadline,
+//! and
 //!  then runs the Git command that failed in practice (`git fetch`).
 //!
 //! In TS you'd write (pseudocode):
@@ -21,11 +25,16 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-/// The deadline of the held lock's command: long enough for Git to start and take the lock, short enough to wait for.
+/// The deadline of the held lock's command:
+/// long enough for Git to start and take the lock,
+/// short enough to wait for.
 const HOLD_DEADLINE: Duration = Duration::from_millis(2500);
 
-/// The grace after the polite stop request: the unresponsive holder never answers it, and the responsive one needs the
-///  host to run its handler, which a loaded gate does not do within a few hundred milliseconds.
+/// The grace after the polite stop request:
+/// the unresponsive holder never answers it,
+/// and the responsive one needs the
+///  host to run its handler,
+/// which a loaded gate does not do within a few hundred milliseconds.
 const SHORT_GRACE: Duration = Duration::from_secs(2);
 
 /// The tracking ref the incident left locked.
@@ -36,13 +45,16 @@ const HELD_REF: &str = "refs/remotes/origin/main";
 enum Holder {
     /// Git runs its own signal handler and removes its lock files.
     Responsive,
-    /// `SIGTERM` stays blocked in every process of the command, as for a Git that sits in an uninterruptible call.
+    /// `SIGTERM` stays blocked in every process of the command,
+    /// as for a Git that sits in an uninterruptible call.
     Unresponsive,
 }
 
-/// A repository whose `origin/main` is behind a bare remote's `main`, so a later fetch has a tracking ref to update.
+/// A repository whose `origin/main` is behind a bare remote's `main`,
+/// so a later fetch has a tracking ref to update.
 struct Stage {
-    /// The fixture directory, removed at the end.
+    /// The fixture directory,
+    /// removed at the end.
     root: PathBuf,
     /// The working repository.
     repo: PathBuf,
@@ -66,7 +78,9 @@ fn stage(name: &str) -> Stage {
     return Stage { root, repo, ready };
 }
 
-/// The command that holds the lock of `HELD_REF`: `git update-ref --stdin` told to prepare, then kept waiting.
+/// The command that holds the lock of `HELD_REF`:
+/// `git update-ref --stdin` told to prepare,
+/// then kept waiting.
 fn holder(stage: &Stage, kind: Holder) -> Command {
     let lock: PathBuf = stage.repo.join(".git").join(format!("{HELD_REF}.lock"));
     let target: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]);
@@ -127,10 +141,13 @@ fn lock_files(directory: &Path) -> Vec<PathBuf> {
     return found;
 }
 
-/// How long a test lets the thread that sweeps for a tree the host was slow to end take, instead of looking once.
+/// How long a test lets the thread that sweeps for a tree the host was slow to end take,
+/// instead of looking once.
 const SWEEP_WAIT: Duration = Duration::from_secs(20);
 
-/// Each leftover file with its size, birth and whether a pid file sits beside it, so a failure on a loaded host says what
+/// Each leftover file with its size,
+/// birth and whether a pid file sits beside it,
+/// so a failure on a loaded host says what
 /// was left.
 fn describe_left(files: &[PathBuf]) -> String {
     let mut lines: Vec<String> = Vec::new();
@@ -145,8 +162,11 @@ fn describe_left(files: &[PathBuf]) -> String {
     return lines.join("; ");
 }
 
-/// The checks that follow a stop: the holder really held the lock, none is left (the sweep for a tree the host was slow to
-/// end runs on a thread and is waited for), and the fetch that failed in practice works.
+/// The checks that follow a stop:
+/// the holder really held the lock,
+/// none is left (the sweep for a tree the host was slow to
+/// end runs on a thread and is waited for),
+/// and the fetch that failed in practice works.
 fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
     assert!(stage.ready.exists(), "{how} {kind:?}: the holder took the lock before it was stopped");
     let waited: Instant = Instant::now();
@@ -209,7 +229,8 @@ fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::Responsive, "stop-lock-push-responsive");
 }
 
-/// A holder that cannot answer `SIGTERM` is killed, and the wrapper leaves no lock behind it.
+/// A holder that cannot answer `SIGTERM` is killed,
+/// and the wrapper leaves no lock behind it.
 #[test]
 fn a_push_stop_of_an_unresponsive_holder_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::Unresponsive, "stop-lock-push-unresponsive");
@@ -227,9 +248,12 @@ fn a_watched_stop_of_an_unresponsive_holder_leaves_no_lock() {
     watched_step_leaves_no_lock(Holder::Unresponsive, "stop-lock-watched-unresponsive");
 }
 
-/// The watched path asks with a catchable signal before it kills: a shell with a `TERM` trap runs the trap.
+/// The watched path asks with a catchable signal before it kills:
+/// a shell with a `TERM` trap runs the trap.
 ///  The shell sits silent in a bounded `sleep` it waits for (a loop that starts a process every pause would show work at every
-///  look, and a step that works is never stopped), so the quiet window is what stops it.
+///  look,
+/// and a step that works is never stopped),
+/// so the quiet window is what stops it.
 #[test]
 fn a_watched_stop_gives_a_catchable_signal_first() {
     let root: PathBuf = fixture("stop-lock-watched-catchable");
@@ -250,7 +274,8 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
     remove(root.as_path());
 }
 
-/// A stop with no grace kills at once and hands the child to a thread, which sweeps its locks when it has ended.
+/// A stop with no grace kills at once and hands the child to a thread,
+/// which sweeps its locks when it has ended.
 #[test]
 fn a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own() {
     let stage: Stage = stage("stop-lock-push-no-grace");

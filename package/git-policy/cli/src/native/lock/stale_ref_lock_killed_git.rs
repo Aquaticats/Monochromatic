@@ -1,9 +1,13 @@
 //! What:
 //!  Real Git processes that hold reference locks in a disposable repository and are then killed with `SIGKILL`.
 //! Why:
-//!  The shape of a lock left by a killed Git is a fact about Git, not about this crate, so the controls produce it with Git:
-//!  a `git fetch --prune` held by a `reference-transaction` hook at the point where it has taken its locks, and a
-//!  `git update-ref --stdin` transaction held after `prepare`. Nothing here touches a real repository (rule THR).
+//!  The shape of a lock left by a killed Git is a fact about Git,
+//! not about this crate,
+//! so the controls produce it with Git:
+//!  a `git fetch --prune` held by a `reference-transaction` hook at the point where it has taken its locks,
+//! and a
+//!  `git update-ref --stdin` transaction held after `prepare`.
+//! Nothing here touches a real repository (rule THR).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,12 +24,15 @@ use std::time::{Duration, Instant};
 /// The longest a control waits for a Git it started to reach the point where it holds its locks.
 pub const HOLD_PATIENCE: Duration = Duration::from_secs(60);
 
-/// The tracking reference the remote no longer has, so `fetch --prune` deletes it and locks it empty.
+/// The tracking reference the remote no longer has,
+/// so `fetch --prune` deletes it and locks it empty.
 pub const GONE_REF: &str = "refs/remotes/origin/gone";
 
-/// A repository whose remote lost a branch, with every tracking reference packed.
+/// A repository whose remote lost a branch,
+/// with every tracking reference packed.
 pub struct Stage {
-    /// The fixture directory, removed at the end.
+    /// The fixture directory,
+    /// removed at the end.
     pub root: PathBuf,
     /// The working repository.
     pub repo: PathBuf,
@@ -46,7 +53,8 @@ impl Stage {
         return self.git_dir.join(format!("{reference}~pid.lock"));
     }
 
-    /// The lock of the packed references, and the staging file Git writes beside it.
+    /// The lock of the packed references,
+    /// and the staging file Git writes beside it.
     pub fn packed_lock(&self) -> PathBuf {
         return self.git_dir.join("packed-refs.lock");
     }
@@ -67,9 +75,14 @@ impl Stage {
     }
 }
 
-/// Build the stage: a bare remote with `main` and `gone`, a clone-like repository that fetched both and packed them, and
-///  then a remote that no longer has `gone`. `lockfile_pid` writes `core.lockfilePid` into the repository's own
-///  configuration, as the wrapper turns it on for the Git it starts.
+/// Build the stage:
+/// a bare remote with `main` and `gone`,
+/// a clone-like repository that fetched both and packed them,
+/// and
+///  then a remote that no longer has `gone`.
+/// `lockfile_pid` writes `core.lockfilePid` into the repository's own
+///  configuration,
+/// as the wrapper turns it on for the Git it starts.
 pub fn stage(name: &str, lockfile_pid: bool) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -93,9 +106,11 @@ pub fn stage(name: &str, lockfile_pid: bool) -> Stage {
 pub struct Held {
     /// The Git process.
     child: Child,
-    /// The input of a transaction held open, kept so the Git does not see the end of its input.
+    /// The input of a transaction held open,
+    /// kept so the Git does not see the end of its input.
     _input: Option<ChildStdin>,
-    /// The process number the hook wrote, when the Git is held by a hook.
+    /// The process number the hook wrote,
+    /// when the Git is held by a hook.
     hook: Option<i32>,
 }
 
@@ -105,7 +120,9 @@ impl Held {
         return i32::try_from(self.child.id()).expect("process number");
     }
 
-    /// Kill the Git with `SIGKILL` and wait for it, so it can run no cleanup, and end its hook.
+    /// Kill the Git with `SIGKILL` and wait for it,
+    /// so it can run no cleanup,
+    /// and end its hook.
     pub fn kill(&mut self) {
         self.child.kill().expect("SIGKILL the Git");
         self.child.wait().expect("reap the Git");
@@ -117,7 +134,8 @@ impl Held {
     }
 }
 
-/// Whatever the control did, no process it started is left.
+/// Whatever the control did,
+/// no process it started is left.
 impl Drop for Held {
     fn drop(&mut self) {
         let _killed = self.child.kill();
@@ -129,7 +147,8 @@ impl Drop for Held {
     }
 }
 
-/// Wait for a condition, at most `HOLD_PATIENCE`.
+/// Wait for a condition,
+/// at most `HOLD_PATIENCE`.
 fn wait_for(what: &str, condition: impl Fn() -> bool) {
     let started: Instant = Instant::now();
     while !condition() {
@@ -154,7 +173,9 @@ fn git_command(stage: &Stage) -> Command {
     return command;
 }
 
-/// The hook that holds a transaction at its `prepared` state, where every lock is taken, and tells which process holds.
+/// The hook that holds a transaction at its `prepared` state,
+/// where every lock is taken,
+/// and tells which process holds.
 const HOLD_HOOK: &str = "#!/bin/sh\nif [ \"$1\" = prepared ] && [ -n \"$STALE_LOCK_READY\" ]; then\n  echo $$ > \"$STALE_LOCK_READY.part\"\n  mv \"$STALE_LOCK_READY.part\" \"$STALE_LOCK_READY\"\n  exec sleep 600\nfi\nexit 0\n";
 
 /// Start `git fetch --prune origin` and hold it at the moment its transaction has taken its locks.
@@ -171,7 +192,9 @@ pub fn hold_fetch(stage: &Stage) -> Held {
     return held;
 }
 
-/// Start `git update-ref --stdin`, send it `commands` and `prepare`, and keep it waiting with its locks held.
+/// Start `git update-ref --stdin`,
+/// send it `commands` and `prepare`,
+/// and keep it waiting with its locks held.
 pub fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
     let mut command: Command = git_command(stage);
     command.args(["update-ref", "--stdin"]).stdin(Stdio::piped()).stdout(Stdio::piped());
@@ -194,7 +217,9 @@ pub fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
     return held;
 }
 
-/// A long-lived process whose command name is `git`, that holds no lock: a Git that waits for input.
+/// A long-lived process whose command name is `git`,
+/// that holds no lock:
+/// a Git that waits for input.
 pub fn idle_git(stage: &Stage) -> Held {
     let mut command: Command = git_command(stage);
     command.args(["update-ref", "--stdin"]).stdin(Stdio::piped());
@@ -209,7 +234,8 @@ pub fn write_file(path: &Path, content: &str) {
     std::fs::write(path, content).expect("write the file");
 }
 
-/// A helper process of a control, ended when the control ends however it ends.
+/// A helper process of a control,
+/// ended when the control ends however it ends.
 pub struct Helper(pub Child);
 
 impl Helper {
@@ -219,7 +245,8 @@ impl Helper {
     }
 }
 
-/// Whatever the control did, the helper does not outlive it.
+/// Whatever the control did,
+/// the helper does not outlive it.
 impl Drop for Helper {
     fn drop(&mut self) {
         let _killed = self.0.kill();
@@ -227,13 +254,17 @@ impl Drop for Helper {
     }
 }
 
-/// A judge that sees the processes of this kernel completely, takes any lock as old enough, and trusts local disks.
+/// A judge that sees the processes of this kernel completely,
+/// takes any lock as old enough,
+/// and trusts local disks.
 pub fn judge() -> crate::stale_ref_lock_judge::Judge {
     return crate::stale_ref_lock_judge::Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, ..crate::stale_ref_lock_judge::Judge::here() };
 }
 
-/// Make a new commit and start `git push origin main`, held at the moment its transaction has taken the lock of the
-///  tracking reference, which is after the remote has taken the commit.
+/// Make a new commit and start `git push origin main`,
+/// held at the moment its transaction has taken the lock of the
+///  tracking reference,
+/// which is after the remote has taken the commit.
 pub fn hold_push(stage: &Stage) -> Held {
     git(stage.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=ahead"]);
     let hooks: PathBuf = stage.git_dir.join("hooks");
@@ -248,8 +279,10 @@ pub fn hold_push(stage: &Stage) -> Held {
     return held;
 }
 
-/// The command that runs real Git in the stage the way the wrapper's own runners start it: no system or global
-///  configuration, the stage as the working directory.
+/// The command that runs real Git in the stage the way the wrapper's own runners start it:
+/// no system or global
+///  configuration,
+/// the stage as the working directory.
 pub fn plain_git(stage: &Stage, arguments: &[&str]) -> Command {
     let mut command: Command = git_command(stage);
     command.args(arguments);

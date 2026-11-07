@@ -1,12 +1,24 @@
 //! What:
 //!  Quoting of bytes that are printed inside a shell command for a person to copy and run.
 //! Why:
-//!  A path or a kernel argument can hold spaces, quotes, `;`, `$(...)` or bytes that are not UTF-8. Printed bare, a
-//!  pasted command runs whatever follows the separator or substitution, or passes the wrong arguments. A value of safe
-//!  characters is printed as it is; any other value is wrapped in single quotes (each single quote inside closed,
-//!  escaped and opened again); a value with a control character or a byte that is not UTF-8 is spelled in the ANSI-C
-//!  form `$'...'` of bash, zsh and ksh with those bytes written as `\xHH` escapes, so the printed text holds no control
-//!  character and no line break. The same rules as `package/wg/cli-quicker/src/shell-quote.ts`.
+//!  A path or a kernel argument can hold spaces,
+//! quotes,
+//! `;`,
+//! `$(...)` or bytes that are not UTF-8.
+//! Printed bare,
+//! a
+//!  pasted command runs whatever follows the separator or substitution,
+//! or passes the wrong arguments.
+//! A value of safe
+//!  characters is printed as it is;
+//! any other value is wrapped in single quotes (each single quote inside closed,
+//!  escaped and opened again);
+//! a value with a control character or a byte that is not UTF-8 is spelled in the ANSI-C
+//!  form `$'...'` of bash,
+//! zsh and ksh with those bytes written as `\xHH` escapes,
+//! so the printed text holds no control
+//!  character and no line break.
+//! The same rules as `package/wg/cli-quicker/src/shell-quote.ts`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +30,8 @@ fn is_bare(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || matches!(byte, b'@' | b'%' | b'+' | b'=' | b':' | b',' | b'.' | b'/' | b'_' | b'-');
 }
 
-/// Whether a character is a C0 control, DEL or a C1 control.
+/// Whether a character is a C0 control,
+/// DEL or a C1 control.
 fn is_control(character: char) -> bool {
     return character.is_control();
 }
@@ -62,8 +75,10 @@ fn all_bare(value: &[u8]) -> bool {
 }
 
 /// What:
-///  Quote bytes so a POSIX shell (bash, zsh or ksh for the `$'...'` form) reads them back as one word.
-///  `&[u8]` is a borrowed byte view; a path's bytes come from `OsStrExt::as_bytes`.
+///  Quote bytes so a POSIX shell (bash,
+/// zsh or ksh for the `$'...'` form) reads them back as one word.
+///  `&[u8]` is a borrowed byte view;
+/// a path's bytes come from `OsStrExt::as_bytes`.
 /// Why:
 ///   See the module description.
 ///

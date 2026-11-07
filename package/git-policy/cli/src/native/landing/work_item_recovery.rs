@@ -25,9 +25,17 @@ use crate::work_item::{
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-/// The most a stray temporary file of a recovery may age before a recovery removes it. Measured: the longest wrapper command in the
-///  commit timing log (1,051 commits, 2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z) took 750.6 s and the longest worktree add in the
-///  add timing log (48 adds, 2026-11-03T08:55Z to 15:06Z) 539.7 s, so a day is about a hundred times the longest. Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
+/// The most a stray temporary file of a recovery may age before a recovery removes it.
+/// Measured:
+/// the longest wrapper command in the
+///  commit timing log (1,051 commits,
+/// 2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z) took 750.6 s and the longest worktree add in the
+///  add timing log (48 adds,
+/// 2026-11-03T08:55Z to 15:06Z) 539.7 s,
+/// so a day is about a hundred times the longest.
+/// Kept as the coordinator's pick under the owner's delegation,
+/// open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Sizes and ages of the service's own housekeeping").
 pub const STRAY_TEMPORARY_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// The end of the name of a recovery's temporary file.
@@ -74,9 +82,12 @@ pub struct Recovered {
 
 /// What:
 ///  Whether a claim stamped `stamp` has expired.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The recovery takes its expiry test as a value, so a control can stand in for it; the state the test needs (the reading and the
+///   The recovery takes its expiry test as a value,
+/// so a control can stand in for it;
+/// the state the test needs (the reading and the
 ///  lease) is a small struct that implements this.
 ///
 /// In TS you'd write (pseudocode):
@@ -88,7 +99,8 @@ pub(crate) trait ClaimExpiry {
     fn has_expired(&self, stamp: &ClaimTime) -> bool;
 }
 
-/// A claim has expired when it is of an earlier boot, or older than the lease.
+/// A claim has expired when it is of an earlier boot,
+/// or older than the lease.
 struct LeaseRanOut<'a> {
     /// The reading the recovery runs at.
     now: &'a ClaimTime,

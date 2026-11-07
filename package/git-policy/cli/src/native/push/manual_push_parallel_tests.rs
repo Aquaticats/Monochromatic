@@ -1,5 +1,8 @@
-//! A push's destinations and updates read side by side: the Git queries of independent destinations and updates overlap in time
-//!  (timestamps written by a stand-in Git), the answers keep the order Git printed them, and one that fails decides the error.
+//! A push's destinations and updates read side by side:
+//! the Git queries of independent destinations and updates overlap in time
+//!  (timestamps written by a stand-in Git),
+//! the answers keep the order Git printed them,
+//! and one that fails decides the error.
 
 use super::*;
 use crate::manual_push_probe::{MOST_CONCURRENT_LOCAL_QUERIES, probe_manual_push_updates_on};
@@ -7,10 +10,13 @@ use crate::parallel_budget::HostResources;
 use crate::test_support::{fixture, git, remove};
 use std::path::{Path, PathBuf};
 
-/// A host large enough that the bound of the SPEC, not the threads, limits the overlap.
+/// A host large enough that the bound of the SPEC,
+/// not the threads,
+/// limits the overlap.
 const LARGE_HOST: HostResources = HostResources { parallelism: 64, memory_available: None };
 
-/// How long the stand-in Git holds a query it delays, in whole and fractional seconds as `sleep` reads it.
+/// How long the stand-in Git holds a query it delays,
+/// in whole and fractional seconds as `sleep` reads it.
 const HOLD: &str = "0.6";
 
 /// Environment of every Git child of these fixtures.
@@ -21,8 +27,11 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
         .collect();
 }
 
-/// A Git that holds every query of the subcommand `held` for `HOLD` and appends the start and the end of the hold, in
-///  nanoseconds since the epoch, to `log`; every other query goes straight to the real Git.
+/// A Git that holds every query of the subcommand `held` for `HOLD` and appends the start and the end of the hold,
+/// in
+///  nanoseconds since the epoch,
+/// to `log`;
+/// every other query goes straight to the real Git.
 fn timing_git(root: &Path, held: &str, log: &Path) -> PathBuf {
     let stand_in: PathBuf = root.join("git-timing");
     let script: String = format!(
@@ -34,7 +43,8 @@ fn timing_git(root: &Path, held: &str, log: &Path) -> PathBuf {
     return stand_in;
 }
 
-/// The held intervals the stand-in wrote, sorted by start.
+/// The held intervals the stand-in wrote,
+/// sorted by start.
 fn intervals(log: &Path) -> Vec<(u128, u128)> {
     let text: String = std::fs::read_to_string(log).unwrap_or_default();
     let mut found: Vec<(u128, u128)> = text
@@ -45,7 +55,8 @@ fn intervals(log: &Path) -> Vec<(u128, u128)> {
     return found;
 }
 
-/// Whether every interval starts before the first one ends: all of them were held at one moment.
+/// Whether every interval starts before the first one ends:
+/// all of them were held at one moment.
 fn all_overlap(found: &[(u128, u128)]) -> bool {
     let first_end: u128 = found.iter().map(|(_start, end)| { return *end; }).min().unwrap_or(0);
     return found.iter().all(|(start, _end)| { return *start < first_end; });
@@ -63,7 +74,11 @@ fn git_over(root: &Path, stand_in: &Path) -> PushGit {
     return PushGit { real_git: stand_in.to_path_buf(), cwd: root.to_path_buf(), environment, lfs: false };
 }
 
-/// A repository with one published commit on `main`, `branches` unpublished branches `b0`, `b1`, ..., and one remote `origin`
+/// A repository with one published commit on `main`,
+/// `branches` unpublished branches `b0`,
+/// `b1`,
+/// ...,
+/// and one remote `origin`
 ///  whose push URLs are `destinations` bare repositories.
 fn repository_with(name: &str, destinations: usize, branches: usize) -> (PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
@@ -88,7 +103,8 @@ fn repository_with(name: &str, destinations: usize, branches: usize) -> (PathBuf
     return (root, repo);
 }
 
-/// Two push URLs of one remote are confirmed with their `ls-remote` queries held at the same moment, and the updates come back in
+/// Two push URLs of one remote are confirmed with their `ls-remote` queries held at the same moment,
+/// and the updates come back in
 ///  the order of the destinations.
 #[test]
 fn the_destinations_of_a_push_are_confirmed_side_by_side() {
@@ -103,7 +119,8 @@ fn the_destinations_of_a_push_are_confirmed_side_by_side() {
     remove(root.as_path());
 }
 
-/// The updates of one push are scoped with their queries held at the same moment, and the scopes keep the order of the updates.
+/// The updates of one push are scoped with their queries held at the same moment,
+/// and the scopes keep the order of the updates.
 #[test]
 fn the_updates_of_a_push_are_scoped_side_by_side() {
     let branches: usize = 3;
@@ -126,7 +143,8 @@ fn the_updates_of_a_push_are_scoped_side_by_side() {
     remove(root.as_path());
 }
 
-/// An update that cannot be scoped decides the error, and the others do not turn it into a success.
+/// An update that cannot be scoped decides the error,
+/// and the others do not turn it into a success.
 #[test]
 fn an_update_that_cannot_be_scoped_fails_the_push_scope() {
     let (root, repo) = repository_with("mp-parallel-failure", 1, 2);
@@ -138,7 +156,8 @@ fn an_update_that_cannot_be_scoped_fails_the_push_scope() {
     remove(root.as_path());
 }
 
-/// More updates than the SPEC allows local queries at once are read at most that many at a time, however large the host.
+/// More updates than the SPEC allows local queries at once are read at most that many at a time,
+/// however large the host.
 #[test]
 fn no_more_than_the_specified_number_of_updates_are_read_at_once() {
     let branches: usize = MOST_CONCURRENT_LOCAL_QUERIES + 2;
@@ -155,7 +174,8 @@ fn no_more_than_the_specified_number_of_updates_are_read_at_once() {
     remove(root.as_path());
 }
 
-/// Local queries run as many at once as the measured gain allows, and no more than the remote queries unless measured to gain.
+/// Local queries run as many at once as the measured gain allows,
+/// and no more than the remote queries unless measured to gain.
 #[test]
 fn local_queries_run_as_many_at_once_as_the_measured_gain_allows() {
     assert_eq!(crate::manual_push_probe::MOST_CONCURRENT_LOCAL_QUERIES, crate::manual_push_probe::LOCAL_QUERY_GAIN_STOPS_AT);

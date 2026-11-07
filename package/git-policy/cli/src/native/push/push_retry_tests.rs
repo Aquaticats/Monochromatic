@@ -1,5 +1,9 @@
-//! Controls for the push retry's schedule: the pauses grow and stop growing, a variable sets the first pause, a plan is
-//! per branch, and only the conflict report is final.
+//! Controls for the push retry's schedule:
+//! the pauses grow and stop growing,
+//! a variable sets the first pause,
+//! a plan is
+//! per branch,
+//! and only the conflict report is final.
 
 use super::*;
 use crate::work_item::WorkKind;
@@ -17,7 +21,9 @@ fn item(branch: &str) -> WorkItem {
     };
 }
 
-/// Each pause is twice the one before, from the first, up to the longest.
+/// Each pause is twice the one before,
+/// from the first,
+/// up to the longest.
 #[test]
 fn the_pauses_double_and_stop_at_the_longest() {
     let first: Duration = Duration::from_secs(10);
@@ -28,7 +34,9 @@ fn the_pauses_double_and_stop_at_the_longest() {
     assert!(pause_before(0, first) == first, "a try number of zero is the first");
 }
 
-/// The variable sets the first pause in whole seconds; anything else is the default, and never longer than the longest.
+/// The variable sets the first pause in whole seconds;
+/// anything else is the default,
+/// and never longer than the longest.
 #[test]
 fn the_variable_sets_the_first_pause() {
     assert_eq!(first_pause_from(None), FIRST_PAUSE);
@@ -39,7 +47,9 @@ fn the_variable_sets_the_first_pause() {
     assert_eq!(first_pause_from(Some(std::ffi::OsStr::new("99999"))), LONGEST_PAUSE);
 }
 
-/// A plan is due after its pause and not before, replaces an earlier plan of its branch, and belongs to its Git directory.
+/// A plan is due after its pause and not before,
+/// replaces an earlier plan of its branch,
+/// and belongs to its Git directory.
 #[test]
 fn a_plan_is_per_branch_and_due_after_its_pause() {
     let mut retries: PushRetries = PushRetries::with_first_pause(Duration::from_secs(10));
@@ -60,7 +70,8 @@ fn a_plan_is_per_branch_and_due_after_its_pause() {
     assert_eq!(retries.next_wait(here, now), None);
 }
 
-/// Only a reported conflict needs the person; a stall and a refused connection do not.
+/// Only a reported conflict needs the person;
+/// a stall and a refused connection do not.
 #[test]
 fn only_a_conflict_needs_the_person() {
     assert!(needs_the_person("monochromatic-git-policy-cli: auto-push: not published: merging origin/main into main conflicts in: a.txt, b.txt. Nothing was pushed"));
@@ -77,35 +88,48 @@ fn only_a_conflict_needs_the_person() {
 // 2026-11-03 (a bare remote with a declining hook; a local HTTP server that answers 401 or 403; a loopback `sshd` that accepts no
 // key; a port nothing listens on), and checked against its source at tag `v2.56.0`.
 
-/// `builtin/receive-pack.c` `"pre-receive hook declined"`, shown by `transport.c` `print_ref_status` as `[remote rejected]`; the
+/// `builtin/receive-pack.c` `"pre-receive hook declined"`,
+/// shown by `transport.c` `print_ref_status` as `[remote rejected]`;
+/// the
 /// `remote:` line is the hook's own output.
 const PRE_RECEIVE_DECLINED: &str = "remote: protected: pushes to main need a review        \nTo /srv/remote.git\n ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
 
-/// `builtin/receive-pack.c` `ret = "hook declined"` for the update hook, with `rp_error("hook declined to update %s")`.
+/// `builtin/receive-pack.c` `ret = "hook declined"` for the update hook,
+/// with `rp_error("hook declined to update %s")`.
 const UPDATE_DECLINED: &str = "remote: update says no        \nremote: error: hook declined to update refs/heads/main        \nTo /srv/remote.git\n ! [remote rejected] main -> main (hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
 
-/// A hosting service's own reason in the same position, which names a hook.
+/// A hosting service's own reason in the same position,
+/// which names a hook.
 const PROTECTED_BRANCH_DECLINED: &str = " ! [remote rejected] main -> main (protected branch hook declined)\n";
 
-/// `remote-curl.c` `die(_("Authentication failed for '%s'"))`, for a 401 with a user name and no usable password.
+/// `remote-curl.c` `die(_("Authentication failed for '%s'"))`,
+/// for a 401 with a user name and no usable password.
 const AUTHENTICATION_FAILED: &str = "remote: login needed\nfatal: Authentication failed for 'http://127.0.0.1:39197/r.git/'\n";
 
-/// `prompt.c` `die("could not read %s%s", prompt, "terminal prompts disabled")`, for a 401 with no user name and prompts off.
+/// `prompt.c` `die("could not read %s%s", prompt, "terminal prompts disabled")`,
+/// for a 401 with no user name and prompts off.
 const PROMPTS_DISABLED: &str = "fatal: could not read Username for 'http://127.0.0.1:39197': terminal prompts disabled\n";
 
-/// `http.c` `"The requested URL returned error: %ld"`, for a 403.
+/// `http.c` `"The requested URL returned error: %ld"`,
+/// for a 403.
 const FORBIDDEN: &str = "remote: forbidden\nfatal: unable to access 'http://127.0.0.1:39871/r.git/': The requested URL returned error: 403\n";
 
-/// OpenSSH's refusal of a key, which Git relays; real `ssh` against a loopback `sshd` that accepts no key.
+/// OpenSSH's refusal of a key,
+/// which Git relays;
+/// real `ssh` against a loopback `sshd` that accepts no key.
 const SSH_REFUSED: &str = "user@127.0.0.1: Permission denied (publickey).\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
 
-/// `http.c` through curl, for a port nothing listens on.
+/// `http.c` through curl,
+/// for a port nothing listens on.
 const CONNECTION_REFUSED: &str = "fatal: unable to access 'http://127.0.0.1:1/r.git/': Failed to connect to 127.0.0.1:1 after 0 ms: Could not connect to server\n";
 
-/// curl, for a name that does not resolve.
+/// curl,
+/// for a name that does not resolve.
 const UNRESOLVED: &str = "fatal: unable to access 'http://nonexistent.invalid/r.git/': Could not resolve host: nonexistent.invalid\n";
 
-/// A login failure is final: the service cannot log in, and retrying only asks the remote again.
+/// A login failure is final:
+/// the service cannot log in,
+/// and retrying only asks the remote again.
 #[test]
 fn an_authentication_failure_is_not_tried_again() {
     for output in [AUTHENTICATION_FAILED, PROMPTS_DISABLED, FORBIDDEN, SSH_REFUSED] {
@@ -114,7 +138,8 @@ fn an_authentication_failure_is_not_tried_again() {
     }
 }
 
-/// A server hook's decline is final, whichever hook declined and whoever wrote its reason.
+/// A server hook's decline is final,
+/// whichever hook declined and whoever wrote its reason.
 #[test]
 fn a_server_hook_decline_is_not_tried_again() {
     for output in [PRE_RECEIVE_DECLINED, UPDATE_DECLINED, PROTECTED_BRANCH_DECLINED] {
@@ -123,7 +148,9 @@ fn a_server_hook_decline_is_not_tried_again() {
     }
 }
 
-/// Being offline is not a login failure and not a decline: it is tried again, as is a stall.
+/// Being offline is not a login failure and not a decline:
+/// it is tried again,
+/// as is a stall.
 #[test]
 fn an_offline_failure_is_still_tried_again() {
     for output in [
@@ -135,9 +162,15 @@ fn an_offline_failure_is_still_tried_again() {
     }
 }
 
-/// An HTTP 5xx answer of the LFS server is outside our control, like a network that is down: the push that met it ends with the
-///  program's words and the wrapper's explanation, and no final failure is read from them, so the plan tries the push again by
-///  itself (pick 12 of the shipped-limits audit, the coordinator's under the owner's delegation, open to the owner's veto).
+/// An HTTP 5xx answer of the LFS server is outside our control,
+/// like a network that is down:
+/// the push that met it ends with the
+///  program's words and the wrapper's explanation,
+/// and no final failure is read from them,
+/// so the plan tries the push again by
+///  itself (pick 12 of the shipped-limits audit,
+/// the coordinator's under the owner's delegation,
+/// open to the owner's veto).
 #[test]
 fn an_lfs_server_error_is_tried_again_by_the_plan() {
     for status in ["500", "502", "503", "504"] {
@@ -148,7 +181,8 @@ fn an_lfs_server_error_is_tried_again_by_the_plan() {
     }
 }
 
-/// A rejection by the server whose reason this release does not know stays retried, and is found so the journal can name it.
+/// A rejection by the server whose reason this release does not know stays retried,
+/// and is found so the journal can name it.
 #[test]
 fn a_rejection_nobody_knows_is_retried_and_named() {
     let output: &str = "To /srv/remote.git\n ! [remote rejected] main -> main (prohibited by the review system)\nerror: failed to push some refs\n";

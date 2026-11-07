@@ -1,7 +1,8 @@
 //! What:
 //!  The status query of each scope and the reading of its answers.
 //! Why:
-//!  A scope read as the other one would reject a harmless command or allow a deleting one; a failed status read
+//!  A scope read as the other one would reject a harmless command or allow a deleting one;
+//! a failed status read
 //!  as clean would let every discarding command through.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,7 +10,8 @@
 //! // expect(dirtyFromOutput({ success: false, ... })).toThrow();
 //! ```
 
-/// The query builder, the reader and the scopes.
+/// The query builder,
+/// the reader and the scopes.
 use super::{DirtyScope, dirty_from_output, dirty_query_arguments, index_file_is_absent};
 use crate::command_test_support::{fixture, git, os_arguments, remove, repository};
 use crate::git_metadata::MetadataOutput;
@@ -25,7 +27,8 @@ fn output(success: bool, stdout: &[u8], stderr: &[u8]) -> MetadataOutput {
     };
 }
 
-/// The global options come first, then the read-only status with the scope's untracked setting.
+/// The global options come first,
+/// then the read-only status with the scope's untracked setting.
 #[test]
 fn the_query_names_the_scope_after_the_global_options() {
     let prefix: Vec<OsString> = os_arguments(&["-C", "dir"]);
@@ -51,7 +54,9 @@ fn the_query_names_the_scope_after_the_global_options() {
     );
 }
 
-/// Output means dirty, silence means clean, and a failure is an error carrying Git's first line.
+/// Output means dirty,
+/// silence means clean,
+/// and a failure is an error carrying Git's first line.
 #[test]
 fn output_means_dirty_and_failure_is_an_error() {
     assert_eq!(dirty_from_output(&output(true, b" M a.txt\n", b"")), Ok(true));
@@ -68,7 +73,9 @@ fn output_means_dirty_and_failure_is_an_error() {
     );
 }
 
-/// Real Git: a tracked edit counts in both scopes, an untracked file only in the wider one.
+/// Real Git:
+/// a tracked edit counts in both scopes,
+/// an untracked file only in the wider one.
 #[test]
 fn real_git_counts_untracked_files_only_in_the_wider_scope() {
     let root = fixture("dirty-scope");
@@ -92,7 +99,10 @@ fn ask(repo: &std::path::Path, scope: DirtyScope) -> bool {
     return dirty_from_output(&output).expect("status answers");
 }
 
-/// A Git directory without an `index` file is absent; one with an `index` file, empty included, is not.
+/// A Git directory without an `index` file is absent;
+/// one with an `index` file,
+/// empty included,
+/// is not.
 #[test]
 fn the_index_file_is_absent_only_where_the_git_directory_has_none() {
     let root = fixture("index-file-absent");
@@ -104,7 +114,9 @@ fn the_index_file_is_absent_only_where_the_git_directory_has_none() {
     remove(root.as_path());
 }
 
-/// A Git directory that does not exist, no Git directory, and a `GIT_INDEX_FILE` that names another index leave the question to the status.
+/// A Git directory that does not exist,
+/// no Git directory,
+/// and a `GIT_INDEX_FILE` that names another index leave the question to the status.
 #[test]
 fn the_index_file_is_not_absent_when_the_question_is_not_the_default_index() {
     let root = fixture("index-file-unknown");

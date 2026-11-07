@@ -1,20 +1,26 @@
-//! What: Evaluate one differential case with the native planner and render its canonical
+//! What:
+//! Evaluate one differential case with the native planner and render its canonical
 //!       result.
-//! Why: The incumbent's driver renders the same result shape from the TypeScript planner,
-//!      so equal texts mean equal plans, findings, patched bytes and failure kinds.
+//! Why:
+//! The incumbent's driver renders the same result shape from the TypeScript planner,
+//!      so equal texts mean equal plans,
+//! findings,
+//! patched bytes and failure kinds.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const output = evaluate(testCase); // the driver's TypeScript twin of this function
 //! ```
 
-/// The failure a case may end in, and the modes a fixture names.
+/// The failure a case may end in,
+/// and the modes a fixture names.
 use crate::dependent_version_content::{PlanError, TrackedMode};
 /// The fixture reader.
 use crate::dependent_version_fixture_json::{
     array, elements, field, hex, is_null, is_true, object, quote, text, texts, units,
 };
-/// The canonical renderings of failures, plans and findings.
+/// The canonical renderings of failures,
+/// plans and findings.
 use crate::dependent_version_fixture_output::{failed, plan_output, policy_output};
 /// The dependency walk under test.
 use crate::dependent_version_graph::{PlannedBump, WorkspaceNode, plan_dependent_bumps};
@@ -54,8 +60,11 @@ fn mode(value: &JsoncValue) -> TrackedMode {
     }
 }
 
-/// Load fixture files into a workspace, replacing files with the same path. A file whose
-/// `current` is `null` was not provided, and any read of it fails.
+/// Load fixture files into a workspace,
+/// replacing files with the same path.
+/// A file whose
+/// `current` is `null` was not provided,
+/// and any read of it fails.
 pub fn load_files(files: &[JsoncValue], memory: &mut MemoryWorkspace) {
     for file in files {
         let path: Vec<u8> = hex(field(file, "path"));
@@ -93,7 +102,9 @@ pub fn load_files(files: &[JsoncValue], memory: &mut MemoryWorkspace) {
     }
 }
 
-/// The workspace a case reads: a shared workspace, then the case's own files.
+/// The workspace a case reads:
+/// a shared workspace,
+/// then the case's own files.
 fn memory_workspace(
     input: &JsoncValue,
     shared: &mut dyn FnMut(&str) -> MemoryWorkspace,
@@ -108,7 +119,8 @@ fn memory_workspace(
     return memory;
 }
 
-/// A workspace case: the plan and the policy findings over the same content.
+/// A workspace case:
+/// the plan and the policy findings over the same content.
 fn workspace_case(input: &JsoncValue, shared: &mut dyn FnMut(&str) -> MemoryWorkspace) -> String {
     let memory: MemoryWorkspace = memory_workspace(input, shared);
     let candidates: Vec<Candidate> = elements(field(input, "candidates"))
@@ -155,7 +167,8 @@ fn graph_bump(bump: &PlannedBump) -> String {
     ]);
 }
 
-/// A graph-level case: `planDependentBumps` over listed nodes.
+/// A graph-level case:
+/// `planDependentBumps` over listed nodes.
 fn graph_case(input: &JsoncValue) -> String {
     let nodes: Vec<WorkspaceNode> = elements(field(input, "manifests"))
         .iter()

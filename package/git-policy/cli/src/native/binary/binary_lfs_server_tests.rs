@@ -1,7 +1,11 @@
 //! Binary-level controls for the Git LFS upload against the real `git-lfs` and an LFS server written inline.
-//! The server speaks the batch API and the basic transfer over a local socket and records, for every uploaded object,
-//!  what the origin's `main` was at that moment, so the order "object first, ref second" is observed and not assumed.
-//! Hosts without `git-lfs` on PATH report that and check nothing; the stand-in controls in
+//! The server speaks the batch API and the basic transfer over a local socket and records,
+//! for every uploaded object,
+//!  what the origin's `main` was at that moment,
+//! so the order "object first,
+//! ref second" is observed and not assumed.
+//! Hosts without `git-lfs` on PATH report that and check nothing;
+//! the stand-in controls in
 //!  `binary_lfs_pre_push_tests.rs` cover the same paths there.
 
 use super::commit::remove_settled;
@@ -23,7 +27,8 @@ struct Upload {
     oid: String,
     /// The bytes it sent.
     bytes: Vec<u8>,
-    /// The origin's `refs/heads/main` when the object arrived, or `absent`.
+    /// The origin's `refs/heads/main` when the object arrived,
+    /// or `absent`.
     origin_main: String,
 }
 
@@ -32,11 +37,14 @@ struct Upload {
 struct ServerState {
     /// Every stored object.
     uploads: Vec<Upload>,
-    /// Whether the batch endpoint refuses, as a server that rejects the credentials would.
+    /// Whether the batch endpoint refuses,
+    /// as a server that rejects the credentials would.
     refuse_batch: bool,
-    /// How many of the next batch requests are answered with HTTP 503, as the incident's server did.
+    /// How many of the next batch requests are answered with HTTP 503,
+    /// as the incident's server did.
     fail_batches: usize,
-    /// Every batch request received, answered or not.
+    /// Every batch request received,
+    /// answered or not.
     batches: usize,
 }
 
@@ -50,7 +58,8 @@ struct LfsServer {
     stop: Arc<AtomicBool>,
     /// The accept loop.
     thread: Option<JoinHandle<()>>,
-    /// The repository's hooks directory, made read-only so `git-lfs` cannot write its shims into it again;
+    /// The repository's hooks directory,
+    /// made read-only so `git-lfs` cannot write its shims into it again;
     ///  restored when the server ends so the fixture can be removed.
     hooks: Option<PathBuf>,
 }
@@ -66,7 +75,10 @@ fn origin_main(origin: &Path) -> String {
     return if text.is_empty() { String::from("absent") } else { text };
 }
 
-/// Read one request: its request line, its headers' content length, and its body.
+/// Read one request:
+/// its request line,
+/// its headers' content length,
+/// and its body.
 fn read_request(stream: &TcpStream) -> Option<(String, Vec<u8>)> {
     let mut reader: BufReader<&TcpStream> = BufReader::new(stream);
     let mut request_line: String = String::new();
@@ -99,7 +111,8 @@ fn respond(mut stream: &TcpStream, status: &str, body: &str) {
     let _written = stream.write_all(text.as_bytes());
 }
 
-/// Answer one request of the batch API, the lock-verification endpoint or the basic upload.
+/// Answer one request of the batch API,
+/// the lock-verification endpoint or the basic upload.
 fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState>) {
     let Some((request_line, body)) = read_request(stream) else {
         return;
@@ -182,7 +195,8 @@ impl LfsServer {
     }
 }
 
-/// The server ends with its test: the flag is set and a connection wakes the accept loop.
+/// The server ends with its test:
+/// the flag is set and a connection wakes the accept loop.
 impl Drop for LfsServer {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::SeqCst);
@@ -199,7 +213,8 @@ impl Drop for LfsServer {
     }
 }
 
-/// The real `git-lfs` on the test process's PATH, if any.
+/// The real `git-lfs` on the test process's PATH,
+/// if any.
 fn real_lfs_program() -> Option<PathBuf> {
     let path: std::ffi::OsString = std::env::var_os("PATH")?;
     return std::env::split_paths(&path)
@@ -207,7 +222,9 @@ fn real_lfs_program() -> Option<PathBuf> {
         .find(|candidate| { return candidate.is_file(); });
 }
 
-/// A repository wired to the real `git-lfs` and the server, with one committed LFS file; `None` without `git-lfs`.
+/// A repository wired to the real `git-lfs` and the server,
+/// with one committed LFS file;
+/// `None` without `git-lfs`.
 fn lfs_world(fixture: &Fixture) -> Option<(PathBuf, PathBuf, LfsServer, Vec<u8>)> {
     let Some(program) = real_lfs_program() else {
         eprintln!("skipped: git-lfs is not on PATH, so the real upload was not exercised");
@@ -284,7 +301,8 @@ fn published_main(fixture: &Fixture, origin: &Path) -> String {
     return if text.is_empty() { String::from("absent") } else { text };
 }
 
-/// The object reaches the server before the ref reaches the origin, and the origin then holds the pointer commit.
+/// The object reaches the server before the ref reaches the origin,
+/// and the origin then holds the pointer commit.
 #[test]
 fn the_real_upload_delivers_the_object_before_the_ref() {
     let fixture: Fixture = fixture("lfs-real");
@@ -307,7 +325,8 @@ fn the_real_upload_delivers_the_object_before_the_ref() {
     remove_settled(&fixture);
 }
 
-/// A server that refuses the upload stops the push: the origin gets no ref and the caller gets the explanation.
+/// A server that refuses the upload stops the push:
+/// the origin gets no ref and the caller gets the explanation.
 #[test]
 fn a_refused_upload_publishes_no_pointer() {
     let fixture: Fixture = fixture("lfs-real-refused");
@@ -330,7 +349,8 @@ fn a_refused_upload_publishes_no_pointer() {
     remove_settled(&fixture);
 }
 
-/// The auto-push of a commit that adds an LFS file uploads the object first, with the real program.
+/// The auto-push of a commit that adds an LFS file uploads the object first,
+/// with the real program.
 #[test]
 fn the_real_upload_precedes_the_auto_push_of_a_commit() {
     let fixture: Fixture = fixture("lfs-real-auto");
@@ -370,7 +390,8 @@ fn push_main(fixture: &Fixture, repo: &Path, variables: &[(&str, &str)]) -> Obse
     return observe(&mut command, b"");
 }
 
-/// A commit that adds no file, made by real Git so that no auto-push runs.
+/// A commit that adds no file,
+/// made by real Git so that no auto-push runs.
 fn empty_commit(fixture: &Fixture, repo: &Path) {
     let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
     path.push(":/usr/bin:/bin");
@@ -383,13 +404,15 @@ fn empty_commit(fixture: &Fixture, repo: &Path) {
     assert!(committed.status.success(), "{}", String::from_utf8_lossy(committed.stderr.as_slice()));
 }
 
-/// Point the clone at the server through a URL that carries a user and a token, as the incident's `lfs.url` did.
+/// Point the clone at the server through a URL that carries a user and a token,
+/// as the incident's `lfs.url` did.
 fn use_credentialed_url(fixture: &Fixture, repo: &Path, server: &LfsServer) {
     let url: String = format!("http://user:secret@127.0.0.1:{}/lfs", server.port);
     git(fixture, repo, &["config", "lfs.url", url.as_str()]);
 }
 
-/// A push of a commit that adds no LFS object sends no batch request: git-lfs skips what the tracking refs reach.
+/// A push of a commit that adds no LFS object sends no batch request:
+/// git-lfs skips what the tracking refs reach.
 #[test]
 fn a_push_that_adds_no_object_sends_no_batch_request() {
     let fixture: Fixture = fixture("lfs-real-bounded");
@@ -411,8 +434,11 @@ fn a_push_that_adds_no_object_sends_no_batch_request() {
     remove_settled(&fixture);
 }
 
-/// Positive control for the bound: a remote with a push URL keeps the full scan, which asks the server about every
-///  object again, so the same push that sent nothing above sends one batch request here.
+/// Positive control for the bound:
+/// a remote with a push URL keeps the full scan,
+/// which asks the server about every
+///  object again,
+/// so the same push that sent nothing above sends one batch request here.
 #[test]
 fn a_remote_with_a_push_url_keeps_the_full_scan() {
     let fixture: Fixture = fixture("lfs-real-full-scan");
@@ -433,12 +459,18 @@ fn a_remote_with_a_push_url_keeps_the_full_scan() {
     remove_settled(&fixture);
 }
 
-/// How long the service waits before its first new try of a push in the control that must see no new try: far past the control.
+/// How long the service waits before its first new try of a push in the control that must see no new try:
+/// far past the control.
 const NO_NEW_TRY_SECONDS: &str = "600";
 
-/// A typed push whose server answers HTTP 503 fails on the first answer: the wrapper does not run `git-lfs push` again (pick 12
-///  of the shipped-limits audit, the coordinator's under the owner's delegation), the program's words are relayed with the
-///  credentials hidden, the explanation follows, and nothing is published.
+/// A typed push whose server answers HTTP 503 fails on the first answer:
+/// the wrapper does not run `git-lfs push` again (pick 12
+///  of the shipped-limits audit,
+/// the coordinator's under the owner's delegation),
+/// the program's words are relayed with the
+///  credentials hidden,
+/// the explanation follows,
+/// and nothing is published.
 #[test]
 fn a_server_error_ends_a_typed_push_at_once() {
     let fixture: Fixture = fixture("lfs-real-server-error-once");
@@ -460,8 +492,10 @@ fn a_server_error_ends_a_typed_push_at_once() {
     remove_settled(&fixture);
 }
 
-/// The auto-push of a commit whose upload meets HTTP 503 is left to the service's push retry plan alone: the push fails once,
-///  the person's record says the service tries again by itself, and no second run happens in place.
+/// The auto-push of a commit whose upload meets HTTP 503 is left to the service's push retry plan alone:
+/// the push fails once,
+///  the person's record says the service tries again by itself,
+/// and no second run happens in place.
 #[test]
 fn an_auto_push_that_meets_a_server_error_is_left_to_the_services_retry_plan() {
     let fixture: Fixture = fixture("lfs-real-auto-plan");
@@ -491,8 +525,11 @@ fn an_auto_push_that_meets_a_server_error_is_left_to_the_services_retry_plan() {
     remove_settled(&fixture);
 }
 
-/// Put a recording script in place of the `git-lfs` link: it appends its arguments to the returned file, then runs the
-///  real program. The file does not exist until the wrapper starts `git-lfs`.
+/// Put a recording script in place of the `git-lfs` link:
+/// it appends its arguments to the returned file,
+/// then runs the
+///  real program.
+/// The file does not exist until the wrapper starts `git-lfs`.
 fn record_git_lfs(fixture: &Fixture) -> PathBuf {
     let link: PathBuf = fixture.root.join("bin/git-lfs");
     let real: PathBuf = std::fs::read_link(&link).expect("the link to the real program");
@@ -503,7 +540,9 @@ fn record_git_lfs(fixture: &Fixture) -> PathBuf {
     return log;
 }
 
-/// The arguments of every `git-lfs push` run, one run per line. Git's own `filter-process` runs of the same program are
+/// The arguments of every `git-lfs push` run,
+/// one run per line.
+/// Git's own `filter-process` runs of the same program are
 ///  not the upload and are left out.
 fn recorded_runs(log: &Path) -> Vec<String> {
     return std::fs::read_to_string(log)
@@ -515,7 +554,9 @@ fn recorded_runs(log: &Path) -> Vec<String> {
 }
 
 /// Add `name` with `content` as an LFS file through the wrapper (so the clean filter stores the object) and commit it with
-///  real Git, so that no auto-push runs; the object name its pointer holds.
+///  real Git,
+/// so that no auto-push runs;
+/// the object name its pointer holds.
 fn commit_lfs_file(fixture: &Fixture, repo: &Path, name: &str, content: &[u8]) -> String {
     std::fs::write(repo.join(name), content).expect("lfs file");
     let added: Observed = observe(&mut super::commit::wrapped_commit(fixture, repo, &["add", "--", name]), b"");
@@ -607,7 +648,8 @@ fn an_auto_push_with_a_value_the_typed_proof_refuses_starts_no_git_lfs() {
     remove_settled(&fixture);
 }
 
-/// A push that adds one pointer uploads exactly that object by name, with one `git-lfs` run and one batch request.
+/// A push that adds one pointer uploads exactly that object by name,
+/// with one `git-lfs` run and one batch request.
 #[test]
 fn a_push_that_adds_one_pointer_uploads_exactly_that_object() {
     let fixture: Fixture = fixture("lfs-real-one");
@@ -632,7 +674,8 @@ fn a_push_that_adds_one_pointer_uploads_exactly_that_object() {
     remove_settled(&fixture);
 }
 
-/// A pointer that one commit adds and the next removes is still uploaded, because the commit that holds it is pushed.
+/// A pointer that one commit adds and the next removes is still uploaded,
+/// because the commit that holds it is pushed.
 #[test]
 fn a_pointer_added_and_removed_between_pushes_is_still_uploaded() {
     let fixture: Fixture = fixture("lfs-real-transient");
@@ -659,8 +702,11 @@ fn a_pointer_added_and_removed_between_pushes_is_still_uploaded() {
     remove_settled(&fixture);
 }
 
-/// The destination the tracking refs may not describe is scanned from the start: the object the first push sent is named
-///  again (the server answers that it has it), and only that, by name.
+/// The destination the tracking refs may not describe is scanned from the start:
+/// the object the first push sent is named
+///  again (the server answers that it has it),
+/// and only that,
+/// by name.
 #[test]
 fn an_untrusted_destination_names_every_pointer_of_the_history() {
     let fixture: Fixture = fixture("lfs-real-untrusted");
@@ -683,7 +729,9 @@ fn an_untrusted_destination_names_every_pointer_of_the_history() {
     remove_settled(&fixture);
 }
 
-/// When the readers decline the repository, `git-lfs` scans with the bounded form, as before.
+/// When the readers decline the repository,
+/// `git-lfs` scans with the bounded form,
+/// as before.
 #[test]
 fn a_repository_the_readers_decline_is_scanned_by_git_lfs() {
     let fixture: Fixture = fixture("lfs-real-declined");
@@ -702,7 +750,8 @@ fn a_repository_the_readers_decline_is_scanned_by_git_lfs() {
     remove_settled(&fixture);
 }
 
-/// A push that recurses into submodules and adds no pointer of its own starts no `git-lfs`, and still prints the notice
+/// A push that recurses into submodules and adds no pointer of its own starts no `git-lfs`,
+/// and still prints the notice
 ///  that a submodule's LFS objects are not covered.
 #[test]
 fn a_submodule_push_without_a_new_pointer_still_gets_the_notice() {

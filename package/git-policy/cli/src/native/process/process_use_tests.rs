@@ -57,7 +57,8 @@ impl Drop for Sleeper {
     }
 }
 
-/// A process whose working directory lies inside the directory is found, and a process elsewhere is not.
+/// A process whose working directory lies inside the directory is found,
+/// and a process elsewhere is not.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_working_directory_inside_the_directory_is_a_use() {
@@ -79,7 +80,8 @@ fn a_working_directory_inside_the_directory_is_a_use() {
     remove(root.as_path());
 }
 
-/// An open descriptor on a file inside the directory is a use, whatever the working directory.
+/// An open descriptor on a file inside the directory is a use,
+/// whatever the working directory.
 #[cfg(target_os = "linux")]
 #[test]
 fn an_open_descriptor_inside_the_directory_is_a_use() {
@@ -95,7 +97,8 @@ fn an_open_descriptor_inside_the_directory_is_a_use() {
     remove(root.as_path());
 }
 
-/// A file is recognized by device and inode, so a second name for the lock is the lock.
+/// A file is recognized by device and inode,
+/// so a second name for the lock is the lock.
 #[cfg(target_os = "linux")]
 #[test]
 fn an_open_descriptor_is_recognized_by_identity_under_any_name() {
@@ -125,7 +128,8 @@ fn the_scanning_process_is_not_reported() {
     remove(root.as_path());
 }
 
-/// A process table that cannot be listed is reported, not read as empty.
+/// A process table that cannot be listed is reported,
+/// not read as empty.
 #[test]
 fn an_unreadable_process_table_is_reported() {
     let scan: UseScan = processes_using_through(Path::new("/nonexistent-proc-root"), &UseTarget::Inside(Path::new("/")), 1);

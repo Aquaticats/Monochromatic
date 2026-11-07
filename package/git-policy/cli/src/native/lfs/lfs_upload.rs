@@ -1,12 +1,23 @@
 //! What:
-//!  The parent's run of the Git LFS upload before a push: `git-lfs push <remote> <refs>` as one child it owns.
+//!  The parent's run of the Git LFS upload before a push:
+//! `git-lfs push <remote> <refs>` as one child it owns.
 //! Why:
 //!  Without an upload step a push publishes pointer files whose objects the LFS server never received.
-//!  The wrapper runs `git-lfs push` itself, so a failure is explained by the process that saw it and the push, which
-//!  then carries no hook, is never started. Nothing here starts the wrapper, writes shell text or injects Git
-//!  configuration (`doc/planning/cli-git-no-self-invocation.md`). What to upload is decided in `lfs_upload_plan`.
-//!  The child sees what the caller gave Git: the global `-c` options travel as `GIT_CONFIG_COUNT` pairs, `--git-dir`,
-//!  `--work-tree` and `--namespace` as their variables, `-C` as the working directory, and the real Git's directory
+//!  The wrapper runs `git-lfs push` itself,
+//! so a failure is explained by the process that saw it and the push,
+//! which
+//!  then carries no hook,
+//! is never started.
+//! Nothing here starts the wrapper,
+//! writes shell text or injects Git
+//!  configuration (`doc/planning/cli-git-no-self-invocation.md`).
+//! What to upload is decided in `lfs_upload_plan`.
+//!  The child sees what the caller gave Git:
+//! the global `-c` options travel as `GIT_CONFIG_COUNT` pairs,
+//! `--git-dir`,
+//!  `--work-tree` and `--namespace` as their variables,
+//! `-C` as the working directory,
+//! and the real Git's directory
 //!  leads its `PATH` so a `git` it starts is never the wrapper while `git-lfs` itself is the one the caller's `PATH`
 //!  finds first.
 //!
@@ -15,15 +26,19 @@
 //! const code = await spawn(findProgram(env.PATH), plan.arguments(), { env: withPrefix(env, globalPrefix), stdio: 'inherit' });
 //! ```
 
-/// The attempt record, the coordinator's Git and its error type.
+/// The attempt record,
+/// the coordinator's Git and its error type.
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
-/// The deadline, the grace and the push runner.
+/// The deadline,
+/// the grace and the push runner.
 use crate::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, push_patience, run_bounded_push};
 /// The invocation's environment values.
 use crate::child_environment::environment_value;
-/// How a child ended, as a status.
+/// How a child ended,
+/// as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
-/// The texts, the program lookup and the plan.
+/// The texts,
+/// the program lookup and the plan.
 use crate::lfs_pre_push::{environment_config_count, failed_message, find_program, missing_program_message};
 /// Hides the credentials in a URL of relayed text.
 use crate::lfs_output_mask::{mask_userinfo, mask_userinfo_text};
@@ -43,7 +58,8 @@ use std::process::{Command, Stdio};
 /// Reading the captured standard error back.
 use std::io::{Read, Seek, SeekFrom};
 
-/// `PATH` with the directory of the real Git first, so a `git` that `git-lfs` starts is the real Git and never the
+/// `PATH` with the directory of the real Git first,
+/// so a `git` that `git-lfs` starts is the real Git and never the
 ///  wrapper (Git does the same for the hooks it starts).
 fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Path) -> OsString {
     let existing: OsString = environment_value(environment, "PATH").unwrap_or_default();
@@ -59,9 +75,13 @@ fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Pat
 ///  The variables that carry the global options of a push into a child that reads Git's configuration.
 /// Why:
 ///   `-c name=value` becomes `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` after any pairs the environment already holds
-///  (a `-c` without `=` is the boolean true), `--git-dir`, `--work-tree` and `--namespace` become `GIT_DIR`,
-///  `GIT_WORK_TREE` and `GIT_NAMESPACE`; `-C` is the working directory and is applied by the caller.
-///  No shell is involved, and an `-c http.extraHeader=...` or `-c lfs.url=...` reaches `git-lfs` as it reached the
+///  (a `-c` without `=` is the boolean true),
+/// `--git-dir`,
+/// `--work-tree` and `--namespace` become `GIT_DIR`,
+///  `GIT_WORK_TREE` and `GIT_NAMESPACE`;
+/// `-C` is the working directory and is applied by the caller.
+///  No shell is involved,
+/// and an `-c http.extraHeader=...` or `-c lfs.url=...` reaches `git-lfs` as it reached the
 ///  Git that used to run the hook.
 ///
 /// In TS you'd write (pseudocode):
@@ -105,21 +125,30 @@ pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, Os
 
 /// Why a run with captured standard error did not produce an outcome.
 enum CaptureError {
-    /// The file for the standard error could not be made; the text says why.
+    /// The file for the standard error could not be made;
+    /// the text says why.
     Scratch(String),
     /// The program could not be started.
     Start,
 }
 
-/// The most standard error text one run keeps and relays; the rest is dropped, so a flood cannot fill memory.
+/// The most standard error text one run keeps and relays;
+/// the rest is dropped,
+/// so a flood cannot fill memory.
 const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
 
 /// What:
-///  Run the command with its standard error in an anonymous file and return how it ended with that text, the
+///  Run the command with its standard error in an anonymous file and return how it ended with that text,
+/// the
 ///  credentials of every URL in it hidden.
 /// Why:
-///   Standard output stays the caller's, so the progress meter is unchanged. The standard error is where `git-lfs`
-///  prints its errors, which can carry the `lfs.url` token, so it is relayed only after its URLs are masked. A file needs no reader thread that a
+///   Standard output stays the caller's,
+/// so the progress meter is unchanged.
+/// The standard error is where `git-lfs`
+///  prints its errors,
+/// which can carry the `lfs.url` token,
+/// so it is relayed only after its URLs are masked.
+/// A file needs no reader thread that a
 ///  stuck helper could keep alive.
 ///
 /// In TS you'd write (pseudocode):
@@ -171,11 +200,17 @@ fn capture_failed_message(why: &str) -> String {
 }
 
 /// What:
-///  Run the upload as a child with the caller's streams and return the status to stop with, or nothing when it succeeded.
+///  Run the upload as a child with the caller's streams and return the status to stop with,
+/// or nothing when it succeeded.
 /// Why:
-///   The parent saw the child end, so it prints the explanation after the program's own output; the push is not started.
-///  A signal sent to the wrapper is relayed to the child, so stopping the wrapper stops the upload. A push that also
-///  pushes submodules gets a notice, because their objects are not part of this upload.
+///   The parent saw the child end,
+/// so it prints the explanation after the program's own output;
+/// the push is not started.
+///  A signal sent to the wrapper is relayed to the child,
+/// so stopping the wrapper stops the upload.
+/// A push that also
+///  pushes submodules gets a notice,
+/// because their objects are not part of this upload.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -246,8 +281,11 @@ pub fn run_upload_interactive(
 /// What:
 ///  The notice for a push that also pushes submodules.
 /// Why:
-///   Git pushes a submodule's commits itself; their LFS objects are not uploaded by the wrapper, and the pointer files
-///  would be published without them. Every way forward is named.
+///   Git pushes a submodule's commits itself;
+/// their LFS objects are not uploaded by the wrapper,
+/// and the pointer files
+///  would be published without them.
+/// Every way forward is named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -263,10 +301,14 @@ pub fn submodule_notice() -> String {
 }
 
 /// What:
-///  Run the upload as a bounded child whose output is captured, and return the failed attempt to stop with, or nothing
+///  Run the upload as a bounded child whose output is captured,
+/// and return the failed attempt to stop with,
+/// or nothing
 ///  when it succeeded.
 /// Why:
-///   The auto-push records and shows a failed attempt's output; the explanation is part of it. A stop by deadline says
+///   The auto-push records and shows a failed attempt's output;
+/// the explanation is part of it.
+/// A stop by deadline says
 ///  so.
 ///
 /// In TS you'd write (pseudocode):
@@ -310,7 +352,8 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
     return Ok(None);
 }
 
-/// The failed attempt with the explanation after the program's own output; a stop by deadline says so.
+/// The failed attempt with the explanation after the program's own output;
+/// a stop by deadline says so.
 fn explained(attempt: PushAttempt) -> PushAttempt {
     let description: String = if attempt.exit_code == STOPPED_EXIT_CODE {
         String::from("did not finish and was stopped")

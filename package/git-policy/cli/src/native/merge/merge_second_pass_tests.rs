@@ -1,6 +1,15 @@
-//! Controls for the second pass over real merge-tree answers: the stages parse, a plain text file whose regions all resolve
-//!  is merged, and every kind of path the pass must leave alone (both-append, binary, added on both sides, deleted on one,
-//!  a link, large, claimed by a merge driver) is left, with the reason.
+//! Controls for the second pass over real merge-tree answers:
+//! the stages parse,
+//! a plain text file whose regions all resolve
+//!  is merged,
+//! and every kind of path the pass must leave alone (both-append,
+//! binary,
+//! added on both sides,
+//! deleted on one,
+//!  a link,
+//! large,
+//! claimed by a merge driver) is left,
+//! with the reason.
 
 use super::*;
 use crate::transaction_git::GitContext;
@@ -14,7 +23,8 @@ pub(crate) fn corpus(name: &str, extension: &str) -> Vec<u8> {
         .expect("a corpus file");
 }
 
-/// A repository with a base commit and the branches `ours` and `theirs` on top of it, for the files given.
+/// A repository with a base commit and the branches `ours` and `theirs` on top of it,
+/// for the files given.
 pub(crate) struct World {
     /// The fixture directory.
     pub(crate) root: PathBuf,
@@ -34,7 +44,9 @@ pub(crate) enum Change<'a> {
     Executable(&'a [u8]),
 }
 
-/// Build the world: `base` files first, then the side changes on the two branches.
+/// Build the world:
+/// `base` files first,
+/// then the side changes on the two branches.
 pub(crate) fn world(name: &str, base: &[(&str, &[u8])], ours: &[(&str, Change<'_>)], theirs: &[(&str, Change<'_>)]) -> World {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -92,7 +104,8 @@ fn verdicts_of(world: &World) -> Vec<Verdict> {
     return second_pass(&runner(&context, world.repo.as_path()), conflicts.as_slice()).expect("the pass runs");
 }
 
-/// The merge-tree stages parse into one conflict per path with all three sides, in the order Git printed them.
+/// The merge-tree stages parse into one conflict per path with all three sides,
+/// in the order Git printed them.
 #[test]
 fn the_stages_of_a_merge_tree_answer_parse_per_path() {
     let adjacent: Vec<u8> = corpus("md1b", "base");
@@ -113,7 +126,8 @@ fn the_stages_of_a_merge_tree_answer_parse_per_path() {
     remove(world.root.as_path());
 }
 
-/// An edit and an insertion right after it merge to Jujutsu's bytes, with the part reported.
+/// An edit and an insertion right after it merge to Jujutsu's bytes,
+/// with the part reported.
 #[test]
 fn an_adjacent_edit_and_insertion_are_merged_with_their_part() {
     let world: World = world(
@@ -130,7 +144,8 @@ fn an_adjacent_edit_and_insertion_are_merged_with_their_part() {
     remove(world.root.as_path());
 }
 
-/// Each kind of path the pass must not touch is left, with the reason that belongs to it.
+/// Each kind of path the pass must not touch is left,
+/// with the reason that belongs to it.
 #[test]
 fn paths_the_pass_must_not_touch_are_left_with_their_reason() {
     let text: &[u8] = b"one\ntwo\nthree\n";
@@ -203,7 +218,10 @@ fn a_path_both_sides_added_is_left_for_the_person() {
     remove(world.root.as_path());
 }
 
-/// The report names the file, numbers the parts, shows what each became, and keeps a control character out of the terminal.
+/// The report names the file,
+/// numbers the parts,
+/// shows what each became,
+/// and keeps a control character out of the terminal.
 #[test]
 fn the_report_lines_name_the_file_and_number_the_parts_and_escape_the_text() {
     let span = LineSpan { first: 3, count: 2 };
@@ -224,13 +242,18 @@ fn the_report_lines_name_the_file_and_number_the_parts_and_escape_the_text() {
     assert!(report_lines("", &none)[0].contains("resolved without a word pass"));
 }
 
-/// An `update-index --index-info` record carries the mode in octal, the object, a tab, the raw path bytes and a NUL.
+/// An `update-index --index-info` record carries the mode in octal,
+/// the object,
+/// a tab,
+/// the raw path bytes and a NUL.
 #[test]
 fn a_resolved_record_is_the_index_info_form() {
     assert_eq!(resolved_record(0o100_755, "abc", b"d/\xff.sh"), b"100755 abc\td/\xff.sh\0".to_vec());
 }
 
-/// Only the `-c` pairs of the global options remain, in order, so the second pass keeps the person's settings and no
+/// Only the `-c` pairs of the global options remain,
+/// in order,
+/// so the second pass keeps the person's settings and no
 ///  option that would move it away from the top of the worktree.
 #[test]
 fn only_the_configuration_options_of_the_prefix_are_kept() {
@@ -240,7 +263,9 @@ fn only_the_configuration_options_of_the_prefix_are_kept() {
     assert!(config_options(&[]).is_empty());
 }
 
-/// The journal entry names the file, the operation and the number of parts, and carries every part in its message.
+/// The journal entry names the file,
+/// the operation and the number of parts,
+/// and carries every part in its message.
 #[test]
 fn the_journal_entry_names_the_file_the_operation_and_the_parts() {
     let span = LineSpan { first: 1, count: 1 };

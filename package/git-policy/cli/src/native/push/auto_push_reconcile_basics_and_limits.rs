@@ -1,10 +1,21 @@
 //! What:
-//!  The words, limits and small Git steps that the reconcile of a rejected push shares: the line prefixes, the attempt
-//!  limit, the stale-rejection test, the failed-attempt value, the ancestor and fetch queries, and the journal identifier.
+//!  The words,
+//! limits and small Git steps that the reconcile of a rejected push shares:
+//! the line prefixes,
+//! the attempt
+//!  limit,
+//! the stale-rejection test,
+//! the failed-attempt value,
+//! the ancestor and fetch queries,
+//! and the journal identifier.
 //! Why:
-//!  `auto_push_reconcile.rs` runs the loop, `auto_push_reconcile_merge_commit.rs` builds the merge commit and
-//!  `auto_push_reconcile_branch_advance.rs` moves the branch after the push; all three need these, and none of them may
-//!  depend on a file that depends on it, so they live in a file that depends on none of them.
+//!  `auto_push_reconcile.rs` runs the loop,
+//! `auto_push_reconcile_merge_commit.rs` builds the merge commit and
+//!  `auto_push_reconcile_branch_advance.rs` moves the branch after the push;
+//! all three need these,
+//! and none of them may
+//!  depend on a file that depends on it,
+//! so they live in a file that depends on none of them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,30 +35,40 @@ use crate::auto_push_destination::Destination;
 /// Tag used for diagnostics from this module.
 pub(crate) const TAG: &str = "monochromatic-git-policy-cli";
 
-/// Prefix of every line this module adds to a push's output, so the terminal filter can keep it.
+/// Prefix of every line this module adds to a push's output,
+/// so the terminal filter can keep it.
 pub const RECONCILE_LINE_PREFIX: &str = "monochromatic-git-policy-cli: auto-push: ";
 
-/// Start of the line that explains why a rejected push stays unpublished; the generic "run `git push`" note is then
+/// Start of the line that explains why a rejected push stays unpublished;
+/// the generic "run `git push`" note is then
 /// wrong advice and is not printed.
 pub const RECONCILE_FAILED_PREFIX: &str = "monochromatic-git-policy-cli: auto-push: not published: ";
 
-/// How many times the remote tip is fetched, merged and pushed before the push is reported as failed.
+/// How many times the remote tip is fetched,
+/// merged and pushed before the push is reported as failed.
 pub const MAX_RECONCILE_ATTEMPTS: u32 = 10;
 
-/// The marker Git prints for a push the remote refused as stale; the word is not translated.
+/// The marker Git prints for a push the remote refused as stale;
+/// the word is not translated.
 pub(crate) const REJECTED_MARKER: &str = "[rejected]";
 
-/// The marker Git prints for an update that the remote's own rules refused, such as GitHub's protected branch (GH006).
-/// A remote that is updated by two pushes at once refuses the slower one this way, with no word about staleness.
+/// The marker Git prints for an update that the remote's own rules refused,
+/// such as GitHub's protected branch (GH006).
+/// A remote that is updated by two pushes at once refuses the slower one this way,
+/// with no word about staleness.
 pub(crate) const REMOTE_REJECTED_MARKER: &str = "[remote rejected]";
 
 /// What:
-///  Whether a push's output shows a refusal that a moved remote branch can explain: Git's stale `[rejected]`, or the
+///  Whether a push's output shows a refusal that a moved remote branch can explain:
+/// Git's stale `[rejected]`,
+/// or the
 ///  remote's own `[remote rejected]`.
 /// Why:
-///   Only a refusal of an update that raced another push can be cured by merging; an authentication failure or an offline
+///   Only a refusal of an update that raced another push can be cured by merging;
+/// an authentication failure or an offline
 ///  error must be reported as they are.
-///  The message cannot tell a race from a rule that refuses every push, so the caller compares the remote tip with the
+///  The message cannot tell a race from a rule that refuses every push,
+/// so the caller compares the remote tip with the
 ///  branch and returns the refusal unchanged when the remote has not moved.
 ///
 /// In TS you'd write (pseudocode):
@@ -82,9 +103,12 @@ pub(crate) fn argv(parts: &[&str]) -> Vec<OsString> {
 }
 
 /// What:
-///  Whether the first commit is the second or one of its ancestors, or nothing when Git cannot tell.
+///  Whether the first commit is the second or one of its ancestors,
+/// or nothing when Git cannot tell.
 /// Why:
-///   Exit `0` and `1` are the answers; any other exit means an object is missing, and that is not an answer.
+///   Exit `0` and `1` are the answers;
+/// any other exit means an object is missing,
+/// and that is not an answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -109,8 +133,11 @@ pub(crate) fn is_ancestor(
 /// What:
 ///  Fetch the remote branch into a private ref and return the commit it names.
 /// Why:
-///   `FETCH_HEAD` is shared by every fetch in the repository, so another process could replace it between the fetch
-///  and the read; a ref named for this process cannot be replaced, and it is deleted before this returns.
+///   `FETCH_HEAD` is shared by every fetch in the repository,
+/// so another process could replace it between the fetch
+///  and the read;
+/// a ref named for this process cannot be replaced,
+/// and it is deleted before this returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -150,8 +177,11 @@ pub(crate) fn fetch_remote_tip(
 }
 
 /// What:
-///  The journal identifier of the entries of a merged file: the wrapper's for a push a person typed, the service's for the
-///  auto-push, which runs inside the service.
+///  The journal identifier of the entries of a merged file:
+/// the wrapper's for a push a person typed,
+/// the service's for the
+///  auto-push,
+/// which runs inside the service.
 /// Why:
 ///   An entry belongs next to the others of the program that sent it.
 ///

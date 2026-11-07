@@ -1,5 +1,6 @@
 //! Controls for the strict reverse check:
-//!  hand-written anchoring and matching cases, and a seeded differential run against
+//!  hand-written anchoring and matching cases,
+//! and a seeded differential run against
 //!  `git apply --reverse --check` on the same real repository bytes.
 
 use super::*;
@@ -39,7 +40,8 @@ fn patch_between(directory: &Path, base: &[u8], landed: &[u8], context: u32) -> 
     .stdout;
 }
 
-/// Hunks of entry `0` for one change, parsed as replay parses them.
+/// Hunks of entry `0` for one change,
+/// parsed as replay parses them.
 fn hunks_between(name: &str, base: &[u8], landed: &[u8], context: u32) -> Vec<PatchHunk> {
     let root: PathBuf = fixture(name);
     let patch: Vec<u8> = patch_between(root.as_path(), base, landed, context);
@@ -48,7 +50,8 @@ fn hunks_between(name: &str, base: &[u8], landed: &[u8], context: u32) -> Vec<Pa
     return files.get(b"0".as_slice()).cloned().unwrap_or_default();
 }
 
-/// A landed edit already present in the prepared bytes reverses; a different prepared line does not.
+/// A landed edit already present in the prepared bytes reverses;
+/// a different prepared line does not.
 #[test]
 fn a_landed_edit_reverses_only_on_its_own_bytes() {
     let hunks: Vec<PatchHunk> = hunks_between("reverse-own-bytes", b"a\nb\nc\n", b"a\nX\nc\n", 3);
@@ -106,7 +109,8 @@ fn a_trailing_deletion_reverses_on_the_exact_tail() {
     assert!(!reverse_applies(&hunks, b"a\nq\n"));
 }
 
-/// An incomplete last line matches by content, but not against a line that gained a newline
+/// An incomplete last line matches by content,
+/// but not against a line that gained a newline
 ///  when the hunk is anchored at the end.
 #[test]
 fn an_incomplete_last_line_matches_by_content_at_the_end() {
@@ -116,7 +120,8 @@ fn an_incomplete_last_line_matches_by_content_at_the_end() {
 }
 
 /// An incomplete preimage line that is not at the hunk's end matches an image line
-///  with the same content plus whitespace and a newline, as Git's quick hash check allows.
+///  with the same content plus whitespace and a newline,
+/// as Git's quick hash check allows.
 #[test]
 fn an_incomplete_preimage_line_matches_past_whitespace_when_not_anchored() {
     let hunks: Vec<PatchHunk> = hunks_between("reverse-whitespace", b"x\nb", b"y\nb", 3);
@@ -134,9 +139,11 @@ fn patched_lines_are_not_matched_twice() {
     assert!(!line_matches(&line, b"same\n", false, false));
 }
 
-/// A fixed xorshift stream, so every run sees the same cases.
+/// A fixed xorshift stream,
+/// so every run sees the same cases.
 struct Seeded {
-    /// Generator state; never zero.
+    /// Generator state;
+    /// never zero.
     state: u64,
 }
 
@@ -149,7 +156,8 @@ impl Seeded {
         return self.state;
     }
 
-    /// A number below `bound`, which is at least one.
+    /// A number below `bound`,
+    /// which is at least one.
     fn below(&mut self, bound: usize) -> usize {
         let modulus: u64 = u64::try_from(bound.max(1)).unwrap_or(1);
         return usize::try_from(self.next_value() % modulus).unwrap_or(0);
@@ -157,7 +165,10 @@ impl Seeded {
 }
 
 /// Lines the generator draws from:
-///  repeated lines, a whitespace-only variant, an empty line, and a line without its newline.
+///  repeated lines,
+/// a whitespace-only variant,
+/// an empty line,
+/// and a line without its newline.
 const ALPHABET: [&[u8]; 6] = [b"a\n", b"b\n", b"\n", b" b\n", b"a", b"c\n"];
 
 /// Random text of up to `limit` lines drawn from the alphabet.
@@ -193,8 +204,10 @@ fn edit_lines(random: &mut Seeded, base: &[u8]) -> Vec<u8> {
 }
 
 /// The strict check agrees with `git apply --reverse --check` on every seeded case,
-///  and both outcomes occur, so the agreement is not vacuous.
-/// All cases share one repository and the patches come from one Git run, so the run starts Git a few times
+///  and both outcomes occur,
+/// so the agreement is not vacuous.
+/// All cases share one repository and the patches come from one Git run,
+/// so the run starts Git a few times
 ///  plus once per case for the oracle.
 #[test]
 fn strict_reverse_agrees_with_git_apply_on_seeded_cases() {
@@ -244,14 +257,16 @@ fn strict_reverse_agrees_with_git_apply_on_seeded_cases() {
     assert!(applied > 0 && rejected > 0, "applied {applied}, rejected {rejected}");
 }
 
-/// An incomplete preimage line does not match an image line that merely starts with it: the extra content differs.
+/// An incomplete preimage line does not match an image line that merely starts with it:
+/// the extra content differs.
 #[test]
 fn an_incomplete_preimage_line_does_not_match_a_longer_image_line() {
     let hunks: Vec<PatchHunk> = hunks_between("reverse-longer-line", b"x\nb", b"y\nb", 3);
     assert!(!reverse_applies(&hunks, b"y\nbc\n"));
 }
 
-/// A hunk whose match lies after its expected line is found by widening the search forward, past the start of the image.
+/// A hunk whose match lies after its expected line is found by widening the search forward,
+/// past the start of the image.
 #[test]
 fn a_hunk_is_found_by_walking_forward_past_the_expected_line() {
     let hunk: PatchHunk = PatchHunk {
@@ -267,7 +282,8 @@ fn a_hunk_is_found_by_walking_forward_past_the_expected_line() {
     assert!(!reverse_applies(std::slice::from_ref(&hunk), b"z\na\nb\nd\n"));
 }
 
-/// An image of unpatched lines, each from text with its newline.
+/// An image of unpatched lines,
+/// each from text with its newline.
 fn image_of(lines: &[&str]) -> Vec<ImageLine> {
     return lines
         .iter()
@@ -275,12 +291,14 @@ fn image_of(lines: &[&str]) -> Vec<ImageLine> {
         .collect();
 }
 
-/// The text of every line of an image, to compare whole results.
+/// The text of every line of an image,
+/// to compare whole results.
 fn texts_of(image: &[ImageLine]) -> Vec<String> {
     return image.iter().map(|line| { return String::from_utf8_lossy(&line.text).into_owned(); }).collect();
 }
 
-/// A hunk from `(marker, text)` lines, each text with its newline unless it is an incomplete last line.
+/// A hunk from `(marker, text)` lines,
+/// each text with its newline unless it is an incomplete last line.
 fn hunk_of(old_start: i64, new_start: i64, lines: &[(u8, &str)]) -> PatchHunk {
     return PatchHunk {
         old_start,
@@ -305,7 +323,8 @@ fn the_search_looks_backwards_from_the_expected_line() {
     assert_eq!(find_position(&long, &wanted, 5, false, false), Some(4));
 }
 
-/// A hunk that only removes lines has an empty preimage, which the end anchor places after the last line.
+/// A hunk that only removes lines has an empty preimage,
+/// which the end anchor places after the last line.
 #[test]
 fn a_removal_only_hunk_reverses_by_restoring_its_lines_at_the_end() {
     let image: Vec<ImageLine> = image_of(&["x\n", "y\n", "z\n"]);
@@ -315,7 +334,8 @@ fn a_removal_only_hunk_reverses_by_restoring_its_lines_at_the_end() {
     assert!(reverse_applies(&[hunk], b"x\ny\nz\n"));
 }
 
-/// Reversing a hunk replaces its new side by its old side: context and removals take the place of context and additions.
+/// Reversing a hunk replaces its new side by its old side:
+/// context and removals take the place of context and additions.
 #[test]
 fn reversing_a_hunk_restores_the_removed_lines_and_drops_the_added_ones() {
     let image: Vec<ImageLine> = image_of(&["a\n", "c\n", "d\n"]);
@@ -324,7 +344,8 @@ fn reversing_a_hunk_restores_the_removed_lines_and_drops_the_added_ones() {
     assert_eq!(texts_of(&rebuilt), ["a\n", "b\n", "d\n"]);
 }
 
-/// The search starts at the old side's first line, so of two equal matches the one at that line wins.
+/// The search starts at the old side's first line,
+/// so of two equal matches the one at that line wins.
 #[test]
 fn the_search_starts_at_the_hunks_old_line() {
     let hunk_at = |old_start: i64| -> PatchHunk { return hunk_of(old_start, old_start, &[(b'+', "a\n"), (b' ', "z\n")]); };
@@ -337,7 +358,8 @@ fn the_search_starts_at_the_hunks_old_line() {
     assert_eq!(texts_of(&rebuilt_second), ["x\n", "x\n", "x\n", "z\n", "a\n", "z\n"]);
 }
 
-/// Only a hunk's last preimage line may be an incomplete line, so a middle line without its newline never matches
+/// Only a hunk's last preimage line may be an incomplete line,
+/// so a middle line without its newline never matches
 ///  an image line that has one.
 #[test]
 fn a_middle_line_without_its_newline_matches_only_exactly() {

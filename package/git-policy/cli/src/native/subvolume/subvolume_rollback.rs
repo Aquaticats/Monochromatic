@@ -1,13 +1,23 @@
 //! What:
-//!  Undo a migration (`--rollback`) and delete the old tree after a finished one (`--remove-old`), plus the removal of
+//!  Undo a migration (`--rollback`) and delete the old tree after a finished one (`--remove-old`),
+//! plus the removal of
 //!  a subvolume tree that both depend on.
 //! Why:
-//!  Rollback carries back what was written to the new root since the exchange (files newer there win), swaps the trees
-//!  again, rewrites the restored indexes' stat fields (the carried-back index describes the new tree's inodes), and
-//!  deletes the new subvolume deepest nested subvolume first, because the kernel refuses to destroy a subvolume that
-//!  holds another (`ENOTEMPTY`). Where the mount does not allow an unprivileged destroy, an emptied subvolume is
-//!  removed with `rmdir`, which the kernel allows for an empty subvolume root. The old tree is an ordinary directory,
-//!  so deleting it is a file walk, never a subvolume destroy.
+//!  Rollback carries back what was written to the new root since the exchange (files newer there win),
+//! swaps the trees
+//!  again,
+//! rewrites the restored indexes' stat fields (the carried-back index describes the new tree's inodes),
+//! and
+//!  deletes the new subvolume deepest nested subvolume first,
+//! because the kernel refuses to destroy a subvolume that
+//!  holds another (`ENOTEMPTY`).
+//! Where the mount does not allow an unprivileged destroy,
+//! an emptied subvolume is
+//!  removed with `rmdir`,
+//! which the kernel allows for an empty subvolume root.
+//! The old tree is an ordinary directory,
+//!  so deleting it is a file walk,
+//! never a subvolume destroy.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,7 +34,8 @@ use crate::subvolume_run::Run;
 use crate::subvolume_sync::SyncStats;
 use std::path::{Path, PathBuf};
 
-/// Remove a file, treating "already gone" as done.
+/// Remove a file,
+/// treating "already gone" as done.
 fn remove_if_present(path: &Path) -> Result<(), MigrateError> {
     return match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
@@ -34,7 +45,8 @@ fn remove_if_present(path: &Path) -> Result<(), MigrateError> {
 }
 
 /// What:
-///  Every directory inside `top` (not `top` itself) that is a subvolume root, deepest first.
+///  Every directory inside `top` (not `top` itself) that is a subvolume root,
+/// deepest first.
 /// Why:
 ///   Destroying them in this order never meets a subvolume that still holds another.
 ///
@@ -77,10 +89,14 @@ fn deeper_first(left: &(usize, PathBuf), right: &(usize, PathBuf)) -> std::cmp::
 }
 
 /// What:
-///  Remove one subvolume that holds no other: by the destroy call where the mount allows it, else by emptying it and
+///  Remove one subvolume that holds no other:
+/// by the destroy call where the mount allows it,
+/// else by emptying it and
 ///  `rmdir`.
 /// Why:
-///   Both end with the directory gone. A destroy that fails for any reason falls through to the emptying route, whose
+///   Both end with the directory gone.
+/// A destroy that fails for any reason falls through to the emptying route,
+/// whose
 ///  own failure is reported.
 ///
 /// In TS you'd write (pseudocode):
@@ -96,7 +112,8 @@ fn remove_one_subvolume(run: &mut Run<'_>, path: &Path) -> Result<(), MigrateErr
 }
 
 /// What:
-///  Remove a subvolume and every subvolume nested in it, deepest first.
+///  Remove a subvolume and every subvolume nested in it,
+/// deepest first.
 /// Why:
 ///   See the module description.
 ///
@@ -112,14 +129,24 @@ pub fn remove_subvolume_tree(run: &mut Run<'_>, path: &Path) -> Result<(), Migra
 }
 
 /// What:
-///  The swap of the rollback: carry back what is newer in the new root, exchange the trees once, rename the new
-///  subvolume to its own name, and record it.
+///  The swap of the rollback:
+/// carry back what is newer in the new root,
+/// exchange the trees once,
+/// rename the new
+///  subvolume to its own name,
+/// and record it.
 ///  `Ok(Some(refusals))` means nothing was changed.
 /// Why:
-///   The exchange cannot be repeated: after it the checkout path holds the original directory, and a second exchange
-///  would put the new subvolume back and then delete the original. The journal step `rollback-swap` is recorded before
-///  the call, and a rerun reads the checkout path to learn whether the call took effect: a subvolume root there means
-///  it did not, anything else means it did and only the rename and the record are left.
+///   The exchange cannot be repeated:
+/// after it the checkout path holds the original directory,
+/// and a second exchange
+///  would put the new subvolume back and then delete the original.
+/// The journal step `rollback-swap` is recorded before
+///  the call,
+/// and a rerun reads the checkout path to learn whether the call took effect:
+/// a subvolume root there means
+///  it did not,
+/// anything else means it did and only the rename and the record are left.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,10 +191,16 @@ fn swap_back(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<R
 
 /// What:
 ///  The rollback.
-///  `Ok(None)` means it ran; `Ok(Some(refusals))` means nothing was changed.
+///  `Ok(None)` means it ran;
+/// `Ok(Some(refusals))` means nothing was changed.
 /// Why:
-///   Three states can be undone: before the exchange (delete the new subvolume and the lock), after it (carry back,
-///  swap again, delete the new subvolume), and in between (finish the bookkeeping, then the second case).
+///   Three states can be undone:
+/// before the exchange (delete the new subvolume and the lock),
+/// after it (carry back,
+///  swap again,
+/// delete the new subvolume),
+/// and in between (finish the bookkeeping,
+/// then the second case).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,10 +253,15 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
 /// What:
 ///  Carry into the checkout what was written to the old tree after the catch-up finished.
 /// Why:
-///   A process that kept a descriptor in the old tree can write there until it is stopped, and the catch-up that was
-///  recorded as done cannot see those writes. The pass is update-only: it copies a file that is newer than the
-///  checkout's, and a file the checkout lacks only when it is no older than the catch-up (older ones were deleted from
-///  the checkout on purpose). A journal without the catch-up's time carries only the newer files.
+///   A process that kept a descriptor in the old tree can write there until it is stopped,
+/// and the catch-up that was
+///  recorded as done cannot see those writes.
+/// The pass is update-only:
+/// it copies a file that is newer than the
+///  checkout's,
+/// and a file the checkout lacks only when it is no older than the catch-up (older ones were deleted from
+///  the checkout on purpose).
+/// A journal without the catch-up's time carries only the newer files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -241,10 +279,15 @@ fn carry_late_writes(run: &mut Run<'_>) -> Result<(), MigrateError> {
 
 /// What:
 ///  Delete the old tree of a finished migration.
-///  `Ok(None)` means it ran; `Ok(Some(refusals))` means nothing was changed.
+///  `Ok(None)` means it ran;
+/// `Ok(Some(refusals))` means nothing was changed.
 /// Why:
-///   The files this user could not read exist only there, so a non-empty list refuses unless the person discards them
-///  explicitly. The deletion (`remove_tree`) unlinks entries, makes directories the user owns writable on the way, and never follows symbolic links.
+///   The files this user could not read exist only there,
+/// so a non-empty list refuses unless the person discards them
+///  explicitly.
+/// The deletion (`remove_tree`) unlinks entries,
+/// makes directories the user owns writable on the way,
+/// and never follows symbolic links.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

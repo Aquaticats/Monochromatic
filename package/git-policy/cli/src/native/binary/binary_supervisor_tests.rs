@@ -42,7 +42,8 @@ fn still() -> Sample {
     return Sample { cpu_ticks: 7, activity: 100, child_faults: 40, processes: vec![(10, 1), (11, 1)], runnable: false, disk_wait: false, held: false };
 }
 
-/// A tree that shows nothing for the window is hung, and not one look earlier.
+/// A tree that shows nothing for the window is hung,
+/// and not one look earlier.
 #[test]
 fn a_tree_that_stands_still_is_hung_when_the_window_has_passed() {
     let mut judge: Judge = judge();
@@ -122,7 +123,9 @@ fn a_hold_by_the_test_suspends_the_idle_rule_and_nothing_else() {
     assert!(matches!(late.observe(SHARED.backstop, &still(), true), Some(Reason::Backstop(_))), "held, the backstop still ends anything");
 }
 
-/// The processor budget ends a tree that is busy, however much else moves; waited-for children moving their time to the
+/// The processor budget ends a tree that is busy,
+/// however much else moves;
+/// waited-for children moving their time to the
 /// parent do not let it drop below what was seen.
 #[test]
 fn the_processor_budget_ends_a_busy_tree_and_never_goes_back() {
@@ -154,7 +157,9 @@ fn the_processor_budget_ends_a_parallel_tree_inside_the_old_wall_bound() {
     assert!(matches!(judge.observe(wall, &Sample { cpu_ticks: ticks_per_budget, runnable: true, ..still() }, false), Some(Reason::CpuBudget(_))));
 }
 
-/// The wall-clock backstop ends anything, a moving tree included, and the shared limits agree with the text `timeout` gets.
+/// The wall-clock backstop ends anything,
+/// a moving tree included,
+/// and the shared limits agree with the text `timeout` gets.
 #[test]
 fn the_backstop_ends_a_tree_that_keeps_moving_and_agrees_with_the_timeout_argument() {
     let mut judge: Judge = judge();
@@ -164,7 +169,8 @@ fn the_backstop_ends_a_tree_that_keeps_moving_and_agrees_with_the_timeout_argume
     assert_eq!(SHARED.backstop.as_secs().to_string(), SHARED_BACKSTOP_SECONDS);
 }
 
-/// The stat line is read from its last closing parenthesis, so a command name with spaces and parentheses does not move
+/// The stat line is read from its last closing parenthesis,
+/// so a command name with spaces and parentheses does not move
 /// the fields;
 /// only the bytes counters of `io` are added,
 /// and the counts of calls are no sign of life.
@@ -179,8 +185,10 @@ fn the_readers_take_the_fields_whatever_the_command_is_called() {
     assert_eq!(parse_io(""), 0);
 }
 
-/// Only `timeout --signal=KILL <the shared backstop> <program>` is the shared bound; a commit's longer bound and every other
-/// program are not, and a command built by the harness agrees with the reader.
+/// Only `timeout --signal=KILL <the shared backstop> <program>` is the shared bound;
+/// a commit's longer bound and every other
+/// program are not,
+/// and a command built by the harness agrees with the reader.
 #[test]
 fn only_the_shared_backstop_makes_a_command_shared() {
     let shared: [&str; 4] = ["/usr/bin/timeout", "--signal=KILL", SHARED_BACKSTOP_SECONDS, "/x/git"];
@@ -198,7 +206,8 @@ fn only_the_shared_backstop_makes_a_command_shared() {
     remove(&made);
 }
 
-/// A shell script at `name` in the fixture, run as a child in its own group the way `timeout` leads one.
+/// A shell script at `name` in the fixture,
+/// run as a child in its own group the way `timeout` leads one.
 fn start(made: &Fixture, script: &str) -> Child {
     let path = made.root.join("script.sh");
     executable(path.as_path(), format!("#!/bin/sh\n{script}\n").as_bytes());
@@ -228,8 +237,11 @@ fn end_by_pin(child: &mut Child) {
     child.wait().expect("reaped");
 }
 
-/// Wait for a child to end by itself or by the monitor, for at most `patience`; the figure only keeps a broken monitor
-/// from holding a control, and never decides a verdict.
+/// Wait for a child to end by itself or by the monitor,
+/// for at most `patience`;
+/// the figure only keeps a broken monitor
+/// from holding a control,
+/// and never decides a verdict.
 fn finish(child: &mut Child, patience: Duration) -> std::process::ExitStatus {
     let began: Instant = Instant::now();
     loop {
@@ -260,10 +272,13 @@ fn until(patience: Duration, ready: impl Fn() -> bool) -> bool {
     return true;
 }
 
-/// How long a control lets the monitor take, which only a monitor that never acts reaches.
+/// How long a control lets the monitor take,
+/// which only a monitor that never acts reaches.
 const MONITOR_PATIENCE: Duration = Duration::from_secs(120);
 
-/// The limits the controls use: the window short, the budget and the backstop as the verdict needs.
+/// The limits the controls use:
+/// the window short,
+/// the budget and the backstop as the verdict needs.
 fn short(budget: Duration) -> Limits {
     return Limits { no_progress: Duration::from_millis(600), cpu_budget: budget, backstop: Duration::from_secs(60) };
 }
@@ -273,8 +288,11 @@ fn looks_for_windows(windows: u32) -> u32 {
     return u32::try_from((short(CPU_BUDGET).no_progress * windows).as_millis() / POLL.as_millis()).expect("fits") + 1;
 }
 
-/// Two processes that each wait to open the other's pipe for writing never get past it: the tree is asleep and nothing
-/// moves, so the monitor ends it and says so, naming the command and the tasks.
+/// Two processes that each wait to open the other's pipe for writing never get past it:
+/// the tree is asleep and nothing
+/// moves,
+/// so the monitor ends it and says so,
+/// naming the command and the tasks.
 #[test]
 fn a_deadlock_is_ended_and_reported_with_its_tasks() {
     let made: Fixture = fixture("supervisor-deadlock");
@@ -289,8 +307,11 @@ fn a_deadlock_is_ended_and_reported_with_its_tasks() {
     remove(&made);
 }
 
-/// A loop that never sleeps and does no input or output is ended by the processor budget, with the budget in the message.
-/// The loop runs inside the test's own capped scope or container, one processor, and the monitor ends it at the budget.
+/// A loop that never sleeps and does no input or output is ended by the processor budget,
+/// with the budget in the message.
+/// The loop runs inside the test's own capped scope or container,
+/// one processor,
+/// and the monitor ends it at the budget.
 #[test]
 fn a_loop_is_ended_by_the_processor_budget_and_reported() {
     let made: Fixture = fixture("supervisor-loop");
@@ -303,13 +324,23 @@ fn a_loop_is_ended_by_the_processor_budget_and_reported() {
     remove(&made);
 }
 
-/// A command that keeps moving (it writes and starts a process again and again, for several windows) is never ended, and its
+/// A command that keeps moving (it writes and starts a process again and again,
+/// for several windows) is never ended,
+/// and its
 /// kill record stays empty.
-/// The window is the monitor's own wall-clock rule and cannot be taken out of this control, so the control keeps the command
-/// from ever going quiet for a window instead: it makes a sign of life every few milliseconds, and the number of rounds is
-/// derived from the window and the pause, each round lasting at least its pause, so that several windows have passed by the
-/// time the command ends without any clock in the control. Only a command that shows nothing at all for a whole window, which
-/// is what the monitor exists to end, can fail it.
+/// The window is the monitor's own wall-clock rule and cannot be taken out of this control,
+/// so the control keeps the command
+/// from ever going quiet for a window instead:
+/// it makes a sign of life every few milliseconds,
+/// and the number of rounds is
+/// derived from the window and the pause,
+/// each round lasting at least its pause,
+/// so that several windows have passed by the
+/// time the command ends without any clock in the control.
+/// Only a command that shows nothing at all for a whole window,
+/// which
+/// is what the monitor exists to end,
+/// can fail it.
 #[test]
 fn a_slow_command_that_keeps_moving_is_not_ended() {
     let made: Fixture = fixture("supervisor-crawl");
@@ -327,7 +358,9 @@ fn a_slow_command_that_keeps_moving_is_not_ended() {
     remove(&made);
 }
 
-/// A process that waits for the disk longer than the window is not ended: a big write followed by its `fsync`. Where the
+/// A process that waits for the disk longer than the window is not ended:
+/// a big write followed by its `fsync`.
+/// Where the
 /// volume is fast the wait is shorter than the window and the control says that it did not exercise the rule.
 #[test]
 fn a_wait_for_the_disk_longer_than_the_window_is_not_a_hang() {
@@ -612,7 +645,9 @@ fn a_registered_command_stays_watched() {
     remove(&made);
 }
 
-/// A kill nobody has claimed is found once the grace has passed, and not before; a claimed one never is.
+/// A kill nobody has claimed is found once the grace has passed,
+/// and not before;
+/// a claimed one never is.
 #[test]
 fn a_kill_nobody_claimed_is_found_after_the_grace_only() {
     let at: Instant = Instant::now();
@@ -624,11 +659,14 @@ fn a_kill_nobody_claimed_is_found_after_the_grace_only() {
     assert_eq!(unclaimed_kill(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE), None, "a claimed kill is not reported again");
 }
 
-/// How much longer than the grace the ending of a command takes in the control below, as on a starved host.
+/// How much longer than the grace the ending of a command takes in the control below,
+/// as on a starved host.
 const SLOW_ENDING_EXTRA: Duration = Duration::from_millis(500);
 
-/// The time a test has to claim a kill counts from the moment its command is gone, not from the moment the supervisor began
-/// to end it: a tree that is slow to end on a starved host must not leave the test less than the whole grace.
+/// The time a test has to claim a kill counts from the moment its command is gone,
+/// not from the moment the supervisor began
+/// to end it:
+/// a tree that is slow to end on a starved host must not leave the test less than the whole grace.
 #[test]
 fn the_grace_to_claim_a_kill_starts_when_the_ending_is_over() {
     let mut command: Command = Command::new("/bin/sleep");
@@ -681,8 +719,12 @@ fn an_unclaimed_kill_fails_the_process_at_its_exit() {
     assert!(text.contains("the kill of the probe"), "{text}");
 }
 
-/// Through `observe`, a command of the shared bound whose tree is hung fails the test with the supervisor's message, not
-/// with a bare exit status; it takes the shared window of five seconds, so there is one such control.
+/// Through `observe`,
+/// a command of the shared bound whose tree is hung fails the test with the supervisor's message,
+/// not
+/// with a bare exit status;
+/// it takes the shared window of five seconds,
+/// so there is one such control.
 #[test]
 #[should_panic(expected = "the harness supervisor ended the command")]
 fn a_hung_shared_command_fails_its_test_with_the_reason_and_the_command() {

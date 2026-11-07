@@ -2,19 +2,25 @@
 
 use super::*;
 
-/// A function-like value with the right shape is a start in these controls: the shipped callers write a small struct that holds the state.
+/// A function-like value with the right shape is a start in these controls:
+/// the shipped callers write a small struct that holds the state.
 impl<T, Start: FnMut() -> Result<T>> RefusableStart<T> for Start {
     fn start(&mut self) -> Result<T> {
         return self();
     }
 }
 
-/// The error a refused start returns: `EAGAIN`, which Rust reports as `WouldBlock`.
+/// The error a refused start returns:
+/// `EAGAIN`,
+/// which Rust reports as `WouldBlock`.
 fn refusal() -> Error {
     return Error::from_raw_os_error(libc::EAGAIN);
 }
 
-/// Run the retry with a recording pause: the result, the pauses it asked for, and how often it tried.
+/// Run the retry with a recording pause:
+/// the result,
+/// the pauses it asked for,
+/// and how often it tried.
 fn drive(
     budget: Duration,
     mut outcome: impl FnMut(u32) -> Result<i32>,
@@ -33,12 +39,15 @@ fn drive(
     return (result, pauses, tries);
 }
 
-/// The pauses in milliseconds, for readable assertions.
+/// The pauses in milliseconds,
+/// for readable assertions.
 fn millis(pauses: &[Duration]) -> Vec<u128> {
     return pauses.iter().map(Duration::as_millis).collect();
 }
 
-/// Check the retry's pause schedule: one pause per refusal, doubling from the first one and
+/// Check the retry's pause schedule:
+/// one pause per refusal,
+/// doubling from the first one and
 ///  never longer than the longest.
 fn assert_growing_pauses(pauses: &[Duration]) {
     let mut expected: Duration = FIRST_PAUSE;
@@ -110,7 +119,8 @@ fn a_start_refused_past_the_budget_fails_and_counts_the_refusals() {
     assert!(waited <= START_RETRY_BUDGET, "the pauses never pass the budget");
 }
 
-/// An error that is not a shortage of processes is the caller's at once, without a pause.
+/// An error that is not a shortage of processes is the caller's at once,
+/// without a pause.
 #[test]
 fn another_error_is_returned_at_once() {
     let (result, pauses, tries) = drive(START_RETRY_BUDGET, |_| { return Err(Error::from(ErrorKind::NotFound)); });
@@ -119,7 +129,8 @@ fn another_error_is_returned_at_once() {
     assert_eq!(tries, 1);
 }
 
-/// A real command starts through the retrying calls, and a program that does not exist fails at once.
+/// A real command starts through the retrying calls,
+/// and a program that does not exist fails at once.
 #[test]
 fn real_commands_start_through_the_retrying_calls() {
     assert!(Command::new("true").status_retrying().expect("true starts").success());
@@ -131,7 +142,8 @@ fn real_commands_start_through_the_retrying_calls() {
     assert_eq!(error.kind(), ErrorKind::NotFound);
 }
 
-/// A failed replacement of the process returns its error, and a missing program is not retried.
+/// A failed replacement of the process returns its error,
+/// and a missing program is not retried.
 #[cfg(unix)]
 #[test]
 fn a_failed_exec_returns_its_error_at_once() {

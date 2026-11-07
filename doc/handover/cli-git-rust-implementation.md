@@ -4148,14 +4148,17 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The rule has been `error` since at least
   `0b49ae109e` (2026-10-06);
   the package `lint` task never ran `monochromatic-lint`.
-  Agent running on
-  `fix/git-policy-cli-passes-the-repository-linter` (start recorded by `9ccef551a8`):
-  wire it into the package lint,
-  the
-  repository fixer for line breaks (whitespace-only proof),
-  hand fixes for the rest,
-  and a conflict recipe for the
-  tokio and held-settle branches.
+  Fixed on `fix/git-policy-cli-passes-the-repository-linter`:
+  the package `lint` runs `lint:monochromatic-lint` with `--max-warnings 0` and the package has 0 findings,
+  the line breaks came from the repository fixer (the non-doc lines are byte-identical and the doc text has the same
+  tokens;
+  no hand fix was needed for any `markdown/semantic-line-breaks` finding),
+  the three `rust/max-lines` files are split into sibling files,
+  and the 45 closure warnings are named functions,
+  loops or matches.
+  The tokio branch (`feat/git-policy-cli-on-tokio`) still meets doc-comment conflicts:
+  the recipe is in the wrapper README,
+  section "Merging main into a branch that edited doc comments".
   Repo-wide baseline on main `136a40fe69`
   (log `~/temp/agent/repo-wide-monochromatic-lint-136a40fe69.log`,
   `mise` exit 2):

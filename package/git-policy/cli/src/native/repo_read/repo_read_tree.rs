@@ -1,10 +1,17 @@
 //! What:
-//!  Trees and commits read in process: the entries of a tree, the flat list of a whole tree, and the header fields
+//!  Trees and commits read in process:
+//! the entries of a tree,
+//! the flat list of a whole tree,
+//! and the header fields
 //!  and subject of a commit.
 //! Why:
-//!  The diff and listing readers compare a commit's tree with an index or another tree path by path, and `show` prints a
-//!  commit's subject; both need only these parses, and a commit with a header the parser does not know
-//!  (a different message encoding, a signature it must not interpret) returns `None` so Git answers.
+//!  The diff and listing readers compare a commit's tree with an index or another tree path by path,
+//! and `show` prints a
+//!  commit's subject;
+//! both need only these parses,
+//! and a commit with a header the parser does not know
+//!  (a different message encoding,
+//! a signature it must not interpret) returns `None` so Git answers.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,9 +42,12 @@ pub const MODE_GITLINK: u32 = 0o160_000;
 /// One entry of a tree.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TreeEntry {
-    /// The mode as stored (`0o100644`, `0o040000`, ...).
+    /// The mode as stored (`0o100644`,
+    /// `0o040000`,
+    /// ...).
     pub mode: u32,
-    /// The entry name, which holds no `/`.
+    /// The entry name,
+    /// which holds no `/`.
     pub name: Vec<u8>,
     /// The object name.
     pub id: Vec<u8>,
@@ -46,7 +56,8 @@ pub struct TreeEntry {
 /// One non-directory entry of a flattened tree with its full path.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FlatEntry {
-    /// The path from the top of the tree, `/` separated.
+    /// The path from the top of the tree,
+    /// `/` separated.
     pub path: Vec<u8>,
     /// The mode.
     pub mode: u32,
@@ -54,7 +65,8 @@ pub struct FlatEntry {
     pub id: Vec<u8>,
 }
 
-/// The entries of a tree object's content, or `None` when any entry is malformed.
+/// The entries of a tree object's content,
+/// or `None` when any entry is malformed.
 pub fn parse_tree(bytes: &[u8], hash_length: usize) -> Option<Vec<TreeEntry>> {
     let mut entries: Vec<TreeEntry> = Vec::new();
     let mut cursor: usize = 0;
@@ -88,9 +100,13 @@ pub fn is_tree_mode(mode: u32) -> bool {
 }
 
 /// What:
-///  Every non-directory entry below the tree `name`, with full paths, in the order Git walks them.
+///  Every non-directory entry below the tree `name`,
+/// with full paths,
+/// in the order Git walks them.
 /// Why:
-///   Tree order sorts a directory as if its name ended in `/`, which is the byte order of the full paths, so the list
+///   Tree order sorts a directory as if its name ended in `/`,
+/// which is the byte order of the full paths,
+/// so the list
 ///  is sorted by path and two lists merge by one pass.
 ///
 /// In TS you'd write (pseudocode):
@@ -136,7 +152,9 @@ fn walk(
     return Some(());
 }
 
-/// The entries of the tree object `name`, or nothing when the object is missing, is not a tree or does not parse.
+/// The entries of the tree object `name`,
+/// or nothing when the object is missing,
+/// is not a tree or does not parse.
 fn tree_entries_named(database: &ObjectDatabase, name: &[u8], format: ObjectFormat) -> Option<Vec<TreeEntry>> {
     let object = database.read(name)?;
     if object.kind != ObjectKind::Tree {
@@ -151,10 +169,16 @@ fn is_newline(byte: &u8) -> bool {
 }
 
 /// What:
-///  The flat list of a tree, shared with every other question this process asked about the same tree.
+///  The flat list of a tree,
+/// shared with every other question this process asked about the same tree.
 /// Why:
-///   One commit asks about its base tree a dozen times, through a database opened afresh by each question; a tree's name
-///  fixes its content, so the list is kept by name and handed out again. The list of a few trees is kept, the oldest dropped.
+///   One commit asks about its base tree a dozen times,
+/// through a database opened afresh by each question;
+/// a tree's name
+///  fixes its content,
+/// so the list is kept by name and handed out again.
+/// The list of a few trees is kept,
+/// the oldest dropped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,18 +213,25 @@ pub fn flatten_tree_shared(database: &ObjectDatabase, tree: &[u8], format: Objec
 const SHARED_LIST_LIMIT: usize = 3;
 
 thread_local! {
-    /// The lists `flatten_tree_shared` keeps, oldest first, by the tree's name.
+    /// The lists `flatten_tree_shared` keeps,
+    /// oldest first,
+    /// by the tree's name.
     static SHARED_LISTS: RefCell<Vec<(Vec<u8>, Rc<Vec<FlatEntry>>)>> = const { RefCell::new(Vec::new()) };
 }
 
 /// What:
-///  The entries that differ between two trees, as two flat lists in path order: the old side's entries and the new side's,
+///  The entries that differ between two trees,
+/// as two flat lists in path order:
+/// the old side's entries and the new side's,
 ///  with every subtree both sides share left unread.
 /// Why:
-///   A listing of what a commit changed needs only the paths that differ, and the repository's trees are mostly equal from
-///  one commit to the next, so equal subtree names end the walk there instead of reading every file of a large checkout.
+///   A listing of what a commit changed needs only the paths that differ,
+/// and the repository's trees are mostly equal from
+///  one commit to the next,
+/// so equal subtree names end the walk there instead of reading every file of a large checkout.
 ///  A name that is a file on one side and a directory on the other appears as a file in one list and as paths below it in
-///  the other, which `diff_sorted` then declines.
+///  the other,
+/// which `diff_sorted` then declines.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -213,7 +244,8 @@ pub fn flatten_pair(database: &ObjectDatabase, old: &[u8], new: &[u8], format: O
     return Some((before, after));
 }
 
-/// The sort key of a tree entry: a directory sorts as if its name ended in a slash.
+/// The sort key of a tree entry:
+/// a directory sorts as if its name ended in a slash.
 fn tree_order_key(entry: &TreeEntry) -> Vec<u8> {
     let mut key: Vec<u8> = entry.name.clone();
     if is_tree_mode(entry.mode) {
@@ -222,7 +254,9 @@ fn tree_order_key(entry: &TreeEntry) -> Vec<u8> {
     return key;
 }
 
-/// Append one entry of one side whole: a file as itself, a directory as every file below it.
+/// Append one entry of one side whole:
+/// a file as itself,
+/// a directory as every file below it.
 fn push_side(database: &ObjectDatabase, entry: &TreeEntry, format: ObjectFormat, prefix: &mut Vec<u8>, depth: usize, flat: &mut Vec<FlatEntry>) -> Option<()> {
     let length: usize = prefix.len();
     prefix.extend_from_slice(entry.name.as_slice());
@@ -236,7 +270,8 @@ fn push_side(database: &ObjectDatabase, entry: &TreeEntry, format: ObjectFormat,
     return Some(());
 }
 
-/// Walk two trees together below `prefix`, appending only what differs.
+/// Walk two trees together below `prefix`,
+/// appending only what differs.
 fn walk_pair(
     database: &ObjectDatabase,
     trees: (&[u8], &[u8]),
@@ -299,15 +334,18 @@ pub struct CommitFields {
     pub tree: Vec<u8>,
     /// The parents in order.
     pub parents: Vec<Vec<u8>>,
-    /// The message: everything after the blank line that ends the header.
+    /// The message:
+    /// everything after the blank line that ends the header.
     pub message: Vec<u8>,
 }
 
 /// What:
-///  The tree, parents and message of a commit object's content;
+///  The tree,
+/// parents and message of a commit object's content;
 ///  `None` for a header with an `encoding` line (Git would re-encode the message) or a malformed one.
 /// Why:
-///   `show --format=%s` prints the message converted to UTF-8; only a commit that needs no conversion is read here.
+///   `show --format=%s` prints the message converted to UTF-8;
+/// only a commit that needs no conversion is read here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -341,10 +379,14 @@ pub fn parse_commit(bytes: &[u8], format: ObjectFormat) -> Option<CommitFields> 
 }
 
 /// What:
-///  The subject `%s` prints for a message: the first paragraph with its lines joined by spaces.
+///  The subject `%s` prints for a message:
+/// the first paragraph with its lines joined by spaces.
 /// Why:
-///   Git skips leading blank lines, stops at the first blank line, trims each line's trailing white space and joins
-///  with a single space; any message the plain rule does not cover (a carriage return) returns `None`.
+///   Git skips leading blank lines,
+/// stops at the first blank line,
+/// trims each line's trailing white space and joins
+///  with a single space;
+/// any message the plain rule does not cover (a carriage return) returns `None`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

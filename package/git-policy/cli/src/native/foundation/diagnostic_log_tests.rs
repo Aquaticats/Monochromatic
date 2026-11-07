@@ -31,17 +31,21 @@ fn the_switches_need_exact_values() {
     assert!(!is_false(std::ffi::OsString::from("0")));
 }
 
-/// The user and the password of the URL in the fake Git output; neither is a real credential.
+/// The user and the password of the URL in the fake Git output;
+/// neither is a real credential.
 const FAKE_USER: &str = "fake-user";
-/// The fake password, short enough that the repository scanner's `url-userinfo-credential` rule does not match it.
+/// The fake password,
+/// short enough that the repository scanner's `url-userinfo-credential` rule does not match it.
 const FAKE_PASSWORD: &str = "fakepass1";
 
-/// What Git says when a remote refuses: its words carry the remote's URL with userinfo.
+/// What Git says when a remote refuses:
+/// its words carry the remote's URL with userinfo.
 fn git_words_naming_a_remote() -> String {
     return format!("git fetch said: fatal: unable to access 'https://{FAKE_USER}:{FAKE_PASSWORD}@example.invalid/team/repo.git/': 403");
 }
 
-/// The userinfo of a URL in the message never reaches the line, and the rest of the message stays.
+/// The userinfo of a URL in the message never reaches the line,
+/// and the rest of the message stays.
 #[test]
 fn a_diagnostic_line_hides_the_userinfo_of_a_url_in_its_message() {
     for level in ["debug", "warn"] {
@@ -66,10 +70,12 @@ fn a_diagnostic_line_hides_userinfo_that_holds_a_control_character() {
 /// The variable that marks the child process of the stream controls.
 const CHILD_VARIABLE: &str = "CLI_GIT_DIAGNOSTIC_CHILD";
 
-/// What the child prints, so the parent can tell that its stream was read.
+/// What the child prints,
+/// so the parent can tell that its stream was read.
 const CHILD_TAG: &str = "streamControl";
 
-/// The body the parent starts in a child: it prints one debug and one warning line carrying Git's words.
+/// The body the parent starts in a child:
+/// it prints one debug and one warning line carrying Git's words.
 /// Run without the child's variable it returns at once and checks nothing.
 #[test]
 fn child_prints_a_debug_and_a_warning_line_naming_a_remote() {
@@ -108,8 +114,10 @@ fn child_stderr(verbose: bool) -> String {
     return heard;
 }
 
-/// With the verbose switch on, the debug line Git's words ride in reaches standard error with the userinfo masked;
-///  the warning line is masked too, and with the switch off only the warning appears.
+/// With the verbose switch on,
+/// the debug line Git's words ride in reaches standard error with the userinfo masked;
+///  the warning line is masked too,
+/// and with the switch off only the warning appears.
 #[test]
 fn git_words_in_a_verbose_debug_line_reach_standard_error_without_the_userinfo() {
     let verbose: String = child_stderr(true);

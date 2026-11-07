@@ -1,4 +1,6 @@
-//! Controls for the service journal: an intent survives a write and a read, the restart decision follows the branch,
+//! Controls for the service journal:
+//! an intent survives a write and a read,
+//! the restart decision follows the branch,
 //!  and a damaged or temporary file is never an intent.
 
 use crate::service_protocol::Cleanup;
@@ -23,14 +25,16 @@ fn intent(seq: u64) -> Intent {
     };
 }
 
-/// An intent's text parses back to the same intent, with spaces in paths.
+/// An intent's text parses back to the same intent,
+/// with spaces in paths.
 #[test]
 fn an_intent_round_trips_through_its_text() {
     let sent: Intent = intent(7);
     assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent));
 }
 
-/// The index rule and the conclusion state of a commit Git built survive a restart, and an intent written before they
+/// The index rule and the conclusion state of a commit Git built survive a restart,
+/// and an intent written before they
 ///  existed reads as one that names neither.
 #[test]
 fn a_derived_index_rule_and_a_cleanup_round_trip_and_older_intents_name_neither() {
@@ -43,7 +47,9 @@ fn a_derived_index_rule_and_a_cleanup_round_trip_and_older_intents_name_neither(
     assert!(!read.derived && read.cleanup.is_none());
 }
 
-/// The text of an intent without its Git directory, as an earlier release wrote it, for a repository and an index elsewhere.
+/// The text of an intent without its Git directory,
+/// as an earlier release wrote it,
+/// for a repository and an index elsewhere.
 fn older_text(repository: &Path, index: &Path) -> String {
     let mut sent: Intent = intent(10);
     sent.repository = repository.to_path_buf();
@@ -51,8 +57,10 @@ fn older_text(repository: &Path, index: &Path) -> String {
     return intent_text(&sent).lines().filter(|line| { return !line.starts_with("gitdir="); }).collect::<Vec<&str>>().join("\n") + "\n";
 }
 
-/// An intent written before it recorded its Git directory names the Git directory of its repository, not the directory its
-///  index sits in: an alternate index (`GIT_INDEX_FILE`) can sit anywhere.
+/// An intent written before it recorded its Git directory names the Git directory of its repository,
+/// not the directory its
+///  index sits in:
+/// an alternate index (`GIT_INDEX_FILE`) can sit anywhere.
 #[test]
 fn an_older_intent_names_the_git_directory_of_its_repository_and_not_of_its_index() {
     let root: PathBuf = fixture("service-journal-older-main");
@@ -65,7 +73,8 @@ fn an_older_intent_names_the_git_directory_of_its_repository_and_not_of_its_inde
     remove(root.as_path());
 }
 
-/// A linked worktree's `.git` file names its Git directory, and a repository that cannot be read falls back to `.git`
+/// A linked worktree's `.git` file names its Git directory,
+/// and a repository that cannot be read falls back to `.git`
 ///  beneath it.
 #[test]
 fn an_older_intent_of_a_linked_worktree_reads_the_pointer_in_its_dot_git_file() {
@@ -84,7 +93,9 @@ fn an_older_intent_of_a_linked_worktree_reads_the_pointer_in_its_dot_git_file() 
     remove(root.as_path());
 }
 
-/// A text with a field missing, or a sequence that is not a number, is no intent.
+/// A text with a field missing,
+/// or a sequence that is not a number,
+/// is no intent.
 #[test]
 fn damaged_text_is_no_intent() {
     let text: String = intent_text(&intent(1));
@@ -94,7 +105,10 @@ fn damaged_text_is_no_intent() {
     assert_eq!(parse_intent(&text[..text.len() / 3]), None);
 }
 
-/// The restart decision follows the branch: unmoved drops, at the new value or past it finishes, elsewhere drops.
+/// The restart decision follows the branch:
+/// unmoved drops,
+/// at the new value or past it finishes,
+/// elsewhere drops.
 #[test]
 fn recovery_follows_the_branch() {
     let batch: Intent = intent(1);
@@ -105,7 +119,9 @@ fn recovery_follows_the_branch() {
     assert_eq!(recovery_for(&batch, batch.old.as_str(), true), Recovery::Drop, "an old value is never a landing");
 }
 
-/// A written intent is listed as open, a finished one is listed as done with its identities remembered, and the
+/// A written intent is listed as open,
+/// a finished one is listed as done with its identities remembered,
+/// and the
 ///  listing is in batch order.
 #[test]
 fn written_intents_are_listed_and_finished_ones_are_remembered() {
@@ -125,8 +141,11 @@ fn written_intents_are_listed_and_finished_ones_are_remembered() {
     remove(root.as_path());
 }
 
-/// Pruning keeps the newest finished batches and nothing else is touched: open batches, files that are not named as a batch
-///  number, and directories stay.
+/// Pruning keeps the newest finished batches and nothing else is touched:
+/// open batches,
+/// files that are not named as a batch
+///  number,
+/// and directories stay.
 #[test]
 fn pruning_keeps_the_newest_finished_batches_and_touches_nothing_else() {
     let root: PathBuf = fixture("service-journal-prune");
@@ -157,7 +176,8 @@ fn pruning_keeps_the_newest_finished_batches_and_touches_nothing_else() {
     remove(root.as_path());
 }
 
-/// A temporary file left by a kill during the write is removed and never read, and a damaged intent is listed as
+/// A temporary file left by a kill during the write is removed and never read,
+/// and a damaged intent is listed as
 ///  unreadable so recovery can drop it.
 #[test]
 fn a_torn_write_leaves_nothing_readable() {
@@ -174,8 +194,10 @@ fn a_torn_write_leaves_nothing_readable() {
     remove(root.as_path());
 }
 
-/// A temporary file that another instance is writing right now is not a torn write: a journal that two instances share
-///  (the fixtures of the binary controls share one) must not lose a batch's intent between its create and its rename, which
+/// A temporary file that another instance is writing right now is not a torn write:
+/// a journal that two instances share
+///  (the fixtures of the binary controls share one) must not lose a batch's intent between its create and its rename,
+/// which
 ///  made that landing fail with a missing file and left the commit unmade.
 #[test]
 fn a_temporary_file_that_is_being_written_is_left_alone() {
@@ -206,7 +228,9 @@ fn a_temporary_file_of_a_writer_stalled_for_minutes_is_left_alone() {
     remove(root.as_path());
 }
 
-/// A batch number is taken from the first one that has no claim, no open intent and no finished batch, and a claim that goes out
+/// A batch number is taken from the first one that has no claim,
+/// no open intent and no finished batch,
+/// and a claim that goes out
 ///  of scope frees its number again.
 #[test]
 fn a_batch_number_skips_every_number_the_journal_holds() {
@@ -226,7 +250,8 @@ fn a_batch_number_skips_every_number_the_journal_holds() {
     remove(root.as_path());
 }
 
-/// A claim left by a service that was killed is removed once it is old enough that no landing can still hold it, and a younger
+/// A claim left by a service that was killed is removed once it is old enough that no landing can still hold it,
+/// and a younger
 ///  one is left to its landing.
 #[test]
 fn a_claim_of_a_killed_landing_is_removed_when_old_and_left_when_young() {

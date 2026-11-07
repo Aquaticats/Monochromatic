@@ -1,4 +1,7 @@
-//! Install-log checks: exact line encoding, reopening, unfinished trailing appends and corruption.
+//! Install-log checks:
+//! exact line encoding,
+//! reopening,
+//! unfinished trailing appends and corruption.
 
 use super::*;
 use crate::private_storage::write_private_file;
@@ -14,7 +17,9 @@ fn created(relative_path: &str, device: u64, inode: u64) -> InstalledPath {
     };
 }
 
-/// Intents and creations are appended as one JSON line each, in the incumbent's spelling, and read back on reopen.
+/// Intents and creations are appended as one JSON line each,
+/// in the incumbent's spelling,
+/// and read back on reopen.
 #[test]
 fn appended_records_are_read_back_on_reopen() {
     let root: PathBuf = fixture("install-log-round-trip");
@@ -51,7 +56,8 @@ fn appended_records_are_read_back_on_reopen() {
     remove(root.as_path());
 }
 
-/// The log's file is private, and a new log's directory entry is synced.
+/// The log's file is private,
+/// and a new log's directory entry is synced.
 #[cfg(unix)]
 #[test]
 fn log_is_private() {
@@ -97,7 +103,9 @@ fn unfinished_trailing_append_is_truncated() {
     remove(root.as_path());
 }
 
-/// A complete line that is not a record fails closed, naming the log, and the log is kept.
+/// A complete line that is not a record fails closed,
+/// naming the log,
+/// and the log is kept.
 #[test]
 fn corrupt_line_fails_closed() {
     let root: PathBuf = fixture("install-log-corrupt");

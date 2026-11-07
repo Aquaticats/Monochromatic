@@ -8,13 +8,17 @@ fn entry(key: &str, value: Option<&str>) -> ListedEntry {
     return ListedEntry { scope: "global", entry: ConfigEntry { key: key.to_string(), value: value.map(|text| { return text.as_bytes().to_vec(); }) } };
 }
 
-/// No configuration: the monitor is off and the untracked cache is kept.
+/// No configuration:
+/// the monitor is off and the untracked cache is kept.
 #[test]
 fn an_empty_configuration_keeps_the_extensions_and_has_no_monitor() {
     assert_eq!(read_settings(&[]), Some(IndexSettings { monitor: false, untracked: UntrackedMode::Keep, shared_repository: 0 }));
 }
 
-/// `core.fsmonitor` as a true value, a bare name and a hook path turns the monitor on; false and empty leave it off; the last
+/// `core.fsmonitor` as a true value,
+/// a bare name and a hook path turns the monitor on;
+/// false and empty leave it off;
+/// the last
 /// entry wins.
 #[test]
 fn core_fsmonitor_is_read_as_git_reads_it() {
@@ -26,7 +30,11 @@ fn core_fsmonitor_is_read_as_git_reads_it() {
     assert!(!last.monitor);
 }
 
-/// `core.untrackedCache`: true adds, false removes, `keep` and no value keep, and anything else is left to Git.
+/// `core.untrackedCache`:
+/// true adds,
+/// false removes,
+/// `keep` and no value keep,
+/// and anything else is left to Git.
 #[test]
 fn core_untrackedcache_is_read_as_git_reads_it() {
     for (value, expected) in [("true", Some(UntrackedMode::Write)), ("false", Some(UntrackedMode::Remove)), ("keep", Some(UntrackedMode::Keep)), ("maybe", None)] {
@@ -35,7 +43,8 @@ fn core_untrackedcache_is_read_as_git_reads_it() {
     }
 }
 
-/// Keys that change the file layout or the checks decline; boolean ones decline only when true.
+/// Keys that change the file layout or the checks decline;
+/// boolean ones decline only when true.
 #[test]
 fn keys_the_update_does_not_reproduce_decline() {
     for key in ["core.splitindex", "index.sparse", "index.skiphash", "index.threads", "index.recordoffsettable", "index.recordendofindexentries", "core.hookspath", "core.worktree"] {
@@ -47,7 +56,8 @@ fn keys_the_update_does_not_reproduce_decline() {
     }
 }
 
-/// `core.sharedRepository` is read as `git_config_perm` reads it, and the values Git dies on or cannot be classified decline.
+/// `core.sharedRepository` is read as `git_config_perm` reads it,
+/// and the values Git dies on or cannot be classified decline.
 #[test]
 fn core_sharedrepository_is_read_as_git_reads_it() {
     for (value, expected) in [

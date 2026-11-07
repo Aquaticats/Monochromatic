@@ -1,12 +1,23 @@
 //! What:
-//!  The one summary line a landed commit prints, the way `git commit` prints it: `[<branch> <name>] <subject>`, with
-//!  `(root-commit)` for a commit without a parent and `detached HEAD` for a detached head, the name abbreviated as Git
+//!  The one summary line a landed commit prints,
+//! the way `git commit` prints it:
+//! `[<branch> <name>] <subject>`,
+//! with
+//!  `(root-commit)` for a commit without a parent and `detached HEAD` for a detached head,
+//! the name abbreviated as Git
 //!  abbreviates it.
 //! Why:
-//!  The line is for a commit the service built itself, where no `git commit` ran to print one. It is printed once, after the
-//!  service moved the branch, so the name is the commit that landed; a commit that real Git builds prints Git's own summary,
-//!  because the wrapper adds no `--quiet` to it. The abbreviation honors `core.abbrev` and otherwise follows the size of the
-//!  repository (`object_abbreviation.rs`), and Git is asked only when the configuration or the object store is not
+//!  The line is for a commit the service built itself,
+//! where no `git commit` ran to print one.
+//! It is printed once,
+//! after the
+//!  service moved the branch,
+//! so the name is the commit that landed;
+//! a commit that real Git builds prints Git's own summary,
+//!  because the wrapper adds no `--quiet` to it.
+//! The abbreviation honors `core.abbrev` and otherwise follows the size of the
+//!  repository (`object_abbreviation.rs`),
+//! and Git is asked only when the configuration or the object store is not
 //!  something that reader models.
 //!
 //! In TS you'd write (pseudocode):
@@ -27,7 +38,8 @@ const LAST_RESORT_LENGTH: usize = 7;
 const ABBREVIATION_KEY: &str = "core.abbrev";
 
 /// What:
-///  Whether a line of a message is blank: empty or only white space.
+///  Whether a line of a message is blank:
+/// empty or only white space.
 /// Why:
 ///  `subject_of` skips the blank lines before the subject.
 ///
@@ -40,9 +52,11 @@ fn is_blank_line(line: &&str) -> bool {
 }
 
 /// What:
-///  The subject of a commit message: its first paragraph on one line.
+///  The subject of a commit message:
+/// its first paragraph on one line.
 /// Why:
-///   Git's `%s` joins the lines of the first paragraph with spaces, and `git commit` prints that.
+///   Git's `%s` joins the lines of the first paragraph with spaces,
+/// and `git commit` prints that.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,9 +74,13 @@ pub fn subject_of(message: &str) -> String {
 }
 
 /// What:
-///  The line, from the branch reference, whether the commit has no parent, the abbreviated name and the subject.
+///  The line,
+/// from the branch reference,
+/// whether the commit has no parent,
+/// the abbreviated name and the subject.
 /// Why:
-///   The reference is `HEAD` for a detached head, which Git words as `detached HEAD`.
+///   The reference is `HEAD` for a detached head,
+/// which Git words as `detached HEAD`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,7 +103,8 @@ fn configured(snapshot: &ConfigSnapshot) -> Option<Option<Vec<u8>>> {
     return None;
 }
 
-/// Git's own answer for the name, for the shapes the in-process reader declines.
+/// Git's own answer for the name,
+/// for the shapes the in-process reader declines.
 fn asked_of_git(context: &GitContext, cwd: &Path, commit: &str) -> Option<String> {
     let request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--verify", "--short", commit]);
     return match run_git_checked(context, &request) {
@@ -103,8 +122,11 @@ fn asked_of_git(context: &GitContext, cwd: &Path, commit: &str) -> Option<String
 /// What:
 ///  The abbreviated name of a landed commit.
 /// Why:
-///   Without starting Git when the configuration was read and the object store is plain; otherwise Git answers once. The
-///  last resort is seven characters, which is what Git itself falls back to in a small repository.
+///   Without starting Git when the configuration was read and the object store is plain;
+/// otherwise Git answers once.
+/// The
+///  last resort is seven characters,
+/// which is what Git itself falls back to in a small repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,7 +155,8 @@ pub fn short_name(context: &GitContext, cwd: &Path, object_directory: &Path, con
     return commit.get(..LAST_RESORT_LENGTH).unwrap_or(commit).to_string();
 }
 
-/// Without the in-process reader Git answers, and the last resort is the same.
+/// Without the in-process reader Git answers,
+/// and the last resort is the same.
 #[cfg(not(unix))]
 pub fn short_name(context: &GitContext, cwd: &Path, _object_directory: &Path, _config: Option<&ConfigSnapshot>, commit: &str) -> String {
     return asked_of_git(context, cwd, commit).unwrap_or_else(|| { return commit.get(..LAST_RESORT_LENGTH).unwrap_or(commit).to_string(); });
@@ -142,8 +165,12 @@ pub fn short_name(context: &GitContext, cwd: &Path, _object_directory: &Path, _c
 /// What:
 ///  The one line the wrapper adds after a commit that real Git built was built again because the branch moved.
 /// Why:
-///   Git printed a summary for each build, and the earlier ones name commits that never landed; the line says which names
-///  those are and which commit did land, so a person does not copy the wrong one. Git's own output is left as it is.
+///   Git printed a summary for each build,
+/// and the earlier ones name commits that never landed;
+/// the line says which names
+///  those are and which commit did land,
+/// so a person does not copy the wrong one.
+/// Git's own output is left as it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

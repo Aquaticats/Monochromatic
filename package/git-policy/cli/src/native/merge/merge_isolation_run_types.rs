@@ -1,7 +1,15 @@
 //! What:
-//!  The values an isolated merge passes between its steps: the input, the outcome, the way a step gives up, the settings read from Git, the plan, and the constants of the run.
+//!  The values an isolated merge passes between its steps:
+//! the input,
+//! the outcome,
+//! the way a step gives up,
+//! the settings read from Git,
+//! the plan,
+//! and the constants of the run.
 //! Why:
-//!  `merge_isolation.rs` runs the merge and stays under the file-size limit; its steps and these values are shared by several files, so the values live in a file that imports none of them.
+//!  `merge_isolation.rs` runs the merge and stays under the file-size limit;
+//! its steps and these values are shared by several files,
+//! so the values live in a file that imports none of them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,8 +32,10 @@ use std::path::Path;
 /// Module tag for diagnostics.
 pub const TAG: &str = "isolatedMerge";
 
-/// Files and directories of the Git directory that show another operation is in progress; native Git reports those
-/// itself, so the command is forwarded.
+/// Files and directories of the Git directory that show another operation is in progress;
+/// native Git reports those
+/// itself,
+/// so the command is forwarded.
 pub const IN_PROGRESS_MARKERS: [&str; 6] = [
     "MERGE_HEAD",
     "CHERRY_PICK_HEAD",
@@ -62,7 +72,9 @@ pub struct IsolatedMergeInput<'a> {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IsolatedMerge {
-    /// The command is not for the wrapper to complete: native Git runs it unchanged, after the notice if any.
+    /// The command is not for the wrapper to complete:
+    /// native Git runs it unchanged,
+    /// after the notice if any.
     Forward {
         /// A line for standard error before Git runs.
         notice: Option<String>,
@@ -82,19 +94,27 @@ pub enum IsolatedMerge {
 pub enum Bail {
     /// Forward to native Git.
     Forward(Option<String>),
-    /// Done, with this result.
+    /// Done,
+    /// with this result.
     Done(IsolatedMerge),
-    /// The checkout is as it was before the round and the merge is computed again, for this reason (the branch moved, or
+    /// The checkout is as it was before the round and the merge is computed again,
+    /// for this reason (the branch moved,
+    /// or
     ///  another program took the index lock in the instant before Git did).
     Again(String),
 }
 
-/// How many times one merge is computed again on a branch that moved underneath it before the wrapper stops. Each round
-/// is a whole merge on the newest head; a branch that moves faster than that for this many rounds in a row is not a
-/// race but a loop, and the merge is refused with the cause named, changing nothing.
+/// How many times one merge is computed again on a branch that moved underneath it before the wrapper stops.
+/// Each round
+/// is a whole merge on the newest head;
+/// a branch that moves faster than that for this many rounds in a row is not a
+/// race but a loop,
+/// and the merge is refused with the cause named,
+/// changing nothing.
 pub const MAX_ROUNDS: usize = 20;
 
-/// A failed query is a reason to forward, with the cause in the diagnostic log.
+/// A failed query is a reason to forward,
+/// with the cause in the diagnostic log.
 impl From<String> for Bail {
     fn from(reason: String) -> Self {
         debug(TAG, format!("forwarding to native Git: {reason}").as_str());
@@ -105,11 +125,15 @@ impl From<String> for Bail {
 /// The merge-related settings the isolated path honors or defers on.
 #[derive(Debug, Default)]
 pub struct MergeConfig {
-    /// `merge.ff`: `Some(false)` is `--no-ff`; `Some(true)` allows; absent is unset.
+    /// `merge.ff`:
+    /// `Some(false)` is `--no-ff`;
+    /// `Some(true)` allows;
+    /// absent is unset.
     pub fast_forward: Option<bool>,
     /// `merge.ff=only`.
     pub fast_forward_only: bool,
-    /// `merge.stat`: false hides the diffstat.
+    /// `merge.stat`:
+    /// false hides the diffstat.
     pub stat: bool,
     /// `commit.gpgSign`.
     pub sign_commits: bool,
@@ -133,7 +157,8 @@ pub struct Plan<'a> {
     pub new_oid: &'a str,
 }
 
-/// The text a finding or failure puts on standard error, as a finished merge.
+/// The text a finding or failure puts on standard error,
+/// as a finished merge.
 pub fn refused(code: i32, stderr: String) -> Bail {
     return Bail::Done(IsolatedMerge::Finished { code, stdout: String::new(), stderr });
 }

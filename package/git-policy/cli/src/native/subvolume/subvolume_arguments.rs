@@ -1,11 +1,19 @@
 //! What:
-//!  The grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`, the wrapper's command that converts the main checkout into a
-//!  btrfs subvolume, and the help text.
+//!  The grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`,
+//! the wrapper's command that converts the main checkout into a
+//!  btrfs subvolume,
+//! and the help text.
 //! Why:
 //!  The command name says what it does and follows the other multi-word `git monochromatic-git-policy-cli` spellings (`service status`).
-//!  Running it migrates after the preflight; `--dry-run` previews; `--rollback` and `--remove-old` are the two ways
-//!  out; the rest only switch off a part of the migration. Modes that exclude each other, and switches that belong to
-//!  one mode, are refused with the reason.
+//!  Running it migrates after the preflight;
+//! `--dry-run` previews;
+//! `--rollback` and `--remove-old` are the two ways
+//!  out;
+//! the rest only switch off a part of the migration.
+//! Modes that exclude each other,
+//! and switches that belong to
+//!  one mode,
+//! are refused with the reason.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,7 +22,8 @@
 
 use std::ffi::OsString;
 
-/// The usage and the meaning of each option, printed for `--help` and after a refused invocation.
+/// The usage and the meaning of each option,
+/// printed for `--help` and after a refused invocation.
 pub const MIGRATE_HELP: &str = "\
 Usage: git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run] [--no-nested-worktrees] [--no-refresh-indexes]
        git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable] [--dry-run]
@@ -67,7 +76,8 @@ pub enum MigrateMode {
 /// What:
 ///  A parsed invocation.
 /// Why:
-///   The command acts on a typed value; nothing downstream re-reads raw arguments.
+///   The command acts on a typed value;
+/// nothing downstream re-reads raw arguments.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,7 +93,8 @@ pub struct MigrateArguments {
     pub nested_worktrees: bool,
     /// Rewrite the index stat fields.
     pub refresh_indexes: bool,
-    /// With remove-old or rollback: delete the unreadable files too.
+    /// With remove-old or rollback:
+    /// delete the unreadable files too.
     pub discard_unreadable: bool,
     /// Print the help.
     pub help: bool,
@@ -91,9 +102,11 @@ pub struct MigrateArguments {
 
 /// What:
 ///  Parse the arguments after `migrate-to-subvolume`.
-///  `Result<MigrateArguments, String>` is the parse, or the reason the invocation is refused.
+///  `Result<MigrateArguments, String>` is the parse,
+/// or the reason the invocation is refused.
 /// Why:
-///   Each refusal names the option and says what to use instead, so the person is never left to guess.
+///   Each refusal names the option and says what to use instead,
+/// so the person is never left to guess.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,8 +1,11 @@
-//! Index files and extensions real Git wrote, taken from a fixture, for the controls of the readers and writers.
+//! Index files and extensions real Git wrote,
+//! taken from a fixture,
+//! for the controls of the readers and writers.
 
 use crate::test_support::{age, fixture, git, remove};
 
-/// The bytes of the extension `signature` in an index file, or `None` when the file has none.
+/// The bytes of the extension `signature` in an index file,
+/// or `None` when the file has none.
 pub(crate) fn extension_of(index: &[u8], signature: &[u8; 4], hash_length: usize) -> Option<Vec<u8>> {
     // Walk the file the way the reader does, from the end of the entries, to find the extension without the reader's help.
     let mut at: usize = 12;
@@ -35,7 +38,8 @@ pub(crate) fn extension_of(index: &[u8], signature: &[u8; 4], hash_length: usize
     return None;
 }
 
-/// A repository with an untracked cache that lists untracked files and directories; its index file.
+/// A repository with an untracked cache that lists untracked files and directories;
+/// its index file.
 fn repository_with_untracked_cache(name: &str) -> (std::path::PathBuf, Vec<u8>) {
     let root: std::path::PathBuf = fixture(name);
     let repo: std::path::PathBuf = root.join("repo");
@@ -68,7 +72,8 @@ pub(crate) fn untracked_extension(name: &str) -> Vec<u8> {
     return found;
 }
 
-/// A whole index file in the given version with the untracked cache, the cache-tree and real stat data.
+/// A whole index file in the given version with the untracked cache,
+/// the cache-tree and real stat data.
 pub(crate) fn index_with_extensions(name: &str, version: &str) -> Vec<u8> {
     let (root, _): (std::path::PathBuf, Vec<u8>) = repository_with_untracked_cache(name);
     let repo: std::path::PathBuf = root.join("repo");

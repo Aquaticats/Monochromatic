@@ -1,13 +1,19 @@
 //! What:
-//!  The staged additions an explicit-path commit must carry into its private index, and the pathspec-file reader
+//!  The staged additions an explicit-path commit must carry into its private index,
+//! and the pathspec-file reader
 //!  that tells which selection they belong to.
 //! Why:
-//!  A path staged as an addition in the real index is tracked there, so native `git commit -- <path>` takes its
+//!  A path staged as an addition in the real index is tracked there,
+//! so native `git commit -- <path>` takes its
 //!  worktree content without asking any ignore rule.
-//!  The private index of an explicit-path commit starts from the recorded base, where such a path is untracked,
-//!  so `git add` applies the ignore rules: a directory pathspec silently matches nothing, and a file pathspec fails
+//!  The private index of an explicit-path commit starts from the recorded base,
+//! where such a path is untracked,
+//!  so `git add` applies the ignore rules:
+//! a directory pathspec silently matches nothing,
+//! and a file pathspec fails
 //!  with a hint to force-add that `commit` does not accept.
-//!  Carrying the real index's entry first makes the path tracked in the private index, and `git add` then
+//!  Carrying the real index's entry first makes the path tracked in the private index,
+//! and `git add` then
 //!  refreshes it from the worktree exactly as native Git does.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,16 +29,23 @@ use std::path::Path;
 
 /// How many carried entries one `git update-index` start takes,
 ///  so a long selection never nears the operating system's argument limit.
-///  Exempt from a citation under `LQM` (class: chunk size): it splits one command into several starts of the same
-///  command, so the result is the same and only the number of starts changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// chunk size):
+/// it splits one command into several starts of the same
+///  command,
+/// so the result is the same and only the number of starts changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const ENTRIES_PER_START: usize = 200;
 
 /// What:
 ///  One entry staged as an addition in the real index.
 /// Why:
-///   The private index needs the mode, the object and the path to carry it over.
+///   The private index needs the mode,
+/// the object and the path to carry it over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -40,19 +53,23 @@ const ENTRIES_PER_START: usize = 200;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StagedAddition {
-    /// Octal file mode, such as `100644`.
+    /// Octal file mode,
+    /// such as `100644`.
     pub mode: String,
     /// Full object name of the staged content.
     pub oid: String,
-    /// Repository path as bytes, so a name that is not UTF-8 survives.
+    /// Repository path as bytes,
+    /// so a name that is not UTF-8 survives.
     pub path: Vec<u8>,
 }
 
 /// What:
 ///  The additions staged in the real index that the pathspecs select.
 /// Why:
-///   Only these paths make the private index disagree with native Git about what is tracked; the read touches no
-///  index, object store or worktree file.
+///   Only these paths make the private index disagree with native Git about what is tracked;
+/// the read touches no
+///  index,
+/// object store or worktree file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,7 +106,8 @@ pub fn staged_additions_selected(
 
 /// What:
 ///  Whether one byte is the NUL byte that ends each field of a `-z` listing.
-///  `&u8` borrows the byte, as `split` hands it over.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
 /// Why:
 ///   `split` takes this function by path where a closure would otherwise stand.
 ///
@@ -104,7 +122,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// What:
 ///  The failure for a `git diff-index` record that cannot be read as an addition.
 /// Why:
-///   Four checks of `parse_raw_additions` refuse with the same failure, and a named function stands where a closure
+///   Four checks of `parse_raw_additions` refuse with the same failure,
+/// and a named function stands where a closure
 ///  that built it stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -116,10 +135,13 @@ fn unreadable_record() -> GitFailure {
 }
 
 /// What:
-///  Reads the NUL-separated raw records of `git diff-index --raw -z`: a `:old new oldoid newoid status` line, then
+///  Reads the NUL-separated raw records of `git diff-index --raw -z`:
+/// a `:old new oldoid newoid status` line,
+/// then
 ///  the path.
 /// Why:
-///   A malformed record means the read cannot be trusted, and carrying a wrong entry would commit wrong content.
+///   A malformed record means the read cannot be trusted,
+/// and carrying a wrong entry would commit wrong content.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -157,7 +179,8 @@ fn parse_raw_additions(stdout: &[u8]) -> Result<Vec<StagedAddition>, GitFailure>
 /// What:
 ///  Carries the additions into the private index with `git update-index --add --cacheinfo`.
 /// Why:
-///   The entries come from the real index, so the private index tracks the paths and `git add` then refreshes them
+///   The entries come from the real index,
+/// so the private index tracks the paths and `git add` then refreshes them
 ///  from the worktree.
 ///
 /// In TS you'd write (pseudocode):
@@ -188,11 +211,14 @@ pub fn carry_additions(
 }
 
 /// What:
-///  The pathspecs a pathspec file names, read the way Git reads it.
+///  The pathspecs a pathspec file names,
+/// read the way Git reads it.
 /// Why:
-///   Git lists additions only for pathspecs given as arguments, so a file's elements have to become arguments;
+///   Git lists additions only for pathspecs given as arguments,
+/// so a file's elements have to become arguments;
 ///  `None` means the file holds something this reader does not take (an empty element or a quote that does not
-///  close), and the caller then leaves the selection to Git alone.
+///  close),
+/// and the caller then leaves the selection to Git alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -235,10 +261,14 @@ pub fn pathspecs_of_file(bytes: &[u8], nul_separated: bool) -> Option<Vec<OsStri
 }
 
 /// What:
-///  Undoes the quoting Git applies to a path with unusual bytes: a leading and a closing double quote, the
-///  one-letter escapes, and three-digit octal escapes.
+///  Undoes the quoting Git applies to a path with unusual bytes:
+/// a leading and a closing double quote,
+/// the
+///  one-letter escapes,
+/// and three-digit octal escapes.
 /// Why:
-///   A pathspec file may quote any element, and the arguments must carry the bytes the person meant.
+///   A pathspec file may quote any element,
+/// and the arguments must carry the bytes the person meant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -291,7 +321,9 @@ fn unquote_c_style(quoted: &[u8]) -> Option<Vec<u8>> {
 /// What:
 ///  Adds the remedy to a private `git add` failure that names an ignored path.
 /// Why:
-///   Git's own hint is to force-add, which `git commit` does not accept; the person needs the commit-side way forward.
+///   Git's own hint is to force-add,
+/// which `git commit` does not accept;
+/// the person needs the commit-side way forward.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

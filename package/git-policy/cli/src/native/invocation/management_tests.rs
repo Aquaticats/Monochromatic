@@ -28,7 +28,8 @@ use crate::wrapper_controls::{Controls, no_controls};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// Direct runs that select a policy which is off, warns or blocks.
+/// Direct runs that select a policy which is off,
+/// warns or blocks.
 #[path = "management_off_policy_tests.rs"]
 mod off_policy_cases;
 
@@ -82,9 +83,12 @@ fn plan(values: &[&str], directory: &Path, inputs: &ResolutionInputs) -> Action 
     return plan_with(values, directory, &no_controls(), inputs);
 }
 
-/// The standard error without its first line, which must be the fsmonitor line.
-///  These controls run the doctor in the test process's own environment, so the host's global configuration decides
-///  whether the line says off or on; the line's wording is controlled in `doctor_fsmonitor_tests.rs` with an injected
+/// The standard error without its first line,
+/// which must be the fsmonitor line.
+///  These controls run the doctor in the test process's own environment,
+/// so the host's global configuration decides
+///  whether the line says off or on;
+/// the line's wording is controlled in `doctor_fsmonitor_tests.rs` with an injected
 ///  global file.
 fn without_fsmonitor_line(stderr: &str) -> String {
     let prefix: &str = "git monochromatic-git-policy-cli doctor: Git's fsmonitor is ";
@@ -526,7 +530,8 @@ fn direct_commands_use_the_repository_configuration() {
     remove(root.as_path());
 }
 
-/// A direct command goes on beside the records of an earlier release, and a commit journal of the previous executable's format
+/// A direct command goes on beside the records of an earlier release,
+/// and a commit journal of the previous executable's format
 ///  stops it.
 #[test]
 fn direct_commands_go_on_beside_records_an_earlier_release_left() {
@@ -630,7 +635,8 @@ fn direct_commands_report_git_failures() {
     remove(root.as_path());
 }
 
-/// Unpack an exit action into its status, standard output and standard error.
+/// Unpack an exit action into its status,
+/// standard output and standard error.
 fn exit_parts(action: Action) -> (i32, String, String) {
     let Action::Exit { code, stdout, stderr } = action else {
         panic!("a management command ends in an exit action");
@@ -638,8 +644,11 @@ fn exit_parts(action: Action) -> (i32, String, String) {
     return (code, stdout, stderr);
 }
 
-/// `doctor` lists the traditional hooks with status 1, prints nothing with status 0 when there are none, and does
-/// not load the configuration, so a broken `monochromatic-git-policy-cli.config.jsonc` does not stop it.
+/// `doctor` lists the traditional hooks with status 1,
+/// prints nothing with status 0 when there are none,
+/// and does
+/// not load the configuration,
+/// so a broken `monochromatic-git-policy-cli.config.jsonc` does not stop it.
 #[test]
 fn doctor_lists_traditional_hooks_without_loading_the_configuration() {
     let root: PathBuf = fixture("management-doctor");
@@ -667,8 +676,10 @@ fn doctor_outside_a_repository_fails_with_status_two() {
     remove(root.as_path());
 }
 
-/// The doctor appends the supplied filesystem section to standard error and keeps its status and standard output; the
-///  supplier is called with the repository's common Git directory, and no other command calls it.
+/// The doctor appends the supplied filesystem section to standard error and keeps its status and standard output;
+/// the
+///  supplier is called with the repository's common Git directory,
+/// and no other command calls it.
 #[test]
 fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_it() {
     let root: PathBuf = fixture("management-doctor-section");
@@ -690,8 +701,13 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
     remove(root.as_path());
 }
 
-/// The doctor reports, read-only, how many batches the earlier release's commit service left open for this worktree, and names
-///  the command that settles them; the exit status and standard output do not change, and a worktree with none gets no note.
+/// The doctor reports,
+/// read-only,
+/// how many batches the earlier release's commit service left open for this worktree,
+/// and names
+///  the command that settles them;
+/// the exit status and standard output do not change,
+/// and a worktree with none gets no note.
 #[test]
 fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_command() {
     let root: PathBuf = fixture("management-doctor-earlier-batches");

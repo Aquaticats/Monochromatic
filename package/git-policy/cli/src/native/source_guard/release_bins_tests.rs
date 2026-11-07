@@ -1,11 +1,19 @@
 //! What:
 //!  The crate declares exactly the executable that the release archive holds.
 //! Why:
-//!  cargo-binstall requires every `[[bin]]` of a crate to be in the archive (`[package.metadata.binstall]`), and the release job
-//!  packages one file, `monochromatic-git-policy-cli`. A second `[[bin]]` made the `catalog-specifiers` workflow fail from 2026-11-01 (`When
+//!  cargo-binstall requires every `[[bin]]` of a crate to be in the archive (`[package.metadata.binstall]`),
+//! and the release job
+//!  packages one file,
+//! `monochromatic-git-policy-cli`.
+//! A second `[[bin]]` made the `catalog-specifiers` workflow fail from 2026-11-01 (`When
 //!  resolving monochromatic-git-policy-cli bin cli-git-service is not found. This binary is not optional`) while local installs,
-//!  which compile from source, worked. The service is a mode of the one executable (`service_main.rs`). The release job, the
-//!  release list and the toolchain lock are checked against the same manifest by `bin/native-release-bins.unit.test.ts`, which
+//!  which compile from source,
+//! worked.
+//! The service is a mode of the one executable (`service_main.rs`).
+//! The release job,
+//! the
+//!  release list and the toolchain lock are checked against the same manifest by `bin/native-release-bins.unit.test.ts`,
+//! which
 //!  reads files outside this crate.
 //!
 //! In TS you'd write (pseudocode):
@@ -15,10 +23,13 @@
 
 use std::path::Path;
 
-/// The one executable the release archive holds, which `.github/workflows/cargo-publish.yml` builds with `--bin` and copies.
+/// The one executable the release archive holds,
+/// which `.github/workflows/cargo-publish.yml` builds with `--bin` and copies.
 const RELEASED_BINS: [&str; 1] = ["monochromatic-git-policy-cli"];
 
-/// The names of the `[[bin]]` tables of a manifest: a table header starts a table, and the first `name = "..."` line of a
+/// The names of the `[[bin]]` tables of a manifest:
+/// a table header starts a table,
+/// and the first `name = "..."` line of a
 ///  `[[bin]]` table names the executable.
 fn manifest_bins(manifest: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
@@ -50,7 +61,8 @@ fn the_crate_declares_only_the_executable_the_release_archive_holds() {
     );
 }
 
-/// The reader sees a second table, whatever else the manifest holds around it.
+/// The reader sees a second table,
+/// whatever else the manifest holds around it.
 #[test]
 fn a_second_bin_table_is_read() {
     let planted: &str = "[package]\nname = \"x\"\n\n[[bin]]\nname = \"monochromatic-git-policy-cli\"\npath = \"a.rs\"\n\n[[test]]\nname = \"not-a-bin\"\n\n[[bin]]\npath = \"b.rs\"\nname = \"second\"\n";

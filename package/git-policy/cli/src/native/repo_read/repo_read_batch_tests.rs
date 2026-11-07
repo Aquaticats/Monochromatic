@@ -1,6 +1,9 @@
 //! Differential controls for the in-process `cat-file --batch`:
-//!  a request carrying object names on standard input gets Git's bytes for blobs, trees and commits, loose and packed,
-//!  in SHA-1 and SHA-256, and a name the store lacks is left to Git.
+//!  a request carrying object names on standard input gets Git's bytes for blobs,
+//! trees and commits,
+//! loose and packed,
+//!  in SHA-1 and SHA-256,
+//! and a name the store lacks is left to Git.
 
 use crate::repo_read_hook::switch_off;
 use crate::test_support::{REAL_GIT, executable, fixture, git, git_output, remove};
@@ -48,7 +51,10 @@ fn real_batch(repo: &Path, input: &[u8]) -> Vec<u8> {
     return child.wait_with_output().expect("output").stdout;
 }
 
-/// Objects of both formats, loose and packed, are printed as Git prints them; a missing name starts Git.
+/// Objects of both formats,
+/// loose and packed,
+/// are printed as Git prints them;
+/// a missing name starts Git.
 #[test]
 fn batch_requests_equal_git() {
     let root = fixture("repo-read-batch");

@@ -1,9 +1,14 @@
 //! What:
-//!  The tree questions an in-process path reset asks: a commit's root tree, the entries of that tree at or below given
-//!  paths, and the paths that differ between two commits' trees.
+//!  The tree questions an in-process path reset asks:
+//! a commit's root tree,
+//! the entries of that tree at or below given
+//!  paths,
+//! and the paths that differ between two commits' trees.
 //! Why:
-//!  `reset <commit> -- <paths>` reads only those paths of the commit, and the landing's follow-up lists what changed between
-//!  the branch before and after; walking down the named paths reads a few small trees instead of listing a whole checkout,
+//!  `reset <commit> -- <paths>` reads only those paths of the commit,
+//! and the landing's follow-up lists what changed between
+//!  the branch before and after;
+//! walking down the named paths reads a few small trees instead of listing a whole checkout,
 //!  and equal subtrees end the comparison of two trees at once.
 //!
 //! In TS you'd write (pseudocode):
@@ -17,7 +22,8 @@ use crate::repo_read_object::{ObjectKind, from_hex, name_length};
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_tree::{FlatEntry, TreeEntry, flatten_pair, flatten_tree, is_tree_mode, parse_commit, parse_tree};
 
-/// The root tree of the commit named by `hex`, or of the tree it names.
+/// The root tree of the commit named by `hex`,
+/// or of the tree it names.
 pub fn root_tree(database: &ObjectDatabase, hex: &str, format: ObjectFormat) -> Option<Vec<u8>> {
     let name: Vec<u8> = from_hex(hex.as_bytes(), format)?;
     let object = database.read(name.as_slice())?;
@@ -38,7 +44,8 @@ fn entries_of(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> O
 }
 
 
-/// Order two entries by path, as the sorted list of the index needs.
+/// Order two entries by path,
+/// as the sorted list of the index needs.
 fn by_path(left: &FlatEntry, right: &FlatEntry) -> std::cmp::Ordering {
     return left.path.cmp(&right.path);
 }
@@ -48,7 +55,10 @@ fn same_path(later: &mut FlatEntry, earlier: &mut FlatEntry) -> bool {
     return later.path == earlier.path;
 }
 
-/// The files of the tree at `name` or below it, with their paths from the top: nothing when the name is absent, the one entry
+/// The files of the tree at `name` or below it,
+/// with their paths from the top:
+/// nothing when the name is absent,
+/// the one entry
 /// when it is a file.
 fn entries_at(database: &ObjectDatabase, root: &[u8], name: &[u8], format: ObjectFormat) -> Option<Vec<FlatEntry>> {
     let components: Vec<&[u8]> = name.split(is_slash).collect();
@@ -89,7 +99,8 @@ fn entries_at(database: &ObjectDatabase, root: &[u8], name: &[u8], format: Objec
     return Some(Vec::new());
 }
 
-/// The tree's files at or below each of `names`, sorted by path without repeats.
+/// The tree's files at or below each of `names`,
+/// sorted by path without repeats.
 pub fn tree_entries_at(database: &ObjectDatabase, root: &[u8], names: &[Vec<u8>], format: ObjectFormat) -> Option<Vec<FlatEntry>> {
     let mut found: Vec<FlatEntry> = Vec::new();
     for name in names {
@@ -100,7 +111,9 @@ pub fn tree_entries_at(database: &ObjectDatabase, root: &[u8], names: &[Vec<u8>]
     return Some(found);
 }
 
-/// The paths that differ between the trees (`diff-tree -r --name-only --no-renames`), sorted without repeats; `None` for the
+/// The paths that differ between the trees (`diff-tree -r --name-only --no-renames`),
+/// sorted without repeats;
+/// `None` for the
 /// old tree stands for the empty tree.
 pub fn changed_paths(database: &ObjectDatabase, old: Option<&[u8]>, new: &[u8], format: ObjectFormat) -> Option<Vec<Vec<u8>>> {
     let (before, after): (Vec<FlatEntry>, Vec<FlatEntry>) = match old {

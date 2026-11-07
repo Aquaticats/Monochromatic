@@ -1,18 +1,29 @@
-//! What: Decide which development dependencies each dependent bundles, reading source
+//! What:
+//! Decide which development dependencies each dependent bundles,
+//! reading source
 //!       only where an edge could carry a raised version.
-//! Why: A development dependency ships inside a dependent only when its non-test source
-//!      imports it. Scanning every package's source on every commit would read the whole
-//!      workspace, so, as in the incumbent (`dependent-bump-workflow.ts:176-278`), only
+//! Why:
+//! A development dependency ships inside a dependent only when its non-test source
+//!      imports it.
+//! Scanning every package's source on every commit would read the whole
+//!      workspace,
+//! so,
+//! as in the incumbent (`dependent-bump-workflow.ts:176-278`),
+//! only
 //!      dependents that could reach a raised package if every development dependency were
-//!      bundled are scanned, and only for edges that lead toward a raised package.
+//!      bundled are scanned,
+//! and only for edges that lead toward a raised package.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // await bundledDevelopmentEdges({ reader, states, bumpedNames });
 //! ```
 
-/// What: `use` brings names from sibling files and the standard library into this file.
-/// Why:  The superset walk is the plan's own walk; source paths and imports have their
+/// What:
+/// `use` brings names from sibling files and the standard library into this file.
+/// Why:
+///  The superset walk is the plan's own walk;
+/// source paths and imports have their
 ///       own modules.
 ///
 /// In TS you'd write (pseudocode):
@@ -31,8 +42,11 @@ use crate::dependent_version_states::ManifestState;
 /// A hash-based set of relevant names.
 use std::collections::HashSet;
 
-/// What: The development dependencies of one dependent that could carry a raised version.
-/// Why:  An edge to a package outside the superset and the raised set leads nowhere; a self
+/// What:
+/// The development dependencies of one dependent that could carry a raised version.
+/// Why:
+///  An edge to a package outside the superset and the raised set leads nowhere;
+/// a self
 ///       edge is never an edge.
 ///
 /// In TS you'd write (pseudocode):
@@ -49,10 +63,15 @@ fn candidate_edges(state: &ManifestState, relevant: &HashSet<String>) -> Vec<Str
     return edges;
 }
 
-/// What: The texts of a package's non-test source files. `String::from_utf8_lossy`
-///       replaces bytes that are not UTF-8 with U+FFFD, as the incumbent's lenient decoder
+/// What:
+/// The texts of a package's non-test source files.
+/// `String::from_utf8_lossy`
+///       replaces bytes that are not UTF-8 with U+FFFD,
+/// as the incumbent's lenient decoder
 ///       does.
-/// Why:  A source file only needs scanning for specifiers, so undecodable bytes are not a
+/// Why:
+///  A source file only needs scanning for specifiers,
+/// so undecodable bytes are not a
 ///       failure.
 ///
 /// In TS you'd write (pseudocode):
@@ -74,9 +93,14 @@ fn source_texts(
     return Ok(texts);
 }
 
-/// What: For each state, in order, the development dependencies its source imports among
-///       those that could carry a raised version. `Vec<Vec<String>>` is one list per state.
-/// Why:  These become edges of the plan's walk alongside the runtime edges.
+/// What:
+/// For each state,
+/// in order,
+/// the development dependencies its source imports among
+///       those that could carry a raised version.
+/// `Vec<Vec<String>>` is one list per state.
+/// Why:
+///  These become edges of the plan's walk alongside the runtime edges.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,7 +156,9 @@ pub fn bundled_development_edges(
     return Ok(bundled);
 }
 
-/// Which dependents are scanned, which edges are confirmed, and which files are read.
+/// Which dependents are scanned,
+/// which edges are confirmed,
+/// and which files are read.
 #[cfg(test)]
 #[path = "dependent_version_bundled_tests.rs"]
 mod tests;

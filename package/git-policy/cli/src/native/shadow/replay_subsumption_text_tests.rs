@@ -1,6 +1,9 @@
 //! Controls for the text half of subsumption on real blobs:
-//!  strict reverse application, one-sided extension, rejection of two-sided edits,
-//!  binary exclusion, and an addition on both sides against the empty blob.
+//!  strict reverse application,
+//! one-sided extension,
+//! rejection of two-sided edits,
+//!  binary exclusion,
+//! and an addition on both sides against the empty blob.
 
 use super::*;
 use crate::test_support::{fixture, git_context, git_text, remove, repository};
@@ -17,7 +20,8 @@ fn blob(repo: &Path, scratch: &Path, name: &str, bytes: &[u8]) -> Option<TreeEnt
     });
 }
 
-/// A shared path whose three sides are the given bytes, or absent when `None`.
+/// A shared path whose three sides are the given bytes,
+/// or absent when `None`.
 fn shared(repo: &Path, scratch: &Path, sides: [Option<&[u8]>; 3]) -> SharedPath {
     let entry = |index: usize, name: &str| -> Option<TreeEntry> {
         return sides[index].and_then(|bytes| { return blob(repo, scratch, name, bytes); });
@@ -55,7 +59,8 @@ fn strict_reverse_application_subsumes_the_landed_edit() {
     assert!(subsumed("strict_reverse_application_subsumes_the_landed_edit", Some(b"a\nb\nc\n"), b"a\nX\nc\n", b"a\nX\nc\n"));
 }
 
-/// An own edit next to the landed edit is subsumed by the one-sided extension, which strict application rejects.
+/// An own edit next to the landed edit is subsumed by the one-sided extension,
+/// which strict application rejects.
 #[test]
 fn an_adjacent_own_edit_is_subsumed_by_the_one_sided_extension() {
     assert!(subsumed("an_adjacent_own_edit_is_subsumed_by_the_one_sided_extension", Some(b"a\nb\nc\nd\n"), b"a\nB\nc\nd\n", b"a\nB\nC\nd\n"));
@@ -73,20 +78,24 @@ fn a_prepared_file_without_the_landed_edit_is_not_subsumed() {
     assert!(!subsumed("a_prepared_file_without_the_landed_edit_is_not_subsumed", Some(b"a\nb\nc\n"), b"a\nX\nc\n", b"a\nb\nc\n"));
 }
 
-/// An addition on both sides, read against the empty blob, is subsumed when the prepared file keeps every landed line in order.
+/// An addition on both sides,
+/// read against the empty blob,
+/// is subsumed when the prepared file keeps every landed line in order.
 #[test]
 fn an_addition_on_both_sides_is_subsumed_against_the_empty_blob() {
     assert!(subsumed("an_addition_on_both_sides_is_subsumed_against_the_empty_blob", None, b"a\nb\n", b"a\nX\nb\n"));
     assert!(!subsumed("an_addition_on_both_sides_is_subsumed_against_the_empty_blob", None, b"a\nb\n", b"a\nX\n"));
 }
 
-/// A binary blob is never a text candidate, even when the bytes are identical.
+/// A binary blob is never a text candidate,
+/// even when the bytes are identical.
 #[test]
 fn a_binary_blob_is_never_subsumed_by_the_text_check() {
     assert!(!subsumed("a_binary_blob_is_never_subsumed_by_the_text_check", Some(b"x\0a\n"), b"x\0B\n", b"x\0B\n"));
 }
 
-/// The binary rule looks at the first 8000 bytes only, and an empty input is never binary.
+/// The binary rule looks at the first 8000 bytes only,
+/// and an empty input is never binary.
 #[test]
 fn binary_detection_probes_the_first_bytes() {
     assert!(is_binary(b"a\0"));

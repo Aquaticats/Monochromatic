@@ -4,13 +4,16 @@ use super::*;
 use crate::service_protocol::decode_service;
 use std::io::{BufRead, BufReader};
 
-/// How often the controls beat: fast enough that a control needing several beats takes well under a second.
+/// How often the controls beat:
+/// fast enough that a control needing several beats takes well under a second.
 const QUICK_BEAT: Duration = Duration::from_millis(20);
 
 /// How many beats a control waits for before it is satisfied.
 const BEATS_WANTED: usize = 3;
 
-/// A reply, the thread that writes it to a connection, and the client's end of that connection.
+/// A reply,
+/// the thread that writes it to a connection,
+/// and the client's end of that connection.
 fn connected() -> (Reply, std::thread::JoinHandle<()>, BufReader<UnixStream>) {
     let (service, client) = UnixStream::pair().expect("a connected pair");
     let (reply, messages) = Reply::new();
@@ -25,7 +28,9 @@ fn next(client: &mut BufReader<UnixStream>) -> ServiceMessage {
     return decode_service(line.trim_end_matches('\n')).expect("a message");
 }
 
-/// A request that waits for a long time is sent a beat the whole time, however long the wait; the beat is what the client reads
+/// A request that waits for a long time is sent a beat the whole time,
+/// however long the wait;
+/// the beat is what the client reads
 /// in place of a clock.
 #[test]
 fn a_waiting_client_is_sent_heartbeats_until_it_is_answered() {
@@ -46,8 +51,12 @@ fn a_waiting_client_is_sent_heartbeats_until_it_is_answered() {
     writer.join().expect("the writer ends once the reply is gone");
 }
 
-/// Dropping the reply, which is what answering the request does, ends the writer and closes the connection: the client reads
-/// the end of the stream, after only beats.
+/// Dropping the reply,
+/// which is what answering the request does,
+/// ends the writer and closes the connection:
+/// the client reads
+/// the end of the stream,
+/// after only beats.
 #[test]
 fn the_beat_ends_with_the_reply_and_the_connection_closes() {
     let (reply, writer, mut client) = connected();
@@ -80,7 +89,10 @@ fn the_beat_ends_when_the_client_is_gone() {
     drop(reply);
 }
 
-/// Beats and answers come from one writer; every line the client reads is a whole message, however long, and the answers keep
+/// Beats and answers come from one writer;
+/// every line the client reads is a whole message,
+/// however long,
+/// and the answers keep
 /// the order they were queued in.
 #[test]
 fn beats_and_answers_never_interleave_their_bytes_and_keep_their_order() {

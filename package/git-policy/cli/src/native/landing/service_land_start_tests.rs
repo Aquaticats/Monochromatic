@@ -1,7 +1,8 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 
-/// A witness survives the text it is recorded in, and an absent file has one too.
+/// A witness survives the text it is recorded in,
+/// and an absent file has one too.
 #[test]
 fn a_witness_round_trips_through_its_text() {
     let file: IndexWitness = IndexWitness::File { inode: 7, size: 9, modified: (1, 2), changed: (3, 4), trailer: String::from("00ff") };
@@ -9,7 +10,8 @@ fn a_witness_round_trips_through_its_text() {
     assert_eq!(decode(encode(&IndexWitness::Absent).as_str()), Some(IndexWitness::Absent));
 }
 
-/// A damaged text is no witness, so a replay never reads half a record as the whole.
+/// A damaged text is no witness,
+/// so a replay never reads half a record as the whole.
 #[test]
 fn a_damaged_text_is_no_witness() {
     for text in ["", "files:1:2:3:4:5:6:00", "file:1:2:3:4:5:6", "file:x:2:3:4:5:6:00", "file:1:2:3:4:5:6:zz", "file:1:2:3:4:5:6:00:extra"] {
@@ -17,7 +19,8 @@ fn a_damaged_text_is_no_witness() {
     }
 }
 
-/// The file a rename put at the path is another file even when it holds the same bytes, and an untouched file is the same one.
+/// The file a rename put at the path is another file even when it holds the same bytes,
+/// and an untouched file is the same one.
 /// An index every program replaces by rename is thereby told from one nobody wrote since.
 #[test]
 fn a_replacement_with_the_same_bytes_is_another_witness_and_an_untouched_file_is_the_same() {

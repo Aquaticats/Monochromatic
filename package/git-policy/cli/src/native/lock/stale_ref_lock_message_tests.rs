@@ -1,8 +1,11 @@
 //! What:
 //!  Controls for the notices about reference locks and the quoting of the command that clears one.
 //! Why:
-//!  The command is meant to be pasted into a shell, and the names in it come from the file system, so the controls run the
-//!  quoted words through a real shell and require that exactly the named file goes. The wording is pinned as printed.
+//!  The command is meant to be pasted into a shell,
+//! and the names in it come from the file system,
+//! so the controls run the
+//!  quoted words through a real shell and require that exactly the named file goes.
+//! The wording is pinned as printed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,7 +19,8 @@ use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::process::Command;
 
-/// A finding with the facts the notice words, and none that vary between runs.
+/// A finding with the facts the notice words,
+/// and none that vary between runs.
 fn found(lock: &str, verdict: Verdict, pid_file: PidFile, companions: &[&str]) -> Found {
     return Found {
         lock: PathBuf::from(lock),
@@ -28,7 +32,8 @@ fn found(lock: &str, verdict: Verdict, pid_file: PidFile, companions: &[&str]) -
     };
 }
 
-/// Names that a shell or a terminal could misread, each of which must survive a trip through `bash -c "rm -- <quoted>"`.
+/// Names that a shell or a terminal could misread,
+/// each of which must survive a trip through `bash -c "rm -- <quoted>"`.
 fn awkward_names() -> Vec<OsString> {
     return vec![
         OsString::from("plain.lock"),
@@ -42,7 +47,9 @@ fn awkward_names() -> Vec<OsString> {
     ];
 }
 
-/// Every awkward name, quoted, clears exactly its own file in a real shell and runs nothing.
+/// Every awkward name,
+/// quoted,
+/// clears exactly its own file in a real shell and runs nothing.
 #[test]
 fn quoted_names_name_exactly_their_files_in_a_real_shell() {
     let root: PathBuf = fixture("stale-message-quoting");
@@ -64,7 +71,9 @@ fn quoted_names_name_exactly_their_files_in_a_real_shell() {
     remove(root.as_path());
 }
 
-/// A plain name is not quoted, a name with a single quote has it written `'\''`, and an empty name is quoted.
+/// A plain name is not quoted,
+/// a name with a single quote has it written `'\''`,
+/// and an empty name is quoted.
 #[test]
 fn quoting_leaves_plain_names_alone_and_escapes_single_quotes() {
     assert_eq!(shell_quote(Path::new("/repo/.git/refs/heads/main.lock")), "/repo/.git/refs/heads/main.lock");
@@ -72,7 +81,9 @@ fn quoting_leaves_plain_names_alone_and_escapes_single_quotes() {
     assert_eq!(shell_quote(Path::new("")), "''");
 }
 
-/// The notice for a lock that nothing proves stale, as printed, with the command that clears it and its companions.
+/// The notice for a lock that nothing proves stale,
+/// as printed,
+/// with the command that clears it and its companions.
 #[test]
 fn an_unproven_lock_is_described_with_the_command_that_clears_it() {
     let outcome: Outcome = Outcome {
@@ -86,7 +97,8 @@ monochromatic-git-policy-cli: Git writes a process number beside its locks only 
     assert_eq!(outcome.notice(), expected);
 }
 
-/// The packed-references lock names its pid file and staging file in the command, and a lock of an adversarial name is quoted.
+/// The packed-references lock names its pid file and staging file in the command,
+/// and a lock of an adversarial name is quoted.
 #[test]
 fn the_command_names_the_companions_and_quotes_an_odd_reference() {
     let outcome: Outcome = Outcome {
@@ -102,7 +114,9 @@ fn the_command_names_the_companions_and_quotes_an_odd_reference() {
     assert!(!text.contains("core.lockfilePid"), "the hint is only for locks without a pid file: {text}");
 }
 
-/// The notice for a removed lock, and for a lock a running process holds, as printed.
+/// The notice for a removed lock,
+/// and for a lock a running process holds,
+/// as printed.
 #[test]
 fn a_removed_lock_and_a_held_lock_are_worded_as_printed() {
     let outcome: Outcome = Outcome {

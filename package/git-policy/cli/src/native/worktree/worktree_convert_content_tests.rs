@@ -1,13 +1,20 @@
-//! Controls for the cleanliness proof of the conversion on real Git repositories: a worktree whose entries stat data cannot
-//!  vouch for (a detached or packed `HEAD`, a racily clean entry, a stale stat) converts when its content equals the committed
-//!  blob, and refuses, naming the path and the reason, when the content differs or a conversion could make it differ.
+//! Controls for the cleanliness proof of the conversion on real Git repositories:
+//! a worktree whose entries stat data cannot
+//!  vouch for (a detached or packed `HEAD`,
+//! a racily clean entry,
+//! a stale stat) converts when its content equals the committed
+//!  blob,
+//! and refuses,
+//! naming the path and the reason,
+//! when the content differs or a conversion could make it differ.
 
 use super::*;
 use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_worktree};
 use crate::test_support::{git, remove};
 use std::path::{Path, PathBuf};
 
-/// A dry run, which judges the worktree and changes nothing.
+/// A dry run,
+/// which judges the worktree and changes nothing.
 const DRY: ConvertOptions = ConvertOptions { dry_run: true, abandon: false, command_line_attributes: false };
 
 /// The verdict of a dry run of the conversion of `worktree`.
@@ -15,7 +22,8 @@ fn dry_run(worktree: &Path) -> Verdict {
     return convert_worktree(&PlainPlatform::new(), worktree, DRY, &Interrupt::never(), &mut |_text: &str| {}).expect("no failure");
 }
 
-/// The reasons a dry run lists, or a failure of the test when it would convert.
+/// The reasons a dry run lists,
+/// or a failure of the test when it would convert.
 fn refusal_reasons(worktree: &Path) -> String {
     return match dry_run(worktree) {
         Verdict::Skipped(reasons) => reasons.join("\n"),
@@ -28,7 +36,8 @@ fn assert_converts(worktree: &Path) {
     assert_eq!(dry_run(worktree), Verdict::WouldConvert);
 }
 
-/// Age every tracked file and refresh the index, so every entry is provably clean by its stat data.
+/// Age every tracked file and refresh the index,
+/// so every entry is provably clean by its stat data.
 fn settle(worktree: &Path) {
     backdate(worktree);
     git(worktree, &["update-index", "--refresh"]);
@@ -47,20 +56,24 @@ fn settled_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     return (parent, root, worktree);
 }
 
-/// Make every entry of the index racy: the index file becomes older than the files it describes.
+/// Make every entry of the index racy:
+/// the index file becomes older than the files it describes.
 fn make_every_entry_racy(worktree: &Path) {
     let index = std::fs::OpenOptions::new().write(true).open(admin_of(worktree).join("index")).expect("index");
     index.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(3_600)).expect("old index time");
 }
 
-/// Rewrite a file with `bytes`, keeping its modification time, so only the change time and the content can tell.
+/// Rewrite a file with `bytes`,
+/// keeping its modification time,
+/// so only the change time and the content can tell.
 fn rewrite_keeping_mtime(path: &Path, bytes: &[u8]) {
     let before = std::fs::metadata(path).expect("metadata").modified().expect("mtime");
     std::fs::write(path, bytes).expect("rewrite");
     std::fs::OpenOptions::new().write(true).open(path).expect("open").set_modified(before).expect("restore mtime");
 }
 
-/// A detached `HEAD` that holds a commit name converts, also when the repository has a tag whose name has an `@`.
+/// A detached `HEAD` that holds a commit name converts,
+/// also when the repository has a tag whose name has an `@`.
 #[test]
 fn a_detached_head_naming_a_commit_converts() {
     let (parent, root) = checkout_with_worktree("content-detached");
@@ -87,7 +100,8 @@ fn a_packed_branch_resolves_beside_a_tag_with_an_unusual_name() {
     remove(parent.as_path());
 }
 
-/// A `HEAD` that names a commit the repository does not have refuses, saying the commit is unreadable.
+/// A `HEAD` that names a commit the repository does not have refuses,
+/// saying the commit is unreadable.
 #[test]
 fn a_head_naming_no_commit_refuses() {
     let (parent, _root, worktree) = settled_worktree("content-nohead");
@@ -106,7 +120,8 @@ fn a_racy_entry_with_equal_content_converts() {
     remove(parent.as_path());
 }
 
-/// A racily clean entry whose content differs is refused, naming the file and saying its content differs.
+/// A racily clean entry whose content differs is refused,
+/// naming the file and saying its content differs.
 #[test]
 fn a_racy_entry_with_different_content_refuses() {
     let (parent, _root, worktree) = settled_worktree("content-racy-different");
@@ -118,7 +133,8 @@ fn a_racy_entry_with_different_content_refuses() {
 }
 
 /// A file whose stat data is stale (a copy keeps the index's old inode and times) is accepted when its content is the
-///  committed one, and refused when it is not.
+///  committed one,
+/// and refused when it is not.
 #[test]
 fn a_stale_stat_is_decided_by_content() {
     let (parent, _root, worktree) = settled_worktree("content-stale");
@@ -130,7 +146,9 @@ fn a_stale_stat_is_decided_by_content() {
     remove(parent.as_path());
 }
 
-/// A symbolic link is compared by its target: recreated with the same target it is accepted, retargeted it is refused.
+/// A symbolic link is compared by its target:
+/// recreated with the same target it is accepted,
+/// retargeted it is refused.
 #[test]
 fn a_symbolic_link_is_compared_by_its_target() {
     let (parent, _root, worktree) = settled_worktree("content-link");
@@ -144,7 +162,8 @@ fn a_symbolic_link_is_compared_by_its_target() {
     remove(parent.as_path());
 }
 
-/// A checkout whose tree also holds `.gitattributes` lines and the files they name, with a settled detached worktree `attr`.
+/// A checkout whose tree also holds `.gitattributes` lines and the files they name,
+/// with a settled detached worktree `attr`.
 fn attributed_worktree(name: &str, attributes: &str) -> (PathBuf, PathBuf) {
     let (parent, root) = checkout_with_worktree(name);
     // The files are committed before the attributes are written, so the blob of `crlf.txt` keeps its carriage returns.
@@ -161,8 +180,10 @@ fn attributed_worktree(name: &str, attributes: &str) -> (PathBuf, PathBuf) {
     return (parent, worktree);
 }
 
-/// A path to which a filter attribute applies is refused when stat data cannot vouch for it, naming the path and the
-///  attribute; a path the pattern does not match is still judged by content.
+/// A path to which a filter attribute applies is refused when stat data cannot vouch for it,
+/// naming the path and the
+///  attribute;
+/// a path the pattern does not match is still judged by content.
 #[test]
 fn a_filtered_path_refuses_and_an_unfiltered_one_converts() {
     let (parent, worktree) = attributed_worktree("content-filter", "*.dat filter=scrambler\n");
@@ -174,7 +195,9 @@ fn a_filtered_path_refuses_and_an_unfiltered_one_converts() {
     remove(parent.as_path());
 }
 
-/// The other attributes that can make worktree bytes differ from the blob (`ident`, `working-tree-encoding`) refuse too, and
+/// The other attributes that can make worktree bytes differ from the blob (`ident`,
+/// `working-tree-encoding`) refuse too,
+/// and
 ///  so does a macro that sets one.
 #[test]
 fn every_attribute_that_can_change_bytes_refuses() {
@@ -187,7 +210,8 @@ fn every_attribute_that_can_change_bytes_refuses() {
     }
 }
 
-/// A file with a carriage return is refused when stat data cannot vouch for it, because a line-ending conversion may apply.
+/// A file with a carriage return is refused when stat data cannot vouch for it,
+/// because a line-ending conversion may apply.
 #[test]
 fn a_carriage_return_refuses() {
     let (parent, worktree) = attributed_worktree("content-cr", "* text=auto eol=lf\n");
@@ -206,8 +230,12 @@ fn line_ending_attributes_do_not_refuse_a_file_without_a_carriage_return() {
     remove(parent.as_path());
 }
 
-/// Attributes set outside the tracked root file refuse as well: `info/attributes`, the file `core.attributesFile` names, and a
-///  `.gitattributes` in the directory of the file; a relative `core.attributesFile` cannot be ruled out and refuses.
+/// Attributes set outside the tracked root file refuse as well:
+/// `info/attributes`,
+/// the file `core.attributesFile` names,
+/// and a
+///  `.gitattributes` in the directory of the file;
+/// a relative `core.attributesFile` cannot be ruled out and refuses.
 #[test]
 fn attributes_from_every_other_source_refuse() {
     let (parent, worktree) = attributed_worktree("content-sources", "# nothing converts here\n");
@@ -265,7 +293,8 @@ fn a_file_larger_than_the_limit_refuses() {
     remove(parent.as_path());
 }
 
-/// A change to the mode or the type is refused whatever the content, also when the entry is racy.
+/// A change to the mode or the type is refused whatever the content,
+/// also when the entry is racy.
 #[test]
 fn a_mode_or_type_change_is_not_settled_by_content() {
     let (parent, _root, worktree) = settled_worktree("content-mode");

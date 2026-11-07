@@ -1,10 +1,17 @@
 //! What:
-//!  A reader of one Git pack: the version 2 index lookup by object name and the entry read, with `OFS_DELTA` and
+//!  A reader of one Git pack:
+//! the version 2 index lookup by object name and the entry read,
+//! with `OFS_DELTA` and
 //!  `REF_DELTA` resolution.
 //! Why:
 //!  Most objects of a real repository are packed.
-//!  The reader opens the two files, seeks for the few bytes a lookup needs, and returns `None` for anything it does not
-//!  fully understand (a version 1 index, an inconsistent size, a delta chain deeper than the limit, a bad delta),
+//!  The reader opens the two files,
+//! seeks for the few bytes a lookup needs,
+//! and returns `None` for anything it does not
+//!  fully understand (a version 1 index,
+//! an inconsistent size,
+//! a delta chain deeper than the limit,
+//! a bad delta),
 //!  which sends the caller to Git.
 //!
 //! In TS you'd write (pseudocode):
@@ -22,14 +29,20 @@ use std::path::Path;
 /// The deepest delta chain this reader follows.
 const DELTA_DEPTH_LIMIT: usize = 100;
 
-/// The most decoded bytes one pack keeps for later reads: a listing of a large tree reads thousands of trees that share
-///  delta bases, and a stop at a fixed size keeps a long listing from growing without bound.
+/// The most decoded bytes one pack keeps for later reads:
+/// a listing of a large tree reads thousands of trees that share
+///  delta bases,
+/// and a stop at a fixed size keeps a long listing from growing without bound.
 const CACHE_BYTE_LIMIT: usize = 32 * 1024 * 1024;
 
-/// The bytes of the index header and fanout table: magic, version, 256 counts.
+/// The bytes of the index header and fanout table:
+/// magic,
+/// version,
+/// 256 counts.
 const FANOUT_END: u64 = 8 + 256 * 4;
 
-/// How many pack entries every pack of this process decoded, for a control that compares the work of two ways to answer.
+/// How many pack entries every pack of this process decoded,
+/// for a control that compares the work of two ways to answer.
 #[cfg(test)]
 pub(crate) static DECODED_TOTAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -48,29 +61,40 @@ pub struct Pack {
     data_length: u64,
     /// The cumulative fanout counts by first byte.
     fanout: Vec<u32>,
-    /// How many entries were decoded; a stand-in for the work a read costs.
+    /// How many entries were decoded;
+    /// a stand-in for the work a read costs.
     decoded: std::cell::Cell<u64>,
-    /// The entries decoded so far by their offset, so the base that many versions of one chain share is decoded once.
+    /// The entries decoded so far by their offset,
+    /// so the base that many versions of one chain share is decoded once.
     cache: std::cell::RefCell<std::collections::HashMap<u64, RawObject>>,
-    /// The bytes held in `cache`; once it passes `CACHE_BYTE_LIMIT` no entry is added.
+    /// The bytes held in `cache`;
+    /// once it passes `CACHE_BYTE_LIMIT` no entry is added.
     cached_bytes: std::cell::Cell<usize>,
-    /// How many reads of the index file the lookups made; a stand-in for the system calls a lookup costs.
+    /// How many reads of the index file the lookups made;
+    /// a stand-in for the system calls a lookup costs.
     index_reads: std::cell::Cell<u64>,
-    /// The names of each first byte already read from the index, by that byte, so a second lookup in the same bucket reads
-    ///  nothing: the lookups of one commit are many and spread over every first byte.
+    /// The names of each first byte already read from the index,
+    /// by that byte,
+    /// so a second lookup in the same bucket reads
+    ///  nothing:
+    /// the lookups of one commit are many and spread over every first byte.
     buckets: std::cell::RefCell<std::collections::HashMap<u8, std::rc::Rc<Vec<u8>>>>,
-    /// The bytes held in `buckets`; once it passes `CACHE_BYTE_LIMIT` no bucket is added.
+    /// The bytes held in `buckets`;
+    /// once it passes `CACHE_BYTE_LIMIT` no bucket is added.
     bucket_bytes: std::cell::Cell<usize>,
 }
 
-/// Read exactly `length` bytes at `position`, or `None`.
+/// Read exactly `length` bytes at `position`,
+/// or `None`.
 fn read_at(file: &File, position: u64, length: usize) -> Option<Vec<u8>> {
     let mut buffer: Vec<u8> = vec![0; length];
     file.read_exact_at(buffer.as_mut_slice(), position).ok()?;
     return Some(buffer);
 }
 
-/// One delta size varint at `cursor`: seven bits per byte, low first.
+/// One delta size varint at `cursor`:
+/// seven bits per byte,
+/// low first.
 fn delta_size(delta: &[u8], cursor: &mut usize) -> Option<usize> {
     let mut size: usize = 0;
     let mut shift: u32 = 0;
@@ -91,8 +115,10 @@ fn delta_size(delta: &[u8], cursor: &mut usize) -> Option<usize> {
 /// What:
 ///  Apply a Git delta to its base.
 /// Why:
-///   A delta states the base size and the result size and then copies from the base or inserts bytes; every number is
-///  checked, because a corrupt delta must be refused and not read past a buffer.
+///   A delta states the base size and the result size and then copies from the base or inserts bytes;
+/// every number is
+///  checked,
+/// because a corrupt delta must be refused and not read past a buffer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -148,23 +174,29 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// What:
-///  Where a pack finds the base of a `REF_DELTA`, which is named by object and may live outside the pack.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  Where a pack finds the base of a `REF_DELTA`,
+/// which is named by object and may live outside the pack.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The database that owns the pack also owns the other packs and the loose objects, and it follows a delta chain one step
-///  deeper each time; a type that holds the database and the depth so far implements this.
+///   The database that owns the pack also owns the other packs and the loose objects,
+/// and it follows a delta chain one step
+///  deeper each time;
+/// a type that holds the database and the depth so far implements this.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// interface BaseByName { baseNamed(name: Uint8Array): RawObject | undefined }
 /// ```
 pub trait BaseByName {
-    /// The object named `name`, or nothing when it cannot be read.
+    /// The object named `name`,
+    /// or nothing when it cannot be read.
     fn base_named(&self, name: &[u8]) -> Option<RawObject>;
 }
 
 impl Pack {
-    /// Open the pack whose index is at `index_path` (the pack is the same name ending `.pack`); `None` unless the index
+    /// Open the pack whose index is at `index_path` (the pack is the same name ending `.pack`);
+    /// `None` unless the index
     /// is version 2 and its size agrees with its own count.
     pub fn open(index_path: &Path, hash_length: usize) -> Option<Pack> {
         let index: File = File::open(index_path).ok()?;
@@ -200,7 +232,8 @@ impl Pack {
         return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0), index_reads: std::cell::Cell::new(reads), buckets: std::cell::RefCell::default(), bucket_bytes: std::cell::Cell::new(0) });
     }
 
-    /// How many entries of this pack were decoded (inflated, with their delta applied) since it was opened.
+    /// How many entries of this pack were decoded (inflated,
+    /// with their delta applied) since it was opened.
     pub fn decoded_entries(&self) -> u64 {
         return self.decoded.get();
     }
@@ -210,13 +243,15 @@ impl Pack {
         return self.index_reads.get();
     }
 
-    /// `length` bytes of the index at `position`, counted as one read.
+    /// `length` bytes of the index at `position`,
+    /// counted as one read.
     fn read_index(&self, position: u64, length: usize) -> Option<Vec<u8>> {
         self.index_reads.set(self.index_reads.get() + 1);
         return read_at(&self.index, position, length);
     }
 
-    /// The pack offset of the object named `name`, or `None` when this pack does not hold it.
+    /// The pack offset of the object named `name`,
+    /// or `None` when this pack does not hold it.
     pub fn find(&self, name: &[u8]) -> Option<u64> {
         if name.len() != self.hash_length {
             return None;
@@ -256,7 +291,8 @@ impl Pack {
         return None;
     }
 
-    /// The pack offset stored for the `position`th name, following the large-offset table.
+    /// The pack offset stored for the `position`th name,
+    /// following the large-offset table.
     fn offset_of(&self, position: u64) -> Option<u64> {
         let offsets_at: u64 = FANOUT_END + self.count * (self.hash_length as u64 + 4);
         let bytes_word: Vec<u8> = self.read_index(offsets_at + position * 4, 4)?;
@@ -272,7 +308,9 @@ impl Pack {
     }
 
     /// What:
-    ///  Read the object stored at `offset`, resolving deltas; `by_name` finds the base of a `REF_DELTA`.
+    ///  Read the object stored at `offset`,
+    /// resolving deltas;
+    /// `by_name` finds the base of a `REF_DELTA`.
     /// Why:
     ///   A packed object is a base object or a delta over another entry of the pack or over any object by name.
     ///
@@ -292,7 +330,8 @@ impl Pack {
         return Some(object);
     }
 
-    /// The entry at `offset` rebuilt from the pack file, as `read` does it when the entry is not kept.
+    /// The entry at `offset` rebuilt from the pack file,
+    /// as `read` does it when the entry is not kept.
     fn decode(&self, offset: u64, by_name: &dyn BaseByName, depth: usize) -> Option<RawObject> {
         if depth > DELTA_DEPTH_LIMIT || offset < 12 || offset >= self.data_length {
             return None;

@@ -1,10 +1,18 @@
 //! What:
-//!  `git commit --amend` landed through the service, compared field by field with the commit native `git commit --amend`
-//!  makes from the same working state, including what is left staged, modified and untracked.
+//!  `git commit --amend` landed through the service,
+//! compared field by field with the commit native `git commit --amend`
+//!  makes from the same working state,
+//! including what is left staged,
+//! modified and untracked.
 //! Why:
-//!  An amend keeps the parents of the replaced commit, its author and (without a message option) its message; the service
-//!  builds that from a tree the wrapper wrote. Any difference in a stored field, or in what the index and the worktree
-//!  show afterwards, would be a silent change of what `--amend` means.
+//!  An amend keeps the parents of the replaced commit,
+//! its author and (without a message option) its message;
+//! the service
+//!  builds that from a tree the wrapper wrote.
+//! Any difference in a stored field,
+//! or in what the index and the worktree
+//!  show afterwards,
+//! would be a silent change of what `--amend` means.
 
 use super::commit::{git_text, remove_settled};
 use super::service_commit::{Running, query, start, through_service};
@@ -23,13 +31,17 @@ fn finished(fixture: &Fixture) -> usize {
     });
 }
 
-/// The stored fields that must agree, with the author's date; the committer's date is the time of the run and is left out.
+/// The stored fields that must agree,
+/// with the author's date;
+/// the committer's date is the time of the run and is left out.
 fn stored(fixture: &Fixture, repo: &Path) -> Vec<String> {
     let formats: [&str; 6] = ["%T", "%B", "%an <%ae>", "%ad", "%cn <%ce>", "%P"];
     return formats.map(|format| { return git_text(fixture, repo, &["log", "-1", "--date=iso-strict", format!("--format={format}").as_str()]); }).to_vec();
 }
 
-/// What a commit left behind: the status, the staged difference from the commit and how many commits the branch has.
+/// What a commit left behind:
+/// the status,
+/// the staged difference from the commit and how many commits the branch has.
 fn left_behind(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return vec![
         git_text(fixture, repo, &["status", "--short"]),
@@ -45,7 +57,8 @@ fn write(repo: &Path, name: &str, text: &str) {
 /// Which commit the branch is reset to before a case.
 #[derive(Clone, Copy)]
 enum Start {
-    /// A commit with one parent, written by another person on another day.
+    /// A commit with one parent,
+    /// written by another person on another day.
     Second,
     /// The root commit.
     Root,
@@ -82,12 +95,15 @@ fn edit_a_and_leave_b(repo: &Path) {
     write(repo, "untracked.txt", "untracked\n");
 }
 
-/// Back to the content of the root commit, so the amended commit equals its parent.
+/// Back to the content of the root commit,
+/// so the amended commit equals its parent.
 fn edit_a_back_to_the_parent(repo: &Path) {
     write(repo, "a.txt", "base\n");
 }
 
-/// One command line, the state it starts from, and whether the service lands it.
+/// One command line,
+/// the state it starts from,
+/// and whether the service lands it.
 struct Case {
     name: &'static str,
     start: Start,
@@ -95,7 +111,8 @@ struct Case {
     prepare: Setup,
     /// Whether the author date is a stored field the line keeps (not renewed to the time of the run).
     date_kept: bool,
-    /// Whether the service lands the line; otherwise it is declined and the transaction commits it.
+    /// Whether the service lands the line;
+    /// otherwise it is declined and the transaction commits it.
     lands: bool,
 }
 
@@ -103,7 +120,9 @@ fn landing(name: &'static str, command: &'static [&'static str], prepare: Setup)
     return Case { name, start: Start::Second, command, prepare, date_kept: true, lands: true };
 }
 
-/// Every covered amend gives the commit native Git gives, leaves the repository as native Git leaves it, and the service
+/// Every covered amend gives the commit native Git gives,
+/// leaves the repository as native Git leaves it,
+/// and the service
 ///  (not the transaction) landed it.
 #[test]
 fn amends_through_the_service_equal_the_native_amend() {
@@ -199,7 +218,8 @@ fn amends_through_the_service_equal_the_native_amend() {
 }
 
 /// An amend in a repository whose configuration the service would ignore (here a clean-up mode) is built by real Git and
-///  landed by the service, and the setting holds.
+///  landed by the service,
+/// and the setting holds.
 #[test]
 fn an_amend_with_a_configuration_the_service_would_ignore_has_git_build_it() {
     let fixture: Fixture = fixture("service-amend-declined");

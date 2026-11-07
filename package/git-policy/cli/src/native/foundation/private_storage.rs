@@ -46,9 +46,15 @@ use crate::diagnostic_log::debug;
 use crate::name_held_while_one_thread_publishes_it::{HeldName, hold_name_while_publishing};
 use std::time::Duration;
 
-/// How long the checked rename waits for another thread of this process that is publishing the same name: the bound of "nothing
-///  should ever wait forever" for a step that takes a check and a rename. No measurement picked it; it is the budget the start
-///  retry gives a refused start (`push/start_retry.rs`, `START_RETRY_BUDGET`), open to the owner's veto, and it is only reached by a
+/// How long the checked rename waits for another thread of this process that is publishing the same name:
+/// the bound of "nothing
+///  should ever wait forever" for a step that takes a check and a rename.
+/// No measurement picked it;
+/// it is the budget the start
+///  retry gives a refused start (`push/start_retry.rs`,
+/// `START_RETRY_BUDGET`),
+/// open to the owner's veto,
+/// and it is only reached by a
 ///  rename that stalls on a disk that has neither exclusive publish.
 const HELD_NAME_WAIT: Duration = Duration::from_secs(5);
 
@@ -122,6 +128,12 @@ fn exclusive_options() -> OpenOptions {
     return options;
 }
 
+/// Create the file at `staged` with `exclusive_options`,
+/// the file-making call the staging-file builder takes by name.
+fn open_exclusively(staged: &std::path::Path) -> std::io::Result<std::fs::File> {
+    return exclusive_options().open(staged);
+}
+
 /// What:
 ///  Set a path's permission bits to `mode`,
 ///  on Unix only.
@@ -157,10 +169,18 @@ pub fn protect_path(path: &Path, mode: u32) -> std::io::Result<()> {
 }
 
 /// What:
-///  A new staging file beside `path`: hidden, unique, private (mode `0600`), named `.<name>.<random>.partial`.
+///  A new staging file beside `path`:
+/// hidden,
+/// unique,
+/// private (mode `0600`),
+/// named `.<name>.<random>.partial`.
 /// Why:
-///   Recovery finds records by their exact names, so a staging file never looks like one; the file is made with
-///  `O_EXCL` and `O_NOFOLLOW`, so a second writer never shares it and a planted link is never written through, and the
+///   Recovery finds records by their exact names,
+/// so a staging file never looks like one;
+/// the file is made with
+///  `O_EXCL` and `O_NOFOLLOW`,
+/// so a second writer never shares it and a planted link is never written through,
+/// and the
 ///  `tempfile` crate removes it when the value is dropped before it was published.
 ///
 /// In TS you'd write (pseudocode):
@@ -187,17 +207,27 @@ fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTempFile> {
     return tempfile::Builder::new()
         .prefix(prefix.as_os_str())
         .suffix(".partial")
-        .make_in(directory, |staged| { return exclusive_options().open(staged); });
+        .make_in(directory, open_exclusively);
 }
 
 /// What:
 ///  Make `staged` appear at `path` when the filesystem answered neither `renameat2` with `RENAME_NOREPLACE` nor a hard link:
-///  `AlreadyExists` when `path` is taken, the rename otherwise.
+///  `AlreadyExists` when `path` is taken,
+/// the rename otherwise.
 /// Why:
-///   The owner, 2026-11-07, on a filesystem such as an S3 bucket through `s3fs-fuse` that has neither: "Keep the fallback
-///  (Recommended)", after being told that "Commits keep working on those disks. We own 10 lines plus a 15-line test. On those
-///  disks only, two programs saving the same file at the same instant could overwrite one another." The check then rename is
-///  atomic but not exclusive: a name taken between the two is replaced without an error.
+///   The owner,
+/// 2026-11-07,
+/// on a filesystem such as an S3 bucket through `s3fs-fuse` that has neither:
+/// "Keep the fallback
+///  (Recommended)",
+/// after being told that "Commits keep working on those disks.
+/// We own 10 lines plus a 15-line test.
+/// On those
+///  disks only,
+/// two programs saving the same file at the same instant could overwrite one another."
+/// The check then rename is
+///  atomic but not exclusive:
+/// a name taken between the two is replaced without an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -216,11 +246,17 @@ fn publish_by_checked_rename(staged: &Path, path: &Path) -> std::io::Result<()> 
 }
 
 /// What:
-///  The outcome of the exclusive publish `persist_noclobber` made: a taken name is the operating system's own `EEXIST`, and
+///  The outcome of the exclusive publish `persist_noclobber` made:
+/// a taken name is the operating system's own `EEXIST`,
+/// and
 ///  any other refusal publishes the staged file by the checked rename.
 /// Why:
-///   `persist_noclobber` tries `renameat2` with `RENAME_NOREPLACE`, then a hard link; a filesystem that answers neither
-///  leaves the staged file where it was, and "Commits should never fail" asks for the rename there. A function of the result
+///   `persist_noclobber` tries `renameat2` with `RENAME_NOREPLACE`,
+/// then a hard link;
+/// a filesystem that answers neither
+///  leaves the staged file where it was,
+/// and "Commits should never fail" asks for the rename there.
+/// A function of the result
 ///  lets a test feed the refusal that no filesystem on a test host produces.
 ///
 /// In TS you'd write (pseudocode):
@@ -253,9 +289,11 @@ fn settle_exclusive_publish(
 }
 
 /// What:
-///  Flushes the staging file to disk when the write is durable, and does nothing otherwise.
+///  Flushes the staging file to disk when the write is durable,
+/// and does nothing otherwise.
 /// Why:
-///  `write_then_publish` runs it only after the bytes were written; a record that tolerates a torn write skips the sync.
+///  `write_then_publish` runs it only after the bytes were written;
+/// a record that tolerates a torn write skips the sync.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -275,7 +313,8 @@ fn sync_when_durable(file: &File, path: &Path, durable: bool) -> std::io::Result
 }
 
 /// What:
-///  Sets the permission bits of the staging file when a mode was asked for, and does nothing otherwise.
+///  Sets the permission bits of the staging file when a mode was asked for,
+/// and does nothing otherwise.
 /// Why:
 ///  `write_then_publish` applies the mode before the file appears at its final name.
 ///
@@ -291,14 +330,25 @@ fn protect_when_asked(staged: &Path, mode: Option<u32>) -> std::io::Result<()> {
 }
 
 /// What:
-///  Write `bytes` to a staging file beside `path`, sync it when `durable`, and publish it at `path`; any failure
-///  removes the staging file, so `path` holds all the bytes or does not exist.
-///  `mode` is applied to the file before it is published, when given.
+///  Write `bytes` to a staging file beside `path`,
+/// sync it when `durable`,
+/// and publish it at `path`;
+/// any failure
+///  removes the staging file,
+/// so `path` holds all the bytes or does not exist.
+///  `mode` is applied to the file before it is published,
+/// when given.
 /// Why:
-///   A file created at its final name and then written is a record that a kill, or a full disk, between the two
-///  steps leaves empty or cut: recovery then stops every guarded command until a person removes it. Publishing a
-///  complete file with `persist_noclobber` makes the record appear whole or not at all, whether or not its bytes are
-///  synced; a record that the tearing table shows to be benign when a power loss tears it skips the sync.
+///   A file created at its final name and then written is a record that a kill,
+/// or a full disk,
+/// between the two
+///  steps leaves empty or cut:
+/// recovery then stops every guarded command until a person removes it.
+/// Publishing a
+///  complete file with `persist_noclobber` makes the record appear whole or not at all,
+/// whether or not its bytes are
+///  synced;
+/// a record that the tearing table shows to be benign when a power loss tears it skips the sync.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -333,7 +383,8 @@ fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: boo
 ///   A journal state file is created once and never rewritten,
 ///  so a crash leaves either
 ///       no file or a complete one after the caller syncs the directory.
-///  The file is written under a staging name and published whole (`write_then_publish`), so that the promise
+///  The file is written under a staging name and published whole (`write_then_publish`),
+/// so that the promise
 ///  also holds for a kill between the creation and the write and for a write cut short by a full disk.
 ///
 /// In TS you'd write (pseudocode):
@@ -350,7 +401,9 @@ pub fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// Why:
 ///   A record that recovery completes or discards whatever a power loss left of it (the tearing table in
 ///  `doc/planning/cli-git-spawn-and-sync-reduction.md`) gains nothing from a flush that makes every commit wait for the
-///  disk; a kill still leaves it whole or absent, because it is published by link as `write_private_file` does.
+///  disk;
+/// a kill still leaves it whole or absent,
+/// because it is published by link as `write_private_file` does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -370,7 +423,8 @@ pub fn write_private_file_unsynced(path: &Path, bytes: &[u8]) -> std::io::Result
 ///  the
 ///       creation mode alone,
 ///  then a sync before publication.
-///  The file is published whole, as `write_private_file` does.
+///  The file is published whole,
+/// as `write_private_file` does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -475,9 +529,13 @@ fn private_directory_builder() -> std::fs::DirBuilder {
 }
 
 /// What:
-///  Whether a failed directory sync means the filesystem has no such operation, not that the flush failed.
+///  Whether a failed directory sync means the filesystem has no such operation,
+/// not that the flush failed.
 /// Why:
-///   `EINVAL`, `ENOTSUP` and `ENOSYS` are what a filesystem without the operation returns; `EIO`, `ENOSPC` and
+///   `EINVAL`,
+/// `ENOTSUP` and `ENOSYS` are what a filesystem without the operation returns;
+/// `EIO`,
+/// `ENOSPC` and
 ///  `EDQUOT` mean the flush itself failed and stay errors.
 ///
 /// In TS you'd write (pseudocode):
@@ -490,12 +548,20 @@ fn directory_sync_is_unsupported(error: &std::io::Error) -> bool {
 }
 
 /// What:
-///  The outcome of syncing the directory at `path`: a filesystem without the operation counts as synced, any other
+///  The outcome of syncing the directory at `path`:
+/// a filesystem without the operation counts as synced,
+/// any other
 ///  failure stays an error.
 /// Why:
-///   A filesystem with no directory flush (procfs, some network and userspace filesystems) answers with one of the
-///  unsupported codes; the entry cannot be made durable there by any means, and failing would stop every commit. A
-///  function of the sync result lets a test feed the flush failures (`EIO`, `ENOSPC`, `EDQUOT`) that no
+///   A filesystem with no directory flush (procfs,
+/// some network and userspace filesystems) answers with one of the
+///  unsupported codes;
+/// the entry cannot be made durable there by any means,
+/// and failing would stop every commit.
+/// A
+///  function of the sync result lets a test feed the flush failures (`EIO`,
+/// `ENOSPC`,
+/// `EDQUOT`) that no
 ///  unprivileged filesystem produces.
 ///
 /// In TS you'd write (pseudocode):
@@ -547,7 +613,8 @@ pub fn sync_directory(path: &Path) -> std::io::Result<()> {
 
 #[cfg(test)]
 thread_local! {
-    /// A control may fail a publish on this thread after the staging file was made and written, which is where a full disk or a
+    /// A control may fail a publish on this thread after the staging file was made and written,
+    /// which is where a full disk or a
     ///  kill ends one.
     pub(crate) static AFTER_THE_STAGING_FILE_IS_WRITTEN: std::cell::RefCell<Option<Box<dyn Fn() -> std::io::Result<()>>>> = const { std::cell::RefCell::new(None) };
 }
@@ -555,23 +622,27 @@ thread_local! {
 #[cfg(test)]
 thread_local! {
     /// A control may make every exclusive publish on this thread get the refusal of a filesystem with neither `renameat2` with
-    ///  `RENAME_NOREPLACE` nor hard links (`s3fs-fuse` answers `ENOTSUP`), which no filesystem of a test host gives.
+    ///  `RENAME_NOREPLACE` nor hard links (`s3fs-fuse` answers `ENOTSUP`),
+    /// which no filesystem of a test host gives.
     pub(crate) static THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    /// A control may stop the checked rename on this thread between its check and its rename, where a second publisher of the
+    /// A control may stop the checked rename on this thread between its check and its rename,
+    /// where a second publisher of the
     ///  same name can slip in.
     pub(crate) static BETWEEN_THE_CHECK_AND_THE_RENAME: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(test)]
 thread_local! {
-    /// Paths of the files this thread asked `write_then_publish` to sync, in call order.
+    /// Paths of the files this thread asked `write_then_publish` to sync,
+    /// in call order.
     static FILE_SYNCS: std::cell::RefCell<Vec<std::path::PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// What:
 ///  Remember that this thread synced a file it published at `path`.
 /// Why:
-///   Unit tests pin which records keep their file sync, which no file on disk shows.
+///   Unit tests pin which records keep their file sync,
+/// which no file on disk shows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -587,7 +658,8 @@ fn record_file_sync(path: &Path) {
 /// What:
 ///  Take and clear the files this thread has synced so far.
 /// Why:
-///   A test calls it before the step under test to drop earlier syncs, and after it to read exactly that step's syncs.
+///   A test calls it before the step under test to drop earlier syncs,
+/// and after it to read exactly that step's syncs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -602,15 +674,18 @@ pub fn take_file_syncs() -> Vec<std::path::PathBuf> {
 
 #[cfg(test)]
 thread_local! {
-    /// Canonical paths of the directories this thread asked `sync_directory` to flush, in call order.
+    /// Canonical paths of the directories this thread asked `sync_directory` to flush,
+    /// in call order.
     static DIRECTORY_SYNCS: std::cell::RefCell<Vec<std::path::PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// What:
 ///  Remember that this thread asked for a directory sync.
 /// Why:
-///   Unit tests prove that a helper syncs a directory exactly when it changed one, which no file on disk shows;
-///  the list is per thread, so parallel tests never see each other's syncs.
+///   Unit tests prove that a helper syncs a directory exactly when it changed one,
+/// which no file on disk shows;
+///  the list is per thread,
+/// so parallel tests never see each other's syncs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -627,7 +702,8 @@ fn record_directory_sync(path: &Path) {
 /// What:
 ///  Take and clear the directories this thread has synced so far.
 /// Why:
-///   A test calls it before the step under test to drop earlier syncs, and after it to read exactly that step's syncs.
+///   A test calls it before the step under test to drop earlier syncs,
+/// and after it to read exactly that step's syncs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

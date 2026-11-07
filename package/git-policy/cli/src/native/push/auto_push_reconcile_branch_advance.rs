@@ -1,8 +1,13 @@
 //! What:
-//!  The move of the local branch after the merge was pushed: the fast-forward, the record that guards it, the check that
-//!  uncommitted work is not in the way, and the words of a refusal.
+//!  The move of the local branch after the merge was pushed:
+//! the fast-forward,
+//! the record that guards it,
+//! the check that
+//!  uncommitted work is not in the way,
+//! and the words of a refusal.
 //! Why:
-//!  The branch follows the published merge only where nothing can be lost; this file holds those checks apart from the
+//!  The branch follows the published merge only where nothing can be lost;
+//! this file holds those checks apart from the
 //!  retry loop in `auto_push_reconcile.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -28,7 +33,8 @@ use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 ///  Whether the status read after a fast-forward differs from the one read before it.
 ///  `&[u8]` borrows Git's output.
 /// Why:
-///   The uncommitted work must read exactly as it did; a difference is the only sign that the move touched it.
+///   The uncommitted work must read exactly as it did;
+/// a difference is the only sign that the move touched it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,13 +45,23 @@ pub(crate) fn status_differs(before: &[u8], after: &[u8]) -> bool {
 }
 
 /// What:
-///  Git's fast-forward to the published merge, with an intent record written first and settled after, so a branch that moved in
-///  the instant between Git's checkout and its ref update, or a service that died there, leaves the checkout as it was or put
-///  back to the moved head, never half merged.
+///  Git's fast-forward to the published merge,
+/// with an intent record written first and settled after,
+/// so a branch that moved in
+///  the instant between Git's checkout and its ref update,
+/// or a service that died there,
+/// leaves the checkout as it was or put
+///  back to the moved head,
+/// never half merged.
 /// Why:
-///   The owner's rule "Auto merging should never fail." (`SPEC.md`, "Merges and commits never fail"): the person's own merge and
-///  the reconcile can both move the same branch, and the loser's checkout must not stay beside a branch that does not hold it.
-///  The same record and settling serve the person's merge (`merge_isolation_recovery.rs`), and a record whose owner died is
+///   The owner's rule "Auto merging should never fail."
+/// (`SPEC.md`,
+/// "Merges and commits never fail"):
+/// the person's own merge and
+///  the reconcile can both move the same branch,
+/// and the loser's checkout must not stay beside a branch that does not hold it.
+///  The same record and settling serve the person's merge (`merge_isolation_recovery.rs`),
+/// and a record whose owner died is
 ///  settled by the next wrapper command.
 ///
 /// In TS you'd write (pseudocode):
@@ -89,26 +105,41 @@ pub(crate) fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str
     });
 }
 
-/// The reason line for a fast-forward Git refused: its first line of words.
+/// The reason line for a fast-forward Git refused:
+/// its first line of words.
 pub(crate) fn refusal_of(stderr: &[u8]) -> String {
     let detail = String::from_utf8_lossy(stderr);
     return format!("Git refused the fast-forward: {}", detail.lines().next().unwrap_or_default().trim());
 }
 
 /// What:
-///  Fast-forward the pushed branch and this worktree to the published merge, or the reason that was not done.
+///  Fast-forward the pushed branch and this worktree to the published merge,
+/// or the reason that was not done.
 ///  The success value says whether uncommitted work was left in place.
 /// Why:
-///   A branch left behind the remote makes the next commit rejected again, and the person at the keyboard would have
-///  to merge by hand; the merge contains the branch tip, so the move is a pure fast-forward.
-///   It is attempted only where nothing can be lost or surprised: the worktree has the branch checked out at the tip
-///  that was pushed, and no uncommitted change (tracked file, staged entry, or either name of a staged rename)
+///   A branch left behind the remote makes the next commit rejected again,
+/// and the person at the keyboard would have
+///  to merge by hand;
+/// the merge contains the branch tip,
+/// so the move is a pure fast-forward.
+///   It is attempted only where nothing can be lost or surprised:
+/// the worktree has the branch checked out at the tip
+///  that was pushed,
+/// and no uncommitted change (tracked file,
+/// staged entry,
+/// or either name of a staged rename)
 ///  lies in a file the move writes.
-///   Another session's work in progress therefore never holds the branch behind the remote, while a move that
+///   Another session's work in progress therefore never holds the branch behind the remote,
+/// while a move that
 ///  would write over such a file is left for the person.
-///   The status read takes no optional lock, and `git merge --ff-only` refuses, without changing anything, a move that
+///   The status read takes no optional lock,
+/// and `git merge --ff-only` refuses,
+/// without changing anything,
+/// a move that
 ///  would overwrite an untracked file or a change made after the status read.
-///   Every refusal is a reason for the report, never a failure: the merge is already published.
+///   Every refusal is a reason for the report,
+/// never a failure:
+/// the merge is already published.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -182,7 +213,8 @@ pub(crate) fn advance_local_branch(
     return Ok(Ok(kept));
 }
 
-/// Write the record that says a fast-forward of the branch is about to happen, or nothing when the record cannot be made.
+/// Write the record that says a fast-forward of the branch is about to happen,
+/// or nothing when the record cannot be made.
 pub(crate) fn record_merge_intent(dir: &Path, git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str) -> Option<(PathBuf, MergeIntent)> {
     let owner = current_transaction_owner(random_uuid().ok()?.as_str(), now_iso().as_str()).ok()?;
     let intent: MergeIntent = MergeIntent {

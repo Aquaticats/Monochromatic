@@ -1,12 +1,17 @@
-//! Controls for the attribute copy: what a refused permission or time change means, a named pipe, and a link.
+//! Controls for the attribute copy:
+//! what a refused permission or time change means,
+//! a named pipe,
+//! and a link.
 
 use super::*;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
-/// A change refused for lack of ownership is counted and tolerated; one refused for another reason is an error that
-///  names what was being set; a change that worked counts nothing.
+/// A change refused for lack of ownership is counted and tolerated;
+/// one refused for another reason is an error that
+///  names what was being set;
+/// a change that worked counts nothing.
 #[test]
 fn a_missing_privilege_is_counted_and_any_other_refusal_is_an_error() {
     let mut refused: u64 = 0;
@@ -23,7 +28,8 @@ fn a_missing_privilege_is_counted_and_any_other_refusal_is_an_error() {
     assert_eq!(refused, 2, "an error is not counted as a tolerated loss");
 }
 
-/// A named pipe takes its exact permission bits and time through its descriptor, and a link put where the pipe was
+/// A named pipe takes its exact permission bits and time through its descriptor,
+/// and a link put where the pipe was
 ///  is refused instead of followed.
 #[test]
 fn a_named_pipe_is_given_its_attributes_through_its_descriptor() {
@@ -64,7 +70,8 @@ fn a_link_is_given_its_times_without_following_it() {
     remove(parent.as_path());
 }
 
-/// The owner is skipped only when both the user and the group agree; each of the other three combinations needs the change.
+/// The owner is skipped only when both the user and the group agree;
+/// each of the other three combinations needs the change.
 #[test]
 fn the_owner_is_left_alone_only_when_user_and_group_both_agree() {
     let (user, group): (u32, u32) = (1000, 1001);
@@ -74,13 +81,17 @@ fn the_owner_is_left_alone_only_when_user_and_group_both_agree() {
     assert!(!same_owner((user, group), (user + 1, group + 1)), "another user and group");
 }
 
-/// Whether the tests run as root, which can give any owner and so cannot make a refused change.
+/// Whether the tests run as root,
+/// which can give any owner and so cannot make a refused change.
 fn running_as_root() -> bool {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     return unsafe { libc::geteuid() } == 0;
 }
 
-/// An owner this user cannot give is counted as lost, once, and the copy keeps its owner; a copy that already has the
+/// An owner this user cannot give is counted as lost,
+/// once,
+/// and the copy keeps its owner;
+/// a copy that already has the
 ///  original's owner and group is left alone and counts nothing.
 #[test]
 fn an_owner_that_cannot_be_given_is_counted_and_an_equal_one_is_not_touched() {
@@ -102,7 +113,9 @@ fn an_owner_that_cannot_be_given_is_counted_and_an_equal_one_is_not_touched() {
     remove(parent.as_path());
 }
 
-/// A group the user belongs to can be given: the copy ends in the original's group and nothing is counted lost. Where the
+/// A group the user belongs to can be given:
+/// the copy ends in the original's group and nothing is counted lost.
+/// Where the
 ///  user belongs to no other group the control reports that it did not run.
 #[test]
 fn a_group_the_user_belongs_to_is_given_and_not_counted() {
@@ -137,7 +150,8 @@ fn a_group_the_user_belongs_to_is_given_and_not_counted() {
     remove(parent.as_path());
 }
 
-/// Set one user attribute on a path; false where the filesystem keeps none.
+/// Set one user attribute on a path;
+/// false where the filesystem keeps none.
 fn set_user_attribute(path: &Path, name: &str, value: &[u8]) -> bool {
     let path_text = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path");
     let name_text = std::ffi::CString::new(name).expect("name");
@@ -145,7 +159,9 @@ fn set_user_attribute(path: &Path, name: &str, value: &[u8]) -> bool {
     return unsafe { libc::lsetxattr(path_text.as_ptr(), name_text.as_ptr(), value.as_ptr().cast(), value.len(), 0) } == 0;
 }
 
-/// Two paths carry the same attributes when they carry none, or the same names with the same values, and differ when a
+/// Two paths carry the same attributes when they carry none,
+/// or the same names with the same values,
+/// and differ when a
 ///  name or a value differs.
 #[test]
 fn carried_attributes_are_equal_only_when_names_and_values_agree() {

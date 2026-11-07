@@ -56,7 +56,9 @@ fn repository_with_linked_worktree(fixture: &Fixture) -> (PathBuf, PathBuf) {
     return (repo, linked);
 }
 
-/// A dry run is forwarded, with the commit-only insertion, and commits nothing;
+/// A dry run is forwarded,
+/// with the commit-only insertion,
+/// and commits nothing;
 ///  the index and `HEAD` stay as they were.
 #[test]
 fn a_dry_run_commit_is_forwarded_and_commits_nothing() {
@@ -249,9 +251,12 @@ fn a_real_push_is_scanned_and_forwarded() {
     remove(&fixture);
 }
 
-/// Commit transactions an earlier release left do not stop a guarded command; a journal of the previous executable's format
-/// does, with the way to recover it.
-/// Worktree-copy leases and journals no longer stop a guarded command: the forwarding settles them.
+/// Commit transactions an earlier release left do not stop a guarded command;
+/// a journal of the previous executable's format
+/// does,
+/// with the way to recover it.
+/// Worktree-copy leases and journals no longer stop a guarded command:
+/// the forwarding settles them.
 #[test]
 fn leftover_transaction_state_refuses_guarded_commands() {
     let fixture: Fixture = fixture("frontier-state");
