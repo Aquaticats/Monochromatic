@@ -3563,6 +3563,18 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
 
+### Release batch finished (2026-11-07T13:10:36Z, wrapper 0.6.0 last)
+
+- All 16 crates published in wave order; per-crate runs and times in `doc/planning/one-release-each-batch-2026-11.md`,
+  "Release record". One dispatch was refused by the origin-holds-main check and re-dispatched; no other failure.
+- Nothing yanked yet (owner: "All after the lock moves"). A post-release agent now does, in order: merge
+  `feat/toolchain-always-latest-landing`, switch the seven tools to the archive route, regenerate and install the lock,
+  verify wrapper 0.6.0 live with a real commit, yank the 14 older versions (not `forbidden-strings`, `forbidden-regex`),
+  enable the daily timer and follow its first run.
+- The tokio agent was told the hold on main is lifted; it merges main into its branch, and the coordinator merges the
+  branch into main after its final gate.
+- Still queued after this: rename step 3 (settings file, link folder `.cache/monochromatic-git-policy-cli-bin`).
+
 ### Release batch waiting for a free agent slot (2026-11-07)
 
 - The one-release-each batch (`doc/planning/one-release-each-batch-2026-11.md`) is ready to run:
