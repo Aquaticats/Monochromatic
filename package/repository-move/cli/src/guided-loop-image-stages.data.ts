@@ -110,7 +110,7 @@ cp --reflink=always ${fx}/source/main/big ${fx}/source/main/.claude/worktrees/a/
 cp --reflink=always ${fx}/source/main/big ${fx}/source/main/.claude/worktrees/b/big.copy
 sudo btrfs filesystem du --summarize ${fx}/source/main | tee ${fx}/source-baseline.txt
 sudo btrfs subvolume list -u ${fx}/source > ${fx}/inventory.txt`,
-      check: `test "$(grep --count -E ' uuid [0-9a-f-]+ path (main|.*/.claude/worktrees/[ab])$' ${fx}/inventory.txt)" = 3`,
+      check: `test "$(grep --count -E ' uuid [0-9a-f-]+ path (main|(main/)?\\.claude/worktrees/[ab])$' ${fx}/inventory.txt)" = 3`,
       checkText: 'the filesystem list with UUIDs shows main and its two worktree subvolumes',
       rollback: 'nothing outside the fixture changed',
       timeoutSeconds: timeout,
