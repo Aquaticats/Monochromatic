@@ -457,6 +457,57 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
     remove(stage.root.as_path());
 }
 
+/// The user and password of a URL a server's hook prints in the push controls that look for leaked credentials.
+const SENTINEL_URL_USERINFO: &str = "sentinel-user:sentinel-password-4f9c";
+
+/// Every file below `root` that holds `needle`, skipping the directories named in `skip`.
+fn files_holding(root: &Path, needle: &str, skip: &[PathBuf]) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in std::fs::read_dir(root).expect("a readable directory").flatten() {
+        let path: PathBuf = entry.path();
+        if skip.contains(&path) {
+            continue;
+        }
+        let kind: std::fs::FileType = entry.file_type().expect("a file type");
+        if kind.is_dir() {
+            found.extend(files_holding(path.as_path(), needle, skip));
+        } else if kind.is_file() && std::fs::read(path.as_path()).is_ok_and(|bytes| { return String::from_utf8_lossy(bytes.as_slice()).contains(needle); }) {
+            found.push(path);
+        }
+    }
+    return found;
+}
+
+/// A server's words can carry a URL with a user and a password (a hook that prints where to log in is one way; an older Git printed
+///  the remote's own URL that way), and the push output is stored for the person in the failure record, the work records and the
+///  journal. None of them keeps the password or the user part: the scan covers every file of the fixture except the hook that
+///  prints it, with a planted file first to show the scan finds a leak, and the Git run of the push to show the words do carry it.
+#[test]
+fn a_failed_push_whose_output_names_a_url_with_a_password_leaves_it_in_no_file_the_wrapper_writes() {
+    let stage: Stage = stage("push-output-keeps-no-password");
+    let hooks: PathBuf = stage.remote.join("hooks");
+    std::fs::write(hooks.join("pre-receive"), format!("#!/bin/sh\necho 'log in at https://{SENTINEL_URL_USERINFO}@example.test/login first' >&2\nexit 1\n")).expect("hook");
+    let mut leaks: Vec<PathBuf> = Vec::new();
+    let planted: PathBuf = stage.root.join("planted.txt");
+    std::fs::write(planted.as_path(), format!("https://{SENTINEL_URL_USERINFO}@example.test/")).expect("planted file");
+    assert_eq!(files_holding(stage.root.as_path(), SENTINEL_URL_USERINFO, &[hooks.clone()]), vec![planted.clone()], "the scan finds a file that holds the credentials");
+    std::fs::remove_file(planted.as_path()).expect("the planted file goes");
+    let direct = crate::test_support::git_output(stage.repo.as_path(), &["push", "origin", "main"]);
+    assert!(String::from_utf8_lossy(direct.stderr.as_slice()).contains(SENTINEL_URL_USERINFO), "Git's own words carry the credentials, so the scan below is not vacuous");
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let entries = crate::service_timing::capture::entries_of(|| { let _wake = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries); });
+    let record: String = notice_text(&stage);
+    assert!(record.contains("log in at https://") && record.contains("<credentials>"), "the person is shown the words with the credentials masked: {record}");
+    leaks.extend(files_holding(stage.root.as_path(), SENTINEL_URL_USERINFO, &[hooks.clone()]));
+    for part in SENTINEL_URL_USERINFO.split(':') {
+        leaks.extend(files_holding(stage.root.as_path(), part, &[hooks.clone()]));
+        assert!(entries.iter().all(|entry| { return !entry.message.contains(part); }), "the journal keeps the credentials of a URL: {part}");
+    }
+    assert!(leaks.is_empty(), "files that hold the credentials: {leaks:?}");
+    remove(stage.root.as_path());
+}
+
 /// A push that cannot reach the remote at all is still tried again by the service.
 #[test]
 fn an_offline_push_is_still_tried_again() {
