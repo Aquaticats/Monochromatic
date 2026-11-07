@@ -102,6 +102,27 @@ fn a_write_of_a_process_the_root_started_is_progress() {
     remove(root.as_path());
 }
 
+/// Ending a control's child ends what the child started too, before the fixture goes: a background subshell that outlives its leader
+///  would write into the fixture while it is removed (`DirectoryNotEmpty`, seen in the gate of `85e6d2ab99`). The subshell here would
+///  create `log` 0.3 s after it starts, so a `log` that shows up after the child was ended means it was left running.
+#[test]
+fn ending_a_child_ends_the_processes_it_started_too() {
+    let root: std::path::PathBuf = fixture("progress-end-group");
+    let child: Child = shell("(sleep 0.3; echo a >> log; sleep 60) & wait", root.as_path());
+    let pid: i32 = i32::try_from(child.id()).expect("pid");
+    // The subshell must exist before the child is ended, or there is nothing left running to find.
+    let began: Instant = Instant::now();
+    while crate::process_tree::descendants_of(pid).is_empty() {
+        assert!(began.elapsed() < PATIENCE, "the shell never started its subshell");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    end(child);
+    std::thread::sleep(Duration::from_millis(600));
+    let left_running: bool = root.join("log").exists();
+    remove(root.as_path());
+    assert!(!left_running, "a process the ended child had started was left running and wrote into the fixture");
+}
+
 /// A process that ends takes its counters with it, and the bytes it moved stay counted.
 #[test]
 fn the_bytes_of_a_process_that_ended_stay_counted() {
