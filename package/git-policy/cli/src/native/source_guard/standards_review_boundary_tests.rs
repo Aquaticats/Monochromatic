@@ -1,4 +1,4 @@
-//! The structural boundary of the standards review: the gateway client (`ureq`, TLS, the network) is reachable only
+//! The structural boundary of the standards review: the gateway client (`hyper`, TLS, the network) is reachable only
 //! from the review run that the resident service calls, never from the wrapper's forwarded-command or commit-client
 //! paths. The test reads the crate's own source, so a new `use` on a client path fails it before any binary is built.
 
@@ -12,6 +12,15 @@ mod fixtures;
 
 /// The one file that may name the HTTP library.
 const CLIENT_FILE: &str = "standards_review/standards_review_client.rs";
+
+/// The paths of the HTTP libraries the client is built on; only the client file may name one (`hyper_rustls` and `http_body_util`
+///  come with `hyper`, and `rustls` is not listed because the wrapper's other code may read certificates).
+const HTTP_LIBRARY_PATHS: [&str; 4] = ["hyper::", "hyper_util::", "hyper_rustls::", "http_body_util::"];
+
+/// Whether `text` names one of the HTTP libraries by path.
+fn names_http_library(text: &str) -> bool {
+    return HTTP_LIBRARY_PATHS.iter().any(|path| { return text.contains(path); });
+}
 
 /// The module names that carry the network client, the run that calls it, and the service handler that calls the run.
 const SERVICE_ONLY_MODULES: [&str; 3] = ["standards_review_client", "standards_review_run", "service_review"];
@@ -70,7 +79,7 @@ fn violations(sources: &[(String, String)]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for (file, text) in sources {
         let client_tests: bool = file.starts_with("standards_review/standards_review_client");
-        if text.contains("ureq") && !client_tests && !file.starts_with("source_guard/standards_review_boundary_") {
+        if names_http_library(text) && !client_tests && !file.starts_with("source_guard/standards_review_boundary_") {
             found.push(format!("{file} names the HTTP library"));
         }
         // The credential type is shared with the client path on purpose; only the handler module is service-only.
@@ -94,14 +103,14 @@ fn the_network_client_is_reachable_only_from_the_service_run() {
 fn the_scan_sees_the_client_and_flags_a_planted_import() {
     let sources: Vec<(String, String)> = native_sources();
     let client: &(String, String) = sources.iter().find(|(file, _)| return file == CLIENT_FILE).expect("the client file");
-    assert!(client.1.contains("ureq"), "the scan must see the library where it is used");
+    assert!(names_http_library(client.1.as_str()), "the scan must see the library where it is used");
     let client_path_files: Vec<&str> = vec!["main.rs", "invocation/entry.rs", "invocation/forwarding.rs", "commit/commit_command.rs"];
     for file in client_path_files {
         assert!(sources.iter().any(|(name, _)| return name == file), "{file} is part of the scanned tree");
     }
     let mut planted: Vec<(String, String)> = sources.clone();
     planted.push((String::from("forwarding_extra.rs"), String::from("use super::standards_review_client::post_decision;")));
-    planted.push((String::from("entry_extra.rs"), String::from("let agent = ureq::Agent::new_with_defaults();")));
+    planted.push((String::from("entry_extra.rs"), String::from("let client = hyper_util::client::legacy::Client::builder(executor);")));
     let found: Vec<String> = violations(planted.as_slice());
     assert_eq!(found.len(), 2, "{found:?}");
     assert!(found.iter().any(|line| return line.starts_with("forwarding_extra.rs")));

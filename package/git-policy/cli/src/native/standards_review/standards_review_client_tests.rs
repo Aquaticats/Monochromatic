@@ -137,3 +137,91 @@ fn a_reply_that_keeps_arriving_is_ended_at_the_ceiling() {
     assert!(elapsed >= ceiling && elapsed < ceiling * 4, "{elapsed:?}");
     mock.finish();
 }
+
+/// The client is built on `hyper` and no longer on `ureq` (owner, 2026-11-07: "Adopt tokio, do not adopt ureq, use the `hyper`
+///  set of https libs."), and reads the network on the process's runtime.
+#[test]
+fn the_client_is_built_on_hyper_and_no_longer_on_ureq() {
+    let source: &str = include_str!("standards_review_client.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    assert!(!code.contains("ureq"), "the client still names `ureq`");
+    assert!(code.contains("hyper_util::"), "the client does not use `hyper`");
+}
+
+/// A throwaway authority and a leaf it signed for `127.0.0.1`, made by the `openssl` tool in `directory`; returns the authority's
+///  certificate, the leaf's certificate and the leaf's private key, all as PEM text.
+fn throwaway_authority_and_leaf(directory: &std::path::Path) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let run = |arguments: &[&str]| {
+        let status = std::process::Command::new("openssl").args(arguments).current_dir(directory).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().expect("start openssl");
+        assert!(status.success(), "openssl {arguments:?}");
+    };
+    std::fs::write(directory.join("leaf.ext"), "subjectAltName=IP:127.0.0.1\nbasicConstraints=CA:FALSE\nextendedKeyUsage=serverAuth\n").expect("extensions");
+    run(&["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", "ca-key.pem", "-out", "ca.pem", "-days", "2", "-subj", "/CN=throwaway-authority", "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign"]);
+    run(&["req", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", "key.pem", "-out", "leaf.csr", "-subj", "/CN=throwaway-leaf"]);
+    run(&["x509", "-req", "-in", "leaf.csr", "-CA", "ca.pem", "-CAkey", "ca-key.pem", "-CAcreateserial", "-out", "cert.pem", "-days", "2", "-extfile", "leaf.ext"]);
+    let read = |name: &str| { return std::fs::read(directory.join(name)).expect("a generated file"); };
+    return (read("ca.pem"), read("cert.pem"), read("key.pem"));
+}
+
+/// A TLS server on loopback that answers each request it reads with a 200 whose body is the request head, for `connections`
+///  connections, ignoring the ones whose handshake fails; returns the port.
+fn serve_tls(certificate: Vec<u8>, key: Vec<u8>, connections: usize) -> (u16, std::thread::JoinHandle<()>) {
+    use rustls::pki_types::pem::PemObject as _;
+    use std::io::{Read as _, Write as _};
+    let chain: Vec<rustls::pki_types::CertificateDer<'static>> =
+        rustls::pki_types::CertificateDer::pem_slice_iter(certificate.as_slice()).collect::<Result<_, _>>().expect("the certificate");
+    let private: rustls::pki_types::PrivateKeyDer<'static> = rustls::pki_types::PrivateKeyDer::from_pem_slice(key.as_slice()).expect("the key");
+    let provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
+    let config = std::sync::Arc::new(
+        rustls::ServerConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .expect("protocol versions")
+            .with_no_client_auth()
+            .with_single_cert(chain, private)
+            .expect("the server certificate"),
+    );
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    let port: u16 = listener.local_addr().expect("address").port();
+    let served = std::thread::spawn(move || {
+        for _ in 0..connections {
+            let (mut tcp, _) = listener.accept().expect("a client");
+            tcp.set_read_timeout(Some(Duration::from_secs(10))).expect("read timeout");
+            let Ok(mut session) = rustls::ServerConnection::new(std::sync::Arc::clone(&config)) else { continue };
+            let mut stream = rustls::Stream::new(&mut session, &mut tcp);
+            let mut seen: Vec<u8> = Vec::new();
+            let mut chunk: [u8; 1024] = [0; 1024];
+            while !seen.windows(4).any(|window| { return window == b"\r\n\r\n"; }) {
+                match stream.read(&mut chunk) {
+                    Ok(0) | Err(_) => break,
+                    Ok(count) => seen.extend_from_slice(&chunk[..count]),
+                }
+            }
+            if seen.is_empty() {
+                continue;
+            }
+            let body: String = String::from_utf8_lossy(seen.as_slice()).into_owned();
+            let reply: String = format!("HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+            let _written = stream.write_all(reply.as_bytes());
+            let _flushed = stream.flush();
+        }
+    });
+    return (port, served);
+}
+
+/// A TLS server is reached when its certificate chains to the authority the caller trusts, with the bearer header on the
+///  request, and the same server is refused when the caller trusts only the embedded roots, which do not know the authority.
+#[test]
+fn a_tls_server_is_reached_only_through_a_trusted_authority() {
+    let root: std::path::PathBuf = crate::test_support::fixture("standards-review-tls");
+    let (authority, certificate, key) = throwaway_authority_and_leaf(root.as_path());
+    let (port, served) = serve_tls(certificate, key, 2);
+    let url: String = format!("https://127.0.0.1:{port}/v1/decisions");
+    let trusted: Gateway = Gateway { url: url.as_str(), api_key: KEY, quiet_window: Duration::from_secs(5), ceiling: ROOMY, trusted_pem: Some(authority.as_slice()) };
+    let reply: Reply = post_decision(&trusted, "{\"a\":1}").expect("a trusted TLS server answers");
+    assert_eq!(reply.status, 200);
+    assert!(reply.body.to_ascii_lowercase().contains(&format!("authorization: bearer {KEY}")), "{}", reply.body);
+    let refused: String = post_decision(&gateway(url.as_str(), Duration::from_secs(5)), "{}").expect_err("the embedded roots do not know the authority");
+    assert!(refused.starts_with("fetch failed"), "{refused}");
+    served.join().expect("the server thread");
+    crate::test_support::remove(root.as_path());
+}
