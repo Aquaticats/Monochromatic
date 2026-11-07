@@ -126,7 +126,7 @@ fn observe_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Option<String> {
 /// for the mpm-pnpm route.
 fn observe_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let pnpm: PathBuf = ctx.find_bin_of("pnpm", "pnpm", &[])?;
-    let outcome: RunOutcome = ctx.run(&ctx.request(&pnpm.to_string_lossy(), &["list", "--global", "--depth=0", "--json"]));
+    let outcome: RunOutcome = ctx.run(&ctx.pnpm_request(&pnpm.to_string_lossy(), &["list", "--global", "--depth=0", "--json"]));
     let parsed: Value = match serde_json::from_str(&outcome.stdout) {
         Ok(value) => value,
         // Not JSON: pnpm failed or printed something else, so the tool is read as absent.

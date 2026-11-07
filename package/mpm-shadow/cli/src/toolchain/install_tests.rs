@@ -125,6 +125,27 @@ fn an_npm_tool_installs_globally_at_the_locked_version_with_its_allowed_builds()
     assert_eq!(rig.runner.calls()[0].command, pnpm.to_str().expect("utf-8"));
 }
 
+/// The install side of the same rule:
+/// `pnpm add --global` run with a `PNPM_HOME` spelled through a symbolic link wrote links that nothing could read
+/// (eleven npm tools reported installed by `toolchain:install:global` and absent by `toolchain:list:global`).
+#[cfg(unix)]
+#[test]
+fn an_npm_tool_installs_with_the_physical_spelling_of_the_pnpm_home() {
+    let (rig, canonical_home) = Rig::through_symlinked_home();
+    write_executable(&rig.scope.toolchain_bin_dir.join("pnpm"));
+    install_tool(&rig.context(), &rig.tool("npm:wrangler")).expect("installed");
+    let call = &rig.runner.calls()[0];
+    let env = call.env.as_ref().expect("an explicit environment");
+    let physical_pnpm_home = canonical_home.join(".local").join("share").join("pnpm");
+    assert_eq!(env.get("PNPM_HOME").map(String::as_str), Some(physical_pnpm_home.to_str().expect("utf-8")));
+    let path = env.get("PATH").expect("PATH");
+    let physical_bin = physical_pnpm_home.join("bin");
+    assert!(
+        std::env::split_paths(path).any(|directory| return directory == physical_bin),
+        "pnpm refuses a global bin directory that PATH does not hold in the spelling of PNPM_HOME: {path}"
+    );
+}
+
 #[test]
 fn a_python_tool_needs_uv_and_installs_the_pinned_requirement() {
     let rig = Rig::new();

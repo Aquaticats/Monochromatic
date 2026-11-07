@@ -34,7 +34,7 @@ use super::layout::{current_family, current_platform_id, find_tool_bin};
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, OsFamily};
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest, Runner, toolchain_path_env};
+use super::runner::{RunOutcome, RunRequest, Runner, pnpm_env, toolchain_path_env};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
 
@@ -109,6 +109,16 @@ impl Context<'_> {
     /// The environment installs run with (see `toolchain_path_env`).
     pub fn path_env(&self) -> BTreeMap<String, String> {
         return toolchain_path_env(self.scope, self.env);
+    }
+
+    /// The environment `pnpm` runs with (see `pnpm_env`).
+    pub fn pnpm_env(&self) -> BTreeMap<String, String> {
+        return pnpm_env(self.scope, self.env);
+    }
+
+    /// A request for `pnpm` run with the pnpm environment.
+    pub fn pnpm_request(&self, command: &str, args: &[&str]) -> RunRequest {
+        return RunRequest::new(command, args).with_env(self.pnpm_env());
     }
 
     /// A request for `command` run with the toolchain environment.

@@ -310,15 +310,23 @@ Status:
     Type=oneshot
     WorkingDirectory=%h
     TimeoutStartSec=3000
-    ExecStart=%h/.local/share/mise/shims/rclone bisync garage:files/Plain %h/Seafile/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
+    ExecStart=|@rclone bisync garage:files/Plain %h/Seafile/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
     Nice=10
     IOSchedulingClass=best-effort
     IOSchedulingPriority=6
     ```
 
-   The `ExecStart` uses the mise shim (a stable path that resolves the active
-   rclone version) so a `mise upgrade rclone` does not break the unit.
-    The
+   `|@rclone` resolves the command through the account's default login shell on every start:
+   `|` selects the shell and `@` enables login-shell startup.
+   This was verified with systemd `262.1-1.fc45` and the account's Bash login shell.
+   The mpm shadow manages the toolchain;
+   the service follows the first `rclone` on the login shell's `PATH`.
+   The retired `%h/.local/share/mise/shims/rclone` path was replaced on `2026-11-07`;
+   its failure and recovery are recorded in
+   [the toolchain migration troubleshooting record](../troubleshooting/mpm-toolchain-migration.md).
+   `--conflict-resolve newer` preserves the winning file's original name;
+   see [the conflict diagnosis](../troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md).
+   The
    `--filter-from`,
     `--fast-list`,
     and `--use-server-modtime` flags are mandatory

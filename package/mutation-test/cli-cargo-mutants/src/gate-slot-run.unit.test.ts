@@ -124,11 +124,6 @@ const slotCount = 2;
 const wakeBudgetMs = 10_000;
 
 /**
- Longest a gate may take to start after a release when only the directory watch can have woken it, in milliseconds.
- */
-const promptWakeMs = 3_000;
-
-/**
  Milliseconds that count as "did not happen yet" when a case checks that a gate is still waiting.
  */
 const stillWaitingMs = 400;
@@ -404,7 +399,7 @@ await describe({
           },
         }),
         it({
-          name: 'waits only while every slot is held, says what it waits for and who holds it, and wakes on a release at once though neither the next notice nor the fallback re-check is near',
+          name: 'waits only while every slot is held, says what it waits for and who holds it, and wakes on the directory change of a release, not on the next notice or the fallback re-check, whatever time the release takes',
           fn: async () => {
             await using directory = await gateDirectory('gate-wake-');
             const options = gateOptions({
@@ -417,6 +412,11 @@ await describe({
               throw new Error('The holders could not be set up.');
             const started: number[] = [];
             const notices: string[] = [];
+            /**
+             Each watch the gate opened after its notice, with whether it had fired by the time the gate closed it. Such a look can end
+             only by a directory change, because the timers that could end it are far off.
+             */
+            const lateWatches: { fired: boolean; closed: boolean }[] = [];
             const waiting = runInSlot({
               options,
               runCommand: async ({ slot }) => {
@@ -425,6 +425,26 @@ await describe({
               },
               write: (text) => {
                 notices.push(text);
+              },
+              watchDirectory: (watched) => {
+                const watch = watchDirectoryChanges(watched);
+                if (notices.length === 0)
+                  return watch;
+                const record = { fired: false, closed: false };
+                lateWatches.push(record);
+                void (async function noteFiring(): Promise<void> {
+                  await watch.changed;
+                  record.fired = !record.closed;
+                })();
+                const close = (): void => {
+                  record.closed = true;
+                  watch.close();
+                };
+                return {
+                  changed: watch.changed,
+                  close,
+                  [Symbol.dispose]: close,
+                };
               },
             });
             // Past the grace before the first notice, so the next timer is the far-off notice interval, not a short wait.
@@ -435,12 +455,16 @@ await describe({
             expect(notices[0]).toContain(String(process.pid));
             expect(notices[0]).toContain('slot 1');
             expect(notices[0]).toContain('slot 2');
-            const released = Date.now();
             await two.legacyLock[Symbol.asyncDispose]();
             await two.claim.release();
             await waiting;
             expect(started).toEqual([2]);
-            expect(Date.now() - released).toBeLessThan(promptWakeMs);
+            // How long the release and the wake took depends on the host (each spawns probes and flushes the directory), so no
+            // time is asserted: every look after the notice ended by a change, and only the last, which took the slot, was not
+            // woken by one that was still to come.
+            expect(lateWatches.length).toBeGreaterThan(0);
+            expect(lateWatches.slice(0, -1)
+              .every((record) => record.fired)).toBe(true);
           },
         }),
         it({

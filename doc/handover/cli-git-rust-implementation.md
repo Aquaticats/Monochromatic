@@ -3588,12 +3588,39 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     `service/service_busy_answers_and_name_checks.rs`, `service/service_busy_step_record_on_this_thread.rs`,
     `push/child_watch_step_bounds_and_errors.rs`. Before it starts, an agent fixes the launcher
     (`fix/mutation-test-units-obey-disk-weight-and-task-limits`): its file units set `IOWeight=50` and no `TasksMax`,
-    against `CLAUDE.md` rule RXS; survivors then go to an agent for kill tests;
+    against `CLAUDE.md` rule RXS; survivors then go to an agent for kill tests.
+    Launcher fixed (`0c1c5a7d87`); branch merged with main (`85e6d2ab99`, `node_modules` installed). Its gate failed
+    2 of 5165 under load about 70 on 28 CPUs, on Rust code identical to the 5165-of-5165 `tokio-gate-merge2` run:
+    `lock::git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock` (a stopped push left
+    `refs/remotes/origin/main.lock`) and `push::push_progress::tests::a_write_of_a_process_the_root_started_is_progress`
+    (fixture removal hit `DirectoryNotEmpty`). Sent to the tokio agent as priority before T8. The second is shown from
+    the code to be a test-helper defect older than T5: `end()` kills only the `sh` leader, the group from
+    `spawn_owned` dies only when the test thread ends (after `remove()`), and the meter counts `rchar` plus `wchar`, so
+    a read can end the wait before the subshell's `echo a >> log` creates a file during `remove_dir_all`. The first (a
+    ref lock left by a stopped push) still needs its measured cause. The campaign waits for a clean gate. Note: `systemd-run` expands `$VAR` in its command line,
+    so a literal `$?` must be written `$$?`;
   - the settle-command test that fails only in its suite (`fix/git-policy-cli-settle-test-in-suite`).
 - `core-exec` depends branch merged as `adadb1d03b` (`buildAndTest` 52 suites pass, `lint:types` clean, `lint` 0
   warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
   "semantic evidence unavailable for .../core-exec/task.ts: project-not-found" (a preference log line, not a finding;
   not investigated).
+- Settle test in suite: merged `58d910f99e` (gate 5166 of 5166, lint clean; test-only). Cause shown by sharing state:
+  another test's fixture service shows the earlier `--journal` word before it creates that folder (measured median
+  1.7 ms, max 485 ms alone), and the settle command's process look counts it as `Hold::HelperUnsure`, settles nothing
+  and exits 1 (the conservative design, unchanged). The settle controls now ask again while that exact answer comes
+  back, up to the existing 60 s. Kept for later, not changed: treating ENOENT on an absolute word as "not this
+  worktree's journal" (an earlier helper on another spelling of a not-yet-created journal could still adopt batches).
+  Running: the held message names the program, its command line (masked), the unresolved folder and what to do
+  (rule DGT; `fix/git-policy-cli-held-settle-names-the-program`).
+- Layout, 2026-11-07T11:05:21-05:00: rescan and library verdicts merged (`docs/git-policy-cli-layout-after-adopted-crates`);
+  owner answered "Shelf + summaries (Recommended)", "Four libraries (Recommended)" (starting-and-watching-programs,
+  parallel-work-within-a-budget, fix-packages-after-copying-a-folder, dependent-version-bump-check) and
+  "tracing (Recommended)" for library logs; recorded in the layout plan. Still "Not yet." from the owner: test helpers,
+  where the libraries live. Running: `monochromatic-lint` group-summary checks
+  (`feat/monochromatic-lint-group-folder-summaries`). Next: after the remaining tokio steps, rescan, then move steps 2
+  to 6 on branches. Also from that pass: `mpm-shadow` fixed for global pnpm installs (merge `dea47ef164`; physical
+  `PNPM_HOME`); an agent releases it as `0.2.7-alpha.2` after checking a `tagPrefix` field the main build rejected in
+  the global plan and making install re-observe what pnpm added, then repairs the 11 global tools.
 - Layout (owner: "Layout + linting fixes are the biggest priority."): the redone split waits on the owner, who
   answered "Not yet." for the test helpers and for where libraries live, "One level of groups" for the program, and
   asked "Why are we not using already established crates for some functions?" An agent now rescans main, checks each
@@ -3663,6 +3690,13 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and for a failing Node import), but the reading of a unit started with `--collect`, which systemd unloads when it
   ends, after which `systemctl show` prints default values. Read a collected unit's outcome from its log, where the
   gate command now appends "mise exit status: N".
+- Mutation launcher limits merged `0c1c5a7d87` (file units `IOWeight=10`, `TasksMax=256` from a measured peak of
+  about 40 to 60, `--unit-tasks-max`; planted-controls unit too). Gate-slot wake test fixed in the test (merged
+  `6e599398d9`): it measured 262 ms at load about 70 on 28 CPUs, nearly all in the test's own release; the case now
+  asserts a wake by directory event, shown red against a 50 ms polling plant. Running after them: every repository
+  `systemd-run` builder gets all four limits (`fix/systemd-run-units-carry-all-four-limits`; `crate-release` sets only
+  `MemoryMax`), and the global install and list disagreement on 12 npm tools
+  (`fix/mpm-shadow-cli-global-list-sees-npm-installs`).
 - `mpm-shadow` `0.2.7-alpha.1` is installed (lock `fb7e05141c`, records `724c6a14fd`); a plain copy-route
   `git worktree add` from main left main's four link folders byte-identical, so `--no-worktree-copy` is no longer
   needed. The label gate kept it off crates.io (crates.io 404 for that version; publish log "label alpha, goes to
@@ -3712,7 +3746,9 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   index-lock fallback (`fix/git-policy-cli-index-lock-without-links`) and the mutation campaign over the merged tokio files.
 - Left for later: the old `cli-git@` units of each worktree still run 0.5.34 until their three-hour idle exit (0.6.0 neither
   stops nor removes them, `package/git-policy/cli/README.md` lines 40 to 41); old `cargo/<crate>/<version>` install folders
-  stay on disk; `toolchain:install:global` and `toolchain:list:global` disagree on 12 npm-routed tools (not investigated).
+  stay on disk; `toolchain:install:global` and `toolchain:list:global` disagreed on npm-routed tools (eleven measured at
+  2026-11-07T10:46-05:00): cause and fix in `doc/troubleshooting/pnpm-symlinked-store-path.md`, section "Global installs";
+  the fix ships with the next `mpm-shadow` release, and the first `install --global` after it rewrites those eleven.
 
 ### Release batch finished (2026-11-07T13:10:36Z, wrapper 0.6.0 last)
 

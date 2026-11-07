@@ -67,6 +67,31 @@ fn an_npm_tool_is_absent_until_pnpm_is_installed_and_then_read_from_its_json_lis
     assert_eq!(observe_tool(&rig.context(), &tool), Some("4.1.0".to_string()));
 }
 
+/// pnpm writes the links of a global package relative to the spelling of its home,
+/// and the store's spelling is the physical one (mise canonicalizes it):
+/// a home reached through a symbolic link makes `pnpm add --global` write dangling links,
+/// which `pnpm list --global` then cannot read.
+/// So the listing runs with `PNPM_HOME` in its physical spelling.
+#[cfg(unix)]
+#[test]
+fn the_npm_listing_runs_with_the_physical_spelling_of_the_pnpm_home() {
+    let (rig, canonical_home) = Rig::through_symlinked_home();
+    write_executable(&rig.scope.toolchain_bin_dir.join("pnpm"));
+    rig.runner.answer("pnpm list --global", "[{\"dependencies\": {}}]", 0);
+    let tool = rig.lock.tool("npm:wrangler").expect("tool").clone();
+    observe_tool(&rig.context(), &tool);
+    let call = &rig.runner.calls()[0];
+    let env = call.env.as_ref().expect("an explicit environment");
+    let physical_pnpm_home = canonical_home.join(".local").join("share").join("pnpm");
+    assert_eq!(env.get("PNPM_HOME").map(String::as_str), Some(physical_pnpm_home.to_str().expect("utf-8")));
+    let path = env.get("PATH").expect("PATH");
+    let physical_bin = physical_pnpm_home.join("bin");
+    assert!(
+        std::env::split_paths(path).any(|directory| return directory == physical_bin),
+        "pnpm refuses a global bin directory that PATH does not hold in the spelling of PNPM_HOME: {path}"
+    );
+}
+
 #[test]
 fn an_npm_listing_that_is_not_json_reads_as_absent() {
     let rig = Rig::new();
