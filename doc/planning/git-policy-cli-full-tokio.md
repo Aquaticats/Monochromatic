@@ -2136,6 +2136,22 @@ The coordinator's gate under a load average of about 70 failed two controls that
   production rule looks for `D` only. So the controls prove the loop's waiting and its ceiling, and that waiting through the handler's cleanup leaves no lock;
   they do not prove that a real `D` is recognised beyond `the_state_look_reads_a_real_process_and_refuses_a_gone_one`, which reads this test's own process.
 
+### Main merged again at `c23b85309c`, and the gate after the owner's pick, 2026-11-07T16:05:00-05:00
+
+- The merge of main (the fold late-line fix, the index-lock fallback `landing/service_index_*`, the settle-control retry, the held-message work): one
+  conflict, in `rust-catalog.toml` (the default catalog's `branches` and `bytes` lines against main's named catalogs). Resolved by keeping `bytes` and the
+  entries this branch added (`rustls`, `webpki-roots`, `tower-service`) and main's `branches-0-4` and `zbus-5` catalogs as they came; the default
+  catalog's `branches` line, which main removed, stays removed. `mise run sync:files` wrote nothing; `native:lock:members` found the lock satisfying the
+  manifest with no change; the merge changed neither `Cargo.toml` nor `Cargo.lock` of the wrapper against this branch's tip. No source conflict.
+- First gate of the final tree (unit `tokio-gate-final`, `gate-final.log`): 5209 run, 5207 passed, 2 failed, neither in code this branch changed.
+  `lock::index_holder_wait::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`: `Released(2.49917834s)` against a hold of 2.5 s, because the
+  hold was counted from the sleeper thread's own start, which is before the wait's clock starts, so the wait could read a little less than the hold (the
+  mechanism is in the test, 0.8 ms short here; two controls of the file had it, both fixed to count the hold from the wait's first notice). Passed alone and
+  in the earlier gates. `repair::package_repair_command::tests::a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run`: `leader-output` missing
+  from the snapshot; `repair/` and `process/output_capture.rs` are byte for byte those of main and of `5e441f25d3`, the control passed in the five earlier gates
+  (0.31 to 0.32 s) and alone (0.345 s), and failed once at 0.506 s; the cause was not found and is not claimed.
+- Second gate of the final tree (unit `tokio-gate-final2`, `gate-final2.log`): 5209 run, 5209 passed (1 slow), 11 skipped, container Clippy clean.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`, the `try_wait` loops of
