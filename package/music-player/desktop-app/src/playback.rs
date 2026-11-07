@@ -412,7 +412,7 @@ fn collect_dir_files(root: &Path) -> Vec<PathBuf> {
     //           app, called with a report callback that ignores its batches.
     // Why:      The streaming walk (which also reports batches, for Search while the scan runs) and this plain walk
     //           must list the same tracks in the same order, so they share one implementation.
-    return crate::scan_stream::scan_streaming(root, usize::MAX, &mut |_batch| {});
+    return crate::scan_stream::scan_streaming(root, usize::MAX, &mut crate::scan_stream::ignore_batch);
 }
 
 /// What:

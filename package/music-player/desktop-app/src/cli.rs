@@ -7,6 +7,14 @@
 //!  so it can be unit-tested with `clap`'s
 //! `try_parse_from` without building the Slint window or starting an audio backend.
 
+#![cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "clap's derive generates the missing-argument closures in its FromArgMatches implementation with the field type as their span, so no author-written closure exists to refactor; same cause as package/file-enforcer/cli/src/args.rs records"
+    )
+)]
+
 /// What:
 ///      `use std::path::PathBuf;`.
 ///  The OWNED filesystem path type:
@@ -197,7 +205,10 @@ where
 ///       Same contract as `Cli::parse()`,
 /// so `main` swaps one call for the other on Windows only.
 pub fn parse_with_color(color: clap::ColorChoice) -> Cli {
-    return try_parse_from_with_color(std::env::args_os(), color).unwrap_or_else(|error| error.exit());
+    return match try_parse_from_with_color(std::env::args_os(), color) {
+        Ok(cli) => cli,
+        Err(error) => error.exit(),
+    };
 }
 
 /// What:

@@ -119,7 +119,13 @@ pub fn segments(text: &str, highlights: &[music_player::search_matcher::SearchHi
     let mut pieces: Vec<Segment> = Vec::new();
     for (position, ch) in text.chars().enumerate() {
         let offset = i32::try_from(position).unwrap_or(i32::MAX);
-        let emphasized = spans.iter().any(|span| return offset >= span.start && offset < span.end);
+        let mut emphasized: bool = false;
+        for span in &spans {
+            if offset >= span.start && offset < span.end {
+                emphasized = true;
+                break;
+            }
+        }
         match pieces.last_mut() {
             Some(last) if last.emphasized == emphasized => last.text.push(ch),
             _ => pieces.push(Segment {
@@ -229,11 +235,10 @@ pub fn search_view_of(state: &SearchState, current_index: Option<usize>, playing
         SearchState::Results { items, .. } => items.clone(),
         _ => Vec::new(),
     };
-    let rows: Vec<SearchRowView> = results
-        .iter()
-        .enumerate()
-        .map(|(position, result)| return row_view(result, position, current_index, playing))
-        .collect();
+    let mut rows: Vec<SearchRowView> = Vec::with_capacity(results.len());
+    for (position, result) in results.iter().enumerate() {
+        rows.push(row_view(result, position, current_index, playing));
+    }
     let (status_title, status_detail) = status_for(state, complete);
     return SearchView {
         rows,

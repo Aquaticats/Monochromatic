@@ -106,10 +106,15 @@ fn word_start_keys(norm: &str, firsts: &mut Vec<char>, pairs: &mut Vec<(char, ch
     let mut previous: Option<char> = None;
     let mut characters = norm.chars().peekable();
     while let Some(character) = characters.next() {
-        let starts_word: bool = previous.is_none_or(|before| return WORD_SEPARATORS.contains(&before));
+        let starts_word: bool = match previous {
+            Some(before) => WORD_SEPARATORS.contains(&before),
+            None => true,
+        };
         if starts_word && !WORD_SEPARATORS.contains(&character) {
             firsts.push(character);
-            if let Some(next) = characters.peek().filter(|next| return !WORD_SEPARATORS.contains(next)) {
+            if let Some(next) = characters.peek()
+                && !WORD_SEPARATORS.contains(next)
+            {
                 pairs.push((character, *next));
             }
         }
@@ -149,6 +154,34 @@ pub(crate) fn folder_of(display_path: &str) -> (Option<&str>, usize) {
 }
 
 /// What:
+/// `key_of` is the key of a `(key, track)` entry.
+/// Why:
+/// the entries of a batch are sorted by key,
+/// and a sort key is a function of the entry alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keyOf = <K, V>(entry: [K, V]): K => entry[0];
+/// ```
+fn key_of<K: Copy, V>(entry: &(K, V)) -> K {
+    return entry.0;
+}
+
+/// What:
+/// `by_sighted_name` orders two folder sightings by name.
+/// Why:
+/// a batch lists its folders in name order,
+/// and a sort comparison is a function of the two sightings alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bySightedName = (left: FolderSighting, right: FolderSighting): number => compare(left.name, right.name);
+/// ```
+fn by_sighted_name(left: &FolderSighting, right: &FolderSighting) -> std::cmp::Ordering {
+    return left.name.cmp(&right.name);
+}
+
+/// What:
 ///      `pub(crate) fn prepare_batch<S: AsRef<str>>(display_paths: &[S]) -> PreparedBatch`.
 ///  Builds the appendable form of a list of display paths.
 /// Why:
@@ -178,8 +211,12 @@ pub(crate) fn prepare_batch<S: AsRef<str>>(display_paths: &[S]) -> PreparedBatch
         norm.close_entry();
         nlen.push(u32::try_from(length).expect("a title is under four billion UTF-16 units"));
         word_start_keys(norm.get(local), &mut firsts, &mut pairs);
-        by_first.extend(firsts.iter().map(|key| return (*key, local_id)));
-        by_pair.extend(pairs.iter().map(|key| return (*key, local_id)));
+        for key in &firsts {
+            by_first.push((*key, local_id));
+        }
+        for key in &pairs {
+            by_pair.push((*key, local_id));
+        }
         let (folder, segments) = folder_of(path);
         match folder {
             Some(name) if segments >= 2 => {
@@ -197,13 +234,13 @@ pub(crate) fn prepare_batch<S: AsRef<str>>(display_paths: &[S]) -> PreparedBatch
             }
         }
     }
-    by_first.sort_by_key(|entry| return entry.0);
-    by_pair.sort_by_key(|entry| return entry.0);
-    let mut sightings: Vec<FolderSighting> = folders
-        .into_iter()
-        .map(|(name, nested_or_prefixed)| return FolderSighting { name, nested_or_prefixed })
-        .collect();
-    sightings.sort_by(|left, right| return left.name.cmp(&right.name));
+    by_first.sort_by_key(key_of);
+    by_pair.sort_by_key(key_of);
+    let mut sightings: Vec<FolderSighting> = Vec::with_capacity(folders.len());
+    for (name, nested_or_prefixed) in folders {
+        sightings.push(FolderSighting { name, nested_or_prefixed });
+    }
+    sightings.sort_by(by_sighted_name);
     return PreparedBatch {
         paths,
         norm,

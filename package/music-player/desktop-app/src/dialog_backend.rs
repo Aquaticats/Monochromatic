@@ -47,7 +47,12 @@ pub const NO_DIALOG_MESSAGE: &str = "This computer has no folder chooser for the
 /// const executableOnPath = (program: string, pathVariable: string) => pathVariable.split(delimiter).some((dir) => isFile(join(dir, program)));
 /// ```
 pub fn executable_on_path(program: &str, path_variable: &OsStr) -> bool {
-    return std::env::split_paths(path_variable).any(|directory| return Path::new(&directory).join(program).is_file());
+    for directory in std::env::split_paths(path_variable) {
+        if Path::new(&directory).join(program).is_file() {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -78,9 +83,19 @@ fn portal_is_available() -> bool {
     let Ok(bus) = crate::dbus_step_bound::step(zbus::fdo::DBusProxy::new(&connection)) else {
         return false;
     };
-    return crate::dbus_step_bound::step(async { return Ok(bus.list_activatable_names().await?) })
-        .map(|names| return names.iter().any(|name| return name.as_str() == PORTAL))
-        .unwrap_or(false);
+    return match crate::dbus_step_bound::step(async { return Ok(bus.list_activatable_names().await?) }) {
+        Ok(names) => {
+            let mut found = false;
+            for name in &names {
+                if name.as_str() == PORTAL {
+                    found = true;
+                    break;
+                }
+            }
+            found
+        }
+        Err(_error) => false,
+    };
 }
 
 /// What:

@@ -201,7 +201,7 @@ impl FeedbackMessage {
         if text.trim().is_empty() {
             return Err(FeedbackError::BlankText);
         }
-        if action_label.is_some_and(|label| return label.trim().is_empty()) {
+        if matches!(action_label, Some(label) if label.trim().is_empty()) {
             return Err(FeedbackError::BlankActionLabel);
         }
         return Ok(Self {
@@ -412,12 +412,12 @@ impl FeedbackQueue {
     /// const kept = entries.filter(e => e.message.id !== message.id && e.message.kind !== message.kind);
     /// ```
     fn show_entry(&self, message: FeedbackMessage, now_ms: i64, duration_ms: i64) -> FeedbackQueue {
-        let mut entries: Vec<FeedbackEntry> = self
-            .entries
-            .iter()
-            .filter(|entry| return entry.message.id() != message.id() && entry.message.kind() != message.kind())
-            .cloned()
-            .collect();
+        let mut entries: Vec<FeedbackEntry> = Vec::new();
+        for entry in &self.entries {
+            if entry.message.id() != message.id() && entry.message.kind() != message.kind() {
+                entries.push(entry.clone());
+            }
+        }
         entries.push(FeedbackEntry {
             message,
             shown_at_ms: now_ms,
@@ -437,14 +437,13 @@ impl FeedbackQueue {
     /// dismiss(id: string): FeedbackQueue { return new FeedbackQueue(this.entries.filter(e => e.message.id !== id)); }
     /// ```
     pub fn dismiss(&self, id: &str) -> FeedbackQueue {
-        return FeedbackQueue {
-            entries: self
-                .entries
-                .iter()
-                .filter(|entry| return entry.message.id() != id)
-                .cloned()
-                .collect(),
-        };
+        let mut entries: Vec<FeedbackEntry> = Vec::new();
+        for entry in &self.entries {
+            if entry.message.id() != id {
+                entries.push(entry.clone());
+            }
+        }
+        return FeedbackQueue { entries };
     }
 
     /// What:
@@ -460,14 +459,13 @@ impl FeedbackQueue {
     /// }
     /// ```
     pub fn expire(&self, now_ms: i64) -> FeedbackQueue {
-        return FeedbackQueue {
-            entries: self
-                .entries
-                .iter()
-                .filter(|entry| return !entry.is_expired_at(now_ms))
-                .cloned()
-                .collect(),
-        };
+        let mut entries: Vec<FeedbackEntry> = Vec::new();
+        for entry in &self.entries {
+            if !entry.is_expired_at(now_ms) {
+                entries.push(entry.clone());
+            }
+        }
+        return FeedbackQueue { entries };
     }
 
     /// What:
@@ -484,11 +482,12 @@ impl FeedbackQueue {
     /// ```
     pub fn visible(&self) -> Vec<FeedbackMessage> {
         let mut ordered: Vec<&FeedbackEntry> = self.entries.iter().collect();
-        ordered.sort_by_key(|entry| return display_rank(entry.message.kind()));
-        return ordered
-            .into_iter()
-            .map(|entry| return entry.message.clone())
-            .collect();
+        ordered.sort_by_key(entry_display_rank);
+        let mut messages: Vec<FeedbackMessage> = Vec::with_capacity(ordered.len());
+        for entry in ordered {
+            messages.push(entry.message.clone());
+        }
+        return messages;
     }
 
     /// What:
@@ -508,6 +507,20 @@ impl FeedbackQueue {
             .map(FeedbackEntry::expires_at_ms)
             .min();
     }
+}
+
+/// What:
+/// `entry_display_rank` is the display rank of an entry's message kind.
+/// Why:
+/// the visible order sorts entries by this key,
+/// and a sort key is a function of the entry alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entryDisplayRank = (entry: FeedbackEntry): number => displayRank(entry.message.kind);
+/// ```
+fn entry_display_rank(entry: &&FeedbackEntry) -> u8 {
+    return display_rank(entry.message.kind());
 }
 
 /// What:

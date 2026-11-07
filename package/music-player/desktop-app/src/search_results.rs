@@ -179,7 +179,10 @@ pub fn search_library(query: &str, tracks: &[Track], available: bool) -> SearchS
     if !available {
         return SearchState::Unavailable;
     }
-    let display_paths: Vec<&str> = tracks.iter().map(|track| return track.display_path.as_str()).collect();
+    let mut display_paths: Vec<&str> = Vec::with_capacity(tracks.len());
+    for track in tracks {
+        display_paths.push(track.display_path.as_str());
+    }
     let mut index: SearchIndex = SearchIndex::new(0);
     index.append(prepare_batch(&display_paths));
     return index.search(query);

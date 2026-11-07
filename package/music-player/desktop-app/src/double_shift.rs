@@ -68,6 +68,20 @@ pub struct DoubleShift {
     first_tap_at: Option<u64>,
 }
 
+/// What:
+/// `unclean` marks a held Shift press as no longer clean.
+/// Why:
+/// a key pressed during the hold makes it a chord such as Shift+A,
+/// and a chord is never a tap.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unclean = <T>(held: [T, boolean]): [T, boolean] => [held[0], false];
+/// ```
+fn unclean<T>(held: (T, bool)) -> (T, bool) {
+    return (held.0, false);
+}
+
 /// Methods of `DoubleShift`.
 impl DoubleShift {
     /// What:
@@ -110,7 +124,7 @@ impl DoubleShift {
     ///      A key between the taps cancels the double tap,
     /// and a key during a press makes it a chord such as Shift+A.
     fn interrupt(self) -> Self {
-        return Self { held: self.held.map(|(at, _clean)| return (at, false)), first_tap_at: None };
+        return Self { held: self.held.map(unclean), first_tap_at: None };
     }
 
     /// What:

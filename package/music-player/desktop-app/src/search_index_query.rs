@@ -67,9 +67,10 @@ const SCAN_THREADS: usize = 4;
 ///       The second line of a track result names its folder;
 /// a root-level track has no parent.
 fn parent_context_for(display_path: &str) -> Option<String> {
-    let parent: &str = display_path
-        .rsplit_once('/')
-        .map_or("", |(parent_path, _file_name)| return parent_path);
+    let parent: &str = match display_path.rsplit_once('/') {
+        Some((parent_path, _file_name)) => parent_path,
+        None => "",
+    };
     if parent.is_empty() {
         return None;
     }
@@ -84,11 +85,14 @@ fn parent_context_for(display_path: &str) -> Option<String> {
 ///       A match of the term starts at a word start and covers these characters,
 /// so they select the bucket.
 fn bucket_chunk(term: &str) -> Vec<char> {
-    return term
-        .chars()
-        .take_while(|character| return !WORD_SEPARATORS.contains(character))
-        .take(2)
-        .collect();
+    let mut chunk: Vec<char> = Vec::new();
+    for character in term.chars() {
+        if WORD_SEPARATORS.contains(&character) || chunk.len() == 2 {
+            break;
+        }
+        chunk.push(character);
+    }
+    return chunk;
 }
 
 /// Methods of `SearchIndex` that answer queries.
@@ -110,7 +114,11 @@ impl SearchIndex {
                 [only] => self.bucket_first(*only),
                 [first, second, ..] => self.bucket_pair((*first, *second)),
             };
-            if best.is_none_or(|current| return list.len() < current.len()) {
+            let shorter: bool = match best {
+                Some(current) => list.len() < current.len(),
+                None => true,
+            };
+            if shorter {
                 best = Some(list);
             }
         }
@@ -142,7 +150,9 @@ impl SearchIndex {
             Some(members) => self.tier_members(members, terms, joined),
             None => {
                 let mut every: Vec<Ranked> = Vec::new();
-                (0..self.track_count()).for_each(|position| self.tier_one(position, terms, joined, &mut every));
+                for position in 0..self.track_count() {
+                    self.tier_one(position, terms, joined, &mut every);
+                }
                 every
             }
         };
@@ -172,7 +182,9 @@ impl SearchIndex {
     /// and the work each thread of the parallel scan does.
     fn tier_members(&self, members: &[u32], terms: &[String], joined: &str) -> Vec<Ranked> {
         let mut ranked: Vec<Ranked> = Vec::new();
-        members.iter().for_each(|member| self.tier_one(*member as usize, terms, joined, &mut ranked));
+        for member in members {
+            self.tier_one(*member as usize, terms, joined, &mut ranked);
+        }
         return ranked;
     }
 
@@ -184,15 +196,26 @@ impl SearchIndex {
     fn tier_in_parallel(&self, members: &[u32], terms: &[String], joined: &str) -> Vec<Ranked> {
         let slice_len: usize = members.len().div_ceil(SCAN_THREADS);
         tracing::debug!(members = members.len(), slice_len, "tiering a large bucket on several threads");
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "std::thread::scope takes only a callable bounded by the scope, and the scoped spawn takes only a callable that borrows self, the slice and the terms; no named function can carry them and no loop can start the threads"
+            )
+        )]
         return thread::scope(|scope| {
-            let workers: Vec<_> = members
-                .chunks(slice_len)
-                .map(|slice| return scope.spawn(move || return self.tier_members(slice, terms, joined)))
-                .collect();
-            return workers
-                .into_iter()
-                .flat_map(|worker| return worker.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)))
-                .collect();
+            let mut workers: Vec<std::thread::ScopedJoinHandle<'_, Vec<Ranked>>> = Vec::new();
+            for slice in members.chunks(slice_len) {
+                workers.push(scope.spawn(move || return self.tier_members(slice, terms, joined)));
+            }
+            let mut all: Vec<Ranked> = Vec::new();
+            for worker in workers {
+                match worker.join() {
+                    Ok(part) => all.extend(part),
+                    Err(panic) => std::panic::resume_unwind(panic),
+                }
+            }
+            return all;
         });
     }
 
@@ -322,7 +345,10 @@ impl SearchIndex {
         }
         candidates.extend(folders);
         let best: Vec<Ranked> = select_best(self, candidates, SEARCH_RESULT_LIMIT);
-        let items: Vec<SearchResult> = best.into_iter().map(|ranked| return self.result_for(ranked, &terms)).collect();
+        let mut items: Vec<SearchResult> = Vec::with_capacity(best.len());
+        for ranked in best {
+            items.push(self.result_for(ranked, &terms));
+        }
         return SearchState::Results {
             items,
             truncated: total > SEARCH_RESULT_LIMIT,

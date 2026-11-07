@@ -358,9 +358,10 @@ impl TemplateEditorState {
         if self.is_valid() {
             return None;
         }
-        let shows_nothing = self
-            .applied_line(self.kind, self.first_track())
-            .is_ok_and(|line| return line.trim().is_empty());
+        let shows_nothing = match self.applied_line(self.kind, self.first_track()) {
+            Ok(line) => line.trim().is_empty(),
+            Err(_error) => false,
+        };
         return Some(if shows_nothing { TEMPLATE_KEPT_EMPTY_NOTE } else { TEMPLATE_KEPT_NOTE });
     }
 
@@ -379,19 +380,16 @@ impl TemplateEditorState {
     /// ```
     pub fn fields(&self) -> Vec<TemplateEditorFieldEntry> {
         let source = track_source(self.kind, self.first_track());
-        return self
-            .kind
-            .fields()
-            .into_iter()
-            .map(|field| {
-                return TemplateEditorFieldEntry {
-                    label: field.label,
-                    mode: field.mode,
-                    insert: format!("mi({})", field.mode),
-                    value: source.field_text(field.mode).unwrap_or_default(),
-                };
-            })
-            .collect();
+        let mut entries: Vec<TemplateEditorFieldEntry> = Vec::new();
+        for field in self.kind.fields() {
+            entries.push(TemplateEditorFieldEntry {
+                label: field.label,
+                mode: field.mode,
+                insert: format!("mi({})", field.mode),
+                value: source.field_text(field.mode).unwrap_or_default(),
+            });
+        }
+        return entries;
     }
 
     /// What:
@@ -466,10 +464,13 @@ impl TemplateEditorState {
     /// withEdit(edit: Edit): State { /* draft = text; applied = valid ? text : applied; clamp caret */ }
     /// ```
     pub fn with_edit(&self, edit: TemplateEditorEdit) -> Self {
-        let applies = self
-            .results_for(self.kind, &edit.text)
-            .iter()
-            .all(|result| return matches!(result, TemplateResult::Shown(_)));
+        let mut applies = true;
+        for result in &self.results_for(self.kind, &edit.text) {
+            if !matches!(result, TemplateResult::Shown(_)) {
+                applies = false;
+                break;
+            }
+        }
         let last_valid = if applies {
             self.last_valid.with(self.kind, edit.text.clone())
         } else {
@@ -618,11 +619,11 @@ impl TemplateEditorState {
     /// function resultsFor(template, text) { return previewTracks.map(t => evaluate(text, t, template.fields)); }
     /// ```
     fn results_for(&self, kind: TemplateKind, text: &str) -> Vec<TemplateResult> {
-        return self
-            .preview_tracks
-            .iter()
-            .map(|track| return evaluate_for(kind, text, track))
-            .collect();
+        let mut results: Vec<TemplateResult> = Vec::with_capacity(self.preview_tracks.len());
+        for track in &self.preview_tracks {
+            results.push(evaluate_for(kind, text, track));
+        }
+        return results;
     }
 
     /// What:

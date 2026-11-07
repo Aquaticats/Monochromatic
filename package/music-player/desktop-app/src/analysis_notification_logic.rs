@@ -309,7 +309,10 @@ impl Machine {
     /// an early change waits for `deadline`,
     /// and a forced change goes at once.
     fn offer(&mut self, now: Instant, view: IndicatorView, force: bool) -> Vec<Effect> {
-        let unchanged = self.sent.as_ref().is_some_and(|sent| return sent.view == view);
+        let unchanged = match self.sent.as_ref() {
+            Some(sent) => sent.view == view,
+            None => false,
+        };
         if unchanged {
             tracing::trace!(percent = view.percent, "analysis indicator update skipped: view unchanged");
             self.pending = None;
@@ -391,7 +394,8 @@ impl Machine {
         if self.phase != Phase::Active || self.pending.is_none() {
             return None;
         }
-        return self.sent.as_ref().map(|sent| return sent.at + MIN_UPDATE_INTERVAL);
+        let sent = self.sent.as_ref()?;
+        return Some(sent.at + MIN_UPDATE_INTERVAL);
     }
 
     /// What:
@@ -423,11 +427,13 @@ impl Machine {
         }
         self.paused = paused;
         tracing::info!(paused, "analysis pause changed from the indicator");
-        let Some(base) = self
-            .pending
-            .clone()
-            .or_else(|| return self.sent.as_ref().map(|sent| return sent.view.clone()))
-        else {
+        let mut held: Option<IndicatorView> = self.pending.clone();
+        if held.is_none()
+            && let Some(sent) = self.sent.as_ref()
+        {
+            held = Some(sent.view.clone());
+        }
+        let Some(base) = held else {
             return vec![Effect::SetEnginePause(paused)];
         };
         let flipped = IndicatorView { paused, ..base };

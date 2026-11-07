@@ -148,7 +148,14 @@ impl TemplateEvaluation<'_> {
     /// ```
     fn evaluate_mi(&mut self, call: &CallNode, values: &[String]) -> String {
         let mode = values.first().map_or("", String::as_str);
-        if !self.allowed.iter().any(|field| return field.mode == mode) {
+        let mut known: bool = false;
+        for field in self.allowed {
+            if field.mode == mode {
+                known = true;
+                break;
+            }
+        }
+        if !known {
             self.errors.push(TemplateError {
                 subject: String::from("mi"),
                 message: format!("unknown field {mode}"),
@@ -237,7 +244,10 @@ impl TemplateEvaluation<'_> {
     /// const length = values.length === 3 ? asNumber(values[2]) : undefined;
     /// ```
     fn evaluate_cut(&mut self, call: &CallNode, text: &str, raw_length: Option<&String>) -> String {
-        let length = raw_length.and_then(|raw| return as_number(raw));
+        let length = match raw_length {
+            Some(raw) => as_number(raw),
+            None => None,
+        };
         return match length {
             Some(count) if count >= 0.0 => keep_code_points(text, count.floor()),
             _ => {

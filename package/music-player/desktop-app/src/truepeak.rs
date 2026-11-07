@@ -209,9 +209,10 @@ impl TruePeakSource for DesktopSource {
         // ```ts
         // return mapErr(this.inner.nextChunk(), (e) => ({ kind: "decode", message: String(e) }));
         // ```
-        return self.inner
-            .next_chunk()
-            .map_err(|error| return TruePeakError::Decode { message: error.to_string() })
+        return match self.inner.next_chunk() {
+            Ok(chunk) => Ok(chunk),
+            Err(error) => Err(TruePeakError::Decode { message: error.to_string() }),
+        }
     }
 
     /// What:
@@ -265,9 +266,10 @@ impl TruePeakSource for DesktopSource {
         // ```ts
         // return mapErr(this.inner.seek(seconds), (e) => ({ kind: "seek", message: String(e) }));
         // ```
-        return self.inner
-            .seek(seconds)
-            .map_err(|error| return TruePeakError::Seek { message: error.to_string() })
+        return match self.inner.seek(seconds) {
+            Ok(()) => Ok(()),
+            Err(error) => Err(TruePeakError::Seek { message: error.to_string() }),
+        }
     }
 }
 
@@ -295,8 +297,10 @@ fn open_adapter(path: &Path) -> Result<DesktopSource, TruePeakError> {
     // ```ts
     // const inner = decode.open(path);
     // ```
-    let inner =
-        decode::open(path).map_err(|error| return TruePeakError::Decode { message: error.to_string() })?;
+    let inner = match decode::open(path) {
+        Ok(inner) => inner,
+        Err(error) => return Err(TruePeakError::Decode { message: error.to_string() }),
+    };
     // What:     `Ok(DesktopSource { inner })`. Wrap it. Tail -> return.
     // Why:      Hand back the adapter the resolver drives.
     //

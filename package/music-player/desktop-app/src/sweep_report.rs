@@ -88,6 +88,34 @@ pub enum SweepReport {
 pub type SweepSink = Arc<dyn Fn(SweepReport) + Send + Sync>;
 
 /// What:
+/// `drop_report` is the callback of the sink that ignores every report.
+/// Why:
+/// a controller without an engine has nobody to report to,
+/// and a function that does nothing says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dropReport = (_report: SweepReport): void => {};
+/// ```
+fn drop_report(_report: SweepReport) {}
+
+/// What:
+///      `pub fn sink_from(report: impl Fn(SweepReport) + Send + Sync + 'static) -> SweepSink`.
+///  Wraps a callable that delivers a report into the shared sink type.
+/// Why:
+///       The engine's sink owns the engine's command sender,
+/// so it is a callable that the sink type keeps for as long as sweeps run;
+/// taking it as a `'static` parameter says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sinkFrom = (report: (r: SweepReport) => void): SweepSink => report;
+/// ```
+pub fn sink_from(report: impl Fn(SweepReport) + Send + Sync + 'static) -> SweepSink {
+    return Arc::new(report);
+}
+
+/// What:
 ///      `pub fn noop_sink() -> SweepSink`.
 ///  A sink that drops every report.
 /// Why:
@@ -100,7 +128,7 @@ pub type SweepSink = Arc<dyn Fn(SweepReport) + Send + Sync>;
 /// const noopSink: SweepSink = () => {};
 /// ```
 pub fn noop_sink() -> SweepSink {
-    return Arc::new(|_report| {});
+    return Arc::new(drop_report);
 }
 
 /// What:

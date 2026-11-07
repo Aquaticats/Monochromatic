@@ -44,6 +44,24 @@ pub struct FirstRunView {
 }
 
 /// What:
+/// `secondary_labels` copies the labels of the first-run pane's secondary actions into owned text.
+/// Why:
+/// the view owns its text,
+/// and the copy is the same for every secondary action.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const secondaryLabels = (actions: string[]): string[] => [...actions];
+/// ```
+fn secondary_labels(actions: &[&str]) -> Vec<String> {
+    let mut labels: Vec<String> = Vec::with_capacity(actions.len());
+    for label in actions {
+        labels.push(label.to_string());
+    }
+    return labels;
+}
+
+/// What:
 /// `first_run_view` returns the first-run pane once the library has loaded and holds no tracks.
 /// Why:
 /// an empty library is the only first-run case on desktop;
@@ -64,7 +82,7 @@ pub fn first_run_view(state: &ScreenState) -> Option<FirstRunView> {
         title: copy.title,
         body: copy.body,
         primary_label: copy.primary_action.unwrap_or("").to_string(),
-        secondary_labels: copy.secondary_actions.iter().map(|label| return label.to_string()).collect(),
+        secondary_labels: secondary_labels(&copy.secondary_actions),
         explanation: if copy.explains_analysis { ANALYSIS_EXPLANATION.to_string() } else { String::new() },
     });
 }
@@ -161,10 +179,9 @@ pub struct FeedbackRow {
 /// the queue keeps its own order,
 /// and expired messages are already removed by the queue.
 pub fn feedback_rows(queue: &FeedbackQueue) -> Vec<FeedbackRow> {
-    return queue
-        .visible()
-        .iter()
-        .map(|message| return FeedbackRow {
+    let mut rows: Vec<FeedbackRow> = Vec::new();
+    for message in queue.visible().iter() {
+        rows.push(FeedbackRow {
             id: message.id().to_string(),
             text: message.text().to_string(),
             kind: match message.kind() {
@@ -172,8 +189,9 @@ pub fn feedback_rows(queue: &FeedbackQueue) -> Vec<FeedbackRow> {
                 FeedbackKind::Undo => 1,
             },
             action_label: message.action_label().unwrap_or("").to_string(),
-        })
-        .collect();
+        });
+    }
+    return rows;
 }
 
 /// Unit tests of `ui_overlays_model`,

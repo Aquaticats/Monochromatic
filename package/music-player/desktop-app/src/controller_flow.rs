@@ -68,7 +68,10 @@ impl Controller {
             return;
         }
         let selected: Option<usize> = self.queue.current_index();
-        let first: Option<usize> = selected.or_else(|| return self.queue.first_in_scope());
+        let first: Option<usize> = match selected {
+            Some(index) => Some(index),
+            None => self.queue.first_in_scope(),
+        };
         let Some(index) = first else {
             tracing::info!("Play was asked with nothing queued; staying paused");
             self.set_playing(false);

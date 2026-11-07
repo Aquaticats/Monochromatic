@@ -158,7 +158,17 @@ pub fn row_at_px(tops: &[f32], offset: f32) -> usize {
     if rows == 0 {
         return 0;
     }
-    let after = tops.partition_point(|top| return *top <= offset);
+    let mut low: usize = 0;
+    let mut high: usize = tops.len();
+    while low < high {
+        let middle: usize = low + (high - low) / 2;
+        if tops[middle] <= offset {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    let after = low;
     return after.saturating_sub(1).min(rows - 1);
 }
 
@@ -168,7 +178,13 @@ pub fn row_at_px(tops: &[f32], offset: f32) -> usize {
 /// Why:
 /// the pane places its first built row at this distance from the top of the content.
 pub fn top_of_px(tops: &[f32], index: usize) -> f32 {
-    return tops.get(index).or_else(|| return tops.last()).copied().unwrap_or(0.0);
+    return match tops.get(index) {
+        Some(top) => *top,
+        None => match tops.last() {
+            Some(last) => *last,
+            None => 0.0,
+        },
+    };
 }
 
 /// What:
@@ -192,11 +208,13 @@ fn folder_position(rows: &[ListRow]) -> usize {
     let Some(playing) = playing_position(rows) else {
         return 0;
     };
-    return rows
-        .iter()
-        .take(playing + 1)
-        .rposition(|row| return row.kind == 1)
-        .unwrap_or(0);
+    let mut folder: usize = 0;
+    for (at, row) in rows.iter().enumerate().take(playing + 1) {
+        if row.kind == 1 {
+            folder = at;
+        }
+    }
+    return folder;
 }
 
 /// What:
@@ -264,7 +282,13 @@ pub fn decide_scroll_request(input: ScrollInput<'_>) -> Option<ScrollRequest> {
 /// so
 /// a list that is still empty at startup does not count as an earlier page.
 pub fn next_scroll_request(state: &mut ScreenState, screen: &ScreenView) -> Option<ScrollRequest> {
-    let playing_row_shown = screen.rows.iter().any(|row| return row.kind == 0 && row.current);
+    let mut playing_row_shown: bool = false;
+    for row in &screen.rows {
+        if row.kind == 0 && row.current {
+            playing_row_shown = true;
+            break;
+        }
+    }
     let request = decide_scroll_request(ScrollInput {
         pending: state.scroll_request.take(),
         previous_page_key: state.last_page_key.as_deref(),

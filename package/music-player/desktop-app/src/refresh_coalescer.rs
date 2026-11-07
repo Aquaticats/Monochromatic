@@ -626,7 +626,8 @@ impl RefreshCoalescer {
         // const waiting = this.pending; this.pending = null;
         // return waiting ? this.start(waiting) : null;
         // ```
-        return self.pending.take().map(|waiting| return self.start(waiting));
+        let waiting = self.pending.take()?;
+        return Some(self.start(waiting));
     }
 
     /// What:
