@@ -3582,6 +3582,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   - index lock without links or no-replace rename (`fix/git-policy-cli-index-lock-without-links`);
   - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`);
   - the settle-command test that fails only in its suite (`fix/git-policy-cli-settle-test-in-suite`).
+- `core-exec` depends branch merged as `adadb1d03b` (`buildAndTest` 52 suites pass, `lint:types` clean, `lint` 0
+  warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
+  "semantic evidence unavailable for .../core-exec/task.ts: project-not-found" (a preference log line, not a finding;
+  not investigated).
+- Layout (owner: "Layout + linting fixes are the biggest priority."): the redone split waits on the owner, who
+  answered "Not yet." for the test helpers and for where libraries live, "One level of groups" for the program, and
+  asked "Why are we not using already established crates for some functions?" An agent now rescans main, checks each
+  of the eight planned libraries against the adopted crates (tokio, `tempfile`, rustix, jiff, `sha1`/`sha2`, sysinfo,
+  hyper, zbus), drafts the program's groups and options for the group and child rule, with a cross-vendor review
+  (`docs/git-policy-cli-layout-after-adopted-crates`); the owner gets the smaller question set after it.
 
 ### Claude Code restart (2026-11-07, about 10:00 -05:00; owner raising the subagent limit to 8)
 
