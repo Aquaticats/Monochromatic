@@ -73,6 +73,12 @@ verbatim:
   So a crate whose only other user would be a Git wrapper,
   a front end for the commit service,
   a push service or a commit-landing service does not count as standing on its own.
+- 2026-11-07T02:14:26-05:00 (the time this proposal recorded it, shortly after the owner said it),
+  tightening the same rule,
+  verbatim:
+  "Assume no one else is going to use anything related to git from us."
+  So a crate whose job is about Git has no outside user however general it is,
+  and only jobs with no Git in them can stay separate crates.
 - 2026-11-07,
   on one shared build folder (`CARGO_TARGET_DIR`) for the split packages:
   "One shared build folder,
