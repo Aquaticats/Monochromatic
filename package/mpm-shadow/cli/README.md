@@ -945,6 +945,9 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/monochromatic-mpm-shad
   mpm-shadow passes no URL.
   Owner decision 2026-11-04 (question tool), "A: one flag, our crates (Recommended)":
   "The point of cargo-binstall is for us to not manually point to gh releases ourselves!"
+  Since 2026-11-07 the repository's seven locked tools no longer take this path: they use the `archive` route of the
+  repository's GitHub releases, because their later `-alpha` releases skip crates.io; the owner's answer and what is
+  still open are in `doc/decision/mpm-toolchain-adoption.md`, "Our seven tools install from GitHub release archives".
   A third-party crate keeps both strategies (measured 2026-11-04: `fastmod` and `apple-codesign` resolve only through quick-install).
 - Tracking stays on (no `--no-track`):
   the root's `.crates.toml` is the record `list` and `install` read,
