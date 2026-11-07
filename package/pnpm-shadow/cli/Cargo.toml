@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-pnpm-shadow"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Aquaticat"]
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
