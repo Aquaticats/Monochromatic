@@ -55,7 +55,12 @@ export function lockFileBeside(manifestPath: string): string {
 }
 
 /**
- Paths a release commits: the crate's manifest and lockfile, then each pin file's manifest and lockfile.
+ Paths a release commits: the crate's manifest and lockfile, then each pin file's manifest and lockfile, then the
+ lockfile of each lock directory.
+
+ A lock directory holds a manifest that depends on the crate without pinning it (it reaches the crate through another
+ crate), so the lock refresh changes its lockfile only; naming the lockfile keeps that change in the commit, where a
+ refreshed but uncommitted lockfile would stay stale on the branch.
 
  @param options - validated release options
 
@@ -78,12 +83,21 @@ export function commitPaths(options: ReleaseOptions): readonly string[] {
     ...options.pinFiles,
   ];
   return [
-    ...new Set(manifests.flatMap(function withLockfile(manifest) {
-      return [
-        manifest,
-        lockFileBeside(manifest)
-      ];
-    })),
+    ...new Set([
+      ...manifests.flatMap(function withLockfile(manifest) {
+        return [
+          manifest,
+          lockFileBeside(manifest)
+        ];
+      }),
+      ...options.lockDirectories
+        .map(function lockfileOf(directory) {
+          return posix.join(
+            directory,
+            lockFileName
+          );
+        }),
+    ]),
   ];
 }
 

@@ -87,3 +87,11 @@ if (files.length === 0) { throw new Error('format:scripts:oxlint requires at lea
 ensureOxlintConfig()
 runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...files])
 """
+
+[tasks.release]
+description = "Start the forbidden-regex release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish). The crate-release workflow bumps the crate and every exact pin of it, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
+run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate forbidden-regex"
+
+[tasks."release:wait"]
+description = "Follow the release run that `release` printed, then the cargo-publish run it started, then check crates.io (a library has no GitHub release, so the check ends with PUBLISH CHECK FAILED naming only the missing release assets; the crates.io line is its result): `-- <run URL or id> <version>`"
+run = "node ../../crate-release/cli/bin/await-release.ts --crate forbidden-regex"

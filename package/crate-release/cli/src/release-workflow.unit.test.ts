@@ -69,13 +69,19 @@ async function repositoryFiles(pattern: string): Promise<string[]> {
 }
 
 /**
- Whether a manifest line names a crate as a dependency in an inline table, `<name> = { ... }`.
+ Whether a manifest line names a crate as a dependency: an inline table, `<name> = { ... }`, or the header of a table of
+ its own, `[dependencies.<name>]` (also `dev-` and `build-`).
 
  @param line - one line of a manifest
  @param name - crate the line may name
- @returns true for the only dependency form the pin edit supports, so the scan asks the edit only about those lines
+ @returns true for the two dependency forms the pin edit supports, so the scan asks the edit only about those lines
  */
-function namesInlineDependency({ line, name }: { line: string; name: string }): boolean {
+function namesDependency({ line, name }: { line: string; name: string }): boolean {
+  const header = line.trim();
+  if (['dependencies', 'dev-dependencies', 'build-dependencies'].some(function isHeaderOf(kind) {
+    return header.startsWith(`[${kind}.${name}]`);
+  }))
+    return true;
   if (!line.startsWith(name))
     return false;
   const afterName = line.slice(name.length).trimStart();
@@ -410,7 +416,7 @@ await describe({
                   const pinning = (await Promise.all(manifests.map(async function pinsTheCrate(manifest) {
                     const text = await readRepositoryFile(manifest);
                     const namesTheCrate = text.split('\n').some(function isDependencyLine(line) {
-                      return namesInlineDependency({ line, name });
+                      return namesDependency({ line, name });
                     });
                     if (!namesTheCrate)
                       return [];
@@ -564,6 +570,27 @@ await describe({
               for (const line of script)
                 for (const banned of ['|', ' && ', ';', '$(', '`'])
                   expect(line).not.toContain(banned);
+            }
+          },
+        }),
+        it({
+          name: 'installs the libraries the compositor crate links before the release command builds it, for that crate only',
+          fn: async () => {
+            const stepAt = releaseLines.indexOf('    - name: Install the system libraries the compositor crate links');
+            const releaseAt = releaseLines.findIndex(function isRelease(line) {
+              return line.includes('bin/release.ts');
+            });
+            expect(stepAt).toBeGreaterThan(-1);
+            expect(stepAt).toBeLessThan(releaseAt);
+            expect(releaseLines[stepAt + 1]).toBe(
+              `      if: \${{ inputs.crate == 'monochromatic-nested-wayland-session' }}`,
+            );
+            // The publish workflow installs these for the same crate, so a release that builds it needs the same set.
+            const published = publishLines.join('\n');
+            const installed = releaseLines.slice(stepAt, stepAt + 7).join('\n');
+            for (const library of ['pkg-config', 'libwayland-dev', 'libxkbcommon-dev', 'libdrm-dev', 'libegl-dev', 'libclang-dev']) {
+              expect(published).toContain(library);
+              expect(installed).toContain(library);
             }
           },
         }),

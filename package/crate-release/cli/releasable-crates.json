@@ -8,7 +8,12 @@
       "package/forbidden-strings/core.bench/Cargo.toml"
     ],
     "checkBins": ["forbidden-strings"],
-    "lockDirs": ["package/git-policy/cli.fuzz"]
+    "lockDirs": [
+      "package/forbidden-strings/cli.fuzz",
+      "package/forbidden-strings/core.bench",
+      "package/git-policy/cli",
+      "package/git-policy/cli.fuzz"
+    ]
   },
   "monochromatic-cargo-shadow": {
     "crateDir": "package/cargo-shadow/cli",
@@ -29,6 +34,148 @@
     "scope": "mpm-shadow/cli",
     "pinFiles": [],
     "checkBins": ["mpm-shadow"],
+    "lockDirs": []
+  },
+  "monochromatic-jsonc-edit": {
+    "crateDir": "package/jsonc-edit/core-rust",
+    "scope": "jsonc-edit/core-rust",
+    "pinFiles": [
+      "package/catalog-specifier/core-rust/Cargo.toml",
+      "package/file-enforcer/core-rust/Cargo.toml",
+      "package/git-policy/cli/Cargo.toml",
+      "package/git-policy/cli.fuzz/Cargo.toml",
+      "package/jsonc-edit/core-rust.fuzz/Cargo.toml",
+      "package/linter/monochromatic-lint/Cargo.toml",
+      "package/linter/monochromatic-lint.fuzz/Cargo.toml",
+      "package/mpm-shadow/cli/Cargo.toml"
+    ],
+    "checkBins": [],
+    "lockDirs": [
+      "package/catalog-specifier/core-rust",
+      "package/file-enforcer/cli",
+      "package/file-enforcer/core-rust",
+      "package/git-policy/cli",
+      "package/git-policy/cli.fuzz",
+      "package/jsonc-edit/core-rust.fuzz",
+      "package/linter/monochromatic-lint",
+      "package/linter/monochromatic-lint.fuzz",
+      "package/mpm-shadow/cli",
+      "package/pnpm-shadow/cli"
+    ]
+  },
+  "monochromatic-dependency-catalog": {
+    "crateDir": "package/dependency-catalog/core-native",
+    "scope": "dependency-catalog/core-native",
+    "pinFiles": [
+      "package/cargo-shadow/cli/Cargo.toml",
+      "package/file-enforcer/cli/Cargo.toml"
+    ],
+    "checkBins": [],
+    "lockDirs": [
+      "package/cargo-shadow/cli",
+      "package/file-enforcer/cli"
+    ]
+  },
+  "monochromatic-browserslist": {
+    "crateDir": "package/browserslist/core-rust",
+    "scope": "browserslist/core-rust",
+    "pinFiles": ["package/file-enforcer/cli/Cargo.toml"],
+    "checkBins": [],
+    "lockDirs": ["package/file-enforcer/cli"]
+  },
+  "monochromatic-xml-edit": {
+    "crateDir": "package/xml-edit/core-rust",
+    "scope": "xml-edit/core-rust",
+    "pinFiles": [
+      "package/file-enforcer/cli/Cargo.toml",
+      "package/xml-edit/core-rust.fuzz/Cargo.toml"
+    ],
+    "checkBins": [],
+    "lockDirs": [
+      "package/file-enforcer/cli",
+      "package/xml-edit/core-rust.fuzz"
+    ]
+  },
+  "monochromatic-search-shadow": {
+    "crateDir": "package/search-shadow/cli",
+    "scope": "search-shadow/cli",
+    "pinFiles": [],
+    "checkBins": ["search-shadow"],
+    "lockDirs": []
+  },
+  "monochromatic-nested-wayland-session": {
+    "crateDir": "package/nested-wayland-session/cli",
+    "scope": "nested-wayland-session/cli",
+    "pinFiles": [],
+    "checkBins": ["monochromatic-nested-wayland-session"],
+    "lockDirs": []
+  },
+  "forbidden-regex": {
+    "crateDir": "package/forbidden-strings/core",
+    "scope": "forbidden-strings/core",
+    "pinFiles": [
+      "package/forbidden-strings/cli/Cargo.toml",
+      "package/forbidden-strings/core.bench/Cargo.toml",
+      "package/forbidden-strings/core.fuzz/Cargo.toml"
+    ],
+    "checkBins": [],
+    "lockDirs": [
+      "package/forbidden-strings/cli",
+      "package/forbidden-strings/cli.fuzz",
+      "package/forbidden-strings/core.bench",
+      "package/forbidden-strings/core.fuzz",
+      "package/git-policy/cli",
+      "package/git-policy/cli.fuzz"
+    ]
+  },
+  "monochromatic-catalog-specifier": {
+    "crateDir": "package/catalog-specifier/core-rust",
+    "scope": "catalog-specifier/core-rust",
+    "pinFiles": [
+      "package/git-policy/cli/Cargo.toml",
+      "package/pnpm-shadow/cli/Cargo.toml"
+    ],
+    "checkBins": [],
+    "lockDirs": [
+      "package/git-policy/cli",
+      "package/git-policy/cli.fuzz",
+      "package/pnpm-shadow/cli"
+    ]
+  },
+  "monochromatic-file-enforcer": {
+    "crateDir": "package/file-enforcer/core-rust",
+    "scope": "file-enforcer/core-rust",
+    "pinFiles": ["package/file-enforcer/cli/Cargo.toml"],
+    "checkBins": [],
+    "lockDirs": ["package/file-enforcer/cli"]
+  },
+  "monochromatic-lint": {
+    "crateDir": "package/linter/monochromatic-lint",
+    "scope": "linter/monochromatic-lint",
+    "pinFiles": [
+      "package/git-policy/cli/Cargo.toml",
+      "package/git-policy/cli.fuzz/Cargo.toml",
+      "package/linter/monochromatic-lint.fuzz/Cargo.toml"
+    ],
+    "checkBins": ["monochromatic-lint"],
+    "lockDirs": [
+      "package/git-policy/cli",
+      "package/git-policy/cli.fuzz",
+      "package/linter/monochromatic-lint.fuzz"
+    ]
+  },
+  "monochromatic-pnpm-shadow": {
+    "crateDir": "package/pnpm-shadow/cli",
+    "scope": "pnpm-shadow/cli",
+    "pinFiles": [],
+    "checkBins": ["pnpm-shadow"],
+    "lockDirs": []
+  },
+  "monochromatic-file-enforcer-cli": {
+    "crateDir": "package/file-enforcer/cli",
+    "scope": "file-enforcer/cli",
+    "pinFiles": [],
+    "checkBins": ["file-enforcer"],
     "lockDirs": []
   }
 }

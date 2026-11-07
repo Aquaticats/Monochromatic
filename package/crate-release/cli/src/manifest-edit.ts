@@ -1,23 +1,15 @@
 import { exactPinPrefix } from './constants.ts';
+import {
+  inlinePinSites,
+  tablePinSites,
+} from './dependency-pin-sites.ts';
 import { CrateReleaseError } from './error.ts';
+import { packageVersionLines } from './package-version.ts';
 import {
-  foundValue,
-  type Lookup,
-  missingValue,
-} from './lookup.ts';
-import {
-  packageVersionLines,
-  versionKey,
-} from './package-version.ts';
-import {
-  blankCharacters,
   endsWithComment,
   joinManifest,
-  locateValue,
-  skipBlanks,
   splitManifest,
   spliceValue,
-  type ValueLocation,
 } from './toml-line.ts';
 
 /**
@@ -37,11 +29,6 @@ export type ManifestEdit = {
    */
   readonly replacedLines: number;
 };
-
-/**
- Characters that may stand directly before a key inside an inline table: its opening brace or a comma.
- */
-const inlineKeyIntroducers = '{,';
 
 /**
  Decide what a located version value means for the release.
@@ -82,15 +69,6 @@ function decideValue({
     `${description} is ${JSON.stringify(found)}, which is neither the current ${JSON.stringify(current)} nor the target ${JSON.stringify(target)}; fix the manifest or the arguments, then run again.`,
   );
 }
-
-/**
- A manifest line that starts a dependency on the crate, with where its inline table opens.
- */
-type DependencyLine = {
-  readonly index: number;
-  readonly body: string;
-  readonly tableStart: number;
-};
 
 /**
  Replace the crate's own version in the package table of a manifest.
@@ -180,201 +158,14 @@ export function replacePackageVersion({
 }
 
 /**
- List where a word occurs in a text, without overlap.
-
- @param text - text under scan
-
- @param needle - non-empty word to find
-
- @returns the start index of each occurrence, in order, from one pass over the text
-
- @example
- ```ts
- occurrencesOf({ text: 'a version, version', needle: 'version' });
- ```
- */
-function occurrencesOf({
-  text,
-  needle,
-}: {
-  readonly text: string;
-  readonly needle: string;
-}): readonly number[] {
-  /**
-   Pieces of the text between occurrences.
-   */
-  const pieces = text.split(needle);
-  return pieces.slice(
-    0,
-    -1
-  )
-    .reduce<number[]>(
-    function addStart(
-      starts,
-      piece
-    ) {
-      starts.push((starts.at(-1) ?? (-needle.length)) + needle.length
-        + piece.length);
-      return starts;
-    },
-    [],
-    );
-}
-
-/**
- For each position of a text, find the closest character before it that is not a space or tab.
-
- @param text - text under scan
-
- @returns one entry per position; the entry is the empty text when only blanks, or nothing, come before the position
-
- @example
- ```ts
- significantBefore('a b');
- ```
- */
-function significantBefore(text: string): readonly string[] {
-  return Array.from(text)
-    .reduce<{
-      last: string;
-      readonly entries: string[]
-    }>(
-    function extend(
-      state,
-      character
-    ) {
-      state.entries
-        .push(state.last);
-      state.last = blankCharacters.includes(character) ? state.last : character;
-      return state;
-    },
-    {
-      last: '',
-      entries: []
-    },
-    )
-    .entries;
-}
-
-/**
- Find the quoted `version` value inside the inline table of a dependency line.
-
- @param body - line body that starts a dependency of the wanted crate
-
- @param tableStart - index of the opening brace
-
- @returns the version location, or a miss when the inline table has no quoted `version` key
-
- @example
- ```ts
- findInlineVersion({ body: 'a = { version = "=1" }', tableStart: 4 });
- ```
- */
-function findInlineVersion({
-  body,
-  tableStart,
-}: {
-  readonly body: string;
-  readonly tableStart: number;
-}): Lookup<ValueLocation> {
-  /**
-   Closest meaningful character before each position, so a key is only taken right after `{` or `,`.
-   */
-  const before = significantBefore(body);
-  /**
-   Places inside the table where a complete quoted `version` key stands.
-   */
-  const keys = occurrencesOf({
-    text: body,
-    needle: versionKey
-  })
-    .filter(function isInTable(index) {
-      return index > tableStart;
-    })
-    .flatMap(function locateKey(index) {
-      /**
-       Character that introduces the key.
-       */
-      const introducer = before[index] ?? '';
-      if ((introducer === '') || (!inlineKeyIntroducers.includes(introducer)))
-        return [];
-      /**
-       The value, if the word is a complete key followed by a quoted string.
-       */
-      const location = locateValue({
-        line: body,
-        from: index,
-        key: versionKey
-      });
-      return location.found ? [location.value] : [];
-    });
-  /**
-   The first complete key.
-   */
-  const [first] = keys;
-  return first === undefined ? missingValue('The inline table has no quoted version key.') : foundValue(first);
-}
-
-/**
- Find where the inline table of a dependency on a crate begins in a line.
-
- @param body - line body
-
- @param crateName - crate the dependency is on
-
- @returns the index of the opening brace, or a miss when the line is not `<crateName> = {` (a longer name that merely
- starts with the crate name does not count)
-
- @example
- ```ts
- findDependencyTable({ body: 'a = { path = "x" }', crateName: 'a' });
- ```
- */
-function findDependencyTable({
-  body,
-  crateName,
-}: {
-  readonly body: string;
-  readonly crateName: string;
-}): Lookup<number> {
-  /**
-   Index of the first non-blank character, where the crate name must begin.
-   */
-  const start = skipBlanks({
-    line: body,
-    from: 0
-  });
-  if (!body.startsWith(
-    crateName,
-    start
-  ))
-    return missingValue('The line does not begin with the crate name.');
-  /**
-   Index of the equals sign, after optional blanks.
-   */
-  const equals = skipBlanks({
-    line: body,
-    from: start + crateName.length
-  });
-  if (body.charAt(equals) !== '=')
-    return missingValue('The crate name is not followed by an equals sign.');
-  /**
-   Index of the opening brace, after optional blanks.
-   */
-  const brace = skipBlanks({
-    line: body,
-    from: equals + 1
-  });
-  return body.charAt(brace) === '{' ? foundValue(brace) : missingValue('The dependency is not an inline table.');
-}
-
-/**
  Move the exact pin of a dependency on a crate from one version to another.
 
- A pin is the requirement `"=<version>"` in the dependency's inline table. Every line that depends on the crate is
- checked, and each must hold `=<from>` (changed) or `=<to>` (kept); any other requirement is refused, so a loose
- requirement or a stale pin is never rewritten silently. Only the quoted pin changes: the crate's own version, other
- crates' pins, and a crate whose name merely starts with this one are left alone.
+ A pin is the requirement `"=<version>"` of a dependency written in one of two forms: an inline table on one line,
+ `<crate> = { ..., version = "=<version>" }`, or a table of its own, `[dependencies.<crate>]` (also
+ `[dev-dependencies.<crate>]` and `[build-dependencies.<crate>]`) with `version = "=<version>"` on a line of its own.
+ Every such dependency is checked, and each must hold `=<from>` (changed) or `=<to>` (kept); any other requirement is
+ refused, so a loose requirement or a stale pin is never rewritten silently. Only the quoted pin changes: the crate's
+ own version, other crates' pins, and a crate whose name merely starts with this one are left alone.
 
  @param text - manifest text
 
@@ -386,7 +177,7 @@ function findDependencyTable({
 
  @returns the edited text, whether it changed, and how many lines changed
 
- @throws CrateReleaseError when no line depends on the crate with an inline table, a line has no quoted `version`
+ @throws CrateReleaseError when no inline table or dependency table of the crate exists, one has no quoted `version`
  key, or a pin is neither `=<from>` nor `=<to>`
 
  @example
@@ -413,56 +204,35 @@ export function replaceDependencyPin({
     hadReturn
   } = splitManifest(text);
   /**
-   Lines that depend on the crate with an inline table.
+   Every place that pins the crate, in either form.
    */
-  const dependencies: readonly DependencyLine[] = bodies.flatMap(function dependencyLine(
-    body,
-    index
-  ): DependencyLine[] {
-    /**
-     Place of the inline table, when this line depends on the crate.
-     */
-    const table = findDependencyTable({
-      body,
+  const sites = [
+    ...inlinePinSites({
+      bodies,
       crateName
-    });
-    return table.found ? [
-      {
-        index,
-        body,
-        tableStart: table.value
-      }
-    ] : [];
-  });
-  if (dependencies.length === 0)
+    }),
+    ...tablePinSites({
+      bodies,
+      crateName
+    }),
+  ];
+  if (sites.length === 0)
     throw new CrateReleaseError(
-      `No dependency line of the form ${crateName} = { ... } exists in the manifest; table-style [dependencies.${crateName}] entries are not supported.`,
+      `No dependency of the form ${crateName} = { ... } or [dependencies.${crateName}] (also [dev-dependencies.${crateName}] and [build-dependencies.${crateName}]) exists in the manifest.`,
     );
   /**
    Edited text of each line whose pin moves, by line index.
    */
-  const replacements = new Map(dependencies.flatMap(function planPin({
+  const replacements = new Map(sites.flatMap(function planPin({
     index,
     body,
-    tableStart,
+    location,
   }): [
     number,
     string
   ][] {
-    /**
-     The version requirement of the dependency.
-     */
-    const location = findInlineVersion({
-      body,
-      tableStart
-    });
-    if (!location.found)
-      throw new CrateReleaseError(
-        `The dependency line ${JSON.stringify(body)} has no quoted version key in its inline table.`,
-      );
     return decideValue({
-      found: location.value
-        .value,
+      found: location.value,
       current: `${exactPinPrefix}${from}`,
       target: `${exactPinPrefix}${to}`,
       description: `The pin of ${crateName}`
@@ -471,7 +241,7 @@ export function replaceDependencyPin({
         index,
         spliceValue({
           body,
-          location: location.value,
+          location,
           replacement: `${exactPinPrefix}${to}`
         })
       ]
