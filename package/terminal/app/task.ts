@@ -13,12 +13,18 @@ export default {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
 ` },
   },
   "image:release": {
     description: "Build the Ubuntu 24.04 release container image: the base of the IDE release image, so shipped binaries keep the glibc of Ubuntu 24.04",
-    run: "podman build --tag localhost/monochromatic/terminal-release --file Containerfile.release .",
+    run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArgument = execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
+execFileSync('podman', ['build', '--build-arg', rustToolchainBuildArgument, '--tag', 'localhost/monochromatic/terminal-release', '--file', 'Containerfile.release', '.'], { stdio: 'inherit' })
+` },
   },
   "build": {
     description: "Release build (host if Zig + dev libs present, else container), then stage runtime shared libraries",
@@ -36,10 +42,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -64,10 +72,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -180,10 +190,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -207,10 +219,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -234,10 +248,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -261,10 +277,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -288,10 +306,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -384,10 +404,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -412,10 +434,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -439,10 +463,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -466,10 +492,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -496,10 +524,12 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }

@@ -41,8 +41,14 @@ run = "cargo run --release --manifest-path ../core.bench/Cargo.toml"
 
 [tasks."test:mutation:image"]
 description = "Build the Podman image that runs mutation testing (one-time; layer-cached)"
-# Single bare command; podman caches layers so re-runs are fast no-ops.
-run = "podman build --tag forbidden-regex-mutants --file mutants.Containerfile ."
+# Podman caches layers so re-runs are fast no-ops; the toolchain argument comes from toolchain.lock.json.
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArgument = execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
+execFileSync('podman', ['build', '--build-arg', rustToolchainBuildArgument, '--tag', 'forbidden-regex-mutants', '--file', 'mutants.Containerfile', '.'], { stdio: 'inherit' })
+"""
 
 [tasks."test:mutation:snapshot"]
 description = "Bake the crate, its tests, its lockfile, its cargo-mutants configuration and its fetched dependencies into the source snapshot image a mutation campaign layers over; `-- --memory <size> --cpus <count>` bound the build"
