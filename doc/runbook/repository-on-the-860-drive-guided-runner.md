@@ -257,6 +257,14 @@ Stages marked window run inside the window and are refused once its maximum has 
     A worktree with no first-pass copy gets a full send and the tool says so.
     Deadline per transfer the smaller of 14400 s and the window's remainder;
     total deadline the window's remainder.
+    For each subvolume with a first-pass copy it first asks btrfs what changed
+    (an incremental `btrfs send --no-data` between the two snapshots) and records the answer.
+    `c10b-verify-final` (root, in the window) then compares the changed final copies,
+    and the ones with no first-pass copy,
+    with their snapshots by path,
+    type,
+    size,
+    time and mode.
 6.  `c11-external-final` (root):
     the second `rsync` of each external worktree.
     It deletes nothing from the copy.
@@ -295,6 +303,11 @@ Stages marked window run inside the window and are refused once its maximum has 
 11. `c21-release` (needs `--assert=c21-release`):
     starts the stopped commit sockets and `claude-cpu-watch.service` and closes the window.
     After this the fast rollback no longer applies.
+12. `c22-verify-final-checksum` (root, outside the window):
+    the same comparison as `c10b-verify-final` for the same final copies,
+    reading every byte.
+    The old tree (`.nvme-before-860-<timestamp>`) stays for the rollback until this stage is recorded done;
+    the `status` command prints `DO NOT DELETE` until then and says the tree may be deleted by the owner after it.
 
 ### The thaw and rollback commands
 

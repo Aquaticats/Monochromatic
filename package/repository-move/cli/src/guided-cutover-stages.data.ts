@@ -288,6 +288,18 @@ done`,
       unprivileged: 'none for send and receive',
     },
     {
+      id: 'c10b-verify-final',
+      title: 'Verify the final copies that changed',
+      window: true,
+      says: 'Verification of the final pass: each final copy against its read-only snapshot by path, type, size, time and mode (rsync --dry-run, no data read), only for the copies btrfs found changed since the first pass (its own incremental comparison of the two snapshots, recorded by the final pass) and for any copy that has no first-pass copy. The nested subvolume folders a snapshot shows empty are the only excused differences.',
+      command: `${rootCopy} --run --pass=verify-final ${args} --deadline-seconds=@DEADLINE@ --total-deadline-seconds=@REMAINING@`,
+      check: `grep --fixed-strings 'verify-final finished' "$OUTPUT_FILE"`,
+      checkText: "'verify-final finished': every changed final copy matches its snapshot",
+      rollback: thawRollback,
+      root: 'yes',
+      unprivileged: 'none: the comparison reads files only root can read (root-owned logs inside some worktrees)',
+    },
+    {
       id: 'c11-external-final',
       title: 'External worktrees: pass two',
       window: true,
@@ -492,6 +504,19 @@ echo "window length: $(( $(cat ${c.wiz}/window-end) - $(cat ${c.wiz}/window-star
       rollback: 'none after this stage; see the plan, section Rollback, full path',
       root: 'no',
       unprivileged: 'not needed: user units start as the user',
+    },
+    {
+      id: 'c22-verify-final-checksum',
+      title: 'Verify the final copies that changed, by checksum',
+      says: `The same comparison as the window's, reading every byte, for the same final copies, after the cut-over and outside the window. The old tree ${oldRepo} is kept for the rollback: do not delete it until this stage is recorded done (the status command says so).`,
+      command: `${rootCopy} --run --pass=verify-final --checksum ${args} --deadline-seconds=${String(c.transferDeadlineSeconds,)} --total-deadline-seconds=${String(c.firstPassTotalSeconds,)}`,
+      check: `grep --fixed-strings 'verify-final finished' "$OUTPUT_FILE"`,
+      checkText: "'verify-final finished' at checksum depth",
+      rollback: 'read-only comparison; nothing changed. A copy that differs is reported with its name before the old tree is deleted',
+      timeoutSeconds: c.firstPassTotalSeconds + (c.killGraceSeconds
+        * 2),
+      root: 'yes',
+      unprivileged: 'none: the comparison reads files only root can read',
     },
   ];
 }

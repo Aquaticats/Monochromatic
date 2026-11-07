@@ -207,6 +207,45 @@ async function thawAftermath(
 }
 
 /**
+ Says whether the old tree may be deleted: after the swap it stays until the checksum verification of the final copies is
+ recorded done.
+
+ @param config - the configuration
+
+ @param out - the output
+ */
+async function printOldCopyGate(
+  {
+    config,
+    out,
+  }: {
+    readonly config: GuidedConfig;
+    readonly out: (text: string,) => void;
+  },
+): Promise<void> {
+  if (!await pathExists(join(
+    config.wiz,
+    'swap-timestamp',
+  ),)) {
+    return;
+  }
+  /**
+   Whether the checksum verification of the final copies is recorded done.
+   */
+  const verified = await pathExists(join(
+    config.wiz,
+    'done',
+    'cutover',
+    'c22-verify-final-checksum',
+  ),);
+  out(
+    verified
+      ? 'The checksum verification of the final copies is done: the old tree kept for the rollback may be deleted by you.\n'
+      : 'DO NOT DELETE the old tree kept for the rollback (the .nvme-before-860 folders): stage c22-verify-final-checksum is not done.\n',
+  );
+}
+
+/**
  Prints the state of every phase.
 
  @param config - the configuration
@@ -238,6 +277,10 @@ async function printStatus(
   ) {
     out(text,);
   }
+  await printOldCopyGate({
+    config,
+    out,
+  },);
   if (await windowRunning(config,)) {
     out(`window running; remaining ${String(await windowRemaining(config,),)} s\n`,);
   }
