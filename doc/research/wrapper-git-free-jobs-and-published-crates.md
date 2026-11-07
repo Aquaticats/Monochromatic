@@ -116,7 +116,8 @@ with the evidence;
   Little is left to be a crate of ours.
 - Talking to the systemd user manager (`talking-to-the-systemd-user-manager`):
   the owner chose `zbus` 6 on `tokio` (2026-11-07); the prototype in section "Tokio as the runtime" works on a
-  toolchain older than the one the repository pins and does not compile on the pinned one.
+  toolchain older than the one the repository pins; the pinned nightly (a one-day window) has a compiler
+  regression that is fixed from `nightly-2026-11-02`.
   The first-version finding follows, kept as the record:
   keep the connection.
   `zbus` 5.19.0 adds 52 packages and 2.47 MB to the wrapper,
@@ -1069,20 +1070,94 @@ The code is a patch against `main` at `c3d037b3c8` in a throwaway worktree, kept
 - The same crates compile on `nightly-2026-10-28` (`rustc 41089d07a 2026-10-27`), on `nightly-2026-10-17`, on the
   installed `nightly` (`rustc 19833af72 2026-10-20`) and on stable 1.99.0.
   The first toolchain that fails is the one with `f9ceb4a4d`.
-- Searches of the `zbus` issues for "async drop" and of `rust-lang/rust` issues for the cycle message found nothing,
-  so whether this is a compiler regression or a `zbus` defect, and whether a fix is coming, is not known.
+- The cause is a compiler regression that is already fixed upstream; see "Cause, and the nightlies that compile".
+  (The first version of this section said no upstream report was found; that search used the wrong terms.)
 - The requirement it breaks: the wrapper must build with the repository's pinned toolchain.
 - `zbus` 5.19.0 fails the same way on the pinned nightly
   (`cycle detected when computing when zvariant_utils::signature::child::Child needs async drop`,
   `zvariant_utils-4.2.0/src/signature/child.rs` line 7), in a scratch crate;
   it built on `nightly-2026-10-27` earlier in this study.
-  `package/nested-wayland-session/cli` locks `zbus` 5.19.0 (its `Cargo.lock`), so it very likely does not build on the
-  pinned toolchain either; that package was not built, and the music player (which also names `zbus`) was not looked at.
-  Going back to 5.x therefore does not avoid the problem.
+  Going back to 5.x therefore does not avoid the problem; the other packages that lock `zbus` are in the next section.
 - Every number below comes from builds on `nightly-2026-10-28`, with the baseline rebuilt on it from the same source
   (the baseline binary on that toolchain is 16,786,200 bytes; it includes the wired `ureq` call).
   The owner's options: wait for a toolchain or `zbus` fix, pin an older nightly for the wrapper, or build the wrapper
   on stable 1.99.0 (not tried for the whole wrapper).
+
+### Cause, and the nightlies that compile
+
+Measured on 2026-11-07 for the coordinator's two questions.
+
+**Which nightlies compile (a container, not this machine's toolchains).**
+Each nightly was installed inside a container started from the official image `docker.io/library/rust:slim`
+(image id `7cc1f85e641d`) with `rustup toolchain install nightly-<date> --profile minimal --no-self-update`,
+then two scratch crates were built with `cargo +nightly-<date> build --release`, one after the other:
+`zbus` 6.2.1 with the feature `tokio` (and `tokio` 1), and `zbus` 5.19.0 with default features.
+The container ran under `podman run --cpus 8 --memory 12g --pids-limit 2048 --blkio-weight 10 --timeout 3300 --rm`
+inside a user unit capped at `CPUQuota=1000%`, `MemoryMax=14G`, `TasksMax=3000`, `IOWeight=10`;
+the crates were mounted read-only, the results written to a scratch folder.
+No toolchain was installed on the host for this; the toolchains used in earlier sections were already present in
+`~/.rustup` (not installed by this study).
+The rustup toolchain lines are removed after each build.
+Dependency versions resolved fresh in the container (`zbus_utils` 6.1.0, `zvariant_utils` 4.2.0).
+
+- `nightly-2026-10-28` (`rustc 41089d07a`), `2026-10-29` (`92ffebece`), `2026-10-30` and `2026-10-31` (both
+  `92b5b8c87`, the same compiler): both crates compile.
+- `nightly-2026-11-01` (`rustc f9ceb4a4d`, the repository's pin): both crates fail with
+  `error[E0391]: cycle detected when computing when ... Child needs async drop`.
+- `nightly-2026-11-02` (`3e92e1a2d`), `11-03` (`1c3a65069`), `11-04` (`708c94ef0`), `11-05` (`2d20b42b8`),
+  `11-06` (`249c1e4e3`) and `11-07` (`c980177d8`): both crates compile.
+- So the first failing nightly is `2026-11-01`, it is the only failing one of the range, and the first that compiles
+  again is `2026-11-02`.
+  The repository's pin sits in that one-day window.
+  The matrix was run once per nightly; a rerun was not made.
+
+**The cause, from `rust-lang/rust` (read with `gh`).**
+- Introduced by PR 164987 "use adt_async_drop_tys for nested ADTs in needs_async_drop" (author Web4everyone32,
+  reviewer oli-obk; changes `compiler/rustc_ty_utils/src/needs_drop.rs`), merged inside rollup PR 165234 (the "Auto
+  merge" commit `5a2a7952a`, 2026-10-31T13:38 UTC; the PR's own rollup-merge commit is `41bae5b1e`).
+  By ancestry (GitHub compare API): `5a2a7952a` is contained in `f9ceb4a4d` (nightly-2026-11-01) and is not contained in
+  `92b5b8c87` (nightly-2026-10-30 and 10-31), which agrees with the matrix.
+- Reported as issue 165263 "Regression: cycle detected when computing when `T` needs async drop for mutually recursive
+  types held across `.await` (no `feature(async_drop)`)" (opened 2026-11-01T01:59 UTC, closed 2026-11-01T16:35 UTC,
+  labels `P-critical`, `regression-from-stable-to-nightly`, `S-has-bisection`).
+  Its minimal case is two types recursive through a `Box` (`struct A(Box<B>); struct B(A);`) with a value used by an
+  `async fn`, with no feature gate and no `AsyncDrop` impl.
+  The reporter's `cargo bisect-rustc` points at `8465957442` ("Unrolled build for #164987 in rollup 165234", a try-build
+  commit that is not on master), and issue 165306 (closed 2026-11-02) bisected to `5a2a7952a`; both name PR 164987.
+  `sqlx-core` 0.8.6 and the `wesl` crate are named as affected there.
+- Fixed by PR 165266 "Revert recent changes to async_drop" (author maxdexh, approved by oli-obk, merge commit
+  `4ee7d8ee8`, merged 2026-11-01T16:35 UTC), which reverts PR 164987 and adds the regression test
+  `tests/ui/drop/async-drop-cycle-issue-165263.rs`.
+  By ancestry, `4ee7d8ee8` is contained in `3e92e1a2d` (nightly-2026-11-02) and not in `f9ceb4a4d`,
+  which agrees with the matrix.
+  The revert un-fixes issues 164901 and 142155 that PR 164987 had fixed; a related open PR 163953 "Fix improper
+  disabling of async drop on usage" exists and was not read, so a later re-land of the change is possible and was not
+  checked.
+- The `zbus` repository: searches of its issues and pull requests for "async drop", "needs async drop", "E0391" and
+  "165263" found nothing relevant (the only hit for "async drop" is an unrelated issue 2041).
+  The failing type, `Signature` with `Child` holding a `Box<Signature>`, is the shape of the minimal case;
+  `zbus` did not report it because the fault is the compiler's.
+- Nothing was filed or commented upstream.
+
+**Which packages of this repository lock `zbus`, and would they fail on the pinned nightly (reasoning, not a build).**
+A search of every `Cargo.lock` outside `node_modules`, `target` and worktrees finds four:
+
+- `package/nested-wayland-session/cli`: `zbus` 5.19.0, `zvariant` 5.14.0, `zvariant_utils` 4.1.0.
+- `package/music-player/desktop-app`: `zbus` 5.19.0, `zvariant` 5.15.0, `zvariant_utils` 4.2.0.
+- `package/ide/app`: `zbus` 5.19.0, `zvariant` 5.15.0, `zvariant_utils` 4.2.0.
+- `package/terminal/app`: `zbus` 5.16.0, `zvariant` 5.12.0, `zvariant_utils` 3.4.0.
+
+Reasoning: the failing type is `zvariant_utils::signature::Signature` and `Child`.
+The scratch crate with `zbus` 5.19.0 and `zvariant_utils` 4.2.0 fails on the pinned nightly, which is exactly what the
+music player and the IDE lock.
+I read the source of `zvariant_utils` 3.4.0, 4.1.0 and 4.2.0: all three define `Child` with
+`Dynamic { child: Box<Signature> }` and `Signature` containing `Child`, the shape of the upstream minimal case,
+so the type is recursive in every version the four packages lock.
+Whether a given `zbus` version holds such a value in an `async fn` (what makes the compiler compute the cycle) was
+shown for 5.19.0 only; for 5.16.0 (the terminal) it is likely and unconfirmed.
+So the nested-wayland-session, the music player and the IDE would very probably fail to build on the pinned nightly
+as locked, and the terminal might.
+None of the four was built, and whether they are built with the pinned toolchain today was not checked.
 
 ### How a caller without async code drives zbus 6, and the smallest setup (before the tokio ruling)
 
@@ -1267,7 +1342,8 @@ The name resolution thread by host name stays in either flavour unless the resol
   thread for about 10 s.
 - Startup: holds. No clone before the `execve` of Git, warm median equal within 0.07 ms of the control.
 - Size: +1.24 MB (+7.4%) net of dropping `ureq`, current-thread.
-- Does not hold: the repository's pinned toolchain `nightly-2026-11-01` cannot compile `zbus` 6.
+- Does not hold on the pinned toolchain: `nightly-2026-11-01` has a compiler regression (fixed in `nightly-2026-11-02`)
+  that stops `zbus` 5 and 6 from compiling.
 - Costs of the move that are not requirements: the fake-bus tests needed five changes because `zbus` is stricter than
   the hand reader; the hand wire-format file and its fuzz target lose their purpose; 35 more packages in the lockfile
   net of `ureq`'s.
@@ -1293,27 +1369,31 @@ not done.
 
 ### 11. How to get past the toolchain failure of `zbus`
 
-The owner chose `zbus` 6 on `tokio`; the pinned `nightly-2026-11-01` cannot compile `zbus` 5 or 6
-(section "Tokio as the runtime").
+The owner chose `zbus` 6 on `tokio`; the pinned `nightly-2026-11-01` cannot compile `zbus` 5 or 6,
+and that is a compiler regression already fixed in the next nightly
+(section "Cause, and the nightlies that compile").
 Options:
-(a) pin the wrapper to an older nightly that compiles it (`nightly-2026-10-28` was used here), with a `PIN` comment
-and the removal condition "the pinned toolchain compiles `zbus`";
-(b) build the wrapper on stable 1.99.0 (compiles `zbus` 6 in a scratch crate; the whole wrapper was not tried);
-(c) wait for a compiler or `zbus` fix and keep the hand client until then;
-(d) report it upstream first and decide after the answer.
+(a) move the repository's pinned nightly to `nightly-2026-11-02` or later (all compile both crates in the container),
+through the repository's toolchain update, which is not run here;
+(b) pin the wrapper alone to an older nightly such as `nightly-2026-10-28`, with a `PIN` comment and a removal
+condition;
+(c) build the wrapper on stable 1.99.0 (compiles `zbus` 6 in a scratch crate; the whole wrapper was not tried);
+(d) keep the hand client until the pin moves.
+Nothing needs to be reported upstream: the issue and its fix exist.
 
 Pros and cons:
-(a) unblocks at once, but the wrapper then differs from the repository's toolchain, which other packages share, and
-may meet the sibling `zbus` users' same problem.
-(b) removes the nightly dependence for this package but changes how it is built and tested.
-(c) costs nothing now and delays the move.
-(d) is cheap and does not unblock by itself.
+(a) fixes the cause for every package, including the three other packages that lock `zbus` 5.19.0 and would probably
+fail the same way; the cost is moving the shared pin, which needs the repository's checks on a newer nightly, and
+a small risk that the reverted change is re-landed (PR 163953 is open and unread).
+(b) unblocks the wrapper at once but leaves the others broken and makes this package differ from the shared pin.
+(c) removes the nightly dependence for this package but changes how it is built and tested.
+(d) costs nothing now and delays the move by as long as the pin stays.
 
-Ranking: (d) > (c) > (a) > (b), as a plan of order rather than exclusive options:
-(d) first because it costs one report and tells whether a fix is near; (c) next because it keeps the working client
-meanwhile; (a) before (b) because a pinned older nightly changes one setting, where stable changes the build of the
-whole package.
-Which of them the owner takes is the owner's; nothing here was built on the pinned toolchain.
+Ranking: (a) > (d) > (b) > (c).
+(a) beats (d) because the fault is gone upstream and the shared pin is the only thing in the way, and it also repairs
+the other `zbus` users; (d) beats (b) because (b) adds a second toolchain to maintain while (d) changes nothing;
+(b) beats (c) because a pinned older nightly changes one setting where stable changes the build of the whole package.
+Which of them the owner takes is the owner's; the wrapper itself was built on `nightly-2026-10-28` only.
 
 ## Queries
 
