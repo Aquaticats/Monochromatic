@@ -1,5 +1,10 @@
-//! Controls for the directory-relative primitives: a link is never followed, a mount-crossing directory is refused, an
-//!  existing name is never overwritten, and entries are created, timed and removed below a held handle.
+//! Controls for the directory-relative primitives:
+//! a link is never followed,
+//! a mount-crossing directory is refused,
+//! an
+//!  existing name is never overwritten,
+//! and entries are created,
+//! timed and removed below a held handle.
 
 use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
@@ -9,12 +14,15 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
-/// The root of a walk for a fixture directory, by its canonical path.
+/// The root of a walk for a fixture directory,
+/// by its canonical path.
 fn open_directory(path: &Path) -> std::io::Result<File> {
     return open_root(std::fs::canonicalize(path)?.as_path());
 }
 
-/// `..`, an absolute path and `.` are refused, plain names are kept in order.
+/// `..`,
+/// an absolute path and `.` are refused,
+/// plain names are kept in order.
 #[test]
 fn only_plain_components_are_names() {
     assert_eq!(plain_components(Path::new("a/b/c")).expect("plain"), vec![OsString::from("a"), OsString::from("b"), OsString::from("c")]);
@@ -23,7 +31,8 @@ fn only_plain_components_are_names() {
     }
 }
 
-/// A directory that is a link is an error at any depth, and the same path through real directories opens.
+/// A directory that is a link is an error at any depth,
+/// and the same path through real directories opens.
 #[test]
 fn a_link_in_the_way_is_an_error_and_never_a_detour() {
     let root: PathBuf = fixture("beneath-link");
@@ -41,7 +50,9 @@ fn a_link_in_the_way_is_an_error_and_never_a_detour() {
     remove(root.as_path());
 }
 
-/// A file that is a link is not opened for reading, and an existing name is not created over, a link included.
+/// A file that is a link is not opened for reading,
+/// and an existing name is not created over,
+/// a link included.
 #[test]
 fn a_file_link_is_not_opened_and_an_existing_name_is_not_replaced() {
     let root: PathBuf = fixture("beneath-file");
@@ -56,7 +67,8 @@ fn a_file_link_is_not_opened_and_an_existing_name_is_not_replaced() {
     remove(root.as_path());
 }
 
-/// A name with a slash, a NUL byte or nothing is refused whatever the call.
+/// A name with a slash,
+/// a NUL byte or nothing is refused whatever the call.
 #[test]
 fn a_name_is_one_plain_component() {
     let root: PathBuf = fixture("beneath-name");
@@ -69,7 +81,9 @@ fn a_name_is_one_plain_component() {
     remove(root.as_path());
 }
 
-/// A directory is made once, found again without error, and a link or a file with its name is an error.
+/// A directory is made once,
+/// found again without error,
+/// and a link or a file with its name is an error.
 #[test]
 fn a_directory_is_made_once_and_a_link_with_its_name_is_an_error() {
     let root: PathBuf = fixture("beneath-mkdir");
@@ -84,8 +98,11 @@ fn a_directory_is_made_once_and_a_link_with_its_name_is_an_error() {
     remove(root.as_path());
 }
 
-/// A link is created and read below the handle, its own times are set without touching the target, and removal takes the
-///  link, not the target.
+/// A link is created and read below the handle,
+/// its own times are set without touching the target,
+/// and removal takes the
+///  link,
+/// not the target.
 #[test]
 fn links_are_created_timed_and_removed_below_the_handle() {
     let root: PathBuf = fixture("beneath-symlink");
@@ -105,7 +122,8 @@ fn links_are_created_timed_and_removed_below_the_handle() {
     remove(root.as_path());
 }
 
-/// A directory with something in it is not removed as an empty one, and a nested subvolume is another device.
+/// A directory with something in it is not removed as an empty one,
+/// and a nested subvolume is another device.
 #[test]
 fn a_full_directory_stays_and_a_subvolume_is_another_device() {
     let Some(root) = btrfs_fixture("beneath-device") else { return };
@@ -120,7 +138,9 @@ fn a_full_directory_stays_and_a_subvolume_is_another_device() {
     remove(root.as_path());
 }
 
-/// `.` and `..` are not names: no call takes them, whatever it does with the name.
+/// `.` and `..` are not names:
+/// no call takes them,
+/// whatever it does with the name.
 #[test]
 fn dot_and_dot_dot_are_not_names() {
     let root: PathBuf = fixture("beneath-dots");
@@ -154,7 +174,8 @@ fn a_lookup_takes_one_plain_name() {
     remove(root.as_path());
 }
 
-/// The identity of an object round-trips through its record text, and differs between two objects.
+/// The identity of an object round-trips through its record text,
+/// and differs between two objects.
 #[test]
 fn an_identity_round_trips_and_tells_two_objects_apart() {
     let root: PathBuf = fixture("beneath-identity");
@@ -173,8 +194,11 @@ fn an_identity_round_trips_and_tells_two_objects_apart() {
     remove(root.as_path());
 }
 
-/// A lock file is removed only while the name still holds the file that was made; a replacement stays, a directory is never
-///  removed, and a name that is gone is nothing.
+/// A lock file is removed only while the name still holds the file that was made;
+/// a replacement stays,
+/// a directory is never
+///  removed,
+/// and a name that is gone is nothing.
 #[test]
 fn only_the_recorded_file_is_removed() {
     let root: PathBuf = fixture("beneath-identical");
@@ -199,7 +223,8 @@ fn only_the_recorded_file_is_removed() {
     remove(root.as_path());
 }
 
-/// An open file is published under a new name without replacing anything: the file published is the one the descriptor holds,
+/// An open file is published under a new name without replacing anything:
+/// the file published is the one the descriptor holds,
 ///  whatever a name that was checked earlier refers to now.
 #[test]
 fn an_open_file_is_linked_under_a_new_name_and_never_over_an_existing_one() {
@@ -223,7 +248,8 @@ fn an_open_file_is_linked_under_a_new_name_and_never_over_an_existing_one() {
     remove(root.as_path());
 }
 
-/// Two names are exchanged atomically, and a rename without `replace` leaves an existing name alone.
+/// Two names are exchanged atomically,
+/// and a rename without `replace` leaves an existing name alone.
 #[test]
 fn names_are_exchanged_and_renamed_without_replacing() {
     let root: PathBuf = fixture("beneath-exchange");

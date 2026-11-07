@@ -1,5 +1,9 @@
-//! Controls for the claim chain, which every reclaim of a stale lock goes through on every file system: exactly one reclaimer
-//!  removes a stale lock, a live lock is never removed, and a dead claimer never blocks anyone.
+//! Controls for the claim chain,
+//! which every reclaim of a stale lock goes through on every file system:
+//! exactly one reclaimer
+//!  removes a stale lock,
+//! a live lock is never removed,
+//! and a dead claimer never blocks anyone.
 
 use super::*;
 use crate::service_fault::hooks;
@@ -8,7 +12,8 @@ use crate::service_index_marker::{LOCK_MARKER, Marked, marker_of_file, own_ident
 use crate::service_index_placement::rename_noreplace;
 use crate::test_support::{fixture, remove};
 
-/// A rename that does not replace, which refuses the names of claims and nothing else.
+/// A rename that does not replace,
+/// which refuses the names of claims and nothing else.
 pub(super) fn rename_unless_claim(from: &Path, to: &Path) -> std::io::Result<()> {
     if to.to_string_lossy().contains(CLAIM_INFIX) {
         return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
@@ -24,7 +29,8 @@ pub(super) fn link_unless_claim(from: &Path, to: &Path) -> std::io::Result<()> {
     return std::fs::hard_link(from, to);
 }
 
-/// A killed process's marker for batch `seq`: a holder that is not any running process.
+/// A killed process's marker for batch `seq`:
+/// a holder that is not any running process.
 pub(super) fn gone_marker(seq: u64) -> String {
     let mut child = std::process::Command::new("true").spawn().expect("a short process");
     let pid: i64 = i64::from(child.id());
@@ -33,7 +39,8 @@ pub(super) fn gone_marker(seq: u64) -> String {
     return format!("{LOCK_MARKER}{}{seq} {pid} gone\n", crate::service_index_marker::MARKER_VERSION);
 }
 
-/// This process's marker, which names a holder that runs.
+/// This process's marker,
+/// which names a holder that runs.
 pub(super) fn live_marker() -> String {
     return marker_text(0, &own_identity).expect("this process has an identity");
 }
@@ -61,8 +68,13 @@ pub(super) fn names_in(root: &Path) -> Vec<String> {
     return names;
 }
 
-/// Allowed: a stale lock is removed under a claim, whatever the file system gives, and nothing is left beside the index. The
-///  claim stands while the reclaimer holds, which shows the `flock` is not what keeps reclaimers apart.
+/// Allowed:
+/// a stale lock is removed under a claim,
+/// whatever the file system gives,
+/// and nothing is left beside the index.
+/// The
+///  claim stands while the reclaimer holds,
+/// which shows the `flock` is not what keeps reclaimers apart.
 #[test]
 fn a_stale_lock_is_removed_under_a_claim_and_leaves_nothing() {
     let (root, _index, lock) = index_in("claim-plain");
@@ -78,8 +90,12 @@ fn a_stale_lock_is_removed_under_a_claim_and_leaves_nothing() {
     remove(root.as_path());
 }
 
-/// Allowed: a `flock` held on the stale lock by another descriptor stops nothing, because no reclaimer takes the `flock`: the
-///  claim chain is the one mechanism, so a reclaimer that took a claim and one that took a `flock` can never be mixed.
+/// Allowed:
+/// a `flock` held on the stale lock by another descriptor stops nothing,
+/// because no reclaimer takes the `flock`:
+/// the
+///  claim chain is the one mechanism,
+/// so a reclaimer that took a claim and one that took a `flock` can never be mixed.
 #[test]
 fn a_flock_on_the_stale_lock_does_not_stop_the_reclaim() {
     let (root, _index, lock) = index_in("claim-flock-ignored");
@@ -93,7 +109,9 @@ fn a_flock_on_the_stale_lock_does_not_stop_the_reclaim() {
     remove(root.as_path());
 }
 
-/// Allowed: a landing that meets a stale lock takes the lock in the same acquisition, at once.
+/// Allowed:
+/// a landing that meets a stale lock takes the lock in the same acquisition,
+/// at once.
 #[test]
 fn a_landing_takes_a_stale_lock_under_a_claim_without_waiting() {
     let (root, index, _lock) = index_in("claim-landing");
@@ -107,8 +125,12 @@ fn a_landing_takes_a_stale_lock_under_a_claim_without_waiting() {
     remove(root.as_path());
 }
 
-/// Refused: while one reclaimer holds the chain, a second reclaimer of the same stale lock backs off and removes nothing, so it
-///  cannot remove what a landing placed after the first; the first still removes the stale lock and clears its claims.
+/// Refused:
+/// while one reclaimer holds the chain,
+/// a second reclaimer of the same stale lock backs off and removes nothing,
+/// so it
+///  cannot remove what a landing placed after the first;
+/// the first still removes the stale lock and clears its claims.
 #[test]
 fn a_second_reclaimer_backs_off_while_the_first_holds() {
     let (root, _index, lock) = index_in("claim-two-reclaimers");
@@ -126,8 +148,11 @@ fn a_second_reclaimer_backs_off_while_the_first_holds() {
     remove(root.as_path());
 }
 
-/// Allowed: claims of makers that are gone (a killed reclaimer's) stand in the way of nothing; the reclaimer passes them over,
-///  removes the stale lock, and clears them after.
+/// Allowed:
+/// claims of makers that are gone (a killed reclaimer's) stand in the way of nothing;
+/// the reclaimer passes them over,
+///  removes the stale lock,
+/// and clears them after.
 #[test]
 fn a_dead_claimers_claims_are_passed_over_and_cleared() {
     let (root, _index, lock) = index_in("claim-dead");
@@ -140,8 +165,13 @@ fn a_dead_claimers_claims_are_passed_over_and_cleared() {
     remove(root.as_path());
 }
 
-/// Allowed: a file at a claim's name that holds no whole marker (empty, cut, not text) is no running claimer's, since a placed
-///  claim is whole; it is passed over like a dead claimer's.
+/// Allowed:
+/// a file at a claim's name that holds no whole marker (empty,
+/// cut,
+/// not text) is no running claimer's,
+/// since a placed
+///  claim is whole;
+/// it is passed over like a dead claimer's.
 #[test]
 fn a_claim_without_a_whole_marker_is_passed_over() {
     let (root, _index, lock) = index_in("claim-torn");
@@ -154,7 +184,11 @@ fn a_claim_without_a_whole_marker_is_passed_over() {
     remove(root.as_path());
 }
 
-/// Refused: a claim whose maker runs is ahead, so the reclaimer backs off, removes neither the lock nor that claim, and leaves
+/// Refused:
+/// a claim whose maker runs is ahead,
+/// so the reclaimer backs off,
+/// removes neither the lock nor that claim,
+/// and leaves
 ///  no claim of its own.
 #[test]
 fn a_running_claimer_ahead_makes_the_reclaimer_back_off() {
@@ -169,8 +203,11 @@ fn a_running_claimer_ahead_makes_the_reclaimer_back_off() {
     remove(root.as_path());
 }
 
-/// Refused: a reclaimer that read the slot below as gone long ago, and finds when it looks again that another reclaimer placed a
-///  running claim there, backs off with its own claim removed and the running claim untouched.
+/// Refused:
+/// a reclaimer that read the slot below as gone long ago,
+/// and finds when it looks again that another reclaimer placed a
+///  running claim there,
+/// backs off with its own claim removed and the running claim untouched.
 #[test]
 fn a_slot_below_that_turns_live_after_the_reclaimer_looked_makes_it_back_off() {
     let (root, _index, lock) = index_in("claim-turned-live");
@@ -192,8 +229,11 @@ fn a_slot_below_that_turns_live_after_the_reclaimer_looked_makes_it_back_off() {
     remove(root.as_path());
 }
 
-/// Refused: a slot below that is missing when the reclaimer looks again (its claimer finished and cleared it) is no proof that
-///  nobody holds, because a new reclaimer may place there next and hold at once; the reclaimer backs off and asks again.
+/// Refused:
+/// a slot below that is missing when the reclaimer looks again (its claimer finished and cleared it) is no proof that
+///  nobody holds,
+/// because a new reclaimer may place there next and hold at once;
+/// the reclaimer backs off and asks again.
 #[test]
 fn a_slot_below_that_vanishes_after_the_reclaimer_looked_makes_it_back_off() {
     let (root, _index, lock) = index_in("claim-vanished");
@@ -214,8 +254,12 @@ fn a_slot_below_that_vanishes_after_the_reclaimer_looked_makes_it_back_off() {
     remove(root.as_path());
 }
 
-/// Refused: a reclaimer that held the chain, and finds at its check that the name now refers to another file (the stale lock was
-///  removed by someone else and a live landing placed its own), removes nothing, and clears its claims.
+/// Refused:
+/// a reclaimer that held the chain,
+/// and finds at its check that the name now refers to another file (the stale lock was
+///  removed by someone else and a live landing placed its own),
+/// removes nothing,
+/// and clears its claims.
 #[test]
 fn a_replaced_name_removes_nothing() {
     let (root, index, lock) = index_in("claim-replaced");
@@ -235,7 +279,10 @@ fn a_replaced_name_removes_nothing() {
     remove(root.as_path());
 }
 
-/// Refused: a stale lock that cannot be unlinked stays, the reclaimer removes only its own claim, and a dead claimer's claim
+/// Refused:
+/// a stale lock that cannot be unlinked stays,
+/// the reclaimer removes only its own claim,
+/// and a dead claimer's claim
 ///  below stays where it was.
 #[test]
 fn a_removal_that_fails_clears_only_the_own_claim() {
@@ -251,7 +298,9 @@ fn a_removal_that_fails_clears_only_the_own_claim() {
     remove(root.as_path());
 }
 
-/// Refused: where no claim can be placed, the stale lock stays and the caller is told so (`Unguarded`).
+/// Refused:
+/// where no claim can be placed,
+/// the stale lock stays and the caller is told so (`Unguarded`).
 #[test]
 fn no_claim_can_be_placed_leaves_the_lock_and_says_so() {
     let (root, _index, lock) = index_in("claim-none");
@@ -263,8 +312,13 @@ fn no_claim_can_be_placed_leaves_the_lock_and_says_so() {
     remove(root.as_path());
 }
 
-/// Refused: a claim whose placement is interrupted or finds no memory is a reclaimer that is not to go on now: it backs off, leaves
-///  the stale lock, and asks again later, instead of telling the person to remove the lock by hand.
+/// Refused:
+/// a claim whose placement is interrupted or finds no memory is a reclaimer that is not to go on now:
+/// it backs off,
+/// leaves
+///  the stale lock,
+/// and asks again later,
+/// instead of telling the person to remove the lock by hand.
 #[test]
 fn a_claim_placement_that_is_interrupted_or_short_of_memory_is_a_back_off() {
     for errno in TRANSIENT_ERRNOS {
@@ -280,8 +334,12 @@ fn a_claim_placement_that_is_interrupted_or_short_of_memory_is_a_back_off() {
 /// The errors of a placement that say "not now" and not "never".
 const TRANSIENT_ERRNOS: [i32; 2] = [libc::EINTR, libc::ENOMEM];
 
-/// Allowed: a placement whose answer is an error although it took effect (a network file system can lose the answer of a link
-///  or rename) is this attempt's own claim, found by its text; it is held and removed, not left as a running claimer's claim.
+/// Allowed:
+/// a placement whose answer is an error although it took effect (a network file system can lose the answer of a link
+///  or rename) is this attempt's own claim,
+/// found by its text;
+/// it is held and removed,
+/// not left as a running claimer's claim.
 #[test]
 fn a_placement_whose_answer_was_lost_is_still_this_attempts_claim() {
     let (root, _index, lock) = index_in("claim-lost-answer");
@@ -295,7 +353,9 @@ fn a_placement_whose_answer_was_lost_is_still_this_attempts_claim() {
     remove(root.as_path());
 }
 
-/// Allowed: every reclaimer derives the same claim name from the marker of the stale lock, whatever the device and inode it
+/// Allowed:
+/// every reclaimer derives the same claim name from the marker of the stale lock,
+/// whatever the device and inode it
 ///  reached the file by (two mounts of one remote tree give one file different device numbers).
 #[test]
 fn the_claim_name_comes_from_the_marker_and_not_from_the_files_device_and_inode() {
@@ -313,7 +373,9 @@ fn the_claim_name_comes_from_the_marker_and_not_from_the_files_device_and_inode(
     remove(root.as_path());
 }
 
-/// Allowed: a claim is readable by every account whatever the umask of its maker, because a reclaimer that cannot read a claim
+/// Allowed:
+/// a claim is readable by every account whatever the umask of its maker,
+/// because a reclaimer that cannot read a claim
 ///  takes its maker to run.
 #[test]
 fn a_claim_is_readable_by_other_accounts_whatever_the_makers_umask() {
@@ -336,7 +398,8 @@ fn a_claim_is_readable_by_other_accounts_whatever_the_makers_umask() {
     remove(root.as_path());
 }
 
-/// The rename of the system that counts the times a claim's name was found taken, and tells `first_refusal` the first time.
+/// The rename of the system that counts the times a claim's name was found taken,
+/// and tells `first_refusal` the first time.
 fn counting_rename<'a>(refused: &'a std::cell::Cell<usize>, first_refusal: &'a std::sync::mpsc::Sender<()>) -> impl Fn(&Path, &Path) -> std::io::Result<()> + 'a {
     return move |from: &Path, to: &Path| -> std::io::Result<()> {
         let answer = rename_noreplace(from, to);
@@ -350,8 +413,12 @@ fn counting_rename<'a>(refused: &'a std::cell::Cell<usize>, first_refusal: &'a s
     };
 }
 
-/// The thread that plays another reclaimer: it places a running claim, says so, and keeps it until told to let go (or until
-///  `give_up`, so a failed control cannot hang).
+/// The thread that plays another reclaimer:
+/// it places a running claim,
+/// says so,
+/// and keeps it until told to let go (or until
+///  `give_up`,
+/// so a failed control cannot hang).
 fn spawn_other_claimer(claim: PathBuf, placed: std::sync::mpsc::Sender<()>, let_go: std::sync::mpsc::Receiver<()>, give_up: std::time::Duration) -> std::thread::JoinHandle<()> {
     return std::thread::spawn(move || {
         std::fs::write(&claim, live_marker()).expect("the other reclaimer's claim");
@@ -361,8 +428,12 @@ fn spawn_other_claimer(claim: PathBuf, placed: std::sync::mpsc::Sender<()>, let_
     });
 }
 
-/// A landing that meets a stale lock another reclaimer holds a claim on neither removes it nor fails at once: it looks again at
-///  the poll pace, which the count of refusals shows, and ends at its ceiling; the stale lock stays for the reclaimer that holds it.
+/// A landing that meets a stale lock another reclaimer holds a claim on neither removes it nor fails at once:
+/// it looks again at
+///  the poll pace,
+/// which the count of refusals shows,
+/// and ends at its ceiling;
+/// the stale lock stays for the reclaimer that holds it.
 #[test]
 fn a_landing_waits_for_the_reclaimer_that_holds_a_claim() {
     let (root, index, lock) = index_in("claim-landing-busy");
@@ -387,8 +458,12 @@ fn a_landing_waits_for_the_reclaimer_that_holds_a_claim() {
 }
 
 /// A landing that meets a stale lock another reclaimer holds a claim on waits in the same acquisition and takes the lock once
-///  the claim is gone without the lock having been unlinked: the end of a claim leaves no event on the lock's name, so the wait
-///  looks again at the poll pace. The other reclaimer lets go only after the landing was refused, so the control meets the busy case.
+///  the claim is gone without the lock having been unlinked:
+/// the end of a claim leaves no event on the lock's name,
+/// so the wait
+///  looks again at the poll pace.
+/// The other reclaimer lets go only after the landing was refused,
+/// so the control meets the busy case.
 #[test]
 fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
     let (root, index, lock) = index_in("claim-landing-wakes");
@@ -419,8 +494,12 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
 /// The longest file name Linux gives a directory entry.
 const NAME_LIMIT: usize = 255;
 
-/// Allowed: the claim file of a real identity (start tick, boot, namespace and machine) beside a lock with a long name stays within
-///  the limit of a file name, so a claim can be placed beside the lock of an alternate index with a long name.
+/// Allowed:
+/// the claim file of a real identity (start tick,
+/// boot,
+/// namespace and machine) beside a lock with a long name stays within
+///  the limit of a file name,
+/// so a claim can be placed beside the lock of an alternate index with a long name.
 #[test]
 fn a_claim_name_for_a_real_identity_fits_beside_a_long_lock_name() {
     let identity: String = own_identity().expect("an identity");
@@ -436,8 +515,10 @@ fn a_claim_name_for_a_real_identity_fits_beside_a_long_lock_name() {
     remove(root.as_path());
 }
 
-/// Allowed: the claim name of a marker that names no process (a release before the holder field wrote it) comes from the marker
-///  too, since two mounts of one remote tree give one file different device numbers there as well.
+/// Allowed:
+/// the claim name of a marker that names no process (a release before the holder field wrote it) comes from the marker
+///  too,
+/// since two mounts of one remote tree give one file different device numbers there as well.
 #[test]
 fn the_claim_name_of_a_marker_without_a_holder_does_not_depend_on_the_file() {
     let root: PathBuf = fixture("claim-key-holderless");
@@ -454,7 +535,11 @@ fn the_claim_name_of_a_marker_without_a_holder_does_not_depend_on_the_file() {
     remove(root.as_path());
 }
 
-/// Allowed: a claim is placed, and the stale lock removed, beside a lock whose own name is far longer than any identity, because the
+/// Allowed:
+/// a claim is placed,
+/// and the stale lock removed,
+/// beside a lock whose own name is far longer than any identity,
+/// because the
 ///  claim's name is a fixed-length digest and not the lock's name with the whole identity appended.
 #[test]
 fn a_claim_is_placed_beside_a_lock_with_a_very_long_name() {
@@ -475,18 +560,27 @@ fn a_claim_is_placed_beside_a_lock_with_a_very_long_name() {
     remove(root.as_path());
 }
 
-/// The length of a lock's name before `.lock`: the staging file of a lock adds about a hundred bytes to its name, so this leaves it
-///  within the limit while the earlier claim name (the lock's name, the identity and a slot) is not.
+/// The length of a lock's name before `.lock`:
+/// the staging file of a lock adds about a hundred bytes to its name,
+/// so this leaves it
+///  within the limit while the earlier claim name (the lock's name,
+/// the identity and a slot) is not.
 const LONG_LOCK_NAME: usize = 150;
 
-/// A marker for a process of another PID namespace on this boot: its maker cannot be judged here, and it is not another machine's.
+/// A marker for a process of another PID namespace on this boot:
+/// its maker cannot be judged here,
+/// and it is not another machine's.
 fn claim_text_of_an_unjudgeable_maker() -> String {
     let boot: &str = crate::claim_time::current_boot_id();
     return format!("{LOCK_MARKER}{}0 4242 linux:1#{boot}#1\n", crate::service_index_marker::MARKER_VERSION);
 }
 
-/// Refused and told: a claim whose maker cannot be judged (another PID namespace) is neither passed over nor removed, and it is
-///  not passing contention: the answer names the claim, so the person can remove it.
+/// Refused and told:
+/// a claim whose maker cannot be judged (another PID namespace) is neither passed over nor removed,
+/// and it is
+///  not passing contention:
+/// the answer names the claim,
+/// so the person can remove it.
 #[test]
 fn a_claim_that_cannot_be_judged_is_named_and_not_taken_for_contention() {
     let (root, _index, lock) = index_in("claim-unjudged");
@@ -535,9 +629,13 @@ fn a_landing_names_the_claim_that_cannot_be_judged() {
     remove(root.as_path());
 }
 
-/// Allowed: a placement whose answer was lost (it took effect, `EINTR`) and whose claim could not be read back to be recognised
-///  (`EACCES` at that moment) is not forgotten: the next attempt of this thread finds its own abandoned claim by its text and
-///  removes it, instead of meeting a live-looking claim of its own process for ever.
+/// Allowed:
+/// a placement whose answer was lost (it took effect,
+/// `EINTR`) and whose claim could not be read back to be recognised
+///  (`EACCES` at that moment) is not forgotten:
+/// the next attempt of this thread finds its own abandoned claim by its text and
+///  removes it,
+/// instead of meeting a live-looking claim of its own process for ever.
 #[test]
 fn an_abandoned_claim_of_this_thread_is_resolved_by_its_next_attempt() {
     let (root, _index, lock) = index_in("claim-abandoned");
@@ -562,8 +660,11 @@ fn an_abandoned_claim_of_this_thread_is_resolved_by_its_next_attempt() {
     remove(root.as_path());
 }
 
-/// Refused: a stale lock written in the format of an earlier release is left, because that release's reclaimers (a `flock`) and
-///  this release's (claims) cannot keep each other apart; the answer carries the file and words that say so.
+/// Refused:
+/// a stale lock written in the format of an earlier release is left,
+/// because that release's reclaimers (a `flock`) and
+///  this release's (claims) cannot keep each other apart;
+/// the answer carries the file and words that say so.
 #[test]
 fn a_stale_lock_of_an_earlier_releases_format_is_left_and_named() {
     let (root, _index, lock) = index_in("claim-legacy");
@@ -583,8 +684,12 @@ fn a_stale_lock_of_an_earlier_releases_format_is_left_and_named() {
     remove(root.as_path());
 }
 
-/// Refused: a marker of this release is not one an earlier release's reader reads as a marker at all: it reads the lock as a lock it
-///  does not know, which it leaves, so an earlier release's reclaimers never act on a lock of this release.
+/// Refused:
+/// a marker of this release is not one an earlier release's reader reads as a marker at all:
+/// it reads the lock as a lock it
+///  does not know,
+/// which it leaves,
+/// so an earlier release's reclaimers never act on a lock of this release.
 #[test]
 fn an_earlier_releases_reader_finds_no_marker_in_a_marker_of_this_release() {
     let text: String = marker_text(7, &own_identity).expect("a marker");

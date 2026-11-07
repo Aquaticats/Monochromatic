@@ -19,7 +19,10 @@ import {
 } from './completion-records.ts';
 import { FREEZE_MANIFEST, } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
-import type { Subvolume, } from './inventory.ts';
+import {
+  PARENT_UNKNOWN,
+  type Subvolume,
+} from './inventory.ts';
 
 /**
  What the freeze manifest holds: whether it exists, and the frozen subvolumes.
@@ -49,6 +52,13 @@ function manifestPath(stateFolder: string,): string {
  @param stateFolder - the state folder
  
  @returns the manifest; `present` is false when nothing was frozen
+
+ @example
+ ```ts
+ import { readFreezeManifest, } from './freeze-pass.ts';
+ 
+ const result = await readFreezeManifest(stateFolder,);
+ ```
  */
 export async function readFreezeManifest(stateFolder: string,): Promise<FreezeManifest> {
   if (!await pathExists(manifestPath(stateFolder,),)) {
@@ -78,6 +88,7 @@ export async function readFreezeManifest(stateFolder: string,): Promise<FreezeMa
         return {
           uuid,
           path,
+          parentUuid: PARENT_UNKNOWN,
         };
       },),
   };
@@ -172,6 +183,13 @@ async function setReadOnly(
  @param stateFolder - the state folder
  
  @param run - false in print mode, where nothing is recorded
+
+ @example
+ ```ts
+ import { freeze, } from './freeze-pass.ts';
+ 
+ await freeze({ subvolumes, runner, stateFolder, run, },);
+ ```
  */
 export async function freeze(
   {
@@ -224,6 +242,13 @@ export async function freeze(
  @param run - false in print mode
  
  @throws MoveStopError when run mode finds no manifest
+
+ @example
+ ```ts
+ import { thaw, } from './freeze-pass.ts';
+ 
+ await thaw({ loadCurrent, runner, stateFolder, run, },);
+ ```
  */
 export async function thaw(
   {
@@ -269,6 +294,13 @@ export async function thaw(
  @param stateFolder - the state folder
  
  @throws MoveStopError when one is not in the freeze manifest or does not read `ro=true`
+
+ @example
+ ```ts
+ import { requireFrozen, } from './freeze-pass.ts';
+ 
+ await requireFrozen({ current, runner, stateFolder, },);
+ ```
  */
 export async function requireFrozen(
   {

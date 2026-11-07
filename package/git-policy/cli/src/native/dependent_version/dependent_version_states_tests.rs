@@ -1,5 +1,9 @@
-//! What: Manifest reading order, raised-version detection and duplicate names.
-//! Why: Which failure a broken workspace reports, and which packages count as raised,
+//! What:
+//! Manifest reading order,
+//! raised-version detection and duplicate names.
+//! Why:
+//! Which failure a broken workspace reports,
+//! and which packages count as raised,
 //!      must follow the incumbent.
 //!
 //! In TS you'd write (pseudocode):
@@ -7,7 +11,8 @@
 //! // expect(bumpedNames(states)).toEqual(['@s/base']);
 //! ```
 
-/// The reader, the decisions and the in-memory workspace.
+/// The reader,
+/// the decisions and the in-memory workspace.
 use super::{ManifestState, bumped_names, duplicate_name, read_manifest_states};
 use crate::dependent_version_content::{
     PlanError, PolicyIncomplete, TrackedMode, TrackedPath, WorkspaceContent,
@@ -26,7 +31,9 @@ fn read_ok(memory: &mut MemoryWorkspace) -> Vec<ManifestState> {
     return states(memory).unwrap_or_else(|error: PlanError| panic!("{error:?}"));
 }
 
-/// Only manifests are read: candidate then base, in listing order.
+/// Only manifests are read:
+/// candidate then base,
+/// in listing order.
 #[test]
 fn reads_only_manifests_in_listing_order() {
     let mut memory: MemoryWorkspace = workspace(vec![
@@ -78,7 +85,8 @@ fn decodes_every_manifest_before_parsing_any() {
     );
 }
 
-/// The base text is parsed before the current text, and a broken base stops the plan.
+/// The base text is parsed before the current text,
+/// and a broken base stops the plan.
 #[test]
 fn parses_the_base_before_the_current_text() {
     let mut memory: MemoryWorkspace = workspace(vec![changed(
@@ -95,7 +103,8 @@ fn parses_the_base_before_the_current_text() {
     );
 }
 
-/// A failed read is content that is unavailable, whichever state it was.
+/// A failed read is content that is unavailable,
+/// whichever state it was.
 #[test]
 fn reports_unreadable_manifests() {
     let mut memory: MemoryWorkspace = workspace(vec![unchanged("package/m/a/package.json", "{}")]);
@@ -106,7 +115,9 @@ fn reports_unreadable_manifests() {
     ));
 }
 
-/// The state keeps exact bytes, text without a byte-order mark, mode and base version.
+/// The state keeps exact bytes,
+/// text without a byte-order mark,
+/// mode and base version.
 #[test]
 fn keeps_bytes_text_mode_and_base_version() {
     let mut memory: MemoryWorkspace = workspace(vec![changed(
@@ -126,7 +137,12 @@ fn keeps_bytes_text_mode_and_base_version() {
     assert_eq!(read[0].facts.name, "a");
 }
 
-/// Raised: a changed or removed version; not raised: a new manifest, no base version, same.
+/// Raised:
+/// a changed or removed version;
+/// not raised:
+/// a new manifest,
+/// no base version,
+/// same.
 #[test]
 fn detects_raised_versions() {
     let mut memory: MemoryWorkspace = workspace(vec![

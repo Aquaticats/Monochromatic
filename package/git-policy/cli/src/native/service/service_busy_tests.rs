@@ -4,13 +4,16 @@ use crate::service_busy_step_record_on_this_thread::{detail, enter_step, use_on_
 use crate::service_busy_answers_and_name_checks::LONGEST_ID;
 use super::*;
 
-/// A threshold below any step's age, so a step counts as stuck at once.
+/// A threshold below any step's age,
+/// so a step counts as stuck at once.
 const AT_ONCE: Duration = Duration::ZERO;
 
-/// A threshold no control reaches, so a step never counts as stuck.
+/// A threshold no control reaches,
+/// so a step never counts as stuck.
 const NEVER: Duration = Duration::from_secs(3600);
 
-/// The age a control lets a step reach before it asks, so the age is measurably above `AT_ONCE`.
+/// The age a control lets a step reach before it asks,
+/// so the age is measurably above `AT_ONCE`.
 const A_MOMENT: Duration = Duration::from_millis(20);
 
 fn board_stuck_after(slow_after: Duration) -> Arc<LandingBoard> {
@@ -25,7 +28,8 @@ fn ids(names: &[&str]) -> Vec<String> {
     return names.iter().map(|name| { return String::from(*name); }).collect();
 }
 
-/// A thread with no board records nothing; one with a board records the step and forgets it when the guard ends.
+/// A thread with no board records nothing;
+/// one with a board records the step and forgets it when the guard ends.
 #[test]
 fn a_step_is_recorded_only_on_a_thread_with_a_board_and_only_while_it_runs() {
     assert!(enter_step(String::from("git update-ref --stdin in /repo")).is_none(), "no board on this thread yet");
@@ -40,7 +44,8 @@ fn a_step_is_recorded_only_on_a_thread_with_a_board_and_only_while_it_runs() {
     assert_eq!(record.describe(), None, "the step ended");
 }
 
-/// A step younger than the threshold is not described: only a write that has outlasted what writes take is stuck.
+/// A step younger than the threshold is not described:
+/// only a write that has outlasted what writes take is stuck.
 #[test]
 fn a_step_younger_than_the_threshold_is_not_described() {
     let record: Arc<LandingBoard> = board_stuck_after(NEVER);
@@ -49,7 +54,8 @@ fn a_step_younger_than_the_threshold_is_not_described() {
     assert_eq!(record.describe(), None);
 }
 
-/// The detail the landing gives the next write is part of its words, and it is gone when the landing's guard ends.
+/// The detail the landing gives the next write is part of its words,
+/// and it is gone when the landing's guard ends.
 #[test]
 fn the_detail_of_a_write_names_the_commit_it_makes_and_ends_with_the_write() {
     let record: Arc<LandingBoard> = board();
@@ -67,15 +73,19 @@ fn the_detail_of_a_write_names_the_commit_it_makes_and_ends_with_the_write() {
     assert!(!later.contains("refs/worktree/cli-git-service/7"), "{later}");
 }
 
-/// A withdrawal is not answered here while the landing thread is not stuck: it goes to the landing thread as before.
+/// A withdrawal is not answered here while the landing thread is not stuck:
+/// it goes to the landing thread as before.
 #[test]
 fn a_withdrawal_is_queued_while_nothing_is_stuck() {
     let record: Arc<LandingBoard> = board();
     assert_eq!(record.withdraw_early("a"), EarlyAnswer::Queued);
 }
 
-/// A request of the group in flight is never withdrawn here, because the landing may be making its commit; one that has not begun
-/// is withdrawn, and when its group begins it is dropped and the others are marked.
+/// A request of the group in flight is never withdrawn here,
+/// because the landing may be making its commit;
+/// one that has not begun
+/// is withdrawn,
+/// and when its group begins it is dropped and the others are marked.
 #[test]
 fn only_a_request_that_has_not_begun_is_withdrawn_while_the_landing_is_stuck() {
     let record: Arc<LandingBoard> = board();
@@ -92,8 +102,10 @@ fn only_a_request_that_has_not_begun_is_withdrawn_while_the_landing_is_stuck() {
     assert_eq!(record.withdraw_early("other"), EarlyAnswer::Queued, "the request that begins is in flight");
 }
 
-/// A request already in flight when the landing thread's step ends is not withdrawn afterwards either: the record of the step is
-/// what makes a withdrawal early, and without it every withdrawal is the landing thread's.
+/// A request already in flight when the landing thread's step ends is not withdrawn afterwards either:
+/// the record of the step is
+/// what makes a withdrawal early,
+/// and without it every withdrawal is the landing thread's.
 #[test]
 fn a_withdrawal_after_the_stuck_write_returned_goes_to_the_landing_thread() {
     let record: Arc<LandingBoard> = board();
@@ -105,7 +117,8 @@ fn a_withdrawal_after_the_stuck_write_returned_goes_to_the_landing_thread() {
     assert_eq!(record.withdraw_early("b"), EarlyAnswer::Queued);
 }
 
-/// An identity that is not a plain name gets no early answer and no marker, so it cannot name a file outside the record's directory.
+/// An identity that is not a plain name gets no early answer and no marker,
+/// so it cannot name a file outside the record's directory.
 #[test]
 fn an_identity_that_is_not_a_plain_name_is_never_answered_early() {
     let record: Arc<LandingBoard> = board();
@@ -130,8 +143,13 @@ fn a_new_board_removes_what_an_earlier_service_left() {
     assert!(!second.is_in_flight("old"));
 }
 
-/// Fails closed (sol-1, P1): when the record cannot be written, a withdrawal is never answered "withdrawn" and a request is never
-/// taken as admitted on a marker that was not made. The record's directory is made a plain file, so every marker operation fails.
+/// Fails closed (sol-1,
+/// P1):
+/// when the record cannot be written,
+/// a withdrawal is never answered "withdrawn" and a request is never
+/// taken as admitted on a marker that was not made.
+/// The record's directory is made a plain file,
+/// so every marker operation fails.
 #[test]
 fn a_record_that_cannot_be_written_never_answers_withdrawn() {
     let record: Arc<LandingBoard> = board();
@@ -149,8 +167,13 @@ fn a_record_that_cannot_be_written_never_answers_withdrawn() {
     assert!(admission.dropped.is_empty() && admission.unavailable == ids(&["later"]), "a request is not landed on a decision that was not made, and is not dropped either");
 }
 
-/// A withdrawal is a tombstone with the identity of a normal one (sol-1, P1): every copy of the request that reaches a group after
-/// it, replays and duplicates included, is dropped, and not only the first.
+/// A withdrawal is a tombstone with the identity of a normal one (sol-1,
+/// P1):
+/// every copy of the request that reaches a group after
+/// it,
+/// replays and duplicates included,
+/// is dropped,
+/// and not only the first.
 #[test]
 fn every_copy_of_a_withdrawn_request_is_dropped_not_only_the_first() {
     let record: Arc<LandingBoard> = board();
@@ -165,9 +188,15 @@ fn every_copy_of_a_withdrawn_request_is_dropped_not_only_the_first() {
     assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "and the same answer to a repeated withdrawal");
 }
 
-/// The landing and a withdrawal race for the same requests: whichever way each interleaving falls, a request answered "withdrawn" is
-/// never admitted, and one admitted is never answered "withdrawn" (sol-1, P1). The two sides start together behind a barrier,
-/// repeatedly, on fresh identities.
+/// The landing and a withdrawal race for the same requests:
+/// whichever way each interleaving falls,
+/// a request answered "withdrawn" is
+/// never admitted,
+/// and one admitted is never answered "withdrawn" (sol-1,
+/// P1).
+/// The two sides start together behind a barrier,
+/// repeatedly,
+/// on fresh identities.
 #[test]
 fn admission_and_early_withdrawal_never_both_succeed() {
     let record: Arc<LandingBoard> = board();
@@ -192,7 +221,8 @@ fn admission_and_early_withdrawal_never_both_succeed() {
     }
 }
 
-/// A journal entry that says request `id` landed as batch `seq`, written the way the landing writes it.
+/// A journal entry that says request `id` landed as batch `seq`,
+/// written the way the landing writes it.
 fn record_landed(journal: &std::path::Path, seq: u64, id: &str) {
     let intent: crate::service_journal::Intent = crate::service_journal::Intent {
         seq,
@@ -213,9 +243,16 @@ fn record_landed(journal: &std::path::Path, seq: u64, id: &str) {
     crate::service_journal::mark_done(journal, seq).expect("the batch is done");
 }
 
-/// Withdrawer W1 wins the decision and is stopped before it asks the journal again; withdrawer W2 meets the decision. W2 must not
-/// answer "withdrawn": W1 has not confirmed it, and the request lands in the meantime (sol-1 round 2, P1). W1 then finds the request in
-/// the journal and answers "landed", and W2's withdrawal is left to the landing thread.
+/// Withdrawer W1 wins the decision and is stopped before it asks the journal again;
+/// withdrawer W2 meets the decision.
+/// W2 must not
+/// answer "withdrawn":
+/// W1 has not confirmed it,
+/// and the request lands in the meantime (sol-1 round 2,
+/// P1).
+/// W1 then finds the request in
+/// the journal and answers "landed",
+/// and W2's withdrawal is left to the landing thread.
 #[test]
 fn a_decision_another_withdrawer_has_not_confirmed_is_not_acknowledged() {
     let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-two-withdrawers").join("journal");
@@ -248,9 +285,15 @@ fn a_decision_another_withdrawer_has_not_confirmed_is_not_acknowledged() {
     assert!(!record.decision_path("r").exists(), "nobody acknowledged the decision, so W1 removes it");
 }
 
-/// W1 wins and its second journal read fails; W2 met the decision meanwhile. W1 removes the decision and queues its withdrawal, and
-/// W2 was not told "withdrawn", so the request can still be admitted and landed without any client having been told it never will
-/// (sol-1 round 2, P1: the creator removed a decision another withdrawer had acknowledged).
+/// W1 wins and its second journal read fails;
+/// W2 met the decision meanwhile.
+/// W1 removes the decision and queues its withdrawal,
+/// and
+/// W2 was not told "withdrawn",
+/// so the request can still be admitted and landed without any client having been told it never will
+/// (sol-1 round 2,
+/// P1:
+/// the creator removed a decision another withdrawer had acknowledged).
 #[test]
 fn a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation() {
     use std::os::unix::fs::PermissionsExt;
@@ -285,9 +328,15 @@ fn a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation() {
     assert_eq!(record.begin_group(ids(&["r"]).as_slice()), GroupAdmission::default(), "the request is still admitted, not dropped");
 }
 
-/// A staging file of a decision is removed whichever way the decision ends (sol-1 round 2, P2: a failed write returned before the
-/// removal and left it). The failure is injected inside the shared publish, after the staging file was made and written, so a
-/// publish that stopped removing its staging file leaves one behind and fails this control (round 3: the earlier control failed a
+/// A staging file of a decision is removed whichever way the decision ends (sol-1 round 2,
+/// P2:
+/// a failed write returned before the
+/// removal and left it).
+/// The failure is injected inside the shared publish,
+/// after the staging file was made and written,
+/// so a
+/// publish that stopped removing its staging file leaves one behind and fails this control (round 3:
+/// the earlier control failed a
 /// closure of its own).
 #[test]
 fn a_decision_whose_write_fails_leaves_no_temporary_file() {
@@ -307,9 +356,15 @@ fn a_decision_whose_write_fails_leaves_no_temporary_file() {
     assert_eq!(leftovers(&record), 0, "a decision that wins or loses leaves no temporary file");
 }
 
-/// Request `r` has a confirmed withdrawal, and the retention removed its decision and paused before its confirmation (sol-1 round 3,
-/// P1 A). Withdrawer W1 wins a new decision and is stopped before its journal read; W2 meets that decision beside the old
-/// confirmation. W2 must not answer "withdrawn": the old confirmation belongs to the old decision. W1 then finds the request landed.
+/// Request `r` has a confirmed withdrawal,
+/// and the retention removed its decision and paused before its confirmation (sol-1 round 3,
+/// P1 A).
+/// Withdrawer W1 wins a new decision and is stopped before its journal read;
+/// W2 meets that decision beside the old
+/// confirmation.
+/// W2 must not answer "withdrawn":
+/// the old confirmation belongs to the old decision.
+/// W1 then finds the request landed.
 #[test]
 fn a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decision() {
     let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-confirmation").join("journal");
@@ -339,8 +394,13 @@ fn a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decisi
     assert_eq!(first, EarlyAnswer::Landed("1".repeat(40)), "W1 finds the request in the journal");
 }
 
-/// The retention works from a listing and removes by what it still finds: a decision that replaced the one it listed (another token)
-/// stays, with its confirmation, while the pair it listed is forgotten (sol-1 round 3, P1 A: concurrent pruners from a stale listing).
+/// The retention works from a listing and removes by what it still finds:
+/// a decision that replaced the one it listed (another token)
+/// stays,
+/// with its confirmation,
+/// while the pair it listed is forgotten (sol-1 round 3,
+/// P1 A:
+/// concurrent pruners from a stale listing).
 #[test]
 fn the_retention_never_removes_a_decision_that_replaced_the_one_it_listed() {
     let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-listing").join("journal");
@@ -367,7 +427,9 @@ fn the_retention_never_removes_a_decision_that_replaced_the_one_it_listed() {
     assert_eq!(std::fs::read_to_string(replaced).expect("the replacement stays"), format!("{WITHDRAWN}:another-token"));
 }
 
-/// The memory of confirmed withdrawals is bounded: past the retention the oldest are forgotten, decision and confirmation together.
+/// The memory of confirmed withdrawals is bounded:
+/// past the retention the oldest are forgotten,
+/// decision and confirmation together.
 #[test]
 fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
     let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-retention").join("journal");
@@ -386,8 +448,11 @@ fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
 }
 
 /// The memory of confirmed withdrawals is bounded while the landing thread is stuck in a write and prunes nothing (sol-1 round 4,
-/// P2): past `WITHDRAWALS_CEILING` confirmed withdrawals the connection threads leave further withdrawals to the landing thread, as
-/// they do when nothing is stuck, instead of adding a decision and a confirmation for each.
+/// P2):
+/// past `WITHDRAWALS_CEILING` confirmed withdrawals the connection threads leave further withdrawals to the landing thread,
+/// as
+/// they do when nothing is stuck,
+/// instead of adding a decision and a confirmation for each.
 #[test]
 fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
     let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stuck-bound").join("journal");
@@ -411,21 +476,36 @@ fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
     assert!(matches!(record.withdraw_early("after"), EarlyAnswer::Withdrawn(_)));
 }
 
-/// How long the landing thread, paused between the check and the rename of a publish, gives the connection thread to finish its own
-///  publish of the same name: far above the microseconds a publish takes, so a connection thread that nothing holds back has
-///  finished, and a held one is still waiting.
+/// How long the landing thread,
+/// paused between the check and the rename of a publish,
+/// gives the connection thread to finish its own
+///  publish of the same name:
+/// far above the microseconds a publish takes,
+/// so a connection thread that nothing holds back has
+///  finished,
+/// and a held one is still waiting.
 #[cfg(unix)]
 const TIME_FOR_THE_OTHER_PUBLISHER: Duration = Duration::from_millis(500);
 
-/// How long a control waits for a decision that is certain to come once the landing thread has let go: far above a publish, so
+/// How long a control waits for a decision that is certain to come once the landing thread has let go:
+/// far above a publish,
+/// so
 ///  only a decision that never comes ends the wait.
 #[cfg(unix)]
 const TIME_FOR_A_DECISION_TO_COME: Duration = Duration::from_secs(30);
 
-/// On a filesystem that answers neither an exclusive rename nor a hard link, the landing thread and a connection thread of one
-///  service race for one decision with the checked rename (a check, then a rename). The landing thread is paused between its
-///  check and its rename; a connection thread decides the same request meanwhile. Exactly one of them may see itself the winner,
-///  and the other reads what the winner wrote (the plan, "Safe file saving: the publish replaced", fact 1 and its settlement).
+/// On a filesystem that answers neither an exclusive rename nor a hard link,
+/// the landing thread and a connection thread of one
+///  service race for one decision with the checked rename (a check,
+/// then a rename).
+/// The landing thread is paused between its
+///  check and its rename;
+/// a connection thread decides the same request meanwhile.
+/// Exactly one of them may see itself the winner,
+///  and the other reads what the winner wrote (the plan,
+/// "Safe file saving:
+/// the publish replaced",
+/// fact 1 and its settlement).
 #[cfg(unix)]
 #[test]
 fn on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_thread_never_both_win_a_decision() {

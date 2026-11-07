@@ -1,13 +1,17 @@
 //! Controls for the classes of Git step:
-//!  which subcommand lands in which class, the bound each class gets from its default and from the variable,
+//!  which subcommand lands in which class,
+//! the bound each class gets from its default and from the variable,
 //!  and the relations between the bounds and the graces that keep a healthy step from being announced or stopped.
 
 use super::*;
 
-/// Every class, so a relation is checked for each.
+/// Every class,
+/// so a relation is checked for each.
 const CLASSES: [ChildClass; 2] = [ChildClass::Plumbing, ChildClass::Object];
 
-/// Subcommands that move bytes, or compare the index with the worktree, or talk to a remote:
+/// Subcommands that move bytes,
+/// or compare the index with the worktree,
+/// or talk to a remote:
 ///  inputs for the claim that anything not named a query is a bulk step.
 const BULK_STEPS: [&str; 10] =
     ["pack-objects", "index-pack", "add", "hash-object", "maintenance", "reset", "update-index", "ls-files", "diff", "show"];
@@ -17,7 +21,8 @@ fn arguments(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(OsString::from).collect();
 }
 
-/// Every named query subcommand is classed as plumbing, whatever options precede it.
+/// Every named query subcommand is classed as plumbing,
+/// whatever options precede it.
 #[test]
 fn query_subcommands_are_classed_as_plumbing_after_any_global_options() {
     for name in PLUMBING_SUBCOMMANDS {
@@ -30,8 +35,11 @@ fn query_subcommands_are_classed_as_plumbing_after_any_global_options() {
     }
 }
 
-/// A step that moves bytes, refreshes the index or reaches a remote gets the bound of bulk work, whatever its options,
-///  and so does maintenance, which runs a repack when it is not detached.
+/// A step that moves bytes,
+/// refreshes the index or reaches a remote gets the bound of bulk work,
+/// whatever its options,
+///  and so does maintenance,
+/// which runs a repack when it is not detached.
 #[test]
 fn steps_that_move_bytes_or_compare_the_index_are_bulk_work() {
     for name in BULK_STEPS {
@@ -40,7 +48,8 @@ fn steps_that_move_bytes_or_compare_the_index_are_bulk_work() {
 }
 
 /// No step that refreshes the index with the worktree is a query:
-///  the refresh hashes every stat-dirty file, so such a step must not share the short bound.
+///  the refresh hashes every stat-dirty file,
+/// so such a step must not share the short bound.
 #[test]
 fn no_bulk_step_is_in_the_query_list() {
     for name in BULK_STEPS {
@@ -48,7 +57,9 @@ fn no_bulk_step_is_in_the_query_list() {
     }
 }
 
-/// A subcommand nobody classed, and a request with no subcommand, get the longer bound rather than an early stop.
+/// A subcommand nobody classed,
+/// and a request with no subcommand,
+/// get the longer bound rather than an early stop.
 #[test]
 fn an_unknown_step_gets_the_longer_bound() {
     assert_eq!(class_of(&arguments(&["frobnicate", "--now"])), ChildClass::Object);
@@ -66,7 +77,9 @@ fn the_variable_sets_every_class_to_the_same_bound() {
     }
 }
 
-/// A missing, zero or malformed value falls back to the class's own default, never to "no limit".
+/// A missing,
+/// zero or malformed value falls back to the class's own default,
+/// never to "no limit".
 #[test]
 fn an_unusable_value_falls_back_to_the_class_default() {
     for class in CLASSES {
@@ -77,7 +90,8 @@ fn an_unusable_value_falls_back_to_the_class_default() {
     }
 }
 
-/// A bulk step may run longer than a query step and is announced no sooner, and no first notice comes after the step
+/// A bulk step may run longer than a query step and is announced no sooner,
+/// and no first notice comes after the step
 ///  would already have been stopped.
 #[test]
 fn the_object_class_is_the_more_patient_one_and_every_notice_precedes_its_bound() {
@@ -88,7 +102,8 @@ fn the_object_class_is_the_more_patient_one_and_every_notice_precedes_its_bound(
     }
 }
 
-/// The class names differ, so a notice says which bound applies.
+/// The class names differ,
+/// so a notice says which bound applies.
 #[test]
 fn the_classes_have_different_labels() {
     assert_ne!(ChildClass::Plumbing.label(), ChildClass::Object.label());

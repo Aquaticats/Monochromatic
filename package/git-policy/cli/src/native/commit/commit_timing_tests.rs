@@ -290,8 +290,10 @@ fn the_holder_kind_follows_what_the_notice_says() {
     remove(root.as_path());
 }
 
-/// The record carries the identity the commit's request carries, the key that joins it to the service's
-/// `answered` line (`request=<id>`) and to the journal field `CLI_GIT_REQUEST_ID`; a commit that never made a request says null.
+/// The record carries the identity the commit's request carries,
+/// the key that joins it to the service's
+/// `answered` line (`request=<id>`) and to the journal field `CLI_GIT_REQUEST_ID`;
+/// a commit that never made a request says null.
 #[test]
 fn the_line_carries_the_request_identity_that_joins_it_to_the_service() {
     let root: PathBuf = fixture("timing-request");
@@ -305,7 +307,9 @@ fn the_line_carries_the_request_identity_that_joins_it_to_the_service() {
     remove(root.as_path());
 }
 
-/// The record states when it was written, in the form every other record of the wrapper uses, and a level so that a
+/// The record states when it was written,
+/// in the form every other record of the wrapper uses,
+/// and a level so that a
 /// command that stopped stands out from one that landed or ended.
 #[test]
 fn the_line_states_its_end_time_and_a_level() {
@@ -323,7 +327,9 @@ fn the_line_states_its_end_time_and_a_level() {
     remove(root.as_path());
 }
 
-/// The record states the longest quiet gap of the steps that ended by themselves, and every step's gap by name, with a step that
+/// The record states the longest quiet gap of the steps that ended by themselves,
+/// and every step's gap by name,
+/// with a step that
 ///  was ended for being quiet listed apart and left out of the longest.
 #[test]
 fn the_record_carries_the_quiet_gaps_of_the_steps() {

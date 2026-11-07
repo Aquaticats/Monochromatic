@@ -1,9 +1,14 @@
-//! The report: nothing for no findings, one success line, a failure line that names its command, and `--quiet`.
+//! The report:
+//! nothing for no findings,
+//! one success line,
+//! a failure line that names its command,
+//! and `--quiet`.
 
 use super::*;
 use std::path::PathBuf;
 
-/// A destination with a space and a quote in it, which the printed text must carry exactly.
+/// A destination with a space and a quote in it,
+/// which the printed text must carry exactly.
 fn destination() -> PathBuf {
     return PathBuf::from("/work/new tree");
 }
@@ -18,14 +23,16 @@ fn failed(tool: Tool) -> Finding {
     return Finding { tool, outcome: Outcome::Failed { reason: format!("{tool:?} reason"), run_instead: format!("run {tool:?} instead") } };
 }
 
-/// No finding prints nothing, quiet or not.
+/// No finding prints nothing,
+/// quiet or not.
 #[test]
 fn no_findings_print_nothing() {
     assert_eq!(render(destination().as_path(), &[], false), "");
     assert_eq!(render(destination().as_path(), &[], true), "");
 }
 
-/// Successes share one line that names the destination, each tool's detail and the time it took.
+/// Successes share one line that names the destination,
+/// each tool's detail and the time it took.
 #[test]
 fn successes_share_one_line() {
     let text: String = render(destination().as_path(), &[worked(Tool::Pnpm, 2_100), worked(Tool::Cargo, 300)], false);
@@ -42,7 +49,9 @@ fn quiet_silences_success() {
     assert_eq!(render(destination().as_path(), &[worked(Tool::Pnpm, 5)], true), "");
 }
 
-/// A failure prints under `--quiet` too, with the reason and the command that finishes it, one line each.
+/// A failure prints under `--quiet` too,
+/// with the reason and the command that finishes it,
+/// one line each.
 #[test]
 fn failures_print_even_when_quiet() {
     for quiet in [false, true] {
@@ -54,7 +63,9 @@ fn failures_print_even_when_quiet() {
     }
 }
 
-/// A mix prints the failures and, when not quiet, the success.
+/// A mix prints the failures and,
+/// when not quiet,
+/// the success.
 #[test]
 fn a_mix_prints_both_kinds_unless_quiet() {
     let findings: [Finding; 2] = [worked(Tool::Cargo, 10), failed(Tool::Toolchain)];
@@ -65,7 +76,8 @@ fn a_mix_prints_both_kinds_unless_quiet() {
     assert!(quiet.contains("run Toolchain instead"), "{quiet}");
 }
 
-/// When some repair failed the success line says it covers part of the state, so it is not read as the whole.
+/// When some repair failed the success line says it covers part of the state,
+/// so it is not read as the whole.
 #[test]
 fn a_mix_says_the_success_is_partial() {
     let mixed: String = render(destination().as_path(), &[worked(Tool::Cargo, 10), failed(Tool::Toolchain)], false);
@@ -75,8 +87,11 @@ fn a_mix_says_the_success_is_partial() {
     assert!(!success_of(whole.as_str()).contains("part of"), "{whole}");
 }
 
-/// A tool stopped at its ceiling is a finding that names the tool, what it was doing, how long it ran and the command that runs
-/// it again; every tool has such a sentence.
+/// A tool stopped at its ceiling is a finding that names the tool,
+/// what it was doing,
+/// how long it ran and the command that runs
+/// it again;
+/// every tool has such a sentence.
 #[test]
 fn a_tool_stopped_at_its_ceiling_is_named_with_what_it_did_and_the_command_to_run() {
     let ceiling: std::time::Duration = crate::wait_ceilings::REPAIR_TOOL_CEILING;
@@ -91,7 +106,8 @@ fn a_tool_stopped_at_its_ceiling_is_named_with_what_it_did_and_the_command_to_ru
     }
 }
 
-/// The ceiling is past the quiet window, or the window would never end anything.
+/// The ceiling is past the quiet window,
+/// or the window would never end anything.
 #[test]
 fn the_shipped_ceiling_is_past_the_shipped_quiet_window() {
     let environment: crate::package_repair::RepairEnvironment = crate::package_repair::RepairEnvironment::from_process();

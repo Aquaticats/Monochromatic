@@ -7,7 +7,9 @@ fn name(byte: u8) -> Vec<u8> {
     return vec![byte; 20];
 }
 
-/// Recording sides, writing and reading back keeps the sides, and the bytes follow `resolve_undo_write`.
+/// Recording sides,
+/// writing and reading back keeps the sides,
+/// and the bytes follow `resolve_undo_write`.
 #[test]
 fn recorded_sides_round_trip_in_git_form() {
     let mut undo: ResolveUndo = ResolveUndo::default();
@@ -29,7 +31,9 @@ fn recorded_sides_round_trip_in_git_form() {
     assert_eq!(ResolveUndo::read(bytes.as_slice(), 20), Some(undo));
 }
 
-/// A mode that is not octal text, and a record cut short, are what Git calls invalid resolve-undo information.
+/// A mode that is not octal text,
+/// and a record cut short,
+/// are what Git calls invalid resolve-undo information.
 #[test]
 fn damaged_records_are_not_read() {
     assert_eq!(ResolveUndo::read(b"a\x00zz\x000\x000\x00", 20), None);

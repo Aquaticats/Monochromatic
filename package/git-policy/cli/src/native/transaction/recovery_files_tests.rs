@@ -29,7 +29,9 @@ fn existence_probes_report_failures() {
     remove(root.as_path());
 }
 
-/// An optional read gives the bytes, nothing for a missing file, and reports any other failure.
+/// An optional read gives the bytes,
+/// nothing for a missing file,
+/// and reports any other failure.
 #[cfg(unix)]
 #[test]
 fn an_optional_read_tells_missing_from_unreadable() {

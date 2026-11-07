@@ -1,8 +1,10 @@
 //! What:
-//!  The private, validated copy of one source's ignored state,
+//!  The private,
+//! validated copy of one source's ignored state,
 //!  staged in a mode-`0700` directory beside a destination worktree.
 //! Why:
-//!  The stage sits on the destination's filesystem, so a file clone stays local and the install is a rename or a link.
+//!  The stage sits on the destination's filesystem,
+//! so a file clone stays local and the install is a rename or a link.
 //!  The source is copied entry by entry and compared again at the end,
 //!  so a source that changed during the copy never reaches the destination.
 //!
@@ -30,7 +32,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The name of the payload directory inside a stage container.
 /// Why:
-///   The payload mirrors the source's repository paths, so the container can hold other private state.
+///   The payload mirrors the source's repository paths,
+/// so the container can hold other private state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,9 +42,11 @@ use std::path::{Path, PathBuf};
 const PAYLOAD_NAME: &str = "payload";
 
 /// What:
-///  The validated private snapshot of one source, ready to install.
+///  The validated private snapshot of one source,
+/// ready to install.
 /// Why:
-///   Installation needs the entries it will create, the roots they came from and the stage to copy from.
+///   Installation needs the entries it will create,
+/// the roots they came from and the stage to copy from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,17 +60,21 @@ pub struct StagedSnapshot {
     pub selected_roots: Vec<String>,
     /// Canonical source worktree.
     pub source_root: PathBuf,
-    /// Private container holding the payload; removed after installation.
+    /// Private container holding the payload;
+    /// removed after installation.
     pub stage_container: PathBuf,
     /// Payload root mirroring the source's repository paths.
     pub stage_root: PathBuf,
-    /// Repository paths the user could not read, left out of the stage;
+    /// Repository paths the user could not read,
+    /// left out of the stage;
     ///  empty for a stage rebuilt from a journal.
     pub unreadable: Vec<String>,
 }
 
 /// What:
-///  The registered roots strictly nested under the source, and the stage container, as exclusions.
+///  The registered roots strictly nested under the source,
+/// and the stage container,
+/// as exclusions.
 /// Why:
 ///   A nested worktree or the stage itself must never be walked as ignored state.
 ///
@@ -84,9 +93,11 @@ fn source_exclusions(
 }
 
 /// What:
-///  The roots strictly inside the source root, never the source root itself.
+///  The roots strictly inside the source root,
+/// never the source root itself.
 /// Why:
-///   A registered worktree nested in the source is another checkout's state, so the source's own walk must skip it.
+///   A registered worktree nested in the source is another checkout's state,
+/// so the source's own walk must skip it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -136,7 +147,8 @@ fn lies_within_any(path: &Path, roots: &[PathBuf]) -> bool {
 /// What:
 ///  Whether a repository path names a private stage at any component.
 /// Why:
-///   A private stage is never selected, even when Git lists it as ignored.
+///   A private stage is never selected,
+/// even when Git lists it as ignored.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -147,9 +159,11 @@ fn names_private_stage(repository_path: &str) -> bool {
 }
 
 /// What:
-///  Names a fresh stage container beside a destination worktree, creating nothing.
+///  Names a fresh stage container beside a destination worktree,
+/// creating nothing.
 /// Why:
-///   The copy records the name durably before it creates the container, so an interrupted copy can be cleaned up.
+///   The copy records the name durably before it creates the container,
+/// so an interrupted copy can be cleaned up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -167,7 +181,8 @@ pub fn new_stage_container(destination_root: &Path) -> Result<PathBuf, WorktreeC
 /// What:
 ///  Stages every selected ignored entry of one source into a named stage container.
 /// Why:
-///   The stage is removed on any failure, so a failed copy leaves nothing behind for a later invocation to replay.
+///   The stage is removed on any failure,
+/// so a failed copy leaves nothing behind for a later invocation to replay.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

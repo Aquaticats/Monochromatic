@@ -1,5 +1,8 @@
-//! Controls for who owns a conversion and how long Git's `index.lock` is held: no kernel lock file, one live owner per worktree
-//!  named in the skip, and the index lock held only from the proving pass to the end of the index rewrite.
+//! Controls for who owns a conversion and how long Git's `index.lock` is held:
+//! no kernel lock file,
+//! one live owner per worktree
+//!  named in the skip,
+//! and the index lock held only from the proving pass to the end of the index rewrite.
 
 use super::*;
 use crate::subvolume_lock::acquire;
@@ -13,7 +16,10 @@ const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false, com
 /// The name the conversion's kernel lock file had before the conversion stopped taking one.
 const RETIRED_KERNEL_LOCK_NAME: &str = "cli-git-convert.lock";
 
-/// A checkout with one settled detached linked worktree `wt`: old files, a refreshed index, so it is quiet.
+/// A checkout with one settled detached linked worktree `wt`:
+/// old files,
+/// a refreshed index,
+/// so it is quiet.
 fn quiet_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let (parent, root) = checkout_with_worktree(name);
     let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
@@ -36,7 +42,8 @@ fn index_lock_is_the_conversions(worktree: &Path) -> bool {
     };
 }
 
-/// A conversion creates no kernel lock file at all, at any moment of the run and after it.
+/// A conversion creates no kernel lock file at all,
+/// at any moment of the run and after it.
 #[test]
 fn a_conversion_takes_no_kernel_lock_file() {
     let (parent, _root, worktree) = quiet_worktree("ownership-no-kernel-lock");
@@ -74,8 +81,10 @@ fn a_second_conversion_while_one_runs_is_skipped_naming_the_owner() {
     remove(parent.as_path());
 }
 
-/// Git's `index.lock` is absent while the first copy runs and after the refresh, and present from the proving pass to the
-///  refresh, which is the only span in which a Git writer could invalidate the proof or the rewrite.
+/// Git's `index.lock` is absent while the first copy runs and after the refresh,
+/// and present from the proving pass to the
+///  refresh,
+/// which is the only span in which a Git writer could invalidate the proof or the rewrite.
 #[test]
 fn the_index_lock_is_held_only_from_the_proving_pass_to_the_end_of_the_refresh() {
     let held_at = [("created", false), ("verified", true), ("synced", true), ("exchanged", true), ("refreshed", true), ("removed", false)];
@@ -89,8 +98,10 @@ fn the_index_lock_is_held_only_from_the_proving_pass_to_the_end_of_the_refresh()
     }
 }
 
-/// What a conversion that release 0.5.20 or older left behind looked like: the kernel lock file in the administrative
-///  directory and Git's `index.lock` with the journal's token, taken at the start and kept to the end.
+/// What a conversion that release 0.5.20 or older left behind looked like:
+/// the kernel lock file in the administrative
+///  directory and Git's `index.lock` with the journal's token,
+/// taken at the start and kept to the end.
 fn leave_as_release_0_5_20_did(worktree: &Path) {
     let admin: PathBuf = admin_of(worktree);
     std::fs::write(admin.join(RETIRED_KERNEL_LOCK_NAME), b"").expect("the kernel lock file an older release leaves");
@@ -100,8 +111,12 @@ fn leave_as_release_0_5_20_did(worktree: &Path) {
     }
 }
 
-/// A conversion interrupted by release 0.5.20 or older, at any phase, is finished by this release: it reads the journal,
-///  accepts the index lock that carries its token, and retires the kernel lock file.
+/// A conversion interrupted by release 0.5.20 or older,
+/// at any phase,
+/// is finished by this release:
+/// it reads the journal,
+///  accepts the index lock that carries its token,
+/// and retires the kernel lock file.
 #[test]
 fn a_conversion_an_older_release_left_unfinished_is_finished() {
     for point in ["journaled", "created", "verified", "synced", "exchanged", "refreshed", "removed"] {
@@ -123,8 +138,10 @@ fn a_conversion_an_older_release_left_unfinished_is_finished() {
     }
 }
 
-/// A command of an older release that still holds the kernel lock owns the conversion: this release starts nothing and writes
-///  nothing, and converts once the older command has ended.
+/// A command of an older release that still holds the kernel lock owns the conversion:
+/// this release starts nothing and writes
+///  nothing,
+/// and converts once the older command has ended.
 #[test]
 fn a_conversion_held_by_an_older_release_is_not_started_twice() {
     let (parent, _root, worktree) = quiet_worktree("ownership-older-release-running");
@@ -146,7 +163,8 @@ fn a_conversion_held_by_an_older_release_is_not_started_twice() {
     remove(parent.as_path());
 }
 
-/// A killed command's claim file (its process is gone) does not stop the next command, and a live process's claim does.
+/// A killed command's claim file (its process is gone) does not stop the next command,
+/// and a live process's claim does.
 #[test]
 fn a_dead_owners_claim_is_replaced_and_a_live_owners_claim_stops_the_conversion() {
     use crate::process_identity::process_birth_identity;
@@ -172,7 +190,9 @@ fn a_dead_owners_claim_is_replaced_and_a_live_owners_claim_stops_the_conversion(
     remove(parent.as_path());
 }
 
-/// A copy that changed while it was made is not swapped, and Git's `index.lock` is given back at once: nothing needs it.
+/// A copy that changed while it was made is not swapped,
+/// and Git's `index.lock` is given back at once:
+/// nothing needs it.
 #[test]
 fn a_failed_proof_gives_the_index_lock_back() {
     use crate::subvolume_test_support::Hooked;
@@ -193,7 +213,9 @@ fn a_failed_proof_gives_the_index_lock_back() {
     remove(parent.as_path());
 }
 
-/// A conversion that stopped after the swap, whose index lock is gone, takes the lock again before it rewrites the index.
+/// A conversion that stopped after the swap,
+/// whose index lock is gone,
+/// takes the lock again before it rewrites the index.
 #[test]
 fn a_resumed_conversion_takes_the_index_lock_before_the_rewrite() {
     let (parent, _root, worktree) = quiet_worktree("ownership-lock-before-rewrite");
@@ -206,8 +228,11 @@ fn a_resumed_conversion_takes_the_index_lock_before_the_rewrite() {
     remove(parent.as_path());
 }
 
-/// A migration of the main checkout that is running owns every worktree in it: a conversion refuses the worktree, names the
-///  migration's process, and writes nothing.
+/// A migration of the main checkout that is running owns every worktree in it:
+/// a conversion refuses the worktree,
+/// names the
+///  migration's process,
+/// and writes nothing.
 #[test]
 fn a_conversion_is_refused_while_the_main_checkout_is_being_migrated() {
     use crate::process_identity::process_birth_identity;

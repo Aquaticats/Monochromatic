@@ -1,10 +1,17 @@
 //! What:
-//!  What `git monochromatic-git-policy-cli doctor` reports from the configuration: the external hooks Git configuration defines, and the
-//!  retired `hooks.concurrentCommits`, `indexLock.unprovenOwnerTimeoutMs` and `landing.reserveAfterLostRaces` keys.
+//!  What `git monochromatic-git-policy-cli doctor` reports from the configuration:
+//! the external hooks Git configuration defines,
+//! and the
+//!  retired `hooks.concurrentCommits`,
+//! `indexLock.unprovenOwnerTimeoutMs` and `landing.reserveAfterLostRaces` keys.
 //! Why:
-//!  The wrapper runs no external hook, so a configured hook is a finding the author must act on, and each retired key in
-//!  `monochromatic-git-policy-cli.config.jsonc` is accepted for older files but means nothing; doctor says both plainly.
-//!  The commit path prints the first as a warning from the snapshot it already holds; doctor lists it on request.
+//!  The wrapper runs no external hook,
+//! so a configured hook is a finding the author must act on,
+//! and each retired key in
+//!  `monochromatic-git-policy-cli.config.jsonc` is accepted for older files but means nothing;
+//! doctor says both plainly.
+//!  The commit path prints the first as a warning from the snapshot it already holds;
+//! doctor lists it on request.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +29,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  What the configuration contributes to the doctor report.
 /// Why:
-///   Standard output lists the hooks one per line, and standard error carries the explanation and the notes.
+///   Standard output lists the hooks one per line,
+/// and standard error carries the explanation and the notes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -31,7 +39,8 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigFindings {
-    /// The configured external hooks, none of which runs.
+    /// The configured external hooks,
+    /// none of which runs.
     pub hooks: Vec<ConfiguredHook>,
     /// Whether `monochromatic-git-policy-cli.config.jsonc` has the retired `hooks` key.
     pub retired_hooks_key: bool,
@@ -39,14 +48,18 @@ pub struct ConfigFindings {
     pub retired_index_lock_key: bool,
     /// Whether `monochromatic-git-policy-cli.config.jsonc` sets the retired `landing.reserveAfterLostRaces`.
     pub retired_landing_key: bool,
-    /// The limits of the folder of saved copies in force: the file's `discardedCopies`, else the defaults.
+    /// The limits of the folder of saved copies in force:
+    /// the file's `discardedCopies`,
+    /// else the defaults.
     pub discarded: Limits,
 }
 
 /// What:
-///  The worktree top level, when Git reports one.
+///  The worktree top level,
+/// when Git reports one.
 /// Why:
-///   The JSONC file sits at the top level; a bare repository has none and so no file.
+///   The JSONC file sits at the top level;
+/// a bare repository has none and so no file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,7 +82,8 @@ fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// What:
 ///  Read the configuration findings for `cwd`.
 /// Why:
-///   One snapshot read gives the hooks; one file read gives the retired key.
+///   One snapshot read gives the hooks;
+/// one file read gives the retired key.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -111,7 +125,8 @@ pub fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
 }
 
 /// What:
-///  The lines for standard output: one per configured hook.
+///  The lines for standard output:
+/// one per configured hook.
 /// Why:
 ///   The hooks sit beside the traditional hooks in the report a script can read.
 ///
@@ -131,7 +146,9 @@ pub fn render_hook_lines(findings: &ConfigFindings) -> String {
 /// What:
 ///  The explanation and notes for standard error.
 /// Why:
-///   The ways forward for hooks, and a note for each retired key that is accepted and ignored, with the remedy of
+///   The ways forward for hooks,
+/// and a note for each retired key that is accepted and ignored,
+/// with the remedy of
 ///  removing it.
 ///
 /// In TS you'd write (pseudocode):

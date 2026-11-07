@@ -1,10 +1,20 @@
 //! What:
-//!  The check, before anything starts, that the Git LFS upload a push is about to run can start.
+//!  The check,
+//! before anything starts,
+//! that the Git LFS upload a push is about to run can start.
 //! Why:
-//!  A push of a repository with LFS keys is preceded by `git-lfs push`, which the parent starts.
-//!  When no directory of `PATH` holds `git-lfs`, one stat per `PATH` directory, with no process started, finds that
-//!  first, and the parent says so with the full explanation. A push that bypasses the upload (`--no-verify`,
-//!  `GIT_LFS_SKIP_PUSH`, or the switch `-c hook.cli-git-lfs-pre-push.enabled=false`) needs no program, so it is never
+//!  A push of a repository with LFS keys is preceded by `git-lfs push`,
+//! which the parent starts.
+//!  When no directory of `PATH` holds `git-lfs`,
+//! one stat per `PATH` directory,
+//! with no process started,
+//! finds that
+//!  first,
+//! and the parent says so with the full explanation.
+//! A push that bypasses the upload (`--no-verify`,
+//!  `GIT_LFS_SKIP_PUSH`,
+//! or the switch `-c hook.cli-git-lfs-pre-push.enabled=false`) needs no program,
+//! so it is never
 //!  refused here.
 //!
 //! In TS you'd write (pseudocode):
@@ -16,7 +26,8 @@
 use crate::child_environment::environment_value;
 /// The table-driven read of a push's options.
 use crate::command_push::parse_push_region;
-/// The hook switch, the lookup and the refusal text.
+/// The hook switch,
+/// the lookup and the refusal text.
 use crate::lfs_pre_push::{hook_switched_off, missing_program_message, program_on_path, skip_requested};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
@@ -24,7 +35,8 @@ use std::ffi::OsString;
 /// What:
 ///  The refusal text when the upload hook is active and `git-lfs` is not on the invocation's `PATH`.
 /// Why:
-///   A region Git itself would refuse is left to Git, which says why.
+///   A region Git itself would refuse is left to Git,
+/// which says why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

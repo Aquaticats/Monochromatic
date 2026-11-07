@@ -1,5 +1,8 @@
-//! Controls for publishing a landed commit that a moved remote branch rejected, against real repositories and bare
-//! remotes. Issue 1769: both histories reach the remote and the active worktree stays byte-identical.
+//! Controls for publishing a landed commit that a moved remote branch rejected,
+//! against real repositories and bare
+//! remotes.
+//! Issue 1769:
+//! both histories reach the remote and the active worktree stays byte-identical.
 
 use super::*;
 use crate::auto_push::{AutoPushOutcome, AutoPushResult, PUSH_FAILED_NOTE, push_once};
@@ -12,16 +15,20 @@ use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-/// A function-like value with the right shape is a merge push in these controls: the shipped callers write a small struct that holds the state.
+/// A function-like value with the right shape is a merge push in these controls:
+/// the shipped callers write a small struct that holds the state.
 impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>> MergePusher for Push {
     fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
         return self(destination, merge_oid);
     }
 }
 
-/// A bare remote, the repository under test, and a second clone that stands for another worktree's work.
+/// A bare remote,
+/// the repository under test,
+/// and a second clone that stands for another worktree's work.
 struct Scenario {
-    /// Fixture root, removed when the test ends.
+    /// Fixture root,
+    /// removed when the test ends.
     root: PathBuf,
     /// The bare remote named `origin`.
     remote: PathBuf,
@@ -62,14 +69,16 @@ fn push_git(root: &Path) -> PushGit {
     };
 }
 
-/// The text Git printed for a read-only query, trimmed.
+/// The text Git printed for a read-only query,
+/// trimmed.
 fn text_of(directory: &Path, arguments: &[&str]) -> String {
     return String::from_utf8_lossy(&git(directory, arguments).stdout)
         .trim()
         .to_owned();
 }
 
-/// Create the remote with `a.txt` and `b.txt`, the repository under test and the other clone.
+/// Create the remote with `a.txt` and `b.txt`,
+/// the repository under test and the other clone.
 fn scenario(name: &str) -> Scenario {
     let root = fixture(name);
     let remote = root.join("remote.git");
@@ -113,7 +122,8 @@ fn scenario(name: &str) -> Scenario {
     };
 }
 
-/// Change one file in the other clone, commit it and publish it.
+/// Change one file in the other clone,
+/// commit it and publish it.
 fn advance_remote(scenario: &Scenario, file: &str, text: &str) {
     git(&scenario.other, &["fetch", "--quiet", "origin"]);
     git(
@@ -153,14 +163,17 @@ fn run(scenario: &Scenario, landed: &str) -> (AutoPushResult, String) {
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
-/// Push `main` of the repository under test and return the failure the service would report, which a push that cannot
+/// Push `main` of the repository under test and return the failure the service would report,
+/// which a push that cannot
 /// even compute its merge ends with.
 fn run_error(scenario: &Scenario, landed: &str) -> SingleFlightError {
     let mut err: Vec<u8> = Vec::new();
     return push_once(&push_git(&scenario.local), "refs/heads/main", landed, &mut err).expect_err("the failure is returned");
 }
 
-/// What a consumer of the worktree can observe: the status, the bytes of two files and the index file.
+/// What a consumer of the worktree can observe:
+/// the status,
+/// the bytes of two files and the index file.
 fn worktree_snapshot(local: &Path) -> (String, Vec<u8>, Vec<u8>, Vec<u8>) {
     return (
         text_of(local, &["status", "--porcelain=v1"]),
@@ -171,7 +184,9 @@ fn worktree_snapshot(local: &Path) -> (String, Vec<u8>, Vec<u8>, Vec<u8>) {
 }
 
 /// Install a hook in the repository under test that advances the remote each time the reconcile creates its private
-/// fetch ref, while the count is at most `limit`: the push that follows then finds a remote that moved again.
+/// fetch ref,
+/// while the count is at most `limit`:
+/// the push that follows then finds a remote that moved again.
 fn advancing_hook(scenario: &Scenario, limit: u32) -> PathBuf {
     let hooks = scenario.root.join("hooks");
     let counter = scenario.root.join("counter");
@@ -208,7 +223,8 @@ fn hook_runs(counter: &Path) -> u32 {
         .expect("number");
 }
 
-/// Both histories reach the remote as one merge above the landed commit, and the worktree is not touched.
+/// Both histories reach the remote as one merge above the landed commit,
+/// and the worktree is not touched.
 #[test]
 fn a_divergent_branch_is_published_as_a_merge_and_the_worktree_is_not_touched() {
     let s = scenario("ar-merge");
@@ -256,9 +272,17 @@ fn a_divergent_branch_is_published_as_a_merge_and_the_worktree_is_not_touched() 
     remove(&s.root);
 }
 
-/// The reconcile's fetch runs without a low-speed abort of the wrapper's own: like the push, it waits while its connection is
-///  open (owner, 2026-11-03: "Wait while connected (Recommended)"; pick 5 of the shipped-limits audit, the coordinator's under
-///  the owner's delegation). A stand-in for Git records the two variables the fetch is started with, then runs the real Git.
+/// The reconcile's fetch runs without a low-speed abort of the wrapper's own:
+/// like the push,
+/// it waits while its connection is
+///  open (owner,
+/// 2026-11-03:
+/// "Wait while connected (Recommended)";
+/// pick 5 of the shipped-limits audit,
+/// the coordinator's under
+///  the owner's delegation).
+/// A stand-in for Git records the two variables the fetch is started with,
+/// then runs the real Git.
 #[test]
 fn the_reconcile_fetch_sets_no_low_speed_abort() {
     let s = scenario("ar-fetch-no-low-speed");
@@ -288,7 +312,8 @@ fn the_reconcile_fetch_sets_no_low_speed_abort() {
     remove(&s.root);
 }
 
-/// A conflicting merge publishes nothing, names the paths and does not recommend a push that cannot work.
+/// A conflicting merge publishes nothing,
+/// names the paths and does not recommend a push that cannot work.
 #[test]
 fn a_conflicting_merge_is_kept_unpublished_with_the_conflicting_paths() {
     let s = scenario("ar-conflict");
@@ -306,8 +331,11 @@ fn a_conflicting_merge_is_kept_unpublished_with_the_conflicting_paths() {
     remove(&s.root);
 }
 
-/// An amended published commit is merged like any other divergence: nothing published is lost, the replaced commit
-/// stays in the remote history beside the amended one, and the push is not refused.
+/// An amended published commit is merged like any other divergence:
+/// nothing published is lost,
+/// the replaced commit
+/// stays in the remote history beside the amended one,
+/// and the push is not refused.
 #[test]
 fn an_amended_published_commit_is_merged_when_nothing_conflicts() {
     let s = scenario("ar-amend");
@@ -337,7 +365,8 @@ fn an_amended_published_commit_is_merged_when_nothing_conflicts() {
     remove(&s.root);
 }
 
-/// An amend that changes the same lines as the published commit is a conflict, and the conflict is reported.
+/// An amend that changes the same lines as the published commit is a conflict,
+/// and the conflict is reported.
 #[test]
 fn an_amend_that_conflicts_with_the_published_commit_is_reported() {
     let s = scenario("ar-amend-conflict");
@@ -365,7 +394,8 @@ fn an_amend_that_conflicts_with_the_published_commit_is_reported() {
     remove(&s.root);
 }
 
-/// A remote that moves again during the push is fetched and merged again, within the bound.
+/// A remote that moves again during the push is fetched and merged again,
+/// within the bound.
 #[test]
 fn a_remote_that_moves_again_is_merged_again() {
     let s = scenario("ar-retry");
@@ -390,8 +420,10 @@ fn a_remote_that_moves_again_is_merged_again() {
     remove(&s.root);
 }
 
-/// Busy sibling worktrees are not a conflict: a remote that moves five times in a row is still merged into and
-/// published, which needs more attempts than a short bound allows.
+/// Busy sibling worktrees are not a conflict:
+/// a remote that moves five times in a row is still merged into and
+/// published,
+/// which needs more attempts than a short bound allows.
 #[test]
 fn a_busy_remote_is_merged_into_until_it_settles() {
     let s = scenario("ar-busy");
@@ -410,7 +442,8 @@ fn a_busy_remote_is_merged_into_until_it_settles() {
     remove(&s.root);
 }
 
-/// A remote that never settles ends after the bound with the reason, and nothing newer than the rejection is pushed.
+/// A remote that never settles ends after the bound with the reason,
+/// and nothing newer than the rejection is pushed.
 #[test]
 fn a_remote_that_never_settles_is_reported_after_the_bound() {
     let s = scenario("ar-exhausted");
@@ -432,7 +465,8 @@ fn a_remote_that_never_settles_is_reported_after_the_bound() {
     remove(&s.root);
 }
 
-/// A commit that the remote already contains is reported as delivered, without a push.
+/// A commit that the remote already contains is reported as delivered,
+/// without a push.
 #[test]
 fn a_commit_the_remote_already_contains_is_reported_as_delivered() {
     let s = scenario("ar-contained");
@@ -451,7 +485,8 @@ fn a_commit_the_remote_already_contains_is_reported_as_delivered() {
     remove(&s.root);
 }
 
-/// A push remote other than the tracked one is reconciled against the push remote: the rejection came from there.
+/// A push remote other than the tracked one is reconciled against the push remote:
+/// the rejection came from there.
 #[test]
 fn a_push_remote_other_than_the_upstream_is_reconciled_against_the_push_remote() {
     let s = scenario("ar-push-remote");
@@ -510,7 +545,8 @@ fn a_remote_that_cannot_be_fetched_is_reported_without_a_push() {
     remove(&s.root);
 }
 
-/// Only a stale-update refusal is reconciled; any other failed push is returned as it came.
+/// Only a stale-update refusal is reconciled;
+/// any other failed push is returned as it came.
 #[test]
 fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
     let s = scenario("ar-other-failure");
@@ -554,7 +590,9 @@ fn an_unpublished_attempt_never_reports_success_and_keeps_a_real_exit_code() {
     );
 }
 
-/// The destination the reconcile would fetch from, as `remote merge_ref`, or nothing.
+/// The destination the reconcile would fetch from,
+/// as `remote merge_ref`,
+/// or nothing.
 fn destination_of(scenario: &Scenario, branch_ref: &str) -> Option<String> {
     return read_destination(&push_git(&scenario.local), branch_ref)
         .expect("destination")
@@ -574,7 +612,9 @@ fn a_branch_that_pushes_to_its_upstream_has_that_destination() {
     remove(&s.root);
 }
 
-/// A branch without an upstream, or named outside `refs/heads`, has no destination to fetch from.
+/// A branch without an upstream,
+/// or named outside `refs/heads`,
+/// has no destination to fetch from.
 #[test]
 fn a_branch_without_an_upstream_or_outside_the_heads_has_no_destination() {
     let s = scenario("ar-dest-none");
@@ -584,7 +624,8 @@ fn a_branch_without_an_upstream_or_outside_the_heads_has_no_destination() {
     remove(&s.root);
 }
 
-/// A push remote other than the tracked one is where a triangular push goes, so it is the destination.
+/// A push remote other than the tracked one is where a triangular push goes,
+/// so it is the destination.
 #[test]
 fn a_push_remote_that_differs_from_the_upstream_is_the_destination() {
     let s = scenario("ar-dest-pushremote");
@@ -607,7 +648,10 @@ fn a_push_remote_that_differs_from_the_upstream_is_the_destination() {
     remove(&s.root);
 }
 
-/// `push.default` picks the ref: `current` pushes to the branch's own name, `upstream` to the tracked ref, and
+/// `push.default` picks the ref:
+/// `current` pushes to the branch's own name,
+/// `upstream` to the tracked ref,
+/// and
 /// `matching` and `nothing` name no single destination.
 #[test]
 fn push_default_decides_which_ref_is_the_destination() {
@@ -631,8 +675,11 @@ fn push_default_decides_which_ref_is_the_destination() {
     remove(&s.root);
 }
 
-/// With the default `simple`, a push remote other than the tracked one gets the branch's own name, and the tracked
-/// remote gets the tracked ref; a branch whose name differs from what it tracks tells the two apart.
+/// With the default `simple`,
+/// a push remote other than the tracked one gets the branch's own name,
+/// and the tracked
+/// remote gets the tracked ref;
+/// a branch whose name differs from what it tracks tells the two apart.
 #[test]
 fn simple_pushes_by_name_to_a_push_remote_and_to_the_tracked_ref_otherwise() {
     let s = scenario("ar-dest-simple");
@@ -653,7 +700,8 @@ fn simple_pushes_by_name_to_a_push_remote_and_to_the_tracked_ref_otherwise() {
     remove(&s.root);
 }
 
-/// An explicit `remote.<name>.push` refspec overrides every default, so the destination is not the one derived.
+/// An explicit `remote.<name>.push` refspec overrides every default,
+/// so the destination is not the one derived.
 #[test]
 fn a_configured_push_refspec_has_no_destination() {
     let s = scenario("ar-dest-refspec");
@@ -665,7 +713,8 @@ fn a_configured_push_refspec_has_no_destination() {
     remove(&s.root);
 }
 
-/// A branch that tracks a local branch has the remote `.`, which is never fetched from.
+/// A branch that tracks a local branch has the remote `.`,
+/// which is never fetched from.
 #[test]
 fn a_branch_that_tracks_a_local_branch_has_no_destination() {
     let s = scenario("ar-dest-dot");
@@ -699,7 +748,8 @@ fn an_upstream_outside_the_heads_has_no_destination() {
     remove(&s.root);
 }
 
-/// A rejection while the remote is behind the branch was not a divergence, so it is returned as it came.
+/// A rejection while the remote is behind the branch was not a divergence,
+/// so it is returned as it came.
 #[test]
 fn a_rejection_while_the_remote_is_behind_is_returned_unchanged() {
     let s = scenario("ar-behind");
@@ -717,7 +767,9 @@ fn a_rejection_while_the_remote_is_behind_is_returned_unchanged() {
     remove(&s.root);
 }
 
-/// Histories that share no commit are merged like any other: that is not a conflict, and the merge has both parents.
+/// Histories that share no commit are merged like any other:
+/// that is not a conflict,
+/// and the merge has both parents.
 #[test]
 fn unrelated_histories_are_merged() {
     let s = scenario("ar-unrelated");
@@ -737,8 +789,10 @@ fn unrelated_histories_are_merged() {
     remove(&s.root);
 }
 
-/// Make the repository under test sign commits with a stand-in `gpg` that exits `status`: it reads the payload,
-/// answers the status line Git waits for and prints a placeholder signature, so no key or keyring is involved.
+/// Make the repository under test sign commits with a stand-in `gpg` that exits `status`:
+/// it reads the payload,
+/// answers the status line Git waits for and prints a placeholder signature,
+/// so no key or keyring is involved.
 fn sign_commits_with_stand_in(scenario: &Scenario, status: u32) {
     let program = scenario.root.join("stand-in-gpg");
     let script = format!(
@@ -758,8 +812,10 @@ fn is_signed(scenario: &Scenario, oid: &str) -> bool {
     return text_of(&scenario.remote, &["cat-file", "commit", oid]).contains("\ngpgsig ");
 }
 
-/// A repository that signs its commits publishes a signed merge, so a remote that requires verified signatures
-/// accepts it; `git commit-tree` does not read `commit.gpgsign` by itself.
+/// A repository that signs its commits publishes a signed merge,
+/// so a remote that requires verified signatures
+/// accepts it;
+/// `git commit-tree` does not read `commit.gpgsign` by itself.
 #[test]
 fn the_merge_is_signed_when_the_repository_signs_commits() {
     let s = scenario("ar-signed");
@@ -777,7 +833,8 @@ fn the_merge_is_signed_when_the_repository_signs_commits() {
     remove(&s.root);
 }
 
-/// A repository that does not sign its commits gets an unsigned merge, and no signer is run.
+/// A repository that does not sign its commits gets an unsigned merge,
+/// and no signer is run.
 #[test]
 fn the_merge_is_unsigned_when_the_repository_does_not_sign_commits() {
     let s = scenario("ar-unsigned");
@@ -796,7 +853,8 @@ fn the_merge_is_unsigned_when_the_repository_does_not_sign_commits() {
     remove(&s.root);
 }
 
-/// A signer that fails leaves the merge uncreated and the failure visible, never an unsigned merge in its place.
+/// A signer that fails leaves the merge uncreated and the failure visible,
+/// never an unsigned merge in its place.
 #[test]
 fn a_failing_signer_publishes_nothing() {
     let s = scenario("ar-signer-fails");
@@ -811,7 +869,8 @@ fn a_failing_signer_publishes_nothing() {
     remove(&s.root);
 }
 
-/// A `commit.gpgsign` value that `git config --type=bool` rejects cannot be read as a yes or a no, so nothing is
+/// A `commit.gpgsign` value that `git config --type=bool` rejects cannot be read as a yes or a no,
+/// so nothing is
 /// published rather than guessing between a signed and an unsigned merge.
 #[test]
 fn an_unreadable_signing_setting_publishes_nothing() {
@@ -827,7 +886,8 @@ fn an_unreadable_signing_setting_publishes_nothing() {
     remove(&s.root);
 }
 
-/// Fetch the remote branch into the tracking ref and return its tip, which a clean checkout of the old tip may fast-forward to.
+/// Fetch the remote branch into the tracking ref and return its tip,
+/// which a clean checkout of the old tip may fast-forward to.
 fn fetched_remote_tip(scenario: &Scenario) -> String {
     git(&scenario.local, &["fetch", "--quiet", "origin"]);
     return text_of(&scenario.local, &["rev-parse", "origin/main"]);
@@ -840,7 +900,8 @@ fn advance(scenario: &Scenario, target: &str) -> Result<bool, String> {
         .expect("git");
 }
 
-/// A clean worktree on the pushed branch follows the published merge, so the next commit starts from it.
+/// A clean worktree on the pushed branch follows the published merge,
+/// so the next commit starts from it.
 #[test]
 fn a_clean_worktree_is_fast_forwarded_to_the_published_merge() {
     let s = scenario("ar-follow");
@@ -865,7 +926,8 @@ fn a_clean_worktree_is_fast_forwarded_to_the_published_merge() {
     remove(&s.root);
 }
 
-/// A tracked change in a file the move writes keeps the branch and the worktree where they are, and the report names
+/// A tracked change in a file the move writes keeps the branch and the worktree where they are,
+/// and the report names
 ///  the file and the command.
 #[test]
 fn a_worktree_with_a_tracked_change_is_left_behind_with_the_reason_reported() {
@@ -926,7 +988,8 @@ fn another_checked_out_branch_is_not_fast_forwarded() {
     remove(&s.root);
 }
 
-/// A branch whose tip is no longer the pushed tip moved on its own, and is not moved again.
+/// A branch whose tip is no longer the pushed tip moved on its own,
+/// and is not moved again.
 #[test]
 fn a_branch_that_moved_after_the_landing_is_not_fast_forwarded() {
     let s = scenario("ar-ff-moved");
@@ -1002,7 +1065,8 @@ fn a_staged_file_the_move_leaves_alone_stays_staged() {
     remove(&s.root);
 }
 
-/// The incident: a staged rename the move does not write survives the fast-forward untouched.
+/// The incident:
+/// a staged rename the move does not write survives the fast-forward untouched.
 #[test]
 fn a_staged_rename_the_move_leaves_alone_survives() {
     let s = scenario("ar-ff-rename");
@@ -1083,7 +1147,8 @@ fn the_report_says_the_uncommitted_work_was_left_as_it_is() {
     remove(&s.root);
 }
 
-/// An untracked file does not block the move unless the target would overwrite it; Git then refuses and nothing changes.
+/// An untracked file does not block the move unless the target would overwrite it;
+/// Git then refuses and nothing changes.
 #[test]
 fn an_untracked_file_the_target_would_overwrite_is_kept() {
     let s = scenario("ar-ff-untracked");
@@ -1123,7 +1188,8 @@ fn an_unrelated_untracked_file_does_not_block_the_fast_forward() {
     remove(&s.root);
 }
 
-/// A target that is not above the branch tip is not a fast-forward, and Git's refusal is reported.
+/// A target that is not above the branch tip is not a fast-forward,
+/// and Git's refusal is reported.
 #[test]
 fn a_target_that_is_not_a_fast_forward_is_refused() {
     let s = scenario("ar-ff-diverged");
@@ -1143,7 +1209,8 @@ fn a_target_that_is_not_a_fast_forward_is_refused() {
     remove(&s.root);
 }
 
-/// A status that cannot be read is a reason to stay behind, never a failure of the published push.
+/// A status that cannot be read is a reason to stay behind,
+/// never a failure of the published push.
 #[test]
 fn an_unreadable_status_blocks_the_fast_forward() {
     let s = scenario("ar-ff-status");
@@ -1159,8 +1226,12 @@ fn an_unreadable_status_blocks_the_fast_forward() {
     remove(&s.root);
 }
 
-/// The local branch stays behind after a reconcile that could not fast-forward it, so the next commit does not
-/// contain the published merge; that is a branch that moved on, not one that was rewritten, and its auto-push is
+/// The local branch stays behind after a reconcile that could not fast-forward it,
+/// so the next commit does not
+/// contain the published merge;
+/// that is a branch that moved on,
+/// not one that was rewritten,
+/// and its auto-push is
 /// reconciled again.
 #[test]
 fn a_second_commit_on_a_branch_left_behind_by_a_reconcile_is_reconciled_again() {
@@ -1195,8 +1266,10 @@ fn a_second_commit_on_a_branch_left_behind_by_a_reconcile_is_reconciled_again() 
     remove(&s.root);
 }
 
-/// A failed attempt must not make the branch look rewritten: the record of a failure keeps the last tip known to be
-/// published, so once the remote accepts pushes again the next commit is reconciled instead of staying rejected until
+/// A failed attempt must not make the branch look rewritten:
+/// the record of a failure keeps the last tip known to be
+/// published,
+/// so once the remote accepts pushes again the next commit is reconciled instead of staying rejected until
 /// someone merges by hand.
 #[test]
 fn a_failed_attempt_between_two_reconciles_does_not_stop_the_next_one() {
@@ -1242,7 +1315,11 @@ fn a_failed_attempt_between_two_reconciles_does_not_stop_the_next_one() {
 }
 
 /// Install a `pre-receive` hook on the bare remote that declines the first `declines` pushes the way GitHub's protected
-/// branch does, and, when `advance` is set, first moves the remote branch from the other clone: the race behind GH006.
+/// branch does,
+/// and,
+/// when `advance` is set,
+/// first moves the remote branch from the other clone:
+/// the race behind GH006.
 /// Returns the file that counts the hook's runs.
 fn declining_remote_hook(scenario: &Scenario, declines: u32, advance: bool) -> PathBuf {
     let counter = scenario.root.join("receive-counter");
@@ -1276,7 +1353,9 @@ fn declining_remote_hook(scenario: &Scenario, declines: u32, advance: bool) -> P
     return counter;
 }
 
-/// GitHub prints a protected-branch refusal as `[remote rejected]`; when the remote branch moved meanwhile, it is the
+/// GitHub prints a protected-branch refusal as `[remote rejected]`;
+/// when the remote branch moved meanwhile,
+/// it is the
 /// same race as a stale update and the merge is published (issue 1032).
 #[test]
 fn a_protected_branch_refusal_while_the_remote_moved_is_reconciled() {
@@ -1294,7 +1373,8 @@ fn a_protected_branch_refusal_while_the_remote_moved_is_reconciled() {
     remove(&s.root);
 }
 
-/// A refusal from a remote that did not move is a real refusal: nothing is merged and the push output is unchanged.
+/// A refusal from a remote that did not move is a real refusal:
+/// nothing is merged and the push output is unchanged.
 #[test]
 fn a_protected_branch_refusal_while_the_remote_is_behind_is_reported_as_it_came() {
     let s = scenario("ar-gh006-behind");
@@ -1311,7 +1391,10 @@ fn a_protected_branch_refusal_while_the_remote_is_behind_is_reported_as_it_came(
     remove(&s.root);
 }
 
-/// A refusal of the merge itself, by a remote that has not moved since the merge was made, is final: the merge is not
+/// A refusal of the merge itself,
+/// by a remote that has not moved since the merge was made,
+/// is final:
+/// the merge is not
 /// pushed again and the refusal is not reported as a remote that kept moving.
 #[test]
 fn a_refusal_of_the_merge_by_an_unmoved_remote_ends_the_attempts() {
@@ -1328,7 +1411,10 @@ fn a_refusal_of_the_merge_by_an_unmoved_remote_ends_the_attempts() {
     remove(&s.root);
 }
 
-/// Equal status text is no change, and any difference, even one byte, is a change.
+/// Equal status text is no change,
+/// and any difference,
+/// even one byte,
+/// is a change.
 #[test]
 fn a_status_differs_only_when_its_bytes_do() {
     assert!(!status_differs(b"", b""));
@@ -1363,7 +1449,8 @@ fn integrate(
         .expect("integrate");
 }
 
-/// What a run ended with, which must be a finished one.
+/// What a run ended with,
+/// which must be a finished one.
 fn finished(integrated: Integrated) -> PushAttempt {
     return match integrated {
         Integrated::Finished(attempt) => attempt,
@@ -1373,8 +1460,13 @@ fn finished(integrated: Integrated) -> PushAttempt {
     };
 }
 
-/// A diverged remote, a first merge push that fails with `first_output` after the remote moved once more, and a second
-/// merge push that is delivered to the real remote; returns how many merge pushes ran, how the run ended, and whether
+/// A diverged remote,
+/// a first merge push that fails with `first_output` after the remote moved once more,
+/// and a second
+/// merge push that is delivered to the real remote;
+/// returns how many merge pushes ran,
+/// how the run ended,
+/// and whether
 /// the landed commit reached the remote.
 fn failing_merge_push_while_the_remote_moves(
     name: &str,
@@ -1410,8 +1502,10 @@ fn failing_merge_push_while_the_remote_moves(
     return (pushes, attempt, delivered);
 }
 
-/// An explicit push that failed while the remote already holds the pushed commit failed for another reason: the run
-/// stands down and leaves the push's own report, where an auto-push would report the commit as delivered.
+/// An explicit push that failed while the remote already holds the pushed commit failed for another reason:
+/// the run
+/// stands down and leaves the push's own report,
+/// where an auto-push would report the commit as delivered.
 #[test]
 fn an_explicit_push_whose_commit_the_remote_already_contains_stands_down() {
     let s = scenario("ar-explicit-contained");
@@ -1437,7 +1531,8 @@ fn an_explicit_push_whose_commit_the_remote_already_contains_stands_down() {
     remove(&s.root);
 }
 
-/// An auto-push whose merge push fails for a reason that is not a stale update reports that failure at once: the remote
+/// An auto-push whose merge push fails for a reason that is not a stale update reports that failure at once:
+/// the remote
 /// moving meanwhile does not make the failure a race.
 #[test]
 fn an_auto_push_whose_merge_push_fails_for_another_reason_is_not_retried() {
@@ -1465,7 +1560,9 @@ fn an_auto_push_whose_merge_push_is_refused_as_stale_is_retried() {
     assert!(delivered, "the landed commit was published");
 }
 
-/// An explicit push reports no output of its own, so a failed merge push is retried when the remote moved, whatever
+/// An explicit push reports no output of its own,
+/// so a failed merge push is retried when the remote moved,
+/// whatever
 /// the refusal said.
 #[test]
 fn an_explicit_push_whose_merge_push_failed_is_retried_when_the_remote_moved() {
@@ -1501,7 +1598,8 @@ fn corpus(name: &str, extension: &str) -> Vec<u8> {
         .expect("a corpus file");
 }
 
-/// Publish the corpus input's base as `file`, so the local clone and the remote start from it.
+/// Publish the corpus input's base as `file`,
+/// so the local clone and the remote start from it.
 fn start_from_corpus(s: &Scenario, input: &str, file: &str) {
     if let Some(parent) = s.other.join(file).parent() {
         std::fs::create_dir_all(parent).expect("directories");
@@ -1528,7 +1626,8 @@ fn an_adjacent_edit_is_merged_by_word_published_and_listed() {
     remove(&s.root);
 }
 
-/// Sections appended at one point by both sides stay a conflict: nothing is published and the paths are named.
+/// Sections appended at one point by both sides stay a conflict:
+/// nothing is published and the paths are named.
 #[test]
 fn a_both_append_conflict_stays_unpublished_after_the_second_pass() {
     let s = scenario("ar-word-append");
@@ -1544,7 +1643,8 @@ fn a_both_append_conflict_stays_unpublished_after_the_second_pass() {
     remove(&s.root);
 }
 
-/// A file with a resolvable region and an unresolvable one blocks the publication of the whole merge, even when another
+/// A file with a resolvable region and an unresolvable one blocks the publication of the whole merge,
+/// even when another
 /// file of the same merge resolves.
 #[test]
 fn one_unresolved_file_keeps_the_whole_merge_unpublished() {
@@ -1587,7 +1687,8 @@ fn the_union_attribute_of_the_local_tip_applies_without_a_worktree_file() {
     remove(&s.root);
 }
 
-/// The auto-push runs inside the service and journals under the service's identifier; a push a person typed journals as the wrapper.
+/// The auto-push runs inside the service and journals under the service's identifier;
+/// a push a person typed journals as the wrapper.
 #[test]
 fn the_journal_identifier_follows_who_runs_the_reconcile() {
     assert_eq!(journal_identifier(false), "monochromatic-git-policy-cli-service");
@@ -1596,11 +1697,16 @@ fn the_journal_identifier_follows_who_runs_the_reconcile() {
 //endregion
 
 /// What:
-///  The starts of a reconcile that fetches the moved remote, publishes a merge and fast-forwards the clean worktree.
+///  The starts of a reconcile that fetches the moved remote,
+/// publishes a merge and fast-forwards the clean worktree.
 /// Why:
-///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`; the fetch and the
-///  fast-forward are the two that carried it (Git 2.56.0: `builtin/merge.c` and the fetch verbosity gate only messages and
-///  progress on it). The control looks at both starts, so an empty answer is not an absent run.
+///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`;
+/// the fetch and the
+///  fast-forward are the two that carried it (Git 2.56.0:
+/// `builtin/merge.c` and the fetch verbosity gate only messages and
+///  progress on it).
+/// The control looks at both starts,
+/// so an empty answer is not an absent run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1625,7 +1731,9 @@ fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
     remove(&s.root);
 }
 
-/// What the fetch and the fast-forward of a reconcile say is kept in the service's log: one entry for each, naming the command.
+/// What the fetch and the fast-forward of a reconcile say is kept in the service's log:
+/// one entry for each,
+/// naming the command.
 #[test]
 fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
     let s = scenario("ar-words");
@@ -1643,10 +1751,19 @@ fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
     remove(&s.root);
 }
 
-/// The reconcile's fast-forward loses the race for the branch inside Git, after Git installed the published merge's paths and
-/// before its ref update (a stand-in for Git plays the person's commit, which wins, and then the loser's install, and reports
-/// Git's own failure): the paths go back to the winner's content so the checkout matches the branch, the report is the
-/// reason and not a failure, and no record is left. Owner's rule: "Auto merging should never fail."
+/// The reconcile's fast-forward loses the race for the branch inside Git,
+/// after Git installed the published merge's paths and
+/// before its ref update (a stand-in for Git plays the person's commit,
+/// which wins,
+/// and then the loser's install,
+/// and reports
+/// Git's own failure):
+/// the paths go back to the winner's content so the checkout matches the branch,
+/// the report is the
+/// reason and not a failure,
+/// and no record is left.
+/// Owner's rule:
+/// "Auto merging should never fail."
 #[test]
 fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_the_branch() {
     let s = scenario("ar-ff-race");
@@ -1678,8 +1795,10 @@ fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_th
     remove(&s.root);
 }
 
-/// A second-pass command whose input thread cannot start is stopped and reported, not left waiting for input and not a panic
-/// (`std::thread::spawn` panicked there). The starts are refused to this thread by the seam of `scoped_start`.
+/// A second-pass command whose input thread cannot start is stopped and reported,
+/// not left waiting for input and not a panic
+/// (`std::thread::spawn` panicked there).
+/// The starts are refused to this thread by the seam of `scoped_start`.
 #[test]
 fn a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported() {
     let root: PathBuf = crate::test_support::fixture("reconcile-no-input-thread");

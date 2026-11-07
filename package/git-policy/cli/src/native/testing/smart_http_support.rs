@@ -1,10 +1,19 @@
 //! What:
 //!  A minimal HTTP/1.1 server for tests that puts `git http-backend` (Git's own smart-HTTP CGI program) behind a loopback port.
 //! Why:
-//!  `git daemon` is not installed with Git here, and a push over HTTP is the transport whose bytes the push meter cannot see
-//!  (`libcurl` uses `send` and `recv`). The server runs the real `git http-backend` for every request, so the remote side of the
-//!  push (`receive-pack`, its hooks, its keepalive) is Git's, and only the HTTP framing is the test's: one request per
-//!  connection, `Connection: close`, a body with `Content-Length` or `chunked`.
+//!  `git daemon` is not installed with Git here,
+//! and a push over HTTP is the transport whose bytes the push meter cannot see
+//!  (`libcurl` uses `send` and `recv`).
+//! The server runs the real `git http-backend` for every request,
+//! so the remote side of the
+//!  push (`receive-pack`,
+//! its hooks,
+//! its keepalive) is Git's,
+//! and only the HTTP framing is the test's:
+//! one request per
+//!  connection,
+//! `Connection: close`,
+//! a body with `Content-Length` or `chunked`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,11 +31,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 
-/// A running server: the port it listens on, and the thread that accepts.
+/// A running server:
+/// the port it listens on,
+/// and the thread that accepts.
 pub(crate) struct SmartHttp {
-    /// The loopback port, chosen by the system.
+    /// The loopback port,
+    /// chosen by the system.
     port: u16,
-    /// Set when the server is being stopped, so the accepting thread ends at the next connection.
+    /// Set when the server is being stopped,
+    /// so the accepting thread ends at the next connection.
     stopping: Arc<AtomicBool>,
     /// The thread that accepts connections and joins the threads that serve them.
     acceptor: Option<JoinHandle<()>>,
@@ -64,7 +77,10 @@ impl SmartHttp {
 }
 
 impl Drop for SmartHttp {
-    /// Stop accepting: set the flag, make one connection so the blocked accept returns, and wait for the threads.
+    /// Stop accepting:
+    /// set the flag,
+    /// make one connection so the blocked accept returns,
+    /// and wait for the threads.
     fn drop(&mut self) {
         self.stopping.store(true, Ordering::SeqCst);
         let _woken = TcpStream::connect(("127.0.0.1", self.port));
@@ -74,7 +90,10 @@ impl Drop for SmartHttp {
     }
 }
 
-/// Read one chunked body: size line in hexadecimal, that many bytes and a line break, until a chunk of size zero.
+/// Read one chunked body:
+/// size line in hexadecimal,
+/// that many bytes and a line break,
+/// until a chunk of size zero.
 fn read_chunked(reader: &mut BufReader<TcpStream>) -> Vec<u8> {
     let mut body: Vec<u8> = Vec::new();
     loop {
@@ -98,7 +117,9 @@ fn read_chunked(reader: &mut BufReader<TcpStream>) -> Vec<u8> {
     }
 }
 
-/// Serve one connection: one request, answered by `git http-backend`.
+/// Serve one connection:
+/// one request,
+/// answered by `git http-backend`.
 fn serve(stream: TcpStream, project_root: &Path) {
     let Ok(clone) = stream.try_clone() else { return };
     let mut reader: BufReader<TcpStream> = BufReader::new(clone);

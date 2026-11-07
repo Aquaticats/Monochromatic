@@ -1,7 +1,12 @@
 //! Controls for the reading of the numbers a process has in nested PID namespaces.
 //! Why:
-//!  The answer decides whether a pid file's number can prove its writer gone, so each shape of table is pinned: a nested
-//!  holder, the reader's own numbering, a process that ended, and a table that cannot be read completely.
+//!  The answer decides whether a pid file's number can prove its writer gone,
+//! so each shape of table is pinned:
+//! a nested
+//!  holder,
+//! the reader's own numbering,
+//! a process that ended,
+//! and a table that cannot be read completely.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,7 +18,8 @@ use super::*;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
-/// Add one process to a fake table, with `status` as the text of its `status` file when there is one.
+/// Add one process to a fake table,
+/// with `status` as the text of its `status` file when there is one.
 fn add_process(table: &Path, outer: i64, status: Option<&str>) {
     let process: PathBuf = table.join(outer.to_string());
     std::fs::create_dir_all(process.as_path()).expect("fake process");
@@ -22,7 +28,8 @@ fn add_process(table: &Path, outer: i64, status: Option<&str>) {
     }
 }
 
-/// A process listed under `outer` that is process `inner` of a nested namespace is a holder of `inner`, and of no other number.
+/// A process listed under `outer` that is process `inner` of a nested namespace is a holder of `inner`,
+/// and of no other number.
 #[test]
 fn a_process_numbered_inside_a_nested_namespace_holds_that_number() {
     let root: PathBuf = fixture("nested-numbers-holder");
@@ -32,7 +39,8 @@ fn a_process_numbered_inside_a_nested_namespace_holds_that_number() {
     remove(root.as_path());
 }
 
-/// The reader's own number is the first column; a process that is in no nested namespace holds nothing nested.
+/// The reader's own number is the first column;
+/// a process that is in no nested namespace holds nothing nested.
 #[test]
 fn the_readers_own_number_is_not_a_nested_one() {
     let root: PathBuf = fixture("nested-numbers-own");
@@ -50,7 +58,8 @@ fn a_process_that_ended_during_the_listing_holds_nothing() {
     remove(root.as_path());
 }
 
-/// A `status` file without the line cannot be read as "not nested": the question stays open.
+/// A `status` file without the line cannot be read as "not nested":
+/// the question stays open.
 #[test]
 fn a_status_without_the_namespace_line_leaves_the_question_open() {
     let root: PathBuf = fixture("nested-numbers-no-line");
@@ -67,7 +76,9 @@ fn a_table_that_cannot_be_listed_leaves_the_question_open() {
     remove(root.as_path());
 }
 
-/// A `status` file that cannot be read, other than because the process ended, leaves the question open.
+/// A `status` file that cannot be read,
+/// other than because the process ended,
+/// leaves the question open.
 #[test]
 fn an_unreadable_status_leaves_the_question_open() {
     use std::os::unix::fs::PermissionsExt as _;

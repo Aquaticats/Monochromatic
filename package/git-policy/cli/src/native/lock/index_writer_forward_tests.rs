@@ -55,7 +55,10 @@ fn a_coordinated_add_runs_git_and_reports_its_status() {
     remove(root.as_path());
 }
 
-/// A foreign `index.lock` is Git's own refusal: the writer runs Git at once, Git fails as it fails without the wrapper, and
+/// A foreign `index.lock` is Git's own refusal:
+/// the writer runs Git at once,
+/// Git fails as it fails without the wrapper,
+/// and
 ///  nothing waits for the lock or removes it.
 #[test]
 fn a_foreign_index_lock_is_gits_refusal_and_is_not_waited_for() {
@@ -73,7 +76,9 @@ fn a_foreign_index_lock_is_gits_refusal_and_is_not_waited_for() {
     remove(root.as_path());
 }
 
-/// A non-writer that carries the linked-worktree copy still runs here, as a settled child, not as an exec.
+/// A non-writer that carries the linked-worktree copy still runs here,
+/// as a settled child,
+/// not as an exec.
 #[test]
 fn a_non_writer_with_a_copy_runs_settled() {
     let root: PathBuf = fixture("forward-status-copy");

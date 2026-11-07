@@ -194,6 +194,13 @@ async function currentStage(stageRun: StageRun,): Promise<Stage> {
  @param run - the phase
  
  @throws GuidedStopError at the first stage that fails
+
+ @example
+ ```ts
+ import { runPhase, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ await runPhase(run,);
+ ```
  */
 export async function runPhase(run: EngineRun,): Promise<void> {
   for (const [position, stage,] of run.stages

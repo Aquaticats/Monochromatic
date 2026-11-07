@@ -1,6 +1,11 @@
-//! Controls for the review findings on the content decision: the system attributes file is not derived from the system
-//!  configuration path, paths and patterns are bytes, attribute lines are lexed as Git lexes them, a link in a parent
-//!  directory is never followed, and the bytes that are hashed are the bytes of the one file that was judged.
+//! Controls for the review findings on the content decision:
+//! the system attributes file is not derived from the system
+//!  configuration path,
+//! paths and patterns are bytes,
+//! attribute lines are lexed as Git lexes them,
+//! a link in a parent
+//!  directory is never followed,
+//! and the bytes that are hashed are the bytes of the one file that was judged.
 
 use super::*;
 use crate::fs_beneath::open_root;
@@ -49,7 +54,8 @@ fn check(worktree: &Path, environment: &ConversionEnvironment) -> Result<(), Str
     return check_clean_tracked_by_content(worktree, found.admin.as_path(), found.common.as_path(), environment, false).map(|_clean| {});
 }
 
-/// A checkout where `prepare` committed more files, with a settled detached worktree `topic` at that commit.
+/// A checkout where `prepare` committed more files,
+/// with a settled detached worktree `topic` at that commit.
 fn settled(name: &str, prepare: &dyn Fn(&Path)) -> (PathBuf, PathBuf, PathBuf) {
     let (parent, root) = checkout_with_worktree(name);
     prepare(root.as_path());
@@ -62,14 +68,17 @@ fn settled(name: &str, prepare: &dyn Fn(&Path)) -> (PathBuf, PathBuf, PathBuf) {
     return (parent, root, worktree);
 }
 
-/// Rewrite a file with the bytes it has, so that its stat data is stale and only its content can vouch for it.
+/// Rewrite a file with the bytes it has,
+/// so that its stat data is stale and only its content can vouch for it.
 fn make_stale(path: &Path) {
     let bytes: Vec<u8> = std::fs::read(path).expect("read");
     std::fs::write(path, bytes).expect("rewrite");
 }
 
-/// A system attributes file that sets `ident` is read where the executable says it is, not beside the system configuration
-///  file, and `GIT_ATTR_NOSYSTEM` or an unknown location are told apart.
+/// A system attributes file that sets `ident` is read where the executable says it is,
+/// not beside the system configuration
+///  file,
+/// and `GIT_ATTR_NOSYSTEM` or an unknown location are told apart.
 #[test]
 fn the_system_attributes_file_is_not_derived_from_the_system_config_path() {
     let (parent, root, worktree) = settled("content-system", &|root: &Path| { std::fs::write(root.join("target"), b"$Id: old $\n").expect("target"); });
@@ -90,7 +99,11 @@ fn the_system_attributes_file_is_not_derived_from_the_system_config_path() {
     remove(parent.as_path());
 }
 
-/// A file whose name is not UTF-8, or whose letters are two bytes, is matched by bytes: `?` is one byte, and the attributes
+/// A file whose name is not UTF-8,
+/// or whose letters are two bytes,
+/// is matched by bytes:
+/// `?` is one byte,
+/// and the attributes
 ///  file of a directory with such a name is that directory's own.
 #[test]
 fn paths_and_patterns_are_matched_as_bytes() {
@@ -125,8 +138,13 @@ fn paths_and_patterns_are_matched_as_bytes() {
     remove(parent.as_path());
 }
 
-/// Attribute lines are lexed as `attr.c` lexes them: only space, tab, carriage return and line feed separate tokens, a NUL
-///  ends the text of a line, and a byte order mark on the first line is not part of the pattern.
+/// Attribute lines are lexed as `attr.c` lexes them:
+/// only space,
+/// tab,
+/// carriage return and line feed separate tokens,
+/// a NUL
+///  ends the text of a line,
+/// and a byte order mark on the first line is not part of the pattern.
 #[test]
 fn attribute_lines_are_lexed_like_git_lexes_them() {
     for (label, name, attributes) in [
@@ -163,7 +181,10 @@ fn a_link_in_a_parent_directory_is_not_followed() {
     remove(parent.as_path());
 }
 
-/// What a judge needs to look at `README.md`: the held root, its entry, its blob and the index second.
+/// What a judge needs to look at `README.md`:
+/// the held root,
+/// its entry,
+/// its blob and the index second.
 struct Subject {
     /// The held worktree root.
     root: std::fs::File,
@@ -195,7 +216,9 @@ fn judge_with(subject: &Subject, seams: &mut ReadSeams<'_>) -> Result<(), String
     return judge.agrees_seamed(&place, &subject.entry, subject.id.as_slice(), subject.index_seconds, seams);
 }
 
-/// The file is one file from the look at its state to the end of the read: a `chmod`, a swap to a link and a write each refuse,
+/// The file is one file from the look at its state to the end of the read:
+/// a `chmod`,
+/// a swap to a link and a write each refuse,
 ///  and an unchanged file is accepted.
 #[test]
 fn the_hashed_bytes_are_the_bytes_of_the_one_file_that_was_judged() {
@@ -238,7 +261,8 @@ fn the_hashed_bytes_are_the_bytes_of_the_one_file_that_was_judged() {
     remove(parent.as_path());
 }
 
-/// A file that grows past the limit after its size was looked at is refused, and a read never takes more than the bound.
+/// A file that grows past the limit after its size was looked at is refused,
+/// and a read never takes more than the bound.
 #[test]
 fn a_file_that_grows_during_the_look_is_refused_and_the_read_is_bounded() {
     let (parent, _root, worktree) = settled("content-grows", &|_root: &Path| {});
@@ -271,8 +295,12 @@ fn a_file_that_grows_during_the_look_is_refused_and_the_read_is_bounded() {
     remove(parent.as_path());
 }
 
-/// Every quoted line refuses the paths below its directory, whatever it sets and wherever its tokens end: an attribute value that
-///  holds the macro marker, a token glued to the closing quote, and a line that sets nothing the content cares about.
+/// Every quoted line refuses the paths below its directory,
+/// whatever it sets and wherever its tokens end:
+/// an attribute value that
+///  holds the macro marker,
+/// a token glued to the closing quote,
+/// and a line that sets nothing the content cares about.
 #[test]
 fn every_quoted_line_refuses_at_every_source_level() {
     for (label, in_directory, text) in [
@@ -318,7 +346,8 @@ fn a_named_pipe_as_an_attributes_file_does_not_block() {
     remove(parent.as_path());
 }
 
-/// A long reverse chain of macros is followed in work that grows with its length, not with the cube of it.
+/// A long reverse chain of macros is followed in work that grows with its length,
+/// not with the cube of it.
 #[test]
 fn a_long_chain_of_macros_is_followed_in_linear_work() {
     let (parent, root, worktree) = settled("content-macros", &|root: &Path| { std::fs::write(root.join("target"), b"$Id: old $\n").expect("target"); });
@@ -337,7 +366,8 @@ fn a_long_chain_of_macros_is_followed_in_linear_work() {
     remove(parent.as_path());
 }
 
-/// The stat-only proof reaches files below a held root too: a directory moved away and replaced by a link is not read through.
+/// The stat-only proof reaches files below a held root too:
+/// a directory moved away and replaced by a link is not read through.
 #[test]
 fn the_stat_only_proof_does_not_follow_a_link_in_a_parent() {
     let (parent, _root, worktree) = settled("content-stat-link", &|_root: &Path| {});
@@ -351,8 +381,12 @@ fn the_stat_only_proof_does_not_follow_a_link_in_a_parent() {
     remove(parent.as_path());
 }
 
-/// A tree chosen as the source of attributes (`GIT_ATTR_SOURCE`, `attr.tree`, the command line) is not the worktree files the
-///  judge reads, so the content shortcut is refused; an entry the stat data vouches for is unaffected.
+/// A tree chosen as the source of attributes (`GIT_ATTR_SOURCE`,
+/// `attr.tree`,
+/// the command line) is not the worktree files the
+///  judge reads,
+/// so the content shortcut is refused;
+/// an entry the stat data vouches for is unaffected.
 #[test]
 fn an_alternate_attribute_source_refuses_the_content_shortcut() {
     let (parent, root, worktree) = settled("content-source", &|root: &Path| { std::fs::write(root.join("target"), b"$Id: old $\n").expect("target"); });
@@ -368,7 +402,8 @@ fn an_alternate_attribute_source_refuses_the_content_shortcut() {
     remove(parent.as_path());
 }
 
-/// The environment of a process names an attribute source when `GIT_ATTR_SOURCE` is there, whatever its value.
+/// The environment of a process names an attribute source when `GIT_ATTR_SOURCE` is there,
+/// whatever its value.
 #[test]
 fn the_process_environment_names_an_attribute_source() {
     let with = |value: &str| -> Vec<(OsString, OsString)> { return vec![(OsString::from("GIT_ATTR_SOURCE"), OsString::from(value))]; };

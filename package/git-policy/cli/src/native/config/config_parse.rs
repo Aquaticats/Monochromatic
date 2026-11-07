@@ -107,7 +107,8 @@ fn unknown_top_level_key(key: &str) -> ConfigError {
 ///  an object whose only
 ///       accepted key may be omitted to keep the default.
 ///  All three are retired:
-///       the value is checked and recorded as present, and nothing reads it afterwards.
+///       the value is checked and recorded as present,
+/// and nothing reads it afterwards.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

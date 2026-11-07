@@ -1,12 +1,22 @@
 //! What:
-//!  Narrow an upload plan from "scan these refs with `git-lfs`" to the exact objects the push introduces, decided in
-//!  process, or to nothing.
+//!  Narrow an upload plan from "scan these refs with `git-lfs`" to the exact objects the push introduces,
+//! decided in
+//!  process,
+//! or to nothing.
 //! Why:
-//!  Most pushes add no LFS object, and then no `git-lfs` process and no request to the LFS server is needed. The tips come
-//!  from the plan's refs; the commits already known to the destination are the remote's tracking refs when the plan
-//!  trusts them, else none (the whole history of the pushed refs is scanned, which keeps the case where the tracking
-//!  refs may not describe the destination correct). When the readers decline, or an object the scan found is missing
-//!  from `.git/lfs` (where `git-lfs push` words the failure and honours `lfs.allowincompletepush`), the plan stays as it
+//!  Most pushes add no LFS object,
+//! and then no `git-lfs` process and no request to the LFS server is needed.
+//! The tips come
+//!  from the plan's refs;
+//! the commits already known to the destination are the remote's tracking refs when the plan
+//!  trusts them,
+//! else none (the whole history of the pushed refs is scanned,
+//! which keeps the case where the tracking
+//!  refs may not describe the destination correct).
+//! When the readers decline,
+//! or an object the scan found is missing
+//!  from `.git/lfs` (where `git-lfs push` words the failure and honours `lfs.allowincompletepush`),
+//! the plan stays as it
 //!  was and `git-lfs` scans.
 //!
 //! In TS you'd write (pseudocode):
@@ -18,10 +28,13 @@ use crate::lfs_upload_plan::UploadPlan;
 use crate::repo_read_layout::RepoLayout;
 
 /// What:
-///  The plan to run: the same plan when the readers decline, the plan with its objects named when the scan found some,
+///  The plan to run:
+/// the same plan when the readers decline,
+/// the plan with its objects named when the scan found some,
 ///  nothing when it found none.
 /// Why:
-///   See the module text. Non-Unix hosts have no readers and keep the plan.
+///   See the module text.
+/// Non-Unix hosts have no readers and keep the plan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -63,12 +76,18 @@ mod unix {
     /// How many tag objects are followed to a commit.
     const PEEL_LIMIT: usize = 5;
 
-    /// Whether one byte is the line feed that ends the first line of a tag object. `&u8` borrows the byte, as `split` hands it over.
+    /// Whether one byte is the line feed that ends the first line of a tag object.
+    /// `&u8` borrows the byte,
+    /// as `split` hands it over.
     fn is_line_feed_byte(byte: &u8) -> bool {
         return *byte == b'\n';
     }
 
-    /// Whether a typed ref name is made only of slash-separated, non-empty parts of letters, digits, dots, underscores and hyphens.
+    /// Whether a typed ref name is made only of slash-separated,
+    /// non-empty parts of letters,
+    /// digits,
+    /// dots,
+    /// underscores and hyphens.
     fn is_plain_typed_name(typed: &str) -> bool {
         if typed.is_empty() {
             return false;
@@ -86,7 +105,9 @@ mod unix {
         return true;
     }
 
-    /// The commit a name stands for, through annotated tags; `None` for anything else.
+    /// The commit a name stands for,
+    /// through annotated tags;
+    /// `None` for anything else.
     fn peel(database: &ObjectDatabase, layout: &RepoLayout, hex: &str) -> Option<Vec<u8>> {
         let mut name: Vec<u8> = from_hex(hex.as_bytes(), layout.object_format)?;
         for _ in 0..PEEL_LIMIT {
@@ -103,7 +124,11 @@ mod unix {
         return None;
     }
 
-    /// The hexadecimal name a typed ref (`main`, `refs/tags/v1`, `HEAD`, a full object name) stands for, by Git's order.
+    /// The hexadecimal name a typed ref (`main`,
+    /// `refs/tags/v1`,
+    /// `HEAD`,
+    /// a full object name) stands for,
+    /// by Git's order.
     fn tip_of(database: &ObjectDatabase, layout: &RepoLayout, refs: &Refs, typed: &str) -> Option<String> {
         if typed == "HEAD" {
             return match refs.lookup_head(layout.git_dir.as_path())? {
@@ -139,7 +164,8 @@ mod unix {
         return None;
     }
 
-    /// The names of the LFS objects the plan's push introduces; `None` when the readers decline.
+    /// The names of the LFS objects the plan's push introduces;
+    /// `None` when the readers decline.
     pub(super) fn scan(plan: &UploadPlan, layout: &RepoLayout) -> Option<Vec<String>> {
         let database: ObjectDatabase = ObjectDatabase::open(layout.common_dir.as_path(), None, layout.object_format)?;
         let refs: Refs = Refs::new(layout.common_dir.as_path(), layout.object_format.hex_length());

@@ -1,9 +1,13 @@
 //! What:
-//!  Which repository the service commands (`monochromatic-git-policy-cli service ...`) mean: the global options name it, or Git is asked for
+//!  Which repository the service commands (`monochromatic-git-policy-cli service ...`) mean:
+//! the global options name it,
+//! or Git is asked for
 //!  the Git directory of the current directory.
 //! Why:
-//!  `management.rs` plans the service commands; the question of which repository is asked of Git and answered as a
-//!  `Selection`, in a file it uses.
+//!  `management.rs` plans the service commands;
+//! the question of which repository is asked of Git and answered as a
+//!  `Selection`,
+//! in a file it uses.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

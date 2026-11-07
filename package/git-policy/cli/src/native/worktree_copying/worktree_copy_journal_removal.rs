@@ -1,8 +1,10 @@
 //! What:
 //!  The removal of a finished or abandoned copy transaction's stage and journal.
 //! Why:
-//!  A stage can hold directories whose modes forbid their own removal and very many files, so the removal makes the stage
-//!  owner-accessible first and removes large subtrees side by side; the journal goes only after the stage is gone.
+//!  A stage can hold directories whose modes forbid their own removal and very many files,
+//! so the removal makes the stage
+//!  owner-accessible first and removes large subtrees side by side;
+//! the journal goes only after the stage is gone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +23,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  Makes every directory of a stage owner-accessible before its entries are deleted.
 /// Why:
-///   An installed directory can carry a mode that forbids its own removal; only the stage's own directories are changed.
+///   An installed directory can carry a mode that forbids its own removal;
+/// only the stage's own directories are changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,9 +61,11 @@ pub fn prepare_stage_removal(stage_container: &Path) -> Result<(), WorktreeCopyE
 }
 
 /// What:
-///  Removes a stage container with everything in it, whatever modes the installed directories carry.
+///  Removes a stage container with everything in it,
+/// whatever modes the installed directories carry.
 /// Why:
-///   Completed transactions and abandoned stages are removed the same way, and an absent stage is already removed.
+///   Completed transactions and abandoned stages are removed the same way,
+/// and an absent stage is already removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,9 +82,14 @@ pub fn remove_stage(stage_container: &Path) -> Result<(), WorktreeCopyError> {
 }
 
 /// What:
-///  Removes one completed transaction: its stage, its unfinished temporaries, and its journal.
+///  Removes one completed transaction:
+/// its stage,
+/// its unfinished temporaries,
+/// and its journal.
 /// Why:
-///   A complete phase is written first, so an interruption during cleanup resumes as cleanup, not as installation.
+///   A complete phase is written first,
+/// so an interruption during cleanup resumes as cleanup,
+/// not as installation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,12 +115,32 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
 /// What:
 ///  How many directory levels below a removed stage are emptied by one thread before the rest is split among workers.
 /// Why:
-///   A stage holds a few very large trees (`node_modules`, `target`); three levels below the payload give enough
+///   A stage holds a few very large trees (`node_modules`,
+/// `target`);
+/// three levels below the payload give enough
 ///  independent subtrees to share without walking the whole stage on one thread first.
 ///  Measured with `remove_tree_split` itself at depths 1 to 6 on reflinked copies of a tree of 22,717 entries of this repository
-///  (2026-11-03, five runs each in alternating orders, other sessions running, a debug build): medians 365, 281, 304, 325, 437 and
-///  512 ms; depths 2 and 3 overlap (251 to 305 ms and 253 to 309 ms), and depths 1, 4, 5 and 6 were slower. Kept at 3 as the coordinator's pick under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A). The tree has no `node_modules` or `target`, so a stage with a few very large subtrees was not measured.
+///  (2026-11-03,
+/// five runs each in alternating orders,
+/// other sessions running,
+/// a debug build):
+/// medians 365,
+/// 281,
+/// 304,
+/// 325,
+/// 437 and
+///  512 ms;
+/// depths 2 and 3 overlap (251 to 305 ms and 253 to 309 ms),
+/// and depths 1,
+/// 4,
+/// 5 and 6 were slower.
+/// Kept at 3 as the coordinator's pick under the owner's delegation,
+/// open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Picked for these follow-ups",
+/// option A).
+/// The tree has no `node_modules` or `target`,
+/// so a stage with a few very large subtrees was not measured.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,9 +149,12 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
 const REMOVAL_SPLIT_DEPTH: usize = 3;
 
 /// What:
-///  One removal worker: take the next subtree from the shared cursor and remove it, until none is left or a removal fails.
+///  One removal worker:
+/// take the next subtree from the shared cursor and remove it,
+/// until none is left or a removal fails.
 /// Why:
-///   Workers share only the cursor, so each subtree has exactly one owner and no lock is taken.
+///   Workers share only the cursor,
+/// so each subtree has exactly one owner and no lock is taken.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -138,11 +171,15 @@ fn remove_subtrees_until_none_is_left((cursor, subtrees): (&std::sync::atomic::A
 }
 
 /// What:
-///  Removes a directory tree, sharing the subtrees below a split depth among a bounded set of threads.
+///  Removes a directory tree,
+/// sharing the subtrees below a split depth among a bounded set of threads.
 /// Why:
 ///   Unlinking a staged copy entry by entry took longer than staging it on a tree of hundreds of thousands of entries;
-///  the unlinks are independent, and the thread count follows the host's budget (the CPUs the process may use less a margin, and the free
-///  memory), capped at eight.
+///  the unlinks are independent,
+/// and the thread count follows the host's budget (the CPUs the process may use less a margin,
+/// and the free
+///  memory),
+/// capped at eight.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -193,10 +230,13 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
 }
 
 /// What:
-///  Removes a tree if it exists, sharing its subtrees among threads.
+///  Removes a tree if it exists,
+/// sharing its subtrees among threads.
 /// Why:
-///   An absent tree is the normal answer for a retried removal; a failed split removal falls back to the plain recursive
-///  removal, which reports what remains.
+///   An absent tree is the normal answer for a retried removal;
+/// a failed split removal falls back to the plain recursive
+///  removal,
+/// which reports what remains.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -217,7 +257,8 @@ pub fn remove_tree_if_present(path: &Path) -> Result<(), WorktreeCopyError> {
 }
 
 /// What:
-///  Removes one file, treating an absent file as removed.
+///  Removes one file,
+/// treating an absent file as removed.
 /// Why:
 ///   The same retry reasoning as for trees.
 ///
@@ -237,7 +278,8 @@ pub fn remove_file_if_present(path: &Path) -> Result<(), WorktreeCopyError> {
 /// What:
 ///  Removes the temporary writes an interrupted write of one journal left beside it.
 /// Why:
-///   Only temporaries named after this journal are removed, so another journal's write is never touched.
+///   Only temporaries named after this journal are removed,
+/// so another journal's write is never touched.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

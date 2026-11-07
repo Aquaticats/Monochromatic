@@ -1,11 +1,22 @@
 //! What:
 //!  The stand-in platform and the fixture checkouts of the subvolume migration controls.
 //! Why:
-//!  The migration's journal, resume, rollback, refusal and index logic does not need btrfs, only the five operations
-//!  of `Platform` do. The stand-in answers them on a plain directory tree: a "subvolume" is a directory registered by
-//!  its device and inode (an identity that survives the exchange and a rename, as a real subvolume root's does), file
-//!  clones are refused so the byte-copy path runs, and the exchange is the real `renameat2`. These controls therefore
-//!  run on the container gate's overlay too. The controls that need the real ioctls use `btrfs_fixture`.
+//!  The migration's journal,
+//! resume,
+//! rollback,
+//! refusal and index logic does not need btrfs,
+//! only the five operations
+//!  of `Platform` do.
+//! The stand-in answers them on a plain directory tree:
+//! a "subvolume" is a directory registered by
+//!  its device and inode (an identity that survives the exchange and a rename,
+//! as a real subvolume root's does),
+//! file
+//!  clones are refused so the byte-copy path runs,
+//! and the exchange is the real `renameat2`.
+//! These controls therefore
+//!  run on the container gate's overlay too.
+//! The controls that need the real ioctls use `btrfs_fixture`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,8 +41,11 @@ use std::sync::Mutex;
 /// What:
 ///  A platform on plain directories.
 /// Why:
-///   See the module description. `kind` and `free` let a control make the filesystem look unsuitable; `removal`
-///  decides what `removal_allowed` answers and whether `destroy_subvolume` works; `real_clone` forwards clones to the
+///   See the module description.
+/// `kind` and `free` let a control make the filesystem look unsuitable;
+/// `removal`
+///  decides what `removal_allowed` answers and whether `destroy_subvolume` works;
+/// `real_clone` forwards clones to the
 ///  kernel (true on a reflink filesystem only).
 ///
 /// In TS you'd write (pseudocode):
@@ -43,7 +57,8 @@ pub(crate) struct PlainPlatform {
     pub subvolumes: Mutex<HashSet<(u64, u64)>>,
     /// What `filesystem_facts` reports as the kind.
     pub kind: FilesystemKind,
-    /// What `filesystem_facts` reports as free bytes; `None` asks the real filesystem.
+    /// What `filesystem_facts` reports as free bytes;
+    /// `None` asks the real filesystem.
     pub free: Option<u64>,
     /// Whether subvolume destroy by the kernel call is allowed.
     pub removal: bool,
@@ -54,7 +69,8 @@ pub(crate) struct PlainPlatform {
 }
 
 impl PlainPlatform {
-    /// A platform that looks like btrfs with plenty of room, with removal allowed and clones refused.
+    /// A platform that looks like btrfs with plenty of room,
+    /// with removal allowed and clones refused.
     pub(crate) fn new() -> PlainPlatform {
         return PlainPlatform {
             subvolumes: Mutex::new(HashSet::new()),
@@ -136,11 +152,13 @@ impl Platform for PlainPlatform {
     }
 }
 
-/// A platform that runs a hook before every clone and can make every hard link fail with `EXDEV`, as links between two
+/// A platform that runs a hook before every clone and can make every hard link fail with `EXDEV`,
+/// as links between two
 ///  subvolumes do.
 pub(crate) struct Hooked {
     pub inner: PlainPlatform,
-    /// Called with the number of earlier clone calls, before the clone is refused.
+    /// Called with the number of earlier clone calls,
+    /// before the clone is refused.
     pub on_clone: Box<dyn Fn(u32)>,
     /// How many clone calls were made.
     pub calls: std::cell::Cell<u32>,
@@ -194,10 +212,15 @@ impl Hooked {
 }
 
 /// What:
-///  Set the modification time of every file and link of a tree, except `.git`, to a quarter of an hour ago.
+///  Set the modification time of every file and link of a tree,
+/// except `.git`,
+/// to a quarter of an hour ago.
 /// Why:
-///   Git trusts the stat fields of an entry only when the file was modified before the index was written. Files made a
-///  moment before `git add` are racy, which the stat rewrite rightly leaves alone; a real checkout's files are old.
+///   Git trusts the stat fields of an entry only when the file was modified before the index was written.
+/// Files made a
+///  moment before `git add` are racy,
+/// which the stat rewrite rightly leaves alone;
+/// a real checkout's files are old.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -225,11 +248,19 @@ pub(crate) fn backdate(root: &Path) {
 }
 
 /// What:
-///  A real Git repository at `parent/name` with tracked files of the shapes the copy must carry: nested directories,
-///  an executable, a symbolic link, an empty file, two names of one file, a read-only directory, and an ignored
-///  directory; committed with real Git so its index is real.
+///  A real Git repository at `parent/name` with tracked files of the shapes the copy must carry:
+/// nested directories,
+///  an executable,
+/// a symbolic link,
+/// an empty file,
+/// two names of one file,
+/// a read-only directory,
+/// and an ignored
+///  directory;
+/// committed with real Git so its index is real.
 /// Why:
-///   Real Git writes the index the stat rewrite must keep valid, and checks the result afterwards.
+///   Real Git writes the index the stat rewrite must keep valid,
+/// and checks the result afterwards.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -284,7 +315,8 @@ pub(crate) fn run_command(platform: &dyn Platform, arguments: &MigrateArguments,
     return (code, lines);
 }
 
-/// A checkout with one linked worktree inside it, as the agents' layout has.
+/// A checkout with one linked worktree inside it,
+/// as the agents' layout has.
 pub(crate) fn checkout_with_worktree(name: &str) -> (PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let root: PathBuf = make_checkout(parent.as_path(), "checkout");

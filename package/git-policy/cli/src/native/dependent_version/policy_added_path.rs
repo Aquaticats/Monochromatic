@@ -1,10 +1,19 @@
-//! What: Whether a direct fix may change a tracked file it did not select, and the
+//! What:
+//! Whether a direct fix may change a tracked file it did not select,
+//! and the
 //!       `patch-conflict` message when it may not.
-//! Why: `SPEC.md` ("Added paths") admits such a file only when `HEAD`, the real index, the
+//! Why:
+//! `SPEC.md` ("Added paths") admits such a file only when `HEAD`,
+//! the real index,
+//! the
 //!      private index and the worktree all hold the blob the correction was computed
-//!      against, so the fix discards nobody's change. The reasons and the remedy are the
-//!      installed wrapper's words (`commit-transaction-added-paths.ts`, `assertAddablePath`
-//!      and its direct-fix message), checked in its order.
+//!      against,
+//! so the fix discards nobody's change.
+//! The reasons and the remedy are the
+//!      installed wrapper's words (`commit-transaction-added-paths.ts`,
+//! `assertAddablePath`
+//!      and its direct-fix message),
+//! checked in its order.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,8 +38,12 @@ pub const ADDED_PATH_MISSING_REASON: &str = "its worktree copy is missing";
 /// The reason the worktree copy differs from `HEAD`.
 pub const ADDED_PATH_UNSTAGED_REASON: &str = "its worktree copy has unstaged changes";
 
-/// What: An index or tree entry: its mode and object.
-/// Why:  Entries are compared field by field, as the installed wrapper compares mode text
+/// What:
+/// An index or tree entry:
+/// its mode and object.
+/// Why:
+///  Entries are compared field by field,
+/// as the installed wrapper compares mode text
 ///       and object names.
 ///
 /// In TS you'd write (pseudocode):
@@ -39,8 +52,12 @@ pub const ADDED_PATH_UNSTAGED_REASON: &str = "its worktree copy has unstaged cha
 /// ```
 pub type Entry = (CandidateMode, ObjectId);
 
-/// What: The direct-fix `patch-conflict` message for a file and a reason.
-/// Why:  It names both ways out: select the file, or restore it to `HEAD`.
+/// What:
+/// The direct-fix `patch-conflict` message for a file and a reason.
+/// Why:
+///  It names both ways out:
+/// select the file,
+/// or restore it to `HEAD`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,8 +72,10 @@ pub fn added_path_message(path: &str, reason: &str) -> String {
     );
 }
 
-/// What: Whether a mode is an ordinary file.
-/// Why:  Only regular and executable files take a full-content correction.
+/// What:
+/// Whether a mode is an ordinary file.
+/// Why:
+///  Only regular and executable files take a full-content correction.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -66,11 +85,19 @@ fn is_ordinary(mode: CandidateMode) -> bool {
     return mode == CandidateMode::Regular || mode == CandidateMode::Executable;
 }
 
-/// What: `HEAD`'s mode for the file, or why `HEAD` and the index rule it out. `index` is
-///       the private index's entry, whose object the correction was computed against; for
+/// What:
+/// `HEAD`'s mode for the file,
+/// or why `HEAD` and the index rule it out.
+/// `index` is
+///       the private index's entry,
+/// whose object the correction was computed against;
+/// for
 ///       a file the fix did not select it equals the real index's entry.
-/// Why:  `HEAD` must hold the same object as an ordinary file; the index must then hold it
-///       with `HEAD`'s mode. The mode is what the worktree copy is checked against next.
+/// Why:
+///  `HEAD` must hold the same object as an ordinary file;
+/// the index must then hold it
+///       with `HEAD`'s mode.
+/// The mode is what the worktree copy is checked against next.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,8 +116,12 @@ pub fn head_mode(head: Option<&Entry>, index: &Entry) -> Result<CandidateMode, &
     return Ok(*mode);
 }
 
-/// What: Whether the file's executable bit matches `mode`. On systems without one, it does.
-/// Why:  A worktree copy whose bit differs from `HEAD` has an unstaged mode change.
+/// What:
+/// Whether the file's executable bit matches `mode`.
+/// On systems without one,
+/// it does.
+/// Why:
+///  A worktree copy whose bit differs from `HEAD` has an unstaged mode change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -111,9 +142,15 @@ fn executable_matches(metadata: &std::fs::Metadata, mode: CandidateMode) -> bool
     }
 }
 
-/// What: Why the worktree copy rules out the file, if it does. `Err` is a read the system
+/// What:
+/// Why the worktree copy rules out the file,
+/// if it does.
+/// `Err` is a read the system
 ///       refused for another reason than the file being absent.
-/// Why:  The copy must be a plain file, not a link, with `HEAD`'s executable bit and bytes.
+/// Why:
+///  The copy must be a plain file,
+/// not a link,
+/// with `HEAD`'s executable bit and bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,4 +1,5 @@
-//! Controls for the new-side span derivation, each one a differential against real Git's `diff -U0` for the same file:
+//! Controls for the new-side span derivation,
+//! each one a differential against real Git's `diff -U0` for the same file:
 //! the relation under test is that the three-line-context patch yields the spans a zero-context diff's new-side headers
 //! name.
 
@@ -6,7 +7,8 @@ use super::*;
 use crate::test_support::{fixture, git, git_text, remove, repository};
 use std::path::{Path, PathBuf};
 
-/// Lines in the fixture file; large enough that every edit below sits apart from the others.
+/// Lines in the fixture file;
+/// large enough that every edit below sits apart from the others.
 const FILE_LINES: usize = 120;
 
 /// The numbered lines of the fixture file.
@@ -14,8 +16,11 @@ fn numbered(count: usize) -> String {
     return (1..=count).map(|number| return format!("line {number}\n")).collect::<String>();
 }
 
-/// The spans a zero-context diff's new-side headers name: `+c,d` is lines `c` to `c + d - 1`, and `+c,0` is the line
-/// after `c`, where the removed lines stood.
+/// The spans a zero-context diff's new-side headers name:
+/// `+c,d` is lines `c` to `c + d - 1`,
+/// and `+c,0` is the line
+/// after `c`,
+/// where the removed lines stood.
 fn headers_spans(zero_context_diff: &str) -> Vec<NewSpan> {
     let mut spans: Vec<NewSpan> = Vec::new();
     for line in zero_context_diff.split('\n') {
@@ -53,7 +58,10 @@ fn both_sides(root: &Path, name: &str) -> (Vec<NewSpan>, Vec<NewSpan>) {
     return (new_spans(patch_lines.as_slice(), name), headers_spans(zero.as_str()));
 }
 
-/// Replacement, insertion, deletion, an edit at the first line and an append all derive the same spans.
+/// Replacement,
+/// insertion,
+/// deletion,
+/// an edit at the first line and an append all derive the same spans.
 #[test]
 fn edits_derive_the_zero_context_spans() {
     let before: String = numbered(FILE_LINES);
@@ -115,7 +123,8 @@ fn a_new_file_is_one_span_over_all_lines() {
     remove(parent.as_path());
 }
 
-/// A rename with an edit is read under its new name, with the spans a rename-detecting zero-context diff shows.
+/// A rename with an edit is read under its new name,
+/// with the spans a rename-detecting zero-context diff shows.
 #[test]
 fn a_rename_is_read_under_its_new_name() {
     let before: String = numbered(FILE_LINES);
@@ -139,7 +148,8 @@ fn a_rename_is_read_under_its_new_name() {
     remove(parent.as_path());
 }
 
-/// An insertion early in a file moves every later span down with it, which the old-side reading missed.
+/// An insertion early in a file moves every later span down with it,
+/// which the old-side reading missed.
 #[test]
 fn spans_after_an_insertion_are_in_new_file_lines() {
     let before: String = numbered(FILE_LINES);
@@ -158,7 +168,9 @@ fn spans_after_an_insertion_are_in_new_file_lines() {
     remove(parent.as_path());
 }
 
-/// A path the patch does not mention, and a mode-only change, have no spans.
+/// A path the patch does not mention,
+/// and a mode-only change,
+/// have no spans.
 #[test]
 fn absent_paths_and_hunkless_sections_have_no_spans() {
     let before: String = numbered(FILE_LINES);

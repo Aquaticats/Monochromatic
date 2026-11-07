@@ -1,8 +1,13 @@
 //! What:
-//!  Runs a forwarded Git command under the index-writer coordination, finishes a settled forward, and writes to the
-//!  standard streams, with the tip watch that hands a push over after a command that adds commits.
+//!  Runs a forwarded Git command under the index-writer coordination,
+//! finishes a settled forward,
+//! and writes to the
+//!  standard streams,
+//! with the tip watch that hands a push over after a command that adds commits.
 //! Why:
-//!  `entry.rs` performs the action it planned; these are the steps of the coordinated and settled kinds, kept in a file
+//!  `entry.rs` performs the action it planned;
+//! these are the steps of the coordinated and settled kinds,
+//! kept in a file
 //!  that does not use `entry.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -25,9 +30,11 @@ use std::io::Write;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
 use std::path::PathBuf;
 /// What:
-///  The exit code of a forwarded run, after printing the text of a run that failed.
+///  The exit code of a forwarded run,
+/// after printing the text of a run that failed.
 /// Why:
-///   A settled run keeps the wrapper alive around Git, so the exit code returns here instead of replacing the process.
+///   A settled run keeps the wrapper alive around Git,
+/// so the exit code returns here instead of replacing the process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -101,25 +108,34 @@ pub(crate) fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
     return code;
 }
 
-/// Without file system readers for this platform, no push is handed over after a command that adds commits.
+/// Without file system readers for this platform,
+/// no push is handed over after a command that adds commits.
 #[cfg(not(unix))]
 struct TipWatch;
 
-/// Without file system readers for this platform, no branch is watched.
+/// Without file system readers for this platform,
+/// no branch is watched.
 #[cfg(not(unix))]
 fn watch_forward(_forward: &CoordinatedForward) -> Option<TipWatch> {
     return None;
 }
 
-/// Without file system readers for this platform, nothing is handed over.
+/// Without file system readers for this platform,
+/// nothing is handed over.
 #[cfg(not(unix))]
 fn hand_over_if_ahead(_watch: &TipWatch, _command: &str, _stderr: &mut dyn Write) {}
 
 /// What:
-///  Whether a resolved command adds commits to the branch that the owner wants pushed like a commit: a merge, a pull, a
-///  cherry-pick, a revert or an applied patch.
+///  Whether a resolved command adds commits to the branch that the owner wants pushed like a commit:
+/// a merge,
+/// a pull,
+/// a
+///  cherry-pick,
+/// a revert or an applied patch.
 /// Why:
-///   A rebase is left out, because a rebased branch would need a forced push; the tip check then also leaves out the
+///   A rebase is left out,
+/// because a rebased branch would need a forced push;
+/// the tip check then also leaves out the
 ///  rebase a pull runs.
 ///
 /// In TS you'd write (pseudocode):
@@ -140,7 +156,8 @@ fn trigger_command(command: &ResolvedCommand) -> String {
     return String::from_utf8_lossy(command.word()).into_owned();
 }
 
-/// The branch watch of a coordinated forward, started in the worktree the command runs in.
+/// The branch watch of a coordinated forward,
+/// started in the worktree the command runs in.
 /// A watch that cannot start leaves a record naming the step,
 /// in the common Git directory the wrapper already resolved.
 ///

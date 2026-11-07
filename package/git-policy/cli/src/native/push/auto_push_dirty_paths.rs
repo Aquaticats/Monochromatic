@@ -1,9 +1,14 @@
 //! What:
-//!  The paths a dirty worktree has uncommitted work in, the paths a fast-forward would change, and the overlap
+//!  The paths a dirty worktree has uncommitted work in,
+//! the paths a fast-forward would change,
+//! and the overlap
 //!  between them.
 //! Why:
-//!  After an auto-push publishes a merge, local `main` can follow it even in a worktree that holds uncommitted
-//!  work, provided the move changes none of the files that work touches. Another session's staged renames then
+//!  After an auto-push publishes a merge,
+//! local `main` can follow it even in a worktree that holds uncommitted
+//!  work,
+//! provided the move changes none of the files that work touches.
+//! Another session's staged renames then
 //!  never keep this branch behind the remote.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,11 +17,15 @@
 //! ```
 
 /// What:
-///  The paths named by `git status --porcelain=v1 -z`: each entry's path, and the original path of a rename or
+///  The paths named by `git status --porcelain=v1 -z`:
+/// each entry's path,
+/// and the original path of a rename or
 ///  copy.
-///  `&[u8]` borrows Git's output; `Vec<Vec<u8>>` is an owned list of byte paths.
+///  `&[u8]` borrows Git's output;
+/// `Vec<Vec<u8>>` is an owned list of byte paths.
 /// Why:
-///   A staged rename touches both its names, and a move that changes either one would overwrite the work.
+///   A staged rename touches both its names,
+/// and a move that changes either one would overwrite the work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -62,7 +71,8 @@ fn is_nul(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// The fields of NUL-separated output, leaving out the empty ones.
+/// The fields of NUL-separated output,
+/// leaving out the empty ones.
 fn non_empty_fields(output: &[u8]) -> Vec<&[u8]> {
     let mut fields: Vec<&[u8]> = Vec::new();
     for field in output.split(is_nul) {
@@ -74,7 +84,8 @@ fn non_empty_fields(output: &[u8]) -> Vec<&[u8]> {
 }
 
 /// What:
-///  The dirty paths a move would also change, without repeats.
+///  The dirty paths a move would also change,
+/// without repeats.
 /// Why:
 ///   Exactly these paths decide whether the move may run.
 ///
@@ -93,15 +104,26 @@ pub fn overlapping_paths(dirty: &[Vec<u8>], incoming: &[Vec<u8>]) -> Vec<Vec<u8>
 }
 
 /// The most paths a report names before it counts the rest.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 const LISTED_LIMIT: usize = 5;
 
 /// What:
-///  The overlapping paths as text for the report: the first few by name, then a count.
+///  The overlapping paths as text for the report:
+/// the first few by name,
+/// then a count.
 /// Why:
-///   The person must see which files held the branch back, and a report is not a place for a hundred names.
+///   The person must see which files held the branch back,
+/// and a report is not a place for a hundred names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -118,7 +140,10 @@ pub fn listed(paths: &[Vec<u8>]) -> String {
     return names.join(", ");
 }
 
-/// Status entries, renames, copies, the overlap and the report text.
+/// Status entries,
+/// renames,
+/// copies,
+/// the overlap and the report text.
 #[cfg(test)]
 #[path = "auto_push_dirty_paths_tests.rs"]
 mod tests;

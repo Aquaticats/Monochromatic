@@ -1,8 +1,14 @@
 //! What:
-//!  The smaller steps of a service preparation: the changes a commit makes, whether the configuration needs native Git, the
-//!  pathspec file the private index reads, and the ending of a commit whose corrections removed every change.
+//!  The smaller steps of a service preparation:
+//! the changes a commit makes,
+//! whether the configuration needs native Git,
+//! the
+//!  pathspec file the private index reads,
+//! and the ending of a commit whose corrections removed every change.
 //! Why:
-//!  `service_prepare.rs` holds the preparation itself; these depend on nothing in it, so they are a file it uses.
+//!  `service_prepare.rs` holds the preparation itself;
+//! these depend on nothing in it,
+//! so they are a file it uses.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,12 +33,17 @@ use crate::worktree_completion::install_added_worktree_files;
 use std::path::{Path, PathBuf};
 use crate::service_prepare_ready_shapes::Prepared;
 
-/// The all-zero object name of the repository's hash length, standing for a branch that does not exist yet.
+/// The all-zero object name of the repository's hash length,
+/// standing for a branch that does not exist yet.
 pub fn zero_object(empty_tree: &str) -> String {
     return "0".repeat(empty_tree.len());
 }
 
-/// The changes between the base and the private index: path, mode and object, deletions as no object. Nothing when the
+/// The changes between the base and the private index:
+/// path,
+/// mode and object,
+/// deletions as no object.
+/// Nothing when the
 ///  embedded route cannot carry them.
 pub fn changes_of(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base: &str) -> Result<Option<Vec<Change>>, TransactionStop> {
     let arguments: Vec<String> = ["diff-index", "--cached", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", base].map(String::from).to_vec();
@@ -66,7 +77,8 @@ pub fn changes_of(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, ba
 /// What:
 ///  Whether a field of `git diff-index -z` output is not empty.
 /// Why:
-///  The output ends in a NUL, so splitting at NUL leaves an empty field at the end that is no field.
+///  The output ends in a NUL,
+/// so splitting at NUL leaves an empty field at the end that is no field.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,8 +88,12 @@ pub(crate) fn is_not_empty_field(field: &&str) -> bool {
     return !field.is_empty();
 }
 
-/// Whether the repository's configuration makes native `git commit` do something the service does not: sign, apply a
-///  template or a clean-up mode, use another message encoding or another comment character, or change trailers.
+/// Whether the repository's configuration makes native `git commit` do something the service does not:
+/// sign,
+/// apply a
+///  template or a clean-up mode,
+/// use another message encoding or another comment character,
+/// or change trailers.
 pub fn config_needs_native(snapshot: Option<&ConfigSnapshot>) -> bool {
     const KEYS: [&str; 7] = ["commit.template", "commit.cleanup", "i18n.commitencoding", "core.commentchar", "core.commentstring", "commit.signoff", "commit.verbose"];
     let Some(found) = snapshot else { return true };
@@ -95,10 +111,15 @@ pub fn config_needs_native(snapshot: Option<&ConfigSnapshot>) -> bool {
 }
 
 /// What:
-///  The pathspec file the private index reads, for a source named on the command line.
+///  The pathspec file the private index reads,
+/// for a source named on the command line.
 /// Why:
-///   A regular file is read where it is named; standard input was read once, before the first preparation, and is written
-///  into each preparation's scratch directory, because a second read would see nothing.
+///   A regular file is read where it is named;
+/// standard input was read once,
+/// before the first preparation,
+/// and is written
+///  into each preparation's scratch directory,
+/// because a second read would see nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,8 +136,10 @@ pub(crate) fn pathspec_file_for(scratch: &Path, cwd: &Path, source: Option<&str>
     return Ok(Some(snapshot));
 }
 
-/// The ending of a commit whose corrections removed every change: the index entries and the worktree copies of the
-///  corrected files are reconciled with the base, and the command says so and exits 1.
+/// The ending of a commit whose corrections removed every change:
+/// the index entries and the worktree copies of the
+///  corrected files are reconciled with the base,
+/// and the command says so and exits 1.
 pub(crate) fn normalized(
     invocation: &CommitInvocation<'_>,
     capture: &InvocationCapture,

@@ -1,11 +1,14 @@
-//! Rollback checks on real filesystem trees: only proven paths go, everything else is named and kept.
+//! Rollback checks on real filesystem trees:
+//! only proven paths go,
+//! everything else is named and kept.
 
 use super::*;
 use crate::test_support::{fixture, remove};
 use crate::worktree_copy_install_entry::capture_installed_path;
 use std::path::PathBuf;
 
-/// A stage holding one file, plus the entries and the destination the rollback works against.
+/// A stage holding one file,
+/// plus the entries and the destination the rollback works against.
 fn staged_file(root: &Path) -> (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) {
     let stage: PathBuf = root.join("stage");
     let destination: PathBuf = root.join("destination");
@@ -27,7 +30,8 @@ fn staged_file(root: &Path) -> (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) {
     return (stage, destination, entries);
 }
 
-/// A selected file installed as a hard link is removed, and so is its selected parent directory once empty.
+/// A selected file installed as a hard link is removed,
+/// and so is its selected parent directory once empty.
 #[cfg(unix)]
 #[test]
 fn proven_paths_are_removed_child_first() {
@@ -101,7 +105,8 @@ fn replaced_path_is_retained_as_changed() {
     remove(root.as_path());
 }
 
-/// A file whose bytes changed in place keeps its identity but no longer equals the stage, so it is kept by its path name.
+/// A file whose bytes changed in place keeps its identity but no longer equals the stage,
+/// so it is kept by its path name.
 #[cfg(unix)]
 #[test]
 fn edited_file_is_retained_by_path() {
@@ -129,7 +134,8 @@ fn edited_file_is_retained_by_path() {
     remove(root.as_path());
 }
 
-/// A scaffolding directory that gained a user file is kept, and the diagnostic carries the operating-system reason.
+/// A scaffolding directory that gained a user file is kept,
+/// and the diagnostic carries the operating-system reason.
 #[cfg(unix)]
 #[test]
 fn non_empty_scaffold_is_retained_with_reason() {

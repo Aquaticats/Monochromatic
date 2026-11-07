@@ -54,8 +54,11 @@ fn wait_until_exited(process: u32) {
     panic!("the stand-in did not exit within the bound");
 }
 
-/// A process that reads a request and never answers is announced while the reader waits, stopped at the bound, and the
-///  reader reports the bound and closes, so no later request waits on a dead stream.
+/// A process that reads a request and never answers is announced while the reader waits,
+/// stopped at the bound,
+/// and the
+///  reader reports the bound and closes,
+/// so no later request waits on a dead stream.
 #[test]
 fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
     let root: PathBuf = fixture("reader-stalls");

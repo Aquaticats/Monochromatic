@@ -1,12 +1,25 @@
 //! What:
-//!  The twin harness of the landing controls: one repository state made once, copied byte for byte, then the same command
-//!  run by native Git in one copy and by the wrapper through the commit service in the other, and every stored and left-behind
+//!  The twin harness of the landing controls:
+//! one repository state made once,
+//! copied byte for byte,
+//! then the same command
+//!  run by native Git in one copy and by the wrapper through the commit service in the other,
+//! and every stored and left-behind
 //!  field of the two compared.
 //! Why:
-//!  A byte copy has the same history, and the dates of the new commit are pinned in both runs, so a service that builds the
-//!  same commit as native Git makes the very same object; the fields are compared as well, because a difference is easier to
-//!  read as a field than as a hash. What is left behind (the index entries, the status, the state files of a merge, the
-//!  references, the head) is what the person's next command sees.
+//!  A byte copy has the same history,
+//! and the dates of the new commit are pinned in both runs,
+//! so a service that builds the
+//!  same commit as native Git makes the very same object;
+//! the fields are compared as well,
+//! because a difference is easier to
+//!  read as a field than as a hash.
+//! What is left behind (the index entries,
+//! the status,
+//! the state files of a merge,
+//! the
+//!  references,
+//! the head) is what the person's next command sees.
 
 use super::commit::wrapped_commit;
 use super::service_commit::{Running, runtime_for, start_worktree};
@@ -18,20 +31,26 @@ use std::process::Command;
 /// The date both runs give their commits.
 const PINNED_DATE: &str = "2026-02-03T04:05:06+0000";
 
-/// The state files a merge, a cherry-pick or a revert leaves in the Git directory, which a conclusion removes.
+/// The state files a merge,
+/// a cherry-pick or a revert leaves in the Git directory,
+/// which a conclusion removes.
 const STATE_FILES: [&str; 9] = ["MERGE_HEAD", "MERGE_MSG", "MERGE_MODE", "SQUASH_MSG", "AUTO_MERGE", "CHERRY_PICK_HEAD", "REVERT_HEAD", "MERGE_RR", "ORIG_HEAD"];
 
-/// One command line, the state it starts from, and what to compare.
+/// One command line,
+/// the state it starts from,
+/// and what to compare.
 pub(super) struct Case {
     /// Names the case in a failure.
     pub name: &'static str,
     /// The arguments after `git`.
     pub command: &'static [&'static str],
-    /// Whether the line commits the index, which the wrapper's commit-only rule refuses unless it is told not to enforce.
+    /// Whether the line commits the index,
+    /// which the wrapper's commit-only rule refuses unless it is told not to enforce.
     pub index_commit: bool,
     /// What both commands read on standard input.
     pub input: &'static [u8],
-    /// Whether the whole of the output must agree, not only its first line (Git's own words for a refusal).
+    /// Whether the whole of the output must agree,
+    /// not only its first line (Git's own words for a refusal).
     pub full_output: bool,
 }
 
@@ -53,7 +72,8 @@ fn pinned(command: &mut Command) {
     command.env("GIT_AUTHOR_DATE", PINNED_DATE).env("GIT_COMMITTER_DATE", PINNED_DATE).env("GIT_EDITOR", "true");
 }
 
-/// A byte copy of `repo` beside it, so both copies hold the same objects and the same configuration.
+/// A byte copy of `repo` beside it,
+/// so both copies hold the same objects and the same configuration.
 pub(super) fn copy_beside(fixture: &Fixture, repo: &Path, name: &str) -> PathBuf {
     let copy: PathBuf = fixture.root.join(name);
     let status = Command::new("cp").arg("--archive").arg(repo).arg(&copy).status().expect("cp starts");
@@ -61,13 +81,15 @@ pub(super) fn copy_beside(fixture: &Fixture, repo: &Path, name: &str) -> PathBuf
     return copy;
 }
 
-/// The text of a Git query, whether or not Git succeeded.
+/// The text of a Git query,
+/// whether or not Git succeeded.
 pub(super) fn text_of(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
     let output = direct(fixture).current_dir(repo).args(arguments).output().expect("native Git starts");
     return String::from_utf8_lossy(output.stdout.as_slice()).into_owned() + &String::from_utf8_lossy(output.stderr.as_slice());
 }
 
-/// What the repository holds that a commit decides, as labelled text.
+/// What the repository holds that a commit decides,
+/// as labelled text.
 pub(super) fn left_behind(fixture: &Fixture, repo: &Path) -> Vec<(String, String)> {
     let mut left: Vec<(String, String)> = Vec::new();
     let mut add = |label: &str, value: String| { left.push((label.to_string(), value)); };
@@ -145,8 +167,12 @@ pub(super) fn finished(fixture: &Fixture) -> usize {
     });
 }
 
-/// Runs a case in two byte copies of `base`, which stays as it was, and requires the same outcome, and a landing by the service whenever native
-///  Git committed. Returns the two outcomes.
+/// Runs a case in two byte copies of `base`,
+/// which stays as it was,
+/// and requires the same outcome,
+/// and a landing by the service whenever native
+///  Git committed.
+/// Returns the two outcomes.
 pub(super) fn compare(fixture: &Fixture, base: &Path, name: &str, entry: &Case) -> (Outcome, Outcome) {
     let native_repo: PathBuf = copy_beside(fixture, base, "native");
     let served_repo: PathBuf = copy_beside(fixture, base, "served");

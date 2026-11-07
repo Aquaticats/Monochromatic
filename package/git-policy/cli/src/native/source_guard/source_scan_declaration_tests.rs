@@ -1,13 +1,23 @@
-//! The `mod name;` declarations of one source file, with the attributes that decide where the module's file is and
+//! The `mod name;` declarations of one source file,
+//! with the attributes that decide where the module's file is and
 //! whether the module is compiled for tests only.
-//! The reading is textual and strict: a declaration it cannot place exactly is an error, because a guess here would
+//! The reading is textual and strict:
+//! a declaration it cannot place exactly is an error,
+//! because a guess here would
 //! decide which files a scan treats as release code.
 
 /// What:
-///  `pub(crate) struct Declaration { ... }` is a record type (TS: an object type) with three fields:
-///  `name: String` (owned text; sibling `&str`, a borrowed view, would not outlive the line it was cut from),
-///  `path_attribute: Option<String>` (`Some(text)` when `#[path = "text"]` was written, `None` when not; TS:
-///  `string | undefined`), and `test_only: bool`.
+///  `pub(crate) struct Declaration { ... }` is a record type (TS:
+/// an object type) with three fields:
+///  `name: String` (owned text;
+/// sibling `&str`,
+/// a borrowed view,
+/// would not outlive the line it was cut from),
+///  `path_attribute: Option<String>` (`Some(text)` when `#[path = "text"]` was written,
+/// `None` when not;
+/// TS:
+///  `string | undefined`),
+/// and `test_only: bool`.
 /// Why:
 ///  The module tree resolver needs exactly these three facts per declaration.
 ///
@@ -25,11 +35,16 @@ pub(crate) struct Declaration {
 }
 
 /// What:
-///  `fn split_top_level(text: &str) -> Vec<&str>` cuts `text` at the commas that are not inside parentheses, so
-///  `test, any(unix, windows)` gives two pieces. `&str` is a borrowed view of text (sibling: `String`, owned).
+///  `fn split_top_level(text: &str) -> Vec<&str>` cuts `text` at the commas that are not inside parentheses,
+/// so
+///  `test, any(unix, windows)` gives two pieces.
+/// `&str` is a borrowed view of text (sibling:
+/// `String`,
+/// owned).
 ///  `Vec<&str>` is a growable list of those views.
 /// Why:
-///  `cfg(all(test, target_os = "linux"))` lists conditions that must all hold, and the check needs each one.
+///  `cfg(all(test, target_os = "linux"))` lists conditions that must all hold,
+/// and the check needs each one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,11 +75,17 @@ fn split_top_level(text: &str) -> Vec<&str> {
 }
 
 /// What:
-///  `fn is_test_gate(predicate: &str) -> bool` says whether a `cfg` condition holds only when testing: it is
-///  exactly `test`, or an `all(...)` that lists `test` among its conditions (recursively).
+///  `fn is_test_gate(predicate: &str) -> bool` says whether a `cfg` condition holds only when testing:
+/// it is
+///  exactly `test`,
+/// or an `all(...)` that lists `test` among its conditions (recursively).
 /// Why:
-///  Such a module is absent from the release build. A condition like `any(test, unix)` or `not(test)` is compiled in
-///  release, so it is not a test gate; reading it as release is the safe direction (the scan reads more, not less).
+///  Such a module is absent from the release build.
+/// A condition like `any(test, unix)` or `not(test)` is compiled in
+///  release,
+/// so it is not a test gate;
+/// reading it as release is the safe direction (the scan reads more,
+/// not less).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,7 +110,8 @@ fn is_test_gate(predicate: &str) -> bool {
 
 /// What:
 ///  `fn module_name(line: &str) -> Option<&str>` reads one trimmed source line as `[visibility] mod name;` and gives
-///  `Some(name)`, or `None` when the line is anything else (including an inline `mod name {`).
+///  `Some(name)`,
+/// or `None` when the line is anything else (including an inline `mod name {`).
 /// Why:
 ///  Both the resolver and the boundary scan need to recognise a module declaration line the same way.
 ///
@@ -117,11 +139,15 @@ pub(crate) fn module_name(line: &str) -> Option<&str> {
 
 /// What:
 ///  `pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String>` lists the file-module declarations
-///  of one source text in order, each with the attributes written directly above it (comments and blank lines
+///  of one source text in order,
+/// each with the attributes written directly above it (comments and blank lines
 ///  between do not detach them).
 /// Why:
-///  The resolver follows these to find every file the compiler would read. It fails on an indented declaration (an
-///  inline module's child, which resolves differently) and on a `path` attribute it cannot read, instead of guessing.
+///  The resolver follows these to find every file the compiler would read.
+/// It fails on an indented declaration (an
+///  inline module's child,
+/// which resolves differently) and on a `path` attribute it cannot read,
+/// instead of guessing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

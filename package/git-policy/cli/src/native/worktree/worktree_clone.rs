@@ -1,17 +1,38 @@
 //! What:
-//!  Rung 2 of the cheap-worktree ladder: each tracked file of the clean source is cloned (`FICLONE`) into the new worktree
-//!  with the source's mode and times, and the source's index is installed with fresh stat fields.
+//!  Rung 2 of the cheap-worktree ladder:
+//! each tracked file of the clean source is cloned (`FICLONE`) into the new worktree
+//!  with the source's mode and times,
+//! and the source's index is installed with fresh stat fields.
 //! Why:
-//!  A clone shares every data block with the source on btrfs, on XFS with reflink and inside an overlay, which the
-//!  snapshot rung cannot reach (overlayfs and XFS have reflink but no subvolumes). It takes no less time than Git's checkout
-//!  on btrfs (`doc/planning/cli-git-btrfs-worktree.md`, option B), so it saves disk, not time, and it is the accelerated
-//!  rung where a snapshot is impossible. The wrapper's own index writer is `rewrite_index_stat_with`: with each file's
-//!  size and modification time kept, only the inode, change time and device of every entry change. The first failure ends
-//!  the rung with its reason, the entries this run created stay (a name cannot be checked and unlinked in one step), and
+//!  A clone shares every data block with the source on btrfs,
+//! on XFS with reflink and inside an overlay,
+//! which the
+//!  snapshot rung cannot reach (overlayfs and XFS have reflink but no subvolumes).
+//! It takes no less time than Git's checkout
+//!  on btrfs (`doc/planning/cli-git-btrfs-worktree.md`,
+//! option B),
+//! so it saves disk,
+//! not time,
+//! and it is the accelerated
+//!  rung where a snapshot is impossible.
+//! The wrapper's own index writer is `rewrite_index_stat_with`:
+//! with each file's
+//!  size and modification time kept,
+//! only the inode,
+//! change time and device of every entry change.
+//! The first failure ends
+//!  the rung with its reason,
+//! the entries this run created stay (a name cannot be checked and unlinked in one step),
+//! and
 //!  Git's own checkout completes the worktree and overwrites the tracked ones.
-//!  Every source file is opened below a held handle of the source root without following a link, and its descriptor's
-//!  metadata, not a path, is compared with the frozen index entry before and after the clone; every destination entry is
-//!  created below a held handle of the destination. A directory swapped for a link while the run goes on is an error,
+//!  Every source file is opened below a held handle of the source root without following a link,
+//! and its descriptor's
+//!  metadata,
+//! not a path,
+//! is compared with the frozen index entry before and after the clone;
+//! every destination entry is
+//!  created below a held handle of the destination.
+//! A directory swapped for a link while the run goes on is an error,
 //!  never a detour.
 //!
 //! In TS you'd write (pseudocode):
@@ -37,7 +58,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The refusal for an index path that is not a plain path inside the worktree.
 /// Why:
-///   A path with a link, a `..` or a `.git` component could reach outside the tracked files.
+///   A path with a link,
+/// a `..` or a `.git` component could reach outside the tracked files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -66,7 +88,8 @@ fn names_dot_git(names: &[OsString]) -> bool {
 }
 
 /// What:
-///  The components of a path joined with slashes, as text.
+///  The components of a path joined with slashes,
+/// as text.
 /// Why:
 ///   The report names a few of the entries the clones created.
 ///
@@ -83,9 +106,11 @@ fn joined_names(names: &[OsString]) -> String {
 }
 
 /// What:
-///  The names of a tracked entry's path below a root, refused unless every component is a plain name and none is `.git`.
+///  The names of a tracked entry's path below a root,
+/// refused unless every component is a plain name and none is `.git`.
 /// Why:
-///   The index is the source's own, but a path that climbs out of the destination or enters `.git` is never created.
+///   The index is the source's own,
+/// but a path that climbs out of the destination or enters `.git` is never created.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,9 +125,11 @@ fn entry_names(path: &[u8]) -> Result<Vec<OsString>, String> {
 }
 
 /// What:
-///  The access and modification times of metadata, to the nanosecond.
+///  The access and modification times of metadata,
+/// to the nanosecond.
 /// Why:
-///   The index entry keeps the source's modification time, and Git trusts a file whose size and time equal it.
+///   The index entry keeps the source's modification time,
+/// and Git trusts a file whose size and time equal it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,9 +143,14 @@ fn times_of(from: &std::fs::Metadata) -> [libc::timespec; 2] {
 }
 
 /// What:
-///  The identity a clone must find again after it: device, inode, size, and both times.
+///  The identity a clone must find again after it:
+/// device,
+/// inode,
+/// size,
+/// and both times.
 /// Why:
-///   A source that is written while it is cloned changes its size or times; a swapped inode changes the inode.
+///   A source that is written while it is cloned changes its size or times;
+/// a swapped inode changes the inode.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,10 +161,15 @@ fn identity_of_metadata(from: &std::fs::Metadata) -> [i64; 8] {
 }
 
 /// What:
-///  An entry this run created, named by its components below the destination.
+///  An entry this run created,
+/// named by its components below the destination.
 /// Why:
-///   Nothing is removed on a failure: a name cannot be checked and unlinked in one step, and the entry may by then be another
-///  process's, so the run keeps what it made and reports it. The list is what the report names.
+///   Nothing is removed on a failure:
+/// a name cannot be checked and unlinked in one step,
+/// and the entry may by then be another
+///  process's,
+/// so the run keeps what it made and reports it.
+/// The list is what the report names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,14 +183,20 @@ pub struct Created {
     pub directory: bool,
 }
 
-/// The directories this run walked, by their components below the destination (the empty list is the destination), each
-///  held open so that a later removal acts in the directory where the entry was made, whatever its name became.
+/// The directories this run walked,
+/// by their components below the destination (the empty list is the destination),
+/// each
+///  held open so that a later removal acts in the directory where the entry was made,
+/// whatever its name became.
 type Directories = HashMap<Vec<OsString>, File>;
 
 /// What:
-///  What a successful clone run holds: the entries it created.
+///  What a successful clone run holds:
+/// the entries it created.
 /// Why:
-///   A later step that fails (the tree difference) reports them; Git's own checkout then overwrites the tracked ones, and the
+///   A later step that fails (the tree difference) reports them;
+/// Git's own checkout then overwrites the tracked ones,
+/// and the
 ///  rest stay as untracked files for the person to remove.
 ///
 /// In TS you'd write (pseudocode):
@@ -162,12 +205,14 @@ type Directories = HashMap<Vec<OsString>, File>;
 /// ```
 #[derive(Debug)]
 pub struct Cloned {
-    /// The entries created, in creation order.
+    /// The entries created,
+    /// in creation order.
     created: Vec<Created>,
 }
 
 impl Cloned {
-    /// The entries the run created, in creation order.
+    /// The entries the run created,
+    /// in creation order.
     pub fn created(&self) -> &[Created] {
         return self.created.as_slice();
     }
@@ -176,7 +221,9 @@ impl Cloned {
 /// What:
 ///  The report of entries a clone run created and leaves in place.
 /// Why:
-///   The tracked ones are overwritten by the checkout that completes the worktree; any other stays as an untracked file, and
+///   The tracked ones are overwritten by the checkout that completes the worktree;
+/// any other stays as an untracked file,
+/// and
 ///  the person is told where to look.
 ///
 /// In TS you'd write (pseudocode):
@@ -199,11 +246,14 @@ pub fn leftover_report(created: &[Created], destination: &Path) -> String {
 }
 
 /// What:
-///  Create the directories of `names[..len - 1]` below the destination and return the last one, recording the ones made
+///  Create the directories of `names[..len - 1]` below the destination and return the last one,
+/// recording the ones made
 ///  and holding every directory walked.
 /// Why:
-///   Each component is opened without following a link or crossing a mount, so the file goes into a directory this run
-///  made or found, on the destination's device.
+///   Each component is opened without following a link or crossing a mount,
+/// so the file goes into a directory this run
+///  made or found,
+/// on the destination's device.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -238,8 +288,10 @@ fn ensure_parents(directories: &mut Directories, names: &[OsString], created: &m
 /// What:
 ///  The moments of a clone at which the controls move the source or the destination tree.
 /// Why:
-///   The races the held handles and the descriptor comparisons close happen between two system calls, so a control that
-///  wants one must run its change there; the release code passes calls that do nothing.
+///   The races the held handles and the descriptor comparisons close happen between two system calls,
+/// so a control that
+///  wants one must run its change there;
+/// the release code passes calls that do nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,7 +306,9 @@ struct Seams<'a> {
     before_index: &'a mut dyn FnMut(),
 }
 
-/// What one clone call works on: the entry, its names and the places the results go.
+/// What one clone call works on:
+/// the entry,
+/// its names and the places the results go.
 struct Work<'a> {
     /// The entry of the frozen index.
     entry: &'a StatEntry,
@@ -265,13 +319,21 @@ struct Work<'a> {
 }
 
 /// What:
-///  Create one destination entry from its source below the held directories: a clone of a regular file with the source's
-///  mode and times, or a link with the same target. The source's descriptor metadata must equal the frozen index entry
-///  before the clone and be unchanged after it; the stat fields recorded for the index are those of the object made here.
+///  Create one destination entry from its source below the held directories:
+/// a clone of a regular file with the source's
+///  mode and times,
+/// or a link with the same target.
+/// The source's descriptor metadata must equal the frozen index entry
+///  before the clone and be unchanged after it;
+/// the stat fields recorded for the index are those of the object made here.
 /// Why:
-///   The bytes cloned are those of the inode that was compared, so a swap of a parent directory cannot certify other
-///  bytes as the index's, and a destination file replaced afterwards no longer has the inode the index entry records. An
-///  entry of any other type is not a tracked file Git checks out this way, so the rung ends.
+///   The bytes cloned are those of the inode that was compared,
+/// so a swap of a parent directory cannot certify other
+///  bytes as the index's,
+/// and a destination file replaced afterwards no longer has the inode the index entry records.
+/// An
+///  entry of any other type is not a tracked file Git checks out this way,
+/// so the rung ends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -348,16 +410,21 @@ fn clone_entry(source_dir: &File, destination_dir: &File, work: &Work<'_>, resul
     return Ok(());
 }
 
-/// The run itself: every tracked file, then the index; the caller removes `created` when this fails.
+/// The run itself:
+/// every tracked file,
+/// then the index;
+/// the caller removes `created` when this fails.
 fn clone_all(source: &SnapshotSource, directories: &mut Directories, admin: &File, created: &mut Vec<Created>) -> Result<(), String> {
     let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
     return clone_with(source, directories, admin, created, &mut seams);
 }
 
 /// What:
-///  The stat fields the clones recorded, looked up by path for the index the new worktree takes.
+///  The stat fields the clones recorded,
+/// looked up by path for the index the new worktree takes.
 /// Why:
-///   Each clone recorded the fields of the file it made, and the index install asks for them by the entry's path.
+///   Each clone recorded the fields of the file it made,
+/// and the index install asks for them by the entry's path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -398,7 +465,8 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &Fi
 }
 
 /// Log what the index install did.
-/// Do nothing; the seams of the clones run this unless a control puts work there.
+/// Do nothing;
+/// the seams of the clones run this unless a control puts work there.
 fn do_nothing() {}
 
 fn debug_report(report: &str) {
@@ -406,12 +474,18 @@ fn debug_report(report: &str) {
 }
 
 /// What:
-///  Clone every tracked file of the frozen index into the held `destination`, and install that index in the held `admin`
-///  with the stat fields of the regular files made. On an error nothing is removed: the entries this run created stay and
+///  Clone every tracked file of the frozen index into the held `destination`,
+/// and install that index in the held `admin`
+///  with the stat fields of the regular files made.
+/// On an error nothing is removed:
+/// the entries this run created stay and
 ///  are counted in the reason.
 /// Why:
-///   The index bytes are the ones proven clean, so what is installed is what was proven; the destination may hold files
-///  of other writers, and they are not this run's to remove.
+///   The index bytes are the ones proven clean,
+/// so what is installed is what was proven;
+/// the destination may hold files
+///  of other writers,
+/// and they are not this run's to remove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

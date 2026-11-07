@@ -22,6 +22,13 @@ import { parseMoveOptions, } from './move-options.ts';
  @param argv - arguments after the program name
  
  @throws MoveStopError when a step stops the run; every earlier step is recorded
+
+ @example
+ ```ts
+ import { runMove, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ await runMove(argv,);
+ ```
  */
 export async function runMove(argv: readonly string[],): Promise<void> {
   /**

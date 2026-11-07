@@ -31,6 +31,13 @@ export type StepContext = {
  @param label - the label without its colon
  
  @returns the value, or an empty string
+
+ @example
+ ```ts
+ import { field, } from './copy-steps.ts';
+ 
+ const result = field({ text, label, },);
+ ```
  */
 export function field(
   {
@@ -61,6 +68,13 @@ export function field(
  @param path - the path
  
  @returns GiB available to the user
+
+ @example
+ ```ts
+ import { freeGiB, } from './copy-steps.ts';
+ 
+ const result = await freeGiB(path,);
+ ```
  */
 export async function freeGiB(path: string,): Promise<number> {
   /**
@@ -80,6 +94,13 @@ export async function freeGiB(path: string,): Promise<number> {
  @param label - the label without its colon
  
  @returns the value
+
+ @example
+ ```ts
+ import { showField, } from './copy-steps.ts';
+ 
+ const result = await showField({ runner, path, label, },);
+ ```
  */
 export async function showField(
   {
@@ -113,6 +134,13 @@ export async function showField(
  @param snapshot - where the snapshot goes
  
  @throws MoveStopError when the snapshot's parent UUID differs, meaning the path was replaced since the inventory
+
+ @example
+ ```ts
+ import { snapshotStep, } from './copy-steps.ts';
+ 
+ await snapshotStep({ context, snapshot, },);
+ ```
  */
 export async function snapshotStep(
   {

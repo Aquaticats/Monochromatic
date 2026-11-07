@@ -581,11 +581,17 @@ names the shadow,
 directly or through further launchers,
 before it is run:
 the shadow does not start itself a second time.
-A shadow of any other version (or of another crate: `mpm-shadow`, `pnpm-shadow`, `search-shadow`) is skipped the same way,
+A shadow of any other version (or of another crate:
+`mpm-shadow`,
+`pnpm-shadow`,
+`search-shadow`) is skipped the same way,
 by what the file is and not by its path:
 A shadow never starts a shadow of any version as its real tool,
 whatever the path or the version of the candidate
-(owner, 2026-11-07: "We should never invoke ourselves recursively. That's bad design.").
+(owner,
+2026-11-07:
+"We should never invoke ourselves recursively.
+That's bad design.").
 Every shadow program (`cargo-shadow`,
 `mpm-shadow`,
 `pnpm-shadow` and `search-shadow`) carries the same identity text in the ELF section `.monochromatic_shadow_identity`
@@ -608,9 +614,14 @@ and the incident in `doc/troubleshooting/search-shadow-copies-start-each-other-w
 The vetting of the chosen program (`vet` in `src/real_binary.rs`) refuses a program that is a shadow while the file is open,
 and the program is started through that open file.
 The real cargo that the install step starts inside its contained runner (`src/cargo_run.rs`) sets no arrival marker:
-it is chosen by the same lookup that skips shadows by identity, and it keeps `vet` and the repeated check before its start.
-Two arrival stops exist: the guard value `CARGO_SHADOW_GUARD` (cargo-shadow's own, with the long message below) and the marker above
-(any shadow, one line); both exit with status 2.
+it is chosen by the same lookup that skips shadows by identity,
+and it keeps `vet` and the repeated check before its start.
+Two arrival stops exist:
+the guard value `CARGO_SHADOW_GUARD` (cargo-shadow's own,
+with the long message below) and the marker above
+(any shadow,
+one line);
+both exit with status 2.
 A cargo-shadow that finds it was started by another cargo-shadow's own start of the real cargo (a script or launcher named `cargo`
 with no `.launch` record beside it that leads back) stops at once with exit status 2,
 before doing any work,

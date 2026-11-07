@@ -276,6 +276,13 @@ async function rowOf(
  @returns the table text and counts
  
  @throws MoveStopError when Git cannot list the worktrees
+
+ @example
+ ```ts
+ import { buildUncommittedWorkTable, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await buildUncommittedWorkTable({ mainWorktree, perWorktreeSeconds, },);
+ ```
  */
 export async function buildUncommittedWorkTable(
   {

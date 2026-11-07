@@ -1,12 +1,16 @@
 //! Differential controls for the configuration text reader:
-//!  whenever it answers, `git config --file <file> --list -z` prints the same entries;
-//!  whenever Git refuses the file, the reader declines.
+//!  whenever it answers,
+//! `git config --file <file> --list -z` prints the same entries;
+//!  whenever Git refuses the file,
+//! the reader declines.
 
 use super::*;
 use crate::test_support::{fixture, git_output, remove};
 use std::path::Path;
 
-/// Every spelling the controls feed both readers; the expectation is Git's own output, not a literal.
+/// Every spelling the controls feed both readers;
+/// the expectation is Git's own output,
+/// not a literal.
 const CORPUS: &[&str] = &[
     "[core]\n\tbare = false\n\trepositoryformatversion = 0\n",
     "[core]\nbare\n",
@@ -39,7 +43,10 @@ const CORPUS: &[&str] = &[
     "[a]\nk = v\n\n\n[b]\nk = w",
 ];
 
-/// The entries Git prints for `file`, as `key`, `key\nvalue` pieces, or `None` when Git refuses the file.
+/// The entries Git prints for `file`,
+/// as `key`,
+/// `key\nvalue` pieces,
+/// or `None` when Git refuses the file.
 fn from_git(directory: &Path, file: &Path) -> Option<Vec<Vec<u8>>> {
     let output = git_output(directory, &["config", "--file", file.to_str().expect("UTF-8 path"), "--list", "-z"]);
     if !output.status.success() {
@@ -91,14 +98,16 @@ fn the_reader_agrees_with_git_or_declines() {
     remove(root.as_path());
 }
 
-/// A NUL byte in a value cannot be a C string, so the reader declines it.
+/// A NUL byte in a value cannot be a C string,
+/// so the reader declines it.
 #[test]
 fn a_nul_in_a_value_is_declined() {
     assert!(parse_config_text(b"[a]\nb = left\0right\n").is_none());
     assert!(parse_config_text(b"[a]\nb = fine\n").is_some());
 }
 
-/// A spelling Git reads and the reader leaves to Git is still safe, but the plain keys must be read.
+/// A spelling Git reads and the reader leaves to Git is still safe,
+/// but the plain keys must be read.
 #[test]
 fn plain_repository_keys_are_read() {
     let entries = parse_config_text(b"[core]\n\tbare = false\n[remote \"origin\"]\n\turl = u\n").expect("plain file");
@@ -106,7 +115,8 @@ fn plain_repository_keys_are_read() {
     assert_eq!(last_entry(entries.as_slice(), "remote.origin.url").and_then(|entry| { return entry.value.clone(); }), Some(b"u".to_vec()));
 }
 
-/// Boolean spellings Git accepts are read, every other spelling is declined.
+/// Boolean spellings Git accepts are read,
+/// every other spelling is declined.
 #[test]
 fn booleans_decline_unknown_spellings() {
     assert_eq!(parse_bool(None), Some(true));

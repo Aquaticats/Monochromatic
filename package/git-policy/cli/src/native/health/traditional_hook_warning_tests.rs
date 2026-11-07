@@ -1,4 +1,7 @@
-//! Controls for the configured-`core.hooksPath` warning: when it fires, what it says, and that it never blocks.
+//! Controls for the configured-`core.hooksPath` warning:
+//! when it fires,
+//! what it says,
+//! and that it never blocks.
 
 use super::*;
 
@@ -32,7 +35,9 @@ impl Write for RefusingStream {
     }
 }
 
-/// Without the setting there is no warning, whatever else the configuration holds, and no snapshot says nothing.
+/// Without the setting there is no warning,
+/// whatever else the configuration holds,
+/// and no snapshot says nothing.
 #[test]
 fn an_unset_hooks_path_has_no_warning() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[
@@ -45,7 +50,10 @@ fn an_unset_hooks_path_has_no_warning() {
     assert_eq!(traditional_hooks_warning(None), None);
 }
 
-/// A configured hooks path, relative or absolute, from any scope, produces one `configuration-warning` line.
+/// A configured hooks path,
+/// relative or absolute,
+/// from any scope,
+/// produces one `configuration-warning` line.
 #[test]
 fn a_configured_hooks_path_warns_with_a_non_blocking_event() {
     for (scope, value) in [("local", "custom-hooks"), ("global", "/shared/hooks"), ("command", "~/hooks")] {
@@ -61,7 +69,9 @@ fn a_configured_hooks_path_warns_with_a_non_blocking_event() {
     }
 }
 
-/// The warning names the finding, says traditional hooks are unsupported and undefined, and names the doctor command.
+/// The warning names the finding,
+/// says traditional hooks are unsupported and undefined,
+/// and names the doctor command.
 #[test]
 fn the_warning_says_what_is_wrong_and_what_to_run() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
@@ -73,7 +83,9 @@ fn the_warning_says_what_is_wrong_and_what_to_run() {
     assert!(line.contains("\"hint\":\"Hint: "), "{line}");
 }
 
-/// The decision reads the snapshot only: a directory that does not exist still warns, so no file system probe is made.
+/// The decision reads the snapshot only:
+/// a directory that does not exist still warns,
+/// so no file system probe is made.
 #[test]
 fn the_warning_never_looks_at_the_directory() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\n/no/such/directory/anywhere")]);
@@ -81,7 +93,9 @@ fn the_warning_never_looks_at_the_directory() {
     assert!(traditional_hooks_warning(Some(&snapshot)).is_some());
 }
 
-/// The last entry of the key decides, as it does for Git, and an empty or valueless entry names no directory.
+/// The last entry of the key decides,
+/// as it does for Git,
+/// and an empty or valueless entry names no directory.
 #[test]
 fn the_last_entry_decides_and_empty_entries_name_no_directory() {
     let overridden: ConfigSnapshot =
@@ -93,7 +107,8 @@ fn the_last_entry_decides_and_empty_entries_name_no_directory() {
     assert_eq!(configured_hooks_path(&valueless), None);
 }
 
-/// The wrapper's own hooks-off values are not the user's choice and never warn; lookalikes still do.
+/// The wrapper's own hooks-off values are not the user's choice and never warn;
+/// lookalikes still do.
 #[test]
 fn the_wrappers_own_overrides_do_not_warn() {
     for own in [
@@ -140,7 +155,8 @@ fn a_refusing_stream_does_not_panic() {
     warn_traditional_hooks(Some(&configured), &mut RefusingStream);
 }
 
-/// A value with quotes, newlines and backslashes stays inside one JSON line.
+/// A value with quotes,
+/// newlines and backslashes stays inside one JSON line.
 #[test]
 fn a_hostile_value_stays_inside_one_line() {
     let snapshot: ConfigSnapshot =

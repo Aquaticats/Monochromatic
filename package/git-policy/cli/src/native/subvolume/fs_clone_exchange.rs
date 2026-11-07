@@ -1,12 +1,22 @@
 //! What:
-//!  Two more Linux primitives: clone a whole file's data blocks into another file (`FICLONE`), and swap two paths
+//!  Two more Linux primitives:
+//! clone a whole file's data blocks into another file (`FICLONE`),
+//! and swap two paths
 //!  atomically (`renameat2` with `RENAME_EXCHANGE`).
 //! Why:
-//!  A reflink copy shares the data blocks of a file instead of copying them (btrfs, XFS with reflink, and files inside
-//!  one overlayfs whose layers share such a filesystem), and an exchange swaps a directory with its replacement in one
-//!  step, so no process ever sees the path missing. Both fail with a typed error the caller falls through on:
-//!  `FICLONE` answers `EXDEV` across filesystems, `EOPNOTSUPP` or `EINVAL` where the filesystem has no reflinks; the
-//!  exchange answers `EINVAL` or `EXDEV` where the filesystem cannot swap. The ladder of
+//!  A reflink copy shares the data blocks of a file instead of copying them (btrfs,
+//! XFS with reflink,
+//! and files inside
+//!  one overlayfs whose layers share such a filesystem),
+//! and an exchange swaps a directory with its replacement in one
+//!  step,
+//! so no process ever sees the path missing.
+//! Both fail with a typed error the caller falls through on:
+//!  `FICLONE` answers `EXDEV` across filesystems,
+//! `EOPNOTSUPP` or `EINVAL` where the filesystem has no reflinks;
+//! the
+//!  exchange answers `EINVAL` or `EXDEV` where the filesystem cannot swap.
+//! The ladder of
 //!  `doc/planning/cli-git-btrfs-worktree.md` uses the clone as its second rung.
 //!
 //! In TS you'd write (pseudocode):
@@ -24,8 +34,10 @@ use std::path::Path;
 ///  Clone the whole content of `source` into `destination` (`FICLONE`).
 ///  `&File` borrows an open file (sibling `&Path` names one that is not open).
 /// Why:
-///   The destination must be open for writing and empty or about to be replaced entirely; the kernel makes it share
-///  the source's data blocks. `path` is only used to word the error.
+///   The destination must be open for writing and empty or about to be replaced entirely;
+/// the kernel makes it share
+///  the source's data blocks.
+/// `path` is only used to word the error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,8 +55,12 @@ pub fn clone_file(source: &File, destination: &File, path: &Path) -> Result<(), 
 /// What:
 ///  Swap two existing paths atomically (`renameat2(AT_FDCWD, first, AT_FDCWD, second, RENAME_EXCHANGE)`).
 /// Why:
-///   After the call `first` names what `second` named and the other way round, with no moment at which either path is
-///  missing. This is what `mv --exchange` runs, so the migration needs no `mv`. Both paths must exist and be on one
+///   After the call `first` names what `second` named and the other way round,
+/// with no moment at which either path is
+///  missing.
+/// This is what `mv --exchange` runs,
+/// so the migration needs no `mv`.
+/// Both paths must exist and be on one
 ///  filesystem.
 ///
 /// In TS you'd write (pseudocode):

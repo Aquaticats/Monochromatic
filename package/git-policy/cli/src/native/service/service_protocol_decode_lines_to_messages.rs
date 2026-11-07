@@ -1,7 +1,9 @@
 //! What:
-//!  Reads one line of the protocol as a client message or a service message, checking every field.
+//!  Reads one line of the protocol as a client message or a service message,
+//! checking every field.
 //! Why:
-//!  The service refuses a damaged or hostile line rather than guessing, and the client checks what it is told as strictly;
+//!  The service refuses a damaged or hostile line rather than guessing,
+//! and the client checks what it is told as strictly;
 //!  the types and name checks come from `service_protocol_messages_and_name_checks.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -17,7 +19,11 @@ use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LIN
 /// What:
 ///  Reads and checks one client line.
 /// Why:
-///   The service trusts nothing from a socket: sizes, names, paths, modes and the object names are all checked.
+///   The service trusts nothing from a socket:
+/// sizes,
+/// names,
+/// paths,
+/// modes and the object names are all checked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,9 +162,11 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
 }
 
 /// What:
-///  A numeric field of a service message as a count: the field must be there and fit.
+///  A numeric field of a service message as a count:
+/// the field must be there and fit.
 /// Why:
-///  `decode_service` reads positions and versions with it; a value too large is as unusable as a missing one.
+///  `decode_service` reads positions and versions with it;
+/// a value too large is as unusable as a missing one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -175,9 +183,13 @@ fn number_field(value: &Value, name: &str) -> Result<usize, String> {
 }
 
 /// What:
-///  The captures of a `landed` list: the entries that name an object and carry a capture number; others are left out.
+///  The captures of a `landed` list:
+/// the entries that name an object and carry a capture number;
+/// others are left out.
 /// Why:
-///  `decode_service` reads the list of a `retry-prepare` message with it, and an entry it cannot use is skipped, not an error.
+///  `decode_service` reads the list of a `retry-prepare` message with it,
+/// and an entry it cannot use is skipped,
+/// not an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

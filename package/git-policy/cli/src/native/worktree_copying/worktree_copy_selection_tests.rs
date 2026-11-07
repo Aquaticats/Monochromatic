@@ -1,4 +1,5 @@
-//! Selection checks against real Git: what the ignored-state copy takes from a source worktree.
+//! Selection checks against real Git:
+//! what the ignored-state copy takes from a source worktree.
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
@@ -28,7 +29,8 @@ fn repository_paths_are_compared_by_component() {
     assert!(!repository_path_within("a", "cache/a"));
 }
 
-/// Every unsafe shape Git could never legitimately produce is refused, and ordinary names pass.
+/// Every unsafe shape Git could never legitimately produce is refused,
+/// and ordinary names pass.
 #[test]
 fn unsafe_repository_paths_are_refused() {
     for unsafe_path in [
@@ -56,7 +58,8 @@ fn filesystem_path_joins_validated_components() {
     assert!(filesystem_path(Path::new("/repo"), "a/../b").is_err());
 }
 
-/// Order matches JavaScript's code-unit order, which differs from byte order for supplementary characters.
+/// Order matches JavaScript's code-unit order,
+/// which differs from byte order for supplementary characters.
 #[test]
 fn js_order_compares_utf16_code_units() {
     assert_eq!(js_order("\u{FFFD}", "\u{1F600}"), Ordering::Greater);
@@ -64,7 +67,8 @@ fn js_order_compares_utf16_code_units() {
     assert_eq!(js_order("same", "same"), Ordering::Equal);
 }
 
-/// Ignored directories are reported once; files under them are collapsed into the outermost root.
+/// Ignored directories are reported once;
+/// files under them are collapsed into the outermost root.
 #[test]
 fn ignored_directories_collapse_into_outermost_root() {
     let root: PathBuf = fixture("selection-collapse");
@@ -82,7 +86,9 @@ fn ignored_directories_collapse_into_outermost_root() {
     remove(root.as_path());
 }
 
-/// Nested `.gitignore`, `info/exclude` and `core.excludesFile` all define what is ignored, and symbolic links are selected.
+/// Nested `.gitignore`,
+/// `info/exclude` and `core.excludesFile` all define what is ignored,
+/// and symbolic links are selected.
 #[test]
 fn every_exclusion_source_and_symbolic_links_are_selected() {
     let root: PathBuf = fixture("selection-sources");
@@ -128,7 +134,8 @@ fn every_exclusion_source_and_symbolic_links_are_selected() {
     remove(root.as_path());
 }
 
-/// A FIFO that Git's listing omits is selected by the special-entry walk, and an unignored FIFO is not.
+/// A FIFO that Git's listing omits is selected by the special-entry walk,
+/// and an unignored FIFO is not.
 #[cfg(unix)]
 #[test]
 fn ignored_special_entries_are_selected_only_when_ignored() {
@@ -159,7 +166,8 @@ fn excluded_roots_are_not_walked_for_special_entries() {
     remove(root.as_path());
 }
 
-/// A directory that is not a repository makes Git fail, and the failure is reported with its cause.
+/// A directory that is not a repository makes Git fail,
+/// and the failure is reported with its cause.
 #[test]
 fn listing_outside_a_repository_fails_with_cause() {
     let root: PathBuf = fixture("selection-not-repo");
@@ -169,7 +177,8 @@ fn listing_outside_a_repository_fails_with_cause() {
     remove(root.as_path());
 }
 
-/// A source with an ignored cache directory that holds the named file next to a sibling, and another ignored root.
+/// A source with an ignored cache directory that holds the named file next to a sibling,
+/// and another ignored root.
 fn source_with_named_file(parent: &Path, name: &str) -> PathBuf {
     let source: PathBuf = ignoring(parent, name, ".cache/\nnode_modules/\n");
     std::fs::create_dir_all(source.join(".cache")).expect("cache");
@@ -180,7 +189,8 @@ fn source_with_named_file(parent: &Path, name: &str) -> PathBuf {
     return source;
 }
 
-/// An ignored named file is selected by itself, and nothing else the source ignores comes along.
+/// An ignored named file is selected by itself,
+/// and nothing else the source ignores comes along.
 #[test]
 fn named_ignored_file_is_selected_alone() {
     let root: PathBuf = fixture("selection-named");
@@ -210,7 +220,9 @@ fn absent_named_file_selects_nothing() {
     remove(root.as_path());
 }
 
-/// A named file that is tracked, or that exists but no ignore rule covers, is never selected.
+/// A named file that is tracked,
+/// or that exists but no ignore rule covers,
+/// is never selected.
 #[test]
 fn named_file_that_git_does_not_ignore_is_not_selected() {
     let root: PathBuf = fixture("selection-named-unignored");
@@ -228,7 +240,8 @@ fn named_file_that_git_does_not_ignore_is_not_selected() {
     remove(root.as_path());
 }
 
-/// A named directory is not expanded: only a name Git lists exactly is selected.
+/// A named directory is not expanded:
+/// only a name Git lists exactly is selected.
 #[test]
 fn named_directory_selects_nothing() {
     let root: PathBuf = fixture("selection-named-directory");
@@ -240,7 +253,8 @@ fn named_directory_selects_nothing() {
     remove(root.as_path());
 }
 
-/// A pathspec magic or glob in a configured name is matched literally, never expanded.
+/// A pathspec magic or glob in a configured name is matched literally,
+/// never expanded.
 #[test]
 fn named_path_is_matched_literally() {
     let root: PathBuf = fixture("selection-named-literal");
@@ -297,7 +311,8 @@ fn unsafe_named_path_is_refused() {
     remove(root.as_path());
 }
 
-/// The explicit selection reaches the named files only, while the standard selection reaches every ignored root.
+/// The explicit selection reaches the named files only,
+/// while the standard selection reaches every ignored root.
 #[test]
 fn selection_modes_choose_the_roots() {
     let root: PathBuf = fixture("selection-modes");
@@ -320,7 +335,8 @@ fn selection_modes_choose_the_roots() {
     remove(root.as_path());
 }
 
-/// The selection asks about the source worktree it was given, never about the repository the user's global options pick.
+/// The selection asks about the source worktree it was given,
+/// never about the repository the user's global options pick.
 #[test]
 fn selection_ignores_the_users_global_git_options() {
     let root: PathBuf = fixture("selection-global-options");
@@ -346,7 +362,8 @@ fn selection_ignores_the_users_global_git_options() {
     remove(root.as_path());
 }
 
-/// The ignore question for a special entry is asked about the source worktree, whatever global options the user passed.
+/// The ignore question for a special entry is asked about the source worktree,
+/// whatever global options the user passed.
 #[cfg(unix)]
 #[test]
 fn special_entry_check_ignores_the_users_global_git_options() {
@@ -381,10 +398,15 @@ fn special_entries_under_an_excluded_root_are_not_selected() {
 }
 
 /// What:
-///  The `check-ignore` start that decides whether a special entry (a FIFO, a socket) is ignored.
+///  The `check-ignore` start that decides whether a special entry (a FIFO,
+/// a socket) is ignored.
 /// Why:
-///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`. The exit status is the answer either way
-///  (0 for an ignored path, 1 for any other; Git 2.56.0 `builtin/check-ignore.c` gates only the printing on the option), so
+///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`.
+/// The exit status is the answer either way
+///  (0 for an ignored path,
+/// 1 for any other;
+/// Git 2.56.0 `builtin/check-ignore.c` gates only the printing on the option),
+/// so
 ///  the start keeps its answer without it.
 ///
 /// In TS you'd write (pseudocode):

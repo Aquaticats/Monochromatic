@@ -68,12 +68,17 @@ pub(super) struct CacheLocation {
     pub(super) artifact_path: PathBuf,
 }
 
+/// Turns any lower-level hashing failure into the redacted digest error.
+fn digest_failed<Cause>(_cause: Cause) -> DigestError {
+    return DigestError;
+}
+
 /// Returns SHA-256 over exact source bytes using existing direct `gix-hash` dependency.
 pub(super) fn source_digest(bytes: &[u8]) -> Result<SourceDigest, DigestError> {
     let mut hasher = gix_hash::hasher(gix_hash::Kind::Sha256);
     hasher.update(bytes);
-    let object_id = hasher.try_finalize().map_err(|_| return DigestError)?;
-    let digest: [u8; 32] = object_id.as_slice().try_into().map_err(|_| return DigestError)?;
+    let object_id = hasher.try_finalize().map_err(digest_failed)?;
+    let digest: [u8; 32] = object_id.as_slice().try_into().map_err(digest_failed)?;
     return Ok(SourceDigest(digest))
 }
 
@@ -112,6 +117,21 @@ pub(super) fn current_platform() -> HostPlatform {
     return HostPlatform::XdgUnix
 }
 
+/// Turns any failure to make the override absolute into the invalid-override error.
+fn override_not_absolute<Cause>(_cause: Cause) -> CacheRootError {
+    return CacheRootError::InvalidOverride;
+}
+
+/// The macOS per-user cache directory under a home directory.
+fn macos_caches_under(home: PathBuf) -> PathBuf {
+    return home.join("Library").join("Caches");
+}
+
+/// The default `.cache` directory under a home directory.
+fn dot_cache_under(home: PathBuf) -> PathBuf {
+    return home.join(".cache");
+}
+
 /// Resolves base cache root from settled explicit-override and native-platform policy.
 pub(super) fn resolve_cache_root(
     environment: &CacheEnvironment,
@@ -119,14 +139,14 @@ pub(super) fn resolve_cache_root(
 ) -> Result<PathBuf, CacheRootError> {
     if let Some(override_root) = &environment.override_root {
         return platform_absolute_path(override_root, platform)
-            .map_err(|_| return CacheRootError::InvalidOverride);
+            .map_err(override_not_absolute);
     }
     if platform == HostPlatform::Windows {
         return environment_absolute_path(environment.local_app_data.as_ref(), platform);
     }
     if platform == HostPlatform::Macos {
         return environment_absolute_path(environment.home.as_ref(), platform)
-            .map(|home| return home.join("Library").join("Caches"));
+            .map(macos_caches_under);
     }
     if let Some(xdg_cache_home) = &environment.xdg_cache_home {
         let path = PathBuf::from(xdg_cache_home);
@@ -135,7 +155,7 @@ pub(super) fn resolve_cache_root(
         }
     }
     return environment_absolute_path(environment.home.as_ref(), platform)
-        .map(|home| return home.join(".cache"))
+        .map(dot_cache_under)
 }
 
 /// Converts optional environment value into platform-absolute path or unavailable error.

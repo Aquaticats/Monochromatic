@@ -1,10 +1,17 @@
 //! What:
-//!  The guard of uncommitted work, through the built executable, on a clone made with `--no-checkout`:
-//!  the checkout of a commit there runs, and the same checkout is still refused where tracked changes really exist.
+//!  The guard of uncommitted work,
+//! through the built executable,
+//! on a clone made with `--no-checkout`:
+//!  the checkout of a commit there runs,
+//! and the same checkout is still refused where tracked changes really exist.
 //! Why:
-//!  A `git clone --no-checkout` leaves no index file, so Git itself sees an initial checkout and has nothing to protect
-//!  (`is_index_unborn` in `read-cache.c`, read by `builtin/checkout.c`). `git status` lists every file as a staged deletion
-//!  in such a clone, and the guard read that as uncommitted work and refused the checkout that
+//!  A `git clone --no-checkout` leaves no index file,
+//! so Git itself sees an initial checkout and has nothing to protect
+//!  (`is_index_unborn` in `read-cache.c`,
+//! read by `builtin/checkout.c`).
+//! `git status` lists every file as a staged deletion
+//!  in such a clone,
+//! and the guard read that as uncommitted work and refused the checkout that
 //!  `libghostty-vt-sys`'s build script runs in its fresh clone of Ghostty.
 //!
 //! In TS you'd write (pseudocode):
@@ -39,7 +46,9 @@ fn rejected_by_policy(observed: &Observed) -> bool {
     return observed.code == Some(1) && stderr_of(observed).contains("\"policyId\":\"linked-worktree-only\"");
 }
 
-/// In a `--no-checkout` clone, which has no index file yet, checking out a commit runs and writes the files.
+/// In a `--no-checkout` clone,
+/// which has no index file yet,
+/// checking out a commit runs and writes the files.
 #[test]
 fn a_commit_is_checked_out_in_a_clone_made_without_checkout() {
     let fixture: Fixture = fixture("no-checkout-clone-passes");
@@ -55,7 +64,8 @@ fn a_commit_is_checked_out_in_a_clone_made_without_checkout() {
     remove(&fixture);
 }
 
-/// A modified tracked file in a worktree that has an index still refuses the checkout of another branch, and changes nothing.
+/// A modified tracked file in a worktree that has an index still refuses the checkout of another branch,
+/// and changes nothing.
 #[test]
 fn a_checkout_is_refused_while_a_tracked_file_is_modified() {
     let fixture: Fixture = fixture("no-checkout-clone-modified");
@@ -67,8 +77,12 @@ fn a_checkout_is_refused_while_a_tracked_file_is_modified() {
     remove(&fixture);
 }
 
-/// A staged deletion of a file that is also gone from the working tree, in a worktree that has an index, still refuses the
-/// checkout: the index file exists, so Git itself would protect the deletion and so does the guard.
+/// A staged deletion of a file that is also gone from the working tree,
+/// in a worktree that has an index,
+/// still refuses the
+/// checkout:
+/// the index file exists,
+/// so Git itself would protect the deletion and so does the guard.
 #[test]
 fn a_checkout_is_refused_while_a_deletion_is_staged_and_the_file_is_gone() {
     let fixture: Fixture = fixture("no-checkout-clone-staged-deletion");

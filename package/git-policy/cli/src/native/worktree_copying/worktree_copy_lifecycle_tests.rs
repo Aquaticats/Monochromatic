@@ -1,4 +1,8 @@
-//! Lifecycle checks against real Git: applicability, bypasses, settlement, the summary line and exit statuses.
+//! Lifecycle checks against real Git:
+//! applicability,
+//! bypasses,
+//! settlement,
+//! the summary line and exit statuses.
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
@@ -6,14 +10,16 @@ use crate::worktree_copy_journal::{create_journal_for, journal_root, read_pendin
 use crate::test_support::dead_copy_owner;
 use std::process::Output;
 
-/// A function-like value with the right shape is a Git runner in these controls: the shipped caller writes a small struct that holds the state.
+/// A function-like value with the right shape is a Git runner in these controls:
+/// the shipped caller writes a small struct that holds the state.
 impl<Run: FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError>> GitRunner for Run {
     fn run(&mut self, step: &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> {
         return self(step);
     }
 }
 
-/// A repository with an ignored `cache` directory, returned with its canonical common directory.
+/// A repository with an ignored `cache` directory,
+/// returned with its canonical common directory.
 fn source(root: &Path) -> (PathBuf, PathBuf) {
     let main: PathBuf = repository(root, "main");
     std::fs::write(main.join(".gitignore"), b"cache/\n").expect("gitignore");
@@ -40,7 +46,10 @@ fn main_identity(main: &Path, common: &Path) -> WorktreeIdentity {
     };
 }
 
-/// The summary line names the count, the source, and the destinations, with the incumbent's nouns.
+/// The summary line names the count,
+/// the source,
+/// and the destinations,
+/// with the incumbent's nouns.
 #[test]
 fn summary_line_uses_exact_nouns() {
     assert_eq!(
@@ -53,7 +62,10 @@ fn summary_line_uses_exact_nouns() {
     );
 }
 
-/// The exit status follows the incumbent: a copy-only failure is 2, Git's own status is kept, and a signal is 1.
+/// The exit status follows the incumbent:
+/// a copy-only failure is 2,
+/// Git's own status is kept,
+/// and a signal is 1.
 #[test]
 fn exit_status_follows_the_settlement_table() {
     let ok: GitStatus = GitStatus { code: Some(0) };
@@ -104,7 +116,8 @@ fn exit_status_follows_the_settlement_table() {
     );
 }
 
-/// A worktree added from a linked worktree gets its ignored files and the summary line, and takes no lock.
+/// A worktree added from a linked worktree gets its ignored files and the summary line,
+/// and takes no lock.
 #[cfg(unix)]
 #[test]
 fn added_worktree_receives_ignored_state_without_a_lock() {
@@ -178,7 +191,8 @@ fn added_worktree_receives_ignored_state_without_a_lock() {
     remove(root.as_path());
 }
 
-/// The opt-out flag skips synchronization and recovery, and the flag never reaches the runner.
+/// The opt-out flag skips synchronization and recovery,
+/// and the flag never reaches the runner.
 #[cfg(unix)]
 #[test]
 fn opted_out_invocation_skips_synchronization() {
@@ -256,7 +270,9 @@ fn main_worktree_command_that_creates_nothing_is_not_settled() {
     remove(root.as_path());
 }
 
-/// A command that creates no worktrees runs once, untouched, and creates nothing in the repository.
+/// A command that creates no worktrees runs once,
+/// untouched,
+/// and creates nothing in the repository.
 #[cfg(unix)]
 #[test]
 fn non_worktree_command_runs_without_settlement() {
@@ -293,7 +309,9 @@ fn non_worktree_command_runs_without_settlement() {
     remove(root.as_path());
 }
 
-/// A staged journal of a registered worktree, written for `owner`, as a copy that stopped after staging leaves it.
+/// A staged journal of a registered worktree,
+/// written for `owner`,
+/// as a copy that stopped after staging leaves it.
 #[cfg(unix)]
 fn journal_for(main: &Path, common: &Path, destination: &Path, owner: &crate::worktree_copy_owner::CopyOwner) -> crate::worktree_copy_journal_encoding_and_validation::PendingJournal {
     use crate::worktree_copy_selection::CopySelection;
@@ -309,7 +327,8 @@ fn journal_for(main: &Path, common: &Path, destination: &Path, owner: &crate::wo
     return create_journal_for(common, destination, &snapshot, owner).expect("journal");
 }
 
-/// The invocation of a creating `git worktree add` from the main checkout, naming `destination`.
+/// The invocation of a creating `git worktree add` from the main checkout,
+/// naming `destination`.
 fn creation_from(main: &Path, common: &Path, destination: Option<&Path>) -> Invocation {
     return Invocation {
         identity: main_identity(main, common),
@@ -329,7 +348,8 @@ fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();
 }
 
-/// Another command registers a worktree while this one's Git runs: only the destination this command named is copied into,
+/// Another command registers a worktree while this one's Git runs:
+/// only the destination this command named is copied into,
 /// so two concurrent adds each get exactly their own copy.
 #[cfg(unix)]
 #[test]
@@ -357,7 +377,8 @@ fn a_creation_copies_only_into_the_destination_it_named() {
     remove(root.as_path());
 }
 
-/// A journal whose owner still runs belongs to a copy in progress: a creation neither waits for it nor recovers it.
+/// A journal whose owner still runs belongs to a copy in progress:
+/// a creation neither waits for it nor recovers it.
 #[cfg(unix)]
 #[test]
 fn a_creation_leaves_a_live_journal_alone_and_does_not_wait() {
@@ -384,7 +405,8 @@ fn a_creation_leaves_a_live_journal_alone_and_does_not_wait() {
     remove(root.as_path());
 }
 
-/// A journal whose owner is dead is recovered before the creation runs Git, and reported.
+/// A journal whose owner is dead is recovered before the creation runs Git,
+/// and reported.
 #[cfg(unix)]
 #[test]
 fn a_creation_recovers_a_dead_journal_first() {
@@ -486,9 +508,15 @@ fn a_creation_that_failed_after_registering_still_copies() {
 /// The repository path of the generated rules file that sits in the repository root's own `.cache`.
 const RULES_PATH: &str = ".cache/forbidden-strings.rules.txt";
 
-/// A main checkout whose ignored state has the shapes the rule must tell apart, returned with its canonical root and common
-/// directory: installed dependencies with a pnpm-style link and a hard-linked store file, build output with a cache inside it,
-/// caches, run records, a local file, a separate checkout and a registered worktree nested in an ignored directory.
+/// A main checkout whose ignored state has the shapes the rule must tell apart,
+/// returned with its canonical root and common
+/// directory:
+/// installed dependencies with a pnpm-style link and a hard-linked store file,
+/// build output with a cache inside it,
+/// caches,
+/// run records,
+/// a local file,
+/// a separate checkout and a registered worktree nested in an ignored directory.
 #[cfg(unix)]
 fn main_with_state(root: &Path) -> (PathBuf, PathBuf) {
     let main: PathBuf = repository(root, "main");
@@ -577,7 +605,9 @@ fn add_from_main(root: &Path, main: &Path, common: &Path, flags: (bool, bool)) -
     return (settlement, String::from_utf8(stderr).expect("utf8"), topic);
 }
 
-/// Nothing of the copy stays behind: no lock file, no pending journal and no private stage beside the worktree.
+/// Nothing of the copy stays behind:
+/// no lock file,
+/// no pending journal and no private stage beside the worktree.
 fn assert_nothing_left(root: &Path, common: &Path) {
     assert!(!journal_root(common).join("settlement.lock").exists(), "no lock is ever taken");
     assert!(read_pending_journals(common).expect("pending").is_empty());
@@ -589,7 +619,8 @@ fn assert_nothing_left(root: &Path, common: &Path) {
     assert!(leftovers.is_empty(), "{leftovers:?}");
 }
 
-/// A worktree added from the main checkout receives the dependencies and builds it needs, links and all.
+/// A worktree added from the main checkout receives the dependencies and builds it needs,
+/// links and all.
 #[cfg(unix)]
 #[test]
 fn main_checkout_source_carries_dependencies_and_builds() {
@@ -628,7 +659,9 @@ fn main_checkout_source_carries_dependencies_and_builds() {
     remove(root.as_path());
 }
 
-/// A worktree added from the main checkout never receives its nested worktrees, another checkout, caches or run records.
+/// A worktree added from the main checkout never receives its nested worktrees,
+/// another checkout,
+/// caches or run records.
 #[cfg(unix)]
 #[test]
 fn main_checkout_source_leaves_out_checkouts_caches_and_run_records() {
@@ -655,7 +688,8 @@ fn main_checkout_source_leaves_out_checkouts_caches_and_run_records() {
     remove(root.as_path());
 }
 
-/// A file the user cannot read is left out with one notice line, and the add still succeeds.
+/// A file the user cannot read is left out with one notice line,
+/// and the add still succeeds.
 #[cfg(unix)]
 #[test]
 fn main_checkout_source_skips_unreadable_entries_with_a_notice() {
@@ -698,7 +732,8 @@ fn main_checkout_source_honors_the_opt_out() {
     remove(root.as_path());
 }
 
-/// A command the caller reports as creating no worktree is never settled, even from a main checkout with ignored state.
+/// A command the caller reports as creating no worktree is never settled,
+/// even from a main checkout with ignored state.
 #[cfg(unix)]
 #[test]
 fn main_checkout_source_ignores_commands_that_create_no_worktree() {
@@ -712,7 +747,8 @@ fn main_checkout_source_ignores_commands_that_create_no_worktree() {
     remove(root.as_path());
 }
 
-/// A destination Git made whose registration does not name it back gets no copy, and the command says so instead of
+/// A destination Git made whose registration does not name it back gets no copy,
+/// and the command says so instead of
 /// succeeding in silence.
 #[cfg(unix)]
 #[test]
@@ -740,7 +776,9 @@ fn a_made_destination_whose_registration_cannot_be_confirmed_is_told() {
 }
 
 /// The worktrees handed on for the package-manager repair are exactly the destination whose registration the binding
-/// confirmed: never another add's worktree registered meanwhile, and none when the destination is unknown or unconfirmed.
+/// confirmed:
+/// never another add's worktree registered meanwhile,
+/// and none when the destination is unknown or unconfirmed.
 #[cfg(unix)]
 #[test]
 fn the_repair_is_handed_exactly_the_confirmed_destination() {

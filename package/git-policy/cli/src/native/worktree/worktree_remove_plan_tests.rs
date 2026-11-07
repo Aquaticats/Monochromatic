@@ -1,10 +1,12 @@
-//! Controls for the plan of `git worktree remove`: the one accepted shape and every declined one.
+//! Controls for the plan of `git worktree remove`:
+//! the one accepted shape and every declined one.
 
 use super::*;
 use crate::command_test_support::os_arguments;
 use crate::test_support::{fixture, remove};
 
-/// The accepted forms name exactly one existing directory; every option and every other count is declined.
+/// The accepted forms name exactly one existing directory;
+/// every option and every other count is declined.
 #[test]
 fn the_plan_names_one_directory_and_no_option() {
     let root: PathBuf = fixture("remove-plan");
@@ -28,7 +30,9 @@ fn the_plan_names_one_directory_and_no_option() {
     remove(root.as_path());
 }
 
-/// An empty operand names no directory: joined to the start directory it would name the current one, and Git answers that
+/// An empty operand names no directory:
+/// joined to the start directory it would name the current one,
+/// and Git answers that
 ///  it is not a working tree.
 #[test]
 fn an_empty_operand_names_no_directory() {

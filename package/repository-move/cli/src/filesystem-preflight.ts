@@ -11,9 +11,9 @@
  */
 
 import { execFile, } from 'node:child_process';
-import { access, } from 'node:fs/promises';
-import { dirname, } from 'node:path';
 import { promisify, } from 'node:util';
+import { ancestorChain, } from './canonical-path.ts';
+import { pathExists, } from './completion-records.ts';
 import { MILLISECONDS_PER_SECOND, } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
 import type { Subvolume, } from './inventory.ts';
@@ -53,26 +53,23 @@ const FINDMNT = 'findmnt';
  */
 export async function nearestExisting(path: string,): Promise<string> {
   /**
-   The part of the path being tried.
+   The path and its ancestors, deepest first.
    */
-  let candidate = path;
-  for (;;) {
-    try {
-      await access(candidate,);
-      return candidate;
-    }
-    catch {
-      /**
-       The folder that holds the missing name.
-       */
-      const parent = dirname(candidate,);
-      if (parent === candidate) {
-        return candidate;
-      }
-      candidate = parent;
-    }
-  }
+  const chain = ancestorChain(path,);
+  /**
+   Whether each of them exists.
+   */
+  const present = await Promise.all(chain.map(pathExists,),);
+  return chain[present.indexOf(true,)] ?? path;
 }
+
+/**
+ A source subvolume with the filesystem it is on.
+ */
+type SourceSide = {
+  readonly path: string;
+  readonly filesystem: string;
+};
 
 /**
  Reads one column of `findmnt` for the mount a path is on.
@@ -224,7 +221,7 @@ export async function requireSharedFilesystems(
   /**
    The first source on another filesystem than the snapshot folder.
    */
-  const stranger = sources.find(function isElsewhere(source,) {
+  const stranger = sources.find(function isElsewhere(source: Readonly<SourceSide>,) {
     return source.filesystem !== snapshotSide;
   },);
   if (stranger !== undefined) {

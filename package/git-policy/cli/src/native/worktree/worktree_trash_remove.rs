@@ -1,12 +1,22 @@
 //! What:
-//!  Remove a directory tree beneath a held parent directory: every directory is opened by one plain name below the handle of
-//!  its parent without following a link, and every entry is unlinked from the handle of the directory that holds it.
+//!  Remove a directory tree beneath a held parent directory:
+//! every directory is opened by one plain name below the handle of
+//!  its parent without following a link,
+//! and every entry is unlinked from the handle of the directory that holds it.
 //! Why:
-//!  A path string is resolved again by every call that takes it, so a directory replaced by a link between a check and the
-//!  removal redirects the removal. Here no call resolves a path: a link, a mount point or a directory on another device is
-//!  an error that names it, and the identity of the top directory is compared with the recorded one on the object that is
-//!  opened, so a replacement is never emptied. A directory the owner cannot write to is given the owner's permission bits
-//!  through its descriptor on the way down, as `subvolume_remove.rs` does for the old tree of a conversion.
+//!  A path string is resolved again by every call that takes it,
+//! so a directory replaced by a link between a check and the
+//!  removal redirects the removal.
+//! Here no call resolves a path:
+//! a link,
+//! a mount point or a directory on another device is
+//!  an error that names it,
+//! and the identity of the top directory is compared with the recorded one on the object that is
+//!  opened,
+//! so a replacement is never emptied.
+//! A directory the owner cannot write to is given the owner's permission bits
+//!  through its descriptor on the way down,
+//! as `subvolume_remove.rs` does for the old tree of a conversion.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,14 +41,17 @@ pub enum Removal {
     Absent,
 }
 
-/// How a message names an entry: built only when a message is made, so a removal that succeeds builds no path.
+/// How a message names an entry:
+/// built only when a message is made,
+/// so a removal that succeeds builds no path.
 #[derive(Clone, Copy)]
 struct Describe<'a> {
     /// The path of the top of the tree being removed.
     top: &'a Path,
     /// The names below the top that lead to the directory the message is about.
     names: &'a [OsString],
-    /// One more name below those, when the message is about an entry of that directory.
+    /// One more name below those,
+    /// when the message is about an entry of that directory.
     entry: Option<&'a OsStr>,
 }
 
@@ -53,7 +66,8 @@ impl<'a> Describe<'a> {
         return Self { entry: Some(entry), ..self };
     }
 
-    /// The path the message names; it is joined only when a message is made.
+    /// The path the message names;
+    /// it is joined only when a message is made.
     fn path(&self) -> PathBuf {
         let mut path: PathBuf = self.top.to_path_buf();
         for part in self.names {
@@ -67,9 +81,11 @@ impl<'a> Describe<'a> {
 }
 
 /// What:
-///  A step's outcome with a failure turned into the message `<path> <what> (<error>)`, the path made only on a failure.
+///  A step's outcome with a failure turned into the message `<path> <what> (<error>)`,
+/// the path made only on a failure.
 /// Why:
-///   Every step of the removal words its refusal this way, and a named function stands where a closure would capture the path.
+///   Every step of the removal words its refusal this way,
+/// and a named function stands where a closure would capture the path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -82,13 +98,18 @@ fn failed_at<T>(outcome: std::io::Result<T>, shown: &Describe<'_>, what: &str) -
     };
 }
 
-/// One directory of the walk: its handle, its name in the directory above, and the entries still to remove.
+/// One directory of the walk:
+/// its handle,
+/// its name in the directory above,
+/// and the entries still to remove.
 struct Frame {
-    /// The directory, held open so every call below it names a plain entry of this object.
+    /// The directory,
+    /// held open so every call below it names a plain entry of this object.
     dir: File,
     /// Its name in the directory above.
     name: OsString,
-    /// The entries not yet removed, each with whether the listing says it is a directory.
+    /// The entries not yet removed,
+    /// each with whether the listing says it is a directory.
     entries: Vec<(OsString, bool)>,
 }
 
@@ -97,7 +118,8 @@ fn is_gone(error: &std::io::Error) -> bool {
     return error.kind() == std::io::ErrorKind::NotFound;
 }
 
-/// The names in an open directory, each with whether it is a directory (a link is not one).
+/// The names in an open directory,
+/// each with whether it is a directory (a link is not one).
 fn list_entries(dir: &File, shown: Describe<'_>) -> Result<Vec<(OsString, bool)>, String> {
     let listing = failed_at(std::fs::read_dir(handle_path(dir)), &shown, "cannot be listed")?;
     let mut entries: Vec<(OsString, bool)> = Vec::new();
@@ -110,7 +132,9 @@ fn list_entries(dir: &File, shown: Describe<'_>) -> Result<Vec<(OsString, bool)>
     return Ok(entries);
 }
 
-/// Give the owner read, write and search permission on an open directory; a directory it cannot be given them on keeps its
+/// Give the owner read,
+/// write and search permission on an open directory;
+/// a directory it cannot be given them on keeps its
 ///  mode and the removal that follows reports the operating system's refusal.
 fn make_writable(dir: &File, shown: Describe<'_>) {
     let Ok(metadata) = dir.metadata() else { return };
@@ -123,7 +147,8 @@ fn make_writable(dir: &File, shown: Describe<'_>) {
     }
 }
 
-/// Open the directory `name` below `parent` and describe it as a frame; the reason is the error.
+/// Open the directory `name` below `parent` and describe it as a frame;
+/// the reason is the error.
 fn enter(parent: &File, name: &OsStr, device: u64, shown: Describe<'_>) -> Result<Frame, String> {
     let dir: File = failed_at(open_directory_at(parent, name), &shown, "is not a plain directory that can be entered, so it is left alone")?;
     let found: u64 = failed_at(device_of(&dir), &shown, "cannot be examined")?;
@@ -136,12 +161,22 @@ fn enter(parent: &File, name: &OsStr, device: u64, shown: Describe<'_>) -> Resul
 }
 
 /// What:
-///  Remove the directory `name` below `parent` with everything in it; `label` is the path of `parent`, used only in messages.
+///  Remove the directory `name` below `parent` with everything in it;
+/// `label` is the path of `parent`,
+/// used only in messages.
 /// Why:
-///   With `expected` set, the directory is removed only when it is that object: the identity is compared by name before the
-///  directory is opened and again on the opened object, so a replacement made between the two is left alone. The top
-///  directory must be on the device of `parent`. Nothing is followed and nothing outside the directory is touched. An entry
-///  that vanishes meanwhile counts as removed. Directories are entered with a work stack, so depth costs no recursion.
+///   With `expected` set,
+/// the directory is removed only when it is that object:
+/// the identity is compared by name before the
+///  directory is opened and again on the opened object,
+/// so a replacement made between the two is left alone.
+/// The top
+///  directory must be on the device of `parent`.
+/// Nothing is followed and nothing outside the directory is touched.
+/// An entry
+///  that vanishes meanwhile counts as removed.
+/// Directories are entered with a work stack,
+/// so depth costs no recursion.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

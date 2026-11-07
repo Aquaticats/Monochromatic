@@ -1,5 +1,12 @@
-//! Controls for the review findings on the conversion: the journal's files, the identity of the stage, what a late writer
-//!  loses, the pinned removal, nested registrations in any layout, refusals by kind, and a
+//! Controls for the review findings on the conversion:
+//! the journal's files,
+//! the identity of the stage,
+//! what a late writer
+//!  loses,
+//! the pinned removal,
+//! nested registrations in any layout,
+//! refusals by kind,
+//! and a
 //!  failed index refresh.
 
 use super::*;
@@ -14,7 +21,10 @@ use crate::worktree_convert_remove::remove_recorded_old_tree_seamed;
 /// The options of a real run.
 const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false, command_line_attributes: false };
 
-/// A checkout with one settled detached linked worktree `wt`: old files, a refreshed index, so it is quiet.
+/// A checkout with one settled detached linked worktree `wt`:
+/// old files,
+/// a refreshed index,
+/// so it is quiet.
 fn quiet_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let (parent, root) = checkout_with_worktree(name);
     let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
@@ -40,7 +50,8 @@ fn failure_of(verdict: Result<Verdict, MigrateError>) -> String {
     return verdict.expect_err("the run fails").to_string();
 }
 
-/// The reasons of a skipped run, joined.
+/// The reasons of a skipped run,
+/// joined.
 fn skipped(verdict: Result<Verdict, MigrateError>) -> String {
     return match verdict.expect("no failure") {
         Verdict::Skipped(reasons) => reasons.join("\n"),
@@ -48,7 +59,8 @@ fn skipped(verdict: Result<Verdict, MigrateError>) -> String {
     };
 }
 
-/// The journal's temporary file is never a name that exists: a link at the old fixed name is not followed or truncated.
+/// The journal's temporary file is never a name that exists:
+/// a link at the old fixed name is not followed or truncated.
 #[test]
 fn the_journal_never_writes_through_a_file_that_is_in_the_way() {
     let (parent, _root, worktree) = quiet_worktree("safety-journal-tmp");
@@ -62,7 +74,8 @@ fn the_journal_never_writes_through_a_file_that_is_in_the_way() {
     remove(parent.as_path());
 }
 
-/// A journal is made only where there is none, and replacing one is a separate act.
+/// A journal is made only where there is none,
+/// and replacing one is a separate act.
 #[test]
 fn a_fresh_journal_never_replaces_one_that_exists() {
     let (parent, _root, worktree) = quiet_worktree("safety-journal-new");
@@ -77,8 +90,11 @@ fn a_fresh_journal_never_replaces_one_that_exists() {
     remove(parent.as_path());
 }
 
-/// A directory at the converting name that the journal has no identity for is foreign: it is not synced into, not exchanged and
-///  not destroyed by the abandon, whether someone made it or the run was killed between creating and recording it.
+/// A directory at the converting name that the journal has no identity for is foreign:
+/// it is not synced into,
+/// not exchanged and
+///  not destroyed by the abandon,
+/// whether someone made it or the run was killed between creating and recording it.
 #[test]
 fn a_foreign_stage_is_never_synced_into_exchanged_or_destroyed() {
     for point in ["journaled", "stage-unrecorded"] {
@@ -103,7 +119,9 @@ fn a_foreign_stage_is_never_synced_into_exchanged_or_destroyed() {
     }
 }
 
-/// After the swap, a different subvolume with the same `.git` bytes at the path is not the installed copy, and the old tree stays.
+/// After the swap,
+/// a different subvolume with the same `.git` bytes at the path is not the installed copy,
+/// and the old tree stays.
 #[test]
 fn a_replaced_installed_subvolume_is_not_accepted() {
     let (parent, _root, worktree) = quiet_worktree("safety-replaced");
@@ -120,7 +138,8 @@ fn a_replaced_installed_subvolume_is_not_accepted() {
     remove(parent.as_path());
 }
 
-/// A file written after the copy was proved and before a kill is in the converted worktree, because the copy is made again.
+/// A file written after the copy was proved and before a kill is in the converted worktree,
+/// because the copy is made again.
 #[test]
 fn a_file_written_after_a_synced_kill_is_not_lost() {
     let (parent, _root, worktree) = quiet_worktree("safety-synced");
@@ -134,8 +153,10 @@ fn a_file_written_after_a_synced_kill_is_not_lost() {
     remove(parent.as_path());
 }
 
-/// A difference between the old tree and the installed one keeps the old tree and is reported; nothing is ever copied from the
-///  old tree, so an edit made to the installed worktree is never overwritten.
+/// A difference between the old tree and the installed one keeps the old tree and is reported;
+/// nothing is ever copied from the
+///  old tree,
+/// so an edit made to the installed worktree is never overwritten.
 #[test]
 fn a_difference_keeps_the_old_tree_and_nothing_is_copied() {
     let (parent, _root, worktree) = quiet_worktree("safety-late");
@@ -161,7 +182,8 @@ fn a_difference_keeps_the_old_tree_and_nothing_is_copied() {
     remove(parent.as_path());
 }
 
-/// A process that holds the old tree open keeps it, and the run says which.
+/// A process that holds the old tree open keeps it,
+/// and the run says which.
 #[test]
 fn a_process_holding_the_old_tree_keeps_it() {
     let (parent, _root, worktree) = quiet_worktree("safety-holder");
@@ -178,7 +200,8 @@ fn a_process_holding_the_old_tree_keeps_it() {
     remove(parent.as_path());
 }
 
-/// The old tree is removed beneath the directory that was pinned: a directory put at the name after the check survives.
+/// The old tree is removed beneath the directory that was pinned:
+/// a directory put at the name after the check survives.
 #[test]
 fn the_removal_follows_the_pinned_directory_not_the_name() {
     let (parent, _root, worktree) = quiet_worktree("safety-pinned");
@@ -202,7 +225,8 @@ fn the_removal_follows_the_pinned_directory_not_the_name() {
     remove(parent.as_path());
 }
 
-/// A worktree registered inside another is found whatever the common directory is called: here a bare repository.
+/// A worktree registered inside another is found whatever the common directory is called:
+/// here a bare repository.
 #[test]
 fn a_nested_registration_is_found_in_a_bare_layout() {
     let (parent, root) = checkout_with_worktree("safety-bare");
@@ -219,7 +243,9 @@ fn a_nested_registration_is_found_in_a_bare_layout() {
     remove(parent.as_path());
 }
 
-/// A refusal is exempt by what it is and who owns it, not by its words: a nested worktree whose name contains the converting
+/// A refusal is exempt by what it is and who owns it,
+/// not by its words:
+/// a nested worktree whose name contains the converting
 ///  suffix still stops a resumed conversion.
 #[test]
 fn a_nested_worktree_named_like_the_stage_still_stops_a_resume() {
@@ -232,7 +258,8 @@ fn a_nested_worktree_named_like_the_stage_still_stops_a_resume() {
     remove(parent.as_path());
 }
 
-/// An index that cannot be refreshed stops the conversion with the old tree kept and the journal where it was; the next run
+/// An index that cannot be refreshed stops the conversion with the old tree kept and the journal where it was;
+/// the next run
 ///  finishes it.
 #[test]
 fn a_failed_index_refresh_keeps_the_old_tree() {
@@ -252,7 +279,8 @@ fn a_failed_index_refresh_keeps_the_old_tree() {
     remove(parent.as_path());
 }
 
-/// Run `work` on a thread and fail when it does not finish within the patience: a blocked open would otherwise hang the run.
+/// Run `work` on a thread and fail when it does not finish within the patience:
+/// a blocked open would otherwise hang the run.
 fn finishes<T: Send + 'static>(what: &str, work: impl FnOnce() -> T + Send + 'static) -> T {
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -273,7 +301,8 @@ const LISTABLE: u32 = 0o755;
 /// How long a step that must not block may take in a control.
 const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
 
-/// A named pipe at `path`, which blocks whoever opens it for reading until a writer comes.
+/// A named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
 fn make_pipe(path: &Path) {
     let name = std::ffi::CString::new(std::os::unix::ffi::OsStrExt::as_bytes(path.as_os_str())).expect("path text");
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
@@ -281,7 +310,8 @@ fn make_pipe(path: &Path) {
     assert_eq!(result, 0, "mkfifo {}", path.display());
 }
 
-/// A registered-worktree listing that cannot be read is a refusal, not the absence of nested worktrees.
+/// A registered-worktree listing that cannot be read is a refusal,
+/// not the absence of nested worktrees.
 #[test]
 fn an_unreadable_list_of_registrations_is_a_refusal() {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
@@ -298,7 +328,8 @@ fn an_unreadable_list_of_registrations_is_a_refusal() {
     remove(parent.as_path());
 }
 
-/// A worktree moved while a conversion was unfinished is refused loudly: the journal names the path it began at.
+/// A worktree moved while a conversion was unfinished is refused loudly:
+/// the journal names the path it began at.
 #[test]
 fn a_worktree_moved_during_an_unfinished_conversion_is_refused() {
     let (parent, root, worktree) = quiet_worktree("safety-moved");
@@ -334,7 +365,8 @@ fn a_named_pipe_in_the_place_of_a_file_does_not_block() {
     remove(other.as_path());
 }
 
-/// A dry run after a kill between the exchange and its journal line sees the exchange, like a real run does.
+/// A dry run after a kill between the exchange and its journal line sees the exchange,
+/// like a real run does.
 #[test]
 fn a_dry_run_sees_an_exchange_the_journal_has_not_recorded() {
     let (parent, _root, worktree) = quiet_worktree("safety-dry-exchanged");
@@ -347,7 +379,10 @@ fn a_dry_run_sees_an_exchange_the_journal_has_not_recorded() {
     remove(parent.as_path());
 }
 
-/// The old root is recorded with its birth time: the journal keeps it, one written before it was recorded still reads, and a
+/// The old root is recorded with its birth time:
+/// the journal keeps it,
+/// one written before it was recorded still reads,
+/// and a
 ///  directory with the same inode but another birth time is not the old root.
 #[test]
 fn the_old_root_is_recorded_with_its_birth_time_and_compared_with_it() {
@@ -369,7 +404,8 @@ fn the_old_root_is_recorded_with_its_birth_time_and_compared_with_it() {
     remove(parent.as_path());
 }
 
-/// The removal checks the birth time on the descriptor it pins: the same inode with another birth time is left alone.
+/// The removal checks the birth time on the descriptor it pins:
+/// the same inode with another birth time is left alone.
 #[test]
 fn a_directory_with_another_birth_time_is_not_removed() {
     let (parent, _root, worktree) = quiet_worktree("safety-birth-removal");

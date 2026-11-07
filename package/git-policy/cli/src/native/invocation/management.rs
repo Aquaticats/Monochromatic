@@ -135,8 +135,10 @@ fn plan_service(global_arguments: &[OsString], environment: &[(OsString, OsStrin
 /// What:
 ///  Decide the action of `git monochromatic-git-policy-cli service settle-earlier-batches`.
 /// Why:
-///   The command needs no valid configuration; it works on the commit service's earlier journals of the worktree it runs in,
-///  with the real Git the wrapper forwards to (a recorded fallback owes its notice, as for the status).
+///   The command needs no valid configuration;
+/// it works on the commit service's earlier journals of the worktree it runs in,
+///  with the real Git the wrapper forwards to (a recorded fallback owes its notice,
+/// as for the status).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,10 +204,13 @@ fn plan_service_with(global_arguments: &[OsString], environment: &[(OsString, Os
 }
 
 /// What:
-///  Decide the action of `git monochromatic-git-policy-cli migrate-to-subvolume`: a refused invocation prints its reason, anything else runs
+///  Decide the action of `git monochromatic-git-policy-cli migrate-to-subvolume`:
+/// a refused invocation prints its reason,
+/// anything else runs
 ///  from the working directory.
 /// Why:
-///   The command needs neither configuration nor Git: it reads `.git` itself and calls the filesystem.
+///   The command needs neither configuration nor Git:
+/// it reads `.git` itself and calls the filesystem.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -230,13 +235,21 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
 }
 
 /// What:
-///  Decide the action of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`: a refused invocation prints its reason, anything else
+///  Decide the action of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`:
+/// a refused invocation prints its reason,
+/// anything else
 ///  runs from the working directory.
 /// Why:
-///   Like the migration, the command needs no valid configuration and starts no Git. It resolves the real Git the wrapper
-///  forwards to, as every forwarding path does, because the wrapper's own environment does not name it (only its children's
-///  does) and the content check needs to know where that Git reads its system files from. Where no real Git is found the
-///  command still runs, and a worktree that needs the system files is refused with that reason instead of guessed.
+///   Like the migration,
+/// the command needs no valid configuration and starts no Git.
+/// It resolves the real Git the wrapper
+///  forwards to,
+/// as every forwarding path does,
+/// because the wrapper's own environment does not name it (only its children's
+///  does) and the content check needs to know where that Git reads its system files from.
+/// Where no real Git is found the
+///  command still runs,
+/// and a worktree that needs the system files is refused with that reason instead of guessed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -268,7 +281,8 @@ fn run_convert(arguments: &ConvertArguments, cwd: &Path, environment: &[(OsStrin
     return crate::worktree_convert_command::convert_action(arguments, cwd, environment, real_git);
 }
 
-/// Other platforms have no btrfs subvolumes, so the command says so.
+/// Other platforms have no btrfs subvolumes,
+/// so the command says so.
 #[cfg(not(target_os = "linux"))]
 fn run_convert(_arguments: &ConvertArguments, _cwd: &Path, _environment: &[(OsString, OsString)], _real_git: Option<&Path>) -> Action {
     return failure("git monochromatic-git-policy-cli convert-worktree-to-subvolume works on Linux with btrfs only");
@@ -292,7 +306,8 @@ fn run_migrate(arguments: &MigrateArguments, cwd: &Path) -> Action {
     return migrate_action(arguments, cwd);
 }
 
-/// Other platforms have no btrfs subvolumes, so the command says so.
+/// Other platforms have no btrfs subvolumes,
+/// so the command says so.
 #[cfg(not(target_os = "linux"))]
 fn run_migrate(_arguments: &MigrateArguments, _cwd: &Path) -> Action {
     return failure("git monochromatic-git-policy-cli migrate-to-subvolume works on Linux with btrfs only");
@@ -329,7 +344,9 @@ fn plan_doctor(
 /// What:
 ///  The doctor's action with the note about the batches the earlier release left open for this worktree on standard error.
 /// Why:
-///   The note is informational and read-only; it changes neither the status nor standard output, and a run that could not
+///   The note is informational and read-only;
+/// it changes neither the status nor standard output,
+/// and a run that could not
 ///  examine the repository (status 2) gets none.
 ///
 /// In TS you'd write (pseudocode):
@@ -380,7 +397,8 @@ pub fn plan_management(
 }
 
 /// What:
-///  The doctor's filesystem section for a plan that has none to show: the empty text.
+///  The doctor's filesystem section for a plan that has none to show:
+/// the empty text.
 /// Why:
 ///  `plan_management` hands it to `plan_management_with_section` where no caller supplies a section of its own.
 ///
@@ -396,8 +414,10 @@ fn no_filesystem_section(_cwd: &Path) -> String {
 ///  The same decision with the doctor's filesystem section supplied by the caller.
 ///  `&dyn Fn(&Path) -> String` is a borrowed function from the repository's common Git directory to the section text.
 /// Why:
-///   The executable passes the section read from the running system (`host_filesystem_section`); the controls of the
-///  doctor and of the management command pass an empty one, so their exact output does not depend on the host.
+///   The executable passes the section read from the running system (`host_filesystem_section`);
+/// the controls of the
+///  doctor and of the management command pass an empty one,
+/// so their exact output does not depend on the host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

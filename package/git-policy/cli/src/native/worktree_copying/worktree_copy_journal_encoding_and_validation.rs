@@ -1,9 +1,12 @@
 //! What:
-//!  The exact JSON encoding of one destination's linked-worktree copy journal, and the strict reading and validation of every
+//!  The exact JSON encoding of one destination's linked-worktree copy journal,
+//! and the strict reading and validation of every
 //!  field recovery will act on.
 //! Why:
-//!  A crash can happen after any step, so the journal must say which phase the copy reached and which paths it may have
-//!  touched, and recovery must never act on a journal it cannot prove is its own.
+//!  A crash can happen after any step,
+//! so the journal must say which phase the copy reached and which paths it may have
+//!  touched,
+//! and recovery must never act on a journal it cannot prove is its own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,7 +22,8 @@ use crate::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path};
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The parent directory name of the journals, beneath the common Git directory.
+///  The parent directory name of the journals,
+/// beneath the common Git directory.
 /// Why:
 ///   Every linked worktree of one repository shares the same journal location.
 ///
@@ -32,7 +36,8 @@ pub const JOURNAL_PARENT_NAME: &str = WORKTREE_COPY_RECORD_FOLDER.current;
 /// What:
 ///  The schema directory of the journals.
 /// Why:
-///   A later schema gets its own directory, so an older wrapper never reads a newer record.
+///   A later schema gets its own directory,
+/// so an older wrapper never reads a newer record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,7 +48,8 @@ pub const JOURNAL_VERSION_NAME: &str = "v1";
 /// What:
 ///  The suffix of a final journal file.
 /// Why:
-///   Only files with this suffix are journals; anything else in the directory is ignored.
+///   Only files with this suffix are journals;
+/// anything else in the directory is ignored.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,7 +60,8 @@ pub const JOURNAL_SUFFIX: &str = ".json";
 /// What:
 ///  The suffix of an unpublished temporary journal write.
 /// Why:
-///   An interrupted write leaves only files with this suffix, which recovery removes.
+///   An interrupted write leaves only files with this suffix,
+/// which recovery removes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -75,9 +82,11 @@ pub const TEMPORARY_SUFFIX: &str = ".tmp";
 pub enum Phase {
     /// The stage is complete and nothing has been installed.
     Staged,
-    /// Installation has begun; the intents and creations in the install log say what it touched.
+    /// Installation has begun;
+    /// the intents and creations in the install log say what it touched.
     Installing,
-    /// Installation finished; only cleanup remains.
+    /// Installation finished;
+    /// only cleanup remains.
     Complete,
 }
 
@@ -104,7 +113,8 @@ impl Phase {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Journal {
-    /// Paths proven created, with their post-creation identities.
+    /// Paths proven created,
+    /// with their post-creation identities.
     pub created_entries: Vec<InstalledPath>,
     /// Selected paths claimed before installation.
     pub intended_entries: Vec<String>,
@@ -140,14 +150,16 @@ pub struct PendingJournal {
 }
 
 impl PendingJournal {
-    /// The owner token the journal's file name carries, or nothing for a name no owner is written into.
+    /// The owner token the journal's file name carries,
+    /// or nothing for a name no owner is written into.
     pub fn owner_token(&self) -> Option<String> {
         return owner_token_of(self.path.as_path());
     }
 }
 
 /// What:
-///  The owner token in a journal file name `<id>.<owner>.json`, if the name has that shape.
+///  The owner token in a journal file name `<id>.<owner>.json`,
+/// if the name has that shape.
 /// Why:
 ///   The owner is part of the name so that taking a journal over is one atomic rename.
 ///
@@ -163,9 +175,11 @@ pub fn owner_token_of(path: &Path) -> Option<String> {
 }
 
 /// What:
-///  The JSON text of one journal, with the incumbent's key order and a final line feed.
+///  The JSON text of one journal,
+/// with the incumbent's key order and a final line feed.
 /// Why:
-///   The incumbent reads these bytes, so the order and spelling must match its `JSON.stringify` output.
+///   The incumbent reads these bytes,
+/// so the order and spelling must match its `JSON.stringify` output.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -191,9 +205,11 @@ pub fn encode_journal(journal: &Journal) -> String {
 }
 
 /// What:
-///  One created entry as its JSON object, with the incumbent's key order.
+///  One created entry as its JSON object,
+/// with the incumbent's key order.
 /// Why:
-///   The install log and the journal share this spelling, so both wrappers read either.
+///   The install log and the journal share this spelling,
+/// so both wrappers read either.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -210,7 +226,8 @@ pub fn encode_installed_entry(entry: &InstalledPath) -> String {
 }
 
 /// What:
-///  A JSON array of strings, each quoted as `JSON.stringify` quotes it.
+///  A JSON array of strings,
+/// each quoted as `JSON.stringify` quotes it.
 /// Why:
 ///   Repository paths are the only arrays a journal holds.
 ///
@@ -224,7 +241,9 @@ pub fn string_array(items: &[String]) -> String {
 }
 
 /// What:
-///  Whether a path component is a plain name: not empty, not `.` and not `..`.
+///  Whether a path component is a plain name:
+/// not empty,
+/// not `.` and not `..`.
 /// Why:
 ///   A journal path that is not in canonical form could name a different file than the one validated.
 ///
@@ -250,7 +269,8 @@ fn is_digit_byte(byte: u8) -> bool {
 }
 
 /// What:
-///  A JSON value as text, when it is a string.
+///  A JSON value as text,
+/// when it is a string.
 /// Why:
 ///   Every path in a journal must be a string before it is checked as a path.
 ///
@@ -284,9 +304,12 @@ pub fn is_canonical_absolute(value: &str) -> bool {
 }
 
 /// What:
-///  Whether a text is a canonical decimal identity: digits only, no leading zero.
+///  Whether a text is a canonical decimal identity:
+/// digits only,
+/// no leading zero.
 /// Why:
-///   Device and inode numbers are compared as text, so only one spelling of each may exist.
+///   Device and inode numbers are compared as text,
+/// so only one spelling of each may exist.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -304,7 +327,8 @@ pub fn decimal_identity(value: &serde_json::Value) -> Option<u64> {
 }
 
 /// What:
-///  One created-entry object, read strictly.
+///  One created-entry object,
+/// read strictly.
 /// Why:
 ///   An identity with any wrong type is not an identity monochromatic-git-policy-cli wrote.
 ///
@@ -323,7 +347,8 @@ pub fn installed_entry(value: &serde_json::Value) -> Option<InstalledPath> {
 }
 
 /// What:
-///  An array of strings, read strictly.
+///  An array of strings,
+/// read strictly.
 /// Why:
 ///   A non-string path would reach the filesystem without the validation a string gets.
 ///
@@ -337,7 +362,8 @@ fn string_list(value: Option<&serde_json::Value>) -> Option<Vec<String>> {
 }
 
 /// What:
-///  The record's fields read strictly, before any path is checked.
+///  The record's fields read strictly,
+/// before any path is checked.
 /// Why:
 ///   The shape check refuses every record that a later check would have to guess about.
 ///
@@ -375,9 +401,11 @@ fn read_shape(value: &serde_json::Value) -> Option<Journal> {
 }
 
 /// What:
-///  Parses and validates one journal's text, refusing every shape recovery cannot trust.
+///  Parses and validates one journal's text,
+/// refusing every shape recovery cannot trust.
 /// Why:
-///   Recovery turns journal paths into deletions, so every relation between the paths is checked first.
+///   Recovery turns journal paths into deletions,
+/// so every relation between the paths is checked first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -498,7 +526,8 @@ fn has_duplicates<T: AsRef<str>>(items: &[T]) -> bool {
 /// What:
 ///  The corruption failure naming one journal.
 /// Why:
-///   The user learns which file to inspect; the file itself is kept.
+///   The user learns which file to inspect;
+/// the file itself is kept.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

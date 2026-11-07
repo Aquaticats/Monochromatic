@@ -82,6 +82,13 @@ function shellInvocation(
  @param request - the command, output file, deadline and sinks
  
  @returns the exit status
+
+ @example
+ ```ts
+ import { runShell, } from './guided-shell.ts';
+ 
+ const result = await runShell(request,);
+ ```
  */
 export async function runShell(request: ShellRequest,): Promise<number> {
   /**

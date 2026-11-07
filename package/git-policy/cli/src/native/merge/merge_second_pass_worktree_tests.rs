@@ -1,5 +1,9 @@
-//! Controls for the pieces of the worktree pass that need no running Git: the stages read from index entries, the records
-//!  that put a conflict back, and the closing words. The pass as a whole runs through the built executable in
+//! Controls for the pieces of the worktree pass that need no running Git:
+//! the stages read from index entries,
+//! the records
+//!  that put a conflict back,
+//! and the closing words.
+//! The pass as a whole runs through the built executable in
 //!  `binary_word_merge_tests.rs`.
 
 use super::*;
@@ -10,7 +14,9 @@ fn entry(path: &str, stage: u8, mode: u32, byte: u8) -> IndexEntry {
     return IndexEntry { path: path.as_bytes().to_vec(), mode, id: vec![byte; 20], stage, extended: 0 };
 }
 
-/// Only the named paths are read, every stage lands where it belongs, and a resolved entry is ignored.
+/// Only the named paths are read,
+/// every stage lands where it belongs,
+/// and a resolved entry is ignored.
 #[test]
 fn the_stages_of_the_named_paths_are_read_from_the_index() {
     let entries: Vec<IndexEntry> = vec![
@@ -33,7 +39,8 @@ fn the_stages_of_the_named_paths_are_read_from_the_index() {
     assert!(conflicts_of_index(entries.as_slice(), &none).is_empty());
 }
 
-/// Putting a conflict back removes the resolved entry first and then lists each stage the path had, in order.
+/// Putting a conflict back removes the resolved entry first and then lists each stage the path had,
+/// in order.
 #[test]
 fn the_restore_records_remove_the_resolved_entry_and_list_the_stages() {
     let conflict = Conflict {
@@ -46,7 +53,8 @@ fn the_restore_records_remove_the_resolved_entry_and_list_the_stages() {
     assert_eq!(restore_records(&conflict), expected);
 }
 
-/// The closing words differ by whether a conflicted file remains, and name the operation.
+/// The closing words differ by whether a conflicted file remains,
+/// and name the operation.
 #[test]
 fn the_closing_words_say_whether_a_conflict_remains() {
     assert!(closing_words("rebase", 0).contains("no conflicted file is left") && closing_words("rebase", 0).contains("finish the rebase"));
@@ -55,7 +63,8 @@ fn the_closing_words_say_whether_a_conflict_remains() {
 
 /// A runner that records every start and fails the command it is told to.
 struct Scripted {
-    /// The command word and the standard input of every start, in order.
+    /// The command word and the standard input of every start,
+    /// in order.
     calls: std::cell::RefCell<Vec<(String, Vec<u8>)>>,
     /// The command word that exits with status 1.
     failing: &'static str,
@@ -77,7 +86,8 @@ fn merged_file() -> Merged {
     return Merged { path: b"a.md".to_vec(), mode: 0o100_644, bytes: b"merged\n".to_vec(), parts: Vec::new(), stages };
 }
 
-/// A file is staged and then written to the worktree; nothing else runs when both work.
+/// A file is staged and then written to the worktree;
+/// nothing else runs when both work.
 #[test]
 fn a_merged_file_is_staged_and_then_checked_out() {
     let runner = Scripted { calls: std::cell::RefCell::new(Vec::new()), failing: "none" };
@@ -88,7 +98,8 @@ fn a_merged_file_is_staged_and_then_checked_out() {
     assert_eq!(calls[1].1, b"a.md\0".to_vec());
 }
 
-/// A worktree write that fails puts the conflict stages back, so the index never says resolved over a file with markers.
+/// A worktree write that fails puts the conflict stages back,
+/// so the index never says resolved over a file with markers.
 #[test]
 fn a_failed_checkout_puts_the_conflict_stages_back() {
     let runner = Scripted { calls: std::cell::RefCell::new(Vec::new()), failing: "checkout-index" };

@@ -59,7 +59,8 @@ fn marker_starts(starts: &[String]) -> Vec<&String> {
 }
 
 /// With no marker anywhere every marker is absent,
-///  the conclusion is none, and no Git process is started for it.
+///  the conclusion is none,
+/// and no Git process is started for it.
 #[test]
 fn no_marker_is_absent_without_a_start() {
     let root: PathBuf = fixture("marker-none");
@@ -73,7 +74,9 @@ fn no_marker_is_absent_without_a_start() {
     remove(root.as_path());
 }
 
-/// A valid marker is maybe present, Git resolves it, and only that marker's start happens.
+/// A valid marker is maybe present,
+/// Git resolves it,
+/// and only that marker's start happens.
 #[test]
 fn a_valid_marker_is_resolved_by_git() {
     let root: PathBuf = fixture("marker-valid");
@@ -106,7 +109,9 @@ fn a_dangling_marker_is_resolved_by_git() {
     remove(root.as_path());
 }
 
-/// A garbage marker is maybe present, Git rejects it, and the conclusion is none.
+/// A garbage marker is maybe present,
+/// Git rejects it,
+/// and the conclusion is none.
 #[test]
 fn a_garbage_marker_is_resolved_by_git() {
     let root: PathBuf = fixture("marker-garbage");
@@ -177,7 +182,8 @@ fn each_lookup_spelling_is_a_hit() {
     remove(root.as_path());
 }
 
-/// A directory, a link or a file of any content at a lookup place is a hit.
+/// A directory,
+/// a link or a file of any content at a lookup place is a hit.
 #[test]
 fn any_kind_of_entry_is_a_hit() {
     let root: PathBuf = fixture("marker-kinds");
@@ -217,7 +223,8 @@ fn a_marker_only_in_packed_refs_is_a_hit() {
 }
 
 /// A linked worktree has its own markers in its own Git directory:
-///  the main worktree's marker is invisible to it, and its marker is invisible to the main worktree.
+///  the main worktree's marker is invisible to it,
+/// and its marker is invisible to the main worktree.
 #[test]
 fn a_linked_worktree_uses_its_own_git_directory() {
     let root: PathBuf = fixture("marker-linked");
@@ -244,7 +251,8 @@ fn a_linked_worktree_uses_its_own_git_directory() {
 }
 
 /// A reftable repository is never proven absent,
-///  and Git decides, with the same conclusion as before.
+///  and Git decides,
+/// with the same conclusion as before.
 #[test]
 fn a_reftable_repository_is_left_to_git() {
     let root: PathBuf = fixture("marker-reftable");

@@ -1,8 +1,11 @@
 //! What:
-//!  The worktree completion records a landed commit owes the worktree: selected final-newline corrections.
+//!  The worktree completion records a landed commit owes the worktree:
+//! selected final-newline corrections.
 //! Why:
-//!  The commit keeps what the private index holds, so the real worktree still holds the bytes the user wrote.
-//!  After the landing, each recorded file takes the committed bytes only while it still holds its earlier bytes
+//!  The commit keeps what the private index holds,
+//! so the real worktree still holds the bytes the user wrote.
+//!  After the landing,
+//! each recorded file takes the committed bytes only while it still holds its earlier bytes
 //!  (`src/policy-engine/commit-transaction-selected-worktree.ts`).
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +22,8 @@ use crate::worktree_completion::{WorktreeFileState, inspect_worktree_file};
 use std::path::Path;
 
 /// What:
-///  The Git mode text a candidate mode carries, when it is an ordinary file.
+///  The Git mode text a candidate mode carries,
+/// when it is an ordinary file.
 /// Why:
 ///   Only regular and executable files take a corrected worktree copy.
 ///
@@ -36,9 +40,11 @@ fn ordinary_git_mode(mode: CandidateMode) -> Option<&'static str> {
 }
 
 /// What:
-///  The blob hash of some bytes, without writing an object.
+///  The blob hash of some bytes,
+/// without writing an object.
 /// Why:
-///   The record names the original staged blob, which only its bytes determine.
+///   The record names the original staged blob,
+/// which only its bytes determine.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,7 +60,8 @@ fn blob_id(context: &GitContext, cwd: &Path, bytes: &[u8]) -> Result<String, Git
 
 /// What:
 ///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
-///  `&u8` borrows the byte, as `split` hands it over.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
 /// Why:
 ///   `split` takes this function by path where a closure would otherwise stand.
 ///
@@ -68,7 +75,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 
 /// What:
 ///  Whether one byte is the tab that separates the stage columns from the path in `git ls-files -s`.
-///  `&u8` borrows the byte, as `position` hands it over.
+///  `&u8` borrows the byte,
+/// as `position` hands it over.
 /// Why:
 ///   `position` takes this function by path where a closure would otherwise stand.
 ///
@@ -81,7 +89,8 @@ fn is_tab_byte(byte: &u8) -> bool {
 }
 
 /// What:
-///  The settled mode and object of one path in the private index, or nothing when it has no stage-zero entry.
+///  The settled mode and object of one path in the private index,
+/// or nothing when it has no stage-zero entry.
 /// Why:
 ///   A correction counts only while the settled entry still has the ordinary mode of the original.
 ///
@@ -116,10 +125,12 @@ pub fn settled_entry(
 }
 
 /// What:
-///  The records for selected files that final-newline corrected, only where the worktree copy still equals the
+///  The records for selected files that final-newline corrected,
+/// only where the worktree copy still equals the
 ///  original staged bytes.
 /// Why:
-///   A partially staged edit cannot be replaced by a commit correction; the installer re-checks before replacing.
+///   A partially staged edit cannot be replaced by a commit correction;
+/// the installer re-checks before replacing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,5 +1,9 @@
-//! Controls for the grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`: the defaults, every option, every refusal and its
-//!  wording, and the help.
+//! Controls for the grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`:
+//! the defaults,
+//! every option,
+//! every refusal and its
+//!  wording,
+//! and the help.
 
 use super::*;
 use std::os::unix::ffi::OsStringExt;
@@ -10,7 +14,8 @@ fn parse(values: &[&str]) -> Result<MigrateArguments, String> {
     return parse_migrate_arguments(tokens.as_slice());
 }
 
-/// The parse of no argument: a migration with both parts on.
+/// The parse of no argument:
+/// a migration with both parts on.
 const DEFAULTS: MigrateArguments = MigrateArguments {
     mode: MigrateMode::Migrate,
     dry_run: false,
@@ -49,14 +54,17 @@ fn help_wins_over_other_options() {
     assert!(parse(&["--rollback", "--remove-old", "--help"]).expect("help").help);
 }
 
-/// An unknown word is refused, named, and pointed at the help.
+/// An unknown word is refused,
+/// named,
+/// and pointed at the help.
 #[test]
 fn an_unknown_argument_is_named() {
     let reason: String = parse(&["--force"]).expect_err("refused");
     assert!(reason.contains("unknown argument --force") && reason.contains("--help"), "{reason}");
 }
 
-/// Text that is not UTF-8 is refused with the reason, not lossily guessed.
+/// Text that is not UTF-8 is refused with the reason,
+/// not lossily guessed.
 #[test]
 fn an_argument_that_is_not_utf8_is_refused() {
     let bad: OsString = OsString::from_vec(vec![0x2d, 0x2d, 0xff]);
@@ -64,14 +72,16 @@ fn an_argument_that_is_not_utf8_is_refused() {
     assert!(reason.contains("not valid UTF-8"), "{reason}");
 }
 
-/// The two modes exclude each other, and the reason says what each does.
+/// The two modes exclude each other,
+/// and the reason says what each does.
 #[test]
 fn rollback_and_remove_old_exclude_each_other() {
     let reason: String = parse(&["--rollback", "--remove-old"]).expect_err("refused");
     assert!(reason.contains("exclude each other") && reason.contains("restores") && reason.contains("deletes"), "{reason}");
 }
 
-/// The migration switches belong to the migration alone, in either order and with either mode.
+/// The migration switches belong to the migration alone,
+/// in either order and with either mode.
 #[test]
 fn migration_switches_are_refused_with_the_other_modes() {
     for arguments in [
@@ -96,7 +106,8 @@ fn discard_unreadable_needs_remove_old_or_rollback() {
     );
 }
 
-/// The help names every option the grammar accepts, so the two cannot drift apart.
+/// The help names every option the grammar accepts,
+/// so the two cannot drift apart.
 #[test]
 fn the_help_names_every_option() {
     for option in ["--dry-run", "--rollback", "--remove-old", "--discard-unreadable", "--no-nested-worktrees", "--no-refresh-indexes", "--help"] {

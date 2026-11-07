@@ -138,8 +138,8 @@ pub(super) fn literal_pattern(literal: &str) -> String {
     if literal.len() >= WORD_BOUNDARY_MAX_LEN {
         return escaped;
     }
-    let lead = bytes.first().is_some_and(|&byte| return is_word_byte(byte));
-    let trail = bytes.last().is_some_and(|&byte| return is_word_byte(byte));
+    let lead = bytes.first().copied().is_some_and(is_word_byte);
+    let trail = bytes.last().copied().is_some_and(is_word_byte);
     // Neither end anchors a boundary, so the escaping already is the whole pattern.
     if !lead && !trail {
         return escaped;

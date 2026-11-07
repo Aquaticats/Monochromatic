@@ -9,19 +9,25 @@
 //! ```
 
 /// The typed failure of one Linux filesystem primitive:
-///  the call, the path and the error number.
+///  the call,
+/// the path and the error number.
 #[cfg(target_os = "linux")]
 pub mod fs_primitive_error;
 
-/// Which filesystem holds a path (btrfs, overlayfs, other) and whether a directory is a btrfs subvolume root.
+/// Which filesystem holds a path (btrfs,
+/// overlayfs,
+/// other) and whether a directory is a btrfs subvolume root.
 #[cfg(target_os = "linux")]
 pub mod fs_kind;
 
-/// The mount of a path read from `/proc/self/mountinfo`, with its options (`user_subvol_rm_allowed`).
+/// The mount of a path read from `/proc/self/mountinfo`,
+/// with its options (`user_subvol_rm_allowed`).
 #[cfg(target_os = "linux")]
 pub mod fs_mount_options;
 
-/// The btrfs ioctls that create, snapshot and destroy a subvolume, called in process.
+/// The btrfs ioctls that create,
+/// snapshot and destroy a subvolume,
+/// called in process.
 #[cfg(target_os = "linux")]
 pub mod fs_btrfs_ioctl;
 
@@ -29,16 +35,19 @@ pub mod fs_btrfs_ioctl;
 #[cfg(target_os = "linux")]
 pub mod fs_clone_exchange;
 
-/// Directory-relative file operations that never follow a link: the held-handle primitives of the clone rung and of the
+/// Directory-relative file operations that never follow a link:
+/// the held-handle primitives of the clone rung and of the
 /// snapshot's stub removal.
 #[cfg(target_os = "linux")]
 pub mod fs_beneath;
 
-/// The btrfs fixture root of the primitive and migration controls, and the loud report where there is none.
+/// The btrfs fixture root of the primitive and migration controls,
+/// and the loud report where there is none.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod fs_btrfs_test_support;
 
-/// SHA-1 and SHA-256, for the checksum of a rewritten Git index.
+/// SHA-1 and SHA-256,
+/// for the checksum of a rewritten Git index.
 #[cfg(target_os = "linux")]
 pub mod subvolume_sha;
 
@@ -46,7 +55,9 @@ pub mod subvolume_sha;
 #[cfg(target_os = "linux")]
 pub mod subvolume_index;
 
-/// The first index of a new worktree: written into `index.lock` and linked under its name, nothing replaced.
+/// The first index of a new worktree:
+/// written into `index.lock` and linked under its name,
+/// nothing replaced.
 #[cfg(target_os = "linux")]
 pub mod subvolume_index_install_into_new_worktree;
 
@@ -54,7 +65,8 @@ pub mod subvolume_index_install_into_new_worktree;
 #[cfg(target_os = "linux")]
 pub mod subvolume_index_files;
 
-/// The index rewrite of a checkout and of every linked worktree inside it, side by side within the host's budget.
+/// The index rewrite of a checkout and of every linked worktree inside it,
+/// side by side within the host's budget.
 #[cfg(target_os = "linux")]
 pub mod subvolume_index_refresh_of_every_worktree;
 
@@ -66,31 +78,44 @@ pub mod subvolume_file_write_steps;
 #[cfg(target_os = "linux")]
 pub mod subvolume_error;
 
-/// The operating-system operations of the migration behind one trait, and the Linux implementation.
+/// The operating-system operations of the migration behind one trait,
+/// and the Linux implementation.
 #[cfg(target_os = "linux")]
 pub mod subvolume_platform;
 
-/// Copying owner, permissions, times and extended attributes onto a copy.
+/// Copying owner,
+/// permissions,
+/// times and extended attributes onto a copy.
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync_attrs;
 
-/// One idempotent pass that makes a directory tree match another, in process.
+/// One idempotent pass that makes a directory tree match another,
+/// in process.
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync;
 
-/// The pieces every step of a tree sync shares: options, statistics, work entries, the pass state and the entry checks.
+/// The pieces every step of a tree sync shares:
+/// options,
+/// statistics,
+/// work entries,
+/// the pass state and the entry checks.
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync_pass_state_and_checks;
 
-/// The copying of one source entry (file, symbolic link, named pipe) into the destination, as methods of the pass.
+/// The copying of one source entry (file,
+/// symbolic link,
+/// named pipe) into the destination,
+/// as methods of the pass.
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync_copy_one_entry;
 
-/// The index locks the migration holds, marked with a token that names the migration.
+/// The index locks the migration holds,
+/// marked with a token that names the migration.
 #[cfg(target_os = "linux")]
 pub mod subvolume_lock;
 
-/// An open directory that every operation inside it is addressed through, so a replaced path cannot redirect them.
+/// An open directory that every operation inside it is addressed through,
+/// so a replaced path cannot redirect them.
 #[cfg(target_os = "linux")]
 pub mod subvolume_anchor;
 
@@ -104,7 +129,8 @@ pub mod subvolume_remove_walk;
 #[cfg(target_os = "linux")]
 pub mod subvolume_journal;
 
-/// The count of the entries under a checkout, from which the free space a migration needs follows.
+/// The count of the entries under a checkout,
+/// from which the free space a migration needs follows.
 #[cfg(target_os = "linux")]
 pub mod subvolume_entry_count;
 
@@ -116,7 +142,8 @@ pub mod subvolume_preflight;
 #[cfg(target_os = "linux")]
 pub mod subvolume_run;
 
-/// Converting a main checkout into a btrfs subvolume, resumably.
+/// Converting a main checkout into a btrfs subvolume,
+/// resumably.
 #[cfg(target_os = "linux")]
 pub mod subvolume_migrate;
 
@@ -127,7 +154,9 @@ pub mod subvolume_rollback;
 /// The grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`.
 pub mod subvolume_arguments;
 
-/// `git monochromatic-git-policy-cli migrate-to-subvolume`: root discovery, modes and exit statuses.
+/// `git monochromatic-git-policy-cli migrate-to-subvolume`:
+/// root discovery,
+/// modes and exit statuses.
 #[cfg(target_os = "linux")]
 pub mod subvolume_command;
 
@@ -135,6 +164,7 @@ pub mod subvolume_command;
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod subvolume_test_support;
 
-/// The migration controls that need the real btrfs ioctls, `FICLONE` and exchange.
+/// The migration controls that need the real btrfs ioctls,
+/// `FICLONE` and exchange.
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_btrfs_tests;

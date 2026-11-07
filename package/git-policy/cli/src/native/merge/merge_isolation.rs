@@ -1,17 +1,30 @@
 //! What:
 //!  A true `git merge <branch>` completed in isolation when the index holds staged changes that make native Git
-//!  refuse it: the merge is computed from objects, committed, and applied with Git's own two-way tree update, which
+//!  refuse it:
+//! the merge is computed from objects,
+//! committed,
+//! and applied with Git's own two-way tree update,
+//! which
 //!  keeps every entry and every file the merge does not change.
 //! Why:
 //!  Several sessions share one checkout.
 //!  Native Git refuses every merge that creates a commit while the index differs from `HEAD` at all (measured in
-//!  `doc/planning/cli-git-merge-with-staged-index.md`), although the merge may touch none of the staged paths.
-//!  A fast-forward is not refused for unrelated paths, because it is a two-way update that keeps entries it does not
-//!  write; a merge commit whose first parent is the current commit is exactly such an update.
-//!  So the merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, and the checkout
-//!  moves with `git merge --ff-only <commit>`, which refuses when the branch is no longer where the merge was computed, after a check that no changed path is staged
+//!  `doc/planning/cli-git-merge-with-staged-index.md`),
+//! although the merge may touch none of the staged paths.
+//!  A fast-forward is not refused for unrelated paths,
+//! because it is a two-way update that keeps entries it does not
+//!  write;
+//! a merge commit whose first parent is the current commit is exactly such an update.
+//!  So the merge tree comes from `git merge-tree --write-tree`,
+//! the commit from `git commit-tree`,
+//! and the checkout
+//!  moves with `git merge --ff-only <commit>`,
+//! which refuses when the branch is no longer where the merge was computed,
+//! after a check that no changed path is staged
 //!  or modified by someone else.
-//!  An intent record, written before Git starts, lets recovery finish or discard a merge whose process died.
+//!  An intent record,
+//! written before Git starts,
+//! lets recovery finish or discard a merge whose process died.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,7 +41,8 @@ use crate::diagnostic_log::debug;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The merge messages.
 use crate::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source};
-/// The word-level second pass over the conflicts of the merge tree, and the attribute tree it reads.
+/// The word-level second pass over the conflicts of the merge tree,
+/// and the attribute tree it reads.
 use crate::merge_second_pass::Merged;
 /// Recovery of records.
 use crate::merge_isolation_recovery::recover_interrupted_merges;
@@ -53,10 +67,15 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  Complete or refuse one merge, or hand the command back to native Git.
+///  Complete or refuse one merge,
+/// or hand the command back to native Git.
 /// Why:
-///   The wrapper acts only on the exact failing case: a supported merge command, a staged index, a true merge.
-///  Everything else is native Git's, including its own errors.
+///   The wrapper acts only on the exact failing case:
+/// a supported merge command,
+/// a staged index,
+/// a true merge.
+///  Everything else is native Git's,
+/// including its own errors.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -75,9 +94,11 @@ pub fn run_isolated_merge(input: &IsolatedMergeInput<'_>) -> IsolatedMerge {
 }
 
 /// What:
-///  The whole attempt, with `Bail` standing for every early ending.
+///  The whole attempt,
+/// with `Bail` standing for every early ending.
 /// Why:
-///   Early endings are many and mostly mean "forward"; the question mark keeps the sequence readable.
+///   Early endings are many and mostly mean "forward";
+/// the question mark keeps the sequence readable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,9 +124,12 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
 }
 
 /// What:
-///  One round of the attempt: everything from the recovery of dead merges to the application, on the branch as it is now.
+///  One round of the attempt:
+/// everything from the recovery of dead merges to the application,
+/// on the branch as it is now.
 /// Why:
-///   A round that finds the branch moved by the time it applies ends with the checkout as it was, and the next round
+///   A round that finds the branch moved by the time it applies ends with the checkout as it was,
+/// and the next round
 ///  starts from the new head.
 ///
 /// In TS you'd write (pseudocode):
@@ -273,9 +297,11 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
 }
 
 /// What:
-///  Recover merges that died, before this merge reads the checkout.
+///  Recover merges that died,
+/// before this merge reads the checkout.
 /// Why:
-///   A merge killed between Git's checkout update and the branch move leaves the checkout half done, and the
+///   A merge killed between Git's checkout update and the branch move leaves the checkout half done,
+/// and the
 ///  checks that follow would read it as another session's staged work.
 ///
 /// In TS you'd write (pseudocode):
@@ -310,12 +336,16 @@ fn recover_dead_merges(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Pa
     }
 }
 
-/// Boolean settings, the editor choice and the markers of other operations, which need no repository.
+/// Boolean settings,
+/// the editor choice and the markers of other operations,
+/// which need no repository.
 #[cfg(test)]
 #[path = "merge_isolation_tests.rs"]
 mod tests;
 
-/// The settings, the staged-work check and the first decisions of an attempt, each in a real repository.
+/// The settings,
+/// the staged-work check and the first decisions of an attempt,
+/// each in a real repository.
 #[cfg(test)]
 #[path = "merge_isolation_repository_tests.rs"]
 mod repository_tests;

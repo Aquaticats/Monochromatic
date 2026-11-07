@@ -1,4 +1,6 @@
-//! Controls for the probe of writers: each case in its own disposable folder, the refused grant and the granted one both shown.
+//! Controls for the probe of writers:
+//! each case in its own disposable folder,
+//! the refused grant and the granted one both shown.
 
 use super::*;
 use std::path::PathBuf;
@@ -8,7 +10,8 @@ fn fixture(name: &str) -> PathBuf {
     return crate::test_support::fixture_with_prefix("native-writer-probe", name);
 }
 
-/// A file with a line in it, in a fresh fixture folder.
+/// A file with a line in it,
+/// in a fresh fixture folder.
 fn planted(name: &str) -> (PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let file: PathBuf = root.join("log");
@@ -16,7 +19,9 @@ fn planted(name: &str) -> (PathBuf, PathBuf) {
     return (root, file);
 }
 
-/// A file with a writer open is reported held, and the same file with the writer closed is reported free: the positive control
+/// A file with a writer open is reported held,
+/// and the same file with the writer closed is reported free:
+/// the positive control
 ///  and the negative control of one probe.
 #[test]
 fn a_file_with_a_writer_open_is_held_and_the_same_file_after_it_closed_is_free() {
@@ -28,7 +33,8 @@ fn a_file_with_a_writer_open_is_held_and_the_same_file_after_it_closed_is_free()
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// Programs that only read the file do not hold it: a reader never keeps a moved log from being removed.
+/// Programs that only read the file do not hold it:
+/// a reader never keeps a moved log from being removed.
 #[test]
 fn readers_do_not_hold_a_file() {
     let (root, file) = planted("readers");
@@ -39,7 +45,9 @@ fn readers_do_not_hold_a_file() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A probe leaves nothing held: the file opens for writing at once afterwards, and a second probe is answered the same way.
+/// A probe leaves nothing held:
+/// the file opens for writing at once afterwards,
+/// and a second probe is answered the same way.
 #[test]
 fn a_probe_leaves_no_lease_behind() {
     let (root, file) = planted("no-lease-left");
@@ -50,7 +58,8 @@ fn a_probe_leaves_no_lease_behind() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A name that does not exist and a name that is a symbolic link are errors, never "no writer".
+/// A name that does not exist and a name that is a symbolic link are errors,
+/// never "no writer".
 #[test]
 fn a_missing_file_and_a_symbolic_link_are_errors() {
     let (root, file) = planted("not-a-file");
@@ -62,12 +71,16 @@ fn a_missing_file_and_a_symbolic_link_are_errors() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// How long the control waits for the kernel to start a lease break after a thread opens the file: the break starts inside the
-///  `open` call, so this is far above the time it needs and below `nextest`'s per-test stop (`.config/nextest.toml`).
+/// How long the control waits for the kernel to start a lease break after a thread opens the file:
+/// the break starts inside the
+///  `open` call,
+/// so this is far above the time it needs and below `nextest`'s per-test stop (`.config/nextest.toml`).
 const BREAK_START_CEILING: std::time::Duration = std::time::Duration::from_secs(10);
 
-/// A writer that opens the file while a lease is held starts a lease break, and the process that holds the lease survives it:
-///  the signal that the kernel sends is the harmless one the probe chose, not the default one that ends the process.
+/// A writer that opens the file while a lease is held starts a lease break,
+/// and the process that holds the lease survives it:
+///  the signal that the kernel sends is the harmless one the probe chose,
+/// not the default one that ends the process.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_writer_opening_during_the_lease_does_not_end_the_process_that_holds_it() {

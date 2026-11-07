@@ -1,6 +1,12 @@
-//! The structural boundary of the standards review: the gateway client (`ureq`, TLS, the network) is reachable only
-//! from the review run that the resident service calls, never from the wrapper's forwarded-command or commit-client
-//! paths. The test reads the crate's own source, so a new `use` on a client path fails it before any binary is built.
+//! The structural boundary of the standards review:
+//! the gateway client (`ureq`,
+//! TLS,
+//! the network) is reachable only
+//! from the review run that the resident service calls,
+//! never from the wrapper's forwarded-command or commit-client
+//! paths.
+//! The test reads the crate's own source,
+//! so a new `use` on a client path fails it before any binary is built.
 
 use std::path::Path;
 
@@ -13,7 +19,9 @@ mod fixtures;
 /// The one file that may name the HTTP library.
 const CLIENT_FILE: &str = "standards_review/standards_review_client.rs";
 
-/// The module names that carry the network client, the run that calls it, and the service handler that calls the run.
+/// The module names that carry the network client,
+/// the run that calls it,
+/// and the service handler that calls the run.
 const SERVICE_ONLY_MODULES: [&str; 3] = ["standards_review_client", "standards_review_run", "service_review"];
 
 /// The path prefixes of the files of those modules and their tests,
@@ -21,9 +29,14 @@ const SERVICE_ONLY_MODULES: [&str; 3] = ["standards_review_client", "standards_r
 const SERVICE_ONLY_FILE_PREFIXES: [&str; 3] =
     ["standards_review/standards_review_client", "standards_review/standards_review_run", "service/service_review"];
 
-/// Files outside the client path that may name the service-only modules: their own files and tests, the module
-/// declarations, the service's work consumer (which owns the handler that calls the review), and this test with its
-/// fixture controls (`standards_review_boundary_*`), which name the library and the modules on purpose.
+/// Files outside the client path that may name the service-only modules:
+/// their own files and tests,
+/// the module
+/// declarations,
+/// the service's work consumer (which owns the handler that calls the review),
+/// and this test with its
+/// fixture controls (`standards_review_boundary_*`),
+/// which name the library and the modules on purpose.
 fn may_name_service_modules(file: &str) -> bool {
     return file == "lib.rs"
         || file.starts_with("source_guard/standards_review_boundary_")
@@ -31,10 +44,16 @@ fn may_name_service_modules(file: &str) -> bool {
         || SERVICE_ONLY_FILE_PREFIXES.iter().any(|prefix| return file.starts_with(prefix));
 }
 
-/// The source files of this crate that ship in the executable or its library, or are compiled for its tests: every
-/// `.rs` file under `root` with its text, keyed by its `/`-separated path relative to `root`. The listing is the module
-/// tree proven against a strict walk, so a file in a subdirectory is read at its own path and a file the listing
-/// could not account for is an error, never a gap.
+/// The source files of this crate that ship in the executable or its library,
+/// or are compiled for its tests:
+/// every
+/// `.rs` file under `root` with its text,
+/// keyed by its `/`-separated path relative to `root`.
+/// The listing is the module
+/// tree proven against a strict walk,
+/// so a file in a subdirectory is read at its own path and a file the listing
+/// could not account for is an error,
+/// never a gap.
 fn native_sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<(String, String)>, String> {
     let mut sources: Vec<(String, String)> = Vec::new();
     for file in classified_sources(root, roots)? {
@@ -50,7 +69,9 @@ fn native_sources() -> Vec<(String, String)> {
     return native_sources_in(&source_root(), &real_roots()).expect("the crate's own sources");
 }
 
-/// The text without the bare `mod <service-only module>;` lines: a module file registers its own members, which is
+/// The text without the bare `mod <service-only module>;` lines:
+/// a module file registers its own members,
+/// which is
 /// declaring them and not using them.
 fn without_declarations(text: &str) -> String {
     let mut kept: Vec<&str> = Vec::new();
@@ -64,7 +85,9 @@ fn without_declarations(text: &str) -> String {
     return kept.join("\n");
 }
 
-/// The violations in a set of sources: a file that names the HTTP library but is not the client, and a file that names
+/// The violations in a set of sources:
+/// a file that names the HTTP library but is not the client,
+/// and a file that names
 /// a service-only module but is not allowed to.
 fn violations(sources: &[(String, String)]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
@@ -89,7 +112,9 @@ fn the_network_client_is_reachable_only_from_the_service_run() {
     assert_eq!(violations(sources.as_slice()), Vec::<String>::new());
 }
 
-/// The scan is able to fail: a positive control on the real tree, and planted violations on a synthetic one.
+/// The scan is able to fail:
+/// a positive control on the real tree,
+/// and planted violations on a synthetic one.
 #[test]
 fn the_scan_sees_the_client_and_flags_a_planted_import() {
     let sources: Vec<(String, String)> = native_sources();

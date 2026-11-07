@@ -1,10 +1,18 @@
 //! What:
-//!  Git's EWAH compressed bitmap (`ewah/ewah_bitmap.c`, `ewah/ewah_io.c`): read from bytes, listed as bit positions,
-//!  built by setting bits in increasing order, written back.
+//!  Git's EWAH compressed bitmap (`ewah/ewah_bitmap.c`,
+//! `ewah/ewah_io.c`):
+//! read from bytes,
+//! listed as bit positions,
+//!  built by setting bits in increasing order,
+//! written back.
 //! Why:
-//!  The untracked-cache and fsmonitor index extensions store bitmaps indexed by directory or entry position. Rewriting an
-//!  index changes those positions, so each bitmap is decoded to its set bits and encoded again by the same algorithm
-//!  Git uses, which gives the same bytes for the same bits (`ewah_set` is ported step for step, including its
+//!  The untracked-cache and fsmonitor index extensions store bitmaps indexed by directory or entry position.
+//! Rewriting an
+//!  index changes those positions,
+//! so each bitmap is decoded to its set bits and encoded again by the same algorithm
+//!  Git uses,
+//! which gives the same bytes for the same bits (`ewah_set` is ported step for step,
+//! including its
 //!  run-length corner cases).
 //!
 //! In TS you'd write (pseudocode):
@@ -21,12 +29,17 @@ const LARGEST_RUN: u64 = (1 << 32) - 1;
 /// The most a run-length word counts as literal words (31 bits).
 const LARGEST_LITERAL: u64 = (1 << 31) - 1;
 
-/// An EWAH bitmap: the compressed words, the position of the last run-length word, and the bit length.
+/// An EWAH bitmap:
+/// the compressed words,
+/// the position of the last run-length word,
+/// and the bit length.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Ewah {
-    /// One more than the highest bit position set so far, as the file's bit size.
+    /// One more than the highest bit position set so far,
+    /// as the file's bit size.
     bit_size: usize,
-    /// Run-length words, each followed by its literal words.
+    /// Run-length words,
+    /// each followed by its literal words.
     buffer: Vec<u64>,
     /// The index in `buffer` of the run-length word the next word extends.
     rlw: usize,
@@ -63,7 +76,8 @@ fn with_literal_words(word: u64, value: u64) -> u64 {
 }
 
 impl Ewah {
-    /// An empty bitmap, as `ewah_new`.
+    /// An empty bitmap,
+    /// as `ewah_new`.
     pub fn new() -> Ewah {
         return Ewah { bit_size: 0, buffer: vec![0], rlw: 0 };
     }
@@ -123,7 +137,8 @@ impl Ewah {
         }
     }
 
-    /// Set bit `position`, which must not be below the bit size (`ewah_set`).
+    /// Set bit `position`,
+    /// which must not be below the bit size (`ewah_set`).
     pub fn set(&mut self, position: usize) {
         assert!(position >= self.bit_size, "bits are set in increasing order");
         let dist: usize = (position + 1).div_ceil(WORD_BITS) - self.bit_size.div_ceil(WORD_BITS);
@@ -193,7 +208,11 @@ impl Ewah {
         return found;
     }
 
-    /// Append the bitmap in the file's form: bit size, word count, words, position of the last run-length word.
+    /// Append the bitmap in the file's form:
+    /// bit size,
+    /// word count,
+    /// words,
+    /// position of the last run-length word.
     pub fn serialize(&self, out: &mut Vec<u8>) {
         out.extend_from_slice(&(self.bit_size as u32).to_be_bytes());
         out.extend_from_slice(&(self.buffer.len() as u32).to_be_bytes());
@@ -203,13 +222,20 @@ impl Ewah {
         out.extend_from_slice(&(self.rlw as u32).to_be_bytes());
     }
 
-    /// Read one bitmap from the start of `bytes` and the number of bytes it used, or `None` for a truncated or inconsistent one
+    /// Read one bitmap from the start of `bytes` and the number of bytes it used,
+    /// or `None` for a truncated or inconsistent one
     /// (`ewah_read_mmap`) and for one of more than `max_bits` bits.
     ///
-    /// The checks are the ones that keep a small input from describing a large bitmap: every run-length word's literal words
-    /// are in the buffer, the last run-length word is where the position says, and the words the runs and literals add up to
-    /// are exactly the words a bitmap of that bit size takes (what `ewah_set` builds). The caller names the most bits it can
-    /// use (the entries of the index, the directories of the cache), so the set bits that `bits` lists are bounded by it.
+    /// The checks are the ones that keep a small input from describing a large bitmap:
+    /// every run-length word's literal words
+    /// are in the buffer,
+    /// the last run-length word is where the position says,
+    /// and the words the runs and literals add up to
+    /// are exactly the words a bitmap of that bit size takes (what `ewah_set` builds).
+    /// The caller names the most bits it can
+    /// use (the entries of the index,
+    /// the directories of the cache),
+    /// so the set bits that `bits` lists are bounded by it.
     pub fn read(bytes: &[u8], max_bits: usize) -> Option<(Ewah, usize)> {
         let bit_size: usize = u32::from_be_bytes(bytes.get(0..4)?.try_into().ok()?) as usize;
         let count: usize = u32::from_be_bytes(bytes.get(4..8)?.try_into().ok()?) as usize;

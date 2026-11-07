@@ -4,7 +4,11 @@
 
 use super::*;
 
-/// Ref names covering slashes, case, the escape character, dots, and non-ASCII text.
+/// Ref names covering slashes,
+/// case,
+/// the escape character,
+/// dots,
+/// and non-ASCII text.
 const REF_NAMES: &[&str] = &[
     "refs/heads/main",
     "refs/heads/Main",
@@ -31,7 +35,8 @@ const INCUMBENT_PAIRS: &[(&str, &str)] = &[
     ("refs/heads/x%2Fy", "refs%2Fheads%2Fx%252%46y"),
 ];
 
-/// Every ref name round-trips through one flat, lowercase-safe file name.
+/// Every ref name round-trips through one flat,
+/// lowercase-safe file name.
 #[test]
 fn every_ref_name_round_trips_through_a_flat_key() {
     for ref_name in REF_NAMES {
@@ -49,7 +54,8 @@ fn every_ref_name_round_trips_through_a_flat_key() {
     }
 }
 
-/// Slashes, uppercase letters and the escape character are escaped with uppercase hex.
+/// Slashes,
+/// uppercase letters and the escape character are escaped with uppercase hex.
 #[test]
 fn slashes_uppercase_and_the_escape_character_are_escaped() {
     assert_eq!(
@@ -109,7 +115,8 @@ fn an_escape_of_a_verbatim_byte_and_a_raw_character_are_refused() {
     assert!(decode_branch_key("refs%2F!").is_err());
 }
 
-/// A refusal names the key, so the caller can report it.
+/// A refusal names the key,
+/// so the caller can report it.
 #[test]
 fn a_refusal_names_the_key() {
     let error = decode_branch_key("Refs").expect_err("refused");

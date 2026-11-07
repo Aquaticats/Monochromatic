@@ -1,11 +1,15 @@
 //! What:
-//! End-to-end tests of the rule "a shadow never starts a shadow, of any version, as its real tool".
-//! Each test builds a disposable `PATH` of shadow copies, launcher records and real programs,
+//! End-to-end tests of the rule "a shadow never starts a shadow,
+//! of any version,
+//! as its real tool".
+//! Each test builds a disposable `PATH` of shadow copies,
+//! launcher records and real programs,
 //! starts the built `search-shadow` under the name `grep` or `rg`,
 //! and gives it a deadline.
 //! Why:
 //! Two copies of the shadow at different paths used to pick each other as the real `grep`
-//! and replace themselves with each other without end (measured 2026-11-07: about 105 starts per second under `strace`,
+//! and replace themselves with each other without end (measured 2026-11-07:
+//! about 105 starts per second under `strace`,
 //! at a quarter of one CPU).
 //! A test of that loop must itself never wait without end,
 //! so every run here is polled against a deadline and killed when it passes it.
@@ -29,11 +33,13 @@ const SHADOW_EXECUTABLE: &str = env!("CARGO_BIN_EXE_search-shadow");
 /// The name of the environment variable the arrival marker travels in (`src/shadow_identity.rs`).
 const ARRIVAL_VARIABLE: &str = "MONOCHROMATIC_SHADOW_STARTED_BY";
 
-/// The version the built shadow carries, which the copies below change.
+/// The version the built shadow carries,
+/// which the copies below change.
 const OWN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// How long a run may take before it counts as a loop.
-/// A run that ends takes a few milliseconds (a start, a path lookup and one more start);
+/// A run that ends takes a few milliseconds (a start,
+/// a path lookup and one more start);
 /// the loop it replaces never ends.
 /// The bound is far above the first and below the patience of a test run,
 /// and it only matters in the failing case.
@@ -69,7 +75,8 @@ fn run_bounded(mut command: Command) -> Outcome {
     }
 }
 
-/// The output of a run that must have ended, or a failure that says it looped.
+/// The output of a run that must have ended,
+/// or a failure that says it looped.
 fn finished(outcome: Outcome) -> Output {
     match outcome {
         Outcome::Finished(output) => return output,
@@ -84,8 +91,10 @@ fn copy_program(source: &Path, target: &Path) {
     fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
 }
 
-/// A copy of the shadow that names another version: the version text inside it changes in place,
-/// so the copy is a different file with a different identity text, as an older release would be.
+/// A copy of the shadow that names another version:
+/// the version text inside it changes in place,
+/// so the copy is a different file with a different identity text,
+/// as an older release would be.
 fn copy_of_another_version(target: &Path) {
     let mut bytes: Vec<u8> = fs::read(SHADOW_EXECUTABLE).expect("read the shadow");
     let needle: &[u8] = OWN_VERSION.as_bytes();
@@ -106,14 +115,17 @@ fn copy_of_another_version(target: &Path) {
     fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
 }
 
-/// A shadow link: a symlink named after the tool, to the shadow program of its folder.
+/// A shadow link:
+/// a symlink named after the tool,
+/// to the shadow program of its folder.
 fn link_as(folder: &Path, name: &str) -> PathBuf {
     let link: PathBuf = folder.join(name);
     std::os::unix::fs::symlink(folder.join("search-shadow"), &link).expect("make the shadow link");
     return link;
 }
 
-/// A script standing in for a real tool: prints which tool answered.
+/// A script standing in for a real tool:
+/// prints which tool answered.
 fn write_real_script(folder: &Path, name: &str) {
     fs::create_dir_all(folder).expect("make the folder");
     fs::write(folder.join(name), format!("#!/bin/sh\nprintf 'REAL {name} %s\\n' \"$*\"\n")).expect("write the script");
@@ -254,7 +266,8 @@ fn a_script_that_starts_the_other_shadow_stops_on_arrival_with_one_line_and_a_no
     assert!(output.stdout.is_empty(), "the real tool must not have run");
 }
 
-/// The start time of a process, as `/proc/<pid>/stat` field 22 says it (the test reads it the way the arrival marker does).
+/// The start time of a process,
+/// as `/proc/<pid>/stat` field 22 says it (the test reads it the way the arrival marker does).
 fn birth_of(pid: u32) -> String {
     let text: String = fs::read_to_string(format!("/proc/{pid}/stat")).expect("read the stat file");
     let after_name: &str = text.rsplit_once(')').expect("the name ends with a bracket").1;

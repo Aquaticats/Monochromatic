@@ -1,5 +1,6 @@
 //! Controls for the in-process shadow skeleton:
-//!  it is compared with what real `git init --bare --template=` creates, and real Git must accept it as a repository.
+//!  it is compared with what real `git init --bare --template=` creates,
+//! and real Git must accept it as a repository.
 
 use super::*;
 use crate::test_support::{fixture, git, git_text, remove};
@@ -25,7 +26,8 @@ fn entries_under(root: &Path) -> BTreeSet<(String, bool)> {
 }
 
 /// The skeleton holds every entry real Git creates for an empty bare repository except `config`,
-///  which the shadow writes itself, and nothing real Git does not create.
+///  which the shadow writes itself,
+/// and nothing real Git does not create.
 #[test]
 fn skeleton_matches_the_entries_real_git_init_creates_except_config() {
     let root: PathBuf = fixture("shadow-skeleton-differential");
@@ -43,7 +45,9 @@ fn skeleton_matches_the_entries_real_git_init_creates_except_config() {
     remove(root.as_path());
 }
 
-/// Real Git reads the skeleton, given the config the shadow writes, as a bare repository whose `HEAD` is symbolic.
+/// Real Git reads the skeleton,
+/// given the config the shadow writes,
+/// as a bare repository whose `HEAD` is symbolic.
 #[test]
 fn real_git_accepts_the_skeleton_as_a_bare_repository() {
     let root: PathBuf = fixture("shadow-skeleton-accepted");
@@ -57,7 +61,9 @@ fn real_git_accepts_the_skeleton_as_a_bare_repository() {
     remove(root.as_path());
 }
 
-/// A directory another run already made is not an error, as with `git init`, and `HEAD` is written again.
+/// A directory another run already made is not an error,
+/// as with `git init`,
+/// and `HEAD` is written again.
 #[test]
 fn skeleton_over_an_existing_repository_directory_succeeds() {
     let root: PathBuf = fixture("shadow-skeleton-existing");
@@ -69,7 +75,8 @@ fn skeleton_over_an_existing_repository_directory_succeeds() {
     remove(root.as_path());
 }
 
-/// A shadow directory whose parent is missing is reported, never created implicitly.
+/// A shadow directory whose parent is missing is reported,
+/// never created implicitly.
 #[test]
 fn skeleton_without_a_parent_directory_fails() {
     let root: PathBuf = fixture("shadow-skeleton-orphan");
@@ -79,7 +86,8 @@ fn skeleton_without_a_parent_directory_fails() {
     remove(root.as_path());
 }
 
-/// Creates the skeleton in a directory that does not exist yet, as the shadow creation does.
+/// Creates the skeleton in a directory that does not exist yet,
+/// as the shadow creation does.
 fn create_shadow_skeleton_in_new_directory(directory: &Path) {
     create_shadow_skeleton(directory).expect("skeleton");
 }

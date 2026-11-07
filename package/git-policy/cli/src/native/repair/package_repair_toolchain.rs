@@ -1,14 +1,29 @@
 //! What:
-//!  The toolchain repair: when the launchers copied into a new worktree's `.cache/toolchain-launchers` still name another
-//!  checkout's `toolchain.lock.json`, rebuild the worktree's own links and launchers with `mpm-shadow install
+//!  The toolchain repair:
+//! when the launchers copied into a new worktree's `.cache/toolchain-launchers` still name another
+//!  checkout's `toolchain.lock.json`,
+//! rebuild the worktree's own links and launchers with `mpm-shadow install
 //!  --frozen-lockfile`.
 //! Why:
-//!  mpm-shadow owns `toolchain.plan.jsonc`, `toolchain.lock.json` and the pinned tools. Its exposed links and launcher records
-//!  hold absolute paths, so a copy would run the source checkout's tool versions and guard, and a branch that changes the
-//!  lock would silently use the source's. The install is lock-constrained: it relinks what is installed and, when this
-//!  worktree's lock names tools that are not installed, downloads them. The owner chose that on 2026-11-03 ("Install online
-//!  during the add"), knowing an add can then download and can retire tool copies another checkout still links. The summary
-//!  line mpm-shadow prints says what was installed. A failed install never fails the add: it prints the reason and
+//!  mpm-shadow owns `toolchain.plan.jsonc`,
+//! `toolchain.lock.json` and the pinned tools.
+//! Its exposed links and launcher records
+//!  hold absolute paths,
+//! so a copy would run the source checkout's tool versions and guard,
+//! and a branch that changes the
+//!  lock would silently use the source's.
+//! The install is lock-constrained:
+//! it relinks what is installed and,
+//! when this
+//!  worktree's lock names tools that are not installed,
+//! downloads them.
+//! The owner chose that on 2026-11-03 ("Install online
+//!  during the add"),
+//! knowing an add can then download and can retire tool copies another checkout still links.
+//! The summary
+//!  line mpm-shadow prints says what was installed.
+//! A failed install never fails the add:
+//! it prints the reason and
 //!  `mise run toolchain:install`.
 //!
 //! In TS you'd write (pseudocode):
@@ -26,19 +41,23 @@ use std::path::{Path, PathBuf};
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairToolchain";
 
-/// Where mpm-shadow keeps the launchers and their records, relative to a worktree.
+/// Where mpm-shadow keeps the launchers and their records,
+/// relative to a worktree.
 const LAUNCHERS: &str = ".cache/toolchain-launchers";
 
-/// The record that sits beside a launcher, named after it.
+/// The record that sits beside a launcher,
+/// named after it.
 const RECORD_EXTENSION: &str = "launch";
 
-/// The lock file a launcher record names, relative to a worktree.
+/// The lock file a launcher record names,
+/// relative to a worktree.
 const LOCK_FILE: &str = "toolchain.lock.json";
 
 /// The key of a launcher record that names the lock file.
 const LOCK_KEY: &str = "lockFile";
 
-/// The program that owns the toolchain, and where a worktree keeps a link to it.
+/// The program that owns the toolchain,
+/// and where a worktree keeps a link to it.
 const PROGRAM: &str = "mpm-shadow";
 
 /// Where the worktree's own link to the program sits when the search path does not provide one.
@@ -47,13 +66,16 @@ const OWN_LINK: &str = ".cache/toolchain-bin/mpm-shadow";
 /// The variable that names the worktree whose toolchain a command acts on.
 const ROOT_VARIABLE: &str = "MONOCHROMATIC_WORKTREE_ROOT";
 
-/// The command a person runs to finish the repair: the repository's own task, which runs the same installer.
+/// The command a person runs to finish the repair:
+/// the repository's own task,
+/// which runs the same installer.
 pub const MANUAL_COMMAND: &str = "mise run toolchain:install";
 
 /// What:
 ///  The launcher records of a worktree that name a lock file other than the worktree's own.
 /// Why:
-///   They are what a copy leaves behind; a record naming this worktree's lock is already right and needs no repair.
+///   They are what a copy leaves behind;
+/// a record naming this worktree's lock is already right and needs no repair.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -90,10 +112,14 @@ pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
-///  The lock file a launcher record names, when the record can be read and holds the key.
-///  `Option<PathBuf>` is "the path, or no answer".
+///  The lock file a launcher record names,
+/// when the record can be read and holds the key.
+///  `Option<PathBuf>` is "the path,
+/// or no answer".
 /// Why:
-///   A record that cannot be read, is not JSON or names no lock is left alone, and each step of reading it may fail the same way.
+///   A record that cannot be read,
+/// is not JSON or names no lock is left alone,
+/// and each step of reading it may fail the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -109,7 +135,8 @@ fn lock_named_by_record(path: &Path) -> Option<PathBuf> {
 /// What:
 ///  The command that starts mpm-shadow with the worktree as the toolchain root.
 /// Why:
-///   An inherited `MONOCHROMATIC_WORKTREE_ROOT` names the checkout the person works in, which is not the new worktree.
+///   An inherited `MONOCHROMATIC_WORKTREE_ROOT` names the checkout the person works in,
+/// which is not the new worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,9 +151,11 @@ fn mpm_command(destination: &Path, arguments: &[&str]) -> ToolCommand {
 }
 
 /// What:
-///  The part of mpm-shadow's last summary line that says what was installed, such as `3 installed, 62 unchanged, 0 failed`.
+///  The part of mpm-shadow's last summary line that says what was installed,
+/// such as `3 installed, 62 unchanged, 0 failed`.
 /// Why:
-///   The person is told what an add installed, in mpm-shadow's own words.
+///   The person is told what an add installed,
+/// in mpm-shadow's own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,9 +175,12 @@ fn install_summary(stdout: &[u8]) -> Option<String> {
 }
 
 /// What:
-///  Rebuild the worktree's toolchain links and launchers, when its launcher records are stale.
+///  Rebuild the worktree's toolchain links and launchers,
+/// when its launcher records are stale.
 /// Why:
-///   See the module comment: one frozen install, with the network when the lock names tools that are not installed yet.
+///   See the module comment:
+/// one frozen install,
+/// with the network when the lock names tools that are not installed yet.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

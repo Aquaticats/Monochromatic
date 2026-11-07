@@ -1,13 +1,20 @@
 //! What:
-//!  The files and directories of an empty bare repository on the files ref backend, created in-process.
+//!  The files and directories of an empty bare repository on the files ref backend,
+//! created in-process.
 //! Why:
-//!  The shadow repository used to be made by `git init --bare --template=`, a Git start whose whole effect is these
-//!  few entries; `create_shadow_repository` overwrites the `config` it writes and every later shadow step sets the
-//!  `HEAD` it writes, so nothing else of Git's work is used.
-//!  Creating them here removes one process start from every commit (`init`; the `config` read that follows it is the
+//!  The shadow repository used to be made by `git init --bare --template=`,
+//! a Git start whose whole effect is these
+//!  few entries;
+//! `create_shadow_repository` overwrites the `config` it writes and every later shadow step sets the
+//!  `HEAD` it writes,
+//! so nothing else of Git's work is used.
+//!  Creating them here removes one process start from every commit (`init`;
+//! the `config` read that follows it is the
 //!  wrapper's own and stays).
-//!  A torn creation leaves a directory that is not a repository; recovery removes the shadow tree as a whole
-//!  (`binary_recovery_tearing_shadow_tests.rs`), exactly as it does for a torn `git init`.
+//!  A torn creation leaves a directory that is not a repository;
+//! recovery removes the shadow tree as a whole
+//!  (`binary_recovery_tearing_shadow_tests.rs`),
+//! exactly as it does for a torn `git init`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +25,9 @@
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
-/// Directories a bare repository has, relative to the repository, parents before children.
+/// Directories a bare repository has,
+/// relative to the repository,
+/// parents before children.
 ///  The empty name is the repository directory itself.
 pub const SKELETON_DIRECTORIES: [&str; 7] =
     ["", "objects", "objects/info", "objects/pack", "refs", "refs/heads", "refs/tags"];
@@ -31,7 +40,8 @@ pub const PLACEHOLDER_HEAD: &str = "ref: refs/heads/main\n";
 /// What:
 ///  Creates the directories and the `HEAD` of an empty bare repository on the files ref backend.
 /// Why:
-///   A directory another run of the same transaction already made is not an error, as with `git init`.
+///   A directory another run of the same transaction already made is not an error,
+/// as with `git init`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,8 +1,14 @@
 //! What:
-//!  The small file operations the shadow, the pack keep files, the conclusion copies and the worktree installs share:
-//!  existence probes, an optional read, removal of one file, and the name of Git's PID file beside a lock.
+//!  The small file operations the shadow,
+//! the pack keep files,
+//! the conclusion copies and the worktree installs share:
+//!  existence probes,
+//! an optional read,
+//! removal of one file,
+//! and the name of Git's PID file beside a lock.
 //! Why:
-//!  Each fails closed with the path and the operation named (`RecoveryError`), as the incumbent's
+//!  Each fails closed with the path and the operation named (`RecoveryError`),
+//! as the incumbent's
 //!  `commit-transaction-recovery-files.ts` does.
 //!
 //! In TS you'd write (pseudocode):

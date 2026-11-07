@@ -1,17 +1,24 @@
 //! Binary-level controls for the ways a configuration could still make a Git the wrapper started run a program that a
-//!  hook is: an alias that carries its own `-c` options and the editor of `git config --edit`; and the control that
+//!  hook is:
+//! an alias that carries its own `-c` options and the editor of `git config --edit`;
+//! and the control that
 //!  `core.fsmonitor` is left as configured.
 //! Each control has a positive control that runs the same setup through real Git started directly and must write the
-//!  marker, so an empty marker file proves the wrapper's options, not a setup that never fires.
+//!  marker,
+//! so an empty marker file proves the wrapper's options,
+//! not a setup that never fires.
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, repository, stderr_of};
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-/// A repository with one commit, a branch `other`, and the file the programs write their markers to.
+/// A repository with one commit,
+/// a branch `other`,
+/// and the file the programs write their markers to.
 struct Scene {
-    /// The working repository, on `main`.
+    /// The working repository,
+    /// on `main`.
     repo: PathBuf,
     /// The markers the programs write.
     markers: PathBuf,
@@ -29,7 +36,8 @@ fn markers(scene: &Scene) -> String {
     return std::fs::read_to_string(&scene.markers).unwrap_or_default();
 }
 
-/// Write an executable `name` under the fixture that appends `word` to the markers, then runs `rest`.
+/// Write an executable `name` under the fixture that appends `word` to the markers,
+/// then runs `rest`.
 fn program(fixture: &Fixture, scene: &Scene, name: &str, word: &str, rest: &str) -> PathBuf {
     let path: PathBuf = fixture.root.join(name);
     executable(
@@ -44,7 +52,8 @@ fn wrapped(fixture: &Fixture, scene: &Scene, arguments: &[&str]) -> Observed {
     return observe(&mut wrapped_commit(fixture, scene.repo.as_path(), arguments), b"");
 }
 
-/// Define a hook file and a configured hook for `post-checkout`, each writing its own marker.
+/// Define a hook file and a configured hook for `post-checkout`,
+/// each writing its own marker.
 fn post_checkout_hooks(fixture: &Fixture, scene: &Scene) -> PathBuf {
     let hooks: PathBuf = fixture.root.join("alias-hooks");
     std::fs::create_dir(&hooks).expect("hooks directory");
@@ -59,7 +68,8 @@ fn post_checkout_hooks(fixture: &Fixture, scene: &Scene) -> PathBuf {
 }
 
 /// An alias whose value carries `-c core.hooksPath` and `-c hook.post-checkout.enabled=true` cannot bring a hook back:
-///  the wrapper hands Git the alias already expanded, so its options come after the alias's own.
+///  the wrapper hands Git the alias already expanded,
+/// so its options come after the alias's own.
 #[test]
 fn an_alias_that_carries_hook_options_cannot_bring_a_hook_back() {
     let fixture: Fixture = fixture("hooks-off-alias-escape");
@@ -83,8 +93,11 @@ fn an_alias_that_carries_hook_options_cannot_bring_a_hook_back() {
     remove_settled(&fixture);
 }
 
-/// `core.fsmonitor` is left as configured: a program it names is Git's own feature, not a hook of the wrapper's
-///  report, and the per-event switch `hook.fsmonitor-watchman.enabled=false` the wrapper passes does not stop it.
+/// `core.fsmonitor` is left as configured:
+/// a program it names is Git's own feature,
+/// not a hook of the wrapper's
+///  report,
+/// and the per-event switch `hook.fsmonitor-watchman.enabled=false` the wrapper passes does not stop it.
 #[test]
 fn a_core_fsmonitor_program_is_left_as_configured() {
     let fixture: Fixture = fixture("hooks-off-fsmonitor");
@@ -103,8 +116,10 @@ fn a_core_fsmonitor_program_is_left_as_configured() {
     remove_settled(&fixture);
 }
 
-/// The editor of `git config --edit` is a child of a wrapper-started Git, so a Git it starts directly inherits the
-///  options and runs no hook; `git config` goes without the options only when it just reports configuration.
+/// The editor of `git config --edit` is a child of a wrapper-started Git,
+/// so a Git it starts directly inherits the
+///  options and runs no hook;
+/// `git config` goes without the options only when it just reports configuration.
 #[test]
 fn a_git_started_by_the_config_editor_runs_no_hook() {
     let fixture: Fixture = fixture("hooks-off-config-edit");

@@ -1,9 +1,18 @@
 //! What:
-//!  Worktree commands beside a `git worktree add` whose real Git is still running: another add, a move, a removal and a
-//!  conversion each finish without waiting for it, and each new worktree receives exactly its own ignored-state copy.
+//!  Worktree commands beside a `git worktree add` whose real Git is still running:
+//! another add,
+//! a move,
+//! a removal and a
+//!  conversion each finish without waiting for it,
+//! and each new worktree receives exactly its own ignored-state copy.
 //! Why:
-//!  The owner decided on 2026-11-03 that locks are used as little as possible, that the wrapper almost never waits, and that
-//!  embarrassingly parallel work is not serialized. One add used to wait 228 s, and another over 20 minutes, for the
+//!  The owner decided on 2026-11-03 that locks are used as little as possible,
+//! that the wrapper almost never waits,
+//! and that
+//!  embarrassingly parallel work is not serialized.
+//! One add used to wait 228 s,
+//! and another over 20 minutes,
+//! for the
 //!  per-repository settlement lock another session's add held across its real Git.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,10 +30,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-/// Where the generated rules file lives, as the repository's configuration names it.
+/// Where the generated rules file lives,
+/// as the repository's configuration names it.
 const RULES_FILE: &str = ".cache/forbidden-strings.rules.txt";
 
-/// The wall-clock bound, in seconds, of a command a control keeps running on purpose while others finish.
+/// The wall-clock bound,
+/// in seconds,
+/// of a command a control keeps running on purpose while others finish.
 const HELD_BOUND_SECONDS: &str = "90";
 
 /// How long a control waits for a condition another process creates before it names the stall.
@@ -36,12 +48,14 @@ const CONDITION_POLL: Duration = Duration::from_millis(50);
 /// The destination whose smudge filter stalls until the release file appears.
 const HELD_NAME: &str = "held";
 
-/// How many tenths of a second the stalled filter looks for the release file before it gives up on its own, so a control
+/// How many tenths of a second the stalled filter looks for the release file before it gives up on its own,
+/// so a control
 /// that failed or was killed leaves no Git behind.
 const FILTER_POLLS: u32 = 600;
 
 /// A fixture repository whose smudge filter stalls the checkout of the worktree named `held` until `release` exists.
-/// The untracked file leaves the checkout to Git on every host, so the filter really runs.
+/// The untracked file leaves the checkout to Git on every host,
+/// so the filter really runs.
 struct Held {
     fixture: Fixture,
     repo: PathBuf,
@@ -49,7 +63,9 @@ struct Held {
 }
 
 impl Held {
-    /// The repository, its filter, and nothing running yet.
+    /// The repository,
+    /// its filter,
+    /// and nothing running yet.
     fn new(name: &str) -> Held {
         let fixture: Fixture = fixture(name);
         let repo: PathBuf = repository_with_rules(&fixture, true);
@@ -105,7 +121,8 @@ impl Held {
         self.wait_for(&self.fixture.root.join("held-started"));
     }
 
-    /// Wait until `path` exists, naming the stall when it never does.
+    /// Wait until `path` exists,
+    /// naming the stall when it never does.
     fn wait_for(&self, path: &Path) {
         let started: Instant = Instant::now();
         while !path.exists() {
@@ -130,7 +147,8 @@ impl Held {
 }
 
 impl Drop for Held {
-    /// A failed control must not leave the filter waiting: the release lets the held Git end.
+    /// A failed control must not leave the filter waiting:
+    /// the release lets the held Git end.
     fn drop(&mut self) {
         let _released: std::io::Result<()> = std::fs::write(self.fixture.root.join("release"), b"go");
         if let Some(mut child) = self.child.take() {
@@ -144,10 +162,14 @@ impl Drop for Held {
 /// The text one summary line ends with for a single new worktree.
 const ONE_WORKTREE_SUMMARY_END: &str = " into 1 new worktree.\n";
 
-/// Two adds in one repository overlap: the second finishes while the first's real Git is still running, and neither
+/// Two adds in one repository overlap:
+/// the second finishes while the first's real Git is still running,
+/// and neither
 /// receives the other's copy.
-/// The first add registers its worktree before the second starts, and the second registers and finishes inside the first's
-/// real Git, so a comparison of the whole set of registrations around the first would find both worktrees.
+/// The first add registers its worktree before the second starts,
+/// and the second registers and finishes inside the first's
+/// real Git,
+/// so a comparison of the whole set of registrations around the first would find both worktrees.
 #[test]
 fn an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy() {
     let mut held: Held = Held::new("copy-concurrent-adds");
@@ -224,8 +246,10 @@ fn a_conversion_check_finishes_while_an_add_is_running() {
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
 }
 
-/// An add whose source is a worktree a conversion is running in (its kernel lock held, its `index.lock` in place) neither
-/// waits for the conversion nor touches either of them: the ladder declines that source and Git checks the worktree out.
+/// An add whose source is a worktree a conversion is running in (its kernel lock held,
+/// its `index.lock` in place) neither
+/// waits for the conversion nor touches either of them:
+/// the ladder declines that source and Git checks the worktree out.
 #[test]
 fn an_add_beside_a_running_conversion_neither_waits_nor_touches_it() {
     let held: Held = Held::new("copy-add-beside-conversion");
@@ -255,8 +279,12 @@ fn an_add_beside_a_running_conversion_neither_waits_nor_touches_it() {
     drop(lock_file);
 }
 
-/// A wrapped add that is killed while its real Git is running leaves nothing that stops, or is taken for, the next add:
-/// the next add finishes at once, gets its own copy, and reports no recovery that is not its business.
+/// A wrapped add that is killed while its real Git is running leaves nothing that stops,
+/// or is taken for,
+/// the next add:
+/// the next add finishes at once,
+/// gets its own copy,
+/// and reports no recovery that is not its business.
 #[test]
 fn an_add_killed_inside_its_real_git_does_not_hold_up_the_next_add() {
     let mut held: Held = Held::new("copy-killed-add");

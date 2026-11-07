@@ -1,14 +1,33 @@
 //! What:
-//!  Whether a worktree is clean enough to be copied from, or removed without asking Git: no operation in progress, an
-//!  index equal to the tree of `HEAD`, every tracked file unchanged by its recorded size, times and inode, and no
+//!  Whether a worktree is clean enough to be copied from,
+//! or removed without asking Git:
+//! no operation in progress,
+//! an
+//!  index equal to the tree of `HEAD`,
+//! every tracked file unchanged by its recorded size,
+//! times and inode,
+//! and no
 //!  untracked file that Git does not ignore.
 //! Why:
-//!  A snapshot or a clone carries the bytes of the source's files, so any change the source has not committed would
-//!  reach the new worktree, and a removal by the subvolume ioctl cannot be undone. The tracked-file checks read the
-//!  index in process (no Git process) with the same comparison Git's fast path makes, and refuse every shape they cannot
-//!  prove: a split or sparse index, a skip-worktree or assume-valid entry, a submodule, an entry as new as the index
-//!  file (Git re-hashes those, so their stat fields prove nothing). The one question the index cannot answer, whether
-//!  an untracked file is ignored, goes to one `git ls-files` run. Every refusal returns its reason in words for the log.
+//!  A snapshot or a clone carries the bytes of the source's files,
+//! so any change the source has not committed would
+//!  reach the new worktree,
+//! and a removal by the subvolume ioctl cannot be undone.
+//! The tracked-file checks read the
+//!  index in process (no Git process) with the same comparison Git's fast path makes,
+//! and refuse every shape they cannot
+//!  prove:
+//! a split or sparse index,
+//! a skip-worktree or assume-valid entry,
+//! a submodule,
+//! an entry as new as the index
+//!  file (Git re-hashes those,
+//! so their stat fields prove nothing).
+//! The one question the index cannot answer,
+//! whether
+//!  an untracked file is ignored,
+//! goes to one `git ls-files` run.
+//! Every refusal returns its reason in words for the log.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -40,7 +59,8 @@ const IN_PROGRESS: &[&str] =
 /// What:
 ///  What a clean worktree's `HEAD` names.
 /// Why:
-///   The two-tree update that follows a snapshot starts from this tree, so a caller needs not read it again.
+///   The two-tree update that follows a snapshot starts from this tree,
+/// so a caller needs not read it again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -48,27 +68,35 @@ const IN_PROGRESS: &[&str] =
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CleanSource {
-    /// The commit `HEAD` resolves to, as hexadecimal.
+    /// The commit `HEAD` resolves to,
+    /// as hexadecimal.
     pub head_commit: String,
-    /// The root tree of that commit, as a raw object name.
+    /// The root tree of that commit,
+    /// as a raw object name.
     pub head_tree: Vec<u8>,
     /// The number of tracked files.
     pub tracked: usize,
-    /// The whole seconds of the index file's modification time, against which racy entries were judged.
+    /// The whole seconds of the index file's modification time,
+    /// against which racy entries were judged.
     pub index_seconds: u32,
     /// The hash length of the repository in bytes.
     pub hash_length: usize,
     /// The `.gitattributes` files of the tree of `HEAD` as path and object name.
     pub attribute_blobs: Vec<(Vec<u8>, Vec<u8>)>,
-    /// The bytes of the index file that were proven equal to the tree of `HEAD` and to the files. Every later step uses
-    ///  these bytes, never a second read of the file, so what was proven is what is installed.
+    /// The bytes of the index file that were proven equal to the tree of `HEAD` and to the files.
+    /// Every later step uses
+    ///  these bytes,
+    /// never a second read of the file,
+    /// so what was proven is what is installed.
     pub index_bytes: Vec<u8>,
 }
 
 /// What:
-///  A refusal that the index or the Git data could not be read, when `found` holds nothing.
+///  A refusal that the index or the Git data could not be read,
+/// when `found` holds nothing.
 /// Why:
-///   Every read of the repository's own files refuses in the same way, saying which read failed.
+///   Every read of the repository's own files refuses in the same way,
+/// saying which read failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -82,7 +110,8 @@ fn or_unreadable<T>(found: Option<T>, reason: &'static str) -> Result<T, CleanRe
 }
 
 /// What:
-///  A refusal that the index file could not be opened, examined or read.
+///  A refusal that the index file could not be opened,
+/// examined or read.
 /// Why:
 ///   Three steps of reading the index word their failure the same way.
 ///
@@ -95,7 +124,8 @@ fn index_unreadable(error: std::io::Error) -> CleanRefusal {
 }
 
 /// What:
-///  Whether a byte is NUL, the end of each name in Git's `-z` output.
+///  Whether a byte is NUL,
+/// the end of each name in Git's `-z` output.
 /// Why:
 ///   The untracked names are split on it.
 ///
@@ -108,9 +138,12 @@ fn is_nul_byte(byte: &u8) -> bool {
 }
 
 /// What:
-///  The first entry of the Git directory that marks an operation in progress, if any.
+///  The first entry of the Git directory that marks an operation in progress,
+/// if any.
 /// Why:
-///   A merge, a rebase or a held index lock means the index is not the committed state yet; the lock a caller holds itself
+///   A merge,
+/// a rebase or a held index lock means the index is not the committed state yet;
+/// the lock a caller holds itself
 ///  (`owned_index_lock`) does not.
 ///
 /// In TS you'd write (pseudocode):
@@ -130,9 +163,11 @@ fn operation_in_progress(git_dir: &Path, owned_index_lock: bool) -> Option<&'sta
 }
 
 /// What:
-///  The commit `HEAD` resolves to, read from the plain ref files.
+///  The commit `HEAD` resolves to,
+/// read from the plain ref files.
 /// Why:
-///   An unusual ref storage answers "unknown", which declines the shortcut rather than guessing.
+///   An unusual ref storage answers "unknown",
+/// which declines the shortcut rather than guessing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -147,7 +182,8 @@ pub fn head_commit(git_dir: &Path, common_dir: &Path, format: ObjectFormat) -> O
 }
 
 /// What:
-///  The tracked files of the index paired with their recorded stat fields, or nothing when the layout is not plain.
+///  The tracked files of the index paired with their recorded stat fields,
+/// or nothing when the layout is not plain.
 /// Why:
 ///   The comparison with `lstat` needs the fields `parse_index` leaves out.
 ///
@@ -175,9 +211,11 @@ pub fn stored_stats(bytes: &[u8], hash_length: usize) -> Option<Vec<StatEntry>> 
 }
 
 /// What:
-///  The reason the index differs from the tree of `HEAD`, or nothing when the two are the same files.
+///  The reason the index differs from the tree of `HEAD`,
+/// or nothing when the two are the same files.
 /// Why:
-///   A staged change, a staged deletion or an intent-to-add entry is an uncommitted state the copy must not carry.
+///   A staged change,
+/// a staged deletion or an intent-to-add entry is an uncommitted state the copy must not carry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -204,8 +242,10 @@ fn index_differs_from_tree(index: &[IndexEntry], tree: &[FlatEntry]) -> Option<C
 /// What:
 ///  Whether Git lists an untracked file that no ignore rule covers.
 /// Why:
-///   Only Git's ignore rules can tell an untracked file that matters from one it ignores; `--directory` stops at the
-///  first untracked directory and `--no-empty-directory` leaves out directories without files, as `git status` does.
+///   Only Git's ignore rules can tell an untracked file that matters from one it ignores;
+/// `--directory` stops at the
+///  first untracked directory and `--no-empty-directory` leaves out directories without files,
+/// as `git status` does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -235,11 +275,16 @@ fn untracked_file(context: &GitContext, root: &Path) -> Result<Option<String>, C
 }
 
 /// What:
-///  The checks of `check_clean` that read no untracked file: no operation in progress, an index equal to the tree of `HEAD`,
-///  and every tracked file with the size, times and inode its index entry recorded.
+///  The checks of `check_clean` that read no untracked file:
+/// no operation in progress,
+/// an index equal to the tree of `HEAD`,
+///  and every tracked file with the size,
+/// times and inode its index entry recorded.
 /// Why:
-///   A caller that copies the whole worktree, untracked files included (the conversion of a worktree into a subvolume),
-///  needs a quiet and unmodified tracked state but has no reason to refuse for an untracked file, and needs no Git process.
+///   A caller that copies the whole worktree,
+/// untracked files included (the conversion of a worktree into a subvolume),
+///  needs a quiet and unmodified tracked state but has no reason to refuse for an untracked file,
+/// and needs no Git process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,10 +299,14 @@ pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Re
 
 /// What:
 ///  `check_clean_tracked` that settles an entry the stat data cannot vouch for by comparing the file with the committed
-///  blob in process, under the configuration and attribute locations of `environment`.
+///  blob in process,
+/// under the configuration and attribute locations of `environment`.
 /// Why:
-///   The conversion copies the whole worktree and rewrites the index afterwards, and an entry it could not prove keeps its old
-///  stat data, so Git hashes it at the first status; the snapshot and clone rungs install the index they proved and use the
+///   The conversion copies the whole worktree and rewrites the index afterwards,
+/// and an entry it could not prove keeps its old
+///  stat data,
+/// so Git hashes it at the first status;
+/// the snapshot and clone rungs install the index they proved and use the
 ///  stat-only check.
 ///
 /// In TS you'd write (pseudocode):
@@ -271,7 +320,9 @@ pub fn check_clean_tracked_by_content(root: &Path, git_dir: &Path, common_dir: &
     };
 }
 
-/// What the checks read before they judge: the index with its stat data, the commit `HEAD` names and its flattened tree.
+/// What the checks read before they judge:
+/// the index with its stat data,
+/// the commit `HEAD` names and its flattened tree.
 struct State {
     /// The bytes of the index file.
     bytes: Vec<u8>,
@@ -305,7 +356,9 @@ impl State {
         return blobs;
     }
 
-    /// What `HEAD` names, with the index bytes the caller proved (or none, for a worktree that is not clean).
+    /// What `HEAD` names,
+    /// with the index bytes the caller proved (or none,
+    /// for a worktree that is not clean).
     fn into_source(self, index_bytes: Vec<u8>) -> CleanSource {
         let attribute_blobs: Vec<(Vec<u8>, Vec<u8>)> = self.attribute_blobs();
         return CleanSource { head_commit: self.commit, head_tree: self.tree_id, tracked: self.entries.len(), index_seconds: self.index_seconds, hash_length: self.hash_length, attribute_blobs, index_bytes };
@@ -313,9 +366,11 @@ impl State {
 }
 
 /// What:
-///  Read the index and the tree of `HEAD` of a worktree, in process.
+///  Read the index and the tree of `HEAD` of a worktree,
+/// in process.
 /// Why:
-///   The judgement of cleanliness and the snapshot of a worktree that is not clean start from the same reading; every shape
+///   The judgement of cleanliness and the snapshot of a worktree that is not clean start from the same reading;
+/// every shape
 ///  the readers do not know is a refusal of kind `Unreadable`.
 ///
 /// In TS you'd write (pseudocode):
@@ -342,7 +397,10 @@ fn read_state(git_dir: &Path, common_dir: &Path) -> Result<State, CleanRefusal> 
     return Ok(State { bytes, index_seconds, hash_length, format, entries, stats, commit, tree_id: commit_fields.tree, tree });
 }
 
-/// The checks of `check_clean_tracked`, by stat data alone or, given a `scope`, by content where the stat data is not enough.
+/// The checks of `check_clean_tracked`,
+/// by stat data alone or,
+/// given a `scope`,
+/// by content where the stat data is not enough.
 fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Option<&ConversionEnvironment>, owned_index_lock: bool) -> Result<CleanSource, CleanRefusal> {
     if let Some(name) = operation_in_progress(git_dir, owned_index_lock) {
         return Err(CleanRefusal::new(CleanRefusalKind::OperationInProgress(name), format!("{name} exists in {}", git_dir.display())));
@@ -375,11 +433,17 @@ fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Op
 }
 
 /// What:
-///  The first entry of a worktree's index or tree that a reset to a commit cannot be proven to undo, if any: unmerged,
-///  intent-to-add and skip-worktree entries, assume-unchanged entries, and submodules in the index or in the tree of `HEAD`.
+///  The first entry of a worktree's index or tree that a reset to a commit cannot be proven to undo,
+/// if any:
+/// unmerged,
+///  intent-to-add and skip-worktree entries,
+/// assume-unchanged entries,
+/// and submodules in the index or in the tree of `HEAD`.
 /// Why:
-///   The first refusal of the clean check can be an ordinary change that hides one of these further on; a restore needs all of
-///  the index looked at, not the first offender.
+///   The first refusal of the clean check can be an ordinary change that hides one of these further on;
+/// a restore needs all of
+///  the index looked at,
+/// not the first offender.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -409,9 +473,11 @@ fn entry_a_reset_cannot_undo(state: &State) -> Option<CleanRefusal> {
 }
 
 /// What:
-///  The untracked scan of `check_clean`, timed as the work `untrackedScan` because it runs on a thread of its own.
+///  The untracked scan of `check_clean`,
+/// timed as the work `untrackedScan` because it runs on a thread of its own.
 /// Why:
-///   The scan is one Git run over the directory tree; the add timing record sums the work of threads by name.
+///   The scan is one Git run over the directory tree;
+/// the add timing record sums the work of threads by name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -424,15 +490,20 @@ fn scan_for_untracked_file((context, root): (&GitContext, &Path)) -> Result<Opti
     return scanned;
 }
 
-/// The tracked-file proof of `check_clean`, which runs on the calling thread beside the untracked scan.
+/// The tracked-file proof of `check_clean`,
+/// which runs on the calling thread beside the untracked scan.
 fn check_tracked_files((root, git_dir, common_dir): (&Path, &Path, &Path)) -> Result<CleanSource, CleanRefusal> {
     return check_tracked(root, git_dir, common_dir, None, false);
 }
 
 /// Cleanliness controls stay out of the release executable.
 /// What:
-///  Check that the worktree at `root`, whose Git directory is `git_dir` and whose shared directory is `common_dir`, is
-///  clean; return what its `HEAD` names, or the reason it cannot be proven clean.
+///  Check that the worktree at `root`,
+/// whose Git directory is `git_dir` and whose shared directory is `common_dir`,
+/// is
+///  clean;
+/// return what its `HEAD` names,
+/// or the reason it cannot be proven clean.
 /// Why:
 ///   The caller turns a refusal into a quiet fall to the next rung (or to Git's own removal) and logs the reason.
 ///
@@ -457,11 +528,16 @@ pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir
 }
 
 /// What:
-///  What `HEAD` names for a worktree that is not clean, and why it is not, once it is known that the only trouble is ordinary
+///  What `HEAD` names for a worktree that is not clean,
+/// and why it is not,
+/// once it is known that the only trouble is ordinary
 ///  changes.
 /// Why:
-///   The snapshot rung copies such a worktree and restores the copy to its `HEAD`; the copy's own index is installed, so the
-///  index bytes here are only as read: they name the tracked paths and prove nothing about the files.
+///   The snapshot rung copies such a worktree and restores the copy to its `HEAD`;
+/// the copy's own index is installed,
+/// so the
+///  index bytes here are only as read:
+/// they name the tracked paths and prove nothing about the files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -469,17 +545,23 @@ pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DirtySource {
-    /// What `HEAD` names; its `index_bytes` are the index as read, not proven equal to the files.
+    /// What `HEAD` names;
+    /// its `index_bytes` are the index as read,
+    /// not proven equal to the files.
     pub source: CleanSource,
     /// The first reason the worktree is not clean.
     pub why: CleanRefusal,
 }
 
 /// What:
-///  For a worktree `check_clean` refused with the ordinary change `why`, what `HEAD` names, or the refusal that a restore
+///  For a worktree `check_clean` refused with the ordinary change `why`,
+/// what `HEAD` names,
+/// or the refusal that a restore
 ///  cannot undo when the index holds one anywhere.
 /// Why:
-///   The first refusal hides the rest: a staged edit can come before a submodule or a skip-worktree entry, and only a look at
+///   The first refusal hides the rest:
+/// a staged edit can come before a submodule or a skip-worktree entry,
+/// and only a look at
 ///  every entry tells a change a reset undoes from a state it does not.
 ///
 /// In TS you'd write (pseudocode):

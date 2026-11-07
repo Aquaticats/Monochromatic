@@ -1,15 +1,32 @@
 //! What:
-//!  What the ladder does after real Git returned: bind the add to the directories Git made, the snapshot rung's steps (read
-//!  the new `HEAD`, snapshot, apply the tree difference, swap into place, print Git's checkout line), the clone rung's steps,
+//!  What the ladder does after real Git returned:
+//! bind the add to the directories Git made,
+//! the snapshot rung's steps (read
+//!  the new `HEAD`,
+//! snapshot,
+//! apply the tree difference,
+//! swap into place,
+//! print Git's checkout line),
+//! the clone rung's steps,
 //!  and the fall back to Git's own `reset --hard` in the bound worktree when a step cannot finish.
 //! Why:
-//!  Every step before the swap leaves the destination exactly as Git's `--no-checkout` run made it, so a failure there
-//!  completes the worktree the way Git would have. The ladder never deletes or unregisters a worktree: when the fallback
-//!  fails, or the bound objects are no longer what they were, the worktree and its registration stay exactly as they are and
-//!  one loud report names what is incomplete and the command that removes it. The only deletions are of objects this process
-//!  made and still checks: the stage it took and never exchanged. The line that Git's
-//!  own checkout would have printed is printed here, so the person cannot tell the rungs apart except by the time they take.
-//!  No hook runs on any rung: every real-Git start of the wrapper switches hooks off (`hooks_off.rs`).
+//!  Every step before the swap leaves the destination exactly as Git's `--no-checkout` run made it,
+//! so a failure there
+//!  completes the worktree the way Git would have.
+//! The ladder never deletes or unregisters a worktree:
+//! when the fallback
+//!  fails,
+//! or the bound objects are no longer what they were,
+//! the worktree and its registration stay exactly as they are and
+//!  one loud report names what is incomplete and the command that removes it.
+//! The only deletions are of objects this process
+//!  made and still checks:
+//! the stage it took and never exchanged.
+//! The line that Git's
+//!  own checkout would have printed is printed here,
+//! so the person cannot tell the rungs apart except by the time they take.
+//!  No hook runs on any rung:
+//! every real-Git start of the wrapper switches hooks off (`hooks_off.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -42,11 +59,14 @@ use std::path::{Path, PathBuf};
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLadder";
 
-/// Why a rung ended before it finished, and whether the object at the stage name is still the snapshot this process made.
+/// Why a rung ended before it finished,
+/// and whether the object at the stage name is still the snapshot this process made.
 struct Ended {
-    /// The reason, in words.
+    /// The reason,
+    /// in words.
     reason: String,
-    /// Whether the stage name holds this process's snapshot, so that destroying it destroys nothing else.
+    /// Whether the stage name holds this process's snapshot,
+    /// so that destroying it destroys nothing else.
     stage_is_ours: bool,
 }
 
@@ -63,10 +83,13 @@ impl From<PlaceError> for Ended {
 }
 
 /// What:
-///  Everything before the swap and the swap itself; the error is the reason the rung could not finish.
+///  Everything before the swap and the swap itself;
+/// the error is the reason the rung could not finish.
 /// Why:
-///   The caller destroys the stage on an error that left the stage name holding the snapshot, and completes the worktree
-///  with Git's own checkout. `made` receives the identity of the stage as soon as it exists.
+///   The caller destroys the stage on an error that left the stage name holding the snapshot,
+/// and completes the worktree
+///  with Git's own checkout.
+/// `made` receives the identity of the stage as soon as it exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,9 +155,11 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 }
 
 /// What:
-///  The paths the source has changed since its last commit, when there are any.
+///  The paths the source has changed since its last commit,
+/// when there are any.
 /// Why:
-///   A snapshot carries the source's uncommitted state, so the person is told which of it was left out of the new worktree.
+///   A snapshot carries the source's uncommitted state,
+/// so the person is told which of it was left out of the new worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -148,9 +173,16 @@ fn changes_left_out(source: &SnapshotSource) -> Option<&ChangedPaths> {
 }
 
 /// What:
-///  The clone rung: clone the tracked files into the destination, install the index, apply the tree difference.
+///  The clone rung:
+/// clone the tracked files into the destination,
+/// install the index,
+/// apply the tree difference.
 /// Why:
-///   The destination is filled in place; an error removes nothing: the entries the run created stay, are reported, and Git's
+///   The destination is filled in place;
+/// an error removes nothing:
+/// the entries the run created stay,
+/// are reported,
+/// and Git's
 ///  own checkout completes the worktree and overwrites the tracked ones.
 ///
 /// In TS you'd write (pseudocode):
@@ -173,12 +205,19 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git:
 }
 
 /// What:
-///  Complete the worktree the way Git does after a refused rung: `git reset --hard --no-recurse-submodules`, in the bound
+///  Complete the worktree the way Git does after a refused rung:
+/// `git reset --hard --no-recurse-submodules`,
+/// in the bound
 ///  worktree and nowhere else.
 /// Why:
-///   Real Git ran with `--no-checkout`, so the destination holds only its `.git` file; this is Git's own checkout step.
-///  The binding is verified first and again after, so a worktree that was moved or replaced meanwhile is never reset and a
-///  success against a replacement is never taken for the add's. Git's `post-checkout` hook is not run: every real-Git start
+///   Real Git ran with `--no-checkout`,
+/// so the destination holds only its `.git` file;
+/// this is Git's own checkout step.
+///  The binding is verified first and again after,
+/// so a worktree that was moved or replaced meanwhile is never reset and a
+///  success against a replacement is never taken for the add's.
+/// Git's `post-checkout` hook is not run:
+/// every real-Git start
 ///  of the wrapper switches hooks off (`hooks_off.rs`).
 ///
 /// In TS you'd write (pseudocode):
@@ -211,10 +250,14 @@ fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner)
 }
 
 /// What:
-///  Say what an add left, loudly and once, with the commands that finish or remove it.
+///  Say what an add left,
+/// loudly and once,
+/// with the commands that finish or remove it.
 /// Why:
-///   The ladder deletes and unregisters nothing, so a worktree that could not be completed stays registered and incomplete,
-///  as Git's own interrupted add leaves it; the person is told where and how to remove it.
+///   The ladder deletes and unregisters nothing,
+/// so a worktree that could not be completed stays registered and incomplete,
+///  as Git's own interrupted add leaves it;
+/// the person is told where and how to remove it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -226,10 +269,13 @@ fn report_incomplete(plan: &AddPlan) {
 }
 
 /// What:
-///  Record that the add is complete, saying so in the log when the record cannot be written.
+///  Record that the add is complete,
+/// saying so in the log when the record cannot be written.
 /// Why:
-///   Without the marker a later command reports the add as interrupted although the worktree is whole; the report changes
-///  nothing, so a failure here is a warning and not a failure of the command.
+///   Without the marker a later command reports the add as interrupted although the worktree is whole;
+/// the report changes
+///  nothing,
+/// so a failure here is a warning and not a failure of the command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -245,9 +291,12 @@ fn mark_complete(claim: &StageClaim, swapped: bool) {
 }
 
 /// What:
-///  Complete the worktree with Git's own checkout after a refused rung. When that fails, report what was left.
+///  Complete the worktree with Git's own checkout after a refused rung.
+/// When that fails,
+/// report what was left.
 /// Why:
-///   Nothing is removed on a failure: the worktree and its registration stay and the person gets the report.
+///   Nothing is removed on a failure:
+/// the worktree and its registration stay and the person gets the report.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -264,10 +313,13 @@ fn complete_like_git(plan: &AddPlan, claim: &StageClaim, bound: &Bound, run_git:
 }
 
 /// What:
-///  Bind the add to the directories Git made, and write that binding to the add's record.
+///  Bind the add to the directories Git made,
+/// and write that binding to the add's record.
 /// Why:
-///   Every write below goes to the bound worktree and is checked against the binding. A binding that cannot be proven ends
-///  the ladder for this add, leaving what Git made as it is.
+///   Every write below goes to the bound worktree and is checked against the binding.
+/// A binding that cannot be proven ends
+///  the ladder for this add,
+/// leaving what Git made as it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -288,10 +340,14 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 }
 
 /// What:
-///  Serve the clone rung after real Git returned, or complete the worktree with Git's own checkout.
+///  Serve the clone rung after real Git returned,
+/// or complete the worktree with Git's own checkout.
 /// Why:
-///   A failed attempt has removed what it created; the ignored state is copied by the lifecycle afterwards, as for Git's
-///  checkout, so nothing is reported as carried.
+///   A failed attempt has removed what it created;
+/// the ignored state is copied by the lifecycle afterwards,
+/// as for Git's
+///  checkout,
+/// so nothing is reported as carried.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -327,10 +383,13 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
 }
 
 /// What:
-///  Serve the snapshot rung after real Git returned, or complete the worktree with Git's own checkout.
+///  Serve the snapshot rung after real Git returned,
+/// or complete the worktree with Git's own checkout.
 /// Why:
 ///   An error that leaves the stage name holding the snapshot destroys the stage (checking its identity) and falls to Git's
-///  checkout; an error that leaves somebody else's directory there destroys nothing and ends the add as failed, with the
+///  checkout;
+/// an error that leaves somebody else's directory there destroys nothing and ends the add as failed,
+/// with the
 ///  names in the message.
 ///
 /// In TS you'd write (pseudocode):
@@ -379,7 +438,9 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
     };
 }
 
-/// Release the claim on a stage name, saying so when that fails; flushing nothing when a subvolume was swapped into place.
+/// Release the claim on a stage name,
+/// saying so when that fails;
+/// flushing nothing when a subvolume was swapped into place.
 fn release_claim(claim: StageClaim, swapped: bool) {
     let release_claim_entered: bool = begin_step("releaseClaim");
     let released: Result<(), WorktreeCopyError> = if swapped { claim.release_unsynced() } else { claim.release() };
@@ -391,11 +452,16 @@ fn release_claim(claim: StageClaim, swapped: bool) {
 
 impl Ladder {
     /// What:
-    ///  Settle the ladder after real Git returned `git`: serve the snapshot rung or fall back to Git's checkout, or settle
+    ///  Settle the ladder after real Git returned `git`:
+    /// serve the snapshot rung or fall back to Git's checkout,
+    /// or settle
     ///  the empty subvolume of the Git rung.
     /// Why:
-    ///   The result carries the status the person should see and the destination whose ignored state a snapshot carried. The
-    ///  claim is always released: what an add left is reported when it happens, once.
+    ///   The result carries the status the person should see and the destination whose ignored state a snapshot carried.
+    /// The
+    ///  claim is always released:
+    /// what an add left is reported when it happens,
+    /// once.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

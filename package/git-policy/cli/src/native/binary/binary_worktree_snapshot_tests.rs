@@ -1,9 +1,17 @@
 //! What:
-//!  Rung 1 of the cheap-worktree ladder through the built executable: `git worktree add` from a clean subvolume worktree
-//!  is served by a snapshot, and every worktree it makes equals what Git's own checkout makes.
+//!  Rung 1 of the cheap-worktree ladder through the built executable:
+//! `git worktree add` from a clean subvolume worktree
+//!  is served by a snapshot,
+//! and every worktree it makes equals what Git's own checkout makes.
 //! Why:
-//!  The snapshot carries the source's ignored state, which Git's checkout from a main checkout never does, so that is the
-//!  sign a snapshot served the command; the contents, the status of the new worktree, Git's words, the `post-checkout`
+//!  The snapshot carries the source's ignored state,
+//! which Git's checkout from a main checkout never does,
+//! so that is the
+//!  sign a snapshot served the command;
+//! the contents,
+//! the status of the new worktree,
+//! Git's words,
+//! the `post-checkout`
 //!  hook and the exit status are compared with a control worktree that real Git made from the same commit.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +27,10 @@ use git_policy_cli::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
-/// Whether the fixture root is on btrfs; where it is not, the run must have said so, and one loud line names the control.
+/// Whether the fixture root is on btrfs;
+/// where it is not,
+/// the run must have said so,
+/// and one loud line names the control.
 pub(super) fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
     let kind = filesystem_kind(fixture.root.as_path());
     if kind == Ok(FilesystemKind::Btrfs) {
@@ -35,7 +46,8 @@ pub(super) fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool
     return false;
 }
 
-/// Move a path's modification time two minutes into the past without following a link, so index entries are not racy.
+/// Move a path's modification time two minutes into the past without following a link,
+/// so index entries are not racy.
 pub(super) fn age(path: &Path) {
     let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
     let past: libc::time_t = (std::time::SystemTime::now() - std::time::Duration::from_secs(120))
@@ -48,7 +60,8 @@ pub(super) fn age(path: &Path) {
     assert_eq!(result, 0, "age {}", path.display());
 }
 
-/// Write a tracked file with its parents, aged.
+/// Write a tracked file with its parents,
+/// aged.
 pub(super) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
     let path: PathBuf = repo.join(relative);
     std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
@@ -56,15 +69,21 @@ pub(super) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
     age(path.as_path());
 }
 
-/// Commit everything in the repository and refresh its index, so every entry is provably unchanged.
+/// Commit everything in the repository and refresh its index,
+/// so every entry is provably unchanged.
 pub(super) fn commit_all(fixture: &Fixture, repo: &Path, message: &str) {
     git(fixture, repo, &["add", "--all"]);
     git(fixture, repo, &["commit", "--quiet", format!("--message={message}").as_str()]);
     git(fixture, repo, &["update-index", "--refresh"]);
 }
 
-/// A main checkout that is a subvolume with two commits: the first holds `old.txt` and an older `shared.txt`, the
-///  second changes `shared.txt`, adds `new/added.txt`, and deletes `old.txt`. `ignored/pkg/index.js` is ignored state.
+/// A main checkout that is a subvolume with two commits:
+/// the first holds `old.txt` and an older `shared.txt`,
+/// the
+///  second changes `shared.txt`,
+/// adds `new/added.txt`,
+/// and deletes `old.txt`.
+/// `ignored/pkg/index.js` is ignored state.
 pub(super) fn subvolume_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = fixture.root.join("repo");
     subvolume_create_at(repo.as_path()).expect("repository subvolume");
@@ -83,7 +102,8 @@ pub(super) fn subvolume_repository(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// The tracked files of a worktree with their bytes and executable bit, sorted by path.
+/// The tracked files of a worktree with their bytes and executable bit,
+/// sorted by path.
 pub(super) fn tracked_content(fixture: &Fixture, worktree: &Path) -> Vec<(String, Vec<u8>, bool)> {
     use std::os::unix::fs::PermissionsExt;
     let listing = git(fixture, worktree, &["ls-files", "-z"]);
@@ -96,8 +116,12 @@ pub(super) fn tracked_content(fixture: &Fixture, worktree: &Path) -> Vec<(String
     return files;
 }
 
-/// A worktree added from the clean subvolume main checkout is a snapshot: it carries the ignored state, equals the
-///  control Git made, is clean on its first status, and the caller sees Git's own words.
+/// A worktree added from the clean subvolume main checkout is a snapshot:
+/// it carries the ignored state,
+/// equals the
+///  control Git made,
+/// is clean on its first status,
+/// and the caller sees Git's own words.
 #[test]
 fn a_clean_main_checkout_is_snapshotted_and_equals_gits_own_checkout() {
     let fixture: Fixture = fixture("snapshot-main");
@@ -131,7 +155,8 @@ pub(super) fn carries_ignored_state(worktree: &Path) -> bool {
     return worktree.join("ignored/pkg/index.js").is_file();
 }
 
-/// Add a worktree through the wrapper and one through real Git from the same place, and require both to succeed.
+/// Add a worktree through the wrapper and one through real Git from the same place,
+/// and require both to succeed.
 pub(super) fn add_pair(fixture: &Fixture, from: &Path, wrapped_name: &str, control_name: &str, extra: &[&str]) -> (Observed, Observed) {
     let mut wrapped_arguments: Vec<String> = vec![String::from("worktree"), String::from("add")];
     wrapped_arguments.extend(extra.iter().map(|word: &&str| { return word.replace("NAME", wrapped_name); }));
@@ -143,7 +168,9 @@ pub(super) fn add_pair(fixture: &Fixture, from: &Path, wrapped_name: &str, contr
     return (created, control);
 }
 
-/// A target commit older than the source's applies the difference (a changed file, an added one, a deleted one) and
+/// A target commit older than the source's applies the difference (a changed file,
+/// an added one,
+/// a deleted one) and
 ///  equals the control.
 #[test]
 fn an_older_target_commit_gets_the_difference_applied() {
@@ -165,7 +192,9 @@ fn an_older_target_commit_gets_the_difference_applied() {
     remove(&fixture);
 }
 
-/// A source with an entry no reset can undo (skip-worktree here) is not snapshotted: Git checks the worktree out, into a subvolume.
+/// A source with an entry no reset can undo (skip-worktree here) is not snapshotted:
+/// Git checks the worktree out,
+/// into a subvolume.
 #[test]
 fn a_source_with_an_entry_no_reset_can_undo_falls_to_gits_checkout() {
     let fixture: Fixture = fixture("snapshot-skipped");
@@ -225,8 +254,11 @@ fn quiet_silences_the_checkout_line() {
     remove(&fixture);
 }
 
-/// No hook runs on any rung through the wrapper, which switches hooks off for every Git start; real Git started directly
-///  runs the same hook, which is the positive control that the hook below would have been noticed.
+/// No hook runs on any rung through the wrapper,
+/// which switches hooks off for every Git start;
+/// real Git started directly
+///  runs the same hook,
+/// which is the positive control that the hook below would have been noticed.
 #[test]
 fn no_post_checkout_hook_runs_through_the_wrapper() {
     use std::os::unix::fs::PermissionsExt;
@@ -255,7 +287,8 @@ fn no_post_checkout_hook_runs_through_the_wrapper() {
     remove(&fixture);
 }
 
-/// A worktree made by a snapshot is itself a source: the next add from it is a snapshot too.
+/// A worktree made by a snapshot is itself a source:
+/// the next add from it is a snapshot too.
 #[test]
 fn a_snapshot_worktree_is_a_source_in_turn() {
     let fixture: Fixture = fixture("snapshot-chain");
@@ -275,8 +308,10 @@ fn a_snapshot_worktree_is_a_source_in_turn() {
     remove(&fixture);
 }
 
-/// A destination inside the source (an ignored `.claude-wt` directory) gets no copy of itself, and the source stays
-///  clean; a nested worktree that is an ordinary directory is set aside in the snapshot of the main checkout.
+/// A destination inside the source (an ignored `.claude-wt` directory) gets no copy of itself,
+/// and the source stays
+///  clean;
+/// a nested worktree that is an ordinary directory is set aside in the snapshot of the main checkout.
 #[test]
 fn a_destination_inside_the_source_is_not_carried_into_itself() {
     let fixture: Fixture = fixture("snapshot-nested");
@@ -309,8 +344,12 @@ fn a_destination_inside_the_source_is_not_carried_into_itself() {
     remove(&fixture);
 }
 
-/// A snapshot of the main checkout leaves out what the rule names: the ordinary nested worktree (its pointer unlinked), the
-///  caches and the run records are set aside under an ignored path and emptied; what a new worktree needs stays, and both
+/// A snapshot of the main checkout leaves out what the rule names:
+/// the ordinary nested worktree (its pointer unlinked),
+/// the
+///  caches and the run records are set aside under an ignored path and emptied;
+/// what a new worktree needs stays,
+/// and both
 ///  worktrees are clean.
 #[test]
 fn a_snapshot_of_main_sets_aside_what_the_rule_leaves_out() {

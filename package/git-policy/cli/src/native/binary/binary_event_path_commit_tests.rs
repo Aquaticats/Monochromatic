@@ -163,8 +163,10 @@ fn a_commit_correction_of_a_name_that_is_not_utf8_reports_the_exact_bytes() {
     remove_settled(&fixture);
 }
 
-/// A selection made with `--include` applies no correction, so a finding at `error` severity blocks the commit and
-///  names the exact bytes, and nothing lands.
+/// A selection made with `--include` applies no correction,
+/// so a finding at `error` severity blocks the commit and
+///  names the exact bytes,
+/// and nothing lands.
 #[test]
 fn a_blocking_commit_finding_names_the_exact_bytes() {
     let fixture: Fixture = fixture("event-path-commit-blocked");
@@ -226,7 +228,9 @@ fn an_add_blocked_at_error_severity_names_the_exact_bytes() {
 
 /// Names that are UTF-8 keep their old shape:
 ///  a backslash is escaped by JSON only,
-///  and a name holding the replacement character itself, correctly encoded, gets no `pathBytes`.
+///  and a name holding the replacement character itself,
+/// correctly encoded,
+/// gets no `pathBytes`.
 #[test]
 fn names_that_are_utf8_keep_the_old_shape() {
     let fixture: Fixture = fixture("event-path-utf8");
@@ -315,7 +319,8 @@ fn the_forbidden_strings_finding_for_a_name_that_is_not_utf8_has_no_exact_bytes(
     remove_settled(&fixture);
 }
 
-/// Index mode (`commit -a`) lands an edit of a tracked name that is not UTF-8, corrected,
+/// Index mode (`commit -a`) lands an edit of a tracked name that is not UTF-8,
+/// corrected,
 ///  and the summary lists the exact bytes.
 #[test]
 fn a_commit_of_all_tracked_changes_lands_a_name_that_is_not_utf8() {
@@ -422,18 +427,23 @@ fn an_amend_of_a_name_that_is_not_utf8_lands_it() {
 }
 
 /// The PATH that has the wrapper first and then the system:
-///  the linter is linked in, so none is on it.
+///  the linter is linked in,
+/// so none is on it.
 fn plain_path(fixture: &Fixture) -> OsString {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":/usr/bin:/bin");
     return path;
 }
 
-/// An LFS endpoint the linter cannot use, so the Markdown rule cannot finish and the candidate stays unchecked.
+/// An LFS endpoint the linter cannot use,
+/// so the Markdown rule cannot finish and the candidate stays unchecked.
 const UNUSABLE_ENDPOINT: &[u8] = b"[lfs]\n\turl = not a url\n";
 
-/// A Markdown file the linter could not check, named by bytes that are not UTF-8, stops `git add` and a commit
-///  with an engine failure that carries the exact bytes, and nothing is staged or landed.
+/// A Markdown file the linter could not check,
+/// named by bytes that are not UTF-8,
+/// stops `git add` and a commit
+///  with an engine failure that carries the exact bytes,
+/// and nothing is staged or landed.
 #[test]
 fn an_unchecked_markdown_name_that_is_not_utf8_is_reported_with_its_exact_bytes() {
     let fixture: Fixture = fixture("event-path-markdown");

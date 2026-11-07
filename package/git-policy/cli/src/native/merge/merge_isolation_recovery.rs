@@ -1,14 +1,20 @@
 //! What:
-//!  Recovery of an isolated merge whose process died: discard it when it never touched the worktree or the index,
+//!  Recovery of an isolated merge whose process died:
+//! discard it when it never touched the worktree or the index,
 //!  complete it when Git had started to update them.
 //! Why:
-//!  The merge commit exists before the branch moves, and Git updates the worktree and the index of the paths the
+//!  The merge commit exists before the branch moves,
+//! and Git updates the worktree and the index of the paths the
 //!  merge changes before it moves the branch.
 //!  A process killed in between leaves files and index entries of the merge beside a branch that still names the
-//!  old commit, which the next commit would then revert.
-//!  Completing the merge from its record finishes exactly what Git had started, for exactly the paths the merge
-//!  changes, and leaves every other staged entry and every unstaged change as it was.
-//!  A path that holds neither its old nor its new content belongs to someone else, so recovery stops and keeps the
+//!  old commit,
+//! which the next commit would then revert.
+//!  Completing the merge from its record finishes exactly what Git had started,
+//! for exactly the paths the merge
+//!  changes,
+//! and leaves every other staged entry and every unstaged change as it was.
+//!  A path that holds neither its old nor its new content belongs to someone else,
+//! so recovery stops and keeps the
 //!  record instead of overwriting it.
 //!
 //! In TS you'd write (pseudocode):
@@ -24,7 +30,8 @@ use crate::merge_isolation_journal::{
 };
 /// A merge whose branch moved while it was prepared.
 use crate::merge_isolation_moved::settle_moved_branch;
-/// The steps shared with the settling of a moved branch; named here so the paths outside this file stay the same.
+/// The steps shared with the settling of a moved branch;
+/// named here so the paths outside this file stay the same.
 pub use crate::merge_isolation_recovery_steps::{MergeRecoveryAction, RecoveryPlace, Standing};
 use crate::merge_isolation_recovery_steps::{index_holds_the_merge, install_entries, merge_changes, remove_record, standing};
 /// The raw differences and the worktree states.
@@ -55,11 +62,14 @@ pub struct MergeRecoveryOutcome {
 }
 
 /// What:
-///  Whether the worktree's Git directory holds an intent record that recovery must look at: one whose owner is
-///  dead, or one that cannot be read.
+///  Whether the worktree's Git directory holds an intent record that recovery must look at:
+/// one whose owner is
+///  dead,
+/// or one that cannot be read.
 /// Why:
 ///   The common case needs one failed directory read and no lock.
-///  A record of a merge that still runs is not recovered, so a nested command does not touch its ancestor's merge.
+///  A record of a merge that still runs is not recovered,
+/// so a nested command does not touch its ancestor's merge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,7 +95,8 @@ pub fn merge_intents_to_recover(git_dir: &Path) -> Result<bool, RecoveryError> {
 /// What:
 ///  Recover every intent record whose owner is dead.
 /// Why:
-///   A record whose owner still runs is left alone, so recovery does not race a live merge.
+///   A record whose owner still runs is left alone,
+/// so recovery does not race a live merge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -128,7 +139,8 @@ pub fn recover_interrupted_merges(
 }
 
 /// What:
-///  Whether the record's owner still runs, treating a probe the account may not make as alive.
+///  Whether the record's owner still runs,
+/// treating a probe the account may not make as alive.
 /// Why:
 ///   Recovery must never touch a merge that may be live.
 ///
@@ -162,7 +174,8 @@ fn owner_liveness(intent: &MergeIntent, record: &Path) -> Result<OwnerLiveness, 
 }
 
 /// What:
-///  The commit a ref names, or nothing when it names none.
+///  The commit a ref names,
+/// or nothing when it names none.
 /// Why:
 ///   The branch value decides whether the merge landed.
 ///
@@ -184,9 +197,13 @@ fn resolve_commit(place: &RecoveryPlace, root: &Path, reference: &str) -> Result
 }
 
 /// What:
-///  Settle a merge that is known not to be running: discard it if it never began, otherwise finish it.
+///  Settle a merge that is known not to be running:
+/// discard it if it never began,
+/// otherwise finish it.
 /// Why:
-///   The merge's own process calls this when Git reported a failure, and recovery calls it for a dead owner; both
+///   The merge's own process calls this when Git reported a failure,
+/// and recovery calls it for a dead owner;
+/// both
 ///  need the same decision from the same evidence.
 ///
 /// In TS you'd write (pseudocode):
@@ -255,11 +272,14 @@ pub fn settle_failed_merge(
 }
 
 /// What:
-///  Bring the index entries and the worktree files of the changed paths to the merged state, then move the branch.
+///  Bring the index entries and the worktree files of the changed paths to the merged state,
+/// then move the branch.
 /// Why:
 ///   The index entries are set first so a file written by `checkout-index` is recorded with the object it holds;
 ///  deletions go before writes so a file replaced by a directory of the same name can be created;
-///  the branch moves last, by compare-and-swap against the old commit, so a branch that moved meanwhile is left alone.
+///  the branch moves last,
+/// by compare-and-swap against the old commit,
+/// so a branch that moved meanwhile is left alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -287,7 +307,8 @@ fn complete(
     return Ok(());
 }
 
-/// Recovery of records whose owner is dead, alive or unreadable.
+/// Recovery of records whose owner is dead,
+/// alive or unreadable.
 #[cfg(test)]
 #[path = "merge_isolation_recovery_tests.rs"]
 mod tests;

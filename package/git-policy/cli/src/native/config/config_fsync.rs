@@ -1,10 +1,17 @@
 //! What:
-//!  Git's `core.fsync` value read into the set of components it flushes, and the value that keeps every component of a set
+//!  Git's `core.fsync` value read into the set of components it flushes,
+//! and the value that keeps every component of a set
 //!  except the pack's own.
 //! Why:
-//!  Git flushes only the components `core.fsync` names, and the wrapper asks the same question for two writes it makes
-//!  itself: whether the index it writes in process is flushed, and whether the pack that `git fast-import` writes for a
-//!  landing is flushed. Read from Git 2.56.0 (`environment.c`, `parse_fsync_components`; `write-or-die.h`).
+//!  Git flushes only the components `core.fsync` names,
+//! and the wrapper asks the same question for two writes it makes
+//!  itself:
+//! whether the index it writes in process is flushed,
+//! and whether the pack that `git fast-import` writes for a
+//!  landing is flushed.
+//! Read from Git 2.56.0 (`environment.c`,
+//! `parse_fsync_components`;
+//! `write-or-die.h`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,7 +19,8 @@
 //! set.has('index'); // true
 //! ```
 
-/// A component of the repository that Git can flush, one bit each as in Git's `enum fsync_component`.
+/// A component of the repository that Git can flush,
+/// one bit each as in Git's `enum fsync_component`.
 const LOOSE_OBJECT: u8 = 1 << 0;
 /// A pack file.
 const PACK: u8 = 1 << 1;
@@ -24,14 +32,18 @@ const COMMIT_GRAPH: u8 = 1 << 3;
 const INDEX: u8 = 1 << 4;
 /// The files of the reference store.
 const REFERENCE: u8 = 1 << 5;
-/// The mapping between hash algorithms; no `core.fsync` word names it alone, only `all`.
+/// The mapping between hash algorithms;
+/// no `core.fsync` word names it alone,
+/// only `all`.
 const OBJECT_MAP: u8 = 1 << 6;
 
 /// What `objects` names.
 const OBJECTS: u8 = LOOSE_OBJECT | PACK;
 /// What `derived-metadata` names.
 const DERIVED_METADATA: u8 = PACK_METADATA | COMMIT_GRAPH;
-/// What Git flushes when `core.fsync` is not set: the objects and the derived metadata, but not the loose objects.
+/// What Git flushes when `core.fsync` is not set:
+/// the objects and the derived metadata,
+/// but not the loose objects.
 const DEFAULT: u8 = (OBJECTS | DERIVED_METADATA) & !LOOSE_OBJECT;
 /// What `committed` names.
 const COMMITTED: u8 = OBJECTS | REFERENCE;
@@ -40,7 +52,9 @@ const ADDED: u8 = COMMITTED | INDEX;
 /// What `all` names.
 const ALL: u8 = LOOSE_OBJECT | PACK | PACK_METADATA | COMMIT_GRAPH | INDEX | REFERENCE | OBJECT_MAP;
 
-/// The words `core.fsync` accepts, in the order Git lists them, with the components each names.
+/// The words `core.fsync` accepts,
+/// in the order Git lists them,
+/// with the components each names.
 const WORDS: [(&str, u8); 11] = [
     ("loose-object", LOOSE_OBJECT),
     ("pack", PACK),
@@ -61,7 +75,8 @@ const SEPARATORS: [char; 5] = [',', ' ', '\t', '\n', '\r'];
 /// What:
 ///  The components one `core.fsync` value makes Git flush.
 /// Why:
-///   One value type for both questions, so the index writer and the import step cannot disagree about how Git reads the
+///   One value type for both questions,
+/// so the index writer and the import step cannot disagree about how Git reads the
 ///  setting.
 ///
 /// In TS you'd write (pseudocode):
@@ -79,7 +94,9 @@ impl FsyncComponents {
     /// What:
     ///  The set Git flushes when `core.fsync` is not set.
     /// Why:
-    ///   An unset key is the default, which flushes packs and their metadata but not loose objects, references or the index.
+    ///   An unset key is the default,
+    /// which flushes packs and their metadata but not loose objects,
+    /// references or the index.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -92,10 +109,17 @@ impl FsyncComponents {
     /// What:
     ///  The set one `core.fsync` value makes Git flush.
     /// Why:
-    ///   The value starts again from the default at each entry. In one value `none` (only as the whole rest of the value)
-    ///  clears the set, a word with a `-` is removed and any other is added, a word names every component whose name it is a
-    ///  prefix of (`ind` is `index`, `pack` also names `pack-metadata`), a word that names none is ignored, and the result
-    ///  is the set without the removed components plus the added ones, so an added component stays even when it is also
+    ///   The value starts again from the default at each entry.
+    /// In one value `none` (only as the whole rest of the value)
+    ///  clears the set,
+    /// a word with a `-` is removed and any other is added,
+    /// a word names every component whose name it is a
+    ///  prefix of (`ind` is `index`,
+    /// `pack` also names `pack-metadata`),
+    /// a word that names none is ignored,
+    /// and the result
+    ///  is the set without the removed components plus the added ones,
+    /// so an added component stays even when it is also
     ///  removed.
     ///
     /// In TS you'd write (pseudocode):
@@ -166,8 +190,10 @@ impl FsyncComponents {
     /// What:
     ///  This set without the pack file and the pack's metadata.
     /// Why:
-    ///   The import step of a landing writes a temporary pack that it deletes when the batch is small, and native Git writes
-    ///  loose objects, so a repository that does not flush loose objects gets no pack flush for it.
+    ///   The import step of a landing writes a temporary pack that it deletes when the batch is small,
+    /// and native Git writes
+    ///  loose objects,
+    /// so a repository that does not flush loose objects gets no pack flush for it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -180,7 +206,8 @@ impl FsyncComponents {
     /// What:
     ///  This set with the pack file and the pack's metadata added.
     /// Why:
-    ///   Where loose objects are flushed, a pack that the import keeps instead of unpacking holds the same objects and is
+    ///   Where loose objects are flushed,
+    /// a pack that the import keeps instead of unpacking holds the same objects and is
     ///  flushed with its index.
     ///
     /// In TS you'd write (pseudocode):
@@ -194,8 +221,12 @@ impl FsyncComponents {
     /// What:
     ///  A `core.fsync` value that makes Git flush exactly this set.
     /// Why:
-    ///   Each word is spelled in full, because a word is a prefix match (`pack` alone would also name `pack-metadata`), and
-    ///  `none` ends the value, which starts the set empty. A component that no single word names (the mapping between hash
+    ///   Each word is spelled in full,
+    /// because a word is a prefix match (`pack` alone would also name `pack-metadata`),
+    /// and
+    ///  `none` ends the value,
+    /// which starts the set empty.
+    /// A component that no single word names (the mapping between hash
     ///  algorithms) is left out.
     ///
     /// In TS you'd write (pseudocode):
@@ -215,7 +246,8 @@ impl FsyncComponents {
     }
 }
 
-/// Controls for reading the value, each against real Git's flushes.
+/// Controls for reading the value,
+/// each against real Git's flushes.
 #[cfg(test)]
 #[path = "config_fsync_tests.rs"]
 mod tests;

@@ -50,7 +50,9 @@ use std::os::unix::fs::PermissionsExt;
 /// ```
 use std::path::{Path, PathBuf};
 
-/// Imports the check that tells a shadow, of any version, from a real tool.
+/// Imports the check that tells a shadow,
+/// of any version,
+/// from a real tool.
 use crate::shadow_identity::shadow_behind;
 
 /// What:

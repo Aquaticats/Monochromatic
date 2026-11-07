@@ -18,7 +18,8 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 
-/// The helpers that moved to files of their own, named here so every `support::name` path stays the same.
+/// The helpers that moved to files of their own,
+/// named here so every `support::name` path stays the same.
 pub use crate::support_fixture_directories::*;
 pub use crate::support_fixture_service::*;
 pub use crate::support_observation::*;
@@ -52,9 +53,11 @@ pub use crate::support_resource_limits::*;
 
 
 
-/// A pipe whose two ends are closed on `exec`: `[read end, write end]`.
+/// A pipe whose two ends are closed on `exec`:
+/// `[read end, write end]`.
 /// Linux makes both ends close-on-exec in the one `pipe2` call;
-///  macOS has no `pipe2`, so there the flag is set on each end right after `pipe`.
+///  macOS has no `pipe2`,
+/// so there the flag is set on each end right after `pipe`.
 #[cfg(target_os = "linux")]
 pub fn close_on_exec_pipe() -> [libc::c_int; 2] {
     let mut ends: [libc::c_int; 2] = [0, 0];
@@ -64,9 +67,11 @@ pub fn close_on_exec_pipe() -> [libc::c_int; 2] {
     return ends;
 }
 
-/// A pipe whose two ends are closed on `exec`: `[read end, write end]`.
+/// A pipe whose two ends are closed on `exec`:
+/// `[read end, write end]`.
 /// Linux makes both ends close-on-exec in the one `pipe2` call;
-///  macOS has no `pipe2`, so there the flag is set on each end right after `pipe`.
+///  macOS has no `pipe2`,
+/// so there the flag is set on each end right after `pipe`.
 #[cfg(all(unix, not(target_os = "linux")))]
 pub fn close_on_exec_pipe() -> [libc::c_int; 2] {
     let mut ends: [libc::c_int; 2] = [0, 0];
@@ -83,7 +88,8 @@ pub fn close_on_exec_pipe() -> [libc::c_int; 2] {
 
 /// The path of the slave side of the pseudo-terminal whose master is `descriptor`.
 /// Linux has `ptsname_r`;
-///  macOS has none, and `TIOCPTYGNAME` returns the name into the caller's buffer just as safely.
+///  macOS has none,
+/// and `TIOCPTYGNAME` returns the name into the caller's buffer just as safely.
 #[cfg(target_os = "linux")]
 pub fn pseudo_terminal_slave_name(descriptor: libc::c_int) -> std::ffi::CString {
     let mut buffer: [libc::c_char; 256] = [0; 256];
@@ -96,7 +102,8 @@ pub fn pseudo_terminal_slave_name(descriptor: libc::c_int) -> std::ffi::CString 
 
 /// The path of the slave side of the pseudo-terminal whose master is `descriptor`.
 /// Linux has `ptsname_r`;
-///  macOS has none, and `TIOCPTYGNAME` returns the name into the caller's buffer just as safely.
+///  macOS has none,
+/// and `TIOCPTYGNAME` returns the name into the caller's buffer just as safely.
 #[cfg(all(unix, not(target_os = "linux")))]
 pub fn pseudo_terminal_slave_name(descriptor: libc::c_int) -> std::ffi::CString {
     let mut buffer: [libc::c_char; 128] = [0; 128];
@@ -175,9 +182,19 @@ pub fn bounded(fixture: &Fixture, program: &Path, path: &OsStr) -> Command {
 /// What:
 ///  Put a `man` in the fixture's `bin` directory that prints one marker line naming the page and exits 0.
 /// Why:
-///  Git renders `--help` by running `man`, which starts `preconv`, `tbl`, `nroff`, `col`, `groff`, `troff` and
-///  `grotty` (11 process starts in all, 18 ms warm and 0.7 s cold on the development host, 3.2 s once under load),
-///  none of it the wrapper's work. Git looks `man` up on the command's `PATH`, whose first entry is this directory,
+///  Git renders `--help` by running `man`,
+/// which starts `preconv`,
+/// `tbl`,
+/// `nroff`,
+/// `col`,
+/// `groff`,
+/// `troff` and
+///  `grotty` (11 process starts in all,
+/// 18 ms warm and 0.7 s cold on the development host,
+/// 3.2 s once under load),
+///  none of it the wrapper's work.
+/// Git looks `man` up on the command's `PATH`,
+/// whose first entry is this directory,
 ///  so the wrapper still receives and forwards the real `--help` and Git still takes its manual-page path.
 pub fn stub_manual_viewer(fixture: &Fixture) {
     executable(
@@ -214,11 +231,17 @@ pub fn direct(fixture: &Fixture) -> Command {
 }
 
 /// What:
-///  Make the in-process object readers decline the repository, with a replace ref on two blobs nothing uses.
+///  Make the in-process object readers decline the repository,
+/// with a replace ref on two blobs nothing uses.
 /// Why:
-///   The controls with a stand-in `git-lfs` check what the wrapper does around the program it starts (order, status,
-///  explanation, deadlines). The wrapper starts the program only when it finds a pointer in the pushed commits or when
-///  the readers decline and `git-lfs` has to scan; these repositories hold no pointer, so they take the second path,
+///   The controls with a stand-in `git-lfs` check what the wrapper does around the program it starts (order,
+/// status,
+///  explanation,
+/// deadlines).
+/// The wrapper starts the program only when it finds a pointer in the pushed commits or when
+///  the readers decline and `git-lfs` has to scan;
+/// these repositories hold no pointer,
+/// so they take the second path,
 ///  which is the fallback the readers' declines lead to in production.
 pub fn decline_in_process_lfs_scan(fixture: &Fixture, repo: &Path) {
     let mut hashes: Vec<String> = Vec::new();
@@ -245,10 +268,17 @@ pub fn decline_in_process_lfs_scan(fixture: &Fixture, repo: &Path) {
 
 
 /// What:
-///  Gives the fixture's commit service a variable, as the user manager's environment would.
+///  Gives the fixture's commit service a variable,
+/// as the user manager's environment would.
 /// Why:
-///   The push runs in the service's environment, not in the terminal's, so a control that sets a variable for the push (a
-///  deadline, a marker, a temporary directory) must set it where the push runs. The service reads it at its start, so it is
+///   The push runs in the service's environment,
+/// not in the terminal's,
+/// so a control that sets a variable for the push (a
+///  deadline,
+/// a marker,
+/// a temporary directory) must set it where the push runs.
+/// The service reads it at its start,
+/// so it is
 ///  given before the fixture's first wrapped command.
 ///
 /// # Panics
@@ -264,15 +294,20 @@ pub fn give_service_environment(fixture: &Fixture, name: &str, value: &str) {
     }
 }
 
-/// The words that say a backup push failed: the command's own line when the wrapper pushes, the notice the service leaves
+/// The words that say a backup push failed:
+/// the command's own line when the wrapper pushes,
+/// the notice the service leaves
 ///  for the next commit when the service does.
 pub fn push_failed_words() -> &'static str {
     // The notice the service leaves ends with the line the wrapper prints itself after a push it ran.
     return git_policy_cli::auto_push::PUSH_FAILED_NOTE;
 }
 
-/// What a person is told about the push of the commit that `stderr` belongs to: the command's own report, and the notices the
-///  service left in the repository at `directory`, worded as the next command shows them (and taken as it takes them).
+/// What a person is told about the push of the commit that `stderr` belongs to:
+/// the command's own report,
+/// and the notices the
+///  service left in the repository at `directory`,
+/// worded as the next command shows them (and taken as it takes them).
 pub fn push_report(directory: &Path, stderr: &str) -> String {
     let mut report: String = stderr.to_string();
     settle_service_work(directory);
@@ -287,17 +322,32 @@ pub fn push_report(directory: &Path, stderr: &str) -> String {
     return report;
 }
 
-/// An editor that records that it started and then waits for a minute, so a commit that opens it sits inside native
-///  `git commit` until a signal arrives. Hooks are unsupported, so controls that need the commit to stand still use this.
+/// An editor that records that it started and then waits for a minute,
+/// so a commit that opens it sits inside native
+///  `git commit` until a signal arrives.
+/// Hooks are unsupported,
+/// so controls that need the commit to stand still use this.
 ///
-/// The editor catches the signals the controls send and ends with the signal's status, so no timing decides the
-///  verdict. A shell that waits for a foreground child ignores `SIGINT` and `SIGQUIT` unless that child dies of the
-///  same signal, and a shell that is about to `exec` can lose one too (measured: the editor with `touch` then
-///  `sleep` lost an interrupt, and with `exec sleep` it lost a quit, at the instant after it announced itself).
+/// The editor catches the signals the controls send and ends with the signal's status,
+/// so no timing decides the
+///  verdict.
+/// A shell that waits for a foreground child ignores `SIGINT` and `SIGQUIT` unless that child dies of the
+///  same signal,
+/// and a shell that is about to `exec` can lose one too (measured:
+/// the editor with `touch` then
+///  `sleep` lost an interrupt,
+/// and with `exec sleep` it lost a quit,
+/// at the instant after it announced itself).
 ///  The editor then slept its full minute and ended the commit with status 1 and "Aborting commit due to empty
-///  commit message." instead of the signal's status. The handlers are set before the announcement, so every signal
-///  that can follow the announcement is caught; `wait` returns at once on a caught signal; the sleep has no
-///  terminal and no pipe of the test, so a sleep left behind cannot hold the commit's standard error open.
+///  commit message."
+/// instead of the signal's status.
+/// The handlers are set before the announcement,
+/// so every signal
+///  that can follow the announcement is caught;
+/// `wait` returns at once on a caught signal;
+/// the sleep has no
+///  terminal and no pipe of the test,
+/// so a sleep left behind cannot hold the commit's standard error open.
 pub fn stalling_editor(fixture: &Fixture, started: &Path) -> PathBuf {
     let path: PathBuf = fixture.root.join("stalling-editor");
     executable(
@@ -404,7 +454,10 @@ pub const TRANSACTION_ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
 /// What:
 ///  Leave a commit transaction directory of an earlier release in a repository's registry.
 /// Why:
-///   The wrapper no longer reads such a directory; a control that proves it goes on beside one, and only names it, needs one there.
+///   The wrapper no longer reads such a directory;
+/// a control that proves it goes on beside one,
+/// and only names it,
+/// needs one there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -417,9 +470,12 @@ pub fn registered_transaction(repo: &Path) -> PathBuf {
 }
 
 /// What:
-///  The owner of a process that really started, had its birth identity read while it ran, and was then killed and reaped.
+///  The owner of a process that really started,
+/// had its birth identity read while it ran,
+/// and was then killed and reaped.
 /// Why:
-///   An interrupted copy is a journal or a claim whose owner is gone; a control builds one with this owner instead of
+///   An interrupted copy is a journal or a claim whose owner is gone;
+/// a control builds one with this owner instead of
 ///  waiting for a real crash.
 ///
 /// In TS you'd write (pseudocode):

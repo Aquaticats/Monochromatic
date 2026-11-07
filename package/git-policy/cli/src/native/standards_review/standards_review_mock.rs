@@ -1,9 +1,13 @@
 //! What:
-//!  A loopback HTTP server for the standards-review tests: it takes one connection, records the request it was sent,
+//!  A loopback HTTP server for the standards-review tests:
+//! it takes one connection,
+//! records the request it was sent,
 //!  and answers with fixed bytes or stays silent.
 //! Why:
-//!  The review must be tested against a gateway that never leaves the machine, so no repository text and no key can reach
-//!  the real endpoint; never part of the release executable.
+//!  The review must be tested against a gateway that never leaves the machine,
+//! so no repository text and no key can reach
+//!  the real endpoint;
+//! never part of the release executable.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,12 +22,16 @@ use std::time::Duration;
 /// How the mock answers.
 #[derive(Clone, Debug)]
 pub(crate) enum Answer {
-    /// Write these bytes whole, then close.
+    /// Write these bytes whole,
+    /// then close.
     Bytes(Vec<u8>),
-    /// Read the request, then hold the connection open without answering until the caller closes it,
+    /// Read the request,
+    /// then hold the connection open without answering until the caller closes it,
     ///  or for this long at most.
     Silent(Duration),
-    /// Read the request, then answer `200` with a body of this many bytes sent one at a time, a pause after each,
+    /// Read the request,
+    /// then answer `200` with a body of this many bytes sent one at a time,
+    /// a pause after each,
     ///  so the reply keeps arriving for as long as `bytes * pause` and no longer idle than `pause` at any moment.
     Trickle {
         /// How many body bytes the reply holds.
@@ -33,26 +41,33 @@ pub(crate) enum Answer {
     },
 }
 
-/// How long a silent mock holds a connection at most: far past anything a control waits for,
+/// How long a silent mock holds a connection at most:
+/// far past anything a control waits for,
 ///  so only the caller giving up ends the hold in time and no clock decides what a control measures.
 pub(crate) const SILENT_AT_MOST: Duration = Duration::from_secs(60);
 
-/// A running mock: its URL and the request bytes it recorded.
+/// A running mock:
+/// its URL and the request bytes it recorded.
 pub(crate) struct Mock {
     /// `http://127.0.0.1:<port>/v1/decisions`.
     pub(crate) url: String,
-    /// The request as received, headers and body.
+    /// The request as received,
+    /// headers and body.
     pub(crate) seen: Arc<Mutex<Vec<u8>>>,
-    /// The serving thread, joined by `finish`.
+    /// The serving thread,
+    /// joined by `finish`.
     handle: std::thread::JoinHandle<()>,
 }
 
-/// An HTTP/1.1 reply with a status line, a JSON content type and a content length.
+/// An HTTP/1.1 reply with a status line,
+/// a JSON content type and a content length.
 pub(crate) fn http_reply(status_line: &str, body: &str) -> Vec<u8> {
     return format!("HTTP/1.1 {status_line}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).into_bytes();
 }
 
-/// Read one request: headers, then as many body bytes as `content-length` says.
+/// Read one request:
+/// headers,
+/// then as many body bytes as `content-length` says.
 fn read_request(stream: &mut TcpStream) -> Vec<u8> {
     let mut received: Vec<u8> = Vec::new();
     let mut chunk: [u8; 4096] = [0; 4096];

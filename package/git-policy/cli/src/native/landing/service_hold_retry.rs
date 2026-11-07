@@ -1,13 +1,23 @@
 //! What:
-//!  Runs a forwarded index writer again when real Git lost the race for the index to the commit service, instead of showing the
+//!  Runs a forwarded index writer again when real Git lost the race for the index to the commit service,
+//! instead of showing the
 //!  person Git's refusal.
 //! Why:
-//!  The wait for the service's hold ends when the hold is released, but the service may take the index again for the next
-//!  landing before the writer's own Git has started (a burst of commits lands one batch after another), and Git then ends with
-//!  its refusal to create the index lock. For the few commands that take that lock before they change anything and read no
-//!  standard input, running them again once the service lets go is the same command the person typed. The refusal is kept in
-//!  a file while this can happen and is shown only when it is final, so a transient loss is never printed. Every other
-//!  command, and a lock that a foreign program holds, keep the behavior of native Git.
+//!  The wait for the service's hold ends when the hold is released,
+//! but the service may take the index again for the next
+//!  landing before the writer's own Git has started (a burst of commits lands one batch after another),
+//! and Git then ends with
+//!  its refusal to create the index lock.
+//! For the few commands that take that lock before they change anything and read no
+//!  standard input,
+//! running them again once the service lets go is the same command the person typed.
+//! The refusal is kept in
+//!  a file while this can happen and is shown only when it is final,
+//! so a transient loss is never printed.
+//! Every other
+//!  command,
+//! and a lock that a foreign program holds,
+//! keep the behavior of native Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,7 +42,8 @@ pub const ATTEMPTS: usize = 50;
 /// What Git's refusal to create the index lock always names.
 const LOCK_REFUSAL: &str = "index.lock";
 
-/// The status Git dies with, which is also the status of its refusal to create a lock.
+/// The status Git dies with,
+/// which is also the status of its refusal to create a lock.
 const DIE_STATUS: i32 = 128;
 
 /// Options of `git add` that change nothing about its input and read no standard input.
@@ -48,10 +59,15 @@ const REMOVE_OPTIONS: [&str; 10] = ["-f", "-n", "-q", "-r", "--cached", "--force
 const MOVE_OPTIONS: [&str; 8] = ["-f", "-k", "-n", "-v", "--force", "--dry-run", "--verbose", "--sparse"];
 
 /// What:
-///  Whether the command is one that may be run again after it lost the index: it takes the index lock before it changes
-///  anything, reads no standard input, asks the person nothing, and every option it has is one this list knows.
+///  Whether the command is one that may be run again after it lost the index:
+/// it takes the index lock before it changes
+///  anything,
+/// reads no standard input,
+/// asks the person nothing,
+/// and every option it has is one this list knows.
 /// Why:
-///   An unknown option, an interactive form or a pathspec file could make a second run differ from the first.
+///   An unknown option,
+/// an interactive form or a pathspec file could make a second run differ from the first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,7 +92,8 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
     return true;
 }
 
-/// Starts Git once with its standard error in `captured`, and returns its exit status.
+/// Starts Git once with its standard error in `captured`,
+/// and returns its exit status.
 fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], captured: std::fs::File) -> std::io::Result<i32> {
     let mut command = git_command(real_git, arguments, overlay);
     command.stderr(Stdio::from(captured));
@@ -84,7 +101,8 @@ fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsStr
     return Ok(exit_code(outcome_of(status)));
 }
 
-/// The command with every stream inherited, as a forwarded command runs when nothing needs to be kept.
+/// The command with every stream inherited,
+/// as a forwarded command runs when nothing needs to be kept.
 fn run_plainly(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
     return match run_real_git(real_git, arguments, overlay) {
         Ok(outcome) => ForwardedRun::Ran(exit_code(outcome)),
@@ -93,10 +111,13 @@ fn run_plainly(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, Os
 }
 
 /// What:
-///  Runs the command, again while it ends with Git's refusal to create the index lock and the commit service has the index
-///  (or has just let it go), and shows the last attempt's standard error.
+///  Runs the command,
+/// again while it ends with Git's refusal to create the index lock and the commit service has the index
+///  (or has just let it go),
+/// and shows the last attempt's standard error.
 /// Why:
-///   The final attempt's words are Git's own; an attempt that is run again shows nothing.
+///   The final attempt's words are Git's own;
+/// an attempt that is run again shows nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -114,7 +135,9 @@ pub fn run_again_while_service_holds(
     return run_again_within(real_git, arguments, overlay, environment, real_index, name, SERVICE_HOLD_CEILING, shown);
 }
 
-/// `run_again_while_service_holds` whose whole series of reruns and waits ends after `ceiling`, whatever the count: the last
+/// `run_again_while_service_holds` whose whole series of reruns and waits ends after `ceiling`,
+/// whatever the count:
+/// the last
 ///  attempt's words are shown and its status is the command's.
 pub fn run_again_within(
     real_git: &Path,

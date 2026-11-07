@@ -1,11 +1,16 @@
-//! Differential controls for `diff-index --cached --quiet`: the exit status equals real Git's in every state, and the states
+//! Differential controls for `diff-index --cached --quiet`:
+//! the exit status equals real Git's in every state,
+//! and the states
 //! whose answer depends on `.gitmodules` are declined.
 
 use crate::repo_read_query::tests::{answered, declined, mine};
 use crate::test_support::{fixture, git, git_output, remove};
 use std::path::{Path, PathBuf};
 
-/// The command lines the wrapper issues: with `HEAD` and a trailing `--`, with a commit name and no `--`, and with a path.
+/// The command lines the wrapper issues:
+/// with `HEAD` and a trailing `--`,
+/// with a commit name and no `--`,
+/// and with a path.
 fn lines(commit: &str) -> Vec<Vec<String>> {
     return vec![
         ["diff-index", "--quiet", "--cached", "HEAD", "--"].map(String::from).to_vec(),
@@ -16,7 +21,9 @@ fn lines(commit: &str) -> Vec<Vec<String>> {
     ];
 }
 
-/// A repository with one commit of a file, a directory, a link and an executable.
+/// A repository with one commit of a file,
+/// a directory,
+/// a link and an executable.
 fn committed(root: &Path, name: &str) -> PathBuf {
     let repo: PathBuf = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
@@ -31,7 +38,8 @@ fn committed(root: &Path, name: &str) -> PathBuf {
     return repo;
 }
 
-/// Every command line answers as Git does; returns Git's exit code for the first line.
+/// Every command line answers as Git does;
+/// returns Git's exit code for the first line.
 fn all_answer(root: &Path, repo: &Path) -> i32 {
     let commit: String = String::from_utf8(git_output(repo, &["rev-parse", "HEAD"]).stdout).expect("UTF-8").trim_end().to_string();
     for line in lines(commit.as_str()) {
@@ -41,7 +49,8 @@ fn all_answer(root: &Path, repo: &Path) -> i32 {
     return git_output(repo, &["diff-index", "--quiet", "--cached", "HEAD", "--"]).status.code().expect("exit code");
 }
 
-/// A clean index is 0, and each plain kind of staged change is 1.
+/// A clean index is 0,
+/// and each plain kind of staged change is 1.
 #[test]
 fn plain_states_equal_git() {
     let root: PathBuf = fixture("quiet-plain");
@@ -68,7 +77,8 @@ fn plain_states_equal_git() {
     remove(root.as_path());
 }
 
-/// A path outside the pathspec does not count, and an unstaged edit is not the index's difference.
+/// A path outside the pathspec does not count,
+/// and an unstaged edit is not the index's difference.
 #[test]
 fn a_pathspec_limits_the_comparison() {
     let root: PathBuf = fixture("quiet-pathspec");
@@ -82,7 +92,9 @@ fn a_pathspec_limits_the_comparison() {
     remove(root.as_path());
 }
 
-/// An unmerged path is a difference, also when the tree has the path and also under a pathspec that names it, and it does not
+/// An unmerged path is a difference,
+/// also when the tree has the path and also under a pathspec that names it,
+/// and it does not
 /// count under a pathspec that does not.
 #[test]
 fn unmerged_paths_equal_git() {
@@ -103,7 +115,8 @@ fn unmerged_paths_equal_git() {
     remove(root.as_path());
 }
 
-/// The answer to one command line equals Git's; returns the exit code.
+/// The answer to one command line equals Git's;
+/// returns the exit code.
 fn all_answer_for(root: &Path, repo: &Path, line: &[&str]) -> i32 {
     answered(root, repo, line);
     return git_output(repo, line).status.code().expect("exit code");
@@ -120,7 +133,10 @@ fn an_intent_to_add_entry_equals_git() {
     remove(root.as_path());
 }
 
-/// A submodule entry: the same commit is no difference; another commit is one when no `.gitmodules` exists anywhere, and the
+/// A submodule entry:
+/// the same commit is no difference;
+/// another commit is one when no `.gitmodules` exists anywhere,
+/// and the
 /// readers leave it to Git when one does (it could say `ignore = all`).
 #[test]
 fn submodule_entries_equal_git_and_gitmodules_is_left_to_git() {
@@ -146,7 +162,8 @@ fn submodule_entries_equal_git_and_gitmodules_is_left_to_git() {
     remove(root.as_path());
 }
 
-/// An unborn branch, a detached head and a head named by a tag-less hexadecimal name are what Git says or the readers decline.
+/// An unborn branch,
+/// a detached head and a head named by a tag-less hexadecimal name are what Git says or the readers decline.
 #[test]
 fn unborn_and_detached_heads_equal_git_or_are_declined() {
     let root: PathBuf = fixture("quiet-heads");

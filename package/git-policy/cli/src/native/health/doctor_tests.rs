@@ -1,10 +1,13 @@
-//! Controls for `git monochromatic-git-policy-cli doctor`: which entries count as traditional hooks, which directories are scanned,
+//! Controls for `git monochromatic-git-policy-cli doctor`:
+//! which entries count as traditional hooks,
+//! which directories are scanned,
 //! and the exit status and output of the command.
 
 use super::*;
 use crate::test_support::{executable, fixture, git, git_context, remove, repository};
 
-/// Names of the paths in a list, for compact comparison.
+/// Names of the paths in a list,
+/// for compact comparison.
 fn names(paths: &[PathBuf]) -> Vec<String> {
     return paths
         .iter()
@@ -12,7 +15,8 @@ fn names(paths: &[PathBuf]) -> Vec<String> {
         .collect();
 }
 
-/// Unpack the exit status, standard output and standard error of an exit action.
+/// Unpack the exit status,
+/// standard output and standard error of an exit action.
 fn exit_parts(action: Action) -> (i32, String, String) {
     let Action::Exit { code, stdout, stderr } = action else {
         panic!("doctor must end in an exit action");
@@ -20,7 +24,9 @@ fn exit_parts(action: Action) -> (i32, String, String) {
     return (code, stdout, stderr);
 }
 
-/// Executable regular files and symbolic links are hooks; samples, plain files and directories are not.
+/// Executable regular files and symbolic links are hooks;
+/// samples,
+/// plain files and directories are not.
 #[cfg(unix)]
 #[test]
 fn only_executable_files_and_links_are_hooks() {
@@ -40,7 +46,10 @@ fn only_executable_files_and_links_are_hooks() {
     remove(root.as_path());
 }
 
-/// A directory that does not exist, or is a file, holds no hooks; nothing is created.
+/// A directory that does not exist,
+/// or is a file,
+/// holds no hooks;
+/// nothing is created.
 #[test]
 fn a_missing_or_non_directory_path_holds_no_hooks() {
     let root: PathBuf = fixture("doctor-missing");
@@ -51,7 +60,8 @@ fn a_missing_or_non_directory_path_holds_no_hooks() {
     remove(root.as_path());
 }
 
-/// A directory that cannot be read is an error, not silence.
+/// A directory that cannot be read is an error,
+/// not silence.
 #[cfg(unix)]
 #[test]
 fn an_unreadable_directory_is_an_error() {
@@ -70,7 +80,9 @@ fn an_unreadable_directory_is_an_error() {
     remove(root.as_path());
 }
 
-/// The default directory comes first, the configured one follows, and one directory named two ways is scanned once.
+/// The default directory comes first,
+/// the configured one follows,
+/// and one directory named two ways is scanned once.
 #[test]
 fn directories_are_the_default_then_the_configured_one_once() {
     let plain: HooksLocation = HooksLocation {
@@ -103,7 +115,9 @@ fn the_report_is_one_path_per_line() {
     );
 }
 
-/// The locator asks Git, so a relative `core.hooksPath` resolves against the worktree root, not the current directory.
+/// The locator asks Git,
+/// so a relative `core.hooksPath` resolves against the worktree root,
+/// not the current directory.
 #[test]
 fn a_relative_hooks_path_resolves_against_the_worktree_root() {
     let root: PathBuf = fixture("doctor-locate");
@@ -159,7 +173,8 @@ fn a_default_directory_hook_is_listed_with_status_one() {
     remove(root.as_path());
 }
 
-/// Hooks in a configured directory and in the default one are all listed, the default directory first.
+/// Hooks in a configured directory and in the default one are all listed,
+/// the default directory first.
 #[cfg(unix)]
 #[test]
 fn hooks_in_both_directories_are_listed_default_first() {
@@ -200,7 +215,9 @@ fn write_shim(repo: &Path, name: &str) -> PathBuf {
     return path;
 }
 
-/// The shim text is the one git-lfs 3.8.0 writes: its first, last and name-bearing lines.
+/// The shim text is the one git-lfs 3.8.0 writes:
+/// its first,
+/// last and name-bearing lines.
 #[test]
 fn the_shim_text_carries_the_hook_name_and_ends_with_a_line_feed() {
     let text: String = lfs_shim_text("post-merge");
@@ -215,8 +232,12 @@ fn the_shim_text_carries_the_hook_name_and_ends_with_a_line_feed() {
     assert!(!text.contains("{{Command}}"));
 }
 
-/// Only shims alone end with status 0, nothing on standard output, and a report on standard error that says what
-///  is happening, that it is normal, and that nothing needs doing.
+/// Only shims alone end with status 0,
+/// nothing on standard output,
+/// and a report on standard error that says what
+///  is happening,
+/// that it is normal,
+/// and that nothing needs doing.
 #[cfg(unix)]
 #[test]
 fn only_git_lfs_shims_exit_zero_with_the_explanation() {
@@ -262,7 +283,10 @@ fn a_foreign_hook_beside_shims_still_ends_with_status_one() {
     remove(root.as_path());
 }
 
-/// A shim that differs by one byte, a shim under another hook's name, a link, and a missing final line feed are
+/// A shim that differs by one byte,
+/// a shim under another hook's name,
+/// a link,
+/// and a missing final line feed are
 ///  ordinary unsupported hooks.
 #[cfg(unix)]
 #[test]

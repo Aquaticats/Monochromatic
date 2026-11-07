@@ -1,6 +1,7 @@
 # Guided runner for moving the repository to the 860 drive
 
-Written 2026-11-07T14:55:39-05:00, replacing the guided bash script of `4980c200ea`.
+Written 2026-11-07T14:55:39-05:00,
+replacing the guided bash script of `4980c200ea`.
 The coordinator runs `package/repository-move/cli/src/run-repository-move.ts`,
 the TypeScript runner that carries out the steps of `doc/planning/repository-on-the-860-drive.md`
 (sections "The copy",

@@ -155,7 +155,8 @@ and `a_record_that_cannot_be_rewritten_is_a_warning_and_the_program_still_runs`)
 so the record is true again before any shadow reads it.
 `pnpm-shadow` has the same skip rule and is covered by the same rewrite;
 only `cargo-shadow` was run in this measurement.
-Corrected 2026-11-07: `search-shadow` does not have that rule (it had no launcher-record rule and no guard),
+Corrected 2026-11-07:
+`search-shadow` does not have that rule (it had no launcher-record rule and no guard),
 and its links are not launchers;
 see `doc/troubleshooting/search-shadow-copies-start-each-other-without-end.md`.
 

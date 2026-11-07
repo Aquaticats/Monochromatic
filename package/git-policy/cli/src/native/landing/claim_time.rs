@@ -1,20 +1,52 @@
 //! What:
-//!  A reading of the clocks a claim's lease is judged by: the machine and the boot the host is in, the host's monotonic clock,
-//!  and the wall clock. Two readings of one boot are compared by the monotonic clock; a reading of an earlier boot of the same
-//!  machine is past at once; the wall clock judges every other pair.
+//!  A reading of the clocks a claim's lease is judged by:
+//! the machine and the boot the host is in,
+//! the host's monotonic clock,
+//!  and the wall clock.
+//! Two readings of one boot are compared by the monotonic clock;
+//! a reading of an earlier boot of the same
+//!  machine is past at once;
+//! the wall clock judges every other pair.
 //! Why:
-//!  A lease must run out when its holder stopped, not when somebody sets the date. The wall clock steps (a time sync, a person,
-//!  a virtual machine resuming), and a step forward made a live holder look an hour stale while a step back kept a dead
-//!  holder's claim alive. `CLOCK_MONOTONIC` is one clock for every process of a host, never steps, and does not count a
-//!  suspended host's sleep, so a holder and a recoverer on one boot agree on how long a claim went unrenewed. It restarts at
-//!  every boot, so a reading carries the boot ID (`/proc/sys/kernel/random/boot_id`). A restart ends the holder, so a claim of an
-//!  earlier boot has run out at once, and a wall clock set back at boot cannot strand it. That holds only when both readings
-//!  are of one machine: two hosts that share a work directory have unrelated boot IDs, and the other host's boot is not the
-//!  end of its holder. So a reading also carries the machine ID (`/etc/machine-id`), and a different boot ID is evidence of a
-//!  restart only beside an equal, known machine ID. Equal non-empty boot IDs still compare by the monotonic clock. Where either
-//!  reading has no boot ID, only the wall clock is left to compare; where either has no machine ID, a different boot ID proves
-//!  no restart, so the wall clock judges that pair as the fallback. Machines cloned with one machine ID cannot be told
-//!  apart; their claims are judged as one machine's.
+//!  A lease must run out when its holder stopped,
+//! not when somebody sets the date.
+//! The wall clock steps (a time sync,
+//! a person,
+//!  a virtual machine resuming),
+//! and a step forward made a live holder look an hour stale while a step back kept a dead
+//!  holder's claim alive.
+//! `CLOCK_MONOTONIC` is one clock for every process of a host,
+//! never steps,
+//! and does not count a
+//!  suspended host's sleep,
+//! so a holder and a recoverer on one boot agree on how long a claim went unrenewed.
+//! It restarts at
+//!  every boot,
+//! so a reading carries the boot ID (`/proc/sys/kernel/random/boot_id`).
+//! A restart ends the holder,
+//! so a claim of an
+//!  earlier boot has run out at once,
+//! and a wall clock set back at boot cannot strand it.
+//! That holds only when both readings
+//!  are of one machine:
+//! two hosts that share a work directory have unrelated boot IDs,
+//! and the other host's boot is not the
+//!  end of its holder.
+//! So a reading also carries the machine ID (`/etc/machine-id`),
+//! and a different boot ID is evidence of a
+//!  restart only beside an equal,
+//! known machine ID.
+//! Equal non-empty boot IDs still compare by the monotonic clock.
+//! Where either
+//!  reading has no boot ID,
+//! only the wall clock is left to compare;
+//! where either has no machine ID,
+//! a different boot ID proves
+//!  no restart,
+//! so the wall clock judges that pair as the fallback.
+//! Machines cloned with one machine ID cannot be told
+//!  apart;
+//! their claims are judged as one machine's.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,20 +64,24 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// Separates the parts of a reading when it is written into a claim's file name.
 const FIELD_SEPARATOR: char = '~';
 
-/// The length of a boot ID without its dashes, and of a machine ID.
+/// The length of a boot ID without its dashes,
+/// and of a machine ID.
 const BOOT_ID_LENGTH: usize = 32;
 
-/// Where a machine ID is kept, in the order they are tried (`/var/lib/dbus/machine-id` is the older place and often a link to the first).
+/// Where a machine ID is kept,
+/// in the order they are tried (`/var/lib/dbus/machine-id` is the older place and often a link to the first).
 const MACHINE_ID_PATHS: [&str; 2] = ["/etc/machine-id", "/var/lib/dbus/machine-id"];
 
-/// The number of parts in a reading's text before the machine ID was added, and after.
+/// The number of parts in a reading's text before the machine ID was added,
+/// and after.
 const PARTS_WITHOUT_MACHINE: usize = 3;
 const PARTS_WITH_MACHINE: usize = 4;
 
 /// What:
 ///  One reading of the three clocks.
 /// Why:
-///   A claim carries the reading taken when it was last renewed; whoever judges the claim takes a reading of its own.
+///   A claim carries the reading taken when it was last renewed;
+/// whoever judges the claim takes a reading of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,9 +89,11 @@ const PARTS_WITH_MACHINE: usize = 4;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClaimTime {
-    /// The machine the reading was taken on; empty where the host has none or the reading predates machine IDs.
+    /// The machine the reading was taken on;
+    /// empty where the host has none or the reading predates machine IDs.
     machine_id: String,
-    /// The boot the monotonic reading belongs to; empty where the host has no boot ID or no monotonic clock.
+    /// The boot the monotonic reading belongs to;
+    /// empty where the host has no boot ID or no monotonic clock.
     boot_id: String,
     /// Milliseconds of `CLOCK_MONOTONIC`.
     monotonic_millis: u64,
@@ -63,15 +101,18 @@ pub struct ClaimTime {
     wall_seconds: u64,
 }
 
-/// Whether `text` is 32 hexadecimal digits, which is what a boot ID without dashes and a machine ID are.
+/// Whether `text` is 32 hexadecimal digits,
+/// which is what a boot ID without dashes and a machine ID are.
 fn is_compact_hex_id(text: &str) -> bool {
     return text.len() == BOOT_ID_LENGTH && text.as_bytes().iter().all(u8::is_ascii_hexdigit);
 }
 
 /// What:
-///  Whether a byte is a lowercase hexadecimal digit: `0` to `9` or `a` to `f`.
+///  Whether a byte is a lowercase hexadecimal digit:
+/// `0` to `9` or `a` to `f`.
 /// Why:
-///  A machine ID is written in lowercase, so an uppercase text is no evidence of a machine.
+///  A machine ID is written in lowercase,
+/// so an uppercase text is no evidence of a machine.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -82,7 +123,9 @@ fn is_lowercase_hex_digit(byte: &u8) -> bool {
 }
 
 /// What:
-///  The boot ID of the current boot as the kernel states it, without dashes; empty when it cannot be read or is not 32 hexadecimal digits.
+///  The boot ID of the current boot as the kernel states it,
+/// without dashes;
+/// empty when it cannot be read or is not 32 hexadecimal digits.
 /// Why:
 ///  `current_boot_id` reads it once and keeps it.
 ///
@@ -99,7 +142,8 @@ fn read_boot_id() -> String {
 }
 
 /// What:
-///  The machine ID of this host from the first of the usual files that holds one; empty when none does.
+///  The machine ID of this host from the first of the usual files that holds one;
+/// empty when none does.
 /// Why:
 ///  `current_machine_id` reads it once and keeps it.
 ///
@@ -116,9 +160,11 @@ fn read_machine_id() -> String {
 }
 
 /// What:
-///  Whole seconds since the Unix epoch of a wall-clock time, zero when the time is before it.
+///  Whole seconds since the Unix epoch of a wall-clock time,
+/// zero when the time is before it.
 /// Why:
-///  A claim's reading carries wall-clock seconds, and a clock that reads before the epoch counts as the epoch.
+///  A claim's reading carries wall-clock seconds,
+/// and a clock that reads before the epoch counts as the epoch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -131,15 +177,21 @@ fn seconds_since_epoch(time: SystemTime) -> u64 {
     };
 }
 
-/// Whether `text` is a machine ID: 32 lowercase hexadecimal digits that are not all zero. An uppercase text, an all-zero one and
-///  a fresh image's `uninitialized` are no evidence of a machine, and reading one as an ID would make hosts look like one machine.
+/// Whether `text` is a machine ID:
+/// 32 lowercase hexadecimal digits that are not all zero.
+/// An uppercase text,
+/// an all-zero one and
+///  a fresh image's `uninitialized` are no evidence of a machine,
+/// and reading one as an ID would make hosts look like one machine.
 pub(crate) fn is_machine_id(text: &str) -> bool {
     return text.len() == BOOT_ID_LENGTH
         && text.as_bytes().iter().all(is_lowercase_hex_digit)
         && !text.trim_start_matches('0').is_empty();
 }
 
-/// The boot ID of this host's current boot, without dashes, or nothing when it cannot be read.
+/// The boot ID of this host's current boot,
+/// without dashes,
+/// or nothing when it cannot be read.
 pub(crate) fn current_boot_id() -> &'static str {
     static BOOT_ID: OnceLock<String> = OnceLock::new();
     return BOOT_ID
@@ -148,10 +200,15 @@ pub(crate) fn current_boot_id() -> &'static str {
 }
 
 /// What:
-///  The first machine ID that `paths` hold, or nothing when none holds one.
+///  The first machine ID that `paths` hold,
+/// or nothing when none holds one.
 /// Why:
-///   A file that is missing, empty or not 32 hexadecimal digits (a fresh image holds the text `uninitialized`, a container
-///  may have no file) is no evidence of a machine, and the next place may still hold one. Taking the text as an ID would
+///   A file that is missing,
+/// empty or not 32 hexadecimal digits (a fresh image holds the text `uninitialized`,
+/// a container
+///  may have no file) is no evidence of a machine,
+/// and the next place may still hold one.
+/// Taking the text as an ID would
 ///  make every such host look like one machine.
 fn machine_id_from(paths: &[&Path]) -> String {
     for path in paths {
@@ -165,7 +222,9 @@ fn machine_id_from(paths: &[&Path]) -> String {
     return String::new();
 }
 
-/// The machine ID of this host, read once, or nothing when it cannot be read.
+/// The machine ID of this host,
+/// read once,
+/// or nothing when it cannot be read.
 pub(crate) fn current_machine_id() -> &'static str {
     #[cfg(test)]
     if let Some(injected) = test_machine::injected() {
@@ -177,7 +236,8 @@ pub(crate) fn current_machine_id() -> &'static str {
         .as_str();
 }
 
-/// A machine ID a control gives this thread in place of the host's, so that a control does not depend on the host having one.
+/// A machine ID a control gives this thread in place of the host's,
+/// so that a control does not depend on the host having one.
 #[cfg(test)]
 #[path = "claim_time_machine_id_test_support.rs"]
 pub(crate) mod test_machine;
@@ -193,7 +253,8 @@ impl ClaimTime {
         return ClaimTime { machine_id: String::from(current_machine_id()), boot_id, monotonic_millis, wall_seconds };
     }
 
-    /// A reading of the given parts on a machine with no ID, which is how a test says what the clocks showed.
+    /// A reading of the given parts on a machine with no ID,
+    /// which is how a test says what the clocks showed.
     pub fn from_parts(boot_id: &str, monotonic: Duration, wall: Duration) -> ClaimTime {
         return ClaimTime {
             machine_id: String::new(),
@@ -203,7 +264,8 @@ impl ClaimTime {
         };
     }
 
-    /// The reading `by` later on both clocks, which is time passing.
+    /// The reading `by` later on both clocks,
+    /// which is time passing.
     pub fn advanced(&self, by: Duration) -> ClaimTime {
         return ClaimTime {
             machine_id: self.machine_id.clone(),
@@ -213,7 +275,8 @@ impl ClaimTime {
         };
     }
 
-    /// The reading `by` earlier on both clocks, which is how a test makes a claim whose holder last renewed that long ago.
+    /// The reading `by` earlier on both clocks,
+    /// which is how a test makes a claim whose holder last renewed that long ago.
     pub fn rewound(&self, by: Duration) -> ClaimTime {
         return ClaimTime {
             machine_id: self.machine_id.clone(),
@@ -223,27 +286,32 @@ impl ClaimTime {
         };
     }
 
-    /// The reading with the wall clock set `by` forward and the monotonic clock untouched, which is a clock step.
+    /// The reading with the wall clock set `by` forward and the monotonic clock untouched,
+    /// which is a clock step.
     pub fn wall_stepped_forward(&self, by: Duration) -> ClaimTime {
         return ClaimTime { wall_seconds: self.wall_seconds.saturating_add(by.as_secs()), ..self.clone() };
     }
 
-    /// The reading with the wall clock set `by` back and the monotonic clock untouched, which is a clock step.
+    /// The reading with the wall clock set `by` back and the monotonic clock untouched,
+    /// which is a clock step.
     pub fn wall_stepped_back(&self, by: Duration) -> ClaimTime {
         return ClaimTime { wall_seconds: self.wall_seconds.saturating_sub(by.as_secs()), ..self.clone() };
     }
 
-    /// The reading in another boot, which is a restart of the host.
+    /// The reading in another boot,
+    /// which is a restart of the host.
     pub fn in_boot(&self, boot_id: &str) -> ClaimTime {
         return ClaimTime { boot_id: boot_id.to_owned(), ..self.clone() };
     }
 
-    /// The reading on the machine with the given ID, which is how a test puts two readings on one machine or on two.
+    /// The reading on the machine with the given ID,
+    /// which is how a test puts two readings on one machine or on two.
     pub fn on_machine(&self, machine_id: &str) -> ClaimTime {
         return ClaimTime { machine_id: machine_id.to_owned(), ..self.clone() };
     }
 
-    /// The reading a wall-clock time stands for where there is nothing else, such as the modification time of a claim an
+    /// The reading a wall-clock time stands for where there is nothing else,
+    /// such as the modification time of a claim an
     /// earlier release stamped.
     pub fn from_wall(wall: SystemTime) -> ClaimTime {
         return ClaimTime {
@@ -254,9 +322,15 @@ impl ClaimTime {
         };
     }
 
-    /// How long ago `earlier` was, by the clock the two readings share: the monotonic clock within one boot, the wall clock
-    /// where either has no boot ID. A reading from the future of this one counts as no time at all. Readings of two different
-    /// boots share no clock that says how long the earlier holder lived, so a judge asks `is_past_the_boot_of` first.
+    /// How long ago `earlier` was,
+    /// by the clock the two readings share:
+    /// the monotonic clock within one boot,
+    /// the wall clock
+    /// where either has no boot ID.
+    /// A reading from the future of this one counts as no time at all.
+    /// Readings of two different
+    /// boots share no clock that says how long the earlier holder lived,
+    /// so a judge asks `is_past_the_boot_of` first.
     pub fn elapsed_since(&self, earlier: &ClaimTime) -> Duration {
         if !self.boot_id.is_empty() && self.boot_id == earlier.boot_id {
             return Duration::from_millis(self.monotonic_millis.saturating_sub(earlier.monotonic_millis));
@@ -265,13 +339,22 @@ impl ClaimTime {
     }
 
     /// What:
-    ///  Whether `earlier` was read in a boot this reading is not in, on the same machine, so whoever took it is gone.
+    ///  Whether `earlier` was read in a boot this reading is not in,
+    /// on the same machine,
+    /// so whoever took it is gone.
     /// Why:
-    ///   A restart ends every process of the host, so the holder of an earlier boot's claim is dead and waiting out its
-    ///  lease on the wall clock only strands the claim when the clock was set back at boot. A different boot ID of another
-    ///  machine says nothing about the holder, which may be running there, so the answer is yes only when both machine IDs
-    ///  are known and equal. Without a boot ID or a machine ID on either side there is nothing to compare, and the answer is
-    ///  no: the lease decides.
+    ///   A restart ends every process of the host,
+    /// so the holder of an earlier boot's claim is dead and waiting out its
+    ///  lease on the wall clock only strands the claim when the clock was set back at boot.
+    /// A different boot ID of another
+    ///  machine says nothing about the holder,
+    /// which may be running there,
+    /// so the answer is yes only when both machine IDs
+    ///  are known and equal.
+    /// Without a boot ID or a machine ID on either side there is nothing to compare,
+    /// and the answer is
+    ///  no:
+    /// the lease decides.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -283,8 +366,10 @@ impl ClaimTime {
         return same_known_machine && !self.boot_id.is_empty() && !earlier.boot_id.is_empty() && self.boot_id != earlier.boot_id;
     }
 
-    /// The reading as the file-name parts `boot~monotonic~wall~machine`; a reading with no machine ID leaves the last part
-    /// out, which is the form every release before machine IDs wrote and reads.
+    /// The reading as the file-name parts `boot~monotonic~wall~machine`;
+    /// a reading with no machine ID leaves the last part
+    /// out,
+    /// which is the form every release before machine IDs wrote and reads.
     pub fn encode(&self) -> String {
         let without_machine: String = format!("{}{FIELD_SEPARATOR}{}{FIELD_SEPARATOR}{}", self.boot_id, self.monotonic_millis, self.wall_seconds);
         if self.machine_id.is_empty() {
@@ -293,8 +378,12 @@ impl ClaimTime {
         return format!("{without_machine}{FIELD_SEPARATOR}{}", self.machine_id);
     }
 
-    /// The reading `encode` wrote, or nothing for any other text. The form without a machine ID, which releases before
-    /// machine IDs wrote into claims that may still be on disk, reads as a reading with none.
+    /// The reading `encode` wrote,
+    /// or nothing for any other text.
+    /// The form without a machine ID,
+    /// which releases before
+    /// machine IDs wrote into claims that may still be on disk,
+    /// reads as a reading with none.
     pub fn decode(text: &str) -> Option<ClaimTime> {
         let parts: Vec<&str> = text.split(FIELD_SEPARATOR).collect();
         if parts.len() != PARTS_WITHOUT_MACHINE && parts.len() != PARTS_WITH_MACHINE {

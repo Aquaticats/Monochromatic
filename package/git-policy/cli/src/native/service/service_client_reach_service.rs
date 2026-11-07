@@ -1,8 +1,12 @@
 //! What:
-//!  Reaches the commit service: connects to its address, starts it through its unit when nothing answers, and waits for a
+//!  Reaches the commit service:
+//! connects to its address,
+//! starts it through its unit when nothing answers,
+//! and waits for a
 //!  service of the current release.
 //! Why:
-//!  Submitting a request or a withdrawal begins by reaching a service that speaks this release; the steps have their own file
+//!  Submitting a request or a withdrawal begins by reaching a service that speaks this release;
+//! the steps have their own file
 //!  so the submit loop stays readable.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,12 +25,22 @@ use std::io::{BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 /// What:
-///  Connects, waiting for a start the operating system performs, and returns the stream with the service's version.
+///  Connects,
+/// waiting for a start the operating system performs,
+/// and returns the stream with the service's version.
 /// Why:
-///   With a manager to ask, the wait has no clock: it ends when the service greets, or when the manager has said twice in a
-///  row that the unit failed. Where the manager cannot be asked it ends at the start wait, as it always did. Once a service
-///  has greeted during this command (`service_seen`), a service that then greets nothing within the silence bound is the
-///  one that stopped, and that ends the wait.
+///   With a manager to ask,
+/// the wait has no clock:
+/// it ends when the service greets,
+/// or when the manager has said twice in a
+///  row that the unit failed.
+/// Where the manager cannot be asked it ends at the start wait,
+/// as it always did.
+/// Once a service
+///  has greeted during this command (`service_seen`),
+/// a service that then greets nothing within the silence bound is the
+///  one that stopped,
+/// and that ends the wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,15 +139,26 @@ pub(crate) fn reach(
 }
 
 /// What:
-///  Reaches a service that speaks this wrapper's protocol and was started from this wrapper's release, asking any other to
+///  Reaches a service that speaks this wrapper's protocol and was started from this wrapper's release,
+/// asking any other to
 ///  retire first.
 /// Why:
-///   The manager keeps its socket across an upgrade or a downgrade, so a service from the other release may answer: one
-///  whose program was since removed, or one that behaves as the other release did. It is asked to finish its batch and
-///  exit, and the next connection makes the manager start the program the rewritten unit names. The asking is bounded by
-///  the start wait from the first ask (the same wait the manager's start gets), because the retiring service still accepts connections until it has exited, and
-///  each connection it accepts in that time is asked again. A service of a newer protocol cannot be asked (it refuses a
-///  message it cannot read as its own), so that ends the command.
+///   The manager keeps its socket across an upgrade or a downgrade,
+/// so a service from the other release may answer:
+/// one
+///  whose program was since removed,
+/// or one that behaves as the other release did.
+/// It is asked to finish its batch and
+///  exit,
+/// and the next connection makes the manager start the program the rewritten unit names.
+/// The asking is bounded by
+///  the start wait from the first ask (the same wait the manager's start gets),
+/// because the retiring service still accepts connections until it has exited,
+/// and
+///  each connection it accepts in that time is asked again.
+/// A service of a newer protocol cannot be asked (it refuses a
+///  message it cannot read as its own),
+/// so that ends the command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

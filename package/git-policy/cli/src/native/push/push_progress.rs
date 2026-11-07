@@ -1,49 +1,99 @@
 //! What:
-//!  The progress of a push: whether the push and everything it started are at work, sampled at a small interval, and the
-//!  clock that stops it on a stall (no sign of work for the stall window, and no open connection to a remote).
+//!  The progress of a push:
+//! whether the push and everything it started are at work,
+//! sampled at a small interval,
+//! and the
+//!  clock that stops it on a stall (no sign of work for the stall window,
+//! and no open connection to a remote).
 //! Why:
-//!  A fixed deadline stops a slow push that is still working and lets a stuck push take its whole deadline. A process shows
-//!  that it works in three ways, each read from `/proc`, and only a tree that shows none of them is stalled:
-//!       bytes moved: `rchar` plus `wchar` of `/proc/<pid>/io`, summed over the tree;
-//!       processor time: `utime` plus `stime` of `/proc/<pid>/stat` growing;
-//!       a task able to run or waiting for the disk: state `R` or `D` in `/proc/<pid>/task/<tid>/stat`.
-//!  Measured on 2026-11-03, which decided the three:
+//!  A fixed deadline stops a slow push that is still working and lets a stuck push take its whole deadline.
+//! A process shows
+//!  that it works in three ways,
+//! each read from `/proc`,
+//! and only a tree that shows none of them is stalled:
+//!       bytes moved:
+//! `rchar` plus `wchar` of `/proc/<pid>/io`,
+//! summed over the tree;
+//!       processor time:
+//! `utime` plus `stime` of `/proc/<pid>/stat` growing;
+//!       a task able to run or waiting for the disk:
+//! state `R` or `D` in `/proc/<pid>/task/<tid>/stat`.
+//!  Measured on 2026-11-03,
+//! which decided the three:
 //!       a 30 MB push to a local bare remote moved 94 MB of `rchar` and 156 MB of `wchar` over its four processes while
-//!       `read_bytes` was 64 KB and `write_bytes` came late and in bursts, so the block-layer counters see neither pipes nor
+//!       `read_bytes` was 64 KB and `write_bytes` came late and in bursts,
+//! so the block-layer counters see neither pipes nor
 //!       sockets and lag behind the transfer;
-//!       `rchar` and `wchar` count `read` and `write` calls, not `send` and `recv` (102 bytes for 100000 bytes through
-//!       `send`/`recv`, 100102 through `read`), so a stretch that only curl performs shows through the pipe that feeds it;
+//!       `rchar` and `wchar` count `read` and `write` calls,
+//! not `send` and `recv` (102 bytes for 100000 bytes through
+//!       `send`/`recv`,
+//! 100102 through `read`),
+//! so a stretch that only curl performs shows through the pipe that feeds it;
 //!       a `dd` of 64 MB with `conv=fsync` was in state `D` in six of seven looks and used 0 processor ticks (a tick is 10 ms),
-//!       so a wait for the disk shows in neither bytes nor processor time, only in the state;
-//!       a parent in `vfork` is in state `D` with 0 ticks, the way the controls hold a tree in disk wait exactly;
-//!       a process reading a silent socket and a `sleep` are in state `S` with a constant tick count, so a wait on a server
-//!       that says nothing shows nothing in the process; only the connection's state shows it.
-//!  What each costs: bytes miss work that moves none; processor time makes a process that spins or polls look alive, and its
-//!  resolution is a tick; state `D` makes a process wedged for ever in the kernel (a dead network file system) look alive, and
-//!  state `R` one that is only waiting for a processor; no total time bounds them (owner decision, see below). None of them sees
-//!  a server that checks the push before it answers: that tree is in state `S`, indistinguishable from a dead peer by its
-//!  processes alone. What tells them apart is the connection: a process of the tree that holds a TCP socket in state
-//!  `ESTABLISHED` (read from the kernel's socket diagnostics, `tcp_sockets.rs`) has a remote that has not closed it, and a tree
-//!  with such a socket is waited for, however long it shows nothing. The owner's answer "Wait while connected (Recommended)"
-//!  (2026-11-03) is the rule; the rest is pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`, which the coordinator made
-//!  under the owner's delegation ("Pick options as if I had picked them", 2026-11-03) and the owner may veto: no stall window
-//!  for a connected push, no ceiling for any push, no low-speed abort.
-//!  What the code cannot observe: a peer that vanished without a reset leaves the socket `ESTABLISHED` until TCP gives up
-//!  (retransmission for unacknowledged data, keepalive probes for an idle connection), which the owner accepted.
-//!  Where `/proc/<pid>/io` does not exist (no `/proc`, or a kernel without task I/O accounting) nothing is measured and the
-//!  stall window is a fixed deadline, as before.
+//!       so a wait for the disk shows in neither bytes nor processor time,
+//! only in the state;
+//!       a parent in `vfork` is in state `D` with 0 ticks,
+//! the way the controls hold a tree in disk wait exactly;
+//!       a process reading a silent socket and a `sleep` are in state `S` with a constant tick count,
+//! so a wait on a server
+//!       that says nothing shows nothing in the process;
+//! only the connection's state shows it.
+//!  What each costs:
+//! bytes miss work that moves none;
+//! processor time makes a process that spins or polls look alive,
+//! and its
+//!  resolution is a tick;
+//! state `D` makes a process wedged for ever in the kernel (a dead network file system) look alive,
+//! and
+//!  state `R` one that is only waiting for a processor;
+//! no total time bounds them (owner decision,
+//! see below).
+//! None of them sees
+//!  a server that checks the push before it answers:
+//! that tree is in state `S`,
+//! indistinguishable from a dead peer by its
+//!  processes alone.
+//! What tells them apart is the connection:
+//! a process of the tree that holds a TCP socket in state
+//!  `ESTABLISHED` (read from the kernel's socket diagnostics,
+//! `tcp_sockets.rs`) has a remote that has not closed it,
+//! and a tree
+//!  with such a socket is waited for,
+//! however long it shows nothing.
+//! The owner's answer "Wait while connected (Recommended)"
+//!  (2026-11-03) is the rule;
+//! the rest is pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`,
+//! which the coordinator made
+//!  under the owner's delegation ("Pick options as if I had picked them",
+//! 2026-11-03) and the owner may veto:
+//! no stall window
+//!  for a connected push,
+//! no ceiling for any push,
+//! no low-speed abort.
+//!  What the code cannot observe:
+//! a peer that vanished without a reset leaves the socket `ESTABLISHED` until TCP gives up
+//!  (retransmission for unacknowledged data,
+//! keepalive probes for an idle connection),
+//! which the owner accepted.
+//!  Where `/proc/<pid>/io` does not exist (no `/proc`,
+//! or a kernel without task I/O accounting) nothing is measured and the
+//!  stall window is a fixed deadline,
+//! as before.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const clock = new Clock(child.pid, { stallMs }); while (!exited) { const stop = clock.check(); if (stop) return stop; }
 //! ```
 
-/// The patience a clock keeps, and what a stop reports.
+/// The patience a clock keeps,
+/// and what a stop reports.
 use crate::bounded_push::{StopCause, StopReport};
 use crate::push_deadline_and_patience_settings::Patience;
-/// The processes below the push, and the identity of each.
+/// The processes below the push,
+/// and the identity of each.
 use crate::process_tree::{TreeMember, descendants_of, member_of};
-/// The connected sockets of the machine with their byte counts, and the sockets a process holds.
+/// The connected sockets of the machine with their byte counts,
+/// and the sockets a process holds.
 use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
 use crate::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
 /// What each process of the tree was last seen to have moved.
@@ -55,7 +105,9 @@ use std::time::{Duration, Instant};
 pub const SAMPLE_INTERVAL: Duration = Duration::from_millis(500);
 
 /// What:
-///  The bytes a process has read and written, from its `/proc/<pid>/io`, or nothing where they cannot be read.
+///  The bytes a process has read and written,
+/// from its `/proc/<pid>/io`,
+/// or nothing where they cannot be read.
 /// Why:
 ///   `rchar` and `wchar` are the counters that see pipes and sockets read and written with `read` and `write`.
 ///
@@ -79,7 +131,8 @@ fn bytes_moved_by(pid: i32) -> Option<u64> {
     return Some(read?.saturating_add(written?));
 }
 
-/// Only Linux counts a process's bytes; elsewhere nothing is measured.
+/// Only Linux counts a process's bytes;
+/// elsewhere nothing is measured.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
 fn bytes_moved_by(_pid: i32) -> Option<u64> {
@@ -89,8 +142,10 @@ fn bytes_moved_by(_pid: i32) -> Option<u64> {
 /// What:
 ///  The state letter and the processor ticks (`utime` plus `stime`) of a `/proc/<pid>/stat` line.
 /// Why:
-///   The command name sits in parentheses and may hold spaces and parentheses, so the fields are read after the last
-///  closing parenthesis; the state is the first of them and the two times are the twelfth and thirteenth.
+///   The command name sits in parentheses and may hold spaces and parentheses,
+/// so the fields are read after the last
+///  closing parenthesis;
+/// the state is the first of them and the two times are the twelfth and thirteenth.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,15 +160,18 @@ pub(crate) fn parse_activity(stat: &str) -> Option<(char, u64)> {
     return Some((state, user.saturating_add(system)));
 }
 
-/// Whether a state letter is one of a task that is at work: able to run (`R`) or waiting for the disk (`D`).
+/// Whether a state letter is one of a task that is at work:
+/// able to run (`R`) or waiting for the disk (`D`).
 pub(crate) fn is_working(state: char) -> bool {
     return state == 'R' || state == 'D';
 }
 
 /// What:
-///  A process's processor ticks, and whether any of its tasks is able to run or waiting for the disk.
+///  A process's processor ticks,
+/// and whether any of its tasks is able to run or waiting for the disk.
 /// Why:
-///   A thread that waits for the disk (an `fsync`) is in state `D` while the process's own state may be `S`, so every task
+///   A thread that waits for the disk (an `fsync`) is in state `D` while the process's own state may be `S`,
+/// so every task
 ///  is read.
 ///
 /// In TS you'd write (pseudocode):
@@ -139,7 +197,8 @@ fn activity_of(pid: i32) -> Option<(u64, bool)> {
     return Some((ticks, working));
 }
 
-/// Only Linux reads what a process is doing; elsewhere nothing is.
+/// Only Linux reads what a process is doing;
+/// elsewhere nothing is.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
 fn activity_of(_pid: i32) -> Option<(u64, bool)> {
@@ -157,10 +216,14 @@ fn system_measures() -> bool {
 }
 
 /// What:
-///  The work of the tree under a root so far, and whether a sample saw any sign of work since the one before.
+///  The work of the tree under a root so far,
+/// and whether a sample saw any sign of work since the one before.
 /// Why:
-///   A process that ends takes its counters with it, so each process is remembered by its number and start time, and only
-///  what it moved or used since it was last seen is added; a task able to run or waiting for the disk is a sign of work at
+///   A process that ends takes its counters with it,
+/// so each process is remembered by its number and start time,
+/// and only
+///  what it moved or used since it was last seen is added;
+/// a task able to run or waiting for the disk is a sign of work at
 ///  the sample that finds it.
 ///
 /// In TS you'd write (pseudocode):
@@ -169,25 +232,32 @@ fn system_measures() -> bool {
 /// ```
 #[derive(Debug, Default)]
 pub struct Meter {
-    /// What each process of the tree had moved and used when it was last seen: bytes, then processor ticks.
+    /// What each process of the tree had moved and used when it was last seen:
+    /// bytes,
+    /// then processor ticks.
     seen: HashMap<(i32, u64), (u64, u64)>,
     /// Every byte the tree has moved since the first sample.
     moved: u64,
-    /// The bytes each connected socket of the tree had sent (acknowledged) and received when it was last seen, by inode.
+    /// The bytes each connected socket of the tree had sent (acknowledged) and received when it was last seen,
+    /// by inode.
     sockets: HashMap<u64, u64>,
     /// Every byte the tree's connected sockets have carried since the first sample.
     socket_moved: u64,
     /// Whether the last sample found a process of the tree holding a connected socket.
     connected: bool,
-    /// How many times a sample listed the processes of the whole machine to find the tree; a stand-in for the cost of a
-    ///  sample, which grows with the number of processes the machine runs.
+    /// How many times a sample listed the processes of the whole machine to find the tree;
+    /// a stand-in for the cost of a
+    ///  sample,
+    /// which grows with the number of processes the machine runs.
     scans: u64,
 }
 
-/// What a push that waits for its remote with the connection open has shown, once it has been silent for the stall window.
+/// What a push that waits for its remote with the connection open has shown,
+/// once it has been silent for the stall window.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WaitReport {
-    /// How long the tree has shown no sign of work, with its connection open.
+    /// How long the tree has shown no sign of work,
+    /// with its connection open.
     pub silent: Duration,
     /// How long the push has run.
     pub elapsed: Duration,
@@ -199,7 +269,8 @@ impl Meter {
         return Self::default();
     }
 
-    /// Every byte the tree has moved so far, on its pipes and files and on its connected sockets.
+    /// Every byte the tree has moved so far,
+    /// on its pipes and files and on its connected sockets.
     pub fn moved(&self) -> u64 {
         return self.moved.saturating_add(self.socket_moved);
     }
@@ -214,15 +285,25 @@ impl Meter {
         return self.socket_moved;
     }
 
-    /// Whether the last sample found the connection to a remote open: some process of the tree holds a socket in state
-    ///  `ESTABLISHED`. This is the whole evidence of "connected"; the phase of the push (making the pack, sent, checked)
-    ///  is not consulted, because a connection that is open is a remote that has not answered yet, whatever the phase.
-    ///  Where the kernel's socket list cannot be read, nothing says the connection is open, and the stall rule applies.
+    /// Whether the last sample found the connection to a remote open:
+    /// some process of the tree holds a socket in state
+    ///  `ESTABLISHED`.
+    /// This is the whole evidence of "connected";
+    /// the phase of the push (making the pack,
+    /// sent,
+    /// checked)
+    ///  is not consulted,
+    /// because a connection that is open is a remote that has not answered yet,
+    /// whatever the phase.
+    ///  Where the kernel's socket list cannot be read,
+    /// nothing says the connection is open,
+    /// and the stall rule applies.
     pub fn connected(&self) -> bool {
         return self.connected;
     }
 
-    /// Take one look at the connected sockets of the tree: true when a socket carried bytes since the last look.
+    /// Take one look at the connected sockets of the tree:
+    /// true when a socket carried bytes since the last look.
     fn observe_sockets(&mut self, members: &[TreeMember]) -> bool {
         let mut held: Vec<u64> = Vec::new();
         for member in members {
@@ -252,7 +333,9 @@ impl Meter {
         return progressed;
     }
 
-    /// Take one look at one process: true when it moved bytes or used processor time since the last look, or is at work now.
+    /// Take one look at one process:
+    /// true when it moved bytes or used processor time since the last look,
+    /// or is at work now.
     fn observe(&mut self, key: (i32, u64), bytes: u64, ticks: u64, working: bool) -> bool {
         let (bytes_before, ticks_before): (u64, u64) = self.seen.insert(key, (bytes, ticks)).unwrap_or((0, 0));
         let moved_now: u64 = bytes.saturating_sub(bytes_before);
@@ -260,21 +343,29 @@ impl Meter {
         return moved_now > 0 || ticks > ticks_before || working;
     }
 
-    /// Read the counters and the states of the root and everything below it; true when any of them shows work since the last
-    ///  sample. A root that cannot be read (it ended) shows nothing.
+    /// Read the counters and the states of the root and everything below it;
+    /// true when any of them shows work since the last
+    ///  sample.
+    /// A root that cannot be read (it ended) shows nothing.
     pub fn sample(&mut self, root: i32) -> bool {
         return self.look(root, true);
     }
 
-    /// The first look at a child that has just been started: the root alone.
-    ///  Nothing is below a process that has just been started, and a process it starts later is found by the next sample and
-    ///  counted at the first sight, so the listing of every process the machine runs (a status file for each, 7 ms for 841
-    ///  processes) would find nothing and be paid by every Git the wrapper starts, however briefly it lives.
+    /// The first look at a child that has just been started:
+    /// the root alone.
+    ///  Nothing is below a process that has just been started,
+    /// and a process it starts later is found by the next sample and
+    ///  counted at the first sight,
+    /// so the listing of every process the machine runs (a status file for each,
+    /// 7 ms for 841
+    ///  processes) would find nothing and be paid by every Git the wrapper starts,
+    /// however briefly it lives.
     pub fn sample_root(&mut self, root: i32) -> bool {
         return self.look(root, false);
     }
 
-    /// One look at the root, and at everything below it when `whole_tree` asks for it.
+    /// One look at the root,
+    /// and at everything below it when `whole_tree` asks for it.
     fn look(&mut self, root: i32, whole_tree: bool) -> bool {
         let mut members: Vec<TreeMember> = member_of(root).into_iter().collect();
         if whole_tree {
@@ -303,9 +394,11 @@ impl Meter {
 }
 
 /// What:
-///  The clock of one bounded child: it says when the child has stalled or passed its fixed deadline.
+///  The clock of one bounded child:
+/// it says when the child has stalled or passed its fixed deadline.
 /// Why:
-///   The waiting loop asks it every few milliseconds; it reads the counters only every `SAMPLE_INTERVAL`.
+///   The waiting loop asks it every few milliseconds;
+/// it reads the counters only every `SAMPLE_INTERVAL`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -314,28 +407,40 @@ impl Meter {
 pub struct Clock {
     /// The process whose tree is measured.
     root: i32,
-    /// What the child may do: a fixed time, or a stall window that an open connection suspends.
+    /// What the child may do:
+    /// a fixed time,
+    /// or a stall window that an open connection suspends.
     patience: Patience,
     /// When the child started.
     started: Instant,
-    /// When the tree last moved bytes (or the start, before it first does).
+    /// When the tree last moved bytes (or the start,
+    /// before it first does).
     last_progress: Instant,
     /// When the counters are next read.
     next_sample: Instant,
-    /// The counters, or nothing where the system does not count bytes and the stall window is a fixed deadline.
+    /// The counters,
+    /// or nothing where the system does not count bytes and the stall window is a fixed deadline.
     meter: Option<Meter>,
-    /// Since when the tree has shown no sign of work while its connection was open; nothing while it did or was not.
+    /// Since when the tree has shown no sign of work while its connection was open;
+    /// nothing while it did or was not.
     waiting_since: Option<Instant>,
-    /// The wait, once the stall window has run out with the connection open.
+    /// The wait,
+    /// once the stall window has run out with the connection open.
     waited: Option<WaitReport>,
-    /// Whether the wait has been handed to the caller (`take_wait_note`), which says so once.
+    /// Whether the wait has been handed to the caller (`take_wait_note`),
+    /// which says so once.
     wait_noted: bool,
-    /// The longest stretch between two samples that showed a sign of work, as far as the samples saw (the resolution is
-    ///  `SAMPLE_INTERVAL`); a connected wait is not a quiet stretch.
+    /// The longest stretch between two samples that showed a sign of work,
+    /// as far as the samples saw (the resolution is
+    ///  `SAMPLE_INTERVAL`);
+    /// a connected wait is not a quiet stretch.
     longest_quiet: Duration,
-    /// Whether the first look, which is of the root alone, has been taken.
+    /// Whether the first look,
+    /// which is of the root alone,
+    /// has been taken.
     looked: bool,
-    /// Whether a system that counts nothing falls back to the stall window as a fixed deadline; a run that must never end by
+    /// Whether a system that counts nothing falls back to the stall window as a fixed deadline;
+    /// a run that must never end by
     ///  wall time clears it and then goes unjudged where nothing is counted.
     wall_fallback: bool,
     /// How long a tree with an open connection may show no sign of work before it is stopped (`wait_ceilings.rs`).
@@ -364,7 +469,8 @@ impl Clock {
         };
     }
 
-    /// The same clock for a run that must never end by wall time: where nothing is counted it is never judged stalled.
+    /// The same clock for a run that must never end by wall time:
+    /// where nothing is counted it is never judged stalled.
     pub fn without_wall_fallback(mut self) -> Self {
         self.wall_fallback = false;
         return self;
@@ -376,30 +482,38 @@ impl Clock {
         return self;
     }
 
-    /// Whether this clock reads the tree's signs of work at all (Linux with `/proc/<pid>/io`), so a stall means quiet time.
+    /// Whether this clock reads the tree's signs of work at all (Linux with `/proc/<pid>/io`),
+    /// so a stall means quiet time.
     pub fn measures(&self) -> bool {
         return self.meter.is_some();
     }
 
-    /// The longest stretch with no sign of work so far, the one still running included. A step that ended by itself gives the
-    ///  figure of a healthy step, which is what an interval must be set above.
+    /// The longest stretch with no sign of work so far,
+    /// the one still running included.
+    /// A step that ended by itself gives the
+    ///  figure of a healthy step,
+    /// which is what an interval must be set above.
     pub fn longest_quiet(&self) -> Duration {
         return self.longest_quiet.max(Instant::now().saturating_duration_since(self.last_progress));
     }
 
-    /// The same clock as on a system that counts no bytes, for the control of that fallback.
+    /// The same clock as on a system that counts no bytes,
+    /// for the control of that fallback.
     #[cfg(test)]
     pub fn unmeasured(mut self) -> Self {
         self.meter = None;
         return self;
     }
 
-    /// The wait the clock has let pass instead of a stop, once the stall window ran out with the connection open.
+    /// The wait the clock has let pass instead of a stop,
+    /// once the stall window ran out with the connection open.
     pub fn wait_report(&self) -> Option<WaitReport> {
         return self.waited;
     }
 
-    /// The wait, the first time it is asked for after the wait began, so the caller says it once.
+    /// The wait,
+    /// the first time it is asked for after the wait began,
+    /// so the caller says it once.
     pub fn take_wait_note(&mut self) -> Option<WaitReport> {
         if self.wait_noted {
             return None;
@@ -409,12 +523,14 @@ impl Clock {
         return Some(report);
     }
 
-    /// The report of a stop now, for the limit that was hit.
+    /// The report of a stop now,
+    /// for the limit that was hit.
     fn report(&self, limit: Duration, now: Instant) -> StopReport {
         return StopReport { limit, moved: self.meter.as_ref().map_or(0, Meter::moved), elapsed: now.duration_since(self.started) };
     }
 
-    /// Whether the child must be stopped now, and why.
+    /// Whether the child must be stopped now,
+    /// and why.
     pub fn check(&mut self) -> Option<StopCause> {
         let now: Instant = Instant::now();
         let elapsed: Duration = now.duration_since(self.started);

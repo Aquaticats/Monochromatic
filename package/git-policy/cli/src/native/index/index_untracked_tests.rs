@@ -2,7 +2,9 @@
 
 use super::*;
 
-/// A directory as read from a file: written, valid and listing one file.
+/// A directory as read from a file:
+/// written,
+/// valid and listing one file.
 fn listed(name: &str, dirs: Vec<UntrackedDir>) -> UntrackedDir {
     return UntrackedDir {
         name: name.as_bytes().to_vec(),
@@ -28,7 +30,8 @@ fn cache(root: UntrackedDir, dir_flags: u32) -> Untracked {
     };
 }
 
-/// Only the directory that holds the path is cleared when the cache lists files, not whole untracked directories.
+/// Only the directory that holds the path is cleared when the cache lists files,
+/// not whole untracked directories.
 #[test]
 fn only_the_directory_of_the_path_is_cleared_without_whole_directory_listing() {
     let mut untracked: Untracked = cache(listed("", vec![listed("a", vec![listed("b", Vec::new())])]), 0);
@@ -38,7 +41,8 @@ fn only_the_directory_of_the_path_is_cleared_without_whole_directory_listing() {
     assert!(!root.dirs[0].dirs[0].valid && root.dirs[0].dirs[0].untracked.is_empty(), "the directory of the path is cleared");
 }
 
-/// When untracked directories are listed whole, every directory up to the top is cleared.
+/// When untracked directories are listed whole,
+/// every directory up to the top is cleared.
 #[test]
 fn every_ancestor_is_cleared_with_whole_directory_listing() {
     let mut untracked: Untracked = cache(listed("", vec![listed("a", vec![listed("b", Vec::new())])]), SHOW_OTHER_DIRECTORIES);
@@ -47,7 +51,9 @@ fn every_ancestor_is_cleared_with_whole_directory_listing() {
     assert!(!root.valid && !root.dirs[0].valid && !root.dirs[0].dirs[0].valid);
 }
 
-/// A directory the cache did not know is made, in name order, and is not written out.
+/// A directory the cache did not know is made,
+/// in name order,
+/// and is not written out.
 #[test]
 fn an_unknown_directory_is_made_in_order_and_not_written() {
     let mut untracked: Untracked = cache(listed("", vec![listed("a", Vec::new()), listed("c", Vec::new())]), 0);
@@ -59,7 +65,8 @@ fn an_unknown_directory_is_made_in_order_and_not_written() {
     assert!(root.valid, "the top stays valid when directories are not listed whole");
 }
 
-/// A path at the top clears the top, and a cache with no directories has nothing to clear.
+/// A path at the top clears the top,
+/// and a cache with no directories has nothing to clear.
 #[test]
 fn a_path_at_the_top_clears_the_top() {
     let mut untracked: Untracked = cache(listed("", vec![listed("a", Vec::new())]), 0);

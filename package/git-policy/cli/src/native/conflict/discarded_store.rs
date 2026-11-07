@@ -1,15 +1,30 @@
 //! What:
-//!  The folder of saved copies (`<common git dir>/monochromatic-git-policy-cli/discarded`) opened once without following a link, and every
-//!  read and removal inside it addressed through descriptors: the folder's, then each directory's, never a path walked again.
+//!  The folder of saved copies (`<common git dir>/monochromatic-git-policy-cli/discarded`) opened once without following a link,
+//! and every
+//!  read and removal inside it addressed through descriptors:
+//! the folder's,
+//! then each directory's,
+//! never a path walked again.
 //! Why:
 //!  A pass that lists a path and later removes a path can be led anywhere by a link or a rename that happens in between.
-//!  Holding the folder and each directory open means a removal lands in the directory that was judged, a name that now stands
-//!  for another directory is noticed by comparing what it is (device, inode and change time) with what the listing saw, and a
-//!  link met anywhere inside is removed as a link and never entered. No lock keeps two passes from removing the same tree:
-//!  each file has one owner, the pass whose `unlinkat` of it succeeded, and only that pass counts it, so passes that meet the
-//!  same directory share its files and every file is counted once. A file or directory another pass already removed is not an
-//!  error. The repository's descriptor-relative module for the btrfs work is not on this branch yet; `subvolume_anchor.rs`
-//!  widens the permissions of a directory it cannot enter, which a removal must never do.
+//!  Holding the folder and each directory open means a removal lands in the directory that was judged,
+//! a name that now stands
+//!  for another directory is noticed by comparing what it is (device,
+//! inode and change time) with what the listing saw,
+//! and a
+//!  link met anywhere inside is removed as a link and never entered.
+//! No lock keeps two passes from removing the same tree:
+//!  each file has one owner,
+//! the pass whose `unlinkat` of it succeeded,
+//! and only that pass counts it,
+//! so passes that meet the
+//!  same directory share its files and every file is counted once.
+//! A file or directory another pass already removed is not an
+//!  error.
+//! The repository's descriptor-relative module for the btrfs work is not on this branch yet;
+//! `subvolume_anchor.rs`
+//!  widens the permissions of a directory it cannot enter,
+//! which a removal must never do.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,7 +51,9 @@ mod unix {
     /// Why the folder could not be opened as a store.
     #[derive(Debug)]
     pub enum OpenFailure {
-        /// A symbolic link, or something that is not a directory, stands at `monochromatic-git-policy-cli` or `discarded`.
+        /// A symbolic link,
+        /// or something that is not a directory,
+        /// stands at `monochromatic-git-policy-cli` or `discarded`.
         Link,
         /// The system refused to open it.
         Refused(std::io::Error),
@@ -50,7 +67,8 @@ mod unix {
         };
     }
 
-    /// Takes ownership of a descriptor a system call returned, or the error it left.
+    /// Takes ownership of a descriptor a system call returned,
+    /// or the error it left.
     fn owned(descriptor: libc::c_int) -> std::io::Result<OwnedFd> {
         if descriptor < 0 {
             return Err(std::io::Error::last_os_error());
@@ -59,14 +77,16 @@ mod unix {
         return Ok(unsafe { OwnedFd::from_raw_fd(descriptor) });
     }
 
-    /// Opens the directory `name` inside `parent` for reading, never following a link at `name`.
+    /// Opens the directory `name` inside `parent` for reading,
+    /// never following a link at `name`.
     fn open_inside(parent: RawFd, name: &OsStr) -> std::io::Result<OwnedFd> {
         let text: CString = c_name(name)?;
         // SAFETY: `text` is a NUL-terminated string that outlives the call, and `parent` is an open descriptor.
         return owned(unsafe { libc::openat(parent, text.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) });
     }
 
-    /// What `fstatat` says of `name` inside `parent`, without following a link at `name`.
+    /// What `fstatat` says of `name` inside `parent`,
+    /// without following a link at `name`.
     fn status_of(parent: RawFd, name: &OsStr) -> std::io::Result<libc::stat> {
         let text: CString = c_name(name)?;
         // SAFETY: `stat` is plain data for which all zero bytes is a valid value.
@@ -94,7 +114,8 @@ mod unix {
         return status.st_mode & libc::S_IFMT == libc::S_IFDIR;
     }
 
-    /// Sets the thread's error number to zero, so that the end of a directory can be told from a failed read.
+    /// Sets the thread's error number to zero,
+    /// so that the end of a directory can be told from a failed read.
     fn clear_error_number() {
         // SAFETY: the location is the calling thread's own error number, valid for a write.
         #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -108,7 +129,8 @@ mod unix {
         }
     }
 
-    /// The names inside the directory open on `descriptor`, `.` and `..` left out.
+    /// The names inside the directory open on `descriptor`,
+    /// `.` and `..` left out.
     fn names_inside(descriptor: RawFd) -> std::io::Result<Vec<OsString>> {
         // SAFETY: `descriptor` is open; the duplicate is owned by the stream `fdopendir` makes of it.
         let duplicate: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_DUPFD_CLOEXEC, 0) };
@@ -154,11 +176,17 @@ mod unix {
     }
 
     /// What:
-    ///  Removes the entry `name` of `parent`: a directory when `directory`, otherwise anything that is not one. Whether this
+    ///  Removes the entry `name` of `parent`:
+    /// a directory when `directory`,
+    /// otherwise anything that is not one.
+    /// Whether this
     ///  call removed it.
     /// Why:
-    ///   The kernel lets exactly one `unlinkat` of a name succeed, so the caller that gets `true` is the entry's one owner and
-    ///  the only one that may count it. An entry another pass removed first is gone, which is the aim reached and no error.
+    ///   The kernel lets exactly one `unlinkat` of a name succeed,
+    /// so the caller that gets `true` is the entry's one owner and
+    ///  the only one that may count it.
+    /// An entry another pass removed first is gone,
+    /// which is the aim reached and no error.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -180,21 +208,29 @@ mod unix {
         return Ok(true);
     }
 
-    /// A directory held open; `OwnedFd` closes it when the value is dropped.
+    /// A directory held open;
+    /// `OwnedFd` closes it when the value is dropped.
     #[derive(Debug)]
     pub struct Directory {
         /// The directory's descriptor.
         descriptor: OwnedFd,
     }
 
-    /// One directory of the walk: its descriptor, its name in the directory above, its relative path, and the
+    /// One directory of the walk:
+    /// its descriptor,
+    /// its name in the directory above,
+    /// its relative path,
+    /// and the
     /// subdirectories still to enter.
     struct Frame {
         /// The directory's descriptor.
         descriptor: OwnedFd,
-        /// The name it has in the directory above, or nothing for the root of the walk.
+        /// The name it has in the directory above,
+        /// or nothing for the root of the walk.
         name: Option<OsString>,
-        /// The path below the root of the walk, with a trailing `/`, or empty for the root.
+        /// The path below the root of the walk,
+        /// with a trailing `/`,
+        /// or empty for the root.
         prefix: String,
         /// The subdirectories not yet entered.
         directories: Vec<OsString>,
@@ -216,8 +252,13 @@ mod unix {
             return Ok(identity_in(&status));
         }
 
-        /// What `walk` does for a file met: counted, and removed when `remove`; a file this call did not remove itself is not counted
-        /// when removing, because the pass that removed it counts it. A directory another pass already removed holds nothing.
+        /// What `walk` does for a file met:
+        /// counted,
+        /// and removed when `remove`;
+        /// a file this call did not remove itself is not counted
+        /// when removing,
+        /// because the pass that removed it counts it.
+        /// A directory another pass already removed holds nothing.
         fn meet_files(frame: &mut Frame, remove: bool, tally: &mut Tally) -> std::io::Result<()> {
             let names: Vec<OsString> = match names_inside(frame.descriptor.as_raw_fd()) {
                 Ok(found) => found,
@@ -244,11 +285,17 @@ mod unix {
         }
 
         /// What:
-        ///  Counts the files below this directory, or removes them and the subdirectories, files of a directory before its
-        ///  subdirectories, stopping at the first failure.
+        ///  Counts the files below this directory,
+        /// or removes them and the subdirectories,
+        /// files of a directory before its
+        ///  subdirectories,
+        /// stopping at the first failure.
         /// Why:
-        ///   Files first makes a failure deep in the tree leave a predictable remainder, and stopping keeps the rest of an
-        ///  unreadable or protected tree rather than guessing. A link is a file here and is never entered. The directory
+        ///   Files first makes a failure deep in the tree leave a predictable remainder,
+        /// and stopping keeps the rest of an
+        ///  unreadable or protected tree rather than guessing.
+        /// A link is a file here and is never entered.
+        /// The directory
         ///  itself is left for the caller to remove.
         ///
         /// In TS you'd write (pseudocode):
@@ -264,7 +311,8 @@ mod unix {
             };
         }
 
-        /// The walk of `walk`, adding to `tally` as it goes so that a failure still says how far it got.
+        /// The walk of `walk`,
+        /// adding to `tally` as it goes so that a failure still says how far it got.
         fn walk_into(&self, remove: bool, tally: &mut Tally) -> std::io::Result<()> {
             // SAFETY: the descriptor is open; the duplicate is owned by the frame.
             let root: OwnedFd = owned(unsafe { libc::fcntl(self.descriptor.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 0) })?;
@@ -300,21 +348,25 @@ mod unix {
         /// Counts the files below this directory without changing anything.
         ///
         /// # Errors
-        /// The first failure, with what was counted before it.
+        /// The first failure,
+        /// with what was counted before it.
         pub fn survey(&self) -> Result<Tally, Interrupted> {
             return self.walk(false);
         }
 
-        /// Removes every file and subdirectory below this directory, leaving the directory itself.
+        /// Removes every file and subdirectory below this directory,
+        /// leaving the directory itself.
         ///
         /// # Errors
-        /// The first failure, with what was removed before it.
+        /// The first failure,
+        /// with what was removed before it.
         pub fn empty(&self) -> Result<Tally, Interrupted> {
             return self.walk(true);
         }
     }
 
-    /// The folder of saved copies, held open by one pass.
+    /// The folder of saved copies,
+    /// held open by one pass.
     #[derive(Debug)]
     pub struct Store {
         /// The `discarded` directory's descriptor.
@@ -323,7 +375,8 @@ mod unix {
 
     impl Store {
         /// What:
-        ///  Opens `<common_dir>/monochromatic-git-policy-cli/discarded`, following a link in `common_dir` (Git names it) and none below it.
+        ///  Opens `<common_dir>/monochromatic-git-policy-cli/discarded`,
+        /// following a link in `common_dir` (Git names it) and none below it.
         ///  Nothing when the folder does not exist.
         /// Why:
         ///   A link at `monochromatic-git-policy-cli` or `discarded` would send every later read and removal to wherever it points.
@@ -360,8 +413,11 @@ mod unix {
             return names_inside(self.descriptor.as_raw_fd());
         }
 
-        /// What `name` is inside the folder without following a link: its identity when it is a directory, nothing when it
-        /// is anything else (a link, a file) or is gone.
+        /// What `name` is inside the folder without following a link:
+        /// its identity when it is a directory,
+        /// nothing when it
+        /// is anything else (a link,
+        /// a file) or is gone.
         ///
         /// # Errors
         /// The system's error when it cannot be inspected for a reason other than being gone.
@@ -374,10 +430,14 @@ mod unix {
             };
         }
 
-        /// Opens the directory `name` of the folder, never following a link; nothing when it is gone.
+        /// Opens the directory `name` of the folder,
+        /// never following a link;
+        /// nothing when it is gone.
         ///
         /// # Errors
-        /// `NotADirectory` when a link or a file stands at `name`; otherwise the system's error, `EACCES` for a directory
+        /// `NotADirectory` when a link or a file stands at `name`;
+        /// otherwise the system's error,
+        /// `EACCES` for a directory
         /// the person cannot read.
         pub fn open_directory(&self, name: &OsStr) -> std::io::Result<Option<Directory>> {
             return match open_inside(self.descriptor.as_raw_fd(), name) {
@@ -388,13 +448,20 @@ mod unix {
             };
         }
 
-        /// Removes the empty directory `name` of the folder when it is still the directory `expected` describes, by device and
-        /// inode (its change time moved when its contents went). A name that now stands for another directory is left, and a
-        /// directory that is not empty is never removed by this call. True when this call removed it; false when the name no
-        /// longer stands for that directory, whether another pass removed it first or something else took the name.
+        /// Removes the empty directory `name` of the folder when it is still the directory `expected` describes,
+        /// by device and
+        /// inode (its change time moved when its contents went).
+        /// A name that now stands for another directory is left,
+        /// and a
+        /// directory that is not empty is never removed by this call.
+        /// True when this call removed it;
+        /// false when the name no
+        /// longer stands for that directory,
+        /// whether another pass removed it first or something else took the name.
         ///
         /// # Errors
-        /// The system's error when the removal fails, `ENOTEMPTY` included.
+        /// The system's error when the removal fails,
+        /// `ENOTEMPTY` included.
         pub fn remove_empty_directory(&self, name: &OsStr, expected: Identity) -> std::io::Result<bool> {
             let same: bool = match self.directory_identity(name)? {
                 Some(found) => found.device == expected.device && found.inode == expected.inode,
@@ -417,13 +484,17 @@ mod other {
     /// Why the folder could not be opened as a store.
     #[derive(Debug)]
     pub enum OpenFailure {
-        /// A symbolic link, or something that is not a directory, stands in the way.
+        /// A symbolic link,
+        /// or something that is not a directory,
+        /// stands in the way.
         Link,
-        /// The system refused to open it, or does not offer a way to do it safely.
+        /// The system refused to open it,
+        /// or does not offer a way to do it safely.
         Refused(std::io::Error),
     }
 
-    /// A directory held open: none can be on a system without descriptor-relative removal.
+    /// A directory held open:
+    /// none can be on a system without descriptor-relative removal.
     #[derive(Debug)]
     pub struct Directory(std::convert::Infallible);
 
@@ -431,7 +502,8 @@ mod other {
         /// The identity of the directory itself.
         ///
         /// # Errors
-        /// Never; no value of this type exists here.
+        /// Never;
+        /// no value of this type exists here.
         pub fn identity(&self) -> std::io::Result<Identity> {
             match self.0 {}
         }
@@ -439,7 +511,8 @@ mod other {
         /// Counts the files below the directory.
         ///
         /// # Errors
-        /// Never; no value of this type exists here.
+        /// Never;
+        /// no value of this type exists here.
         pub fn survey(&self) -> Result<Tally, Interrupted> {
             match self.0 {}
         }
@@ -447,22 +520,27 @@ mod other {
         /// Removes what is below the directory.
         ///
         /// # Errors
-        /// Never; no value of this type exists here.
+        /// Never;
+        /// no value of this type exists here.
         pub fn empty(&self) -> Result<Tally, Interrupted> {
             match self.0 {}
         }
     }
 
-    /// The folder of saved copies: none can be opened here, because a removal that cannot be addressed by descriptor is not
+    /// The folder of saved copies:
+    /// none can be opened here,
+    /// because a removal that cannot be addressed by descriptor is not
     /// done.
     #[derive(Debug)]
     pub struct Store(std::convert::Infallible);
 
     impl Store {
-        /// Always refuses: this system offers no way to remove inside the folder without following a replaced path.
+        /// Always refuses:
+        /// this system offers no way to remove inside the folder without following a replaced path.
         ///
         /// # Errors
-        /// `OpenFailure::Refused`, always.
+        /// `OpenFailure::Refused`,
+        /// always.
         pub fn open(_common_dir: &Path, _relative: &str) -> Result<Option<Store>, OpenFailure> {
             return Err(OpenFailure::Refused(std::io::Error::other("removing inside the folder without following a replaced path is not available on this system")));
         }
@@ -470,7 +548,8 @@ mod other {
         /// The names inside the folder.
         ///
         /// # Errors
-        /// Never; no value of this type exists here.
+        /// Never;
+        /// no value of this type exists here.
         pub fn names(&self) -> std::io::Result<Vec<OsString>> {
             match self.0 {}
         }
@@ -478,7 +557,8 @@ mod other {
         /// What `name` is inside the folder.
         ///
         /// # Errors
-        /// Never; no value of this type exists here.
+        /// Never;
+        /// no value of this type exists here.
         pub fn directory_identity(&self, _name: &OsStr) -> std::io::Result<Option<Identity>> {
             match self.0 {}
         }
@@ -486,7 +566,8 @@ mod other {
         /// Opens the directory `name` of the folder.
         ///
         /// # Errors
-        /// Never; no value of this type exists here.
+        /// Never;
+        /// no value of this type exists here.
         pub fn open_directory(&self, _name: &OsStr) -> std::io::Result<Option<Directory>> {
             match self.0 {}
         }
@@ -494,7 +575,8 @@ mod other {
         /// Removes the empty directory `name` of the folder.
         ///
         /// # Errors
-        /// Never; no value of this type exists here.
+        /// Never;
+        /// no value of this type exists here.
         pub fn remove_empty_directory(&self, _name: &OsStr, _expected: Identity) -> std::io::Result<bool> {
             match self.0 {}
         }

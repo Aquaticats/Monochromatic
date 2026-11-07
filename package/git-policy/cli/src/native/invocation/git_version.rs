@@ -8,7 +8,9 @@
 //!  The native tables and protocols follow the Git release the test image runs the tests with,
 //!  and a Git older than that release is not refused:
 //!  the owner chose to warn once and go on
-//!  ("Raise minimum, drop the test, merely print a warning on older git and not refuse.",
+//!  ("Raise minimum,
+//! drop the test,
+//! merely print a warning on older git and not refuse.",
 //!  2026-11-04),
 //!  so the constant below is the release the wrapper was tested with.
 //!  Only a Git whose release cannot be read stops the command,
@@ -35,12 +37,18 @@ use std::path::Path;
 /// `OnceLock` holds the one answer of this process.
 use std::sync::OnceLock;
 
-/// The Git release the wrapper was tested with, and the minimum below which every run prints a warning.
+/// The Git release the wrapper was tested with,
+/// and the minimum below which every run prints a warning.
 ///
-/// Keep it in step with the test image: the gate's base image installs the distribution's current `git` package
-///  (`native-test-base.Containerfile`), and `mise run //package/git-policy/cli:test:git-image` prints the release it
-///  got. When that release moves past this one, change this constant to it in the same commit as the first gate run
-///  on the new release, together with the release named in `README.md` and `SPEC.md` ("tested with").
+/// Keep it in step with the test image:
+/// the gate's base image installs the distribution's current `git` package
+///  (`native-test-base.Containerfile`),
+/// and `mise run //package/git-policy/cli:test:git-image` prints the release it
+///  got.
+/// When that release moves past this one,
+/// change this constant to it in the same commit as the first gate run
+///  on the new release,
+/// together with the release named in `README.md` and `SPEC.md` ("tested with").
 pub const MINIMUM_GIT_VERSION: (u64, u64, u64) = (2, 56, 0);
 
 /// A Git release as its major,
@@ -233,7 +241,8 @@ pub fn ask_git_version_cached(context: &GitContext, cache_directory: Option<&Pat
 ///   `check_git_version` takes only the Git context;
 ///  the environment is the process's own,
 ///  as the Git children inherit it.
-///  Unit tests of the library never touch the real home, so they ask without a cache.
+///  Unit tests of the library never touch the real home,
+/// so they ask without a cache.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

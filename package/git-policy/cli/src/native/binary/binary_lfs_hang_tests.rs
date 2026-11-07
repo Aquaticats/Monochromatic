@@ -1,7 +1,11 @@
 //! Binary-level experiments for the claim that the post-commit auto-push can hang on the Git LFS upload.
-//! Each control builds the worst shape that the wrapper's own coordination allows and measures it: an upload that
-//!  slows two worktrees' auto-pushes at once, and an upload whose helper detaches from the process tree and keeps the
-//!  push's output file open. The verdicts are in `doc/planning/cli-git-no-self-invocation.md`, section "Hang analysis".
+//! Each control builds the worst shape that the wrapper's own coordination allows and measures it:
+//! an upload that
+//!  slows two worktrees' auto-pushes at once,
+//! and an upload whose helper detaches from the process tree and keeps the
+//!  push's output file open.
+//! The verdicts are in `doc/planning/cli-git-no-self-invocation.md`,
+//! section "Hang analysis".
 
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::support::{Fixture, Observed, decline_in_process_lfs_scan, executable, fixture, git, observe, repository, stderr_of};
@@ -10,17 +14,23 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-/// The push deadline the detaching control sets, in whole seconds.
+/// The push deadline the detaching control sets,
+/// in whole seconds.
 const SHORT_DEADLINE_SECONDS: u64 = 2;
 
-/// How long the stand-in and its detached helper would run if nothing stopped them, in whole seconds; far past every
-///  bound the controls assert, and the control ends the helper itself.
+/// How long the stand-in and its detached helper would run if nothing stopped them,
+/// in whole seconds;
+/// far past every
+///  bound the controls assert,
+/// and the control ends the helper itself.
 const HOLD_SECONDS: u64 = 3_000;
 
 /// Extra time a control allows beyond a derived bound for process starts under host load.
 const LOAD_ALLOWANCE: Duration = Duration::from_secs(60);
 
-/// A repository with a bare origin, an LFS key, and a stand-in `git-lfs` made from `source`.
+/// A repository with a bare origin,
+/// an LFS key,
+/// and a stand-in `git-lfs` made from `source`.
 fn world(fixture: &Fixture, source: &str) -> (PathBuf, PathBuf) {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let origin: PathBuf = fixture.root.join("origin.git");
@@ -34,7 +44,8 @@ fn world(fixture: &Fixture, source: &str) -> (PathBuf, PathBuf) {
     return (repo, origin);
 }
 
-/// Stage a file and commit it through the wrapper with extra environment, returning what the caller saw.
+/// Stage a file and commit it through the wrapper with extra environment,
+/// returning what the caller saw.
 fn commit_file(fixture: &Fixture, directory: &Path, name: &str, environment: &[(&str, String)]) -> Observed {
     std::fs::write(directory.join(name), format!("{name}\n")).expect("file");
     git(fixture, directory, &["add", "--", name]);
@@ -49,8 +60,11 @@ fn commit_file(fixture: &Fixture, directory: &Path, name: &str, environment: &[(
     return observe(&mut command, b"");
 }
 
-/// Two worktrees of one repository commit at the same moment while every upload takes a while: both finish, neither
-///  waits for the other (the upload runs under no lock another wrapper process takes), and both branches reach the origin.
+/// Two worktrees of one repository commit at the same moment while every upload takes a while:
+/// both finish,
+/// neither
+///  waits for the other (the upload runs under no lock another wrapper process takes),
+/// and both branches reach the origin.
 #[test]
 fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other() {
     let fixture: Fixture = fixture("lfs-hang-two-worktrees");
@@ -91,10 +105,14 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
     remove_settled(&fixture);
 }
 
-/// An upload helper that detaches from the whole process tree (a new session, parent gone) and keeps the push's
-///  output file open cannot hold the commit: the push is stopped at its deadline and the wrapper returns within the
-///  deadline plus the stop grace, because it reads a file to its current end and waits on no pipe.
-///  The detached helper itself is a leak that no tree walk can find; the control ends it so the test leaves nothing.
+/// An upload helper that detaches from the whole process tree (a new session,
+/// parent gone) and keeps the push's
+///  output file open cannot hold the commit:
+/// the push is stopped at its deadline and the wrapper returns within the
+///  deadline plus the stop grace,
+/// because it reads a file to its current end and waits on no pipe.
+///  The detached helper itself is a leak that no tree walk can find;
+/// the control ends it so the test leaves nothing.
 #[test]
 fn a_detached_upload_helper_holding_the_output_open_does_not_hold_the_commit() {
     let fixture: Fixture = fixture("lfs-hang-detached");

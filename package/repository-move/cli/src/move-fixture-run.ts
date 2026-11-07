@@ -49,6 +49,8 @@ export const COPY_TOOL: string = new URL(
  
  @param mainPath - the main checkout as the caller spells it; the fixture's own folder when absent
  
+ @param run - false for print mode, which shows every command and runs none; true by default
+ 
  @param snapshotFolder - the snapshot folder; the fixture's own `snap` folder when absent
  
  @param receivedFolder - the received folder; the fixture's own `recv` folder when absent
@@ -70,6 +72,7 @@ export async function runCopyTool(
     pass,
     extra = [],
     env = {},
+    run = true,
     mainPath = fixture.main,
     inventoryBase = fixture.base,
     snapshotFolder = join(fixture.base, 'snap',),
@@ -79,6 +82,7 @@ export async function runCopyTool(
     readonly pass: string;
     readonly extra?: readonly string[];
     readonly env?: Readonly<Record<string, string>>;
+    readonly run?: boolean;
     readonly mainPath?: string;
     readonly inventoryBase?: string;
     readonly snapshotFolder?: string;
@@ -109,7 +113,7 @@ export async function runCopyTool(
         `--inventory=${fixture.inventory}`,
         `--inventory-main=${INVENTORY_TOP}/main`,
         `--inventory-prefix=${INVENTORY_TOP}/=${inventoryBase}/`,
-        '--run',
+        ...(run ? ['--run',] : []),
         '--no-scope',
         '--subvolume-marker=.stub-subvolume',
         '--min-free-gib=0',

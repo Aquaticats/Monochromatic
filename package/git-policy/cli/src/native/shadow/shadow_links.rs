@@ -1,13 +1,22 @@
 //! What:
 //!  Links every non-private entry of the real common Git directory into a shadow repository,
-//!       and copies the per-worktree entries (`config.worktree`, a linked worktree's sparse checkout).
+//!       and copies the per-worktree entries (`config.worktree`,
+//! a linked worktree's sparse checkout).
 //! Why:
-//!  Shared entries such as `hooks`, `info`, `rr-cache`, `lfs` and `modules` must be the real ones,
+//!  Shared entries such as `hooks`,
+//! `info`,
+//! `rr-cache`,
+//! `lfs` and `modules` must be the real ones,
 //!  so hooks and native Git see them;
-//!  transaction-private entries (refs, index, objects, conclusion state, lock files) stay the shadow's own
+//!  transaction-private entries (refs,
+//! index,
+//! objects,
+//! conclusion state,
+//! lock files) stay the shadow's own
 //!  (`src/shadow-repository/shadow-links.ts`).
 //!  On Windows the incumbent uses junctions and copies;
-//!  this port uses directory symbolic links and copies, because the standard library has no junction API.
+//!  this port uses directory symbolic links and copies,
+//! because the standard library has no junction API.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,8 +29,14 @@ use crate::conclusion_cleanup::{CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY};
 use std::path::{Path, PathBuf};
 
 /// Real common-directory entries the shadow never links:
-///  its ref store, index, config, object store, message file, copied conclusion state,
-///  and the program's own state under its current name and under the name an earlier release gave it, which contains the shadow itself.
+///  its ref store,
+/// index,
+/// config,
+/// object store,
+/// message file,
+/// copied conclusion state,
+///  and the program's own state under its current name and under the name an earlier release gave it,
+/// which contains the shadow itself.
 pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
     "HEAD",
     "refs",
@@ -57,9 +72,11 @@ pub fn is_private_shadow_entry(name: &str) -> bool {
 }
 
 /// What:
-///  Removes whatever sits at a shadow entry name, without following a link.
+///  Removes whatever sits at a shadow entry name,
+/// without following a link.
 /// Why:
-///   A link in the shadow is removed itself, never its target in the real repository.
+///   A link in the shadow is removed itself,
+/// never its target in the real repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,7 +95,8 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
 ///  Shares one real entry with the shadow.
 /// Why:
 ///   Unix links every entry;
-///  Windows links directories and copies files, since a file link needs a privilege.
+///  Windows links directories and copies files,
+/// since a file link needs a privilege.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -102,9 +120,11 @@ fn share_entry(source: &Path, destination: &Path, directory: bool) -> std::io::R
 
 /// What:
 ///  Which entries of a real directory are not linked into the shadow.
-///  An `enum` is a closed set of named alternatives; here each alternative may carry a value.
+///  An `enum` is a closed set of named alternatives;
+/// here each alternative may carry a value.
 /// Why:
-///   The two callers skip different entries, and a rule value stands where a closure that decided by name stood.
+///   The two callers skip different entries,
+/// and a rule value stands where a closure that decided by name stood.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,9 +132,11 @@ fn share_entry(source: &Path, destination: &Path, directory: bool) -> std::io::R
 /// ```
 #[derive(Clone, Copy)]
 enum SkipRule {
-    /// The entries a shadow keeps its own (`is_private_shadow_entry`), and `info` too when `also_info` is set.
+    /// The entries a shadow keeps its own (`is_private_shadow_entry`),
+    /// and `info` too when `also_info` is set.
     PrivateEntries {
-        /// Whether the `info` directory is kept private too, because the shadow links a single file of it.
+        /// Whether the `info` directory is kept private too,
+        /// because the shadow links a single file of it.
         also_info: bool,
     },
     /// The one entry with this exact name.
@@ -167,7 +189,8 @@ fn link_directory_entries(
 /// What:
 ///  Reports whether a regular per-worktree file exists.
 /// Why:
-///   A missing file is an answer, every other failure is an error.
+///   A missing file is an answer,
+/// every other failure is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,7 +255,8 @@ fn set_private_directory(path: &Path) -> std::io::Result<()> {
     return std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
 }
 
-/// Windows has no mode bits for this directory; the incumbent's ACL work is not ported.
+/// Windows has no mode bits for this directory;
+/// the incumbent's ACL work is not ported.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(windows)]
 fn set_private_directory(_path: &Path) -> std::io::Result<()> {

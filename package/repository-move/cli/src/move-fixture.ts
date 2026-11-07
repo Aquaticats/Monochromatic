@@ -105,6 +105,13 @@ async function git(
  @param name - worktree name under `main/wt`
  
  @param uuid - the subvolume UUID the marker records
+
+ @example
+ ```ts
+ import { addWorktree, } from './move-fixture.ts';
+ 
+ await addWorktree({ fixture, name, uuid, },);
+ ```
  */
 export async function addWorktree(
   {
@@ -149,6 +156,13 @@ export async function addWorktree(
  @param fixture - the fixture
  
  @param name - worktree name under `main/wt`
+
+ @example
+ ```ts
+ import { removeWorktree, } from './move-fixture.ts';
+ 
+ await removeWorktree({ fixture, name, },);
+ ```
  */
 export async function removeWorktree(
   {
@@ -179,31 +193,64 @@ export async function removeWorktree(
 
  @param fixture - the fixture
  
- @param rows - names under `main/wt` with their UUIDs; the main checkout is always `u-main`
+ @param rows - names under `main/wt` with their UUIDs and, as a third element, the UUID of the subvolume each was snapshotted from (the dash when absent); the main checkout is always `u-main`
+ 
+ @param withParents - false writes the older listing without the parent column
+
+ @example
+ ```ts
+ import { writeInventory, } from './move-fixture.ts';
+ 
+ await writeInventory({ fixture, rows, },);
+ ```
  */
 export async function writeInventory(
   {
     fixture,
     rows,
+    withParents = true,
   }: {
     readonly fixture: Fixture;
     readonly rows: readonly (readonly [
       string,
-      string
+      string,
+      string?
     ])[];
+    readonly withParents?: boolean;
   },
 ): Promise<void> {
+  /**
+   The columns of one row between `top level` and the path: with `btrfs subvolume list -q` the parent and received
+   UUIDs come first, without it only the UUID.
+
+   @param uuid - the subvolume UUID
+
+   @param parentUuid - the UUID of the subvolume it was snapshotted from, the dash for none
+
+   @returns the text of the columns
+   */
+  function columns(
+    {
+      uuid,
+      parentUuid,
+    }: {
+      readonly uuid: string;
+      readonly parentUuid: string;
+    },
+  ): string {
+    return withParents ? `parent_uuid ${parentUuid} received_uuid - uuid ${uuid}` : `uuid ${uuid}`;
+  }
   /**
    The lines of text this step works on.
    */
   const lines = [
-    'ID 100 gen 9 top level 5 uuid u-unrelated path other/unrelated/volume',
-    `ID 256 gen 9 top level 5 uuid u-main path ${INVENTORY_TOP}/main`,
+    `ID 100 gen 9 top level 5 ${columns({ uuid: 'u-unrelated', parentUuid: '-', },)} path other/unrelated/volume`,
+    `ID 256 gen 9 top level 5 ${columns({ uuid: 'u-main', parentUuid: '-', },)} path ${INVENTORY_TOP}/main`,
     ...rows.map(function toRow(
-      [name, uuid,],
+      [name, uuid, parentUuid = '-',],
       index,
     ) {
-      return `ID ${String(FIRST_WORKTREE_ID + index,)} gen 9 top level 256 uuid ${uuid} path ${INVENTORY_TOP}/main/wt/${name}`;
+      return `ID ${String(FIRST_WORKTREE_ID + index,)} gen 9 top level 256 ${columns({ uuid, parentUuid, },)} path ${INVENTORY_TOP}/main/wt/${name}`;
     },),
   ];
   await writeFile(
@@ -218,6 +265,13 @@ export async function writeInventory(
  @param names - worktree names
  
  @returns the fixture; declare it with `await using` so its folder is removed at the end of the scope
+
+ @example
+ ```ts
+ import { makeFixture, } from './move-fixture.ts';
+ 
+ const result = await makeFixture({ names, },);
+ ```
  */
 export async function makeFixture(
   { names, }: {

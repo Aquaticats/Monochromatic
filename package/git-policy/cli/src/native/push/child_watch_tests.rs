@@ -1,21 +1,26 @@
 //! Controls for the watcher of waits that block on a child process:
-//!  the limit from its variable, the notices at the cadence, the child stopped at the bound,
+//!  the limit from its variable,
+//! the notices at the cadence,
+//! the child stopped at the bound,
 //!  and the one-shot run that captures a command's output under a watch.
 #![cfg(unix)]
 
 use super::*;
+use std::io::Write;
 use crate::wait_progress::Cadence;
 use crate::test_support::{ActionSink, SharedSink};
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 
-/// A cadence of a 60 ms grace and a 60 ms interval, so a notice comes fast.
+/// A cadence of a 60 ms grace and a 60 ms interval,
+/// so a notice comes fast.
 const QUICK: Cadence = Cadence {
     grace: Duration::from_millis(60),
     interval: Duration::from_millis(60),
 };
 
-/// Terms of a limit, the quick cadence and a shared sink the test reads.
+/// Terms of a limit,
+/// the quick cadence and a shared sink the test reads.
 fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
     return WatchTerms {
         limit,
@@ -24,7 +29,9 @@ fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
     };
 }
 
-/// The sentence for a stopped wait names it, the window, the variable and what to do next.
+/// The sentence for a stopped wait names it,
+/// the window,
+/// the variable and what to do next.
 #[test]
 fn the_timeout_sentence_names_the_wait_the_bound_and_the_next_step() {
     let limit: Duration = ChildClass::Object.default_limit();
@@ -37,7 +44,8 @@ fn the_timeout_sentence_names_the_wait_the_bound_and_the_next_step() {
     assert!(text.contains("`ps`"), "{text}");
 }
 
-/// The object reader names itself with its class, like every other step.
+/// The object reader names itself with its class,
+/// like every other step.
 #[test]
 fn the_reader_subject_names_the_command_and_its_class() {
     let subject: String = reader_subject();
@@ -45,7 +53,8 @@ fn the_reader_subject_names_the_command_and_its_class() {
     assert!(subject.ends_with(ChildClass::Object.label()), "{subject}");
 }
 
-/// The terms of a class carry its bound, and a grace that never passes the interval or the bound.
+/// The terms of a class carry its bound,
+/// and a grace that never passes the interval or the bound.
 #[test]
 fn the_terms_of_a_class_carry_its_bound_and_a_grace_inside_it() {
     for class in [ChildClass::Plumbing, ChildClass::Object] {
@@ -69,7 +78,8 @@ fn a_short_bound_pulls_the_first_notice_inside_it() {
     }
 }
 
-/// A sink that tells a channel each time a line is finished, and keeps the text for the test.
+/// A sink that tells a channel each time a line is finished,
+/// and keeps the text for the test.
 struct LineSignal {
     /// The text written so far.
     shared: SharedSink,
@@ -94,8 +104,11 @@ impl Write for LineSignal {
     }
 }
 
-/// A wait that crosses the bound is announced, then the child is stopped, which ends the blocked wait.
-///  The notice that is due goes out before the bound is checked, so at least one notice is out
+/// A wait that crosses the bound is announced,
+/// then the child is stopped,
+/// which ends the blocked wait.
+///  The notice that is due goes out before the bound is checked,
+/// so at least one notice is out
 ///  however slowly the host runs the watcher.
 #[test]
 fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
@@ -118,8 +131,10 @@ fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
     assert_eq!(text.matches("Hint:").count(), 1, "{text}");
 }
 
-/// A wait that ends inside the grace prints nothing and does not stop the child; an idle watch prints nothing either.
-///  The grace is an hour, so no host is slow enough to make the wait outlast it.
+/// A wait that ends inside the grace prints nothing and does not stop the child;
+/// an idle watch prints nothing either.
+///  The grace is an hour,
+/// so no host is slow enough to make the wait outlast it.
 #[test]
 fn a_wait_that_ends_inside_the_grace_prints_nothing() {
     let sink: SharedSink = SharedSink::default();
@@ -144,10 +159,16 @@ fn a_wait_that_ends_inside_the_grace_prints_nothing() {
     child.wait().expect("collect");
 }
 
-/// A wait that has ended is not announced any more: the watcher goes back to sleeping until the next wait begins.
-///  The wait ends on its first notice. Then a settling pause lets a line that was being written finish, and the
-///  notices must stay at that count over many more intervals. The check cannot fail on a slow host, which only
-///  prints nothing, while a watcher that goes on counting a finished wait prints at every interval.
+/// A wait that has ended is not announced any more:
+/// the watcher goes back to sleeping until the next wait begins.
+///  The wait ends on its first notice.
+/// Then a settling pause lets a line that was being written finish,
+/// and the
+///  notices must stay at that count over many more intervals.
+/// The check cannot fail on a slow host,
+/// which only
+///  prints nothing,
+/// while a watcher that goes on counting a finished wait prints at every interval.
 #[test]
 fn a_wait_that_has_ended_is_announced_no_more() {
     let shared: SharedSink = SharedSink::default();
@@ -178,8 +199,12 @@ fn a_wait_that_has_ended_is_announced_no_more() {
     assert!(!expired);
 }
 
-/// Each wait gets its own clock: a second wait on the same child is announced from its own start, with its own hint.
-///  Each wait ends on its first notice, so every wait has at least one notice, however slowly the host runs the watcher.
+/// Each wait gets its own clock:
+/// a second wait on the same child is announced from its own start,
+/// with its own hint.
+///  Each wait ends on its first notice,
+/// so every wait has at least one notice,
+/// however slowly the host runs the watcher.
 #[test]
 fn each_wait_is_announced_from_its_own_start() {
     let shared: SharedSink = SharedSink::default();
@@ -208,8 +233,10 @@ fn each_wait_is_announced_from_its_own_start() {
 }
 
 /// A command that runs long has its output collected untouched while the wait is announced.
-///  The command waits for a release file that the second notice creates, so the wait ends on that event and at least
-///  two notices are out, however slowly the host runs the watcher.
+///  The command waits for a release file that the second notice creates,
+/// so the wait ends on that event and at least
+///  two notices are out,
+/// however slowly the host runs the watcher.
 #[test]
 fn a_command_that_runs_long_is_announced_and_its_output_is_kept() {
     let shared: SharedSink = SharedSink::default();
@@ -240,7 +267,8 @@ fn a_command_that_runs_long_is_announced_and_its_output_is_kept() {
     crate::test_support::remove(root.as_path());
 }
 
-/// A command that outlasts the bound is stopped and reported as a timeout that names it, after at least one notice.
+/// A command that outlasts the bound is stopped and reported as a timeout that names it,
+/// after at least one notice.
 #[test]
 fn a_command_past_the_bound_is_stopped_and_reported() {
     let sink: SharedSink = SharedSink::default();
@@ -253,8 +281,10 @@ fn a_command_past_the_bound_is_stopped_and_reported() {
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
 }
 
-/// Whether `pid` is still the `sleep` of `seconds` that a control started: the number may have been given to another process
-/// since, and only the helper is signalled.
+/// Whether `pid` is still the `sleep` of `seconds` that a control started:
+/// the number may have been given to another process
+/// since,
+/// and only the helper is signalled.
 fn is_the_helper(pid: i32, seconds: u64) -> bool {
     let Ok(line) = std::fs::read(format!("/proc/{pid}/cmdline")) else { return false };
     let words: Vec<&[u8]> = line.split(|byte| { return *byte == 0; }).filter(|word| { return !word.is_empty(); }).collect();
@@ -299,8 +329,11 @@ fn a_killed_process_that_is_not_yet_reaped_is_not_running() {
     assert!(!helper_is_running(pid), "a reaped process is gone");
 }
 
-/// What a command that started a process of its own must not leave behind when it is stopped at the bound: a step of a commit
-///  (`git gc`, a `git push` with its transport) has helpers, and a helper that outlives its step holds the step's output open,
+/// What a command that started a process of its own must not leave behind when it is stopped at the bound:
+/// a step of a commit
+///  (`git gc`,
+/// a `git push` with its transport) has helpers,
+/// and a helper that outlives its step holds the step's output open,
 ///  so the wait for the output outlasts the bound by as long as the helper lives.
 #[test]
 fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
@@ -342,7 +375,9 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
     crate::test_support::remove(root.as_path());
 }
 
-/// A command that finishes at once prints nothing; the grace is an hour, so no host is slow enough to outlast it.
+/// A command that finishes at once prints nothing;
+/// the grace is an hour,
+/// so no host is slow enough to outlast it.
 #[test]
 fn a_command_that_finishes_at_once_prints_nothing() {
     let sink: SharedSink = SharedSink::default();
@@ -362,17 +397,24 @@ fn a_command_that_finishes_at_once_prints_nothing() {
     assert_eq!(sink.text(), "");
 }
 
-/// The quiet window of the controls below: past the sampling interval of the meter, so a child that works shows its work
+/// The quiet window of the controls below:
+/// past the sampling interval of the meter,
+/// so a child that works shows its work
 ///  at a sample before the window runs out.
 const WORKING_WINDOW: Duration = Duration::from_millis(1200);
 
-/// How often the working fixture shows a sign of work: well inside the window.
+/// How often the working fixture shows a sign of work:
+/// well inside the window.
 const WORKING_PAUSE_SECONDS: &str = "0.2";
 
-/// How many times the working fixture works, so that it runs for a multiple of the window.
+/// How many times the working fixture works,
+/// so that it runs for a multiple of the window.
 const WORKING_ROUNDS: u32 = 15;
 
-/// A shell command that writes a byte and pauses, `WORKING_ROUNDS` times: a slow child that keeps making progress, with no busy loop.
+/// A shell command that writes a byte and pauses,
+/// `WORKING_ROUNDS` times:
+/// a slow child that keeps making progress,
+/// with no busy loop.
 fn working_command() -> Command {
     let mut command: Command = Command::new("sh");
     command
@@ -382,7 +424,9 @@ fn working_command() -> Command {
     return command;
 }
 
-/// A child that keeps making progress is never ended however long it runs: the window judges quiet time, not wall time.
+/// A child that keeps making progress is never ended however long it runs:
+/// the window judges quiet time,
+/// not wall time.
 ///  The fixture runs for a multiple of the window and shows a sign of work every pause.
 #[test]
 fn a_child_that_keeps_working_is_never_ended_however_long_it_runs() {
@@ -395,8 +439,10 @@ fn a_child_that_keeps_working_is_never_ended_however_long_it_runs() {
     assert!(output.status.success());
 }
 
-/// A silent child is ended once it has shown no sign of work for the window, and the processes beside it are left alone:
-///  the stop reaches the child and what it started, never a sibling.
+/// A silent child is ended once it has shown no sign of work for the window,
+/// and the processes beside it are left alone:
+///  the stop reaches the child and what it started,
+/// never a sibling.
 #[test]
 fn a_silent_child_is_ended_after_the_quiet_window_and_a_sibling_is_left_alone() {
     let sink: SharedSink = SharedSink::default();
@@ -413,8 +459,11 @@ fn a_silent_child_is_ended_after_the_quiet_window_and_a_sibling_is_left_alone() 
     assert!(!sibling_ended, "the stop reached a process beside the step");
 }
 
-/// A command that keeps showing work (it writes a little every moment) is ended at the ceiling, though the quiet window is an hour:
-/// the step that works is no longer waited for however long it takes. The error is the ceiling's, which a step that may be run
+/// A command that keeps showing work (it writes a little every moment) is ended at the ceiling,
+/// though the quiet window is an hour:
+/// the step that works is no longer waited for however long it takes.
+/// The error is the ceiling's,
+/// which a step that may be run
 /// again is not run again after.
 #[test]
 fn a_step_that_keeps_working_is_ended_at_its_ceiling() {
@@ -443,9 +492,13 @@ fn a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling() {
     assert!(began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
 }
 
-/// A step with no ceiling (a write in place that is not safe to run twice) is waited for as long as it lives, though a ceiling of the
-/// length that ended the control above would have ended it, and though it was quiet for longer than the window: it is never ended
-/// for being quiet either, because it may not be run twice.
+/// A step with no ceiling (a write in place that is not safe to run twice) is waited for as long as it lives,
+/// though a ceiling of the
+/// length that ended the control above would have ended it,
+/// and though it was quiet for longer than the window:
+/// it is never ended
+/// for being quiet either,
+/// because it may not be run twice.
 #[test]
 fn a_step_with_no_ceiling_is_waited_for_until_it_ends_by_itself() {
     let sink: SharedSink = SharedSink::default();
@@ -455,8 +508,11 @@ fn a_step_with_no_ceiling_is_waited_for_until_it_ends_by_itself() {
     assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("done"));
 }
 
-/// A step left running: the command stops waiting at its bound plus the extra wait and gets the error that says the result is not
-/// known, the step is not ended, and it is reaped when it ends by itself.
+/// A step left running:
+/// the command stops waiting at its bound plus the extra wait and gets the error that says the result is not
+/// known,
+/// the step is not ended,
+/// and it is reaped when it ends by itself.
 #[test]
 fn a_step_that_outlasts_its_bound_and_the_extra_wait_is_left_running() {
     let sink: SharedSink = SharedSink::default();
@@ -479,7 +535,8 @@ fn a_step_that_outlasts_its_bound_and_the_extra_wait_is_left_running() {
     crate::test_support::remove(directory.as_path());
 }
 
-/// A step that ends within the extra wait is not an error: its output is the answer.
+/// A step that ends within the extra wait is not an error:
+/// its output is the answer.
 #[test]
 fn a_step_that_ends_within_the_extra_wait_returns_its_output() {
     let sink: SharedSink = SharedSink::default();
@@ -490,7 +547,8 @@ fn a_step_that_ends_within_the_extra_wait_returns_its_output() {
     assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("done"));
 }
 
-/// A quiet step is ended for being quiet, and that error is not the ceiling's.
+/// A quiet step is ended for being quiet,
+/// and that error is not the ceiling's.
 #[test]
 fn a_quiet_step_is_not_reported_as_the_ceiling() {
     let sink: SharedSink = SharedSink::default();
@@ -501,11 +559,15 @@ fn a_quiet_step_is_not_reported_as_the_ceiling() {
     assert!(!is_ceiling(&error), "{error}");
 }
 
-/// The variable that makes `left_running_helper` do its work: the test that spawns it names a directory.
+/// The variable that makes `left_running_helper` do its work:
+/// the test that spawns it names a directory.
 const HELPER_DIRECTORY: &str = "CLI_GIT_LEFT_RUNNING_DIRECTORY";
 
-/// The command that leaves a step running and then exits, run in a process of its own by the control below. A test run without the
-/// variable does nothing, so this is a no-op in a normal run.
+/// The command that leaves a step running and then exits,
+/// run in a process of its own by the control below.
+/// A test run without the
+/// variable does nothing,
+/// so this is a no-op in a normal run.
 #[test]
 fn left_running_helper() {
     let Some(named) = std::env::var_os(HELPER_DIRECTORY) else { return };
@@ -521,9 +583,15 @@ fn left_running_helper() {
     std::process::exit(0);
 }
 
-/// "Left running" survives the exit of the command (sol-1: the pipes the command held closed with it, and the step died of SIGPIPE
-/// when it wrote): the step is started with output that outlives the command, the command is a real process that exits, and the step
-/// writes after that and finishes. The control runs the command as a separate process of this test binary.
+/// "Left running" survives the exit of the command (sol-1:
+/// the pipes the command held closed with it,
+/// and the step died of SIGPIPE
+/// when it wrote):
+/// the step is started with output that outlives the command,
+/// the command is a real process that exits,
+/// and the step
+/// writes after that and finishes.
+/// The control runs the command as a separate process of this test binary.
 #[test]
 fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
     let directory: PathBuf = crate::test_support::fixture("child-watch-survives-exit");
@@ -576,7 +644,9 @@ fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
     crate::test_support::remove(directory.as_path());
 }
 
-/// What a step wrote is released once it is read (sol-1 round 3, P2 E): a descendant that keeps the files open cannot keep the pages
+/// What a step wrote is released once it is read (sol-1 round 3,
+/// P2 E):
+/// a descendant that keeps the files open cannot keep the pages
 /// the reader no longer needs.
 #[test]
 fn the_output_of_a_step_is_released_once_it_is_read() {

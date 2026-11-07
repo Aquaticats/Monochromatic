@@ -1,6 +1,9 @@
 //! Controls for the runner entry points:
-//!  a command line the readers know starts no Git process and prints what Git prints, the switch brings the process
-//!  back, a command line the readers do not know still starts Git, and a request's private index is the one read.
+//!  a command line the readers know starts no Git process and prints what Git prints,
+//! the switch brings the process
+//!  back,
+//! a command line the readers do not know still starts Git,
+//! and a request's private index is the one read.
 
 use super::*;
 use crate::git_metadata::run_metadata_git;
@@ -8,7 +11,8 @@ use crate::test_support::{REAL_GIT, executable, fixture, git, git_output, remove
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::path::PathBuf;
 
-/// The variables that make the host's own configuration irrelevant, as the fixtures' Git sees it.
+/// The variables that make the host's own configuration irrelevant,
+/// as the fixtures' Git sees it.
 fn hermetic(root: &Path) -> Vec<(OsString, OsString)> {
     return vec![
         (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
@@ -17,7 +21,8 @@ fn hermetic(root: &Path) -> Vec<(OsString, OsString)> {
     ];
 }
 
-/// A stand-in Git that records each start and runs the real one, and the file it records into.
+/// A stand-in Git that records each start and runs the real one,
+/// and the file it records into.
 fn counting_git(root: &Path) -> (PathBuf, PathBuf) {
     let directory = root.join("counting-bin");
     std::fs::create_dir(&directory).expect("directory");
@@ -37,7 +42,9 @@ fn listing(repo: &Path) -> Vec<OsString> {
     return ["-C", repo.to_str().expect("UTF-8"), "ls-files", "--stage", "-z", "--full-name"].iter().map(OsString::from).collect();
 }
 
-/// A known query starts nothing and equals Git; the switch, an unknown query and a missing Git behave as described.
+/// A known query starts nothing and equals Git;
+/// the switch,
+/// an unknown query and a missing Git behave as described.
 #[test]
 fn known_queries_start_no_process_and_the_switch_restores_it() {
     let root = fixture("repo-read-hook-metadata");
@@ -65,7 +72,8 @@ fn known_queries_start_no_process_and_the_switch_restores_it() {
     remove(root.as_path());
 }
 
-/// A transaction request reads the private index it names, not the repository's own.
+/// A transaction request reads the private index it names,
+/// not the repository's own.
 #[test]
 fn a_request_reads_its_private_index() {
     let root = fixture("repo-read-hook-request");
@@ -101,7 +109,9 @@ fn a_request_reads_its_private_index() {
     remove(root.as_path());
 }
 
-/// A reader that panics is answered by Git instead: the guard returns nothing, and a quiet reader passes through.
+/// A reader that panics is answered by Git instead:
+/// the guard returns nothing,
+/// and a quiet reader passes through.
 #[test]
 fn a_panicking_reader_is_left_to_git() {
     fn defective(_state: ()) -> Option<u8> {
@@ -118,8 +128,11 @@ fn a_panicking_reader_is_left_to_git() {
     assert_eq!(guarded((), declining), None);
 }
 
-/// An environment without `GIT_CONFIG_NOSYSTEM` and without the forward-target variable, as a resident process or a caller
-///  that holds only a Git path has it: the readers still learn the system file from the Git the caller names, so they answer.
+/// An environment without `GIT_CONFIG_NOSYSTEM` and without the forward-target variable,
+/// as a resident process or a caller
+///  that holds only a Git path has it:
+/// the readers still learn the system file from the Git the caller names,
+/// so they answer.
 #[test]
 fn a_caller_that_names_only_its_git_still_gets_in_process_answers() {
     let root = fixture("repo-read-hook-named-git");

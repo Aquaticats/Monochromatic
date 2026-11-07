@@ -4,7 +4,8 @@ use super::*;
 use crate::event_path::EventPath;
 use crate::policy_trigger::Trigger;
 
-/// Paths of a summary event, as text.
+/// Paths of a summary event,
+/// as text.
 fn summary_paths(events: &[PolicyEvent]) -> Vec<String> {
     match events.last() {
         Some(PolicyEvent::FixSummary { changed_paths, trigger, .. }) => {
@@ -15,7 +16,8 @@ fn summary_paths(events: &[PolicyEvent]) -> Vec<String> {
     }
 }
 
-/// No pass changed anything, so the events stay as they were.
+/// No pass changed anything,
+/// so the events stay as they were.
 #[test]
 fn no_changed_pass_adds_no_summary() {
     assert_eq!(events_with_changed_summary(Vec::new(), 0, &[b"a.txt".to_vec()]), Vec::<PolicyEvent>::new());
@@ -45,7 +47,8 @@ fn the_unconditional_summary_follows_the_settled_events() {
 }
 
 /// A name that is not UTF-8 keeps its exact bytes in the summary,
-///  and the order is the order of the bytes, not of the readable text:
+///  and the order is the order of the bytes,
+/// not of the readable text:
 ///  the byte 0x80 sorts before the first byte of "é" although its replacement character sorts after it.
 #[test]
 fn a_summary_keeps_the_exact_bytes_of_a_name_that_is_not_utf8() {

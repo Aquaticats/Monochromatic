@@ -1,8 +1,12 @@
 //! What:
 //!  Controls for the clearing that precedes the person's own forwarded `git fetch` and `git push`.
 //! Why:
-//!  The forwarded command becomes Git, so the notice is all the wrapper can add; it must name what it removed, describe what
-//!  it will not remove, and leave every other command and repository alone.
+//!  The forwarded command becomes Git,
+//! so the notice is all the wrapper can add;
+//! it must name what it removed,
+//! describe what
+//!  it will not remove,
+//! and leave every other command and repository alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,7 +23,8 @@ fn prefix(stage: &Stage) -> Vec<OsString> {
     return vec![OsString::from("-C"), stage.repo.clone().into_os_string()];
 }
 
-/// A killed fetch's locks are removed before a forwarded fetch, and the notice says so.
+/// A killed fetch's locks are removed before a forwarded fetch,
+/// and the notice says so.
 #[test]
 fn a_forwarded_fetch_clears_what_is_proven_stale_and_says_so() {
     let stage: Stage = killed::stage("forwarded-notice-proven", true);
@@ -31,7 +36,8 @@ fn a_forwarded_fetch_clears_what_is_proven_stale_and_says_so() {
     stage.finish();
 }
 
-/// A lock that is not proven stale stays, and the notice gives the command that clears it.
+/// A lock that is not proven stale stays,
+/// and the notice gives the command that clears it.
 #[test]
 fn a_forwarded_push_describes_a_lock_it_will_not_remove() {
     let stage: Stage = killed::stage("forwarded-notice-unproven", false);
@@ -43,7 +49,8 @@ fn a_forwarded_push_describes_a_lock_it_will_not_remove() {
     stage.finish();
 }
 
-/// Other commands are not looked at, and nothing is removed for them.
+/// Other commands are not looked at,
+/// and nothing is removed for them.
 #[test]
 fn other_commands_are_left_alone() {
     let stage: Stage = killed::stage("forwarded-notice-others", true);
@@ -68,7 +75,8 @@ fn a_repository_named_by_another_option_is_not_touched() {
     stage.finish();
 }
 
-/// `GIT_DIR` in the environment names the repository, as it does for Git.
+/// `GIT_DIR` in the environment names the repository,
+/// as it does for Git.
 #[test]
 fn git_dir_in_the_environment_names_the_repository() {
     let stage: Stage = killed::stage("forwarded-notice-env", true);

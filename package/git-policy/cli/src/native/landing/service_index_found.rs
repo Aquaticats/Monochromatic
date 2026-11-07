@@ -89,7 +89,8 @@ pub fn open_by_text(seen: Option<&HolderEvidence>) -> Option<String> {
 }
 
 /// What:
-///  How many milliseconds ago a file was last changed, zero when that cannot be told.
+///  How many milliseconds ago a file was last changed,
+/// zero when that cannot be told.
 /// Why:
 ///  `describe_lock` says how old a lock file is.
 ///

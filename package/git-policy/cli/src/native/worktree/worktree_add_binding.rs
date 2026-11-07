@@ -1,12 +1,22 @@
 //! What:
 //!  The binding of one `git worktree add` to the objects real Git made for it (the destination directory and the
-//!  administrative directory that registers it), the record that carries the binding, and the check that the binding still
+//!  administrative directory that registers it),
+//! the record that carries the binding,
+//! and the check that the binding still
 //!  holds.
 //! Why:
-//!  The wrapper completes an add in place, through the bound objects, and never deletes or unregisters a worktree: a path
-//!  can be changed by another process between any check and any act, so no pathname or identity recorded earlier proves the
-//!  right to remove something later. The binding is what a fast rung and the fallback checkout verify before they write into
-//!  the worktree, and what the report of an interrupted add names. It is captured right after Git returned, and an add
+//!  The wrapper completes an add in place,
+//! through the bound objects,
+//! and never deletes or unregisters a worktree:
+//! a path
+//!  can be changed by another process between any check and any act,
+//! so no pathname or identity recorded earlier proves the
+//!  right to remove something later.
+//! The binding is what a fast rung and the fallback checkout verify before they write into
+//!  the worktree,
+//! and what the report of an interrupted add names.
+//! It is captured right after Git returned,
+//! and an add
 //!  whose pair cannot be proven is left exactly as Git made it.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,14 +33,17 @@ use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
-/// What an add bound itself to: the two directories Git made and the pointer it wrote.
+/// What an add bound itself to:
+/// the two directories Git made and the pointer it wrote.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Binding {
-    /// The destination, a canonical path.
+    /// The destination,
+    /// a canonical path.
     pub destination: PathBuf,
     /// The identity of the destination directory when Git returned.
     pub destination_id: ObjectId,
-    /// The administrative directory, a canonical path directly below the repository's `worktrees`.
+    /// The administrative directory,
+    /// a canonical path directly below the repository's `worktrees`.
     pub admin: PathBuf,
     /// The identity of the administrative directory when Git returned.
     pub admin_id: ObjectId,
@@ -41,7 +54,8 @@ pub struct Binding {
 /// A binding with the two directories held open.
 #[derive(Debug)]
 pub struct Bound {
-    /// The binding, for the record.
+    /// The binding,
+    /// for the record.
     pub binding: Binding,
     /// The destination directory as it was when it was bound.
     pub destination: File,
@@ -50,9 +64,11 @@ pub struct Bound {
 }
 
 /// What:
-///  The value of the first line `<key>=<value>` of a record's text, if any line has that key.
+///  The value of the first line `<key>=<value>` of a record's text,
+/// if any line has that key.
 /// Why:
-///   A binding record is a list of `key=value` lines, and a field is looked up by key.
+///   A binding record is a list of `key=value` lines,
+/// and a field is looked up by key.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -94,7 +110,9 @@ fn unhex(text: &str) -> Option<Vec<u8>> {
     return Some(bytes);
 }
 
-/// The text of a path for a record: hexadecimal, so that a newline in a name cannot forge a field.
+/// The text of a path for a record:
+/// hexadecimal,
+/// so that a newline in a name cannot forge a field.
 pub fn encode_path(path: &Path) -> String {
     return hex(path.as_os_str().as_bytes());
 }
@@ -122,7 +140,8 @@ impl Binding {
 /// What a record says about an add.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Recorded {
-    /// The add was planned and not bound: no object is known to be the add's.
+    /// The add was planned and not bound:
+    /// no object is known to be the add's.
     Planned(PathBuf),
     /// The add was bound to the objects Git made.
     Registered(Binding),
@@ -131,7 +150,8 @@ pub enum Recorded {
 /// What:
 ///  Read the text of an add's record.
 /// Why:
-///   A record that does not parse in full is treated as planned only when its destination field parses; anything else is
+///   A record that does not parse in full is treated as planned only when its destination field parses;
+/// anything else is
 ///  unreadable and authorizes nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -160,20 +180,28 @@ pub fn planned_record(destination: &Path) -> String {
     return format!("destination={}\nphase=planned\n", encode_path(destination));
 }
 
-/// The identity of the object that the canonical path `path` names now, or nothing.
+/// The identity of the object that the canonical path `path` names now,
+/// or nothing.
 ///
-/// Why: a held handle keeps naming the directory it was opened on, whatever the path names later; this asks the path.
+/// Why:
+/// a held handle keeps naming the directory it was opened on,
+/// whatever the path names later;
+/// this asks the path.
 pub fn path_identity(path: &Path) -> Option<ObjectId> {
     let parent: File = open_root(path.parent()?).ok()?;
     return crate::fs_beneath::identity_at(&parent, path.file_name()?).ok();
 }
 
 /// What:
-///  Bind an add to the directories Git just made for it, after proving that they belong together and to this repository.
+///  Bind an add to the directories Git just made for it,
+/// after proving that they belong together and to this repository.
 /// Why:
-///   The pointer must name an administrative directory directly below this repository's `worktrees`, and that directory's
-///  `gitdir` must name the pointer back; only then are the identities of both directories and the pointer bytes captured,
-///  with both directories held open. A pointer edited to name another worktree's administrative directory fails the
+///   The pointer must name an administrative directory directly below this repository's `worktrees`,
+/// and that directory's
+///  `gitdir` must name the pointer back;
+/// only then are the identities of both directories and the pointer bytes captured,
+///  with both directories held open.
+/// A pointer edited to name another worktree's administrative directory fails the
 ///  back-link.
 ///
 /// In TS you'd write (pseudocode):
@@ -218,10 +246,13 @@ fn not_canonical(shown: &str, target: &Path, why: &str) -> String {
 }
 
 /// What:
-///  The place a registration's `gitdir` file names, absolute whether Git wrote it absolute or relative to the registration.
+///  The place a registration's `gitdir` file names,
+/// absolute whether Git wrote it absolute or relative to the registration.
 /// Why:
 ///   Git writes the destination's `.git` path relative to the registration's directory under `--relative-paths` and
-///  `worktree.useRelativePaths`; the pair is the same either way, and a copy must be made for either.
+///  `worktree.useRelativePaths`;
+/// the pair is the same either way,
+/// and a copy must be made for either.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -235,9 +266,13 @@ fn recorded_destination(admin: &Path, recorded: &[u8]) -> Result<PathBuf, String
 }
 
 /// What:
-///  `named` joined onto `base` and cleaned of `.` and `..` by the text alone, or an error when it climbs out of the root.
+///  `named` joined onto `base` and cleaned of `.` and `..` by the text alone,
+/// or an error when it climbs out of the root.
 /// Why:
-///   Both bases are canonical directories opened without a link, so the text decides, as Git's own resolution does; a link
+///   Both bases are canonical directories opened without a link,
+/// so the text decides,
+/// as Git's own resolution does;
+/// a link
 ///  in the result is refused where the result is opened.
 ///
 /// In TS you'd write (pseudocode):
@@ -261,10 +296,14 @@ fn resolve_lexically(base: &Path, named: &[u8]) -> Result<PathBuf, ()> {
 }
 
 /// What:
-///  The registration directory a `gitdir:` pointer names, resolved lexically against the destination.
+///  The registration directory a `gitdir:` pointer names,
+/// resolved lexically against the destination.
 /// Why:
-///   The destination is a canonical path, so `.` and `..` in a relative pointer resolve by their text; a link anywhere in the
-///  result is then caught by opening it as a canonical root, and no alias is ever followed to find the registration.
+///   The destination is a canonical path,
+/// so `.` and `..` in a relative pointer resolve by their text;
+/// a link anywhere in the
+///  result is then caught by opening it as a canonical root,
+/// and no alias is ever followed to find the registration.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -282,7 +321,8 @@ fn pointer_target(destination: &Path, pointer: &[u8]) -> Result<PathBuf, String>
     };
 }
 
-/// The bytes of the file `name` of the held directory, read through the handle and not through a path.
+/// The bytes of the file `name` of the held directory,
+/// read through the handle and not through a path.
 fn read_through(directory: &File, name: &OsStr) -> std::io::Result<Vec<u8>> {
     let mut file: File = open_file_at(directory, name)?;
     let mut bytes: Vec<u8> = Vec::new();
@@ -291,12 +331,20 @@ fn read_through(directory: &File, name: &OsStr) -> std::io::Result<Vec<u8>> {
 }
 
 /// What:
-///  Check that the objects an add was bound to are still where and what they were: the destination and the registration
-///  still have the bound identities at their paths, the pointer still has the bound bytes, and the registration still
+///  Check that the objects an add was bound to are still where and what they were:
+/// the destination and the registration
+///  still have the bound identities at their paths,
+/// the pointer still has the bound bytes,
+/// and the registration still
 ///  names the pointer.
 /// Why:
-///   A write into the worktree, or a checkout by Git, must go to the exact worktree the add made; if another process moved
-///  or replaced either object, the step stops and the add is reported, with nothing changed.
+///   A write into the worktree,
+/// or a checkout by Git,
+/// must go to the exact worktree the add made;
+/// if another process moved
+///  or replaced either object,
+/// the step stops and the add is reported,
+/// with nothing changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

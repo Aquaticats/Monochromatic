@@ -1,4 +1,7 @@
-//! The worker budget: what bounds it, what never lets it reach zero, and how the host's facts are read.
+//! The worker budget:
+//! what bounds it,
+//! what never lets it reach zero,
+//! and how the host's facts are read.
 
 use super::*;
 
@@ -15,7 +18,9 @@ fn request(items: usize, host: &HostResources) -> BudgetRequest<'_> {
     return BudgetRequest { items, per_item_memory: ITEM_BYTES, ceiling: None, cap: None, host };
 }
 
-/// The margin is an eighth of the threads, at least one, and nothing for a process that may run only two.
+/// The margin is an eighth of the threads,
+/// at least one,
+/// and nothing for a process that may run only two.
 #[test]
 fn the_margin_is_an_eighth_of_the_threads_and_nothing_for_two() {
     assert_eq!(cpu_margin(1), 0);
@@ -34,7 +39,8 @@ fn the_cpus_minus_the_margin_bound_the_workers() {
     assert_eq!(worker_budget(&request(usize::MAX, &small)), 2);
 }
 
-/// Fewer items than workers: one worker per item.
+/// Fewer items than workers:
+/// one worker per item.
 #[test]
 fn the_items_bound_the_workers() {
     let large: HostResources = host(CPU_MARGIN_DIVISOR * 4, None);
@@ -49,7 +55,8 @@ fn the_free_memory_bounds_the_workers() {
     assert_eq!(worker_budget(&request(usize::MAX, &tight)), usize::try_from(fits).expect("a small count"));
 }
 
-/// A host with almost no memory still runs one item, so the run makes progress.
+/// A host with almost no memory still runs one item,
+/// so the run makes progress.
 #[test]
 fn a_starved_host_still_gets_one_worker() {
     let starved: HostResources = host(CPU_MARGIN_DIVISOR * 4, Some(0));
@@ -59,7 +66,8 @@ fn a_starved_host_still_gets_one_worker() {
     assert_eq!(worker_budget(&request(0, &nothing)), 1);
 }
 
-/// The measured ceiling and the person's cap bound the workers, and the smaller of the two wins.
+/// The measured ceiling and the person's cap bound the workers,
+/// and the smaller of the two wins.
 #[test]
 fn the_ceiling_and_the_cap_bound_the_workers() {
     let large: HostResources = host(CPU_MARGIN_DIVISOR * 4, None);
@@ -77,7 +85,9 @@ fn this_host_has_a_thread() {
     assert!(HostResources::read().parallelism >= 1);
 }
 
-/// File-tree jobs take the host's budget up to their ceiling: the margin and the memory bound them on a small host, the ceiling on a
+/// File-tree jobs take the host's budget up to their ceiling:
+/// the margin and the memory bound them on a small host,
+/// the ceiling on a
 ///  large one.
 #[test]
 fn sliced_jobs_take_the_budget_up_to_their_ceiling() {
@@ -90,8 +100,10 @@ fn sliced_jobs_take_the_budget_up_to_their_ceiling() {
     assert_eq!(sliced_workers(usize::MAX, ceiling, &tight), 3);
 }
 
-/// The owner's ruling of 2026-11-07 ("Memory headroom: sysinfo") moves the reading of the system's available memory and of the
-///  control groups' limits to the published crate, so this file holds neither the `/proc/meminfo` label nor the group files.
+/// The owner's ruling of 2026-11-07 ("Memory headroom:
+/// sysinfo") moves the reading of the system's available memory and of the
+///  control groups' limits to the published crate,
+/// so this file holds neither the `/proc/meminfo` label nor the group files.
 #[test]
 fn the_budget_reads_no_memory_file_itself() {
     let source: &str = include_str!("parallel_budget.rs");
@@ -102,7 +114,8 @@ fn the_budget_reads_no_memory_file_itself() {
     }
 }
 
-/// The available memory the budget reads is a figure no larger than the system's total, and the read gives one on this host.
+/// The available memory the budget reads is a figure no larger than the system's total,
+/// and the read gives one on this host.
 #[test]
 fn the_read_memory_is_a_figure_below_the_system_total() {
     let host: HostResources = HostResources::read();

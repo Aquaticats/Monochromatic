@@ -20,7 +20,8 @@ fn intent(namespace: Option<&str>, target: Option<&str>) -> MergeIntent {
     };
 }
 
-/// A record reads back exactly, with and without the optional fields.
+/// A record reads back exactly,
+/// with and without the optional fields.
 #[test]
 fn an_intent_round_trips() {
     for (namespace, target) in [
@@ -56,7 +57,10 @@ fn a_malformed_intent_is_refused() {
     assert_eq!(parse_merge_intent(&[0xff, 0xfe]), None);
 }
 
-/// A record is written once, listed, and removed; a second write of the same merge is refused.
+/// A record is written once,
+/// listed,
+/// and removed;
+/// a second write of the same merge is refused.
 #[test]
 fn a_record_is_written_listed_and_removed() {
     let root: PathBuf = fixture("merge-intent-files");

@@ -1,12 +1,22 @@
 //! What:
-//!  How a commit reaches the resident service: already listening, or set up first by the wrapper.
+//!  How a commit reaches the resident service:
+//! already listening,
+//! or set up first by the wrapper.
 //! Why:
 //!  There is no switch and no install state for the person to manage (`doc/planning/cli-git-resident-service.md`,
-//!  "Provisioning"). The route follows the machine: a user session bus and the wrapper's own executable (which is the service
-//!  program too) mean the wrapper can set the service up itself, and keeps it set up (the socket is the manager's and outlives every upgrade, so
-//!  its presence never says the installed units name this release's program); a socket without them is used as it is;
-//!  anything else has no route, and the commit stops with the plain message of its platform, because the service is the only
-//!  writer of a commit. The decision reads the file system only and starts no process.
+//!  "Provisioning").
+//! The route follows the machine:
+//! a user session bus and the wrapper's own executable (which is the service
+//!  program too) mean the wrapper can set the service up itself,
+//! and keeps it set up (the socket is the manager's and outlives every upgrade,
+//! so
+//!  its presence never says the installed units name this release's program);
+//! a socket without them is used as it is;
+//!  anything else has no route,
+//! and the commit stops with the plain message of its platform,
+//! because the service is the only
+//!  writer of a commit.
+//! The decision reads the file system only and starts no process.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,15 +33,21 @@ use std::path::{Path, PathBuf};
 
 static OWN_EXECUTABLE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
-/// Remembers where the running wrapper is, once, so the unit of the service can name it (the service is a mode of the same
+/// Remembers where the running wrapper is,
+/// once,
+/// so the unit of the service can name it (the service is a mode of the same
 ///  executable).
-///  Identification only: nothing is started from this path (`doc/planning/cli-git-no-self-invocation.md`); the path is
-///  read to name this executable in a unit file that the operating system's manager runs, as the program of its service mode.
+///  Identification only:
+/// nothing is started from this path (`doc/planning/cli-git-no-self-invocation.md`);
+/// the path is
+///  read to name this executable in a unit file that the operating system's manager runs,
+/// as the program of its service mode.
 pub fn remember_own_executable(path: &Path) {
     let _first = OWN_EXECUTABLE.set(path.to_path_buf());
 }
 
-/// The wrapper's own path, when the process remembered it.
+/// The wrapper's own path,
+/// when the process remembered it.
 pub fn remembered_own_executable() -> Option<&'static Path> {
     return OWN_EXECUTABLE.get().map(PathBuf::as_path);
 }
@@ -51,17 +67,24 @@ pub struct RouteInputs<'a> {
     pub own_executable: Option<&'a Path>,
     /// The real Git the service will run.
     pub real_git: &'a Path,
-    /// The worktree's own Git directory, which names the service instance the commit goes to.
+    /// The worktree's own Git directory,
+    /// which names the service instance the commit goes to.
     pub git_dir: &'a Path,
 }
 
-/// How a commit reaches the service: through the service at `address`, after provisioning when `provision` is present.
+/// How a commit reaches the service:
+/// through the service at `address`,
+/// after provisioning when `provision` is present.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Route {
     /// Where the service listens.
     pub address: Bind,
-    /// What to set up, or to check is set up, first; absent only when a socket exists and the wrapper cannot set up
-    ///  a service itself (no session bus, or no executable of its own to name).
+    /// What to set up,
+    /// or to check is set up,
+    /// first;
+    /// absent only when a socket exists and the wrapper cannot set up
+    ///  a service itself (no session bus,
+    /// or no executable of its own to name).
     pub provision: Option<ProvisionHost>,
 }
 
@@ -78,10 +101,18 @@ pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<
 /// What:
 ///  Decides the route.
 /// Why:
-///   Provisioning needs the session bus socket and the wrapper's own executable, and it is always handed back when both are there,
-///  even when the socket exists: the socket outlives an upgrade, and the units it activates may name a program the upgrade
-///  removed. Whether anything must be written is decided where the units are read (`provision`), so this decision stays
-///  free of reads. A socket that exists without the means to provision is used as it is, whoever made it; with neither
+///   Provisioning needs the session bus socket and the wrapper's own executable,
+/// and it is always handed back when both are there,
+///  even when the socket exists:
+/// the socket outlives an upgrade,
+/// and the units it activates may name a program the upgrade
+///  removed.
+/// Whether anything must be written is decided where the units are read (`provision`),
+/// so this decision stays
+///  free of reads.
+/// A socket that exists without the means to provision is used as it is,
+/// whoever made it;
+/// with neither
 ///  the socket nor the means there is no route.
 ///
 /// In TS you'd write (pseudocode):
@@ -118,7 +149,8 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
 /// What `git monochromatic-git-policy-cli service status` prints and exits with.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StatusReport {
-    /// Exit status: 0 when the service answered.
+    /// Exit status:
+    /// 0 when the service answered.
     pub code: i32,
     /// Standard output.
     pub stdout: String,
@@ -127,10 +159,13 @@ pub struct StatusReport {
 }
 
 /// What:
-///  The real path of the Git directory of the worktree a command runs in, read from the file system when the layout is a plain
+///  The real path of the Git directory of the worktree a command runs in,
+/// read from the file system when the layout is a plain
 ///  one and from Git otherwise.
 /// Why:
-///   The Git directory names the service instance, so the route cannot be chosen without it; the preparation of the commit
+///   The Git directory names the service instance,
+/// so the route cannot be chosen without it;
+/// the preparation of the commit
 ///  asks the same question later and shares the answer's cost when the file system can give it.
 ///
 /// In TS you'd write (pseudocode):
@@ -150,9 +185,12 @@ pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 }
 
 /// What:
-///  The path an environment variable holds, nothing when it is unset or empty.
+///  The path an environment variable holds,
+/// nothing when it is unset or empty.
 /// Why:
-///  An empty runtime, configuration or home directory names no place, so the route treats it as unset.
+///  An empty runtime,
+/// configuration or home directory names no place,
+/// so the route treats it as unset.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -191,7 +229,8 @@ pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> 
 }
 
 /// What:
-///  Whether something listens on the socket: a connection to it succeeds.
+///  Whether something listens on the socket:
+/// a connection to it succeeds.
 /// Why:
 ///  A service is running when its socket takes a connection.
 ///
@@ -206,7 +245,8 @@ fn service_answers(socket: &Path) -> bool {
 /// What:
 ///  Whether any socket file in a directory takes a connection.
 /// Why:
-///  Without a worktree to ask about, any commit service of the user counts.
+///  Without a worktree to ask about,
+/// any commit service of the user counts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,8 +272,13 @@ fn any_socket_answers(directory: &Path) -> bool {
 /// What:
 ///  Says whether the commit service of a worktree answers on its socket.
 /// Why:
-///   A diagnostic only: there is nothing to install or start by hand. Connecting is what a commit does, so a service that the
-///  manager would start on demand is started by this check too. Outside a repository there is no worktree to ask for, and the
+///   A diagnostic only:
+/// there is nothing to install or start by hand.
+/// Connecting is what a commit does,
+/// so a service that the
+///  manager would start on demand is started by this check too.
+/// Outside a repository there is no worktree to ask for,
+/// and the
 ///  answer counts the instances that answer.
 ///
 /// In TS you'd write (pseudocode):

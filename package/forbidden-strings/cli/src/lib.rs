@@ -31,6 +31,10 @@ mod cli;
 mod rule;
 /// Registers the `walk` child module.
 mod walk;
+/// Registers the per-file scan that runs in parallel over every candidate file.
+mod candidate_file_scan;
+/// Registers the rules compilation and file listing that run side by side at startup.
+mod startup_work;
 /// Registers the `frx_load` child module:
 ///  the forbidden-regex rule loader.
 mod frx_load;
@@ -278,18 +282,13 @@ use rayon::prelude::*;
 // ```
 use crate::cli::Cli;
 
-/// Imports dependencies used by this module.
-// What:     `use crate::walk::list_files;` imports the working-tree walker used for
-//           `--all` mode. Rule loading and file scanning now route through
-//           `frx_load::load` and `frx_scan::scan_file` (the stage-two engine path),
-//           referenced by their full module paths at the call sites below.
-// Why:      Enumerate git-tracked files for `--all`.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { listFiles } from "./walk";
-// ```
-use crate::walk::list_files;
+/// Imports the per-file scan and the shared facts it reads,
+/// so the parallel scan below names a function and carries its state as data.
+use crate::candidate_file_scan::{scan_candidate_file, CandidateFileScan};
+
+/// Imports the side-by-side startup work,
+/// so the rules compile while the working tree is listed.
+use crate::startup_work::{run_startup_work, StartupRequest};
 
 /// Implements `build_skip_set`.
 // What:     `fn build_skip_set(rules_path: &str) -> HashSet<PathBuf>`
@@ -438,7 +437,7 @@ fn build_self_match_set() -> std::collections::HashSet<std::path::PathBuf> {
 //   } catch { return false; }
 // }
 // ```
-fn is_walker_skipped(
+pub(crate) fn is_walker_skipped(
     path: &str,
     skip_set: &std::collections::HashSet<std::path::PathBuf>,
 ) -> bool {
@@ -464,6 +463,11 @@ fn is_walker_skipped(
     return false
 }
 
+/// Whether a file name is one of the scanner's own rules files (`forbidden-strings.*.txt`).
+fn is_rules_file_name(name: &str) -> bool {
+    return name.starts_with("forbidden-strings.") && name.ends_with(".txt");
+}
+
 /// Implements `is_config_file_at_cwd`.
 // What:     `fn is_config_file_at_cwd(path, cwd_canonical) -> bool` returns
 //           true when `path` names a `forbidden-strings.*.txt` file sitting
@@ -484,16 +488,14 @@ fn is_walker_skipped(
 //           The cwd anchor keeps BUG 6 / BUG 11 closed: a file like
 //           `sub/forbidden-strings.local.txt` (different parent) still scans,
 //           because only a config file at the cwd root is skipped.
-fn is_config_file_at_cwd(
+pub(crate) fn is_config_file_at_cwd(
     path: &str,
     cwd_canonical: Option<&std::path::Path>,
 ) -> bool {
     let name_matches = std::path::Path::new(path)
         .file_name()
-        .and_then(|n| return n.to_str())
-        .is_some_and(|name| {
-            return name.starts_with("forbidden-strings.") && name.ends_with(".txt")
-        });
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(is_rules_file_name);
     if !name_matches {
         return false;
     }
@@ -559,7 +561,7 @@ const BIN_PROBE_SIZE: usize = 8192;
 //   }
 // }
 // ```
-fn read_with_binary_check(path: &str) -> Result<Vec<u8>, std::io::Error> {
+pub(crate) fn read_with_binary_check(path: &str) -> Result<Vec<u8>, std::io::Error> {
 /// Imports dependencies used by this module.
     use std::fs::File;
 /// Imports dependencies used by this module.
@@ -581,6 +583,12 @@ fn read_with_binary_check(path: &str) -> Result<Vec<u8>, std::io::Error> {
 
     file.read_to_end(&mut buf)?;
     return Ok(buf)
+}
+
+/// The rules list the `FORBIDDEN_STRINGS_RULES` variable carries,
+/// when it is set to valid text.
+fn rules_from_environment() -> Option<String> {
+    return env::var("FORBIDDEN_STRINGS_RULES").ok();
 }
 
 /// Run the scanner from real process arguments and environment values.
@@ -703,8 +711,7 @@ pub fn run_cli_from_env() -> Result<i32> {
     // ```
     // The list grammar (`crate::rules_list`): `--rules` and the variable carry the same comma-separated list,
     // an entry ending in `?` may be absent, and `--rules` replaces the variable instead of adding to it.
-    let rules_value: Option<String> =
-        cli.rules_path.or_else(|| return env::var("FORBIDDEN_STRINGS_RULES").ok());
+    let rules_value: Option<String> = cli.rules_path.or_else(rules_from_environment);
     let explicit_rules_source: bool = rules_value.is_some();
 
     // What:     `let builtin_rules = cli.builtin_rules;` copies the parsed
@@ -812,17 +819,13 @@ pub fn run_cli_from_env() -> Result<i32> {
     // ```ts
     // const rulesResult = frxLoad(rulesPath, builtinRules, explicitRulesSource, BUILTIN_PRECOMPILED);
     // ```
-    let (rules_result, listed_result): (Result<_>, Option<Result<Vec<String>>>) =
-        rayon::join(
-            || return frx_load::load_listed(
-                &rules_entries,
-                builtin_rules,
-                !explicit_rules_source,
-                crate::BUILTIN_PRECOMPILED,
-                crate::BUILTIN_NAMES,
-            ),
-            || if all { return Some(list_files(".")) } else { return None },
-        );
+    let startup_request = StartupRequest {
+        rules_entries: &rules_entries,
+        builtin_rules,
+        quiet_absence: !explicit_rules_source,
+        list_working_tree: all,
+    };
+    let (rules_result, listed_result): (Result<_>, Option<Result<Vec<String>>>) = run_startup_work(&startup_request);
 
     // What:     `let loaded = match rules_result { Ok(r) => r, Err(e) => { ...; return ... } };`
     //           destructures the `Result<LoadedRules>`. `Ok(r)` binds the loaded sets;
@@ -940,132 +943,20 @@ pub fn run_cli_from_env() -> Result<i32> {
     // A present `.git` at an ancestor identifies repository-relative name labels.
     let repository_root = path_scan::repository_root();
 
+    let candidate_scan = CandidateFileScan {
+        all,
+        cwd_canonical: &cwd_canonical,
+        repository_root: &repository_root,
+        self_match_set: &self_match_set,
+        skip_set: &skip_set,
+        name_paths: &name_paths,
+        loaded: &loaded,
+    };
     let hits: Vec<String> = files
         .par_iter()
         .enumerate()
-        .flat_map_iter(|(index, p)| {
-            // Always skip the scanner's own ruleset files at cwd
-            // (forbidden-strings.*.txt), regardless of --all vs explicit
-            // args: they hold literal rule bodies that self-match.
-            if is_config_file_at_cwd(p, cwd_canonical.as_deref()) {
-                return Vec::new();
-            }
-            // Likewise skip the three generated rule-source files, path-
-            // anchored by canonical path, in both modes. A same-named file
-            // elsewhere has a different canonical path and is still scanned.
-            if is_walker_skipped(p, &self_match_set) {
-                return Vec::new();
-            }
-            // What:     `if all && is_walker_skipped(p, &skip_set) { return Vec::new(); }`.
-            //           Only runs the rules-file skip check on walker
-            //           output (--all mode). For explicit positional args
-            //           (`forbidden-strings <path>...` without --all),
-            //           the file is scanned -- the user asked -- except
-            //           the scanner's own generated rule sources, skipped
-            //           by the `self_match_set` check above.
-            // Why:      Closes BUG 6: the previous basename-based skip
-            //           hid real findings on
-            //           `sub/forbidden-strings.local.txt` and friends
-            //           passed as explicit args. The new check applies
-            //           only when the walker discovered the file
-            //           automatically.
-            //
-            //           Inside the conditional, `is_walker_skipped`
-            //           canonicalizes the path and compares against
-            //           the pre-built skip set. Path-anchored matching
-            //           also closes BUG 11 (Windows backslash basename)
-            //           by routing through `std::fs::canonicalize`.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // if (all && isWalkerSkipped(p, skipSet)) return [];
-            // ```
-            if all && is_walker_skipped(p, &skip_set) {
-                return Vec::new();
-            }
-            // What:     `let content = fs::read(p).unwrap_or_default();`.
-            //           `fs::read` returns `Result<Vec<u8>, io::Error>`
-            //           (the file's raw bytes or an I/O error).
-            //           `.unwrap_or_default()` extracts the `Ok` value or
-            //           substitutes `Vec::<u8>::default()` (the empty
-            //           vec) and SILENTLY DROPS the error. The implicit
-            //           inferred type is `Vec<u8>`. Sibling pattern:
-            //           `fs::read_to_string` returns `Result<String, _>`
-            //           but requires UTF-8 -- we want raw bytes here
-            //           because rules scan binary files too.
-            // Why:      A file we can't read (permissions, vanished,
-            //           etc.) becomes "empty content" and the scan
-            //           pass produces zero hits for it. Crashing the
-            //           whole walk on one unreadable file is worse.
-            // Gotcha:   `.unwrap_or_default()` SILENTLY discards the
-            //           `io::Error`. We accept that here because the
-            //           per-file scan is best-effort.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // let content: Uint8Array;
-            // try { content = await readFile(p); }
-            // catch (e) { return [`${p}: read error: ${e.message}`]; }
-            // return scanContent(p, content, ruleset);
-            // ```
-            // What:     `match fs::read(p) { Ok(c) => ..., Err(e) => ... }`.
-            //           Read error path now emits a synthetic "hit"
-            //           string formatted as `{path}: read error: {err}`
-            //           instead of silently substituting empty content.
-            //           The synthetic entry makes the file appear in the
-            //           output report AND keeps the exit code at 1 (hits
-            //           non-empty -> ExitCode::from(1) downstream).
-            // Why:      Closes BUG 4. Pre-fix, `fs::read(p).unwrap_or_default()`
-            //           dropped every io::Error: permissions, missing
-            //           file, broken symlink, /proc EACCES, etc. became
-            //           "empty content", the scan emitted zero hits, and
-            //           the run exited 0. A secret-scanning CI control
-            //           must NOT silently pass on unreadable files; the
-            //           operator needs to know they had no signal.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // try { content = await readFile(p); }
-            // catch (e) { return [`${p}: read error: ${e}`]; }
-            // ```
-            // Overrides name historical candidate paths while keeping temporary
-            // content files isolated. Without an override, use the real file's
-            // repository-relative name or all supplied external path segments.
-            let logical = name_paths.get(index).cloned().unwrap_or_else(|| {
-                return path_scan::logical_path(p, repository_root.as_deref());
-            });
-            let pathname = path_scan::scan_path(&logical, &loaded);
-            let mut findings = pathname.findings;
-            let content_result = match read_with_binary_check(p) {
-                Ok(c) => Some(c),
-                Err(e) => {
-                    findings.push(format!("{}: read error: {}", pathname.display, e));
-                    None
-                }
-            };
-            // What:     `frx_scan::scan_file(p, &content, &loaded)` splits the file
-            //           into lines and runs each loaded set's `line_matches` under a
-            //           fail-closed unwind boundary, returning `PATH:LINE rule=N`
-            //           findings. `&content` and `&loaded` are read-only borrows; the
-            //           returned `Vec<String>` is this closure's tail expression.
-            // Why:      Hand the just-read bytes to the engine line scan; the returned
-            //           findings become this closure's contribution to the parallel
-            //           flat_map output.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return scanFile(p, content, loaded);
-            // ```
-            if let Some(content) = content_result {
-                findings.extend(frx_scan::scan_file(&pathname.display, &content, &loaded));
-            }
-            // An opaque operand index lets policy clients recover candidate
-            // identity even when several paths redact to the same label.
-            if !name_paths.is_empty() {
-                return findings.into_iter().map(|hit| return format!("{} input={}", hit, index)).collect();
-            }
-            return findings
-        })
+        .map_with(candidate_scan, scan_candidate_file)
+        .flatten_iter()
         .collect();
 
     // What:     `std::io::stderr().lock()` returns a `StderrLock`, an

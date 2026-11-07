@@ -1,11 +1,19 @@
 //! What:
-//!  The clearing of stale reference locks for the person's own `git fetch` and `git push`, and the notice that goes before
+//!  The clearing of stale reference locks for the person's own `git fetch` and `git push`,
+//! and the notice that goes before
 //!  Git's own words.
 //! Why:
-//!  A forwarded plain fetch or push replaces the wrapper's process with Git, so there is no "after" to look at: the wrapper
-//!  can only judge the locks before it hands over. Locks it removes are said, and locks it will not remove are described
-//!  with the command that clears them, so the notice precedes Git's refusal instead of leaving the person with
-//!  "File exists" alone. The walk reads directory entries of `refs` and two files, and starts no Git.
+//!  A forwarded plain fetch or push replaces the wrapper's process with Git,
+//! so there is no "after" to look at:
+//! the wrapper
+//!  can only judge the locks before it hands over.
+//! Locks it removes are said,
+//! and locks it will not remove are described
+//!  with the command that clears them,
+//! so the notice precedes Git's refusal instead of leaving the person with
+//!  "File exists" alone.
+//! The walk reads directory entries of `refs` and two files,
+//! and starts no Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,8 +37,11 @@ pub fn is_covered(word: &[u8]) -> bool {
     return word == b"fetch" || word == b"push";
 }
 
-/// Clear what is provably stale before a forwarded `fetch` or `push` and return the notice to print; empty for every other
-///  command, for a command whose repository is named by an option other than `-C` and `GIT_DIR`, and when nothing is found.
+/// Clear what is provably stale before a forwarded `fetch` or `push` and return the notice to print;
+/// empty for every other
+///  command,
+/// for a command whose repository is named by an option other than `-C` and `GIT_DIR`,
+/// and when nothing is found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

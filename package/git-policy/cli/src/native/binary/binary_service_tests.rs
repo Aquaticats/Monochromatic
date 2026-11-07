@@ -1,11 +1,25 @@
 //! What:
-//!  The resident commit service as a real process: commits through it, a kill at each point of a batch, requests sent
-//!  again, a service that starts late or is older than the wrapper, and hostile input.
+//!  The resident commit service as a real process:
+//! commits through it,
+//! a kill at each point of a batch,
+//! requests sent
+//!  again,
+//! a service that starts late or is older than the wrapper,
+//! and hostile input.
 //! Why:
-//!  The service is the only writer of a commit, so every state a kill can leave is checked here against real Git:
-//!  each commit lands exactly once, the index agrees with the branch, `fsck` is clean, and the client that was waiting
-//!  gets an answer, never a protocol detail (`doc/planning/cli-git-resident-service.md`, "Kill-test plan").
-//!  The service is started by the test (the harness), never by the wrapper; its address is an abstract name, so a
+//!  The service is the only writer of a commit,
+//! so every state a kill can leave is checked here against real Git:
+//!  each commit lands exactly once,
+//! the index agrees with the branch,
+//! `fsck` is clean,
+//! and the client that was waiting
+//!  gets an answer,
+//! never a protocol detail (`doc/planning/cli-git-resident-service.md`,
+//! "Kill-test plan").
+//!  The service is started by the test (the harness),
+//! never by the wrapper;
+//! its address is an abstract name,
+//! so a
 //!  killed service leaves no file behind.
 //!
 //! In TS you'd write (pseudocode):
@@ -36,10 +50,13 @@ use std::time::{Duration, Instant};
 
 const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 
-/// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
+/// The longest a control waits for anything:
+/// far beyond what a healthy run needs,
+/// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// The text of a Git query, without its final newline.
+/// The text of a Git query,
+/// without its final newline.
 fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
     return git_text(fixture, repo, arguments).trim_end().to_string();
 }
@@ -48,7 +65,8 @@ struct Service {
     child: Child,
 }
 
-/// A service a control started never outlives it, whether the control ended or a failed assertion unwound it.
+/// A service a control started never outlives it,
+/// whether the control ended or a failed assertion unwound it.
 impl Drop for Service {
     fn drop(&mut self) {
         let _killed = self.child.kill();
@@ -87,8 +105,10 @@ fn stop(mut service: Service) {
     let _waited = service.child.wait();
 }
 
-/// Waits at most `PATIENCE` for a service started with a fault point to end there by itself. One still running then fails
-///  the control with the point named, instead of holding the whole run (a planted control once held one for three hours);
+/// Waits at most `PATIENCE` for a service started with a fault point to end there by itself.
+/// One still running then fails
+///  the control with the point named,
+/// instead of holding the whole run (a planted control once held one for three hours);
 ///  dropping the `Service` kills it.
 fn ended_at_fault(service: &mut Service, point: &str) -> std::process::ExitStatus {
     let started: Instant = Instant::now();
@@ -105,7 +125,8 @@ fn config(name: &str) -> ClientConfig {
     return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING };
 }
 
-/// A request that sets `path` to `content`, prepared against the branch as it is now.
+/// A request that sets `path` to `content`,
+/// prepared against the branch as it is now.
 fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) -> CommitRequest {
     std::fs::write(repo.join(path), content).expect("write");
     let blob: String = query(fixture, repo, &["hash-object", "-w", "--", path]);
@@ -147,7 +168,9 @@ fn submit_quietly(config: &ClientConfig, request: &CommitRequest) -> Result<Subm
     return submit(config, request, &mut std::io::sink());
 }
 
-/// A commit through the service lands once, is acknowledged with its commit, and leaves the index clean.
+/// A commit through the service lands once,
+/// is acknowledged with its commit,
+/// and leaves the index clean.
 #[test]
 fn a_commit_through_the_service_lands_and_is_acknowledged() {
     let fixture: Fixture = fixture("service-basic");
@@ -167,7 +190,8 @@ fn a_commit_through_the_service_lands_and_is_acknowledged() {
 }
 
 /// A service that starts on a journal holding more finished batches than it keeps removes the oldest records before it
-///  answers its first request, and a commit through it still lands.
+///  answers its first request,
+/// and a commit through it still lands.
 #[test]
 fn a_service_removes_the_records_of_old_finished_batches_when_it_starts() {
     let fixture: Fixture = fixture("service-prune");
@@ -196,8 +220,10 @@ fn a_service_removes_the_records_of_old_finished_batches_when_it_starts() {
     remove_settled(&fixture);
 }
 
-/// The instance of one worktree also trims the journal the single service of the earlier releases left above its own: nothing
-///  reads that journal's finished batches, and it grew by a file per commit.
+/// The instance of one worktree also trims the journal the single service of the earlier releases left above its own:
+/// nothing
+///  reads that journal's finished batches,
+/// and it grew by a file per commit.
 #[test]
 fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() {
     let fixture: Fixture = fixture("service-prune-shared");
@@ -233,7 +259,8 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
     remove_settled(&fixture);
 }
 
-/// Starts the service of one worktree with its journal in `journal`, as the unit does with `--journal` and `--instance`,
+/// Starts the service of one worktree with its journal in `journal`,
+/// as the unit does with `--journal` and `--instance`,
 ///  and with the further words a control gives.
 fn start_instance_service(name: &str, journal: &Path, instance: &str, further: &[&str]) -> Service {
     let mut command: Command = super::support::service_command();
@@ -246,8 +273,12 @@ fn start_instance_service(name: &str, journal: &Path, instance: &str, further: &
     return Service { child: command.spawn().expect("the service starts") };
 }
 
-/// Leaves a batch of the earlier helper open in `earlier`, as after a kill between landing and finishing: the earlier helper
-///  lands a commit and is stopped, and the batch's finished record is turned back into an open one. Gives the open record and
+/// Leaves a batch of the earlier helper open in `earlier`,
+/// as after a kill between landing and finishing:
+/// the earlier helper
+///  lands a commit and is stopped,
+/// and the batch's finished record is turned back into an open one.
+/// Gives the open record and
 ///  the finished record it came from.
 fn leave_a_batch_open(fixture: &Fixture, repo: &Path, instance: &str, earlier: &Path, label: &str) -> (PathBuf, PathBuf) {
     std::fs::create_dir_all(earlier).expect("the earlier journal");
@@ -276,15 +307,32 @@ const SETTLE_WORDS: [&str; 3] = ["monochromatic-git-policy-cli", "service", "set
 const SETTLE_ASK_AGAIN_PAUSE: Duration = Duration::from_millis(20);
 
 /// What:
-///  Runs the settle command of the fixture's worktree and gives what the caller saw; while the command answers that it could
-///  not resolve the `--journal` word of a running program, it is asked again after a short pause, for at most `PATIENCE`.
+///  Runs the settle command of the fixture's worktree and gives what the caller saw;
+/// while the command answers that it could
+///  not resolve the `--journal` word of a running program,
+/// it is asked again after a short pause,
+/// for at most `PATIENCE`.
 /// Why:
-///   The look reads the command line of every process of the user, and a process whose `--journal` folder does not exist yet
-///  (a service another control is starting, one whose fixture was just removed, a program another session runs) is counted as an
-///  earlier helper that may be running. That answer is the product's, it changes nothing, and its own words tell the person to
-///  run the command again, which is what this does. Every other answer, held or not, is what the control checks, so it is returned
-///  at once. A word that never clears fails the control with the last answer after `PATIENCE`. A PID namespace of its own would
-///  keep other processes out of the look, but the gate's container refuses its `/proc` mount (`unshare: mount /proc failed:
+///   The look reads the command line of every process of the user,
+/// and a process whose `--journal` folder does not exist yet
+///  (a service another control is starting,
+/// one whose fixture was just removed,
+/// a program another session runs) is counted as an
+///  earlier helper that may be running.
+/// That answer is the product's,
+/// it changes nothing,
+/// and its own words tell the person to
+///  run the command again,
+/// which is what this does.
+/// Every other answer,
+/// held or not,
+/// is what the control checks,
+/// so it is returned
+///  at once.
+/// A word that never clears fails the control with the last answer after `PATIENCE`.
+/// A PID namespace of its own would
+///  keep other processes out of the look,
+/// but the gate's container refuses its `/proc` mount (`unshare: mount /proc failed:
 ///  Permission denied`).
 fn run_settle_when_the_look_is_unsure(fixture: &Fixture, repo: &Path) -> super::support::Observed {
     let begun: Instant = Instant::now();
@@ -300,10 +348,17 @@ fn run_settle_when_the_look_is_unsure(fixture: &Fixture, repo: &Path) -> super::
     }
 }
 
-/// The owner's rule is "never discard user data", and the owner's pick of 2026-11-07 ("Off, settle on request"): a batch that
+/// The owner's rule is "never discard user data",
+/// and the owner's pick of 2026-11-07 ("Off,
+/// settle on request"):
+/// a batch that
 ///  the helper of an earlier release accepted and left open is finished when the person runs
-///  `git monochromatic-git-policy-cli service settle-earlier-batches`, after the command has said the condition it is safe
-///  under; it is finished where it was, remembered as finished, and a second run finds nothing.
+///  `git monochromatic-git-policy-cli service settle-earlier-batches`,
+/// after the command has said the condition it is safe
+///  under;
+/// it is finished where it was,
+/// remembered as finished,
+/// and a second run finds nothing.
 #[test]
 fn the_settle_command_finishes_a_batch_the_earlier_helper_left_open() {
     let fixture: Fixture = fixture("service-settle-on-request");
@@ -325,8 +380,11 @@ fn the_settle_command_finishes_a_batch_the_earlier_helper_left_open() {
     remove_settled(&fixture);
 }
 
-/// A batch the command cannot examine (here its repository is gone) is named with its journal, stays on disk untouched, and
-///  makes the exit status nonzero, even though another batch was finished in the same run.
+/// A batch the command cannot examine (here its repository is gone) is named with its journal,
+/// stays on disk untouched,
+/// and
+///  makes the exit status nonzero,
+/// even though another batch was finished in the same run.
 #[test]
 fn the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero() {
     let fixture: Fixture = fixture("service-settle-unanswered");
@@ -350,7 +408,8 @@ fn the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero() {
     remove_settled(&fixture);
 }
 
-/// Whether a process of any user has `folder` on its command line, as the `--journal` word a service started for it carries.
+/// Whether a process of any user has `folder` on its command line,
+/// as the `--journal` word a service started for it carries.
 fn a_process_names(folder: &Path) -> bool {
     let wanted: &[u8] = folder.as_os_str().as_encoded_bytes();
     let Ok(listing) = std::fs::read_dir("/proc") else { return false };
@@ -360,17 +419,30 @@ fn a_process_names(folder: &Path) -> bool {
     });
 }
 
-/// How long the start of the other control's service is held back, so that the settle command runs while that process already
-///  shows its `--journal` word and the service has not made the folder yet. It is the stand-in for the moments in which every
+/// How long the start of the other control's service is held back,
+/// so that the settle command runs while that process already
+///  shows its `--journal` word and the service has not made the folder yet.
+/// It is the stand-in for the moments in which every
 ///  service another control starts (and every service whose fixture was just removed) is in that state.
 const SERVICE_START_DELAY_SECONDS: &str = "3";
 
-/// Review finding of 2026-11-07 ("passes alone, fails in its suite"): the look that the settle command makes reads the command
-///  line of every process of the user, and a process whose `--journal` folder cannot be resolved counts as a service that may be
-///  running. The services other controls start show that word for as long as their start takes, so a settle command that ran
-///  beside them stopped with nothing on standard output, and every settle control did the same whenever one was starting. The
-///  hold is the product's answer and changes nothing; the controls ask again, as its words say, so the batch must be finished
-///  once the other service has made its folder, and no control may end on the hold while that is only a start.
+/// Review finding of 2026-11-07 ("passes alone,
+/// fails in its suite"):
+/// the look that the settle command makes reads the command
+///  line of every process of the user,
+/// and a process whose `--journal` folder cannot be resolved counts as a service that may be
+///  running.
+/// The services other controls start show that word for as long as their start takes,
+/// so a settle command that ran
+///  beside them stopped with nothing on standard output,
+/// and every settle control did the same whenever one was starting.
+/// The
+///  hold is the product's answer and changes nothing;
+/// the controls ask again,
+/// as its words say,
+/// so the batch must be finished
+///  once the other service has made its folder,
+/// and no control may end on the hold while that is only a start.
 #[test]
 fn the_settle_command_is_not_held_by_a_service_another_control_is_starting() {
     let fixture: Fixture = fixture("service-settle-beside-a-start");
@@ -405,7 +477,9 @@ fn the_settle_command_is_not_held_by_a_service_another_control_is_starting() {
     remove_settled(&fixture);
 }
 
-/// When the safety condition cannot be delivered (standard error is closed), the command settles nothing: the batch is still
+/// When the safety condition cannot be delivered (standard error is closed),
+/// the command settles nothing:
+/// the batch is still
 ///  open afterwards and the exit status is not success.
 #[test]
 fn the_settle_command_changes_nothing_when_its_condition_cannot_be_written() {
@@ -439,10 +513,17 @@ fn the_settle_command_changes_nothing_when_its_condition_cannot_be_written() {
     remove_settled(&fixture);
 }
 
-/// Review finding of 2026-11-07 (cross-vendor, rounds 5 and 6): the look at the earlier sockets and processes cannot exclude an
-///  earlier-release wrapper that sets its socket unit up and starts the helper between the look and the end of a recovery, and
-///  masking the unit would make that wrapper fail its commits. So the service runs no adoption at all: whatever options it is
-///  started with, including the one an earlier build of this branch took, a batch of the earlier helper stays exactly where it is.
+/// Review finding of 2026-11-07 (cross-vendor,
+/// rounds 5 and 6):
+/// the look at the earlier sockets and processes cannot exclude an
+///  earlier-release wrapper that sets its socket unit up and starts the helper between the look and the end of a recovery,
+/// and
+///  masking the unit would make that wrapper fail its commits.
+/// So the service runs no adoption at all:
+/// whatever options it is
+///  started with,
+/// including the one an earlier build of this branch took,
+/// a batch of the earlier helper stays exactly where it is.
 #[test]
 fn the_service_has_no_start_option_that_settles_the_earlier_helpers_batches() {
     let fixture: Fixture = fixture("service-no-adoption-option");
@@ -466,7 +547,9 @@ fn the_service_has_no_start_option_that_settles_the_earlier_helpers_batches() {
     remove_settled(&fixture);
 }
 
-/// Many clients at once all land, each once, and the journal never holds more files than commits.
+/// Many clients at once all land,
+/// each once,
+/// and the journal never holds more files than commits.
 #[test]
 fn clients_sent_together_all_land_once() {
     let fixture: Fixture = fixture("service-together");
@@ -493,8 +576,11 @@ fn clients_sent_together_all_land_once() {
     remove_settled(&fixture);
 }
 
-/// The service is killed at each point of a batch; it is started again, the client that was waiting reconnects with the
-///  same identity, and the commit is on the branch exactly once with the index and the repository healthy.
+/// The service is killed at each point of a batch;
+/// it is started again,
+/// the client that was waiting reconnects with the
+///  same identity,
+/// and the commit is on the branch exactly once with the index and the repository healthy.
 #[test]
 fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
     for point in FAULT_POINTS {
@@ -518,7 +604,9 @@ fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
     }
 }
 
-/// A request sent again after it landed is answered as already landed, with the same commit, and lands nothing more.
+/// A request sent again after it landed is answered as already landed,
+/// with the same commit,
+/// and lands nothing more.
 #[test]
 fn a_request_sent_again_is_answered_as_already_landed() {
     let fixture: Fixture = fixture("service-again");
@@ -573,8 +661,12 @@ fn a_client_that_disappears_after_sending_still_lands_once() {
     remove_settled(&fixture);
 }
 
-/// Hostile input does not stop the service: a line that is not a message, an oversized line, and a request naming a
-///  path outside the repository are all refused, and the next honest client is served.
+/// Hostile input does not stop the service:
+/// a line that is not a message,
+/// an oversized line,
+/// and a request naming a
+///  path outside the repository are all refused,
+/// and the next honest client is served.
 #[test]
 fn hostile_input_is_refused_and_the_service_keeps_serving() {
     let fixture: Fixture = fixture("service-hostile");
@@ -627,8 +719,11 @@ impl Write for SharedNotices {
     }
 }
 
-/// A service that starts a moment after the client asks is waited for, with one notice; a service that never starts is
-///  reported in plain words; where nothing can start it the client says so at once.
+/// A service that starts a moment after the client asks is waited for,
+/// with one notice;
+/// a service that never starts is
+///  reported in plain words;
+/// where nothing can start it the client says so at once.
 #[test]
 fn a_late_service_is_waited_for_and_an_absent_one_is_reported_plainly() {
     let fixture: Fixture = fixture("service-late");
@@ -663,7 +758,8 @@ fn a_late_service_is_waited_for_and_an_absent_one_is_reported_plainly() {
     remove_settled(&fixture);
 }
 
-/// A service older than the wrapper is asked to retire and the client then reaches the current one, with one notice and
+/// A service older than the wrapper is asked to retire and the client then reaches the current one,
+/// with one notice and
 ///  no protocol message.
 #[test]
 fn an_older_service_is_replaced_without_the_user_seeing_it() {
@@ -702,7 +798,9 @@ fn an_older_service_is_replaced_without_the_user_seeing_it() {
 }
 
 /// A service of another release that goes on answering after it was asked to retire ends the command in plain words,
-///  within the start wait and not after it, with the command that restarts the service; nothing is sent to it but the request
+///  within the start wait and not after it,
+/// with the command that restarts the service;
+/// nothing is sent to it but the request
 ///  to retire.
 #[test]
 fn a_service_of_another_release_that_will_not_retire_is_reported_plainly() {
@@ -747,7 +845,9 @@ fn a_service_of_another_release_that_will_not_retire_is_reported_plainly() {
     remove_settled(&fixture);
 }
 
-/// A service newer than the wrapper cannot be talked to, and the user is told what to do, in plain words.
+/// A service newer than the wrapper cannot be talked to,
+/// and the user is told what to do,
+/// in plain words.
 #[test]
 fn a_newer_service_leaves_the_user_a_plain_instruction() {
     let fixture: Fixture = fixture("service-newer");
@@ -770,8 +870,11 @@ fn a_newer_service_leaves_the_user_a_plain_instruction() {
     remove_settled(&fixture);
 }
 
-/// The service is killed at an arbitrary moment while many clients are in flight; it is started again and every client
-///  is answered, each commit on the branch exactly once, with a clean index and a clean `fsck`.
+/// The service is killed at an arbitrary moment while many clients are in flight;
+/// it is started again and every client
+///  is answered,
+/// each commit on the branch exactly once,
+/// with a clean index and a clean `fsck`.
 #[test]
 fn a_service_killed_at_arbitrary_moments_under_load_loses_and_duplicates_nothing() {
     let delays_ms: [u64; 4] = [1, 5, 12, 25];
@@ -804,7 +907,9 @@ fn a_service_killed_at_arbitrary_moments_under_load_loses_and_duplicates_nothing
     }
 }
 
-/// An amend request for `path` set to `content`: the tree is the tip's tree with that file, written to the object store,
+/// An amend request for `path` set to `content`:
+/// the tree is the tip's tree with that file,
+/// written to the object store,
 ///  and the real index is left as it was.
 fn amend_request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) -> CommitRequest {
     let mut amend: CommitRequest = request(fixture, repo, id, path, content);
@@ -816,8 +921,14 @@ fn amend_request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: 
     return amend;
 }
 
-/// Another program holds Git's index lock: the landing waits for it before the branch moves, so the index never shows a file as
-///  reversed. Once the other program lets go, the commit lands, the index agrees with the branch, and no intent is left open.
+/// Another program holds Git's index lock:
+/// the landing waits for it before the branch moves,
+/// so the index never shows a file as
+///  reversed.
+/// Once the other program lets go,
+/// the commit lands,
+/// the index agrees with the branch,
+/// and no intent is left open.
 #[test]
 fn a_landing_waits_for_the_index_lock_before_the_branch_moves() {
     let fixture: Fixture = fixture("service-index-wait");
@@ -849,7 +960,8 @@ fn a_landing_waits_for_the_index_lock_before_the_branch_moves() {
     remove_settled(&fixture);
 }
 
-/// An amend through the real service replaces the tip, and an amend prepared on a tip the branch has left is refused with
+/// An amend through the real service replaces the tip,
+/// and an amend prepared on a tip the branch has left is refused with
 ///  the plain failure and changes nothing.
 #[test]
 fn an_amend_lands_through_the_service_and_a_stale_one_is_refused() {
@@ -875,8 +987,13 @@ fn an_amend_lands_through_the_service_and_a_stale_one_is_refused() {
     remove_settled(&fixture);
 }
 
-/// An amend sent in the middle of plain commits to one branch is answered on its own, and no plain commit is refused
-///  for sharing a batch with it: the plain commits all land, and the amend, prepared on a tip that has since moved, is
+/// An amend sent in the middle of plain commits to one branch is answered on its own,
+/// and no plain commit is refused
+///  for sharing a batch with it:
+/// the plain commits all land,
+/// and the amend,
+/// prepared on a tip that has since moved,
+/// is
 ///  told the branch moved.
 #[test]
 fn an_amend_among_plain_commits_neither_refuses_them_nor_lands_stale() {
@@ -917,8 +1034,10 @@ fn an_amend_among_plain_commits_neither_refuses_them_nor_lands_stale() {
     remove_settled(&fixture);
 }
 
-/// The service is killed at each point of an amend's landing; after the restart the client's amend is on the branch exactly
-///  once, with the parent of the replaced commit and a healthy repository.
+/// The service is killed at each point of an amend's landing;
+/// after the restart the client's amend is on the branch exactly
+///  once,
+/// with the parent of the replaced commit and a healthy repository.
 #[test]
 fn a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once() {
     for point in FAULT_POINTS {
@@ -950,8 +1069,12 @@ fn a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once() {
     }
 }
 
-/// A service that starts on a clock reading another service of the journal also took, and a service whose count another service
-///  has overtaken, must not number a batch with one the journal already holds: each landing keeps its own record, so a request
+/// A service that starts on a clock reading another service of the journal also took,
+/// and a service whose count another service
+///  has overtaken,
+/// must not number a batch with one the journal already holds:
+/// each landing keeps its own record,
+/// so a request
 ///  sent again after a broken connection is still found landed.
 #[test]
 fn two_services_of_one_journal_never_number_their_batches_alike() {

@@ -1,5 +1,10 @@
-//! Controls for landing a batch with real Git: order and content, the index, conflicting and moving branches, hostile
-//!  names, and the restart decisions for batches left open.
+//! Controls for landing a batch with real Git:
+//! order and content,
+//! the index,
+//! conflicting and moving branches,
+//! hostile
+//!  names,
+//! and the restart decisions for batches left open.
 
 use crate::service_land_git_steps_and_import_stream::{commits_from_marks, overlaps};
 use super::*;
@@ -26,8 +31,12 @@ pub(super) fn world(name: &str) -> World {
     return World { root, repo, context };
 }
 
-/// Lands `requests` as batch `seq` with the index build made to fail after the branch moved: the commits are on the branch, the
-///  lock is given up, and the batch stays open for a restart, as after a build that ran out of space.
+/// Lands `requests` as batch `seq` with the index build made to fail after the branch moved:
+/// the commits are on the branch,
+/// the
+///  lock is given up,
+/// and the batch stays open for a restart,
+/// as after a build that ran out of space.
 pub(super) fn land_with_failed_index(world: &World, seq: u64, requests: &[CommitRequest]) {
     crate::service_fault::hooks::fail_at("build-index");
     let outcomes = land_batch(&world.context, seq, requests).expect("the commits land whatever the index does");
@@ -37,7 +46,8 @@ pub(super) fn land_with_failed_index(world: &World, seq: u64, requests: &[Commit
     assert!(!world.repo.join(".git/index.lock").exists(), "the lock was given up");
 }
 
-/// A request that sets `path` to `content`, prepared against the branch as it is now.
+/// A request that sets `path` to `content`,
+/// prepared against the branch as it is now.
 pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest {
     let file: PathBuf = world.repo.join(path);
     std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
@@ -63,7 +73,10 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
     };
 }
 
-/// Moves the branch the way a plain `update-ref` does, which takes no index lock: the landing holds that lock, so a commit by
+/// Moves the branch the way a plain `update-ref` does,
+/// which takes no index lock:
+/// the landing holds that lock,
+/// so a commit by
 ///  `git commit` cannot happen while it works.
 fn move_branch(repo: &Path, message: &str) {
     let tree: String = git_text(repo, &["rev-parse", "HEAD^{tree}"]);
@@ -79,7 +92,10 @@ fn subjects(world: &World, since: &str) -> Vec<String> {
         .collect();
 }
 
-/// A batch becomes one commit per request, in request order, each holding its content, the branch ends at the last,
+/// A batch becomes one commit per request,
+/// in request order,
+/// each holding its content,
+/// the branch ends at the last,
 ///  and the index shows nothing staged against it.
 #[test]
 fn a_batch_lands_in_order_with_its_content_and_a_clean_index() {
@@ -98,7 +114,8 @@ fn a_batch_lands_in_order_with_its_content_and_a_clean_index() {
     remove(world.root.as_path());
 }
 
-/// A path that changed on the branch since the request's base sends the request back; an unrelated path still lands.
+/// A path that changed on the branch since the request's base sends the request back;
+/// an unrelated path still lands.
 #[test]
 fn a_changed_path_is_sent_back_and_an_unrelated_one_lands() {
     let world: World = world("service-land-conflict");
@@ -114,7 +131,9 @@ fn a_changed_path_is_sent_back_and_an_unrelated_one_lands() {
 }
 
 /// Two requests on one base that change one path cannot both put their bytes in one batch unless the later arrival captured
-///  later: it would replace the earlier member's bytes with older ones. The one that captured earlier is sent back.
+///  later:
+/// it would replace the earlier member's bytes with older ones.
+/// The one that captured earlier is sent back.
 #[test]
 fn a_member_that_overlaps_an_earlier_one_stays_only_if_it_captured_later() {
     let cases: [(u64, u64, bool); 4] = [(10, 20, true), (20, 10, false), (0, 20, false), (10, 10, false)];
@@ -134,7 +153,8 @@ fn a_member_that_overlaps_an_earlier_one_stays_only_if_it_captured_later() {
     }
 }
 
-/// A directory and a file of the same name overlap, so a request for one is sent back when the other changed.
+/// A directory and a file of the same name overlap,
+/// so a request for one is sent back when the other changed.
 #[test]
 fn a_file_and_a_directory_of_one_name_overlap() {
     assert!(overlaps("a", "a/b"));
@@ -173,8 +193,10 @@ fn a_deletion_removes_the_path() {
     remove(world.root.as_path());
 }
 
-/// The branch moving under a batch is retried: a plain commit between the objects and the branch update makes the first
-///  attempt lose, and the next one lands on top of the plain commit.
+/// The branch moving under a batch is retried:
+/// a plain commit between the objects and the branch update makes the first
+///  attempt lose,
+/// and the next one lands on top of the plain commit.
 #[test]
 fn a_branch_that_moves_under_the_batch_is_built_again() {
     let mut world: World = world("service-land-race");
@@ -194,7 +216,8 @@ fn a_branch_that_moves_under_the_batch_is_built_again() {
     remove(world.root.as_path());
 }
 
-/// A branch that moves on every attempt ends in the failure the user is told about, after the attempts there are.
+/// A branch that moves on every attempt ends in the failure the user is told about,
+/// after the attempts there are.
 #[test]
 fn a_branch_that_never_stops_moving_fails_after_the_attempts() {
     let mut world: World = world("service-land-race-forever");
@@ -212,7 +235,9 @@ fn a_branch_that_never_stops_moving_fails_after_the_attempts() {
     remove(world.root.as_path());
 }
 
-/// An amend request for `path` set to `content`: the tree is the tip's tree with that file, written to the object store,
+/// An amend request for `path` set to `content`:
+/// the tree is the tip's tree with that file,
+/// written to the object store,
 ///  and the real index is left as it was.
 fn amend_request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest {
     let mut amend: CommitRequest = request(world, id, path, content);
@@ -224,7 +249,11 @@ fn amend_request(world: &World, id: &str, path: &str, content: &str) -> CommitRe
     return amend;
 }
 
-/// An amend replaces the tip: same parents as the replaced commit, the tree it names, its own message and identities, and
+/// An amend replaces the tip:
+/// same parents as the replaced commit,
+/// the tree it names,
+/// its own message and identities,
+/// and
 ///  the index shows nothing staged against it.
 #[test]
 fn an_amend_replaces_the_tip_with_the_parents_of_the_replaced_commit() {
@@ -246,7 +275,8 @@ fn an_amend_replaces_the_tip_with_the_parents_of_the_replaced_commit() {
     remove(world.root.as_path());
 }
 
-/// Amending a root commit makes a root commit; amending a merge keeps both parents.
+/// Amending a root commit makes a root commit;
+/// amending a merge keeps both parents.
 #[test]
 fn an_amend_of_a_root_commit_and_of_a_merge_keeps_their_parents() {
     let world: World = world("service-land-amend-shapes");
@@ -268,7 +298,9 @@ fn an_amend_of_a_root_commit_and_of_a_merge_keeps_their_parents() {
     remove(world.root.as_path());
 }
 
-/// An amend whose base is no longer the tip is not made, and nothing changes: it cannot be built on another tip.
+/// An amend whose base is no longer the tip is not made,
+/// and nothing changes:
+/// it cannot be built on another tip.
 #[test]
 fn an_amend_is_not_made_when_the_branch_is_not_at_its_base() {
     let world: World = world("service-land-amend-moved");
@@ -281,7 +313,8 @@ fn an_amend_is_not_made_when_the_branch_is_not_at_its_base() {
     remove(world.root.as_path());
 }
 
-/// An amend whose branch moves between the check and the branch update is not made either, and leaves no intent.
+/// An amend whose branch moves between the check and the branch update is not made either,
+/// and leaves no intent.
 #[test]
 fn an_amend_is_not_made_when_the_branch_moves_under_it() {
     let mut world: World = world("service-land-amend-race");
@@ -296,7 +329,8 @@ fn an_amend_is_not_made_when_the_branch_moves_under_it() {
     remove(world.root.as_path());
 }
 
-/// An amend shares no batch: a neighbour would move the tip it requires.
+/// An amend shares no batch:
+/// a neighbour would move the tip it requires.
 #[test]
 fn an_amend_in_a_batch_with_others_is_refused() {
     let world: World = world("service-land-amend-mixed");
@@ -306,7 +340,9 @@ fn an_amend_in_a_batch_with_others_is_refused() {
     remove(world.root.as_path());
 }
 
-/// A request carrying a commit Git built: `commit-tree` makes it on `parents` with the tip's tree plus `path`, and the
+/// A request carrying a commit Git built:
+/// `commit-tree` makes it on `parents` with the tip's tree plus `path`,
+/// and the
 ///  request names it whole.
 pub(super) fn built_request(world: &World, id: &str, path: &str, parents: &[&str]) -> CommitRequest {
     let mut built: CommitRequest = request(world, id, path, format!("{id}\n").as_str());
@@ -323,8 +359,11 @@ pub(super) fn built_request(world: &World, id: &str, path: &str, parents: &[&str
     return built;
 }
 
-/// A commit Git built lands as it is while the branch is at its base: the branch points at that very commit, nothing else
-///  is made, and the index shows nothing staged.
+/// A commit Git built lands as it is while the branch is at its base:
+/// the branch points at that very commit,
+/// nothing else
+///  is made,
+/// and the index shows nothing staged.
 #[test]
 fn a_commit_git_built_lands_as_it_is_while_the_branch_is_at_its_base() {
     let world: World = world("service-land-built");
@@ -339,7 +378,9 @@ fn a_commit_git_built_lands_as_it_is_while_the_branch_is_at_its_base() {
     remove(world.root.as_path());
 }
 
-/// A commit Git built is never moved onto another tip: with the branch away from its base it is not landed, and the branch stays.
+/// A commit Git built is never moved onto another tip:
+/// with the branch away from its base it is not landed,
+/// and the branch stays.
 #[test]
 fn a_commit_git_built_is_not_landed_when_the_branch_is_not_at_its_base() {
     let world: World = world("service-land-built-moved");
@@ -352,9 +393,14 @@ fn a_commit_git_built_is_not_landed_when_the_branch_is_not_at_its_base() {
     remove(world.root.as_path());
 }
 
-/// The service lands only what the request's rule allows: a commit made on other parents, a name that is not a commit, a
-///  and an amend whose parents are not the replaced commit's are all refused untouched. A name that is not in the store is
-///  content a prune took, which `a_built_commit_that_was_pruned_is_unavailable_not_refused` covers.
+/// The service lands only what the request's rule allows:
+/// a commit made on other parents,
+/// a name that is not a commit,
+/// a
+///  and an amend whose parents are not the replaced commit's are all refused untouched.
+/// A name that is not in the store is
+///  content a prune took,
+/// which `a_built_commit_that_was_pruned_is_unavailable_not_refused` covers.
 #[test]
 fn a_commit_git_built_is_checked_before_the_branch_moves() {
     let world: World = world("service-land-built-checked");
@@ -374,8 +420,13 @@ fn a_commit_git_built_is_checked_before_the_branch_moves() {
     remove(world.root.as_path());
 }
 
-/// A foreign program holds the index lock while it moves the branch, as Git's own commit does: the landing waits for it, builds
-///  on what it left, and installs an index that shows the landing, not the state before the foreign commit.
+/// A foreign program holds the index lock while it moves the branch,
+/// as Git's own commit does:
+/// the landing waits for it,
+/// builds
+///  on what it left,
+/// and installs an index that shows the landing,
+/// not the state before the foreign commit.
 #[test]
 fn a_landing_waits_for_a_foreign_index_lock_and_builds_on_what_the_holder_left() {
     let world: World = world("service-land-foreign-lock");
@@ -400,8 +451,10 @@ fn a_landing_waits_for_a_foreign_index_lock_and_builds_on_what_the_holder_left()
     remove(world.root.as_path());
 }
 
-/// The index lock is not held while the batch's objects are made: it is asked for only once everything that needs no index is
-/// done, so a program that wants the index meanwhile (a `git add`) is not made to wait for the import.
+/// The index lock is not held while the batch's objects are made:
+/// it is asked for only once everything that needs no index is
+/// done,
+/// so a program that wants the index meanwhile (a `git add`) is not made to wait for the import.
 #[test]
 fn the_index_lock_is_not_held_while_the_objects_are_made() {
     let mut world: World = world("service-land-lock-after-objects");
@@ -423,7 +476,10 @@ fn the_index_lock_is_not_held_while_the_objects_are_made() {
 }
 
 /// A foreign holder that is still there when the landing asks for the lock does not keep the landing from making its
-/// objects: they are made first, and the lock is waited for after, so a holder that lets go while they are made costs no wait.
+/// objects:
+/// they are made first,
+/// and the lock is waited for after,
+/// so a holder that lets go while they are made costs no wait.
 #[test]
 fn a_foreign_holder_is_waited_for_after_the_objects_are_made_not_before() {
     let mut world: World = world("service-land-wait-after-objects");
@@ -441,8 +497,13 @@ fn a_foreign_holder_is_waited_for_after_the_objects_are_made_not_before() {
     remove(world.root.as_path());
 }
 
-/// A dead owner's index lock (Git's lock PID file names a process that is gone): the landing fails before anything moves, the
-///  lock stands, and no intent is left. Nothing is waited for, because nothing will release that lock.
+/// A dead owner's index lock (Git's lock PID file names a process that is gone):
+/// the landing fails before anything moves,
+/// the
+///  lock stands,
+/// and no intent is left.
+/// Nothing is waited for,
+/// because nothing will release that lock.
 #[test]
 fn a_dead_owners_index_lock_changes_nothing() {
     let world: World = world("service-land-dead-owner-lock");
@@ -465,11 +526,16 @@ fn a_dead_owners_index_lock_changes_nothing() {
 /// How long the controls give a landing that must end at its ceiling before they call it hung.
 const CEILING_PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
 
-/// The ceiling the controls give the lock wait: short, so the control ends in a moment.
+/// The ceiling the controls give the lock wait:
+/// short,
+/// so the control ends in a moment.
 const SHORT_CEILING: std::time::Duration = std::time::Duration::from_millis(300);
 
-/// Runs `land_batch_announcing` for `requests` on a thread of its own with a ceiling of `SHORT_CEILING`, and returns what it
-///  answered and said, or nothing when it was still waiting after `CEILING_PATIENCE`. The thread builds its own context.
+/// Runs `land_batch_announcing` for `requests` on a thread of its own with a ceiling of `SHORT_CEILING`,
+/// and returns what it
+///  answered and said,
+/// or nothing when it was still waiting after `CEILING_PATIENCE`.
+/// The thread builds its own context.
 fn land_at_the_ceiling(world: &World, requests: Vec<CommitRequest>) -> Option<(Result<Vec<Outcome>, FailureCode>, Vec<Announce>)> {
     let (finished, ended) = std::sync::mpsc::channel();
     let journal: PathBuf = world.context.journal.clone();
@@ -483,8 +549,12 @@ fn land_at_the_ceiling(world: &World, requests: Vec<CommitRequest>) -> Option<(R
     return ended.recv_timeout(CEILING_PATIENCE).ok();
 }
 
-/// A foreign owner nothing proves alive that keeps `index.lock` past the ceiling: the batch is withdrawn before anything moved, the
-///  built commit is kept on a side ref that the message names, the person's index and the foreign lock stand, no intent is left,
+/// A foreign owner nothing proves alive that keeps `index.lock` past the ceiling:
+/// the batch is withdrawn before anything moved,
+/// the
+///  built commit is kept on a side ref that the message names,
+/// the person's index and the foreign lock stand,
+/// no intent is left,
 ///  and a restart of the service lands nothing.
 #[test]
 fn a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_side_ref() {
@@ -513,7 +583,8 @@ fn a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_si
     remove(world.root.as_path());
 }
 
-/// The same with the owner proven alive (Git's lock PID file names this process): the message names it.
+/// The same with the owner proven alive (Git's lock PID file names this process):
+/// the message names it.
 #[test]
 fn a_proven_holder_at_the_ceiling_is_named_in_the_withdrawal() {
     let world: World = world("service-land-ceiling-proven");
@@ -529,11 +600,17 @@ fn a_proven_holder_at_the_ceiling_is_named_in_the_withdrawal() {
     remove(world.root.as_path());
 }
 
-/// The ceiling the controls give the steps that have one: short, so a control that needs a step ended ends it in moments.
+/// The ceiling the controls give the steps that have one:
+/// short,
+/// so a control that needs a step ended ends it in moments.
 const SHORT_STEP_CEILING: std::time::Duration = std::time::Duration::from_secs(3);
 
-/// A Git whose reference update of the landing (`update-ref --stdin`) is slow but ends: it waits `seconds`, then does what the real
-///  one does. Finite on purpose, so a control that finds the update ended early or never fails in moments and never hangs.
+/// A Git whose reference update of the landing (`update-ref --stdin`) is slow but ends:
+/// it waits `seconds`,
+/// then does what the real
+///  one does.
+/// Finite on purpose,
+/// so a control that finds the update ended early or never fails in moments and never hangs.
 fn late_reference_git(world: &World, seconds: u64) -> PathBuf {
     let program: PathBuf = world.root.join("late-update-ref-git");
     let script: String = format!(
@@ -545,9 +622,18 @@ fn late_reference_git(world: &World, seconds: u64) -> PathBuf {
     return program;
 }
 
-/// Owner, 2026-11-04: "Never cut a branch write (Recommended)". A branch write that outlasts the ceiling the other steps have is not
-/// ended: the update finishes, the commit is on the branch, the answer is `Landed`, and nothing was ended, kept on a side ref or
-/// withdrawn. The control shortens the ceiling of the steps that have one to a few seconds and delays the update past it.
+/// Owner,
+/// 2026-11-04:
+/// "Never cut a branch write (Recommended)".
+/// A branch write that outlasts the ceiling the other steps have is not
+/// ended:
+/// the update finishes,
+/// the commit is on the branch,
+/// the answer is `Landed`,
+/// and nothing was ended,
+/// kept on a side ref or
+/// withdrawn.
+/// The control shortens the ceiling of the steps that have one to a few seconds and delays the update past it.
 #[test]
 fn a_branch_write_that_outlasts_the_step_ceiling_is_not_ended() {
     let world: World = world("service-land-branch-write-not-ended");
@@ -581,8 +667,13 @@ fn git_that_hangs_on(world: &World, subcommand: &str) -> PathBuf {
     return program;
 }
 
-/// A read step of the landing that never returns is ended at its ceiling, though it shows no fault: the landing ends with the step
-/// named, nothing moved, no intent is open, and the clients are told that this commit was not made.
+/// A read step of the landing that never returns is ended at its ceiling,
+/// though it shows no fault:
+/// the landing ends with the step
+/// named,
+/// nothing moved,
+/// no intent is open,
+/// and the clients are told that this commit was not made.
 #[test]
 fn a_read_step_ended_at_its_ceiling_ends_the_landing_with_the_step_named() {
     let world: World = world("service-land-read-ceiling");
@@ -605,7 +696,8 @@ fn a_read_step_ended_at_its_ceiling_ends_the_landing_with_the_step_named() {
     remove(world.root.as_path());
 }
 
-/// The hold is measured from the placement of the lock to its release, so it covers the branch move and the index build and
+/// The hold is measured from the placement of the lock to its release,
+/// so it covers the branch move and the index build and
 /// nothing before them.
 #[test]
 fn the_hold_covers_the_branch_move_and_the_index_build() {
@@ -630,8 +722,10 @@ fn a_mixed_batch_is_refused() {
     remove(world.root.as_path());
 }
 
-/// A restart finishes a batch whose branch moved but whose index update was lost, drops one whose branch never moved,
-///  and removes a torn one; the finished batch's identities are remembered.
+/// A restart finishes a batch whose branch moved but whose index update was lost,
+/// drops one whose branch never moved,
+///  and removes a torn one;
+/// the finished batch's identities are remembered.
 #[test]
 fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
     let world: World = world("service-land-recover");
@@ -659,7 +753,9 @@ fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
 }
 
 /// An instance takes over the open batches of its own worktree even when the batch used an index outside the Git
-///  directory (`GIT_INDEX_FILE`): the worktree is named by the Git directory the request carried, not by the index's parent.
+///  directory (`GIT_INDEX_FILE`):
+/// the worktree is named by the Git directory the request carried,
+/// not by the index's parent.
 #[test]
 fn an_instance_recovers_a_batch_that_used_an_index_outside_its_git_directory() {
     let world: World = world("service-land-recover-alternate");
@@ -692,7 +788,9 @@ fn an_intent_without_a_git_directory_is_found_by_its_repository() {
     remove(world.root.as_path());
 }
 
-/// A batch written before the intent named its Git directory, with an index outside it, is still found by its repository:
+/// A batch written before the intent named its Git directory,
+/// with an index outside it,
+/// is still found by its repository:
 ///  the directory the index sits in is not the worktree's Git directory.
 #[test]
 fn an_older_intent_with_an_index_outside_its_git_directory_is_found_by_its_repository() {
@@ -712,8 +810,11 @@ fn an_older_intent_with_an_index_outside_its_git_directory_is_found_by_its_repos
     remove(world.root.as_path());
 }
 
-/// A merge conclusion has the branch tip first and the merged commits after it: the extra parents are allowed, and the
-///  index takes the commit's paths from the repository, not from a list in the request.
+/// A merge conclusion has the branch tip first and the merged commits after it:
+/// the extra parents are allowed,
+/// and the
+///  index takes the commit's paths from the repository,
+/// not from a list in the request.
 #[test]
 fn a_commit_git_built_with_extra_parents_lands_and_updates_the_index_from_the_repository() {
     let world: World = world("service-land-built-merge");
@@ -747,7 +848,8 @@ fn a_commit_git_built_whose_first_parent_is_not_the_tip_is_refused_even_with_the
     remove(world.root.as_path());
 }
 
-/// A branch that does not exist yet is prepared against the all-zero name: the commit has no parent and lands only while
+/// A branch that does not exist yet is prepared against the all-zero name:
+/// the commit has no parent and lands only while
 ///  the branch is still absent.
 #[test]
 fn a_commit_on_a_branch_that_does_not_exist_lands_once_and_never_over_a_branch_that_appeared() {
@@ -771,7 +873,9 @@ fn a_commit_on_a_branch_that_does_not_exist_lands_once_and_never_over_a_branch_t
     remove(world.root.as_path());
 }
 
-/// A detached head is moved as `HEAD` itself, only while it is at the base, and never moves a branch it became.
+/// A detached head is moved as `HEAD` itself,
+/// only while it is at the base,
+/// and never moves a branch it became.
 #[test]
 fn a_detached_head_is_moved_by_a_compare_that_does_not_follow_a_branch() {
     let world: World = world("service-land-detached");
@@ -794,15 +898,21 @@ fn a_detached_head_is_moved_by_a_compare_that_does_not_follow_a_branch() {
     remove(world.root.as_path());
 }
 
-/// What a landing leaves of the index lock, and of the branch and the index, after it refused: nothing at all.
+/// What a landing leaves of the index lock,
+/// and of the branch and the index,
+/// after it refused:
+/// nothing at all.
 fn assert_nothing_changed(world: &World, branch: &str, expected_tip: &str, index_before: &[u8], what: &str) {
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", branch]), expected_tip, "{what}: the branch did not move");
     assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), index_before, "{what}: the index is as it was");
     assert!(!world.repo.join(".git/index.lock").exists(), "{what}: no index lock is left");
 }
 
-/// A commit prepared on a branch is not landed once the worktree's head names another branch: the branch, the index and the
-///  other branch stay as they are, and every request of the batch is told the branch moved.
+/// A commit prepared on a branch is not landed once the worktree's head names another branch:
+/// the branch,
+/// the index and the
+///  other branch stay as they are,
+/// and every request of the batch is told the branch moved.
 #[test]
 fn a_commit_is_not_landed_once_the_worktree_switched_to_another_branch() {
     let world: World = world("service-land-switched");
@@ -822,7 +932,9 @@ fn a_commit_is_not_landed_once_the_worktree_switched_to_another_branch() {
     remove(world.root.as_path());
 }
 
-/// A worktree whose head went back to the branch lands the commit: the check refuses a switch, not a branch.
+/// A worktree whose head went back to the branch lands the commit:
+/// the check refuses a switch,
+/// not a branch.
 #[test]
 fn a_commit_lands_when_the_worktree_is_on_its_branch() {
     let world: World = world("service-land-on-branch");
@@ -835,7 +947,9 @@ fn a_commit_lands_when_the_worktree_is_on_its_branch() {
     remove(world.root.as_path());
 }
 
-/// A linked worktree keeps its head in its own Git directory: a switch there is found, and a worktree still on its branch lands.
+/// A linked worktree keeps its head in its own Git directory:
+/// a switch there is found,
+/// and a worktree still on its branch lands.
 #[test]
 fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
     let world: World = world("service-land-linked");
@@ -868,7 +982,8 @@ fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
     remove(world.root.as_path());
 }
 
-/// A repository that keeps its references in reftable tables has only a placeholder in `HEAD`, and the switch is found anyway.
+/// A repository that keeps its references in reftable tables has only a placeholder in `HEAD`,
+/// and the switch is found anyway.
 #[test]
 fn a_switch_is_found_in_a_reftable_repository() {
     let root: PathBuf = fixture("service-land-reftable");
@@ -896,12 +1011,16 @@ fn a_switch_is_found_in_a_reftable_repository() {
     remove(root.as_path());
 }
 
-/// Removes the unreferenced objects the way `git gc --prune=now` does, between a request's preparation and its landing.
+/// Removes the unreferenced objects the way `git gc --prune=now` does,
+/// between a request's preparation and its landing.
 fn prune_now(world: &World) {
     git(world.repo.as_path(), &["prune", "--expire=now"]);
 }
 
-/// What a landing that found the prepared content gone leaves of the repository: the branch where it was, no index lock, and
+/// What a landing that found the prepared content gone leaves of the repository:
+/// the branch where it was,
+/// no index lock,
+/// and
 ///  no crash report of the program that imports the objects.
 fn assert_refused_cleanly(world: &World, base: &str, what: &str) {
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base, "{what}: the branch did not move");
@@ -915,8 +1034,10 @@ fn assert_refused_cleanly(world: &World, base: &str, what: &str) {
     assert!(reports.is_empty(), "{what}: left {reports:?}");
 }
 
-/// A blob the request names that `git gc --prune=now` removed after the preparation is found before anything is imported, and
-///  the landing answers that it could not be done, so the client prepares the commit again.
+/// A blob the request names that `git gc --prune=now` removed after the preparation is found before anything is imported,
+/// and
+///  the landing answers that it could not be done,
+/// so the client prepares the commit again.
 #[test]
 fn a_request_whose_blob_was_pruned_is_refused_before_anything_is_imported() {
     let world: World = world("service-land-pruned-blob");
@@ -945,7 +1066,8 @@ fn an_amend_whose_tree_was_pruned_is_refused_before_anything_is_imported() {
     remove(world.root.as_path());
 }
 
-/// A commit Git built that was removed whole is the removal of prepared content, not a request the service refuses as unsafe.
+/// A commit Git built that was removed whole is the removal of prepared content,
+/// not a request the service refuses as unsafe.
 #[test]
 fn a_built_commit_that_was_pruned_is_unavailable_not_refused() {
     let world: World = world("service-land-pruned-commit");
@@ -958,7 +1080,8 @@ fn a_built_commit_that_was_pruned_is_unavailable_not_refused() {
 }
 
 /// A commit Git built whose commit object survived but whose blob did not (a prune that was still deleting) is never put on the
-///  branch: Git moves a branch to a commit without looking at what the commit holds.
+///  branch:
+/// Git moves a branch to a commit without looking at what the commit holds.
 #[test]
 fn a_built_commit_with_a_missing_blob_is_never_put_on_the_branch() {
     let world: World = world("service-land-partly-pruned");
@@ -989,14 +1112,22 @@ fn marks_outside_the_batch_are_ignored_and_a_missing_mark_is_no_answer() {
 }
 
 /// What:
-///  The starts of a landing for each way a commit is made: the objects Git imports for a request, and the connectivity check
+///  The starts of a landing for each way a commit is made:
+/// the objects Git imports for a request,
+/// and the connectivity check
 ///  of a commit Git built.
 /// Why:
-///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`. (The check is started only where the
-///  object store cannot show the history, which the control arranges with a graft file.) The import carried it
-///  (`fast-import`, whose `--quiet` Git 2.56.0 `builtin/fast-import.c` reads as the end of the `--stats` report) and so did
-///  the check (`rev-list --objects`, whose option `builtin/rev-list.c` reads as "list nothing" after the same missing-object
-///  check). The control lands both and looks at both starts.
+///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`.
+/// (The check is started only where the
+///  object store cannot show the history,
+/// which the control arranges with a graft file.)
+/// The import carried it
+///  (`fast-import`,
+/// whose `--quiet` Git 2.56.0 `builtin/fast-import.c` reads as the end of the `--stats` report) and so did
+///  the check (`rev-list --objects`,
+/// whose option `builtin/rev-list.c` reads as "list nothing" after the same missing-object
+///  check).
+/// The control lands both and looks at both starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1027,8 +1158,11 @@ fn the_import_and_the_connectivity_check_of_a_landing_start_without_quiet() {
     remove(world.root.as_path());
 }
 
-/// A restart finishes the index of a landed batch without starting a Git `reset`: it takes the lock itself, as the first landing
-/// did, and the in-process update runs under it.
+/// A restart finishes the index of a landed batch without starting a Git `reset`:
+/// it takes the lock itself,
+/// as the first landing
+/// did,
+/// and the in-process update runs under it.
 #[test]
 fn a_restart_finishes_the_index_without_a_git_reset() {
     use crate::recording_git::{recorded_starts, recording_context};
@@ -1048,7 +1182,9 @@ fn a_restart_finishes_the_index_without_a_git_reset() {
     remove(world.root.as_path());
 }
 
-/// A landing keeps a change another session staged before the landing took the lock, for a path the commit does not name, and
+/// A landing keeps a change another session staged before the landing took the lock,
+/// for a path the commit does not name,
+/// and
 /// starts no Git `reset`.
 #[test]
 fn a_landing_keeps_an_earlier_stage_of_another_path() {
@@ -1070,8 +1206,10 @@ fn a_landing_keeps_an_earlier_stage_of_another_path() {
     remove(world.root.as_path());
 }
 
-/// A restart that finds a foreign program holding the live index lock leaves the batch open, the index and the foreign lock as
-/// they are, and finishes the batch on a later restart once the lock is free.
+/// A restart that finds a foreign program holding the live index lock leaves the batch open,
+/// the index and the foreign lock as
+/// they are,
+/// and finishes the batch on a later restart once the lock is free.
 #[test]
 fn a_restart_leaves_the_batch_open_while_a_foreign_lock_is_held() {
     let world: World = world("service-land-recover-foreign-lock");
@@ -1093,9 +1231,15 @@ fn a_restart_leaves_the_batch_open_while_a_foreign_lock_is_held() {
     remove(world.root.as_path());
 }
 
-/// A batch whose index was installed and whose lock was given up, and whose service died before the batch was marked done, is
-/// not replayed: a change another session staged to a path of the batch in between survives the restart. The service records the
-/// completed index update in the journal (`<batch>.indexed`, holding the commit) before it gives the lock up; the control writes
+/// A batch whose index was installed and whose lock was given up,
+/// and whose service died before the batch was marked done,
+/// is
+/// not replayed:
+/// a change another session staged to a path of the batch in between survives the restart.
+/// The service records the
+/// completed index update in the journal (`<batch>.indexed`,
+/// holding the commit) before it gives the lock up;
+/// the control writes
 /// that record as the dead service left it.
 #[test]
 fn a_restart_does_not_replay_an_index_update_that_was_installed_and_unlocked() {
@@ -1120,7 +1264,8 @@ fn a_restart_does_not_replay_an_index_update_that_was_installed_and_unlocked() {
     remove(world.root.as_path());
 }
 
-/// A landing whose conclusion state could not be removed still records the installed index, so the restart that retries the
+/// A landing whose conclusion state could not be removed still records the installed index,
+/// so the restart that retries the
 /// removal does not replay the index update over what another session staged after the lock was given up.
 #[test]
 fn a_cleanup_that_fails_does_not_make_the_index_update_replayable() {
@@ -1158,8 +1303,10 @@ fn a_cleanup_that_fails_does_not_make_the_index_update_replayable() {
 }
 
 /// A worktree that switches branches while the landing waits for the index lock does not get the other branch's index replaced:
-/// the checked-out branch is read again after the lock is taken and before the ref moves, so the landing is answered as moved,
-/// the branch stays where it was, and no lock or intent is left.
+/// the checked-out branch is read again after the lock is taken and before the ref moves,
+/// so the landing is answered as moved,
+/// the branch stays where it was,
+/// and no lock or intent is left.
 #[test]
 fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
     let world: World = world("service-land-switched");
@@ -1189,8 +1336,11 @@ fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
     remove(world.root.as_path());
 }
 
-/// A restart that finds the worktree on another branch than the batch's does not touch the index: the branch has its commit, the
-/// index now belongs to the branch checked out, and the batch is finished.
+/// A restart that finds the worktree on another branch than the batch's does not touch the index:
+/// the branch has its commit,
+/// the
+/// index now belongs to the branch checked out,
+/// and the batch is finished.
 #[test]
 fn a_restart_leaves_the_index_of_another_checked_out_branch_alone() {
     let world: World = world("service-land-recover-switched");
@@ -1211,8 +1361,12 @@ fn a_restart_leaves_the_index_of_another_checked_out_branch_alone() {
 }
 
 /// A worktree that switches branches after the landing's last check and before its ref move does not get the other branch's
-/// index replaced: Git refuses `symref-verify HEAD` in the same transaction as an update of the branch `HEAD` names ("multiple
-/// updates for 'HEAD'"), so the head is read again once the branch has moved, under the lock, and the index is left alone.
+/// index replaced:
+/// Git refuses `symref-verify HEAD` in the same transaction as an update of the branch `HEAD` names ("multiple
+/// updates for 'HEAD'"),
+/// so the head is read again once the branch has moved,
+/// under the lock,
+/// and the index is left alone.
 #[test]
 fn a_switch_after_the_last_check_leaves_the_index_of_the_new_branch_alone() {
     let world: World = world("service-land-switch-late");
@@ -1229,10 +1383,21 @@ fn a_switch_after_the_last_check_leaves_the_index_of_the_new_branch_alone() {
     remove(world.root.as_path());
 }
 
-/// The writes of a landing are made in the order a restart after a killed process relies on: the index is installed before its
-/// completion is recorded, and the done mark is renamed before the record is removed. Their flushes are queued, not waited for
-/// (owner, 2026-11-03: "Force at leaving, else background"), so a power loss may lose the end of the sequence, exactly as native
-/// Git loses its last writes; a killed process loses nothing, because the page cache holds every write.
+/// The writes of a landing are made in the order a restart after a killed process relies on:
+/// the index is installed before its
+/// completion is recorded,
+/// and the done mark is renamed before the record is removed.
+/// Their flushes are queued,
+/// not waited for
+/// (owner,
+/// 2026-11-03:
+/// "Force at leaving,
+/// else background"),
+/// so a power loss may lose the end of the sequence,
+/// exactly as native
+/// Git loses its last writes;
+/// a killed process loses nothing,
+/// because the page cache holds every write.
 #[test]
 fn the_installed_index_and_the_finished_batch_are_recorded_in_the_order_a_restart_relies_on() {
     let world: World = world("service-land-durable");
@@ -1249,17 +1414,29 @@ fn the_installed_index_and_the_finished_batch_are_recorded_in_the_order_a_restar
     remove(world.root.as_path());
 }
 
-/// The syncs of the landing that are made while the person waits, and the ones it only queues, from its events in order.
+/// The syncs of the landing that are made while the person waits,
+/// and the ones it only queues,
+/// from its events in order.
 fn syncs_of(events: &[String]) -> (Vec<String>, Vec<String>) {
     let waited: Vec<String> = events.iter().filter_map(|event| { return event.strip_prefix("sync-waited:").map(str::to_string); }).collect();
     let queued: Vec<String> = events.iter().filter_map(|event| { return event.strip_prefix("sync-queued:").map(str::to_string); }).collect();
     return (waited, queued);
 }
 
-/// The owner's rule for the commit protocol, "Force at leaving, else background": a landing that publishes a commit waits for no
-/// sync of the wrapper's own records. Native Git forces nothing by default (a traced native commit makes no sync call), so each
-/// sync on the person's wait is a flush that a loaded disk can stall for seconds (production: `journal_ms` up to 40 s, `sync_ms`
-/// (now `index_update_ms`) up to 119 s). The syncs are queued, and the background thread makes them; the list is the records a power cut may lose.
+/// The owner's rule for the commit protocol,
+/// "Force at leaving,
+/// else background":
+/// a landing that publishes a commit waits for no
+/// sync of the wrapper's own records.
+/// Native Git forces nothing by default (a traced native commit makes no sync call),
+/// so each
+/// sync on the person's wait is a flush that a loaded disk can stall for seconds (production:
+/// `journal_ms` up to 40 s,
+/// `sync_ms`
+/// (now `index_update_ms`) up to 119 s).
+/// The syncs are queued,
+/// and the background thread makes them;
+/// the list is the records a power cut may lose.
 #[test]
 fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
     let world: World = world("service-land-syncs");
@@ -1281,8 +1458,12 @@ fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
     remove(world.root.as_path());
 }
 
-/// Git's own index write follows `core.fsync`, and the in-process writer follows it too: a repository that names the index
-/// there (`added`) gets the flush of the new index before it is installed, on the person's wait as native Git makes it, and the
+/// Git's own index write follows `core.fsync`,
+/// and the in-process writer follows it too:
+/// a repository that names the index
+/// there (`added`) gets the flush of the new index before it is installed,
+/// on the person's wait as native Git makes it,
+/// and the
 /// wrapper's own records stay queued.
 #[test]
 fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does() {
@@ -1299,9 +1480,13 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
     remove(world.root.as_path());
 }
 
-/// A landing that publishes nothing forces its records before it returns: a foreign index lock that outlasts the ceiling
-/// withdraws the commit and keeps it on a side ref, and the intent and the other records the landing wrote are synced, on the
-/// wait, because the command reports what it kept and that promise must survive a power cut.
+/// A landing that publishes nothing forces its records before it returns:
+/// a foreign index lock that outlasts the ceiling
+/// withdraws the commit and keeps it on a side ref,
+/// and the intent and the other records the landing wrote are synced,
+/// on the
+/// wait,
+/// because the command reports what it kept and that promise must survive a power cut.
 #[test]
 fn a_withdrawal_forces_the_records_it_wrote() {
     let world: World = world("service-land-withdrawal-syncs");
@@ -1327,8 +1512,10 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     remove(world.root.as_path());
 }
 
-/// A completion record that cannot be read is not the same as none: a restart that cannot tell whether the index was installed
-/// leaves the batch open and the index alone, instead of replaying over whatever was staged since.
+/// A completion record that cannot be read is not the same as none:
+/// a restart that cannot tell whether the index was installed
+/// leaves the batch open and the index alone,
+/// instead of replaying over whatever was staged since.
 #[test]
 fn a_restart_that_cannot_read_the_completion_record_leaves_the_index_alone() {
     let world: World = world("service-land-unreadable-record");
@@ -1349,7 +1536,9 @@ fn a_restart_that_cannot_read_the_completion_record_leaves_the_index_alone() {
     remove(world.root.as_path());
 }
 
-/// An unwinding panic in what runs after the index is installed leaves the lock in place, as an error does: the installed
+/// An unwinding panic in what runs after the index is installed leaves the lock in place,
+/// as an error does:
+/// the installed
 /// index must never be left unlocked while the batch can still be replayed.
 #[test]
 fn a_panic_after_the_installation_leaves_the_lock() {
@@ -1364,8 +1553,10 @@ fn a_panic_after_the_installation_leaves_the_lock() {
     remove(world.root.as_path());
 }
 
-/// The index of a worktree that switched away is the branch checked out's own and is left alone, but an index kept in another
-/// file (`GIT_INDEX_FILE`) belongs to no branch: a restart still finishes its update.
+/// The index of a worktree that switched away is the branch checked out's own and is left alone,
+/// but an index kept in another
+/// file (`GIT_INDEX_FILE`) belongs to no branch:
+/// a restart still finishes its update.
 #[test]
 fn a_restart_after_a_switch_still_finishes_an_alternate_index() {
     let world: World = world("service-land-recover-alternate");
@@ -1387,7 +1578,8 @@ fn a_restart_after_a_switch_still_finishes_an_alternate_index() {
     remove(world.root.as_path());
 }
 
-/// The conclusion state a landing leaves is removed whether or not the worktree switched branches; a batch whose cleanup is not
+/// The conclusion state a landing leaves is removed whether or not the worktree switched branches;
+/// a batch whose cleanup is not
 /// done stays open.
 #[test]
 fn a_restart_after_a_switch_keeps_the_batch_open_while_its_cleanup_is_pending() {
@@ -1410,14 +1602,18 @@ fn a_restart_after_a_switch_keeps_the_batch_open_while_its_cleanup_is_pending() 
     remove(world.root.as_path());
 }
 
-/// Git in `repository` with `GIT_INDEX_FILE` set to `index`; its output, trimmed.
+/// Git in `repository` with `GIT_INDEX_FILE` set to `index`;
+/// its output,
+/// trimmed.
 pub(super) fn git_with_index(repository: &Path, index: &Path, arguments: &[&str]) -> String {
     let output = std::process::Command::new(crate::test_support::REAL_GIT).current_dir(repository).env("GIT_INDEX_FILE", index).args(arguments).output().expect("git");
     assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(&output.stderr));
     return String::from_utf8_lossy(&output.stdout).trim().to_string();
 }
 
-/// The index Git's own `reset` wrote is flushed by the release; the one the in-process update wrote is not flushed twice, because
+/// The index Git's own `reset` wrote is flushed by the release;
+/// the one the in-process update wrote is not flushed twice,
+/// because
 /// that update flushes its file before it renames it into place and nothing writes to it after.
 #[test]
 fn the_release_flushes_a_copy_git_wrote_and_not_one_the_update_already_flushed() {

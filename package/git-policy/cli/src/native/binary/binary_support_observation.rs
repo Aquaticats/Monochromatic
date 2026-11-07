@@ -1,7 +1,11 @@
 //! What:
-//!  Running a wrapped command with a time bound and reading what it did: its exit status, its output without the wait notices and hints, and the settling of the service work it started.
+//!  Running a wrapped command with a time bound and reading what it did:
+//! its exit status,
+//! its output without the wait notices and hints,
+//! and the settling of the service work it started.
 //! Why:
-//!  The reading of a run needs no fixture beyond its directory, so it lives in a file of its own that the helpers that start commands import.
+//!  The reading of a run needs no fixture beyond its directory,
+//! so it lives in a file of its own that the helpers that start commands import.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,7 +38,8 @@ pub struct Observed {
 }
 
 /// The bytes without their additive `"hint"` fields.
-///  Most binary tests pin the incumbent's event shape, which has no hint;
+///  Most binary tests pin the incumbent's event shape,
+/// which has no hint;
 ///  the hint text is checked by tests that use `observe_raw`.
 pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
     let marker: &[u8] = b",\"hint\":\"";
@@ -55,16 +60,25 @@ pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
     return kept;
 }
 
-/// How every wait notice of the wrapper begins (`wait_progress.rs`, `service_index_lock.rs`).
+/// How every wait notice of the wrapper begins (`wait_progress.rs`,
+/// `service_index_lock.rs`).
 pub const WAIT_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: still waiting for ";
 
 /// What:
 ///  The bytes without the lines that are wait notices.
 /// Why:
-///  A step that outlasts its notice grace (5 seconds for a query, 10 for a bulk step) prints a notice on standard
-///  error however healthy it is, and a loaded host stretches any step past that. A control that compares the
-///  wrapper's diagnostics with native Git's words means the words, not that the host was fast, so it compares what
-///  is left. Only a line that starts with the notice prefix goes; every other line stays, and a control that
+///  A step that outlasts its notice grace (5 seconds for a query,
+/// 10 for a bulk step) prints a notice on standard
+///  error however healthy it is,
+/// and a loaded host stretches any step past that.
+/// A control that compares the
+///  wrapper's diagnostics with native Git's words means the words,
+/// not that the host was fast,
+/// so it compares what
+///  is left.
+/// Only a line that starts with the notice prefix goes;
+/// every other line stays,
+/// and a control that
 ///  asserts a notice reads the raw bytes.
 pub fn without_wait_notices(bytes: &[u8]) -> Vec<u8> {
     return bytes
@@ -86,7 +100,8 @@ pub fn observe(command: &mut Command, input: &[u8]) -> Observed {
     };
 }
 
-/// What a command run under the shared test hang guard (`TIME_BOUND_SECONDS`) asks the wrapper to do, read the way the
+/// What a command run under the shared test hang guard (`TIME_BOUND_SECONDS`) asks the wrapper to do,
+/// read the way the
 ///  wrapper reads it.
 pub enum SharedBoundMisuse {
     /// A commit the wrapper lands through its transaction.
@@ -97,14 +112,30 @@ pub enum SharedBoundMisuse {
 
 /// What:
 ///  Whether `command` runs under the shared bound (`timeout --signal=KILL 5 <program> <arguments>`) with
-///  arguments that need a longer bound or a stub instead; absent for any other command.
+///  arguments that need a longer bound or a stub instead;
+/// absent for any other command.
 /// Why:
-///  The shared hang guard is for single Git commands, and is not a limit on how long the wrapper may take.
+///  The shared hang guard is for single Git commands,
+/// and is not a limit on how long the wrapper may take.
 ///  A landed commit starts 40 Git processes and makes 36
-///  sync calls (`binary_budget_tests.rs`), against one process for direct Git, and a manual page starts 9 more
-///  (`man`, `preconv`, `tbl`, `nroff`, `col`, `groff`, `troff`, `grotty`), so under host load either one can pass
-///  the bound while the policy it is there to test works. This check does not depend on timing, so a misuse fails
-///  on every host, loaded or quiet, instead of once a day on a busy one.
+///  sync calls (`binary_budget_tests.rs`),
+/// against one process for direct Git,
+/// and a manual page starts 9 more
+///  (`man`,
+/// `preconv`,
+/// `tbl`,
+/// `nroff`,
+/// `col`,
+/// `groff`,
+/// `troff`,
+/// `grotty`),
+/// so under host load either one can pass
+///  the bound while the policy it is there to test works.
+/// This check does not depend on timing,
+/// so a misuse fails
+///  on every host,
+/// loaded or quiet,
+/// instead of once a day on a busy one.
 pub fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
     let arguments: Vec<OsString> = command.get_args().map(OsStr::to_os_string).collect();
     let [signal, bound, program, wrapped @ ..] = arguments.as_slice() else {
@@ -175,7 +206,8 @@ pub fn supervised_wait(mut child: Child, input: &[u8], cleanup: impl FnOnce()) -
 /// Run a command to completion with every byte of its output kept,
 ///  feeding `input` to its standard input.
 /// # Panics
-///  When the command is a commit transaction or a manual page under the shared bound; see `shared_bound_misuse`.
+///  When the command is a commit transaction or a manual page under the shared bound;
+///  see `shared_bound_misuse`.
 pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     match shared_bound_misuse(command) {
         Some(SharedBoundMisuse::CommitTransaction) => panic!(
@@ -216,10 +248,12 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     };
 }
 
-/// How long a control waits for the after-commit work (the push, the upkeep) the commit service runs once the commit returned.
+/// How long a control waits for the after-commit work (the push,
+/// the upkeep) the commit service runs once the commit returned.
 pub const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// Every state directory of a work directory with the names it holds, for the failure message of a wait that ran out.
+/// Every state directory of a work directory with the names it holds,
+/// for the failure message of a wait that ran out.
 pub fn work_listing(work: &Path) -> String {
     return ["pending", "claimed", "recovering", "done", "failed"]
         .iter()
@@ -237,9 +271,12 @@ pub fn work_listing(work: &Path) -> String {
 /// What:
 ///  Waits until the commit service has settled the after-commit work of the repository around `directory`.
 /// Why:
-///   A commit that landed through the service returns before its push and its upkeep run, so a control that inspects the
-///  origin, the packs or the push's failure after the command must first wait for the records to leave `pending`,
-///  `claimed` and `recovering`; it waits only where a work directory exists.
+///   A commit that landed through the service returns before its push and its upkeep run,
+/// so a control that inspects the
+///  origin,
+/// the packs or the push's failure after the command must first wait for the records to leave `pending`,
+///  `claimed` and `recovering`;
+/// it waits only where a work directory exists.
 pub fn settle_service_work(directory: &Path) {
     let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
         return;

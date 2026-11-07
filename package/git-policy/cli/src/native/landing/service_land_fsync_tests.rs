@@ -1,12 +1,17 @@
-//! Controls for the flushes Git's own children make while a landing imports its commits: native Git writes the objects of a
-//!  commit as loose objects and flushes none by default, so the import flushes nothing the repository's `core.fsync` does not
-//!  ask for. The flushes are counted from Git's trace2 `fsync` counters, whatever child makes them.
+//! Controls for the flushes Git's own children make while a landing imports its commits:
+//! native Git writes the objects of a
+//!  commit as loose objects and flushes none by default,
+//! so the import flushes nothing the repository's `core.fsync` does not
+//!  ask for.
+//! The flushes are counted from Git's trace2 `fsync` counters,
+//! whatever child makes them.
 
 use super::tests::{World, request, world};
 use super::*;
 use crate::test_support::{git, git_text, remove};
 
-/// A landing of one changed file in a repository configured with `settings`, and the flushes its Git children reported.
+/// A landing of one changed file in a repository configured with `settings`,
+/// and the flushes its Git children reported.
 fn landing_flushes(name: &str, settings: &[(&str, &str)]) -> (u64, World) {
     let mut world: World = world(name);
     for (key, value) in settings {
@@ -27,15 +32,18 @@ fn landing_flushes(name: &str, settings: &[(&str, &str)]) -> (u64, World) {
     return (flushes, world);
 }
 
-/// The commit is on the branch with its content, and the repository is whole.
+/// The commit is on the branch with its content,
+/// and the repository is whole.
 fn assert_landed_whole(world: &World) {
     assert_eq!(git_text(world.repo.as_path(), &["show", "HEAD:landed.txt"]), "landed");
     assert_eq!(git_text(world.repo.as_path(), &["rev-list", "--objects", "--all", "--missing=print"]).lines().filter(|line| { return line.starts_with('?'); }).count(), 0, "no object is missing");
     git(world.repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
 }
 
-/// A small batch is imported as loose objects and the temporary pack is deleted, so the flush of that pack protects nothing:
-/// under Git's default `core.fsync` a landing's Git children flush nothing, as a native commit flushes nothing.
+/// A small batch is imported as loose objects and the temporary pack is deleted,
+/// so the flush of that pack protects nothing:
+/// under Git's default `core.fsync` a landing's Git children flush nothing,
+/// as a native commit flushes nothing.
 #[test]
 fn a_landing_flushes_no_pack_the_import_deletes() {
     let (flushes, world) = landing_flushes("service-land-fsync-default", &[]);
@@ -44,8 +52,12 @@ fn a_landing_flushes_no_pack_the_import_deletes() {
     remove(world.root.as_path());
 }
 
-/// A person who asks for flushed objects keeps them: a repository that names loose objects, `added`, `all` or the deprecated
-/// object-file switch gets the flushes Git makes for it. These are the positive controls of the control above.
+/// A person who asks for flushed objects keeps them:
+/// a repository that names loose objects,
+/// `added`,
+/// `all` or the deprecated
+/// object-file switch gets the flushes Git makes for it.
+/// These are the positive controls of the control above.
 #[test]
 fn a_repository_that_flushes_loose_objects_keeps_the_flushes_of_the_import() {
     let cases: [(&str, [(&str, &str); 1]); 4] = [
@@ -62,8 +74,11 @@ fn a_repository_that_flushes_loose_objects_keeps_the_flushes_of_the_import() {
     }
 }
 
-/// A batch above the unpack limit keeps its pack: with the default `core.fsync` it is not flushed, as native Git flushes no loose
-/// object, and when the repository flushes loose objects it is.
+/// A batch above the unpack limit keeps its pack:
+/// with the default `core.fsync` it is not flushed,
+/// as native Git flushes no loose
+/// object,
+/// and when the repository flushes loose objects it is.
 #[test]
 fn a_kept_pack_is_flushed_only_where_loose_objects_are() {
     let (plain, plain_world) = landing_flushes("service-land-fsync-kept-default", &[("fastimport.unpackLimit", "0")]);
@@ -78,10 +93,16 @@ fn a_kept_pack_is_flushed_only_where_loose_objects_are() {
     remove(flushed_world.root.as_path());
 }
 
-/// Where native Git would harden the objects of a commit (loose objects named in `core.fsync`, or the deprecated object-file
-/// switch), a pack that the import keeps instead of unpacking is hardened too, with its index: the person's choice covers the
-/// same objects whichever way they are stored. Each case keeps its pack (`fastimport.unpackLimit=0`) and names loose objects
-/// without naming the packs, which is where Git's own importer would leave the kept pack unflushed.
+/// Where native Git would harden the objects of a commit (loose objects named in `core.fsync`,
+/// or the deprecated object-file
+/// switch),
+/// a pack that the import keeps instead of unpacking is hardened too,
+/// with its index:
+/// the person's choice covers the
+/// same objects whichever way they are stored.
+/// Each case keeps its pack (`fastimport.unpackLimit=0`) and names loose objects
+/// without naming the packs,
+/// which is where Git's own importer would leave the kept pack unflushed.
 #[test]
 fn a_kept_pack_gets_the_flush_native_gives_the_same_objects() {
     let cases: [(&str, [(&str, &str); 2]); 3] = [

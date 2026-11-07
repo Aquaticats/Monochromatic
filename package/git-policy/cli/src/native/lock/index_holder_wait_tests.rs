@@ -1,9 +1,18 @@
-//! Controls for the wait for any program's hold on `index.lock`: it returns at once for a free index, ends when the lock is
-//! removed, names the lock and says it changed nothing, and waits for a holder proven alive, and for an owner nothing proves
-//! alive, with no bound.
+//! Controls for the wait for any program's hold on `index.lock`:
+//! it returns at once for a free index,
+//! ends when the lock is
+//! removed,
+//! names the lock and says it changed nothing,
+//! and waits for a holder proven alive,
+//! and for an owner nothing proves
+//! alive,
+//! with no bound.
 //! Why:
-//!  Merges must wait for a transient holder and never remove a lock, so each ending is pinned with a stand-in holder, a
-//!  file the control creates and removes, whatever the host's speed.
+//!  Merges must wait for a transient holder and never remove a lock,
+//! so each ending is pinned with a stand-in holder,
+//! a
+//!  file the control creates and removes,
+//! whatever the host's speed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,12 +23,14 @@ use super::*;
 use crate::test_support::{SharedSink, fixture, remove};
 use std::time::Duration;
 
-/// A cadence with no grace, so the controls read the notices without waiting for them.
+/// A cadence with no grace,
+/// so the controls read the notices without waiting for them.
 fn quick() -> Cadence {
     return Cadence::from_interval(Duration::from_millis(40));
 }
 
-/// A free index is not waited for, and nothing is printed.
+/// A free index is not waited for,
+/// and nothing is printed.
 #[test]
 fn a_free_index_is_not_waited_for() {
     let root: std::path::PathBuf = fixture("holder-wait-free");
@@ -30,8 +41,11 @@ fn a_free_index_is_not_waited_for() {
     remove(root.as_path());
 }
 
-/// A lock that goes while the command waits ends the wait with a release, after a notice that names the lock and says
-///  nothing was changed; the lock the other program held is the other program's to remove, and the wait removes nothing.
+/// A lock that goes while the command waits ends the wait with a release,
+/// after a notice that names the lock and says
+///  nothing was changed;
+/// the lock the other program held is the other program's to remove,
+/// and the wait removes nothing.
 #[test]
 fn a_released_lock_ends_the_wait_after_a_notice() {
     let root: std::path::PathBuf = fixture("holder-wait-released");
@@ -51,8 +65,11 @@ fn a_released_lock_ends_the_wait_after_a_notice() {
     remove(root.as_path());
 }
 
-/// An owner nothing proves alive is waited for like one proven alive: the wait goes on through a hold far longer than the second
-///  it used to end at, with the line that says what is known and how to remove the lock if no program uses the repository, and it
+/// An owner nothing proves alive is waited for like one proven alive:
+/// the wait goes on through a hold far longer than the second
+///  it used to end at,
+/// with the line that says what is known and how to remove the lock if no program uses the repository,
+/// and it
 ///  ends when the lock goes.
 #[test]
 fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
@@ -77,14 +94,19 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     remove(root.as_path());
 }
 
-/// How long the controls keep a lock: far more than the second an owner nothing proves alive used to be waited for.
+/// How long the controls keep a lock:
+/// far more than the second an owner nothing proves alive used to be waited for.
 const LONG_HOLD: Duration = Duration::from_millis(2500);
 
 /// The time a control gives a wait that must end at once before it calls it hung.
 const DEAD_OWNER_PATIENCE: Duration = Duration::from_secs(10);
 
-/// A PID file that names a process which no longer runs ends the wait at once, because nothing will release that lock; the
-///  diagnostic names the process. The wait runs on a thread and the control gives it a few seconds, so a dead owner waited for
+/// A PID file that names a process which no longer runs ends the wait at once,
+/// because nothing will release that lock;
+/// the
+///  diagnostic names the process.
+/// The wait runs on a thread and the control gives it a few seconds,
+/// so a dead owner waited for
 ///  like a live one fails the control instead of hanging it.
 #[test]
 fn a_dead_owner_ends_the_wait_at_once_with_the_process_named() {
@@ -109,7 +131,10 @@ fn a_dead_owner_ends_the_wait_at_once_with_the_process_named() {
     remove(root.as_path());
 }
 
-/// Where no watch can be set, the wait polls: a lock that goes after a while ends it, as it does with a watch.
+/// Where no watch can be set,
+/// the wait polls:
+/// a lock that goes after a while ends it,
+/// as it does with a watch.
 #[test]
 fn where_no_watch_can_be_set_the_merge_wait_polls_until_the_lock_goes() {
     let root: std::path::PathBuf = fixture("holder-wait-no-watch");
@@ -129,14 +154,18 @@ fn where_no_watch_can_be_set_the_merge_wait_polls_until_the_lock_goes() {
     remove(root.as_path());
 }
 
-/// The ceiling the long controls give the wait, so only the controls of the ceiling itself reach it.
+/// The ceiling the long controls give the wait,
+/// so only the controls of the ceiling itself reach it.
 const LONG_CEILING: Duration = Duration::from_secs(3600);
 
-/// The ceiling the controls of the ceiling give the wait, and the time they give it before they call it hung.
+/// The ceiling the controls of the ceiling give the wait,
+/// and the time they give it before they call it hung.
 const SHORT_CEILING: Duration = Duration::from_millis(300);
 const CEILING_PATIENCE: Duration = Duration::from_secs(10);
 
-/// Runs the wait with the short ceiling on a thread, and returns what it ended with and said, or nothing when it was still waiting
+/// Runs the wait with the short ceiling on a thread,
+/// and returns what it ended with and said,
+/// or nothing when it was still waiting
 ///  after `CEILING_PATIENCE`.
 fn wait_at_the_ceiling(index: &std::path::Path) -> Option<(IndexWait, String)> {
     let (finished, ended) = std::sync::mpsc::channel();
@@ -151,8 +180,10 @@ fn wait_at_the_ceiling(index: &std::path::Path) -> Option<(IndexWait, String)> {
     return Some((outcome, reader.text()));
 }
 
-/// A holder proven alive that keeps the lock past the ceiling is given up on: the line names the process and says the command
-/// stops; the lock is left in place.
+/// A holder proven alive that keeps the lock past the ceiling is given up on:
+/// the line names the process and says the command
+/// stops;
+/// the lock is left in place.
 #[test]
 fn a_holder_proven_alive_is_given_up_on_at_the_ceiling() {
     let root: std::path::PathBuf = fixture("holder-wait-ceiling-proven");
@@ -167,7 +198,8 @@ fn a_holder_proven_alive_is_given_up_on_at_the_ceiling() {
     remove(root.as_path());
 }
 
-/// An owner nothing proves alive is given up on at the ceiling too, with what was looked at.
+/// An owner nothing proves alive is given up on at the ceiling too,
+/// with what was looked at.
 #[test]
 fn an_owner_nothing_proves_alive_is_given_up_on_at_the_ceiling() {
     let root: std::path::PathBuf = fixture("holder-wait-ceiling-unproven");
@@ -181,8 +213,11 @@ fn an_owner_nothing_proves_alive_is_given_up_on_at_the_ceiling() {
     remove(root.as_path());
 }
 
-/// A holder proven alive is waited for with no bound: the wait goes on through the whole hold, repeats its line naming the
-///  holder without ever saying it gives up, and ends when the holder lets go.
+/// A holder proven alive is waited for with no bound:
+/// the wait goes on through the whole hold,
+/// repeats its line naming the
+///  holder without ever saying it gives up,
+/// and ends when the holder lets go.
 #[test]
 fn a_holder_proven_alive_is_waited_for_with_no_bound() {
     let root: std::path::PathBuf = fixture("holder-wait-alive");
@@ -208,7 +243,8 @@ fn a_holder_proven_alive_is_waited_for_with_no_bound() {
     remove(root.as_path());
 }
 
-/// The id of a process that has ended, so a PID file can name one that is gone.
+/// The id of a process that has ended,
+/// so a PID file can name one that is gone.
 fn gone_process_id() -> u32 {
     let mut child = std::process::Command::new("true").spawn().expect("a short process starts");
     let id: u32 = child.id();
@@ -216,7 +252,8 @@ fn gone_process_id() -> u32 {
     return id;
 }
 
-/// A small helper owning the lock path, so the sink's action can be `Send`.
+/// A small helper owning the lock path,
+/// so the sink's action can be `Send`.
 mod lock_remover {
     /// Removes one file.
     pub(super) struct Remover(std::path::PathBuf);

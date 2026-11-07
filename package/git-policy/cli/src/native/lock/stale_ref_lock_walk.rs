@@ -1,9 +1,16 @@
 //! What:
-//!  Which files below a Git directory are reference locks, and which files go with one.
+//!  Which files below a Git directory are reference locks,
+//! and which files go with one.
 //! Why:
-//!  Only the locks of references are judged here. `index.lock`, `config.lock`, `shallow.lock`, object and pack locks and
-//!  every `~pid.lock` file belong to other protocols or to the lock they accompany. The walk lists directory entries by
-//!  their own file type, so a symbolic link is never followed and a link named like a lock is never a candidate.
+//!  Only the locks of references are judged here.
+//! `index.lock`,
+//! `config.lock`,
+//! `shallow.lock`,
+//! object and pack locks and
+//!  every `~pid.lock` file belong to other protocols or to the lock they accompany.
+//! The walk lists directory entries by
+//!  their own file type,
+//! so a symbolic link is never followed and a link named like a lock is never a candidate.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,13 +31,15 @@ const PACKED_LOCK: &str = "packed-refs.lock";
 pub struct Candidate {
     /// The Git directory (or common Git directory) whose walk found it.
     pub root: PathBuf,
-    /// The lock file, or for an orphan staging file the staging file itself.
+    /// The lock file,
+    /// or for an orphan staging file the staging file itself.
     pub lock: PathBuf,
     /// Whether this is `packed-refs.new` found with no `packed-refs.lock` beside it.
     pub orphan_staging: bool,
 }
 
-/// Whether `path` names a regular file itself (a symbolic link does not count); a path that cannot be looked at is not one.
+/// Whether `path` names a regular file itself (a symbolic link does not count);
+/// a path that cannot be looked at is not one.
 fn is_regular_file(path: &Path) -> bool {
     return match std::fs::symlink_metadata(path) {
         Ok(metadata) => metadata.is_file(),
@@ -38,7 +47,8 @@ fn is_regular_file(path: &Path) -> bool {
     };
 }
 
-/// Whether nothing exists at `path`: looking at it fails with "not found" (any other failure is not an answer).
+/// Whether nothing exists at `path`:
+/// looking at it fails with "not found" (any other failure is not an answer).
 fn is_missing(path: &Path) -> bool {
     return match std::fs::symlink_metadata(path) {
         Ok(_) => false,
@@ -64,7 +74,10 @@ fn is_reference_lock(path: &Path, is_file: bool) -> bool {
     return is_file && name.ends_with(LOCK_SUFFIX) && !name.ends_with(PID_LOCK_SUFFIX);
 }
 
-/// Every reference lock below `roots`, in path order: `packed-refs.lock`, `HEAD.lock` and every lock under `refs`.
+/// Every reference lock below `roots`,
+/// in path order:
+/// `packed-refs.lock`,
+/// `HEAD.lock` and every lock under `refs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,7 +118,9 @@ pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
     return found;
 }
 
-/// The pid file Git writes beside a lock: the lock's name without `.lock`, then `~pid.lock`.
+/// The pid file Git writes beside a lock:
+/// the lock's name without `.lock`,
+/// then `~pid.lock`.
 pub fn pid_file_beside(lock: &Path) -> PathBuf {
     let name: String = match lock.file_name() {
         Some(file_name) => file_name.to_string_lossy().into_owned(),
@@ -115,7 +130,10 @@ pub fn pid_file_beside(lock: &Path) -> PathBuf {
     return lock.with_file_name(format!("{stem}{PID_LOCK_SUFFIX}"));
 }
 
-/// The files that go with a lock and exist now: its pid file and, for `packed-refs.lock`, the staging file.
+/// The files that go with a lock and exist now:
+/// its pid file and,
+/// for `packed-refs.lock`,
+/// the staging file.
 pub fn companions_of(lock: &Path) -> Vec<PathBuf> {
     let mut companions: Vec<PathBuf> = vec![pid_file_beside(lock)];
     if lock.file_name() == Some(std::ffi::OsStr::new(PACKED_LOCK)) {

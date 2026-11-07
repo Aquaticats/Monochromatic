@@ -3,7 +3,8 @@
 //!  and the test for a filesystem that cannot do it.
 //! Why:
 //!  A lock is placed and an earlier name is moved to its current name by one step that is as exclusive as `create_new`:
-//!  when the target exists the call fails and both names stay, so no data is written over.
+//!  when the target exists the call fails and both names stay,
+//! so no data is written over.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

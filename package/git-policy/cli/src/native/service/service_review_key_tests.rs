@@ -1,11 +1,14 @@
-//! Controls for the credential type: it never prints, and it is chosen as the script chooses it.
+//! Controls for the credential type:
+//! it never prints,
+//! and it is chosen as the script chooses it.
 
 use super::*;
 
 /// A stand-in credential.
 const SECRET: &str = "test-key-not-a-secret";
 
-/// An empty text is no key, and a key's debug output hides its text.
+/// An empty text is no key,
+/// and a key's debug output hides its text.
 #[test]
 fn a_key_never_prints_its_text() {
     assert_eq!(ReviewKey::new(""), None);
@@ -16,7 +19,8 @@ fn a_key_never_prints_its_text() {
     assert!(!format!("{:#?}", vec![key]).contains(SECRET));
 }
 
-/// The first variable that is set wins even when empty; the second is used only when the first is unset.
+/// The first variable that is set wins even when empty;
+/// the second is used only when the first is unset.
 #[test]
 fn the_first_set_variable_wins() {
     let both = |name: &str| -> Option<String> { return Some(format!("value-of-{name}")); };

@@ -1,20 +1,41 @@
 //! What:
-//!  The linked worktrees of a main checkout, found from `.git/worktrees/*/gitdir`, and the stat rewrite applied to the
+//!  The linked worktrees of a main checkout,
+//! found from `.git/worktrees/*/gitdir`,
+//! and the stat rewrite applied to the
 //!  index files of the checkout and of those worktrees on disk.
 //! Why:
-//!  The subvolume migration copies the main checkout and the linked worktrees inside it, so each of their indexes needs
-//!  the rewrite of `subvolume_index.rs`. A file in `.git/worktrees/<name>/gitdir` holds the path of the worktree's
-//!  `.git` file, so the worktree is its parent directory (the same reading the migration script used). An index is
-//!  replaced through `index.lock` as Git replaces it, so a running Git command is never raced: the lock is taken
-//!  before the index is read, and when it exists the index is left as copied and the report says so. The migration
-//!  holds the locks itself while it completes the new checkout, and its rewrite then runs under them.
+//!  The subvolume migration copies the main checkout and the linked worktrees inside it,
+//! so each of their indexes needs
+//!  the rewrite of `subvolume_index.rs`.
+//! A file in `.git/worktrees/<name>/gitdir` holds the path of the worktree's
+//!  `.git` file,
+//! so the worktree is its parent directory (the same reading the migration script used).
+//! An index is
+//!  replaced through `index.lock` as Git replaces it,
+//! so a running Git command is never raced:
+//! the lock is taken
+//!  before the index is read,
+//! and when it exists the index is left as copied and the report says so.
+//! The migration
+//!  holds the locks itself while it completes the new checkout,
+//! and its rewrite then runs under them.
 //!
 //! Why the lock stays:
-//!  `index.lock` is Git's protocol for replacing an index; the rewrite reads the index, computes new stat fields and renames
-//!  a file over it, which is lost if a Git writer replaces the index in between, and only Git's own lock excludes Git. The
-//!  rewrite takes it with `O_EXCL`, never waits (a lock that exists skips the index and says so), holds it for one index and
-//!  only from the read to the rename, and gives it back as Git does. Concurrency among this wrapper's own commands never
-//!  reaches this file: `single_owner_claim.rs` gives one command a checkout or a worktree without a lock.
+//!  `index.lock` is Git's protocol for replacing an index;
+//! the rewrite reads the index,
+//! computes new stat fields and renames
+//!  a file over it,
+//! which is lost if a Git writer replaces the index in between,
+//! and only Git's own lock excludes Git.
+//! The
+//!  rewrite takes it with `O_EXCL`,
+//! never waits (a lock that exists skips the index and says so),
+//! holds it for one index and
+//!  only from the read to the rename,
+//! and gives it back as Git does.
+//! Concurrency among this wrapper's own commands never
+//!  reaches this file:
+//! `single_owner_claim.rs` gives one command a checkout or a worktree without a lock.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,7 +54,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  One linked worktree of the checkout.
 /// Why:
-///   The index lives in the administrative directory; the files it describes live in the worktree.
+///   The index lives in the administrative directory;
+/// the files it describes live in the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,8 +72,10 @@ pub struct LinkedWorktree {
 /// What:
 ///  The linked worktrees of `root` whose directory is inside `root` and exists.
 /// Why:
-///   Only worktrees inside the checkout are copied with it. An administrative directory without a readable `gitdir`
-///  file belongs to a worktree Git would prune, so it is skipped.
+///   Only worktrees inside the checkout are copied with it.
+/// An administrative directory without a readable `gitdir`
+///  file belongs to a worktree Git would prune,
+/// so it is skipped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,11 +102,14 @@ fn by_worktree_path(left: &LinkedWorktree, right: &LinkedWorktree) -> std::cmp::
     return left.worktree.cmp(&right.worktree);
 }
 
-/// The call the refresh makes at its seam when no control wants one: none.
+/// The call the refresh makes at its seam when no control wants one:
+/// none.
 fn do_nothing() {}
 
 /// What:
-///  What `lstat` of `tree/path` reports now, in index units, or nothing for a file that cannot be examined.
+///  What `lstat` of `tree/path` reports now,
+/// in index units,
+/// or nothing for a file that cannot be examined.
 /// Why:
 ///   The rewrite leaves an entry as Git recorded it when its file is missing.
 ///
@@ -96,9 +123,11 @@ pub(crate) fn stat_fields(tree: &Path, path: &[u8]) -> Option<StatFields> {
 }
 
 /// What:
-///  The stat fields of metadata in hand, in index units.
+///  The stat fields of metadata in hand,
+/// in index units.
 /// Why:
-///   A caller that holds the object it made records the fields of that object, not of whatever its path names later.
+///   A caller that holds the object it made records the fields of that object,
+/// not of whatever its path names later.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,9 +151,14 @@ pub(crate) fn fields_of(metadata: &std::fs::Metadata) -> StatFields {
 ///  How the rewrite of one index file is protected from a Git command that writes the same index.
 ///  `&'a str` borrows the token of the migration whose lock is already held.
 /// Why:
-///   Git replaces an index through `index.lock`. A rewrite that runs by itself takes that lock, as Git does, before it
-///  reads the index and holds it until the new index is in place. The migration already holds the lock of every index
-///  while it completes the new checkout, so its rewrite uses the held lock instead of creating one.
+///   Git replaces an index through `index.lock`.
+/// A rewrite that runs by itself takes that lock,
+/// as Git does,
+/// before it
+///  reads the index and holds it until the new index is in place.
+/// The migration already holds the lock of every index
+///  while it completes the new checkout,
+/// so its rewrite uses the held lock instead of creating one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -134,7 +168,8 @@ pub(crate) fn fields_of(metadata: &std::fs::Metadata) -> StatFields {
 pub enum IndexLock<'a> {
     /// Create `index.lock` for the duration of the rewrite and remove it after.
     Acquire,
-    /// `index.lock` holds this token already; leave it in place for its owner to release.
+    /// `index.lock` holds this token already;
+    /// leave it in place for its owner to release.
     Held(&'a str),
 }
 
@@ -142,8 +177,10 @@ pub enum IndexLock<'a> {
 ///  What a rewrite of one index file is told beyond the paths.
 ///  `&'a [PathBuf]` borrows the list of trees.
 /// Why:
-///   The lock decides how the index is protected, the references decide which entries Git recorded for the files the
-///  copy was made from, and the hash length (read from the repository's configuration) decides how an index with an
+///   The lock decides how the index is protected,
+/// the references decide which entries Git recorded for the files the
+///  copy was made from,
+/// and the hash length (read from the repository's configuration) decides how an index with an
 ///  all-zero checksum is read.
 ///
 /// In TS you'd write (pseudocode):
@@ -154,14 +191,18 @@ pub enum IndexLock<'a> {
 pub struct RefreshOptions<'a> {
     /// How the index is locked while it is rewritten.
     pub lock: IndexLock<'a>,
-    /// Trees whose files the index may describe (the tree the copy was made from). An entry is refreshed only if the
-    ///  file in one of them still has the stat fields the entry records; empty means every entry may be refreshed.
+    /// Trees whose files the index may describe (the tree the copy was made from).
+    /// An entry is refreshed only if the
+    ///  file in one of them still has the stat fields the entry records;
+    /// empty means every entry may be refreshed.
     pub references: &'a [PathBuf],
-    /// The repository's hash length in bytes, when known.
+    /// The repository's hash length in bytes,
+    /// when known.
     pub hash_length: Option<usize>,
 }
 
-/// Whether a file's present stat equals what an entry recorded (the device is not compared: a subvolume has its own).
+/// Whether a file's present stat equals what an entry recorded (the device is not compared:
+/// a subvolume has its own).
 pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
     return now.size == stored.size
         && now.ino == stored.ino
@@ -176,9 +217,15 @@ pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
 /// What:
 ///  Rewrite one index file in place and report what happened in one line.
 /// Why:
-///   A missing index is not an error (a worktree never checked out has none); a held `index.lock` and every declined
-///  shape are reported, not hidden, because the cost is a slow first `git status` there. The lock comes first, then
-///  the read, so a Git command that installs a newer index in between is never overwritten with an older one.
+///   A missing index is not an error (a worktree never checked out has none);
+/// a held `index.lock` and every declined
+///  shape are reported,
+/// not hidden,
+/// because the cost is a slow first `git status` there.
+/// The lock comes first,
+/// then
+///  the read,
+/// so a Git command that installs a newer index in between is never overwritten with an older one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -188,20 +235,25 @@ pub fn refresh_index_file_with(index_path: &Path, tree: &Path, options: &Refresh
     return refresh_index_file_seamed(index_path, tree, options, &mut do_nothing);
 }
 
-/// `refresh_index_file_with` with a call at the moment right after the rewrite, before the lock is looked at again, where a
+/// `refresh_index_file_with` with a call at the moment right after the rewrite,
+/// before the lock is looked at again,
+/// where a
 ///  control may let another command take the lock name.
 pub fn refresh_index_file_seamed(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, after_rewrite: &mut dyn FnMut()) -> String {
     return refresh_index_file_report_seamed(index_path, tree, options, after_rewrite).line;
 }
 
-/// How a refresh ended, apart from the words that describe it.
+/// How a refresh ended,
+/// apart from the words that describe it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RefreshStatus {
     /// The new index was installed.
     Refreshed,
-    /// There is no index file, which is nothing to refresh and no failure.
+    /// There is no index file,
+    /// which is nothing to refresh and no failure.
     NoIndex,
-    /// The index was left as it was, for the reason in the line.
+    /// The index was left as it was,
+    /// for the reason in the line.
     Skipped,
 }
 
@@ -214,7 +266,8 @@ pub struct RefreshReport {
     pub status: RefreshStatus,
 }
 
-/// `refresh_index_file_with` that says how it ended, so a caller that must not go on after a failed refresh can stop.
+/// `refresh_index_file_with` that says how it ended,
+/// so a caller that must not go on after a failed refresh can stop.
 pub fn refresh_index_file_report(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>) -> RefreshReport {
     return refresh_index_file_report_seamed(index_path, tree, options, &mut do_nothing);
 }
@@ -260,8 +313,12 @@ fn remove_if_same_file(path: &Path, held: &std::fs::File) {
     }
 }
 
-/// The read, rewrite and install of one index while its lock is held; `lock_file` is the lock when this call made it. The flag
-///  says whether the new index was published, after which the lock name is not this call's any more.
+/// The read,
+/// rewrite and install of one index while its lock is held;
+/// `lock_file` is the lock when this call made it.
+/// The flag
+///  says whether the new index was published,
+/// after which the lock name is not this call's any more.
 fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>, lock_path: &Path) -> (String, RefreshStatus) {
     let index_mtime: Option<(u32, u32)> = match std::fs::metadata(index_path) {
         Ok(metadata) => Some((metadata.mtime() as u32, metadata.mtime_nsec() as u32)),
@@ -279,7 +336,8 @@ fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'
 /// What:
 ///  The stat fields of a path as the tree being rewritten reports them now.
 /// Why:
-///   The rewrite asks for each entry's path; the tree it describes is the only state the answer needs.
+///   The rewrite asks for each entry's path;
+/// the tree it describes is the only state the answer needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -306,7 +364,8 @@ impl StatLookup for StatOfTree<'_> {
 /// class AgreeWithReferences implements StatTrust { isTrusted(path, stored) { return agreesWithAReference(this.references, path, stored); } }
 /// ```
 struct AgreeWithReferences<'a> {
-    /// The trees the checkout was copied from, one per reference.
+    /// The trees the checkout was copied from,
+    /// one per reference.
     references: &'a [PathBuf],
 }
 
@@ -316,7 +375,9 @@ impl StatTrust for AgreeWithReferences<'_> {
     }
 }
 
-/// The rewrite of the stat fields of `bytes` and the install of the result over `index_path`, with `paths` naming the index, the tree it
+/// The rewrite of the stat fields of `bytes` and the install of the result over `index_path`,
+/// with `paths` naming the index,
+/// the tree it
 ///  describes and the lock file.
 fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> (String, RefreshStatus) {
     let [index_path, tree, lock_path]: [&Path; 3] = paths;
@@ -338,7 +399,9 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
     return (format!("{updated} of {total} entries refreshed"), RefreshStatus::Refreshed);
 }
 
-/// Whether some reference tree has the file `path` as the entry `stored` records; with no reference tree, every entry agrees.
+/// Whether some reference tree has the file `path` as the entry `stored` records;
+/// with no reference tree,
+/// every entry agrees.
 fn agrees_with_a_reference(references: &[PathBuf], path: &[u8], stored: &StoredStat) -> bool {
     if references.is_empty() {
         return true;
@@ -353,7 +416,10 @@ fn agrees_with_a_reference(references: &[PathBuf], path: &[u8], stored: &StoredS
     return false;
 }
 
-/// Write `bytes` into `file`, flush it to disk, then rename `from` over `to`; each step runs only if the one before it worked.
+/// Write `bytes` into `file`,
+/// flush it to disk,
+/// then rename `from` over `to`;
+/// each step runs only if the one before it worked.
 fn write_sync_rename(file: &mut std::fs::File, bytes: &[u8], from: &Path, to: &Path) -> std::io::Result<()> {
     file.write_all(bytes)?;
     file.sync_all()?;
@@ -361,11 +427,19 @@ fn write_sync_rename(file: &mut std::fs::File, bytes: &[u8], from: &Path, to: &P
 }
 
 /// What:
-///  Write `bytes` to a staging file beside `index_path`, created exclusively, and rename it over the index.
+///  Write `bytes` to a staging file beside `index_path`,
+/// created exclusively,
+/// and rename it over the index.
 /// Why:
-///   Under a held lock no Git command writes the index, but the staging name is still checked: it is created with
-///  `O_EXCL`, which fails on an existing file or link instead of following or truncating it, written and synced through its
-///  own descriptor, and renamed only while the name still holds that file. A staging file that cannot be proven the call's
+///   Under a held lock no Git command writes the index,
+/// but the staging name is still checked:
+/// it is created with
+///  `O_EXCL`,
+/// which fails on an existing file or link instead of following or truncating it,
+/// written and synced through its
+///  own descriptor,
+/// and renamed only while the name still holds that file.
+/// A staging file that cannot be proven the call's
 ///  is left where it is.
 ///
 /// In TS you'd write (pseudocode):
@@ -384,7 +458,9 @@ fn stage_and_replace(index_path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     return written;
 }
 
-/// Write `bytes` into `staged`, flush it, and rename `sibling` over `index_path` only while `sibling` still names `staged`.
+/// Write `bytes` into `staged`,
+/// flush it,
+/// and rename `sibling` over `index_path` only while `sibling` still names `staged`.
 fn write_sync_and_rename_if_same(staged: &mut std::fs::File, bytes: &[u8], sibling: &Path, index_path: &Path) -> std::io::Result<()> {
     staged.write_all(bytes)?;
     staged.sync_all()?;
@@ -397,7 +473,9 @@ fn write_sync_and_rename_if_same(staged: &mut std::fs::File, bytes: &[u8], sibli
 }
 
 /// What:
-///  Rewrite one index file in place under a lock, trusting every entry; see `refresh_index_file_with`.
+///  Rewrite one index file in place under a lock,
+/// trusting every entry;
+/// see `refresh_index_file_with`.
 /// Why:
 ///   The shape the controls use when nothing else is known about the index.
 ///
@@ -410,9 +488,11 @@ pub fn refresh_index_file_locked(index_path: &Path, tree: &Path, lock: IndexLock
 }
 
 /// What:
-///  Rewrite one index file in place under a lock the rewrite takes itself; see `refresh_index_file_locked`.
+///  Rewrite one index file in place under a lock the rewrite takes itself;
+/// see `refresh_index_file_locked`.
 /// Why:
-///   The common case: nothing holds the lock yet.
+///   The common case:
+/// nothing holds the lock yet.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -423,11 +503,17 @@ pub fn refresh_index_file(index_path: &Path, tree: &Path) -> String {
 }
 
 /// What:
-///  The repository's hash length in bytes from its configuration file: 32 when `extensions.objectformat` is `sha256`,
-///  20 when the file has no such setting, nothing when the file cannot be read.
+///  The repository's hash length in bytes from its configuration file:
+/// 32 when `extensions.objectformat` is `sha256`,
+///  20 when the file has no such setting,
+/// nothing when the file cannot be read.
 /// Why:
-///   An index does not say which hash it uses; the configuration does. The reading is the plain `[section]` and
-///  `key = value` grammar, case-insensitive for section and key names, without includes.
+///   An index does not say which hash it uses;
+/// the configuration does.
+/// The reading is the plain `[section]` and
+///  `key = value` grammar,
+/// case-insensitive for section and key names,
+/// without includes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -18,6 +18,32 @@ import { errorCodeOf, } from './error-code-of.ts';
 import type { MoveOptions, } from './move-options.ts';
 
 /**
+ Lists a path and every folder above it, deepest first, ending at the root.
+
+ @param path - an absolute path
+
+ @returns the path and its ancestors
+
+ @example
+ ```ts
+ import { ancestorChain, } from './canonical-path.ts';
+
+ ancestorChain('/a/b',);
+ // ['/a/b', '/a', '/']
+ ```
+ */
+export function ancestorChain(path: string,): readonly string[] {
+  /**
+   The path and its ancestors, filled from the deepest up.
+   */
+  const chain: string[] = [];
+  for (let cursor = resolve(path,); !chain.includes(cursor,); cursor = dirname(cursor,)) {
+    chain.push(cursor,);
+  }
+  return chain;
+}
+
+/**
  Resolves a path through every link in it. A path that does not exist yet keeps its missing tail: the part that exists is
  resolved and the missing names are appended, so a folder the move is about to make still has one spelling.
 
@@ -37,39 +63,47 @@ import type { MoveOptions, } from './move-options.ts';
  */
 export async function canonicalPath(path: string,): Promise<string> {
   /**
-   The names below the deepest folder that exists, deepest last.
+   The path and its ancestors, deepest first.
    */
-  const missing: string[] = [];
+  const chain = ancestorChain(path,);
   /**
-   The part of the path still being tried.
+   What resolving each of them found: the resolved path, or nothing for a name that does not exist.
    */
-  let existing = resolve(path,);
-  for (;;) {
+  const resolved = await Promise.all(chain.map(async function resolveOne(candidate,) {
     try {
-      /**
-       The resolved part that exists.
-       */
-      const resolved = await realpath(existing,);
-      return join(
-        resolved,
-        ...missing.toReversed(),
-      );
+      return await realpath(candidate,);
     }
     catch (error) {
       if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
         throw error;
       }
-      /**
-       The folder that holds the missing name.
-       */
-      const parent = dirname(existing,);
-      if (parent === existing) {
-        return existing;
-      }
-      missing.push(basename(existing,),);
-      existing = parent;
+      return undefined;
     }
+  },),);
+  /**
+   The place of the deepest one that exists.
+   */
+  const deepest = resolved.findIndex(function exists(found,) {
+    return found !== undefined;
+  },);
+  /**
+   The resolved path of the deepest folder that exists.
+   */
+  const base = resolved[deepest];
+  if (base === undefined) {
+    return resolve(path,);
   }
+  return join(
+    base,
+    ...chain.slice(
+      0,
+      deepest,
+    )
+      .map(function nameOf(missing,) {
+        return basename(missing,);
+      },)
+      .toReversed(),
+  );
 }
 
 /**
@@ -99,6 +133,6 @@ export async function canonicalOptions(options: MoveOptions,): Promise<MoveOptio
   return {
     ...options,
     mainPath: await canonicalPath(options.mainPath,),
-    inventoryPrefixTo: keepsSlash && (!prefixTo.endsWith('/',)) ? `${prefixTo}/` : prefixTo,
+    inventoryPrefixTo: (keepsSlash && (!prefixTo.endsWith('/',))) ? `${prefixTo}/` : prefixTo,
   };
 }

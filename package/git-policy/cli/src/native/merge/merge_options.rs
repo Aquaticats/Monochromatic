@@ -1,10 +1,21 @@
 //! What:
-//!  The shape of a `git merge` command line that the wrapper can complete in isolation, or the reason it cannot.
+//!  The shape of a `git merge` command line that the wrapper can complete in isolation,
+//! or the reason it cannot.
 //! Why:
-//!  The isolated merge reproduces what native Git writes only for options whose effect is known exactly: the
-//!  message, the fast-forward choice, signing and the unrelated-histories switch.
-//!  Any other option (a strategy, `--squash`, `--no-commit`, `--ff-only`, `--edit`, an abbreviation Git would
-//!  accept) is not guessed: the command is forwarded to native Git unchanged, with the refusal it may give.
+//!  The isolated merge reproduces what native Git writes only for options whose effect is known exactly:
+//! the
+//!  message,
+//! the fast-forward choice,
+//! signing and the unrelated-histories switch.
+//!  Any other option (a strategy,
+//! `--squash`,
+//! `--no-commit`,
+//! `--ff-only`,
+//! `--edit`,
+//! an abbreviation Git would
+//!  accept) is not guessed:
+//! the command is forwarded to native Git unchanged,
+//! with the refusal it may give.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +33,8 @@ use std::ffi::OsString;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FastForwardChoice {
-    /// Neither `--ff` nor `--no-ff`; `merge.ff` decides.
+    /// Neither `--ff` nor `--no-ff`;
+    /// `merge.ff` decides.
     Default,
     /// `--ff`.
     Allowed,
@@ -38,11 +50,13 @@ pub enum FastForwardChoice {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Signing {
-    /// Neither option; `commit.gpgSign` decides.
+    /// Neither option;
+    /// `commit.gpgSign` decides.
     Default,
     /// `--no-gpg-sign`.
     Never,
-    /// `-S`, `--gpg-sign` or either with a key.
+    /// `-S`,
+    /// `--gpg-sign` or either with a key.
     Sign(Option<Vec<u8>>),
 }
 
@@ -54,23 +68,32 @@ pub enum Signing {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MergeShape {
-    /// The one commit-ish being merged, exactly as typed.
+    /// The one commit-ish being merged,
+    /// exactly as typed.
     pub reference: OsString,
-    /// The message of every `-m`, joined as Git joins them; absent when none was given.
+    /// The message of every `-m`,
+    /// joined as Git joins them;
+    /// absent when none was given.
     pub message: Option<Vec<u8>>,
     /// The fast-forward choice.
     pub fast_forward: FastForwardChoice,
     /// The signing choice.
     pub signing: Signing,
-    /// Whether `--no-edit` was given; without it a terminal opens the editor.
+    /// Whether `--no-edit` was given;
+    /// without it a terminal opens the editor.
     pub no_edit: bool,
     /// Whether `-q` or `--quiet` was given.
     pub quiet: bool,
-    /// The diffstat choice (`--stat`, `--no-stat`, `-n`); absent when `merge.stat` decides.
+    /// The diffstat choice (`--stat`,
+    /// `--no-stat`,
+    /// `-n`);
+    /// absent when `merge.stat` decides.
     pub stat: Option<bool>,
     /// Whether `--allow-unrelated-histories` was given.
     pub allow_unrelated_histories: bool,
-    /// The shortlog choice (`--log`, `--no-log`); absent when `merge.log` decides.
+    /// The shortlog choice (`--log`,
+    /// `--no-log`);
+    /// absent when `merge.log` decides.
     pub log: Option<bool>,
 }
 
@@ -84,12 +107,15 @@ pub struct MergeShape {
 pub enum ParsedMerge {
     /// The command line is one the wrapper completes exactly.
     Supported(MergeShape),
-    /// The command line is forwarded to native Git; the text names why.
+    /// The command line is forwarded to native Git;
+    /// the text names why.
     Unsupported(String),
 }
 
 /// What:
-///  Add one `-m` value the way Git joins them: a blank line between values, each ending in a line feed.
+///  Add one `-m` value the way Git joins them:
+/// a blank line between values,
+/// each ending in a line feed.
 /// Why:
 ///   `option_parse_message` in Git's `builtin/merge.c` adds a line feed before every value after the first and
 ///  completes the last line.
@@ -111,8 +137,10 @@ fn append_message(buffer: &mut Vec<u8>, value: &[u8]) {
 /// What:
 ///  Whether an option is accepted and has no effect on the merge commit.
 /// Why:
-///   These options change only what Git prints or which hooks it runs; the isolated merge runs no hook of the
-///  merge commit and prints its own result, so they need no handling.
+///   These options change only what Git prints or which hooks it runs;
+/// the isolated merge runs no hook of the
+///  merge commit and prints its own result,
+/// so they need no handling.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -127,10 +155,13 @@ fn is_ignorable(text: &str) -> bool {
 }
 
 /// What:
-///  Read the arguments after `merge` into a supported shape, or say why they are not one.
+///  Read the arguments after `merge` into a supported shape,
+/// or say why they are not one.
 /// Why:
-///   Only exact spellings are read; Git accepts unambiguous abbreviations and attached values in forms this reader
-///  does not model, and a form it does not model must reach native Git instead of being guessed.
+///   Only exact spellings are read;
+/// Git accepts unambiguous abbreviations and attached values in forms this reader
+///  does not model,
+/// and a form it does not model must reach native Git instead of being guessed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,7 +249,8 @@ pub fn parse_merge_shape(region: &[OsString]) -> ParsedMerge {
     return ParsedMerge::Supported(shape);
 }
 
-/// Option forms accepted, refused and passed through.
+/// Option forms accepted,
+/// refused and passed through.
 #[cfg(test)]
 #[path = "merge_options_tests.rs"]
 mod tests;

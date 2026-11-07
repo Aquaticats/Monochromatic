@@ -1,13 +1,30 @@
 //! What:
-//!  The standards-review shadow run, end to end and in-process: classify the landed commit's names, read the commit,
-//!  build the capped input, call the gateway, and append the one log entry. Also a runner that contains a panic of any of it.
+//!  The standards-review shadow run,
+//! end to end and in-process:
+//! classify the landed commit's names,
+//! read the commit,
+//!  build the capped input,
+//! call the gateway,
+//! and append the one log entry.
+//! Also a runner that contains a panic of any of it.
 //! Why:
-//!  This replaces the root `mise.toml` task `shadow-review` (its Luna route; the `SHADOW_REVIEW_ALLOW=1` route starts
-//!  `pi` and is not ported). The review must never delay or fail a landing, so nothing here panics or returns a failure
-//!  the landing would act on. No wall-clock budget covers the run (owner, 2026-11-03: "Stop only on no progress"; pick 9 of
-//!  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation and open to the owner's
-//!  veto): each step of it ends on no progress by itself, the Git reads under the watch of `child_watch.rs` and the gateway call
-//!  under the idle timeouts of `standards_review_client.rs`. The one step with no judge is the local write of the log entry.
+//!  This replaces the root `mise.toml` task `shadow-review` (its Luna route;
+//! the `SHADOW_REVIEW_ALLOW=1` route starts
+//!  `pi` and is not ported).
+//! The review must never delay or fail a landing,
+//! so nothing here panics or returns a failure
+//!  the landing would act on.
+//! No wall-clock budget covers the run (owner,
+//! 2026-11-03:
+//! "Stop only on no progress";
+//! pick 9 of
+//!  `doc/planning/cli-git-shipped-limits-audit.md`,
+//! the coordinator's under the owner's delegation and open to the owner's
+//!  veto):
+//! each step of it ends on no progress by itself,
+//! the Git reads under the watch of `child_watch.rs` and the gateway call
+//!  under the idle timeouts of `standards_review_client.rs`.
+//! The one step with no judge is the local write of the log entry.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,19 +48,25 @@ pub const LOG_VARIABLE: &str = "SHADOW_REVIEW_LOG";
 /// The variable that replays a commit other than `HEAD`.
 pub const SHA_VARIABLE: &str = "SHADOW_REVIEW_SHA";
 
-/// The variable that asks for the full review route, which this port does not run.
+/// The variable that asks for the full review route,
+/// which this port does not run.
 pub const ALLOW_VARIABLE: &str = "SHADOW_REVIEW_ALLOW";
 
-/// The credential variable, and the stop-hook credential used when it is unset.
+/// The credential variable,
+/// and the stop-hook credential used when it is unset.
 pub const KEY_VARIABLES: [&str; 2] = crate::service_review_key::KEY_VARIABLES;
 
 /// The failure line written when no credential is set.
 pub const NO_KEY_MESSAGE: &str = "no SHADOW_REVIEW_LLMGATEWAY_API_KEY or STOP_REMINDER_LLMGATEWAY_API_KEY in the environment";
 
 /// What:
-///  What the run was told: the log, the credential, and where and how long to call.
+///  What the run was told:
+/// the log,
+/// the credential,
+/// and where and how long to call.
 /// Why:
-///   Production passes `ENDPOINT` and `SCRIPT_QUIET_WINDOW`; tests pass a loopback URL and a short quiet window.
+///   Production passes `ENDPOINT` and `SCRIPT_QUIET_WINDOW`;
+/// tests pass a loopback URL and a short quiet window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,13 +76,16 @@ pub const NO_KEY_MESSAGE: &str = "no SHADOW_REVIEW_LLMGATEWAY_API_KEY or STOP_RE
 pub struct ReviewOptions {
     /// Where entries are appended.
     pub log_path: PathBuf,
-    /// The bearer credential; `None` writes the no-credential failure entry.
+    /// The bearer credential;
+    /// `None` writes the no-credential failure entry.
     pub api_key: Option<String>,
     /// The decisions endpoint.
     pub endpoint: String,
     /// How long the gateway call may stay silent before it is ended.
     pub quiet_window: Duration,
-    /// The longest the gateway call runs in all, whatever it shows (`wait_ceilings.rs`, `REVIEW_CALL_CEILING`).
+    /// The longest the gateway call runs in all,
+    /// whatever it shows (`wait_ceilings.rs`,
+    /// `REVIEW_CALL_CEILING`).
     pub call_ceiling: Duration,
     /// A PEM authority replacing the embedded roots (tests only).
     pub trusted_pem: Option<Vec<u8>>,
@@ -67,24 +93,33 @@ pub struct ReviewOptions {
 
 /// What:
 ///  Where the review's options read the variables of the environment.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The service's environment carries no secret: the key comes in the wake message, so the lookup holds the key it was given and
-///  answers every other name from the environment. A struct that holds the key implements this.
+///   The service's environment carries no secret:
+/// the key comes in the wake message,
+/// so the lookup holds the key it was given and
+///  answers every other name from the environment.
+/// A struct that holds the key implements this.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// interface EnvironmentVariables { variable(name: string): string | undefined }
 /// ```
 pub trait EnvironmentVariables {
-    /// The value the name has, or nothing.
+    /// The value the name has,
+    /// or nothing.
     fn variable(&self, name: &str) -> Option<String>;
 }
 
 /// What:
 ///  Where the review reads the patch and the files of a landed commit.
 /// Why:
-///   The read needs the Git context, the directory, the commit and the subject, and tests fix the answer; a struct that holds
+///   The read needs the Git context,
+/// the directory,
+/// the commit and the subject,
+/// and tests fix the answer;
+/// a struct that holds
 ///  them implements this.
 ///
 /// In TS you'd write (pseudocode):
@@ -97,10 +132,14 @@ pub trait LandedCommitReader {
 }
 
 /// What:
-///  The options the script's environment variables give for a repository: the live log under `common_dir` unless
-///  `SHADOW_REVIEW_LOG` names another, and the first credential variable that is set, even to an empty text.
+///  The options the script's environment variables give for a repository:
+/// the live log under `common_dir` unless
+///  `SHADOW_REVIEW_LOG` names another,
+/// and the first credential variable that is set,
+/// even to an empty text.
 /// Why:
-///   `??` in the script falls back only for an unset variable, so an empty first key does not fall back.
+///   `??` in the script falls back only for an unset variable,
+/// so an empty first key does not fall back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -120,7 +159,8 @@ pub fn options_from_environment(common_dir: &Path, variable: &dyn EnvironmentVar
 }
 
 /// What:
-///  Whether the environment asks for the full-review route, which this port leaves out.
+///  Whether the environment asks for the full-review route,
+/// which this port leaves out.
 /// Why:
 ///   The caller says so in a notice instead of silently running the cheap route.
 ///
@@ -135,7 +175,8 @@ pub fn full_review_requested(variable: &dyn Fn(&str) -> Option<String>) -> bool 
 /// What:
 ///  How a run ended.
 /// Why:
-///   Callers log it; none of it fails a landing.
+///   Callers log it;
+/// none of it fails a landing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -143,24 +184,36 @@ pub fn full_review_requested(variable: &dyn Fn(&str) -> Option<String>) -> bool 
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReviewOutcome {
-    /// No names, or only the log: no entry, as the script exits silently.
+    /// No names,
+    /// or only the log:
+    /// no entry,
+    /// as the script exits silently.
     NoEntry,
     /// The no-code-files entry was appended.
     Skipped,
-    /// A review entry was appended; the gateway's verdict, or its failure in `outcome` with an empty `top`.
+    /// A review entry was appended;
+    /// the gateway's verdict,
+    /// or its failure in `outcome` with an empty `top`.
     Reviewed(Judged),
-    /// The commit could not be read; no entry.
+    /// The commit could not be read;
+    /// no entry.
     Unread(String),
     /// The entry could not be appended.
     Unwritable(String),
-    /// The log already names this commit (a repeated item): nothing was asked and nothing was added.
+    /// The log already names this commit (a repeated item):
+    /// nothing was asked and nothing was added.
     AlreadyLogged,
 }
 
 /// What:
-///  The verdict of a gateway step that failed: no top choice, and the message in the outcome line.
+///  The verdict of a gateway step that failed:
+/// no top choice,
+/// and the message in the outcome line.
 /// Why:
-///   `ask_gateway` reports every failure (no key, no reply, an unreadable reply) the same way, and a named function
+///   `ask_gateway` reports every failure (no key,
+/// no reply,
+/// an unreadable reply) the same way,
+/// and a named function
 ///  stands where a closure that built this verdict stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -172,9 +225,13 @@ fn luna_failed(message: String) -> Judged {
 }
 
 /// What:
-///  The gateway step: the verdict, or the failure message, and the elapsed milliseconds.
+///  The gateway step:
+/// the verdict,
+/// or the failure message,
+/// and the elapsed milliseconds.
 /// Why:
-///   A missing credential fails before any connection, as in the script.
+///   A missing credential fails before any connection,
+/// as in the script.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -198,10 +255,14 @@ fn ask_gateway(input: &ReviewInput, options: &ReviewOptions) -> Judged {
 }
 
 /// What:
-///  Review one landed commit: `names` are the changed names the landing knows, `read` fetches the commit's patch and
-///  files (called only for a commit with code files), `now_millis` is the clock.
+///  Review one landed commit:
+/// `names` are the changed names the landing knows,
+/// `read` fetches the commit's patch and
+///  files (called only for a commit with code files),
+/// `now_millis` is the clock.
 /// Why:
-///   One function is the script's whole body, with the reads and the clock as parameters so tests fix both.
+///   One function is the script's whole body,
+/// with the reads and the clock as parameters so tests fix both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -257,7 +318,9 @@ pub fn review_landed(
 /// What:
 ///  How a contained job ended.
 /// Why:
-///   The caller words a panic and a ceiling differently: one is a defect, the other is a review that ran as long as the service lets
+///   The caller words a panic and a ceiling differently:
+/// one is a defect,
+/// the other is a review that ran as long as the service lets
 ///  one run.
 ///
 /// In TS you'd write (pseudocode):
@@ -270,33 +333,59 @@ pub enum Contained<T> {
     Finished(T),
     /// The job panicked or its thread could not start.
     Panicked,
-    /// The job was still running when the ceiling passed; the caller stopped waiting and the job's thread is left to end with the
-    ///  process, or when the step it is stuck in returns. Until then it counts as outstanding (`outstanding_reviews`).
+    /// The job was still running when the ceiling passed;
+    /// the caller stopped waiting and the job's thread is left to end with the
+    ///  process,
+    /// or when the step it is stuck in returns.
+    /// Until then it counts as outstanding (`outstanding_reviews`).
     CeilingReached(Duration),
-    /// The job was not started: an earlier one that the caller stopped waiting for is still running and may hold what this one
-    ///  needs (the review log), so no second thread is added behind it.
+    /// The job was not started:
+    /// an earlier one that the caller stopped waiting for is still running and may hold what this one
+    ///  needs (the review log),
+    /// so no second thread is added behind it.
     Busy,
 }
 
 /// What:
-///  The one job a runner has at a time, as the runner knows it: nothing, one the caller waits for, or one the caller stopped waiting
+///  The one job a runner has at a time,
+/// as the runner knows it:
+/// nothing,
+/// one the caller waits for,
+/// or one the caller stopped waiting
 ///  for and that still runs.
 /// Why:
-///   Admission, the caller's give-up and the worker's end are each one atomic change of this state, so two callers cannot both be
-///  admitted (sol-2 round 2, P2), and a worker that panics releases it by a guard that runs on unwinding (sol-2 round 2, P1). The
-///  production runner is `RUNNER`; a control makes its own, so the controls do not see one another's jobs.
+///   Admission,
+/// the caller's give-up and the worker's end are each one atomic change of this state,
+/// so two callers cannot both be
+///  admitted (sol-2 round 2,
+/// P2),
+/// and a worker that panics releases it by a guard that runs on unwinding (sol-2 round 2,
+/// P1).
+/// The
+///  production runner is `RUNNER`;
+/// a control makes its own,
+/// so the controls do not see one another's jobs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Containment { state: 'idle' | 'running' | 'abandoned' }
 /// ```
 pub struct Containment {
-    /// The generation of the job in the high bits and `IDLE`, `RUNNING` or `ABANDONED` in the low two. A change names the generation
-    ///  it expects, so a caller that gave up on job 7 can never change the state of job 8.
+    /// The generation of the job in the high bits and `IDLE`,
+    /// `RUNNING` or `ABANDONED` in the low two.
+    /// A change names the generation
+    ///  it expects,
+    /// so a caller that gave up on job 7 can never change the state of job 8.
     state: std::sync::atomic::AtomicU64,
-    /// How long the caller waits for the value of a job that ended as the caller gave up, when the value does not come: the short
-    ///  extra wait of the owner's "7 s (Recommended)" (`wait_ceilings.rs`, `SHORT_EXTRA_WAIT`). A job that released the runner has
-    ///  not necessarily sent its value, so the wait is bounded (sol-1 round 3, P1 D).
+    /// How long the caller waits for the value of a job that ended as the caller gave up,
+    /// when the value does not come:
+    /// the short
+    ///  extra wait of the owner's "7 s (Recommended)" (`wait_ceilings.rs`,
+    /// `SHORT_EXTRA_WAIT`).
+    /// A job that released the runner has
+    ///  not necessarily sent its value,
+    /// so the wait is bounded (sol-1 round 3,
+    /// P1 D).
     handoff_wait: Duration,
     /// A control holds this to keep a worker between its release of the runner and its send of the value.
     #[cfg(test)]
@@ -307,7 +396,8 @@ pub struct Containment {
 const IDLE: u64 = 0;
 /// A job the caller waits for.
 const RUNNING: u64 = 1;
-/// A job the caller stopped waiting for, still running.
+/// A job the caller stopped waiting for,
+/// still running.
 const ABANDONED: u64 = 2;
 /// The bits of the state that hold the status.
 const STATUS: u64 = 3;
@@ -331,12 +421,15 @@ impl Containment {
         };
     }
 
-    /// How many jobs the caller stopped waiting for are still running: zero or one.
+    /// How many jobs the caller stopped waiting for are still running:
+    /// zero or one.
     pub fn outstanding(&self) -> usize {
         return usize::from(self.state.load(std::sync::atomic::Ordering::SeqCst) & STATUS == ABANDONED);
     }
 
-    /// Admit a job when there is none: the new generation, or nothing.
+    /// Admit a job when there is none:
+    /// the new generation,
+    /// or nothing.
     fn admit(&self) -> Option<u64> {
         use std::sync::atomic::Ordering;
         let seen: u64 = self.state.load(Ordering::SeqCst);
@@ -350,7 +443,8 @@ impl Containment {
         };
     }
 
-    /// Move job `generation` from `from` to `to`; false when the state is not that job's in that status any more.
+    /// Move job `generation` from `from` to `to`;
+    /// false when the state is not that job's in that status any more.
     fn change(&self, generation: u64, from: u64, to: u64) -> bool {
         use std::sync::atomic::Ordering;
         return self.state.compare_exchange((generation << 2) | from, (generation << 2) | to, Ordering::SeqCst, Ordering::SeqCst).is_ok();
@@ -363,7 +457,8 @@ impl Default for Containment {
     }
 }
 
-/// Releases a runner's job when it goes out of scope, whether the job returned or panicked.
+/// Releases a runner's job when it goes out of scope,
+/// whether the job returned or panicked.
 struct Release<'a> {
     /// The runner the job belongs to.
     runner: &'a Containment,
@@ -384,13 +479,26 @@ pub fn outstanding_reviews() -> usize {
 }
 
 /// What:
-///  Run `job` on a helper thread and wait for it, at most `ceiling`.
+///  Run `job` on a helper thread and wait for it,
+/// at most `ceiling`.
 /// Why:
-///   The review shares the service's work thread, so a panic in any step must cost one failed item and never the thread. Each step
-///  of the job ends by itself on no progress or at its own ceiling; the ceiling here covers the whole job, including the one step
-///  with no judge of its own, the local write of the log entry (owner, 2026-11-04, "Silence plus a ceiling (Recommended)";
-///  `wait_ceilings.rs`, `REVIEW_CEILING`). A thread cannot be stopped from outside, so the caller stops waiting and the thread ends
-///  with the process, or when the step it is stuck in returns; meanwhile no other job starts (`Contained::Busy`).
+///   The review shares the service's work thread,
+/// so a panic in any step must cost one failed item and never the thread.
+/// Each step
+///  of the job ends by itself on no progress or at its own ceiling;
+/// the ceiling here covers the whole job,
+/// including the one step
+///  with no judge of its own,
+/// the local write of the log entry (owner,
+/// 2026-11-04,
+/// "Silence plus a ceiling (Recommended)";
+///  `wait_ceilings.rs`,
+/// `REVIEW_CEILING`).
+/// A thread cannot be stopped from outside,
+/// so the caller stops waiting and the thread ends
+///  with the process,
+/// or when the step it is stuck in returns;
+/// meanwhile no other job starts (`Contained::Busy`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

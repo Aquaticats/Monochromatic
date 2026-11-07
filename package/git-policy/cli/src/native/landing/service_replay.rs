@@ -1,14 +1,28 @@
 //! What:
-//!  The retry of a commit the service sent back because a path it names changed on the branch since its base: the change
-//!  the first preparation captured is merged onto the branch as it is now, and the worktree is not read again.
+//!  The retry of a commit the service sent back because a path it names changed on the branch since its base:
+//! the change
+//!  the first preparation captured is merged onto the branch as it is now,
+//! and the worktree is not read again.
 //! Why:
 //!  A commit lands the bytes that were there when the person ran the command (`doc/decision/cli-git-concurrent-commits.md`,
-//!  "Serial landing"; `SPEC.md`: "Cli-git never re-prepares a commit from current worktree bytes"). Preparing again from
-//!  the worktree landed bytes written after the command, and bytes another command meant. The merge base is the
-//!  preparation base, and a path the other commits changed that the captured change already contains is kept as captured
-//!  (the same subsumption rule the earlier landing path applies, `replay_subsumption.rs`). The first merge is one Git
-//!  run; the subsumption runs only for the paths that conflicted, so a retry that merges cleanly costs three runs here:
-//!  `write-tree` for the captured tree, `merge-tree`, and `read-tree` of the merged tree into the private index.
+//!  "Serial landing";
+//! `SPEC.md`:
+//! "Cli-git never re-prepares a commit from current worktree bytes").
+//! Preparing again from
+//!  the worktree landed bytes written after the command,
+//! and bytes another command meant.
+//! The merge base is the
+//!  preparation base,
+//! and a path the other commits changed that the captured change already contains is kept as captured
+//!  (the same subsumption rule the earlier landing path applies,
+//! `replay_subsumption.rs`).
+//! The first merge is one Git
+//!  run;
+//! the subsumption runs only for the paths that conflicted,
+//! so a retry that merges cleanly costs three runs here:
+//!  `write-tree` for the captured tree,
+//! `merge-tree`,
+//! and `read-tree` of the merged tree into the private index.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,27 +52,40 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// The transform that names the finding a retry ends with, as for every other concurrent-commit finding.
+/// The transform that names the finding a retry ends with,
+/// as for every other concurrent-commit finding.
 const CORE_ID: &str = "concurrent-commit";
 
-/// What the first preparation captured, kept for the retry.
+/// What the first preparation captured,
+/// kept for the retry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Captured {
-    /// The commit the change was prepared against, which is the merge base of every retry.
+    /// The commit the change was prepared against,
+    /// which is the merge base of every retry.
     pub base: String,
     /// The tree of that base with the captured change applied.
     pub tree: String,
-    /// When the worktree's bytes were captured (`CommitRequest::captured`); zero when unknown. A retry keeps the first
-    ///  capture's stamp, because the merged bytes are not a new capture.
+    /// When the worktree's bytes were captured (`CommitRequest::captured`);
+    /// zero when unknown.
+    /// A retry keeps the first
+    ///  capture's stamp,
+    /// because the merged bytes are not a new capture.
     pub captured: u64,
-    /// The commits the service landed since, with the stamps of their captures, as its last answer told.
+    /// The commits the service landed since,
+    /// with the stamps of their captures,
+    /// as its last answer told.
     pub landed: Vec<LandedCapture>,
 }
 
 /// What:
-///  The stamp of a capture finished now: nanoseconds of `CLOCK_MONOTONIC`, zero where the platform has none.
+///  The stamp of a capture finished now:
+/// nanoseconds of `CLOCK_MONOTONIC`,
+/// zero where the platform has none.
 /// Why:
-///   That clock is the host's, one for every process, and never steps back, so a capture made later by another wrapper
+///   That clock is the host's,
+/// one for every process,
+/// and never steps back,
+/// so a capture made later by another wrapper
 ///  process gets a larger stamp (`service_captures.rs`).
 ///
 /// In TS you'd write (pseudocode):
@@ -84,25 +111,33 @@ pub fn capture_stamp() -> u64 {
     }
 }
 
-/// A retry: the change the first preparation captured, and which retry this is.
+/// A retry:
+/// the change the first preparation captured,
+/// and which retry this is.
 pub struct Retry<'a> {
     /// What the first preparation captured.
     pub captured: &'a Captured,
-    /// Which retry this is, from 1, which names the retry's scratch files.
+    /// Which retry this is,
+    /// from 1,
+    /// which names the retry's scratch files.
     pub attempt: u64,
 }
 
 /// What merging the captured change onto the branch came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Merged {
-    /// The change applies; the merged tree exists in the repository.
+    /// The change applies;
+    /// the merged tree exists in the repository.
     Tree(String),
-    /// The change applies after the word-level second pass merged every file Git's line merge left in conflict; the tree
-    ///  exists in the repository, and the files are listed to the person and in the journal.
+    /// The change applies after the word-level second pass merged every file Git's line merge left in conflict;
+    /// the tree
+    ///  exists in the repository,
+    /// and the files are listed to the person and in the journal.
     Combined {
         /// The merged tree.
         tree: String,
-        /// The files the word pass merged, with their parts.
+        /// The files the word pass merged,
+        /// with their parts.
         files: Vec<MergedFile>,
     },
     /// The change overlaps what landed.
@@ -115,16 +150,22 @@ pub struct MergeSite<'a> {
     pub context: &'a GitContext,
     /// The directory the commit was run from.
     pub cwd: &'a Path,
-    /// The common Git directory, which holds the objects and which the object-only steps run against.
+    /// The common Git directory,
+    /// which holds the objects and which the object-only steps run against.
     pub common_dir: &'a Path,
     /// The object store receiving what the steps write.
     pub object_directory: &'a Path,
-    /// The commit's private directory, where the subsumption keeps its scratch index.
+    /// The commit's private directory,
+    /// where the subsumption keeps its scratch index.
     pub scratch: &'a Path,
 }
 
 /// What:
-///  What a retry replays, from the preparation that was sent back: its tree on its base, its capture stamp, and the commits
+///  What a retry replays,
+/// from the preparation that was sent back:
+/// its tree on its base,
+/// its capture stamp,
+/// and the commits
 ///  the service says landed since.
 /// Why:
 ///   Both the commit the service builds and the commit Git builds are replayed from the tree of their private index.
@@ -139,9 +180,12 @@ pub fn retry_of(context: &GitContext, cwd: &Path, ready: &Ready, landed: Vec<Lan
 }
 
 /// What:
-///  The tree the private index holds, which is the captured change on its base.
+///  The tree the private index holds,
+/// which is the captured change on its base.
 /// Why:
-///   The retry merges this tree, so it is written once, when the service sends the commit back.
+///   The retry merges this tree,
+/// so it is written once,
+/// when the service sends the commit back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,7 +212,8 @@ fn quoted_path(path: &Vec<u8>) -> String {
 /// What:
 ///  Merges the captured change onto `tip` with `base` as the merge base.
 /// Why:
-///  `merge_captured` merges twice at most: with the base of the preparation and with the base the compared commits settled.
+///  `merge_captured` merges twice at most:
+/// with the base of the preparation and with the base the compared commits settled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -184,9 +229,14 @@ fn merge_at(site: &MergeSite<'_>, captured: &Captured, tip: &str, base: &str) ->
 /// What:
 ///  Merges the captured change onto `tip` with the preparation base as the merge base.
 /// Why:
-///   Clean merges, the common case, are one Git run. A conflict is looked at again for the paths whose captured bytes
-///  already contain what landed (the person's worktree held the other commit's edit when this one was run), which the
-///  merge alone reports as a conflict on adjacent edits; only paths still in conflict after that are a conflict.
+///   Clean merges,
+/// the common case,
+/// are one Git run.
+/// A conflict is looked at again for the paths whose captured bytes
+///  already contain what landed (the person's worktree held the other commit's edit when this one was run),
+/// which the
+///  merge alone reports as a conflict on adjacent edits;
+/// only paths still in conflict after that are a conflict.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -239,10 +289,14 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
 }
 
 /// What:
-///  The event that tells the person which files the word pass merged for a replayed commit, or nothing when none were.
+///  The event that tells the person which files the word pass merged for a replayed commit,
+/// or nothing when none were.
 /// Why:
-///   The replayed commit carries the person's own message, which is not changed; the parts are told next to the commit's other
-///  events, and the journal gets one entry per file at the same time.
+///   The replayed commit carries the person's own message,
+/// which is not changed;
+/// the parts are told next to the commit's other
+///  events,
+/// and the journal gets one entry per file at the same time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -256,11 +310,17 @@ pub fn word_merge_notice(files: &[MergedFile]) -> Option<PolicyEvent> {
 }
 
 /// What:
-///  The last resort for a merge that still conflicts: the word-level second pass over its conflicted files.
+///  The last resort for a merge that still conflicts:
+/// the word-level second pass over its conflicted files.
 /// Why:
-///   Git's line merge and the subsumption rules have both had their say; what is left is conflicts of adjacent lines and
-///  of different words, which the owner decided (2026-11-03) the wrapper's own merges re-merge by word, all or none. The
-///  attributes of the landed tip apply, because the merge reads no worktree.
+///   Git's line merge and the subsumption rules have both had their say;
+/// what is left is conflicts of adjacent lines and
+///  of different words,
+/// which the owner decided (2026-11-03) the wrapper's own merges re-merge by word,
+/// all or none.
+/// The
+///  attributes of the landed tip apply,
+/// because the merge reads no worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -295,10 +355,18 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
 /// What:
 ///  Which of this commit's capture and the landed commits' captures of one path is the later.
 /// Why:
-///   The service remembers the stamps of the commits it landed for this worktree. When every commit that changed the path
-///  since the base is remembered with a stamp, and all are earlier than this capture, this capture holds their edits and
-///  its bytes land; when all are later, theirs hold this commit's edit and the landed bytes stay. Anything else (a commit
-///  the service does not know, a stamp that is missing, one earlier and one later) is not decided by order.
+///   The service remembers the stamps of the commits it landed for this worktree.
+/// When every commit that changed the path
+///  since the base is remembered with a stamp,
+/// and all are earlier than this capture,
+/// this capture holds their edits and
+///  its bytes land;
+/// when all are later,
+/// theirs hold this commit's edit and the landed bytes stay.
+/// Anything else (a commit
+///  the service does not know,
+/// a stamp that is missing,
+/// one earlier and one later) is not decided by order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -357,9 +425,13 @@ fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &st
 }
 
 /// What:
-///  The first commit after `base`, up to `tip`, that changed one of `paths`, with its abbreviated name and subject.
+///  The first commit after `base`,
+/// up to `tip`,
+/// that changed one of `paths`,
+/// with its abbreviated name and subject.
 /// Why:
-///   The conflict names the commit that landed first, in the words the person sees in their own log.
+///   The conflict names the commit that landed first,
+/// in the words the person sees in their own log.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -384,7 +456,9 @@ pub fn first_landed(context: &GitContext, cwd: &Path, base: &str, tip: &str, pat
     return Ok(Some(LandedFirst { short: short.to_string(), subject: subject.to_string() }));
 }
 
-/// The paths as the person reads them: one in quotes, several as a list.
+/// The paths as the person reads them:
+/// one in quotes,
+/// several as a list.
 fn paths_text(paths: &[Vec<u8>]) -> String {
     let quoted: Vec<String> = paths.iter().map(quoted_path).collect();
     return match quoted.as_slice() {
@@ -394,9 +468,15 @@ fn paths_text(paths: &[Vec<u8>]) -> String {
 }
 
 /// What:
-///  The words for a conflict: what overlapped, which commit landed first, where the message is saved, how to commit again.
+///  The words for a conflict:
+/// what overlapped,
+/// which commit landed first,
+/// where the message is saved,
+/// how to commit again.
 /// Why:
-///   Plain words, every input named and every way forward given, nothing about how the commit is landed.
+///   Plain words,
+/// every input named and every way forward given,
+/// nothing about how the commit is landed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

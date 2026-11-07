@@ -1,19 +1,31 @@
 //! What:
 //!  Publishing a landed commit when the remote branch advanced after the commit landed:
 //!       the merge of the remote tip and the local tip is computed in the object store,
-//!       committed without a worktree or an index, and pushed with a plain push.
+//!       committed without a worktree or an index,
+//! and pushed with a plain push.
 //! Why:
-//!  A rejected `push` of a branch that the remote moved cannot succeed again, and an ordinary merge in the active
-//!  worktree can be blocked, or made unsafe, by another consumer's uncommitted files.
-//!  `git merge-tree --write-tree` and `git commit-tree` read and write only objects, so the active worktree,
-//!  its index and its untracked files are never touched while merging, and both histories stay reachable from the
+//!  A rejected `push` of a branch that the remote moved cannot succeed again,
+//! and an ordinary merge in the active
+//!  worktree can be blocked,
+//! or made unsafe,
+//! by another consumer's uncommitted files.
+//!  `git merge-tree --write-tree` and `git commit-tree` read and write only objects,
+//! so the active worktree,
+//!  its index and its untracked files are never touched while merging,
+//! and both histories stay reachable from the
 //!  published tip.
-//!  Only after the push succeeds is the branch fast-forwarded, and only where nothing can be lost: a dirty worktree
+//!  Only after the push succeeds is the branch fast-forwarded,
+//! and only where nothing can be lost:
+//! a dirty worktree
 //!  follows too when the move changes none of the files its uncommitted work touches.
-//!  An amended or rebased branch is merged like any other: nothing already published is lost, and the replaced
+//!  An amended or rebased branch is merged like any other:
+//! nothing already published is lost,
+//! and the replaced
 //!  commits stay in the remote history beside the new ones.
 
-/// The coordinator's Git, its command builder, queries and error type.
+/// The coordinator's Git,
+/// its command builder,
+/// queries and error type.
 use crate::auto_push_single_flight::{
     PushAttempt, PushGit, SingleFlightError, git_output,
 };
@@ -23,9 +35,11 @@ use crate::lfs_bounded_push::run_push;
 use crate::diagnostic_log::debug;
 use crate::merge_second_pass_tree::announce;
 
-/// Where the plain push goes, as `auto_push_destination` decides it.
+/// Where the plain push goes,
+/// as `auto_push_destination` decides it.
 pub use crate::auto_push_destination::Destination;
-/// The destination of the plain push of a branch, from the settings alone.
+/// The destination of the plain push of a branch,
+/// from the settings alone.
 use crate::auto_push_destination::read_destination;
 /// The words that name a conflict in the report.
 use crate::push_retry::CONFLICT_PHRASE;
@@ -35,15 +49,24 @@ use crate::auto_push_reconcile_branch_advance::advance_local_branch;
 use crate::auto_push_reconcile_merge_commit::commit_merge;
 pub use crate::auto_push_reconcile_basics_and_limits::{MAX_RECONCILE_ATTEMPTS, RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, journal_identifier, was_rejected_as_stale};
 /// What:
-///  Merge the remote tip into the pushed branch's tip and publish the result, a bounded number of times.
+///  Merge the remote tip into the pushed branch's tip and publish the result,
+/// a bounded number of times.
 /// Why:
-///   Another worktree advancing the remote makes the plain push fail for good, while both histories are valid and
-///  must both be kept; the merge is published as a new commit above the local tip, so the landed commit stays
+///   Another worktree advancing the remote makes the plain push fail for good,
+/// while both histories are valid and
+///  must both be kept;
+/// the merge is published as a new commit above the local tip,
+/// so the landed commit stays
 ///  reachable and nothing is forced.
-///   Once the merge is published, the branch and its worktree are fast-forwarded to it when that cannot lose or
-///  overwrite anything; otherwise they are left as they are and the report says why.
-///   A push destination Git cannot name, a conflict, an exhausted retry budget and every failure of a command are
-///  reported, and only the first leaves the original rejection unchanged.
+///   Once the merge is published,
+/// the branch and its worktree are fast-forwarded to it when that cannot lose or
+///  overwrite anything;
+/// otherwise they are left as they are and the report says why.
+///   A push destination Git cannot name,
+/// a conflict,
+/// an exhausted retry budget and every failure of a command are
+///  reported,
+/// and only the first leaves the original rejection unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,13 +106,22 @@ pub fn reconcile_divergent_push(
 }
 
 /// What:
-///  What one reconcile run integrates, where, and how it words and limits itself.
-///  `Option<&str>` is "the branch, or nothing for a detached HEAD".
+///  What one reconcile run integrates,
+/// where,
+/// and how it words and limits itself.
+///  `Option<&str>` is "the branch,
+/// or nothing for a detached HEAD".
 /// Why:
-///   Auto-push and an explicit push share the loop; they differ in the line prefix they print, in whether the branch
-///  follows the published merge, and in how much of a failure they keep quiet about.
-///   An explicit push already printed Git's own refusal, so a remote that cannot be fetched, a remote that did not
-///  diverge, and a failure that is not a stale update are left exactly as the push reported them.
+///   Auto-push and an explicit push share the loop;
+/// they differ in the line prefix they print,
+/// in whether the branch
+///  follows the published merge,
+/// and in how much of a failure they keep quiet about.
+///   An explicit push already printed Git's own refusal,
+/// so a remote that cannot be fetched,
+/// a remote that did not
+///  diverge,
+/// and a failure that is not a stale update are left exactly as the push reported them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,7 +132,8 @@ pub struct Reconcile<'a> {
     pub destination: Destination,
     /// The commit the rejected push sent.
     pub local: String,
-    /// The branch that follows the published merge when it can, or nothing for a detached HEAD.
+    /// The branch that follows the published merge when it can,
+    /// or nothing for a detached HEAD.
     pub branch_ref: Option<&'a str>,
     /// The word after `monochromatic-git-policy-cli:` in every line the run adds.
     pub label: &'a str,
@@ -115,17 +148,24 @@ pub struct Reconcile<'a> {
 /// type Integrated = { kind: 'not-divergent'; attempt } | { kind: 'finished'; attempt };
 /// ```
 pub enum Integrated {
-    /// The remote did not diverge, or the run could not tell; the rejected attempt stands as it was.
+    /// The remote did not diverge,
+    /// or the run could not tell;
+    /// the rejected attempt stands as it was.
     NotDivergent(PushAttempt),
-    /// The run published the merge, or says why it did not.
+    /// The run published the merge,
+    /// or says why it did not.
     Finished(PushAttempt),
 }
 
 /// What:
 ///  What publishes one merge commit to a destination.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The loop takes its push as a value so controls can stand in for it; the state a push needs (the Git context, the tokens, the
+///   The loop takes its push as a value so controls can stand in for it;
+/// the state a push needs (the Git context,
+/// the tokens,
+/// the
 ///  planner) is a small struct that implements this.
 ///
 /// In TS you'd write (pseudocode):
@@ -138,7 +178,9 @@ pub trait MergePusher {
 }
 
 /// What:
-///  The automatic push of a merge: plain `git push` of the merge commit to the destination, through the push coordinator.
+///  The automatic push of a merge:
+/// plain `git push` of the merge commit to the destination,
+/// through the push coordinator.
 /// Why:
 ///   The auto-push reconcile has only the Git context to carry.
 ///
@@ -163,12 +205,17 @@ impl MergePusher for PushMergeThroughGit<'_> {
 }
 
 /// What:
-///  Merge the remote tip into the pushed commit and publish the result, a bounded number of times.
+///  Merge the remote tip into the pushed commit and publish the result,
+/// a bounded number of times.
 /// Why:
-///   Another worktree advancing the remote makes the plain push fail for good, while both histories are valid and
-///  must both be kept; the merge is published as a new commit above the local tip, so the landed commit stays
+///   Another worktree advancing the remote makes the plain push fail for good,
+/// while both histories are valid and
+///  must both be kept;
+/// the merge is published as a new commit above the local tip,
+/// so the landed commit stays
 ///  reachable and nothing is forced.
-///   `push_merge` publishes one merge, and is told the destination and the merge commit.
+///   `push_merge` publishes one merge,
+/// and is told the destination and the merge commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

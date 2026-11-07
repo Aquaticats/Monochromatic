@@ -1,10 +1,18 @@
 //! What:
-//!  The limits the system puts on a process that starts threads: how much address space is left under `RLIMIT_AS`, and how
+//!  The limits the system puts on a process that starts threads:
+//! how much address space is left under `RLIMIT_AS`,
+//! and how
 //!  many more threads fit under `RLIMIT_NPROC` and under the `pids.max` of its control group and every group above it.
 //! Why:
-//!  A multi-thread runtime panics, and can then hang, when the system refuses it a thread or address space
-//!  (`doc/planning/git-policy-cli-full-tokio.md`, "A multi-thread runtime panics, then hangs"). Reading these limits before the
-//!  build lowers the chance of that failure; the deadline-bounded build in `lazy_runtime.rs` is what bounds the wait.
+//!  A multi-thread runtime panics,
+//! and can then hang,
+//! when the system refuses it a thread or address space
+//!  (`doc/planning/git-policy-cli-full-tokio.md`,
+//! "A multi-thread runtime panics,
+//! then hangs").
+//! Reading these limits before the
+//!  build lowers the chance of that failure;
+//! the deadline-bounded build in `lazy_runtime.rs` is what bounds the wait.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,13 +24,17 @@ use std::path::{Path, PathBuf};
 /// Where the kernel lists the size of this process's mappings and its thread count.
 const SELF_STATUS: &str = "/proc/self/status";
 
-/// Where the kernel lists, as the fourth field, how many threads and processes exist on the whole system.
+/// Where the kernel lists,
+/// as the fourth field,
+/// how many threads and processes exist on the whole system.
 const SYSTEM_LOAD: &str = "/proc/loadavg";
 
 /// What:
-///  What is left of each limit, nothing for a limit that is not set.
+///  What is left of each limit,
+/// nothing for a limit that is not set.
 /// Why:
-///  The runtime plan takes the least of what the budget allows and what these allow, so an unlimited resource must not
+///  The runtime plan takes the least of what the budget allows and what these allow,
+/// so an unlimited resource must not
 ///  bound it.
 ///
 /// In TS you'd write (pseudocode):
@@ -31,13 +43,17 @@ const SYSTEM_LOAD: &str = "/proc/loadavg";
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeLimits {
-    /// Bytes of address space the process may still map, or nothing when `RLIMIT_AS` is unlimited.
+    /// Bytes of address space the process may still map,
+    /// or nothing when `RLIMIT_AS` is unlimited.
     pub address_space_left: Option<u64>,
-    /// Threads the process may still start, or nothing when neither `RLIMIT_NPROC` nor a `pids.max` is set.
+    /// Threads the process may still start,
+    /// or nothing when neither `RLIMIT_NPROC` nor a `pids.max` is set.
     pub threads_left: Option<u64>,
 }
 
-/// The size of the mappings, in bytes, from the `VmSize` line of `/proc/<pid>/status` text.
+/// The size of the mappings,
+/// in bytes,
+/// from the `VmSize` line of `/proc/<pid>/status` text.
 pub fn mapped_bytes_from(status: &str) -> Option<u64> {
     for line in status.lines() {
         if let Some(rest) = line.strip_prefix("VmSize:") {
@@ -48,15 +64,19 @@ pub fn mapped_bytes_from(status: &str) -> Option<u64> {
     return None;
 }
 
-/// The threads and processes that exist on the system, from the fourth field of `/proc/loadavg` text (`running/total`).
-///  It counts every user's threads, so it over-counts this user's; an over-count only lowers the number of workers.
+/// The threads and processes that exist on the system,
+/// from the fourth field of `/proc/loadavg` text (`running/total`).
+///  It counts every user's threads,
+/// so it over-counts this user's;
+/// an over-count only lowers the number of workers.
 pub fn system_threads_from(load: &str) -> Option<u64> {
     let field: &str = load.split_whitespace().nth(3)?;
     let (_running, total) = field.split_once('/')?;
     return total.parse().ok();
 }
 
-/// The path of the unified (version 2) control group in `/proc/self/cgroup` text: the line that starts with `0::`.
+/// The path of the unified (version 2) control group in `/proc/self/cgroup` text:
+/// the line that starts with `0::`.
 pub fn control_group_path(text: &str) -> Option<String> {
     for line in text.lines() {
         if let Some(path) = line.strip_prefix("0::") {
@@ -68,10 +88,13 @@ pub fn control_group_path(text: &str) -> Option<String> {
 
 /// What is left of a limit that is `limit` (nothing when unlimited) with `used` already taken.
 pub fn left_under(limit: Option<u64>, used: u64) -> Option<u64> {
-    return limit.map(|bound| { return bound.saturating_sub(used); });
+    let bound: u64 = limit?;
+    return Some(bound.saturating_sub(used));
 }
 
-/// The threads a control group can still hold: its `pids.max` minus its `pids.current`, nothing when `pids.max` is `max`.
+/// The threads a control group can still hold:
+/// its `pids.max` minus its `pids.current`,
+/// nothing when `pids.max` is `max`.
 pub fn group_threads_left_from(max: &str, current: &str) -> Option<u64> {
     let limit: u64 = max.trim().parse().ok()?;
     let used: u64 = current.trim().parse().ok()?;
@@ -86,7 +109,8 @@ pub fn least_of(left: Option<u64>, right: Option<u64>) -> Option<u64> {
     };
 }
 
-/// The threads left under the group at `path` below `root` and every group above it, nothing when none has a limit.
+/// The threads left under the group at `path` below `root` and every group above it,
+/// nothing when none has a limit.
 pub fn group_threads_left(root: &Path, path: &str) -> Option<u64> {
     let mut least: Option<u64> = None;
     let mut directory: PathBuf = root.join(path.trim_start_matches('/'));
@@ -106,11 +130,42 @@ pub fn group_threads_left(root: &Path, path: &str) -> Option<u64> {
 /// The root of the unified control-group hierarchy.
 const CONTROL_GROUP_ROOT: &str = "/sys/fs/cgroup";
 
+/// The address space this process has mapped,
+/// zero when its status cannot be read.
+#[cfg(unix)]
+fn mapped_bytes_of_this_process() -> u64 {
+    let Ok(text) = std::fs::read_to_string(SELF_STATUS) else {
+        return 0;
+    };
+    return mapped_bytes_from(text.as_str()).unwrap_or(0);
+}
+
+/// The threads the system counts as running,
+/// zero when its load file cannot be read.
+#[cfg(unix)]
+fn system_threads_in_use() -> u64 {
+    let Ok(text) = std::fs::read_to_string(SYSTEM_LOAD) else {
+        return 0;
+    };
+    return system_threads_from(text.as_str()).unwrap_or(0);
+}
+
+/// The threads this process's control group can still hold,
+/// nothing when no limit can be read.
+#[cfg(unix)]
+fn threads_left_in_this_control_group() -> Option<u64> {
+    let text: String = std::fs::read_to_string("/proc/self/cgroup").ok()?;
+    let path: String = control_group_path(text.as_str())?;
+    return group_threads_left(Path::new(CONTROL_GROUP_ROOT), path.as_str());
+}
+
 impl RuntimeLimits {
     /// What:
     ///  The limits of this process now.
     /// Why:
-    ///  The build of a runtime needs them as one value; each source that cannot be read gives no bound, as the budget's own
+    ///  The build of a runtime needs them as one value;
+    /// each source that cannot be read gives no bound,
+    /// as the budget's own
     ///  reader does.
     ///
     /// In TS you'd write (pseudocode):
@@ -120,22 +175,13 @@ impl RuntimeLimits {
     #[cfg(unix)]
     pub fn read() -> RuntimeLimits {
         let address_space: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::As);
-        let mapped: u64 = std::fs::read_to_string(SELF_STATUS)
-            .ok()
-            .and_then(|text| { return mapped_bytes_from(text.as_str()); })
-            .unwrap_or(0);
+        let mapped: u64 = mapped_bytes_of_this_process();
         let address_space_left: Option<u64> = left_under(address_space.current, mapped);
         // Counting the user's threads is a scan of every process, so one read of the system total stands in for it.
         let processes: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::Nproc);
-        let system_threads: u64 = std::fs::read_to_string(SYSTEM_LOAD)
-            .ok()
-            .and_then(|text| { return system_threads_from(text.as_str()); })
-            .unwrap_or(0);
+        let system_threads: u64 = system_threads_in_use();
         let by_process_limit: Option<u64> = left_under(processes.current, system_threads);
-        let by_group: Option<u64> = std::fs::read_to_string("/proc/self/cgroup")
-            .ok()
-            .and_then(|text| { return control_group_path(text.as_str()); })
-            .and_then(|path| { return group_threads_left(Path::new(CONTROL_GROUP_ROOT), path.as_str()); });
+        let by_group: Option<u64> = threads_left_in_this_control_group();
         return RuntimeLimits { address_space_left, threads_left: least_of(by_process_limit, by_group) };
     }
 }

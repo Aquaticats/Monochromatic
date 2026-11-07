@@ -117,8 +117,11 @@ pub struct FindingEvent {
 /// What:
 ///  Which hint follows an engine failure's message.
 /// Why:
-///   The code's hint is a guess that holds for most failures of that code; a failure that knows its cause chooses its own
-///  hint, or none, so the hint is never one that is untrue for the case.
+///   The code's hint is a guess that holds for most failures of that code;
+/// a failure that knows its cause chooses its own
+///  hint,
+/// or none,
+/// so the hint is never one that is untrue for the case.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -128,7 +131,8 @@ pub struct FindingEvent {
 pub enum EngineFailureHint {
     /// The hint of the failure's code.
     OfCode,
-    /// The failure's own hint, or none.
+    /// The failure's own hint,
+    /// or none.
     Chosen(Option<&'static str>),
 }
 
@@ -200,15 +204,18 @@ pub enum PolicyEvent {
         changed_paths: Vec<EventPath>,
     },
     /// The landed commit whose automatic backup the post-commit gate stopped.
-    ///  The commit stays local; the event names it so the user can push it deliberately.
+    ///  The commit stays local;
+    /// the event names it so the user can push it deliberately.
     CommitLanded {
         /// The exact landed commit object ID.
         oid: String,
     },
     /// A commit replayed over a branch that moved had files merged by word where Git's line merge reported a conflict.
-    ///  The event lists each merged part, so the person sees what was combined.
+    ///  The event lists each merged part,
+    /// so the person sees what was combined.
     WordMerged {
-        /// One line per merged part, each naming the file and the part.
+        /// One line per merged part,
+        /// each naming the file and the part.
         lines: Vec<String>,
     },
 }

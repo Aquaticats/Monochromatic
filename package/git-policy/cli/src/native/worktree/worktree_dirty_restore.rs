@@ -1,15 +1,30 @@
 //! What:
-//!  The restore of a snapshot of a main checkout that had uncommitted changes: make the copy's index and files equal the
-//!  tree of the new worktree's `HEAD` with `git read-tree --reset -u` and `git clean -f -d`, then prove it in the stage.
+//!  The restore of a snapshot of a main checkout that had uncommitted changes:
+//! make the copy's index and files equal the
+//!  tree of the new worktree's `HEAD` with `git read-tree --reset -u` and `git clean -f -d`,
+//! then prove it in the stage.
 //! Why:
 //!  `git worktree add` from a checkout with changes makes a worktree that holds the committed files and nothing of the changes.
-//!  The snapshot carries the changes, so the copy is reset the way Git's own `reset --hard` would reset it, from the index the
-//!  snapshot carries: that index still records the files as they were before they were edited, so the reset rewrites exactly the
-//!  edited, deleted and staged paths and leaves the rest. Untracked files that no ignore rule covers go, ignored files stay.
-//!  Both Git runs are the ladder's own steps on the new worktree (its Git directory and its stage), started as real Git
-//!  children by the lifecycle's runner, so no policy of the wrapper that guards a person's `reset` or `clean` applies to
-//!  them. The proof runs before the stage is swapped in; a proof that fails ends the rung and Git's own checkout makes the
-//!  worktree. The main checkout is read only to be snapshotted and listed, and is never written.
+//!  The snapshot carries the changes,
+//! so the copy is reset the way Git's own `reset --hard` would reset it,
+//! from the index the
+//!  snapshot carries:
+//! that index still records the files as they were before they were edited,
+//! so the reset rewrites exactly the
+//!  edited,
+//! deleted and staged paths and leaves the rest.
+//! Untracked files that no ignore rule covers go,
+//! ignored files stay.
+//!  Both Git runs are the ladder's own steps on the new worktree (its Git directory and its stage),
+//! started as real Git
+//!  children by the lifecycle's runner,
+//! so no policy of the wrapper that guards a person's `reset` or `clean` applies to
+//!  them.
+//! The proof runs before the stage is swapped in;
+//! a proof that fails ends the rung and Git's own checkout makes the
+//!  worktree.
+//! The main checkout is read only to be snapshotted and listed,
+//! and is never written.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +45,8 @@ const TAG: &str = "worktreeDirtyRestore";
 /// What:
 ///  The line that tells the person a snapshot of a checkout with changes left the changes out.
 /// Why:
-///   The new worktree matches a clean `git worktree add`, which the person may not expect from a copy of a dirty checkout.
+///   The new worktree matches a clean `git worktree add`,
+/// which the person may not expect from a copy of a dirty checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,10 +58,14 @@ pub fn left_out_note(changed: &ChangedPaths) -> String {
 }
 
 /// What:
-///  Record in the journal, at the ordinary level, that a snapshot left the uncommitted changes of the main checkout out of the
-///  new worktree, with the destination and the number of paths as fields.
+///  Record in the journal,
+/// at the ordinary level,
+/// that a snapshot left the uncommitted changes of the main checkout out of the
+///  new worktree,
+/// with the destination and the number of paths as fields.
 /// Why:
-///   The line on standard error is gone when the command ends; the journal keeps what the add did with a dirty checkout.
+///   The line on standard error is gone when the command ends;
+/// the journal keeps what the add did with a dirty checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,7 +84,8 @@ pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
 /// What:
 ///  Whether a byte is the NUL that ends each name in Git's `-z` output.
 /// Why:
-///   The untracked names are split on it, and a path may hold any other byte.
+///   The untracked names are split on it,
+/// and a path may hold any other byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +98,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// What:
 ///  Whether a name split out of `-z` output holds anything.
 /// Why:
-///   The output ends with a NUL, so the split leaves an empty last piece that names no path.
+///   The output ends with a NUL,
+/// so the split leaves an empty last piece that names no path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,9 +110,11 @@ fn is_nonempty_name(name: &&[u8]) -> bool {
 }
 
 /// What:
-///  The words of a Git run in the stage: `-C <stage>` and then `words`.
+///  The words of a Git run in the stage:
+/// `-C <stage>` and then `words`.
 /// Why:
-///   Every run of the restore names the stage directory itself, so none can run in the main checkout.
+///   Every run of the restore names the stage directory itself,
+/// so none can run in the main checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,7 +129,8 @@ fn arguments_in_stage(stage: &Path, words: &[&str]) -> Vec<OsString> {
 /// What:
 ///  Run one captured Git read in the stage under the new worktree's Git directory.
 /// Why:
-///   The proof reads the stage the way the restore wrote it, never the main checkout.
+///   The proof reads the stage the way the restore wrote it,
+/// never the main checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -127,11 +152,17 @@ fn ask(context: &GitContext, target: &Target, work_tree: &Path, arguments: &[&st
 }
 
 /// What:
-///  Prove that the stage equals what Git's checkout of the target commit makes: the index equals the commit's tree, Git shows
-///  no untracked file, and no tracked file differs from the index.
+///  Prove that the stage equals what Git's checkout of the target commit makes:
+/// the index equals the commit's tree,
+/// Git shows
+///  no untracked file,
+/// and no tracked file differs from the index.
 /// Why:
-///   The restore trusts Git's reset and clean; the proof asks Git again from the other side, so a state either of them left
-///  (a path the reset skipped, a directory the clean could not remove) ends the rung instead of reaching the person.
+///   The restore trusts Git's reset and clean;
+/// the proof asks Git again from the other side,
+/// so a state either of them left
+///  (a path the reset skipped,
+/// a directory the clean could not remove) ends the rung instead of reaching the person.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -157,9 +188,14 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -
 }
 
 /// What:
-///  Restore the stage, which is a snapshot of `source` made with its own index, to the tree of the target commit, and prove it.
+///  Restore the stage,
+/// which is a snapshot of `source` made with its own index,
+/// to the tree of the target commit,
+/// and prove it.
 /// Why:
-///   See the module description. The stage is never the source's own directory, and the Git directory is the new worktree's,
+///   See the module description.
+/// The stage is never the source's own directory,
+/// and the Git directory is the new worktree's,
 ///  so neither run can reach the main checkout.
 ///
 /// In TS you'd write (pseudocode):

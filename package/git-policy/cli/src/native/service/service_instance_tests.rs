@@ -3,7 +3,8 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 
-/// Two worktrees of one repository have two instances, and one worktree has one however its directory is spelled.
+/// Two worktrees of one repository have two instances,
+/// and one worktree has one however its directory is spelled.
 #[test]
 fn an_instance_belongs_to_one_worktrees_own_git_directory() {
     let root = fixture("instance-names");
@@ -20,7 +21,9 @@ fn an_instance_belongs_to_one_worktrees_own_git_directory() {
     remove(root.as_path());
 }
 
-/// The suite names a worktree's service in TypeScript (`e2e/service-launch-fixture.ts`); this vector is pinned there too, so
+/// The suite names a worktree's service in TypeScript (`e2e/service-launch-fixture.ts`);
+/// this vector is pinned there too,
+/// so
 ///  the two cannot drift apart.
 #[test]
 fn the_name_of_a_path_that_cannot_be_resolved_is_pinned() {
@@ -38,7 +41,9 @@ fn the_name_is_short_and_plain_for_any_directory() {
     assert!(socket_unit_instance(name.as_str()).len() < 255 && service_unit_instance(name.as_str()).len() < 255);
 }
 
-/// The socket is the instance's, under the runtime directory, and never the shared one an earlier release listened on.
+/// The socket is the instance's,
+/// under the runtime directory,
+/// and never the shared one an earlier release listened on.
 #[test]
 fn the_socket_is_the_instances_own() {
     let runtime = Path::new("/run/user/1000");
