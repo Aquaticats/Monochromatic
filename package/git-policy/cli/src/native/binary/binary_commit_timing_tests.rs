@@ -966,10 +966,14 @@ fn a_service_on_a_journal_stream_that_is_a_full_pipe_still_exits() {
     stopped_with_a_full_pipe("signal-full-stream", true);
 }
 
-/// The seconds the notice controls make the scratch Git, or its signer, take.
+/// The seconds the notice controls make the scratch Git,
+/// or its signer,
+/// take.
 const WAIT_SECONDS: u64 = 3;
 
-/// A signer stand-in for `gpg.program`: it answers Git's status protocol and prints a signature, after `WAIT_SECONDS` seconds.
+/// A signer stand-in for `gpg.program`:
+/// it answers Git's status protocol and prints a signature,
+/// after `WAIT_SECONDS` seconds.
 fn slow_signer(fixture: &Fixture) -> PathBuf {
     let program: PathBuf = fixture.root.join("slow-signer");
     let source: String = format!(
@@ -980,8 +984,11 @@ fn slow_signer(fixture: &Fixture) -> PathBuf {
     return program;
 }
 
-/// One wrapped commit of `a.txt` in a repository whose configuration says `configuration`, with a notice interval of one second,
-///  extra words after `commit`, and the stand-in Git (when `slow_git`) that sleeps in `commit`; returns what the command wrote to standard error.
+/// One wrapped commit of `a.txt` in a repository whose configuration says `configuration`,
+/// with a notice interval of one second,
+///  extra words after `commit`,
+/// and the stand-in Git (when `slow_git`) that sleeps in `commit`;
+/// returns what the command wrote to standard error.
 fn commit_noticing(name: &str, configuration: &[(&str, String)], extra_words: &[&str], slow_git: bool) -> String {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = base_repository(&fixture);
@@ -1013,10 +1020,15 @@ fn commit_noticing(name: &str, configuration: &[(&str, String)], extra_words: &[
     return stderr;
 }
 
-/// The commit Git builds in the scratch repository names what the command waits for, like every other wait (issue 1811).
+/// The commit Git builds in the scratch repository names what the command waits for,
+/// like every other wait (issue 1811).
 /// Why:
-///  That step runs with the terminal attached and no watch, so a commit that waited minutes in it printed nothing at all; the owner
-///  asked that it say what it waits for. It carries no time limit (an open question for the owner): the line says so.
+///  That step runs with the terminal attached and no watch,
+/// so a commit that waited minutes in it printed nothing at all;
+/// the owner
+///  asked that it say what it waits for.
+/// It carries no time limit (an open question for the owner):
+/// the line says so.
 #[test]
 fn a_slow_scratch_commit_says_what_the_command_waits_for() {
     let said: String = commit_noticing("notice-scratch-commit", &[], &[], true);
@@ -1028,7 +1040,8 @@ fn a_slow_scratch_commit_says_what_the_command_waits_for() {
     assert!(!said.contains(MESSAGE), "the person's text is not in a notice: {said}");
 }
 
-/// With `commit.gpgsign` set the notice says the commit is signed, and names the signing program when it runs.
+/// With `commit.gpgsign` set the notice says the commit is signed,
+/// and names the signing program when it runs.
 #[test]
 fn a_slow_signing_commit_says_it_waits_for_the_signature() {
     let fixture_for_signer: Fixture = fixture("notice-signer-path");
@@ -1041,9 +1054,129 @@ fn a_slow_signing_commit_says_it_waits_for_the_signature() {
     remove_settled(&fixture_for_signer);
 }
 
-/// A commit that opens the person's editor says nothing: the person is the wait.
+/// A commit that opens the person's editor says nothing:
+/// the person is the wait.
 #[test]
 fn a_commit_that_opens_an_editor_prints_no_waiting_notice() {
     let said: String = commit_noticing("notice-editor", &[], &["--edit"], true);
     assert!(!said.contains("`git commit`"), "the person at the editor is not told the command waits: {said}");
+}
+
+/// How long a control waits for a compile the service runs in the background.
+const WARM_WAIT: Duration = Duration::from_secs(60);
+
+/// How long a control watches for a warm that must not happen.
+const NO_WARM_FOR: Duration = Duration::from_secs(4);
+
+/// The rules file the default configuration names.
+const WARM_RULES_FILE: &str = "forbidden-strings.local.txt";
+
+/// Every compiled artifact under a cache directory.
+fn compiled_rules_in(cache: &Path) -> usize {
+    let mut found: usize = 0;
+    let mut pending: Vec<PathBuf> = vec![cache.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(next) else { continue };
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                pending.push(entry.path());
+            } else if entry.file_name() == "rules.bin" {
+                found += 1;
+            }
+        }
+    }
+    return found;
+}
+
+/// Waits until the cache holds a compiled artifact, at most `WARM_WAIT`.
+fn artifact_appears(cache: &Path) -> bool {
+    let began: Instant = Instant::now();
+    while began.elapsed() < WARM_WAIT {
+        if compiled_rules_in(cache) > 0 {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    return false;
+}
+
+/// A repository whose `main` holds one text of the rules file and whose branch `other` holds another; the worktree is on `main`,
+///  and no commit has been made through the wrapper, so no compiled form of either text is anywhere.
+fn repository_with_two_rules_texts(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = base_repository(fixture);
+    std::fs::write(repo.join(WARM_RULES_FILE), "FIRST_PLANTED_RULE_TEXT\n").expect("rules text");
+    super::support::git(fixture, &repo, &["add", WARM_RULES_FILE]);
+    super::support::git(fixture, &repo, &["commit", "--quiet", "--message=first rules"]);
+    super::support::git(fixture, &repo, &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repo.join(WARM_RULES_FILE), "SECOND_PLANTED_RULE_TEXT\n").expect("rules text");
+    super::support::git(fixture, &repo, &["commit", "--quiet", "--all", "--message=second rules"]);
+    super::support::git(fixture, &repo, &["checkout", "--quiet", "main"]);
+    return repo;
+}
+
+/// A service with its own cache directory in the environment, serving `repo`.
+fn service_with_cache(fixture: &Fixture, repo: &Path, name: &str, cache: &Path) -> (Held, PathBuf) {
+    let places: Places = places_for(fixture, name, repo);
+    let instance: String = instance_argument(repo);
+    let held: Held = spawn_service_with_environment(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+        &[("FORBIDDEN_STRINGS_CACHE_DIR", cache.display().to_string())],
+    );
+    return (held, places.socket);
+}
+
+/// A `warm` message makes the running service compile the repository's rules.
+/// Why:
+///  The client that sees a checkout or a merge change the rules text cannot compile it itself without making the next command wait;
+///  it asks the service that already runs, once, and the service compiles on its own time.
+#[test]
+fn a_warm_message_makes_the_running_service_compile_the_rules() {
+    let fixture: Fixture = fixture("warm-message");
+    let repo: PathBuf = repository_with_two_rules_texts(&fixture);
+    let cache: PathBuf = fixture.root.join("warm-cache");
+    let name: String = format!("warm-message-{}", std::process::id());
+    let (_service, socket): (Held, PathBuf) = service_with_cache(&fixture, &repo, name.as_str(), cache.as_path());
+    assert_eq!(compiled_rules_in(&cache), 0);
+    let git_dir: String = repo.join(".git").display().to_string();
+    let line: String = format!("{{\"type\":\"warm\",\"version\":{},\"gitDir\":{git_dir:?},\"repository\":{:?}}}\n", git_policy_cli::service_protocol::PROTOCOL_VERSION, repo.display().to_string());
+    let mut connection = std::os::unix::net::UnixStream::connect(&socket).expect("the service listens");
+    std::io::Write::write_all(&mut connection, line.as_bytes()).expect("the message is sent");
+    assert!(artifact_appears(&cache), "the service did not compile the rules after a warm message");
+    remove_settled(&fixture);
+}
+
+/// A checkout that changes the rules text asks the running service to compile it; one that does not, asks nothing; and with no
+///  service running the checkout succeeds and starts none.
+#[test]
+fn a_checkout_that_changes_the_rules_text_asks_the_running_service_to_compile_it() {
+    let fixture: Fixture = fixture("warm-checkout");
+    let repo: PathBuf = repository_with_two_rules_texts(&fixture);
+    let cache: PathBuf = fixture.root.join("warm-cache");
+    let name: String = format!("warm-checkout-{}", std::process::id());
+    let runtime: PathBuf = runtime_for(name.as_str());
+    let (service, _socket): (Held, PathBuf) = service_with_cache(&fixture, &repo, name.as_str(), cache.as_path());
+    let switch = |branch: &str, quiet: bool| {
+        let mut command: Command = wrapped_commit(&fixture, &repo, &["checkout", "--quiet", branch]);
+        command.env("XDG_RUNTIME_DIR", &runtime).env("FORBIDDEN_STRINGS_CACHE_DIR", &cache);
+        let done = observe(&mut command, b"");
+        assert_eq!(done.code, Some(0), "{}", String::from_utf8_lossy(&done.stderr));
+        let _ = quiet;
+    };
+    // A switch that leaves the rules file as it is asks for nothing.
+    switch("main", true);
+    std::thread::sleep(NO_WARM_FOR);
+    assert_eq!(compiled_rules_in(&cache), 0, "a checkout that changed no rules text made the service compile");
+    // A switch that changes it asks, and the service compiles.
+    switch("other", false);
+    assert!(artifact_appears(&cache), "the service did not compile the rules after a checkout changed them");
+    drop(service);
+    // With no service running, the command still succeeds, and nothing starts one.
+    std::fs::remove_dir_all(&cache).expect("remove the cache");
+    switch("main", false);
+    std::thread::sleep(NO_WARM_FOR);
+    assert_eq!(compiled_rules_in(&cache), 0, "a service that was not running compiled the rules");
+    remove_settled(&fixture);
 }
