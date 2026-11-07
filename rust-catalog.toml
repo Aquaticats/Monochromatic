@@ -83,7 +83,10 @@ jni = ">=0.22.4"
 jsonschema = ">=0.60.2"
 libc = ">=0.2.191"
 libfuzzer-sys = ">=0.4.13"
-libghostty-vt = ">=0.2.2"
+# A git revision, not the crates.io release: libghostty-vt-sys 0.2.2 vendors a Ghostty that builds only with Zig 0.15.x
+# (its build.zig calls requireZig with an exact minor), and toolchain.lock.json moved Zig to 0.17.x. This revision
+# vendors a Ghostty with minimum_zig_version 0.17.0. Return to a crates.io release once one vendors Ghostty 1.4 or newer.
+libghostty-vt = { git = "https://github.com/Uzaaft/libghostty-rs", rev = "84373f8d48b8f0b794e259f74a71a52686616f5d" }
 memchr = ">=2.8.3"
 miniz_oxide = ">=0.9.1"
 ndk = ">=0.9"
