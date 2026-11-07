@@ -22,6 +22,7 @@ import {
   positionNear,
   QUICK_DOUBLE_SHIFT,
   releaseKey,
+  repeatAction,
   routeIs,
   sequenceOf,
   tapKey,
@@ -38,6 +39,11 @@ import {
   tabTo,
 } from './press.ts';
 import type { UiState, } from './ui-state.ts';
+
+/**
+ How many times the repeated action runs in the repeat test.
+ */
+const REPEAT_COUNT = 3;
 
 /**
  A state with every field at a neutral value, with some fields replaced.
@@ -188,6 +194,15 @@ await describe({
         await sequenceOf([tapKey('a',), tapKey('b',),],)(session,);
         await QUICK_DOUBLE_SHIFT(session,);
         expect(calls,).toEqual(['tap a', 'tap b', 'tap shift', 'tap shift',],);
+      },
+    },),
+    it({
+      name: 'run the repeated action once per time through repeatAction, and none for zero times',
+      fn: async ({ expect, }) => {
+        const { calls, session, } = fakeSession();
+        await repeatAction({ action: tapKey('down',), times: REPEAT_COUNT, },)(session,);
+        await repeatAction({ action: tapKey('up',), times: 0, },)(session,);
+        expect(calls,).toEqual(Array.from({ length: REPEAT_COUNT, }, () => 'tap down',),);
       },
     },),
   ],

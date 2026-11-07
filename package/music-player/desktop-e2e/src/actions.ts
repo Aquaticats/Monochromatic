@@ -367,6 +367,37 @@ export function sequenceOf(steps: readonly Action[],): Action {
 }
 
 /**
+ Runs one action a number of times, one run after another.
+ 
+ @param action - the action to repeat
+ 
+ @param times - how many runs; none runs nothing
+ 
+ @returns an action that runs it that many times
+ 
+ @example
+ ```ts
+ repeatAction({ action: tapKey('down',), times: 3, },);
+ ```
+ */
+export function repeatAction(
+  {
+    action,
+    times,
+  }: {
+    readonly action: Action;
+    readonly times: number;
+  },
+): Action {
+  return sequenceOf(Array.from(
+    { length: times, },
+    function theSameAction(): Action {
+      return action;
+    },
+  ),);
+}
+
+/**
  Gap between the two taps of a quick double Shift.
  */
 const QUICK_GAP_MS = 120;
