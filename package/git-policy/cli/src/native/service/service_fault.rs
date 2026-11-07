@@ -16,11 +16,15 @@ pub const FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FAULT";
 /// The instants of a batch at which a kill is tested, in the order a batch reaches them.
 pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref", "after-index", "before-ack"];
 
-/// The instant after `index.lock` was created by exclusive creation (where the filesystem places no file whole) and before its
-///  marker is written: a kill here leaves a lock without its marker, as plain Git leaves one.
+/// The instant after `index.lock` was created by exclusive creation
+/// (where the filesystem places no file whole)
+/// and before its marker is written:
+/// a kill here leaves a lock without its marker,
+/// as plain Git leaves one.
 pub const LOCK_CREATED_UNMARKED: &str = "lock-created-unmarked";
 
-/// The instant after the marker was written into a lock created by exclusive creation and before it is flushed.
+/// The instant after the marker was written into a lock created by exclusive creation,
+/// before it is flushed.
 pub const LOCK_MARKED_UNSYNCED: &str = "lock-marked-unsynced";
 
 /// What:

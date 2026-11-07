@@ -58,21 +58,21 @@ fn exclusive_creation_is_used_only_when_both_the_rename_and_the_link_are_refused
         return std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(path);
     };
     // Rename works.
-    let platform: Platform = Platform { create: &create, ..SYSTEM };
-    drop(acquire_on(&platform, &index, 1, &|_| {}).expect("taken by a rename"));
+    let renaming: Platform = Platform { create: &create, ..SYSTEM };
+    drop(acquire_on(&renaming, &index, 1, &|_| {}).expect("taken by a rename"));
     assert_eq!(created.get(), 0, "a rename that works places the lock whole");
     // Rename refused, link works.
-    let platform: Platform = Platform { rename: &rename_refused, create: &create, ..SYSTEM };
-    drop(acquire_on(&platform, &index, 2, &|_| {}).expect("taken by a link"));
+    let linking: Platform = Platform { rename: &rename_refused, create: &create, ..SYSTEM };
+    drop(acquire_on(&linking, &index, 2, &|_| {}).expect("taken by a link"));
     assert_eq!(created.get(), 0, "a link that works places the lock whole");
     // Rename refused, link fails for another reason: that error is the answer.
     let link_is_storage = |_: &Path, _: &Path| -> std::io::Result<()> { return Err(refusal(libc::EIO)); };
-    let platform: Platform = Platform { rename: &rename_refused, link: &link_is_storage, create: &create, ..SYSTEM };
-    assert!(try_acquire_on(&platform, &index, 3).is_none());
+    let failing_disk: Platform = Platform { rename: &rename_refused, link: &link_is_storage, create: &create, ..SYSTEM };
+    assert!(try_acquire_on(&failing_disk, &index, 3).is_none());
     assert_eq!(created.get(), 0, "a failing disk is not a filesystem without links");
     // Both refused.
-    let platform: Platform = Platform { rename: &rename_refused, link: &link_refused, create: &create, ..SYSTEM };
-    drop(acquire_on(&platform, &index, 4, &|_| {}).expect("taken by exclusive creation"));
+    let bare: Platform = Platform { rename: &rename_refused, link: &link_refused, create: &create, ..SYSTEM };
+    drop(acquire_on(&bare, &index, 4, &|_| {}).expect("taken by exclusive creation"));
     assert_eq!(created.get(), 1, "both refusals make the one creation");
     remove(root.as_path());
 }
@@ -86,15 +86,15 @@ fn a_lock_that_exists_is_never_removed_or_replaced_by_the_fallback() {
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, b"").expect("a lock without a marker, as plain Git leaves one");
     let platform: Platform = Platform { rename: &rename_refused, link: &link_refused, ..SYSTEM };
-    let said: RefCell<Vec<String>> = RefCell::new(Vec::new());
+    let announced: RefCell<Vec<String>> = RefCell::new(Vec::new());
     let failure = acquire_within(&platform, &index, 5, SHORT_CEILING, &|note| {
         if let Announce::Waiting(text) = note {
-            said.borrow_mut().push(text);
+            announced.borrow_mut().push(text);
         }
     })
     .expect_err("a held lock ends at the ceiling");
     assert_eq!(failure.code, FailureCode::IndexInUse);
-    let said: String = said.borrow().join("\n");
+    let said: String = announced.borrow().join("\n");
     assert!(
         said.contains(lock.to_string_lossy().as_ref()) && said.contains("removing the file") && said.contains("was not made"),
         "the person is told which file this is and how to clear it: {said}"

@@ -141,7 +141,7 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         }
     };
     refresh_age(&held);
-    let placed: std::io::Result<Placed> = match place_lock(platform, &staged, marker.as_str(), &lock) {
+    let attempt: std::io::Result<Placed> = match place_lock(platform, &staged, marker.as_str(), &lock) {
         // A stale lock removed (or replaced by then) is worth one more placement; a lock another reclaimer is removing, a live
         //  one, and one that cannot be removed leave the batch open for the next round.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match reclaim(platform, &lock) {
@@ -151,7 +151,7 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         other => other,
     };
     let _removed = std::fs::remove_file(&staged);
-    let placed: Placed = match placed {
+    let placed: Placed = match attempt {
         Ok(found) => found,
         Err(error) => {
             log_placement_failure(&lock, &error);
