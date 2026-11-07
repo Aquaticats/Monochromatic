@@ -640,7 +640,7 @@ The locked release is `monochromatic-git-policy-cli` 0.6.0 (crates.io 2026-11-07
 
 ## Folding the earlier names when both exist
 
-Recorded 2026-11-07T11:00:00-05:00 on the branch `fix/git-policy-cli-fold-earlier-names` (unmerged, unreleased).
+Recorded 2026-11-07T09:05:57-05:00 on the branch `fix/git-policy-cli-fold-earlier-names` (unmerged, unreleased).
 This replaces "the old one is left untouched and reported" in "The settings file and the data the wrapper keeps" for the
 data folders and logs: the owner's rules "every name of a dirent must be understandable to a monkey" and "never discard user
 data" both rule out telling the person to merge folders by hand, and six lines on every command are noise.
@@ -693,3 +693,14 @@ never both, so the existing in-place rename covers them; the fold runs there too
 - Folding adds the earlier commit-timing log (250,668 bytes here) to a current one of 987,465 bytes, over the 1 MiB rotation
   limit, so the next append moves it aside and replaces the existing `.1` (the one-generation policy of `discard_audit.rs`).
 - Numbered older copies of an earlier rotating log whose base name no longer exists are not revisited.
+
+### Measured cost of the fold
+
+Measured 2026-11-07 on copies of this repository's real data names in `~/temp/agent/fold-measure` (the release build of the
+branch, `status --short`, seven alternating trials per arm, each in a fresh repository; the real `.git` was only read):
+a repository with no names twice takes a median of 4.7 ms; the first command that folds the six pairs (4,473 files and 2,736
+log lines, all kept) a median of 143.7 ms, once per Git directory; a command that finds a name twice while an earlier program
+runs (the look is made, nothing is folded) a median of 15.1 ms, so the look adds about 10 ms to each command until that program
+stops.
+No marker throttles the look; a marker with a short life beside the names would, and it is the next step if that 10 ms matters.
+The fold runs on the command's own path because a forwarded command replaces the process, so a thread would die with it.

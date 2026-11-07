@@ -34,6 +34,12 @@ pub enum FolderFold {
         /// The entries that stayed, for a message to the person.
         kept: Vec<PathBuf>,
     },
+    /// Every entry moved, but the emptied earlier folder could not be removed (a read-only Git directory); the reason is the
+    ///  operating system's.
+    NotRemoved {
+        /// The operating system's error, as text.
+        reason: String,
+    },
     /// A control stopped the merge at the named step.
     Stopped(&'static str),
 }
@@ -118,21 +124,30 @@ pub fn fold_folder(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) 
             }
         }
     }
+    let mut top_removal_error: Option<std::io::Error> = None;
     for (from_folder, into_folder) in visited.iter().rev() {
         if !steps.may_continue("before-remove-emptied-folder") {
             return Ok(FolderFold::Stopped("before-remove-emptied-folder"));
         }
         // Only an empty folder is removed; one that still holds an entry stays, and so does every folder above it.
-        let _kept_when_not_empty = std::fs::remove_dir(from_folder.as_path());
+        let removal: std::io::Result<()> = std::fs::remove_dir(from_folder.as_path());
+        if let Err(error) = removal
+            && *from_folder == earlier
+        {
+            top_removal_error = Some(error);
+        }
         let _durable = sync_directory(into_folder.as_path());
     }
     let _durable = sync_directory(parent);
     if is_real_folder(earlier.as_path()) {
-        if kept.is_empty() {
-            // Entries that an earlier program created during the merge stay for the next run.
-            kept.push(earlier);
+        if !kept.is_empty() {
+            return Ok(FolderFold::Left { kept });
         }
-        return Ok(FolderFold::Left { kept });
+        return match top_removal_error {
+            // Not empty: entries that an earlier program created during the merge stay for the next run.
+            Some(error) if error.kind() != std::io::ErrorKind::DirectoryNotEmpty => Ok(FolderFold::NotRemoved { reason: error.to_string() }),
+            _ => Ok(FolderFold::Left { kept: vec![earlier] }),
+        };
     }
     return Ok(FolderFold::Folded { moved });
 }

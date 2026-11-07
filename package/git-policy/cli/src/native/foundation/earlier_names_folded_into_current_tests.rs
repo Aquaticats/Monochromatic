@@ -173,15 +173,21 @@ fn a_read_only_git_directory_fails_every_name_and_loses_nothing() {
         return;
     }
     assert_eq!(report.held, None);
-    // The folder merge happens below the folders, which stay writable, so only the logs must fail here.
-    for (name, outcome) in report.outcomes.iter().filter(|(name, _)| return name.current != DATA_FOLDER.current) {
+    // The folder's entries move below the folders, which stay writable; only the removal of the emptied earlier folder fails.
+    for (name, outcome) in &report.outcomes {
         assert!(matches!(outcome, Outcome::Failed(_)), "{name:?}: {outcome:?}");
+        if name.current == DATA_FOLDER.current {
+            let Outcome::Failed(message) = outcome else { unreachable!("matched above") };
+            assert!(message.contains("could not be removed"), "the line names the removal, not a name collision: {message}");
+            assert!(!message.contains("already in use"), "{message}");
+        }
         let line: String = failure_line(git.as_path(), *name, outcome).expect("a failure is reported");
         assert!(line.ends_with('\n') && line.matches('\n').count() == 1 && line.contains("tries again"), "{line:?}");
     }
     assert_eq!(std::fs::read_to_string(git.join(PUSH_TRIGGER_LOG.earlier)).expect("earlier"), "earlier-push\n");
     assert_eq!(std::fs::read_to_string(git.join(COMMIT_TIMING_LOG.earlier)).expect("earlier"), "earlier-timing\n");
     assert_eq!(std::fs::read_to_string(git.join(PUSH_TRIGGER_LOG.current)).expect("current"), "current-push\n");
+    assert_eq!(std::fs::read_to_string(git.join("monochromatic-git-policy-cli/work/done/earlier")).expect("moved"), "earlier record");
     std::fs::remove_dir_all(git.parent().expect("root")).expect("remove only the fixture");
 }
 

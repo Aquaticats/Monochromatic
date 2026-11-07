@@ -159,6 +159,7 @@ fn fold_one(directory: &Path, kept: KeptName, steps: &mut dyn FoldSteps) -> Outc
             Ok(FolderFold::Nothing) => return Outcome::Nothing,
             Ok(FolderFold::Folded { .. }) => return Outcome::Folded,
             Ok(FolderFold::Left { kept: stayed }) => return Outcome::Left(stayed),
+            Ok(FolderFold::NotRemoved { reason }) => return Outcome::Failed(format!("every entry moved, but the emptied earlier folder could not be removed: {reason}")),
             Ok(FolderFold::Stopped(step)) => return Outcome::Stopped(step),
             Err(error) => return Outcome::Failed(error.to_string()),
         },
