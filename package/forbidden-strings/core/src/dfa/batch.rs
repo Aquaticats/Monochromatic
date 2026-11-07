@@ -289,7 +289,10 @@ impl Dfa {
         let (chunks, remainder) = lines.as_chunks::<N>();
         let mut base = 0;
         for chunk in chunks {
-            let lens: [usize; N] = std::array::from_fn(|lane| return chunk[lane].len());
+            let mut lens: [usize; N] = [0; N];
+            for (len, line) in lens.iter_mut().zip(chunk) {
+                *len = line.len();
+            }
             let max_len = lens.iter().copied().max().unwrap_or(0);
             let mut lanes = Lanes::<N>::new(start);
             // What:    Column-major scan: `pos` indexes each lane's own line
@@ -439,7 +442,10 @@ impl Dfa {
     /// }
     /// ```
     pub fn is_match_batch_tight_w<const N: usize>(&self, lines: &[&[u8]], out: &mut [bool]) {
-        let len = lines.first().map_or(0, |line| return line.len());
+        let len = match lines.first() {
+            Some(line) => line.len(),
+            None => 0,
+        };
         let (chunks, remainder) = lines.as_chunks::<N>();
         let mut base = 0;
         for chunk in chunks {
