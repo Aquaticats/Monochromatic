@@ -126,6 +126,30 @@ Configuration patterns select virtual files by those names.
 Findings and fixes are reported at host positions.
 A fix that cannot be mapped back to the host is dropped and its finding is kept.
 
+## What `--fix` leaves alone
+
+A fix may be reported by a finding and still be withheld,
+and the finding stays reported:
+
+- A rustdoc comment inside a fenced listing is quoted source,
+  so a finding there carries no fix.
+  This holds for a Rust listing in Markdown and for a doc example in a Rust file's doc comment,
+  while the Rust file's own doc comments are still broken at their `///` and `//!` markers.
+- A pipe table is only reported.
+  `markdown/no-pipe-tables` has no fix.
+- A bare URL whose link text contains a backtick is reported without a fix,
+  because the parser read a code span delimiter into the URL.
+- A line break inside a blockquote adds no `>`,
+  also when the quote sits in a list item or holds a list.
+  The new line is a lazy continuation,
+  which CommonMark 0.31.2 (section 5.1 "Block quotes",
+  rule 2 "Laziness") keeps in the paragraph it continues,
+  and the rule never breaks where the next line would start another block.
+
+`markdown/semantic-line-breaks` is the one fix that changes only whitespace.
+The other fixable Markdown rules rewrite content;
+the proposal to separate the two is `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`.
+
 ## Inline directives
 
 A finding can be suppressed by a comment that names this tool,
