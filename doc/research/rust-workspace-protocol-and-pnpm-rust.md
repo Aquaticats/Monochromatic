@@ -588,6 +588,17 @@ Option 1 > Option 2 > Option 3 > Option 4 > Option 5 > Option 6 > Option 7.
 - Whether `cargo.enabled` is wanted at all, given the `git` wrapper collision (the wrapper rule is the owner's).
 - Whether a pnpr `packages:` entry per crate or `**` is wanted.
 
+Answered 2026-11-07T09:32:48-05:00 (recorded in `doc/decision/mpm-toolchain-adoption.md`,
+section "Our seven tools install from GitHub release archives"):
+tool bytes stay on GitHub releases ("GitHub releases (Recommended)", so Option 1),
+and the lock keeps `@latest` ("Newest release (Recommended)").
+Settled by the coordinator without an owner question, from rules already given:
+alpha releases are not flagged `--prerelease`, because the archive route exists so that alphas install here;
+`compare_versions` is a defect and is being fixed to Semantic Versioning precedence (branch `fix/crate-release-label-gate`);
+pnpm's `cargo.enabled` is not adopted, since it serves neither use.
+The `registry` key and the pnpr `packages:` entries wait for the pnpr Cargo workload
+(`doc/planning/self-hosted-cargo-registry.md`).
+
 ## Cross-vendor review
 
 A review by `openai/gpt-6.1-sol` (no tools, whole note supplied, run 2026-11-07, output kept in
