@@ -131,11 +131,14 @@ impl CompositorHandler for Compositor {
             //           `w.toplevel().unwrap()` gets the window's toplevel (asserting it
             //           is a Wayland, not X, window) and compares its surface to `root`.
             // Why:      Tell the matching window that its content changed.
-            if let Some(window) = self
-                .space
-                .elements()
-                .find(|w| return w.toplevel().unwrap().wl_surface() == &root)
-            {
+            let mut committed = None;
+            for window in self.space.elements() {
+                if window.toplevel().unwrap().wl_surface() == &root {
+                    committed = Some(window);
+                    break;
+                }
+            }
+            if let Some(window) = committed {
                 window.on_commit();
             }
         }

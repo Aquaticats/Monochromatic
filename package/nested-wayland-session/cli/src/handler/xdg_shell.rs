@@ -36,7 +36,7 @@ use smithay::{
     },
     utils::Serial,
     wayland::{
-        compositor::with_states,
+        compositor::{with_states, SurfaceData},
         shell::xdg::{
             PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
             XdgToplevelSurfaceData,
@@ -91,6 +91,13 @@ fn set_fullscreen(surface: &ToplevelSurface, geometry: ScreenGeometry) {
     // ```ts
     // surface.withPendingState((state) => { ... });
     // ```
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "smithay's with_pending_state takes a FnOnce callable that must carry the screen geometry; see doc/closure-lint-suppressions.md"
+        )
+    )]
     surface.with_pending_state(|state| {
         // What:     `state.states.set(xdg_toplevel::State::Fullscreen);`. Adds the
         //           fullscreen flag to the toplevel's state set.
@@ -144,11 +151,12 @@ pub fn reconfigure_fullscreen(state: &mut Compositor) {
     // ```ts
     // const toplevels = [...state.space.elements()].map((w) => w.toplevel()).filter(Boolean);
     // ```
-    let toplevels: Vec<ToplevelSurface> = state
-        .space
-        .elements()
-        .filter_map(|w| return w.toplevel().cloned())
-        .collect();
+    let mut toplevels: Vec<ToplevelSurface> = Vec::new();
+    for window in state.space.elements() {
+        if let Some(toplevel) = window.toplevel() {
+            toplevels.push(toplevel.clone());
+        }
+    }
 
     // What:     `for toplevel in &toplevels { ... }`. Borrow each collected toplevel in
     //           turn (`&toplevels` iterates references).
@@ -270,6 +278,13 @@ impl XdgShellHandler for Compositor {
         //           positioner.get_geometry(); state.positioner = positioner; });`. Stage
         //           the new geometry and positioner on the popup.
         // Why:      Prepare the popup's new placement before re-sending it.
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "smithay's with_pending_state takes a FnOnce callable that must carry the moved positioner; see doc/closure-lint-suppressions.md"
+            )
+        )]
         surface.with_pending_state(|state| {
             state.geometry = positioner.get_geometry();
             state.positioner = positioner;
@@ -325,6 +340,24 @@ impl XdgShellHandler for Compositor {
 // Why:      Wire xdg_wm_base / xdg_toplevel / xdg_popup requests to the handler.
 delegate_xdg_shell!(Compositor);
 
+/// Whether the first configure of a toplevel was already sent.
+///
+/// What:
+///      `fn read_initial_configure_sent(states: &SurfaceData) -> bool`.
+///  Locks the surface's xdg toplevel data and reads the flag;
+///  it panics when the surface has no such data or the mutex is poisoned.
+/// Why:
+///       `with_states` takes it by path instead of a closure that captured nothing.
+fn read_initial_configure_sent(states: &SurfaceData) -> bool {
+    return states
+        .data_map
+        .get::<XdgToplevelSurfaceData>()
+        .unwrap()
+        .lock()
+        .expect("XdgToplevelSurfaceData mutex is poisoned: a thread panicked while it held the lock")
+        .initial_configure_sent
+}
+
 /// Send the initial configure for a toplevel or popup on its first commit.
 ///
 /// What:
@@ -350,11 +383,14 @@ pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: 
     //           window whose toplevel surface is the one that committed, cloning it out of
     //           the borrow so we can inspect its state.
     // Why:      Toplevel-specific: send the first configure if not yet sent.
-    if let Some(window) = space
-        .elements()
-        .find(|w| return w.toplevel().unwrap().wl_surface() == surface)
-        .cloned()
-    {
+    let mut mapped = None;
+    for window in space.elements() {
+        if window.toplevel().unwrap().wl_surface() == surface {
+            mapped = Some(window.clone());
+            break;
+        }
+    }
+    if let Some(window) = mapped {
         // What:     `let initial_configure_sent = with_states(surface, |states| { states
         //           .data_map.get::<XdgToplevelSurfaceData>().unwrap().lock().expect(..)
         //           .initial_configure_sent });`. `with_states` runs the closure with the
@@ -362,15 +398,7 @@ pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: 
         //           per-surface xdg data; `.lock().expect(...)` locks its mutex (it fails only
         //           when another thread panicked while holding it); we read the boolean flag.
         // Why:      Decide whether the first configure still needs sending.
-        let initial_configure_sent = with_states(surface, |states| {
-            return states
-                .data_map
-                .get::<XdgToplevelSurfaceData>()
-                .unwrap()
-                .lock()
-                .expect("XdgToplevelSurfaceData mutex is poisoned: a thread panicked while it held the lock")
-                .initial_configure_sent
-        });
+        let initial_configure_sent = with_states(surface, read_initial_configure_sent);
 
         // What:     `if !initial_configure_sent { window.toplevel().unwrap()
         //           .send_configure(); }`. Send the staged (fullscreen) configure once.
@@ -435,11 +463,14 @@ impl Compositor {
         //           w.toplevel().unwrap().wl_surface() == &root) else { return; };`. Find
         //           the window for that root surface, or bail if none.
         // Why:      Need the window's geometry to compute the popup's target box.
-        let Some(window) = self
-            .space
-            .elements()
-            .find(|w| return w.toplevel().unwrap().wl_surface() == &root)
-        else {
+        let mut root_window = None;
+        for window in self.space.elements() {
+            if window.toplevel().unwrap().wl_surface() == &root {
+                root_window = Some(window);
+                break;
+            }
+        }
+        let Some(window) = root_window else {
             return;
         };
 
@@ -476,6 +507,13 @@ impl Compositor {
         //           state.positioner.get_unconstrained_geometry(target); });`. Ask the
         //           positioner for the best-fit geometry inside `target` and stage it.
         // Why:      Keep the popup fully on screen.
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "smithay's with_pending_state takes a FnOnce callable that must carry the unconstrain target; see doc/closure-lint-suppressions.md"
+            )
+        )]
         popup.with_pending_state(|state| {
             state.geometry = state.positioner.get_unconstrained_geometry(target);
         });

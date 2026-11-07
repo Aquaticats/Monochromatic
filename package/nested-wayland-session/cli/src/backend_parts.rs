@@ -116,8 +116,10 @@ pub fn build_dmabuf(
     //           `Result<Option<DrmNode>>`.
     // Why:      dmabuf v4 feedback needs the render node's device id so the client
     //           allocates buffers on the right GPU.
-    let render_node = EGLDevice::device_for_display(renderer.egl_context().display())
-        .and_then(|device| return device.try_get_render_node());
+    let render_node = match EGLDevice::device_for_display(renderer.egl_context().display()) {
+        Ok(device) => device.try_get_render_node(),
+        Err(error) => Err(error),
+    };
 
     // What:     `let mut dmabuf_state = DmabufState::new();`. Fresh dmabuf state; `mut`
     //           because creating the global borrows it mutably.

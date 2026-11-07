@@ -284,7 +284,10 @@ pub fn failure_message(choice: &GpuChoice, failures: &[Failure], offered: &str) 
             }
         }
         explicit => {
-            let reason = failures.first().map_or("no device was tried", |failure| return failure.reason.as_str());
+            let reason = match failures.first() {
+                Some(failure) => failure.reason.as_str(),
+                None => "no device was tried",
+            };
             text.push_str(&format!("--gpu {} cannot be used: {reason}", explicit.label()));
         }
     }

@@ -320,6 +320,13 @@ fn tell_surfaces_scale(state: &Compositor) {
         // ```ts
         // window.withSurfaces((_surface, states) => fractionalScaleOf(states).setPreferredScale(factor));
         // ```
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "smithay's Window::with_surfaces and with_fractional_scale take callables that must carry the scale factor; see doc/closure-lint-suppressions.md"
+            )
+        )]
         window.with_surfaces(|_surface, states| {
             with_fractional_scale(states, |fractional| {
                 fractional.set_preferred_scale(factor);

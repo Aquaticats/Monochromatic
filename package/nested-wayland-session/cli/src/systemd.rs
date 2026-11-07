@@ -171,7 +171,7 @@ pub fn default_quota_percent() -> u32 {
     //           .unwrap_or(1);`. Logical core count, or 1 if it cannot be queried.
     // Why:      The basis for the reservation.
     let cores = std::thread::available_parallelism()
-        .map(|n| return n.get())
+        .map(std::num::NonZeroUsize::get)
         .unwrap_or(1);
 
     // What:     `let reserved = (cores / RESERVED_FRACTION).max(1);`. Cores held back for
@@ -211,14 +211,16 @@ pub fn available() -> bool {
     //           output; `.map(...).unwrap_or(false)` treats a spawn error (binary missing)
     //           as unavailable. Tail expression.
     // Why:      A cheap, definitive availability probe.
-    return Command::new("systemd-run")
+    let probe = Command::new("systemd-run")
         .arg("--user")
         .arg("--version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .status()
-        .map(|status| return status.success())
-        .unwrap_or(false)
+        .status();
+    match probe {
+        Ok(status) => return status.success(),
+        Err(_) => return false,
+    }
 }
 
 /// Build the `Command` that launches the hosted app,

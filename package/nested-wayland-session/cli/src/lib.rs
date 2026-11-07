@@ -401,6 +401,19 @@ pub mod state;
 pub mod systemd;
 
 /// What:
+///      `pub mod lazy_error_text;`.
+///  Declares the module of error-text functions that build their message only on failure.
+/// Why:
+///       They replace `with_context`,
+///  `ok_or_else` and `map_err` closures with named functions that take a `format_args!` value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * as lazyErrorText from "./lazyErrorText";
+/// ```
+pub mod lazy_error_text;
+
+/// What:
 ///      `pub use app::run;`.
 ///  Re-export `run` at the crate root.
 /// Why:

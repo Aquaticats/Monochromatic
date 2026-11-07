@@ -113,9 +113,30 @@ const ALIASES: &[(&str, u32)] = &[
 pub fn normalize(name: &str) -> String {
     return name
         .chars()
-        .filter(|character| return *character != '_' && *character != '-')
+        .filter(is_not_separator)
         .flat_map(char::to_lowercase)
         .collect()
+}
+
+/// Whether a character is kept when a key name is normalized:
+/// everything except `_` and `-`.
+///
+/// What:
+///      `fn is_not_separator(character: &char) -> bool`.
+/// Why:
+///       `Iterator::filter` takes it by path instead of a closure.
+fn is_not_separator(character: &char) -> bool {
+    return *character != '_' && *character != '-'
+}
+
+/// Whether a raw key code lies in the accepted range `1..=KEY_CODE_MAX`.
+///
+/// What:
+///      `fn is_valid_code(code: &u32) -> bool`.
+/// Why:
+///       `Option::filter` takes it by path instead of a closure.
+fn is_valid_code(code: &u32) -> bool {
+    return (1..=KEY_CODE_MAX).contains(code)
 }
 
 /// Parse the number of a `code:<n>` key.
@@ -138,7 +159,7 @@ fn raw_code(text: &str) -> Option<u32> {
         Some(hexadecimal) => u32::from_str_radix(hexadecimal, 16).ok(),
         None => text.parse::<u32>().ok(),
     };
-    return parsed.filter(|code| return (1..=KEY_CODE_MAX).contains(code))
+    return parsed.filter(is_valid_code)
 }
 
 /// Resolve one key name to its evdev code.
@@ -176,18 +197,23 @@ pub fn resolve(name: &str) -> Option<u32> {
         return resolve(kernel_name)
     }
     let normalized = normalize(name);
-    if let Some((_, code)) = ALIASES.iter().find(|(alias, _)| return *alias == normalized) {
-        return Some(*code)
+    for (alias, code) in ALIASES {
+        if *alias == normalized {
+            return Some(*code)
+        }
     }
-    if let Some((_, code)) = EVDEV_KEYS.iter().find(|(kernel, _)| return *kernel == normalized) {
-        return Some(*code)
+    for (kernel, code) in EVDEV_KEYS {
+        if *kernel == normalized {
+            return Some(*code)
+        }
     }
     let mut characters = name.chars();
     let first = characters.next()?;
     if characters.next().is_some() {
         return None
     }
-    return char_to_key(first).map(|(code, _shift)| return code)
+    let (code, _shift) = char_to_key(first)?;
+    return Some(code)
 }
 
 /// What:

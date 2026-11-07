@@ -318,13 +318,37 @@ impl FramePacing {
     }
 }
 
+/// The fallback pacing timer's callback:
+///  send frame callbacks when the parent has stalled,
+///  and run again after one frame interval.
+///
+/// What:
+///      `fn on_fallback_frame_timer(_deadline: Instant, _metadata: &mut (), timer_state: &mut Compositor) -> TimeoutAction`.
+///  The recorder owns the cadence while it runs;
+///  the end-of-cycle flush delivers the callbacks sent here.
+///  The unit-typed `_metadata` is the timer source's metadata slot,
+///  which it leaves empty.
+/// Why:
+///       A named function replaces the closure the timer source took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function onFallbackFrameTimer(_deadline, _metadata, state) { if (state.framePacing.fallbackDue(...)) sendFrameCallbacks(state); return reschedule(FRAME_INTERVAL); }
+/// ```
+fn on_fallback_frame_timer(_deadline: Instant, _metadata: &mut (), timer_state: &mut Compositor) -> TimeoutAction {
+    if timer_state.frame_pacing.fallback_due(timer_state.recorder.is_some(), Instant::now()) {
+        render::send_frame_callbacks(timer_state);
+    }
+    return TimeoutAction::ToDuration(FRAME_INTERVAL);
+}
+
 /// Register the fallback pacing timer and mark the parent current as of now.
 ///
 /// What:
 ///      `pub fn register(loop_handle: &LoopHandle<Compositor>, state: &mut Compositor)`.
 ///           `&` lends the loop handle read-only;
 ///  `&mut` lends the state for one assignment.
-///           The closure `|_, _, timer_state: &mut Compositor| { ... }` ignores the fire time
+///           The callback `on_fallback_frame_timer` ignores the fire time
 ///           and metadata and receives the state on every tick.
 ///  `.expect(...)` stops the
 ///           program with a message if registration fails.
@@ -346,13 +370,7 @@ impl FramePacing {
 pub fn register(loop_handle: &LoopHandle<Compositor>, state: &mut Compositor) {
     state.frame_pacing = FramePacing::for_backend(state.backend.kind(), Instant::now());
     loop_handle
-        .insert_source(Timer::from_duration(FRAME_INTERVAL), |_, _, timer_state: &mut Compositor| {
-            // The recorder owns the cadence while it runs; the end-of-cycle flush delivers these.
-            if timer_state.frame_pacing.fallback_due(timer_state.recorder.is_some(), Instant::now()) {
-                render::send_frame_callbacks(timer_state);
-            }
-            return TimeoutAction::ToDuration(FRAME_INTERVAL);
-        })
+        .insert_source(Timer::from_duration(FRAME_INTERVAL), on_fallback_frame_timer)
         .expect("failed to register the fallback frame pacing timer");
 }
 
