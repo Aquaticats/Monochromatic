@@ -35,6 +35,9 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
 
+/// Imports the check that tells a shadow, of any version, from a real tool.
+use crate::shadow_identity::shadow_behind;
+
 /// What:
 /// `const EXECUTE_BITS: u32 = 0o111;` is an unsigned 32-bit integer (siblings:
 /// `i32`,
@@ -114,6 +117,12 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option
         if let Ok(resolved) = fs::canonicalize(&candidate)
             && skip.contains(&resolved)
         {
+            continue;
+        }
+
+        // A candidate that is a shadow of any version, or a launcher that leads to one, is skipped without being started:
+        // what a file is does not depend on its path (`shadow_identity.rs`).
+        if shadow_behind(&candidate).is_some() {
             continue;
         }
 
