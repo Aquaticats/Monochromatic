@@ -227,7 +227,7 @@ USER_SCOPE="--user --scope --property=CPUQuota=100% --property=MemoryMax=1G --pr
 
 # A path with a space or a quote would break the commands this wizard shows and runs, so refuse it up front.
 require_plain_path() {
-  [[ "$2" =~ ^/[A-Za-z0-9_./@+-]+$ ]] || { printf 'The setting %s=%s holds a character this wizard does not quote; use a plain path.\n' "$1" "$2" >&2; exit 64; }
+  [[ "$2" =~ ^/[A-Za-z0-9_./@+-]+$ ]] || { printf 'The setting %s=%s holds a character this wizard does not quote; use a plain path.\n' "$1" "$2" >&2; REPORTED=1; exit 64; }
 }
 for _name in REPO EXTERNAL_WORKTREES DRIVE DEST_ROOT SNAPSHOTS MOVE_STATE DANGLING FIXTURE_PARENT CLI_GIT_STATE; do
   require_plain_path "$_name" "${!_name}"
@@ -359,6 +359,11 @@ run_step() {
   fi
   confirm "Run this step now?" || { STEP_ROLLBACK=""; stop_with 2 "Stopped at your answer; nothing was run for step $id."; }
   if [[ "$STEP_WINDOW_START" == "yes" && ! -s "$WIZ/window-start" ]]; then date +%s > "$WIZ/window-start"; log_line "window start"; fi
+  if [[ "$STEP_WINDOW" == "yes" ]] && window_running; then
+    remaining="$(window_remaining)"
+    (( remaining > 0 )) || window_exceeded
+    deadline=$(( remaining < TRANSFER_DEADLINE ? remaining : TRANSFER_DEADLINE ))
+  fi
   command_to_run="${STEP_CMD//@DEADLINE@/$deadline}"
   output="$WIZ/logs/$PHASE-$id.out"; mkdir --parents "$WIZ/logs"
   OUTPUT_FILE="$output"; export OUTPUT_FILE
@@ -398,24 +403,24 @@ run_step() {
   pause "Press Enter for the next stage"
 }
 
-need_file() { [[ -e "$1" ]] || { printf '%s%sMissing: %s (%s)%s\n' "$BOLD" "$RED" "$1" "$2" "$RESET" >&2; exit 66; }; }
+need_file() { [[ -e "$1" ]] || { printf '%s%sMissing: %s (%s)%s\n' "$BOLD" "$RED" "$1" "$2" "$RESET" >&2; REPORTED=1; exit 66; }; }
 phase_done() { [[ -e "$WIZ/done/$1/$2" ]]; }
 
 # ── Start-up checks that change nothing ──
 startup_checks() {
-  [[ "$(id -u)" != "0" ]] || { echo "Run this as your own user, not as root: each root step asks sudo itself."; exit 64; }
+  [[ "$(id -u)" != "0" ]] || { echo "Run this as your own user, not as root: each root step asks sudo itself."; REPORTED=1; exit 64; }
   local here; here="$(readlink -f "$PWD")"
   case "$SELF" in "$REPO"/*|"$(readlink -f "$REPO")"/*)
     echo "This script sits inside the repository, so bash holds it open there and the holder scans would report it."
-    echo "Copy it out first:  cp $SELF ${HOME_DIR}/repository-move-wizard.sh  and run that copy."; exit 64 ;;
+    echo "Copy it out first:  cp $SELF ${HOME_DIR}/repository-move-wizard.sh  and run that copy."; REPORTED=1; exit 64 ;;
   esac
   case "$here" in "$REPO"|"$REPO"/*|"$(readlink -f "$REPO")"|"$(readlink -f "$REPO")"/*)
-    echo "The current folder is inside the repository; the holder scans would report this shell. cd out of it first."; exit 64 ;;
+    echo "The current folder is inside the repository; the holder scans would report this shell. cd out of it first."; REPORTED=1; exit 64 ;;
   esac
-  [[ -n "$NODE" && -x "$NODE" ]] || { echo "node is not on PATH; sudo needs its absolute path."; exit 66; }
+  [[ -n "$NODE" && -x "$NODE" ]] || { echo "node is not on PATH; sudo needs its absolute path."; REPORTED=1; exit 66; }
   local tool
   for tool in btrfs rsync unshare runuser systemd-run sudo findmnt mountpoint timeout awk sed; do
-    command -v "$tool" >/dev/null || { echo "Missing tool: $tool"; exit 66; }
+    command -v "$tool" >/dev/null || { echo "Missing tool: $tool"; REPORTED=1; exit 66; }
   done
   need_file "$MOVE_SCRIPT" "the copy script from the plan, section The copy"
   need_file "$SCAN_SCRIPT" "the baseline script from the plan, section Quiesce and freeze"
@@ -798,7 +803,7 @@ cutover_main() {
   [[ "$DRY_RUN" == "1" ]] && warn "DRY RUN: steps are displayed, never executed or recorded"
   if [[ "$DRY_RUN" != "1" ]]; then
     for item in p4c-first p4d-external-first p4e-sizes; do
-      phase_done prepare "$item" || { echo "Prepare step $item is not recorded as done. Run  $SELF prepare  first."; exit 65; }
+      phase_done prepare "$item" || { echo "Prepare step $item is not recorded as done. Run  $SELF prepare  first."; REPORTED=1; exit 65; }
     done
   fi
   pause "Press Enter to start"
@@ -1091,6 +1096,7 @@ if grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service $WIZ/stop
 
 thaw_aftermath() {
   local stamp; stamp="$(date +%Y%m%dT%H%M%S%z)"
+  if [[ "$DRY_RUN" == "1" ]]; then note "dry run: the cut-over progress and the window clock would be renamed aside here"; return 0; fi
   if [[ -d "$WIZ/done/cutover" ]]; then mv --no-target-directory "$WIZ/done/cutover" "$WIZ/done/cutover.aborted-$stamp"; fi
   if [[ -e "$WIZ/window-start" ]]; then mv "$WIZ/window-start" "$WIZ/window-start.aborted-$stamp"; fi
   if [[ -e "$WIZ/swap-timestamp" ]]; then mv "$WIZ/swap-timestamp" "$WIZ/swap-timestamp.aborted-$stamp"; fi
@@ -1106,7 +1112,7 @@ thaw_main() {
   PHASE=thaw; TOTAL_STAGES=4; _STAGE_INDEX=0
   _clear
   printf '\n%s%s  Thaw: undo the freeze (swap not done)%s\n' "$BOLD" "$BLUE" "$RESET"
-  if [[ -L "$REPO" ]]; then echo "$REPO is already a link: the swap happened. Use  $SELF rollback  instead."; exit 65; fi
+  if [[ -L "$REPO" ]]; then echo "$REPO is already a link: the swap happened. Use  $SELF rollback  instead."; REPORTED=1; exit 65; fi
   need_file "$WIZ/thaw-commands.txt" "written by the cut-over stage c05-fresh-inventory"
   pause "Press Enter to start"
   sudo_login
@@ -1118,12 +1124,12 @@ rollback_main() {
   PHASE=rollback; TOTAL_STAGES=6; _STAGE_INDEX=0
   _clear
   printf '\n%s%s  Fast rollback after the swap%s\n' "$BOLD" "$BLUE" "$RESET"
-  [[ -s "$WIZ/swap-timestamp" ]] || { echo "No swap was recorded. Use  $SELF thaw  instead."; exit 65; }
-  [[ -e "$WIZ/done/cutover/c19-swap" ]] || { echo "The swap stage did not complete. Use  $SELF thaw  instead."; exit 65; }
+  [[ -s "$WIZ/swap-timestamp" ]] || { echo "No swap was recorded. Use  $SELF thaw  instead."; REPORTED=1; exit 65; }
+  [[ -e "$WIZ/done/cutover/c19-swap" ]] || { echo "The swap stage did not complete. Use  $SELF thaw  instead."; REPORTED=1; exit 65; }
   if [[ -e "$WIZ/done/cutover/c21-release" ]]; then
     echo "The release stage ran: writes may have reached the 860 tree. The fast rollback no longer applies."
     echo "Use the full reverse migration in doc/planning/repository-on-the-860-drive.md, section Rollback."
-    exit 65
+    REPORTED=1; exit 65
   fi
   local stamp; stamp="$(<"$WIZ/swap-timestamp")"
   pause "Press Enter to start"
@@ -1196,7 +1202,7 @@ main() {
     thaw) thaw_main ;;
     rollback) rollback_main ;;
     status) status_main ;;
-    *) usage; exit 64 ;;
+    *) usage; REPORTED=1; exit 64 ;;
   esac
 }
 

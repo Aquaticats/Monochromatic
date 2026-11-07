@@ -1199,8 +1199,13 @@ the final pass and the switch to the link.
 That guided script is written:
 [the guided root script](../runbook/repository-on-the-860-drive-guided-root-script.md)
 (`doc/runbook/repository-on-the-860-drive-guided-root-script.sh`).
-Its `prepare` command runs the fixture test, R0, the pre-flight and the first pass and then stops;
-its `cutover` command runs the freeze, the final pass, the verification, the swap and the release inside a stated
+Its `prepare` command runs the fixture test,
+R0,
+the pre-flight and the first pass and then stops;
+its `cutover` command runs the freeze,
+the final pass,
+the verification,
+the swap and the release inside a stated
 maximum duration;
 its `thaw` and `rollback` commands undo the freeze and the fast path.
 The runbook also lists where this plan no longer matches the repository and which commands of the plan it changes.
@@ -2433,7 +2438,8 @@ for every subvolume in the reconciled inventory;
 plain directories (the 5 plain-directory worktrees inside the main checkout,
 and the 16 external worktrees) are handled as described below.
 
-The root steps of this section, the fixture test and the cut-over run through
+The root steps of this section,
+the fixture test and the cut-over run through
 [the guided root script](../runbook/repository-on-the-860-drive-guided-root-script.md).
 
 The script `/var/home/user/temp/agent/dangling/move-repository.ts` replaces the print-only generator of the earlier
