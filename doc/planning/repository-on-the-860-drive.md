@@ -18,6 +18,15 @@ a read-only flag was set on the real main checkout by mistake and cleared about 
 (section "Quiesce and freeze").
 Every command in the runbook that needs root is for the owner to run;
 agents do not run `sudo`.
+Superseded 2026-11-07T13:57:11-05:00:
+the owner said "Wizard writes TypeScript,
+and you just do the move yourself,
+no need to delegate to me."
+and "run sudo whenever needed for the move,
+and run sudo for anything.
+I authorize you to do and use all of it without my prior approval."
+The coordinator (main session) runs the move and its root steps;
+subagents send it the exact privileged commands instead of running them.
 
 ## Owner requirements this plan follows
 
