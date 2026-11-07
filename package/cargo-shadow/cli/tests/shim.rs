@@ -756,3 +756,57 @@ fn a_staged_copy_in_an_ignored_directory_is_left_to_cargo_and_the_tracked_crate_
     assert_eq!(tracked.status.code(), Some(0), "{}", String::from_utf8_lossy(&tracked.stderr));
     assert_eq!(read_lock(&world), SATISFIED, "the tracked crate was not taken on, so the staged copy's passing proves nothing");
 }
+
+//region a compiled real cargo
+// What the region covers: a real cargo that is a compiled program (rustup's proxy is one) is started through the file the shadow
+// checked, by both of the shadow's own starts, and the descriptor stays open until the start.
+
+/// A compiled program that prints its arguments, and no script: the system's `echo`.
+const COMPILED_PROGRAM: &str = "/usr/bin/echo";
+
+/// The fake cargo of the world is replaced by a copy of a compiled program with the given mode.
+fn use_compiled_real_cargo(world: &World, mode: u32) {
+    let real: PathBuf = world.fake_directory.join("cargo");
+    std::fs::remove_file(&real).expect("remove the script");
+    std::fs::copy(COMPILED_PROGRAM, &real).expect("copy a compiled program as the real cargo");
+    std::fs::set_permissions(&real, std::fs::Permissions::from_mode(mode)).expect("set the mode of the real cargo");
+}
+
+/// A command that resolves nothing is started by `exec`: the shadow's process becomes the real cargo.
+/// Red when the descriptor the compiled program is started through is closed before the `exec`: the start then fails.
+#[test]
+fn a_compiled_real_cargo_is_started_by_the_exec_branch_with_its_arguments() {
+    let world = make_world();
+    use_compiled_real_cargo(&world, 0o755);
+
+    let output = run_shadow(&world, &["fmt", "--check"], "", 0);
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "fmt --check", "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+/// A command that is followed by a notice (`add`) is started as a child that the shadow waits for.
+#[test]
+fn a_compiled_real_cargo_is_started_by_the_child_branch_with_its_arguments() {
+    let world = make_world();
+    use_compiled_real_cargo(&world, 0o755);
+
+    let output = run_shadow(&world, &["add", "serde"], "", 0);
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "add serde", "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+/// A compiled program that can be executed and not read is still the real cargo: executing needs no read permission, and the PATH
+/// search accepts it, so the start must too (it was started by its path before the check was made on an open file).
+#[test]
+fn an_execute_only_compiled_real_cargo_is_started_like_any_other() {
+    let world = make_world();
+    use_compiled_real_cargo(&world, 0o111);
+
+    let output = run_shadow(&world, &["fmt", "--check"], "", 0);
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "fmt --check", "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+//endregion
