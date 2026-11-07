@@ -1334,6 +1334,15 @@ A push the service stopped or that failed is tried again by the service on its o
 The person must act for a conflict, for a login the service does not have, and for a hook on the server that declined the push
 (owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
 these stop the retry until the person's next commit, and the failure record says in plain words which one it was.
+The service never asks anyone for a login (owner decision, 2026-11-07: "Never prompt (Recommended)"): every Git and `git-lfs`
+child it starts gets `GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0` from one list
+(`service_child_overlay` in `src/native/invocation/child_environment.rs`, used for the service's landing and upkeep context and for
+each push's environment in `src/native/landing/service_work.rs`).
+Git and `git-lfs` try `GIT_ASKPASS`, `core.askPass` and `SSH_ASKPASS` before they read `GIT_TERMINAL_PROMPT`, so the terminal
+setting alone left the desktop's password dialog open for nobody to answer; a push with no credential from a helper fails at once
+with "terminal prompts disabled", which is the login failure above.
+`SSH_ASKPASS` stays in the environment for OpenSSH. A command the person typed is forwarded with the prompting Git has.
+Evidence and the source trace: `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
 Being offline, a stall, an HTTP 5xx answer of the LFS server and a held lock are tried again.
 A rejection by the server with a reason no rule names is tried again, and the journal names its line.
 The classification reads Git's own words, which are cited beside the rules in `src/native/push/push_retry.rs`.

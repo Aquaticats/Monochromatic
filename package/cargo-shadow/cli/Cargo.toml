@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-cargo-shadow"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Aquaticat"]
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
@@ -60,7 +60,7 @@ serde_json = { workspace = true }
 ureq = { workspace = true, default-features = false, features = ["rustls"] }
 
 # Parses and validates rust-catalog.toml, the one source of the release-age and trust settings.
-monochromatic-dependency-catalog = { path = "../../dependency-catalog/core-native", version = "=0.2.0" }
+monochromatic-dependency-catalog = { path = "../../dependency-catalog/core-native", version = "=0.2.1" }
 
 # Reads the crates.io database dump (a gzip stream of a tar archive) without writing it to disk.
 flate2 = { workspace = true }

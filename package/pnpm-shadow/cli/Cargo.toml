@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-pnpm-shadow"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Aquaticat"]
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
@@ -56,7 +56,7 @@ ignore = { workspace = true }
 
 # The rule itself: bytes of one manifest in, findings out. The same crate backs the cli-git commit policy
 # `mono/catalog-specifiers`, so the two can never disagree about what is allowed.
-monochromatic-catalog-specifier = { path = "../../catalog-specifier/core-rust", version = "=0.1.0" }
+monochromatic-catalog-specifier = { path = "../../catalog-specifier/core-rust", version = "=0.1.1" }
 
 [dev-dependencies]
 # Disposable directories for the workspace and PATH fixtures.

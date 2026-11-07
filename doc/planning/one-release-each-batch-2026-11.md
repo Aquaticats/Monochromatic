@@ -1,11 +1,9 @@
 # One release of each published crate: execution plan for the 2026-11 batch
 
 Status:
-plan only;
-nothing in it has been dispatched,
-published,
-yanked,
-tagged or pushed.
+the batch is running (first publish 2026-11-07T11:43:35Z);
+the release record in the runbook lists what was dispatched and published (nothing is yanked).
+Written before that as a plan only.
 Written 2026-11-07T04:36:34-05:00 and checked against `main` at `7956f6c4c9` (the checks ran while `main` moved from
 `17eff86b35` through `d62451d591`;
 a diff of every `Cargo.toml`,
@@ -1142,6 +1140,122 @@ and the seven locked tools (`monochromatic-lint`,
 `monochromatic-file-enforcer-cli`,
 `monochromatic-nested-wayland-session`) once the lock no longer names their old
 versions.
+
+### Release record
+
+One entry per crate, as run through `crate-release.yml`;
+the dry run of `monochromatic-nested-wayland-session` 0.6.2 to 0.6.3
+(`https://github.com/Aquaticats/Monochromatic/actions/runs/42368894213`, `success`, 2026-11-07)
+proved the Wayland library step.
+
+- `monochromatic-jsonc-edit` 0.1.2 to 0.1.3:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369224009`,
+  bump commit `33d20fa630`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369300426`,
+  crates.io `2026-11-07T11:43:35.824945Z`, `yanked` false.
+  The first dispatch pushed without a refusal.
+  `release:wait` ended with the expected library line `PUBLISH CHECK FAILED: missing release assets`.
+
+- `monochromatic-dependency-catalog` 0.2.0 to 0.2.1:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369457223`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369535765`
+  (built from `a8923376a2`),
+  crates.io `2026-11-07T11:47:06.445839Z`, `yanked` false.
+
+- `monochromatic-browserslist` 0.1.0 to 0.1.1:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369723100`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369851512`
+  (built from `4f224afa10`),
+  crates.io `2026-11-07T11:52:01.185390Z`, `yanked` false.
+
+- `monochromatic-xml-edit` 0.1.0 to 0.1.1:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370054129`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370120031`
+  (built from `d6dec5bcac`),
+  crates.io `2026-11-07T11:55:20.267501Z`, `yanked` false.
+
+- `monochromatic-search-shadow` 0.2.1 to 0.2.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370262671`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370330409`
+  (built from `b3a85f3e8d`),
+  crates.io `2026-11-07T11:58:24.564425Z`, `yanked` false.
+  GitHub release `monochromatic-search-shadow-v0.2.2` holds both Linux tarballs and the checksums file.
+
+- `forbidden-regex` 0.1.1 to 0.1.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370496745`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370600358`
+  (built from `3374eccf8a`),
+  crates.io `2026-11-07T12:02:25.921188Z`, `yanked` false.
+  Exempt crate: no README notice; note carries the homepage path fix.
+
+- `monochromatic-nested-wayland-session` 0.6.2 to 0.6.3:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370762186`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370971740`
+  (built from `bc56e10ce7`),
+  crates.io `2026-11-07T12:08:46.831419Z`, `yanked` false.
+  GitHub release `monochromatic-nested-wayland-session-v0.6.3` holds both Linux tarballs and the checksums file. Wave 0 is complete on crates.io.
+
+- `monochromatic-catalog-specifier` 0.1.0 to 0.1.1:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371369818`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371457006`
+  (built from `f6239c698a`),
+  crates.io `2026-11-07T12:13:51.127758Z`, `yanked` false.
+
+- `monochromatic-file-enforcer` 0.1.1 to 0.1.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371620801`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371722087`
+  (built from `f86710023d`),
+  crates.io `2026-11-07T12:17:42.698494Z`, `yanked` false.
+  One dispatch was refused before any run by the origin-holds-main check (another session's local commit was not yet pushed); dispatched again after it was pushed.
+
+- `monochromatic-lint` 0.5.0 to 0.5.1:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371874158`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42372124153`
+  (built from `f9a51d4f37`),
+  crates.io `2026-11-07T12:24:28.368166Z`, `yanked` false.
+  GitHub release `monochromatic-lint-v0.5.1` holds all eight target assets.
+
+- `monochromatic-mpm-shadow` 0.2.5 to 0.2.6:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42372933230`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373065104`
+  (built from `9efecbcd39`),
+  crates.io `2026-11-07T12:35:39.343192Z`, `yanked` false.
+  GitHub release `monochromatic-mpm-shadow-v0.2.6` holds both Linux tarballs and the checksums file.
+
+- `monochromatic-cargo-shadow` 0.1.3 to 0.1.4:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373293103`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373384574`
+  (built from `be098a3f79`),
+  crates.io `2026-11-07T12:40:03.706516Z`, `yanked` false.
+  GitHub release `monochromatic-cargo-shadow-v0.1.4` holds both Linux tarballs and the checksums file.
+
+- `forbidden-strings` 0.6.1 to 0.6.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373581094`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373820150`
+  (built from `f707a66cda`),
+  crates.io `2026-11-07T12:48:15.573379Z`, `yanked` false.
+  Exempt crate: no README notice. GitHub release `forbidden-strings-v0.6.2` holds all eight target assets. Wave 1 is complete on crates.io.
+
+- `monochromatic-pnpm-shadow` 0.1.1 to 0.1.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374326862`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374408890`
+  (built from `0172aface6`),
+  crates.io `2026-11-07T12:54:08.727833Z`, `yanked` false.
+  GitHub release `monochromatic-pnpm-shadow-v0.1.2` holds both Linux tarballs and the checksums file.
+
+- `monochromatic-file-enforcer-cli` 0.1.2 to 0.1.3:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374580075`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374713783`
+  (built from `9d94aab55c`),
+  crates.io `2026-11-07T12:58:55.297025Z`, `yanked` false.
+  GitHub release `monochromatic-file-enforcer-cli-v0.1.3` holds both Linux tarballs and the checksums file. Wave 2 (before the wrapper) is complete.
+
+- `monochromatic-git-policy-cli` 0.5.34 to 0.6.0:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374936121`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42375444159`
+  (built from `3cd939e8e9`),
+  crates.io `2026-11-07T13:10:36.327011Z`, `yanked` false.
+  Released after "go wrapper". GitHub release `monochromatic-git-policy-cli-v0.6.0` holds both Linux tarballs. Nothing was yanked; the batch is complete.
 
 ## Evidence log
 

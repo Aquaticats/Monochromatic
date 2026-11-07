@@ -32,7 +32,7 @@ regex = { workspace = true }
 # feature is needed.
 [dependencies.forbidden-regex]
 path = "../core"
-version = "=0.1.1"
+version = "=0.1.2"
 
 # Use an independent workspace for the fuzzers, like the sibling fuzz package.
 [workspace]

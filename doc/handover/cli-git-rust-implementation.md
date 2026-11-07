@@ -627,6 +627,13 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   old-release wrapper is in use in that worktree; `doctor` reports the count. Sixth review (`sol-review-socket-6/review.txt`):
   both findings fixed (option removed; no unlink, retry read from `/proc/net/unix`). Cost while an old helper runs: about one
   millisecond per commit. Plan doc, "Changes after the fifth review" and "Changes after the sixth review".
+  Seventh cross-vendor run (`sol-review-settle-7/review.txt`, 2026-11-07): three defects in the settle command, fixed on
+  `fix/git-policy-cli-settle-command-review-fixes` (condition write failure refuses; unexamined batches are named and exit 1;
+  the hold keeps which socket or helper caused it and the remedy fits; plan doc, "Changes after the seventh review").
+  The rename audit (plan doc, "Earlier names after the rename audit") fixed three names that had been renamed along with the
+  program but name the earlier program's artifacts: `LEGACY_SOCKET_RELATIVE` (the single service's socket), the first lines of
+  the earlier push records, and the first line of the earlier claim files. Open for the owner: the earlier `cli-git-scratch`
+  folders in Git directories are not moved or swept.
   After the one release, every later release carries `-alpha.N` and skips crates.io, but this machine installs our
   seven tools through crates.io (`cargo-binstall`); until they install from GitHub releases (the `archive` route
   `mpm-shadow` uses, task #167), no later fix can be installed here. The owner has not yet said whether that route
@@ -3555,6 +3562,127 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   recorded (unsure whether fixed).
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
+
+### Release batch finished (2026-11-07T13:10:36Z, wrapper 0.6.0 last)
+
+- All 16 crates published in wave order; per-crate runs and times in `doc/planning/one-release-each-batch-2026-11.md`,
+  "Release record". One dispatch was refused by the origin-holds-main check and re-dispatched; no other failure.
+- Nothing yanked yet (owner: "All after the lock moves"). A post-release agent now does, in order: merge
+  `feat/toolchain-always-latest-landing`, switch the seven tools to the archive route, regenerate and install the lock,
+  verify wrapper 0.6.0 live with a real commit, yank the 14 older versions (not `forbidden-strings`, `forbidden-regex`),
+  enable the daily timer and follow its first run.
+- The tokio agent was told the hold on main is lifted; it merges main into its branch, and the coordinator merges the
+  branch into main after its final gate.
+- Still queued after this: rename step 3 (settings file, link folder `.cache/monochromatic-git-policy-cli-bin`).
+
+### Release batch waiting for a free agent slot (2026-11-07)
+
+- The one-release-each batch (`doc/planning/one-release-each-batch-2026-11.md`) is ready to run:
+  registration merged (`a6104c0f64`), the `jsonc-edit` dry run passed (run 42363884326),
+  the settle fixes, rename audit and never-at-login guards are merged (`2fa2df5d68`, gate 5069/5069).
+- Its agent could not start: five subagents were already running (the limit).
+  It starts when one finishes, with the 15 crates other than the wrapper in wave order.
+- The wrapper's two preconditions are met as of merge `73173e0f41` (2026-11-07T06:30:33-05:00):
+  the cross-vendor review of `2fa2df5d68` (`~/temp/agent/issue-6261/sol-review-audit-8/review.txt`)
+  found one test race (closed-stderr settle test), fixed by closing the pipe's read end before the wrapper starts;
+  that fix and the owner's "Pair the names" scratch sweep merged to main from
+  `fix/git-policy-cli-pair-earlier-scratch-name` (tip `7e2284d7d9`, container gate 5071/5071).
+  The wrapper (0.5.34 to 0.6.0) can go after the other 15 crates.
+- The earlier per-user scratch (`<state>/cli-git/scratch`) is still not swept; the owner's pick covered the repository scratch only.
+- The daily toolchain timer must not run for real until the batch ends (its agent was told).
+  Its agent finished: code merged as `c6daf6161e` (plus doc commits `baac0829e2`, `798360d773`);
+  units `toolchain-daily-update.service` and `.timer` installed but disabled; rehearsal 20 min 51 s in a throwaway worktree.
+  After the batch, in this order: merge `feat/toolchain-always-latest-landing` (plan and lock to latest, plus the
+  `bincode-1` catalog that keeps the placeholder bincode 3.0.0 out), run `mise run toolchain:timer:install`,
+  start `toolchain-daily-update.service` once and read its journal. Main's lock stays on bun 1.3.14 until then
+  (installed bun matched it when checked shortly before 2026-11-07T07:14:14-05:00).
+  Deviation: it updated the real global plan and lock (outside the repo) during the rehearsal, so the global toolchain
+  already moved. A guard refused `git restore` of two formatter side effects; it saved the diff to
+  `~/temp/agent/tal/format-side-effects.patch` and force-removed the worktree.
+  Follow-ups it found: terminal and music-player Containerfiles still hard-code `ZIG_VERSION=0.15.2`
+  while the lock moves to 0.17.1; `llama.cpp` stays pinned until `mpm-shadow` can pick prereleases;
+  `core-exec`'s `depends.unit.test.ts` ran over half an hour (stopped, not investigated);
+  scratch branches `feat/toolchain-always-latest` and `feat/toolchain-always-latest-code` remain.
+- The batch agent started after merge `73173e0f41` with the 15 crates; "go wrapper" waits for the background-prompt fix below.
+  It runs on the default subagent model because an `opus` override was refused by a permission rule;
+  the owner, asked, answered "Keep it running (Recommended)".
+- While tracing the dialog, a pattern read of another process's environment (`CLAUDE[A-Z_]*`) printed an API key and a
+  messaging token into the session log; the owner answered "I'll rotate it" and, asked whether to add an `AGENTS.md`
+  rule for exact-name environment reads, "Don't add it".
+
+### Tokio branch: owner answers (2026-11-07)
+
+- jiff newer than the locked 0.2.24 was refused by the trust policy through optional `defmt-parser` 1.1.0
+  (publisher change). Owner, verbatim: "I'm approving the publisher change for jiff."
+  The tokio agent records it in `doc/planning/git-policy-cli-full-tokio.md`, adds a narrowly scoped trust entry
+  with that sentence as its reason, and moves jiff to the newest allowed version on `feat/git-policy-cli-on-tokio`.
+- G1 of `doc/audit/tech-safe-file-saving-published-crates-vet-2026-11-07.md` (checked-rename fallback where a filesystem
+  has neither `RENAME_NOREPLACE` nor hard links): facts gathered first (no in-kernel filesystem read lacks both;
+  s3fs-fuse does; with the library only, merge-concluding commits fail with "Operation not supported").
+  Asked, the owner picked "Keep the fallback (Recommended)" (10 lines plus a 15-line test).
+- The first tokio agent ran out of context with T1 to T3, the crate swaps and part of T4 done (head `8383a12bf7`,
+  gate 5094/5094). A second agent continues on the same branch from T4's remainder through T13 and the
+  `private_storage` replacement on `tempfile::persist_noclobber` with that fallback, and fixes the defect it found:
+  the service journal publishes by hard link with no fallback (`service/service_busy.rs:149`), so a state directory
+  that refuses links fails service commits today. It was told not to repeat the rules the first agent bent
+  (tests and fixes in one commit, a direct `cargo fetch`, one `pkill -f`, hand-reverting edits after a guard refused
+  `git checkout --`).
+
+### Background Git never prompts (owner pick 2026-11-07)
+
+- Cause and probe: `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
+  The dialogs the owner saw came from the LFS agent's test with `/usr/bin/git`, not from the wrapper.
+- Owner: "Never prompt (Recommended)" for the wrapper's background Git, and "Neither, rule pkg-local." for agents.
+- Built on `fix/git-policy-cli-background-git-never-prompts` (tip `6b01de5bf0`, gate 5078/5078, Clippy clean):
+  `never_prompt_overlay()` in `child_environment.rs` covers the service's Git and git-lfs runs; forwarded commands
+  are unchanged; package rule `NDG` in `package/git-policy/cli/README.md`. Merged to main; "go wrapper" sent, so
+  0.6.0 carries it. The push-record leak needed no fix: its writer was deleted in `69d275d92b` (2026-11-01), the
+  3 records holding a credential predate that, and a guard test now checks no wrapper file keeps one.
+  Open, minor: `diagnostic_log::debug` writes local Git output to stderr unmasked under `MONOCHROMATIC_VERBOSE=true`.
+- `package/config/lfs-r2-worker` gets the same package-local rule after "unpause lfs".
+- Second fix on the same branch (sent by 2026-11-07T07:11:35-05:00 by the coordinator after the LFS report):
+  push records (`.git/monochromatic-git-policy-cli/push/*.last-pushed.json`) store failed push output with URL userinfo
+  unmasked while the terminal relay masks it; red test, shared masking, existing records untouched.
+
+### LFS credential work: finished and paused (owner: "pause the lfs thread until I say unpause lfs")
+
+- The LFS agent's report and full inventory: `doc/troubleshooting/lfs-credential-in-url.md`,
+  merged to main as `05199a8d8e` (credential guard task, `url-userinfo-credential` scanner rule, credential-helper docs).
+- Not done, by the pause: local migration off `lfs.url`, rotation, Worker auth change.
+  Its open owner questions (auth design A to F, anonymous reads, credential helper, copy classes, wiring the guard
+  into the wrapper) wait for "unpause lfs"; ask only the real decisions among them (issue #6262).
+- It printed a config key name that embeds the old token into its own transcript: one more copy for the inventory.
+- It left an unbounded `du` over home folders running for 68 minutes (PIDs 3421138, 3421137); the coordinator stopped it.
+  Its worktree `.claude/worktrees/lfs-credential-fix` is still there.
+
+### Repository on the 860: plan revised, owner questions next
+
+- The symlink plan is committed (`4f430a0683`, `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`; nothing moved.
+- A cross-vendor review of it runs (`~/temp/agent/860-review/sol-review.txt`); fold its findings in.
+  Then ask the owner only the items among Q1 to Q9 that are real decisions: the answer changes what happens,
+  no owner decision or measurement settles it, and it is destructive or a matter of preference.
+  Settled or reversible items with a clear ranking are adopted and recorded in the plan, not asked.
+  Owner, 2026-11-07: "Overloading me with non-question questions will only make things worse."
+  Notices and disclosures go in plain text, never as question-tool options.
+  Which questions to ask and how to word them is open in issue #6262
+  (owner: "This is about how you ask questions and which questions to ask. Your wording is bad.");
+  the owner settles it in another session, so no rule change until then.
+- The review is folded in (`b89d384cca`, `1a462e1eb5`): 21 findings fixed, narrowed or marked root-only unverified;
+  the former Q1 to Q9 are adopted in the plan with reasons, open to the owner's veto.
+  One real owner decision remains and is not asked until the move is scheduled:
+  the cut-over needs a bounded window with commits refused, against "Commits should never fail"
+  (plan's ranking: a bounded window at an owner-chosen idle time with a stated maximum, after timing the first pass).
+- Incident: the plan agent ran `btrfs property set -ts /var/home/user/Monochromatic ro true` on the real main checkout
+  by mistake at about 06:51 and cleared it (`ro=false` confirmed 2026-11-07T06:52:28-05:00).
+  Every worktree's Git dir lives in that subvolume, so commits anywhere would have been refused for about a minute.
+  The coordinator re-checked after the report: `ro=false`, no `*.lock` files under `.git` dated 06:50 to 06:54, no probe
+  processes left, main's `git status` clean. A refused attempt in that minute can be neither confirmed nor excluded.
+- The plan's scratch subvolumes in `/var/home/user/temp/agent/dangling` (`svfix`, `svfix-snap`, `svfix-snap-ro`,
+  `svfix-asm` and two nested ones) are deleted, without sudo: the owner said "I don't think they need sudo.",
+  and emptying then `rmdir` works (kernel feature `rmdir_subvol`). The plan's reason for adding
+  `user_subvol_rm_allowed` is corrected to the wrapper's one-step subvolume removal.
+- Its guard fixture mounted a tmpfs at `/dev/shm/dangling-world` inside `podman unshare`, outside the scratch rule;
+  the mount ended with the namespace and the empty folder was removed.
 
 ### Known flakes and failures not yet fixed
 

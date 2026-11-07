@@ -487,3 +487,42 @@ and both original cgroups were confirmed inactive.
 The supported workload needed a larger task allowance than the initial agent-command configuration supplied.
 This recovery does not establish an upstream browser source defect.
 No new upstream filing is proposed.
+
+## Audio scheduling source checks at 2026-11-07T07:38:45-05:00
+
+The owned `music-audio-scheduling` session of `agent-browser 0.39.1`
+returned `Operation timed out. The page may still be loading or the element may not exist.`
+while opening a GitHub source selection.
+Its scope had `TasksMax=128` and `MemoryMax=2G`.
+The scope's `pids.events` recorded `max 46`;
+every `memory.events` counter was zero.
+The journal also recorded Chrome core dumps during this launch.
+The counters establish rejected task creation,
+without establishing the cause of each Chrome crash.
+
+Normal `agent-browser close` succeeded.
+A fresh `music-audio-scheduling-verified` session used the previously verified allowance:
+`CPUQuota=200%`,
+`MemoryMax=4G`,
+`TasksMax=512`,
+and `IOWeight=10`,
+with `TMPDIR` in the private agent scratch directory.
+GitHub source selections,
+Apple documentation,
+and Android documentation loaded and their expected text was read successfully.
+The replacement session was also closed normally.
+This reused the recorded recovery;
+no new upstream defect or filing is claimed.
+
+### Separate command-resolution observation
+
+The initial `agent-browser --help` invocation resolved through a Mise shim and emitted
+`mise ERROR No version is set for shim: agent-browser`.
+The global exposure link pointed at a missing former pnpm entry.
+The installed executable under
+`${HOME}/.local/share/mise/installs/npm-agent-browser/0.39.1/bin/agent-browser`
+successfully printed help and ran the source checks.
+No install,
+global configuration,
+or exposure link was changed.
+This command-resolution issue is separate from the browser task-limit observation.

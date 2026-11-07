@@ -12,12 +12,12 @@
 /// Import the pairs under test.
 use super::{
     COMMAND_WORD, COMMIT_TIMING_LOG, DATA_FOLDER, DISCARD_AUDIT_LOG, MERGE_INTENT_FOLDER, MESSAGE_PREFIX, PROGRAM,
-    PUSH_TRIGGER_LOG, RenamedName, SERVICE_UNIT, SETTINGS_FILE, WORKTREE_ADD_TIMING_LOG, WORKTREE_COPY_RECORD_FOLDER,
+    PUSH_TRIGGER_LOG, REPOSITORY_SCRATCH, RenamedName, SERVICE_UNIT, SETTINGS_FILE, WORKTREE_ADD_TIMING_LOG, WORKTREE_COPY_RECORD_FOLDER,
 };
 
 /// Every pair this release keeps,
 ///  in the order the module declares them.
-const ALL_PAIRS: [RenamedName; 12] = [
+const ALL_PAIRS: [RenamedName; 13] = [
     PROGRAM,
     COMMAND_WORD,
     SETTINGS_FILE,
@@ -29,6 +29,7 @@ const ALL_PAIRS: [RenamedName; 12] = [
     PUSH_TRIGGER_LOG,
     MERGE_INTENT_FOLDER,
     WORKTREE_COPY_RECORD_FOLDER,
+    REPOSITORY_SCRATCH,
     SERVICE_UNIT,
 ];
 
@@ -74,7 +75,7 @@ fn an_earlier_spelling_never_matches_a_current_name_by_prefix_and_separator() {
 ///  so one search finds everything it left in a Git directory.
 #[test]
 fn kept_names_begin_with_the_program_name() {
-    for pair in [DATA_FOLDER, DISCARD_AUDIT_LOG, COMMIT_TIMING_LOG, WORKTREE_ADD_TIMING_LOG, PUSH_TRIGGER_LOG, MERGE_INTENT_FOLDER, WORKTREE_COPY_RECORD_FOLDER] {
+    for pair in [DATA_FOLDER, DISCARD_AUDIT_LOG, COMMIT_TIMING_LOG, WORKTREE_ADD_TIMING_LOG, PUSH_TRIGGER_LOG, MERGE_INTENT_FOLDER, WORKTREE_COPY_RECORD_FOLDER, REPOSITORY_SCRATCH] {
         assert!(pair.current.starts_with(PROGRAM.current), "{pair:?}");
         assert!(pair.earlier.starts_with("cli-git"), "{pair:?}");
     }

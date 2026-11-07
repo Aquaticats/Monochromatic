@@ -19,7 +19,7 @@ pub use crate::service_work_handlers_replanning_and_acceptance::*;
 pub(crate) use crate::service_work_drain_pending_claims::drain_pending;
 use crate::auto_push::push_once;
 use crate::auto_push_single_flight::PushGit;
-use crate::child_environment::{environment_with_overlay, lockfile_pid_overlay};
+use crate::child_environment::{environment_with_overlay, service_child_overlay};
 use crate::config_snapshot::read_config_snapshot;
 use crate::lfs_pre_push::uses_lfs;
 use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
@@ -228,7 +228,8 @@ impl GitHandlers {
     fn push_git(&self, item: &WorkItem) -> PushGit {
         let cwd: PathBuf = PathBuf::from(item.repository.as_str());
         // Git writes a `~pid.lock` file beside every lock it takes when `core.lockfilePid` is on, which names the owner of a lock
-        //  that a stopped push leaves behind; the service's own environment does not turn it on.
+        //  that a stopped push leaves behind; the service's own environment does not turn it on. The overlay also says never to ask for
+        //  a login (`never_prompt_overlay`): the host's askpass program is in this environment, and a dialog nobody answers is a push that waits.
         #[cfg_attr(not(test), expect(unused_mut, reason = "only a test adds variables"))]
         let mut inherited: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
         #[cfg(test)]
@@ -237,7 +238,7 @@ impl GitHandlers {
             real_git: self.context.real_git.clone(),
             lfs: read_config_snapshot(&self.context, cwd.as_path()).as_ref().is_none_or(uses_lfs),
             cwd,
-            environment: environment_with_overlay(inherited.as_slice(), lockfile_pid_overlay(inherited.as_slice()).as_slice()),
+            environment: environment_with_overlay(inherited.as_slice(), service_child_overlay(inherited.as_slice()).as_slice()),
         };
     }
 }

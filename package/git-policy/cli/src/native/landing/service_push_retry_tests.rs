@@ -375,6 +375,139 @@ fn a_push_that_needs_a_login_is_not_tried_again() {
     remove(stage.root.as_path());
 }
 
+/// The program that stands in for the desktop's password dialog (`SSH_ASKPASS`): it writes the prompt it was given to `log` and
+///  answers a user name, so no window ever opens, and the log shows whether anything asked.
+fn recorder(root: &Path, log: &Path) -> PathBuf {
+    let program: PathBuf = root.join("recorded-askpass");
+    crate::test_support::executable(program.as_path(), format!("#!/bin/sh\nprintf '%s\\n' \"$1\" >> '{}'\nprintf 'probe-user\\n'\n", log.display()).as_bytes());
+    return program;
+}
+
+/// What the recorder was asked, one prompt per line; nothing when it was never started.
+fn prompts_recorded(log: &Path) -> String {
+    return std::fs::read_to_string(log).unwrap_or_default();
+}
+
+/// The controls that show the dialog need `GIT_ASKPASS` unset in the process whose environment the service's Git inherits.
+fn assert_askpass_is_unset_here() {
+    assert!(std::env::var_os("GIT_ASKPASS").is_none(), "this control shows what an unset GIT_ASKPASS does; run it without GIT_ASKPASS in the environment");
+}
+
+/// A push to a server that answers 401 never starts the program the host names as its askpass helper: Git tries `GIT_ASKPASS`,
+///  then `core.askPass`, then `SSH_ASKPASS` before it reads `GIT_TERMINAL_PROMPT` (Git 2.56.0 `prompt.c`), so the service sets
+///  `GIT_ASKPASS` to the empty string. The failure is the login failure the person is told about, reached without a wait.
+#[test]
+fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program() {
+    assert_askpass_is_unset_here();
+    let stage: Stage = stage("push-never-prompts");
+    let server: LoginServer = LoginServer::start();
+    point_remote_at(&stage, format!("http://{}/r.git", server.address).as_str());
+    let log: PathBuf = stage.root.join("askpass.log");
+    let program: PathBuf = recorder(stage.root.as_path(), log.as_path());
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]);
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let wake: Option<Duration> = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries);
+    assert_eq!(prompts_recorded(log.as_path()), "", "nothing asked a person for a name or a password");
+    assert_eq!(wake, None, "a login failure is final and the push did not wait for an answer, so no wake is asked for");
+    assert!(retries.directories().is_empty(), "no plan is made for a login failure");
+    let record: String = notice_text(&stage);
+    assert!(record.contains("Log in") && record.contains("until your next commit") && !record.contains("tries this push again"), "{record}");
+    remove(stage.root.as_path());
+}
+
+/// The Git LFS upload of a background push gets the same environment: `git-lfs` reads `GIT_ASKPASS`, then `core.askpass`, then
+///  `SSH_ASKPASS` itself (`creds/creds.go`, v3.8.1), so the stand-in below follows that order and asks the recorder when it may,
+///  and it keeps the `GIT_TERMINAL_PROMPT` it was given. The real `git-lfs` is not in the gate's image; the troubleshooting note
+///  holds the run of the real one.
+#[test]
+fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
+    assert_askpass_is_unset_here();
+    let stage: Stage = stage("lfs-never-prompts");
+    let log: PathBuf = stage.root.join("askpass.log");
+    let program: PathBuf = recorder(stage.root.as_path(), log.as_path());
+    let seen: PathBuf = stage.root.join("lfs-terminal-prompt");
+    let bin: PathBuf = stage.root.join("bin");
+    std::fs::create_dir_all(bin.as_path()).expect("bin directory");
+    crate::test_support::executable(
+        bin.join("git-lfs").as_path(),
+        format!("#!/bin/sh\nprintf '%s' \"$GIT_TERMINAL_PROMPT\" > '{}'\nasker=\"${{GIT_ASKPASS-$SSH_ASKPASS}}\"\nif [ -n \"$asker\" ]; then \"$asker\" 'Username for \"http://127.0.0.1\"' > /dev/null; fi\nexit 2\n", seen.display()).as_bytes(),
+    );
+    let path: String = format!("{}:/usr/bin:/bin", bin.display());
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]);
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: stage.repo.display().to_string(),
+        git_dir: stage.repo.join(".git").display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: stage.landed.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-07T07:00:00.000Z"),
+        tries: 0,
+    };
+    let plan: crate::lfs_upload_plan::UploadPlan = crate::lfs_upload_plan::UploadPlan { remotes: vec![std::ffi::OsString::from("origin")], refs: vec![std::ffi::OsString::from("main")], everything: false, submodules: false, full_scan: false, objects: None };
+    // The lookup of `git-lfs` takes the first `PATH` of the environment, so the stand-in's directory replaces the inherited one.
+    let mut git: crate::auto_push_single_flight::PushGit = handlers.push_git(&item);
+    git.environment.retain(|(name, _)| { return name != "PATH"; });
+    git.environment.push((std::ffi::OsString::from("PATH"), std::ffi::OsString::from(path.as_str())));
+    let outcome = crate::lfs_upload::run_upload_bounded(&git, &plan);
+    let failed = outcome.expect("the upload ran").expect("the stand-in failed the upload");
+    assert_eq!(failed.exit_code, 2, "{}", failed.output);
+    assert_eq!(prompts_recorded(log.as_path()), "", "git-lfs asked a person for a name");
+    assert_eq!(std::fs::read_to_string(seen.as_path()).expect("the stand-in ran"), "0", "git-lfs was told not to prompt on a terminal");
+    remove(stage.root.as_path());
+}
+
+/// The user and password of a URL a server's hook prints in the push controls that look for leaked credentials.
+const SENTINEL_URL_USERINFO: &str = "sentinel-user:sentinel-password-4f9c";
+
+/// Every file below `root` that holds `needle`, skipping the directories named in `skip`.
+fn files_holding(root: &Path, needle: &str, skip: &[PathBuf]) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in std::fs::read_dir(root).expect("a readable directory").flatten() {
+        let path: PathBuf = entry.path();
+        if skip.contains(&path) {
+            continue;
+        }
+        let kind: std::fs::FileType = entry.file_type().expect("a file type");
+        if kind.is_dir() {
+            found.extend(files_holding(path.as_path(), needle, skip));
+        } else if kind.is_file() && std::fs::read(path.as_path()).is_ok_and(|bytes| { return String::from_utf8_lossy(bytes.as_slice()).contains(needle); }) {
+            found.push(path);
+        }
+    }
+    return found;
+}
+
+/// A server's words can carry a URL with a user and a password (a hook that prints where to log in is one way; an older Git printed
+///  the remote's own URL that way), and the push output is stored for the person in the failure record, the work records and the
+///  journal. None of them keeps the password or the user part: the scan covers every file of the fixture except the hook that
+///  prints it, with a planted file first to show the scan finds a leak, and the Git run of the push to show the words do carry it.
+#[test]
+fn a_failed_push_whose_output_names_a_url_with_a_password_leaves_it_in_no_file_the_wrapper_writes() {
+    let stage: Stage = stage("push-output-keeps-no-password");
+    let hooks: PathBuf = stage.remote.join("hooks");
+    std::fs::write(hooks.join("pre-receive"), format!("#!/bin/sh\necho 'log in at https://{SENTINEL_URL_USERINFO}@example.test/login first' >&2\nexit 1\n")).expect("hook");
+    let mut leaks: Vec<PathBuf> = Vec::new();
+    let planted: PathBuf = stage.root.join("planted.txt");
+    std::fs::write(planted.as_path(), format!("https://{SENTINEL_URL_USERINFO}@example.test/")).expect("planted file");
+    assert_eq!(files_holding(stage.root.as_path(), SENTINEL_URL_USERINFO, std::slice::from_ref(&hooks)), vec![planted.clone()], "the scan finds a file that holds the credentials");
+    std::fs::remove_file(planted.as_path()).expect("the planted file goes");
+    let direct = crate::test_support::git_output(stage.repo.as_path(), &["push", "origin", "main"]);
+    assert!(String::from_utf8_lossy(direct.stderr.as_slice()).contains(SENTINEL_URL_USERINFO), "Git's own words carry the credentials, so the scan below is not vacuous");
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let entries = crate::service_timing::capture::entries_of(|| { let _wake = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries); });
+    let record: String = notice_text(&stage);
+    assert!(record.contains("log in at https://") && record.contains("<credentials>"), "the person is shown the words with the credentials masked: {record}");
+    leaks.extend(files_holding(stage.root.as_path(), SENTINEL_URL_USERINFO, std::slice::from_ref(&hooks)));
+    for part in SENTINEL_URL_USERINFO.split(':') {
+        leaks.extend(files_holding(stage.root.as_path(), part, std::slice::from_ref(&hooks)));
+        assert!(entries.iter().all(|entry| { return !entry.message.contains(part); }), "the journal keeps the credentials of a URL: {part}");
+    }
+    assert!(leaks.is_empty(), "files that hold the credentials: {leaks:?}");
+    remove(stage.root.as_path());
+}
+
 /// A push that cannot reach the remote at all is still tried again by the service.
 #[test]
 fn an_offline_push_is_still_tried_again() {

@@ -25,7 +25,7 @@ libfuzzer-sys = { workspace = true }
 
 [dependencies.monochromatic-xml-edit]
 path = "../core-rust"
-version = "=0.1.0"
+version = "=0.1.1"
 
 # Library target hosting the shared generator and invariants used by every fuzz target via
 # `use xml_edit_fuzz::...;`. Cargo would auto-detect `src/lib.rs`; it is spelled out so the

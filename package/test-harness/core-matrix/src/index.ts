@@ -84,3 +84,14 @@ export {
   runCachyosImageCli,
 } from './cachyos-image-cli.ts';
 export type { CachyosImageCliResult, } from './cachyos-image-cli.ts';
+
+/**
+ The Rust toolchain `toolchain.lock.json` records, for container builds that install Rust themselves.
+ */
+export {
+  LockedRustToolchainError,
+  lockedRustToolchainFromText,
+  readLockedRustToolchain,
+  RUST_TOOLCHAIN_BUILD_ARGUMENT_NAME,
+  TOOLCHAIN_LOCK_FILE_NAME,
+} from './locked-rust-toolchain.ts';
