@@ -256,6 +256,32 @@ fn a_record_of_an_earlier_release_is_shown_as_it_was_written() {
     remove(root.as_path());
 }
 
+/// Found by the audit of the names the rename changed: the three magic first lines of the records name a format, and the records
+///  an earlier release wrote carry its spelling. They are read as the records they are (worded for the asking worktree, held
+///  for the worktree that has the branch), not shown as raw text with their first line.
+#[test]
+fn a_record_of_an_earlier_release_with_its_own_first_line_is_read_as_a_record() {
+    let root: PathBuf = fixture("push-failure-earlier-magic");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    record_push_skip(root.as_path(), "refs/heads/other", OTHER_COMMIT, "no remote branch").expect("record");
+    record_lost_push(root.as_path(), "refs/heads/third", COMMIT).expect("record");
+    for entry in std::fs::read_dir(notice_directory(root.as_path())).expect("directory").flatten() {
+        let text: String = std::fs::read_to_string(entry.path()).expect("record text");
+        let (magic, rest) = text.split_once('\n').expect("a first line");
+        let earlier: String = magic.replacen("monochromatic-git-policy-cli ", "cli-git ", 1);
+        assert_ne!(earlier, magic, "the record names its format by the current spelling: {magic}");
+        std::fs::write(entry.path(), format!("{earlier}\n{rest}")).expect("rewritten with the earlier first line");
+    }
+    let identity = |commit: &str| { return commit.to_string(); };
+    let owner: Worktrees = Worktrees { here: Some(BRANCH.to_string()), all: vec![BRANCH.to_string(), "refs/heads/other".to_string(), "refs/heads/third".to_string()] };
+    assert_eq!(take_push_failures_for(root.as_path(), Some(&owner), &identity), vec![push_failure_text(BRANCH, COMMIT, "rejected")], "only the record of the asking worktree's branch, worded");
+    let mut rest: Vec<String> = take_push_failures(root.as_path());
+    rest.sort();
+    assert_eq!(rest.len(), 2, "{rest:?}");
+    assert!(rest.iter().all(|text| { return !text.contains("cli-git push"); }), "no raw first line is shown: {rest:?}");
+    remove(root.as_path());
+}
+
 /// The credentials in Git's words never reach the file the service writes.
 #[test]
 fn the_record_on_disk_holds_no_credential() {
