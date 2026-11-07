@@ -112,10 +112,10 @@ fn word_start_keys(norm: &str, firsts: &mut Vec<char>, pairs: &mut Vec<(char, ch
         };
         if starts_word && !WORD_SEPARATORS.contains(&character) {
             firsts.push(character);
-            if let Some(next) = characters.peek() {
-                if !WORD_SEPARATORS.contains(next) {
-                    pairs.push((character, *next));
-                }
+            if let Some(next) = characters.peek()
+                && !WORD_SEPARATORS.contains(next)
+            {
+                pairs.push((character, *next));
             }
         }
         previous = Some(character);

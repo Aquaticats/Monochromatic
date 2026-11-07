@@ -219,13 +219,9 @@ pub(crate) fn xdg_user_dir_music() -> Option<PathBuf> {
 /// const userDirsMusic = (): string | null => userDirs()?.audioDir ?? null;
 /// ```
 fn user_dirs_music() -> Option<PathBuf> {
-    return match directories::UserDirs::new() {
-        Some(dirs) => match dirs.audio_dir() {
-            Some(audio) => Some(audio.to_path_buf()),
-            None => None,
-        },
-        None => None,
-    };
+    let dirs = directories::UserDirs::new()?;
+    let audio = dirs.audio_dir()?;
+    return Some(audio.to_path_buf());
 }
 
 /// What:
@@ -240,10 +236,8 @@ fn user_dirs_music() -> Option<PathBuf> {
 /// const homeMusicCandidate = (): string | null => home() ? homeMusicFolder(home()) : null;
 /// ```
 fn home_music_candidate() -> Option<PathBuf> {
-    return match directories::BaseDirs::new() {
-        Some(dirs) => Some(music_player::default_library::home_music_folder(dirs.home_dir())),
-        None => None,
-    };
+    let dirs = directories::BaseDirs::new()?;
+    return Some(music_player::default_library::home_music_folder(dirs.home_dir()));
 }
 
 /// What:

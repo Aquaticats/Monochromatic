@@ -93,10 +93,7 @@ pub(super) fn commit_templates() {
 fn remember_drafts_that_do_not_apply() {
     let kept = {
         let state = read_screen();
-        match state.editor.as_ref() {
-            Some(editor) => Some((draft_not_applying(editor, TemplateKind::TrackRows), draft_not_applying(editor, TemplateKind::PlayingTrack))),
-            None => None,
-        }
+        state.editor.as_ref().map(drafts_not_applying)
     };
     if let Some(drafts) = kept {
         tracing::debug!(track_rows = drafts.0.is_some(), playing = drafts.1.is_some(), "drafts that do not apply are kept");
@@ -118,6 +115,20 @@ fn remember_drafts_that_do_not_apply() {
 fn draft_not_applying(editor: &TemplateEditorState, kind: TemplateKind) -> Option<String> {
     let opened = editor.open(kind);
     return if opened.is_valid() { None } else { Some(opened.text().to_string()) };
+}
+
+/// What:
+/// `drafts_not_applying` gives the draft texts of both templates that do not apply.
+/// Why:
+/// the editor is rebuilt from the applied texts when it is left,
+/// so both drafts are kept together.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const draftsNotApplying = (editor: Editor): [string | null, string | null] => [draftNotApplying(editor, "trackRows"), draftNotApplying(editor, "playing")];
+/// ```
+fn drafts_not_applying(editor: &TemplateEditorState) -> (Option<String>, Option<String>) {
+    return (draft_not_applying(editor, TemplateKind::TrackRows), draft_not_applying(editor, TemplateKind::PlayingTrack));
 }
 
 /// What:
@@ -196,10 +207,7 @@ pub(crate) fn project_pages(window: &AppWindow) {
             Some(editor) => settings_rows(editor),
             None => Vec::new(),
         };
-        let view: Option<EditorView> = match state.editor.as_ref() {
-            Some(editor) => Some(editor_view(editor)),
-            None => None,
-        };
+        let view: Option<EditorView> = state.editor.as_ref().map(editor_view);
         (rows, view)
     };
     let mut settings_rows: Vec<SettingsTemplateRow> = Vec::with_capacity(rows.len());

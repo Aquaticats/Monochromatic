@@ -373,10 +373,10 @@ fn deck_title_of(state: &ScreenState, pages: &PageIndex) -> String {
     let parent: &str = parent_of(&state.track_name);
     let mut siblings: Vec<String> = Vec::new();
     for index in page.indices() {
-        if let Some(name) = state.names.get(*index as usize) {
-            if parent_of(name) == parent {
-                siblings.push(track_title_for(name));
-            }
+        if let Some(name) = state.names.get(*index as usize)
+            && parent_of(name) == parent
+        {
+            siblings.push(track_title_for(name));
         }
     }
     let borrowed: Vec<&str> = siblings.iter().map(String::as_str).collect();
@@ -423,13 +423,12 @@ pub fn view(state: &ScreenState, supporting_line: &dyn Fn(&TrackFields) -> Optio
         }
     }
     let playing_count = page_items.len();
-    let playing_name: Option<String> = match playing_position {
-        Some(position) => match page_items.get(position) {
-            Some(item) => Some(item.name.clone()),
-            None => None,
-        },
-        None => None,
-    };
+    let mut playing_name: Option<String> = None;
+    if let Some(position) = playing_position
+        && let Some(item) = page_items.get(position)
+    {
+        playing_name = Some(item.name.clone());
+    }
     let mut positions: Vec<usize> = Vec::with_capacity(page_items.len());
     for item in &page_items {
         positions.push(item.index);

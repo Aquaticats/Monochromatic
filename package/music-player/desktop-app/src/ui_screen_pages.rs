@@ -152,10 +152,7 @@ impl ScreenState {
     pub fn page_key_of_index(&self, index: usize) -> Option<String> {
         let pages: Cow<'_, PageIndex> = self.current_pages();
         let position: usize = pages.page_of_index(index)?;
-        return match pages.page(position) {
-            Some(page) => Some(page.identity.clone()),
-            None => None,
-        };
+        return pages.identity_at(position);
     }
 
     /// What:

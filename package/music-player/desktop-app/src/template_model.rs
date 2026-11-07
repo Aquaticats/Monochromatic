@@ -459,14 +459,8 @@ impl TemplateTrack for PlayingTrackFields {
     /// ```
     fn field_text(&self, mode: &str) -> Option<String> {
         return match mode {
-            "track" => match self.place_in_folder {
-                Some(place) => Some(place.to_string()),
-                None => None,
-            },
-            "total" => match self.tracks_in_folder {
-                Some(total) => Some(total.to_string()),
-                None => None,
-            },
+            "track" => self.place_in_folder.as_ref().map(ToString::to_string),
+            "total" => self.tracks_in_folder.as_ref().map(ToString::to_string),
             _ => self.track.field_text(mode),
         };
     }

@@ -131,10 +131,8 @@ impl TopCache {
     /// Why:
     /// the warm-up pass refreshes entries that fall behind.
     pub(crate) fn covered(&self, character: char) -> Option<usize> {
-        return match self.get(character) {
-            Some(entry) => Some(entry.through),
-            None => None,
-        };
+        let entry = self.get(character)?;
+        return Some(entry.through);
     }
 }
 

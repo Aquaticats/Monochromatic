@@ -179,7 +179,7 @@ impl Queue {
             // ```ts
             // remaining = scope.filter((i) => i !== current);
             // ```
-            remaining = Vec::new();
+            remaining.clear();
             for index in scope.iter().copied() {
                 if index != current {
                     remaining.push(index);

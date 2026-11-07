@@ -394,10 +394,8 @@ impl Machine {
         if self.phase != Phase::Active || self.pending.is_none() {
             return None;
         }
-        return match self.sent.as_ref() {
-            Some(sent) => Some(sent.at + MIN_UPDATE_INTERVAL),
-            None => None,
-        };
+        let sent = self.sent.as_ref()?;
+        return Some(sent.at + MIN_UPDATE_INTERVAL);
     }
 
     /// What:
@@ -429,13 +427,12 @@ impl Machine {
         }
         self.paused = paused;
         tracing::info!(paused, "analysis pause changed from the indicator");
-        let held: Option<IndicatorView> = match self.pending.clone() {
-            Some(view) => Some(view),
-            None => match self.sent.as_ref() {
-                Some(sent) => Some(sent.view.clone()),
-                None => None,
-            },
-        };
+        let mut held: Option<IndicatorView> = self.pending.clone();
+        if held.is_none()
+            && let Some(sent) = self.sent.as_ref()
+        {
+            held = Some(sent.view.clone());
+        }
         let Some(base) = held else {
             return vec![Effect::SetEnginePause(paused)];
         };

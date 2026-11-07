@@ -447,10 +447,8 @@ fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 
 /// Resolves the app-private session JSON path.
 fn session_path() -> Option<PathBuf> {
-    return match identity::config_dir() {
-        Some(directory) => Some(directory.join("session.json")),
-        None => None,
-    };
+    let directory = identity::config_dir()?;
+    return Some(directory.join("session.json"));
 }
 
 /// What:

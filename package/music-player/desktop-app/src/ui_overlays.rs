@@ -132,10 +132,8 @@ fn add_message(kind: FeedbackKind, text: &str, hold: Hold, action_label: Option<
 /// the window tests check how long each kind of message is meant to stay without waiting for it to expire.
 #[cfg(test)]
 pub(crate) fn first_message_expires_in_ms() -> Option<i64> {
-    return match overlays().borrow().queue.next_expiry_ms() {
-        Some(expiry) => Some(expiry - now_ms()),
-        None => None,
-    };
+    let expiry = overlays().borrow().queue.next_expiry_ms()?;
+    return Some(expiry - now_ms());
 }
 
 /// What:

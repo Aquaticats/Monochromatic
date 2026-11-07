@@ -588,10 +588,8 @@ impl Queue {
         // ```ts
         // return this.pos === null ? null : this.order[this.pos];
         // ```
-        return match self.pos {
-            Some(position) => Some(self.order[position]),
-            None => None,
-        }
+        let position = self.pos?;
+        return Some(self.order[position])
     }
 
     /// What:
@@ -657,10 +655,7 @@ impl Queue {
             None => None,
         };
         let previous_page_identity: Option<String> = match previous_page {
-            Some(page) => match previous_pages.page(page) {
-                Some(group) => Some(group.identity.clone()),
-                None => None,
-            },
+            Some(page) => previous_pages.identity_at(page),
             None => None,
         };
         self.tracks = tracks;

@@ -76,8 +76,8 @@ fn step_from(selectable: &[bool], current: usize, steps: usize, forward: bool) -
     while remaining > 0 {
         let mut next: Option<usize> = None;
         if forward {
-            for at in (position + 1)..selectable.len() {
-                if selectable[at] {
+            for (at, can) in selectable.iter().enumerate().skip(position + 1) {
+                if *can {
                     next = Some(at);
                     break;
                 }

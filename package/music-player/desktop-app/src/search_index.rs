@@ -145,10 +145,8 @@ impl Iterator for FirstCharacters<'_> {
     /// Why:
     /// callers need the sizes without borrowing the lists.
     fn next(&mut self) -> Option<(char, usize)> {
-        return match self.buckets.next() {
-            Some((character, list)) => Some((*character, list.len())),
-            None => None,
-        };
+        let (character, list) = self.buckets.next()?;
+        return Some((*character, list.len()));
     }
 }
 

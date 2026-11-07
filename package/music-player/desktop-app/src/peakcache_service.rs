@@ -431,10 +431,10 @@ async fn open_cache(path: Option<PathBuf>) -> Option<DecisionCache> {
     // ```ts
     // mkdirSync(dirname(path), { recursive: true });
     // ```
-    if let Some(parent) = cache_path.parent() {
-        if let Err(error) = std::fs::create_dir_all(parent) {
-            tracing::debug!(error = %error, "could not create cache parent dir; open may still succeed");
-        }
+    if let Some(parent) = cache_path.parent()
+        && let Err(error) = std::fs::create_dir_all(parent)
+    {
+        tracing::debug!(error = %error, "could not create cache parent dir; open may still succeed");
     }
     // What:     `let Some(path_str) = path.to_str() else { ...; return None; };`. The path as
     //           UTF-8; degrade on non-UTF-8, logging the path.

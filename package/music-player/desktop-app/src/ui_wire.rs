@@ -250,8 +250,8 @@ fn wire_keys(app: &AppWindow, host: &Rc<dyn Host>) {
 /// function showMissingChooserMessage(): void { mainWindow?.showError(NO_DIALOG_MESSAGE); }
 /// ```
 fn show_missing_chooser_message() {
-    let window = MAIN_WINDOW.with(std::cell::RefCell::clone).into_inner().as_ref().and_then(slint::Weak::upgrade);
-    if let Some(window) = window {
+    let main_window = MAIN_WINDOW.with(std::cell::RefCell::clone).into_inner().as_ref().and_then(slint::Weak::upgrade);
+    if let Some(window) = main_window {
         crate::ui_overlays::show_error(&window, music_player::dialog_backend::NO_DIALOG_MESSAGE);
     }
 }

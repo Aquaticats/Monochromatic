@@ -73,15 +73,26 @@ fn project_now(app: &AppWindow) {
 }
 
 /// What:
+/// `due_after` is the moment a projection that follows a projection at `last` may run.
+/// Why:
+/// projections are spaced by `PROJECT_INTERVAL`,
+/// and the due time is a function of the last projection alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dueAfter = (last: number): number => last + PROJECT_INTERVAL;
+/// ```
+fn due_after(last: Instant) -> Instant {
+    return last + PROJECT_INTERVAL;
+}
+
+/// What:
 /// `project_soon` projects now or at the end of the interval.
 /// Why:
 /// see the module description.
 pub(crate) fn project_soon(app: &AppWindow) {
     let now: Instant = Instant::now();
-    let due: Option<Instant> = match LAST_PROJECTION.get() {
-        Some(at) => Some(at + PROJECT_INTERVAL),
-        None => None,
-    };
+    let due: Option<Instant> = LAST_PROJECTION.get().map(due_after);
     match due {
         Some(at) if at > now => {
             if PENDING.replace(true) {

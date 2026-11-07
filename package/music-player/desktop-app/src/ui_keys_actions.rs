@@ -312,10 +312,7 @@ fn step_folder(window: &AppWindow, host: &dyn Host, delta: isize) {
                 _ => None,
             };
             match target {
-                Some(position) => match pages.page(position) {
-                    Some(page) => Some(page.identity.clone()),
-                    None => None,
-                },
+                Some(position) => pages.identity_at(position),
                 None => None,
             }
         };

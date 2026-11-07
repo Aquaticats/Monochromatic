@@ -324,15 +324,31 @@ impl PageIndex {
     }
 
     /// What:
+    ///      `pub fn identity_at(&self, position: usize) -> Option<String>`.
+    ///  The identity of the page at a display position,
+    /// or nothing when there is no such page.
+    /// Why:
+    ///       A page keeps its identity when the library changes under it,
+    /// so the queue looks it up before an edit and finds the page again after it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// identityAt(position: number): string | null { return this.page(position)?.identity ?? null; }
+    /// ```
+    #[must_use]
+    pub fn identity_at(&self, position: usize) -> Option<String> {
+        let group = self.page(position)?;
+        return Some(group.identity.clone());
+    }
+
+    /// What:
     /// `page_of_index` is the display position of the page that holds queue position `index`.
     /// Why:
     /// following the playing track must not scan the library.
     #[must_use]
     pub fn page_of_index(&self, index: usize) -> Option<usize> {
-        return match self.group_of.get(index) {
-            Some(slot) => Some(self.rank[*slot as usize]),
-            None => None,
-        };
+        let slot = self.group_of.get(index)?;
+        return Some(self.rank[*slot as usize]);
     }
 }
 

@@ -626,10 +626,8 @@ impl RefreshCoalescer {
         // const waiting = this.pending; this.pending = null;
         // return waiting ? this.start(waiting) : null;
         // ```
-        return match self.pending.take() {
-            Some(waiting) => Some(self.start(waiting)),
-            None => None,
-        };
+        let waiting = self.pending.take()?;
+        return Some(self.start(waiting));
     }
 
     /// What:

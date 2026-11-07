@@ -753,10 +753,10 @@ impl Controller {
 
         // What:     `self.loaded_file = Some((path, fingerprint))`. Remember which file the decoder was opened on.
         // Why:      A rescan compares it with the file on disk, so a paused track whose file was replaced is loaded again (D113).
-        self.loaded_file = match crate::peakcache::fingerprint(path) {
-            Some(key) => Some((path.to_path_buf(), key)),
-            None => None,
-        };
+        match crate::peakcache::fingerprint(path) {
+            Some(key) => self.loaded_file = Some((path.to_path_buf(), key)),
+            None => self.loaded_file = None,
+        }
 
         // What:     `self.prepare_peak_for_path(path);`. Start the current-track
         //           peak swap path: cache hit applies immediately; cache miss sets
