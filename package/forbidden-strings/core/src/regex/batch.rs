@@ -21,11 +21,13 @@
 //! // module batch: see exported functions and types below.
 //! ```
 
+/// Imports the per-line checks and the first-seen set that the batch resolution uses.
+use super::line_checks::{any_group_matches, any_line_start_match, CheckedFull, RuleCheck, RuleCollector};
+
 /// What:
 ///     Imports the public matcher types this module extends.
 /// Why:
-///      The code below uses `CheckedFull`,
-///  `Regex`,
+///      The code below uses `Regex`,
 ///  `RegexSet` directly;
 ///  importing from
 ///          `./super` keeps each call site focused on the matcher logic instead of the full Rust
@@ -33,9 +35,9 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { CheckedFull, Regex, RegexSet } from "./super";
+/// import { Regex, RegexSet } from "./super";
 /// ```
-use super::{CheckedFull, Regex, RegexSet};
+use super::{Regex, RegexSet};
 
 /// What:
 ///     Imports the anchored line-start match used by the per-line resolution.
@@ -166,8 +168,16 @@ impl Regex {
             self.engine.is_match_batch(lines, &mut out);
             return out;
         };
-        let mut order: Vec<usize> = (0..lines.len()).collect();
-        order.sort_by_key(|&index| return lines[index].len());
+        let mut keyed: Vec<(usize, usize)> = Vec::with_capacity(lines.len());
+        for (index, line) in lines.iter().enumerate() {
+            keyed.push((line.len(), index));
+        }
+        // Sorting the (length, index) pairs orders by length and keeps equal lengths in input order.
+        keyed.sort_unstable();
+        let mut order: Vec<usize> = Vec::with_capacity(keyed.len());
+        for &(_, index) in &keyed {
+            order.push(index);
+        }
         let mut start = 0;
         while start < order.len() {
             let len = lines[order[start]].len();
@@ -175,7 +185,10 @@ impl Regex {
             while end < order.len() && lines[order[end]].len() == len {
                 end += 1;
             }
-            let bucket: Vec<&[u8]> = order[start..end].iter().map(|&index| return lines[index]).collect();
+            let mut bucket: Vec<&[u8]> = Vec::with_capacity(end - start);
+            for &index in &order[start..end] {
+                bucket.push(lines[index]);
+            }
             let mut verdicts = vec![false; bucket.len()];
             dfa.is_match_batch_tight_w::<BATCH_BUCKET>(&bucket, &mut verdicts);
             for (slot, &index) in order[start..end].iter().enumerate() {
@@ -412,7 +425,11 @@ impl RegexSet {
     /// assert_eq!(set.is_match_batch(lines), vec![true, false, true]);
     /// ```
     pub fn is_match_batch(&self, lines: &[&[u8]]) -> Vec<bool> {
-        return lines.iter().map(|line| return self.is_match(line)).collect()
+        let mut verdicts: Vec<bool> = Vec::with_capacity(lines.len());
+        for line in lines {
+            verdicts.push(self.is_match(line));
+        }
+        return verdicts
     }
 
     /// Returns the `(line index, rule index)` pairs the lines in `buf` match.
@@ -557,7 +574,10 @@ impl RegexSet {
         if count == 0 {
             return Vec::new();
         }
-        let total: usize = lines.iter().map(|line| return line.len() + 1).sum();
+        let mut total: usize = 0;
+        for line in lines {
+            total += line.len() + 1;
+        }
         let mut buf = Vec::with_capacity(total);
         let mut starts = Vec::with_capacity(count);
         for line in lines {
@@ -566,12 +586,12 @@ impl RegexSet {
             buf.push(b'\n');
         }
         let candidate = self.sweep_candidates(&buf, &starts);
-        return (0..count)
-            .map(|index| {
-                let end = starts.get(index + 1).copied().unwrap_or(buf.len()) - 1;
-                return self.resolve_line(&buf[starts[index]..end], candidate[index])
-            })
-            .collect()
+        let mut verdicts: Vec<bool> = Vec::with_capacity(count);
+        for index in 0..count {
+            let end = starts.get(index + 1).copied().unwrap_or(buf.len()) - 1;
+            verdicts.push(self.resolve_line(&buf[starts[index]..end], candidate[index]));
+        }
+        return verdicts
     }
 
     /// Marks,
@@ -597,7 +617,12 @@ impl RegexSet {
         let mut candidate = vec![false; starts.len()];
         let mut at = 0;
         while let Some(hit) = self.gate.prefilter_find_from(buf, at) {
-            let line = starts.partition_point(|&start| return start <= hit) - 1;
+            // The line holding the hit is the last one that starts at or before it;
+            // the line starts strictly increase, so a search finds either that start or the slot after it.
+            let line = match starts.binary_search(&hit) {
+                Ok(exact) => exact,
+                Err(after) => after - 1,
+            };
             candidate[line] = true;
             at = starts.get(line + 1).copied().unwrap_or(buf.len());
             if at >= buf.len() {
@@ -628,20 +653,15 @@ impl RegexSet {
     /// ```
     fn resolve_line(&self, line: &[u8], has_seed: bool) -> bool {
         if has_seed {
-            let mut checked = CheckedFull::new();
-            if self
-                .gate
-                .any_candidate(line, |rule, pos| return self.matches_rule(line, rule, pos, &mut checked))
-            {
+            let mut rule_check = RuleCheck { set: self, line, checked: CheckedFull::new() };
+            if self.gate.any_candidate(line, &mut rule_check) {
                 return true;
             }
         }
-        if self.line_start_candidate(line)
-            && self.line_start.iter().any(|engine| return line_start_match(engine, line))
-        {
+        if self.line_start_candidate(line) && any_line_start_match(&self.line_start, line) {
             return true;
         }
-        return self.seedless_groups.iter().any(|group| return group.is_match(line))
+        return any_group_matches(&self.seedless_groups, line)
     }
 
     /// Collects one line's matching rule ids given whether the sweep found a seed
@@ -669,15 +689,11 @@ impl RegexSet {
     /// }
     /// ```
     fn resolve_matches(&self, line: &[u8], has_seed: bool) -> Vec<usize> {
-        let mut hits: Vec<usize> = Vec::new();
-        let mut checked = CheckedFull::new();
+        let mut collector = RuleCollector { set: self, line, checked: CheckedFull::new(), hits: Vec::new() };
         if has_seed {
-            self.gate.for_each_candidate(line, |rule, pos| {
-                if self.matches_rule(line, rule, pos, &mut checked) {
-                    hits.push(rule);
-                }
-            });
+            self.gate.for_each_candidate(line, &mut collector);
         }
+        let mut hits: Vec<usize> = collector.hits;
         if self.line_start_candidate(line) {
             for (engine, &id) in self.line_start.iter().zip(&self.line_start_ids) {
                 if line_start_match(engine, line) {

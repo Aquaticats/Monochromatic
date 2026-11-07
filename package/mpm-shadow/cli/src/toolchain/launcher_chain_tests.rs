@@ -1,4 +1,6 @@
-//! The unit tests of `launcher_chain.rs`: a chain that ends at a program is fine, every other chain is refused.
+//! The unit tests of `launcher_chain.rs`:
+//! a chain that ends at a program is fine,
+//! every other chain is refused.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +10,8 @@ use crate::test_scratch::scratch;
 use crate::toolchain::launcher::{LaunchRecord, record_path, render_record};
 use crate::toolchain::scope::ScopeKind;
 
-/// A file standing for a launcher or a program, with a record beside it when `real` is given.
+/// A file standing for a launcher or a program,
+/// with a record beside it when `real` is given.
 fn make(path: &Path, real: Option<&Path>) {
     fs::create_dir_all(path.parent().expect("a parent folder")).expect("make the folder");
     fs::write(path, "x").expect("write the file");

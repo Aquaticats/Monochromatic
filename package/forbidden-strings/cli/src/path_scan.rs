@@ -106,11 +106,20 @@ pub(crate) fn logical_path(path: &str, root: Option<&Path>) -> String {
 fn matching_rules(component: &[u8], loaded: &LoadedRules) -> Result<Vec<String>, ()> {
     let mut rules: Vec<String> = Vec::new();
     for set in loaded.iter_sets() {
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "`std::panic::catch_unwind` accepts only a callable, and the guarded scan needs the pathname component, so it must carry them; see package/forbidden-strings/cli/doc/closure-lint-suppressions.md"
+            )
+        )]
         let matcher = AssertUnwindSafe(|| return set.matcher.line_matches(component, &[0]));
         let Ok(ids) = catch_unwind(matcher) else {
             return Err(());
         };
-        rules.extend(ids.into_iter().map(|(_, id)| return rule_token(set.base, &set.names, id)));
+        for (_, id) in ids {
+            rules.push(rule_token(set.base, &set.names, id));
+        }
     }
     return Ok(rules);
 }

@@ -110,7 +110,7 @@ fn is_name_char(ch: char) -> bool {
 fn strict_name(line: &str) -> Option<String> {
     let middle = line.strip_prefix(HEADER_PREFIX)?.strip_suffix(HEADER_SUFFIX)?;
     let first = middle.chars().next()?;
-    if !is_name_start(first) || !middle.chars().all(|ch| return is_name_char(ch)) {
+    if !is_name_start(first) || !middle.chars().all(is_name_char) {
         return None;
     }
     return Some(middle.to_string());
@@ -144,6 +144,31 @@ fn classify_header(line: &str) -> HeaderKind {
     };
 }
 
+/// Whether a line,
+/// as an iterator hands it out by reference,
+/// is significant
+/// (neither blank nor a comment).
+fn is_significant_line(line: &&str) -> bool {
+    return is_significant(line);
+}
+
+/// Whether a line is a strict section header.
+fn has_strict_name(line: &str) -> bool {
+    return strict_name(line).is_some();
+}
+
+/// Whether a line,
+/// as an iterator hands it out by reference,
+/// holds anything but whitespace.
+fn is_filled_line(line: &&str) -> bool {
+    return !line.trim().is_empty();
+}
+
+/// The count that ends one past a zero-based index.
+fn one_past(index: usize) -> usize {
+    return index + 1;
+}
+
 /// Reports whether a line is a strict section header,
 ///  for format autodetection.
 ///
@@ -155,8 +180,8 @@ fn classify_header(line: &str) -> HeaderKind {
 pub(super) fn detect_tail_format(text: &str) -> bool {
     return text
         .lines()
-        .find(|&line| return is_significant(line))
-        .is_some_and(|line| return strict_name(line).is_some());
+        .find(is_significant_line)
+        .is_some_and(has_strict_name);
 }
 
 /// Classifies one closed section's body into a single named engine rule.
@@ -178,11 +203,11 @@ fn finish_section(section: OpenSection<'_>, index: usize) -> Result<ParsedRule, 
     let end = section
         .body
         .iter()
-        .rposition(|line| return !line.trim().is_empty())
-        .map_or(0, |last| return last + 1);
+        .rposition(is_filled_line)
+        .map_or(0, one_past);
     let body = &section.body[..end];
     let significant: Vec<&str> =
-        body.iter().copied().filter(|&line| return is_significant(line)).collect();
+        body.iter().copied().filter(is_significant_line).collect();
     if significant.is_empty() {
         return Err(LoadError::EmptySection { line: section.name_line });
     }

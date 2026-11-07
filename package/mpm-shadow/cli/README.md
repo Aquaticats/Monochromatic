@@ -1208,7 +1208,8 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   Before this rule a record that named its own launcher,
   or two records that named each other,
   made each launcher replace itself with the other in the same process without end
-  (measured 2026-11-07: both bounded tests ran into their five second bound).
+  (measured 2026-11-07:
+  both bounded tests ran into their five second bound).
   A launcher that names another launcher of a real program is fine.
   A launcher sets no arrival marker and checks none:
   a launcher in front of a shadow is the intended arrangement (`.cache/cargo-shadow-bin/cargo`),
@@ -1612,7 +1613,10 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
 - Never starts a shadow of any version as the real `mpm`:
   A shadow never starts a shadow of any version as its real tool,
   whatever the path or the version of the candidate
-  (owner, 2026-11-07: "We should never invoke ourselves recursively. That's bad design.").
+  (owner,
+  2026-11-07:
+  "We should never invoke ourselves recursively.
+  That's bad design.").
   Every shadow program (`cargo-shadow`,
   `mpm-shadow`,
   `pnpm-shadow` and `search-shadow`) carries the same identity text in the ELF section `.monochromatic_shadow_identity`

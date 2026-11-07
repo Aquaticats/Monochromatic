@@ -247,6 +247,12 @@ struct Sheng2Tables {
     start: u8,
 }
 
+/// Whether an accept mask accepts on some lanes but not all,
+/// which the two-lane form cannot represent.
+fn is_partial_accept_mask(mask: &u8) -> bool {
+    return *mask != 0 && *mask != ACCEPT_ALL;
+}
+
 /// What:
 ///     Building the two-byte tables and scanning lines with them.
 /// Why:
@@ -287,7 +293,7 @@ impl Dfa {
         if states > SHENG2_MAX_STATES || nc > SHENG2_MAX_CLASSES {
             return None;
         }
-        if self.accept[..states].iter().any(|&mask| return mask != 0 && mask != ACCEPT_ALL) {
+        if self.accept[..states].iter().any(is_partial_accept_mask) {
             return None;
         }
         let mut trans1 = vec![[0u8; SHENG2_MAX_STATES]; nc];

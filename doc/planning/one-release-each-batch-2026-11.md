@@ -2069,7 +2069,11 @@ The owner's rules,
 verbatim:
 "Label decides";
 "I'm authorizing you to bump and publish any updates this session.";
-"We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that design aggressively.";
+"We should never invoke ourselves recursively.
+That's bad design.
+Audit,
+remove,
+and ban that design aggressively.";
 "nothing should ever wait forever or indefinitely".
 Four alphas under the label gate:
 they go to the GitHub releases and the toolchain lock,
@@ -2079,7 +2083,8 @@ not to crates.io.
   merged to main by `ec70e4cf26` 2026-11-07T15:02:22-05:00;
   troubleshooting entry `doc/troubleshooting/search-shadow-copies-start-each-other-without-end.md`):
   two `search-shadow` copies at different paths chose each other as the real `grep` and replaced themselves with each other without end
-  (measured 105 starts per second under `strace`, at a quarter of one CPU).
+  (measured 105 starts per second under `strace`,
+  at a quarter of one CPU).
   Every `PATH` lookup of the four shadows skipped only its own path;
   now every shadow program carries an identity text in an ELF section,
   the lookup skips any candidate that carries it (through launcher records),
@@ -2087,9 +2092,15 @@ not to crates.io.
   and a shadow started by a shadow stops at once with one line and exit status 2.
   `mpm-shadow` launchers also refuse a record chain that leads back to a launcher.
 - Red first:
-  test commits `4b435e69f9` (search-shadow: three loops ended at the five second bound, two failures, two controls passed),
-  `679d141568` (pnpm-shadow: four red),
-  `6cebcb29ce` (cargo-shadow: four red) and `f9bafea350` (mpm-shadow: seven red,
+  test commits `4b435e69f9` (search-shadow:
+  three loops ended at the five second bound,
+  two failures,
+  two controls passed),
+  `679d141568` (pnpm-shadow:
+  four red),
+  `6cebcb29ce` (cargo-shadow:
+  four red) and `f9bafea350` (mpm-shadow:
+  seven red,
   two of them launcher loops that ended at the bound).
   Fix commits `60c11621d4`,
   `505fcdc7dc`,
@@ -2147,7 +2158,9 @@ not to crates.io.
   four later calls took 0.2 to 3 seconds,
   and a trace of one showed a single start of each program).
   The two-copy reproduction with the installed 0.2.3-alpha.1 program and a copy of it made another version
-  ended by itself with exit 1 (grep, no match) after two starts (the shadow, then the real `grep` through the checked file),
+  ended by itself with exit 1 (grep,
+  no match) after two starts (the shadow,
+  then the real `grep` through the checked file),
   where 0.2.2 never ended.
   A shadow started by a script that runs another shadow stopped with exit status 2 and the one line.
 - Not done here:

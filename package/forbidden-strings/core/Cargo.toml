@@ -105,3 +105,8 @@ memchr = ">=2.8.3"
 regex-automata = { version = ">=0.4.18", default-features = false }
 serde = ">=1.0.229"
 tracing = ">=0.1.44"
+
+# Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(dylint_lib, values(any()))"]
