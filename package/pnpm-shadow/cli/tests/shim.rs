@@ -1,4 +1,6 @@
-//! Integration tests: the built binary started as `pnpm` and as `pnpm-shadow`, against a fake pnpm on PATH.
+//! Integration tests:
+//! the built binary started as `pnpm` and as `pnpm-shadow`,
+//! against a fake pnpm on PATH.
 
 /// Imports the link helper and the executable-mode helper.
 use std::os::unix::fs::{PermissionsExt, symlink};
@@ -9,28 +11,38 @@ use std::path::{Path, PathBuf};
 /// Imports the child-process builder and its captured output.
 use std::process::{Command, Output};
 
-/// The built `pnpm-shadow` binary, which Cargo builds before running these tests.
+/// The built `pnpm-shadow` binary,
+/// which Cargo builds before running these tests.
 const SHADOW_BINARY: &str = env!("CARGO_BIN_EXE_pnpm-shadow");
 
-/// Where integration-test scratch goes: the package's build directory, never the system temporary directory.
+/// Where integration-test scratch goes:
+/// the package's build directory,
+/// never the system temporary directory.
 const SCRATCH_ROOT: &str = env!("CARGO_TARGET_TMPDIR");
 
-/// What the fake pnpm prints first, so the tests can tell its output from the shadow's.
+/// What the fake pnpm prints first,
+/// so the tests can tell its output from the shadow's.
 const FAKE_MARKER: &str = "fake-pnpm-ran";
 
-/// The fake pnpm's exit code, taken from the environment variable of this name.
+/// The fake pnpm's exit code,
+/// taken from the environment variable of this name.
 const EXIT_VARIABLE: &str = "FAKE_PNPM_EXIT";
 
 /// When this variable is `1` the fake pnpm kills itself with SIGTERM after printing.
 const KILL_VARIABLE: &str = "FAKE_PNPM_KILL";
 
-/// The number of the termination signal on Linux and macOS, written once and named.
+/// The number of the termination signal on Linux and macOS,
+/// written once and named.
 const SIGTERM_NUMBER: i32 = 15;
 
-/// An exit code no default maps to, so a pass-through is visible.
+/// An exit code no default maps to,
+/// so a pass-through is visible.
 const DISTINCT_EXIT_CODE: i32 = 9;
 
-/// One test world: a directory holding the shadow linked as `pnpm`, a directory holding the fake real pnpm, and a
+/// One test world:
+/// a directory holding the shadow linked as `pnpm`,
+/// a directory holding the fake real pnpm,
+/// and a
 /// workspace directory to run in.
 struct World {
     _guard: tempfile::TempDir,
@@ -117,7 +129,8 @@ fn a_clean_workspace_is_silent_and_pnpm_runs() {
     assert_eq!(output.status.code(), Some(0));
 }
 
-/// The text the notice prints for `--version`, from the fake's own path.
+/// The text the notice prints for `--version`,
+/// from the fake's own path.
 fn expected_version_line(world: &World) -> String {
     return format!(
         "pnpm-shadow {}, shadowing pnpm at {}\n",
@@ -248,30 +261,45 @@ fn a_signal_that_kills_pnpm_reaches_the_caller_as_that_signal() {
     assert_eq!(output.status.code(), None);
 }
 
-/// How long a case may run before `timeout` kills it: a loop is a failure, not a hang.
+/// How long a case may run before `timeout` kills it:
+/// a loop is a failure,
+/// not a hang.
 const LIMIT_SECONDS: &str = "30";
 
-/// `timeout` by absolute path: the child's `PATH` holds only the shadow and the fake pnpm, and Rust resolves a bare program
+/// `timeout` by absolute path:
+/// the child's `PATH` holds only the shadow and the fake pnpm,
+/// and Rust resolves a bare program
 /// name against the `PATH` it is given.
 const TIMEOUT_PROGRAM: &str = "/usr/bin/timeout";
 
 /// The exit code `timeout` gives a command it had to kill.
 const TIMED_OUT_EXIT_CODE: i32 = 124;
 
-/// Replaces the shadow's link with the real toolchain's arrangement: `pnpm` links to a launcher, a separate executable
-/// that starts the shadow under the name `pnpm`. Its resolved path is therefore not the shadow's own executable path.
+/// Replaces the shadow's link with the real toolchain's arrangement:
+/// `pnpm` links to a launcher,
+/// a separate executable
+/// that starts the shadow under the name `pnpm`.
+/// Its resolved path is therefore not the shadow's own executable path.
 fn put_a_launcher_in_front(world: &World) {
     let launcher_directory: PathBuf = world.shadow_directory.join("..").join("launcher");
     std::fs::create_dir_all(&launcher_directory).expect("make the launcher directory");
     let launcher: PathBuf = launcher_directory.join("pnpm-shadow-launcher");
     std::fs::write(&launcher, format!("#!/bin/bash\nexec -a pnpm \"{SHADOW_BINARY}\" \"$@\"\n")).expect("write the launcher");
     std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).expect("make it executable");
+    // The toolchain writes a record beside every launcher it makes; the shadow reads it to see that the launcher leads back to a shadow and
+    // skips it without starting it. A launcher with no record is covered by `never_start_another_shadow.rs`.
+    std::fs::write(
+        launcher_directory.join("pnpm-shadow-launcher.launch"),
+        format!("{{\"toolId\":\"cargo:monochromatic-pnpm-shadow\",\"lockFile\":\"/dev/null\",\"real\":\"{SHADOW_BINARY}\",\"scope\":\"repo\"}}"),
+    )
+    .expect("write the launcher record");
     let link: PathBuf = world.shadow_directory.join("pnpm");
     std::fs::remove_file(&link).expect("remove the direct link");
     symlink(&launcher, &link).expect("link pnpm to the launcher");
 }
 
-/// Runs the link under `timeout`, so a loop fails the test instead of hanging it.
+/// Runs the link under `timeout`,
+/// so a loop fails the test instead of hanging it.
 fn run_limited(world: &World, path: &str, arguments: &[&str]) -> Output {
     // The notice handshake keeps its marker files in the per-user runtime directory; this world gets one of its own.
     let runtime: PathBuf = world.shadow_directory.join("..").join("runtime");

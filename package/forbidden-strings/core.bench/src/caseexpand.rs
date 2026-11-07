@@ -55,6 +55,7 @@ enum CaseMode {
 ///
 /// @example
 /// ```rust
+/// //! A case-insensitive literal becomes the alternation of its three spellings.
 /// assert_eq!(expand_case("(?i)adobe"), "(?:adobe|Adobe|ADOBE)");
 /// ```
 pub(crate) fn expand_case(pattern: &str) -> String {

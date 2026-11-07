@@ -84,6 +84,8 @@ use crate::rule_linked_worktree::{
     GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, decide_linked_worktree,
     dirty_scope, dirty_worktree_message, resolve_linked_worktree,
 };
+/// Whether a Git directory has no index file yet.
+use crate::rule_worktree_dirty::index_file_is_absent;
 /// The require-root rule core.
 use crate::rule_require_root::{
     NOT_AT_ROOT_CODE, RequireRootDecision, RequireRootFacts, RequireRootVerdict,
@@ -383,6 +385,12 @@ fn check_linked_worktree(
     }
     if target == EffectiveTarget::Allowlisted {
         record_audit(&location.identity, command, AuditOutcome::Exempt, arguments, None);
+        return clean();
+    }
+    // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
+    // `--no-checkout`): there is no tracked work to carry over, so the status, which lists every file as a staged deletion, is not read.
+    if moves_head_only && index_file_is_absent(facts.known_git_dir().as_deref(), std::env::var_os("GIT_INDEX_FILE").as_deref()) {
+        record_audit(&location.identity, command, AuditOutcome::Allowed, arguments, Some(false));
         return clean();
     }
     match facts.worktree_dirty(dirty_scope(command)) {

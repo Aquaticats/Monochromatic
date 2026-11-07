@@ -99,7 +99,9 @@ fn returns_none_when_nothing_is_found() {
     assert_eq!(find_in_path("mpm", &path_variable, Path::new("/nowhere")), None);
 }
 
-/// A launcher the way `install` makes one: an executable, a `.launch` record beside it naming the binary it starts,
+/// A launcher the way `install` makes one:
+/// an executable,
+/// a `.launch` record beside it naming the binary it starts,
 /// and an `mpm` link to it in `links`.
 fn write_launcher(directory: &Path, record_real: &Path, write_record_file: bool, record_text: Option<&str>) -> PathBuf {
     use crate::toolchain::launcher::{LaunchRecord, record_path, render_record};
@@ -124,7 +126,9 @@ fn write_launcher(directory: &Path, record_real: &Path, write_record_file: bool,
     return links;
 }
 
-/// The running shadow, a real `mpm`, and a PATH with the launcher's link before the real `mpm`.
+/// The running shadow,
+/// a real `mpm`,
+/// and a PATH with the launcher's link before the real `mpm`.
 struct LauncherFixture {
     _directory: tempfile::TempDir,
     path_variable: String,

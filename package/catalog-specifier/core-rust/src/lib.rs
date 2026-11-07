@@ -1,5 +1,6 @@
 //! What:
-//! The crate root: declares the modules and re-exports the public surface.
+//! The crate root:
+//! declares the modules and re-exports the public surface.
 //! Why:
 //! Consumers import `monochromatic_catalog_specifier::{check_manifest, Finding, FindingKind}` and never reach into modules.
 //!
@@ -12,9 +13,12 @@
 //! ```
 
 /// What:
-/// `mod check;` declares a child module whose code lives in `src/check.rs`. Without `pub`, the module itself stays private.
+/// `mod check;` declares a child module whose code lives in `src/check.rs`.
+/// Without `pub`,
+/// the module itself stays private.
 /// Why:
-/// The byte-to-findings walk is an implementation detail; only its functions are re-exported below.
+/// The byte-to-findings walk is an implementation detail;
+/// only its functions are re-exported below.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -27,9 +31,11 @@ mod finding;
 mod grammar;
 
 /// What:
-/// `pub use check::{...};` re-exports the three check functions at the crate root, so callers write one short path.
+/// `pub use check::{...};` re-exports the three check functions at the crate root,
+/// so callers write one short path.
 /// Why:
-/// The README contract names these entry points; the module layout may change without breaking callers.
+/// The README contract names these entry points;
+/// the module layout may change without breaking callers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,9 +48,11 @@ pub use finding::{Finding, FindingKind};
 pub use grammar::{is_allowed_specifier, SectionKind};
 
 /// What:
-/// `#[cfg(test)]` compiles the next item only when running tests; `mod check_tests;` declares the test module.
+/// `#[cfg(test)]` compiles the next item only when running tests;
+/// `mod check_tests;` declares the test module.
 /// Why:
-/// Tests live in sibling `*_tests.rs` files like the rest of the repository's Rust crates, and ship in no release build.
+/// Tests live in sibling `*_tests.rs` files like the rest of the repository's Rust crates,
+/// and ship in no release build.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

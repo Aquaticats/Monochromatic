@@ -859,7 +859,10 @@ fn replace_with(path: &Path, keep: &KeepAs, link: &dyn Fn(&Path, &Path) -> std::
     return replace_with_seams(path, "expected", "new text", keep, &Seams { between: &none, after_exchange: &none, swap: &swap, link, sync_file, sync_dir });
 }
 
-/// One step of a preservation, in the order it happened: a successful link and its new name, or a directory barrier and whether it held.
+/// One step of a preservation,
+/// in the order it happened:
+/// a successful link and its new name,
+/// or a directory barrier and whether it held.
 #[derive(Debug)]
 enum Event {
     /// A hard link was made with this new name.
@@ -876,7 +879,9 @@ enum Event {
     ),
 }
 
-/// Like `replace_with`, and also returns the inode the live path names right after the exchange, which is the replacement's (9b 3.1).
+/// Like `replace_with`,
+/// and also returns the inode the live path names right after the exchange,
+/// which is the replacement's (9b 3.1).
 fn replace_capturing(path: &Path, keep: &KeepAs, link: &dyn Fn(&Path, &Path) -> std::io::Result<()>, sync_file: &dyn Fn(&Path) -> std::io::Result<()>, sync_dir: &dyn Fn(&Path) -> std::io::Result<()>) -> (std::io::Result<ReplaceOutcome>, Option<u64>) {
     let replacement: Cell<Option<u64>> = Cell::new(None);
     let none = |_path: &Path| {};
@@ -923,9 +928,11 @@ fn a_failed_data_sync_of_the_displaced_file_is_an_error_naming_where_it_stays() 
     assert!(message.contains("injected EIO") && message.contains(".shadow-"), "{message}");
 }
 
-/// Contract K2, round 8 (acceptance row K2):
+/// Contract K2,
+/// round 8 (acceptance row K2):
 /// the entries of a kept copy are made durable from the kept directory up to the first directory that existed before the
-/// transaction, and the walk stops there:
+/// transaction,
+/// and the walk stops there:
 /// nothing above that anchor is synchronized.
 #[test]
 fn the_walk_stops_at_the_first_directory_that_existed_before_the_transaction() {
@@ -996,7 +1003,8 @@ fn the_walk_stops_at_the_first_directory_that_existed_before_the_transaction() {
     }
 }
 
-/// Contract assumption b, the knowledge clause:
+/// Contract assumption b,
+/// the knowledge clause:
 /// a directory this process knows it left unsynchronized in an earlier failed attempt is not taken as durable because it exists now;
 /// the walk goes through it to the pre-existing directory above it.
 #[test]
@@ -1078,7 +1086,8 @@ fn a_higher_ancestor_the_user_cannot_open_is_never_touched() {
     assert!(result.is_ok(), "{:?}", result.err().map(|error| { return error.to_string(); }));
 }
 
-/// Round 7 (6b 1), kept under round 8:
+/// Round 7 (6b 1),
+/// kept under round 8:
 /// a kept directory reached through a symbolic link is made durable through the directory it really is,
 /// not through the link's spelling.
 #[test]
@@ -1243,7 +1252,10 @@ fn names_of_inode(directory: &Path, inode: u64) -> Vec<PathBuf> {
 }
 
 /// Acceptance row R2:
-/// the preferred kept directory refuses the link (`EMLINK`, `ENOSPC`, `EXDEV`, `EACCES`),
+/// the preferred kept directory refuses the link (`EMLINK`,
+/// `ENOSPC`,
+/// `EXDEV`,
+/// `EACCES`),
 /// and the protocol falls back to a name beside the target:
 /// the displaced inode keeps a protected name.
 #[test]
@@ -1281,7 +1293,8 @@ fn a_link_refused_in_the_kept_directory_falls_back_beside_the_target_and_keeps_a
 /// Acceptance row R2:
 /// every link fails,
 /// or a barrier fails:
-/// the replacement is not reported as settled, the displaced inode still has a name,
+/// the replacement is not reported as settled,
+/// the displaced inode still has a name,
 /// and the message says where it is.
 #[test]
 fn when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_name_and_the_message_says_where() {
@@ -1326,8 +1339,11 @@ fn when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_na
 }
 
 /// Acceptance row R2 (stages and read-only transition):
-/// the exchange itself fails, or the file system turns read-only (`EROFS`) at the link:
-/// the displaced inode keeps a name, the live file is not lost, and nothing is reported as settled.
+/// the exchange itself fails,
+/// or the file system turns read-only (`EROFS`) at the link:
+/// the displaced inode keeps a name,
+/// the live file is not lost,
+/// and nothing is reported as settled.
 #[test]
 fn a_failing_exchange_or_a_read_only_link_keeps_both_inodes_named() {
     // The exchange fails: nothing moved, so the original is still the live file and the replacement text is nowhere.
@@ -1370,7 +1386,9 @@ fn a_failing_exchange_or_a_read_only_link_keeps_both_inodes_named() {
 }
 
 /// Acceptance row R2 (relevant rename failure after a conflict):
-/// another writer changes the target between the comparison and the exchange, the exchange succeeds, and the undo exchange fails:
+/// another writer changes the target between the comparison and the exchange,
+/// the exchange succeeds,
+/// and the undo exchange fails:
 /// the other writer's inode (now at the temporary name) and the replacement (live) both keep a name,
 /// and the outcome names where the other writer's file stays.
 #[test]
@@ -1409,9 +1427,11 @@ fn a_conflict_whose_undo_exchange_fails_keeps_the_other_writers_inode_named_and_
 }
 
 /// Acceptance row K2 (each barrier of the creation chain):
-/// every directory barrier of a preservation into a new nested kept directory, failed one at a time:
+/// every directory barrier of a preservation into a new nested kept directory,
+/// failed one at a time:
 /// the displaced inode keeps a protected name each time,
-/// and preservation is reported only with the copy beside the target, never through the directories whose barrier failed.
+/// and preservation is reported only with the copy beside the target,
+/// never through the directories whose barrier failed.
 #[test]
 fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name_or_reports_the_unsynced_chain() {
     let counted = {
@@ -1480,11 +1500,20 @@ fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name
     assert!(reported_preserved > 0, "no failed barrier ended in a reported preservation, so the fallback was never checked");
 }
 
-/// Acceptance rows A3 and A4 (certification, second pass): the whole order of finishing is observed in one ordered trace:
-/// the output barriers, the completion rename, the successful barrier of the directory that lists the marker, and only then the
+/// Acceptance rows A3 and A4 (certification,
+/// second pass):
+/// the whole order of finishing is observed in one ordered trace:
+/// the output barriers,
+/// the completion rename,
+/// the successful barrier of the directory that lists the marker,
+/// and only then the
 /// removal (the cleanup).
-/// A failure at each step stops the trace at that step, with the failure kind the contract names: the output barrier, the rename and
-/// the marker's directory barrier are mandatory failures that attempt no cleanup, and a failed cleanup is cleanup-only and comes
+/// A failure at each step stops the trace at that step,
+/// with the failure kind the contract names:
+/// the output barrier,
+/// the rename and
+/// the marker's directory barrier are mandatory failures that attempt no cleanup,
+/// and a failed cleanup is cleanup-only and comes
 /// after the successful barrier.
 #[test]
 fn finishing_is_observed_as_outputs_then_marker_then_marker_barrier_then_removal() {
@@ -1531,9 +1560,16 @@ fn finishing_is_observed_as_outputs_then_marker_then_marker_barrier_then_removal
     }
 }
 
-/// Acceptance row A4 (certification, third pass): the ordinary `finish()` makes the real outputs durable (the final lockfile and the
-/// journaled manifest, through `make_durable`) before the marker is renamed, the marker's directory is synchronized, and the journal
-/// is removed. The trace is produced by the production barrier itself, not by a callback of the test.
+/// Acceptance row A4 (certification,
+/// third pass):
+/// the ordinary `finish()` makes the real outputs durable (the final lockfile and the
+/// journaled manifest,
+/// through `make_durable`) before the marker is renamed,
+/// the marker's directory is synchronized,
+/// and the journal
+/// is removed.
+/// The trace is produced by the production barrier itself,
+/// not by a callback of the test.
 #[test]
 fn the_ordinary_finish_makes_the_lockfile_and_the_manifest_durable_before_the_marker() {
     let root = repository("final output");
@@ -1550,10 +1586,18 @@ fn the_ordinary_finish_makes_the_lockfile_and_the_manifest_durable_before_the_ma
     assert_eq!(seen, expected, "the ordinary finish did not make both outputs durable, in order, before the marker");
 }
 
-/// Acceptance row A4 (certification, fourth pass): the real output-file barrier and the real output-directory barrier of the
-/// ordinary `finish()` are each failed on their own. The fault is consumed at the production operation, the failure is a mandatory
-/// failure of the output phase, no marker is renamed and no cleanup is attempted, and the journal stays active. The control without a
-/// fault reaches the marker, so the stop is the fault's.
+/// Acceptance row A4 (certification,
+/// fourth pass):
+/// the real output-file barrier and the real output-directory barrier of the
+/// ordinary `finish()` are each failed on their own.
+/// The fault is consumed at the production operation,
+/// the failure is a mandatory
+/// failure of the output phase,
+/// no marker is renamed and no cleanup is attempted,
+/// and the journal stays active.
+/// The control without a
+/// fault reaches the marker,
+/// so the stop is the fault's.
 #[test]
 fn a_failed_output_file_or_directory_sync_of_the_ordinary_finish_is_mandatory_and_publishes_no_marker() {
     use crate::failpoints::{Point, arm, fires};
@@ -1582,7 +1626,8 @@ fn a_failed_output_file_or_directory_sync_of_the_ordinary_finish_is_mandatory_an
 /// The environment variable that gives the syscall helper the file it makes durable.
 const FIXTURE_DURABLE_FILE: &str = "CARGO_SHADOW_FIXTURE_DURABLE_FILE";
 
-/// The helper process of the syscall test: it makes one file durable through the production barrier and exits.
+/// The helper process of the syscall test:
+/// it makes one file durable through the production barrier and exits.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of the_output_barrier_syncs_the_file_and_then_its_directory_as_the_kernel_sees_it"]
@@ -1593,16 +1638,24 @@ fn make_durable_fixture() {
     crate::journal::make_durable(Path::new(&file)).expect("makes the file durable");
 }
 
-/// Acceptance rows A4 and V5 (certification, fourth pass): the output barrier is observed at the system call. No in-process
-/// instrumentation can show that a regression kept its traces and failpoints and dropped the `fsync`, so a helper process runs
-/// `make_durable` under `strace` and the test reads the calls the kernel was given: `fsync` of the file, then `fsync` of the directory
-/// that lists it, in that order.
-/// A host without `strace` cannot show this; the test says so and stops (this host has it).
+/// Acceptance rows A4 and V5 (certification,
+/// fourth pass):
+/// the output barrier is observed at the system call.
+/// No in-process
+/// instrumentation can show that a regression kept its traces and failpoints and dropped the `fsync`,
+/// so a helper process runs
+/// `make_durable` under `strace` and the test reads the calls the kernel was given:
+/// `fsync` of the file,
+/// then `fsync` of the directory
+/// that lists it,
+/// in that order.
+/// A host without `strace` cannot show this;
+/// the test says so and stops (this host has it).
 #[test]
 fn the_output_barrier_syncs_the_file_and_then_its_directory_as_the_kernel_sees_it() {
     let found = std::process::Command::new("strace").arg("--version").output();
     if found.is_err() {
-        eprintln!("skipped: strace is not installed, so the system calls of the barrier cannot be observed here");
+        crate::test_scratch::skip_or_fail("strace is not installed, so the system calls of the barrier cannot be observed here");
         return;
     }
     let root = repository("final output");

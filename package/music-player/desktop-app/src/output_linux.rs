@@ -1,6 +1,8 @@
-//! Linux output with an ALSA fallback (built only with the `alsa-fallback` cargo feature, which the Alpine build
+//! Linux output with an ALSA fallback (built only with the `alsa-fallback` cargo feature,
+//! which the Alpine build
 //! turns on).
-//!  It tries the PipeWire backend first and, when no PipeWire daemon answers,
+//!  It tries the PipeWire backend first and,
+//! when no PipeWire daemon answers,
 //!  opens the default ALSA device through cpal.
 //!  The engine and the controller keep calling `output::Output` and never learn which backend is behind it.
 //!
@@ -60,7 +62,8 @@ mod alsa_backend;
 use std::thread::Thread;
 
 /// What:
-///      `use cpal::traits::{DeviceTrait, HostTrait};` imports two traits, which are named sets of methods.
+///      `use cpal::traits::{DeviceTrait, HostTrait};` imports two traits,
+/// which are named sets of methods.
 ///  A trait's methods can be called on a value only when the trait is in scope (TS interfaces need no import for that).
 /// Why:
 ///       `open_alsa` calls `default_output_device` (from `HostTrait`) and `default_output_config` (from `DeviceTrait`).
@@ -109,7 +112,10 @@ use crate::error::PlayerError;
 
 /// What:
 ///      `pub const FILL_FRAMES_FLOOR: usize = ...;` re-exports the smallest number of frames one fill step produces.
-///  `usize` is the unsigned integer sized to the machine (siblings:  `u32`, `u64`, `i32`).
+///  `usize` is the unsigned integer sized to the machine (siblings:
+///  `u32`,
+/// `u64`,
+/// `i32`).
 /// Why:
 ///       `controller_audio.rs` reads it through `crate::output::FILL_FRAMES_FLOOR`.
 ///  `usize` matches that call site,
@@ -136,12 +142,17 @@ const _: () = assert!(pipewire_backend::FILL_FRAMES_FLOOR == alsa_backend::FILL_
 /// What:
 ///      `fn open_alsa(worker: Thread) -> Result<alsa_backend::Output, PlayerError>` opens the cpal backend only after
 ///           proving that the default ALSA device can be opened.
-///  `cpal::default_host().default_output_device()` always answers `Some` on ALSA, even on a machine with no sound
-///           card, because it only names the device called "default" and never opens it.
-///  `default_output_config()` opens the device to read its capabilities, so it fails when there is no card.
+///  `cpal::default_host().default_output_device()` always answers `Some` on ALSA,
+/// even on a machine with no sound
+///           card,
+/// because it only names the device called "default" and never opens it.
+///  `default_output_config()` opens the device to read its capabilities,
+/// so it fails when there is no card.
 /// Why:
 ///       Without the probe the fallback would claim success on a machine with no sound at all,
-///  and the window would never learn that nothing can be heard;  with it, startup fails here and the engine sends the
+///  and the window would never learn that nothing can be heard;
+///  with it,
+/// startup fails here and the engine sends the
 ///  "no sound output" message instead.
 ///
 /// In TS you'd write (pseudocode):
@@ -201,10 +212,14 @@ fn open_alsa(worker: Thread) -> Result<alsa_backend::Output, PlayerError> {
 /// What:
 ///      `pub(crate) fn both_failed_message(pipewire_error, alsa_error) -> String` words the single error shown when
 ///           neither backend started.
-///  `&PlayerError` borrows each error read only (siblings:  `PlayerError` by value would consume it).
-///  `String` is an owned text buffer (sibling:  `&str`, a borrowed view that could not outlive this call).
+///  `&PlayerError` borrows each error read only (siblings:
+///  `PlayerError` by value would consume it).
+///  `String` is an owned text buffer (sibling:
+///  `&str`,
+/// a borrowed view that could not outlive this call).
 /// Why:
-///       A pure function can be unit tested without a sound server;  the message names both backends so the log
+///       A pure function can be unit tested without a sound server;
+///  the message names both backends so the log
 ///  explains why the player is silent.
 ///
 /// In TS you'd write (pseudocode):
@@ -229,7 +244,8 @@ pub(crate) fn both_failed_message(pipewire_error: &PlayerError, alsa_error: &Pla
 /// What:
 ///      `pub enum Output { PipeWire(...), Alsa(...) }` declares a tagged union with two variants,
 ///  each wrapping one backend's own `Output`.
-///  Siblings the reader might expect:  a `Box<dyn Trait>` would also work but needs a trait,
+///  Siblings the reader might expect:
+///  a `Box<dyn Trait>` would also work but needs a trait,
 ///  an allocation and dynamic dispatch.
 /// Why:
 ///       The two backends share a method surface but no trait,
@@ -241,19 +257,23 @@ pub(crate) fn both_failed_message(pipewire_error: &PlayerError, alsa_error: &Pla
 /// type Output = { kind: "pipewire"; inner: PipewireOutput } | { kind: "alsa"; inner: AlsaOutput };
 /// ```
 pub enum Output {
-    /// The PipeWire backend, chosen when a PipeWire daemon answered.
+    /// The PipeWire backend,
+    /// chosen when a PipeWire daemon answered.
     PipeWire(pipewire_backend::Output),
-    /// The ALSA backend through cpal, chosen when PipeWire was unreachable.
+    /// The ALSA backend through cpal,
+    /// chosen when PipeWire was unreachable.
     Alsa(alsa_backend::Output),
 }
 
 impl Output {
     /// What:
     ///      `pub fn new(worker: Thread) -> Result<Output, PlayerError>` starts the first backend that works.
-    ///  `Result<Output, PlayerError>` is Rust's "success value or error value" type (TS has no equivalent;  it
+    ///  `Result<Output, PlayerError>` is Rust's "success value or error value" type (TS has no equivalent;
+    ///  it
     ///  would throw).
     /// Why:
-    ///       PipeWire is preferred because it mixes with the other applications of a desktop;  ALSA is the fallback
+    ///       PipeWire is preferred because it mixes with the other applications of a desktop;
+    ///  ALSA is the fallback
     ///  for a machine with no sound server.
     ///  When both fail the error carries both reasons so the log explains the silence.
     ///
@@ -351,9 +371,12 @@ impl Output {
 
     /// What:
     ///      `pub fn reconfigure(&mut self, rate, channels, capacity_frames)` forwards to the active backend.
-    ///  `&mut self` lends this value out for changing (siblings:  `&self` read only, `self` consumes it).
+    ///  `&mut self` lends this value out for changing (siblings:
+    ///  `&self` read only,
+    /// `self` consumes it).
     /// Why:
-    ///       The controller calls it once per track format;  it returns the write end of the ring buffer.
+    ///       The controller calls it once per track format;
+    ///  it returns the write end of the ring buffer.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

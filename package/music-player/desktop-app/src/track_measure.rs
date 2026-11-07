@@ -1,9 +1,17 @@
-//! Per-track measures for the library rows and the deck subtitle: the duration and the true peak.
+//! Per-track measures for the library rows and the deck subtitle:
+//! the duration and the true peak.
 //!
-//! What: `TrackMeasure` holds one track's length and peak, and the functions here turn a cached
-//! decision or a file header into that record, format the peak, and fill the template fields.
-//! Why: the template engine reads `len` and `peak` from `TrackFields`, and the rows show only exact
-//! peaks, so the rule lives in one pure module that the window glue calls.
+//! What:
+//! `TrackMeasure` holds one track's length and peak,
+//! and the functions here turn a cached
+//! decision or a file header into that record,
+//! format the peak,
+//! and fill the template fields.
+//! Why:
+//! the template engine reads `len` and `peak` from `TrackFields`,
+//! and the rows show only exact
+//! peaks,
+//! so the rule lives in one pure module that the window glue calls.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -12,14 +20,16 @@ use truepeak_core::{Decision, PeakKind, peak_dbtp};
 
 use crate::template_model::TrackFields;
 
-/// The in-place writer and the page lookup, kept in a sibling file to keep this one short.
+/// The in-place writer and the page lookup,
+/// kept in a sibling file to keep this one short.
 pub use crate::track_measure_page::{apply_measures, lookup_for_positions};
 
 /// What:
 ///      `const PEAK_UNIT: &str = "dBTP";`.
 ///  The unit printed after every peak value.
 /// Why:
-///       True peaks are written in dBTP, the unit the design and the default template use.
+///       True peaks are written in dBTP,
+/// the unit the design and the default template use.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -29,9 +39,12 @@ pub const PEAK_UNIT: &str = "dBTP";
 
 /// What:
 ///      `const MINUS_SIGN: &str = "\u{2212}";`.
-///  The Unicode minus sign, U+2212, drawn in front of a negative peak.
+///  The Unicode minus sign,
+/// U+2212,
+/// drawn in front of a negative peak.
 /// Why:
-///       The design writes negative peaks with this sign, not with a hyphen-minus.
+///       The design writes negative peaks with this sign,
+/// not with a hyphen-minus.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,7 +56,8 @@ pub const MINUS_SIGN: &str = "\u{2212}";
 ///      `const PLUS_SIGN: &str = "+";`.
 ///  The sign drawn in front of a positive peak.
 /// Why:
-///       A true peak can rise above zero dBTP, and the sign makes that direction plain.
+///       A true peak can rise above zero dBTP,
+/// and the sign makes that direction plain.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,9 +67,11 @@ pub const PLUS_SIGN: &str = "+";
 
 /// What:
 ///      `const INFINITY_MARK: &str = "\u{221E}";`.
-///  The infinity mark shown for a silent track, whose peak is minus infinity in dB.
+///  The infinity mark shown for a silent track,
+/// whose peak is minus infinity in dB.
 /// Why:
-///       Silence has no finite peak, and the infinity mark says so instead of a number.
+///       Silence has no finite peak,
+/// and the infinity mark says so instead of a number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,9 +81,11 @@ pub const INFINITY_MARK: &str = "\u{221E}";
 
 /// What:
 ///      `const TENTHS_PER_DB: f64 = 10.0;`.
-///  The number of tenths of a decibel in one decibel, the scale of one decimal place.
+///  The number of tenths of a decibel in one decibel,
+/// the scale of one decimal place.
 /// Why:
-///       A peak is shown to one decimal place, so it is rounded in tenths.
+///       A peak is shown to one decimal place,
+/// so it is rounded in tenths.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,9 +95,11 @@ const TENTHS_PER_DB: f64 = 10.0;
 
 /// What:
 ///      `pub struct TrackMeasure { duration_secs, peak_dbtp, peak_exact }`.
-///  The length and true peak of one track, each `None` while it is not known.
+///  The length and true peak of one track,
+/// each `None` while it is not known.
 /// Why:
-///       The rows need both values, and the exact flag keeps a sampled estimate out of the rows.
+///       The rows need both values,
+/// and the exact flag keeps a sampled estimate out of the rows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,9 +107,11 @@ const TENTHS_PER_DB: f64 = 10.0;
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TrackMeasure {
-    /// Duration in seconds, or `None` when the length is not known.
+    /// Duration in seconds,
+    /// or `None` when the length is not known.
     pub duration_secs: Option<f64>,
-    /// True peak in dBTP, or `None` when no decision is cached.
+    /// True peak in dBTP,
+    /// or `None` when no decision is cached.
     pub peak_dbtp: Option<f64>,
     /// Whether the peak came from a full scan rather than a sampled estimate.
     pub peak_exact: bool,
@@ -97,9 +119,11 @@ pub struct TrackMeasure {
 
 /// What:
 ///      `fn valid_duration(secs: f64) -> Option<f64>`.
-///  Keeps a finite, positive duration and drops anything else.
+///  Keeps a finite,
+/// positive duration and drops anything else.
 /// Why:
-///       A zero or non-finite length is a missing value, not a length to show.
+///       A zero or non-finite length is a missing value,
+/// not a length to show.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,7 +137,8 @@ fn valid_duration(secs: f64) -> Option<f64> {
 ///      `pub fn measure_from_decision(decision: &Decision) -> TrackMeasure`.
 ///  Builds the measure of a track from its cached decision.
 /// Why:
-///       The decision holds the decoded length and the linear peak, and the exact flag tells a full
+///       The decision holds the decoded length and the linear peak,
+/// and the exact flag tells a full
 ///  scan from a sampled estimate.
 ///
 /// In TS you'd write (pseudocode):
@@ -131,9 +156,11 @@ pub fn measure_from_decision(decision: &Decision) -> TrackMeasure {
 
 /// What:
 ///      `pub fn measure_from_duration(duration_secs: Option<f64>) -> TrackMeasure`.
-///  Builds a measure that carries only a length, with no peak.
+///  Builds a measure that carries only a length,
+/// with no peak.
 /// Why:
-///       A file header gives the length before any peak is measured, so rows can show it at once.
+///       A file header gives the length before any peak is measured,
+/// so rows can show it at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -148,9 +175,12 @@ pub fn measure_from_duration(duration_secs: Option<f64>) -> TrackMeasure {
 
 /// What:
 ///      `pub fn format_peak_dbtp(dbtp: f64) -> String`.
-///  Formats a peak with one decimal place, the minus sign for negatives, and the unit.
+///  Formats a peak with one decimal place,
+/// the minus sign for negatives,
+/// and the unit.
 /// Why:
-///       The rows and the deck show the same text, and a silent track reads as an infinity mark.
+///       The rows and the deck show the same text,
+/// and a silent track reads as an infinity mark.
 ///  Rounding half up matches the Android formatting this follows.
 ///
 /// In TS you'd write (pseudocode):
@@ -174,9 +204,11 @@ pub fn format_peak_dbtp(dbtp: f64) -> String {
 
 /// What:
 ///      `pub fn exact_peak_text(measure: Option<&TrackMeasure>) -> Option<String>`.
-///  The formatted peak when the measure holds an exact one, or `None`.
+///  The formatted peak when the measure holds an exact one,
+/// or `None`.
 /// Why:
-///       A sampled estimate sits at or below the true peak, so the rows and the deck leave it out.
+///       A sampled estimate sits at or below the true peak,
+/// so the rows and the deck leave it out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -198,7 +230,8 @@ pub fn exact_peak_text(measure: Option<&TrackMeasure>) -> Option<String> {
 ///      `pub fn fields_with_measure(fields: TrackFields, measure: Option<&TrackMeasure>) -> TrackFields`.
 ///  Copies the length and the exact peak text into the template fields of one track.
 /// Why:
-///       The template reads `len` and `peak` from `TrackFields`, so the measure reaches the rows here.
+///       The template reads `len` and `peak` from `TrackFields`,
+/// so the measure reaches the rows here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -216,7 +249,8 @@ pub fn fields_with_measure(fields: TrackFields, measure: Option<&TrackMeasure>) 
 ///      `pub fn merge_measures(current, updates) -> HashMap<PathBuf, TrackMeasure>`.
 ///  Returns a new map where each updated path holds its newest measure.
 /// Why:
-///       Updates arrive in batches and replace the earlier value of the same path, and the caller
+///       Updates arrive in batches and replace the earlier value of the same path,
+/// and the caller
 ///  keeps the previous map unchanged.
 ///
 /// In TS you'd write (pseudocode):
@@ -238,7 +272,8 @@ pub fn merge_measures(
 ///      `pub fn lookup_by_name(names, paths, measures) -> HashMap<String, TrackMeasure>`.
 ///  Keys each known measure by the display name of its queue entry.
 /// Why:
-///       The rows and the template fields are built from display names, and the queue pairs each name
+///       The rows and the template fields are built from display names,
+/// and the queue pairs each name
 ///  with its absolute path at the same position.
 ///
 /// In TS you'd write (pseudocode):

@@ -155,7 +155,8 @@ pub struct MadeLink {
 /// the links made before the error still exist and must be recorded.
 #[derive(Debug, Default)]
 pub struct MadeLinks {
-    /// The links made, in plan order.
+    /// The links made,
+    /// in plan order.
     pub made: Vec<MadeLink>,
     /// The error that ended the pass.
     pub error: Option<ToolchainError>,

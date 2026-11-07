@@ -1,6 +1,10 @@
-//! What: Raw and generated D-Bus reply messages through the reply reader of the session bus client.
-//! Why: The bytes come from a socket another process writes; the reader must give a result for every input,
-//!      never panic or read past the message, and must read back what a well-formed reply says.
+//! What:
+//! Raw and generated D-Bus reply messages through the reply reader of the session bus client.
+//! Why:
+//! The bytes come from a socket another process writes;
+//! the reader must give a result for every input,
+//!      never panic or read past the message,
+//! and must read back what a well-formed reply says.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,8 +29,12 @@ const FIELD_ERROR_NAME: u8 = 4;
 /// Header field code of the body signature.
 const FIELD_SIGNATURE: u8 = 8;
 
-/// What: Reads arbitrary bytes as a reply.
-/// Why:  Totality is the whole property: any input gives a result, and a result that names a number or a text
+/// What:
+/// Reads arbitrary bytes as a reply.
+/// Why:
+///  Totality is the whole property:
+/// any input gives a result,
+/// and a result that names a number or a text
 ///       names one the bytes could hold.
 ///
 /// In TS you'd write (pseudocode):
@@ -51,7 +59,8 @@ fn pad(bytes: &mut Vec<u8>, boundary: usize) {
     }
 }
 
-/// A well-formed error or return reply built from fuzz bytes, with the reply it must be read as.
+/// A well-formed error or return reply built from fuzz bytes,
+/// with the reply it must be read as.
 pub fn generated_reply(data: &[u8]) -> (Vec<u8>, Reply) {
     let serial: u32 = u32::from(data.first().copied().unwrap_or(1));
     let is_error: bool = data.get(1).copied().unwrap_or(0) % 2 == 1;
@@ -93,8 +102,12 @@ pub fn generated_reply(data: &[u8]) -> (Vec<u8>, Reply) {
     return (message, expected);
 }
 
-/// What: Checks that a built reply reads back as it was built, and that damaging it never panics.
-/// Why:  The oracle is the generator's own fields, not the reader's output.
+/// What:
+/// Checks that a built reply reads back as it was built,
+/// and that damaging it never panics.
+/// Why:
+///  The oracle is the generator's own fields,
+/// not the reader's output.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

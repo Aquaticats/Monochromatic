@@ -325,7 +325,8 @@ impl MovedArchive {
         return moved;
     }
 
-    /// The program of `version` through the `current` link, the way a record names it.
+    /// The program of `version` through the `current` link,
+    /// the way a record names it.
     fn program_of(&self, version: &str) -> PathBuf {
         return self.tool_dir.join("current").join(format!("demo-release-{version}-linux")).join("tool");
     }

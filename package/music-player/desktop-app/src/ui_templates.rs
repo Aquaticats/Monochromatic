@@ -1,9 +1,14 @@
-//! Pure template helpers for the desktop window: track fields from display paths, the playing-track subtitle,
+//! Pure template helpers for the desktop window:
+//! track fields from display paths,
+//! the playing-track subtitle,
 //! and the offset conversion the template editor needs.
 //!
-//! What: this module turns queue names into the `TrackFields` and `PlayingTrackFields` the template engine reads,
+//! What:
+//! this module turns queue names into the `TrackFields` and `PlayingTrackFields` the template engine reads,
 //! and converts the editor's UTF-8 byte offsets into the UTF-16 positions its state uses.
-//! Why: the engine evaluates templates over these structs only, and the editor's offsets come from Slint in bytes.
+//! Why:
+//! the engine evaluates templates over these structs only,
+//! and the editor's offsets come from Slint in bytes.
 
 use music_player::template_model::{PlayingTrackFields, TrackFields, playing_template_fields};
 use music_player::template_eval::evaluate_template;
@@ -11,8 +16,11 @@ use music_player::track_entries::track_title_for;
 use music_player::track_measure::{TrackMeasure, fields_with_measure};
 use std::collections::HashMap;
 
-/// What: `track_fields` builds the template fields of one track from its display path.
-/// Why: the display path is the only track identity the window has; the length and peak stay unknown until the engine reports them.
+/// What:
+/// `track_fields` builds the template fields of one track from its display path.
+/// Why:
+/// the display path is the only track identity the window has;
+/// the length and peak stay unknown until the engine reports them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,8 +46,13 @@ pub fn track_fields(display_path: &str) -> TrackFields {
     };
 }
 
-/// What: `playing_track` adds the place and total of one track to its fields, with its measure when known.
-/// Why: the playing template reads `track` and `total`, which are the place in the list and the list size; the measure supplies `len` and `peak`.
+/// What:
+/// `playing_track` adds the place and total of one track to its fields,
+/// with its measure when known.
+/// Why:
+/// the playing template reads `track` and `total`,
+/// which are the place in the list and the list size;
+/// the measure supplies `len` and `peak`.
 pub fn playing_track(display_path: &str, place: usize, total: usize, measure: Option<&TrackMeasure>) -> PlayingTrackFields {
     return PlayingTrackFields {
         track: fields_with_measure(track_fields(display_path), measure),
@@ -48,8 +61,12 @@ pub fn playing_track(display_path: &str, place: usize, total: usize, measure: Op
     };
 }
 
-/// What: `editor_library` lists every queue name as a preview track for the template editor.
-/// Why: the editor's preview reads the library in queue order, with the place and total of the whole queue, and each track's known measure.
+/// What:
+/// `editor_library` lists every queue name as a preview track for the template editor.
+/// Why:
+/// the editor's preview reads the library in queue order,
+/// with the place and total of the whole queue,
+/// and each track's known measure.
 pub fn editor_library(names: &[String], measures: &HashMap<String, TrackMeasure>) -> Vec<PlayingTrackFields> {
     let total = names.len();
     return names
@@ -59,8 +76,12 @@ pub fn editor_library(names: &[String], measures: &HashMap<String, TrackMeasure>
         .collect();
 }
 
-/// What: `playing_subtitle` applies the playing template to one track; None when the template does not apply.
-/// Why: the deck subtitle shows the applied line, and the caller falls back to the position text when none applies.
+/// What:
+/// `playing_subtitle` applies the playing template to one track;
+/// None when the template does not apply.
+/// Why:
+/// the deck subtitle shows the applied line,
+/// and the caller falls back to the position text when none applies.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,8 +95,12 @@ pub fn playing_subtitle(text: &str, track: &PlayingTrackFields) -> Option<String
     };
 }
 
-/// What: `utf16_offset` converts a UTF-8 byte offset in `text` to a UTF-16 code-unit offset.
-/// Why: the editor reports byte offsets, and the template state counts UTF-16 units; an offset inside a character rounds down to its start.
+/// What:
+/// `utf16_offset` converts a UTF-8 byte offset in `text` to a UTF-16 code-unit offset.
+/// Why:
+/// the editor reports byte offsets,
+/// and the template state counts UTF-16 units;
+/// an offset inside a character rounds down to its start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

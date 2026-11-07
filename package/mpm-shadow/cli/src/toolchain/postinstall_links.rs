@@ -179,7 +179,10 @@ enum Held {
     OwnLink,
     /// Something else,
     /// described for the warning.
-    Foreign(String),
+    Foreign(
+        /// What stands at the path in place of the link.
+        String,
+    ),
 }
 
 /// What is at `path`,

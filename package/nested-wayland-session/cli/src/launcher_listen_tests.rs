@@ -1,6 +1,8 @@
 //! Merge rules and a real private-bus round trip for taskbar progress.
 
-/// Brings the listener, its property record, and the error helpers into scope.
+/// Brings the listener,
+/// its property record,
+/// and the error helpers into scope.
 use super::*;
 
 use crate::bus_step_bound::block_on_bounded;
@@ -11,7 +13,8 @@ use zbus::Variant;
 /// Bounds how long a test waits for an update that must already be on the private bus.
 const UPDATE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// Builds the previous state with progress shown, for merge checks.
+/// Builds the previous state with progress shown,
+/// for merge checks.
 fn shown_at(progress: f64) -> LauncherProperties {
     return LauncherProperties { progress, progress_visible: true, ..LauncherProperties::default() }
 }
@@ -52,7 +55,8 @@ fn empty_update_yields_defaults() {
     assert_eq!(merge_properties(LauncherProperties::default(), &HashMap::new()), LauncherProperties::default());
 }
 
-/// Polls the history until its newest update satisfies `ready`, or fails at the timeout.
+/// Polls the history until its newest update satisfies `ready`,
+/// or fails at the timeout.
 fn wait_for_latest(log: &LauncherLog, ready: impl Fn(&LauncherUpdate) -> bool) -> anyhow::Result<LauncherUpdate> {
     let started = std::time::Instant::now();
     while started.elapsed() < UPDATE_TIMEOUT {
@@ -65,7 +69,8 @@ fn wait_for_latest(log: &LauncherLog, ready: impl Fn(&LauncherUpdate) -> bool) -
     anyhow::bail!("timed out waiting for a launcher update on the private bus")
 }
 
-/// Emitted updates reach the listener over the private bus, merge partial sends,
+/// Emitted updates reach the listener over the private bus,
+/// merge partial sends,
 ///  and ignore signals from other interfaces.
 #[test]
 fn private_bus_round_trip_records_and_merges_updates() -> anyhow::Result<()> {

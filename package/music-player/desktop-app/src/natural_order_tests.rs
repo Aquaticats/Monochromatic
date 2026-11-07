@@ -3,8 +3,11 @@
 
 use super::*;
 
-/// What: `sorted` sorts owned copies of `names` with `natural_cmp`.
-/// Why: the tests read the whole order, as the folder walk does.
+/// What:
+/// `sorted` sorts owned copies of `names` with `natural_cmp`.
+/// Why:
+/// the tests read the whole order,
+/// as the folder walk does.
 fn sorted(names: &[&str]) -> Vec<String> {
     let mut owned: Vec<String> = names.iter().map(|name| return (*name).to_string()).collect();
     owned.sort_by(|left, right| return natural_cmp(left, right));

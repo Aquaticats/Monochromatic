@@ -1,8 +1,12 @@
 //! What:
-//! The program entry point. It looks at the name it was started under: `pnpm` means shadow mode; anything else
+//! The program entry point.
+//! It looks at the name it was started under:
+//! `pnpm` means shadow mode;
+//! anything else
 //! (`pnpm-shadow`) means the command-line tool.
 //! Why:
-//! One binary serves both roles, so the link the toolchain plan creates as `pnpm` needs no second program.
+//! One binary serves both roles,
+//! so the link the toolchain plan creates as `pnpm` needs no second program.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,7 +15,8 @@
 //! process.exit(invokedAs === 'pnpm' ? runShim(process.argv.slice(2)) : runCli(process.argv));
 //! ```
 
-/// Imports the functions of this package's own library crate (`pnpm_shadow`, declared in `Cargo.toml`).
+/// Imports the functions of this package's own library crate (`pnpm_shadow`,
+/// declared in `Cargo.toml`).
 use pnpm_shadow::cli::run_cli;
 /// Imports the name the shadow answers to.
 use pnpm_shadow::constants::SHADOWED_NAME;
@@ -28,7 +33,8 @@ use std::env;
 use std::path::Path;
 
 /// What:
-/// `fn main()` is the entry point the operating system calls; the exit code is set by `std::process::exit`.
+/// `fn main()` is the entry point the operating system calls;
+/// the exit code is set by `std::process::exit`.
 /// Why:
 /// Every run starts here.
 ///

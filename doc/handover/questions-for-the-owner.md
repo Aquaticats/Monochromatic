@@ -18,6 +18,100 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: may the decision records get the linter's whitespace-only line breaks? (not asked yet)
+
+The repository-wide lint pass left `doc/decision/` alone (rule:
+never edit `doc/decision/` without the owner's approval):
+1,785 findings in 172 files.
+A probe on a scratch copy:
+32 files change,
+31 of them whitespace only;
+`music-player-third-party-licenses.md` would also gain `>` markers in a blockquote,
+which is a linter defect being fixed now (branch `fix/monochromatic-lint-fix-changes-only-whitespace`).
+The choice:
+allow the whitespace-only reflow of `doc/decision/` after that fix,
+or leave the decision records as they are and exclude them from the line-break rule
+(an exclusion loosens the rule,
+which also needs approval).
+
+## Open: how the repository linter stays at zero (not asked yet)
+
+Nothing ran the repository linter before today:
+the commit path checks one Markdown rule at `warn`;
+CI's step fails with `monochromatic-lint: command not found` and is skipped by its budget gate in 394 of 400 runs;
+`mise run lint` is run by nothing.
+Proposal with five options and the ranking A > C > B > D > E:
+`doc/planning/repository-linter-stays-at-zero.md`
+(recommendation:
+a check-only commit policy for all Markdown rules,
+then a required whole-tree CI workflow).
+A commit-time check adds to the commit path,
+which the owner's 5 s rule bounds.
+
+## Open: where a blank at the end of a row goes in the IDE (not asked yet; the owner asked to focus on the Git wrapper)
+
+The text-layout library the IDE uses (Parley) moved to 0.12 in the daily update,
+and it now follows the CSS Text 4 rule for blanks at a line end:
+an overflowing blank "hangs" past the edge instead of staying on the row and pushing what follows down.
+Two IDE tests describe the old behavior and now fail
+(`ide::wrap_keys a_hanging_blank_at_the_end_of_the_text_leaves_no_empty_row`,
+`ide::wrap_keys the_fixtures_wrap_as_described`);
+their fixture text says "an overflowing blank stays on the upper row,
+so a tab right after it starts the next row".
+Measured at width 240,
+scale 1:
+a continuation row now starts with a tab (rows `0..28`,
+`28..38`),
+and no fixture produced an empty tail.
+Source:
+`parley-0.12.0/src/layout/whitespace.rs` (header doc),
+merge `d2598b2842`.
+The choice:
+keep the IDE's old rule (our code moves the blank back)
+or adopt the CSS rule (the tests change).
+
+## Answered 2026-11-07T13:52:06-05:00 to 13:57:11-05:00 (question tool, then plain messages)
+
+- Enforcing "agents never run sudo" after an agent ran `sudo -n true`
+  (options:
+  guardrail hook plus AGENTS.md rule,
+  AGENTS.md rule only,
+  leave as is):
+  "Leave as is".
+- Rule SCR (no bash scripts) against the wizard skill's bash root scripts:
+  "Wizard writes TypeScript,
+  and you just do the move yourself,
+  no need to delegate to me."
+  The 860 move is run by the coordinator,
+  not handed to the owner;
+  its runner becomes TypeScript (sent to the preparation agent).
+  The wizard skill itself is to emit TypeScript (queued).
+- The plugin bundle drift check (options A,
+  B,
+  C):
+  "Open a gh issue.
+  Do not address it in this session as we need to focus on our git wrapper."
+  Opened as issue #6265;
+  nothing else this session.
+- Sudo,
+  in plain messages after the questions:
+  "Please run sudo."
+  Then:
+  "Please run sudo -n true to test,
+  and run sudo whenever needed for the move,
+  and run sudo for anything.
+  I authorize you to do and use all of it without my prior approval."
+  Then:
+  "I authorize you to send any messages about sudo to subagents."
+  The coordinator ran `sudo -n true`:
+  exit status 0 (passwordless).
+  Coordinator's practice:
+  subagents still run no privileged command;
+  they send the coordinator the exact command,
+  so every privileged command has one record in the main session.
+- Also said:
+  "I'll be away for a few hours."
+
 ## Answered 2026-11-07T11:52:20-05:00 (in the question tool)
 
 - How much longer than the measured worst case the Git wrapper waits before giving up,

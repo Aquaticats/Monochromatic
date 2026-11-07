@@ -1,10 +1,25 @@
-//! The window's observable state as one log line, for the end-to-end run.
+//! The window's observable state as one log line,
+//! for the end-to-end run.
 //!
-//! What: `emit` writes one `ui_state` line with the page, the focus zone, the rings, the playback facts and the badges the
+//! What:
+//! `emit` writes one `ui_state` line with the page,
+//! the focus zone,
+//! the rings,
+//! the playback facts and the badges the
 //! window shows now.
-//! Why: the end-to-end run presses real keys through the nested compositor and needs to read what happened. The release
-//! binary has no MCP server, so the state goes to the log, and each line is written where the effect lands: after a key is
-//! used, when focus moves, when the badges change, and when the engine reports a position, a track, a mode or play state.
+//! Why:
+//! the end-to-end run presses real keys through the nested compositor and needs to read what happened.
+//! The release
+//! binary has no MCP server,
+//! so the state goes to the log,
+//! and each line is written where the effect lands:
+//! after a key is
+//! used,
+//! when focus moves,
+//! when the badges change,
+//! and when the engine reports a position,
+//! a track,
+//! a mode or play state.
 
 use std::cell::Cell;
 
@@ -16,13 +31,18 @@ use crate::ui_screen::read_state;
 use crate::{AppWindow, Focus, FolderLayout, Keys, TrackLayout};
 
 thread_local! {
-    /// What: the number of state lines written so far.
-    /// Why: a line's sequence number lets a reader tell a new line from one it already read.
+    /// What:
+    /// the number of state lines written so far.
+    /// Why:
+    /// a line's sequence number lets a reader tell a new line from one it already read.
     static SEQUENCE: Cell<u64> = const { Cell::new(0) };
 }
 
-/// What: `zone_name` names a focus zone for the log.
-/// Why: the log is read by people and by the end-to-end run, and names read better than numbers.
+/// What:
+/// `zone_name` names a focus zone for the log.
+/// Why:
+/// the log is read by people and by the end-to-end run,
+/// and names read better than numbers.
 fn zone_name(zone: FocusZone) -> &'static str {
     return match zone {
         FocusZone::Surface => "surface",
@@ -37,8 +57,11 @@ fn zone_name(zone: FocusZone) -> &'static str {
     };
 }
 
-/// What: `badges_shown` lists the badge texts that are showing, as `name=text` pairs.
-/// Why: the end-to-end run checks which badges appear after a hold and which disappear on release.
+/// What:
+/// `badges_shown` lists the badge texts that are showing,
+/// as `name=text` pairs.
+/// Why:
+/// the end-to-end run checks which badges appear after a hold and which disappear on release.
 fn badges_shown(window: &AppWindow) -> Vec<String> {
     let badges = window.global::<Keys>().get_badges();
     let pairs: [(&str, &slint::SharedString); 18] = [
@@ -68,8 +91,12 @@ fn badges_shown(window: &AppWindow) -> Vec<String> {
         .collect();
 }
 
-/// What: `menu_pixels` gives a menu length in whole window pixels, or 0 while no menu is open.
-/// Why: the menu's geometry properties keep the last menu's values after it closes, and the log should show only an open menu's.
+/// What:
+/// `menu_pixels` gives a menu length in whole window pixels,
+/// or 0 while no menu is open.
+/// Why:
+/// the menu's geometry properties keep the last menu's values after it closes,
+/// and the log should show only an open menu's.
 fn menu_pixels(window: &AppWindow, length: f32) -> i32 {
     if !window.get_menu_open() {
         return 0;
@@ -77,8 +104,11 @@ fn menu_pixels(window: &AppWindow, length: f32) -> i32 {
     return length.round() as i32;
 }
 
-/// What: `StateSnapshot` is the window's observable state, serialized as one JSON object.
-/// Why: a typed struct keeps the field names in one place and needs no macro that unwraps.
+/// What:
+/// `StateSnapshot` is the window's observable state,
+/// serialized as one JSON object.
+/// Why:
+/// a typed struct keeps the field names in one place and needs no macro that unwraps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,7 +118,10 @@ fn menu_pixels(window: &AppWindow, length: f32) -> i32 {
 struct StateSnapshot {
     /// Sequence number of this line.
     seq: u64,
-    /// Why the line was written: `key`, `focus`, `position` and so on.
+    /// Why the line was written:
+    /// `key`,
+    /// `focus`,
+    /// `position` and so on.
     reason: String,
     /// Page the window shows.
     route: String,
@@ -102,19 +135,25 @@ struct StateSnapshot {
     picker_open: bool,
     /// Whether the track menu is open.
     menu_open: bool,
-    /// Left edge of the open track menu in window pixels, 0 while no menu is open.
+    /// Left edge of the open track menu in window pixels,
+    /// 0 while no menu is open.
     menu_x: i32,
-    /// Top edge of the open track menu in window pixels, 0 while no menu is open.
+    /// Top edge of the open track menu in window pixels,
+    /// 0 while no menu is open.
     menu_y: i32,
-    /// Width of the open track menu in window pixels, 0 while no menu is open.
+    /// Width of the open track menu in window pixels,
+    /// 0 while no menu is open.
     menu_width: i32,
-    /// Height of the open track menu in window pixels, 0 while no menu is open.
+    /// Height of the open track menu in window pixels,
+    /// 0 while no menu is open.
     menu_height: i32,
     /// Title of the folder the track list shows.
     folder: String,
-    /// How far the track list on screen is scrolled down, in whole pixels (0 at the top).
+    /// How far the track list on screen is scrolled down,
+    /// in whole pixels (0 at the top).
     track_scroll: i32,
-    /// How far the folder picker's names are scrolled down, in whole pixels (0 at the top).
+    /// How far the folder picker's names are scrolled down,
+    /// in whole pixels (0 at the top).
     folder_scroll: i32,
     /// Library index of the track row with the keyboard ring.
     ring_track: Option<i32>,
@@ -144,15 +183,19 @@ struct StateSnapshot {
     ring_visible: bool,
     /// The element a focus request named.
     focus_request: i32,
-    /// The badges showing, as `name=text` pairs.
+    /// The badges showing,
+    /// as `name=text` pairs.
     badges: Vec<String>,
-    /// Headline of the first-run pane, or empty while the pane is not shown (reading, empty or without audio).
+    /// Headline of the first-run pane,
+    /// or empty while the pane is not shown (reading,
+    /// empty or without audio).
     first_run_title: String,
     /// Whether the transport deck is switched off.
     deck_disabled: bool,
     /// Whether Auto-play on select is on (D129).
     auto_play_on_select: bool,
-    /// Size in pixels of the pane titles, which the window draws them at.
+    /// Size in pixels of the pane titles,
+    /// which the window draws them at.
     text_size_pane_title_px: u16,
     /// Size in pixels of the group heading letter.
     text_size_group_heading_px: u16,
@@ -162,8 +205,11 @@ struct StateSnapshot {
     text_size_track_title_px: u16,
 }
 
-/// What: `emit` writes one `ui_state` line with the window's observable state as JSON.
-/// Why: see the module description. The line starts with `ui_state ` so a reader can pick it out of the log.
+/// What:
+/// `emit` writes one `ui_state` line with the window's observable state as JSON.
+/// Why:
+/// see the module description.
+/// The line starts with `ui_state ` so a reader can pick it out of the log.
 pub(crate) fn emit(window: &AppWindow, reason: &str) {
     let sequence = SEQUENCE.with(|cell| {
         cell.set(cell.get() + 1);

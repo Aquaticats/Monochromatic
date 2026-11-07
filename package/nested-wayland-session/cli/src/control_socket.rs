@@ -77,6 +77,8 @@ struct Staging {
     handle: File,
 }
 
+/// Creating,
+/// naming and removing the private directory the socket is staged in.
 impl Staging {
     /// Create a fresh owner-only directory in `parent`.
     ///
@@ -126,7 +128,10 @@ impl Staging {
     }
 }
 
+/// Removes what the staging directory still holds when it goes out of scope.
 impl Drop for Staging {
+    /// Deletes the socket file if it is still there,
+    /// so a failed or abandoned start leaves nothing behind.
     fn drop(&mut self) {
         // A renamed socket leaves nothing behind in the directory.
         if let Err(error) = std::fs::remove_file(self.socket_path())

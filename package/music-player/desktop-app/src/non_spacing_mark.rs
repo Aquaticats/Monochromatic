@@ -134,10 +134,17 @@ pub fn is_non_spacing_mark(character: char) -> bool {
 
 /// What:
 ///      `fn attaches_to_previous(character: char, after_joiner: bool) -> bool`.
-///  Reports whether a character continues the cluster before it: a non-spacing mark, a zero width joiner, the character
-///  after a joiner, or a Hangul vowel or final jamo.
+///  Reports whether a character continues the cluster before it:
+/// a non-spacing mark,
+/// a zero width joiner,
+/// the character
+///  after a joiner,
+/// or a Hangul vowel or final jamo.
 /// Why:
-///       A name is cut between clusters, never inside one: a letter with its accent, an emoji sequence or a Hangul
+///       A name is cut between clusters,
+/// never inside one:
+/// a letter with its accent,
+/// an emoji sequence or a Hangul
 ///  syllable written as separate jamo must stay in one piece on screen.
 ///
 /// In TS you'd write (pseudocode):
@@ -158,9 +165,14 @@ fn attaches_to_previous(character: char, after_joiner: bool) -> bool {
 ///      `pub fn split_tail_clusters(text: &str, count: usize) -> (String, String)`.
 ///  Splits `text` into everything before its last `count` clusters and those last clusters.
 /// Why:
-///       D1 shortens a long folder name in the Shuffle label with a middle ellipsis: the start, an ellipsis and the end.
-///  The deck draws the start with a trailing ellipsis and the end after it, and the end must begin on a cluster
-///  boundary. A text of `count` clusters or fewer has no start, so its whole text is the end.
+///       D1 shortens a long folder name in the Shuffle label with a middle ellipsis:
+/// the start,
+/// an ellipsis and the end.
+///  The deck draws the start with a trailing ellipsis and the end after it,
+/// and the end must begin on a cluster
+///  boundary.
+/// A text of `count` clusters or fewer has no start,
+/// so its whole text is the end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -107,7 +107,8 @@ fn old_track_list_format_keeps_settings() {
 }
 
 
-/// A session file written before the page style was removed still loads, and the key is not written again (VD7).
+/// A session file written before the page style was removed still loads,
+/// and the key is not written again (VD7).
 #[test]
 fn the_removed_page_control_style_key_is_ignored_on_read_and_absent_from_new_writes() {
     let old = r#"{"source_root":"/music","volume":0.5,"playback_mode":"in_order","page_control_style":"Md1Tabs"}"#;
@@ -120,8 +121,11 @@ fn the_removed_page_control_style_key_is_ignored_on_read_and_absent_from_new_wri
     assert!((unknown_style.volume - 0.25).abs() < f32::EPSILON);
 }
 
-/// A directory of its own for one test, so no test touches the user's session file. nextest runs each test in its own
-/// process, and the name carries the test and the clock besides.
+/// A directory of its own for one test,
+/// so no test touches the user's session file.
+/// nextest runs each test in its own
+/// process,
+/// and the name carries the test and the clock besides.
 fn scratch_file(test: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -150,7 +154,8 @@ fn a_file_without_the_field_reads_on_and_still_loads() {
     assert_eq!(loaded.track_rows_template.as_deref(), Some("$mi(title)$"));
 }
 
-/// The field is written and read back, in the current JSON and through a real file.
+/// The field is written and read back,
+/// in the current JSON and through a real file.
 #[test]
 fn auto_play_on_select_round_trips_through_json_and_a_file() {
     let on = Session { auto_play_on_select: true, ..Session::default() };
@@ -218,8 +223,12 @@ fn the_real_entry_points_read_and_write_the_session_file_of_the_config_home() {
     assert!(Session::load_auto_play_on_select(), "and it loads back on");
 }
 
-/// What: `LogSink` is a writer that appends to a shared buffer, so a test can read what the log wrote.
-/// Why: the load failures are only reported through the log, so the test needs the log's own text.
+/// What:
+/// `LogSink` is a writer that appends to a shared buffer,
+/// so a test can read what the log wrote.
+/// Why:
+/// the load failures are only reported through the log,
+/// so the test needs the log's own text.
 struct LogSink(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl std::io::Write for LogSink {
@@ -233,9 +242,13 @@ impl std::io::Write for LogSink {
     }
 }
 
-/// What: `logged_by` runs `action` with a log subscriber that records every level, and returns the log text with
+/// What:
+/// `logged_by` runs `action` with a log subscriber that records every level,
+/// and returns the log text with
 /// `action`'s result.
-/// Why: the subscriber is installed for this thread only, and `load_at` runs on the calling thread.
+/// Why:
+/// the subscriber is installed for this thread only,
+/// and `load_at` runs on the calling thread.
 fn logged_by<T>(action: impl FnOnce() -> T) -> (T, String) {
     let buffer = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let writer = std::sync::Arc::clone(&buffer);
@@ -250,7 +263,9 @@ fn logged_by<T>(action: impl FnOnce() -> T) -> (T, String) {
     return (result, text);
 }
 
-/// A truncated file, the shape an interrupted in-place write leaves, loads as defaults and is reported with the parse
+/// A truncated file,
+/// the shape an interrupted in-place write leaves,
+/// loads as defaults and is reported with the parse
 /// error and the path.
 #[test]
 fn a_truncated_session_file_loads_as_defaults_and_is_logged_with_its_path() {
@@ -277,7 +292,8 @@ fn an_unreadable_session_path_loads_as_defaults_and_is_logged_with_the_read_erro
     assert!(log.contains(&format!("{read_error:?}")), "the read error {read_error:?} is in the log: {log}");
 }
 
-/// A missing file is a first run, which is expected and stays quiet.
+/// A missing file is a first run,
+/// which is expected and stays quiet.
 #[test]
 fn a_missing_session_file_loads_as_defaults_without_a_warning() {
     let path = scratch_file("missing");
@@ -286,8 +302,11 @@ fn a_missing_session_file_loads_as_defaults_without_a_warning() {
     assert!(!log.contains("WARN"), "a first run logs no warning: {log}");
 }
 
-/// A save puts a complete new file in place of the old one, so an interrupted save leaves the old file whole. The
-/// inode changes because the new bytes arrive in a different file that is renamed over the old one; an in-place
+/// A save puts a complete new file in place of the old one,
+/// so an interrupted save leaves the old file whole.
+/// The
+/// inode changes because the new bytes arrive in a different file that is renamed over the old one;
+/// an in-place
 /// write keeps the inode.
 #[cfg(target_os = "linux")]
 #[test]
@@ -308,7 +327,9 @@ fn a_save_replaces_the_session_file_by_rename_and_leaves_no_temporary_file() {
     assert_eq!(names, vec![std::ffi::OsString::from("session.json")], "no temporary file is left behind");
 }
 
-/// A temporary file left by an earlier interrupted save is replaced, not trusted, by the next save.
+/// A temporary file left by an earlier interrupted save is replaced,
+/// not trusted,
+/// by the next save.
 #[test]
 fn a_stale_temporary_file_from_an_interrupted_save_does_not_block_the_next_save() {
     let path = scratch_file("stale_temporary");
@@ -337,7 +358,9 @@ fn a_save_that_fails_leaves_the_previous_file_whole() {
     assert_eq!(Session::load_at(&path), first, "the previous session is still the complete file");
 }
 
-/// What: `sizes_of` gives the Text size values a test file holds, in the order of the Settings rows.
+/// What:
+/// `sizes_of` gives the Text size values a test file holds,
+/// in the order of the Settings rows.
 fn sizes_of(session: &Session) -> [u16; 4] {
     return TextElement::ALL.map(|element| return session.text_sizes.get(element));
 }
@@ -349,7 +372,9 @@ fn text_sizes_are_the_old_sizes_by_default() {
     assert_eq!(sizes_of(&Session::from_json("{}").expect("empty object parses")), [20, 20, 14, 14]);
 }
 
-/// The four sizes are written as four flat keys, not as a nested object, and read back.
+/// The four sizes are written as four flat keys,
+/// not as a nested object,
+/// and read back.
 #[test]
 fn text_sizes_round_trip_through_json_under_four_flat_keys() {
     let session = Session {
@@ -373,7 +398,8 @@ fn text_sizes_round_trip_through_json_under_four_flat_keys() {
     assert_eq!(Session::from_json(&json).expect("it parses"), session);
 }
 
-/// The sizes are saved through the one write path and load back from the file, and a missing file reads the defaults.
+/// The sizes are saved through the one write path and load back from the file,
+/// and a missing file reads the defaults.
 #[test]
 fn text_sizes_round_trip_through_a_file() {
     let path = scratch_file("text_sizes_round_trip");
@@ -385,7 +411,8 @@ fn text_sizes_round_trip_through_a_file() {
     assert!(Session::load_at(&path).text_sizes.is_default());
 }
 
-/// Saving the sizes leaves the playback fields, the templates and Auto-play on select of an existing file as they were.
+/// Saving the sizes leaves the playback fields,
+/// the templates and Auto-play on select of an existing file as they were.
 #[test]
 fn saving_the_text_sizes_keeps_the_rest_of_an_existing_file() {
     let path = scratch_file("text_sizes_keep_rest");
@@ -408,7 +435,8 @@ fn saving_the_text_sizes_keeps_the_rest_of_an_existing_file() {
     assert!(after.auto_play_on_select);
 }
 
-/// Saving another setting keeps the sizes, so the template editor and the Auto-play switch never reset them.
+/// Saving another setting keeps the sizes,
+/// so the template editor and the Auto-play switch never reset them.
 #[test]
 fn saving_another_setting_keeps_the_text_sizes() {
     let path = scratch_file("other_setting_keeps_sizes");
@@ -418,7 +446,8 @@ fn saving_another_setting_keeps_the_text_sizes() {
     assert_eq!(Session::load_at(&path).text_sizes, sizes);
 }
 
-/// A file written before the setting existed still loads: every other field is kept and the sizes are the defaults.
+/// A file written before the setting existed still loads:
+/// every other field is kept and the sizes are the defaults.
 #[test]
 fn an_old_file_without_the_sizes_loads_and_keeps_its_fields() {
     let old = r#"{"source_root":"/music","volume":0.5,"playback_mode":"shuffle_all","track_rows_template":"$mi(title)$","auto_play_on_select":true}"#;
@@ -432,7 +461,10 @@ fn an_old_file_without_the_sizes_loads_and_keeps_its_fields() {
     assert!(!log.contains("WARN"), "an old file is no corruption and logs no warning: {log}");
 }
 
-/// One field present and the other three missing: the present one is kept, the missing ones are their defaults, and
+/// One field present and the other three missing:
+/// the present one is kept,
+/// the missing ones are their defaults,
+/// and
 /// the unrelated fields are untouched.
 #[test]
 fn a_missing_size_field_never_resets_the_other_fields() {
@@ -444,8 +476,11 @@ fn a_missing_size_field_never_resets_the_other_fields() {
     assert!(loaded.auto_play_on_select);
 }
 
-/// A corrupt or out-of-range size falls back to the default of that element alone, is logged with its key, and costs
-/// the rest of the file nothing; a good field beside it is kept.
+/// A corrupt or out-of-range size falls back to the default of that element alone,
+/// is logged with its key,
+/// and costs
+/// the rest of the file nothing;
+/// a good field beside it is kept.
 #[test]
 fn a_corrupt_size_falls_back_alone_and_is_logged() {
     let text = r#"{"volume":0.5,"playback_mode":"repeat","text_size_pane_title_px":"huge","text_size_group_heading_px":99,"text_size_folder_name_px":-3,"text_size_track_title_px":21}"#;
@@ -460,7 +495,8 @@ fn a_corrupt_size_falls_back_alone_and_is_logged() {
     assert!(log.contains("WARN"), "a warning is logged: {log}");
 }
 
-/// The edges of the range load as they are, and one pixel past each edge falls back to the default.
+/// The edges of the range load as they are,
+/// and one pixel past each edge falls back to the default.
 #[test]
 fn the_limits_load_and_one_past_each_limit_falls_back() {
     let edges = r#"{"text_size_pane_title_px":10,"text_size_group_heading_px":32,"text_size_folder_name_px":9,"text_size_track_title_px":33}"#;
@@ -480,7 +516,8 @@ fn a_corrupt_size_in_a_file_on_disk_keeps_the_playback_fields() {
     assert_eq!(sizes_of(&loaded), [20, 20, 14, 14]);
 }
 
-/// The entry points the window uses read and write the sizes of the config home, and keep the other fields.
+/// The entry points the window uses read and write the sizes of the config home,
+/// and keep the other fields.
 #[cfg(target_os = "linux")]
 #[test]
 fn the_real_entry_points_read_and_write_the_sizes_of_the_config_home() {

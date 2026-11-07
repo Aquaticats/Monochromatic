@@ -1,14 +1,36 @@
-//! Rendered tests of the focus ring on the player page (D117): where the ring is, what it hugs, and what it leaves alone.
+//! Rendered tests of the focus ring on the player page (D117):
+//! where the ring is,
+//! what it hugs,
+//! and what it leaves alone.
 //!
-//! What: each test draws the real window on the software renderer twice with the focus where it is, once with the keyboard ring
-//! on and once with it off, then reads the pixels against the element's box from the element tree. The ring must be exactly
-//! two bands flush outside the element: the 2 px band next to it in the `primary` role and the 1 px band around that in the
-//! `on-primary` role, each edge being the element grown by the widths inside it (with each corner's radius grown the same, a
-//! square corner becoming a 2 px one). Every pixel outside the bands must be identical in the two frames, which includes every
-//! pixel inside the element, so focus adds no fill, tint or size change.
-//! Why: D117 describes the ring by its pixels (two solid rings, flush, hugging, not clipped, no other change), so a test that
+//! What:
+//! each test draws the real window on the software renderer twice with the focus where it is,
+//! once with the keyboard ring
+//! on and once with it off,
+//! then reads the pixels against the element's box from the element tree.
+//! The ring must be exactly
+//! two bands flush outside the element:
+//! the 2 px band next to it in the `primary` role and the 1 px band around that in the
+//! `on-primary` role,
+//! each edge being the element grown by the widths inside it (with each corner's radius grown the same,
+//! a
+//! square corner becoming a 2 px one).
+//! Every pixel outside the bands must be identical in the two frames,
+//! which includes every
+//! pixel inside the element,
+//! so focus adds no fill,
+//! tint or size change.
+//! Why:
+//! D117 describes the ring by its pixels (two solid rings,
+//! flush,
+//! hugging,
+//! not clipped,
+//! no other change),
+//! so a test that
 //! reads pixels is the only one that sees a ring that a parent clipped or a fill that came back with focus.
-//! Note: element boxes come from `SLINT_EMIT_DEBUG_INFO=1` ids, which the repo test task sets.
+//! Note:
+//! element boxes come from `SLINT_EMIT_DEBUG_INFO=1` ids,
+//! which the repo test task sets.
 
 use i_slint_backend_testing::ElementHandle;
 use slint::ComponentHandle;
@@ -16,34 +38,44 @@ use slint::ComponentHandle;
 use crate::ui_render_support::{Frame, Rendered, RoundedBox, box_of};
 use crate::ui_test_support::{focus_label, tap};
 
-/// Counts what `check_ring` judged, so a test can see that it was not vacuous.
+/// Counts what `check_ring` judged,
+/// so a test can see that it was not vacuous.
 pub(crate) struct RingReport {
-    /// Pixels judged to be in the near ring (2 px, `primary`).
+    /// Pixels judged to be in the near ring (2 px,
+    /// `primary`).
     pub near: usize,
-    /// Pixels judged to be in the outer ring (1 px, `on-primary`).
+    /// Pixels judged to be in the outer ring (1 px,
+    /// `on-primary`).
     pub outer: usize,
     /// Pixels judged to be outside both rings and compared with the frame without the ring.
     pub unchanged: usize,
-    /// Pixels of either ring that are exactly the ring's color (the straight parts; curves are covered in part).
+    /// Pixels of either ring that are exactly the ring's color (the straight parts;
+    /// curves are covered in part).
     pub exact: usize,
     /// Pixels the outer ring covers in part whose coverage was compared with the shape.
     pub partial: usize,
 }
 
-/// What: `roles_of` gives the `primary` and `on-primary` roles of the window's current scheme as `[red, green, blue]` each.
+/// What:
+/// `roles_of` gives the `primary` and `on-primary` roles of the window's current scheme as `[red, green, blue]` each.
 pub(crate) fn roles_of(rendered: &Rendered) -> ([u8; 3], [u8; 3]) {
     let theme = rendered.app.global::<crate::Theme>();
     let (primary, on_primary) = (theme.get_primary(), theme.get_on_primary());
     return ([primary.red(), primary.green(), primary.blue()], [on_primary.red(), on_primary.green(), on_primary.blue()]);
 }
 
-/// What: `color_distance` is the sum of the channel differences of two colors.
+/// What:
+/// `color_distance` is the sum of the channel differences of two colors.
 fn color_distance(a: [u8; 3], b: [u8; 3]) -> i32 {
     return a.iter().zip(b.iter()).map(|(left, right)| return (i32::from(*left) - i32::from(*right)).abs()).sum();
 }
 
-/// What: `share_toward` tells how far along the line from one color to another a pixel lies, 0 at the first and 1 at the second.
-/// Why: a pixel that a curve covers in part is a blend of what was there and the ring's color, so how far along it lies is how
+/// What:
+/// `share_toward` tells how far along the line from one color to another a pixel lies,
+/// 0 at the first and 1 at the second.
+/// Why:
+/// a pixel that a curve covers in part is a blend of what was there and the ring's color,
+/// so how far along it lies is how
 /// much the ring covers it.
 fn share_toward(pixel: [u8; 3], from: [u8; 3], to: [u8; 3]) -> f32 {
     let (mut along, mut span) = (0.0_f32, 0.0_f32);
@@ -58,14 +90,28 @@ fn share_toward(pixel: [u8; 3], from: [u8; 3], to: [u8; 3]) -> f32 {
 /// How many sub-pixel samples per side `check_ring` takes in each pixel to tell how much of it a ring covers.
 const SAMPLES: usize = 4;
 
-/// What: `check_ring` compares the frame with the ring and the frame without it against the element's box.
-/// Why: the near band (between the element and the element grown by 2 px) must be the near color, the outer band (up to 3 px)
-/// the outer color, and nothing else may differ. The renderer anti-aliases curves, so a pixel is judged only where the shapes say
-/// it is wholly one thing: wholly inside the near band (exactly the near color), wholly inside the outer band (exactly the outer
-/// color), or touched by neither band (identical to the frame without the ring). `inside` is the one case where the rings are on
-/// the element's own edge: the outer ring is then the outermost 1 px of the box and the near ring the 2 px inside it. `far`
-/// also compares every pixel away from the element, which a text field cannot offer (its ring does not turn off with the
-/// keyboard ring, so the other frame has another ring elsewhere).
+/// What:
+/// `check_ring` compares the frame with the ring and the frame without it against the element's box.
+/// Why:
+/// the near band (between the element and the element grown by 2 px) must be the near color,
+/// the outer band (up to 3 px)
+/// the outer color,
+/// and nothing else may differ.
+/// The renderer anti-aliases curves,
+/// so a pixel is judged only where the shapes say
+/// it is wholly one thing:
+/// wholly inside the near band (exactly the near color),
+/// wholly inside the outer band (exactly the outer
+/// color),
+/// or touched by neither band (identical to the frame without the ring).
+/// `inside` is the one case where the rings are on
+/// the element's own edge:
+/// the outer ring is then the outermost 1 px of the box and the near ring the 2 px inside it.
+/// `far`
+/// also compares every pixel away from the element,
+/// which a text field cannot offer (its ring does not turn off with the
+/// keyboard ring,
+/// so the other frame has another ring elsewhere).
 pub(crate) fn check_ring(on: &Frame, off: &Frame, element: RoundedBox, colors: ([u8; 3], [u8; 3]), inside: bool, options: &Case) -> Result<RingReport, String> {
     let (near_color, outer_color) = colors;
     let far = options.far;
@@ -169,7 +215,9 @@ pub(crate) fn check_ring(on: &Frame, off: &Frame, element: RoundedBox, colors: (
     return Ok(report);
 }
 
-/// What: `tab_to` presses Tab until the named element holds focus, at most sixteen times.
+/// What:
+/// `tab_to` presses Tab until the named element holds focus,
+/// at most sixteen times.
 pub(crate) fn tab_to(rendered: &Rendered, label: &str) {
     for _ in 0..16 {
         if focus_label(&rendered.app) == label {
@@ -180,9 +228,17 @@ pub(crate) fn tab_to(rendered: &Rendered, label: &str) {
     assert_eq!(focus_label(&rendered.app), label, "Tab never reached {label}");
 }
 
-/// What: `element_for_ring` finds the element of the tree whose box, shrunk by `inset` on each side, is the box the ring hugs.
-/// Why: the window builds both layouts and a lot of rows, and a hidden copy keeps a stale box. The ring's own pixels say which
-/// copy is on screen: the one whose box grown by 2 px (or exactly, for an `inside` ring) is the box of the differing pixels.
+/// What:
+/// `element_for_ring` finds the element of the tree whose box,
+/// shrunk by `inset` on each side,
+/// is the box the ring hugs.
+/// Why:
+/// the window builds both layouts and a lot of rows,
+/// and a hidden copy keeps a stale box.
+/// The ring's own pixels say which
+/// copy is on screen:
+/// the one whose box grown by 2 px (or exactly,
+/// for an `inside` ring) is the box of the differing pixels.
 pub(crate) fn element_for_ring(rendered: &Rendered, id: &str, inset: (f32, f32), origin: (f32, f32), differing: (usize, usize, usize, usize), inside: bool) -> RoundedBox {
     // The differing pixels hold the near ring always and the outer ring only where `on-primary` differs from the surface under
     // it (it equals the canvas in the light scheme), so the element's box is either 2 px or 3 px inside the differing box.
@@ -205,43 +261,67 @@ pub(crate) fn element_for_ring(rendered: &Rendered, id: &str, inset: (f32, f32),
     return RoundedBox::new(x, y, width, height, 0.0);
 }
 
-/// What: `Case` describes one focusable element and the shape its ring must hug.
+/// What:
+/// `Case` describes one focusable element and the shape its ring must hug.
 pub(crate) struct Case<'a> {
     /// Name the focus model reports while the element holds focus.
     pub label: &'a str,
     /// Qualified id of the element in the tree whose box the ring hugs.
     pub id: &'a str,
-    /// How far the shape the ring hugs is inside that element's box, as `(x, y)` on each side.
+    /// How far the shape the ring hugs is inside that element's box,
+    /// as `(x, y)` on each side.
     pub inset: (f32, f32),
-    /// Corner radii of the shape, top left, top right, bottom right, bottom left.
+    /// Corner radii of the shape,
+    /// top left,
+    /// top right,
+    /// bottom right,
+    /// bottom left.
     pub radii: [f32; 4],
-    /// True for an element as wide as its container, whose ring is on its own edge.
+    /// True for an element as wide as its container,
+    /// whose ring is on its own edge.
     pub inside: bool,
     /// False when the frame without the ring has another ring elsewhere (a text field keeps its ring when the keyboard ring is
-    /// off), so only the pixels near the element are compared.
+    /// off),
+    /// so only the pixels near the element are compared.
     pub far: bool,
-    /// Boxes `(left, top, right, bottom)` whose pixels are not judged: the notch a label cuts in a ring, a text caret that blinks.
+    /// Boxes `(left, top, right, bottom)` whose pixels are not judged:
+    /// the notch a label cuts in a ring,
+    /// a text caret that blinks.
     pub skip: Vec<(f32, f32, f32, f32)>,
-    /// Where the element tree's origin lies in the window: zero for the window, the card's corner for a popup (a popup's elements
+    /// Where the element tree's origin lies in the window:
+    /// zero for the window,
+    /// the card's corner for a popup (a popup's elements
     /// report positions relative to the popup).
     pub origin: (f32, f32),
-    /// True to compare how much of each partly covered outer-ring pixel the ring covers with the shape. The renderer's
-    /// antialiasing of long curves is not linear in coverage, so this is for the fixture's corners (small radii) only.
+    /// True to compare how much of each partly covered outer-ring pixel the ring covers with the shape.
+    /// The renderer's
+    /// antialiasing of long curves is not linear in coverage,
+    /// so this is for the fixture's corners (small radii) only.
     pub coverage: bool,
-    /// The position among the elements with this id that have a size, when the ring's own pixels cannot tell which one is meant
-    /// (a text caret blinks in the same frame pair); None finds it by the ring.
+    /// The position among the elements with this id that have a size,
+    /// when the ring's own pixels cannot tell which one is meant
+    /// (a text caret blinks in the same frame pair);
+    /// None finds it by the ring.
     pub nth: Option<usize>,
 }
 
-/// What: `run_case` focuses an element, then in the light and in the dark scheme draws the two frames, finds the element the ring
+/// What:
+/// `run_case` focuses an element,
+/// then in the light and in the dark scheme draws the two frames,
+/// finds the element the ring
 /// hugs and checks the ring.
-/// Why: one call per element keeps each test to the facts that differ, and both schemes prove the roles, not fixed colors.
+/// Why:
+/// one call per element keeps each test to the facts that differ,
+/// and both schemes prove the roles,
+/// not fixed colors.
 pub(crate) fn run_case(rendered: &Rendered, case: &Case) -> Vec<RingReport> {
     tab_to(rendered, case.label);
     return check_focused(rendered, case);
 }
 
-/// What: `check_focused` checks the ring of the element that holds focus now, in both schemes.
+/// What:
+/// `check_focused` checks the ring of the element that holds focus now,
+/// in both schemes.
 pub(crate) fn check_focused(rendered: &Rendered, case: &Case) -> Vec<RingReport> {
     let mut reports = Vec::new();
     for dark in [false, true] {
@@ -253,7 +333,8 @@ pub(crate) fn check_focused(rendered: &Rendered, case: &Case) -> Vec<RingReport>
     return reports;
 }
 
-/// What: `check_pair` finds the element the ring of a frame pair hugs and checks the pair against it.
+/// What:
+/// `check_pair` finds the element the ring of a frame pair hugs and checks the pair against it.
 pub(crate) fn check_pair(rendered: &Rendered, case: &Case, on: &Frame, off: &Frame, scheme: &str) -> RingReport {
     let found = if let Some(nth) = case.nth {
         let (x, y, width, height) = ElementHandle::find_by_element_id(&rendered.app, case.id)
@@ -272,7 +353,10 @@ pub(crate) fn check_pair(rendered: &Rendered, case: &Case, on: &Frame, off: &Fra
     return check_ring(on, off, element, colors, case.inside, case).unwrap_or_else(|message| panic!("{} {} ({scheme}): {message}", case.label, case.id));
 }
 
-/// What: `case` makes the common case: a ring outside the element, all corners the same.
+/// What:
+/// `case` makes the common case:
+/// a ring outside the element,
+/// all corners the same.
 pub(crate) fn case<'a>(label: &'a str, id: &'a str, inset: (f32, f32), radius: f32) -> Case<'a> {
     return Case { label, id, inset, radii: [radius; 4], inside: false, far: true, skip: Vec::new(), origin: (0.0, 0.0), coverage: false, nth: None };
 }
@@ -328,8 +412,12 @@ fn the_track_list_ring_is_on_the_edge_of_a_row_as_wide_as_its_pane() {
     run_case(&rendered, &row);
 }
 
-/// What: `mode_ring_case` checks the ring on each of the four segments of the mode group at a window width.
-/// Why: the group is one row, two rows of two or four rows depending on the width, and each layout rounds different corners.
+/// What:
+/// `mode_ring_case` checks the ring on each of the four segments of the mode group at a window width.
+/// Why:
+/// the group is one row,
+/// two rows of two or four rows depending on the width,
+/// and each layout rounds different corners.
 fn mode_ring_case(width: usize, corners: [[f32; 4]; 4]) {
     let rendered = Rendered::new(width, 900);
     tab_to(&rendered, "mode-group");

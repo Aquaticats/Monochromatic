@@ -1864,32 +1864,204 @@ not to crates.io.
 
 ### Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.3 and 0.2.7-alpha.4 and `monochromatic-lint` 0.5.2-alpha.2, worktree launchers follow current (2026-11-07T13:32:40-05:00)
 
-The owner's rules, verbatim: "Label decides"; "I'm authorizing you to bump and publish any updates this session."
-Three runs under the label gate, all alphas: they go to GitHub releases and the toolchain lock, not to crates.io.
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session."
+Three runs under the label gate,
+all alphas:
+they go to GitHub releases and the toolchain lock,
+not to crates.io.
 
-- The defect (branch `fix/worktrees-use-their-own-locked-tools`; troubleshooting entry
+- The defect (branch `fix/worktrees-use-their-own-locked-tools`;
+  troubleshooting entry
   `doc/troubleshooting/mpm-shadow-launcher-names-a-deleted-release-folder-after-a-newer-install.md`):
-  a launcher record names the archive folder below `current`, whose name carries the version, so installing a newer release in any tree
+  a launcher record names the archive folder below `current`,
+  whose name carries the version,
+  so installing a newer release in any tree
   deleted the folder and every other tree's launcher exited 127 (122 of 853 records dangled in a scan of this repository's checkouts).
-  The brief's suspect, the inherited `PATH` or mise, was not the cause: `mise run` puts the tree's own `.cache/*-bin` first.
-- Red first: test commits `982deb5c73` (2026-11-07T12:32:30-05:00, four red), `54f544709f` (2026-11-07T12:44:09-05:00, one red, the closure check
-  that skipped with exit 0) and `51513f35aa` (2026-11-07T13:23:32-05:00, red for the record rewrite).
-  Fix commits `477be995d3`, `14cd55b8d5` and `99dd1a03c0`; the mpm-shadow package ended at 589 of 589 tests, clippy with warnings denied clean;
-  the monochromatic-lint focused tests passed and its container clippy passed, while its container test run stops at
-  `config_pin::tests::the_hint_names_a_measured_newer_pin_and_nothing_else`, which fails alone as well and is in a module this change does not touch.
-- Release runs: 0.2.7-alpha.3 `https://github.com/Aquaticats/Monochromatic/actions/runs/42398834142` (publish `42398943635`),
+  The brief's suspect,
+  the inherited `PATH` or mise,
+  was not the cause:
+  `mise run` puts the tree's own `.cache/*-bin` first.
+- Red first:
+  test commits `982deb5c73` (2026-11-07T12:32:30-05:00,
+  four red),
+  `54f544709f` (2026-11-07T12:44:09-05:00,
+  one red,
+  the closure check
+  that skipped with exit 0) and `51513f35aa` (2026-11-07T13:23:32-05:00,
+  red for the record rewrite).
+  Fix commits `477be995d3`,
+  `14cd55b8d5` and `99dd1a03c0`;
+  the mpm-shadow package ended at 589 of 589 tests,
+  clippy with warnings denied clean;
+  the monochromatic-lint focused tests passed and its container clippy passed,
+  while its container test run stops at
+  `config_pin::tests::the_hint_names_a_measured_newer_pin_and_nothing_else`,
+  which fails alone as well and is in a module this change does not touch.
+- Release runs:
+  0.2.7-alpha.3 `https://github.com/Aquaticats/Monochromatic/actions/runs/42398834142` (publish `42398943635`),
   0.5.2-alpha.2 `https://github.com/Aquaticats/Monochromatic/actions/runs/42399661482` (publish `42399787455`),
   0.2.7-alpha.4 `https://github.com/Aquaticats/Monochromatic/actions/runs/42401355789` (publish `42401456839`);
-  each dry run succeeded first; crates.io skipped each ("the alpha label is not published to crates.io").
-- Lock moves: `ee2d870060` (mpm-shadow 0.2.7-alpha.2 to alpha.3 and monochromatic-lint 0.5.2-alpha.1 to alpha.2, two tools moved) and
-  `5cd86b210f` (mpm-shadow alpha.3 to alpha.4, one tool moved); `toolchain:install` ended with `toolchain list: 66 tools in sync`.
-- Proof at the user boundary (disposable worktree of the parent of `c6177b875b`, lock cargo-shadow 0.1.4, launcher record naming the deleted 0.1.4
-  folder, launcher binary copied from the installed alpha.4, shell started in the main checkout):
-  `cargo --version` printed the older-lock warning and the version lines with exit 0 (before: exit 127 `could not start ... 0.1.4 ... No such file`),
-  and `mise run //package/mpm-shadow/cli:test` ended `581 tests run: 581 passed` with exit 0; the record had been rewritten to the 0.1.5-alpha.1 folder.
-  With the alpha.3 launcher the same state stopped `mise run` at cargo-shadow's recursion guard, which the alpha.4 record rewrite fixed.
-- Not fixed here: launcher binaries are hard links of the `mpm-shadow` that last ran `install` in each tree, so a tree that has not run
-  `mise run toolchain:install` since alpha.4 still has an older launcher and fails until it does; 174 records name another tree's lock file.
+  each dry run succeeded first;
+  crates.io skipped each ("the alpha label is not published to crates.io").
+- Lock moves:
+  `ee2d870060` (mpm-shadow 0.2.7-alpha.2 to alpha.3 and monochromatic-lint 0.5.2-alpha.1 to alpha.2,
+  two tools moved) and
+  `5cd86b210f` (mpm-shadow alpha.3 to alpha.4,
+  one tool moved);
+  `toolchain:install` ended with `toolchain list: 66 tools in sync`.
+- Proof at the user boundary (disposable worktree of the parent of `c6177b875b`,
+  lock cargo-shadow 0.1.4,
+  launcher record naming the deleted 0.1.4
+  folder,
+  launcher binary copied from the installed alpha.4,
+  shell started in the main checkout):
+  `cargo --version` printed the older-lock warning and the version lines with exit 0 (before:
+  exit 127 `could not start ... 0.1.4 ... No such file`),
+  and `mise run //package/mpm-shadow/cli:test` ended `581 tests run: 581 passed` with exit 0;
+  the record had been rewritten to the 0.1.5-alpha.1 folder.
+  With the alpha.3 launcher the same state stopped `mise run` at cargo-shadow's recursion guard,
+  which the alpha.4 record rewrite fixed.
+- Not fixed here:
+  launcher binaries are hard links of the `mpm-shadow` that last ran `install` in each tree,
+  so a tree that has not run
+  `mise run toolchain:install` since alpha.4 still has an older launcher and fails until it does;
+  174 records name another tree's lock file.
+
+### Release record: `monochromatic-cargo-shadow` 0.1.5-alpha.2, round 21 starts a compiled real cargo through the file that was checked (2026-11-07T14:08:29-05:00)
+
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session.";
+"nothing should ever wait forever or indefinitely".
+The fourth cargo-shadow-or-sibling alpha of the day under the label gate:
+it goes to the GitHub release and the toolchain lock,
+not to crates.io.
+
+- The change it carries (branch `feat/cargo-shadow-check-to-start-race`,
+  merged to main by `4c31f33751` 2026-11-07T14:01:31-05:00 after `eb2f651af5`):
+  the chosen real cargo is opened once and a readable compiled (ELF) program is started through that open file,
+  so a path made to name the shadow after the check cannot reach the start;
+  scripts,
+  unreadable executables and the install step's contained cargo keep the pathname with the check repeated.
+  The details,
+  the cross-vendor review and what stays open are in `doc/planning/cargo-shadow-update.md`,
+  "Round 21 merge record (2026-11-07)",
+  and the contract block "Round 21 additions" in `doc/planning/cargo-shadow-guarantees.md`.
+- Gates before the merge (the final tree):
+  test 679 run,
+  679 passed,
+  18 skipped;
+  `lint` and `lint:clippy` with warnings denied exit 0.
+  One earlier full run of the same tree failed two timing tests of `bounded_contain_tests`
+  (a 3 second bound and a 1.5 second wait) while the host load average was 40 to 60:
+  the whole early batch of contained starts took 5 to 6 seconds instead of 0.04 seconds,
+  the same two tests passed alone three times at load 32 to 35,
+  and the next full run passed.
+  The cause measured is a slow scope start at suite start under that load;
+  the tests' fixed bounds do not tolerate it and were not touched.
+- Red first:
+  the full gate found one red test the round caused (the new `spawned` trace event);
+  the cross-vendor reviewer found one production defect no test reached
+  (the exec site closed the descriptor before `exec`),
+  an execute-only refusal and an inclusive process id bound;
+  a second review round found the execute-only script case.
+  Each has a red commit before its fix.
+- Release dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42404208563` (`success`;
+  the publish job skipped).
+  Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42404324402`
+  (2026-11-07T19:03:27Z to 19:04:45Z),
+  bump commit `20d7f38f67` (2026-11-07T19:04:33Z),
+  version 0.1.5-alpha.1 to 0.1.5-alpha.2.
+  Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42404426395`
+  (built from `20d7f38f67`,
+  2026-11-07T19:04:42Z to 19:07:00Z,
+  `success`);
+  the wait task said `crates.io 0.1.5-alpha.2: skipped, the alpha label is not published to crates.io`,
+  and `https://crates.io/api/v1/crates/monochromatic-cargo-shadow/0.1.5-alpha.2` answered HTTP 404.
+- GitHub release `monochromatic-cargo-shadow-v0.1.5-alpha.2` (published 2026-11-07T19:06:57Z):
+  `isPrerelease` false,
+  `isDraft` false;
+  the aarch64 and x86_64 Linux tarballs and the checksums file.
+- Lock move (commit `62d3f69165`,
+  2026-11-07T14:08:29-05:00):
+  `mise run toolchain:update` moved `cargo:monochromatic-cargo-shadow` 0.1.5-alpha.1 to 0.1.5-alpha.2 and nothing else
+  ("1 tools moved");
+  the aarch64 and x86_64 SHA-256 values in the lock equal the release's checksums file.
+  `mise run toolchain:install` reported `1 installed, 65 unchanged, 0 failed`.
+- Installed binary:
+  `.cache/cargo-shadow-bin/cargo --version` prints `cargo-shadow 0.1.5-alpha.2, shadowing cargo at .../.cache/toolchain-bin/cargo`;
+  `cargo new` and `cargo build` of a scratch crate through that directory (capped scope) finished and
+  the program printed `Hello, world!`.
+
+### Release record: `monochromatic-git-policy-cli` 0.6.1-alpha.1, the earlier names fold and a no-checkout clone checks out (2026-11-07T20:02:01Z)
+
+Released by the coordinator from main,
+not waiting for the tokio branch:
+the leftover-ref-lock cause the release had waited for was measured
+(Git's own SIGTERM cleanup cut by a 5 s stop),
+and the same race is in 0.6.0.
+
+- Content:
+  the fold of earlier `cli-git` names into the current ones (`baf4c039f2`),
+  a checkout in a clone made with `--no-checkout` (merge `d2598b2842`),
+  the held-settle message naming the earlier commit service's program,
+  and the index-lock fallback.
+- Gate:
+  `native:test:container` on main `d2598b2842` in a throwaway worktree,
+  unit `wrapper-alpha-gate-d2598b2842`:
+  `Summary [ 976.843s] 5199 tests run: 5199 passed (4 slow), 8 skipped`.
+  Between the gate and the dispatch,
+  nothing under `package/git-policy/cli`,
+  `rust-catalog.toml` or `Cargo.lock` changed;
+  `.github/workflows/cargo-publish.yml` and the crates.io decision action did (the repository-wide lint pass),
+  so the dry run went first.
+- Dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42408755184`:
+  `success`
+  (release `success`,
+  publish skipped).
+  The first dispatch was refused locally:
+  the note was 217 characters against the tool's 200.
+- Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42409052182`
+  (2026-11-07T20:02:01Z to 20:05:36Z,
+  `success`),
+  bump commit `215d3dd3a1` (2026-11-07T20:05:23Z),
+  0.6.0 to 0.6.1-alpha.1.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42409350167`
+  (2026-11-07T20:05:33Z to 20:10:34Z,
+  `success`);
+  `native:release:wait` printed
+  `crates.io 0.6.1-alpha.1: skipped, the alpha label is not published to crates.io (only a plain number and -rc.N are)`
+  and the release assets for `aarch64` and `x86_64` Linux.
+- Lock commit `4c06805b71`:
+  `mise run toolchain:update` reported `1 tools moved`;
+  the diff (read whole) changes only `cargo:monochromatic-git-policy-cli`
+  (version,
+  four artifact URLs,
+  sha256 `04476eca...0deb` for `aarch64` and `12963df1...b35b` for `x86_64`) and the lock digest.
+  `toolchain:install` reported `1 installed, 65 unchanged, 0 failed`.
+- Installed binary:
+  `.cache/toolchain-bin/monochromatic-git-policy-cli --version` prints
+  `monochromatic-git-policy-cli 0.6.1-alpha.1, shadowing git at /usr/bin/git`;
+  the lock commit itself went through it and printed "Updating the commit service...".
+- The fold:
+  the six earlier-name lines had already stopped before the install;
+  `.git/cli-git` and the earlier logs were gone and `.git/monochromatic-git-policy-cli` last changed at
+  2026-11-07T14:57:11-05:00,
+  so a build of main's code (which has the fold) ran against the shared Git directory before 0.6.1-alpha.1 was
+  installed;
+  which program did it is not identified.
+  Nothing was lost:
+  0.5.34 wrote only the earlier names,
+  and the current logs hold its records
+  (257 commit-timing,
+  22 audit,
+  73 push-trigger,
+  41 worktree-add-timing lines),
+  matching the earlier files' sizes.
 
 ## Evidence log
 

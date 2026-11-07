@@ -1,7 +1,9 @@
 //! What:
-//! Unit tests for the accepted-specifier grammar, one test per rule edge.
+//! Unit tests for the accepted-specifier grammar,
+//! one test per rule edge.
 //! Why:
-//! The grammar is the heart of the contract; each literal the README names must have a test that fails when it breaks.
+//! The grammar is the heart of the contract;
+//! each literal the README names must have a test that fails when it breaks.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,8 +12,11 @@
 //! ```
 
 /// What:
-/// `use super::{...};` imports names from the parent module (`super` is "the module above this one"), here the crate root,
-/// which re-exports the grammar. Why: Tests call the same public path a consumer would.
+/// `use super::{...};` imports names from the parent module (`super` is "the module above this one"),
+/// here the crate root,
+/// which re-exports the grammar.
+/// Why:
+/// Tests call the same public path a consumer would.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -20,9 +25,12 @@
 use super::{SectionKind, is_allowed_specifier};
 
 /// What:
-/// `#[test]` marks the next function as a test the runner (`cargo nextest`) will call. `fn name() { ... }` takes no inputs;
-/// a failed `assert!` panics, which the runner reports as a failure.
-/// Why: Bare `catalog:` selects the default catalog and must pass in both kinds.
+/// `#[test]` marks the next function as a test the runner (`cargo nextest`) will call.
+/// `fn name() { ... }` takes no inputs;
+/// a failed `assert!` panics,
+/// which the runner reports as a failure.
+/// Why:
+/// Bare `catalog:` selects the default catalog and must pass in both kinds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -66,7 +74,8 @@ fn literal_versions_are_refused_in_both_kinds() {
     }
 }
 
-/// Workspace forms other than exactly `workspace:*` are refused, including the `*.0` trailing-text leak.
+/// Workspace forms other than exactly `workspace:*` are refused,
+/// including the `*.0` trailing-text leak.
 #[test]
 fn other_workspace_forms_are_refused() {
     for specifier in ["workspace:", "workspace:^", "workspace:~", "workspace:^1.0.0", "workspace:*.0", "workspace:**"] {
@@ -82,7 +91,10 @@ fn peers_starting_with_a_star_are_refused() {
     }
 }
 
-/// Catalog references with whitespace, colons, wildcards, non-ASCII text or the wrong case are refused.
+/// Catalog references with whitespace,
+/// colons,
+/// wildcards,
+/// non-ASCII text or the wrong case are refused.
 #[test]
 fn malformed_catalog_references_are_refused() {
     for specifier in [

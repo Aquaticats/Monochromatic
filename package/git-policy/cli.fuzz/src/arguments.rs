@@ -19,7 +19,8 @@ use crate::argument_tables::{BRANCH_MUTATIONS, INSPECTION_COMMANDS, TAG_MUTATION
 /// Import the classification functions under test.
 use git_policy_cli::config_loading::{ConfigLoading, classify_config_loading};
 use git_policy_cli::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-/// The production conversion of raw bytes to an argument, so the generators feed the code under test the same way.
+/// The production conversion of raw bytes to an argument,
+/// so the generators feed the code under test the same way.
 use git_policy_cli::path_bytes::os_from_path_bytes as argument;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`

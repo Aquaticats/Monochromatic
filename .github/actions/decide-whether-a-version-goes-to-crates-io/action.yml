@@ -5,7 +5,7 @@ description: >
   crates.io; a version ending -alpha.N or -beta.N never does and goes to GitHub releases only. Every other form is
   unlabelled and never goes to crates.io either, because a crates.io publish cannot be undone. The same decision is
   made in TypeScript by package/crate-release/cli/src/crates-io-version-label.ts, and a unit test compares the two over
-  one list of versions. Plain shell only, so using it adds no external action to the repository's allow-list.
+  one list of versions. A `shell: node {0}` step only, so using it adds no external action to the repository's allow-list.
 
 inputs:
   manifest-path:
@@ -27,31 +27,31 @@ runs:
   steps:
     - name: Read the version and decide
       id: decide
-      shell: bash
+      shell: node {0}
       env:
         MANIFEST_PATH: ${{ inputs.manifest-path }}
       run: |
-        set -euo pipefail
-        version=$(awk -F'"' '/^version = / { print $2; exit }' "$MANIFEST_PATH")
-        number='(0|[1-9][0-9]*)'
-        core="${number}\.${number}\.${number}"
-        build='(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?'
-        label=unlabelled
-        goes=false
-        # 64 is maximumVersionLength of package/crate-release/cli/src/constants.ts, so both decisions refuse the same long text.
-        if [ "${#version}" -le 64 ]; then
-          if [[ "$version" =~ ^${core}${build}$ ]]; then
-            label=stable
-            goes=true
-          elif [[ "$version" =~ ^${core}-rc\.${number}${build}$ ]]; then
-            label=rc
-            goes=true
-          elif [[ "$version" =~ ^${core}-(alpha|beta)\.${number}${build}$ ]]; then
-            label="${BASH_REMATCH[4]}"
-          fi
-        fi
-        echo "${MANIFEST_PATH} holds version '${version}': label ${label}, goes to crates.io: ${goes}"
-        {
-          echo "goes_to_crates_io=${goes}"
-          echo "label=${label}"
-        } >> "$GITHUB_OUTPUT"
+        import { appendFileSync, readFileSync } from 'node:fs';
+        const manifestPath = process.env.MANIFEST_PATH;
+        // The first `version = "..."` line of the manifest, the text between its first two double quotes.
+        const version = /^version = "([^"]*)"/mu.exec(readFileSync(manifestPath, 'utf8'))?.[1] ?? '';
+        const number = '(0|[1-9][0-9]*)';
+        const core = `${number}\\.${number}\\.${number}`;
+        const build = '(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?';
+        let label = 'unlabelled';
+        let goes = false;
+        // 64 is maximumVersionLength of package/crate-release/cli/src/constants.ts, so both decisions refuse the same long text.
+        if (version.length <= 64) {
+          const prerelease = new RegExp(`^${core}-(alpha|beta)\\.${number}${build}$`, 'u').exec(version);
+          if (new RegExp(`^${core}${build}$`, 'u').test(version)) {
+            label = 'stable';
+            goes = true;
+          } else if (new RegExp(`^${core}-rc\\.${number}${build}$`, 'u').test(version)) {
+            label = 'rc';
+            goes = true;
+          } else if (prerelease !== null) {
+            label = prerelease[4];
+          }
+        }
+        console.log(`${manifestPath} holds version '${version}': label ${label}, goes to crates.io: ${goes}`);
+        appendFileSync(process.env.GITHUB_OUTPUT, `goes_to_crates_io=${goes}\nlabel=${label}\n`);

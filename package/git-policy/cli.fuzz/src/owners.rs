@@ -1,7 +1,12 @@
-//! What: Generated owner records and `/proc/<pid>/stat` lines, with the invariants of their
+//! What:
+//! Generated owner records and `/proc/<pid>/stat` lines,
+//! with the invariants of their
 //!       parsers.
-//! Why: Owner lock records and transaction owner records are files any process can write, and a
-//!      stat line carries a command name the process chose; a misread record or start time
+//! Why:
+//! Owner lock records and transaction owner records are files any process can write,
+//! and a
+//!      stat line carries a command name the process chose;
+//! a misread record or start time
 //!      would retire a live owner's lock.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,7 +28,11 @@ use git_policy_cli::transaction_owner::{
 /// The largest integer JavaScript represents exactly.
 const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
 
-/// Text pieces generated strings draw from: quotes, escapes, controls, non-ASCII and empty.
+/// Text pieces generated strings draw from:
+/// quotes,
+/// escapes,
+/// controls,
+/// non-ASCII and empty.
 const PIECES: [&str; 10] = [
     "a",
     "\"",
@@ -43,8 +52,10 @@ pub struct Cursor<'a> {
     rest: &'a [u8],
 }
 
-/// What: `impl Cursor` attaches the reads.
-/// Why:  Generators draw small choices from the input in order.
+/// What:
+/// `impl Cursor` attaches the reads.
+/// Why:
+///  Generators draw small choices from the input in order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,7 +67,8 @@ impl<'a> Cursor<'a> {
         return Self { rest: data };
     }
 
-    /// The next byte, or zero after the input ends.
+    /// The next byte,
+    /// or zero after the input ends.
     pub fn byte(&mut self) -> u8 {
         match self.rest.split_first() {
             Some((first, rest)) => {
@@ -67,12 +79,14 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// One choice between two cases, from the low bit of the next byte.
+    /// One choice between two cases,
+    /// from the low bit of the next byte.
     pub fn flip(&mut self) -> bool {
         return self.byte() & 1 == 0;
     }
 
-    /// Text of up to seven pieces; `nonempty` adds a leading letter.
+    /// Text of up to seven pieces;
+    /// `nonempty` adds a leading letter.
     pub fn text(&mut self, nonempty: bool) -> String {
         let mut text: String = String::from(if nonempty { "t" } else { "" });
         for _ in 0..self.byte() % 8 {
@@ -81,7 +95,8 @@ impl<'a> Cursor<'a> {
         return text;
     }
 
-    /// A positive safe integer, small or at the edge of the safe range.
+    /// A positive safe integer,
+    /// small or at the edge of the safe range.
     pub fn positive(&mut self) -> i64 {
         let choice: u8 = self.byte();
         if choice & 3 == 0 {
@@ -91,9 +106,13 @@ impl<'a> Cursor<'a> {
     }
 }
 
-/// What: Field mutations of a valid owner lock record: the text replaced once, its replacement,
+/// What:
+/// Field mutations of a valid owner lock record:
+/// the text replaced once,
+/// its replacement,
 ///       and whether the record must still be accepted.
-/// Why:  Each names one rule of the parser.
+/// Why:
+///  Each names one rule of the parser.
 const LOCK_MUTATIONS: [(&str, &str, bool); 12] = [
     ("\"ownerPid\":", "\"ownerPid\":0,\"x\":", false),
     ("\"ownerPid\":", "\"ownerPid\":-1,\"x\":", false),
@@ -117,9 +136,14 @@ const LOCK_MUTATIONS: [(&str, &str, bool); 12] = [
     ("{", "{\"extra\":[1,{}],", true),
 ];
 
-/// What: A generated owner lock record's text, the record it must parse to (or none), and the
+/// What:
+/// A generated owner lock record's text,
+/// the record it must parse to (or none),
+/// and the
 ///       record it was built from.
-/// Why:  The expected outcome is decided by the mutation, never by the parser under test.
+/// Why:
+///  The expected outcome is decided by the mutation,
+/// never by the parser under test.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -157,9 +181,13 @@ pub fn generated_owner_lock(data: &[u8]) -> (String, Option<OwnerLockRecord>) {
     return (mutated, Some(record));
 }
 
-/// What: The owner lock record invariants on any text: an accepted record has a positive safe
-///       PID and non-empty token and identity, and survives being restated.
-/// Why:  A parser accepting what the incumbent refuses would let a malformed lock look owned.
+/// What:
+/// The owner lock record invariants on any text:
+/// an accepted record has a positive safe
+///       PID and non-empty token and identity,
+/// and survives being restated.
+/// Why:
+///  A parser accepting what the incumbent refuses would let a malformed lock look owned.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -182,8 +210,10 @@ pub fn check_owner_lock_text(text: &str) {
     assert_eq!(parse_owner_lock_record(restated.as_str()), Some(record));
 }
 
-/// What: The generated owner lock record parses to exactly its expected outcome.
-/// Why:  The fuzz target and its controls run the same check.
+/// What:
+/// The generated owner lock record parses to exactly its expected outcome.
+/// Why:
+///  The fuzz target and its controls run the same check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,8 +225,11 @@ pub fn check_generated_owner_lock(data: &[u8]) {
     check_owner_lock_text(text.as_str());
 }
 
-/// What: The transaction owner invariants on any bytes, and the round trip of a generated owner.
-/// Why:  A published directory's owner decides whether recovery may touch it.
+/// What:
+/// The transaction owner invariants on any bytes,
+/// and the round trip of a generated owner.
+/// Why:
+///  A published directory's owner decides whether recovery may touch it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -230,9 +263,14 @@ pub fn check_transaction_owner(data: &[u8]) {
     assert_eq!(parse_transaction_owner(encoded.as_bytes()), Some(generated));
 }
 
-/// What: A generated stat line and the identity it must give: `Ok(Some)` for a running process,
-///       `Ok(None)` for a zombie or dead one, `Err(())` for a line without the start time.
-/// Why:  The command name may hold spaces and parentheses; only the last `)` ends it.
+/// What:
+/// A generated stat line and the identity it must give:
+/// `Ok(Some)` for a running process,
+///       `Ok(None)` for a zombie or dead one,
+/// `Err(())` for a line without the start time.
+/// Why:
+///  The command name may hold spaces and parentheses;
+/// only the last `)` ends it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -273,9 +311,12 @@ pub fn generated_stat(data: &[u8]) -> (String, Result<Option<String>, ()>) {
     return (line, Ok(Some(format!("linux:{tick}"))));
 }
 
-/// What: The stat reader gives exactly the generated outcome, and any text either fails or names
+/// What:
+/// The stat reader gives exactly the generated outcome,
+/// and any text either fails or names
 ///       a non-empty `linux:` start time.
-/// Why:  The fuzz target and its controls run the same check.
+/// Why:
+///  The fuzz target and its controls run the same check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

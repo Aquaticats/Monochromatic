@@ -8,8 +8,11 @@ use crate::command::{Command, PlaybackMode, Update};
 use crate::peakcache::CacheHandle;
 use std::sync::{Arc, Mutex};
 
-/// What: `Library` is a disposable folder of fixture tracks and the updates a controller over it has emitted.
-/// Why: every test needs both, and the folder is removed when the value drops.
+/// What:
+/// `Library` is a disposable folder of fixture tracks and the updates a controller over it has emitted.
+/// Why:
+/// every test needs both,
+/// and the folder is removed when the value drops.
 struct Library {
     root: PathBuf,
     seen: Arc<Mutex<Vec<String>>>,
@@ -17,9 +20,12 @@ struct Library {
 
 /// Methods of `Library`.
 impl Library {
-    /// What: `new` makes a folder holding the given relative files, copying `fixture/tone.flac` for each name that ends
+    /// What:
+    /// `new` makes a folder holding the given relative files,
+    /// copying `fixture/tone.flac` for each name that ends
     /// in `.flac` and writing bytes that cannot be decoded for each name that ends in `.wav`.
-    /// Why: tests choose which files play and which cannot be opened.
+    /// Why:
+    /// tests choose which files play and which cannot be opened.
     fn new(tag: &str, files: &[&str]) -> Library {
         let nanos: u128 = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -37,8 +43,10 @@ impl Library {
         return Library { root, seen: Arc::new(Mutex::new(Vec::new())) };
     }
 
-    /// What: `controller` builds a silent controller that records a short text for every update it emits.
-    /// Why: the tests read the updates the window would receive.
+    /// What:
+    /// `controller` builds a silent controller that records a short text for every update it emits.
+    /// Why:
+    /// the tests read the updates the window would receive.
     fn controller(&self) -> Controller {
         let sink = Arc::clone(&self.seen);
         return Controller::new(
@@ -63,8 +71,10 @@ impl Library {
         );
     }
 
-    /// What: `updates` lists the recorded updates.
-    /// Why: tests compare it with what the window must receive.
+    /// What:
+    /// `updates` lists the recorded updates.
+    /// Why:
+    /// tests compare it with what the window must receive.
     fn updates(&self) -> Vec<String> {
         return self.seen.lock().expect("the sink is not poisoned").clone();
     }
@@ -72,21 +82,28 @@ impl Library {
 
 /// Removes the library folder when the test ends.
 impl Drop for Library {
-    /// What: `drop` removes the folder.
-    /// Why: tests leave no files behind.
+    /// What:
+    /// `drop` removes the folder.
+    /// Why:
+    /// tests leave no files behind.
     fn drop(&mut self) {
         std::fs::remove_dir_all(&self.root).ok();
     }
 }
 
-/// What: `unplayable_reports` counts the reports of unplayable files the window has received.
-/// Why: D122 and D128 want a file reported once, however many times it is tried.
+/// What:
+/// `unplayable_reports` counts the reports of unplayable files the window has received.
+/// Why:
+/// D122 and D128 want a file reported once,
+/// however many times it is tried.
 fn unplayable_reports(library: &Library) -> usize {
     return library.updates().iter().filter(|text| return text.starts_with("unplayable ")).count();
 }
 
-/// What: `measured_peaks` counts the files the window has received a measured peak for.
-/// Why: a measured peak is what removes the unplayable mark of a row (D113).
+/// What:
+/// `measured_peaks` counts the files the window has received a measured peak for.
+/// Why:
+/// a measured peak is what removes the unplayable mark of a row (D113).
 fn measured_peaks(library: &Library) -> usize {
     return library
         .updates()
@@ -96,8 +113,10 @@ fn measured_peaks(library: &Library) -> usize {
         .sum();
 }
 
-/// What: `open` opens the library without selecting anything and without playing.
-/// Why: this is how a launch or the folder dialog opens a folder.
+/// What:
+/// `open` opens the library without selecting anything and without playing.
+/// Why:
+/// this is how a launch or the folder dialog opens a folder.
 fn open(controller: &mut Controller, library: &Library) {
     controller.handle_command(Command::OpenRoot { root: library.root.clone(), select: None, play: false });
 }

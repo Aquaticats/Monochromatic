@@ -195,7 +195,8 @@ pub struct PruneReport {
     pub deleted: Vec<PathBuf>,
     /// Total size in bytes of what was removed.
     pub bytes: u64,
-    /// Paths that could not be removed, each with why.
+    /// Paths that could not be removed,
+    /// each with why.
     pub failed: Vec<(PathBuf, String)>,
 }
 
@@ -204,9 +205,11 @@ pub struct PruneReport {
 /// or of a directory with everything inside it.
 /// Why:
 /// The cleanup summary reports how much was removed.
-/// A work stack walks the tree, so a deep source directory cannot overflow the call stack.
+/// A work stack walks the tree,
+/// so a deep source directory cannot overflow the call stack.
 /// Anything that cannot be read counts as zero:
-/// the size is a courtesy, not a decision.
+/// the size is a courtesy,
+/// not a decision.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

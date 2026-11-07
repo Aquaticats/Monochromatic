@@ -1,10 +1,23 @@
-//! Rendered tests of the focus ring on the pages other than the player (D117): Search, Settings, the template editor, the
-//! first-run pane, the toasts and the track menu, and of the menu card's own color (D119).
+//! Rendered tests of the focus ring on the pages other than the player (D117):
+//! Search,
+//! Settings,
+//! the template editor,
+//! the
+//! first-run pane,
+//! the toasts and the track menu,
+//! and of the menu card's own color (D119).
 //!
-//! What: the same pixel checks as `ui_focus_ring_tests`, one call per focusable element of each page, in the light and the dark
-//! scheme: the ring is the 2 px `primary` band and the 1 px `on-primary` band flush outside the element (or on the edge of an
-//! element as wide as its pane), and nothing else differs when the ring is on.
-//! Why: each page builds its own elements, and a fill or a clip that a page keeps would show only there.
+//! What:
+//! the same pixel checks as `ui_focus_ring_tests`,
+//! one call per focusable element of each page,
+//! in the light and the dark
+//! scheme:
+//! the ring is the 2 px `primary` band and the 1 px `on-primary` band flush outside the element (or on the edge of an
+//! element as wide as its pane),
+//! and nothing else differs when the ring is on.
+//! Why:
+//! each page builds its own elements,
+//! and a fill or a clip that a page keeps would show only there.
 
 use i_slint_backend_testing::ElementHandle;
 use slint::{ModelRc, VecModel};
@@ -13,14 +26,16 @@ use crate::ui_focus_ring_tests::{Case, case, check_focused, check_pair, run_case
 use crate::ui_render_support::{Rendered, box_of};
 use crate::ui_test_support::{chord, tap};
 
-/// What: `open_search` opens the Search page with Ctrl+F and waits for its fade to end.
+/// What:
+/// `open_search` opens the Search page with Ctrl+F and waits for its fade to end.
 fn open_search(rendered: &Rendered) {
     chord(&rendered.app, &["Ctrl"], "f");
     rendered.wait(300);
     assert_eq!(rendered.app.get_route(), 1, "Ctrl+F opened Search");
 }
 
-/// What: `open_settings` opens Settings with Ctrl+Alt+S and waits for its fade to end.
+/// What:
+/// `open_settings` opens Settings with Ctrl+Alt+S and waits for its fade to end.
 fn open_settings(rendered: &Rendered) {
     chord(&rendered.app, &["Ctrl", "Alt"], "s");
     rendered.wait(300);

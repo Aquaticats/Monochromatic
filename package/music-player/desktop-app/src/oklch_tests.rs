@@ -4,8 +4,11 @@
 
 use super::*;
 
-/// What: `hue_difference(a, b)` is the shortest angle between two hues in degrees.
-/// Why:  Hue is circular, so 359 and 1 are 2 apart.
+/// What:
+/// `hue_difference(a, b)` is the shortest angle between two hues in degrees.
+/// Why:
+///  Hue is circular,
+/// so 359 and 1 are 2 apart.
 fn hue_difference(first: f64, second: f64) -> f64 {
     let difference: f64 = (first - second + 540.0).rem_euclid(360.0) - 180.0;
     return difference.abs();

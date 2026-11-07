@@ -1,10 +1,13 @@
-//! Parallel background queue true-peak measurement, with progress and per-track reports.
+//! Parallel background queue true-peak measurement,
+//! with progress and per-track reports.
 //!
 //! On every queue load the controller starts a background sweep over the queue.
 //!  The sweep runs in two
 //! phases.
-//!  First, a peek reads each track's cached decision and header length and reports
-//! them at once, so rows show their length before any decode.
+//!  First,
+//! a peek reads each track's cached decision and header length and reports
+//! them at once,
+//! so rows show their length before any decode.
 //!  Then the measure phase fans out one worker per
 //! logical core over the non-current tracks:
 //!  each worker claims tracks from a shared atomic cursor,
@@ -17,7 +20,8 @@
 //!  so they
 //! saturate every core when the machine is otherwise free yet yield to the realtime audio thread
 //! and the UI.
-//!  Every reply goes through a `SweepSink` tagged with the sweep's generation, so the
+//!  Every reply goes through a `SweepSink` tagged with the sweep's generation,
+//! so the
 //! controller drops reports from a sweep that a newer queue load has replaced.
 //!  Sweeps are never
 //! cancelled.
@@ -34,7 +38,8 @@ use std::collections::HashSet;
 
 /// What:
 ///      `use std::path::{Path, PathBuf};`.
-///  Track paths, borrowed and owned.
+///  Track paths,
+/// borrowed and owned.
 /// Why:
 ///       The sweep hands owned paths to its reports and borrows them while it decodes.
 use std::path::{Path, PathBuf};
@@ -43,7 +48,8 @@ use std::path::{Path, PathBuf};
 ///      `use std::sync::Arc;`.
 ///  Shared ownership for the sweep's inputs.
 /// Why:
-///       Every worker reads the same track list, cursor and snapshot.
+///       Every worker reads the same track list,
+/// cursor and snapshot.
 use std::sync::{Arc, Mutex};
 
 /// What:
@@ -65,7 +71,8 @@ use std::time::{Duration, Instant};
 ///      `use crate::measure_peek::peek_measures;` and `use crate::peakcache::{self, CacheHandle};`.
 ///  The read-only peek and the cache handle the sweep stores through.
 /// Why:
-///       The sweep peeks before it measures, and its fingerprints come from the peak cache module.
+///       The sweep peeks before it measures,
+/// and its fingerprints come from the peak cache module.
 use crate::measure_peek::peek_measures;
 use crate::peakcache::{self, CacheHandle};
 
@@ -87,7 +94,8 @@ use crate::sweep_report::{SweepJob, SweepReport, SweepSink};
 ///      `use crate::track_measure::{TrackMeasure, measure_from_decision};`.
 ///  The measure a finished decode reports.
 /// Why:
-///       A decode yields a decision, and the window needs its length and peak.
+///       A decode yields a decision,
+/// and the window needs its length and peak.
 use crate::duration_probe::probe_duration_secs;
 use crate::track_measure::{measure_from_decision, measure_from_duration};
 
@@ -98,14 +106,17 @@ use crate::track_measure::{measure_from_decision, measure_from_duration};
 ///       The measure phase and the re-analysis both decode through this one entry point.
 use crate::truepeak::resolve_full;
 
-/// The kind of a cached decision, to tell an exact one from an estimate.
+/// The kind of a cached decision,
+/// to tell an exact one from an estimate.
 use truepeak_core::DecisionKind;
 
 /// What:
 ///      `const MEASURE_REPORT_CHUNK: usize = 128;`.
 ///  How many peeked tracks go into one report.
 /// Why:
-///       Large libraries are announced in batches, so the window is updated a few times, not once per track.
+///       Large libraries are announced in batches,
+/// so the window is updated a few times,
+/// not once per track.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,7 +140,8 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 ///      `pub(crate) fn spawn_queue_measurement(job: SweepJob)`.
 ///  Starts one detached sweep for a queue load.
 /// Why:
-///       The engine never waits on a sweep, and each report carries the job's generation.
+///       The engine never waits on a sweep,
+/// and each report carries the job's generation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,17 +180,22 @@ pub(crate) fn spawn_queue_measurement(job: SweepJob) {
 /// type SweepShared = { tracks: readonly string[]; cursor: AtomicInt; visited: AtomicInt; cache: CacheHandle; known: Set<bigint>; sink: SweepSink; generation: number };
 /// ```
 struct SweepShared {
-    /// Non-current tracks in queue order, shared read-only.
+    /// Non-current tracks in queue order,
+    /// shared read-only.
     tracks: Arc<[PathBuf]>,
     /// Next index a worker will claim.
     cursor: AtomicUsize,
-    /// Tracks visited so far, whether skipped, measured, or failed.
+    /// Tracks visited so far,
+    /// whether skipped,
+    /// measured,
+    /// or failed.
     visited: AtomicUsize,
     /// Handle the decisions are stored through.
     cache: CacheHandle,
     /// Exact fingerprints present when the sweep started.
     known: HashSet<u64>,
-    /// Where reports go, tagged with the generation.
+    /// Where reports go,
+    /// tagged with the generation.
     sink: SweepSink,
     /// Generation of the queue load that started this sweep.
     generation: u64,
@@ -186,19 +203,25 @@ struct SweepShared {
     gate: Arc<SweepGate>,
     /// Fingerprints taken by any sweep of this generation.
     claims: Arc<Mutex<HashSet<u64>>>,
-    /// Files that could not be decoded, reported together when the sweep ends.
+    /// Files that could not be decoded,
+    /// reported together when the sweep ends.
     failed: Mutex<Vec<PathBuf>>,
-    /// True for a refresh sweep, which reports no progress.
+    /// True for a refresh sweep,
+    /// which reports no progress.
     quiet: bool,
-    /// True when `tracks` holds only changed files and `known` is empty: exactness is asked of the cache per file.
+    /// True when `tracks` holds only changed files and `known` is empty:
+    /// exactness is asked of the cache per file.
     listed: bool,
 }
 
 /// What:
 ///      `fn run_sweep(job: SweepJob)`.
-///  The detached coordinator: peek every track, then measure the non-current ones with a fan-out.
+///  The detached coordinator:
+/// peek every track,
+/// then measure the non-current ones with a fan-out.
 /// Why:
-///       The peek makes lengths and cached peaks visible at once; the fan-out measures the rest.
+///       The peek makes lengths and cached peaks visible at once;
+/// the fan-out measures the rest.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -325,7 +348,8 @@ fn run_sweep(job: SweepJob) {
 ///      `fn report_peeked_measures(job: &SweepJob)`.
 ///  Sends every track's cached decision and header length in chunks.
 /// Why:
-///       Rows get lengths and cached peaks before any decode, and chunks keep the window updates few.
+///       Rows get lengths and cached peaks before any decode,
+/// and chunks keep the window updates few.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -617,9 +641,12 @@ fn worker_count(track_count: usize) -> usize {
 
 /// What:
 ///      `fn run_worker(shared: Arc<SweepShared>)`.
-///  One worker: drop to idle priority, then claim tracks until the cursor runs out.
+///  One worker:
+/// drop to idle priority,
+/// then claim tracks until the cursor runs out.
 /// Why:
-///       Each claimed track is visited once, and progress is throttled per worker.
+///       Each claimed track is visited once,
+/// and progress is throttled per worker.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -680,9 +707,11 @@ fn run_worker(shared: Arc<SweepShared>) {
 
 /// What:
 ///      `fn measure_one(path: &Path, shared: &SweepShared)`.
-///  Measures one track unless it is already exact in the cache, storing and reporting the result.
+///  Measures one track unless it is already exact in the cache,
+/// storing and reporting the result.
 /// Why:
-///       A track that cannot be fingerprinted or decoded is logged and left out, and the sweep moves on.
+///       A track that cannot be fingerprinted or decoded is logged and left out,
+/// and the sweep moves on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -765,8 +794,10 @@ fn measure_one(path: &Path, shared: &SweepShared) {
 ///      `fn already_exact(shared: &SweepShared, key: u64) -> bool`.
 ///  True when the cache already holds an exact decision for the fingerprint.
 /// Why:
-///       A sweep over the whole queue reads one snapshot of the exact fingerprints; a sweep over a few changed files asks
-///  the cache about each file, because the snapshot of a library of a million tracks costs more than the whole refresh.
+///       A sweep over the whole queue reads one snapshot of the exact fingerprints;
+/// a sweep over a few changed files asks
+///  the cache about each file,
+/// because the snapshot of a library of a million tracks costs more than the whole refresh.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -781,10 +812,13 @@ fn already_exact(shared: &SweepShared, key: u64) -> bool {
 
 /// What:
 ///      `fn claim(shared: &SweepShared, key: u64) -> bool`.
-///  Takes a fingerprint for this generation; true when the caller is the first to take it.
+///  Takes a fingerprint for this generation;
+/// true when the caller is the first to take it.
 /// Why:
-///       Two sweeps of one generation (the load's and a refresh) never decode the same file twice. A poisoned lock counts as
-///  taken by the caller, so a worker never skips a file because another thread panicked.
+///       Two sweeps of one generation (the load's and a refresh) never decode the same file twice.
+/// A poisoned lock counts as
+///  taken by the caller,
+/// so a worker never skips a file because another thread panicked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -801,7 +835,8 @@ fn claim(shared: &SweepShared, key: u64) -> bool {
 ///      `fn release_claim(shared: &SweepShared, key: u64)`.
 ///  Gives a fingerprint back after a failed decode.
 /// Why:
-///       A file that could not be decoded is tried again when the library next changes (D113), so its claim must not stay.
+///       A file that could not be decoded is tried again when the library next changes (D113),
+/// so its claim must not stay.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -815,9 +850,13 @@ fn release_claim(shared: &SweepShared, key: u64) {
 
 /// What:
 ///      `fn report_unreadable(shared: &SweepShared)`.
-///  Sends the files this sweep could not decode, in one report, when there are any.
+///  Sends the files this sweep could not decode,
+/// in one report,
+/// when there are any.
 /// Why:
-///       One report per sweep lets the controller tell the person once, in one message with a count (D83, D9).
+///       One report per sweep lets the controller tell the person once,
+/// in one message with a count (D83,
+/// D9).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

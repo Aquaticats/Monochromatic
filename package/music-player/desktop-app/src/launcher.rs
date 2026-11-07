@@ -28,9 +28,15 @@
 //!  with no session bus (or a shell that ignores the
 //! protocol) the signal is silently dropped and playback is unaffected.
 
-/// What: `pub mod taskbar_state;` the pure state machine that decides what the taskbar bar shows.
-/// Why: the decision (one meaning at a time, whole percents, a rate limit, a clean reset on a track change) is
-/// separate from the D-Bus emit below, so it can be tested without a bus or a window.
+/// What:
+/// `pub mod taskbar_state;` the pure state machine that decides what the taskbar bar shows.
+/// Why:
+/// the decision (one meaning at a time,
+/// whole percents,
+/// a rate limit,
+/// a clean reset on a track change) is
+/// separate from the D-Bus emit below,
+/// so it can be tested without a bus or a window.
 pub mod taskbar_state;
 
 /// What:
@@ -144,7 +150,8 @@ use zbus::Connection;
 ///  `Variant::Bool(bool)`,
 ///  and so on.
 ///  `zvariant` is
-///           merged into `zbus` by zbus 6, which also renamed `Value` to `Variant`.
+///           merged into `zbus` by zbus 6,
+/// which also renamed `Value` to `Variant`.
 /// Why:
 ///       The `a{sv}` dict's values are variants;
 ///  `Variant` is each entry's value.

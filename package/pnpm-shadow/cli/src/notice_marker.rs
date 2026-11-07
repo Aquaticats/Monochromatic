@@ -1,11 +1,17 @@
 //! What:
-//! The notice handshake between shadow instances: a marker file that tells an outer instance that an inner instance
+//! The notice handshake between shadow instances:
+//! a marker file that tells an outer instance that an inner instance
 //! already printed the version or help notice.
 //! Why:
-//! A launcher can put one shadow instance in front of another. Only the innermost instance knows which pnpm really ran,
-//! so it prints the notice; the outer instance cannot see that and would print a second, wrong one naming the launcher.
-//! The inner instance leaves a marker named for the outer instance's process id, and the outer instance claims it after
-//! pnpm finishes. Without a runtime directory the handshake is off and an outer instance prints its own notice.
+//! A launcher can put one shadow instance in front of another.
+//! Only the innermost instance knows which pnpm really ran,
+//! so it prints the notice;
+//! the outer instance cannot see that and would print a second,
+//! wrong one naming the launcher.
+//! The inner instance leaves a marker named for the outer instance's process id,
+//! and the outer instance claims it after
+//! pnpm finishes.
+//! Without a runtime directory the handshake is off and an outer instance prints its own notice.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,11 +30,14 @@ use std::path::{Path, PathBuf};
 use crate::constants::{NOTICE_MARKER_PREFIX, RUNTIME_DIR_VARIABLE};
 
 /// What:
-/// `pub fn runtime_dir() -> Option<PathBuf>` is the per-user runtime directory from the environment, or `None` when it is
+/// `pub fn runtime_dir() -> Option<PathBuf>` is the per-user runtime directory from the environment,
+/// or `None` when it is
 /// unset or empty.
 /// Why:
-/// The marker lives there and not in a system temporary directory, which this repository's lints forbid and whose device
-/// is unknowable; with no runtime directory the handshake is simply off.
+/// The marker lives there and not in a system temporary directory,
+/// which this repository's lints forbid and whose device
+/// is unknowable;
+/// with no runtime directory the handshake is simply off.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -57,8 +66,11 @@ pub fn marker_path_in(dir: &Path, pid: u32) -> PathBuf {
 /// What:
 /// `pub fn leave_marker_in(dir: &Path, pid: u32)` creates the empty marker for the instance with this process id.
 /// Why:
-/// It tells that instance that a notice was already printed below it. A failure to write is ignored: the worst result is
-/// a second notice, never a failed pnpm run.
+/// It tells that instance that a notice was already printed below it.
+/// A failure to write is ignored:
+/// the worst result is
+/// a second notice,
+/// never a failed pnpm run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -72,7 +84,9 @@ pub fn leave_marker_in(dir: &Path, pid: u32) {
 /// What:
 /// `pub fn claim_marker_in(dir: &Path, pid: u32) -> bool` removes the marker for this process id and says whether it was there.
 /// Why:
-/// Removing it is the check and the cleanup in one step, so two readers can never both believe they claimed it, and no
+/// Removing it is the check and the cleanup in one step,
+/// so two readers can never both believe they claimed it,
+/// and no
 /// marker outlives its run.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,9 +1,19 @@
-//! Applying Search answers to the window, in place.
+//! Applying Search answers to the window,
+//! in place.
 //!
-//! What: `apply_answer` takes one answer from the Search service on the window thread, drops it when a newer query
-//! exists, and updates the one rows model so only rows that changed are rewritten. A refresh of the shown query keeps
-//! the first visible row where it is (`ui_search_anchor`); a new query shows from the top.
-//! Why: D111 requires results to update in place while a scan adds tracks: the query, the caret, the scroll position
+//! What:
+//! `apply_answer` takes one answer from the Search service on the window thread,
+//! drops it when a newer query
+//! exists,
+//! and updates the one rows model so only rows that changed are rewritten.
+//! A refresh of the shown query keeps
+//! the first visible row where it is (`ui_search_anchor`);
+//! a new query shows from the top.
+//! Why:
+//! D111 requires results to update in place while a scan adds tracks:
+//! the query,
+//! the caret,
+//! the scroll position
 //! and the row about to be tapped must not change because the library grew.
 //!
 //! In TS you'd write (pseudocode):
@@ -27,34 +37,45 @@ use crate::{AppWindow, SearchRow, SearchSegment};
 ///      `pub struct SearchUi`.
 ///  What the window thread remembers about the Search page between answers.
 /// Why:
-///       Staleness, tap resolution and anchoring all compare against the last applied answer.
+///       Staleness,
+/// tap resolution and anchoring all compare against the last applied answer.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SearchUi {
-    /// Sequence number of the newest query sent to the service; older answers are dropped.
+    /// Sequence number of the newest query sent to the service;
+    /// older answers are dropped.
     pub sequence: u64,
-    /// Results of the last applied answer; a tap resolves its position in this list.
+    /// Results of the last applied answer;
+    /// a tap resolves its position in this list.
     pub results: Vec<SearchResult>,
-    /// Rows of the last applied answer, to find which rows changed.
+    /// Rows of the last applied answer,
+    /// to find which rows changed.
     pub rows: Vec<SearchRowView>,
-    /// The query the shown rows answer, or `None` before any answer.
+    /// The query the shown rows answer,
+    /// or `None` before any answer.
     pub shown_query: Option<String>,
 }
 
 thread_local! {
-    /// The one rows model of the Search page; answers edit it instead of replacing it.
+    /// The one rows model of the Search page;
+    /// answers edit it instead of replacing it.
     static ROWS: RefCell<Option<Rc<VecModel<SearchRow>>>> = const { RefCell::new(None) };
 }
 
-/// What: `install_rows_model` creates the rows model and hands it to the window.
-/// Why: replacing the model on every answer would rebuild every row and reset the list; one model edited in place does not.
+/// What:
+/// `install_rows_model` creates the rows model and hands it to the window.
+/// Why:
+/// replacing the model on every answer would rebuild every row and reset the list;
+/// one model edited in place does not.
 pub(crate) fn install_rows_model(window: &AppWindow) {
     let model: Rc<VecModel<SearchRow>> = Rc::new(VecModel::default());
     window.set_search_rows(ModelRc::from(Rc::clone(&model)));
     ROWS.with(|slot| *slot.borrow_mut() = Some(model));
 }
 
-/// What: `search_segment` converts a text piece to the window struct.
-/// Why: the window draws emphasized pieces on a tint.
+/// What:
+/// `search_segment` converts a text piece to the window struct.
+/// Why:
+/// the window draws emphasized pieces on a tint.
 fn search_segment(piece: &crate::ui_search_model::Segment) -> SearchSegment {
     return SearchSegment {
         text: piece.text.as_str().into(),
@@ -62,8 +83,10 @@ fn search_segment(piece: &crate::ui_search_model::Segment) -> SearchSegment {
     };
 }
 
-/// What: `search_row` converts one row view to the window struct.
-/// Why: the pure model has no Slint types.
+/// What:
+/// `search_row` converts one row view to the window struct.
+/// Why:
+/// the pure model has no Slint types.
 fn search_row(row: &SearchRowView) -> SearchRow {
     return SearchRow {
         kind: row.kind,
@@ -77,8 +100,12 @@ fn search_row(row: &SearchRowView) -> SearchRow {
     };
 }
 
-/// What: `sync_rows` makes the model equal to `new_rows`, rewriting only rows that differ.
-/// Why: an untouched row keeps its widgets, so the list does not flicker or jump on a refresh.
+/// What:
+/// `sync_rows` makes the model equal to `new_rows`,
+/// rewriting only rows that differ.
+/// Why:
+/// an untouched row keeps its widgets,
+/// so the list does not flicker or jump on a refresh.
 fn sync_rows(old_rows: &[SearchRowView], new_rows: &[SearchRowView]) {
     ROWS.with(|slot| {
         let Some(model) = slot.borrow().clone() else {
@@ -100,8 +127,10 @@ fn sync_rows(old_rows: &[SearchRowView], new_rows: &[SearchRowView]) {
     });
 }
 
-/// What: `show_view` writes the status block and the rows of a view and remembers them.
-/// Why: both the immediate empty-query state and service answers end here.
+/// What:
+/// `show_view` writes the status block and the rows of a view and remembers them.
+/// Why:
+/// both the immediate empty-query state and service answers end here.
 pub(crate) fn show_view(window: &AppWindow, view: SearchView, query: &str, anchor: bool) {
     let old_rows: Vec<SearchRowView> = read_state(|state| return state.search_ui.rows.clone());
     let old_keys: Vec<String> = read_state(|state| return state.search_ui.results.iter().map(result_key).collect());
@@ -137,8 +166,12 @@ pub(crate) fn show_view(window: &AppWindow, view: SearchView, query: &str, ancho
     crate::ui_state_log::emit(window, "search-answer");
 }
 
-/// What: `apply_answer` applies one service answer on the window thread.
-/// Why: see the module description. An answer to an older query is dropped, so a slow ranking never overwrites a newer one.
+/// What:
+/// `apply_answer` applies one service answer on the window thread.
+/// Why:
+/// see the module description.
+/// An answer to an older query is dropped,
+/// so a slow ranking never overwrites a newer one.
 pub(crate) fn apply_answer(window: &AppWindow, answer: SearchAnswer) {
     let (sequence, current_index, playing) = read_state(|state| return (state.search_ui.sequence, state.current_index, state.playing));
     if answer.sequence != sequence {

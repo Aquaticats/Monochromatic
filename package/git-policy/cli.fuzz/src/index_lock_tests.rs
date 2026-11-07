@@ -1,6 +1,9 @@
-//! What: Controls proving the PID file and stat generators reach both outcomes, and that the
+//! What:
+//! Controls proving the PID file and stat generators reach both outcomes,
+//! and that the
 //!       invariants hold on every generated input.
-//! Why: An invariant that no input reaches proves nothing.
+//! Why:
+//! An invariant that no input reaches proves nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,7 +17,8 @@ use super::{
 /// The generated inputs the owner-record controls already share.
 use crate::owners::tests::inputs;
 
-/// Generated PID files are accepted with a value and refused, and every input holds the invariants.
+/// Generated PID files are accepted with a value and refused,
+/// and every input holds the invariants.
 #[test]
 fn pid_files_reach_accepted_and_refused_outcomes() {
     let mut accepted: usize = 0;
@@ -30,7 +34,8 @@ fn pid_files_reach_accepted_and_refused_outcomes() {
     assert!(refused > 100, "{refused}");
 }
 
-/// Generated stat lines are read to a state and ticks and refused, and every input holds the invariants.
+/// Generated stat lines are read to a state and ticks and refused,
+/// and every input holds the invariants.
 #[test]
 fn stat_lines_reach_accepted_and_refused_outcomes() {
     let mut accepted: usize = 0;

@@ -1,9 +1,15 @@
 //! Headless layout tests for the composed `AppWindow`.
 //!
-//! What: builds the real window on the testing backend and checks the key elements at the cover width (443 px)
-//! and the unfolded width (850 px), in light and dark schemes.
-//! Why: the layout branch is chosen by window width, so a width-specific regression shows only at that width.
-//! Note: element lookup by type name needs `SLINT_EMIT_DEBUG_INFO=1` at build time, which the repo test task sets.
+//! What:
+//! builds the real window on the testing backend and checks the key elements at the cover width (443 px)
+//! and the unfolded width (850 px),
+//! in light and dark schemes.
+//! Why:
+//! the layout branch is chosen by window width,
+//! so a width-specific regression shows only at that width.
+//! Note:
+//! element lookup by type name needs `SLINT_EMIT_DEBUG_INFO=1` at build time,
+//! which the repo test task sets.
 
 use i_slint_backend_testing::ElementHandle;
 use slint::ComponentHandle;
@@ -11,15 +17,22 @@ use slint::ComponentHandle;
 use crate::AppWindow;
 use crate::ui_screen_view::Route;
 
-/// What: `init_platform` installs the testing backend once per process.
-/// Why: Slint's platform is process-wide, so a second install from another test would fail.
+/// What:
+/// `init_platform` installs the testing backend once per process.
+/// Why:
+/// Slint's platform is process-wide,
+/// so a second install from another test would fail.
 fn init_platform() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(i_slint_backend_testing::init_no_event_loop);
 }
 
-/// What: `window_at` builds the window at `width` with the given scheme (1 light, 2 dark).
-/// Why: every test starts from the same window construction, so only the width and scheme differ.
+/// What:
+/// `window_at` builds the window at `width` with the given scheme (1 light,
+/// 2 dark).
+/// Why:
+/// every test starts from the same window construction,
+/// so only the width and scheme differ.
 fn window_at(width: f32, scheme: i32) -> AppWindow {
     init_platform();
     let app = AppWindow::new().expect("the window should build on the testing backend");
@@ -29,7 +42,8 @@ fn window_at(width: f32, scheme: i32) -> AppWindow {
     return app;
 }
 
-/// What: `count_of` counts the elements of one component type under the window.
+/// What:
+/// `count_of` counts the elements of one component type under the window.
 fn count_of(app: &AppWindow, type_name: &str) -> usize {
     return ElementHandle::find_by_element_type_name(app, type_name).count();
 }
@@ -73,8 +87,11 @@ fn check_search_route() {
     assert_eq!(count_of(&app, "SearchPage"), 1, "search shown on the search route");
 }
 
-/// What: `layout_matches_the_design_at_cover_and_unfolded_widths` runs every layout check in order on one thread.
-/// Why: the testing platform and its windows are per process and per thread, so the checks share one test.
+/// What:
+/// `layout_matches_the_design_at_cover_and_unfolded_widths` runs every layout check in order on one thread.
+/// Why:
+/// the testing platform and its windows are per process and per thread,
+/// so the checks share one test.
 #[test]
 fn layout_matches_the_design_at_cover_and_unfolded_widths() {
     check_cover_width_elements();

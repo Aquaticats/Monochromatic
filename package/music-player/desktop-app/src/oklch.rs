@@ -1,18 +1,39 @@
-//! OKLCH color math: sRGB conversion, gamut mapping, WCAG contrast and mixing.
+//! OKLCH color math:
+//! sRGB conversion,
+//! gamut mapping,
+//! WCAG contrast and mixing.
 //!
-//! What: every color the theme derives (D108) is moved in OKLCH (lightness, chroma, hue) and converted back to 8-bit
-//! sRGB here, so no role is ever computed by mixing sRGB channels, HSV or HSL.
-//! Why: the theme module (`theme_roles.rs`) needs one pure, unit-testable home for the color space, so the window
+//! What:
+//! every color the theme derives (D108) is moved in OKLCH (lightness,
+//! chroma,
+//! hue) and converted back to 8-bit
+//! sRGB here,
+//! so no role is ever computed by mixing sRGB channels,
+//! HSV or HSL.
+//! Why:
+//! the theme module (`theme_roles.rs`) needs one pure,
+//! unit-testable home for the color space,
+//! so the window
 //! only ever receives finished sRGB values.
-//! Gamut handling: a requested lightness, chroma and hue that sRGB cannot show keeps its lightness and hue, and the
-//! chroma is reduced by binary search until it fits (`gamut_map`). Per-channel clipping is never used, because it
+//! Gamut handling:
+//! a requested lightness,
+//! chroma and hue that sRGB cannot show keeps its lightness and hue,
+//! and the
+//! chroma is reduced by binary search until it fits (`gamut_map`).
+//! Per-channel clipping is never used,
+//! because it
 //! shifts the hue.
 
 /// What:
-///      `const GAMUT_TOLERANCE: f64 = 1e-6;`. `f64` is the 64-bit float, TypeScript's `number`; the siblings are `f32`
-///  (32-bit, too coarse for the 30-step chroma search) and the integer types.
+///      `const GAMUT_TOLERANCE: f64 = 1e-6;`.
+/// `f64` is the 64-bit float,
+/// TypeScript's `number`;
+/// the siblings are `f32`
+///  (32-bit,
+/// too coarse for the 30-step chroma search) and the integer types.
 /// Why:
-///       Linear channel values a hair outside `0..=1` from float rounding still count as inside the gamut, so
+///       Linear channel values a hair outside `0..=1` from float rounding still count as inside the gamut,
+/// so
 ///           achromatic colors do not fail the test by a rounding error.
 ///
 /// In TS you'd write (pseudocode):
@@ -22,9 +43,14 @@
 pub const GAMUT_TOLERANCE: f64 = 1e-6;
 
 /// What:
-///      `const CHROMA_SEARCH_STEPS: u32 = 32;`. `u32` is an unsigned 32-bit integer; siblings are `usize`, `u8`, `i32`.
+///      `const CHROMA_SEARCH_STEPS: u32 = 32;`.
+/// `u32` is an unsigned 32-bit integer;
+/// siblings are `usize`,
+/// `u8`,
+/// `i32`.
 /// Why:
-///       Each step halves the chroma interval, so 32 steps pin the in-gamut chroma far below one 8-bit step;
+///       Each step halves the chroma interval,
+/// so 32 steps pin the in-gamut chroma far below one 8-bit step;
 ///           `u32` because the count is small and only a `for` range bound uses it.
 ///
 /// In TS you'd write (pseudocode):
@@ -34,11 +60,17 @@ pub const GAMUT_TOLERANCE: f64 = 1e-6;
 pub const CHROMA_SEARCH_STEPS: u32 = 32;
 
 /// What:
-///      `pub struct Srgb8 { red, green, blue }`: one opaque display color as three `u8` channels. `u8` is an unsigned
-///  8-bit integer (0 to 255); siblings are `u16`, `f32`.
+///      `pub struct Srgb8 { red, green, blue }`:
+/// one opaque display color as three `u8` channels.
+/// `u8` is an unsigned
+///  8-bit integer (0 to 255);
+/// siblings are `u16`,
+/// `f32`.
 /// Why:
-///       The window and every contrast check use exactly these quantized values, so a ratio that holds here holds on
-///           screen; `Copy` lets the value be passed by value like a TypeScript number.
+///       The window and every contrast check use exactly these quantized values,
+/// so a ratio that holds here holds on
+///           screen;
+/// `Copy` lets the value be passed by value like a TypeScript number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,19 +78,28 @@ pub const CHROMA_SEARCH_STEPS: u32 = 32;
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Srgb8 {
-    /// Red channel, 0 to 255.
+    /// Red channel,
+    /// 0 to 255.
     pub red: u8,
-    /// Green channel, 0 to 255.
+    /// Green channel,
+    /// 0 to 255.
     pub green: u8,
-    /// Blue channel, 0 to 255.
+    /// Blue channel,
+    /// 0 to 255.
     pub blue: u8,
 }
 
 /// What:
-///      `pub struct Oklch { lightness, chroma, hue }`: a color in cylindrical OKLab. `lightness` is 0 (black) to 1
-///  (white), `chroma` is the distance from gray (0 to about 0.4), and `hue` is the angle in degrees, 0 up to 360.
+///      `pub struct Oklch { lightness, chroma, hue }`:
+/// a color in cylindrical OKLab.
+/// `lightness` is 0 (black) to 1
+///  (white),
+/// `chroma` is the distance from gray (0 to about 0.4),
+/// and `hue` is the angle in degrees,
+/// 0 up to 360.
 /// Why:
-///       Moving one of the three leaves the other two alone, which is what D108 asks every derivation to do.
+///       Moving one of the three leaves the other two alone,
+/// which is what D108 asks every derivation to do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -66,18 +107,23 @@ pub struct Srgb8 {
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Oklch {
-    /// Perceptual lightness, 0 to 1.
+    /// Perceptual lightness,
+    /// 0 to 1.
     pub lightness: f64,
-    /// Distance from the gray axis, never negative.
+    /// Distance from the gray axis,
+    /// never negative.
     pub chroma: f64,
-    /// Hue angle in degrees, 0 up to 360.
+    /// Hue angle in degrees,
+    /// 0 up to 360.
     pub hue: f64,
 }
 
 /// What:
-///      `fn srgb_decode(channel: u8) -> f64`: the sRGB transfer curve from an encoded 8-bit channel to linear light.
+///      `fn srgb_decode(channel: u8) -> f64`:
+/// the sRGB transfer curve from an encoded 8-bit channel to linear light.
 /// Why:
-///       OKLab is defined on linear light, so every conversion from a stored color starts here.
+///       OKLab is defined on linear light,
+/// so every conversion from a stored color starts here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,10 +139,13 @@ fn srgb_decode(channel: u8) -> f64 {
 }
 
 /// What:
-///      `fn srgb_encode(linear: f64) -> u8`: the inverse transfer curve, clamped to the gamut and rounded to the
+///      `fn srgb_encode(linear: f64) -> u8`:
+/// the inverse transfer curve,
+/// clamped to the gamut and rounded to the
 ///  nearest 8-bit step.
 /// Why:
-///       The window shows 8-bit colors; rounding (not truncating) keeps the error within half a step.
+///       The window shows 8-bit colors;
+/// rounding (not truncating) keeps the error within half a step.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,12 +165,20 @@ fn srgb_encode(linear: f64) -> u8 {
 }
 
 /// What:
-///      `pub fn srgb_to_oklch(color: Srgb8) -> Oklch`: reads a stored color as OKLCH. A color whose three channels
-///  are equal has chroma exactly 0 (and hue 0, which carries no meaning without chroma).
+///      `pub fn srgb_to_oklch(color: Srgb8) -> Oklch`:
+/// reads a stored color as OKLCH.
+/// A color whose three channels
+///  are equal has chroma exactly 0 (and hue 0,
+/// which carries no meaning without chroma).
 /// Why:
-///       The system accent arrives as sRGB and every derivation starts from its lightness, chroma and hue. The
-///           matrix constants are rounded to ten digits, so an equal-channel color would otherwise read a chroma of
-///           about 4e-8 with an arbitrary hue; D118 treats "all channels equal" as "no chroma at all", and a derived
+///       The system accent arrives as sRGB and every derivation starts from its lightness,
+/// chroma and hue.
+/// The
+///           matrix constants are rounded to ten digits,
+/// so an equal-channel color would otherwise read a chroma of
+///           about 4e-8 with an arbitrary hue;
+/// D118 treats "all channels equal" as "no chroma at all",
+/// and a derived
 ///           color built from such a read must stay exactly gray.
 ///
 /// In TS you'd write (pseudocode):
@@ -150,8 +207,12 @@ pub fn srgb_to_oklch(color: Srgb8) -> Oklch {
 }
 
 /// What:
-///      `pub fn oklch_to_linear(color: Oklch) -> [f64; 3]`: converts to linear-light red, green and blue WITHOUT
-///  clamping; a channel below 0 or above 1 means the color is outside sRGB. `[f64; 3]` is a fixed-length array.
+///      `pub fn oklch_to_linear(color: Oklch) -> [f64; 3]`:
+/// converts to linear-light red,
+/// green and blue WITHOUT
+///  clamping;
+/// a channel below 0 or above 1 means the color is outside sRGB.
+/// `[f64; 3]` is a fixed-length array.
 /// Why:
 ///       The gamut test and the chroma search read the unclamped channels.
 ///
@@ -176,9 +237,11 @@ pub fn oklch_to_linear(color: Oklch) -> [f64; 3] {
 }
 
 /// What:
-///      `pub fn is_in_gamut(color: Oklch) -> bool`: true when sRGB can show the color without clamping.
+///      `pub fn is_in_gamut(color: Oklch) -> bool`:
+/// true when sRGB can show the color without clamping.
 /// Why:
-///       The chroma search stops at the largest chroma for which this holds, and tests use it to prove the result.
+///       The chroma search stops at the largest chroma for which this holds,
+/// and tests use it to prove the result.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,13 +258,19 @@ pub fn is_in_gamut(color: Oklch) -> bool {
 }
 
 /// What:
-///      `pub fn gamut_map(color: Oklch) -> Oklch`: returns the same lightness and hue with the largest chroma, up to
-///  the requested one, that sRGB can show.
+///      `pub fn gamut_map(color: Oklch) -> Oklch`:
+/// returns the same lightness and hue with the largest chroma,
+/// up to
+///  the requested one,
+/// that sRGB can show.
 /// Why:
-///       Chroma reduction at constant lightness and hue keeps the role's brightness and tint direction; clipping each
-///           channel would shift the hue. Lightness at or past the ends is pure white or black (chroma 0).
+///       Chroma reduction at constant lightness and hue keeps the role's brightness and tint direction;
+/// clipping each
+///           channel would shift the hue.
+/// Lightness at or past the ends is pure white or black (chroma 0).
 /// Gotcha:
-///       Binary search assumes the in-gamut chroma set is an interval from 0, which holds for sRGB at a fixed
+///       Binary search assumes the in-gamut chroma set is an interval from 0,
+/// which holds for sRGB at a fixed
 ///           lightness and hue because the gamut is convex.
 ///
 /// In TS you'd write (pseudocode):
@@ -244,13 +313,20 @@ pub fn gamut_map(color: Oklch) -> Oklch {
 }
 
 /// What:
-///      `pub fn oklch_to_srgb8(color: Oklch) -> Srgb8`: gamut-maps then encodes to 8-bit sRGB. A color with chroma
+///      `pub fn oklch_to_srgb8(color: Oklch) -> Srgb8`:
+/// gamut-maps then encodes to 8-bit sRGB.
+/// A color with chroma
 ///  exactly 0 gets one value on all three channels.
 /// Why:
-///       The single exit from OKLCH to a displayable color for every derived role. The conversion matrix rows sum to
-///           1 only to ten digits, so three channels of one gray can sit about 1e-10 apart; a contrast fit lands
-///           within 1e-12 of an 8-bit rounding boundary, where that gap splits a gray into channels one step apart.
-///           For a completely neutral root (D118) every gray must have equal channels, so zero chroma encodes once.
+///       The single exit from OKLCH to a displayable color for every derived role.
+/// The conversion matrix rows sum to
+///           1 only to ten digits,
+/// so three channels of one gray can sit about 1e-10 apart;
+/// a contrast fit lands
+///           within 1e-12 of an 8-bit rounding boundary,
+/// where that gap splits a gray into channels one step apart.
+///           For a completely neutral root (D118) every gray must have equal channels,
+/// so zero chroma encodes once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -270,9 +346,11 @@ pub fn oklch_to_srgb8(color: Oklch) -> Srgb8 {
 }
 
 /// What:
-///      `pub fn relative_luminance(color: Srgb8) -> f64`: the WCAG 2 relative luminance (0 black to 1 white).
+///      `pub fn relative_luminance(color: Srgb8) -> f64`:
+/// the WCAG 2 relative luminance (0 black to 1 white).
 /// Why:
-///       Contrast ratios are defined on it, and the guarantee in `theme_roles.rs` is checked with these exact values.
+///       Contrast ratios are defined on it,
+/// and the guarantee in `theme_roles.rs` is checked with these exact values.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -283,7 +361,10 @@ pub fn relative_luminance(color: Srgb8) -> f64 {
 }
 
 /// What:
-///      `pub fn contrast_ratio(first: Srgb8, second: Srgb8) -> f64`: the WCAG 2 ratio, 1 to 21, order-independent.
+///      `pub fn contrast_ratio(first: Srgb8, second: Srgb8) -> f64`:
+/// the WCAG 2 ratio,
+/// 1 to 21,
+/// order-independent.
 /// Why:
 ///       AA asks 4.5 for text and 3 for UI parts.
 ///
@@ -301,11 +382,15 @@ pub fn contrast_ratio(first: Srgb8, second: Srgb8) -> f64 {
 }
 
 /// What:
-///      `pub fn composite_over(layer: Srgb8, alpha: f64, surface: Srgb8) -> Srgb8`: the color a layer of `alpha`
-///  coverage shows over an opaque surface, the same blend the renderer performs for a translucent fill.
+///      `pub fn composite_over(layer: Srgb8, alpha: f64, surface: Srgb8) -> Srgb8`:
+/// the color a layer of `alpha`
+///  coverage shows over an opaque surface,
+/// the same blend the renderer performs for a translucent fill.
 /// Why:
-///       Hover and pressed state layers are alpha-only (D108 allows that); contrast checks need the resulting
-///           background. This models rendering and creates no theme color.
+///       Hover and pressed state layers are alpha-only (D108 allows that);
+/// contrast checks need the resulting
+///           background.
+/// This models rendering and creates no theme color.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -324,10 +409,15 @@ pub fn composite_over(layer: Srgb8, alpha: f64, surface: Srgb8) -> Srgb8 {
 }
 
 /// What:
-///      `pub fn mix_oklch(from: Oklch, to: Oklch, fraction: f64) -> Oklch`: interpolates lightness, chroma and hue
-///  (the short way round the hue circle). A color with no chroma has no hue, so it takes the other color's hue.
+///      `pub fn mix_oklch(from: Oklch, to: Oklch, fraction: f64) -> Oklch`:
+/// interpolates lightness,
+/// chroma and hue
+///  (the short way round the hue circle).
+/// A color with no chroma has no hue,
+/// so it takes the other color's hue.
 /// Why:
-///       D108 replaces sRGB mixes with this: hover and pressed container fills move a role toward its content color
+///       D108 replaces sRGB mixes with this:
+/// hover and pressed container fills move a role toward its content color
 ///           in OKLCH.
 ///
 /// In TS you'd write (pseudocode):
@@ -346,10 +436,13 @@ pub fn mix_oklch(from: Oklch, to: Oklch, fraction: f64) -> Oklch {
 }
 
 /// What:
-///      `pub fn delta_e_ok(first: Srgb8, second: Srgb8) -> f64`: the distance between two colors in OKLab, times 100
+///      `pub fn delta_e_ok(first: Srgb8, second: Srgb8) -> f64`:
+/// the distance between two colors in OKLab,
+/// times 100
 ///  (so about 1 is a just-noticeable difference).
 /// Why:
-///       Reports how far a derived role moved from the captured fixed value, and bounds the baseline drift in tests.
+///       Reports how far a derived role moved from the captured fixed value,
+/// and bounds the baseline drift in tests.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

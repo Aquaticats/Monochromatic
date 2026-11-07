@@ -2,20 +2,38 @@
 //! The message of a cargo-shadow that was started by another cargo-shadow's own start of the real `cargo`.
 //! Why:
 //! A program on PATH named `cargo` that leads back to cargo-shadow (a script or launcher that has no `.launch` record beside it)
-//! would make cargo-shadow start itself again without end. The second start stops at once, before doing any work, with exit status 2,
-//! and tells a reader who knows nothing about cargo-shadow what happened and what to type, step by step (owner decision of
-//! 2026-11-04: option A, "make the help message descriptive enough that even a monkey can understand and execute it").
+//! would make cargo-shadow start itself again without end.
+//! The second start stops at once,
+//! before doing any work,
+//! with exit status 2,
+//! and tells a reader who knows nothing about cargo-shadow what happened and what to type,
+//! step by step (owner decision of
+//! 2026-11-04:
+//! option A,
+//! "make the help message descriptive enough that even a monkey can understand and execute it").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! export function arrivalMessage(input: ArrivalInput): string
 //! ```
 
+/// Reads the metadata,
+/// canonical path and link target of each `cargo` found on `PATH`.
 use std::fs;
+/// The device and inode numbers that recognize this very executable,
+/// and the permission bits that say a file can be run.
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
+/// The `cargo` candidates:
+/// borrowed from the guard record,
+/// and owned when joined from a `PATH` entry.
 use std::path::{Path, PathBuf};
 
+/// The record of the earlier cargo-shadow and how it started this one,
+/// which decide the wording of the message.
 use crate::guard::{Guard, GuardKind};
+/// The suffix of the `.launch` record that marks a real cargo,
+/// and this process's device and inode,
+/// to tell a `PATH` entry that leads back here.
 use crate::real_binary::{LAUNCH_RECORD_SUFFIX, running_image_identity};
 
 /// The exit status of a cargo-shadow that was started by cargo-shadow itself.
@@ -24,7 +42,8 @@ pub const ARRIVAL_EXIT_CODE: i32 = 2;
 /// What:
 /// `pub fn shell_quote(text: &str) -> String` quotes text for a POSIX shell inside single quotes.
 /// Why:
-/// Every command in the message works as printed, whatever the paths contain.
+/// Every command in the message works as printed,
+/// whatever the paths contain.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,7 +53,9 @@ pub fn shell_quote(text: &str) -> String {
     return format!("'{}'", text.replace('\'', "'\\''"));
 }
 
-/// One `cargo` found on PATH, in PATH order, and what it is.
+/// One `cargo` found on PATH,
+/// in PATH order,
+/// and what it is.
 struct Found {
     /// The path as PATH spells it.
     spelled: PathBuf,
@@ -44,7 +65,9 @@ struct Found {
     candidate: bool,
 }
 
-/// The `cargo` files of a PATH, in order, each classified.
+/// The `cargo` files of a PATH,
+/// in order,
+/// each classified.
 fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
     let image: Option<(u64, u64)> = running_image_identity();
     let mut found: Vec<Found> = Vec::new();
@@ -79,11 +102,40 @@ fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
 }
 
 /// What:
+/// `fn launch_record_text(own_executable: &Path) -> String` is the whole text of the `.launch` record that names this program.
+/// Why:
+/// The printed command must write a record that parses whatever the path holds (quotation marks,
+/// backslashes,
+/// control characters),
+/// so
+/// the JSON is built by the serializer,
+/// never by filling a template (round 21,
+/// sixth pass,
+/// group 14).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const launchRecordText = (ownExecutable: string): string => JSON.stringify({ toolId: 'cargo-shadow', lockFile: '/dev/null', real: ownExecutable, scope: 'repo' });
+/// ```
+fn launch_record_text(own_executable: &Path) -> String {
+    let mut fields = serde_json::Map::new();
+    for (name, value) in [("toolId", "cargo-shadow"), ("lockFile", "/dev/null"), ("real", &own_executable.to_string_lossy()), ("scope", "repo")] {
+        fields.insert(name.to_string(), serde_json::Value::String(value.to_string()));
+    }
+    return serde_json::Value::Object(fields).to_string();
+}
+
+/// What:
 /// `pub fn arrival_message(guard: &Guard, own_executable: &Path, path_variable: &str) -> String` is the whole text printed when
 /// this cargo-shadow was started by another one.
 /// Why:
-/// It states in one sentence what happened, shows the chain with full paths, the `PATH` this program saw, why it stops, and numbered
-/// steps with commands that work as printed, then how to check the fix.
+/// It states in one sentence what happened,
+/// shows the chain with full paths,
+/// the `PATH` this program saw,
+/// why it stops,
+/// and numbered
+/// steps with commands that work as printed,
+/// then how to check the fix.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,10 +174,10 @@ pub fn arrival_message(guard: &Guard, own_executable: &Path, path_variable: &str
         Some(path) => format!(
             "  Fix B, tell cargo-shadow that the file it chose is a launcher of cargo-shadow (the permanent fix, done once):\n\
              \x20   1. Type this line exactly and press Enter (it writes the file {record}):\n\
-             \x20        printf '{{\"toolId\":\"cargo-shadow\",\"lockFile\":\"/dev/null\",\"real\":\"%s\",\"scope\":\"repo\"}}' {exe} > {record_quoted}\n\
+             \x20        printf %s {record_text} > {record_quoted}\n\
              \x20   2. Check that it worked: type `cargo --version` and press Enter.\n",
             record = format_args!("{}{}", path.display(), LAUNCH_RECORD_SUFFIX),
-            exe = shell_quote(&own_executable.display().to_string()),
+            record_text = shell_quote(&launch_record_text(own_executable)),
             record_quoted = shell_quote(&format!("{}{}", path.display(), LAUNCH_RECORD_SUFFIX)),
         ),
         None => String::new(),

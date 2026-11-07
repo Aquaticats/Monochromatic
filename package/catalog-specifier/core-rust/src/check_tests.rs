@@ -1,7 +1,11 @@
 //! What:
-//! Tests for the parts of the contract that a JSON vectors file cannot express: raw bytes, entry points and printed text.
+//! Tests for the parts of the contract that a JSON vectors file cannot express:
+//! raw bytes,
+//! entry points and printed text.
 //! Why:
-//! Invalid UTF-8, a byte order mark and the wording of findings are properties of bytes and of `Display`, not of JSON text.
+//! Invalid UTF-8,
+//! a byte order mark and the wording of findings are properties of bytes and of `Display`,
+//! not of JSON text.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,13 +13,18 @@
 //! describe('checkManifest', () => { it('refuses invalid UTF-8', () => { /* ... */ }); });
 //! ```
 
-/// Imports the public functions and types through the crate root, the same path a consumer uses.
+/// Imports the public functions and types through the crate root,
+/// the same path a consumer uses.
 use super::{FindingKind, check_manifest, check_manifest_bytes, check_manifest_path};
 
 /// What:
 /// `fn kinds(findings: &[Finding]) -> Vec<&'static str>` maps findings to their kebab-case kind names.
-/// `&[Finding]` is a borrowed view of a list. The loop reads each element by reference and `.push(...)` appends its kind name
-/// to a growable `Vec`. Why: Assertions then compare short lists of words. A plain loop is used because the crate's clippy
+/// `&[Finding]` is a borrowed view of a list.
+/// The loop reads each element by reference and `.push(...)` appends its kind name
+/// to a growable `Vec`.
+/// Why:
+/// Assertions then compare short lists of words.
+/// A plain loop is used because the crate's clippy
 /// configuration denies the implicit returns that short closures would need.
 ///
 /// In TS you'd write (pseudocode):
@@ -30,8 +39,12 @@ fn kinds(findings: &[super::Finding]) -> Vec<&'static str> {
     return names;
 }
 
-/// What: `#[test]` marks a test function. `vec![0xFF, 0xFE]` builds a `Vec<u8>` of two bytes that are not valid UTF-8.
-/// Why: Invalid UTF-8 is one `invalid-manifest` finding, not a panic.
+/// What:
+/// `#[test]` marks a test function.
+/// `vec![0xFF, 0xFE]` builds a `Vec<u8>` of two bytes that are not valid UTF-8.
+/// Why:
+/// Invalid UTF-8 is one `invalid-manifest` finding,
+/// not a panic.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,7 +56,8 @@ fn invalid_utf8_is_one_invalid_manifest_finding() {
     assert_eq!(kinds(&findings), vec!["invalid-manifest"]);
 }
 
-/// One leading byte order mark is removed, and a second one is not valid JSON.
+/// One leading byte order mark is removed,
+/// and a second one is not valid JSON.
 #[test]
 fn one_byte_order_mark_is_removed_and_a_second_is_invalid() {
     let one: Vec<u8> = [&[0xEF_u8, 0xBB, 0xBF][..], b"{\"dependencies\":{\"a\":\"catalog:\"}}"].concat();
@@ -52,7 +66,8 @@ fn one_byte_order_mark_is_removed_and_a_second_is_invalid() {
     assert_eq!(kinds(&check_manifest_bytes("package.json", &two)), vec!["invalid-manifest"]);
 }
 
-/// An unsupported file name is refused without reading the bytes, even when the bytes are garbage.
+/// An unsupported file name is refused without reading the bytes,
+/// even when the bytes are garbage.
 #[test]
 fn unsupported_name_is_refused_without_reading_the_bytes() {
     let findings = check_manifest("package/a/package.yaml", &[0xFF]);
@@ -68,9 +83,14 @@ fn supported_name_routes_to_the_byte_check() {
 }
 
 /// What:
-/// The printed text names the file, the section, the dependency and the specifier, and states the remedy.
-/// `format!("{finding}")` builds a `String` through the `Display` implementation; `.contains("...")` is a substring test.
-/// Why: The text is what a person sees in a commit refusal or a warning.
+/// The printed text names the file,
+/// the section,
+/// the dependency and the specifier,
+/// and states the remedy.
+/// `format!("{finding}")` builds a `String` through the `Display` implementation;
+/// `.contains("...")` is a substring test.
+/// Why:
+/// The text is what a person sees in a commit refusal or a warning.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,7 +117,8 @@ fn duplicate_findings_print_distinct_sentences() {
     assert!(format!("{}", name[0]).contains("lists `a` more than once"));
 }
 
-/// An unparseable manifest prints the parser's reason, and an empty document is refused.
+/// An unparseable manifest prints the parser's reason,
+/// and an empty document is refused.
 #[test]
 fn invalid_manifest_text_carries_a_reason() {
     let findings = check_manifest_bytes("p.json", b"");
@@ -116,9 +137,13 @@ fn lone_surrogate_name_prints_with_the_replacement_character() {
 }
 
 /// What:
-/// Findings keep source order across sections: members are walked in the order they appear, not in the table's order.
+/// Findings keep source order across sections:
+/// members are walked in the order they appear,
+/// not in the table's order.
 /// `assert_eq!(left, right)` panics when the two values differ and prints both.
-/// Why: The contract promises source order, so a consumer can print findings top to bottom.
+/// Why:
+/// The contract promises source order,
+/// so a consumer can print findings top to bottom.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,7 +171,9 @@ fn findings_carry_path_name_and_specifier() {
     assert_eq!(findings[0].specifier.as_deref(), Some("^4.6.7"));
 }
 
-/// A non-string specifier finding names the path, the section and the dependency, and holds no specifier text.
+/// A non-string specifier finding names the path,
+/// the section and the dependency,
+/// and holds no specifier text.
 #[test]
 fn non_string_findings_carry_path_section_and_name() {
     let findings = check_manifest_bytes("package/x/package.json", b"{\"optionalDependencies\":{\"a\":[\"catalog:team\"]}}");
@@ -158,7 +185,8 @@ fn non_string_findings_carry_path_section_and_name() {
     assert_eq!(findings[0].specifier, None);
 }
 
-/// A large dependency list with a single bad entry in the middle yields exactly one finding, in linear time.
+/// A large dependency list with a single bad entry in the middle yields exactly one finding,
+/// in linear time.
 #[test]
 fn a_large_section_with_one_bad_entry_yields_one_finding() {
     let mut text = String::from("{\"dependencies\":{");

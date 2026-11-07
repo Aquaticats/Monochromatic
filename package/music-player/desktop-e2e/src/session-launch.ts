@@ -83,6 +83,45 @@ export const DEFAULT_UNIT_LIMITS: UnitLimits = {
 const FALLBACK_DISPLAY = 'wayland-0';
 
 /**
+ Where the compositor of a session draws.
+
+ `headless` renders without any display, on the named render node (or `software`), so nothing appears on the desktop
+ of the machine. `visible` opens a nested window in the host session, and only an explicit request gives it
+ (`--visible` or `E2E_VISIBLE=1`, see `config.ts`).
+ */
+export type DisplayMode = HeadlessDisplay | VisibleDisplay;
+
+/**
+ A session that renders without any display, on one device.
+ */
+export type HeadlessDisplay = {
+  /**
+   Render node path such as `/dev/dri/renderD129`, or `software`.
+   */
+  readonly gpu: string;
+  readonly kind: 'headless';
+};
+
+/**
+ A session that opens a nested window in the host session.
+ */
+export type VisibleDisplay = {
+  readonly kind: 'visible';
+};
+
+/**
+ The variables through which a process finds a display of the host. A headless session gets none of them: the unit
+ environment leaves them out and `UnsetEnvironment` removes the copies the systemd user manager holds, so even a
+ compositor started without `--headless` finds no parent display and refuses to start instead of opening a window.
+ */
+export const HOST_DISPLAY_VARIABLES: readonly string[] = [
+  'WAYLAND_DISPLAY',
+  'WAYLAND_SOCKET',
+  'DISPLAY',
+  'XAUTHORITY',
+];
+
+/**
  Values of the host environment that the session needs.
  */
 export type HostEnvironment = {
@@ -166,6 +205,8 @@ export function hostEnvironment(uid: number,): HostEnvironment {
  Builds the environment of the unit: the private sink as the only audio target, scratch XDG directories, and a `bin`
  directory first on the search path, where stubs stand in for the file manager and the clipboard tools.
  
+ @param display - where the compositor draws; only a visible session is told the host display
+ 
  @param sinkName - name of the private null sink; `PIPEWIRE_NODE` points the app at it
  
  @param xdg - scratch XDG root of the session
@@ -185,6 +226,7 @@ export function hostEnvironment(uid: number,): HostEnvironment {
  */
 export function sessionEnvironment(
   {
+    display,
     sinkName,
     xdg,
     binDir,
@@ -192,14 +234,18 @@ export function sessionEnvironment(
     extraEnv,
   }: {
     readonly binDir: string;
+    readonly display: DisplayMode;
     readonly extraEnv?: Readonly<Record<string, string>>;
     readonly host: HostEnvironment;
     readonly sinkName: string;
     readonly xdg: string;
   },
 ): Readonly<Record<string, string>> {
-  return {
-    WAYLAND_DISPLAY: host.waylandDisplay,
+  /**
+   The variables of the unit, before a headless session loses the display ones.
+   */
+  const environment = {
+    ...display.kind === 'visible' ? { WAYLAND_DISPLAY: host.waylandDisplay, } : {},
     XDG_RUNTIME_DIR: host.runtimeDir,
     PIPEWIRE_NODE: sinkName,
     RUST_LOG: 'info,music_player=debug',
@@ -225,6 +271,26 @@ export function sessionEnvironment(
     MUSIC_PLAYER_COLOR_SCHEME: '',
     ...extraEnv,
   };
+  return display.kind === 'visible' ? environment : withoutHostDisplay(environment,);
+}
+
+/**
+ Drops every variable through which a display of the host is found.
+
+ @param environment - variables of a unit
+
+ @returns the same variables without the ones in `HOST_DISPLAY_VARIABLES`
+
+ @example
+ ```ts
+ withoutHostDisplay({ DISPLAY: ':0', PATH: '/bin', },); // { PATH: '/bin' }
+ ```
+ */
+function withoutHostDisplay(environment: Readonly<Record<string, string>>,): Readonly<Record<string, string>> {
+  return Object.fromEntries(Object.entries(environment,)
+    .filter(function isNotHostDisplay([name,]: EnvironmentEntry,): boolean {
+      return !HOST_DISPLAY_VARIABLES.includes(name,);
+    },),);
 }
 
 /**
@@ -238,6 +304,9 @@ type EnvironmentEntry = readonly [
 /**
  Builds the `systemd-run` argument vector that starts the compositor with the app inside a transient user unit whose
  output goes to the session log.
+ 
+ @param display - where the compositor draws: a headless session gets `--headless --gpu <device>` and no host display
+ variable; a visible one gets neither
  
  @param unit - unit name
  
@@ -259,11 +328,12 @@ type EnvironmentEntry = readonly [
  
  @example
  ```ts
- const args = systemdRunArguments({ unit, logPath, environment, compositorPath, socket, options, releaseBinary, limits, },);
+ const args = systemdRunArguments({ display, unit, logPath, environment, compositorPath, socket, options, releaseBinary, limits, },);
  ```
  */
 export function systemdRunArguments(
   {
+    display,
     unit,
     logPath,
     environment,
@@ -274,6 +344,7 @@ export function systemdRunArguments(
     limits,
   }: {
     readonly compositorPath: string;
+    readonly display: DisplayMode;
     readonly environment: Readonly<Record<string, string>>;
     readonly limits: UnitLimits;
     readonly logPath: string;
@@ -293,11 +364,21 @@ export function systemdRunArguments(
     `--property=IOWeight=${String(SESSION_IO_WEIGHT,)}`,
     `--property=StandardOutput=append:${logPath}`,
     `--property=StandardError=append:${logPath}`,
+    ...display.kind === 'headless'
+      ? [`--property=UnsetEnvironment=${HOST_DISPLAY_VARIABLES.join(' ',)}`,]
+      : [],
     ...Object.entries(environment,)
       .map(function setenv([key, value,]: EnvironmentEntry,): string {
         return `--setenv=${key}=${value}`;
       },),
     compositorPath,
+    ...display.kind === 'headless'
+      ? [
+        '--headless',
+        '--gpu',
+        display.gpu,
+      ]
+      : [],
     '--socket',
     socket,
     '--size',
@@ -310,6 +391,94 @@ export function systemdRunArguments(
     releaseBinary,
     ...options.appArgs ?? [options.library,],
   ];
+}
+
+/**
+ Builds the whole `systemd-run` argument vector of a session: its environment, then the command line that starts the
+ compositor and the app. `startSession` runs exactly this vector, so a test of it covers what the host gets.
+
+ @param display - where the compositor draws
+ 
+ @param unit - unit name
+ 
+ @param logPath - file that receives the unit's standard output and error
+ 
+ @param sinkName - name of the private null sink the app is pointed at
+ 
+ @param xdg - scratch XDG root of the session
+ 
+ @param binDir - directory of the stubs
+ 
+ @param host - host values
+ 
+ @param extraEnv - variables a session adds or replaces
+ 
+ @param compositorPath - compositor executable
+ 
+ @param socket - path of the compositor's control socket
+ 
+ @param options - window and appearance
+ 
+ @param releaseBinary - the app executable
+ 
+ @param limits - memory, CPU and task limits of the unit
+ 
+ @returns the arguments after `systemd-run`, in order
+ 
+ @example
+ ```ts
+ const args = sessionLaunchArguments({ display, unit, logPath, sinkName, xdg, binDir, host, compositorPath, socket, options, releaseBinary, limits, },);
+ ```
+ */
+export function sessionLaunchArguments(
+  {
+    display,
+    unit,
+    logPath,
+    sinkName,
+    xdg,
+    binDir,
+    host,
+    extraEnv,
+    compositorPath,
+    socket,
+    options,
+    releaseBinary,
+    limits,
+  }: {
+    readonly binDir: string;
+    readonly compositorPath: string;
+    readonly display: DisplayMode;
+    readonly extraEnv?: Readonly<Record<string, string>>;
+    readonly host: HostEnvironment;
+    readonly limits: UnitLimits;
+    readonly logPath: string;
+    readonly options: SessionOptions;
+    readonly releaseBinary: string;
+    readonly sinkName: string;
+    readonly socket: string;
+    readonly unit: string;
+    readonly xdg: string;
+  },
+): readonly string[] {
+  return systemdRunArguments({
+    display,
+    unit,
+    logPath,
+    environment: sessionEnvironment({
+      display,
+      sinkName,
+      xdg,
+      binDir,
+      host,
+      ...extraEnv === undefined ? {} : { extraEnv, },
+    },),
+    compositorPath,
+    socket,
+    options,
+    releaseBinary,
+    limits,
+  },);
 }
 
 /**

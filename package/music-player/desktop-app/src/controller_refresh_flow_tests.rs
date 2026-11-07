@@ -7,14 +7,19 @@
 use super::*;
 use crate::change_set::{Change, DirtyPaths};
 
-/// What: `named` is the command the watcher sends for one path.
-/// Why: every test drives the controller with it.
+/// What:
+/// `named` is the command the watcher sends for one path.
+/// Why:
+/// every test drives the controller with it.
 fn named(path: PathBuf, structural: bool) -> Command {
     return Command::SourceChanged(Change::Paths(DirtyPaths::single(path, structural)));
 }
 
-/// What: `reconciled_names` lists the name lists of every `Reconciled` update so far.
-/// Why: a changed list is announced by `Reconciled`; an unchanged one by nothing.
+/// What:
+/// `reconciled_names` lists the name lists of every `Reconciled` update so far.
+/// Why:
+/// a changed list is announced by `Reconciled`;
+/// an unchanged one by nothing.
 fn reconciled_names(rig: &Rig) -> Vec<Vec<String>> {
     return rig
         .updates
@@ -25,8 +30,12 @@ fn reconciled_names(rig: &Rig) -> Vec<Vec<String>> {
         .collect();
 }
 
-/// What: `done_reports` counts the refresh sweeps that have ended, as the controller has been told.
-/// Why: each refresh sweep ends with one report, so the count is the number of sweeps that ran.
+/// What:
+/// `done_reports` counts the refresh sweeps that have ended,
+/// as the controller has been told.
+/// Why:
+/// each refresh sweep ends with one report,
+/// so the count is the number of sweeps that ran.
 fn done_reports(rig: &Rig) -> usize {
     return rig.reports.lock().expect("the sink is not poisoned").iter().filter(|report| return matches!(report, SweepReport::RefreshDone { .. })).count();
 }

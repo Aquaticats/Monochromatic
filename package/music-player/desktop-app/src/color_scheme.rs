@@ -1,7 +1,10 @@
 //! The color scheme override that the environment variable `MUSIC_PLAYER_COLOR_SCHEME` selects.
 //!
-//! What: `scheme_override` maps the variable's text to the `Theme.scheme-override` value the window reads.
-//! Why: verification runs need a fixed light or dark window, and the default follows the system.
+//! What:
+//! `scheme_override` maps the variable's text to the `Theme.scheme-override` value the window reads.
+//! Why:
+//! verification runs need a fixed light or dark window,
+//! and the default follows the system.
 
 use std::fmt;
 
@@ -21,7 +24,8 @@ pub const COLOR_SCHEME_ENV: &str = "MUSIC_PLAYER_COLOR_SCHEME";
 ///      `pub const FOLLOW_SYSTEM: i32 = 0;` and its siblings `LIGHT` and `DARK`.
 ///  The three values `Theme.scheme-override` takes.
 /// Why:
-///       The Slint global reads these integers, so the Rust side names them once.
+///       The Slint global reads these integers,
+/// so the Rust side names them once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,7 +39,9 @@ pub const DARK: i32 = 2;
 
 /// What:
 ///      `pub enum ColorSchemeError { Unknown(String) }`.
-///  The variable's text is neither `light`, `dark`, nor empty.
+///  The variable's text is neither `light`,
+/// `dark`,
+/// nor empty.
 /// Why:
 ///       A typo must be reported rather than silently treated as the system scheme.
 ///
@@ -63,10 +69,17 @@ impl std::error::Error for ColorSchemeError {}
 
 /// What:
 ///      `pub fn scheme_override(value: Option<&str>) -> Result<i32, ColorSchemeError>`.
-///  The override for an absent, empty, `light`, or `dark` value; an error for anything else.
+///  The override for an absent,
+/// empty,
+/// `light`,
+/// or `dark` value;
+/// an error for anything else.
 /// Why:
-///       Unset means follow the system, and an empty variable (`MUSIC_PLAYER_COLOR_SCHEME=`) counts as unset, as the
-///  accent variable already does; each named scheme maps to one fixed value.
+///       Unset means follow the system,
+/// and an empty variable (`MUSIC_PLAYER_COLOR_SCHEME=`) counts as unset,
+/// as the
+///  accent variable already does;
+/// each named scheme maps to one fixed value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

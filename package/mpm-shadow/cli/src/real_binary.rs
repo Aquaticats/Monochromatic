@@ -35,6 +35,8 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
 
+use crate::shadow_identity::shadow_behind;
+
 /// Imports the launcher record reader.
 use crate::toolchain::launcher::{parse_record, record_path};
 
@@ -79,10 +81,15 @@ fn is_executable_file(path: &Path) -> bool {
 /// What:
 /// Whether `candidate` (already resolved) is a per-tree launcher whose record names `shadow` as the binary it starts.
 /// Why:
-/// `install` links `mpm` to a launcher, which replaces itself with the real shadow binary under the name `mpm`;
-/// that binary's own path is not the launcher's, so comparing paths alone takes the launcher for the real `mpm`,
-/// starts it, and the chain repeats until the host refuses new processes (issue 6259).
-/// A file with no record, or an unreadable one, is not a launcher.
+/// `install` links `mpm` to a launcher,
+/// which replaces itself with the real shadow binary under the name `mpm`;
+/// that binary's own path is not the launcher's,
+/// so comparing paths alone takes the launcher for the real `mpm`,
+/// starts it,
+/// and the chain repeats until the host refuses new processes (issue 6259).
+/// A file with no record,
+/// or an unreadable one,
+/// is not a launcher.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,6 +142,12 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<Path
         if let Ok(resolved) = fs::canonicalize(&candidate)
             && (resolved == skip || is_launcher_of(&resolved, skip))
         {
+            continue;
+        }
+
+        // A candidate that is a shadow of any version, or a launcher that leads to one, is skipped without being started:
+        // what a file is does not depend on its path or its version (`shadow_identity.rs`).
+        if shadow_behind(&candidate).is_some() {
             continue;
         }
 

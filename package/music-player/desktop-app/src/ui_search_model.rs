@@ -1,7 +1,13 @@
-//! Pure Search page model: the rows, emphasis segments and status text for one query.
+//! Pure Search page model:
+//! the rows,
+//! emphasis segments and status text for one query.
 //!
-//! What: `search_view` runs the library search and turns each result into plain rows.
-//! Why: row order, emphasis spans and the status claim are decided here, so the window only places text.
+//! What:
+//! `search_view` runs the library search and turns each result into plain rows.
+//! Why:
+//! row order,
+//! emphasis spans and the status claim are decided here,
+//! so the window only places text.
 
 use music_player::search_page_model::{
     is_current_track_result, search_emphasis_spans, search_row_kind_label, search_row_second_line, search_status_line,
@@ -12,8 +18,12 @@ use music_player::search_results::search_library;
 #[cfg(test)]
 use music_player::track::Track;
 
-/// What: `Segment` is one piece of a result line, plain or emphasized (a query match).
-/// Why: the pane draws emphasized pieces bold on a tint, so each line arrives pre-split.
+/// What:
+/// `Segment` is one piece of a result line,
+/// plain or emphasized (a query match).
+/// Why:
+/// the pane draws emphasized pieces bold on a tint,
+/// so each line arrives pre-split.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -27,8 +37,11 @@ pub struct Segment {
     pub emphasized: bool,
 }
 
-/// What: `SearchRowView` is one Search result row before it becomes a window struct.
-/// Why: the window needs plain values, and the tests need the row without Slint.
+/// What:
+/// `SearchRowView` is one Search result row before it becomes a window struct.
+/// Why:
+/// the window needs plain values,
+/// and the tests need the row without Slint.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -36,11 +49,13 @@ pub struct Segment {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SearchRowView {
-    /// 0 for a folder result, 1 for a track result.
+    /// 0 for a folder result,
+    /// 1 for a track result.
     pub kind: i32,
     /// Title line split into emphasized pieces.
     pub title: Vec<Segment>,
-    /// Parent folder line split into emphasized pieces; empty when `has_parent` is false.
+    /// Parent folder line split into emphasized pieces;
+    /// empty when `has_parent` is false.
     pub parent: Vec<Segment>,
     /// Whether the second line is shown.
     pub has_parent: bool,
@@ -48,14 +63,22 @@ pub struct SearchRowView {
     pub current: bool,
     /// Whether the current track is playing.
     pub playing: bool,
-    /// What a screen reader announces for the row: the name, the kind and, for a track, the parent folder.
+    /// What a screen reader announces for the row:
+    /// the name,
+    /// the kind and,
+    /// for a track,
+    /// the parent folder.
     pub spoken: String,
-    /// Position of the result in the result list, which `open` reports back.
+    /// Position of the result in the result list,
+    /// which `open` reports back.
     pub index: i32,
 }
 
-/// What: `SearchView` is the Search page's rows and status block for one query.
-/// Why: the status block shows when there are no rows, so both come from one query run.
+/// What:
+/// `SearchView` is the Search page's rows and status block for one query.
+/// Why:
+/// the status block shows when there are no rows,
+/// so both come from one query run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -63,18 +86,25 @@ pub struct SearchRowView {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SearchView {
-    /// Result rows in result order; empty when the status block is shown.
+    /// Result rows in result order;
+    /// empty when the status block is shown.
     pub rows: Vec<SearchRowView>,
-    /// Status block title, or empty when results are shown.
+    /// Status block title,
+    /// or empty when results are shown.
     pub status_title: String,
-    /// Status block detail, or empty when there is none.
+    /// Status block detail,
+    /// or empty when there is none.
     pub status_detail: String,
     /// The result list the row indices refer to.
     pub results: Vec<SearchResult>,
 }
 
-/// What: `segments` splits `text` into plain and emphasized pieces at the highlight spans.
-/// Why: the search highlights are character offsets, so the split walks characters, not bytes.
+/// What:
+/// `segments` splits `text` into plain and emphasized pieces at the highlight spans.
+/// Why:
+/// the search highlights are character offsets,
+/// so the split walks characters,
+/// not bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,9 +127,17 @@ pub fn segments(text: &str, highlights: &[music_player::search_matcher::SearchHi
     return pieces;
 }
 
-/// What: `spoken_label` joins the name, the kind word and the parent folder of a result into one announcement.
-/// Why: a result is one named action (D77): its own name once, the kind, and the parent context that tells equal names
-/// apart. The highlight pieces and the kind icon add nothing, so the row's label is the only place the words are joined.
+/// What:
+/// `spoken_label` joins the name,
+/// the kind word and the parent folder of a result into one announcement.
+/// Why:
+/// a result is one named action (D77):
+/// its own name once,
+/// the kind,
+/// and the parent context that tells equal names
+/// apart.
+/// The highlight pieces and the kind icon add nothing,
+/// so the row's label is the only place the words are joined.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,8 +150,11 @@ fn spoken_label(name: &str, kind: &str, parent: Option<&str>) -> String {
     };
 }
 
-/// What: `row_view` converts one result into a row at `position` in the result list.
-/// Why: folder and track results share one row shape, with the track-only fields left empty for folders.
+/// What:
+/// `row_view` converts one result into a row at `position` in the result list.
+/// Why:
+/// folder and track results share one row shape,
+/// with the track-only fields left empty for folders.
 fn row_view(result: &SearchResult, position: usize, current_index: Option<usize>, playing: bool) -> SearchRowView {
     let current = is_current_track_result(result, current_index);
     let parent_text = search_row_second_line(result);
@@ -136,17 +177,28 @@ fn row_view(result: &SearchResult, position: usize, current_index: Option<usize>
     };
 }
 
-/// What: `SEARCH_SCANNING_TITLE` is the status headline while the library is still being scanned and nothing matched yet.
-/// Why: a partial scan cannot establish that no name matches (D69), so the page says it is still looking instead of
-/// claiming "no results" or "no music". This copy is new with D111 and is open for the human's review.
+/// What:
+/// `SEARCH_SCANNING_TITLE` is the status headline while the library is still being scanned and nothing matched yet.
+/// Why:
+/// a partial scan cannot establish that no name matches (D69),
+/// so the page says it is still looking instead of
+/// claiming "no results" or "no music".
+/// This copy is new with D111 and is open for the human's review.
 pub const SEARCH_SCANNING_TITLE: &str = "Still looking through your library";
 
-/// What: `SEARCH_SCANNING_DETAIL` is the support line under `SEARCH_SCANNING_TITLE`.
-/// Why: it tells the user that the list will fill in by itself, so no retry is needed.
+/// What:
+/// `SEARCH_SCANNING_DETAIL` is the support line under `SEARCH_SCANNING_TITLE`.
+/// Why:
+/// it tells the user that the list will fill in by itself,
+/// so no retry is needed.
 pub const SEARCH_SCANNING_DETAIL: &str = "Results appear here as more music is found.";
 
-/// What: `status_for` gives the status block for a state, or none when results are shown.
-/// Why: an unfinished scan turns the two "nothing here" verdicts into the scanning copy (D69, D111).
+/// What:
+/// `status_for` gives the status block for a state,
+/// or none when results are shown.
+/// Why:
+/// an unfinished scan turns the two "nothing here" verdicts into the scanning copy (D69,
+/// D111).
 fn status_for(state: &SearchState, complete: bool) -> (String, String) {
     let unfinished_nothing = !complete && matches!(state, SearchState::NoMatch(_) | SearchState::EmptyInventory);
     if unfinished_nothing {
@@ -158,8 +210,11 @@ fn status_for(state: &SearchState, complete: bool) -> (String, String) {
     };
 }
 
-/// What: `search_view_of` turns a ranked state into the rows or the status block.
-/// Why: the index answers on a worker thread; this part runs on the window thread and only formats.
+/// What:
+/// `search_view_of` turns a ranked state into the rows or the status block.
+/// Why:
+/// the index answers on a worker thread;
+/// this part runs on the window thread and only formats.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -184,9 +239,14 @@ pub fn search_view_of(state: &SearchState, current_index: Option<usize>, playing
     };
 }
 
-/// What: `search_view` runs the query over a track list and returns the rows or the status block.
-/// Why: an empty query, an empty library and a query with no match each show a different status claim. The window
-/// uses `search_view_of` on an answer from the shared index; this form builds a throwaway index for tests.
+/// What:
+/// `search_view` runs the query over a track list and returns the rows or the status block.
+/// Why:
+/// an empty query,
+/// an empty library and a query with no match each show a different status claim.
+/// The window
+/// uses `search_view_of` on an answer from the shared index;
+/// this form builds a throwaway index for tests.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

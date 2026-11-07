@@ -1,14 +1,22 @@
 //! Focus ring movement inside the folder and track lists (D106).
 //!
-//! What: `move_focus` returns the entry the ring moves to for an arrow, Home, End or page key; `first_starting_with`
-//! finds the entry for a typed letter; `start_focus` picks where the ring begins when a list gains focus.
-//! Why: both lists mix entries that can hold the ring with entries that cannot (subfolder headers, section headings),
+//! What:
+//! `move_focus` returns the entry the ring moves to for an arrow,
+//! Home,
+//! End or page key;
+//! `first_starting_with`
+//! finds the entry for a typed letter;
+//! `start_focus` picks where the ring begins when a list gains focus.
+//! Why:
+//! both lists mix entries that can hold the ring with entries that cannot (subfolder headers,
+//! section headings),
 //! so the movement is pure logic over a flag per entry and is unit-tested without a window.
 
 /// What:
 ///      `pub enum ListMove` names the movement a key asks for.
 /// Why:
-///      The classifier turns keys into these, and `move_focus` turns them into a new position.
+///      The classifier turns keys into these,
+/// and `move_focus` turns them into a new position.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

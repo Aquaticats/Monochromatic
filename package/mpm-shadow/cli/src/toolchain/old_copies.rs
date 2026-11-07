@@ -33,7 +33,8 @@ use crate::version::compare_versions;
 
 /// Imports what this module uses from `super::cargo_installs`.
 use super::across_roots::winning_version;
-/// Imports `is_repository_published`, and `shell_word` for the tool id inside the printed `mpm update` hint,
+/// Imports `is_repository_published`,
+/// and `shell_word` for the tool id inside the printed `mpm update` hint,
 /// from `super::cargo_installs`.
 use super::cargo_installs::{is_repository_published, shell_word};
 /// Imports what this module uses from `super::cargo_record`.

@@ -114,7 +114,8 @@ fn every_resolved_path_in_the_skip_list_is_skipped_not_only_the_first() {
     assert_eq!(found, Some(expected));
 }
 
-/// The text of a launch record (`mpm-shadow`'s format) whose `real` binary is `real`; built field by field because the `json!` macro
+/// The text of a launch record (`mpm-shadow`'s format) whose `real` binary is `real`;
+/// built field by field because the `json!` macro
 /// unwraps a conversion that clippy.toml disallows.
 fn launch_record(real: &Path) -> String {
     let mut fields = serde_json::Map::new();
@@ -125,8 +126,10 @@ fn launch_record(real: &Path) -> String {
     return serde_json::Value::Object(fields).to_string();
 }
 
-/// A launcher in `directory`: an executable named `launcher_name` with a `<launcher_name>.launch` record whose `real` is `target`,
-/// and a `cargo` link to it in `links`; returns the link.
+/// A launcher in `directory`:
+/// an executable named `launcher_name` with a `<launcher_name>.launch` record whose `real` is `target`,
+/// and a `cargo` link to it in `links`;
+/// returns the link.
 fn write_launcher_link(directory: &Path, links: &Path, launcher_name: &str, target: &Path) -> PathBuf {
     let launcher: PathBuf = directory.join(launcher_name);
     std::fs::write(&launcher, "#!/bin/sh\n").expect("write the launcher");
@@ -138,8 +141,10 @@ fn write_launcher_link(directory: &Path, links: &Path, launcher_name: &str, targ
     return link;
 }
 
-/// A candidate that is a launcher whose record names the shadow (through a `current` link, as the toolchain's tree has it) is skipped
-/// before it is run, and so is a launcher that leads to the shadow through another launcher.
+/// A candidate that is a launcher whose record names the shadow (through a `current` link,
+/// as the toolchain's tree has it) is skipped
+/// before it is run,
+/// and so is a launcher that leads to the shadow through another launcher.
 #[test]
 fn a_launcher_whose_record_names_the_shadow_is_skipped_directly_and_through_another_launcher() {
     let tree = scratch();
@@ -166,7 +171,8 @@ fn a_launcher_whose_record_names_the_shadow_is_skipped_directly_and_through_anot
     assert_eq!(through, Some(expected), "a launcher that leads to the shadow through another launcher was taken for the real cargo");
 }
 
-/// A launcher whose record names another program is a real cargo for this purpose, a record that cannot be read is not a launcher,
+/// A launcher whose record names another program is a real cargo for this purpose,
+/// a record that cannot be read is not a launcher,
 /// and a record chain that never ends is skipped instead of followed without end.
 #[test]
 fn a_launcher_of_another_program_a_broken_record_and_a_record_loop() {
@@ -204,9 +210,13 @@ fn a_launcher_of_another_program_a_broken_record_and_a_record_loop() {
     assert_eq!(find_in_path(NAME, &path_value(&[loop_links.path()]), &skip), None, "a loop of launcher records was followed or taken for a real cargo");
 }
 
-/// Third certification pass (the launcher row): a hard link to the shadow resolves to another pathname than the shadow's own and is
-/// still the same executable, so a PATH candidate that is a hard link to it is skipped by file identity, not taken for the real cargo.
-/// A symlink-only fixture cannot show this: a symlink canonicalizes to the shadow's own path.
+/// Third certification pass (the launcher row):
+/// a hard link to the shadow resolves to another pathname than the shadow's own and is
+/// still the same executable,
+/// so a PATH candidate that is a hard link to it is skipped by file identity,
+/// not taken for the real cargo.
+/// A symlink-only fixture cannot show this:
+/// a symlink canonicalizes to the shadow's own path.
 #[test]
 fn a_hard_link_to_the_shadow_is_skipped_by_file_identity() {
     let shadow_directory = scratch();
@@ -226,8 +236,11 @@ fn a_hard_link_to_the_shadow_is_skipped_by_file_identity() {
     assert_eq!(found, Some(expected), "a hard link to the shadow was taken for the real cargo");
 }
 
-/// Third certification pass: a launcher whose record names a hard-linked alias of the shadow leads back to the shadow, so it is
-/// skipped, directly and through a second launcher.
+/// Third certification pass:
+/// a launcher whose record names a hard-linked alias of the shadow leads back to the shadow,
+/// so it is
+/// skipped,
+/// directly and through a second launcher.
 #[test]
 fn a_launcher_record_that_names_a_hard_linked_alias_of_the_shadow_is_skipped() {
     let tree = scratch();
@@ -248,10 +261,15 @@ fn a_launcher_record_that_names_a_hard_linked_alias_of_the_shadow_is_skipped() {
     assert_eq!(found, Some(expected), "a launcher whose record names a hard link of the shadow was taken for the real cargo");
 }
 
-/// Fourth certification pass (the launcher row): the identity of the running image is taken from the open image, so an installer that
+/// Fourth certification pass (the launcher row):
+/// the identity of the running image is taken from the open image,
+/// so an installer that
 /// atomically replaces the installed path while the shadow runs does not hide a hard link of that image on PATH.
-/// The image is opened first (its identity is what `/proc/self/exe` gives), the installed path is then replaced by another file with a
-/// rename, the skip set built from the installed path now names the new file, and the hard-linked alias of the old image must still be
+/// The image is opened first (its identity is what `/proc/self/exe` gives),
+/// the installed path is then replaced by another file with a
+/// rename,
+/// the skip set built from the installed path now names the new file,
+/// and the hard-linked alias of the old image must still be
 /// skipped.
 #[test]
 fn a_hard_link_of_the_running_image_is_skipped_after_the_installed_path_was_replaced() {
@@ -285,7 +303,8 @@ fn a_hard_link_of_the_running_image_is_skipped_after_the_installed_path_was_repl
     drop(running);
 }
 
-/// The identity of the running image can be read in a test process: it is the test executable's own file.
+/// The identity of the running image can be read in a test process:
+/// it is the test executable's own file.
 #[test]
 fn the_running_image_identity_is_the_identity_of_the_test_executable() {
     use std::os::unix::fs::MetadataExt;
@@ -295,8 +314,11 @@ fn the_running_image_identity_is_the_identity_of_the_test_executable() {
     assert_eq!(found, by_path);
 }
 
-/// Fourth certification pass: an outer launcher whose record names an inner launcher whose record names a hard-linked alias of the
-/// shadow is skipped; identity is applied at every hop, not only at the first.
+/// Fourth certification pass:
+/// an outer launcher whose record names an inner launcher whose record names a hard-linked alias of the
+/// shadow is skipped;
+/// identity is applied at every hop,
+/// not only at the first.
 #[test]
 fn a_launcher_chain_that_ends_at_a_hard_linked_alias_of_the_shadow_is_skipped() {
     let tree = scratch();
@@ -324,10 +346,19 @@ fn a_launcher_chain_that_ends_at_a_hard_linked_alias_of_the_shadow_is_skipped() 
 /// The environment variable that gives the running-image helper its directory.
 const FIXTURE_IMAGE_ROOT: &str = "CARGO_SHADOW_IMAGE_FIXTURE_ROOT";
 
-/// The helper process of the running-image test: it is started from the installed path of an image, tells the test it runs, waits for
-/// the test to replace that installed path, and then asks the production lookup (`find_in_path`, which takes the identity of the
-/// image it runs from `/proc/self/exe`) for the real cargo twice: with a hard-linked alias of its own image on PATH, and with a
-/// recorded launcher chain that ends at that alias. It writes both answers to files. Run on its own it does nothing.
+/// The helper process of the running-image test:
+/// it is started from the installed path of an image,
+/// tells the test it runs,
+/// waits for
+/// the test to replace that installed path,
+/// and then asks the production lookup (`find_in_path`,
+/// which takes the identity of the
+/// image it runs from `/proc/self/exe`) for the real cargo twice:
+/// with a hard-linked alias of its own image on PATH,
+/// and with a
+/// recorded launcher chain that ends at that alias.
+/// It writes both answers to files.
+/// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_running_image_whose_installed_path_was_replaced_still_skips_its_hard_links_in_the_production_lookup"]
 fn running_image_lookup_fixture() {
@@ -348,10 +379,20 @@ fn running_image_lookup_fixture() {
     std::fs::write(root.join("chain.answer"), chain.map(|found| { return found.display().to_string(); }).unwrap_or_default()).expect("write the chain answer");
 }
 
-/// Fifth certification pass (the launcher row), a real process: an image is started from its installed path, an installer replaces
-/// that path (a rename of another file over it) while a hard link of the image stays on PATH, and the production lookup of the running
-/// process still skips the alias, directly and at the end of a recorded launcher chain. The test injects no identity: it is the
-/// helper's own `/proc/self/exe`, so a lookup that took the identity from the installed pathname, or passed none, returns the alias.
+/// Fifth certification pass (the launcher row),
+/// a real process:
+/// an image is started from its installed path,
+/// an installer replaces
+/// that path (a rename of another file over it) while a hard link of the image stays on PATH,
+/// and the production lookup of the running
+/// process still skips the alias,
+/// directly and at the end of a recorded launcher chain.
+/// The test injects no identity:
+/// it is the
+/// helper's own `/proc/self/exe`,
+/// so a lookup that took the identity from the installed pathname,
+/// or passed none,
+/// returns the alias.
 #[test]
 fn a_running_image_whose_installed_path_was_replaced_still_skips_its_hard_links_in_the_production_lookup() {
     let root = scratch();
@@ -401,8 +442,13 @@ fn a_running_image_whose_installed_path_was_replaced_still_skips_its_hard_links_
     assert_eq!(chain, expected.display().to_string(), "the lookup followed a recorded chain to a hard link of the running image");
 }
 
-/// Fifth certification pass: a path chosen as the real cargo that names the shadow at the moment of the start is refused, and a path that
-/// names another program is not. The path is a hard link of the running image (swapped in after the choice, in the schedule), checked
+/// Fifth certification pass:
+/// a path chosen as the real cargo that names the shadow at the moment of the start is refused,
+/// and a path that
+/// names another program is not.
+/// The path is a hard link of the running image (swapped in after the choice,
+/// in the schedule),
+/// checked
 /// by the same check the three start sites make.
 #[test]
 fn a_chosen_path_that_names_the_running_image_at_the_start_is_refused() {
@@ -417,4 +463,71 @@ fn a_chosen_path_that_names_the_running_image_at_the_start_is_refused() {
 
     let refused = crate::real_binary::refuse_if_ourselves(&chosen);
     assert!(refused.is_err_and(|reason| { return reason.contains("names this program itself"); }), "a path that names the running image was started");
+}
+
+/// The one argument the stand-in real program is run with.
+/// It is also a listing request that the test image itself answers at once,
+/// so a
+/// regression that starts the swapped-in shadow lists tests and exits instead of running tests recursively.
+const REAL_PROGRAM_ARGUMENT: &str = "--list";
+
+/// Round 21 (group 15,
+/// b):
+/// a chosen real cargo that is a compiled program is started through the file that was checked,
+/// so a path made to
+/// name the shadow between the check and the start does not reach the start:
+/// the real program runs,
+/// not the shadow.
+/// The program here is a copy of `echo` (a compiled program);
+/// between the check and the start the path is replaced by a hard link of the
+/// running image (the seam of `after_check_for_test`).
+/// Started by path it would be the test image;
+/// started through the checked file it
+/// prints its arguments.
+#[test]
+fn a_compiled_real_cargo_swapped_to_the_shadow_after_the_check_still_runs_the_real_one() {
+    let directory = scratch();
+    let chosen: PathBuf = directory.path().join(NAME);
+    std::fs::copy("/usr/bin/echo", &chosen).expect("a compiled stand-in for the real cargo");
+    std::fs::set_permissions(&chosen, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+    let vetted = crate::real_binary::vet(&chosen).expect("a program that is not the shadow passes the check");
+    let swapped: PathBuf = chosen.clone();
+    crate::real_binary::after_check_for_test(Some(std::rc::Rc::new(move || {
+        let link: PathBuf = swapped.with_extension("swap");
+        std::fs::hard_link(std::env::current_exe().expect("this test executable"), &link).expect("a hard link of the shadow");
+        std::fs::rename(&link, &swapped).expect("name the shadow at the chosen path");
+    })));
+
+    let mut command = vetted.command().expect("a compiled program is started through its checked file");
+    crate::real_binary::after_check_for_test(None);
+    let output = command.arg(REAL_PROGRAM_ARGUMENT).output().expect("starts");
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{REAL_PROGRAM_ARGUMENT}\n"), "the shadow was started in place of the real cargo: {output:?}");
+    assert!(crate::real_binary::refuse_if_ourselves(&chosen).is_err(), "the swap did not name the shadow, so the test showed nothing");
+}
+
+/// Round 21:
+/// a script cannot be started through a descriptor,
+/// so it keeps its pathname and is checked again at the start;
+/// a path swapped
+/// to the shadow after the first check is refused there (the residual window of scripts is the instants after that second check,
+/// which
+/// ends at the arrival stop of the second cargo-shadow).
+#[test]
+fn a_script_real_cargo_swapped_to_the_shadow_after_the_check_is_refused_at_the_start() {
+    let directory = scratch();
+    let chosen: PathBuf = directory.path().join(NAME);
+    write_program(directory.path(), EXECUTABLE_MODE);
+    let vetted = crate::real_binary::vet(&chosen).expect("a script that is not the shadow passes the check");
+    let swapped: PathBuf = chosen.clone();
+    crate::real_binary::after_check_for_test(Some(std::rc::Rc::new(move || {
+        let link: PathBuf = swapped.with_extension("swap");
+        std::fs::hard_link(std::env::current_exe().expect("this test executable"), &link).expect("a hard link of the shadow");
+        std::fs::rename(&link, &swapped).expect("name the shadow at the chosen path");
+    })));
+
+    let started = vetted.command();
+    crate::real_binary::after_check_for_test(None);
+
+    assert!(started.is_err_and(|reason| { return reason.contains("names this program itself"); }), "a script swapped to the shadow was started");
 }

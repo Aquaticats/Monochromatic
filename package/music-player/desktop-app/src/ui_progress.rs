@@ -26,9 +26,14 @@
 /// ```
 use std::sync::{LazyLock, Mutex};
 
-/// What: `use std::cell::RefCell;`. A single-threaded cell that allows mutation through a shared reference (sibling:
-/// `Cell<T>`, which only copies values in and out).
-/// Why: the taskbar state machine and the Windows COM cache both sit in a `thread_local!`, which hands out `&` only.
+/// What:
+/// `use std::cell::RefCell;`.
+/// A single-threaded cell that allows mutation through a shared reference (sibling:
+/// `Cell<T>`,
+/// which only copies values in and out).
+/// Why:
+/// the taskbar state machine and the Windows COM cache both sit in a `thread_local!`,
+/// which hands out `&` only.
 use std::cell::RefCell;
 
 /// What:
@@ -71,9 +76,12 @@ use music_player::command::Update;
 /// ```
 use music_player::launcher::Launcher;
 
-/// What: `use music_player::launcher::taskbar_state::{TaskbarInput, TaskbarProgress, TaskbarUpdate};`. The taskbar
+/// What:
+/// `use music_player::launcher::taskbar_state::{TaskbarInput, TaskbarProgress, TaskbarUpdate};`.
+/// The taskbar
 /// state machine and its input and output types.
-/// Why: this module feeds every engine message to the machine and delivers what it decides.
+/// Why:
+/// this module feeds every engine message to the machine and delivers what it decides.
 use music_player::launcher::taskbar_state::{TaskbarInput, TaskbarProgress, TaskbarUpdate};
 
 /// What:
@@ -115,14 +123,26 @@ thread_local! {
     static TASKBAR_STATE: RefCell<TaskbarProgress> = const { RefCell::new(TaskbarProgress::new()) };
 }
 
-/// What: `static UI_CLOCK_START: LazyLock<Instant>`. The moment this module first handled an update.
-/// Why: the taskbar rate limit runs on the time an update is handled on the UI thread, not on the time the engine
-/// sent it; after a UI stall the backlog is replayed at once, and engine time would let every queued tick through.
+/// What:
+/// `static UI_CLOCK_START: LazyLock<Instant>`.
+/// The moment this module first handled an update.
+/// Why:
+/// the taskbar rate limit runs on the time an update is handled on the UI thread,
+/// not on the time the engine
+/// sent it;
+/// after a UI stall the backlog is replayed at once,
+/// and engine time would let every queued tick through.
 static UI_CLOCK_START: LazyLock<Instant> = LazyLock::new(Instant::now);
 
-/// What: `fn send_taskbar_update(app: &AppWindow, launcher: &Launcher, update: TaskbarUpdate)`. Push one decided value
-/// to the KDE LauncherEntry signal and, on Windows, to the native taskbar.
-/// Why: the decision is already made by the state machine; this only delivers it.
+/// What:
+/// `fn send_taskbar_update(app: &AppWindow, launcher: &Launcher, update: TaskbarUpdate)`.
+/// Push one decided value
+/// to the KDE LauncherEntry signal and,
+/// on Windows,
+/// to the native taskbar.
+/// Why:
+/// the decision is already made by the state machine;
+/// this only delivers it.
 fn send_taskbar_update(app: &AppWindow, launcher: &Launcher, update: TaskbarUpdate) {
     let fraction = update.fraction();
     tracing::debug!(percent = update.percent, visible = update.visible, "taskbar progress delivered to the launcher");
@@ -135,10 +155,18 @@ fn send_taskbar_update(app: &AppWindow, launcher: &Launcher, update: TaskbarUpda
     let _ = app;
 }
 
-/// What: `fn drive_taskbar(app: &AppWindow, launcher: &Launcher, update: &Update) -> bool`. Feed one
-/// engine message to the taskbar state machine, deliver what it decides, and say whether the message was a seek.
-/// Why: the taskbar sees every message, before and independent of the seek bar's rate limit, so a track change and
-/// its position reset can never be dropped from the taskbar; the seek flag lets the caller keep the seek bar in step.
+/// What:
+/// `fn drive_taskbar(app: &AppWindow, launcher: &Launcher, update: &Update) -> bool`.
+/// Feed one
+/// engine message to the taskbar state machine,
+/// deliver what it decides,
+/// and say whether the message was a seek.
+/// Why:
+/// the taskbar sees every message,
+/// before and independent of the seek bar's rate limit,
+/// so a track change and
+/// its position reset can never be dropped from the taskbar;
+/// the seek flag lets the caller keep the seek bar in step.
 fn drive_taskbar(app: &AppWindow, launcher: &Launcher, update: &Update) -> bool {
     let handled_at = UI_CLOCK_START.elapsed();
     let (input, decided) = TASKBAR_STATE.with(|cell| {
@@ -172,11 +200,15 @@ fn should_surface_progress(
 
 /// What:
 ///      `pub(crate) fn apply_update_with_progress_debounce(app: &AppWindow, launcher: &Launcher, progress_debouncer: &Mutex<ProgressDebouncer>, elapsed: Duration, update: Update)`.
-///           Apply one engine update to the window, rate-limit the seek bar through `ProgressDebouncer`, and drive the
+///           Apply one engine update to the window,
+/// rate-limit the seek bar through `ProgressDebouncer`,
+/// and drive the
 ///           taskbar through its own state machine.
 /// Why:
-///       The taskbar value is decided from the engine's messages alone (see `launcher::taskbar_state`), so the seek
-///           bar's gate cannot drop a value the taskbar needs, and the seek bar still updates at a human-visible cadence.
+///       The taskbar value is decided from the engine's messages alone (see `launcher::taskbar_state`),
+/// so the seek
+///           bar's gate cannot drop a value the taskbar needs,
+/// and the seek bar still updates at a human-visible cadence.
 pub(crate) fn apply_update_with_progress_debounce(
     app: &AppWindow,
     launcher: &Launcher,
