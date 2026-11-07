@@ -677,6 +677,34 @@ as `mpm-shadow` already is:
 - `monochromatic-mpm-shadow` already installs from its archive;
   yanking its 0.2.5 on crates.io does not affect it.
 
+## The owner's answers at 2026-11-07
+
+Picked in the question tool, verbatim labels:
+
+- The two exempt crates:
+  "Both".
+  `forbidden-regex` 0.1.1 to 0.1.2 joins wave 0 and `forbidden-strings` 0.6.1 to 0.6.2 joins wave 1;
+  both stay exempt from the notice and from the yank,
+  and the wrapper's pin moves to `forbidden-strings` 0.6.2.
+- Yank timing:
+  "All after the lock moves".
+  No old version is yanked until the toolchain lock points at the new versions.
+- Wrapper version:
+  "0.6.0 (Recommended)".
+  The rename breaks every user of the old names,
+  so the middle number moves.
+- Route for the twelve unregistered crates:
+  "Register all twelve".
+  Before the batch,
+  each of the twelve gets a registry entry in `package/crate-release/cli/releasable-crates.json`,
+  a `crate` choice in `crate-release.yml`,
+  and package `release` and `release:wait` tasks,
+  and the release tool learns to move the pins in the three multi-line `[dependencies.X]` sidecar manifests
+  (`jsonc-edit/core-rust.fuzz`, `xml-edit/core-rust.fuzz`, `forbidden-strings/core.fuzz`).
+  Every crate of the batch then goes through `crate-release.yml`, one run at a time.
+
+The sections below keep the options as they were offered.
+
 ## Open choices for the owner
 
 ### Whether the two exempt crates get a release
