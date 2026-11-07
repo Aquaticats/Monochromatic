@@ -1,23 +1,55 @@
 //! What:
-//!  The finish after the word-level second pass resolved every conflicted file of a merge, rebase, cherry-pick, revert or pull:
-//!  the operation ends the way Git ends it after a clean run, through the wrapper's own command path.
+//!  The finish after the word-level second pass resolved every conflicted file of a merge,
+//! rebase,
+//! cherry-pick,
+//! revert or pull:
+//!  the operation ends the way Git ends it after a clean run,
+//! through the wrapper's own command path.
 //! Why:
-//!  The owner decided on 2026-11-03 ("Finish like a clean merge"): when every conflicted file resolves, make the merge
-//!  commit with Git's prepared message, or continue the rebase or cherry-pick, and honour `--no-commit`, `--squash`, `--edit`
-//!  and similar, which stop as Git would. The continuing step is a command run in this process through `run_process`, so the
+//!  The owner decided on 2026-11-03 ("Finish like a clean merge"):
+//! when every conflicted file resolves,
+//! make the merge
+//!  commit with Git's prepared message,
+//! or continue the rebase or cherry-pick,
+//! and honour `--no-commit`,
+//! `--squash`,
+//! `--edit`
+//!  and similar,
+//! which stop as Git would.
+//! The continuing step is a command run in this process through `run_process`,
+//! so the
 //!  commit policies and hooks apply to it and a later pick of a rebase that conflicts gets the second pass again.
-//!  What a clean run does, from Git 2.56.0 (`builtin/merge.c`, `sequencer.c`, `builtin/pull.c`):
-//!  a merge that is clean and wants a commit runs `prepare_to_commit` and commits (`merge.c` line 1828); with `--no-commit`
-//!  or `--squash` it writes the merge state and prints "Automatic merge went well; stopped before committing as requested"
-//!  to standard error and exits 0 (`merge.c` lines 1867 to 1873); the editor opens when `--edit` is given, or when nothing is
-//!  given, no `-m` was given and `GIT_MERGE_AUTOEDIT` is unset and standard input and output are one terminal
-//!  (`default_edit_option`, `merge.c` lines 1158 to 1180). A cherry-pick or revert commits with the picked commit's message and
-//!  edits only when `--edit` is given, or for a revert on a terminal (`should_edit`, `sequencer.c` line 2217); after a conflict
-//!  `--continue` runs `git commit` (`continue_single_pick`, `sequencer.c` lines 5354 to 5378) and then picks the rest.
-//!  A rebase continues with `git rebase --continue`. `git pull` runs `git merge` or `git rebase` as a child
-//!  (`builtin/pull.c` lines 525 and 750), so the state files tell which of the two stopped.
-//!  The options the person typed are read only by exact spelling; any option this reader does not know leaves the operation
-//!  stopped, with the files staged, as Git left it.
+//!  What a clean run does,
+//! from Git 2.56.0 (`builtin/merge.c`,
+//! `sequencer.c`,
+//! `builtin/pull.c`):
+//!  a merge that is clean and wants a commit runs `prepare_to_commit` and commits (`merge.c` line 1828);
+//! with `--no-commit`
+//!  or `--squash` it writes the merge state and prints "Automatic merge went well;
+//! stopped before committing as requested"
+//!  to standard error and exits 0 (`merge.c` lines 1867 to 1873);
+//! the editor opens when `--edit` is given,
+//! or when nothing is
+//!  given,
+//! no `-m` was given and `GIT_MERGE_AUTOEDIT` is unset and standard input and output are one terminal
+//!  (`default_edit_option`,
+//! `merge.c` lines 1158 to 1180).
+//! A cherry-pick or revert commits with the picked commit's message and
+//!  edits only when `--edit` is given,
+//! or for a revert on a terminal (`should_edit`,
+//! `sequencer.c` line 2217);
+//! after a conflict
+//!  `--continue` runs `git commit` (`continue_single_pick`,
+//! `sequencer.c` lines 5354 to 5378) and then picks the rest.
+//!  A rebase continues with `git rebase --continue`.
+//! `git pull` runs `git merge` or `git rebase` as a child
+//!  (`builtin/pull.c` lines 525 and 750),
+//! so the state files tell which of the two stopped.
+//!  The options the person typed are read only by exact spelling;
+//! any option this reader does not know leaves the operation
+//!  stopped,
+//! with the files staged,
+//! as Git left it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,18 +66,23 @@ use std::io::{IsTerminal, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// The finishes now running in this process, outermost first.
+/// The finishes now running in this process,
+/// outermost first.
 static NESTED_FINISHES: AtomicUsize = AtomicUsize::new(0);
 
-/// How many finishes the outermost one of this process may nest, set when it is planned (`finish_budget`).
+/// How many finishes the outermost one of this process may nest,
+/// set when it is planned (`finish_budget`).
 static FINISH_BUDGET: AtomicUsize = AtomicUsize::new(0);
 
 /// What:
-///  The words of a `branch.<name>.mergeoptions` value, split the way Git splits it.
+///  The words of a `branch.<name>.mergeoptions` value,
+/// split the way Git splits it.
 /// Why:
 ///   `parse_branch_merge_options` (`builtin/merge.c` line 641) hands the value to `split_cmdline` (`alias.c` lines 126 to 180):
-///  white space separates words, single and double quotes group (a backslash escapes inside double quotes and outside quotes),
-///  and an unclosed quote or a trailing backslash is an error, which Git dies on and this reads as "not read".
+///  white space separates words,
+/// single and double quotes group (a backslash escapes inside double quotes and outside quotes),
+///  and an unclosed quote or a trailing backslash is an error,
+/// which Git dies on and this reads as "not read".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,7 +123,8 @@ pub fn split_cmdline(text: &str) -> Option<Vec<OsString>> {
     return Some(words.into_iter().map(OsString::from).collect());
 }
 
-/// The commands of a todo file: its lines that are neither blank nor comments.
+/// The commands of a todo file:
+/// its lines that are neither blank nor comments.
 fn todo_commands(path: &Path) -> usize {
     let Ok(text) = std::fs::read_to_string(path) else {
         return 0;
@@ -102,11 +140,17 @@ fn todo_commands(path: &Path) -> usize {
 }
 
 /// What:
-///  How many finishes the outermost one may nest, from the input of the operation.
+///  How many finishes the outermost one may nest,
+/// from the input of the operation.
 /// Why:
-///   Each finish ends one conflicting step and runs the rest, so the steps still to do bound the finishes: a rebase's remaining
-///  todo list plus the finish that is running, a cherry-pick or revert sequence's todo list (one for a single pick), and one for
-///  a merge, which has no further step.
+///   Each finish ends one conflicting step and runs the rest,
+/// so the steps still to do bound the finishes:
+/// a rebase's remaining
+///  todo list plus the finish that is running,
+/// a cherry-pick or revert sequence's todo list (one for a single pick),
+/// and one for
+///  a merge,
+/// which has no further step.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -120,22 +164,31 @@ fn finish_budget(operation: Operation, git_dir: &Path) -> usize {
     };
 }
 
-/// Whether one more finish may be nested inside `running` others, under a budget of `budget` finishes.
+/// Whether one more finish may be nested inside `running` others,
+/// under a budget of `budget` finishes.
 fn nesting_allows(running: usize, budget: usize) -> bool {
     return running < budget;
 }
 
-/// Whether one byte is the line feed that ends a line of a message. `&u8` borrows the byte, as `split_inclusive` hands it over.
+/// Whether one byte is the line feed that ends a line of a message.
+/// `&u8` borrows the byte,
+/// as `split_inclusive` hands it over.
 fn is_line_feed_byte(byte: &u8) -> bool {
     return *byte == b'\n';
 }
 
 /// What:
-///  `message` without the conflict hint Git appended when it stopped, so it reads as the message of a clean run.
+///  `message` without the conflict hint Git appended when it stopped,
+/// so it reads as the message of a clean run.
 /// Why:
-///   A stop appends a blank line, a comment line `Conflicts:` and one comment line with a tab and a path per conflicted file
-///  (`append_conflicts_hint`, `sequencer.c` lines 722 to 745). A clean run without an editor keeps the message as prepared, so the
-///  hint is cut here; the comment string is whatever precedes `Conflicts:` on the hint's line.
+///   A stop appends a blank line,
+/// a comment line `Conflicts:` and one comment line with a tab and a path per conflicted file
+///  (`append_conflicts_hint`,
+/// `sequencer.c` lines 722 to 745).
+/// A clean run without an editor keeps the message as prepared,
+/// so the
+///  hint is cut here;
+/// the comment string is whatever precedes `Conflicts:` on the hint's line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -181,10 +234,14 @@ pub fn without_conflicts_hint(message: &[u8]) -> Vec<u8> {
 }
 
 /// What:
-///  Whether Git's default is to open the editor for a merge that was not told: a message given, `GIT_MERGE_AUTOEDIT`, or one
+///  Whether Git's default is to open the editor for a merge that was not told:
+/// a message given,
+/// `GIT_MERGE_AUTOEDIT`,
+/// or one
 ///  terminal for standard input and output.
 /// Why:
-///   `default_edit_option`, `merge.c` lines 1158 to 1180.
+///   `default_edit_option`,
+/// `merge.c` lines 1158 to 1180.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,7 +259,8 @@ fn merge_edits_by_default(message: bool, environment: &[(OsString, OsString)]) -
     return editor_would_open(auto_edit.as_deref(), stdin_and_stdout_are_one_terminal());
 }
 
-/// Which operation left its state in the Git directory, from the state files Git writes.
+/// Which operation left its state in the Git directory,
+/// from the state files Git writes.
 fn operation_in_progress(git_dir: &Path, command: &ResolvedCommand, squash: bool) -> Option<Operation> {
     if git_dir.join("rebase-merge").is_dir() || git_dir.join("rebase-apply").is_dir() {
         return Some(Operation::Rebase);
@@ -222,15 +280,21 @@ pub struct Finish {
     operation: Operation,
     /// What the person typed that stops or shapes it.
     stops: Stops,
-    /// The Git directory of the worktree, for the message file and the sequencer files.
+    /// The Git directory of the worktree,
+    /// for the message file and the sequencer files.
     git_dir: std::path::PathBuf,
 }
 
 /// What:
-///  Decide whether the stopped operation can be finished like a clean run, and how.
+///  Decide whether the stopped operation can be finished like a clean run,
+/// and how.
 /// Why:
-///   Anything this does not know exactly leaves the operation stopped with the files staged: an option it cannot read, an
-///  operation whose state files are not the ones it knows, an editor value Git would refuse, or a finish already
+///   Anything this does not know exactly leaves the operation stopped with the files staged:
+/// an option it cannot read,
+/// an
+///  operation whose state files are not the ones it knows,
+/// an editor value Git would refuse,
+/// or a finish already
 ///  nested as deep as the budget the outermost one set from its input.
 ///
 /// In TS you'd write (pseudocode):
@@ -297,10 +361,16 @@ fn invocation(command: &ResolvedCommand, words: &[&str]) -> Vec<OsString> {
 }
 
 /// What:
-///  Whether the rest of a rebase asks for an editor: a later `reword`, `squash` or `fixup -c`/`-C` of its todo list.
+///  Whether the rest of a rebase asks for an editor:
+/// a later `reword`,
+/// `squash` or `fixup -c`/`-C` of its todo list.
 /// Why:
-///   The continuing step of a rebase edits the message of the commit it makes after a conflict, which a clean pick does not; it is
-///  run with the editor switched off (`:`), which would also switch off the editor of a later `reword`, so a todo list that wants
+///   The continuing step of a rebase edits the message of the commit it makes after a conflict,
+/// which a clean pick does not;
+/// it is
+///  run with the editor switched off (`:`),
+/// which would also switch off the editor of a later `reword`,
+/// so a todo list that wants
 ///  one is not finished here and the files stay staged.
 ///
 /// In TS you'd write (pseudocode):
@@ -323,7 +393,8 @@ fn todo_needs_editor(git_dir: &Path) -> bool {
     return false;
 }
 
-/// A command of this invocation run through the wrapper's own path, nested one level deeper.
+/// A command of this invocation run through the wrapper's own path,
+/// nested one level deeper.
 fn run_nested(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
     NESTED_FINISHES.fetch_add(1, Ordering::SeqCst);
     let code: i32 = run_process(arguments, environment);
@@ -331,7 +402,8 @@ fn run_nested(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i
     return code;
 }
 
-/// The commit that ends a stopped merge or pick, run through the wrapper.
+/// The commit that ends a stopped merge or pick,
+/// run through the wrapper.
 fn commit_step(finish: &Finish, command: &ResolvedCommand, environment: &[(OsString, OsString)]) -> i32 {
     let mut words: Vec<&str> = vec!["commit"];
     if finish.stops.edit != Some(true) {
@@ -345,9 +417,12 @@ fn commit_step(finish: &Finish, command: &ResolvedCommand, environment: &[(OsStr
 }
 
 /// What:
-///  End the stopped operation the way a clean run ends, and return the exit status that run gives.
+///  End the stopped operation the way a clean run ends,
+/// and return the exit status that run gives.
 /// Why:
-///   See the module comment. The message file is cleaned of the conflict hint before the commit, and a stop requested with
+///   See the module comment.
+/// The message file is cleaned of the conflict hint before the commit,
+/// and a stop requested with
 ///  `--no-commit` or `--squash` prints Git's own line and exits 0.
 ///
 /// In TS you'd write (pseudocode):
@@ -389,7 +464,8 @@ pub fn finish(plan: &Finish, command: &ResolvedCommand, environment: &[(OsString
     return run_nested(invocation(command, &[word, "--continue"]).as_slice(), environment);
 }
 
-/// Controls for the option readers, the hint cutting and the planning.
+/// Controls for the option readers,
+/// the hint cutting and the planning.
 #[cfg(test)]
 #[path = "merge_second_pass_finish_tests.rs"]
 mod tests;

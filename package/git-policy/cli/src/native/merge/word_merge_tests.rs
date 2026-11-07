@@ -1,6 +1,11 @@
-//! Controls for the word-level three-way merge: equality with Jujutsu 0.46.0's stored results on the corpus, the cases the
-//!  owner named (the README conflict of merge `14601b28d3` resolves to the committed blob, both-append and a true overlap
-//!  stay conflicts), a file with one unresolvable region stays whole in conflict, and nothing either side wrote is dropped.
+//! Controls for the word-level three-way merge:
+//! equality with Jujutsu 0.46.0's stored results on the corpus,
+//! the cases the
+//!  owner named (the README conflict of merge `14601b28d3` resolves to the committed blob,
+//! both-append and a true overlap
+//!  stay conflicts),
+//! a file with one unresolvable region stays whole in conflict,
+//! and nothing either side wrote is dropped.
 
 use super::*;
 use std::path::{Path, PathBuf};
@@ -20,7 +25,8 @@ fn merged(name: &str) -> WordMerge {
     return merge_by_word(stored(name, "base").as_slice(), stored(name, "ours").as_slice(), stored(name, "theirs").as_slice());
 }
 
-/// The names of the corpus inputs, in order.
+/// The names of the corpus inputs,
+/// in order.
 fn names() -> Vec<String> {
     let mut found: Vec<String> = std::fs::read_dir(corpus())
         .expect("the corpus directory")
@@ -30,12 +36,14 @@ fn names() -> Vec<String> {
     return found;
 }
 
-/// Jujutsu's verdict for an input: whether its word-level merge resolved.
+/// Jujutsu's verdict for an input:
+/// whether its word-level merge resolved.
 fn reference_resolved(name: &str) -> bool {
     return stored(name, "word.status").starts_with(b"resolved");
 }
 
-/// Every input gets Jujutsu's verdict, and every resolved output is Jujutsu's bytes.
+/// Every input gets Jujutsu's verdict,
+/// and every resolved output is Jujutsu's bytes.
 #[test]
 fn the_corpus_equals_the_stored_results_of_jujutsu() {
     let mut resolved: usize = 0;
@@ -69,7 +77,8 @@ fn a_resolved_real_file_equals_the_committed_resolution() {
     assert!(compared > 0, "no real file resolved");
 }
 
-/// The README conflict of merge `14601b28d3` resolves to the blob that merge committed, and the part is reported.
+/// The README conflict of merge `14601b28d3` resolves to the blob that merge committed,
+/// and the part is reported.
 #[test]
 fn the_readme_conflict_resolves_to_the_committed_blob() {
     let WordMerge::Resolved { merged: bytes, parts } = merged("real_m1_readme") else { panic!("the README conflict stays a conflict") };
@@ -81,8 +90,11 @@ fn the_readme_conflict_resolves_to_the_committed_blob() {
     }
 }
 
-/// Both sides appending different text at one point stays a conflict: the planning-document hunk of merge `78928da1f1`
-///  (the headings of the two "Round 3" sections collide, so a clean result would be wrong), and the small section append.
+/// Both sides appending different text at one point stays a conflict:
+/// the planning-document hunk of merge `78928da1f1`
+///  (the headings of the two "Round 3" sections collide,
+/// so a clean result would be wrong),
+/// and the small section append.
 #[test]
 fn both_append_stays_a_conflict() {
     for name in ["real_m2_planning", "md2"] {
@@ -98,7 +110,8 @@ fn a_true_overlap_stays_a_conflict() {
     assert!(matches!(outcome, WordMerge::Conflict { .. }));
 }
 
-/// The first lines of the text of the next two controls: one region where the sides edit different words of a line.
+/// The first lines of the text of the next two controls:
+/// one region where the sides edit different words of a line.
 const RESOLVABLE_BASE: &str = "alpha one\nkeep\nkeep again\nbeta two\n";
 
 /// The first side edits the second word of the first line.
@@ -107,7 +120,8 @@ const RESOLVABLE_OURS: &str = "alpha uno\nkeep\nkeep again\nbeta two\n";
 /// The second side edits the first word of the first line.
 const RESOLVABLE_THEIRS: &str = "ALPHA one\nkeep\nkeep again\nbeta two\n";
 
-/// The merge of the resolvable region reports exactly it, with its lines in every text.
+/// The merge of the resolvable region reports exactly it,
+/// with its lines in every text.
 #[test]
 fn a_region_of_different_words_resolves_and_is_reported_with_its_lines() {
     let WordMerge::Resolved { merged: bytes, parts } = merge_by_word(RESOLVABLE_BASE.as_bytes(), RESOLVABLE_OURS.as_bytes(), RESOLVABLE_THEIRS.as_bytes()) else {
@@ -118,7 +132,8 @@ fn a_region_of_different_words_resolves_and_is_reported_with_its_lines() {
     assert_eq!(parts, vec![MergedPart { base: span, ours: span, theirs: span, merged: b"ALPHA uno\n".to_vec() }]);
 }
 
-/// One region that cannot resolve keeps the whole file in conflict, although another region resolves by word.
+/// One region that cannot resolve keeps the whole file in conflict,
+/// although another region resolves by word.
 #[test]
 fn a_file_with_one_unresolvable_region_stays_whole_in_conflict() {
     let ours: String = RESOLVABLE_OURS.replace("beta two", "beta 2");
@@ -127,7 +142,8 @@ fn a_file_with_one_unresolvable_region_stays_whole_in_conflict() {
     assert_eq!(outcome, WordMerge::Conflict { unresolved: 1 });
 }
 
-/// The seed of the generated edits, so a failure repeats.
+/// The seed of the generated edits,
+/// so a failure repeats.
 const SEED: u64 = 20_261_103;
 
 /// How many generated pairs of edits the property runs.
@@ -146,12 +162,15 @@ fn next(state: &mut u64, bound: usize) -> usize {
     return usize::try_from(*state >> 8).expect("fits") % bound;
 }
 
-/// The generated base: numbered lines of words.
+/// The generated base:
+/// numbered lines of words.
 fn generated_base() -> Vec<String> {
     return (0..GENERATED_LINES).map(|line| { return format!("word{line} alpha{line} beta{line}"); }).collect();
 }
 
-/// A side: some lines get a word inserted at a random place, tagged with the side so it can be found again.
+/// A side:
+/// some lines get a word inserted at a random place,
+/// tagged with the side so it can be found again.
 fn with_insertions(base: &[String], tag: &str, state: &mut u64) -> (Vec<String>, Vec<String>) {
     let mut lines: Vec<String> = base.to_vec();
     let mut inserted: Vec<String> = Vec::new();
@@ -166,7 +185,8 @@ fn with_insertions(base: &[String], tag: &str, state: &mut u64) -> (Vec<String>,
     return (lines, inserted);
 }
 
-/// Whatever resolves keeps every word either side inserted and every word of the base, and some pairs resolve while others do not.
+/// Whatever resolves keeps every word either side inserted and every word of the base,
+/// and some pairs resolve while others do not.
 #[test]
 fn nothing_either_side_wrote_is_dropped() {
     let mut state: u64 = SEED;

@@ -1,7 +1,12 @@
 //! What:
-//!  Which options of a merge, a pull, a cherry-pick or a revert make the finish stop where Git would stop, and the operation they belong to.
+//!  Which options of a merge,
+//! a pull,
+//! a cherry-pick or a revert make the finish stop where Git would stop,
+//! and the operation they belong to.
 //! Why:
-//!  `merge_second_pass_finish.rs` plans and runs the finish and stays under the file-size limit; reading the options needs nothing from it, so it lives in a file of its own that the finish imports.
+//!  `merge_second_pass_finish.rs` plans and runs the finish and stays under the file-size limit;
+//! reading the options needs nothing from it,
+//! so it lives in a file of its own that the finish imports.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,27 +16,35 @@
 use std::ffi::OsString;
 use std::path::Path;
 
-/// What stops a clean run before it commits, and what shapes its message.
+/// What stops a clean run before it commits,
+/// and what shapes its message.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Stops {
-    /// `--no-commit` (or `-n` of a pick): stop with the result staged.
+    /// `--no-commit` (or `-n` of a pick):
+    /// stop with the result staged.
     pub no_commit: bool,
-    /// `--squash`: stop with the result staged and no merge state.
+    /// `--squash`:
+    /// stop with the result staged and no merge state.
     pub squash: bool,
-    /// `--edit` or `--no-edit`; absent when neither was given.
+    /// `--edit` or `--no-edit`;
+    /// absent when neither was given.
     pub edit: Option<bool>,
-    /// `-m` or `-F` was given, which turns the default editor off.
+    /// `-m` or `-F` was given,
+    /// which turns the default editor off.
     pub message: bool,
-    /// Signing and sign-off options, handed on to the commit as typed.
+    /// Signing and sign-off options,
+    /// handed on to the commit as typed.
     pub passed_on: Vec<OsString>,
 }
 
 /// Which operation stopped.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Operation {
-    /// A merge, with `MERGE_HEAD` (or `--squash`).
+    /// A merge,
+    /// with `MERGE_HEAD` (or `--squash`).
     Merge,
-    /// A rebase, either backend.
+    /// A rebase,
+    /// either backend.
     Rebase,
     /// A cherry-pick or revert.
     Pick,
@@ -44,7 +57,9 @@ pub const HARMLESS_MERGE_OPTIONS: [&str; 21] = [
     "--no-stat", "--log", "--no-log", "--quiet", "--autostash",
 ];
 
-/// The options of pull that only fetch, or choose merge or rebase, which the state files decide.
+/// The options of pull that only fetch,
+/// or choose merge or rebase,
+/// which the state files decide.
 pub const HARMLESS_PULL_OPTIONS: [&str; 17] = [
     "--rebase", "-r", "--no-rebase", "--rebase=true", "--rebase=false", "--rebase=merges", "--all", "--prune", "-p", "--no-prune",
     "--tags", "-t", "--no-tags", "--force", "-f", "--no-recurse-submodules", "--ipv4",
@@ -60,9 +75,12 @@ pub const HARMLESS_PICK_OPTIONS: [&str; 13] = [
 pub const VALUE_OPTIONS: [&str; 4] = ["-s", "--strategy", "-X", "--strategy-option"];
 
 /// What:
-///  Read the arguments after the subcommand of a merge or pull, by exact spelling.
+///  Read the arguments after the subcommand of a merge or pull,
+/// by exact spelling.
 /// Why:
-///   An option this does not know might be an abbreviation of `--no-commit`; the finish must not guess, so it declines.
+///   An option this does not know might be an abbreviation of `--no-commit`;
+/// the finish must not guess,
+/// so it declines.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -101,8 +119,12 @@ pub fn merge_stops(region: &[OsString], pull: bool) -> Option<Stops> {
 }
 
 /// What:
-///  Read the arguments after the subcommand of a cherry-pick or revert, by exact spelling, and say whether they continue a
-///  sequence (`--continue`, `--skip`), whose options Git saved.
+///  Read the arguments after the subcommand of a cherry-pick or revert,
+/// by exact spelling,
+/// and say whether they continue a
+///  sequence (`--continue`,
+/// `--skip`),
+/// whose options Git saved.
 /// Why:
 ///   Same reason as `merge_stops`.
 ///
@@ -140,9 +162,12 @@ pub fn pick_stops(region: &[OsString]) -> Option<(Stops, bool)> {
 }
 
 /// What:
-///  The options Git saved for a cherry-pick or revert sequence, read from `sequencer/opts`.
+///  The options Git saved for a cherry-pick or revert sequence,
+/// read from `sequencer/opts`.
 /// Why:
-///   `--continue` takes the options of the first command (`save_opts`, `sequencer.c` lines 3734 to 3760); the lines of the
+///   `--continue` takes the options of the first command (`save_opts`,
+/// `sequencer.c` lines 3734 to 3760);
+/// the lines of the
 ///  file are `name = value` under `[options]`.
 ///
 /// In TS you'd write (pseudocode):

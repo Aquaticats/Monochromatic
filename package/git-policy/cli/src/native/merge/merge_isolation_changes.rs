@@ -1,9 +1,13 @@
 //! What:
-//!  The raw tree differences between the two commits of an isolated merge, and the state of a worktree path
+//!  The raw tree differences between the two commits of an isolated merge,
+//! and the state of a worktree path
 //!  against them.
 //! Why:
-//!  Recovery of a merge killed while Git was updating the worktree must tell, for each path the merge changes,
-//!  whether the worktree still holds the old content, already holds the new content, or holds something
+//!  Recovery of a merge killed while Git was updating the worktree must tell,
+//! for each path the merge changes,
+//!  whether the worktree still holds the old content,
+//! already holds the new content,
+//! or holds something
 //!  else that belongs to someone else and must not be overwritten.
 //!
 //! In TS you'd write (pseudocode):
@@ -16,7 +20,8 @@ use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
-/// One path the merge changes, with the mode and blob it has on each side.
+/// One path the merge changes,
+/// with the mode and blob it has on each side.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -24,15 +29,20 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Change {
-    /// Path from the top of the worktree, exact bytes.
+    /// Path from the top of the worktree,
+    /// exact bytes.
     pub path: Vec<u8>,
-    /// Mode before the merge; `000000` when the path is added.
+    /// Mode before the merge;
+    /// `000000` when the path is added.
     pub old_mode: String,
-    /// Mode after the merge; `000000` when the path is deleted.
+    /// Mode after the merge;
+    /// `000000` when the path is deleted.
     pub new_mode: String,
-    /// Object before the merge; all zeros when the path is added.
+    /// Object before the merge;
+    /// all zeros when the path is added.
     pub old_oid: String,
-    /// Object after the merge; all zeros when the path is deleted.
+    /// Object after the merge;
+    /// all zeros when the path is deleted.
     pub new_oid: String,
 }
 
@@ -49,7 +59,9 @@ impl Change {
     }
 }
 
-/// Whether one byte is the NUL byte that ends each field of a `-z` listing. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the NUL byte that ends each field of a `-z` listing.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
@@ -58,7 +70,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 ///  Read the NUL-separated raw output of `git diff-tree -r -z --raw --no-renames --no-abbrev`.
 /// Why:
 ///   Each change is a header (`:<old mode> <new mode> <old oid> <new oid> <status>`) followed by its path.
-///  Output that does not follow that shape is a failure, never a partial reading.
+///  Output that does not follow that shape is a failure,
+/// never a partial reading.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,7 +106,8 @@ pub fn parse_raw_changes(output: &[u8]) -> Result<Vec<Change>, String> {
     return Ok(changes);
 }
 
-/// What the worktree holds at a path, as the object Git would record for it.
+/// What the worktree holds at a path,
+/// as the object Git would record for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,10 +143,16 @@ pub fn worktree_path(root: &Path, path: &[u8]) -> PathBuf {
 }
 
 /// What:
-///  The state of one worktree path: missing, content with the object Git would record for it, or another kind of entry.
+///  The state of one worktree path:
+/// missing,
+/// content with the object Git would record for it,
+/// or another kind of entry.
 /// Why:
-///   A file is hashed through Git with its path, so the clean filters and line-ending rules that apply to it apply
-///  here; a symbolic link is hashed from its target text, which is what Git records and never the file it points at.
+///   A file is hashed through Git with its path,
+/// so the clean filters and line-ending rules that apply to it apply
+///  here;
+/// a symbolic link is hashed from its target text,
+/// which is what Git records and never the file it points at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

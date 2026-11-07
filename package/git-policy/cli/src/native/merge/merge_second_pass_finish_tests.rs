@@ -1,5 +1,8 @@
-//! Controls for the readers of the options that stop or shape a clean run, the cutting of the conflict hint, and the default
-//!  of the editor. The finish as a whole runs through the built executable in `binary_word_merge_finish_tests.rs`.
+//! Controls for the readers of the options that stop or shape a clean run,
+//! the cutting of the conflict hint,
+//! and the default
+//!  of the editor.
+//! The finish as a whole runs through the built executable in `binary_word_merge_finish_tests.rs`.
 
 use super::*;
 use std::path::{Path, PathBuf};
@@ -9,12 +12,14 @@ fn words(text: &[&str]) -> Vec<OsString> {
     return text.iter().map(OsString::from).collect();
 }
 
-/// The stops of a merge, or nothing for a command line that is not read.
+/// The stops of a merge,
+/// or nothing for a command line that is not read.
 fn merge_of(text: &[&str]) -> Option<Stops> {
     return merge_stops(words(text).as_slice(), false);
 }
 
-/// Each option that stops or shapes a clean merge is read by its exact spelling, and the last of two opposites wins.
+/// Each option that stops or shapes a clean merge is read by its exact spelling,
+/// and the last of two opposites wins.
 #[test]
 fn merge_options_are_read_by_exact_spelling_and_the_last_opposite_wins() {
     assert_eq!(merge_of(&["--no-commit", "topic"]), Some(Stops { no_commit: true, ..Stops::default() }));
@@ -30,7 +35,9 @@ fn merge_options_are_read_by_exact_spelling_and_the_last_opposite_wins() {
     assert!(merge_of(&["-s", "ours", "--strategy=ort", "--ff-only", "topic"]).is_some());
 }
 
-/// An option this does not know, which may be an abbreviation of one that stops, leaves the operation to the person.
+/// An option this does not know,
+/// which may be an abbreviation of one that stops,
+/// leaves the operation to the person.
 #[test]
 fn an_unknown_option_or_an_abbreviation_is_not_read() {
     assert_eq!(merge_of(&["--no-comm", "topic"]), None);
@@ -39,14 +46,17 @@ fn an_unknown_option_or_an_abbreviation_is_not_read() {
     assert_eq!(pick_stops(words(&["--no-comm", "x"]).as_slice()), None);
 }
 
-/// Pull reads the fetch and rebase options that merge does not, and only for pull.
+/// Pull reads the fetch and rebase options that merge does not,
+/// and only for pull.
 #[test]
 fn pull_options_are_read_only_for_pull() {
     assert!(merge_stops(words(&["--rebase", "--prune", "origin"]).as_slice(), true).is_some());
     assert!(merge_stops(words(&["--rebase", "origin"]).as_slice(), false).is_none());
 }
 
-/// A cherry-pick or revert reads `-n`, the edit options and a continue form, and signing options are handed on.
+/// A cherry-pick or revert reads `-n`,
+/// the edit options and a continue form,
+/// and signing options are handed on.
 #[test]
 fn pick_options_are_read() {
     let (without_commit, without_continuing) = pick_stops(words(&["-n", "-x", "-m", "1", "topic"]).as_slice()).expect("read");
@@ -58,7 +68,8 @@ fn pick_options_are_read() {
     assert_eq!(shaped.passed_on, words(&["--signoff", "-Skey"]));
 }
 
-/// The options Git saved for a sequence are read from `sequencer/opts`; a missing file is nothing.
+/// The options Git saved for a sequence are read from `sequencer/opts`;
+/// a missing file is nothing.
 #[test]
 fn the_saved_options_of_a_sequence_are_read() {
     let root: PathBuf = crate::test_support::fixture("finish-saved-opts");
@@ -72,7 +83,9 @@ fn the_saved_options_of_a_sequence_are_read() {
     crate::test_support::remove(root.as_path());
 }
 
-/// The hint Git appends is cut with its blank line, for the usual comment character and another; a message without it stays.
+/// The hint Git appends is cut with its blank line,
+/// for the usual comment character and another;
+/// a message without it stays.
 #[test]
 fn the_conflict_hint_is_cut_and_nothing_else() {
     let hinted: &[u8] = b"Merge branch 'topic'\n\n# Conflicts:\n#\ta.md\n#\tdir/b.md\n";
@@ -86,7 +99,9 @@ fn the_conflict_hint_is_cut_and_nothing_else() {
     assert_eq!(without_conflicts_hint(between), between.to_vec(), "a line after `Conflicts:` that is not a path line is no hint");
 }
 
-/// A merge told a message does not open the editor; the variable decides next; a value Git would refuse is nothing.
+/// A merge told a message does not open the editor;
+/// the variable decides next;
+/// a value Git would refuse is nothing.
 #[test]
 fn the_default_of_the_merge_editor_follows_git() {
     let none: Vec<(OsString, OsString)> = Vec::new();
@@ -97,7 +112,8 @@ fn the_default_of_the_merge_editor_follows_git() {
     assert_eq!(merge_edits_by_default(false, environment("maybe").as_slice()), None);
 }
 
-/// One more finish is nested while fewer than the budget run, and not at the budget.
+/// One more finish is nested while fewer than the budget run,
+/// and not at the budget.
 #[test]
 fn nesting_stops_at_the_budget() {
     assert!(nesting_allows(0, 1));
@@ -106,7 +122,9 @@ fn nesting_stops_at_the_budget() {
     assert!(!nesting_allows(3, 3));
 }
 
-/// A rebase todo list asks for an editor at `reword`, `squash` and `fixup -c`/`-C`, and not at the plain commands.
+/// A rebase todo list asks for an editor at `reword`,
+/// `squash` and `fixup -c`/`-C`,
+/// and not at the plain commands.
 #[test]
 fn a_todo_list_asks_for_an_editor_only_where_a_message_is_edited() {
     let root: PathBuf = crate::test_support::fixture("finish-todo");
@@ -125,14 +143,19 @@ fn a_todo_list_asks_for_an_editor_only_where_a_message_is_edited() {
     crate::test_support::remove(root.as_path());
 }
 
-/// A todo file with `lines` in it, written under `directory`.
+/// A todo file with `lines` in it,
+/// written under `directory`.
 fn todo_file(root: &Path, directory: &str, name: &str, lines: &[&str]) {
     std::fs::create_dir_all(root.join(directory)).expect("directory");
     std::fs::write(root.join(directory).join(name), lines.join("\n") + "\n").expect("the todo list");
 }
 
-/// The number of finishes one outermost finish may nest comes from the input: a rebase's remaining todo length plus one, a pick's
-///  sequencer todo length (one for a single pick), one for a merge; comments and blank lines are not commands.
+/// The number of finishes one outermost finish may nest comes from the input:
+/// a rebase's remaining todo length plus one,
+/// a pick's
+///  sequencer todo length (one for a single pick),
+/// one for a merge;
+/// comments and blank lines are not commands.
 #[test]
 fn the_nesting_bound_is_derived_from_the_todo_list() {
     let root: PathBuf = crate::test_support::fixture("finish-budget");
@@ -147,7 +170,9 @@ fn the_nesting_bound_is_derived_from_the_todo_list() {
     crate::test_support::remove(root.as_path());
 }
 
-/// `branch.<name>.mergeoptions` is split as Git splits it: on white space, with quotes and backslashes (`split_cmdline`).
+/// `branch.<name>.mergeoptions` is split as Git splits it:
+/// on white space,
+/// with quotes and backslashes (`split_cmdline`).
 #[test]
 fn a_merge_options_value_is_split_as_git_splits_it() {
     assert_eq!(split_cmdline("--no-edit -m \"a message with spaces\""), Some(words(&["--no-edit", "-m", "a message with spaces"])));
@@ -158,7 +183,8 @@ fn a_merge_options_value_is_split_as_git_splits_it() {
     assert_eq!(split_cmdline("ends\\"), None);
 }
 
-/// `--autostash` of a merge or pull is read; Git's own concluding commit applies the stash.
+/// `--autostash` of a merge or pull is read;
+/// Git's own concluding commit applies the stash.
 #[test]
 fn autostash_is_a_known_option_of_merge_and_pull() {
     assert!(merge_of(&["--autostash", "topic"]).is_some());

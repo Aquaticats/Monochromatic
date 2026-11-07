@@ -1,15 +1,28 @@
 //! What:
-//!  The settling of an isolated merge whose branch moved while the merge was prepared or applied: what the merge had begun
-//!  to install is put back to the moved head's content, and the record goes, so the merge can be computed again on the
+//!  The settling of an isolated merge whose branch moved while the merge was prepared or applied:
+//! what the merge had begun
+//!  to install is put back to the moved head's content,
+//! and the record goes,
+//! so the merge can be computed again on the
 //!  moved head.
 //! Why:
 //!  Git's fast-forward installs the checkout of the paths the merge changes and then moves the branch from the commit the
-//!  merge was computed on. When another session (or the auto-push's reconcile merge) moved the branch first, the move is
-//!  refused: nothing was installed if Git refused before it began, and the merge's paths are installed beside a branch
-//!  that does not hold them if it lost the race in the instant between. Both end with the checkout showing what the
-//!  moved head holds for those paths, never a half-applied merge and never a record that fails every later command.
-//!  Only paths that hold the old, the merged or the moved head's content are written; any other content belongs to
-//!  someone else and stops the settling, naming the paths, with the record kept.
+//!  merge was computed on.
+//! When another session (or the auto-push's reconcile merge) moved the branch first,
+//! the move is
+//!  refused:
+//! nothing was installed if Git refused before it began,
+//! and the merge's paths are installed beside a branch
+//!  that does not hold them if it lost the race in the instant between.
+//! Both end with the checkout showing what the
+//!  moved head holds for those paths,
+//! never a half-applied merge and never a record that fails every later command.
+//!  Only paths that hold the old,
+//! the merged or the moved head's content are written;
+//! any other content belongs to
+//!  someone else and stops the settling,
+//! naming the paths,
+//! with the record kept.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,10 +46,15 @@ use crate::transaction_git::{GitRequest, run_git_checked};
 use std::path::Path;
 
 /// What:
-///  Settle a merge whose branch is at `moved_to`, which is neither its old nor its new commit.
+///  Settle a merge whose branch is at `moved_to`,
+/// which is neither its old nor its new commit.
 /// Why:
-///   If neither the index nor the worktree holds anything of the merge, the record only goes. Otherwise each path the merge
-///  changes is set to the moved head's content, in the index and in the worktree, so the checkout matches the head again.
+///   If neither the index nor the worktree holds anything of the merge,
+/// the record only goes.
+/// Otherwise each path the merge
+///  changes is set to the moved head's content,
+/// in the index and in the worktree,
+/// so the checkout matches the head again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
