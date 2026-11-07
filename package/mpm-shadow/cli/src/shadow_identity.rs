@@ -47,10 +47,16 @@
 //! export function arrivalAtThisProcess(value: string | undefined): Arrival | undefined { /* pid + birth identity */ }
 //! ```
 
+/// Imports the owned operating-system text type,
+/// which carries a marker value that need not be valid UTF-8.
 use std::ffi::OsString;
+/// Imports the file-system module that opens and reads the files the identity lives in.
 use std::fs;
+/// Imports the positioned-read trait for an open file and the metadata trait that gives a file's device and inode.
 use std::os::unix::fs::{FileExt, MetadataExt};
+/// Imports the borrowed and the owned path types of the programs and records that are checked.
 use std::path::{Path, PathBuf};
+/// Imports the command type that starts the vetted program.
 use std::process::Command;
 
 /// The environment variable that carries the arrival marker from a shadow to the program it starts.
@@ -146,6 +152,17 @@ fn u64_at(bytes: &[u8], offset: usize) -> u64 {
     return u64::from_le_bytes(eight);
 }
 
+/// One section header of an ELF section table:
+/// the `index`-th run of `entry_size` bytes.
+fn section_entry(table: &[u8], entry_size: usize, index: usize) -> &[u8] {
+    return &table[index * entry_size..(index + 1) * entry_size];
+}
+
+/// Whether a byte ends a section name (a NUL).
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
 /// What:
 /// `pub fn identity_of_open_file(file: &fs::File) -> Option<String>` is the crate name and version of the shadow that the open file is,
 /// or `None` when it carries no identity text or is not an ELF file this can read.
@@ -173,8 +190,7 @@ pub fn identity_of_open_file(file: &fs::File) -> Option<String> {
     }
     let mut table: Vec<u8> = vec![0; entry_size * entry_count];
     file.read_exact_at(&mut table, table_offset).ok()?;
-    let entry = |index: usize| -> &[u8] { return &table[index * entry_size..(index + 1) * entry_size]; };
-    let names_entry: &[u8] = entry(names_index);
+    let names_entry: &[u8] = section_entry(&table, entry_size, names_index);
     let names_size: u64 = u64_at(names_entry, 0x20);
     if names_size > MAX_SECTION_BYTES {
         return None;
@@ -182,10 +198,10 @@ pub fn identity_of_open_file(file: &fs::File) -> Option<String> {
     let mut names: Vec<u8> = vec![0; usize::try_from(names_size).ok()?];
     file.read_exact_at(&mut names, u64_at(names_entry, 0x18)).ok()?;
     for index in 0..entry_count {
-        let candidate: &[u8] = entry(index);
+        let candidate: &[u8] = section_entry(&table, entry_size, index);
         let name_start: usize = u32_at(candidate, 0);
         let name_bytes: &[u8] = names.get(name_start..)?;
-        let name_end: usize = name_bytes.iter().position(|byte| { return *byte == 0; }).unwrap_or(name_bytes.len());
+        let name_end: usize = name_bytes.iter().position(is_nul_byte).unwrap_or(name_bytes.len());
         if &name_bytes[..name_end] != IDENTITY_SECTION.as_bytes() {
             continue;
         }
@@ -247,6 +263,15 @@ pub fn shadow_behind(candidate: &Path) -> Option<String> {
     return Some(format!("a chain of more than {MAX_LAUNCHER_HOPS} launchers that never reaches a program"));
 }
 
+/// Whether a launcher record stands beside the program once its path is resolved,
+/// which makes the program a launcher whose own bytes name no tool.
+fn has_launcher_record(program: &Path) -> bool {
+    return match fs::canonicalize(program) {
+        Ok(resolved) => record_target(&resolved).is_some(),
+        Err(_) => false,
+    };
+}
+
 /// What:
 /// `pub fn identity_of_open_file_unless_launcher(file: &fs::File, program: &Path) -> Option<String>` is the identity of the shadow that
 /// starting `program` would start,
@@ -258,7 +283,7 @@ pub fn shadow_behind(candidate: &Path) -> Option<String> {
 /// Without a record the open file is the whole answer,
 /// and it is the file that is about to be started.
 pub fn identity_of_open_file_unless_launcher(file: &fs::File, program: &Path) -> Option<String> {
-    let has_record: bool = fs::canonicalize(program).ok().is_some_and(|resolved| { return record_target(&resolved).is_some(); });
+    let has_record: bool = has_launcher_record(program);
     if has_record {
         return shadow_behind(program);
     }
@@ -305,12 +330,18 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
     let (file, readable): (fs::File, bool) = match fs::File::open(program) {
         Ok(opened) => (opened, true),
         Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            /// Imports the trait that adds `custom_flags` to the open options.
             use std::os::unix::fs::OpenOptionsExt;
-            let by_path: fs::File = fs::OpenOptions::new()
+            let by_path_result: std::io::Result<fs::File> = fs::OpenOptions::new()
                 .read(true)
                 .custom_flags(OPEN_BY_PATH_ONLY)
-                .open(program)
-                .map_err(|second| { return format!("{} cannot be opened ({error}; by path only: {second})", program.display()); })?;
+                .open(program);
+            let by_path: fs::File = match by_path_result {
+                Ok(opened) => opened,
+                Err(second) => {
+                    return Err(format!("{} cannot be opened ({error}; by path only: {second})", program.display()));
+                }
+            };
             (by_path, false)
         }
         Err(error) => return Err(format!("{} cannot be opened ({error})", program.display())),
@@ -320,11 +351,12 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
     }
     let mut magic: [u8; 4] = [0; 4];
     let looks_compiled: bool = readable && file.read_exact_at(&mut magic, 0).is_ok() && magic == ELF_MAGIC;
-    let has_record: bool = fs::canonicalize(program).ok().is_some_and(|resolved| { return record_target(&resolved).is_some(); });
+    let has_record: bool = has_launcher_record(program);
     let through_descriptor: bool = looks_compiled && !has_record && Path::new("/proc/self/fd").is_dir();
     return Ok(Vetted { file, spelled: program.to_path_buf(), through_descriptor });
 }
 
+/// The command that starts the program that was vetted.
 impl Vetted {
     /// What:
     /// `pub fn command(&self) -> Command` is the command that starts the vetted program.
@@ -338,7 +370,9 @@ impl Vetted {
     /// and a launcher finds its record by its own path);
     /// a swap in the instants before their start ends at the arrival stop of the shadow it reaches.
     pub fn command(&self) -> Command {
+        /// Imports the trait that gives an open file its descriptor number.
         use std::os::fd::AsRawFd;
+        /// Imports the trait that adds `arg0` to a command.
         use std::os::unix::process::CommandExt;
         if self.through_descriptor {
             let mut command: Command = Command::new(format!("/proc/self/fd/{}", self.file.as_raw_fd()));
@@ -395,7 +429,10 @@ pub fn birth_in(stat_text: &str) -> String {
 /// A process number alone can name a later process once the first has ended;
 /// the start time cannot.
 pub fn process_birth(pid: u32) -> String {
-    return fs::read_to_string(format!("/proc/{pid}/stat")).map_or_else(|_| { return "?".to_string(); }, |text| { return birth_in(&text); });
+    return match fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(text) => birth_in(&text),
+        Err(_) => "?".to_string(),
+    };
 }
 
 /// What:
