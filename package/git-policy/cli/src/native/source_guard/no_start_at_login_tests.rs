@@ -142,7 +142,7 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
                 }
             }
             let wants: bool = line.contains(".wants") || line.contains(".requires");
-            let excused: bool = ALLOWED_CODE.iter().any(|(file, text)| { return *file == relative && line.contains(text); });
+            let excused: bool = ALLOWED_CODE.iter().any(|(file, allowed_text)| { return *file == relative && line.contains(allowed_text); });
             if wants && !excused {
                 found.push(format!("{relative}:{number}: a wants or requires folder"));
             }
