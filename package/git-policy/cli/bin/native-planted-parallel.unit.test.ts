@@ -23,6 +23,7 @@ import {
   runLimitArguments,
 } from './container-limits.ts';
 
+import { nativeTestImageRepository } from './native-gate-image-tag.ts';
 import {
   type ImageInspector,
   imageOptionOf,
@@ -152,6 +153,8 @@ function launch({
       '//package/git-policy/cli:native:mutation:scoped',
       '--tag-env',
       'GIT_POLICY_NATIVE_IMAGE_TAG',
+      '--image-repository',
+      nativeTestImageRepository,
       '--unit-prefix',
       'cli-git-mutpar',
       '--root',

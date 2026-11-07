@@ -38,6 +38,11 @@ export const fakeCargoMutantsBytes = 'fake cargo-mutants executable\n';
 /**
  Stand-in for `podman`: records every call, answers the few calls a campaign makes, and starts nothing.
  It copies the Containerfile out of every build context before the caller removes the context.
+
+ When `images.json` (image reference to image ID) exists in the fixture directory, `image inspect <reference>` and
+ `tag <image> <reference>` read and write it, and an unknown reference fails with status 125 and `image not known`, as
+ Podman does; without the file every inspection answers the tested image. `FAKE_TAG_LANDS_ON` makes `tag` point the new
+ reference at that ID instead, to stand for a tag that moved meanwhile.
  */
 export const fakePodmanSource: string = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -51,7 +56,20 @@ const campaignImageId = '${fakeCampaignImageId}';
 ${fakeMutantsSimulationSource}
 const failing = process.env.FAKE_FAIL;
 const fail = (name, status) => { if (failing === name) { process.stderr.write('fake podman failure: ' + name + '\\n'); process.exit(status); } };
-if (args[0] === 'image' && args[1] === 'inspect') {
+const registryFile = path.join(directory, 'images.json');
+const registry = fs.existsSync(registryFile) ? JSON.parse(fs.readFileSync(registryFile, 'utf8')) : undefined;
+if (registry !== undefined && args[0] === 'image' && args[1] === 'inspect' && !args.includes('{{.Config.User}}')) {
+  fail('inspect-image', 125);
+  const known = registry[args[2]];
+  if (known === undefined) { process.stderr.write('Error: ' + args[2] + ': image not known\\n'); process.exit(125); }
+  process.stdout.write(known + '\\n');
+} else if (registry !== undefined && args[0] === 'tag') {
+  fail('tag', 125);
+  const source = registry[args[1]] ?? (Object.values(registry).includes(args[1]) ? args[1] : undefined);
+  if (source === undefined) { process.stderr.write('Error: ' + args[1] + ': image not known\\n'); process.exit(125); }
+  registry[args[2]] = process.env.FAKE_TAG_LANDS_ON ?? source;
+  fs.writeFileSync(registryFile, JSON.stringify(registry));
+} else if (args[0] === 'image' && args[1] === 'inspect') {
   fail('inspect-image', 125);
   if (args.includes('{{.Config.User}}')) { process.stdout.write((process.env.FAKE_IMAGE_USER === undefined ? '1000:1000' : process.env.FAKE_IMAGE_USER) + '\\n'); process.exit(0); }
   const plain = failing === 'short-image-id' ? 'abc' : '${fakeTestedImageId}';

@@ -26,7 +26,7 @@ const packageDirectory = '/repo/package/mutation-test/cli-cargo-mutants';
 /**
  Arguments every valid launch needs.
  */
-const required = ['--task', '//p:t', '--tag-env', 'IMG_TAG'];
+const required = ['--task', '//p:t', '--tag-env', 'IMG_TAG', '--image-repository', 'localhost/product-test'];
 
 /**
  Parse a command line with the fixed home and package directory.
@@ -99,6 +99,20 @@ await describe({
             });
             expect(options.memory).toBeUndefined();
             expect(options.cpus).toBeUndefined();
+          },
+        }),
+        it({
+          name: 'reads the image repository, and has no source tag unless one is given',
+          fn: async () => {
+            const options = parse({ argv: [...required, 'l', 'f.rs'] });
+            expect(options.imageRepository).toBe('localhost/product-test');
+            expect(options.fromTag).toBeUndefined();
+          },
+        }),
+        it({
+          name: 'reads the source tag',
+          fn: async () => {
+            expect(parse({ argv: [...required, '--from-tag', 'development', 'l', 'f.rs'] }).fromTag).toBe('development');
           },
         }),
         it({
@@ -272,8 +286,17 @@ await describe({
         ...[
           ['a missing label', [...required]],
           ['a label without files', [...required, 'l']],
-          ['a missing task', ['--tag-env', 'X', 'l', 'f.rs']],
-          ['a missing tag variable', ['--task', 't', 'l', 'f.rs']],
+          ['a missing task', ['--tag-env', 'X', '--image-repository', 'r', 'l', 'f.rs']],
+          ['a missing tag variable', ['--task', 't', '--image-repository', 'r', 'l', 'f.rs']],
+          ['a missing image repository', ['--task', 't', '--tag-env', 'X', 'l', 'f.rs']],
+          ['an image repository that starts with a hyphen', [...required, '--image-repository', '--root', 'l', 'f.rs']],
+          ['an image repository with a space', [...required, '--image-repository', 'a b', 'l', 'f.rs']],
+          ['an image repository with a shell metacharacter', [...required, '--image-repository', 'a;b', 'l', 'f.rs']],
+          ['an image repository with an at sign', [...required, '--image-repository', 'a@sha256', 'l', 'f.rs']],
+          ['an empty source tag', [...required, '--from-tag', '', 'l', 'f.rs']],
+          ['a source tag that starts with a hyphen', [...required, '--from-tag=-x', 'l', 'f.rs']],
+          ['a source tag with a slash', [...required, '--from-tag', 'a/b', 'l', 'f.rs']],
+          ['a source tag with a colon', [...required, '--from-tag', 'a:b', 'l', 'f.rs']],
           ['a label with a slash', [...required, 'a/b', 'f.rs']],
           ['a label with a space', [...required, 'a b', 'f.rs']],
           ['a zero timeout', [...required, '--timeout', '0', 'l', 'f.rs']],
