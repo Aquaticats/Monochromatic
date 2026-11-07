@@ -3615,6 +3615,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
   "semantic evidence unavailable for .../core-exec/task.ts: project-not-found" (a preference log line, not a finding;
   not investigated).
+- Index lock where neither a no-replace rename nor a hard link is allowed: merged `136a40fe69` (branch gate 5172 of
+  5172 on main `d7d0813b92`; Clippy on main after the merge running as unit `main-wrapper-clippy-136a40fe69`). Only
+  when both calls are refused, `index.lock` is created with `O_EXCL`, marked and flushed; an existing lock is never
+  removed; facts in `SPEC.md` ("Placement and its refusals"). Not shipped, reasoning only (no such file system was
+  available to measure): self-clearing a lock a killed service left empty, because it is identical to a live Git's
+  mid-write lock; the wrapper never removes it, and the ceiling message names the file and how to remove it. Open:
+  `a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_side_ref` failed once in a host run of
+  178 tests (13 s; passes alone in 8.6 s and in three container gates), cause not measured (rule SUF). Repo-wide
+  `monochromatic-lint` found 27 `markdown/semantic-line-breaks` errors in `service_fault.rs` that the package lint
+  does not run; whole-package count running as unit `main-wrapper-repo-lint-136a40fe69`.
 - systemd-run limits audit: merged `aab8488b0b` (2026-11-07). `crate-release` publish dry run, music-player e2e units,
   `nested-wayland-session` app scope and the guardrail refusal text now carry `MemoryMax`, `CPUQuota`, `TasksMax` and
   `IOWeight=10`, each cited to a measurement. Queued, all eight agent slots full at 2026-11-07T11:40-05:00 (start
