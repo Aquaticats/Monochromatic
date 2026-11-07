@@ -3605,6 +3605,9 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Settled or reversible items with a clear ranking are adopted and recorded in the plan, not asked.
   Owner, 2026-11-07: "Overloading me with non-question questions will only make things worse."
   Notices and disclosures go in plain text, never as question-tool options.
+  Which questions to ask and how to word them is open in issue #6262
+  (owner: "This is about how you ask questions and which questions to ask. Your wording is bad.");
+  the owner settles it in another session, so no rule change until then.
 - The plan agent left two btrfs scratch subvolumes it could not delete as the user
   (`/var/home/user/temp/agent/dangling/svfix` and `svfix-snap`; the 860 lacks `user_subvol_rm_allowed`):
   the owner removes them with sudo, or they go when Q3 adds the mount option.
