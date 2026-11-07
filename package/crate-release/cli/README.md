@@ -144,10 +144,42 @@ Each entry holds
   the binaries the check builds,
   empty to check the whole crate;
 - `lockDirs`,
-  the directories whose lockfile records the changed version of a workspace member.
+  the directories whose lockfile records the changed version of a workspace member,
+  each refreshed with `cargo update --workspace` and committed with its `Cargo.lock`
+  (a directory that only reaches the crate through another crate, such as `package/file-enforcer/cli` for
+  `monochromatic-jsonc-edit`, belongs here and not in `pinFiles`).
 
 Only `crateDir` and `scope` are required.
 Unknown fields are refused.
+
+Every crate this repository publishes is registered:
+the libraries
+`monochromatic-jsonc-edit`,
+`monochromatic-dependency-catalog`,
+`monochromatic-browserslist`,
+`monochromatic-xml-edit`,
+`monochromatic-catalog-specifier`,
+`monochromatic-file-enforcer` and
+`forbidden-regex`,
+and the tools
+`forbidden-strings`,
+`monochromatic-search-shadow`,
+`monochromatic-nested-wayland-session`,
+`monochromatic-lint`,
+`monochromatic-pnpm-shadow`,
+`monochromatic-file-enforcer-cli`,
+`monochromatic-cargo-shadow`,
+`monochromatic-git-policy-cli` and
+`monochromatic-mpm-shadow`.
+A library has no GitHub release,
+so the `release:wait` check of a library ends with `PUBLISH CHECK FAILED` that names only the missing release assets,
+and its `crates.io` line is the result.
+The release job installs the Wayland build libraries only when the crate is `monochromatic-nested-wayland-session`,
+which links them.
+A pin and a lock directory are found by scanning every tracked `Cargo.toml` and `Cargo.lock` for the crate
+(a dependency line, a `[dependencies.<crate>]` table, a lockfile package without a `source`);
+the unit test `release-workflow.unit.test.ts` checks the pin files against the repository,
+but only a scan finds a lock directory that is missing.
 To make another crate releasable,
 add its entry,
 add its name to the `crate` choices of `crate-release.yml`
@@ -179,6 +211,7 @@ it
     which records the new version of the workspace member without moving any other locked version;
 5.  runs `cargo publish --dry-run --locked --allow-dirty` in the crate directory;
 6.  commits the manifests and the `Cargo.lock` beside each of them,
+    and the `Cargo.lock` of each `--lock-dir`,
     with the message
     `chore(<scope>): release <to>: <note>`.
 
@@ -221,10 +254,20 @@ Each step is printed as `== <step>` and a `$ ...` line that can be pasted into a
   including a longer one that starts with `<from>` such as `0.4.21` for `0.4.2`,
   is refused with the manifest and both
   values named.
-- A pin is the inline-table dependency `<crate> = { ..., version = "=<version>" }`.
+- A pin is the `version = "=<version>"` of a dependency on the crate, written either as the inline table
+  `<crate> = { ..., version = "=<version>" }` or as a table of its own,
+  `[dependencies.<crate>]` (also `[dev-dependencies.<crate>]` and `[build-dependencies.<crate>]`) with the
+  `version` key on a line of its own before the next table header
+  (the fuzz crates of `jsonc-edit`, `xml-edit` and `forbidden-strings/core` use the second form).
+  Every dependency of either form in a manifest is edited together,
+  and a refusal in one leaves the other unedited.
   A loose requirement such as `"0.4.2"` is refused,
-  and a crate whose name only starts with this crate's name is not
-  matched.
+  a crate whose name only starts with this crate's name is not
+  matched,
+  and so are an array of tables, a `[workspace.dependencies.<crate>]` table and a nested table of the crate.
+  Measured 2026-11-07: this edit applied to every registered crate at once (each one patch version up)
+  left `file-enforcer check` with no drift beyond the local `.config/mise/conf.d/10-bin.local.toml`,
+  so a release leaves nothing for `file-enforcer write` to correct.
 - Notes are one line without control characters,
   at most 200 characters.
   Quotes,
@@ -529,6 +572,7 @@ the hash is never placed in a `gh --jq` program.
   `validate.ts`),
   the registry (`crate-registry.ts`),
   the manifest edits (`manifest-edit.ts`,
+  `dependency-pin-sites.ts`,
   `toml-line.ts`),
   the commit message (`commit-message.ts`),
   the commit request of the push command (`commit-request.ts`),
