@@ -3,7 +3,9 @@
 use super::*;
 use std::process::Command;
 
-/// What a child writes to both streams is read back whole, in order, and reading twice gives the same bytes.
+/// What a child writes to both streams is read back whole,
+/// in order,
+/// and reading twice gives the same bytes.
 #[test]
 fn what_a_child_writes_to_both_streams_is_read_back_whole() {
     let capture: Capture = Capture::new().expect("the files");
@@ -44,9 +46,13 @@ fn output_past_the_limit_keeps_the_tail_and_says_what_was_left_out() {
     assert!(shown.notes[0].contains(left_out.as_str()) && shown.notes[0].contains("the last 100 bytes"), "{}", shown.notes[0]);
 }
 
-/// What is appended after the snapshot began is not chased (sol-1 round 3: the earlier control passed under a reader that reads to the
-/// end of the file). The control appends to the file after every chunk the reader takes, so a reader that follows the end never gets
-/// there; the snapshot has the length it found and the control has a count to stop a chasing reader with a failure.
+/// What is appended after the snapshot began is not chased (sol-1 round 3:
+/// the earlier control passed under a reader that reads to the
+/// end of the file).
+/// The control appends to the file after every chunk the reader takes,
+/// so a reader that follows the end never gets
+/// there;
+/// the snapshot has the length it found and the control has a count to stop a chasing reader with a failure.
 #[test]
 fn the_snapshot_reads_the_length_it_found_and_no_more() {
     let capture: Capture = Capture::new().expect("the files");
@@ -68,7 +74,9 @@ fn the_snapshot_reads_the_length_it_found_and_no_more() {
     assert!(notes.is_empty(), "{notes:?}");
 }
 
-/// A read that fails is not the end of the output: the note says so, and the bytes read so far are shown as what they are.
+/// A read that fails is not the end of the output:
+/// the note says so,
+/// and the bytes read so far are shown as what they are.
 #[test]
 fn a_read_that_fails_is_reported_and_not_taken_for_the_end() {
     let directory: std::path::PathBuf = crate::test_support::fixture("output-capture-unreadable");
@@ -79,5 +87,42 @@ fn a_read_that_fails_is_reported_and_not_taken_for_the_end() {
     let shown: Captured = capture.snapshot(1024);
     assert!(shown.stdout.is_empty());
     assert!(shown.notes.iter().any(|note| { return note.contains("could not be read whole"); }), "{:?}", shown.notes);
+    crate::test_support::remove(directory.as_path());
+}
+
+/// Every write lands at the end of the file,
+/// whatever offset the writers think they have:
+/// two processes that share the file
+/// each keep the position of their own last write in mind,
+/// and a write at a stale position overwrites a line the other process
+/// wrote (measured on this host with a leader and a helper writing to one `memfd` with a shared offset:
+/// the leader's line was
+/// gone in 5 of 150 runs at a 20% CPU quota and in none of 300 runs once the file was in append mode).
+/// The control makes the
+/// stale position certain:
+/// a child writes,
+/// the files are emptied,
+/// the child writes again,
+/// and the second write must be the
+/// whole of what is there,
+/// not a line after a hole of zero bytes where the first one was.
+#[test]
+fn a_write_after_the_files_were_emptied_lands_at_the_start_and_leaves_no_hole() {
+    let directory: std::path::PathBuf = crate::test_support::fixture("output-capture-append");
+    let go: std::path::PathBuf = directory.join("go");
+    let capture: Capture = Capture::new().expect("the files");
+    let (out, err) = capture.stdio().expect("the streams");
+    let script: String = format!("echo first; while [ ! -e '{}' ]; do sleep 0.01; done; echo second", go.display());
+    let mut child = Command::new("sh").args(["-c", script.as_str()]).stdout(out).stderr(err).spawn().expect("the child");
+    let began: std::time::Instant = std::time::Instant::now();
+    while capture.snapshot(1024).stdout != b"first\n" {
+        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the child never wrote its first line");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    capture.discard();
+    std::fs::write(&go, b"").expect("the signal to go on");
+    assert!(child.wait().expect("the child ends").success());
+    let shown: Captured = capture.snapshot(1024);
+    assert_eq!(shown.stdout, b"second\n", "the second write is the whole file");
     crate::test_support::remove(directory.as_path());
 }
