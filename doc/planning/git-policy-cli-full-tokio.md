@@ -1681,6 +1681,132 @@ verbatim labels:
     the command fails with a plain message in that state,
     which the owner chose over option A.
 
+## Progress on the branch `feat/git-policy-cli-on-tokio`
+
+Written:
+2026-11-07T07:00:00-05:00.
+The branch is not merged into main (the coordinator holds that until the wrapper's release is out).
+The order follows the owner's answers: the conversions run on today's layout (choice 8), so no step waits for the layout moves.
+
+### Step T1, the self-invocation ban: already in force, audited
+
+- The three clauses of the step are covered by `source_guard/no_self_invocation_tests.rs` and its rules file:
+  rule `own-executable` (`current_exe` and `/proc/self/exe` outside the excused `invocation/real_git.rs`),
+  rule `spawn-own-executable` (a `Command::new(` whose argument names the wrapper's own path),
+  and the planted controls (`each_rule_fires_on_its_own_forbidden_text`, and the fixture tests that plant a violation in a
+  nested production file and in a file with a test-support name).
+- `clippy.toml` also denies `std::env::current_exe`.
+- `tokio::process::Command::new(` would match the same rule text, and the child helper of step T4 starts children with the
+  standard library, so no new spelling needs a new rule.
+- No code commit was needed.
+  The broader lint of step T13 (no `std::process::Command` outside the guarded start) stays at T13.
+
+### Step T2, tokio in the manifest and the no-clone guard
+
+- `9d9fc7ec37`:
+  `binary/binary_forwarded_command_makes_no_thread_tests.rs` runs a forwarded `rev-parse HEAD` and `status --short` under
+  `strace` and counts the `clone`-family calls of the wrapper's own program (`wrapper_spawns` in `binary_budget_trace.rs`).
+  It is green before tokio is linked, so it is a guard, not a red test.
+  The planted control is `the_count_sees_threads_and_children_made_by_the_wrapper_and_only_those`, a trace in which the wrapper
+  starts a thread and a child, which the counter must count (and the harness's `timeout` and Git must not be).
+- `tokio` joined the manifest with the features `rt`, `rt-multi-thread`, `net`, `time`, `fs`, `io-util`, `sync` and `macros`.
+  `process` and `signal` stay off by design (choices 6 and 7).
+  `rustix` (feature `process`) joined for `getrlimit` and, in the later steps, the pidfd and the inotify watch.
+  The dependency landed together with its first use in step T3, because an unused dependency is a cargo warning.
+
+### Step T3, the budget, the limits and the lazy runtime
+
+- Files (all under `src/native/foundation/`, each with a sidecar test file):
+  `runtime_limits.rs` (address space left under `RLIMIT_AS`, threads left under `RLIMIT_NPROC` and under the `pids.max` of the
+  control group and every group above it),
+  `runtime_plan.rs` (workers from the budget, bounded by the limits; current-thread when fewer than two fit),
+  `lazy_runtime.rs` (one `OnceLock` owner, malloc arenas capped to one before the first worker, the multi-thread build on a helper
+  thread with a deadline, the current-thread runtime as the stand-in, a nested call refused with an error),
+  `blocking_job.rs` (a blocking call on the pool; "the system refused a thread" is the error `NoThreadToStart`, never an inline run),
+  `runtime_probe.rs` (the test-only entry, `CLI_GIT_TEST_ONLY_RUNTIME_PROBE`, for the controls that start the built executable).
+- `invocation/panic_notice.rs` gained `while_panics_are_expected`:
+  tokio panics, instead of returning an error, when a thread is refused; the callers catch that panic and report their own plain
+  error, so the hook's "report this location" notice (which would tell a person of a defect on a command that went on to succeed)
+  is silenced for the panics of those two calls only.
+- Values chosen under the owner's answers, each open to the owner's veto and each cited beside the value in the code:
+  deadline `BUILD_DEADLINE` one second (a working build is well under a few milliseconds);
+  `ADDRESS_SPACE_RESERVE_BYTES` 64 MiB (three times the 20 MiB the whole process mapped);
+  `THREAD_VIRTUAL_BYTES` the 2 MiB stack plus 64 KiB (measured 2,064 KiB a blocking thread, 2,069 KiB a worker with one arena);
+  `MALLOC_ARENA_LIMIT` 1.
+- Departures from the text of this plan:
+  the limits are a value of their own (`RuntimeLimits`) beside `HostResources`, not new fields of it, so the nine call sites and
+  every test that builds a `HostResources` by hand stay unchanged;
+  the user's threads are bounded by one read of the system's thread total in `/proc/loadavg`, an upper bound that only lowers the
+  worker count, instead of a scan of every process;
+  the arena cap is always applied, as choice 3 says, not only under an address-space limit.
+- Controls (`binary/binary_runtime_build_under_limits_tests.rs`) start the built executable with the probe under a process limit
+  of one and under address-space limits from 48 MiB to 1500 MiB (the measured hang band included), each with real Git started
+  under the same limit as the native control (choice 10).
+  Planted controls, run by hand and reverted:
+  removing the limit inputs from the plan failed both the process-limit control (flavor `current-thread-after-failure`) and the
+  address-space control (a stand-in after a deadline at 48 MiB);
+  the unit control `a_build_that_outlasts_the_deadline_is_replaced_by_the_current_thread_runtime` fails if the wait loses its deadline.
+- Finding, not the runtime's:
+  below 48 MiB of address space the debug build of the wrapper prints nothing, with or without the probe, while real Git
+  completes at 24 and 32 MiB.
+  The sweep starts at 48 MiB for that reason.
+  Whether the release build has the same floor was not measured.
+
+### The published-crate swaps
+
+- Digests (`47219dc182` red, `1aea0ae238` green):
+  `subvolume/subvolume_sha.rs` is two calls into `sha1` 0.11.0 and `sha2` 0.11.1; the hand-written compression functions are gone.
+  The published test vectors, the reference comparison at every length to a few blocks and the 512 MiB comparison still pass.
+- Time stamps (`7474c396d2` red, `c4a834d4da` green):
+  `foundation/iso_time.rs` formats through `jiff` and `conflict/discarded_prune_stamps.rs` parses through `jiff`;
+  the hand-written calendar (`civil_from_days`, `days_from_civil`) is gone.
+  The text shape is unchanged (`YYYY-MM-DDTHH:MM:SS.mmmZ`).
+  An instant past the end of year 9999 is clamped to the crate's last instant (`9999-12-30T22:00:00.999Z`), where the old code
+  printed a meaningless date.
+  `jiff` stays at the already locked 0.2.24: the releases from 0.2.32 name `defmt` 1.x as an optional dependency, which locks
+  `defmt-parser` 1.1.0, and the trust policy refuses that release (published by account 414585 where 0.4.1 was published by
+  account 84779).
+  A newer `jiff` needs the owner to review `defmt-parser@1.1.0` and add it to `trustPolicyExclude`, or `jiff` to drop the optional dependency.
+- Memory headroom (`8955195670` red, `0a59ee9272` green):
+  `HostResources::read` takes the available memory and the control-group headroom from `sysinfo` 0.40.1 (feature `system` only);
+  the readers of `/proc/meminfo`, `memory.max` and `memory.current` and their tests are gone.
+  Locking `sysinfo` needed the crates of its Windows and macOS targets in the local registry cache; the shadow's offline install
+  could not download them, so the lock was first completed with the toolchain's own `cargo fetch`, and then
+  `mise run //package/git-policy/cli:native:lock:members` checked the 17 newly locked versions against the release-age and trust policy (all passed).
+- Linux calls (`rustix`): started with `getrlimit` and the pidfd; the file calls move with the safe-file-saving replacement below.
+
+### Step T4, children without a blocking wait (partly)
+
+- `process/child_awaited_through_a_pidfd.rs`:
+  the helper of choice 7.
+  `adopt` cannot fail; a failed `pidfd_open` or a failed registration only changes the wait to a timer-driven `try_wait`.
+  Injected failures (`InjectedFailure`) prove the invariant: after each, the live child is still owned, reapable, and ended by a drop;
+  `into_std` hands it over.
+- `process/captured_child_run_to_its_end.rs`:
+  `output_of` runs a command to its end like `Command::output`, with the output in anonymous files (no reader, no pipe).
+  Its blocking face `output_of_blocking` refuses with an error, not a panic, from inside the runtime.
+- The two Linux one-shot callers use it (`repo_read/git_system_config.rs`, `invocation/management_service_repository_selection.rs`).
+  The other one-shot waits named in the step (`process/process_start.rs`, `process/process_identity.rs`, `lock/index_lock_holders.rs`)
+  start `ps`, `lsof` and PowerShell only on macOS and Windows, which the owner said to ignore; they were not converted.
+- Not yet done in T4:
+  `AsyncFd` registration is exercised only through `adopt`; the descriptor-limit sweeps of the plan's risk list for the helper are not written.
+
+### Safe file saving
+
+The vet report is `doc/audit/tech-safe-file-saving-published-crates-vet-2026-11-07.md`.
+Summary: `tempfile` (`persist_noclobber`) for the whole publish, `tokio::fs` for create-new, no-follow reads and private folders,
+`rustix::fs::fsync` for the directory sync.
+The one behavior no crate gives is the fallback to a checked rename on a filesystem that supports neither `renameat2`
+with `RENAME_NOREPLACE` nor hard links (evidence: `tempfile-3.27.0/src/file/imp/unix.rs`, function `persist`, lines 94 to 133).
+`openat2` with `RESOLVE_NO_SYMLINKS` was measured and is stricter than the wrapper's `O_NOFOLLOW` (it refused every path on this host because the scratch folder sits behind a link), so it is not adopted for reads.
+The replacement lands with the conversion of the callers (the 38 files that use `foundation/private_storage.rs`), not before.
+
+### What is left
+
+Steps T5 to T13 (the watchers, `bounded_push`, the signal relay on a pidfd with the registry of children, the service client and
+the `zbus` move, the standards-review call on `hyper`, the service, the callers, the parallel runner, the final removal and lint),
+the replacement of `private_storage.rs`, the descriptor-limit sweeps of the child helper, and the mutation campaign.
+
 ## Open choices for the owner
 
 Rankings are the recommendation;
