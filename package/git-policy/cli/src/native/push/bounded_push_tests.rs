@@ -317,8 +317,10 @@ fn a_child_released_late_has_its_lock_swept_when_it_ends() {
     crate::test_support::remove(root.as_path());
 }
 
-/// How long the member of a stopped tree outlives the stop in the control below, longer than the grace it is given.
-const LINGERING_MEMBER_SECONDS: &str = "1";
+/// How long the control below holds its own thread before it settles the locks, far longer than the grace it gives: a member that
+///  lived for a fixed time would have ended by then (the gate of the branch merged with main at `944bdd30b5` read 81.9 s for a control
+///  that needs a few milliseconds, and its one-second member had ended), so the member lives until the control lets go of its input.
+const HELD_UP_TEST_THREAD: Duration = Duration::from_millis(1500);
 
 /// A tree that has not ended when the grace is over is not swept then, which would remove nothing and never be tried again:
 /// the sweep waits for it on a thread of its own, and removes the lock once it has ended.
@@ -333,14 +335,17 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
     command.current_dir(root.as_path());
     let locks: LockLedger = LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
     let mut ended: Child = command.spawn().expect("start the collected child");
-    let mut lingering: Child = Command::new("sleep").arg(LINGERING_MEMBER_SECONDS).spawn().expect("start the member");
+    // `cat` lives until its input is closed, which the control does when it wants the member to end.
+    let mut lingering: Child = Command::new("cat").stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).spawn().expect("start the member");
     let member: TreeMember = member_of(i32::try_from(lingering.id()).expect("pid")).expect("a running member");
     std::fs::write(lock.as_path(), "").expect("an empty lock the tree left");
     std::fs::write(heads.join("lingering~pid.lock"), format!("pid {}\n", member.pid)).expect("the pid file of the member");
     ended.wait().expect("the child is collected");
+    std::thread::sleep(HELD_UP_TEST_THREAD);
     let started = settle_locks(ended, true, vec![member], locks, Duration::from_millis(100));
     assert!(lock.exists(), "a tree that still runs is not swept");
     let sweeper = started.expect("the sweep waits for the tree on a thread of its own");
+    drop(lingering.stdin.take());
     lingering.wait().expect("the member ends");
     sweeper.join().expect("the sweeping thread ends");
     assert!(!lock.exists(), "the lock is swept once the tree has ended");
