@@ -282,7 +282,10 @@ fn read_limit_file(directory: &Path, name: &str, parse: fn(&str) -> io::Result<O
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(io::Error::new(error.kind(), format!("{}: {error}", path.display()))),
     };
-    return parse(&text).map_err(|error| { return io::Error::new(error.kind(), format!("{}: {error}", path.display())); });
+    return match parse(&text) {
+        Ok(found) => Ok(found),
+        Err(error) => Err(io::Error::new(error.kind(), format!("{}: {error}", path.display()))),
+    };
 }
 
 /// What:
@@ -314,8 +317,20 @@ fn read_directory_limits(directory: &Path) -> io::Result<InheritedLimits> {
 /// function components(cgroup: string): string[]  // throws
 /// ```
 fn components(cgroup: &str) -> io::Result<Vec<&str>> {
-    let parts: Vec<&str> = cgroup.split('/').filter(|part| { return !part.is_empty(); }).collect();
-    if parts.iter().any(|part| { return *part == ".." || *part == "."; }) {
+    let mut parts: Vec<&str> = Vec::new();
+    for part in cgroup.split('/') {
+        if !part.is_empty() {
+            parts.push(part);
+        }
+    }
+    let mut leaves_the_mount: bool = false;
+    for part in &parts {
+        if *part == ".." || *part == "." {
+            leaves_the_mount = true;
+            break;
+        }
+    }
+    if leaves_the_mount {
         return Err(invalid(format!("the cgroup path {cgroup:?} is not below the mount")));
     }
     return Ok(parts);
@@ -386,9 +401,19 @@ pub(crate) fn own_cgroup(text: &str) -> io::Result<String> {
 /// export function callerLimits(ownCgroupFile: string, cgroupRoot: string, sliceDir: string): InheritedLimits  // throws
 /// ```
 pub(crate) fn caller_limits(own_cgroup_file: &Path, cgroup_root: &Path, slice_dir: &Path) -> io::Result<InheritedLimits> {
-    let text: String = std::fs::read_to_string(own_cgroup_file).map_err(|error| { return io::Error::new(error.kind(), format!("{}: {error}", own_cgroup_file.display())); })?;
-    let origin: String = own_cgroup(&text).map_err(|error| { return invalid(format!("{}: {error}", own_cgroup_file.display())); })?;
-    let relative: &Path = slice_dir.strip_prefix(cgroup_root).map_err(|_error| { return invalid(format!("{} is not below {}", slice_dir.display(), cgroup_root.display())); })?;
-    let destination: &str = relative.to_str().ok_or_else(|| { return invalid(format!("{} is not UTF-8", relative.display())); })?;
+    let text: String = match std::fs::read_to_string(own_cgroup_file) {
+        Ok(found) => found,
+        Err(error) => return Err(io::Error::new(error.kind(), format!("{}: {error}", own_cgroup_file.display()))),
+    };
+    let origin: String = match own_cgroup(&text) {
+        Ok(found) => found,
+        Err(error) => return Err(invalid(format!("{}: {error}", own_cgroup_file.display()))),
+    };
+    let Ok(relative) = slice_dir.strip_prefix(cgroup_root) else {
+        return Err(invalid(format!("{} is not below {}", slice_dir.display(), cgroup_root.display())));
+    };
+    let Some(destination) = relative.to_str() else {
+        return Err(invalid(format!("{} is not UTF-8", relative.display())));
+    };
     return read_inherited_limits(cgroup_root, &origin, destination);
 }

@@ -46,7 +46,7 @@ fn edit(root: &Path, before: &str) -> ManifestEdit {
 
 /// Recovers with a policy that refuses everything it is asked about.
 fn run_recovery(root: &Path) -> Vec<String> {
-    return recover(root, &|_before, _live| { return vec!["refused".to_string()]; });
+    return recover(root, &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["refused".to_string()]; });
 }
 
 /// A journal that crashed while its manifests were being journaled:
@@ -252,7 +252,7 @@ fn the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_rea
         fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "output the policy accepts").expect("the killed run's output");
         arm(fault);
 
-        let report = crate::journal::recover_report(root.path(), &|_before, _live| { return Vec::new(); });
+        let report = crate::journal::recover_report(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return Vec::new(); });
 
         assert!(!fires(fault), "{fault:?}: the barrier was never reached at its production operation");
         assert!(report.mandatory_failure, "{fault:?}: a failed output barrier of the recovery was not a mandatory failure: {:?}", report.messages);
@@ -265,7 +265,7 @@ fn the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_rea
     fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "output the policy accepts").expect("the killed run's output");
     let _ = crate::bounded_run::take_trace_for_test();
 
-    let report = crate::journal::recover_report(root.path(), &|_before, _live| { return Vec::new(); });
+    let report = crate::journal::recover_report(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return Vec::new(); });
 
     assert!(!report.mandatory_failure && !journal.exists(), "the control did not complete: {:?}", report.messages);
     let durable: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("durable "); }).collect();
@@ -287,7 +287,7 @@ fn an_unready_journal_reports_its_mandatory_and_cleanup_failures_through_the_rep
         let journal = unready_journal_with_manifest(root.path(), "same lock", "manifest");
         arm(fault);
 
-        let report = crate::journal::recover_report(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
+        let report = crate::journal::recover_report(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["refused".to_string()]; });
 
         assert!(!fires(fault), "{fault:?}: the fault was never reached");
         assert_eq!(report.mandatory_failure, mandatory, "{fault:?}: {:?}", report.messages);

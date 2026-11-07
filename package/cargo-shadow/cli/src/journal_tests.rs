@@ -124,7 +124,7 @@ fn a_killed_run_whose_lock_holds_refused_versions_is_saved_aside_and_the_snapsho
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let messages = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
 
     assert_eq!(lock(root.path()), "original");
     assert_eq!(
@@ -144,7 +144,7 @@ fn a_killed_run_whose_lock_passes_the_policy_is_kept() {
 
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    let messages = recover(root.path(), &|_before, _live| { return Vec::new(); });
+    let messages = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return Vec::new(); });
 
     assert_eq!(lock(root.path()), "good output");
     assert!(!root.path().join(CRATE_DIR).join("Cargo.lock.refused").exists());
@@ -282,7 +282,7 @@ fn a_recovery_that_fails_keeps_the_journal() {
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let messages = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
 
     // Borrow `&crate_dir`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -306,7 +306,7 @@ fn an_unreadable_live_lock_keeps_the_journal() {
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    recover(root.path(), &|_before, _live| { return Vec::new(); });
+    recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return Vec::new(); });
 
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert!`: builds or prints text (or a list) from a template.
@@ -326,7 +326,7 @@ fn an_unreadable_journal_is_kept() {
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    recover(root.path(), &|_before, _live| { return Vec::new(); });
+    recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return Vec::new(); });
 
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert!`: builds or prints text (or a list) from a template.
@@ -346,7 +346,7 @@ fn recovery_leaves_a_lock_that_another_writer_published_while_the_policy_was_jud
     let lock_path = root.path().join(CRATE_DIR).join("Cargo.lock");
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
-    let messages = recover(root.path(), &|_before, _live| {
+    let messages = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| {
         // Borrow `&lock_path`: lends the value without copying or giving it away.
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         fs::write(&lock_path, "published by another writer meanwhile").expect("the other writer");
@@ -428,7 +428,7 @@ fn recovery_does_not_replace_a_lock_published_in_the_gap_after_the_last_comparis
     // Borrow `&publish`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover_with(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; }, &publish);
+    let messages = recover_with(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; }, &publish);
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "published by another writer in the gap");
@@ -533,7 +533,7 @@ fn a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too() {
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "original");
@@ -560,7 +560,7 @@ fn a_killed_breaking_run_whose_lock_passes_keeps_its_manifest_edit() {
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    recover(root.path(), &|_before, _live| { return Vec::new(); });
+    recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return Vec::new(); });
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "good output");
@@ -582,7 +582,7 @@ fn a_killed_breaking_run_that_only_rewrote_the_manifest_gets_it_back() {
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_before, _live| { return vec!["never asked".to_string()]; });
+    recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["never asked".to_string()]; });
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(manifest(root.path()), "manifest before");
@@ -843,7 +843,7 @@ fn a_kept_root_keeps_its_manifest_and_a_rejected_root_gets_its_own_back() {
     plant(root.path(), &[snapshot("original one"), second], &edits);
 
     // Closure `|before, _live|`: an anonymous function, like a TS arrow function.
-    recover(root.path(), &|before, _live| {
+    recover(root.path(), &|before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| {
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // Macro `vec!`: builds or prints text (or a list) from a template.
         // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -884,7 +884,7 @@ fn an_unreadable_or_truncated_manifest_index_keeps_the_journal() {
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
+    recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["refused".to_string()]; });
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(journal.exists(), "a truncated manifest index must keep the journal");
 
@@ -896,7 +896,7 @@ fn an_unreadable_or_truncated_manifest_index_keeps_the_journal() {
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
+    recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["refused".to_string()]; });
     // Borrow `&index`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::set_permissions(&index, fs::Permissions::from_mode(0o644)).expect("give the permissions back");
@@ -942,7 +942,7 @@ fn a_manifest_path_that_is_not_utf8_is_recovered_exactly() {
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
+    recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["refused".to_string()]; });
 
     // Borrow `&manifest_path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.

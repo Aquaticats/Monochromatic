@@ -504,7 +504,7 @@ fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
     assert_eq!(launcher_pid, shell, "the recorded launcher is not the shell that ran the program");
     crate::cgroup_test_support::wait_until("the recorded launcher to be classified gone", &|| { return crate::control_group::launcher_state(launcher_pid, launcher_start, pid_namespace) == crate::control_group::LauncherState::Gone; });
 
-    let messages: Vec<String> = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let messages: Vec<String> = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
     let writer_alive: bool = is_running(writer);
     stop_quietly(writer);
     // The scope is stopped as a whole, so the writer's own children do not outlive the test.
