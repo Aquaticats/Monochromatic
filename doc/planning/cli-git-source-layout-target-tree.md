@@ -138,6 +138,13 @@ verbatim:
     shell quoting:
     "Keep ours (readable)".
     The replacements are built after the release.
+  - Then,
+    verbatim:
+    "Adopt tokio, do not adopt ureq, use the `hyper` set of https libs."
+    So the wrapper gets tokio as its async runtime (zbus 6 runs on it, no blocking workaround needed),
+    and the standards-review HTTPS call moves from `ureq` to `hyper`, `hyper-util`, `hyper-rustls` and `http-body-util`
+    (all already in `rust-catalog.toml`).
+    Which tokio runtime flavour is chosen by measurement inside the wrapper.
 
 `AGENTS.md`,
 verbatim:
