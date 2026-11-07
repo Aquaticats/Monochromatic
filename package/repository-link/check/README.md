@@ -14,7 +14,9 @@ The shared check that tells a tool whether the repository link to the 860 drive 
   checks,
   then replaces itself with the command (`process.execve`).
   With `--wait-seconds` it asks again every second until the deadline.
-- `repository-link-launch`, started through a link named like the program it stands for (`spawn-claude`, `spawn-pi`):
+- `repository-link-launch`,
+  started through a link named like the program it stands for (`spawn-claude`,
+  `spawn-pi`):
   checks,
   then replaces itself with that program (the table is `LAUNCHED_PROGRAMS` in `src/constants.ts`,
   paths below the repository link),
