@@ -3986,7 +3986,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     and `service::service_reply::tests::a_queued_answer_is_written_before_the_connection_closes`
     (read `Heartbeat`,
     expected `Landed`);
-    back with the tokio agent for measured causes;
+    that last one is a race in a test main has had since `8183dcc6fd`,
+    not a tokio regression:
+    the branch changes nothing it uses,
+    the writer sends a beat after `recv_timeout` of 20 ms (`service_reply.rs:123-136`),
+    and the test asserts the queued answer is the first line (`service_reply_tests.rs:65-71`),
+    so a test thread scheduled more than 20 ms late reads a beat first;
+    the tokio agent fixes the test with a sleep control proving the race;
+    back with the tokio agent for measured causes of the four push failures;
     the coordinator's unmeasured hypothesis is that stops now wait up to 18 s whenever a member is in `D` under disk pressure,
     which would be a production regression too;
     not merged;
