@@ -598,22 +598,23 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   The rename note added to 117 old records said "is now" and sat in 6 `doc/decision/` records; on the owner's
   "Run the fix as described" (2026-11-07T02:03:01-05:00) `31f3223d25` removed it from the decision records and
   reworded it in the other 111.
-  Release blockers at 2026-11-07T02:03:01-05:00 (owner: the one release goes out "After the test gap is fixed"):
-  - The fourth cross-vendor run answered (`~/temp/agent/issue-6261/sol-review-retry-4/review.txt`) with three
-    defects, all to fix with red tests before the release:
-    (1) `earlier_service_journal_adopted.rs` lines 132 to 141: an old helper can start between the `/proc` scan and
-    the adoption, and nothing both sides honour excludes it;
-    (2) `earlier_service_process_look.rs` lines 74 to 80 compare journal paths by spelling, so a helper started with
-    `/home/user/...` is missed when the service derives `/var/home/user/...` (on this machine `/home` is a link to
-    `/var/home`); compare by file identity, and an error means "may be running";
-    (3) `earlier_service_process_look.rs` lines 165 to 175 read at most 65,536 bytes of a command line and treat a
-    full read as complete; a longer command line must mean "may be running".
-  - The planted-defect run over the suppression image reached 38 of 48 before a machine shutdown stopped its unit
-    (systemd stopped it at 2026-11-05T04:27:26-05:00, then a new boot); 37 noticed, and
-    "worktree copy installation batches" was not noticed by
-    `worktree_copying::worktree_copy_install::tests::records_grow_by_batch_not_by_entry`.
-    Fix that test, then run the fixed control and the ten the shutdown never reached.
-    The `fewer-closure-suppressions` worktree is removed after that rerun.
+  Release blockers at 2026-11-07T02:03:01-05:00 (owner: the one release goes out "After the test gap is fixed"),
+  all four fixed on `fix/git-policy-cli-earlier-helper-review-fixes` (worktree
+  `.claude/worktrees/earlier-helper-review-fixes`; each with a red test committed first), recorded 2026-11-07T03:01:27-05:00:
+  - The fourth cross-vendor run (`~/temp/agent/issue-6261/sol-review-retry-4/review.txt`) found three defects:
+    (1) an old helper can start between the `/proc` scan and the adoption.
+    The helper installed here (tag `monochromatic-git-policy-cli-v0.5.34`) holds no lock on its journal
+    (`service_main.rs`), so no exclusion both sides honour exists; the adoption now defers while a socket of the earlier
+    units listens (`/proc/net/unix`, read before the processes), and deferred batches stay on disk until the earlier helper or
+    the next start of this service settles them (plan doc, "Changes after the fourth review");
+    (2) journal arguments are compared by device and inode, relative ones in the process's working directory, and an
+    unresolvable one means "may be running";
+    (3) a command line longer than the bytes read means "may be running".
+  - The planted control "worktree copy installation batches" went unnoticed because the batch size grew from 512 to 4096
+    in `f538c41379` (2026-11-02) while the test kept 1,100 files, so one batch held the whole tree; the closure-lint
+    refactor did not touch the split. The test now installs two full batches plus one file, derived from the constant.
+    Rerun over the fixed image: that control and the six the shutdown never reached (the log reached 42 of 48 with 41 noticed, not the 38 and 37 first recorded)
+    were all noticed. The `fewer-closure-suppressions` worktree can be removed.
   After the one release, every later release carries `-alpha.N` and skips crates.io, but this machine installs our
   seven tools through crates.io (`cargo-binstall`); until they install from GitHub releases (the `archive` route
   `mpm-shadow` uses, task #167), no later fix can be installed here. The owner has not yet said whether that route
