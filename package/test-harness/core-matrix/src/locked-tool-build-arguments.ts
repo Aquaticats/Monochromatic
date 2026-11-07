@@ -21,7 +21,10 @@ export const LOCK_FILE_NAME = 'toolchain.lock.json';
 /**
  Tools whose lock row a Containerfile can consume.
  */
-export const LOCKED_BUILD_ARGUMENT_TOOLS = ['zig', 'cargo-about',] as const;
+export const LOCKED_BUILD_ARGUMENT_TOOLS = [
+  'zig',
+  'cargo-about',
+] as const;
 
 /**
  A tool of {@link LOCKED_BUILD_ARGUMENT_TOOLS}.
@@ -35,6 +38,25 @@ export const ZIG_LOCK_PLATFORM_BY_HOST_ARCHITECTURE = {
   x64: 'linux-x64',
   arm64: 'linux-arm64',
 } as const;
+
+/**
+ Whether a value names a tool of {@link LOCKED_BUILD_ARGUMENT_TOOLS}.
+
+ @param value - text a caller supplied as a tool name
+
+ @returns `true` when the value is one of the tools
+
+ @example
+ ```ts
+ isLockedBuildArgumentTool('zig',);
+ // true
+ ```
+ */
+export function isLockedBuildArgumentTool(value: unknown,): value is LockedBuildArgumentTool {
+  return LOCKED_BUILD_ARGUMENT_TOOLS.some(function isValue(candidate,) {
+    return candidate === value;
+  },);
+}
 
 /**
  Key of each tool's row in the lock's `tools` table.
@@ -135,73 +157,133 @@ function nonEmptyStringOf({
 }
 
 /**
- Reads the build arguments of one tool out of the lock's text.
-
- The Zig row yields the archive of the platform: `ZIG_ARCHIVE_URL` and `ZIG_ARCHIVE_SHA256`, which the Containerfile
- downloads and checks. The `cargo-about` row has no archive (its route installs from crates.io), so it yields only
- `CARGO_ABOUT_VERSION`.
+ Finds the row of one tool in the lock's text.
 
  @param lockText - contents of `toolchain.lock.json`
 
  @param tool - tool whose row is read
 
- @param platform - lock platform whose archive the Zig row is read for, for example `linux-x64`; `undefined` for a host the lock has no Zig archive for, and unused for `cargo-about`
+ @returns the row, whose shape is not yet checked
 
- @returns lines of the form `NAME=value`, ready for `podman build --build-arg`
-
- @throws LockedToolBuildArgumentsError when the text is not JSON or the row lacks a needed non-empty string
-
- @example
- ```ts
- lockedToolBuildArgumentsFromText({
-   lockText: '{"tools":{"cargo:cargo-about":{"version":"0.9.3"}}}',
-   tool: 'cargo-about',
-   platform: 'linux-x64',
- },);
- // ['CARGO_ABOUT_VERSION=0.9.3']
- ```
+ @throws LockedToolBuildArgumentsError when the text is not JSON
  */
-export function lockedToolBuildArgumentsFromText({
+function rowOfTool({
   lockText,
   tool,
-  platform,
 }: {
   readonly lockText: string;
   readonly tool: LockedBuildArgumentTool;
-  readonly platform: string | undefined;
-},): readonly string[] {
-  /**
-   The tool's row, `undefined` along any missing step.
-   */
-  const row: unknown = childOf({
+},): unknown {
+  return childOf({
     value: childOf({
       value: parseLock(lockText,),
       key: 'tools',
     },),
     key: LOCK_ROW_KEY_BY_TOOL[tool],
   },);
-  if (tool === 'cargo-about') {
-    return [
-      `CARGO_ABOUT_VERSION=${
-        nonEmptyStringOf({
-          value: row,
-          key: 'version',
-          description: `tools.${LOCK_ROW_KEY_BY_TOOL[tool]}.version`,
-        },)
-      }`,
-    ];
-  }
+}
 
+/**
+ Reads the `cargo-about` build argument out of the lock's text.
+
+ The `cargo-about` row has no archive (its route installs from crates.io), so it yields only `CARGO_ABOUT_VERSION`.
+
+ @param lockText - contents of `toolchain.lock.json`
+
+ @returns lines of the form `NAME=value`, ready for `podman build --build-arg`
+
+ @throws LockedToolBuildArgumentsError when the text is not JSON or the row lacks a non-empty version
+
+ @example
+ ```ts
+ cargoAboutBuildArgumentsFromText('{"tools":{"cargo:cargo-about":{"version":"0.9.3"}}}',);
+ // ['CARGO_ABOUT_VERSION=0.9.3']
+ ```
+ */
+export function cargoAboutBuildArgumentsFromText(lockText: string,): readonly string[] {
+  return [
+    `CARGO_ABOUT_VERSION=${
+      nonEmptyStringOf({
+        value: rowOfTool({
+          lockText,
+          tool: 'cargo-about',
+        },),
+        key: 'version',
+        description: `tools.${LOCK_ROW_KEY_BY_TOOL['cargo-about']}.version`,
+      },)
+    }`,
+  ];
+}
+
+/**
+ Finds the lock platform whose Zig archive a host needs.
+
+ @param hostArchitecture - Node `process.arch` of the host the build runs on
+
+ @returns the lock platform, for example `linux-x64`
+
+ @throws LockedToolBuildArgumentsError when the lock has no Zig archive for the architecture
+ */
+function zigLockPlatformOf(hostArchitecture: string,): string {
+  /**
+   Lock platform by architecture, as a map that answers for any text.
+   */
+  const platformByArchitecture = new Map<string, string>(Object.entries(ZIG_LOCK_PLATFORM_BY_HOST_ARCHITECTURE,),);
+  /**
+   Lock platform of the architecture, absent for a host the lock has no Zig archive for.
+   */
+  const platform = platformByArchitecture.get(hostArchitecture,);
   if (platform === undefined) {
-    throw new LockedToolBuildArgumentsError(`${LOCK_FILE_NAME} has no Zig archive for this host: no platform was given`,);
+    throw new LockedToolBuildArgumentsError(
+      `${LOCK_FILE_NAME} has no Zig archive for host architecture ${hostArchitecture}, only for: ${
+        [...platformByArchitecture.keys(),].join(', ',)
+      }`,
+    );
   }
+  return platform;
+}
 
+/**
+ Reads the Zig build arguments out of the lock's text: `ZIG_ARCHIVE_URL` and `ZIG_ARCHIVE_SHA256`, the archive of the
+ host's platform, which the Containerfile downloads and checks.
+
+ @param lockText - contents of `toolchain.lock.json`
+
+ @param hostArchitecture - Node `process.arch` of the host the build runs on
+
+ @returns lines of the form `NAME=value`, ready for `podman build --build-arg`
+
+ @throws LockedToolBuildArgumentsError when the text is not JSON, the host has no archive, or the archive lacks a needed non-empty string
+
+ @example
+ ```ts
+ zigBuildArgumentsFromText({
+   lockText: '{"tools":{"zig":{"artifacts":{"linux-x64":{"url":"https://example.invalid/zig.tar.xz","sha256":"abc"}}}}}',
+   hostArchitecture: 'x64',
+ },);
+ // ['ZIG_ARCHIVE_URL=https://example.invalid/zig.tar.xz', 'ZIG_ARCHIVE_SHA256=abc']
+ ```
+ */
+export function zigBuildArgumentsFromText({
+  lockText,
+  hostArchitecture,
+}: {
+  readonly lockText: string;
+  readonly hostArchitecture: string;
+},): readonly string[] {
+  /**
+   Lock platform whose archive is read.
+   */
+  const platform = zigLockPlatformOf(hostArchitecture,);
   /**
    The archive of the platform, `undefined` along any missing step.
    */
   const archive: unknown = childOf({
     value: childOf({
-      value: row,
+      value: rowOfTool({
+        lockText,
+        tool: 'zig',
+      },),
       key: 'artifacts',
     },),
     key: platform,
@@ -209,7 +291,7 @@ export function lockedToolBuildArgumentsFromText({
   /**
    Where the lock says the archive of this platform lives.
    */
-  const archiveDescription = `tools.${LOCK_ROW_KEY_BY_TOOL[tool]}.artifacts.${platform}`;
+  const archiveDescription = `tools.${LOCK_ROW_KEY_BY_TOOL.zig}.artifacts.${platform}`;
   return [
     `ZIG_ARCHIVE_URL=${
       nonEmptyStringOf({
@@ -226,6 +308,47 @@ export function lockedToolBuildArgumentsFromText({
       },)
     }`,
   ];
+}
+
+/**
+ Reads the build arguments of one tool out of the lock's text.
+
+ @param lockText - contents of `toolchain.lock.json`
+
+ @param tool - tool whose row is read
+
+ @param hostArchitecture - Node `process.arch` of the host the build runs on; only the Zig row depends on it
+
+ @returns lines of the form `NAME=value`, ready for `podman build --build-arg`
+
+ @throws LockedToolBuildArgumentsError when the text is not JSON or the row lacks a needed non-empty string
+
+ @example
+ ```ts
+ lockedToolBuildArgumentsFromText({
+   lockText: '{"tools":{"cargo:cargo-about":{"version":"0.9.3"}}}',
+   tool: 'cargo-about',
+   hostArchitecture: 'x64',
+ },);
+ // ['CARGO_ABOUT_VERSION=0.9.3']
+ ```
+ */
+export function lockedToolBuildArgumentsFromText({
+  lockText,
+  tool,
+  hostArchitecture,
+}: {
+  readonly lockText: string;
+  readonly tool: LockedBuildArgumentTool;
+  readonly hostArchitecture: string;
+},): readonly string[] {
+  if (tool === 'cargo-about') {
+    return cargoAboutBuildArgumentsFromText(lockText,);
+  }
+  return zigBuildArgumentsFromText({
+    lockText,
+    hostArchitecture,
+  },);
 }
 
 /**
@@ -263,7 +386,7 @@ async function readLockTextIn(directory: string,): Promise<string> {
 
  @param tool - tool whose row is read
 
- @param platform - lock platform whose Zig archive is read, `undefined` when the host has none
+ @param hostArchitecture - Node `process.arch` of the host the build runs on
 
  @returns lines of the form `NAME=value`
 
@@ -273,12 +396,12 @@ async function readFromNearestLock({
   directory,
   startDirectory,
   tool,
-  platform,
+  hostArchitecture,
 }: {
   readonly directory: string;
   readonly startDirectory: string;
   readonly tool: LockedBuildArgumentTool;
-  readonly platform: string | undefined;
+  readonly hostArchitecture: string;
 },): Promise<readonly string[]> {
   /**
    Text of the lock in this directory, empty when there is none.
@@ -288,7 +411,7 @@ async function readFromNearestLock({
     return lockedToolBuildArgumentsFromText({
       lockText,
       tool,
-      platform,
+      hostArchitecture,
     },);
   }
 
@@ -303,7 +426,7 @@ async function readFromNearestLock({
     directory: parent,
     startDirectory,
     tool,
-    platform,
+    hostArchitecture,
   },);
 }
 
@@ -314,7 +437,7 @@ async function readFromNearestLock({
 
  @param tool - tool whose row is read
 
- @param platform - lock platform whose Zig archive is read, usually of the host the build runs on; `undefined` when the host has none
+ @param hostArchitecture - Node `process.arch` of the host the build runs on; only the Zig row depends on it
 
  @returns lines of the form `NAME=value`
 
@@ -322,23 +445,23 @@ async function readFromNearestLock({
 
  @example
  ```ts
- await readLockedToolBuildArguments({ startDirectory: process.cwd(), tool: 'cargo-about', platform: 'linux-x64', },);
+ await readLockedToolBuildArguments({ startDirectory: process.cwd(), tool: 'cargo-about', hostArchitecture: process.arch, },);
  // ['CARGO_ABOUT_VERSION=0.9.3']
  ```
  */
 export function readLockedToolBuildArguments({
   startDirectory,
   tool,
-  platform,
+  hostArchitecture,
 }: {
   readonly startDirectory: string;
   readonly tool: LockedBuildArgumentTool;
-  readonly platform: string | undefined;
+  readonly hostArchitecture: string;
 },): Promise<readonly string[]> {
   return readFromNearestLock({
     directory: startDirectory,
     startDirectory,
     tool,
-    platform,
+    hostArchitecture,
   },);
 }
