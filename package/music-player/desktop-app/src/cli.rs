@@ -197,7 +197,10 @@ where
 ///       Same contract as `Cli::parse()`,
 /// so `main` swaps one call for the other on Windows only.
 pub fn parse_with_color(color: clap::ColorChoice) -> Cli {
-    return try_parse_from_with_color(std::env::args_os(), color).unwrap_or_else(|error| error.exit());
+    return match try_parse_from_with_color(std::env::args_os(), color) {
+        Ok(cli) => cli,
+        Err(error) => error.exit(),
+    };
 }
 
 /// What:

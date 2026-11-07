@@ -114,6 +114,18 @@ fn sort_naturally(paths: &mut Vec<PathBuf>) {
 }
 
 /// What:
+/// `ignore_batch` is the batch callback of a walk that wants no progress reports.
+/// Why:
+/// `scan_streaming` always takes a callback,
+/// and a named function that does nothing says so without a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ignoreBatch = (_batch: string[]): void => {};
+/// ```
+pub(crate) fn ignore_batch(_batch: &[PathBuf]) {}
+
+/// What:
 ///      `pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut(&[PathBuf])) -> Vec<PathBuf>`.
 ///  Walks `root` and returns every audio file in queue order,
 /// reporting new runs of at least `batch` paths on the way.

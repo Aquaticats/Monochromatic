@@ -195,10 +195,13 @@ struct PlacedRow {
 /// const splitSegments = (p: string) => p.split("/").filter((s) => s !== "" && s !== "." && s !== "..");
 /// ```
 fn split_segments(display_path: &str) -> Vec<&str> {
-    return display_path
-        .split(PATH_SEPARATOR)
-        .filter(|segment| return !segment.is_empty() && *segment != CURRENT_DIRECTORY && *segment != PARENT_DIRECTORY)
-        .collect();
+    let mut segments: Vec<&str> = Vec::new();
+    for segment in display_path.split(PATH_SEPARATOR) {
+        if !segment.is_empty() && segment != CURRENT_DIRECTORY && segment != PARENT_DIRECTORY {
+            segments.push(segment);
+        }
+    }
+    return segments;
 }
 
 /// What:
@@ -217,9 +220,25 @@ fn split_segments(display_path: &str) -> Vec<&str> {
 /// ```
 fn subfolder_path(segments: &[&str]) -> String {
     let middle = &segments[1..segments.len() - 1];
-    return middle
-        .iter()
-        .fold(String::new(), |prefix, segment| return join_display_path(&prefix, segment));
+    let mut prefix = String::new();
+    for segment in middle {
+        prefix = join_display_path(&prefix, segment);
+    }
+    return prefix;
+}
+
+/// What:
+/// `named_order` orders two named groups by their names with `folder_name_order`.
+/// Why:
+/// the subfolders and the folders are both sorted as `(name, rows)` pairs,
+/// and a sort comparison is a function of the two pairs alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namedOrder = <T>(left: [string, T], right: [string, T]): number => folderNameOrder(left[0], right[0]);
+/// ```
+fn named_order<T>(left: &(String, T), right: &(String, T)) -> Ordering {
+    return folder_name_order(&left.0, &right.0);
 }
 
 /// What:
@@ -238,9 +257,11 @@ fn subfolder_path(segments: &[&str]) -> String {
 /// const folderNameOrder = (a: string, b: string) => collator.compare(a, b) || (a < b ? -1 : a > b ? 1 : 0);
 /// ```
 fn folder_name_order(left: &str, right: &str) -> Ordering {
-    return collation_key(left)
-        .cmp(&collation_key(right))
-        .then_with(|| return left.cmp(right));
+    let by_key = collation_key(left).cmp(&collation_key(right));
+    if by_key != Ordering::Equal {
+        return by_key;
+    }
+    return left.cmp(right);
 }
 
 /// What:
@@ -273,7 +294,7 @@ fn folder_entry(name: String, placed: Vec<PlacedRow>) -> FolderEntry {
         }
     }
     let mut subfolders: Vec<(String, Vec<FolderTrackRow>)> = by_subfolder.into_iter().collect();
-    subfolders.sort_by(|left, right| return folder_name_order(&left.0, &right.0));
+    subfolders.sort_by(named_order);
     for (subfolder, rows) in subfolders {
         items.push(FolderListItem::SubfolderHeader {
             name: subfolder,
@@ -344,11 +365,11 @@ pub fn folder_index(tracks: &[Track]) -> Vec<FolderEntry> {
             .push(PlacedRow { subfolder, row });
     }
     let mut named: Vec<(String, Vec<PlacedRow>)> = by_folder.into_iter().collect();
-    named.sort_by(|left, right| return folder_name_order(&left.0, &right.0));
-    let mut entries: Vec<FolderEntry> = named
-        .into_iter()
-        .map(|(name, placed)| return folder_entry(name, placed))
-        .collect();
+    named.sort_by(named_order);
+    let mut entries: Vec<FolderEntry> = Vec::with_capacity(named.len());
+    for (name, placed) in named {
+        entries.push(folder_entry(name, placed));
+    }
     if !root_rows.is_empty() {
         entries.push(unfiled_entry(root_rows));
     }

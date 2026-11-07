@@ -110,7 +110,11 @@ impl DoubleShift {
     ///      A key between the taps cancels the double tap,
     /// and a key during a press makes it a chord such as Shift+A.
     fn interrupt(self) -> Self {
-        return Self { held: self.held.map(|(at, _clean)| return (at, false)), first_tap_at: None };
+        let held = match self.held {
+            Some((at, _clean)) => Some((at, false)),
+            None => None,
+        };
+        return Self { held, first_tap_at: None };
     }
 
     /// What:

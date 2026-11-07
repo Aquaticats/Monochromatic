@@ -51,7 +51,7 @@ pub fn probe_duration_secs(path: &Path) -> Option<f64> {
     };
     let stream = MediaSourceStream::new(Box::new(file), Default::default());
     let mut hint = Hint::new();
-    if let Some(extension) = path.extension().and_then(|value| return value.to_str()) {
+    if let Some(extension) = path.extension().and_then(std::ffi::OsStr::to_str) {
         hint.with_extension(extension);
     }
     let format = match symphonia::default::get_probe().probe(
@@ -82,11 +82,7 @@ pub fn probe_duration_secs(path: &Path) -> Option<f64> {
 /// ```
 fn duration_of_first_audio_track(format: &dyn FormatReader) -> Option<f64> {
     let track = format.first_track_known_codec(TrackType::Audio)?;
-    let rate = track
-        .codec_params
-        .as_ref()
-        .and_then(|params| return params.audio())
-        .and_then(|audio| return audio.sample_rate)?;
+    let rate = crate::decode::audio_params_of(track)?.sample_rate?;
     let frames = track.num_frames?;
     return frames_to_secs(frames, rate);
 }

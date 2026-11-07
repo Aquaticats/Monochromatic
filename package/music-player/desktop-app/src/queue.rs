@@ -549,6 +549,25 @@ impl Queue {
     }
 
     /// What:
+    /// `position_of_path` gives the load-order index of the track with this path,
+    /// or nothing when the queue does not hold it.
+    /// Why:
+    /// a saved or preselected file is found in the scanned queue by its path.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// positionOfPath(path: string): number | null { const i = this.tracks.indexOf(path); return i < 0 ? null : i; }
+    /// ```
+    pub fn position_of_path(&self, wanted: &std::path::Path) -> Option<usize> {
+        for (index, track) in self.tracks.iter().enumerate() {
+            if track.as_path() == wanted {
+                return Some(index);
+            }
+        }
+        return None;
+    }
+
+    /// What:
     ///      `pub fn current_index(&self) -> Option<usize>` returns the LOAD-ORDER index
     ///           of the current track (into `tracks`),
     ///  or None.
@@ -672,32 +691,42 @@ impl Queue {
     }
 
     /// What:
-    ///      `pub(crate) fn replace_tracks_with(&mut self, edit: impl FnOnce(Vec<PathBuf>) -> Vec<PathBuf>)`.
-    ///  Replaces the track list by an edited copy of itself,
-    /// moving the paths instead of cloning them when no page is selected.
-    ///  The scope order is stale until the caller re-anchors the cursor (`restore_index_preserving_page` or `clear_selection`),
-    ///  which it must do at once.
+    ///      `pub(crate) fn tracks_for_edit(&mut self) -> Vec<PathBuf>`.
+    ///  The track list to edit:
+    /// moved out when no page scope is set,
+    ///  copied otherwise.
     /// Why:
-    ///       D113:
-    /// a refresh that adds or removes a few tracks of a million must not clone a million paths or rebuild the
-    ///  scope twice (the caller re-anchors the selection right after,
-    /// which rebuilds it).
-    /// With a page selected the page has to
-    ///  be carried over by name,
-    /// which `set_tracks` does,
-    /// so that case hands it a copy.
+    ///       An edit of a library of a million tracks must not copy it when nothing else reads the queue meanwhile.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// replaceTracksWith(edit: (old: string[]) => string[]): void { this.setTracks(edit(this.tracks)); }
+    /// tracksForEdit(): string[] { return this.pageScope.length === 0 ? this.tracks.splice(0) : [...this.tracks]; }
     /// ```
-    pub(crate) fn replace_tracks_with(&mut self, edit: impl FnOnce(Vec<PathBuf>) -> Vec<PathBuf>) {
+    pub(crate) fn tracks_for_edit(&mut self) -> Vec<PathBuf> {
         if self.page_scope.is_empty() {
-            let edited: Vec<PathBuf> = edit(std::mem::take(&mut self.tracks));
+            return std::mem::take(&mut self.tracks);
+        }
+        return self.tracks.clone();
+    }
+
+    /// What:
+    ///      `pub(crate) fn install_edited_tracks(&mut self, edited: Vec<PathBuf>)`.
+    ///  Puts an edited track list back:
+    /// directly when no page scope is set,
+    ///  through `set_tracks` otherwise.
+    /// Why:
+    ///       A page scope refers to track positions,
+    /// so a list that changed under it must rebuild the scope.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// installEditedTracks(edited: string[]): void { if (this.pageScope.length === 0) this.tracks = edited; else this.setTracks(edited); }
+    /// ```
+    pub(crate) fn install_edited_tracks(&mut self, edited: Vec<PathBuf>) {
+        if self.page_scope.is_empty() {
             self.tracks = edited;
             return;
         }
-        let edited: Vec<PathBuf> = edit(self.tracks.clone());
         self.set_tracks(edited);
     }
 

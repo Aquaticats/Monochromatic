@@ -348,14 +348,45 @@ impl MeterReporter {
     /// takeChange(now: number, read: () => MeterSnapshot): MeterSnapshot | null { ... }
     /// ```
     pub fn take_change(&mut self, now: Instant, read: impl FnOnce() -> MeterSnapshot) -> Option<MeterSnapshot> {
-        let due = match self.last_report {
+        if !self.is_due(now) {
+            return None;
+        }
+        return self.record(now, read());
+    }
+
+    /// What:
+    ///      `pub fn is_due(&self, now: Instant) -> bool`.
+    ///  Whether the report interval has passed since the last read.
+    /// Why:
+    ///       The meter is read only when a report is due,
+    /// so a caller asks first and reads the meter only on a yes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// isDue(now: number): boolean { return this.lastReport === null || now - this.lastReport >= REPORT_INTERVAL; }
+    /// ```
+    pub fn is_due(&self, now: Instant) -> bool {
+        return match self.last_report {
             Some(last) => now.saturating_duration_since(last) >= REPORT_INTERVAL,
             None => true,
         };
-        if !due {
-            return None;
-        }
-        let current = read();
+    }
+
+    /// What:
+    ///      `pub fn record(&mut self, now: Instant, current: MeterSnapshot) -> Option<MeterSnapshot>`.
+    ///  Takes a snapshot that was read when a report was due,
+    /// and returns the change since the last read,
+    ///  but only if the underrun count moved;
+    /// otherwise returns `None`.
+    /// Why:
+    ///       The change is what the engine logs,
+    /// and the previous snapshot and the announcement flag move with every read.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// record(now: number, current: MeterSnapshot): MeterSnapshot | null { ... }
+    /// ```
+    pub fn record(&mut self, now: Instant, current: MeterSnapshot) -> Option<MeterSnapshot> {
         let change = current.since(self.previous);
         self.previous = current;
         self.last_report = Some(now);

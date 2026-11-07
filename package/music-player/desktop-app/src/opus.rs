@@ -280,13 +280,7 @@ impl OpusSource {
         // const audio = track.codecParams?.audio();
         // if (!audio) throw new PlayerError.Unsupported("opus: no audio codec parameters");
         // ```
-        let audio_params = track
-            .codec_params
-            .as_ref()
-            .and_then(|cp| return cp.audio())
-            .ok_or_else(|| {
-                return PlayerError::Unsupported("opus: no audio codec parameters".to_string())
-            })?;
+        let audio_params = crate::decode::audio_params_or_unsupported(&track, "opus: no audio codec parameters")?;
 
         // What:     `let channels = match &audio_params.channels { ... };`. Pattern-match
         //           the borrowed `&Option<Channels>` to a numeric count, erroring if

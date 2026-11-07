@@ -333,7 +333,10 @@ impl DirtyPaths {
         // ```ts
         // const all: [string, boolean][] = [...this.entries].map(([path, structural]) => [path, structural]);
         // ```
-        let mut all: Vec<(PathBuf, bool)> = self.entries.iter().map(|(path, structural)| return (path.clone(), *structural)).collect();
+        let mut all: Vec<(PathBuf, bool)> = Vec::with_capacity(self.entries.len());
+        for (path, structural) in &self.entries {
+            all.push((path.clone(), *structural));
+        }
         // What:     `all.sort();` sorts the list in place by the natural order of its pairs: first by path, then by flag.
         //           Tuples compare field by field from the left.
         // Why:      Path order puts a folder before everything inside it, which is what the planner needs.
