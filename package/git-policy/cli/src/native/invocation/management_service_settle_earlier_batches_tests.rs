@@ -207,6 +207,45 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
     remove(world.root.as_path());
 }
 
+/// A program that carries `--journal` with a folder the check cannot resolve holds the command back, and the message names
+///  that program, so a person with an unrelated tool that happens to take the option can tell what blocks them: its process
+///  ID and its command line (a URL's credentials masked, a control character shown escaped so the message stays one line),
+///  the folder that did not resolve with the system's reason, why the program cannot be ruled out, and what to do: wait for it,
+///  stop it, or run the command again after it ends. Which programs hold the command back is not changed: the same table
+///  with the folder present (another folder that exists) holds nothing back.
+#[test]
+fn a_program_with_an_unresolvable_journal_is_named_with_its_command_line_and_the_way_on() {
+    let world: Setup = setup("settle-command-names-the-program");
+    world.leave_open_batches(1);
+    let words: Vec<String> = ["/usr/bin/unrelated-tool", "--journal", "/gone/for/good", "--remote", "https://user:s3cret@example.invalid/x", "two\nlines"]
+        .iter()
+        .map(|word| { return String::from(*word); })
+        .collect();
+    run_process(&world, words.as_slice());
+    let ((code, stdout, stderr), before) = run(&world.request());
+    assert_eq!((code, stdout.as_str(), before.as_str()), (1, "", ""));
+    assert!(stderr.contains(crate::earlier_service_process_look::Hold::HelperUnsure.words()), "the reason's words stay: {stderr}");
+    assert!(stderr.contains("process 77"), "the process ID: {stderr}");
+    let shown: &str = "/usr/bin/unrelated-tool --journal /gone/for/good --remote https://<credentials>@example.invalid/x two\\nlines";
+    assert!(stderr.contains(shown), "the command line, masked and on one line: {stderr}");
+    assert!(!stderr.contains("s3cret"), "the secret is masked: {stderr}");
+    assert_eq!(stderr.matches('\n').count(), 1, "one line: {stderr:?}");
+    for wanted in ["`/gone/for/good`", "No such file or directory", "cannot be ruled out", "wait for process 77", "stop it", "again", COMMAND, "Nothing was changed"] {
+        assert!(stderr.contains(wanted), "{wanted}: {stderr}");
+    }
+    run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("not/yet/there")]);
+    let ((relative_code, _, relative_err), _) = run(&world.request());
+    assert_eq!(relative_code, 1);
+    assert!(relative_err.contains("`not/yet/there`") && relative_err.contains("working directory of process 77"), "a relative folder says what it is relative to: {relative_err}");
+    std::fs::create_dir_all(world.root.join("exists")).expect("a folder that exists");
+    run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), world.root.join("exists").display().to_string()]);
+    let ((resolved_code, _, resolved_err), _) = run(&world.request());
+    assert_eq!(resolved_code, 1, "the command goes on and Git gives no answer for the fixture's batch, which it names: {resolved_err}");
+    assert!(!resolved_err.contains("process 77"), "{resolved_err}");
+    assert_eq!(world.open_files(), 1);
+    remove(world.root.as_path());
+}
+
 /// Before it acts, the command says the condition it is safe under, in plain words, and what an earlier-release wrapper does
 ///  to it. Here Git gives no answer for the batch, so the batch is named as one the command could not examine, stays on disk,
 ///  and the exit status says that something was not done.
