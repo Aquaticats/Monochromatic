@@ -185,3 +185,48 @@ fn a_launcher_is_made_from_the_running_binary_after_its_file_was_deleted() {
     let launcher_size: u64 = fs::read_to_string(&report).expect("the child reported").parse().expect("a size");
     assert_eq!(launcher_size, fs::metadata(&own).expect("size").len(), "the launcher is a whole copy of the deleted binary");
 }
+
+/// A release archive tool (the folder below `current` carries the version) whose record names `recorded`,
+/// with `current` now pointing at `now` and the folder of `recorded` deleted.
+fn moved_archive_record(directory: &Path, recorded: &str, now: &str) -> LaunchRecord {
+    let tool_dir: PathBuf = directory.join("demo-release");
+    for version in [recorded, now] {
+        fs::create_dir_all(tool_dir.join(version).join(format!("demo-release-{version}-linux"))).expect("make");
+    }
+    fs::write(tool_dir.join(now).join(format!("demo-release-{now}-linux")).join("tool"), "x").expect("write");
+    std::os::unix::fs::symlink(now, tool_dir.join("current")).expect("link current");
+    fs::remove_dir_all(tool_dir.join(recorded)).expect("remove the recorded version");
+    return LaunchRecord {
+        tool_id: "demo-release".to_string(),
+        lock_file: directory.join("toolchain.lock.json"),
+        real: tool_dir.join("current").join(format!("demo-release-{recorded}-linux")).join("tool"),
+        scope: ScopeKind::Repo,
+    };
+}
+
+#[test]
+fn a_recorded_program_that_was_deleted_is_replaced_by_the_one_under_current() {
+    let rig = Rig::new();
+    let record = moved_archive_record(rig._directory.path(), "0.1.4", "0.1.5");
+    let launch = prepare_launch(&record, Some("{\"schemaVersion\":1,\"tools\":{\"demo-release\":{\"version\":\"0.1.4\"}}}"));
+    assert_eq!(launch.program, rig._directory.path().join("demo-release").join("current").join("demo-release-0.1.5-linux").join("tool"));
+    assert!(launch.warning.is_some_and(|text| text.contains("0.1.4") && text.contains("0.1.5")));
+}
+
+#[test]
+fn a_recorded_program_that_still_exists_is_never_replaced() {
+    let rig = Rig::new();
+    let record = moved_archive_record(rig._directory.path(), "0.1.4", "0.1.5");
+    let kept = rig._directory.path().join("demo-release").join("current").join("demo-release-0.1.5-linux").join("tool");
+    let mut named = record;
+    named.real = kept.clone();
+    assert_eq!(prepare_launch(&named, None).program, kept);
+}
+
+#[test]
+fn a_recorded_program_with_nothing_under_current_stays_as_recorded() {
+    let rig = Rig::new();
+    let record = moved_archive_record(rig._directory.path(), "0.1.4", "0.1.5");
+    fs::remove_file(rig._directory.path().join("demo-release").join("0.1.5").join("demo-release-0.1.5-linux").join("tool")).expect("remove");
+    assert_eq!(prepare_launch(&record, None).program, record.real);
+}
