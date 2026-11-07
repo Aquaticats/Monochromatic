@@ -6,7 +6,9 @@ pub(super) struct Rule {
     pub(super) id: &'static str,
     /// Why the text is forbidden.
     pub(super) reason: &'static str,
-    /// Whether a source line holds the forbidden text; the second text is the line with the next one joined, for a
+    /// Whether a source line holds the forbidden text;
+    /// the second text is the line with the next one joined,
+    /// for a
     ///  call split over two lines.
     pub(super) matches: fn(&str, &str) -> bool,
 }
@@ -73,18 +75,26 @@ pub(super) const RULES: &[Rule] = &[
     },
 ];
 
-/// One justified exception: the file's relative path, the rule, and why it stays.
+/// One justified exception:
+/// the file's relative path,
+/// the rule,
+/// and why it stays.
 pub(super) struct Allowed {
-    /// The file's path relative to `src/native`, `/`-separated (`real_git.rs`, or `git/real_git.rs` for a nested one);
+    /// The file's path relative to `src/native`,
+    /// `/`-separated (`real_git.rs`,
+    /// or `git/real_git.rs` for a nested one);
     ///  a file name alone excuses nothing in a subdirectory.
     pub(super) file: &'static str,
     /// The rule that file is excused from.
     pub(super) rule: &'static str,
-    /// Why it is not the design the ban forbids, or when it goes.
+    /// Why it is not the design the ban forbids,
+    /// or when it goes.
     pub(super) why: &'static str,
 }
 
-/// The exceptions. Remove an entry when its code goes; the test fails on an entry that matches nothing.
+/// The exceptions.
+/// Remove an entry when its code goes;
+/// the test fails on an entry that matches nothing.
 pub(super) const ALLOWED: &[Allowed] = &[
     Allowed {
         file: "invocation/real_git.rs",
