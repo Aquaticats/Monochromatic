@@ -12,7 +12,7 @@ and the one line each file's own top doc gives.
 
 How to read one entry:
 the new file name,
-then `<-` and the old path under `package/git-policy/cli/src/native/`,
+then `<-` and the old path under `package/git-policy/cli/`,
 then the explanation
 (the first sentence of the old top doc,
 cut at about a hundred characters;

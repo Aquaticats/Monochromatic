@@ -270,7 +270,21 @@ Named re-exports (`pub use crate::a::X;` in `b.rs`) are resolved so a use throug
 (284 re-export names found),
 and every moved item's own uses are cut out of its source and charged to its new file.
 
-The redo added one check to a copy of `engine.ts` (`scan/engine5.ts` in the scratch folder):
+The redo added one check to a copy of `engine.ts` (`scan/engine5.ts`).
+The redo's scratch folder is `~/temp/agent/wrapper-redo/` (the first draft's is `~/temp/agent/wrapper-target-tree/`);
+the chain that produces every number and table here is
+`spec/survivors.txt` (the eight),
+`spec/overrides.txt` (files moved between crates),
+`spec/changes.txt` and `spec/edges.txt` (the named changes),
+`mkspec5.py` (writes `spec/spec5.txt`),
+`scan/engine5.ts` (loops and the new check),
+`scan/testcheck5.ts` (test references),
+`spec/renames-final.txt`,
+`gen/meta5.py`,
+`gen/genredo.py` and `gen/genmain.py` (the file tree and the lists),
+`gen/groupjson5.py` (the group map),
+and `doc/build.py` (assembles this file from the previous version).
+The check:
 for every file of a surviving library,
 every use of a file that goes into the program is printed with the item names,
 and the run reports how many there are.
@@ -446,6 +460,10 @@ the folder names are in section "Inside each crate"):
   a Git-free job (a datagram to the journal socket) with only the text formats below it,
   but no sibling writes to the journal today
   (a search of the other packages' Rust sources for `journald` finds nothing).
+  The difference from the systemd user manager client:
+  `nested-wayland-session` logs with `tracing` to standard error,
+  which its unit's journal already captures without a client,
+  while a D-Bus client would replace a process it starts today.
   Folds;
   three files,
   lifts again the day a sibling needs it.
@@ -2491,6 +2509,10 @@ They exist because a surviving library used files that go into the program
 section "The crate split").
 Each is a commit that keeps the single crate building and its tests passing (see "Move order").
 None hands a closure.
+The watcher's cleanliness also depends on one change of the draft:
+the "After-stop action" below removes `LockLedger` from `child_watch` and its clock file
+(the group map's `items` mark `stopped_git_locks::LockLedger` as `(removed)`),
+which is why the engine counts no use of the lock file by the watcher.
 
 - Plain terms for the watcher.
   `WatchTerms::for_class(ChildClass)` and `grace_for(class, ...)` leave `child_watch_clock_marks_and_stopping`;
@@ -2509,15 +2531,32 @@ None hands a closure.
   - `CONNECTED_PUSH_QUIET_WINDOW` to `measuring_progress_of_a_program_and_what_it_started` in `starting-and-watching-programs` (from `longest_waits` in the program folder `how_long_the_program_waits_for_git_steps` (old file `wait_ceilings`)).
   - `REPAIR_TOOL_CEILING` to `package_repair_request` in `fix-packages-after-copying-a-folder` (from `longest_waits` in the program folder `how_long_the_program_waits_for_git_steps` (old file `wait_ceilings`)).
   - `environment_value` to `private_scratch_places` in `safe-file-saving` (from `environment_variables_for_git_children` in the program folder `environment_variables_for_git_children` (old file `child_environment`)).
-- Program name and variable names passed in.
-  `scratch_location`,
+- Names of the program,
+  its variables and its Git commands passed in.
+  Every literal in a library file that names the program (`cli-git`),
+  a `CLI_GIT_` variable,
+  Git,
+  LFS or a worktree becomes a value the caller passes in,
+  or is reworded so it names the job;
+  the constants move to the program.
+  The checklist is a search of the eight libraries' files at `f44d921e24` outside comments:
+  it finds 45 lines in 18 files
+  (`scratch_location`,
   `diagnostic_log`,
   `child_watch`,
+  `child_watch_clock_marks_and_stopping`,
+  `child_watch_step_bounds_and_errors`,
   `wait_progress`,
   `output_capture`,
-  `thread_quiet` and `package_repair_report` print or build names that say `cli-git` or `CLI_GIT_...`;
-  each takes the name from its caller,
-  and the constants move to the program.
+  `thread_quiet`,
+  `index_lock_holders`,
+  `worktree_trash_remove`,
+  and eight `package_repair` files),
+  and the same search must find nothing after each lift.
+  Three public names are renamed:
+  `repair_worktree` (to `repair_copied_folder`),
+  `PolicyIncomplete` of `dependent_version_content`
+  and `SERVICE_SCAN_BUDGET` of `index_lock_holders`.
 - The repair is given the manifest folders.
   `RepairRequest` loses its Git context;
   it carries the list of folders that hold a `Cargo.toml`,
@@ -3106,8 +3145,7 @@ the recommendation is the first option.
     and the repair and version jobs go into the program although they are Git-free.
   - C,
     A plus the Git-free clusters with no user today
-    (section "Jobs found buried in the program";
-    about seven more libraries).
+    (every bullet of the list in section "Jobs found buried in the program").
     Pros:
     the program shrinks;
     the owner's "do not put everything in one crate" is read widest.
@@ -3197,9 +3235,30 @@ the recommendation is the first option.
   Ranking:
   A > B.
   A because the new rule is about the name and the path is part of it.
-  Also asked:
-  keep the job names and exempt them from the singular rule,
-  or singularize them.
+- Singular directory names.
+  The rule that repo-chosen directory segments are singular nouns (`doc/planning/singular-dir-name-invariant.md`)
+  would call the library names `starting-and-watching-programs`,
+  `parallel-work-within-a-budget`,
+  `fix-packages-after-copying-a-folder` and others plural.
+  Options:
+  - A,
+    keep the job names and exempt them.
+    Pros:
+    the names say what the job does,
+    which the monkey test asks for.
+    Cons:
+    an exemption the owner must write down.
+  - B,
+    singularize them
+    (`starting-and-watching-program`).
+    Pros:
+    no exemption.
+    Cons:
+    names that read oddly to someone who knows only `git commit` and `git push`.
+  Ranking:
+  A > B.
+  A because principle 2 is the owner's own and names are read more than rules are;
+  B only if the owner will not exempt.
 - SHA digests.
   `sha-1-and-sha-256-digests` folds into the program.
   Options:
