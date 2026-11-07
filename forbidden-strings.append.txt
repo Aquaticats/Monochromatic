@@ -172,3 +172,11 @@
 # second-attempt trigger broadened beyond truncation; the retired module
 # name must not come back.
 truncated-attempt
+
+# A URL whose authority holds a user name and a password (scheme://user:password@host) puts the credential into every
+# file, Git config value, log line and command line that holds the URL, and git-lfs echoes such URLs in its errors.
+# Credentials belong in a Git credential helper (doc/troubleshooting/lfs-credential-in-url.md). Placeholders in angle
+# brackets or braces, passwords shorter than 12 characters and URLs with a user name alone do not match. The scanner
+# dialect has no unbounded repetition, so the lengths are bounded above by the longest userinfo and host a URL may carry.
+==> url-userinfo-credential <==
+/[a-z][a-z0-9+.-]{1,15}:\/\/[A-Za-z0-9._~%!*+=,;-]{1,64}:[A-Za-z0-9._~%!*+=,;-]{12,256}@[A-Za-z0-9.-]{1,253}/
