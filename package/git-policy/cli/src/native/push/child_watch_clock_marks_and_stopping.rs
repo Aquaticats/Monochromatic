@@ -238,6 +238,17 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     // root only while it is still the process that was found, by its recorded start time; where no start time can be read
     // (a platform without `/proc`) the root is signalled without that check, and with nothing to look at the grace ends at once,
     // as the kill alone did before.
+    // The locks the tree holds are claimed while their pid files still name the holders: the signals below can cut Git's cleanup
+    //  between the removal of a pid file and the removal of its lock.
+    let seen: Vec<TreeMember> = tree.clone();
+    let before_claims: LockLedger = locks.clone();
+    let claiming: LockLedger = match crate::blocking_job::run_blocking_job(move || { return before_claims.claiming(seen.as_slice()); }).await {
+        Ok(claimed) => claimed,
+        Err(error) => {
+            crate::diagnostic_log::debug("childWatch", format!("the locks of the step {pid} were not claimed: {error}").as_str());
+            locks.clone()
+        }
+    };
     let identified: bool = cfg!(target_os = "linux");
     signal_root(&root, identified, raw, libc::SIGTERM);
     terminate_members(below.as_slice());
@@ -260,7 +271,7 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     // The sweep reads and removes files in the repository, which can wait on a disk, so it runs on the blocking pool; where no
     // thread can start it is not run (the owner, 2026-11-07, "Fail plainly": no inline run of a call that can wait on storage),
     // and the next Git command that meets such a lock names it.
-    let sweeping: LockLedger = locks.clone();
+    let sweeping: LockLedger = claiming;
     if let Err(error) = crate::blocking_job::run_blocking_job(move || { sweeping.sweep(tree.as_slice()); }).await {
         crate::diagnostic_log::debug("childWatch", format!("the lock files of the stopped step {pid} were not swept: {error}").as_str());
     }

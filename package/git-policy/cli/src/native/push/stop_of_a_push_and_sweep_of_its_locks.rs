@@ -170,6 +170,19 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
     let below: Vec<TreeMember> = i32::try_from(child.id()).map(descendants_of).unwrap_or_default();
     let mut tree: Vec<TreeMember> = i32::try_from(child.id()).ok().and_then(member_of).into_iter().collect();
     tree.extend(below.iter().cloned());
+    // The locks the tree holds are claimed while their pid files still name the holders: the stop below can cut Git's cleanup
+    //  between the removal of a pid file and the removal of its lock, and the claim is then the only proof the sweep has.
+    //  The walk reads the repository's reference directories, so it runs on the blocking pool; where no thread can start it the stop goes on
+    //  without claims, as it did before.
+    let unclaimed: LockLedger = locks.clone();
+    let seen: Vec<TreeMember> = tree.clone();
+    let claimed_ledger: LockLedger = match run_blocking_job(move || { return locks.claiming(seen.as_slice()); }).await {
+        Ok(claimed) => claimed,
+        Err(error) => {
+            debug(TAG, &format!("the locks the stopped push holds were not claimed: {error}"));
+            unclaimed
+        }
+    };
     ask_to_stop(child.id());
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
@@ -200,7 +213,7 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
     kill_members(below.as_slice());
     // A child that was collected is gone; one that was not goes on to the task that waits for it.
     let remaining: Option<Child> = child.into_std_when_unreaped();
-    let _sweeper = settle_locks(remaining, tree, locks, grace).await;
+    let _sweeper = settle_locks(remaining, tree, claimed_ledger, grace).await;
 }
 
 /// What:

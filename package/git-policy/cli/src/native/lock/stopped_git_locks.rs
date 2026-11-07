@@ -70,7 +70,10 @@ use crate::diagnostic_log::warn;
 use crate::git_directory_roots::roots_of_command;
 /// How reference locks are judged,
 /// and what the judge knows of the wrapper's own stopped child.
-use crate::stale_ref_lock_judge::{Judge, OwnEnded};
+use crate::stale_ref_lock_found::PidFile;
+use crate::stale_ref_lock_identity::identity_of;
+use crate::stale_ref_lock_judge::{ClaimedLock, Judge, OwnEnded};
+use crate::stale_ref_lock_walk::ref_lock_candidates;
 /// The processes of the stopped tree and whether each still runs.
 use crate::process_tree::{TreeMember, still_running};
 /// The judgement and conditional removal of the reference locks below some Git directories.
@@ -119,6 +122,8 @@ pub struct LockLedger {
     /// The judge of this process,
     /// unless a control sets another.
     judge: Option<Judge>,
+    /// The locks a member of the tree was seen holding before the stop signalled it.
+    claimed: Vec<ClaimedLock>,
 }
 
 impl LockLedger {
@@ -126,7 +131,7 @@ impl LockLedger {
     /// for a child that holds no Git lock,
     /// such as a reader of objects.
     pub fn none() -> Self {
-        return Self { roots: Vec::new(), since: SystemTime::now(), judge: None };
+        return Self { roots: Vec::new(), since: SystemTime::now(), judge: None, claimed: Vec::new() };
     }
 
     /// The ledger of a command that has not started yet:
@@ -135,7 +140,40 @@ impl LockLedger {
     ///  its working directory (the process's own when the command sets none).
     pub fn before_start(command: &Command) -> Self {
         let since: SystemTime = SystemTime::now();
-        return Self { roots: roots_of_command(command), since, judge: None };
+        return Self { roots: roots_of_command(command), since, judge: None, claimed: Vec::new() };
+    }
+
+    /// What:
+    ///  The same ledger with the reference locks that a still-running member of `tree` holds,
+    /// as the pid files beside them say now.
+    /// Why:
+    ///   Git removes a lock's pid file and then the lock,
+    /// so a kill between the two leaves a lock nothing names.
+    /// The pid file is read
+    ///  before the stop signals the tree,
+    /// while it still names its holder,
+    /// and the lock is pinned by its file identity;
+    /// once the
+    ///  member has ended the sweep removes that lock on the wrapper's own observation,
+    /// whatever load delayed the holder's cleanup.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const ledger = LockLedger.beforeStart(command).claiming(tree); // before child.kill('SIGTERM')
+    /// ```
+    pub fn claiming(mut self, tree: &[TreeMember]) -> Self {
+        for candidate in ref_lock_candidates(self.roots.as_slice()) {
+            if candidate.orphan_staging {
+                continue;
+            }
+            let Some(identity) = identity_of(candidate.lock.as_path()) else { continue };
+            let born: Option<SystemTime> = std::fs::symlink_metadata(candidate.lock.as_path()).ok().and_then(created_of);
+            let PidFile::Names(pid) = Judge::pid_file_state(candidate.lock.as_path(), born) else { continue };
+            if holder_is_running(tree, pid) {
+                self.claimed.push(ClaimedLock { lock: candidate.lock, device: identity.device, inode: identity.inode, born_ns: identity.born_ns, pid });
+            }
+        }
+        return self;
     }
 
     /// The same ledger with another judge,
@@ -174,7 +212,7 @@ impl LockLedger {
                 pids.push(i64::from(member.pid));
             }
         }
-        judge.own_ended = Some(OwnEnded { pids, since: self.since });
+        judge.own_ended = Some(OwnEnded { pids, since: self.since, claimed: self.claimed.clone() });
         let outcome = clear_stale_ref_locks(self.roots.as_slice(), &judge);
         let notice: String = outcome.notice();
         if !notice.is_empty() {
@@ -186,6 +224,22 @@ impl LockLedger {
         }
         return removed;
     }
+}
+
+/// The creation time of a file,
+/// when its metadata holds one.
+fn created_of(metadata: std::fs::Metadata) -> Option<SystemTime> {
+    return metadata.created().ok();
+}
+
+/// Whether `pid` is a member of `tree` that still runs.
+fn holder_is_running(tree: &[TreeMember], pid: i64) -> bool {
+    for member in tree {
+        if i64::from(member.pid) == pid && still_running(member) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// The process number a pid file names,
