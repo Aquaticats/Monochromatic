@@ -2923,6 +2923,45 @@ Neither is a T5 regression.
   11 skipped,
   container Clippy clean.
 
+### The five failures of the gate of `944bdd30b5`, 2026-11-07T17:30:00-05:00
+
+The coordinator's gate (log `${HOME}/temp/agent/tokio-merge-gate-944bdd30b5.log`): 5216 run, 5211 passed, 5 failed, under a load average of about 70; the
+branch's own gate on `ad314ca6eb` had passed 5209 of 5209. The coordinator's hypothesis, unmeasured, was that members of stopped trees are often in state
+`D` under disk pressure, so every stop now waits up to its ceiling and tests sized to the old five-second escalation run out their own bounds.
+
+- Measured against the hypothesis (Summary of what was measured, not guessed):
+  1. The stop controls took the same time in that gate as in the clean gate and in the gate before the change (for example 2.6, 4.6, 5.1 and 8.1 s for the
+     `git_stop_lock_tests` controls in all three; `child_watch` stop controls 1.2 to 3.1 s); none waited toward an 18 s ceiling.
+  2. A probe in `escalation_waits` (temporary, reverted) counted the looks that found a member in state `D` in 86 stop-related controls
+     (`git_stop_lock`, `child_watch`, `bounded_push`, `bounded_query`, `push_wait`, `signal_relay`) run on this host at a load average of 24 to 47: zero.
+     The unresponsive-holder controls do reach the looks past the grace, so the look was made; the holder was asleep (`S`), not in `D`.
+  3. Production code reaches `escalation_waits` only through a stop (`stop_push`, `stop_process`); the three aborted push controls log no stop (the slow-server
+     one logs only the first "waiting for the server" notice, which says the push is waited for and not stopped).
+  The hypothesis is therefore not supported for these failures. It is not refuted for real disk pressure, which could not be produced here.
+- The measured cause of four of the five is a host stall episode, not a wrapper change. Against the clean gate, 15 tests took more than ten seconds longer, and the
+  ones that need no wait took the longest: `auto_push_trigger::a_branch_that_grew_ahead_of_its_upstream_is_handed_over` 0.04 s to 122.3 s,
+  `bounded_query::a_finished_query_keeps_code_and_streams_apart` 0.02 s to 35.0 s, `worktree_copy_stage::copied_file_has_identical_bytes` 0.01 s to 18.9 s,
+  `auto_push_reconcile::what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal` 0.28 s to 174.5 s (aborted by the 120 s watchdog),
+  `push_slow_server_tests` two controls 4.4 s to 120.1 s and 12.4 s to 150.6 s (aborted); the sum of test seconds was 2108 against 1289. The three aborted
+  push controls, run alone afterwards at a load average of 24 to 47, took 0.31, 4.16 and 12.15 s, as in the clean gate. What main added since the clean gate
+  (`landing/earlier_service_*`, the settle command) does not touch push. The stall's resource (disk or processor) was not measured, and no fix in the wrapper
+  follows from it; the controls were not changed.
+- `bounded_push::a_tree_still_running_after_the_grace_is_swept_when_it_ends` (81.9 s, "a tree that still runs is not swept") is one of those victims whose
+  assertion depended on timing: its member was a `sleep 1`, which had ended by the time the control looked. Reproduced deterministically (a 1.5 s hold of the
+  control's thread before `settle_locks` gives the same message, run by hand and reverted), then fixed: the member is a `cat` that lives until the control closes
+  its input, and the control holds its own thread for 1.5 s on purpose, so the delay stays covered.
+- `service::service_reply::tests::a_queued_answer_is_written_before_the_connection_closes`: not this branch (the coordinator read the code: `write_until_answered_noting`
+  beats whenever 20 ms pass with nothing queued, and beats before an answer are allowed). Positive control first: the same control with the sender held for three
+  beats failed with `left: Heartbeat` every time (red commit); the control now skips beats, asserts the first other message is the answer and that only beats follow,
+  and the late-sender variant stays as a permanent control.
+- Proposal, not implemented (nothing measured says the wait is a problem, so the owner's pick stays as applied): to tell a member that is finishing its cleanup
+  from one that is only doing input and output, the usable evidence is on disk. Measured on Git 2.56: a Git that holds a ref lock keeps no descriptor open on the
+  lock file (`/proc/<pid>/fd` listed only the three standard streams and no lock), and an unlink moves no `/proc/<pid>/io` byte counter, so open files and byte
+  counters cannot say it. What can: wait for a member in `D` only while the repository holds a lock file born since the step began that the sweep would judge
+  unproven (the `LockLedger` already names the repositories and the birth time), because the cut that leaves a lock is exactly the state after the pid file is
+  gone and before the lock is; with no such lock a member in `D` is only doing input and output and the kill goes at the grace as before. It needs a decision
+  on whether the extra look (a directory walk of the ledger's roots at the stop's 10 ms interval, or once per 100 ms) is worth it.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
