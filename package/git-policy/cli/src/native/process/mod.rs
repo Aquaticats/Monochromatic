@@ -43,3 +43,6 @@ pub mod process_tree;
 
 /// A child started with the standard library and awaited on the runtime through a pidfd, owned through every failure after its start.
 pub mod child_awaited_through_a_pidfd;
+
+/// A command run to its end like `Command::output`, awaited on the runtime through a pidfd, with its output read from anonymous files.
+pub mod captured_child_run_to_its_end;

@@ -70,7 +70,7 @@ fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
         .stderr(std::process::Stdio::null());
     // The environment was cleared, so the marker of this start is added after it (`started_as_git.rs`).
     crate::started_as_git::mark_real_git_start(&mut command, crate::started_as_git::StartMode::Child);
-    let output = command.output().ok()?;
+    let output = crate::captured_child_run_to_its_end::output_of_blocking(&mut command).ok()?;
     return if output.status.success() { Some(output.stdout) } else { None };
 }
 

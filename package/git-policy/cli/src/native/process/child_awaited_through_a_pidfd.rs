@@ -18,6 +18,7 @@
 use std::os::fd::OwnedFd;
 use std::process::{Child, ExitStatus};
 use std::time::Duration;
+use tokio::io::Interest;
 use tokio::io::unix::AsyncFd;
 
 /// How often a child with no pidfd is looked at: the fallback is a timer, not a blocking wait and not a thread.
@@ -77,7 +78,9 @@ fn open_watch(child: &Child, injected: InjectedFailure) -> Option<AsyncFd<OwnedF
     if tokio::runtime::Handle::try_current().is_err() {
         return None;
     }
-    return AsyncFd::new(descriptor).ok();
+    // SAFETY: an `OwnedFd` holds an open descriptor for its whole life and always returns the same number from `as_raw_fd`, and the
+    //  `AsyncFd` takes the `OwnedFd` itself, so nothing else can close it while it is registered.
+    return unsafe { AsyncFd::register_with_interest(descriptor, Interest::READABLE) }.ok();
 }
 
 impl OwnedChild {
