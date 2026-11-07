@@ -15,6 +15,7 @@
  */
 import {
   access,
+  appendFile,
   mkdir,
   writeFile,
 } from 'node:fs/promises';
@@ -28,7 +29,10 @@ import { parseArgs } from 'node:util';
 
 import { enableSshSigning } from './native-perf-git.ts';
 import { makeRoot } from './native-perf-root.ts';
-import { makeFixture } from './native-perf-shape.ts';
+import {
+  makeFixture,
+  trackedTextFiles,
+} from './native-perf-shape.ts';
 import {
   assertServiceAnswers,
   makeService,
@@ -90,6 +94,11 @@ const { values } = parseArgs({
     'trace-directory': { type: 'string' },
     // Drop each repository's pack, index and packed-refs pages from the page cache before every sample, on both sides.
     cold: { type: 'boolean' },
+    // How many tracked text files every commit sample edits and commits by name (the size of the commit), default one.
+    files: {
+      type: 'string',
+      default: '1',
+    },
     // Milliseconds to wait after each round, so the work a commit leaves running after its answer is over before the next one.
     pause: { type: 'string' },
   },
@@ -197,6 +206,14 @@ function fixture(name: string): Promise<string> {
 const editedFile = values.shape === undefined ? 'file-0.txt' : 'README.md';
 
 /**
+ How many tracked files each commit sample edits, validated as a positive integer.
+ */
+const fileCount = Number(values.files);
+if ((!Number.isInteger(fileCount)) || (fileCount < 1)) {
+  throw new Error('--files must be a positive integer');
+}
+
+/**
  Fixture repository that the direct samples run in.
  */
 const directRepository = await fixture('direct-repo');
@@ -204,6 +221,17 @@ const directRepository = await fixture('direct-repo');
  Fixture repository that the wrapped samples run in.
  */
 const wrappedRepository = await fixture('wrapped-repo');
+
+/**
+ The tracked files every commit sample edits: the one file of the default run, or the first `--files` tracked text files of
+ the repository (the two fixtures are copies of each other, so the names hold in both).
+ */
+const editedFiles: readonly string[] = fileCount === 1
+  ? [editedFile]
+  : await trackedTextFiles({
+    directory: directRepository,
+    count: fileCount,
+  });
 
 /**
  Throwaway SSH signing key of this run, made in the scratch root; never the person's key.
@@ -328,13 +356,15 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
         directory,
         sample,
       }) {
-        await writeFile(
-          join(
-            directory,
-            editedFile,
-          ),
-          `edit ${String(sample)} ${String(Math.random())}\n`,
-        );
+        for (const name of editedFiles) {
+          await appendFile(
+            join(
+              directory,
+              name,
+            ),
+            `edit ${String(sample)} ${String(Math.random())}\n`,
+          );
+        }
       },
       command({ sample }) {
         return [
@@ -342,7 +372,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
           '--quiet',
           `--message=perf ${String(sample)}`,
           '--',
-          editedFile,
+          ...editedFiles,
         ];
       },
       kind: 'commit',

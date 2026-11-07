@@ -5,10 +5,12 @@
  repository with tens of thousands of tracked files, a multi-megabyte index and a pack of hundreds of thousands of objects,
  with the hooks and the refreshed index such a worktree has.
  */
+import { execFile } from 'node:child_process';
 import {
   copyFile,
   readdir,
 } from 'node:fs/promises';
+import { promisify } from 'node:util';
 import { join } from 'node:path';
 
 import {
@@ -271,4 +273,67 @@ export function makeFixture({
       shape,
       ...(hooksFrom === undefined ? {} : { hooksFrom, }),
     });
+}
+
+/**
+ Runs a command without a shell and resolves with its standard output.
+ */
+const run = promisify(execFile);
+
+/**
+ The first tracked text files of a repository, the files a commit of a chosen size edits.
+
+ Only Markdown, TypeScript and Rust sources count: they are text, so an appended line is an ordinary change, and a
+ repository holds many of them.
+
+ @param directory - repository whose index names the files
+
+ @param count - how many files to return
+
+ @returns repository-relative paths in index order
+
+ @throws Error when the repository tracks fewer such files than asked for
+
+ @example
+ ```ts
+ const names = await trackedTextFiles({ directory, count: 50 });
+ ```
+ */
+export async function trackedTextFiles({
+  directory,
+  count,
+}: {
+  readonly directory: string;
+  readonly count: number;
+}): Promise<readonly string[]> {
+  /**
+   Names the index holds that end in a text-source extension, NUL separated.
+   */
+  const { stdout, } = await run(
+    REAL_GIT,
+    [
+      '-C',
+      directory,
+      'ls-files',
+      '-z',
+      '--',
+      '*.md',
+      '*.ts',
+      '*.rs',
+      '*.txt',
+    ],
+    { maxBuffer: 256 * 1024 * 1024, },
+  );
+  /**
+   Every such name.
+   */
+  const names = stdout.split('\0')
+    .filter(Boolean);
+  if (names.length < count) {
+    throw new Error(`the repository tracks ${String(names.length)} text files, fewer than the ${String(count)} asked for`);
+  }
+  return names.slice(
+    0,
+    count,
+  );
 }
