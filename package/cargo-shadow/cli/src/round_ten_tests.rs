@@ -1,9 +1,16 @@
 //! What:
-//! Round 10 tests: the unsettled scope (9a D1), the strict boot identity (9a D2), the discovery's shared deadline (9a D3), the
-//! authority of the boot id (9a section 4), and the false greens of part 9b.
+//! Round 10 tests:
+//! the unsettled scope (9a D1),
+//! the strict boot identity (9a D2),
+//! the discovery's shared deadline (9a D3),
+//! the
+//! authority of the boot id (9a section 4),
+//! and the false greens of part 9b.
 //! Why:
-//! The review of round 9 (`cargo-shadow-sol-9a.txt`, `-9b.txt`) named schedules inside existing rows of the acceptance list;
-//! each test here is one of them, with a handshake at the boundary and not an elapsed sleep.
+//! The review of round 9 (`cargo-shadow-sol-9a.txt`,
+//! `-9b.txt`) named schedules inside existing rows of the acceptance list;
+//! each test here is one of them,
+//! with a handshake at the boundary and not an elapsed sleep.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -46,7 +53,8 @@ fn repository() -> tempfile::TempDir {
     return root;
 }
 
-/// A judge that refuses the live lockfile, so that a recovery which goes ahead restores the snapshot.
+/// A judge that refuses the live lockfile,
+/// so that a recovery which goes ahead restores the snapshot.
 fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
@@ -63,15 +71,21 @@ fn live_lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("lock");
 }
 
-/// A route whose scopes are made inside a delegated holder scope, which the user may write to,
+/// A route whose scopes are made inside a delegated holder scope,
+/// which the user may write to,
 /// so a test can create and remove a control group by hand exactly where a manager would.
 fn route_inside(holder: &Path, route: &Route) -> Route {
     return Route { slice_dir: holder.to_path_buf(), slice_view: view_of(holder).expect("the view of the holder"), ..route.clone() };
 }
 
-/// Acceptance rows A1, V2, V3/V4 (9a D1, creation before placement):
-/// the manager has made the scope's control group and not yet attached the launcher, so the scope exists with `populated 0`.
-/// The run did not record its end, so a recovery must not read that empty scope as a run that ended.
+/// Acceptance rows A1,
+/// V2,
+/// V3/V4 (9a D1,
+/// creation before placement):
+/// the manager has made the scope's control group and not yet attached the launcher,
+/// so the scope exists with `populated 0`.
+/// The run did not record its end,
+/// so a recovery must not read that empty scope as a run that ended.
 #[test]
 fn an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended() {
     let Some(route) = delegated_route() else {
@@ -106,8 +120,12 @@ fn an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended() {
     assert_eq!(journals_after, 1, "the refused admission left a journal behind");
 }
 
-/// Acceptance rows A1, V2, V3/V4 (9a D1, the race between two observations):
-/// the check finds the scope absent, and the launcher's request then makes it before the check ends.
+/// Acceptance rows A1,
+/// V2,
+/// V3/V4 (9a D1,
+/// the race between two observations):
+/// the check finds the scope absent,
+/// and the launcher's request then makes it before the check ends.
 /// Nothing may decide from a second look that the run is complete.
 #[test]
 fn a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run_that_ended() {
@@ -135,8 +153,16 @@ fn a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run
     assert!(blocked.contains("did not record its end"), "{blocked}");
 }
 
-/// Acceptance rows A1, V2 (certification, third pass): the same race, driven through the real recovery. The scope appears after the
-/// query inside the recovery's own check; the recovery must refuse, restore nothing and keep the journal, whatever the second
+/// Acceptance rows A1,
+/// V2 (certification,
+/// third pass):
+/// the same race,
+/// driven through the real recovery.
+/// The scope appears after the
+/// query inside the recovery's own check;
+/// the recovery must refuse,
+/// restore nothing and keep the journal,
+/// whatever the second
 /// look at the scope shows.
 #[test]
 fn a_scope_that_appears_inside_the_real_recovery_is_not_read_as_a_run_that_ended() {
@@ -165,7 +191,9 @@ fn a_scope_that_appears_inside_the_real_recovery_is_not_read_as_a_run_that_ended
     assert!(journal.exists(), "the journal was removed: {messages:?}");
 }
 
-/// A process in a process group of its own, which is alive until the test ends, however it ends.
+/// A process in a process group of its own,
+/// which is alive until the test ends,
+/// however it ends.
 struct LiveGroup(
     /// The process that leads the group.
     Child,
@@ -173,7 +201,8 @@ struct LiveGroup(
 
 /// The methods of the guard.
 impl LiveGroup {
-    /// The process id, which is the group's number.
+    /// The process id,
+    /// which is the group's number.
     fn id(&self) -> u32 {
         return self.0.id();
     }
@@ -201,7 +230,8 @@ fn live_group() -> LiveGroup {
     return LiveGroup(Command::new("sleep").arg("600").process_group(0).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a live group"));
 }
 
-/// This machine's identity with its boot id changed in one hexadecimal digit, as a real reboot would change it.
+/// This machine's identity with its boot id changed in one hexadecimal digit,
+/// as a real reboot would change it.
 fn after_a_reboot() -> Identity {
     let now: Identity = current_identity().expect("this machine has an identity");
     let mut boot: Vec<u8> = now.boot.into_bytes();
@@ -216,10 +246,13 @@ fn set_identity_lines(journal: &Path, lines: &str) {
     fs::write(journal.join("view"), format!("{first}\n{lines}")).expect("rewrite the view");
 }
 
-/// Acceptance rows V2 and the weaker path (9a D2, recorded side):
+/// Acceptance rows V2 and the weaker path (9a D2,
+/// recorded side):
 /// a recorded boot or machine field that is not in the format of an id is not a different boot,
-/// a repeated field or an unknown line makes the record unusable, and each of them keeps a live process group blocking.
-/// The control is a well-formed record of another boot, which does clear it (so the probe can move).
+/// a repeated field or an unknown line makes the record unusable,
+/// and each of them keeps a live process group blocking.
+/// The control is a well-formed record of another boot,
+/// which does clear it (so the probe can move).
 #[test]
 fn a_malformed_recorded_identity_is_not_a_reboot() {
     let root = repository();
@@ -252,7 +285,8 @@ fn a_malformed_recorded_identity_is_not_a_reboot() {
     assert_eq!(cleared, None, "the control: a well-formed record of another boot did not clear the group, so the probe cannot move");
 }
 
-/// Acceptance rows V2 and the weaker path (9a D2, current side):
+/// Acceptance rows V2 and the weaker path (9a D2,
+/// current side):
 /// a current identity that is not well formed disables the shortcut instead of showing a reboot.
 #[test]
 fn a_malformed_current_identity_is_not_a_reboot() {
@@ -272,7 +306,8 @@ fn a_malformed_current_identity_is_not_a_reboot() {
     }
 }
 
-/// The files the current identity is read from must have the format of an id (9a D2): each malformed file is an error.
+/// The files the current identity is read from must have the format of an id (9a D2):
+/// each malformed file is an error.
 #[test]
 fn the_current_identity_is_read_strictly_from_its_files() {
     let directory = scratch();
@@ -300,9 +335,15 @@ fn mount_in_namespace(arguments: &[&str]) {
 }
 
 /// The helper process of the boot authority test:
-/// it runs in a new user and mount namespace (the host's `/proc` is not touched), puts a replacement over the boot id file in the way
-/// its mode says, then reads the identity and asks the liveness check (`survivor_note`, not the whole `recover`) about the journal the
-/// test planted, and writes both results to files. It shows the identity rejection and the check's refusal, not an unchanged output or a
+/// it runs in a new user and mount namespace (the host's `/proc` is not touched),
+/// puts a replacement over the boot id file in the way
+/// its mode says,
+/// then reads the identity and asks the liveness check (`survivor_note`,
+/// not the whole `recover`) about the journal the
+/// test planted,
+/// and writes both results to files.
+/// It shows the identity rejection and the check's refusal,
+/// not an unchanged output or a
 /// retained journal under those replacements.
 /// Run on its own it does nothing.
 #[test]
@@ -354,9 +395,17 @@ fn boot_authority_fixture() {
     fs::write(root.join("fixture-result"), format!("{identity}\n{}\n", note.unwrap_or_else(|| { return "no survivor".to_string(); }))).expect("write the result");
 }
 
-/// Acceptance rows V2, amended c, and the weaker path (9a section 4, the authority of the boot rule):
-/// a boot id file that was put over the kernel's, by a bind mount of a regular file, of another procfs file, or of a file system over
-/// its directory, is not an identity, and a live process group of the journal keeps blocking on the same running machine.
+/// Acceptance rows V2,
+/// amended c,
+/// and the weaker path (9a section 4,
+/// the authority of the boot rule):
+/// a boot id file that was put over the kernel's,
+/// by a bind mount of a regular file,
+/// of another procfs file,
+/// or of a file system over
+/// its directory,
+/// is not an identity,
+/// and a live process group of the journal keeps blocking on the same running machine.
 /// A read-only bind of the directory that holds the file (the way container runtimes mask paths) is not a replacement.
 #[test]
 fn a_boot_id_put_over_the_kernels_file_is_not_an_identity() {
@@ -391,7 +440,8 @@ fn a_boot_id_put_over_the_kernels_file_is_not_an_identity() {
 
 /// Acceptance row V6 (9a D3):
 /// a discovery program that does not end is killed at the deadline and its reaping spends only what is left of that deadline.
-/// The child here cannot be reaped (the failpoint), so the return must come at the deadline and say that the child was not reaped,
+/// The child here cannot be reaped (the failpoint),
+/// so the return must come at the deadline and say that the child was not reaped,
 /// not a fresh budget later.
 #[test]
 fn a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so() {
@@ -419,8 +469,11 @@ fn a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so() 
 
 /// The helper process of the bind-mount substitution test (9b 2.4):
 /// in a new user and mount namespace (the cgroup namespace is the one it inherited) it gives the journal the views this namespace has,
-/// so that nothing differs, asks for the verdict, then binds a different cgroup directory over the directory that held the recorded
-/// scope, and asks again.
+/// so that nothing differs,
+/// asks for the verdict,
+/// then binds a different cgroup directory over the directory that held the recorded
+/// scope,
+/// and asks again.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace"]
@@ -464,10 +517,17 @@ fn bind_substitution_fixture() {
     .expect("write the result");
 }
 
-/// Acceptance row V2, amended c (9b 2.4, the same-cgroup-namespace bind-mount substitution of 7a F6):
-/// with the cgroup namespace unchanged and every recorded view equal, a bind mount of another cgroup directory over the directory that
-/// held the settled, absent scope makes the recovery refuse for the cgroup parent view, and the journal and the lockfile stay.
-/// The first verdict (nothing substituted) is the control: it clears, so the refusal is caused by the bind and nothing else.
+/// Acceptance row V2,
+/// amended c (9b 2.4,
+/// the same-cgroup-namespace bind-mount substitution of 7a F6):
+/// with the cgroup namespace unchanged and every recorded view equal,
+/// a bind mount of another cgroup directory over the directory that
+/// held the settled,
+/// absent scope makes the recovery refuse for the cgroup parent view,
+/// and the journal and the lockfile stay.
+/// The first verdict (nothing substituted) is the control:
+/// it clears,
+/// so the refusal is caused by the bind and nothing else.
 #[test]
 fn a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace() {
     let Some(route) = delegated_route() else {
@@ -497,10 +557,14 @@ fn a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cg
     assert!(journal.exists(), "the journal was not retained by the recovery");
 }
 
-/// Acceptance row V2, amended c (9b section 2, "every other check"):
+/// Acceptance row V2,
+/// amended c (9b section 2,
+/// "every other check"):
 /// a reboot discharges only the liveness of the run's processes.
-/// The completion marker of the recovery still runs and still keep the journal when they fail, and the same
-/// recovery settles the journal once the barrier works (the control, so the probe can move).
+/// The completion marker of the recovery still runs and still keep the journal when they fail,
+/// and the same
+/// recovery settles the journal once the barrier works (the control,
+/// so the probe can move).
 #[test]
 fn a_reboot_still_publishes_the_completion_marker_of_the_recovery_or_keeps_the_journal() {
     for fault in [Point::CompletionRename] {

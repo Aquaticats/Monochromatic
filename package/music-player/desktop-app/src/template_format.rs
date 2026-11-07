@@ -361,8 +361,13 @@ fn is_exponent_marker(symbol: char) -> bool {
 ///  `pub fn unknown_format_letter(format: &str) -> Option<char>` finds the first letter of a format that is neither a time letter nor
 ///  inside apostrophes.
 /// Why:
-///  `h`, `m` and `s` are the only time letters, and a stray letter such as the `i` of `m min` used to print as itself, so a
-///  typo looked like a working format. Letters between apostrophes are kept text, and every other character is a separator.
+///  `h`,
+/// `m` and `s` are the only time letters,
+/// and a stray letter such as the `i` of `m min` used to print as itself,
+/// so a
+///  typo looked like a working format.
+/// Letters between apostrophes are kept text,
+/// and every other character is a separator.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

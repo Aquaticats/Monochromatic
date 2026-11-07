@@ -241,8 +241,10 @@ fn rendered_alias_bracket(line: &str) -> Option<&str> {
 /// `update` takes pnpm's own aliases,
 /// `up` and `upgrade`.
 /// Why:
-/// pnpm's page lists them ("Aliases: up, upgrade",
-/// https://pnpm.io/cli/update,
+/// pnpm's page lists them ("Aliases:
+/// up,
+/// upgrade",
+/// <https://pnpm.io/cli/update>,
 /// read 2026-11-03),
 /// and the commands follow pnpm's,
 ///           aliases included,

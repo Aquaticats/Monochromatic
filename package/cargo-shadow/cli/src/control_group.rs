@@ -2,19 +2,27 @@
 //! A delegated control group (cgroup v2) as the boundary of everything a bounded run starts:
 //! a transient user scope that the manager makes with `Delegate=yes`.
 //! Why:
-//! Round 7 (sixth review 6a R1 to R3, 6b2 2, 6c R2):
-//! a process group, and a child subreaper with a `/proc` scan, failed the one proof that matters,
+//! Round 7 (sixth review 6a R1 to R3,
+//! 6b2 2,
+//! 6c R2):
+//! a process group,
+//! and a child subreaper with a `/proc` scan,
+//! failed the one proof that matters,
 //! that every writer a command started has stopped.
-//! A control group is inherited by every child, also by those that call `setsid` or fork twice,
+//! A control group is inherited by every child,
+//! also by those that call `setsid` or fork twice,
 //! it keeps its members when this program dies,
 //! `cgroup.events` says `populated 0` only when no thread is left,
 //! and a recovery can ask the same question about a scope the journal recorded.
-//! Round 8 (contract `doc/planning/cargo-shadow-guarantees.md`, "The spawn route"):
+//! Round 8 (contract `doc/planning/cargo-shadow-guarantees.md`,
+//! "The spawn route"):
 //! no thread of this program writes a `cgroup.procs` file.
 //! The program is started as `systemd-run --user --scope --unit=<name> --property=Delegate=yes --collect -- <program>`,
 //! and the manager moves it into the scope before it runs.
 //! Round 7's self-move (the wrapper entering the group around a `spawn`) captured other threads' children and could kill the wrapper
-//! itself (7a F1, F2, F3) and is gone.
+//! itself (7a F1,
+//! F2,
+//! F3) and is gone.
 //! The limits:
 //! `cgroup.kill` alone does not end a thread group whose leader already exited (measured),
 //! so the stop also signals each listed process through a pidfd;
@@ -86,16 +94,21 @@ pub(crate) const CGROUP_ROOT: &str = "/sys/fs/cgroup";
 /// The file that names the control group of this process.
 const OWN_CGROUP_FILE: &str = "/proc/self/cgroup";
 
-/// The file system type number of a cgroup v2 mount (`CGROUP2_SUPER_MAGIC`, ASCII "cgrp"), from `statfs(2)`.
+/// The file system type number of a cgroup v2 mount (`CGROUP2_SUPER_MAGIC`,
+/// ASCII "cgrp"),
+/// from `statfs(2)`.
 const CGROUP2_MAGIC: u64 = 0x6367_7270;
 
-/// `STATX_MNT_ID_UNIQUE` of `linux/stat.h` (Linux 6.8): the mount id that is never reused while the system runs.
-/// `rustix` 1.1.6 has the field and not the flag, so the bit is spelled here.
+/// `STATX_MNT_ID_UNIQUE` of `linux/stat.h` (Linux 6.8):
+/// the mount id that is never reused while the system runs.
+/// `rustix` 1.1.6 has the field and not the flag,
+/// so the bit is spelled here.
 const STATX_MNT_ID_UNIQUE: u32 = 0x4000;
 
 /// How long the stop waits for a change of `cgroup.events` before it looks for members to signal again.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open;
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
 /// measurement beside it:
 /// on 2026-11-04 `populated 0` followed `cgroup.kill` within 5 ms for ordinary members and 1 ms after a signal to a zombie leader,
 /// so a wake-up every 50 ms only matters for a member that appears or survives the first signals.
@@ -103,19 +116,24 @@ const STRAGGLER_INTERVAL: Duration = Duration::from_millis(50);
 
 /// How long the discovery of the manager's slice may take.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open;
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
 /// measurement beside it:
-/// `systemctl --user show app.slice` answered in a few milliseconds on 2026-11-04, so ten seconds only ends a manager that does
+/// `systemctl --user show app.slice` answered in a few milliseconds on 2026-11-04,
+/// so ten seconds only ends a manager that does
 /// not answer.
 const DISCOVERY_BOUND: Duration = Duration::from_secs(10);
 
 /// How often the discovery asks whether `systemctl` has ended.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 const DISCOVERY_POLL: Duration = Duration::from_millis(5);
 
 /// How many random bytes make a scope name unique.
-/// 16 bytes are 128 bits, so a name repeated by chance is not a case to plan for.
+/// 16 bytes are 128 bits,
+/// so a name repeated by chance is not a case to plan for.
 const TOKEN_BYTES: usize = 16;
 
 /// Why no control group could be had,
@@ -142,10 +160,12 @@ impl fmt::Display for GroupUnavailable {
     }
 }
 
-/// How a path is seen by this process: the mount it is on and its inode.
+/// How a path is seen by this process:
+/// the mount it is on and its inode.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct View {
-    /// The mount id (`STATX_MNT_ID`), which differs in another mount namespace.
+    /// The mount id (`STATX_MNT_ID`),
+    /// which differs in another mount namespace.
     pub(crate) mount: u64,
     /// The inode number.
     pub(crate) inode: u64,
@@ -171,7 +191,8 @@ impl fmt::Display for View {
 /// `pub(crate) fn view_of(path: &Path) -> io::Result<View>` asks the kernel for the mount id and the inode of a path.
 /// Why:
 /// A path means the same thing in a recovery as in the run only when both are equal (contract assumption c).
-/// A kernel without `STATX_MNT_ID` (before Linux 5.8) is an error, never a view of zero.
+/// A kernel without `STATX_MNT_ID` (before Linux 5.8) is an error,
+/// never a view of zero.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,7 +239,9 @@ pub(crate) struct RouteSettings {
 impl Default for RouteSettings {
     /// What:
     /// `fn default()` is the ordinary settings:
-    /// `systemd-run`, `systemctl`, `/sys/fs/cgroup` and `app.slice`.
+    /// `systemd-run`,
+    /// `systemctl`,
+    /// `/sys/fs/cgroup` and `app.slice`.
     /// Why:
     /// `app.slice` is where the user manager puts application scopes.
     ///
@@ -240,7 +263,8 @@ impl Default for RouteSettings {
     }
 }
 
-/// What a host can give: the way to a delegated scope.
+/// What a host can give:
+/// the way to a delegated scope.
 #[derive(Clone, Debug)]
 pub(crate) struct Route {
     /// The program that makes the scope.
@@ -255,29 +279,37 @@ pub(crate) struct Route {
     /// How the slice directory is seen now.
     pub(crate) slice_view: View,
     /// The limits of the caller's control group that every scope of this route carries.
-    /// Shared, not inline, so a `Route` stays small enough to sit in the run's containment value (`clippy::large_enum_variant`).
+    /// Shared,
+    /// not inline,
+    /// so a `Route` stays small enough to sit in the run's containment value (`clippy::large_enum_variant`).
     pub(crate) limits: Arc<InheritedLimits>,
 }
 
-/// Who ran: the machine and the boot of the kernel that held the processes of a run.
+/// Who ran:
+/// the machine and the boot of the kernel that held the processes of a run.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Identity {
-    /// `/proc/sys/kernel/random/boot_id`: a new value for every boot of a kernel.
+    /// `/proc/sys/kernel/random/boot_id`:
+    /// a new value for every boot of a kernel.
     pub(crate) boot: String,
-    /// `/etc/machine-id`: the same value on every boot of one installation.
+    /// `/etc/machine-id`:
+    /// the same value on every boot of one installation.
     pub(crate) machine: String,
 }
 
 #[cfg(test)]
 thread_local! {
-    /// The identity this thread reads instead of the machine's, so a test can be a recovery after a reboot or on another machine.
+    /// The identity this thread reads instead of the machine's,
+    /// so a test can be a recovery after a reboot or on another machine.
     static IDENTITY_OVERRIDE: std::cell::RefCell<Option<Result<Identity, String>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:
 /// `pub(crate) fn use_identity_for_test(identity: Option<Result<Identity, String>>)` makes this thread read `identity` as its own.
 /// Why:
-/// A recovery after a reboot, on another machine, or with an unreadable identity is made without rebooting.
+/// A recovery after a reboot,
+/// on another machine,
+/// or with an unreadable identity is made without rebooting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -290,11 +322,17 @@ pub(crate) fn use_identity_for_test(identity: Option<Result<Identity, String>>) 
 
 /// What:
 /// `fn is_hex_id(text: &str, groups: &[usize]) -> bool` says whether `text` is lowercase hexadecimal in groups of exactly the given
-/// lengths, separated by single hyphens, and not all zero.
+/// lengths,
+/// separated by single hyphens,
+/// and not all zero.
 /// Why:
-/// The kernel writes the boot id as a lowercase `8-4-4-4-12` UUID, and the machine id is 32 lowercase hexadecimal digits
-/// (the same formats systemd reads: `ID128_FORMAT_UUID` and plain);
-/// anything else is not an identity, and a text that is not one cannot show that a boot or a machine differs (round 10, 9a D2).
+/// The kernel writes the boot id as a lowercase `8-4-4-4-12` UUID,
+/// and the machine id is 32 lowercase hexadecimal digits
+/// (the same formats systemd reads:
+/// `ID128_FORMAT_UUID` and plain);
+/// anything else is not an identity,
+/// and a text that is not one cannot show that a boot or a machine differs (round 10,
+/// 9a D2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -318,7 +356,8 @@ const MACHINE_ID_GROUPS: [usize; 1] = [32];
 /// The kernel file that holds the boot id.
 pub(crate) const BOOT_ID_PATH: &str = "/proc/sys/kernel/random/boot_id";
 
-/// The file system type number of procfs (`PROC_SUPER_MAGIC`), from `statfs(2)`.
+/// The file system type number of procfs (`PROC_SUPER_MAGIC`),
+/// from `statfs(2)`.
 const PROC_MAGIC: u64 = 0x9fa0;
 
 /// The machine id file.
@@ -344,7 +383,9 @@ impl Identity {
 /// What:
 /// `fn is_view_line(line: &str) -> bool` says whether a line is exactly `view <mount>:<inode>` with two decimal numbers.
 /// Why:
-/// The header of the record is part of the format the identity is read from (round 12, 11a); a leading sign or space is not a number
+/// The header of the record is part of the format the identity is read from (round 12,
+/// 11a);
+/// a leading sign or space is not a number
 /// of the record.
 ///
 /// In TS you'd write (pseudocode):
@@ -361,8 +402,14 @@ fn is_view_line(line: &str) -> bool {
 /// What:
 /// `pub(crate) fn read_identity_text(text: &str) -> Option<Identity>` reads the `boot` and `machine` lines of a journal's view record.
 /// Why:
-/// A missing, repeated, unknown or malformed identity is uncertainty, never a match and never a different boot (round 10, 9a D2):
-/// the record is the first line `view <mount>:<inode>`, then exactly one `boot <id>` and one `machine <id>`, each line exactly in
+/// A missing,
+/// repeated,
+/// unknown or malformed identity is uncertainty,
+/// never a match and never a different boot (round 10,
+/// 9a D2):
+/// the record is the first line `view <mount>:<inode>`,
+/// then exactly one `boot <id>` and one `machine <id>`,
+/// each line exactly in
 /// that form with a well-formed id.
 ///
 /// In TS you'd write (pseudocode):
@@ -398,13 +445,23 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
 /// only if the opened object is the kernel's own file and not one put over it.
 /// Why:
 /// A bind mount can replace `/proc/sys/kernel/random/boot_id` without a reboot (measured in a disposable user and mount namespace on
-/// 2026-11-04T08:36:57-05:00), and `systemd-nspawn` does it on purpose to give each container its own id
-/// (`src/nspawn/nspawn.c`, `setup_boot_id`).
-/// The kernel serves the file from procfs; a file of another file system, or a file that is itself the root of a mount
-/// (`STATX_ATTR_MOUNT_ROOT`), is a replacement.
-/// A kernel that does not say whether the file is a mount root is an error, not a pass (round 10, 9a section 4).
-/// Round 12 (11a): the file is opened without following a final symbolic link (a link to a genuine procfs file is a replacement that
-/// the checks of the target would pass), and the checks and the read are made on the one descriptor, so a mount that appears after
+/// 2026-11-04T08:36:57-05:00),
+/// and `systemd-nspawn` does it on purpose to give each container its own id
+/// (`src/nspawn/nspawn.c`,
+/// `setup_boot_id`).
+/// The kernel serves the file from procfs;
+/// a file of another file system,
+/// or a file that is itself the root of a mount
+/// (`STATX_ATTR_MOUNT_ROOT`),
+/// is a replacement.
+/// A kernel that does not say whether the file is a mount root is an error,
+/// not a pass (round 10,
+/// 9a section 4).
+/// Round 12 (11a):
+/// the file is opened without following a final symbolic link (a link to a genuine procfs file is a replacement that
+/// the checks of the target would pass),
+/// and the checks and the read are made on the one descriptor,
+/// so a mount that appears after
 /// the checks cannot change what is read.
 ///
 /// In TS you'd write (pseudocode):
@@ -434,7 +491,8 @@ pub(crate) fn read_authoritative_boot_id(path: &Path) -> Result<String, String> 
 /// `pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Result<Identity, String>` reads and validates the
 /// boot id and the machine id from the given files.
 /// Why:
-/// The boot file must pass the authority check (made on the descriptor that is read) and both ids must have their format; the paths are parameters so a test can show
+/// The boot file must pass the authority check (made on the descriptor that is read) and both ids must have their format;
+/// the paths are parameters so a test can show
 /// each refusal on a file it controls.
 ///
 /// In TS you'd write (pseudocode):
@@ -455,8 +513,12 @@ pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Re
 /// What:
 /// `pub(crate) fn current_identity() -> Result<Identity, String>` reads the boot id and the machine id of this system.
 /// Why:
-/// Both are recorded with a journal, so a recovery can tell a reboot of the same machine from another machine.
-/// Either unreadable, malformed, or not the kernel's own (`read_authoritative_boot_id`) is an error, and the caller keeps the refusal.
+/// Both are recorded with a journal,
+/// so a recovery can tell a reboot of the same machine from another machine.
+/// Either unreadable,
+/// malformed,
+/// or not the kernel's own (`read_authoritative_boot_id`) is an error,
+/// and the caller keeps the refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -473,11 +535,14 @@ pub(crate) fn current_identity() -> Result<Identity, String> {
 /// What `launcher_state` found about the process a launcher record names.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum LauncherState {
-    /// No process with that id and start time exists in the namespace of the record: it can never join the scope.
+    /// No process with that id and start time exists in the namespace of the record:
+    /// it can never join the scope.
     Gone,
-    /// The process exists (a zombie that is not reaped yet counts, because only its reaping shows it ended).
+    /// The process exists (a zombie that is not reaped yet counts,
+    /// because only its reaping shows it ended).
     Alive,
-    /// The question cannot be answered, with the reason.
+    /// The question cannot be answered,
+    /// with the reason.
     Unknown(
         /// Why.
         String,
@@ -502,12 +567,15 @@ pub(crate) fn pid_namespace_id() -> io::Result<u64> {
 pub(crate) enum StartOf {
     /// No process has this id in this process's namespace.
     Gone,
-    /// The process, with its start time, read through a procfs that numbers it with this id.
+    /// The process,
+    /// with its start time,
+    /// read through a procfs that numbers it with this id.
     Process(
         /// The start time in clock ticks since boot.
         u64,
     ),
-    /// The question cannot be answered, with the reason.
+    /// The question cannot be answered,
+    /// with the reason.
     Unknown(
         /// Why.
         String,
@@ -519,8 +587,11 @@ pub(crate) enum StartOf {
 /// after the process's directory could not be read.
 /// Why:
 /// Only the value the kernel prints for a process that has ended and been reaped (`-1`) shows that the process is gone;
-/// the same number as before means the process exists and procfs hides it, and any other number (another positive id, or `0` for a
-/// process that this procfs does not show) says nothing about whether it ended (round 13, 12a).
+/// the same number as before means the process exists and procfs hides it,
+/// and any other number (another positive id,
+/// or `0` for a
+/// process that this procfs does not show) says nothing about whether it ended (round 13,
+/// 12a).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -534,7 +605,9 @@ pub(crate) fn missing_entry_verdict(number: i64, pid: i32, reason: &str) -> Star
     };
 }
 
-/// The procfs, opened once: every numeric lookup of one question goes through this descriptor.
+/// The procfs,
+/// opened once:
+/// every numeric lookup of one question goes through this descriptor.
 struct ProcRoot {
     /// The root directory of the procfs mount.
     directory: OwnedFd,
@@ -547,9 +620,13 @@ struct ProcRoot {
 /// this process as the caller's own namespace does.
 /// Why:
 /// The observation that a pidfd's process has a given number and the read of that process's stat file must come from one procfs,
-/// so both go through this one descriptor (round 13, 12a); a procfs that numbers the caller differently is another namespace's.
-/// This is a guard that costs a few system calls; a program that deliberately changes mounts or `/proc` while a run or a recovery
-/// is in progress is outside the contract (assumption a, amended in round 13).
+/// so both go through this one descriptor (round 13,
+/// 12a);
+/// a procfs that numbers the caller differently is another namespace's.
+/// This is a guard that costs a few system calls;
+/// a program that deliberately changes mounts or `/proc` while a run or a recovery
+/// is in progress is outside the contract (assumption a,
+/// amended in round 13).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -585,9 +662,11 @@ fn open_proc_root() -> Result<ProcRoot, String> {
 
 /// What:
 /// `fn nspid_shows_own_namespace(status: &str) -> Result<(), String>` accepts a status file whose `NSpid` line has one entry (or that
-/// has no such line, a kernel before 4.1) and refuses one that lists the process in more than one namespace.
+/// has no such line,
+/// a kernel before 4.1) and refuses one that lists the process in more than one namespace.
 /// Why:
-/// A procfs of an ancestor namespace lists the process in its namespace and in each below it, even when two of the numbers coincide.
+/// A procfs of an ancestor namespace lists the process in its namespace and in each below it,
+/// even when two of the numbers coincide.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -607,11 +686,15 @@ pub(crate) fn nspid_shows_own_namespace(status: &str) -> Result<(), String> {
 }
 
 /// What:
-/// `fn read_in_proc(root: &ProcRoot, relative: &str) -> io::Result<String>` reads a file below the procfs root, refusing to leave it,
+/// `fn read_in_proc(root: &ProcRoot, relative: &str) -> io::Result<String>` reads a file below the procfs root,
+/// refusing to leave it,
 /// to cross a mount point or to follow a link on the way.
 /// Why:
-/// `openat2` with `RESOLVE_BENEATH | RESOLVE_NO_XDEV | RESOLVE_NO_SYMLINKS` (Linux 5.6; a kernel without it gives an error, which the
-/// callers read as unknown, never as gone) keeps a numeric lookup inside the procfs that `open_proc_root` checked.
+/// `openat2` with `RESOLVE_BENEATH | RESOLVE_NO_XDEV | RESOLVE_NO_SYMLINKS` (Linux 5.6;
+/// a kernel without it gives an error,
+/// which the
+/// callers read as unknown,
+/// never as gone) keeps a numeric lookup inside the procfs that `open_proc_root` checked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -635,18 +718,28 @@ fn read_in_proc(root: &ProcRoot, relative: &str) -> io::Result<String> {
 /// `fn start_of(pid: i32) -> StartOf` reads the start time of a process id after showing that the mounted procfs numbers processes
 /// as this process's own namespace does.
 /// Why:
-/// `kill`, `pidfd_open` and the other system calls read a process id in the caller's active namespace, but `/proc/<pid>` reads it in
-/// the namespace of the procfs mount, and `/proc/self/ns/pid` names only the caller's (round 12, 11a: a child namespace that still
+/// `kill`,
+/// `pidfd_open` and the other system calls read a process id in the caller's active namespace,
+/// but `/proc/<pid>` reads it in
+/// the namespace of the procfs mount,
+/// and `/proc/self/ns/pid` names only the caller's (round 12,
+/// 11a:
+/// a child namespace that still
 /// uses an ancestor's procfs would make the two name different processes).
-/// A pidfd names the process of the first reading, and its `fdinfo` (read through the procfs) gives the number that this procfs
-/// has for that same process: only when it is the id asked for does `/proc/<pid>` name that process.
-/// Anything else is unknown, never gone.
+/// A pidfd names the process of the first reading,
+/// and its `fdinfo` (read through the procfs) gives the number that this procfs
+/// has for that same process:
+/// only when it is the id asked for does `/proc/<pid>` name that process.
+/// Anything else is unknown,
+/// never gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function startOf(pid: number): { gone } | { start: number } | { unknown: string }
 /// ```
 fn start_of(pid: i32) -> StartOf {
+    /// The raw descriptor number of the process handle,
+    /// which names its entry in `/proc/self/fdinfo`.
     use std::os::fd::AsRawFd;
     let Some(found) = Pid::from_raw(pid) else {
         return StartOf::Unknown(format!("{pid} is not a process id"));
@@ -683,10 +776,14 @@ fn start_of(pid: i32) -> StartOf {
 
 /// What:
 /// `pub(crate) fn procfs_matches_namespace() -> Result<(), String>` says whether the mounted procfs numbers processes as this
-/// process's own namespace does, and why not when it does not.
+/// process's own namespace does,
+/// and why not when it does not.
 /// Why:
-/// An oracle of the tests that reads a numeric entry of `/proc` (a thread, for one) must not run in an environment whose procfs
-/// names other processes than the caller's namespace does: it would read "no such entry" for a live process (certification, second
+/// An oracle of the tests that reads a numeric entry of `/proc` (a thread,
+/// for one) must not run in an environment whose procfs
+/// names other processes than the caller's namespace does:
+/// it would read "no such entry" for a live process (certification,
+/// second
 /// pass).
 ///
 /// In TS you'd write (pseudocode):
@@ -700,10 +797,14 @@ pub(crate) fn procfs_matches_namespace() -> Result<(), String> {
 
 /// What:
 /// `fn names_an_absent_process(error: &io::Error) -> bool` says whether a failed read of a process's file shows that the process is
-/// not there: `ENOENT` (the entry is gone) or `ESRCH` (the entry was there when it was opened and the process ended before the read).
+/// not there:
+/// `ENOENT` (the entry is gone) or `ESRCH` (the entry was there when it was opened and the process ended before the read).
 /// Why:
-/// A read of `/proc/<pid>/stat` of a process that ends under it fails with either; the map says both are read as gone, and the pidfd
-/// then confirms it, so neither is taken as a failure of the oracle (fourth certification pass).
+/// A read of `/proc/<pid>/stat` of a process that ends under it fails with either;
+/// the map says both are read as gone,
+/// and the pidfd
+/// then confirms it,
+/// so neither is taken as a failure of the oracle (fourth certification pass).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -716,11 +817,16 @@ pub(crate) fn names_an_absent_process(error: &io::Error) -> bool {
 
 /// What:
 /// `pub(crate) fn process_is_running(pid: i32) -> Result<bool, String>` says whether a process with this id is running (not ended,
-/// not a zombie that is waiting to be reaped), and fails when it cannot tell.
+/// not a zombie that is waiting to be reaped),
+/// and fails when it cannot tell.
 /// Why:
-/// An oracle of the tests that decides "this process is stopped" must not fail open: an inspection that cannot tell (a procfs of
-/// another namespace, an unreadable entry) is an error, never "gone" (certification group 1).
-/// It reads through the pinned procfs descriptor and a pidfd, as the launcher question does.
+/// An oracle of the tests that decides "this process is stopped" must not fail open:
+/// an inspection that cannot tell (a procfs of
+/// another namespace,
+/// an unreadable entry) is an error,
+/// never "gone" (certification group 1).
+/// It reads through the pinned procfs descriptor and a pidfd,
+/// as the launcher question does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -728,6 +834,8 @@ pub(crate) fn names_an_absent_process(error: &io::Error) -> bool {
 /// ```
 #[cfg(test)]
 pub(crate) fn process_is_running(pid: i32) -> Result<bool, String> {
+    /// The raw descriptor number of the process handle,
+    /// which names its entry in `/proc/self/fdinfo`.
     use std::os::fd::AsRawFd;
     let found: Pid = Pid::from_raw(pid).ok_or_else(|| { return format!("{pid} is not a process id"); })?;
     let pidfd: OwnedFd = match pidfd_open(found, PidfdFlags::empty()) {
@@ -757,11 +865,15 @@ pub(crate) fn process_is_running(pid: i32) -> Result<bool, String> {
 }
 
 /// What:
-/// `pub(crate) fn process_start(pid: i32) -> io::Result<u64>` is the start time of a process, in clock ticks since boot
+/// `pub(crate) fn process_start(pid: i32) -> io::Result<u64>` is the start time of a process,
+/// in clock ticks since boot
 /// (field 22 of `/proc/<pid>/stat`).
 /// Why:
-/// A process id alone can be reused; the id with its start time cannot name two processes in one boot.
-/// It is an error, never a guess, when the procfs does not number processes as this process's namespace does (`start_of`).
+/// A process id alone can be reused;
+/// the id with its start time cannot name two processes in one boot.
+/// It is an error,
+/// never a guess,
+/// when the procfs does not number processes as this process's namespace does (`start_of`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -779,7 +891,8 @@ pub(crate) fn process_start(pid: i32) -> io::Result<u64> {
 /// `fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)>` reads the start time and the state letter from the text of a stat
 /// file.
 /// Why:
-/// The name field of the stat file may hold spaces and brackets, so the fields are counted after its last closing parenthesis.
+/// The name field of the stat file may hold spaces and brackets,
+/// so the fields are counted after its last closing parenthesis.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -799,12 +912,18 @@ fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)> {
 /// `pub(crate) fn launcher_state(pid: i32, start: u64, pid_namespace: u64) -> LauncherState` says whether the recorded launcher can
 /// still join its scope.
 /// Why:
-/// The launcher becomes the program, and a process that is gone cannot be attached to a scope later (round 11).
+/// The launcher becomes the program,
+/// and a process that is gone cannot be attached to a scope later (round 11).
 /// It is gone only when this process is in the process id namespace of the record and no process has that id (a different start
-/// time is unknown, not gone),
-/// read through a procfs that numbers processes as this namespace does (`start_of`, round 12);
-/// a different namespace, another namespace's procfs, a hidden or unreadable process and a state that is not understood are
-/// "unknown", never "gone".
+/// time is unknown,
+/// not gone),
+/// read through a procfs that numbers processes as this namespace does (`start_of`,
+/// round 12);
+/// a different namespace,
+/// another namespace's procfs,
+/// a hidden or unreadable process and a state that is not understood are
+/// "unknown",
+/// never "gone".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -861,13 +980,15 @@ fn namespace_id() -> io::Result<u64> {
 /// What:
 /// `fn on_path(program: &str) -> bool` says whether an executable of that name is on `PATH` (or is itself a path to one).
 /// Why:
-/// A missing `systemd-run` is a missing capability to name, found without starting anything.
+/// A missing `systemd-run` is a missing capability to name,
+/// found without starting anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function onPath(program: string): boolean
 /// ```
 fn on_path(program: &str) -> bool {
+    /// The permission bits that tell an executable file from a plain one.
     use std::os::unix::fs::PermissionsExt;
     let executable = |candidate: &Path| -> bool { return fs::metadata(candidate).map(|found| { return found.is_file() && found.permissions().mode() & 0o111 != 0; }).unwrap_or(false); };
     if program.contains('/') {
@@ -879,10 +1000,12 @@ fn on_path(program: &str) -> bool {
 
 /// What:
 /// `fn run_plain(program, arguments, environment) -> Result<String, String>` runs a short program under a deadline and returns its
-/// standard output, or the reason it failed.
+/// standard output,
+/// or the reason it failed.
 /// Why:
 /// The question to the manager must not wait without end (contract V6);
-/// the program is not a run of the user's, so it needs no containment.
+/// the program is not a run of the user's,
+/// so it needs no containment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -959,7 +1082,9 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
 /// `fn unreaped_note(reaped: bool) -> &'static str` is the text that a discovery adds to its failure when its killed program was
 /// not reaped before the deadline.
 /// Why:
-/// The failure is conservative: the capability is missing, and the message says that a process may still exist.
+/// The failure is conservative:
+/// the capability is missing,
+/// and the message says that a process may still exist.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -973,9 +1098,13 @@ fn unreaped_note(reaped: bool) -> &'static str {
 /// `fn reap_within(child: &mut std::process::Child, deadline: Instant) -> bool` waits for a killed child until `deadline` and says
 /// whether it was reaped.
 /// Why:
-/// `Child::wait` has no deadline (contract V6), and the discovery's one deadline covers its reading, its killing and its reaping:
-/// a reaping with a budget of its own would end after the promised time (round 10, 9a D3).
-/// One non-blocking attempt is made even when the deadline has passed, so a child that is already reapable is reaped.
+/// `Child::wait` has no deadline (contract V6),
+/// and the discovery's one deadline covers its reading,
+/// its killing and its reaping:
+/// a reaping with a budget of its own would end after the promised time (round 10,
+/// 9a D3).
+/// One non-blocking attempt is made even when the deadline has passed,
+/// so a child that is already reapable is reaped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1007,7 +1136,8 @@ fn reap_within(child: &mut std::process::Child, deadline: Instant) -> bool {
 /// What:
 /// `pub(crate) fn kill_file_present(directory: &Path) -> bool` says whether a group directory has `cgroup.kill`.
 /// Why:
-/// The file exists since Linux 5.14; a kernel without it takes the weaker path.
+/// The file exists since Linux 5.14;
+/// a kernel without it takes the weaker path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1019,9 +1149,12 @@ pub(crate) fn kill_file_present(directory: &Path) -> bool {
 
 /// What:
 /// `pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnavailable>` finds out whether this host can give a
-/// delegated scope, and where the manager keeps its scopes.
+/// delegated scope,
+/// and where the manager keeps its scopes.
 /// Why:
-/// The manager's real hierarchy is asked for, never assumed from this process's own path (contract, "The spawn route").
+/// The manager's real hierarchy is asked for,
+/// never assumed from this process's own path (contract,
+/// "The spawn route").
 /// Every failure names the missing capability.
 ///
 /// In TS you'd write (pseudocode):
@@ -1087,7 +1220,8 @@ pub(crate) struct ControlGroup {
 /// What a journal remembers of a run's containment.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Record {
-    /// A transient scope: the cgroup namespace and the view of the directory that holds it,
+    /// A transient scope:
+    /// the cgroup namespace and the view of the directory that holds it,
     /// recorded before the program starts,
     /// and the scope's path.
     Scope {
@@ -1098,28 +1232,41 @@ pub(crate) enum Record {
         /// The directory of the scope.
         path: PathBuf,
     },
-    /// The run that recorded this scope ended and every process of its launcher was reaped, so no launcher can still create the scope:
-    /// from here an absent scope means a scope that ended, not one that was never made (round 9, 8a F1).
+    /// The run that recorded this scope ended and every process of its launcher was reaped,
+    /// so no launcher can still create the scope:
+    /// from here an absent scope means a scope that ended,
+    /// not one that was never made (round 9,
+    /// 8a F1).
     Settled {
         /// The directory of the scope that is settled.
         path: PathBuf,
     },
-    /// The launcher of the scope with this path, noted right after it was spawned (round 11): its process id, its start time (clock
-    /// ticks since boot, field 22 of `/proc/<pid>/stat`) and the inode of its process id namespace.
-    /// A launcher that is gone can never join the scope later, so a recovery that finds it gone may read the scope as final.
+    /// The launcher of the scope with this path,
+    /// noted right after it was spawned (round 11):
+    /// its process id,
+    /// its start time (clock
+    /// ticks since boot,
+    /// field 22 of `/proc/<pid>/stat`) and the inode of its process id namespace.
+    /// A launcher that is gone can never join the scope later,
+    /// so a recovery that finds it gone may read the scope as final.
     Launcher {
-        /// The process id of the launcher, which becomes the program.
+        /// The process id of the launcher,
+        /// which becomes the program.
         pid: i32,
         /// The start time of that process.
         start: u64,
-        /// The inode number of the process id namespace of the wrapper, which is the one the pid belongs to.
+        /// The inode number of the process id namespace of the wrapper,
+        /// which is the one the pid belongs to.
         pid_namespace: u64,
         /// The directory of the scope the launcher was to enter.
         path: PathBuf,
     },
-    /// The weaker path: only a process group (round 5), recorded by the process id of its leader.
+    /// The weaker path:
+    /// only a process group (round 5),
+    /// recorded by the process id of its leader.
     ProcessGroup(
-        /// The leader's process id, which is the group's number.
+        /// The leader's process id,
+        /// which is the group's number.
         i32,
     ),
     /// The weaker path is about to start a child whose process group is not known yet;
@@ -1131,11 +1278,14 @@ pub(crate) enum Record {
 /// What a recovery learns about a recorded scope.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum Membership {
-    /// No member can exist: the scope is verifiably absent, or present and empty.
+    /// No member can exist:
+    /// the scope is verifiably absent,
+    /// or present and empty.
     Gone,
     /// At least one thread of the scope lives.
     Alive,
-    /// The question cannot be answered, with the reason.
+    /// The question cannot be answered,
+    /// with the reason.
     Unknown(
         /// Why.
         String,
@@ -1167,7 +1317,8 @@ fn random_token() -> io::Result<String> {
 /// Why:
 /// `systemd-run` reads the command it is given like the command line of a unit:
 /// it turns two dollar signs into one and replaces a braced variable name by the value of the variable (probed on 2026-11-04),
-/// so an argument is encoded for that grammar at the point where it is handed over (STB), and the program receives the bytes it was
+/// so an argument is encoded for that grammar at the point where it is handed over (STB),
+/// and the program receives the bytes it was
 /// given.
 ///
 /// In TS you'd write (pseudocode):
@@ -1175,6 +1326,8 @@ fn random_token() -> io::Result<String> {
 /// function escaped(argument: string): string
 /// ```
 fn escaped(argument: &std::ffi::OsStr) -> std::ffi::OsString {
+    /// The byte views of an operating-system string,
+    /// so escaping never assumes the argument is UTF-8.
     use std::os::unix::ffi::{OsStrExt, OsStringExt};
     let mut bytes: Vec<u8> = Vec::with_capacity(argument.len());
     for byte in argument.as_bytes() {
@@ -1191,7 +1344,8 @@ impl ControlGroup {
     /// What:
     /// `pub(crate) fn plan(route: &Route) -> io::Result<ControlGroup>` names the scope of one run before anything starts.
     /// Why:
-    /// The path is known before the program exists, so the record can be forced to disk first.
+    /// The path is known before the program exists,
+    /// so the record can be forced to disk first.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1238,8 +1392,10 @@ impl ControlGroup {
     /// The working directory and the variables of the original are given to the launcher;
     /// a command that clears the environment runs through `env --ignore-environment`,
     /// so the manager is still reachable by the launcher and the program sees only the variables it was given.
-    /// The scope carries the limits of the caller's control group that the route read (`inherited_limits.rs`): the manager makes the
-    /// scope under its own slice, so without them a capped caller would get an uncapped run.
+    /// The scope carries the limits of the caller's control group that the route read (`inherited_limits.rs`):
+    /// the manager makes the
+    /// scope under its own slice,
+    /// so without them a capped caller would get an uncapped run.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1386,7 +1542,8 @@ impl ControlGroup {
     /// or `false` when `bound` passes first.
     /// Why:
     /// `cgroup.kill` is recursive and asynchronous,
-    /// so the answer is the wait for `populated 0`, which can only be earned.
+    /// so the answer is the wait for `populated 0`,
+    /// which can only be earned.
     /// A member in an uninterruptible wait cannot be killed and that is `false`.
     /// Every other failure is an error,
     /// and the caller reads both as "not quiescent".
@@ -1474,7 +1631,8 @@ fn write_text(path: &Path, text: &str) -> io::Result<()> {
 /// What:
 /// `fn parse_populated(text: &str) -> io::Result<bool>` reads the `populated` line of `cgroup.events`.
 /// Why:
-/// Anything but `populated 0` or `populated 1` is an error, never "empty".
+/// Anything but `populated 0` or `populated 1` is an error,
+/// never "empty".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1527,7 +1685,8 @@ pub(crate) fn populated_at(directory: &Path) -> io::Result<bool> {
 /// How a record reads as a journal line.
 impl fmt::Display for Record {
     /// What:
-    /// `fn fmt(&self, formatter)` writes the one-line form of the record, without the line feed.
+    /// `fn fmt(&self, formatter)` writes the one-line form of the record,
+    /// without the line feed.
     /// Why:
     /// The journal's `groups` file holds one line per record.
     ///
@@ -1562,7 +1721,8 @@ fn parse_number(text: &str, what: &str, line: &str) -> Result<u64, String> {
 /// What:
 /// `pub(crate) fn parse_record(line: &str) -> Result<Record, String>` reads one line of a `groups` file.
 /// Why:
-/// A line that is not understood is uncertainty about a possible writer, and the caller says so.
+/// A line that is not understood is uncertainty about a possible writer,
+/// and the caller says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1620,8 +1780,11 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
 /// `pub(crate) fn query(namespace: u64, parent_view: View, path: &Path) -> Membership` says whether the recorded scope has a member.
 /// Why:
 /// An absent scope is read as gone only when this process sees the cgroup file system as the run did:
-/// the same cgroup namespace, a mounted cgroup v2, and the directory that held the scope with the recorded mount id and inode
-/// (contract assumption c, the second check).
+/// the same cgroup namespace,
+/// a mounted cgroup v2,
+/// and the directory that held the scope with the recorded mount id and inode
+/// (contract assumption c,
+/// the second check).
 /// A scope that is present is asked for its `populated` flag.
 ///
 /// In TS you'd write (pseudocode):

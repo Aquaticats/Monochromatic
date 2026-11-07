@@ -1,11 +1,25 @@
-//! Headless tests for the Settings page on the testing backend: row geometry in both forms, selection without
-//! layout shift, the fade, the keyboard, and Escape and Back closing in both forms.
+//! Headless tests for the Settings page on the testing backend:
+//! row geometry in both forms,
+//! selection without
+//! layout shift,
+//! the fade,
+//! the keyboard,
+//! and Escape and Back closing in both forms.
 //!
-//! What: builds the real `AppWindow`, registers the same Settings callbacks the app registers, and drives it with
-//! window events (pointer, keys) and accessibility actions.
-//! Why: the layout rules of D109 and D110 and the glue between the page and the editor state only show up in the
-//! composed window; the numbers come from `music_player::settings_layout`, so the markup is compared with the rule.
-//! Note: element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time, which the repo test task sets.
+//! What:
+//! builds the real `AppWindow`,
+//! registers the same Settings callbacks the app registers,
+//! and drives it with
+//! window events (pointer,
+//! keys) and accessibility actions.
+//! Why:
+//! the layout rules of D109 and D110 and the glue between the page and the editor state only show up in the
+//! composed window;
+//! the numbers come from `music_player::settings_layout`,
+//! so the markup is compared with the rule.
+//! Note:
+//! element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time,
+//! which the repo test task sets.
 
 use i_slint_backend_testing::ElementHandle;
 use music_player::settings_layout::{
@@ -23,43 +37,60 @@ use crate::ui_test_support::fresh_window_at;
 use crate::ui_screen_view::Route;
 use crate::ui_settings::open_settings;
 
-/// Height of the window in every test, tall enough for the whole Settings list.
+/// Height of the window in every test,
+/// tall enough for the whole Settings list.
 const WINDOW_HEIGHT: f32 = 900.0;
 
-/// Height of the section heading above the first row: 16 above the label, the label, and 8 below.
+/// Height of the section heading above the first row:
+/// 16 above the label,
+/// the label,
+/// and 8 below.
 const HEADING_HEIGHT: f32 = 44.0;
 
 thread_local! {
-    /// The texts each save call received on this test thread, so a test sees what would have reached the session file.
+    /// The texts each save call received on this test thread,
+    /// so a test sees what would have reached the session file.
     static SAVED: std::cell::RefCell<Vec<(Option<String>, Option<String>)>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// What: `record_save` stands in for the session file: it keeps the texts it is given and writes nothing.
+/// What:
+/// `record_save` stands in for the session file:
+/// it keeps the texts it is given and writes nothing.
 fn record_save(track_rows: Option<&str>, playing: Option<&str>) -> std::io::Result<()> {
     SAVED.with(|saved| saved.borrow_mut().push((track_rows.map(str::to_string), playing.map(str::to_string))));
     return Ok(());
 }
 
-/// What: `saved_texts` lists the saves of this test so far.
+/// What:
+/// `saved_texts` lists the saves of this test so far.
 fn saved_texts() -> Vec<(Option<String>, Option<String>)> {
     return SAVED.with(|saved| return saved.borrow().clone());
 }
 
-/// What: `settle` lets Slint run its pending `changed` handlers and timers, as the event loop does before a frame.
+/// What:
+/// `settle` lets Slint run its pending `changed` handlers and timers,
+/// as the event loop does before a frame.
 fn settle() {
     slint::platform::update_timers_and_animations();
 }
 
-/// What: `window_at` builds the window at `width`, light scheme, with the Settings callbacks and the key route wired.
-/// Why: the app registers the same callbacks in `ui_settings::wire` and `ui_wire::wire_keys`; the engine is left out
-/// because no Settings key needs it, and the session file is never read or written.
+/// What:
+/// `window_at` builds the window at `width`,
+/// light scheme,
+/// with the Settings callbacks and the key route wired.
+/// Why:
+/// the app registers the same callbacks in `ui_settings::wire` and `ui_wire::wire_keys`;
+/// the engine is left out
+/// because no Settings key needs it,
+/// and the session file is never read or written.
 fn window_at(width: f32) -> AppWindow {
     let (app, _host) = fresh_window_at(width, WINDOW_HEIGHT);
     crate::ui_settings::replace_saver(record_save);
     return app;
 }
 
-/// What: `open_settings_at` builds the window at `width` and opens Settings on it.
+/// What:
+/// `open_settings_at` builds the window at `width` and opens Settings on it.
 fn open_settings_at(width: f32) -> AppWindow {
     let app = window_at(width);
     open_settings(&app);
@@ -67,25 +98,34 @@ fn open_settings_at(width: f32) -> AppWindow {
     return app;
 }
 
-/// What: `elements` lists the elements with a qualified id, in tree order.
+/// What:
+/// `elements` lists the elements with a qualified id,
+/// in tree order.
 fn elements(app: &AppWindow, id: &str) -> Vec<ElementHandle> {
     return ElementHandle::find_by_element_id(app, id).collect();
 }
 
-/// What: `count_of` counts the elements of one component type under the window.
+/// What:
+/// `count_of` counts the elements of one component type under the window.
 fn count_of(app: &AppWindow, type_name: &str) -> usize {
     return ElementHandle::find_by_element_type_name(app, type_name).count();
 }
 
-/// What: `box_of` gives an element's window position and size as `(x, y, width, height)`.
+/// What:
+/// `box_of` gives an element's window position and size as `(x, y, width, height)`.
 fn box_of(element: &ElementHandle) -> (f32, f32, f32, f32) {
     let position = element.absolute_position();
     let size = element.size();
     return (position.x, position.y, size.width, size.height);
 }
 
-/// What: `row_layout` lists the geometry of every row element, so two moments can be compared for any shift.
-/// Why: a row is its touch area, its icon circle and its title; the editor pane's own box is part of the layout too.
+/// What:
+/// `row_layout` lists the geometry of every row element,
+/// so two moments can be compared for any shift.
+/// Why:
+/// a row is its touch area,
+/// its icon circle and its title;
+/// the editor pane's own box is part of the layout too.
 fn row_layout(app: &AppWindow) -> Vec<(String, (f32, f32, f32, f32))> {
     let mut layout: Vec<(String, (f32, f32, f32, f32))> = Vec::new();
     for id in ["SettingsPage::row-touch", "SettingsPage::row-icon", "SettingsPage::row-title", "SettingsPage::row-pill"] {
@@ -102,8 +142,13 @@ fn row_layout(app: &AppWindow) -> Vec<(String, (f32, f32, f32, f32))> {
     return layout;
 }
 
-/// What: `advance` moves the mock clock forward in 16 ms frames, running the timers after each, as a window does.
-/// Why: a timer fires once per update however far the clock jumped, so one big jump would count as one frame.
+/// What:
+/// `advance` moves the mock clock forward in 16 ms frames,
+/// running the timers after each,
+/// as a window does.
+/// Why:
+/// a timer fires once per update however far the clock jumped,
+/// so one big jump would count as one frame.
 fn advance(milliseconds: u64) {
     for _ in 0..milliseconds / 16 {
         i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(16));
@@ -111,7 +156,8 @@ fn advance(milliseconds: u64) {
     }
 }
 
-/// What: `click_center` presses and releases the left pointer button at the center of an element.
+/// What:
+/// `click_center` presses and releases the left pointer button at the center of an element.
 fn click_center(app: &AppWindow, element: &ElementHandle) {
     let (x, y, width, height) = box_of(element);
     let position = LogicalPosition::new(x + width / 2.0, y + height / 2.0);
@@ -121,7 +167,8 @@ fn click_center(app: &AppWindow, element: &ElementHandle) {
     settle();
 }
 
-/// What: `press` sends one key press and release to the focused element.
+/// What:
+/// `press` sends one key press and release to the focused element.
 fn press(app: &AppWindow, key: Key) {
     let text: SharedString = key.into();
     app.window().dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
@@ -129,7 +176,9 @@ fn press(app: &AppWindow, key: Key) {
     settle();
 }
 
-/// What: `selected_flags` reads which rows draw as selected, as the rows report them to assistive technology.
+/// What:
+/// `selected_flags` reads which rows draw as selected,
+/// as the rows report them to assistive technology.
 fn selected_flags(app: &AppWindow) -> Vec<bool> {
     return elements(app, "SettingsPage::row-touch")
         .iter()
@@ -137,13 +186,19 @@ fn selected_flags(app: &AppWindow) -> Vec<bool> {
         .collect();
 }
 
-/// What: `open_kind` gives the template the editor value is open on, or None when Settings holds no editor.
+/// What:
+/// `open_kind` gives the template the editor value is open on,
+/// or None when Settings holds no editor.
 fn open_kind() -> Option<TemplateKind> {
     return read_state(|state| return state.editor.as_ref().map(|editor| return editor.kind()));
 }
 
-/// What: `assert_rows_follow_geometry` checks every row of a pane that starts at `pane_x`, `pane_width` wide.
-/// Why: one set of assertions covers the single form and the wide form, because the rows are the same list.
+/// What:
+/// `assert_rows_follow_geometry` checks every row of a pane that starts at `pane_x`,
+/// `pane_width` wide.
+/// Why:
+/// one set of assertions covers the single form and the wide form,
+/// because the rows are the same list.
 fn assert_rows_follow_geometry(app: &AppWindow, pane_x: f32, pane_width: f32) {
     let touches = elements(app, "SettingsPage::row-touch");
     let icons = elements(app, "SettingsPage::row-icon");
@@ -319,7 +374,8 @@ fn enter_acts_on_the_focused_row_in_each_form() {
     assert_eq!(open_kind(), Some(TemplateKind::PlayingTrack));
 }
 
-/// What: `escape` classifies and runs an Escape key press the way the window's key scope does.
+/// What:
+/// `escape` classifies and runs an Escape key press the way the window's key scope does.
 fn escape(app: &AppWindow) -> bool {
     let key_scope_used = app.invoke_key_pressed("\u{1b}".into(), false, false, false, false, false, false);
     settle();
@@ -337,7 +393,9 @@ fn escape_closes_settings_in_both_forms() {
     }
 }
 
-/// What: `focus_template_field` clicks the template line of the right pane, so it holds keyboard focus like a person's click.
+/// What:
+/// `focus_template_field` clicks the template line of the right pane,
+/// so it holds keyboard focus like a person's click.
 fn focus_template_field(app: &AppWindow) {
     let field = elements(app, "TemplateEditor::field-input").into_iter().next().expect("the template line exists");
     click_center(app, &field);

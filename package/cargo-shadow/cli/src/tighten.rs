@@ -161,7 +161,8 @@ pub trait Syncer {
 /// a run on a much larger manifest inventory is what must be measured to set it.
 /// The owner's rule of 2026-11-03 justifies that a bound exists;
 /// the number is a Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open.
 const FILE_ENFORCER_SECONDS: u64 = 300;
 
 /// The real sync:

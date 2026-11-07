@@ -3,16 +3,21 @@
 //! Both verbs act on the nested seat without a client test API,
 //!  so their grammar lives beside the click grammar in the protocol module.
 
-/// Reuse the protocol's numeric parsing, button names, and command representation.
+/// Reuse the protocol's numeric parsing,
+/// button names,
+/// and command representation.
 use super::{parse_button, parse_f64, ButtonAction, Command, PointerButton};
 
 /// Parse the coordinates of a `move` request (`move X Y`).
 ///
 /// What:
 ///      `pub(super) fn parse_move(tokens: &mut std::str::SplitWhitespace) -> Result<Command, String>`.
-///  Both coordinates must be present, finite, and followed by nothing else.
+///  Both coordinates must be present,
+/// finite,
+/// and followed by nothing else.
 /// Why:
-///       A non-finite coordinate has no pointer position, and an extra token is ambiguous.
+///       A non-finite coordinate has no pointer position,
+/// and an extra token is ambiguous.
 pub(super) fn parse_move(tokens: &mut std::str::SplitWhitespace) -> Result<Command, String> {
     let x = parse_f64(tokens.next(), "move x")?;
     let y = parse_f64(tokens.next(), "move y")?;
@@ -30,7 +35,8 @@ pub(super) fn parse_move(tokens: &mut std::str::SplitWhitespace) -> Result<Comma
 /// What:
 ///      `pub(super) fn parse_button_command(tokens: &mut std::str::SplitWhitespace) ->
 ///           Result<Command, String>`.
-///  The action comes first; the button is optional and defaults to `left`.
+///  The action comes first;
+/// the button is optional and defaults to `left`.
 /// Why:
 ///       Matches the `click` default so a bare `button down` holds the primary button.
 pub(super) fn parse_button_command(tokens: &mut std::str::SplitWhitespace) -> Result<Command, String> {

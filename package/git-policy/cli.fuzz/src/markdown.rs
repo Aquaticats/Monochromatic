@@ -1,14 +1,26 @@
-//! What: Generators and invariants for the boundaries `markdown/autofix` added: the
-//!       in-process linter run (its failure status and explanation, its fixed source and its
-//!       findings) the policy reads, the event form of a pathname that is not UTF-8, and the
+//! What:
+//! Generators and invariants for the boundaries `markdown/autofix` added:
+//! the
+//!       in-process linter run (its failure status and explanation,
+//! its fixed source and its
+//!       findings) the policy reads,
+//! the event form of a pathname that is not UTF-8,
+//! and the
 //!       one-rule linter configuration built from repository-chosen exclude patterns.
-//! Why:  The linter's run crosses into the policy as typed values, but the policy must not trust
-//!       them: a failure status, an empty fixed source for a non-empty file, or a finding that
-//!       is not a warning of the selected rule with a position must be refused, and pathnames and
+//! Why:
+//!  The linter's run crosses into the policy as typed values,
+//! but the policy must not trust
+//!       them:
+//! a failure status,
+//! an empty fixed source for a non-empty file,
+//! or a finding that
+//!       is not a warning of the selected rule with a position must be refused,
+//! and pathnames and
 //!       exclude patterns are chosen by whoever writes the repository and cross into JSON.
 //!       Each check states its property without calling the code under test a second time:
 //!       a run's verdict is restated from the contract in `markdown_linter_output.rs`'s module
-//!       comment, an event line is parsed back and its base64 decoded by a decoder written here,
+//!       comment,
+//! an event line is parsed back and its base64 decoded by a decoder written here,
 //!       and a configuration is parsed back and compared with the patterns that built it.
 //!
 //! In TS you'd write (pseudocode):
@@ -22,7 +34,8 @@ use git_policy_cli::config_schema::MarkdownRule;
 use git_policy_cli::event_path::{EventPath, base64_standard};
 /// Import the one-rule configuration builder.
 use git_policy_cli::markdown_linter_config::{MARKDOWN_FILE_PATTERNS, one_rule_configuration};
-/// Import the reading of one in-process linter run, its explanation bound and its size bounds.
+/// Import the reading of one in-process linter run,
+/// its explanation bound and its size bounds.
 use git_policy_cli::markdown_linter_output::{
     EXPLANATION_LIMIT, LintRun, MAX_FINDINGS_BYTES, MAX_FIXED_BYTES, RemainingFinding,
     interpret_embedded_run,
@@ -32,19 +45,23 @@ use git_policy_cli::policy_events::{FindingEvent, PolicyEvent, render_policy_eve
 /// Import the policy and lifecycle names a finding event carries.
 use git_policy_cli::policy_registry::{PolicyId, Severity};
 use git_policy_cli::policy_trigger::Trigger;
-/// Import the JSONC parser and value model, used as an independent reader.
+/// Import the JSONC parser and value model,
+/// used as an independent reader.
 use monochromatic_jsonc_edit::{JsoncEntry, JsoncValue, parse_jsonc, units_to_string};
 /// Import the linter's finding model and the two results of one in-process run.
 use monochromatic_lint::diagnostic::{Diagnostic, Label, Severity as LintSeverity, Span};
 use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRun};
 
-/// The rules every check selects: the shipped one.
+/// The rules every check selects:
+/// the shipped one.
 const RULES: &[MarkdownRule] = &[MarkdownRule::LfsImageUrl];
 
-/// The finding code of the selected rule, restated from the linter's `markdown/` prefix and the rule's name.
+/// The finding code of the selected rule,
+/// restated from the linter's `markdown/` prefix and the rule's name.
 const SELECTED_CODE: &str = "markdown/lfs-image-url";
 
-/// The standard base64 alphabet, restated for the decoder below.
+/// The standard base64 alphabet,
+/// restated for the decoder below.
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /// The members of a record named `key`.
@@ -60,7 +77,8 @@ fn members<'a>(entries: &'a [JsoncEntry], key: &str) -> Vec<&'a JsoncValue> {
     return found;
 }
 
-/// The one member named `key`, when there is exactly one.
+/// The one member named `key`,
+/// when there is exactly one.
 fn only<'a>(entries: &'a [JsoncEntry], key: &str) -> Option<&'a JsoncValue> {
     let found: Vec<&'a JsoncValue> = members(entries, key);
     if found.len() == 1 {
@@ -74,7 +92,8 @@ fn text(value: &JsoncValue) -> Option<String> {
     return units_to_string(value.text_units()?).ok();
 }
 
-/// The ways a generated finding can break the contract, by the byte that chooses one.
+/// The ways a generated finding can break the contract,
+/// by the byte that chooses one.
 pub const CORRUPTIONS: [&str; 6] = [
     "other rule",
     "no code",
@@ -84,8 +103,12 @@ pub const CORRUPTIONS: [&str; 6] = [
     "rule with a suffix",
 ];
 
-/// What: One finding of a generated run and the corruption planted in it, if any.
-/// Why:  The oracle of the generated view is the corruption the generator planted, not a reading of the finding.
+/// What:
+/// One finding of a generated run and the corruption planted in it,
+/// if any.
+/// Why:
+///  The oracle of the generated view is the corruption the generator planted,
+/// not a reading of the finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -95,14 +118,22 @@ pub const CORRUPTIONS: [&str; 6] = [
 pub struct GeneratedFinding {
     /// The finding as the linter would report it.
     pub finding: Diagnostic,
-    /// The corruption that makes the policy refuse it, or nothing for a usable warning.
+    /// The corruption that makes the policy refuse it,
+    /// or nothing for a usable warning.
     pub corruption: Option<&'static str>,
 }
 
-/// What: The finding one 9-byte chunk of fuzz bytes describes.
-/// Why:  Line and column are any whole numbers (the largest `usize` included), the message carries quotes,
-///       backslashes, control and astral characters, a chooser at or above 224 plants one corruption, and an odd
-///       line adds a second label, which the policy must not read.
+/// What:
+/// The finding one 9-byte chunk of fuzz bytes describes.
+/// Why:
+///  Line and column are any whole numbers (the largest `usize` included),
+/// the message carries quotes,
+///       backslashes,
+/// control and astral characters,
+/// a chooser at or above 224 plants one corruption,
+/// and an odd
+///       line adds a second label,
+/// which the policy must not read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -149,13 +180,17 @@ fn generated_finding(chunk: &[u8]) -> GeneratedFinding {
     return GeneratedFinding { finding, corruption };
 }
 
-/// The finding of a generated finding, as a named function for `map`.
+/// The finding of a generated finding,
+/// as a named function for `map`.
 fn finding_of(generated: GeneratedFinding) -> Diagnostic {
     return generated.finding;
 }
 
-/// What: The findings of up to six chunks of fuzz bytes.
-/// Why:  Raw bytes almost never form a finding the policy accepts; this reaches every field and every refusal.
+/// What:
+/// The findings of up to six chunks of fuzz bytes.
+/// Why:
+///  Raw bytes almost never form a finding the policy accepts;
+/// this reaches every field and every refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -169,9 +204,15 @@ pub fn generated_findings(data: &[u8]) -> Vec<GeneratedFinding> {
     return found;
 }
 
-/// What: The finding a usable run may carry, restated from the contract: a warning of the selected rule, with a
+/// What:
+/// The finding a usable run may carry,
+/// restated from the contract:
+/// a warning of the selected rule,
+/// with a
 ///       position taken from its first label.
-/// Why:  Restated from `markdown_linter_output.rs`'s module comment, not from its code.
+/// Why:
+///  Restated from `markdown_linter_output.rs`'s module comment,
+/// not from its code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -190,8 +231,14 @@ fn contract_finding(finding: &Diagnostic) -> Option<RemainingFinding> {
     });
 }
 
-/// What: What one in-process run produced, as plain fields: a failure status, or a fixed source and findings.
-/// Why:  The outcome type owns its parts and is consumed by the reader, so the expectation is computed from this copy.
+/// What:
+/// What one in-process run produced,
+/// as plain fields:
+/// a failure status,
+/// or a fixed source and findings.
+/// Why:
+///  The outcome type owns its parts and is consumed by the reader,
+/// so the expectation is computed from this copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,7 +246,8 @@ fn contract_finding(finding: &Diagnostic) -> Option<RemainingFinding> {
 /// ```
 #[derive(Clone, Debug)]
 pub struct RunSpec {
-    /// The status of a run that did not end well, or nothing for a run the executable would end with status 0.
+    /// The status of a run that did not end well,
+    /// or nothing for a run the executable would end with status 0.
     pub failure: Option<u8>,
     /// The linter's explanation of a failed run.
     pub explanation: String,
@@ -219,7 +267,9 @@ impl RunSpec {
     }
 }
 
-/// The explanation as the policy quotes it: whole up to the bound, else the first characters and an ellipsis.
+/// The explanation as the policy quotes it:
+/// whole up to the bound,
+/// else the first characters and an ellipsis.
 fn quoted_explanation(explanation: &str) -> String {
     if explanation.chars().count() <= EXPLANATION_LIMIT {
         return String::from(explanation);
@@ -228,9 +278,15 @@ fn quoted_explanation(explanation: &str) -> String {
     return format!("{kept}...");
 }
 
-/// What: Assert the reader's verdict on one in-process run against the contract.
-/// Why:  Only a status-0 run with a source that is not empty for a non-empty input, and findings that are all warnings
-///       of the selected rule with a position, is usable, and then exactly as stated; every other run is refused with
+/// What:
+/// Assert the reader's verdict on one in-process run against the contract.
+/// Why:
+///  Only a status-0 run with a source that is not empty for a non-empty input,
+/// and findings that are all warnings
+///       of the selected rule with a position,
+/// is usable,
+/// and then exactly as stated;
+/// every other run is refused with
 ///       a reason that names what is wrong.
 ///
 /// In TS you'd write (pseudocode):
@@ -272,9 +328,14 @@ pub fn check_run(input: &[u8], spec: &RunSpec) {
     assert_eq!(run.remaining, expected, "the findings are the warnings, in order");
 }
 
-/// What: Assert the reader's invariants over raw bytes: the first byte picks how the run ended, the second where the
-///       fixed source ends, the rest is the explanation of a failure or the findings of a run.
-/// Why:  Any outcome must never panic the reader or be accepted against the contract.
+/// What:
+/// Assert the reader's invariants over raw bytes:
+/// the first byte picks how the run ended,
+/// the second where the
+///       fixed source ends,
+/// the rest is the explanation of a failure or the findings of a run.
+/// Why:
+///  Any outcome must never panic the reader or be accepted against the contract.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -310,9 +371,15 @@ pub fn check_linter_run(data: &[u8]) {
     check_run(b"", &spec);
 }
 
-/// What: Assert the reader's verdict on generated findings.
-/// Why:  Clean findings come back exactly, in order; a corrupted one is refused, and the refusal names its position.
-///       The expectation is the corruption the generator planted, not a reading of the finding.
+/// What:
+/// Assert the reader's verdict on generated findings.
+/// Why:
+///  Clean findings come back exactly,
+/// in order;
+/// a corrupted one is refused,
+/// and the refusal names its position.
+///       The expectation is the corruption the generator planted,
+/// not a reading of the finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -350,8 +417,12 @@ pub fn check_generated_records(data: &[u8]) {
     }
 }
 
-/// What: Assert that a run over the size bounds is refused whatever else it holds.
-/// Why:  The bounds are the former child's output caps; fuzz inputs are far too small to reach them, so a control
+/// What:
+/// Assert that a run over the size bounds is refused whatever else it holds.
+/// Why:
+///  The bounds are the former child's output caps;
+/// fuzz inputs are far too small to reach them,
+/// so a control
 ///       builds the two oversized runs the bounds describe.
 ///
 /// In TS you'd write (pseudocode):
@@ -384,7 +455,8 @@ pub fn check_oversized_runs() {
     );
 }
 
-/// The six-bit value of one base64 alphabet character, or nothing for any other byte.
+/// The six-bit value of one base64 alphabet character,
+/// or nothing for any other byte.
 fn alphabet_value(character: u8) -> Option<u32> {
     for (value, letter) in ALPHABET.iter().enumerate() {
         if *letter == character {
@@ -394,7 +466,8 @@ fn alphabet_value(character: u8) -> Option<u32> {
     return None;
 }
 
-/// The bytes a base64 text decodes to, as a named function for `and_then`.
+/// The bytes a base64 text decodes to,
+/// as a named function for `and_then`.
 fn decoded_entry(entry: String) -> Option<Vec<u8>> {
     return decode_base64(entry.as_str());
 }
@@ -404,8 +477,11 @@ fn is_separator(byte: &u8) -> bool {
     return *byte == 0xff;
 }
 
-/// What: Decode standard padded base64, restated from RFC 4648 section 4.
-/// Why:  The encoder is checked against a decoder that shares none of its code.
+/// What:
+/// Decode standard padded base64,
+/// restated from RFC 4648 section 4.
+/// Why:
+///  The encoder is checked against a decoder that shares none of its code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -438,15 +514,21 @@ pub fn decode_base64(text: &str) -> Option<Vec<u8>> {
     return Some(decoded);
 }
 
-/// The members of a parsed event line, by key.
+/// The members of a parsed event line,
+/// by key.
 fn event_members(line: &str) -> Vec<JsoncEntry> {
     let parsed: JsoncValue = parse_jsonc(line).expect("every event line is JSON");
     return parsed.entries().expect("every event is an object").to_vec();
 }
 
-/// What: Assert the event invariants of a pathname of any bytes.
-/// Why:  `path` is always the replaced text, `pathBytes` is present exactly when that text
-///       is not the name, and its base64 decodes back to the name; a fix summary's byte list
+/// What:
+/// Assert the event invariants of a pathname of any bytes.
+/// Why:
+///  `path` is always the replaced text,
+/// `pathBytes` is present exactly when that text
+///       is not the name,
+/// and its base64 decodes back to the name;
+/// a fix summary's byte list
 ///       lines up with its text list.
 ///
 /// In TS you'd write (pseudocode):
@@ -513,8 +595,12 @@ pub fn check_event_path(data: &[u8]) {
     }
 }
 
-/// What: Exclude patterns from fuzz bytes: each `0xff`-separated piece, read as text.
-/// Why:  Patterns reach the configuration as repository-chosen text of any characters.
+/// What:
+/// Exclude patterns from fuzz bytes:
+/// each `0xff`-separated piece,
+/// read as text.
+/// Why:
+///  Patterns reach the configuration as repository-chosen text of any characters.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -528,9 +614,11 @@ pub fn generated_patterns(data: &[u8]) -> Vec<String> {
     return patterns;
 }
 
-/// What: Assert that a configuration built from any patterns is one block that selects the
+/// What:
+/// Assert that a configuration built from any patterns is one block that selects the
 ///       Markdown files and the LFS rule at `warn` with exactly those patterns.
-/// Why:  No pattern text may change the document's structure.
+/// Why:
+///  No pattern text may change the document's structure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

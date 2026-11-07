@@ -5,7 +5,9 @@ use super::*;
 /// Imports `Context` for the option and result messages of the assertions.
 use anyhow::Context;
 
-/// Process spawning, the re-executed test helpers, and timing that the moved bus code no longer brings in.
+/// Process spawning,
+/// the re-executed test helpers,
+/// and timing that the moved bus code no longer brings in.
 use std::{process::Command, sync::mpsc, time::Duration};
 
 /// Starts the portal on a fresh private bus that lives as long as the returned portal.
@@ -13,7 +15,8 @@ use std::{process::Command, sync::mpsc, time::Duration};
 /// What:
 ///      `fn start_portal(preference) -> anyhow::Result<AppearancePortal>`.
 /// Why:
-///       Production starts one bus and shares it; each test needs its own bus to stay isolated.
+///       Production starts one bus and shares it;
+/// each test needs its own bus to stay isolated.
 fn start_portal(preference: ColorSchemePreference) -> anyhow::Result<AppearancePortal> {
     return AppearancePortal::start(preference, Arc::new(PrivateBus::start()?))
 }

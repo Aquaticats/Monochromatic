@@ -33,11 +33,16 @@ pub(crate) fn scratch() -> tempfile::TempDir {
 pub(crate) const ALLOW_SKIPS: &str = "CARGO_SHADOW_ALLOW_SKIPS";
 
 /// What:
-/// `pub(crate) fn skip_or_fail(reason: &str)` ends a test whose schedule cannot be built on this host: it fails the test, unless
-/// `CARGO_SHADOW_ALLOW_SKIPS` is set, when it prints the skip.
+/// `pub(crate) fn skip_or_fail(reason: &str)` ends a test whose schedule cannot be built on this host:
+/// it fails the test,
+/// unless
+/// `CARGO_SHADOW_ALLOW_SKIPS` is set,
+/// when it prints the skip.
 /// Why:
-/// A test that returns green without running its schedule is evidence of nothing (sixth pass); a certification run therefore fails on
-/// such a host instead of counting the test as passed, and a host that cannot build the schedule says so explicitly.
+/// A test that returns green without running its schedule is evidence of nothing (sixth pass);
+/// a certification run therefore fails on
+/// such a host instead of counting the test as passed,
+/// and a host that cannot build the schedule says so explicitly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -152,7 +152,8 @@ pub struct SyncReport {
     /// because the lock no longer declares it.
     pub retired_links: Vec<String>,
     /// The environment variable names the generated mise fragment holds after this run
-    /// (empty when the lock declares none, or for a partial sync that leaves the fragment alone).
+    /// (empty when the lock declares none,
+    /// or for a partial sync that leaves the fragment alone).
     pub exported_env: Vec<String>,
 }
 

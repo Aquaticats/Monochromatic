@@ -548,9 +548,12 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_sta
     assert!(log_lines(&world).is_empty(), "the real cargo ran after the second start: {:?}", log_lines(&world));
 }
 
-/// A toolchain-style launcher (certification of 0.1.0 behind the repository's launcher, 2026-11-04):
-/// the link directory holds `cargo`, a symlink to an executable in a launchers directory that starts the shadow through the `current`
-/// link of the tool's tree and has a `<name>.launch` record beside it naming that real binary, as `mpm-shadow` writes it.
+/// A toolchain-style launcher (certification of 0.1.0 behind the repository's launcher,
+/// 2026-11-04):
+/// the link directory holds `cargo`,
+/// a symlink to an executable in a launchers directory that starts the shadow through the `current`
+/// link of the tool's tree and has a `<name>.launch` record beside it naming that real binary,
+/// as `mpm-shadow` writes it.
 /// The launcher appends a line to a file for each of its runs.
 /// Returns the directory with the `cargo` link and the count file.
 fn write_recorded_launcher(world: &World) -> (PathBuf, PathBuf) {
@@ -587,8 +590,11 @@ fn write_recorded_launcher(world: &World) -> (PathBuf, PathBuf) {
 }
 
 /// The shadow started through a launcher that execs it runs once per command and the real cargo runs once for the command:
-/// no PATH entry that leads back to the shadow (its own binary, a launcher whose record names it, a link to either) is taken for the
-/// real cargo, so there is no second run to stop with a marker.
+/// no PATH entry that leads back to the shadow (its own binary,
+/// a launcher whose record names it,
+/// a link to either) is taken for the
+/// real cargo,
+/// so there is no second run to stop with a marker.
 #[test]
 fn started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo() {
     let world = make_world();
@@ -608,10 +614,17 @@ fn started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_
     assert_eq!(real_runs, 1, "the real cargo ran {real_runs} times for one command: {:?}", log_lines(&world));
 }
 
-/// Acceptance row K1 (certification, third pass): the warning about kept files is on the command's real standard error on every
-/// completed run past the count, with the count, the combined size and the central folder, and the completed runs delete none of the
-/// kept files and replace none of them (content and inode are compared, not only the names).
-/// The central folder and the lockfile's directory are populated; each run is a stale lockfile that the shadow updates.
+/// Acceptance row K1 (certification,
+/// third pass):
+/// the warning about kept files is on the command's real standard error on every
+/// completed run past the count,
+/// with the count,
+/// the combined size and the central folder,
+/// and the completed runs delete none of the
+/// kept files and replace none of them (content and inode are compared,
+/// not only the names).
+/// The central folder and the lockfile's directory are populated;
+/// each run is a stale lockfile that the shadow updates.
 #[test]
 fn the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_keeps_every_kept_file_itself() {
     use std::os::unix::fs::MetadataExt;
@@ -664,9 +677,16 @@ fn the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_ke
     }
 }
 
-/// Acceptance row K1 (sixth pass, group 7): the warning is on the real standard error of an ordinary repeated run too, one that finds
-/// the lockfile already satisfied and changes nothing. The lockfile is made stale once; later runs leave the accepted lockfile as it is
-/// (the real cargo is not asked to update anything on them), and each still prints the warning exactly once, with the same inventory.
+/// Acceptance row K1 (sixth pass,
+/// group 7):
+/// the warning is on the real standard error of an ordinary repeated run too,
+/// one that finds
+/// the lockfile already satisfied and changes nothing.
+/// The lockfile is made stale once;
+/// later runs leave the accepted lockfile as it is
+/// (the real cargo is not asked to update anything on them),
+/// and each still prints the warning exactly once,
+/// with the same inventory.
 #[test]
 fn the_shadow_prints_the_kept_files_warning_on_a_run_that_finds_the_lockfile_already_satisfied() {
     let count: usize = cargo_shadow::journal::KEPT_FILES_WARNING_COUNT;
@@ -696,9 +716,16 @@ fn the_shadow_prints_the_kept_files_warning_on_a_run_that_finds_the_lockfile_alr
     }
 }
 
-/// A catalog repository that is a real git repository, with `ignored/` ignored by git, a tracked crate and, in the ignored directory, a
-/// staged copy of that crate (as a gate's disposable build context is). Both lockfiles are stale, so a command that the shadow takes on
-/// updates the lock to satisfied, and one it leaves alone does not.
+/// A catalog repository that is a real git repository,
+/// with `ignored/` ignored by git,
+/// a tracked crate and,
+/// in the ignored directory,
+/// a
+/// staged copy of that crate (as a gate's disposable build context is).
+/// Both lockfiles are stale,
+/// so a command that the shadow takes on
+/// updates the lock to satisfied,
+/// and one it leaves alone does not.
 fn make_git_world() -> World {
     let world = make_world();
     let git = |arguments: &[&str]| {
@@ -718,9 +745,14 @@ fn make_git_world() -> World {
     return world;
 }
 
-/// A cargo command whose manifest is a staged copy under a directory that git ignores is not the repository's lockfile: the shadow does
-/// not take it on (no update of the staged lock, only the user's command reaches cargo), where the same command on the tracked crate is
-/// taken on. Found by `cargo vendor --manifest-path` of the git-policy gate, which counted every locked version of the staged copy as
+/// A cargo command whose manifest is a staged copy under a directory that git ignores is not the repository's lockfile:
+/// the shadow does
+/// not take it on (no update of the staged lock,
+/// only the user's command reaches cargo),
+/// where the same command on the tracked crate is
+/// taken on.
+/// Found by `cargo vendor --manifest-path` of the git-policy gate,
+/// which counted every locked version of the staged copy as
 /// newly locked (no committed lockfile at its path) and refused versions nobody added.
 #[test]
 fn a_staged_copy_in_an_ignored_directory_is_left_to_cargo_and_the_tracked_crate_is_not() {
@@ -761,7 +793,9 @@ fn a_staged_copy_in_an_ignored_directory_is_left_to_cargo_and_the_tracked_crate_
 // What the region covers: a real cargo that is a compiled program (rustup's proxy is one) is started through the file the shadow
 // checked, by both of the shadow's own starts, and the descriptor stays open until the start.
 
-/// A compiled program that prints its arguments, and no script: the system's `echo`.
+/// A compiled program that prints its arguments,
+/// and no script:
+/// the system's `echo`.
 const COMPILED_PROGRAM: &str = "/usr/bin/echo";
 
 /// The fake cargo of the world is replaced by a copy of a compiled program with the given mode.
@@ -772,8 +806,10 @@ fn use_compiled_real_cargo(world: &World, mode: u32) {
     std::fs::set_permissions(&real, std::fs::Permissions::from_mode(mode)).expect("set the mode of the real cargo");
 }
 
-/// A command that resolves nothing is started by `exec`: the shadow's process becomes the real cargo.
-/// Red when the descriptor the compiled program is started through is closed before the `exec`: the start then fails.
+/// A command that resolves nothing is started by `exec`:
+/// the shadow's process becomes the real cargo.
+/// Red when the descriptor the compiled program is started through is closed before the `exec`:
+/// the start then fails.
 #[test]
 fn a_compiled_real_cargo_is_started_by_the_exec_branch_with_its_arguments() {
     let world = make_world();
@@ -797,9 +833,13 @@ fn a_compiled_real_cargo_is_started_by_the_child_branch_with_its_arguments() {
     assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
 }
 
-/// Whether the real cargo of the world really cannot be read by this process: as the superuser (or with a capability that bypasses
-/// permissions) a file of mode `0o111` can still be opened, and a test of the execute-only case would pass without exercising it. Then
-/// the test fails unless `CARGO_SHADOW_ALLOW_SKIPS` is set, which makes it skip with a printed reason.
+/// Whether the real cargo of the world really cannot be read by this process:
+/// as the superuser (or with a capability that bypasses
+/// permissions) a file of mode `0o111` can still be opened,
+/// and a test of the execute-only case would pass without exercising it.
+/// Then
+/// the test fails unless `CARGO_SHADOW_ALLOW_SKIPS` is set,
+/// which makes it skip with a printed reason.
 fn cannot_read_real_cargo(world: &World) -> bool {
     if std::fs::File::open(world.fake_directory.join("cargo")).is_err() {
         return true;
@@ -812,8 +852,11 @@ fn cannot_read_real_cargo(world: &World) -> bool {
     return false;
 }
 
-/// A compiled program that can be executed and not read is still the real cargo: executing needs no read permission, and the PATH
-/// search accepts it, so the start must too (it was started by its path before the check was made on an open file).
+/// A compiled program that can be executed and not read is still the real cargo:
+/// executing needs no read permission,
+/// and the PATH
+/// search accepts it,
+/// so the start must too (it was started by its path before the check was made on an open file).
 #[test]
 fn an_execute_only_compiled_real_cargo_is_started_like_any_other() {
     let world = make_world();
@@ -828,9 +871,15 @@ fn an_execute_only_compiled_real_cargo_is_started_like_any_other() {
     assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
 }
 
-/// An execute-only script is still the real cargo: the kernel reads the interpreter line itself, so the file runs when its
-/// interpreter needs nothing of it (here `echo`, which prints the script's name it is given). The interpreter is given the path the
-/// program was chosen under; a descriptor path (`/proc/self/fd/<n>`) is closed by then, so the start of anything that may be a script
+/// An execute-only script is still the real cargo:
+/// the kernel reads the interpreter line itself,
+/// so the file runs when its
+/// interpreter needs nothing of it (here `echo`,
+/// which prints the script's name it is given).
+/// The interpreter is given the path the
+/// program was chosen under;
+/// a descriptor path (`/proc/self/fd/<n>`) is closed by then,
+/// so the start of anything that may be a script
 /// keeps the pathname.
 #[test]
 fn an_execute_only_script_real_cargo_is_given_its_own_path_by_the_kernel() {

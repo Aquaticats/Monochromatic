@@ -1,9 +1,13 @@
 //! What:
 //! Round 8 tests of the failures on the containment path after a program started (7a F3),
-//! of the isolation of a start from other work of the process (7a F1, F2),
+//! of the isolation of a start from other work of the process (7a F1,
+//! F2),
 //! and of the bounds on the waits the wrapper controls (V6).
 //! Why:
-//! Contract acceptance rows "A2, R4 (7a F3)", "A1, V3 (spawn isolation)" and "V6".
+//! Contract acceptance rows "A2,
+//! R4 (7a F3)",
+//! "A1,
+//! V3 (spawn isolation)" and "V6".
 //! Every test here uses a delegated scope and shows it (`assert_scope_record` or the program's own group).
 //!
 //! In TS you'd write (pseudocode):
@@ -48,8 +52,11 @@ fn bound(limit: Duration) -> Bound {
     return Bound { limit, what: "the contained command".to_string(), rerun: "contained-command".to_string() };
 }
 
-/// The script of a program that starts a writer in a session of its own, waits until the writer says it is running, and exits.
-/// The groups file of the single journal of a repository, as text.
+/// The script of a program that starts a writer in a session of its own,
+/// waits until the writer says it is running,
+/// and exits.
+/// The groups file of the single journal of a repository,
+/// as text.
 fn control_root_groups(root: &Path) -> String {
     return journal_dirs(root).into_iter().next().expect("a journal").join("groups").display().to_string();
 }
@@ -63,20 +70,30 @@ fn script_leaving_a_writer(ready: &Path) -> String {
     );
 }
 
-/// Stops a scope a test left behind, through its recorded path, and waits until it is empty or gone.
+/// Stops a scope a test left behind,
+/// through its recorded path,
+/// and waits until it is empty or gone.
 fn clean_up(scope: &Path) {
     let _ = fs::write(scope.join("cgroup.kill"), "1");
     wait_until("the scope's end", &|| { return !scope.exists() || fs::read_to_string(scope.join("cgroup.events")).is_ok_and(|text| { return text.contains("populated 0"); }); });
 }
 
-/// Acceptance row "A2, R4 (7a F3)" (certification group 2):
-/// the program and a writer started, and then the stop of the scope fails (an error),
+/// Acceptance row "A2,
+/// R4 (7a F3)" (certification group 2):
+/// the program and a writer started,
+/// and then the stop of the scope fails (an error),
 /// the inspection of its members fails,
 /// or a member cannot be stopped within the bound:
-/// each is `NotQuiescent`, the scope reports that writers may remain, the journal is retained, and nothing is downgraded to an
+/// each is `NotQuiescent`,
+/// the scope reports that writers may remain,
+/// the journal is retained,
+/// and nothing is downgraded to an
 /// ordinary I/O failure.
-/// Each run has a control without the fault (it returns normally and stops the writer), so the injected failure is the cause of the
-/// refusal and not some other conservative outcome; the fault must have been armed and then consumed, and the writer's ready marker
+/// Each run has a control without the fault (it returns normally and stops the writer),
+/// so the injected failure is the cause of the
+/// refusal and not some other conservative outcome;
+/// the fault must have been armed and then consumed,
+/// and the writer's ready marker
 /// must exist (the writer was running before the fault).
 #[test]
 fn a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent() {
@@ -126,11 +143,21 @@ fn a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent
     }
 }
 
-/// Acceptance row "A2, R4 (7a F3)" (certification group 2, the startup completion):
-/// the program has started and a writer is running and ready, and then the completion of the startup fails.
-/// When the scope can then not be shown empty the failure is `NotQuiescent`, the scope reports that writers may remain, and the
-/// journal is retained, the same as for a failed stop; when it can, the writer is stopped, quiescence is shown and the error is the
-/// startup failure itself (the control, which shows that the refusal comes from the failed stop and not from the startup failure alone).
+/// Acceptance row "A2,
+/// R4 (7a F3)" (certification group 2,
+/// the startup completion):
+/// the program has started and a writer is running and ready,
+/// and then the completion of the startup fails.
+/// When the scope can then not be shown empty the failure is `NotQuiescent`,
+/// the scope reports that writers may remain,
+/// and the
+/// journal is retained,
+/// the same as for a failed stop;
+/// when it can,
+/// the writer is stopped,
+/// quiescence is shown and the error is the
+/// startup failure itself (the control,
+/// which shows that the refusal comes from the failed stop and not from the startup failure alone).
 #[test]
 fn a_failed_startup_completion_with_a_writer_running_is_not_quiescent_when_the_scope_cannot_be_emptied() {
     if delegated_route().is_none() {
@@ -180,11 +207,14 @@ fn a_failed_startup_completion_with_a_writer_running_is_not_quiescent_when_the_s
     }
 }
 
-/// Acceptance row "A1, V3 (spawn isolation)":
-/// a bounded run is held inside its start, after its record and before its program,
+/// Acceptance row "A1,
+/// V3 (spawn isolation)":
+/// a bounded run is held inside its start,
+/// after its record and before its program,
 /// while an unrelated ordinary spawn and a second bounded run both happen;
 /// then the first run goes on.
-/// The wrapper stays in its original group throughout, the two runs have separate scopes,
+/// The wrapper stays in its original group throughout,
+/// the two runs have separate scopes,
 /// and the unrelated child is untouched by either cleanup.
 #[test]
 fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_boundary() {
@@ -235,7 +265,8 @@ fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_bo
 /// Acceptance row "V6":
 /// a manager that does not answer ends the discovery at its deadline with the reason as a missing capability;
 /// nothing waits for the manager without end.
-/// This test calls only the discovery; that a run then takes the weaker path with its record is shown by
+/// This test calls only the discovery;
+/// that a run then takes the weaker path with its record is shown by
 /// `each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_before_the_start`.
 #[test]
 fn a_manager_that_does_not_answer_ends_the_discovery_at_its_deadline() {
@@ -255,8 +286,19 @@ fn a_manager_that_does_not_answer_ends_the_discovery_at_its_deadline() {
 
 /// Contract boundary test (STB) for the launcher:
 /// arguments with the characters `systemd-run` reads as a grammar of its own
-/// (`$$`, `${NAME}`, `%`, backslashes, quotes, spaces, a line feed, a leading dash, a semicolon, an empty argument, non-UTF-8 bytes)
-/// reach the program exactly as given, also in a command with a cleared environment.
+/// (`$$`,
+/// `${NAME}`,
+/// `%`,
+/// backslashes,
+/// quotes,
+/// spaces,
+/// a line feed,
+/// a leading dash,
+/// a semicolon,
+/// an empty argument,
+/// non-UTF-8 bytes)
+/// reach the program exactly as given,
+/// also in a command with a cleared environment.
 #[test]
 fn arguments_that_systemd_run_reads_as_a_grammar_reach_the_program_unchanged() {
     use std::os::unix::ffi::OsStrExt;

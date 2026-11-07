@@ -1,16 +1,22 @@
 //! Pure models for the first-run pane and the feedback messages.
 //!
-//! What: `first_run_view` decides whether the first-run pane replaces the track area and what it says;
+//! What:
+//! `first_run_view` decides whether the first-run pane replaces the track area and what it says;
 //! `feedback_items` turns the visible feedback messages into plain rows.
-//! Why: the decisions stay testable without a window, and the window only places the values.
+//! Why:
+//! the decisions stay testable without a window,
+//! and the window only places the values.
 
 use music_player::feedback::{FeedbackKind, FeedbackQueue};
 use music_player::first_run::{ANALYSIS_EXPLANATION, FirstRunState, first_run_copy};
 
 use crate::ui_screen_view::ScreenState;
 
-/// What: `FirstRunView` is the copy and actions of the first-run pane.
-/// Why: the pane takes plain strings, and the Rust copy module supplies them.
+/// What:
+/// `FirstRunView` is the copy and actions of the first-run pane.
+/// Why:
+/// the pane takes plain strings,
+/// and the Rust copy module supplies them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -22,16 +28,22 @@ pub struct FirstRunView {
     pub title: String,
     /// Explanation of the open source and what the actions do.
     pub body: String,
-    /// Label of the filled action, or empty.
+    /// Label of the filled action,
+    /// or empty.
     pub primary_label: String,
-    /// Labels of the outlined actions, in order.
+    /// Labels of the outlined actions,
+    /// in order.
     pub secondary_labels: Vec<String>,
-    /// True-peak explanation, or empty when the copy has none.
+    /// True-peak explanation,
+    /// or empty when the copy has none.
     pub explanation: String,
 }
 
-/// What: `first_run_view` returns the first-run pane once the library has loaded and holds no tracks.
-/// Why: an empty library is the only first-run case on desktop; the pane replaces the track area until a folder has audio.
+/// What:
+/// `first_run_view` returns the first-run pane once the library has loaded and holds no tracks.
+/// Why:
+/// an empty library is the only first-run case on desktop;
+/// the pane replaces the track area until a folder has audio.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,8 +65,14 @@ pub fn first_run_view(state: &ScreenState) -> Option<FirstRunView> {
     });
 }
 
-/// What: `first_run_kind` chooses the first-run state that matches the opened folder.
-/// Why: a folder being read gets the reading copy (EM1); no folder open gets the choose-a-folder copy; an opened folder with no tracks names itself; before the engine reports, nothing shows.
+/// What:
+/// `first_run_kind` chooses the first-run state that matches the opened folder.
+/// Why:
+/// a folder being read gets the reading copy (EM1);
+/// no folder open gets the choose-a-folder copy;
+/// an opened folder with no tracks names itself;
+/// before the engine reports,
+/// nothing shows.
 fn first_run_kind(state: &ScreenState) -> Option<FirstRunState> {
     if state.reading {
         return Some(FirstRunState::Reading);
@@ -69,20 +87,31 @@ fn first_run_kind(state: &ScreenState) -> Option<FirstRunState> {
     };
 }
 
-/// What: `Hold` is how long a kind of message is meant to stay: a short confirmation, or a message the user acts on or reads
+/// What:
+/// `Hold` is how long a kind of message is meant to stay:
+/// a short confirmation,
+/// or a message the user acts on or reads
 /// in full.
-/// Why: one fixed 4 s cut off the File details path and left too little time to press Undo.
+/// Why:
+/// one fixed 4 s cut off the File details path and left too little time to press Undo.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Hold {
-    /// A confirmation or a short error: at least 4 s.
+    /// A confirmation or a short error:
+    /// at least 4 s.
     Brief,
-    /// A message with an action or a long detail: at least 8 s.
+    /// A message with an action or a long detail:
+    /// at least 8 s.
     Long,
 }
 
-/// What: `visible_time_ms` gives how long a message stays on screen, in milliseconds.
-/// Why: the time is the larger of the floor of its `Hold` and a reading allowance of 2 s plus 60 ms per character, so a long
-/// message stays long enough to read, and no message stays longer than 15 s.
+/// What:
+/// `visible_time_ms` gives how long a message stays on screen,
+/// in milliseconds.
+/// Why:
+/// the time is the larger of the floor of its `Hold` and a reading allowance of 2 s plus 60 ms per character,
+/// so a long
+/// message stays long enough to read,
+/// and no message stays longer than 15 s.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,14 +133,19 @@ pub struct FeedbackRow {
     pub id: String,
     /// Message text.
     pub text: String,
-    /// 0 for an error, 1 for an Undo message.
+    /// 0 for an error,
+    /// 1 for an Undo message.
     pub kind: i32,
-    /// Action button label, or empty.
+    /// Action button label,
+    /// or empty.
     pub action_label: String,
 }
 
-/// What: `feedback_rows` lists the visible messages in display order.
-/// Why: the queue keeps its own order, and expired messages are already removed by the queue.
+/// What:
+/// `feedback_rows` lists the visible messages in display order.
+/// Why:
+/// the queue keeps its own order,
+/// and expired messages are already removed by the queue.
 pub fn feedback_rows(queue: &FeedbackQueue) -> Vec<FeedbackRow> {
     return queue
         .visible()

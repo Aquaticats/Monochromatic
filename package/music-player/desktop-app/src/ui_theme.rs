@@ -1,11 +1,19 @@
 //! Pushes the derived theme roles into the window and keeps them current when the accent changes.
 //!
-//! What: `install_accent_tracking` derives both schemes from the theme root (`theme_roles.rs`) and writes them into
-//! the `Theme` global's `dark-roles` and `light-roles`; the window's `accent-changed` callback repeats that whenever
-//! the root changes (the OS accent reaches Slint through the desktop portal, DWM or `NSColor`, and the portal's
+//! What:
+//! `install_accent_tracking` derives both schemes from the theme root (`theme_roles.rs`) and writes them into
+//! the `Theme` global's `dark-roles` and `light-roles`;
+//! the window's `accent-changed` callback repeats that whenever
+//! the root changes (the OS accent reaches Slint through the desktop portal,
+//! DWM or `NSColor`,
+//! and the portal's
 //! `SettingChanged` signal updates it live).
-//! Why: the root is the only thing taken from the platform (D108); every other color is derived in OKLCH in Rust,
-//! so the palette can be unit-tested without a window. The light or dark choice stays inside `theme.slint`, so a
+//! Why:
+//! the root is the only thing taken from the platform (D108);
+//! every other color is derived in OKLCH in Rust,
+//! so the palette can be unit-tested without a window.
+//! The light or dark choice stays inside `theme.slint`,
+//! so a
 //! scheme change needs no Rust round trip.
 
 use music_player::accent_override::{ACCENT_ENV, accent_override};
@@ -16,9 +24,11 @@ use slint::{Color, ComponentHandle};
 use crate::{AppWindow, RoleSet, Theme};
 
 /// What:
-///      `fn slint_color(color: Srgb8) -> Color`: the window's color type from a derived 8-bit color.
+///      `fn slint_color(color: Srgb8) -> Color`:
+/// the window's color type from a derived 8-bit color.
 /// Why:
-///       The derived colors are opaque, so alpha is 255.
+///       The derived colors are opaque,
+/// so alpha is 255.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -29,10 +39,14 @@ fn slint_color(color: Srgb8) -> Color {
 }
 
 /// What:
-///      `pub(crate) fn slint_roles(set: &theme_roles::RoleSet) -> RoleSet`: copies one derived scheme into the
-///  generated Slint struct, field for field. `&` lends the set read-only.
+///      `pub(crate) fn slint_roles(set: &theme_roles::RoleSet) -> RoleSet`:
+/// copies one derived scheme into the
+///  generated Slint struct,
+/// field for field.
+/// `&` lends the set read-only.
 /// Why:
-///       The Slint struct is the window's type; the Rust struct is the testable one.
+///       The Slint struct is the window's type;
+/// the Rust struct is the testable one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -62,7 +76,9 @@ pub(crate) fn slint_roles(set: &theme_roles::RoleSet) -> RoleSet {
 }
 
 /// What:
-///      `pub(crate) fn root_of(accent: Color) -> Option<Srgb8>`: the theme root a reported accent gives; a
+///      `pub(crate) fn root_of(accent: Color) -> Option<Srgb8>`:
+/// the theme root a reported accent gives;
+/// a
 ///  transparent color means "no accent available" and gives `None` (the baseline).
 /// Why:
 ///       Slint reports the accent as transparent until a platform value exists (alpha 0 means unavailable).
@@ -79,10 +95,12 @@ pub(crate) fn root_of(accent: Color) -> Option<Srgb8> {
 }
 
 /// What:
-///      `pub(crate) fn apply_palette(app: &AppWindow, accent: Color)`: derives both schemes from the accent and
+///      `pub(crate) fn apply_palette(app: &AppWindow, accent: Color)`:
+/// derives both schemes from the accent and
 ///  writes them into the `Theme` global.
 /// Why:
-///       The one place the window's palette changes, at startup and on every accent change.
+///       The one place the window's palette changes,
+/// at startup and on every accent change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,10 +123,14 @@ pub(crate) fn apply_palette(app: &AppWindow, accent: Color) {
 }
 
 /// What:
-///      `pub(crate) fn apply_accent_override_from_env(app: &AppWindow)`: sets `Theme.accent-override` from
-///  `MUSIC_PLAYER_ACCENT`, or leaves it transparent (follow the system) when the variable is unset or malformed.
+///      `pub(crate) fn apply_accent_override_from_env(app: &AppWindow)`:
+/// sets `Theme.accent-override` from
+///  `MUSIC_PLAYER_ACCENT`,
+/// or leaves it transparent (follow the system) when the variable is unset or malformed.
 /// Why:
-///       Renders and verification runs need a deterministic accent; a malformed value is logged and ignored, the
+///       Renders and verification runs need a deterministic accent;
+/// a malformed value is logged and ignored,
+/// the
 ///           same way a malformed color scheme override is.
 ///
 /// In TS you'd write (pseudocode):
@@ -133,10 +155,13 @@ pub(crate) fn apply_accent_override_from_env(app: &AppWindow) {
 }
 
 /// What:
-///      `pub(crate) fn install_accent_tracking(app: &AppWindow)`: applies the palette for the current accent now
+///      `pub(crate) fn install_accent_tracking(app: &AppWindow)`:
+/// applies the palette for the current accent now
 ///  and registers the callback that repeats it when the accent changes.
 /// Why:
-///       Slint's `changed` handler fires on change, not on the first value, so the first derivation is explicit.
+///       Slint's `changed` handler fires on change,
+/// not on the first value,
+/// so the first derivation is explicit.
 ///           The closure holds a weak handle so it does not keep the window alive.
 ///
 /// In TS you'd write (pseudocode):

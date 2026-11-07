@@ -6,11 +6,18 @@
 use super::*;
 use crate::refresh_test_support::{Rng, TempTree, pick_stem};
 
-/// The name parts: they collide on case, digits and leading zeros, so natural order differs from byte order.
+/// The name parts:
+/// they collide on case,
+/// digits and leading zeros,
+/// so natural order differs from byte order.
 const STEMS: [&str; 16] = ["a", "A", "b", "B", "a2", "a10", "a02", "Track 2", "Track 10", "é", "ß", "日本", "1", "01", "z", "Z z"];
 
-/// What: `random_name` is a relative file name of up to three folder levels, ending in an extension.
-/// Why: the walk's order has to hold for any shape, including a file and a folder with similar names.
+/// What:
+/// `random_name` is a relative file name of up to three folder levels,
+/// ending in an extension.
+/// Why:
+/// the walk's order has to hold for any shape,
+/// including a file and a folder with similar names.
 fn random_name(rng: &mut Rng, suffix: &str) -> String {
     let depth: usize = rng.below(4);
     let mut relative: String = String::new();

@@ -1,7 +1,14 @@
-//! Window binding for the track menu: opens it for a row, and runs the chosen action.
+//! Window binding for the track menu:
+//! opens it for a row,
+//! and runs the chosen action.
 //!
-//! What: `wire` registers the menu request and selection callbacks; `run_action` performs one action.
-//! Why: the menu's actions map onto engine commands, platform file actions, and feedback messages in one place.
+//! What:
+//! `wire` registers the menu request and selection callbacks;
+//! `run_action` performs one action.
+//! Why:
+//! the menu's actions map onto engine commands,
+//! platform file actions,
+//! and feedback messages in one place.
 
 use std::path::Path;
 use std::rc::Rc;
@@ -20,8 +27,11 @@ use crate::ui_screen::{model_of, read_state, update_state};
 use crate::ui_screen_view::selected_page_scope;
 use crate::{AppWindow, TrackMenuItem};
 
-/// What: `wire` registers the track menu callbacks on the window.
-/// Why: the list reports a menu request for a row, and the menu reports the chosen row.
+/// What:
+/// `wire` registers the track menu callbacks on the window.
+/// Why:
+/// the list reports a menu request for a row,
+/// and the menu reports the chosen row.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,8 +51,11 @@ pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
     });
 }
 
-/// What: `wire_request` registers the menu request and dismiss callbacks, which need no engine.
-/// Why: the window tests open the menu from the keyboard and need the same request path without an engine.
+/// What:
+/// `wire_request` registers the menu request and dismiss callbacks,
+/// which need no engine.
+/// Why:
+/// the window tests open the menu from the keyboard and need the same request path without an engine.
 pub(crate) fn wire_request(app: &AppWindow) {
     let request_weak = app.as_weak();
     app.on_menu_request(move |index| {
@@ -58,8 +71,11 @@ pub(crate) fn wire_request(app: &AppWindow) {
     });
 }
 
-/// What: `fill_menu` writes the title and rows of the menu for the library row `index`.
-/// Why: the details row shows the file size, which is read from disk when the menu opens.
+/// What:
+/// `fill_menu` writes the title and rows of the menu for the library row `index`.
+/// Why:
+/// the details row shows the file size,
+/// which is read from disk when the menu opens.
 fn fill_menu(window: &AppWindow, index: Option<usize>) {
     update_state(|state| {
         state.menu_index = index;
@@ -93,49 +109,69 @@ fn fill_menu(window: &AppWindow, index: Option<usize>) {
     tracing::debug!("track menu filled");
 }
 
-/// What: `FileEffects` is the two actions of the menu that reach outside the window and that the user cannot see happen: the
+/// What:
+/// `FileEffects` is the two actions of the menu that reach outside the window and that the user cannot see happen:
+/// the
 /// clipboard write and the file manager.
-/// Why: both report success only through feedback, so a window test swaps in effects that answer at once and reads the
-/// feedback, and no test writes the real clipboard or starts a file manager.
+/// Why:
+/// both report success only through feedback,
+/// so a window test swaps in effects that answer at once and reads the
+/// feedback,
+/// and no test writes the real clipboard or starts a file manager.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// interface FileEffects { copyText(text: string): void; showInFileManager(path: string): void }
 /// ```
 pub(crate) trait FileEffects {
-    /// What: `copy_text` writes text to the clipboard.
+    /// What:
+    /// `copy_text` writes text to the clipboard.
     fn copy_text(&self, text: &str) -> Result<(), FileActionError>;
 
-    /// What: `show_in_file_manager` opens the file manager on a track's folder.
+    /// What:
+    /// `show_in_file_manager` opens the file manager on a track's folder.
     fn show_in_file_manager(&self, path: &Path) -> Result<(), FileActionError>;
 }
 
-/// What: `SystemFileEffects` is the production pair of file effects.
-/// Why: it forwards to the platform functions of `ui_files`.
+/// What:
+/// `SystemFileEffects` is the production pair of file effects.
+/// Why:
+/// it forwards to the platform functions of `ui_files`.
 struct SystemFileEffects;
 
 /// The production effects.
 impl FileEffects for SystemFileEffects {
-    /// What: `copy_text` writes to the system clipboard.
+    /// What:
+    /// `copy_text` writes to the system clipboard.
     fn copy_text(&self, text: &str) -> Result<(), FileActionError> {
         return copy_text(text);
     }
 
-    /// What: `show_in_file_manager` starts the platform file manager.
+    /// What:
+    /// `show_in_file_manager` starts the platform file manager.
     fn show_in_file_manager(&self, path: &Path) -> Result<(), FileActionError> {
         return show_in_file_manager(path);
     }
 }
 
-/// What: `run_action` performs one menu action on the track the menu was opened for, with the platform's file effects.
-/// Why: the target is read from the state at selection time, so the action uses the row the user saw.
+/// What:
+/// `run_action` performs one menu action on the track the menu was opened for,
+/// with the platform's file effects.
+/// Why:
+/// the target is read from the state at selection time,
+/// so the action uses the row the user saw.
 pub(crate) fn run_action(window: &AppWindow, host: &dyn Host, action: TrackMenuAction) {
     run_action_with(window, host, &SystemFileEffects, action);
 }
 
-/// What: `run_action_with` performs one menu action with the given file effects.
-/// Why: every action answers on screen: a confirmation for the ones that change nothing visible (copy, show) and an
-/// error for the ones that failed, and a test checks that with effects that answer at once.
+/// What:
+/// `run_action_with` performs one menu action with the given file effects.
+/// Why:
+/// every action answers on screen:
+/// a confirmation for the ones that change nothing visible (copy,
+/// show) and an
+/// error for the ones that failed,
+/// and a test checks that with effects that answer at once.
 pub(crate) fn run_action_with(window: &AppWindow, host: &dyn Host, effects: &dyn FileEffects, action: TrackMenuAction) {
     let target = read_state(|state| return state.menu_target());
     let Some((index, name, path)) = target else {
@@ -161,9 +197,15 @@ pub(crate) fn run_action_with(window: &AppWindow, host: &dyn Host, effects: &dyn
     }
 }
 
-/// What: `show_details` shows the file name, size and folder of a track as a notice.
-/// Why: File details has no page of its own; the menu row shows the size inline, and the keyboard shortcut (Alt+Enter)
-/// shows the same facts with the folder as a message, so the shortcut has a visible effect.
+/// What:
+/// `show_details` shows the file name,
+/// size and folder of a track as a notice.
+/// Why:
+/// File details has no page of its own;
+/// the menu row shows the size inline,
+/// and the keyboard shortcut (Alt+Enter)
+/// shows the same facts with the folder as a message,
+/// so the shortcut has a visible effect.
 fn show_details(window: &AppWindow, name: &str, path: &Path) {
     let size = std::fs::metadata(path).ok().map(|meta| return human_size(meta.len()));
     let folder = path.parent().map_or_else(String::new, |parent| return parent.display().to_string());
@@ -172,8 +214,12 @@ fn show_details(window: &AppWindow, name: &str, path: &Path) {
     show_long_notice(window, &message);
 }
 
-/// What: `move_track_to_trash` moves the file to the trash and offers Undo where the platform can restore it.
-/// Why: D8 deletes immediately; Undo restores from the OS trash, and macOS offers no Undo because the trash crate cannot restore there.
+/// What:
+/// `move_track_to_trash` moves the file to the trash and offers Undo where the platform can restore it.
+/// Why:
+/// D8 deletes immediately;
+/// Undo restores from the OS trash,
+/// and macOS offers no Undo because the trash crate cannot restore there.
 fn move_track_to_trash(window: &AppWindow, name: &str, path: &Path) {
     match move_to_trash(path) {
         Ok(()) => {
@@ -188,8 +234,12 @@ fn move_track_to_trash(window: &AppWindow, name: &str, path: &Path) {
     }
 }
 
-/// What: `shuffle_from_here` shuffles the selected page and starts the track at `index`.
-/// Why: Android's shuffle-from-here sets the page scope, then the shuffle mode, then plays the index (D7).
+/// What:
+/// `shuffle_from_here` shuffles the selected page and starts the track at `index`.
+/// Why:
+/// Android's shuffle-from-here sets the page scope,
+/// then the shuffle mode,
+/// then plays the index (D7).
 fn shuffle_from_here(host: &dyn Host, index: usize) {
     let scope = read_state(selected_page_scope);
     host.send(Command::SetPageScope(scope));
@@ -198,8 +248,12 @@ fn shuffle_from_here(host: &dyn Host, index: usize) {
     host.send(Command::Play);
 }
 
-/// What: `file_name_of` drops the folders from a display path, keeping the file name with its extension.
-/// Why: Copy filename copies the file name, not the folder path.
+/// What:
+/// `file_name_of` drops the folders from a display path,
+/// keeping the file name with its extension.
+/// Why:
+/// Copy filename copies the file name,
+/// not the folder path.
 fn file_name_of(display_path: &str) -> String {
     return display_path
         .rsplit_once('/')

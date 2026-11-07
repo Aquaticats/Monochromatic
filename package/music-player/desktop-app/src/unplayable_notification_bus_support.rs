@@ -1,8 +1,11 @@
-//! A private D-Bus session bus and a recording `org.freedesktop.Notifications` service, for tests only.
+//! A private D-Bus session bus and a recording `org.freedesktop.Notifications` service,
+//! for tests only.
 //!
-//! `PrivateBus::start` runs its own `dbus-daemon` on a socket in a scratch folder, so no test ever reaches the user's
+//! `PrivateBus::start` runs its own `dbus-daemon` on a socket in a scratch folder,
+//! so no test ever reaches the user's
 //! session bus or notification service.
-//! `Recorder` answers `Notify` and keeps every call, so a test can assert the exact arguments.
+//! `Recorder` answers `Notify` and keeps every call,
+//! so a test can assert the exact arguments.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
@@ -14,7 +17,8 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use zbus::{Connection, MessageStream, OwnedVariant};
 
-/// One recorded `Notify` call, reduced to what the tests assert.
+/// One recorded `Notify` call,
+/// reduced to what the tests assert.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Call {
     pub app_name: String,
@@ -29,10 +33,12 @@ pub(crate) struct Call {
     pub expire_timeout: i32,
 }
 
-/// The calls a recorder has seen, shared with the test.
+/// The calls a recorder has seen,
+/// shared with the test.
 pub(crate) type Calls = Arc<Mutex<Vec<Call>>>;
 
-/// What the `Notify` call carries on the wire, in the order the specification gives.
+/// What the `Notify` call carries on the wire,
+/// in the order the specification gives.
 type NotifyBody = (String, u32, String, String, String, Vec<String>, HashMap<String, OwnedVariant>, i32);
 
 /// Reduces a decoded `Notify` body to the fields the tests assert.
@@ -45,7 +51,9 @@ fn record(body: NotifyBody) -> Call {
     return Call { app_name, replaces_id, app_icon, summary, body: text, actions, hint_names, urgency, desktop_entry, expire_timeout };
 }
 
-/// How a recording service misbehaves: a delay before every reply (a wedged service when long), and a number of calls at
+/// How a recording service misbehaves:
+/// a delay before every reply (a wedged service when long),
+/// and a number of calls at
 /// the start that it refuses with an error reply and does not record.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Behavior {
@@ -53,14 +61,18 @@ pub(crate) struct Behavior {
     pub refuse_first: usize,
 }
 
-/// Answers `Notify` calls on `connection` until the bus goes away, recording each and replying with the call count
-/// after the delay of `behavior`; the first `refuse_first` calls get an error reply instead.
+/// Answers `Notify` calls on `connection` until the bus goes away,
+/// recording each and replying with the call count
+/// after the delay of `behavior`;
+/// the first `refuse_first` calls get an error reply instead.
 fn answer_notify_calls(connection: &Connection, incoming: MessageStream, calls: &Calls, behavior: Behavior) {
     zbus::block_on(answer_notify_calls_async(connection, incoming, calls, behavior));
 }
 
-/// The body of `answer_notify_calls`, run inside one `zbus::block_on` call on the service thread.
-/// The delay is a blocking sleep on purpose: it stands for a service that stopped answering.
+/// The body of `answer_notify_calls`,
+/// run inside one `zbus::block_on` call on the service thread.
+/// The delay is a blocking sleep on purpose:
+/// it stands for a service that stopped answering.
 async fn answer_notify_calls_async(connection: &Connection, mut incoming: MessageStream, calls: &Calls, behavior: Behavior) {
     let mut refused = 0;
     while let Some(received) = incoming.next().await {
@@ -94,7 +106,8 @@ async fn answer_notify_calls_async(connection: &Connection, mut incoming: Messag
     tracing::debug!("the recording notification service stopped reading its connection");
 }
 
-/// A `dbus-daemon` on a private socket, killed and cleaned up on drop.
+/// A `dbus-daemon` on a private socket,
+/// killed and cleaned up on drop.
 pub(crate) struct PrivateBus {
     child: Child,
     folder: PathBuf,
@@ -105,7 +118,8 @@ impl PrivateBus {
     /// Starts the daemon and reads its address.
     ///
     /// # Panics
-    /// When `dbus-daemon` is not installed or does not print an address; the tests need it and say so.
+    /// When `dbus-daemon` is not installed or does not print an address;
+    /// the tests need it and say so.
     pub(crate) fn start(label: &str) -> PrivateBus {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("clock after 1970").as_nanos();
         // The daemon creates its socket inside this folder, and a Unix socket path holds at most 107 bytes, which the

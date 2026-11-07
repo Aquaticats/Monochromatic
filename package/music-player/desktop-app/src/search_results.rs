@@ -184,7 +184,8 @@ pub fn search_library(query: &str, tracks: &[Track], available: bool) -> SearchS
     return index.search(query);
 }
 
-/// The replaced matcher, kept as the oracle for index parity tests.
+/// The replaced matcher,
+/// kept as the oracle for index parity tests.
 #[cfg(test)]
 #[path = "search_results_oracle.rs"]
 pub(crate) mod oracle;

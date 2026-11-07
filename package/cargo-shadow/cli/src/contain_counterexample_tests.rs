@@ -1,8 +1,13 @@
 //! What:
-//! Round 7 tests built from the sixth review's own counterexamples to the containment of a bounded run (6a R1, R2, R3).
+//! Round 7 tests built from the sixth review's own counterexamples to the containment of a bounded run (6a R1,
+//! R2,
+//! R3).
 //! Why:
-//! Round 5's process group and round 6's subreaper with a `/proc` scan failed one proof, that every process a command started
-//! has stopped; each test here is a schedule the reviewer gave, written to fail on that design first.
+//! Round 5's process group and round 6's subreaper with a `/proc` scan failed one proof,
+//! that every process a command started
+//! has stopped;
+//! each test here is a schedule the reviewer gave,
+//! written to fail on that design first.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,10 +34,16 @@ const FIXTURE_ROOT: &str = "CARGO_SHADOW_CONTAIN_FIXTURE_ROOT";
 /// The crate root of the workspace fixtures.
 const CRATE_DIR: &str = "package/c/one";
 
-/// The longest a test waits for a file that a live helper promised to make. It is not an expectation of speed: the helper is judged
-/// by whether it is alive, and this cap only ends a helper that lives and never makes the file. A fixed wait of thirty seconds failed
-/// runs on a host whose disk was busy with another session's image build (the journal of every helper is made with `fsync`, which waited
-/// behind that writer for longer than that), so the wait follows the helper instead of a clock.
+/// The longest a test waits for a file that a live helper promised to make.
+/// It is not an expectation of speed:
+/// the helper is judged
+/// by whether it is alive,
+/// and this cap only ends a helper that lives and never makes the file.
+/// A fixed wait of thirty seconds failed
+/// runs on a host whose disk was busy with another session's image build (the journal of every helper is made with `fsync`,
+/// which waited
+/// behind that writer for longer than that),
+/// so the wait follows the helper instead of a clock.
 const FILE_WAIT: Duration = Duration::from_secs(900);
 
 /// How long a file may be missing while no child of this process is alive before the wait gives up (the time for a child to be
@@ -41,8 +52,10 @@ const NO_HELPER_GRACE: Duration = Duration::from_secs(2);
 
 /// Whether this process has a child process that is alive (not a zombie that waits to be reaped).
 /// Why:
-/// The helpers of these tests are children of the test process, so a wait for a file they make can stop at once when none is left
-/// to make it, and need not guess how long a slow host takes.
+/// The helpers of these tests are children of the test process,
+/// so a wait for a file they make can stop at once when none is left
+/// to make it,
+/// and need not guess how long a slow host takes.
 fn a_child_is_alive() -> bool {
     let Ok(tasks) = std::fs::read_dir("/proc/self/task") else {
         return true;
@@ -61,9 +74,12 @@ fn a_child_is_alive() -> bool {
     return false;
 }
 
-/// Waits until `ready` holds, as long as a helper (a child of this process) is alive, and gives up at once when none is left.
+/// Waits until `ready` holds,
+/// as long as a helper (a child of this process) is alive,
+/// and gives up at once when none is left.
 /// Why:
-/// A wait that follows its helper cannot mistake a slow host for a hung helper, and a helper that died is reported without waiting.
+/// A wait that follows its helper cannot mistake a slow host for a hung helper,
+/// and a helper that died is reported without waiting.
 fn wait_while_a_helper_lives(what: &Path, ready: &dyn Fn() -> bool, verb: &str) {
     let started: Instant = Instant::now();
     let mut without_helper_since: Option<Instant> = None;
@@ -80,7 +96,8 @@ fn wait_while_a_helper_lives(what: &Path, ready: &dyn Fn() -> bool, verb: &str) 
 }
 
 /// The C source of a process whose first thread ends while a second thread lives on.
-/// The second thread says when the first thread is a zombie in `/proc` (the handshake), then lives on.
+/// The second thread says when the first thread is a zombie in `/proc` (the handshake),
+/// then lives on.
 /// The comments are for a reader who knows only TypeScript.
 const LEADER_SOURCE: &str = r#"
 /* What: includes the thread library and the standard helpers. Why: pthread_create starts a second thread, sleep waits. */
@@ -139,7 +156,8 @@ fn bound(limit: Duration) -> Bound {
     return Bound { limit, what: "the contained command".to_string(), rerun: "contained-command".to_string() };
 }
 
-/// Waits until a file exists, up to `FILE_WAIT`.
+/// Waits until a file exists,
+/// up to `FILE_WAIT`.
 pub(crate) fn wait_for_file(path: &Path) {
     wait_while_a_helper_lives(path, &|| { return path.exists(); }, "did not appear");
 }
@@ -152,34 +170,47 @@ pub(crate) fn read_pid(path: &Path) -> i32 {
 }
 
 /// Whether a process with this id is running (neither ended nor a zombie that waits to be reaped).
-/// The inspection fails closed (certification, second pass): it reads through the pinned procfs and a pidfd, and one that cannot tell
-/// (a procfs that numbers processes as another namespace does, an unreadable entry) stops the test instead of reading as "gone".
+/// The inspection fails closed (certification,
+/// second pass):
+/// it reads through the pinned procfs and a pidfd,
+/// and one that cannot tell
+/// (a procfs that numbers processes as another namespace does,
+/// an unreadable entry) stops the test instead of reading as "gone".
 pub(crate) fn is_running(pid: i32) -> bool {
     return crate::control_group::process_is_running(pid).unwrap_or_else(|reason| { panic!("whether process {pid} runs cannot be told: {reason}"); });
 }
 
-/// Asserts that the wrapper (this process) can no longer wait for the child with this id: a checked `waitpid` gives `ECHILD`, which
+/// Asserts that the wrapper (this process) can no longer wait for the child with this id:
+/// a checked `waitpid` gives `ECHILD`,
+/// which
 /// is what a successful reap leaves behind.
 /// Why:
-/// Killing a child, or seeing it exit, does not show that it was reaped: a zombie still answers a wait (certification group 1).
+/// Killing a child,
+/// or seeing it exit,
+/// does not show that it was reaped:
+/// a zombie still answers a wait (certification group 1).
 pub(crate) fn assert_reaped(pid: i32, what: &str) {
     use rustix::process::{WaitOptions, waitpid};
     let result = waitpid(Pid::from_raw(pid), WaitOptions::NOHANG);
     assert!(matches!(result, Err(rustix::io::Errno::CHILD)), "{what}: the direct child {pid} can still be waited for, so it was not reaped: {result:?}");
 }
 
-/// The process id of the direct child the run spawned, from the events of the run's trace (exactly one "spawned" event is required).
+/// The process id of the direct child the run spawned,
+/// from the events of the run's trace (exactly one "spawned" event is required).
 /// Why:
-/// A process id a program prints for itself says nothing about which process this one spawned: a launcher that forks the program
+/// A process id a program prints for itself says nothing about which process this one spawned:
+/// a launcher that forks the program
 /// instead of replacing itself leaves the real direct child unreaped behind a program id that was never this process's child (sixth
-/// pass, group 1).
+/// pass,
+/// group 1).
 pub(crate) fn spawned_direct_child(events: &[String]) -> i32 {
     let spawned: Vec<i32> = events.iter().filter_map(|event| { return event.strip_prefix("spawned ").and_then(|text| { return text.parse::<i32>().ok(); }); }).collect();
     assert_eq!(spawned.len(), 1, "the run did not spawn exactly one direct child: {events:?}");
     return spawned[0];
 }
 
-/// Asserts that the process id the program published is the direct child the run spawned, and that this child was reaped.
+/// Asserts that the process id the program published is the direct child the run spawned,
+/// and that this child was reaped.
 pub(crate) fn assert_spawned_child_is_the_program_and_reaped(program_pid: i32, events: &[String], what: &str) {
     let spawned: i32 = spawned_direct_child(events);
     assert_eq!(program_pid, spawned, "{what}: the program is not the process this run spawned (a launcher forked it), so its id says nothing about the reap");
@@ -203,8 +234,10 @@ pub(crate) fn compile_leader(directory: &Path) -> PathBuf {
     return program;
 }
 
-/// Whether the thread with this id is alive (not a zombie, not gone).
-/// Only a thread that is gone (`ENOENT`) or a zombie is "not alive"; anything the helper cannot read or parse stops the test,
+/// Whether the thread with this id is alive (not a zombie,
+/// not gone).
+/// Only a thread that is gone (`ENOENT`) or a zombie is "not alive";
+/// anything the helper cannot read or parse stops the test,
 /// because an unknown state is not a stopped one (8b 2.2).
 pub(crate) fn thread_is_alive(tid: i32) -> bool {
     // A procfs that numbers threads as another namespace does would read a live thread as absent: the test environment is refused.
@@ -220,13 +253,16 @@ pub(crate) fn thread_is_alive(tid: i32) -> bool {
     return state != 'Z' && state != 'X';
 }
 
-/// The thread id the fixture's worker wrote into its ready file, once the file holds it.
+/// The thread id the fixture's worker wrote into its ready file,
+/// once the file holds it.
 pub(crate) fn worker_tid(ready: &Path) -> i32 {
     return read_pid(ready);
 }
 
 /// The control of the oracle (8b 2.2):
-/// the fixture run on its own, with no run around it, shows the worker alive behind its zombie leader,
+/// the fixture run on its own,
+/// with no run around it,
+/// shows the worker alive behind its zombie leader,
 /// and the same helper reports it gone once the process is killed.
 #[test]
 fn the_thread_oracle_sees_a_live_worker_behind_a_zombie_leader_and_its_end() {
@@ -247,25 +283,34 @@ fn the_thread_oracle_sees_a_live_worker_behind_a_zombie_leader_and_its_end() {
     assert!(!alive_after, "the oracle did not see the worker end");
 }
 
-/// Round 7 (6a R1 A), round 8 with handshakes:
+/// Round 7 (6a R1 A),
+/// round 8 with handshakes:
 /// a thread group whose leader ended while another thread lives is not quiescent,
 /// although `/proc` shows the leader as a zombie:
 /// the run stops it before a normal exit returns.
-/// The program waits for the fixture's own statement that its leader is a zombie, and after the run the process has no live thread.
+/// The program waits for the fixture's own statement that its leader is a zombie,
+/// and after the run the process has no live thread.
 #[test]
 fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_returns() {
     zombie_leader_run(false);
 }
 
-/// Certification group 1 (A1): the same fixture driven through the timeout boundary, with the same readiness handshake, worker oracle
-/// and recorded-scope assertion: the program waits after the fixture's leader is a zombie, the bound passes, and the run is stopped
+/// Certification group 1 (A1):
+/// the same fixture driven through the timeout boundary,
+/// with the same readiness handshake,
+/// worker oracle
+/// and recorded-scope assertion:
+/// the program waits after the fixture's leader is a zombie,
+/// the bound passes,
+/// and the run is stopped
 /// with the live worker behind the zombie.
 #[test]
 fn a_zombie_leader_with_a_live_writer_thread_is_stopped_at_the_bound() {
     zombie_leader_run(true);
 }
 
-/// The run of the zombie-leader fixture: to a normal exit (`at_the_bound` false) or to the bound (true).
+/// The run of the zombie-leader fixture:
+/// to a normal exit (`at_the_bound` false) or to the bound (true).
 fn zombie_leader_run(at_the_bound: bool) {
     if crate::cgroup_test_support::delegated_route().is_none() {
         return;
@@ -323,7 +368,8 @@ fn recorded_workspace() -> tempfile::TempDir {
 /// Round 7 (6a R1 B):
 /// many short-lived parents that leave orphans while the run ends are all stopped.
 /// This one passed before the change in most schedules:
-/// the reviewer's schedule depends on the order in which `/proc` is read, so it is a regression test and no deterministic red.
+/// the reviewer's schedule depends on the order in which `/proc` is read,
+/// so it is a regression test and no deterministic red.
 #[test]
 fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
     if crate::cgroup_test_support::delegated_route().is_none() {
@@ -358,7 +404,8 @@ fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
 }
 
 /// Round 7 (6a R3):
-/// a child the caller had before the run, whose own child is adopted by the caller while the run is open,
+/// a child the caller had before the run,
+/// whose own child is adopted by the caller while the run is open,
 /// is not part of the run and is not stopped.
 #[test]
 fn a_grandchild_adopted_during_the_run_that_the_run_did_not_start_survives() {
@@ -420,9 +467,11 @@ fn wrapper_with_an_escaped_writer_fixture() {
     let _ = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(300)));
 }
 
-/// Round 7 (6a R2, 6c R2):
+/// Round 7 (6a R2,
+/// 6c R2):
 /// the wrapper and the direct child die while a writer in another session lives:
-/// a recovery that finds the journal must not restore the lockfile, because the writer may still change it.
+/// a recovery that finds the journal must not restore the lockfile,
+/// because the writer may still change it.
 #[test]
 fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
     let root = scratch();

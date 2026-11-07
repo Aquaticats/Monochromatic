@@ -513,7 +513,8 @@ fn a_tool_whose_request_spells_this_repository_in_another_case_is_kept_newest_on
     assert_eq!(warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1")]);
 }
 
-/// Two pre-releases of one version whose numbers differ in length: `.10` is newer than `.9` by semver.
+/// Two pre-releases of one version whose numbers differ in length:
+/// `.10` is newer than `.9` by semver.
 const EARLIER_ALPHA: &str = "0.2.2-alpha.9";
 
 /// The newer pre-release of the same version as `EARLIER_ALPHA`.

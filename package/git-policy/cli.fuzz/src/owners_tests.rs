@@ -1,5 +1,7 @@
-//! What: Controls proving the owner and stat generators reach every outcome.
-//! Why: An invariant that is never reached proves nothing.
+//! What:
+//! Controls proving the owner and stat generators reach every outcome.
+//! Why:
+//! An invariant that is never reached proves nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,7 +14,8 @@ use super::{
     generated_owner_lock, generated_stat,
 };
 
-/// Inputs of three bytes over a spread of values, then longer derived ones.
+/// Inputs of three bytes over a spread of values,
+/// then longer derived ones.
 pub(crate) fn inputs() -> Vec<Vec<u8>> {
     let mut all: Vec<Vec<u8>> = Vec::new();
     for first in 0..=255_u8 {
@@ -32,7 +35,8 @@ pub(crate) fn inputs() -> Vec<Vec<u8>> {
     return all;
 }
 
-/// Generated owner locks are accepted and refused, with and without a transaction.
+/// Generated owner locks are accepted and refused,
+/// with and without a transaction.
 #[test]
 fn owner_locks_reach_every_outcome() {
     let mut accepted: usize = 0;
@@ -57,7 +61,8 @@ fn owner_locks_reach_every_outcome() {
     assert!(with_transaction > 10, "{with_transaction}");
 }
 
-/// Generated stat lines reach running, exited and malformed outcomes.
+/// Generated stat lines reach running,
+/// exited and malformed outcomes.
 #[test]
 fn stat_lines_reach_every_outcome() {
     let mut running: usize = 0;
@@ -77,7 +82,9 @@ fn stat_lines_reach_every_outcome() {
     );
 }
 
-/// Hard cases: a command name with `) ` inside, and a record with duplicate keys.
+/// Hard cases:
+/// a command name with `) ` inside,
+/// and a record with duplicate keys.
 #[test]
 fn hard_cases_hold() {
     check_stat(b"");

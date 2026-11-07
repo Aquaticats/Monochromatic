@@ -4,8 +4,11 @@
 
 use super::*;
 
-/// What: `scratch_home` makes an empty disposable folder and returns it.
-/// Why: the tests must never look at the real home folder (HOM, THR).
+/// What:
+/// `scratch_home` makes an empty disposable folder and returns it.
+/// Why:
+/// the tests must never look at the real home folder (HOM,
+/// THR).
 fn scratch_home(tag: &str) -> PathBuf {
     let nanos: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

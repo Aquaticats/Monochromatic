@@ -150,7 +150,9 @@ const VERSIONS_ENTRY: &str = "/data/versions.csv";
 /// not measured on a real dump);
 /// the retained history is bounded by this times the number of crates asked for.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 pub const MAX_VERSIONS_PER_CRATE: usize = 100_000;
 
 /// What a dump fill did.

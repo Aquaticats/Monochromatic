@@ -1,8 +1,14 @@
 //! What:
-//! Round 17 tests: the fixes asked for by the second certification pass (`cargo-shadow-cert2-sol-1.txt` to `-4.txt`).
+//! Round 17 tests:
+//! the fixes asked for by the second certification pass (`cargo-shadow-cert2-sol-1.txt` to `-4.txt`).
 //! Why:
-//! The second pass found, row by row, assertions that a weaker outcome than the guarantee would also satisfy, and bodies missing from
-//! the packets; each test here discriminates the guarantee from the weaker outcome named, and the planted regression that turned the
+//! The second pass found,
+//! row by row,
+//! assertions that a weaker outcome than the guarantee would also satisfy,
+//! and bodies missing from
+//! the packets;
+//! each test here discriminates the guarantee from the weaker outcome named,
+//! and the planted regression that turned the
 //! old assertion red is in the contract's red-first list where one could be built.
 //!
 //! In TS you'd write (pseudocode):
@@ -38,7 +44,8 @@ fn repository() -> tempfile::TempDir {
     return root;
 }
 
-/// A judge that refuses the live lockfile, so that a recovery which goes ahead restores the snapshot.
+/// A judge that refuses the live lockfile,
+/// so that a recovery which goes ahead restores the snapshot.
 fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
@@ -48,11 +55,22 @@ fn live_lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("lock");
 }
 
-/// Acceptance rows "V2, amended c" and "V3, V4" (certification, second pass): a nonempty journal that lost its containment record
-/// (and, in one case, its ready record too) is a possible survivor for the real consumers, not only for the classifier:
-/// the recovery keeps the journal and its snapshots, leaves the live output as it was and says that the record is missing, and a new
+/// Acceptance rows "V2,
+/// amended c" and "V3,
+/// V4" (certification,
+/// second pass):
+/// a nonempty journal that lost its containment record
+/// (and,
+/// in one case,
+/// its ready record too) is a possible survivor for the real consumers,
+/// not only for the classifier:
+/// the recovery keeps the journal and its snapshots,
+/// leaves the live output as it was and says that the record is missing,
+/// and a new
 /// transaction is refused for the same reason.
-/// The control puts the empty record back, after which the same recovery restores the snapshot, so the refusal came from the loss.
+/// The control puts the empty record back,
+/// after which the same recovery restores the snapshot,
+/// so the refusal came from the loss.
 #[test]
 fn a_nonempty_journal_that_lost_its_records_is_kept_by_recovery_and_refuses_admission() {
     for (label, lose_ready) in [("the record lost", false), ("the record and the ready record lost", true)] {

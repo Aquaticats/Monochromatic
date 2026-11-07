@@ -43,11 +43,15 @@ thread_local! {
     static ACKNOWLEDGEMENT_DURABILITY: Cell<bool> = const { Cell::new(false) };
     /// Whether the next sync of the acknowledgement file by a reader on this thread fails.
     static ACKNOWLEDGEMENT_FILE_SYNC: Cell<bool> = const { Cell::new(false) };
-    /// Whether the next sync of the directory that lists the acknowledgement, by a reader on this thread, fails.
+    /// Whether the next sync of the directory that lists the acknowledgement,
+    /// by a reader on this thread,
+    /// fails.
     static ACKNOWLEDGEMENT_DIRECTORY_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next wait for a killed discovery program on this thread fails with an error.
     static REAP_ERROR: Cell<bool> = const { Cell::new(false) };
-    /// Whether the next sync of a file that is about to be published whole, on this thread, fails.
+    /// Whether the next sync of a file that is about to be published whole,
+    /// on this thread,
+    /// fails.
     static PUBLICATION_FILE_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next stop of a scope on this thread finds a member that survives every signal until its deadline.
     static CONTAINMENT_SURVIVOR: Cell<bool> = const { Cell::new(false) };
@@ -94,9 +98,11 @@ pub enum Point {
     FinishCleanup,
     /// The forcing of live files to disk before a recovery deletes the durable copies that made them recoverable.
     RecoverDurability,
-    /// The sync of an output file inside `make_durable`, the real barrier that finishing and recovery use for lockfiles and manifests.
+    /// The sync of an output file inside `make_durable`,
+    /// the real barrier that finishing and recovery use for lockfiles and manifests.
     OutputFileSync,
-    /// The write of a containment record is cut short: only the first half of the line reaches the file.
+    /// The write of a containment record is cut short:
+    /// only the first half of the line reaches the file.
     RecordShortWrite,
     /// The sync of the directory that lists an output file inside `make_durable`.
     OutputDirectorySync,
@@ -106,11 +112,17 @@ pub enum Point {
     AcknowledgementDurability,
     /// The sync of the acknowledgement file by a reader (a recovery) fails.
     AcknowledgementFileSync,
-    /// The sync of the directory that lists the acknowledgement, by a reader (a recovery), fails.
+    /// The sync of the directory that lists the acknowledgement,
+    /// by a reader (a recovery),
+    /// fails.
     AcknowledgementDirectorySync,
-    /// The sync of a new journal's own directory, at the end of beginning a transaction, fails.
+    /// The sync of a new journal's own directory,
+    /// at the end of beginning a transaction,
+    /// fails.
     JournalDirectorySync,
-    /// The sync of the directory that lists a new journal, at the end of beginning a transaction, fails.
+    /// The sync of the directory that lists a new journal,
+    /// at the end of beginning a transaction,
+    /// fails.
     JournalParentSync,
     /// The wait for a killed discovery program reports an error instead of a status.
     ReapError,
@@ -136,7 +148,8 @@ pub enum Point {
     ListingOpen,
     /// The stop of a scope reports that a member could not be stopped within the bound.
     ContainmentStopStuck,
-    /// The stop of a scope after the program started finds a member that survives every signal: the stop runs its real loop to its
+    /// The stop of a scope after the program started finds a member that survives every signal:
+    /// the stop runs its real loop to its
     /// deadline and then reports that the member could not be stopped.
     ContainmentSurvivor,
     /// The stop of a scope after the program started fails with an error.

@@ -1,10 +1,17 @@
 //! What:
-//! Round 14 and 15 tests: the start time of a launcher read from another time namespace (13 section 3, 14 sections 2 and 3).
+//! Round 14 and 15 tests:
+//! the start time of a launcher read from another time namespace (13 section 3,
+//! 14 sections 2 and 3).
 //! Why:
-//! The start time in `/proc/<pid>/stat` is relative to the boot-time offset of the time namespace of the process that reads it, so
+//! The start time in `/proc/<pid>/stat` is relative to the boot-time offset of the time namespace of the process that reads it,
+//! so
 //! a recovery in another time namespace reads a live launcher's start time differently and must not take that for a reused id.
-//! Round 15: the namespace number that identifies the writer's time namespace is recycled once the namespace has no process, so it
-//! proves nothing; a start time that differs from the record is unknown, whatever the namespace numbers say.
+//! Round 15:
+//! the namespace number that identifies the writer's time namespace is recycled once the namespace has no process,
+//! so it
+//! proves nothing;
+//! a start time that differs from the record is unknown,
+//! whatever the namespace numbers say.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,7 +35,8 @@ const CRATE_DIR: &str = "package/n/one";
 /// The environment variable that gives the helper process its workspace.
 const FIXTURE_ROOT: &str = "CARGO_SHADOW_ROUND_FOURTEEN_FIXTURE_ROOT";
 
-/// The environment variable that gives the helper the recorded identity of the launcher, as `pid start pid_namespace`.
+/// The environment variable that gives the helper the recorded identity of the launcher,
+/// as `pid start pid_namespace`.
 const FIXTURE_IDENTITY: &str = "CARGO_SHADOW_ROUND_FOURTEEN_FIXTURE_IDENTITY";
 
 /// A snapshot of the lockfile of the case.
@@ -36,7 +44,8 @@ fn snapshot(source: &str) -> LockSnapshot {
     return LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: source.to_string() };
 }
 
-/// A live process that stands for a launcher that has not reached the manager, killed when the guard drops.
+/// A live process that stands for a launcher that has not reached the manager,
+/// killed when the guard drops.
 struct Held(
     /// The process.
     Child,
@@ -59,18 +68,24 @@ impl Drop for Held {
     }
 }
 
-/// The live text of the lockfile the killed run left, which the recovery must not change while the launcher is uncertain.
+/// The live text of the lockfile the killed run left,
+/// which the recovery must not change while the launcher is uncertain.
 const LEFT_BY_THE_KILLED_RUN: &str = "unchecked output of the killed run";
 
-/// Asserts what the helper's real recovery and admission did in the other time namespace: the live output is unchanged, the journal is
-/// kept (and is the only one: the refused admission left none behind), and a new transaction is refused.
+/// Asserts what the helper's real recovery and admission did in the other time namespace:
+/// the live output is unchanged,
+/// the journal is
+/// kept (and is the only one:
+/// the refused admission left none behind),
+/// and a new transaction is refused.
 fn assert_entry_points_held(result: &str) {
     for line in ["entry lock unchanged true", "entry journal kept true", "entry admission refused true", "entry journals 1"] {
         assert!(result.lines().any(|found| { return found == line; }), "the real recovery or admission did not hold the uncertain launcher ({line} is missing): {result}");
     }
 }
 
-/// Stops a process by its id when it drops, so a failed assertion leaves no launcher behind.
+/// Stops a process by its id when it drops,
+/// so a failed assertion leaves no launcher behind.
 struct StopOnDrop(
     /// The process id.
     i32,
@@ -92,8 +107,11 @@ impl Drop for StopOnDrop {
     }
 }
 
-/// Contract A1 (round 15): the launcher line reads back as written; a line of the form of round 14 (a time namespace number before the
-/// path) is not understood, so it waits for an acknowledgement like any journal that cannot be read.
+/// Contract A1 (round 15):
+/// the launcher line reads back as written;
+/// a line of the form of round 14 (a time namespace number before the
+/// path) is not understood,
+/// so it waits for an acknowledgement like any journal that cannot be read.
 #[test]
 fn a_launcher_record_reads_back_and_a_line_with_a_time_namespace_is_not_understood() {
     let record: Record = Record::Launcher { pid: 4242, start: 987_654, pid_namespace: 4_026_531_836, path: PathBuf::from("/sys/fs/cgroup/a b/c.scope") };
@@ -104,8 +122,13 @@ fn a_launcher_record_reads_back_and_a_line_with_a_time_namespace_is_not_understo
     }
 }
 
-/// Acceptance rows A1, V2 (round 15): with everything else equal, a start time that differs from the record is unknown, never gone:
-/// the record cannot show that the reader's time namespace is the writer's, and an equal start time is alive.
+/// Acceptance rows A1,
+/// V2 (round 15):
+/// with everything else equal,
+/// a start time that differs from the record is unknown,
+/// never gone:
+/// the record cannot show that the reader's time namespace is the writer's,
+/// and an equal start time is alive.
 #[test]
 fn a_start_time_that_differs_from_the_record_is_unknown_and_an_equal_one_is_alive() {
     let launcher = Held(Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("starts"));
@@ -119,7 +142,9 @@ fn a_start_time_that_differs_from_the_record_is_unknown_and_an_equal_one_is_aliv
 }
 
 /// The helper process of the time namespace test:
-/// it asks what the recorded launcher is, with the start time it reads itself, and what a recovery of the planted journal says.
+/// it asks what the recorded launcher is,
+/// with the start time it reads itself,
+/// and what a recovery of the planted journal says.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone"]
@@ -164,7 +189,10 @@ fn run_time_fixture(root: &Path, identity: &str, shifted: bool) -> String {
     return run_time_fixture_in(root, identity, shifted, None);
 }
 
-/// Like `run_time_fixture`; with `user_namespace_of`, the helper first joins the user namespace of that process (which it owns), so
+/// Like `run_time_fixture`;
+/// with `user_namespace_of`,
+/// the helper first joins the user namespace of that process (which it owns),
+/// so
 /// that the new time namespace is the only namespace it creates and takes the lowest free namespace number.
 fn run_time_fixture_in(root: &Path, identity: &str, shifted: bool, user_namespace_of: Option<i32>) -> String {
     let executable = std::env::current_exe().expect("this test executable");
@@ -192,11 +220,21 @@ fn run_time_fixture_in(root: &Path, identity: &str, shifted: bool, user_namespac
     return fs::read_to_string(root.join("fixture-result")).expect("the helper's result");
 }
 
-/// Acceptance rows A1, V2 (13 section 3): the same process id namespace, procfs and journal, a recovery in another time namespace with a
-/// boot-time offset: the live launcher's start time reads differently there, and the question and the recovery answer "unknown", never
+/// Acceptance rows A1,
+/// V2 (13 section 3):
+/// the same process id namespace,
+/// procfs and journal,
+/// a recovery in another time namespace with a
+/// boot-time offset:
+/// the live launcher's start time reads differently there,
+/// and the question and the recovery answer "unknown",
+/// never
 /// "gone".
-/// The control is a recovery in the writer's own time namespace, where the same question answers "alive" and the start time is the one
-/// recorded; the prerequisite is the shifted reader's own successful reading of a different start time, as a number.
+/// The control is a recovery in the writer's own time namespace,
+/// where the same question answers "alive" and the start time is the one
+/// recorded;
+/// the prerequisite is the shifted reader's own successful reading of a different start time,
+/// as a number.
 #[test]
 fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
     let Some(route) = delegated_route() else {
@@ -239,8 +277,11 @@ fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
 }
 
 /// The helper that stands for the wrapper in the review's schedule (14 section 2):
-/// it runs in a time namespace T0 of its own and starts its launcher in another one, T1, so T0 is held by nothing but the wrapper and
-/// the helper process that waits for the launcher; it reads the launcher's start time on its own (T0) basis and writes the identity.
+/// it runs in a time namespace T0 of its own and starts its launcher in another one,
+/// T1,
+/// so T0 is held by nothing but the wrapper and
+/// the helper process that waits for the launcher;
+/// it reads the launcher's start time on its own (T0) basis and writes the identity.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone"]
@@ -287,11 +328,22 @@ fn processes_in_time_namespace(inode: u64) -> Vec<i32> {
     return found;
 }
 
-/// Acceptance rows A1, V2 (14 section 2, the review's schedule): the writer's time namespace T0 is destroyed while the launcher lives in
-/// another (T1), a new time namespace T2 is created and receives the freed inode number, and a recovery in T2 reads the live launcher's
-/// start time on another basis. A recorded number that names a later, different namespace must not make that difference a reused id:
-/// the question answers "unknown", never "gone", because no recorded number is used.
-/// The prerequisites are asserted: the freed number was reused, and the recovery's own reading of the start time differs.
+/// Acceptance rows A1,
+/// V2 (14 section 2,
+/// the review's schedule):
+/// the writer's time namespace T0 is destroyed while the launcher lives in
+/// another (T1),
+/// a new time namespace T2 is created and receives the freed inode number,
+/// and a recovery in T2 reads the live launcher's
+/// start time on another basis.
+/// A recorded number that names a later,
+/// different namespace must not make that difference a reused id:
+/// the question answers "unknown",
+/// never "gone",
+/// because no recorded number is used.
+/// The prerequisites are asserted:
+/// the freed number was reused,
+/// and the recovery's own reading of the start time differs.
 #[test]
 fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     let Some(route) = delegated_route() else {
@@ -342,7 +394,10 @@ impl Attempt {
     }
 }
 
-/// One attempt: a writer in a time namespace of its own with its launcher in another, the writer's processes killed, and a recovery
+/// One attempt:
+/// a writer in a time namespace of its own with its launcher in another,
+/// the writer's processes killed,
+/// and a recovery
 /// in a new time namespace created right after.
 fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
     let root = scratch();

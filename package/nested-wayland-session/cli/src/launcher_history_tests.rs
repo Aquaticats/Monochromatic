@@ -3,7 +3,8 @@
 /// Brings the history and its update record into scope.
 use super::*;
 
-/// Builds an update whose progress encodes its arrival index, so order is checkable.
+/// Builds an update whose progress encodes its arrival index,
+/// so order is checkable.
 fn update(index: u64) -> LauncherUpdate {
     return LauncherUpdate {
         at_ms: index,
@@ -24,7 +25,8 @@ fn empty_history_has_no_latest_and_no_records() {
     assert!(history.last_n(64).is_empty());
 }
 
-/// The latest entry is the last one pushed, and records come back oldest first.
+/// The latest entry is the last one pushed,
+/// and records come back oldest first.
 #[test]
 fn records_come_back_in_arrival_order() {
     let mut history = LauncherHistory::default();

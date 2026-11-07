@@ -234,9 +234,14 @@ pub(crate) struct JournalListing {
 /// Why:
 /// A survivor check and a recovery both decide from the whole set;
 /// a set that could not be read completely cannot show that no earlier run left a writer
-/// (round 7, 6b2 1: `flatten()` and `is_dir()` dropped such entries).
+/// (round 7,
+/// 6b2 1:
+/// `flatten()` and `is_dir()` dropped such entries).
 /// Only the opening of the journal directory finding no directory is "no journals" (`None`);
-/// every failure after it, `NotFound` of one entry included, is an error that discards the partial listing (round 8, 7b P1-2).
+/// every failure after it,
+/// `NotFound` of one entry included,
+/// is an error that discards the partial listing (round 8,
+/// 7b P1-2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -319,18 +324,26 @@ pub fn recover(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> 
 /// What a recovery says and whether the command that ran it may go on.
 #[derive(Debug)]
 pub struct RecoveryReport {
-    /// What to tell the person, one warning per entry.
+    /// What to tell the person,
+    /// one warning per entry.
     pub messages: Vec<String>,
-    /// Whether a mandatory phase of finishing a recovered journal failed (the output barrier before the marker, or the durable
-    /// completion marker itself): the journal is not finished, so the command must stop. A failed removal of a journal that is
-    /// already marked done is not one; it only warns.
+    /// Whether a mandatory phase of finishing a recovered journal failed (the output barrier before the marker,
+    /// or the durable
+    /// completion marker itself):
+    /// the journal is not finished,
+    /// so the command must stop.
+    /// A failed removal of a journal that is
+    /// already marked done is not one;
+    /// it only warns.
     pub mandatory_failure: bool,
 }
 
 /// What:
 /// `pub fn recover_report(root, judge) -> RecoveryReport` is `recover` that also says whether a mandatory phase of finishing failed.
 /// Why:
-/// The callers of a recovery stop on a failed mandatory phase and go on after a cleanup warning (certification, second pass, V5).
+/// The callers of a recovery stop on a failed mandatory phase and go on after a cleanup warning (certification,
+/// second pass,
+/// V5).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

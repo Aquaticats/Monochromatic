@@ -1,8 +1,14 @@
 //! What:
-//! Round 12 tests: the launcher check against a procfs of another process id namespace, the boot id read from the object that was
-//! checked, the reaping error, the whole view header, and the writer side of an atomic publication (11a and 11b).
+//! Round 12 tests:
+//! the launcher check against a procfs of another process id namespace,
+//! the boot id read from the object that was
+//! checked,
+//! the reaping error,
+//! the whole view header,
+//! and the writer side of an atomic publication (11a and 11b).
 //! Why:
-//! The review of rounds 10 and 11 (`cargo-shadow-sol-11a.txt`, `-11b.txt`) named schedules inside existing rows of the acceptance list;
+//! The review of rounds 10 and 11 (`cargo-shadow-sol-11a.txt`,
+//! `-11b.txt`) named schedules inside existing rows of the acceptance list;
 //! each test here is one of them.
 //!
 //! In TS you'd write (pseudocode):
@@ -52,7 +58,8 @@ fn repository() -> tempfile::TempDir {
     return root;
 }
 
-/// A judge that refuses the live lockfile, so that a recovery which goes ahead restores the snapshot.
+/// A judge that refuses the live lockfile,
+/// so that a recovery which goes ahead restores the snapshot.
 fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
@@ -69,7 +76,9 @@ fn live_lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("lock");
 }
 
-/// A process in a process group of its own, which is alive until the test ends, however it ends.
+/// A process in a process group of its own,
+/// which is alive until the test ends,
+/// however it ends.
 struct LiveGroup(
     /// The process that leads the group.
     Child,
@@ -77,7 +86,8 @@ struct LiveGroup(
 
 /// The methods of the guard.
 impl LiveGroup {
-    /// The process id, which is the group's number.
+    /// The process id,
+    /// which is the group's number.
     fn id(&self) -> u32 {
         return self.0.id();
     }
@@ -105,7 +115,8 @@ fn live_group() -> LiveGroup {
     return LiveGroup(Command::new("sleep").arg("600").process_group(0).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a live group"));
 }
 
-/// This machine's boot id with one digit changed, as a real reboot would change it.
+/// This machine's boot id with one digit changed,
+/// as a real reboot would change it.
 fn another_boot() -> Identity {
     let now: Identity = current_identity().expect("this machine has an identity");
     let mut boot: Vec<u8> = now.boot.into_bytes();
@@ -113,8 +124,10 @@ fn another_boot() -> Identity {
     return Identity { boot: String::from_utf8(boot).expect("ascii"), machine: now.machine };
 }
 
-/// Acceptance row V6 (11a, reaping errors):
-/// a wait that fails is not a reap: the discovery's failure says that the killed program could not be reaped.
+/// Acceptance row V6 (11a,
+/// reaping errors):
+/// a wait that fails is not a reap:
+/// the discovery's failure says that the killed program could not be reaped.
 #[test]
 fn a_wait_that_fails_is_not_a_reap() {
     // A bound long enough that a fresh budget on the wait-error path (the old two seconds, or one more of the same length) cannot be
@@ -138,9 +151,14 @@ fn a_wait_that_fails_is_not_a_reap() {
     assert!(elapsed < bound + Duration::from_millis(700), "the discovery returned after {elapsed:?}: a fresh budget was spent after a failed wait, past its deadline of {bound:?}");
 }
 
-/// Acceptance rows V2, amended c (11a, the view header):
-/// a record whose first line is not `view <mount>:<inode>` has no identity, however good the identity lines are,
-/// so a live process group keeps blocking; the control is a whole header, which clears it.
+/// Acceptance rows V2,
+/// amended c (11a,
+/// the view header):
+/// a record whose first line is not `view <mount>:<inode>` has no identity,
+/// however good the identity lines are,
+/// so a live process group keeps blocking;
+/// the control is a whole header,
+/// which clears it.
 #[test]
 fn a_view_header_that_is_not_mount_and_inode_gives_no_identity() {
     let root = repository();
@@ -159,8 +177,12 @@ fn a_view_header_that_is_not_mount_and_inode_gives_no_identity() {
 }
 
 /// The helper process of the procfs namespace test:
-/// it runs as the first process of a new process id namespace, with the procfs it inherited (mode `ancestor`, which numbers the
-/// processes of the ancestor namespace) or a procfs of its own (mode `own`), starts a launcher stand-in, and writes what the
+/// it runs as the first process of a new process id namespace,
+/// with the procfs it inherited (mode `ancestor`,
+/// which numbers the
+/// processes of the ancestor namespace) or a procfs of its own (mode `own`),
+/// starts a launcher stand-in,
+/// and writes what the
 /// launcher question says to a file.
 /// Run on its own it does nothing.
 #[test]
@@ -229,10 +251,17 @@ fn run_procfs_fixture(mode: &str) -> String {
     return fs::read_to_string(root.path().join("fixture-result")).expect("the helper's result");
 }
 
-/// Acceptance rows A1, V2 (11a, the procfs of another process id namespace):
+/// Acceptance rows A1,
+/// V2 (11a,
+/// the procfs of another process id namespace):
 /// a process in a child process id namespace that still uses the procfs of its ancestor (`kill` and `/proc/<pid>` then name different
-/// processes) cannot establish a launcher's start time, and the question answers "unknown", never "gone".
-/// The control is a procfs of the namespace's own: the start time is read, the live launcher is alive, a reused id (another start
+/// processes) cannot establish a launcher's start time,
+/// and the question answers "unknown",
+/// never "gone".
+/// The control is a procfs of the namespace's own:
+/// the start time is read,
+/// the live launcher is alive,
+/// a reused id (another start
 /// time) is unknown and an ended launcher is gone.
 #[test]
 fn a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher() {
@@ -250,9 +279,12 @@ fn a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher() {
     assert!(ancestor.contains("other start Unknown(") && !ancestor.contains("Gone"), "a launcher was read as gone through a procfs of another namespace: {ancestor}");
 }
 
-/// Acceptance row "Weaker path" (11b 2.6, the writer's file sync):
+/// Acceptance row "Weaker path" (11b 2.6,
+/// the writer's file sync):
 /// an acknowledgement whose temporary file cannot be made durable is not published and does not count,
-/// and acknowledging again, with the sync working, publishes it whole and clears the journal.
+/// and acknowledging again,
+/// with the sync working,
+/// publishes it whole and clears the journal.
 #[test]
 fn an_acknowledgement_whose_file_cannot_be_synced_is_not_published() {
     let root = repository();
@@ -274,8 +306,10 @@ fn an_acknowledgement_whose_file_cannot_be_synced_is_not_published() {
 }
 
 /// The helper process of the interrupted publication test:
-/// it acknowledges the journal of the workspace, and its publisher stops between the finished temporary file and the rename that
-/// publishes it (it says so and waits to be killed). Run on its own it does nothing.
+/// it acknowledges the journal of the workspace,
+/// and its publisher stops between the finished temporary file and the rename that
+/// publishes it (it says so and waits to be killed).
+/// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged"]
 fn publisher_held_before_its_rename_fixture() {
@@ -292,9 +326,13 @@ fn publisher_held_before_its_rename_fixture() {
     let _ = acknowledge(&journal);
 }
 
-/// Acceptance row "Weaker path" (11b 2.6, a real interrupted publication):
+/// Acceptance row "Weaker path" (11b 2.6,
+/// a real interrupted publication):
 /// a real publisher killed between its finished temporary file and the rename leaves the journal unacknowledged (the complete text is
-/// under its temporary name, no published name), a recovery does not settle it, and acknowledging again settles it.
+/// under its temporary name,
+/// no published name),
+/// a recovery does not settle it,
+/// and acknowledging again settles it.
 #[test]
 fn a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged() {
     let root = repository();
@@ -326,8 +364,12 @@ fn a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged() {
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "the recovery after the second acknowledgement left a journal behind: {again:?}");
 }
 
-/// Third certification pass (A1, the thread oracle): equal process numbers do not show that a procfs belongs to the caller's
-/// namespace. A status file of an ancestor procfs whose first and last `NSpid` numbers coincide is refused, the status of the
+/// Third certification pass (A1,
+/// the thread oracle):
+/// equal process numbers do not show that a procfs belongs to the caller's
+/// namespace.
+/// A status file of an ancestor procfs whose first and last `NSpid` numbers coincide is refused,
+/// the status of the
 /// process's own namespace (one number) and one without the line (a kernel before 4.1) are accepted.
 #[test]
 fn a_procfs_whose_nspid_lists_two_namespaces_is_refused_even_when_the_numbers_coincide() {
@@ -339,8 +381,10 @@ fn a_procfs_whose_nspid_lists_two_namespaces_is_refused_even_when_the_numbers_co
     assert!(nspid_shows_own_namespace("NSpid:\t9001\t77\t1\n").is_err(), "a deeper nesting was accepted");
 }
 
-/// Fourth certification pass: a failed read of a process's stat file shows the process gone for `ENOENT` and for `ESRCH` (the process
-/// ended between the open and the read), and for no other error.
+/// Fourth certification pass:
+/// a failed read of a process's stat file shows the process gone for `ENOENT` and for `ESRCH` (the process
+/// ended between the open and the read),
+/// and for no other error.
 #[test]
 fn a_stat_read_that_fails_with_enoent_or_esrch_names_an_absent_process() {
     use crate::control_group::names_an_absent_process;

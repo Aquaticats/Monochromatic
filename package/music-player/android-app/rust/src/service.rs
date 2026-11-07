@@ -78,7 +78,8 @@ use jni::sys::{jfloat, jint, jlong};
 
 /// What:
 ///      `use jni::EnvUnowned;`.
-///  The per-call JVM argument (the former `EnvUnowned`, renamed in jni 0.22).
+///  The per-call JVM argument (the former `EnvUnowned`,
+/// renamed in jni 0.22).
 /// Why:
 ///       The create entry reads its `JString` through `run_with_env`.
 ///
@@ -88,6 +89,9 @@ use jni::sys::{jfloat, jint, jlong};
 /// ```
 use jni::EnvUnowned;
 
+/// Runs a body with the call's `Env`,
+/// catching a panic and logging it,
+/// as every entry point of this crate does.
 use crate::jni_call::run_with_env;
 
 /// What:
@@ -269,7 +273,8 @@ struct Write {
     decision: Decision,
     /// What:
     ///      `applied: Option<oneshot::Sender<()>>`.
-    ///  Sent once the upsert has run, when the caller waits for it.
+    ///  Sent once the upsert has run,
+    /// when the caller waits for it.
     /// Why:
     ///       A warm must not return before its decision is readable by the peak read.
     ///
@@ -319,7 +324,8 @@ struct Forget {
 
 /// What:
 ///      `enum Mutation { Write(Write), Forget(Forget) }`.
-///  Everything that changes the cache, in the order it was sent.
+///  Everything that changes the cache,
+/// in the order it was sent.
 /// Why:
 ///       One FIFO channel keeps a removal behind any earlier upsert for the same track.
 ///
@@ -338,7 +344,10 @@ enum Mutation {
     /// ```ts
     /// { kind: "write", write }
     /// ```
-    Write(Write),
+    Write(
+        /// The decision to store.
+        Write,
+    ),
     /// What:
     ///      `Forget(Forget)`.
     ///  Remove one decision.
@@ -349,7 +358,10 @@ enum Mutation {
     /// ```ts
     /// { kind: "forget", forget }
     /// ```
-    Forget(Forget),
+    Forget(
+        /// The track whose decision to remove.
+        Forget,
+    ),
 }
 
 /// What:
@@ -710,7 +722,9 @@ async fn put(cache: Option<&DecisionCache>, identity: CacheIdentity, request: Wr
     }
 }
 
-// Remove one track's row; a degraded run has nothing stored, so nothing is removed.
+/// Remove one track's row;
+/// a degraded run has nothing stored,
+/// so nothing is removed.
 async fn forget(cache: Option<&DecisionCache>, identity: CacheIdentity, fingerprint: u64) -> bool {
     let Some(decision_cache) = cache else {
         return false;

@@ -9,16 +9,20 @@
 //! the scope's record is forced to disk before the program starts;
 //! at the bound,
 //! and after a normal exit,
-//! the direct child is killed and reaped, the scope is killed,
+//! the direct child is killed and reaped,
+//! the scope is killed,
 //! and the run waits for the kernel's own statement that no thread is left (`populated 0`) or for the verified absence of the
 //! scope.
 //! A call that returns `Ok` has that statement,
 //! and every failure after the program started that cannot show it is `NotQuiescent`.
-//! Where no scope can be had (no user manager, no cgroup v2, an older kernel),
+//! Where no scope can be had (no user manager,
+//! no cgroup v2,
+//! an older kernel),
 //! the child runs in a process group of its own,
 //! a one-line notice names the missing capability,
 //! the journal records `pgroup starting` before the start and the group after,
-//! and no quiescence is claimed for what leaves the process group: a recovery of such a journal waits for an acknowledgement.
+//! and no quiescence is claimed for what leaves the process group:
+//! a recovery of such a journal waits for an acknowledgement.
 //! Output is returned only when it is complete:
 //! a prefix is an error (review finding 4c F4).
 //! The limit:
@@ -90,42 +94,58 @@ use crate::control_group::{ControlGroup, GroupUnavailable, Record, Route, RouteS
 
 /// How often the child is asked whether it has ended.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open:
+/// (handover "Picks made under the owner's delegation"),
+/// veto open:
 /// 10 ms keeps the latency of a finished command far under any human-visible delay
 /// while costing one `wait` system call per interval.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// How long the direct child is given to be reaped after it was killed.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open:
+/// (handover "Picks made under the owner's delegation"),
+/// veto open:
 /// a killed process is reaped within milliseconds unless it is in an uninterruptible wait,
 /// which no bound can fix;
 /// the kill of a control group and its `populated 0` took 1 ms to 5 ms in the probes of 2026-11-04
-/// (`doc/planning/cargo-shadow-update.md`, "Round 7: control group probes"), so 5 s is a thousand times that.
+/// (`doc/planning/cargo-shadow-update.md`,
+/// "Round 7:
+/// control group probes"),
+/// so 5 s is a thousand times that.
 const REAP_BOUND: Duration = Duration::from_secs(5);
 
 /// How long the control group is given to become unpopulated after it was killed.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open,
+/// (handover "Picks made under the owner's delegation"),
+/// veto open,
 /// with the measurement of `REAP_BOUND` beside it:
-/// 1 ms to 5 ms in the probes, 5 s as the bound that ends the wait for a member that cannot be killed.
+/// 1 ms to 5 ms in the probes,
+/// 5 s as the bound that ends the wait for a member that cannot be killed.
 pub(crate) const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 
 /// How long the output workers are given to report once every writer is gone.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open:
+/// (handover "Picks made under the owner's delegation"),
+/// veto open:
 /// with every writer gone the pipes are at their end at once,
 /// so this only needs to cover the scheduling of the worker threads;
 /// the largest output (`cargo metadata` of this repository) drains in well under it.
 const READER_GRACE: Duration = Duration::from_secs(2);
 
 /// Makes the one-line notice of the weaker path appear once per process.
-/// It is a flag that one caller wins with a swap, not a `Once`: a caller that loses returns at once, where `Once::call_once` would make
-/// it wait, with no deadline, for the winner's write to standard error (fifth certification pass, V6: no wait the runner controls may
+/// It is a flag that one caller wins with a swap,
+/// not a `Once`:
+/// a caller that loses returns at once,
+/// where `Once::call_once` would make
+/// it wait,
+/// with no deadline,
+/// for the winner's write to standard error (fifth certification pass,
+/// V6:
+/// no wait the runner controls may
 /// depend on another run's slow write).
 static WEAKER_NOTICE_GIVEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// A test holds this lock to keep the winner of the notice inside its emission, so that another run can show it does not wait for it.
+/// A test holds this lock to keep the winner of the notice inside its emission,
+/// so that another run can show it does not wait for it.
 #[cfg(test)]
 pub(crate) static NOTICE_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -152,22 +172,30 @@ thread_local! {
     /// so a test can make the host look like one that lacks a capability.
     static ROUTE_OVERRIDE: RefCell<Option<RouteSettings>> = const { RefCell::new(None) };
 
-    /// A hook that runs inside the start of a run, after the scope's record is on disk and before the program starts,
+    /// A hook that runs inside the start of a run,
+    /// after the scope's record is on disk and before the program starts,
     /// so a test can overlap other work with the start at a boundary of its own choosing.
     static START_HOOK: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
 
-    /// A hook that runs right after the program has started and decides whether the completion of the startup fails: it returns
-    /// `true` to make it fail, after the test has waited for whatever it needs to be ready (a writer, for one).
+    /// A hook that runs right after the program has started and decides whether the completion of the startup fails:
+    /// it returns
+    /// `true` to make it fail,
+    /// after the test has waited for whatever it needs to be ready (a writer,
+    /// for one).
     static STARTUP_HOOK: RefCell<Option<Rc<dyn Fn() -> bool>>> = const { RefCell::new(None) };
 
-    /// The ordered events of the recording and the launching of the runs of this thread, for the tests of their order.
+    /// The ordered events of the recording and the launching of the runs of this thread,
+    /// for the tests of their order.
     static TRACE: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
 /// What:
 /// `fn trace(event: impl FnOnce() -> String)` appends an event to this thread's trace in a test build and does nothing otherwise.
 /// Why:
-/// The order record write, durability barrier, launch is a property of the real boundaries, so the tests read an ordered trace of
+/// The order record write,
+/// durability barrier,
+/// launch is a property of the real boundaries,
+/// so the tests read an ordered trace of
 /// them (certification group 2).
 ///
 /// In TS you'd write (pseudocode):
@@ -420,9 +448,13 @@ fn append_record(log: &Path, record: &Record) -> io::Result<()> {
 /// `fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()>` appends one line to the journal's `groups` file
 /// and forces it to disk when `sync` is set.
 /// Why:
-/// The launcher record is written without a sync (round 11): it is read only by a recovery after the wrapper was killed (the page
-/// cache keeps it), or after a power loss, where a lost or torn line is read as no proof and the boot rule decides.
-/// The line is one `write`, so a process kill leaves it whole or absent.
+/// The launcher record is written without a sync (round 11):
+/// it is read only by a recovery after the wrapper was killed (the page
+/// cache keeps it),
+/// or after a power loss,
+/// where a lost or torn line is read as no proof and the boot rule decides.
+/// The line is one `write`,
+/// so a process kill leaves it whole or absent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -508,7 +540,9 @@ fn reap(child: &mut Child) -> Option<ExitStatus> {
 /// Why:
 /// A pidfd wakes at the exit;
 /// without one (a kernel before 5.3) the wait is a sleep of `POLL_INTERVAL`.
-/// Measured on 2026-11-04 (debug build, 40 runs of `true`): the sleep-polling run took 11.3 ms at best,
+/// Measured on 2026-11-04 (debug build,
+/// 40 runs of `true`):
+/// the sleep-polling run took 11.3 ms at best,
 /// almost all of it the poll interval.
 ///
 /// In TS you'd write (pseudocode):
@@ -528,22 +562,28 @@ fn wait_for_exit(watch: Option<&OwnedFd>, remaining: Duration) {
 
 /// How a run is contained.
 enum Containment {
-    /// In a transient scope the manager made: quiescence is shown by the kernel.
+    /// In a transient scope the manager made:
+    /// quiescence is shown by the kernel.
     Scope {
         /// The scope of this run.
         group: ControlGroup,
         /// The route it was planned on.
         route: Route,
     },
-    /// In a process group of its own (the child's process id is the group): the weaker path.
+    /// In a process group of its own (the child's process id is the group):
+    /// the weaker path.
     ProcessGroup,
 }
 
-/// The answer of the manager, kept for the life of the process.
-/// It is read and written only with `try_lock`: a thread that finds the cache busy asks the manager itself instead of waiting for
-/// the thread that holds it (contract V6: an internal lock returns at once).
+/// The answer of the manager,
+/// kept for the life of the process.
+/// It is read and written only with `try_lock`:
+/// a thread that finds the cache busy asks the manager itself instead of waiting for
+/// the thread that holds it (contract V6:
+/// an internal lock returns at once).
 pub(crate) struct RouteCache {
-    /// The last answer, a route or the reason there is none.
+    /// The last answer,
+    /// a route or the reason there is none.
     slot: std::sync::Mutex<Option<Result<Route, String>>>,
 }
 
@@ -564,9 +604,11 @@ impl RouteCache {
 
     /// What:
     /// `pub(crate) fn get_or_discover(&self, discover: &dyn Fn() -> Result<Route, GroupUnavailable>) -> Result<Route, GroupUnavailable>`
-    /// returns the cached answer, or asks `discover` and keeps its answer.
+    /// returns the cached answer,
+    /// or asks `discover` and keeps its answer.
     /// Why:
-    /// A busy cache is never waited for: the caller discovers on its own and keeps the answer only if the cache is free by then.
+    /// A busy cache is never waited for:
+    /// the caller discovers on its own and keeps the answer only if the cache is free by then.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -588,8 +630,12 @@ impl RouteCache {
     /// What:
     /// `pub(crate) fn hold_for_test<T>(&self, work: impl FnOnce() -> T) -> T` runs `work` while this thread holds the cache's own mutex.
     /// Why:
-    /// A test shows that a caller finds the busy cache and answers at once, with the actual mutex held, not a discovery in flight
-    /// that happens to run outside it (certification, third pass, V6).
+    /// A test shows that a caller finds the busy cache and answers at once,
+    /// with the actual mutex held,
+    /// not a discovery in flight
+    /// that happens to run outside it (certification,
+    /// third pass,
+    /// V6).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -607,8 +653,10 @@ impl RouteCache {
 /// What:
 /// `fn find_route() -> Result<Route, GroupUnavailable>` finds out what this host can give.
 /// Why:
-/// The answer of the manager does not change while the process lives, so it is asked once;
-/// a test asks again, with its own settings.
+/// The answer of the manager does not change while the process lives,
+/// so it is asked once;
+/// a test asks again,
+/// with its own settings.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -616,13 +664,16 @@ impl RouteCache {
 /// ```
 #[cfg(not(test))]
 fn find_route() -> Result<Route, GroupUnavailable> {
+    /// The route found once for the process,
+    /// so later bounded runs do not detect it again.
     static ROUTE: RouteCache = RouteCache::new();
     return ROUTE.get_or_discover(&|| { return detect_route(&RouteSettings::default()); });
 }
 
 /// What:
 /// `fn find_route() -> Result<Route, GroupUnavailable>` is the test build's version:
-/// it asks again every time, with the settings of the test.
+/// it asks again every time,
+/// with the settings of the test.
 /// Why:
 /// A test makes the host look like one that lacks a capability.
 ///
@@ -640,7 +691,8 @@ fn find_route() -> Result<Route, GroupUnavailable> {
 /// `pub fn use_route_settings_for_test(settings: Option<RouteSettings>)` makes the runs of this thread discover their route with
 /// `settings` (`None` restores the ordinary ones).
 /// Why:
-/// A host that lacks `systemd-run`, a reachable manager or a cgroup v2 mount is made by pointing the settings at nothing.
+/// A host that lacks `systemd-run`,
+/// a reachable manager or a cgroup v2 mount is made by pointing the settings at nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -669,7 +721,8 @@ pub(crate) fn on_start_for_test(hook: Option<Rc<dyn Fn()>>) {
 /// `pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String` is the one-line notice of the weaker path.
 /// Why:
 /// It names the missing capability and says what cannot be shown,
-/// so a person knows the guarantee they have (contract, "The weaker path").
+/// so a person knows the guarantee they have (contract,
+/// "The weaker path").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -748,10 +801,15 @@ fn stop_process_group(child: &mut Child, group: Pid) -> bool {
 /// and returns `true` only if all of it is shown gone.
 /// Why:
 /// This is the one way a run is ended,
-/// on timeout, on a normal exit and on every error path.
-/// The direct child goes first: it is the process that becomes the program, so once it is reaped nothing of this program's can
+/// on timeout,
+/// on a normal exit and on every error path.
+/// The direct child goes first:
+/// it is the process that becomes the program,
+/// so once it is reaped nothing of this program's can
 /// still start the program in a scope that is not there yet.
-/// A scope that cannot be stopped, and any failure to inspect or stop it, is "not shown gone".
+/// A scope that cannot be stopped,
+/// and any failure to inspect or stop it,
+/// is "not shown gone".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -780,10 +838,13 @@ fn stop_everything(containment: &Containment, child: &mut Child) -> bool {
 
 /// What:
 /// `fn settle(containment: &Containment, scope: &Option<Rc<ScopeState>>)` records that the run's launcher is reaped and its scope
-/// stopped, so a recovery may read an absent scope as one that ended.
+/// stopped,
+/// so a recovery may read an absent scope as one that ended.
 /// Why:
-/// Until then an absent scope may be one the launcher has not made yet (round 9, 8a F1).
-/// A record that cannot be written leaves the journal unsettled, which the next recovery treats as uncertainty to acknowledge:
+/// Until then an absent scope may be one the launcher has not made yet (round 9,
+/// 8a F1).
+/// A record that cannot be written leaves the journal unsettled,
+/// which the next recovery treats as uncertainty to acknowledge:
 /// the safe side.
 ///
 /// In TS you'd write (pseudocode):
@@ -1007,6 +1068,7 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
 /// function programResolves(command: Command): boolean
 /// ```
 fn program_resolves(command: &Command) -> bool {
+    /// The permission bits that tell an executable file from a plain one.
     use std::os::unix::fs::PermissionsExt;
     let executable = |candidate: &Path| -> bool { return std::fs::metadata(candidate).map(|found| { return found.is_file() && found.permissions().mode() & 0o111 != 0; }).unwrap_or(false); };
     let program: &std::ffi::OsStr = command.get_program();
@@ -1019,9 +1081,11 @@ fn program_resolves(command: &Command) -> bool {
 }
 
 /// What:
-/// `fn run_start_hook()` runs the hook a test put inside the start of a run, if any.
+/// `fn run_start_hook()` runs the hook a test put inside the start of a run,
+/// if any.
 /// Why:
-/// It is the boundary at which a test overlaps other work with a start, or kills a wrapper.
+/// It is the boundary at which a test overlaps other work with a start,
+/// or kills a wrapper.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1039,12 +1103,17 @@ fn run_start_hook() {
 fn run_start_hook() {}
 
 /// What:
-/// `fn note_launcher(log: &Path, scope: &Path, child: &Child)` appends the launcher record: the process id, the start time and the
+/// `fn note_launcher(log: &Path, scope: &Path, child: &Child)` appends the launcher record:
+/// the process id,
+/// the start time and the
 /// process id namespace of the process that is about to become the program.
 /// Why:
-/// A recovery that finds this process gone knows it can never join the scope, so it can read the scope as final without an
+/// A recovery that finds this process gone knows it can never join the scope,
+/// so it can read the scope as final without an
 /// acknowledgement (round 11).
-/// A line that cannot be written is only a missing proof: the journal then waits for an acknowledgement like an older journal, so the
+/// A line that cannot be written is only a missing proof:
+/// the journal then waits for an acknowledgement like an older journal,
+/// so the
 /// run goes on.
 ///
 /// In TS you'd write (pseudocode):

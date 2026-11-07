@@ -1,9 +1,12 @@
 //! What:
-//! Round 21 tests: the fixes asked for by the sixth certification pass (`cargo-shadow-cert6-sol-1.txt` to `-14.txt`).
+//! Round 21 tests:
+//! the fixes asked for by the sixth certification pass (`cargo-shadow-cert6-sol-1.txt` to `-14.txt`).
 //! Why:
-//! The sixth pass found two production defects (a zero process id counted as an acknowledging process; the printed Fix B record command
+//! The sixth pass found two production defects (a zero process id counted as an acknowledging process;
+//! the printed Fix B record command
 //! built invalid JSON for a path with quotation marks or backslashes) and assertions that a weaker outcome than the guarantee would also
-//! satisfy; each test here discriminates the guarantee from the weaker outcome named.
+//! satisfy;
+//! each test here discriminates the guarantee from the weaker outcome named.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,8 +26,11 @@ use crate::test_scratch::scratch;
 /// The crate root every case uses.
 const CRATE_DIR: &str = "package/n/one";
 
-/// The first process id Linux never allocates: `PID_MAX_LIMIT` for 64-bit kernels (`include/linux/threads.h`), and the value of
-/// `/proc/sys/kernel/pid_max` is "one greater than the maximum PID" (`proc_sys_kernel(5)`), so the largest real id is one below it.
+/// The first process id Linux never allocates:
+/// `PID_MAX_LIMIT` for 64-bit kernels (`include/linux/threads.h`),
+/// and the value of
+/// `/proc/sys/kernel/pid_max` is "one greater than the maximum PID" (`proc_sys_kernel(5)`),
+/// so the largest real id is one below it.
 const FIRST_PROCESS_ID_LINUX_NEVER_ALLOCATES: u64 = 4_194_304;
 
 /// A disposable repository with a ready weaker-path journal whose acknowledgement is `marker`.
@@ -38,8 +44,13 @@ fn journal_acknowledged_with(marker: &str) -> (tempfile::TempDir, PathBuf) {
     return (root, journal);
 }
 
-/// Group 13 (sixth pass, production defect): a process id that no process can have is not an acknowledging process.
-/// Zero, the first id Linux never allocates and every larger number are refused; the smallest and the largest real ones count; none of
+/// Group 13 (sixth pass,
+/// production defect):
+/// a process id that no process can have is not an acknowledging process.
+/// Zero,
+/// the first id Linux never allocates and every larger number are refused;
+/// the smallest and the largest real ones count;
+/// none of
 /// them has to name a process that still exists.
 #[test]
 fn an_acknowledgement_naming_a_process_id_no_process_can_have_does_not_count() {
@@ -53,8 +64,15 @@ fn an_acknowledgement_naming_a_process_id_no_process_can_have_does_not_count() {
     }
 }
 
-/// Group 14 (sixth pass, production defect): the printed Fix B command writes a record that parses, whatever the path of the
-/// cargo-shadow executable contains. The executable path here holds a quotation mark, a backslash, a single quote and a space; the
+/// Group 14 (sixth pass,
+/// production defect):
+/// the printed Fix B command writes a record that parses,
+/// whatever the path of the
+/// cargo-shadow executable contains.
+/// The executable path here holds a quotation mark,
+/// a backslash,
+/// a single quote and a space;
+/// the
 /// printed line is run by `/bin/sh` as printed and the record it writes is parsed as JSON and must give the path back unchanged.
 #[test]
 fn the_printed_record_command_writes_valid_json_for_a_path_with_quotes_and_backslashes() {
@@ -74,9 +92,18 @@ fn the_printed_record_command_writes_valid_json_for_a_path_with_quotes_and_backs
     assert_eq!(record.get("real").and_then(serde_json::Value::as_str), Some(executable.to_str().expect("utf-8")), "{record_text}");
 }
 
-/// Sixth pass, group 12 (V3): a new journal is made durable and then the name that lists it, in that order, before `begin` returns and
-/// so before any recorded child can start. Each barrier is failed on its own: the transaction is refused, with the fault reached, the
-/// error naming the barrier, and the "journal published" event absent.
+/// Sixth pass,
+/// group 12 (V3):
+/// a new journal is made durable and then the name that lists it,
+/// in that order,
+/// before `begin` returns and
+/// so before any recorded child can start.
+/// Each barrier is failed on its own:
+/// the transaction is refused,
+/// with the fault reached,
+/// the
+/// error naming the barrier,
+/// and the "journal published" event absent.
 #[test]
 fn a_failed_barrier_of_the_new_journal_refuses_the_transaction_before_anything_can_start() {
     use crate::failpoints::{Point, arm, fires};
@@ -110,9 +137,15 @@ fn a_failed_barrier_of_the_new_journal_refuses_the_transaction_before_anything_c
     }
 }
 
-/// Round 21 (check-to-start race): the cargo of an install step runs inside a scope, whose launcher takes the program as an argument and
-/// starts it itself, so an open descriptor of this process cannot name it there. A compiled real cargo is started by its checked path
-/// in that run (with the check repeated right before), and it must actually run: here a copy of `echo` stands in for it.
+/// Round 21 (check-to-start race):
+/// the cargo of an install step runs inside a scope,
+/// whose launcher takes the program as an argument and
+/// starts it itself,
+/// so an open descriptor of this process cannot name it there.
+/// A compiled real cargo is started by its checked path
+/// in that run (with the check repeated right before),
+/// and it must actually run:
+/// here a copy of `echo` stands in for it.
 #[test]
 fn a_compiled_real_cargo_runs_in_the_contained_runner_of_the_install_step() {
     use crate::cargo_run::{CargoRunner, RealCargo};
@@ -134,9 +167,15 @@ fn a_compiled_real_cargo_runs_in_the_contained_runner_of_the_install_step() {
     assert!(outcome.ok && outcome.stdout == "ran contained\n", "{outcome:?}");
 }
 
-/// Sixth pass, group 7 (K1, colliding names): copies kept under a collision-suffixed name count toward the warning. One name short of
-/// the count is already beside the lockfile; two refusals through the real recovery add the first refused copy and a collision-named
-/// second one, and only counting both crosses the count.
+/// Sixth pass,
+/// group 7 (K1,
+/// colliding names):
+/// copies kept under a collision-suffixed name count toward the warning.
+/// One name short of
+/// the count is already beside the lockfile;
+/// two refusals through the real recovery add the first refused copy and a collision-named
+/// second one,
+/// and only counting both crosses the count.
 #[test]
 fn refused_copies_saved_under_collision_names_count_toward_the_kept_files_warning() {
     let root = scratch();

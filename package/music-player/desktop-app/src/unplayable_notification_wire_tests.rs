@@ -1,6 +1,8 @@
-//! Tests for the message builder and the `Notify` call in `unplayable_notification_wire.rs`, pulled in by
+//! Tests for the message builder and the `Notify` call in `unplayable_notification_wire.rs`,
+//! pulled in by
 //! `#[cfg(test)] #[path = "unplayable_notification_wire_tests.rs"] mod tests;` at the bottom of that file.
-//! The call is made against a private bus with a recording service; the user's session bus is never used.
+//! The call is made against a private bus with a recording service;
+//! the user's session bus is never used.
 
 use std::time::Duration;
 

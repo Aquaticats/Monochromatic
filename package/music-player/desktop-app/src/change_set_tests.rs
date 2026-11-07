@@ -6,14 +6,18 @@ use super::*;
 use notify_debouncer_mini::notify::event::{AccessKind, AccessMode, CreateKind, DataChange, Flag, MetadataKind, RemoveKind, RenameMode};
 use std::time::Instant;
 
-/// What: `ok` wraps an event the way the watcher callback receives it.
-/// Why: `Change::of_event` takes the callback's result.
+/// What:
+/// `ok` wraps an event the way the watcher callback receives it.
+/// Why:
+/// `Change::of_event` takes the callback's result.
 fn ok(event: Event) -> notify_debouncer_mini::notify::Result<Event> {
     return Ok(event);
 }
 
-/// What: `paths_of` unwraps a `Paths` change into its sorted entries.
-/// Why: assertions compare the entries.
+/// What:
+/// `paths_of` unwraps a `Paths` change into its sorted entries.
+/// Why:
+/// assertions compare the entries.
 fn paths_of(change: Option<Change>) -> Vec<(PathBuf, bool)> {
     match change {
         Some(Change::Paths(set)) => return set.sorted(),
