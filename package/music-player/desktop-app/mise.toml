@@ -80,11 +80,13 @@ const defaultContainer = { image: 'localhost/monochromatic/music-player', contai
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 const containerCargo = (cargoArgs, containerOptions = {}) => {
   const container = { ...defaultContainer, ...containerOptions }
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', container.image], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments(container.image.split('/').pop()), '-t', container.image, '-f', container.containerfile, '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments(container.image.split('/').pop()), ...rustToolchainBuildArguments(), '-t', container.image, '-f', container.containerfile, '.'], { stdio: 'inherit' }) }
   // Forward SLINT_EMIT_DEBUG_INFO into the container ONLY when the caller set it
   // (the test + mcp tasks do). podman does not inherit host env, and the
   // ElementHandle / MCP introspection APIs refuse to run without this debug info.
@@ -147,7 +149,9 @@ const { execFileSync } = await import('node:child_process')
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-execFileSync('podman', ['build', ...cachyosBuildArguments('music-player'), '-t', 'localhost/monochromatic/music-player', '-f', 'Containerfile', '.'], { stdio: 'inherit' })
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('music-player'), ...rustToolchainBuildArguments(), '-t', 'localhost/monochromatic/music-player', '-f', 'Containerfile', '.'], { stdio: 'inherit' })
 """
 
 [tasks.build]
@@ -227,7 +231,9 @@ const { execFileSync } = await import('node:child_process')
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-execFileSync('podman', ['build', ...cachyosBuildArguments('music-player-windows-gnu'), '--memory=4g', '-t', 'localhost/monochromatic/music-player-windows-gnu', '-f', 'Containerfile.windows-gnu', '.'], { stdio: 'inherit' })
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('music-player-windows-gnu'), ...rustToolchainBuildArguments(), '--memory=4g', '-t', 'localhost/monochromatic/music-player-windows-gnu', '-f', 'Containerfile.windows-gnu', '.'], { stdio: 'inherit' })
 """
 
 [tasks."build:windows-gnu"]
@@ -576,6 +582,8 @@ const { mkdirSync } = await import('node:fs')
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 execFileSync('podman', ['build', ...cachyosBuildArguments('icon-tools'), '-t', 'localhost/monochromatic/icon-tools', '-f', 'Containerfile.icons', '.'], { stdio: 'inherit' })
 const img = 'localhost/monochromatic/icon-tools'
 const mount = `${process.cwd()}:/work`
@@ -685,6 +693,8 @@ const { existsSync, mkdirSync } = await import('node:fs')
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 execFileSync('podman', ['build', ...cachyosBuildArguments('sign'), '-t', 'localhost/monochromatic/sign', '-f', 'Containerfile.sign', '.'], { stdio: 'inherit' })
 const exe = process.env.MP_WIN_EXE ?? 'dist/music-player.exe'
 if (!existsSync(exe)) { throw new Error(`Windows exe not found at ${exe}. Build on x13-win then copy target/release/music-player.exe to ${exe}. Build task: //package/music-player/desktop-app:build`) }
