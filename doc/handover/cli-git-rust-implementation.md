@@ -3575,8 +3575,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     reviewed before hand-back); it answers the owner's 2026-11-05 request that the earlier research missed;
   - the wrapper folds the old `cli-git` data names into the new ones losslessly, so the six "both exist" notices stop
     (`fix/git-policy-cli-fold-earlier-names`; no release yet, and an `-alpha` would not reach this machine through `@latest`);
-  - rename step 3: settings file `cli-git.config.jsonc` and link folder `.cache/cli-git-bin` to the new names;
   - the tokio continuation on `feat/git-policy-cli-on-tokio` (main merge allowed; coordinator merges after its final gate).
+- Rename step 3 landed (merge `71498b658f`, record `3af147fcfb`, 2026-11-07T09:01:50-05:00): the settings file is
+  `monochromatic-git-policy-cli.config.jsonc`, the link folder `.cache/monochromatic-git-policy-cli-bin`,
+  `changeset:version` starts the program by its own name, `earlierExecutables` is gone; details and the names kept on
+  purpose are in the rename plan's "Step 3 as built". In main, `command -v git` gives the new link and the
+  settings-file notice no longer prints; the six "both exist" notices wait on the fold branch.
+- Open incident, separate from the rename: main's `.cache/cli-git-bin`, `mpm-shadow-bin` and `cargo-shadow-bin` were
+  found empty (folder times 08:42) before step 3 installed anything, so `git` in main fell through to the global
+  `~/.local/bin/git` (also wrapper 0.6.0) until 09:00:59. The fold worktree's link folders were filled at 08:42:49,
+  which makes an install in one checkout removing links in another the first suspect; not yet shown.
 - Left for later: the old `cli-git@` units of each worktree still run 0.5.34 until their three-hour idle exit (0.6.0 neither
   stops nor removes them, `package/git-policy/cli/README.md` lines 40 to 41); old `cargo/<crate>/<version>` install folders
   stay on disk; `toolchain:install:global` and `toolchain:list:global` disagree on 12 npm-routed tools (not investigated).
