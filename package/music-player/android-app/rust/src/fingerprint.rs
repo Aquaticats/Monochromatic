@@ -45,7 +45,7 @@ use jni::EnvUnowned;
 /// Runs a body with the call's `Env`,
 /// catching a panic and logging it,
 /// as every entry point of this crate does.
-use crate::jni_call::run_with_env;
+use crate::jni_call::{ReadJavaString, run_with_env};
 
 /// What:
 ///      `use jni::objects::{JClass, JString};`.
@@ -151,11 +151,10 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeFin
     size: jlong,
     mtime_nanos: jlong,
 ) -> jlong {
-    // What:     `let Some(path_str) = run_with_env(&mut env, ..., |jni_env| ...) else { return 0 };` with the
-    //           closure body `return path.try_to_string(jni_env)`.
-    //           `path.try_to_string(env)` borrows the `JString` and returns an owned
-    //           `String`; `run_with_env` logs a failure and yields `None`, so the `else`
-    //           arm bails with the `0` sentinel.
+    // What:     `let Some(path_str) = run_with_env(&mut env, ..., ReadJavaString { text: &path }) else { return 0 };`.
+    //           `ReadJavaString { text: &path }` is a body value holding a read-only loan of the `JString`;
+    //           `run_with_env` lends it the `Env`, it returns an owned `String`, and a failure is
+    //           logged and yields `None`, so the `else` arm bails with the `0` sentinel.
     // Why:      Turn the opaque Java string into an owned Rust `String` to hash; a valid
     //           Kotlin `String` never fails here, so the sentinel path is unreachable in
     //           practice but keeps the boundary panic-free.
@@ -165,9 +164,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeFin
     // let pathStr: string;
     // try { pathStr = env.getString(path); } catch { return 0n; }
     // ```
-    let Some(path_str) = run_with_env(&mut env, "nativeFingerprint path", |jni_env| {
-        return path.try_to_string(jni_env);
-    }) else {
+    let Some(path_str) = run_with_env(&mut env, "nativeFingerprint path", ReadJavaString { text: &path }) else {
         return 0;
     };
     // What:     `let fingerprint = track_fingerprint(&path_str, size as u64, mtime_nanos as u64 as u128);`.
