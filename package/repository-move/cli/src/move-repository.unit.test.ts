@@ -16,7 +16,10 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { execFile, } from 'node:child_process';
-import { join, } from 'node:path';
+import {
+  basename,
+  join,
+} from 'node:path';
 import { promisify, } from 'node:util';
 import {
   describe,
@@ -32,6 +35,9 @@ import {
   runCopyTool,
   writeInventory,
 } from './move-fixture.ts';
+
+/** A folder on a memory filesystem, which is never the filesystem of the scratch folder; the tests only look at it. */
+const OTHER_FILESYSTEM_FOLDER = '/dev/shm';
 
 /**
  Specialized promisified `execFile`, typed through Node's own adapter contract.
@@ -213,6 +219,49 @@ await describe({
             expect(result.stderr,).toContain('subvolumes Git does not know',);
             expect(result.stderr,).toContain(join(fixture.base, 'main', 'wt', 'hidden',),);
             expect(result.stderr,).toContain(`listed as ${join(linked.path, 'main', 'wt', 'hidden',)}`,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'filesystems a btrfs snapshot and a placement need to share',
+      children: [
+        it({
+          name: 'refuses before any snapshot when the snapshot folder is on another filesystem than the sources, naming both paths',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',],], },);
+            const otherFilesystem = join(OTHER_FILESYSTEM_FOLDER, `repository-move-test-${basename(fixture.base,)}`, 'snap',);
+            const result = await runCopyTool({ fixture, pass: 'first', snapshotFolder: otherFilesystem, },);
+            expect(result.status,).toBe(1,);
+            expect(result.stderr,).toContain('same filesystem',);
+            expect(result.stderr,).toContain(otherFilesystem,);
+            expect(result.stderr,).toContain(fixture.main,);
+            expect(await exists(fixture.doubleLog,) ? await readFile(fixture.doubleLog, 'utf8',) : '',).not.toContain('snapshot',);
+            expect(await exists(otherFilesystem,),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'refuses before any snapshot when the received folder and the final path are on different filesystems, naming both paths',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',],], },);
+            const otherFilesystem = join(OTHER_FILESYSTEM_FOLDER, `repository-move-test-${basename(fixture.base,)}`, 'recv',);
+            const result = await runCopyTool({ fixture, pass: 'first', receivedFolder: otherFilesystem, },);
+            expect(result.status,).toBe(1,);
+            expect(result.stderr,).toContain('same filesystem',);
+            expect(result.stderr,).toContain(otherFilesystem,);
+            expect(result.stderr,).toContain(join(fixture.base, 'final',),);
+            expect(await exists(fixture.doubleLog,) ? await readFile(fixture.doubleLog, 'utf8',) : '',).not.toContain('snapshot',);
+          },
+        },),
+        it({
+          name: 'accepts a snapshot folder that does not exist yet when its nearest existing folder shares the sources filesystem',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',],], },);
+            const result = await runCopyTool({ fixture, pass: 'first', snapshotFolder: join(fixture.base, 'not', 'made', 'yet',), },);
+            expect(result.stderr,).not.toContain('same filesystem',);
           },
         },),
       ],

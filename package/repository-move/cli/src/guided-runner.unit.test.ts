@@ -560,6 +560,24 @@ await describe({
           },
         },),
         it({
+          name: 'every fixture snapshot folder is inside the source filesystem, made by a rerun-safe stage after the source tree',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await prepareStages({ c: config, fixtureFolder: '/x', },);
+              const ids = stages.map((s,) => s.id,);
+              const made = stages.find((s,) => s.id === 'f2b-snapshot-folder',) as Stage;
+              expect(ids.indexOf('f2-populate',),).toBeLessThan(ids.indexOf('f2b-snapshot-folder',),);
+              expect(ids.indexOf('f2b-snapshot-folder',),).toBeLessThan(ids.indexOf('f3a-print',),);
+              expect(made.root,).toBe('yes',);
+              expect(made.command,).toContain('sudo mkdir --parents /x/source/snap',);
+              for (const s of stages) {
+                const texts = [await resolvedCommand({ stage: s, config, },), s.check ?? '', s.rollback ?? '',].join('\n',);
+                expect([s.id, texts.includes('/x/snap',),],).toEqual([s.id, false,],);
+              }
+            },);
+          },
+        },),
+        it({
           name: 'the cut-over runs the freeze before the baseline and the final pass, and the swap only after the verification',
           fn: async () => {
             await withConfig(async ({ config, },) => {
