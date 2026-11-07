@@ -342,6 +342,11 @@ mod claim_tests;
 #[path = "service_index_machine_tests.rs"]
 mod machine_tests;
 
+/// Controls for the lock taken by exclusive creation stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_lock_by_creation_tests.rs"]
+mod creation_tests;
+
 /// Index lock controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_index_lock_tests.rs"]
