@@ -81,7 +81,7 @@ export async function freeGiB(path: string,): Promise<number> {
    The filesystem information read for the path.
    */
   const info = await statfs(path,);
-  return Number(info.bavail * info.bsize,) / BYTES_PER_GIB;
+  return (info.bavail * info.bsize) / BYTES_PER_GIB;
 }
 
 /**

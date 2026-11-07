@@ -125,7 +125,8 @@ export async function canonicalOptions(options: MoveOptions,): Promise<MoveOptio
   /**
    Whether the prefix the inventory maps to ends with a slash, which the mapping needs kept.
    */
-  const keepsSlash = options.inventoryPrefixTo.endsWith('/',);
+  const keepsSlash = options.inventoryPrefixTo
+    .endsWith('/',);
   /**
    The mapped-to folder in its canonical spelling.
    */
