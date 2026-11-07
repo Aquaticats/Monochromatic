@@ -23,7 +23,7 @@ fn config_for(bus: &PrivateBus, timeout: Duration) -> UnplayableConfig {
     return UnplayableConfig {
         identity: identity(),
         connect: Box::new(move || {
-            return zbus::blocking::connection::Builder::address(address.as_str())?.method_timeout(timeout).build();
+            return crate::dbus_step_bound::connect(zbus::connection::Builder::address(address.as_str()), timeout);
         }),
     };
 }
@@ -180,7 +180,7 @@ fn a_successful_post_leaves_the_warned_flag_clear() {
     let (_service, _calls) = bus.serve_notifications(Duration::ZERO);
     let address = bus.address.clone();
     let mut worker = worker_with(Box::new(move || {
-        return zbus::blocking::connection::Builder::address(address.as_str())?.method_timeout(Duration::from_secs(3)).build();
+        return crate::dbus_step_bound::connect(zbus::connection::Builder::address(address.as_str()), Duration::from_secs(3));
     }));
     worker.handle(&files(&["a.wav"]));
     assert!(!worker.warned);

@@ -16,14 +16,14 @@
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 /// Error handling with context.
-use anyhow::{Context, Result};
+use anyhow::Result;
 /// Structured logging.
 use tracing::info;
 /// The D-Bus client and server library.
-use zbus::{blocking::Connection, zvariant::OwnedObjectPath};
+use zbus::{Connection, OwnedObjectPath};
 
 /// Sibling modules of this crate.
-use crate::private_bus::PrivateBus;
+use crate::{bus_step_bound::build_bounded, private_bus::PrivateBus};
 
 /// Well-known name of the accessibility bus launcher.
 ///
@@ -263,14 +263,14 @@ impl A11yService {
     pub fn start(bus: Arc<PrivateBus>) -> Result<Self> {
         let applications: Applications = Arc::new(Mutex::new(Vec::new()));
         let unique_name: Arc<OnceLock<String>> = Arc::new(OnceLock::new());
-        let connection = zbus::blocking::connection::Builder::address(bus.address())?
-            .name(BUS_NAME)?
-            .name(REGISTRY_NAME)?
-            .serve_at("/org/a11y/bus", BusLauncher { address: bus.address().to_string() })?
-            .serve_at("/org/a11y/bus", Status)?
-            .serve_at(ROOT_PATH, Registry { applications: Arc::clone(&applications), unique_name: Arc::clone(&unique_name) })?
-            .build()
-            .context("starting the private accessibility bus services")?;
+        // zbus 6 defers a bad name or path to `build()`, so the setters return the builder itself.
+        let builder = zbus::connection::Builder::address(bus.address())
+            .name(BUS_NAME)
+            .name(REGISTRY_NAME)
+            .serve_at("/org/a11y/bus", BusLauncher { address: bus.address().to_string() })
+            .serve_at("/org/a11y/bus", Status)
+            .serve_at(ROOT_PATH, Registry { applications: Arc::clone(&applications), unique_name: Arc::clone(&unique_name) });
+        let connection = build_bounded(builder, "starting the private accessibility bus services")?;
         if let Some(name) = connection.unique_name() {
             let _ = unique_name.set(name.as_str().to_string());
         }

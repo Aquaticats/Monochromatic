@@ -32,7 +32,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 #[cfg(target_os = "linux")]
-use zbus::blocking::Connection;
+use zbus::Connection;
 
 #[cfg(target_os = "linux")]
 use crate::analysis_notification_logic::{Effect, IndicatorView, Machine, Outcome};
@@ -90,12 +90,12 @@ impl NotifierConfig {
     }
 }
 
-/// What: `connect_session` opens a blocking connection to the session bus with a bounded reply wait.
+/// What: `connect_session` opens a connection to the session bus with a bounded connect and a bounded reply wait.
 /// Why: the default wait is long; a bounded one keeps a stalled service from stalling the notifier thread.
 /// The unplayable-file notifier (D122) opens its own connection the same way.
 #[cfg(target_os = "linux")]
 pub(crate) fn connect_session() -> zbus::Result<Connection> {
-    return zbus::blocking::connection::Builder::session()?.method_timeout(METHOD_TIMEOUT).build();
+    return crate::dbus_step_bound::connect(zbus::connection::Builder::session(), METHOD_TIMEOUT);
 }
 
 /// What: `Input` is one message to the notifier thread.

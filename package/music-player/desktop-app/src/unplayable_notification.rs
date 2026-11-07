@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 #[cfg(target_os = "linux")]
-use zbus::blocking::Connection;
+use zbus::Connection;
 
 use crate::analysis_notification::Identity;
 #[cfg(target_os = "linux")]
