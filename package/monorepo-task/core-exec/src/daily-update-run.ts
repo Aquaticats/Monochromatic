@@ -213,6 +213,7 @@ export async function runGroup({
       name: group.name,
       outcome: 'skipped',
       committed: [],
+      commit: '',
       problems: [
         `${group.name}: skipped because these files have uncommitted changes that the update would mix with its own: ${
           dirtyOwned.join(', ',)
@@ -245,6 +246,7 @@ export async function runGroup({
       name: group.name,
       outcome: 'failed',
       committed: [],
+      commit: '',
       problems,
     };
   }
@@ -283,6 +285,7 @@ export async function runGroup({
       name: group.name,
       outcome: 'unchanged',
       committed: [],
+      commit: '',
       problems,
     };
   }
@@ -312,6 +315,7 @@ export async function runGroup({
       name: group.name,
       outcome: 'failed',
       committed: [],
+      commit: '',
       problems,
     };
   }
@@ -319,6 +323,7 @@ export async function runGroup({
     name: group.name,
     outcome: 'landed',
     committed: changed,
+    commit: await effects.headCommit(),
     problems,
   };
 }

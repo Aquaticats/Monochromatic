@@ -253,6 +253,15 @@ export function realEffects(repository: string,): DailyUpdateEffects {
         ],
       },);
     },
+    headCommit: async function headCommit() {
+      return (await git({
+        repository,
+        args: [
+          'rev-parse',
+          'HEAD',
+        ],
+      },)).trim();
+    },
     notify: notifyOwner,
     log: logLine,
   };
