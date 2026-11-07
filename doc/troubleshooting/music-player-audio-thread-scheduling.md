@@ -176,7 +176,7 @@ CPAL's [macOS implementation][cpal-coreaudio] installs a CoreAudio render callba
 audio_unit.set_render_callback(move |args: Args| unsafe {
 ```
 
-The callback invokes `data_callback(&mut data, &info)` at line 927.
+The callback invokes `data_callback(&mut data, &info)` at line 924.
 [Apple's audio-workgroup documentation][apple-workgroups] states:
 "For every audio server I/O thread, its associated app also has its own real-time render thread."
 It also says an app needs no additional work when it uses the realtime thread supplied by the audio frameworks.
