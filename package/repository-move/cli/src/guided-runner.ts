@@ -13,6 +13,7 @@ import {
 import { join, } from 'node:path';
 import { pathExists, } from './completion-records.ts';
 import { cutoverStages, } from './guided-cutover-stages.data.ts';
+import { requireKnownStages, } from './guided-flags.ts';
 import { canonicalPath, } from './canonical-path.ts';
 import { runPhase, } from './guided-engine.ts';
 import {
@@ -32,7 +33,6 @@ import {
   GuidedStopError,
 } from './guided-stop.ts';
 import type {
-  GuidedCommand,
   GuidedConfig,
   GuidedFlags,
   Stage,
@@ -41,96 +41,6 @@ import {
   rollbackStages,
   thawStages,
 } from './guided-undo-stages.data.ts';
-
-/**
- The commands, for validating the first argument.
- */
-const COMMANDS: readonly GuidedCommand[] = [
-  'prepare',
-  'cutover',
-  'thaw',
-  'rollback',
-  'status',
-];
-
-/**
- The usage line.
- */
-const USAGE =
-  'Usage: run-repository-move prepare | cutover | thaw | rollback | status [--dry-run] [--redo=<stage id>] [--assert=<stage id>]';
-
-/**
- Collects every `--name=value` among the arguments.
-
- @param argv - the arguments
- 
- @param name - the flag name
- 
- @returns the values
- */
-function valuesOf(
-  {
-    argv,
-    name,
-  }: {
-    readonly argv: readonly string[];
-    readonly name: string;
-  },
-): readonly string[] {
-  /**
-   The flag prefix searched for.
-   */
-  const lead = `--${name}=`;
-  return argv.filter(function startsWithLead(argument,) {
-    return argument.startsWith(lead,);
-  },)
-    .map(function valueOf(argument,) {
-      return argument.slice(lead.length,);
-    },);
-}
-
-/**
- Reads the command and flags from the arguments.
-
- @param argv - arguments after the program name
- 
- @returns the flags
- 
- @throws GuidedStopError with the precondition status when the command is unknown
-
- @example
- ```ts
- import { parseGuidedFlags, } from '\@monochromatic-dev/repository-move-cli';
- 
- const result = parseGuidedFlags(argv,);
- ```
- */
-export function parseGuidedFlags(argv: readonly string[],): GuidedFlags {
-  /**
-   The command text.
-   */
-  const command = COMMANDS.find(function isNamed(name,) {
-    return name === argv[0];
-  },);
-  if (command === undefined) {
-    throw new GuidedStopError({
-      status: EXIT_PRECONDITION,
-      message: USAGE,
-    },);
-  }
-  return {
-    command,
-    dryRun: argv.includes('--dry-run',),
-    redo: valuesOf({
-      argv,
-      name: 'redo',
-    },),
-    asserted: valuesOf({
-      argv,
-      name: 'assert',
-    },),
-  };
-}
 
 /**
  Builds the text that says what a phase completed.
@@ -408,6 +318,17 @@ export async function runGuided(
       },);
       return 0;
     }
+    /**
+     The stages of the command, built before anything runs so a flag naming a stage that does not exist is refused.
+     */
+    const stages = await stagesFor({
+      config,
+      flags,
+    },);
+    requireKnownStages({
+      stages,
+      flags,
+    },);
     if (!flags.dryRun) {
       await requirePreconditions({
         config,
@@ -427,10 +348,7 @@ export async function runGuided(
       config,
       flags,
       phase: flags.command,
-      stages: await stagesFor({
-        config,
-        flags,
-      },),
+      stages,
       restage: async function restage() {
         return await stagesFor({
           config,
