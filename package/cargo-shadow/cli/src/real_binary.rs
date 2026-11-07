@@ -206,6 +206,7 @@ pub fn refuse_if_ourselves(program: &Path) -> Result<(), String> {
 /// export function runningImageIdentity(): [bigint, bigint] | undefined
 /// ```
 pub fn running_image_identity() -> Option<(u64, u64)> {
+    /// The device and inode numbers that identify an executable whatever its name.
     use std::os::unix::fs::MetadataExt;
     return fs::File::open("/proc/self/exe").and_then(|image| { return image.metadata(); }).ok().map(|found| { return (found.dev(), found.ino()); });
 }
@@ -224,6 +225,7 @@ pub fn running_image_identity() -> Option<(u64, u64)> {
 /// function identityOf(path: string): [bigint, bigint] | undefined { const s = statSync(path, { bigint: true, throwIfNoEntry: false }); return s && [s.dev, s.ino]; }
 /// ```
 fn identity_of(path: &Path) -> Option<(u64, u64)> {
+    /// The device and inode numbers that identify an executable whatever its name.
     use std::os::unix::fs::MetadataExt;
     return fs::metadata(path).ok().map(|found| { return (found.dev(), found.ino()); });
 }

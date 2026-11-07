@@ -664,6 +664,8 @@ impl RouteCache {
 /// ```
 #[cfg(not(test))]
 fn find_route() -> Result<Route, GroupUnavailable> {
+    /// The route found once for the process,
+    /// so later bounded runs do not detect it again.
     static ROUTE: RouteCache = RouteCache::new();
     return ROUTE.get_or_discover(&|| { return detect_route(&RouteSettings::default()); });
 }
@@ -1066,6 +1068,7 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
 /// function programResolves(command: Command): boolean
 /// ```
 fn program_resolves(command: &Command) -> bool {
+    /// The permission bits that tell an executable file from a plain one.
     use std::os::unix::fs::PermissionsExt;
     let executable = |candidate: &Path| -> bool { return std::fs::metadata(candidate).map(|found| { return found.is_file() && found.permissions().mode() & 0o111 != 0; }).unwrap_or(false); };
     let program: &std::ffi::OsStr = command.get_program();

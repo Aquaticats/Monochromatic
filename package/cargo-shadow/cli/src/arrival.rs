@@ -17,11 +17,23 @@
 //! export function arrivalMessage(input: ArrivalInput): string
 //! ```
 
+/// Reads the metadata,
+/// canonical path and link target of each `cargo` found on `PATH`.
 use std::fs;
+/// The device and inode numbers that recognize this very executable,
+/// and the permission bits that say a file can be run.
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
+/// The `cargo` candidates:
+/// borrowed from the guard record,
+/// and owned when joined from a `PATH` entry.
 use std::path::{Path, PathBuf};
 
+/// The record of the earlier cargo-shadow and how it started this one,
+/// which decide the wording of the message.
 use crate::guard::{Guard, GuardKind};
+/// The suffix of the `.launch` record that marks a real cargo,
+/// and this process's device and inode,
+/// to tell a `PATH` entry that leads back here.
 use crate::real_binary::{LAUNCH_RECORD_SUFFIX, running_image_identity};
 
 /// The exit status of a cargo-shadow that was started by cargo-shadow itself.

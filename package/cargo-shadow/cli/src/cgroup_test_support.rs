@@ -14,11 +14,19 @@
 //! export function startInScope(command: Command): TestScope | undefined
 //! ```
 
+/// Reads the records the control group writes.
 use std::fs;
+/// The owned path of the scope directory a test creates.
 use std::path::PathBuf;
+/// The launcher a test starts inside the scope,
+/// with its standard streams.
 use std::process::{Child, Command, Stdio};
+/// The wait bound,
+/// and the clock polled until the scope reaches the state a test expects.
 use std::time::{Duration, Instant};
 
+/// The control-group types the tests drive,
+/// and the detection of the route they take.
 use crate::control_group::{ControlGroup, Record, Route, RouteSettings, detect_route, parse_record};
 
 /// The environment variable that lets the tests that need a delegated scope skip,

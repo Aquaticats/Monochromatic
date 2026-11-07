@@ -42,7 +42,11 @@
 //! export function callerLimits(ownCgroupFile: string, root: string, sliceDir: string): InheritedLimits  // throws
 //! ```
 
+/// The `InvalidData` error that reports a control file whose text is not what the kernel documents.
 use std::io;
+/// The control files read:
+/// borrowed from the caller,
+/// and owned when joined under the slice directory.
 use std::path::{Path, PathBuf};
 
 /// The kernel's default I/O weight,

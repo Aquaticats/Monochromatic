@@ -738,6 +738,8 @@ fn read_in_proc(root: &ProcRoot, relative: &str) -> io::Result<String> {
 /// function startOf(pid: number): { gone } | { start: number } | { unknown: string }
 /// ```
 fn start_of(pid: i32) -> StartOf {
+    /// The raw descriptor number of the process handle,
+    /// which names its entry in `/proc/self/fdinfo`.
     use std::os::fd::AsRawFd;
     let Some(found) = Pid::from_raw(pid) else {
         return StartOf::Unknown(format!("{pid} is not a process id"));
@@ -832,6 +834,8 @@ pub(crate) fn names_an_absent_process(error: &io::Error) -> bool {
 /// ```
 #[cfg(test)]
 pub(crate) fn process_is_running(pid: i32) -> Result<bool, String> {
+    /// The raw descriptor number of the process handle,
+    /// which names its entry in `/proc/self/fdinfo`.
     use std::os::fd::AsRawFd;
     let found: Pid = Pid::from_raw(pid).ok_or_else(|| { return format!("{pid} is not a process id"); })?;
     let pidfd: OwnedFd = match pidfd_open(found, PidfdFlags::empty()) {
@@ -984,6 +988,7 @@ fn namespace_id() -> io::Result<u64> {
 /// function onPath(program: string): boolean
 /// ```
 fn on_path(program: &str) -> bool {
+    /// The permission bits that tell an executable file from a plain one.
     use std::os::unix::fs::PermissionsExt;
     let executable = |candidate: &Path| -> bool { return fs::metadata(candidate).map(|found| { return found.is_file() && found.permissions().mode() & 0o111 != 0; }).unwrap_or(false); };
     if program.contains('/') {
@@ -1321,6 +1326,8 @@ fn random_token() -> io::Result<String> {
 /// function escaped(argument: string): string
 /// ```
 fn escaped(argument: &std::ffi::OsStr) -> std::ffi::OsString {
+    /// The byte views of an operating-system string,
+    /// so escaping never assumes the argument is UTF-8.
     use std::os::unix::ffi::{OsStrExt, OsStringExt};
     let mut bytes: Vec<u8> = Vec::with_capacity(argument.len());
     for byte in argument.as_bytes() {
