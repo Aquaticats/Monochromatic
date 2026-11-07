@@ -326,7 +326,7 @@ Recorded 2026-11-07, after the owner's pick and the sixth cross-vendor run
   batch can still be finished. Cons: you have to run it; it is only safe when no old-release wrapper is in use in that worktree
   at that moment."
 - Built: `git monochromatic-git-policy-cli service settle-earlier-batches` (also under the old command word, with its
-  one-line notice like every management command), in `invocation/management_service_settle_earlier_batches.rs` and
+  one-line notice like every management command, `invocation/entry.rs` lines 163 to 183), in `invocation/management_service_settle_earlier_batches.rs` and
   `landing/earlier_service_journal_adopted.rs` (`settle_on_request`).
   - Why under `service` and not under `fix`: `fix` applies policies and requires a file scope (`--all` or pathspecs); this
     works on the commit service's journals.
@@ -366,7 +366,11 @@ Recorded 2026-11-07, after the owner's pick and the sixth cross-vendor run
   - the read of `/proc/net/unix` (1277 lines on this machine) when the old socket file is there and nothing listens: median
     1.22 ms.
   - Against current main both cost nothing in the steady state (one `stat` of a file that is not there).
-    While a helper runs, each commit pays about one millisecond more; a leftover file after a stop costs about the same read.
+    While a helper runs, each commit pays about one millisecond more.
+    After a stop the leftover socket file is never unlinked, so every commit in that worktree reads the table once, about the
+    same millisecond, until the runtime directory is cleared at logout or reboot.
+  - The command looks twice (once to decide whether to say the condition, once inside the settling that acts), each look bounded by
+    `PROCESS_LOOK_CEILING`; when the second look holds, the condition has been said and nothing was settled.
 - Not covered: the command against a real systemd and a real earlier helper (the machine's `cli-git@` units are live and were
   not touched); a helper in another PID namespace; the Windows build.
 
