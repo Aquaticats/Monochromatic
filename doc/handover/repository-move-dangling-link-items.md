@@ -80,7 +80,7 @@ Coordinator answers of 2026-11-07, after the file list for W2 and W3:
     one `native:test:container` unit; merge `--no-ff` only on a full pass. The repository-lint branch that reflows doc
     comments in the package merges first: use the recipe in `package/git-policy/cli/README.md`,
     "Merging main into a branch that edited doc comments".
-    I (the wrapper release) never release the wrapper: report its change; the owner releases it.
+    The wrapper is the one crate not released by the agent: report its change, the owner releases it.
 
 ## Next, in order
 
