@@ -127,6 +127,17 @@ verbatim:
     "\" text identical to JavaScript output\" - that's not needed."
     So no job keeps byte-identity with JavaScript or the old TypeScript tools as a requirement;
     a reader of a format that is still in the repository is listed before that format changes.
+  - On the published-crates study (`doc/research/wrapper-git-free-jobs-and-published-crates.md`),
+    picks verbatim:
+    replace with published crates "Time stamps: jiff, Digests: sha1 + sha2, Linux calls: rustix, Memory headroom: sysinfo";
+    how many library crates of ours remain:
+    "I'm not ready to answer this specific question yet.";
+    D-Bus:
+    "zbus 6, and I suppose the lack of a blocking api can be worked around."
+    (to be proven inside the wrapper before it is built on);
+    shell quoting:
+    "Keep ours (readable)".
+    The replacements are built after the release.
 
 `AGENTS.md`,
 verbatim:
