@@ -13,14 +13,13 @@ import {
   rm,
   stat,
   symlink,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
-import { execFile, } from 'node:child_process';
 import {
   basename,
   join,
 } from 'node:path';
-import { promisify, } from 'node:util';
 import {
   describe,
   expect,
@@ -35,17 +34,31 @@ import {
   runCopyTool,
   writeInventory,
 } from './move-fixture.ts';
+import {
+  execFileAsync,
+} from '../dist/final/node/index.mjs';
 
 /** A folder on a memory filesystem, which is never the filesystem of the scratch folder; the tests only look at it. */
 const OTHER_FILESYSTEM_FOLDER = '/dev/shm';
 
+
+/** The time that snapshot and copy files get, so a quick check by size and time sees them as equal. */
+const FIXED_TIME = new Date('2026-01-01T00:00:00Z',);
+
 /**
- Specialized promisified `execFile`, typed through Node's own adapter contract.
- The generic `promisify(execFile)` form trips `strict-void-return`;
- see `doc/troubleshooting/oxlint-promisify-void-return.md`.
+ Makes the metadata file of each snapshot and its copy identical with equal times: the double writes different ones, and
+ a real snapshot and copy do not differ there.
  */
-const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
-const execFileAsync = promisifyExecFile(execFile,);
+async function alignCopies({ fixture, names, }: { fixture: Fixture; names: readonly string[]; },): Promise<void> {
+  await Promise.all(names.map(async (name,) => {
+    const text = await readFile(join(fixture.base, 'snap', name, '.meta',), 'utf8',);
+    await Promise.all(['snap', 'recv',].map(async (folder,) => {
+      const path = join(fixture.base, folder, name, '.meta',);
+      await writeFile(path, text,);
+      await utimes(path, FIXED_TIME, FIXED_TIME,);
+    },),);
+  },),);
+}
 
 type LinkedFolder = {
   readonly path: string;
@@ -62,6 +75,11 @@ async function linkTo(target: string,): Promise<LinkedFolder> {
       await rm(path, { force: true, },);
     },
   };
+}
+
+/** Deletes the partial receive a failed send leaves in the received folder, as the owner would after listing it. */
+async function removePartialReceive(fixture: Fixture,): Promise<void> {
+  await rm(join(fixture.base, 'recv', 'PARTIAL',), { recursive: true, force: true, },);
 }
 
 async function records(fixture: Fixture,): Promise<string[]> {
@@ -224,69 +242,158 @@ await describe({
       ],
     },),
     describe({
-      name: 'send plan: which earlier copy a send may start from',
+      name: 'send plan: what each send starts from',
       children: [
         it({
-          name: 'sends a worktree snapshotted from main as an increment on the snapshot of main, an unrelated one in full, and says which',
+          name: 'sends every subvolume on the empty parent with all earlier copies as clone sources, never on a related subvolume',
           fn: async () => {
             await using fixture = await makeFixture({ names: ['a', 'b',], },);
             await writeInventory({ fixture, rows: [['a', 'u-a', 'u-main',], ['b', 'u-b',],], },);
             const result = await runCopyTool({ fixture, pass: 'first', },);
             expect(result.status,).toBe(0,);
-            expect(await metaOf(join(fixture.base, 'recv', 's001',),),).toContain('sentParent=s000',);
-            expect(await metaOf(join(fixture.base, 'recv', 's002',),),).toContain('sentParent=-',);
-            expect(await metaOf(join(fixture.base, 'recv', 's002',),),).toContain('sentClones=\n',);
-            expect(result.stderr,).toContain('s001',);
-            expect(result.stderr,).toContain('incremental on s000',);
-            expect(result.stderr,).toContain('full send',);
+            const metas = await Promise.all(['s000', 's001', 's002',].map(async (name,) => await metaOf(join(fixture.base, 'recv', name,),),),);
+            expect(metas.map((meta,) => meta.includes('sentParent=empty-parent',),),).toEqual([true, true, true,],);
+            expect(metas.map((meta,) => meta.split('\n',).find((line,) => line.startsWith('sentClones=',),),),).toEqual(['sentClones=', 'sentClones=s000', 'sentClones=s000,s001',],);
+            expect(
+              await exists(join(fixture.base, 'recv', 'empty-parent',),),
+            ).toBe(true,);
+            expect(result.stderr,).toContain('s001: full send on the empty parent',);
           },
         },),
         it({
-          name: 'finds the related copy through a chain of parents, and never starts from a copy that is not sent yet',
-          fn: async () => {
-            await using fixture = await makeFixture({ names: ['a', 'b',], },);
-            await writeInventory({ fixture, rows: [['a', 'u-a', 'u-b',], ['b', 'u-b', 'u-main',],], },);
-            const result = await runCopyTool({ fixture, pass: 'first', },);
-            expect(result.status,).toBe(0,);
-            expect(await metaOf(join(fixture.base, 'recv', 's001',),),).toContain('sentParent=s000',);
-            expect(await metaOf(join(fixture.base, 'recv', 's002',),),).toContain('sentParent=s000',);
-          },
-        },),
-        it({
-          name: 'print mode names the choice of every row and shows a send without clone sources for an unrelated worktree',
-          fn: async () => {
-            await using fixture = await makeFixture({ names: ['a', 'b',], },);
-            await writeInventory({ fixture, rows: [['a', 'u-a', 'u-main',], ['b', 'u-b',],], },);
-            const result = await runCopyTool({ fixture, pass: 'first', run: false, },);
-            expect(result.status,).toBe(0,);
-            expect(result.stdout,).toContain(`btrfs send -p ${join(fixture.base, 'snap', 's000',)} ${join(fixture.base, 'snap', 's001',)} |`,);
-            expect(result.stdout,).toContain(`btrfs send ${join(fixture.base, 'snap', 's002',)} |`,);
-            expect(result.stderr,).toContain('incremental on s000',);
-            expect(result.stderr,).toContain('full send',);
-          },
-        },),
-        it({
-          name: 'refuses to run when the inventory was taken without the parent column, naming the command that has it',
-          fn: async () => {
-            await using fixture = await makeFixture({ names: ['a',], },);
-            await writeInventory({ fixture, rows: [['a', 'u-a',],], withParents: false, },);
-            const result = await runCopyTool({ fixture, pass: 'first', },);
-            expect(result.status,).toBe(1,);
-            expect(result.stderr,).toContain('btrfs subvolume list -u -q',);
-            expect(await exists(join(fixture.base, 'snap', 's000',),),).toBe(false,);
-          },
-        },),
-        it({
-          name: 'a rerun after a failed send of a related worktree sends it again from the same parent and keeps the earlier records',
+          name: 'print mode shows the empty parent made and sent first, and every send on it',
           fn: async () => {
             await using fixture = await makeFixture({ names: ['a',], },);
             await writeInventory({ fixture, rows: [['a', 'u-a', 'u-main',],], },);
+            const result = await runCopyTool({ fixture, pass: 'first', run: false, },);
+            const snap = join(fixture.base, 'snap',);
+            expect(result.status,).toBe(0,);
+            expect(result.stdout,).toContain(`btrfs subvolume create ${join(snap, 'empty-parent-base',)}`,);
+            expect(result.stdout,).toContain(`btrfs send ${join(snap, 'empty-parent',)} |`,);
+            expect(result.stdout,).toContain(`btrfs send -p ${join(snap, 'empty-parent',)} ${join(snap, 's000',)} |`,);
+            expect(result.stdout,).toContain(`btrfs send -p ${join(snap, 'empty-parent',)} -c ${join(snap, 's000',)} ${join(snap, 's001',)} |`,);
+          },
+        },),
+        it({
+          name: 'a rerun after a failed send keeps the earlier records and sends neither the empty parent nor the first copy again',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
             const failed = await runCopyTool({ fixture, pass: 'first', env: { FAIL_SEND: 's001', }, },);
             expect(failed.status,).toBe(1,);
+            const refused = await runCopyTool({ fixture, pass: 'first', },);
+            expect(refused.status,).toBe(1,);
+            expect(refused.stderr,).toContain('exists without a completion record',);
+            await removePartialReceive(fixture,);
             const again = await runCopyTool({ fixture, pass: 'first', },);
             expect(again.status,).toBe(0,);
+            expect(await sendCalls({ fixture, snapshot: 'empty-parent', },),).toBe(1,);
             expect(await sendCalls({ fixture, snapshot: 's000', },),).toBe(1,);
-            expect(await metaOf(join(fixture.base, 'recv', 's001',),),).toContain('sentParent=s000',);
+            expect(
+              await metaOf(join(fixture.base, 'recv', 's001',),),
+            ).toContain('sentParent=empty-parent',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'the destination must hold one copy per received UUID and nothing the records do not know',
+      children: [
+        it({
+          name: 'refuses before any send when two subvolumes of the destination share a received UUID, naming both',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await Promise.all(['old-copy', 'newer-copy',].map(async (name,) => {
+              await mkdir(join(fixture.base, 'elsewhere', name,), { recursive: true, },);
+              await writeFile(join(fixture.base, 'elsewhere', name, '.meta',), 'uuid=u-x\nreceived=r-dup\nparent=-\nro=true\n',);
+            },),);
+            const result = await runCopyTool({ fixture, pass: 'first', },);
+            expect(result.status,).toBe(1,);
+            expect(result.stderr,).toContain('more than one subvolume with received UUID r-dup',);
+            expect(result.stderr,).toContain('elsewhere/old-copy',);
+            expect(result.stderr,).toContain('elsewhere/newer-copy',);
+            expect(await exists(fixture.doubleLog,) ? await readFile(fixture.doubleLog, 'utf8',) : '',).not.toContain('"send"',);
+          },
+        },),
+        it({
+          name: 'refuses before any send when the received folder holds a subvolume the records do not know, naming the delete for the owner',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await mkdir(join(fixture.base, 'recv', 'left-over',),);
+            const result = await runCopyTool({ fixture, pass: 'first', },);
+            expect(result.status,).toBe(1,);
+            expect(result.stderr,).toContain('exists without a completion record',);
+            expect(result.stderr,).toContain(`btrfs subvolume delete ${join(fixture.base, 'recv', 'left-over',)}`,);
+            expect(
+              await exists(join(fixture.base, 'recv', 'left-over',),),
+            ).toBe(true,);
+            expect(await exists(fixture.doubleLog,) ? await readFile(fixture.doubleLog, 'utf8',) : '',).not.toContain('"send"',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'verification of every first-pass copy against its snapshot',
+      children: [
+        it({
+          name: 'passes when copy and snapshot agree, excusing exactly the inventoried nested subvolume placeholders',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a', 'b',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',], ['b', 'u-b',],], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            await alignCopies({ fixture, names: ['s000', 's001', 's002',], },);
+            await mkdir(join(fixture.base, 'recv', 's000', 'wt',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'wt', 'a',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'wt', 'b',), { recursive: true, },);
+            const result = await runCopyTool({ fixture, pass: 'verify-first', },);
+            expect(result.status,).toBe(0,);
+            expect(result.stderr,).toContain('verify-first finished',);
+          },
+        },),
+        it({
+          name: 'refuses a missing real directory, a changed size, and (with --checksum) changed content of the same size, naming the item',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',],], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            await alignCopies({ fixture, names: ['s000', 's001',], },);
+            await mkdir(join(fixture.base, 'recv', 's000', 'wt',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'wt', 'a',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'real-dir',), { recursive: true, },);
+            const missing = await runCopyTool({ fixture, pass: 'verify-first', },);
+            expect(missing.status,).toBe(1,);
+            expect(missing.stderr,).toContain('real-dir',);
+            expect(missing.stderr,).not.toContain('wt/a',);
+            await mkdir(join(fixture.base, 'recv', 's000', 'real-dir',),);
+            await writeFile(join(fixture.base, 'snap', 's001', 'data',), 'one',);
+            await writeFile(join(fixture.base, 'recv', 's001', 'data',), 'longer',);
+            const sized = await runCopyTool({ fixture, pass: 'verify-first', },);
+            expect(sized.status,).toBe(1,);
+            expect(sized.stderr,).toContain('data',);
+            await writeFile(join(fixture.base, 'recv', 's001', 'data',), 'two',);
+            await utimes(join(fixture.base, 'recv', 's001', 'data',), FIXED_TIME, FIXED_TIME,);
+            await utimes(join(fixture.base, 'snap', 's001', 'data',), FIXED_TIME, FIXED_TIME,);
+            expect((await runCopyTool({ fixture, pass: 'verify-first', },)).status,).toBe(0,);
+            const deep = await runCopyTool({ fixture, pass: 'verify-first', extra: ['--checksum',], },);
+            expect(deep.status,).toBe(1,);
+            expect(deep.stderr,).toContain('data',);
+          },
+        },),
+        it({
+          name: 'escapes rsync pattern characters in the excused paths so a name like a[1] excuses only itself',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a[1]', 'a1',], },);
+            await writeInventory({ fixture, rows: [['a[1]', 'u-a[1]',], ['a1', 'u-a1',],], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            await alignCopies({ fixture, names: ['s000', 's001', 's002',], },);
+            await mkdir(join(fixture.base, 'recv', 's000', 'wt',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'wt', 'a[1]',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'wt', 'a1',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'wt', 'ab',), { recursive: true, },);
+            const result = await runCopyTool({ fixture, pass: 'verify-first', },);
+            expect(result.status,).toBe(1,);
+            expect(result.stderr,).toContain('wt/ab',);
+            expect(result.stderr,).not.toContain('wt/a1',);
+            expect(result.stderr,).not.toContain('wt/a[1]',);
           },
         },),
       ],
@@ -342,6 +449,7 @@ await describe({
           fn: async () => {
             await using fixture = await makeFixture({ names: ['a', 'b',], },);
             expect((await runCopyTool({ fixture, pass: 'first', env: { FAIL_SEND: 's002', }, },)).status,).toBe(1,);
+            await removePartialReceive(fixture,);
             await removeWorktree({ fixture, name: 'b', },);
             await addWorktree({ fixture, name: 'c', uuid: 'u-c', },);
             await writeInventory({ fixture, rows: [['a', 'u-a',], ['c', 'u-c',],], },);
@@ -478,10 +586,9 @@ await describe({
             expect(result.status,).toBe(0,);
             expect(result.stderr,).toContain('pass final finished',);
             expect(await records(fixture,),).toContain('f001.placed.json',);
-            const parented = (await readFile(fixture.doubleLog, 'utf8',)).split('\n',).filter((line,) =>
-              line.includes('"-p"',)
-            );
-            expect(parented,).toHaveLength(2,);
+            const sends = (await readFile(fixture.doubleLog, 'utf8',)).split('\n',).filter((line,) => line.startsWith('["send"',));
+            const onFirstCopy = sends.filter((line,) => ['s000', 's001',].some((name,) => line.includes(`"-p","${join(fixture.base, 'snap', name,)}"`,)));
+            expect(onFirstCopy,).toHaveLength(2,);
           },
         },),
         it({
