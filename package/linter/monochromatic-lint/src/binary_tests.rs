@@ -1480,6 +1480,43 @@ fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
     assert_eq!(located(linked.stdout.as_str()), ["src/middle/mod.rs rust/tests-in-sidecars 6 4"], "{}", linked.stderr);
 }
 
+/// The built executable checks group folders:
+///  a group's `uses` summary is wanted when a child uses another group,
+///  accepted once it links the group,
+///  and a child that links the group itself is told so.
+#[cfg(unix)]
+#[test]
+fn layout_group_folders_run_in_the_built_executable() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write("Cargo.toml", "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n");
+    fixture.write("src/lib.rs", "mod g;\nmod h;\n");
+    fixture.write("src/g/mod.rs", "mod a;\n");
+    fixture.write("src/g/a/mod.rs", "pub struct X;\n");
+    fixture.write("src/h/mod.rs", "mod c;\n");
+    fixture.write("src/h/c/mod.rs", "use crate::g::a::X;\n");
+    fixture.write(CONFIG, r#"[{ "files": ["**/*.rs"], "rules": {
+      "rust/folder-uses-links": { "severity": "error" },
+      "rust/file-order-in-folder": { "severity": "error" }
+    } }]"#);
+    std::fs::create_dir_all(fixture.path.join("src/h/c/uses")).expect("child uses folder");
+    std::os::unix::fs::symlink("../../../g/a", fixture.path.join("src/h/c/uses/a")).expect("child link");
+    // The child's link is exact, but the group has no summary of the entry its child uses.
+    let missing: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!(missing.status, 1, "{}", missing.stderr);
+    assert_eq!(
+        located(missing.stdout.as_str()),
+        ["src/h/c/mod.rs rust/folder-uses-links 1 1"],
+        "{}",
+        missing.stdout
+    );
+    assert!(missing.stdout.contains("src/h/uses has no link to src/g."), "{}", missing.stdout);
+    // With the summary in place nothing is left.
+    std::fs::create_dir_all(fixture.path.join("src/h/uses")).expect("group uses folder");
+    std::os::unix::fs::symlink("../../g", fixture.path.join("src/h/uses/g")).expect("group link");
+    let clean: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!((clean.status, clean.stdout.as_str()), (0, ""), "{}", clean.stderr);
+}
+
 /// The unit-test scratch root,
 /// shared with the library test build and placed in the build directory.
 #[path = "test_scratch.rs"]

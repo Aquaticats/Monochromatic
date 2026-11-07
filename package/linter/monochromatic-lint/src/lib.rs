@@ -124,6 +124,9 @@ mod layout_folder_index_files;
 ///  `uses` links that match the folders the code uses,
 ///  and no loop between folders.
 mod layout_folder_links;
+/// Group folders:
+///  a folder that holds child folders is a shelf with summary links.
+mod layout_group_folders;
 /// What an index file (`mod.rs`,
 ///  or a crate root that is a folder's index) holds besides the index.
 mod layout_index_file_items;

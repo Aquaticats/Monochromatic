@@ -120,12 +120,11 @@ fn folders_that_use_each_other_are_one_loop_finding() {
     assert!(found[0].starts_with("src/a/mod.rs:1 These folders use each other in a loop"));
 }
 
-/// A child folder that reaches into its parent,
-/// and a parent that reaches into its child,
-/// each need a link,
-/// and together they are a loop.
+/// A folder that holds child folders is a group, so its own code is a finding,
+/// and a child that reaches into it names the group itself,
+/// which a child never does (the group rules are in `layout_group_folders_tests.rs`).
 #[test]
-fn parent_and_child_folders_need_links_like_any_other() {
+fn a_parent_folder_with_code_is_a_group_that_holds_none() {
     let fixture = package_with(&[
         ("src/lib.rs", "mod a;\n"),
         (
@@ -136,18 +135,13 @@ fn parent_and_child_folders_need_links_like_any_other() {
     ]);
     let found: Vec<String> = findings_of(&fixture.path);
     let text: String = found.join("\n");
-    assert!(
-        text.contains("src/a uses the folder src/a/b (`self::b::run`)"),
-        "{text}"
-    );
-    assert!(
-        text.contains("src/a/b uses the folder src/a (`super::shared`)"),
-        "{text}"
-    );
-    assert!(
-        text.contains("These folders use each other in a loop"),
-        "{text}"
-    );
+    for part in [
+        "src/a/mod.rs is the index of the group folder src/a, so it may hold only its top doc and `mod` lines, but it holds a function `shared`",
+        "src/a/mod.rs is the index of the group folder src/a, so it may hold only its top doc and `mod` lines, but it holds a function `go`",
+        "src/a/b uses the group folder src/a itself (`super::shared`)",
+    ] {
+        assert!(text.contains(part), "{part} missing in {text}");
+    }
 }
 
 /// Paths in strings,
@@ -283,7 +277,9 @@ fn a_link_outside_the_package_is_reported() {
 }
 
 /// A folder that reaches an item through another folder's index uses that folder and the folder that defines the item,
-/// which is the child folder when the index re-exports it from there.
+/// which is the child folder when the index re-exports it from there;
+/// an index that holds child folders is a group,
+/// so the re-export is a finding of its own and the use of the group itself is one too.
 #[test]
 fn a_use_through_a_reexport_needs_the_link_to_the_defining_folder_too() {
     let fixture = package_with(&[
@@ -293,10 +289,14 @@ fn a_use_through_a_reexport_needs_the_link_to_the_defining_folder_too() {
         ("src/b/inner/mod.rs", "pub struct Thing;\n"),
     ]);
     let found: Vec<String> = findings_of(&fixture.path);
-    for folder in ["src/b", "src/b/inner"] {
+    for part in [
+        "src/a uses the group folder src/b itself (`crate::b::Thing`)",
+        "src/a uses the folder src/b/inner (`crate::b::Thing`) but src/a/uses has no link to it.",
+        "src/b/mod.rs:2 src/b/mod.rs is the index of the group folder src/b, so it may hold only its top doc and `mod` lines, but it holds a `use` line.",
+    ] {
         assert!(
-            found.iter().any(|text| return text.contains(format!("src/a uses the folder {folder} (`crate::b::Thing`)").as_str())),
-            "{folder}: {found:#?}"
+            found.iter().any(|text| return text.contains(part)),
+            "{part} missing in {found:#?}"
         );
     }
 }
