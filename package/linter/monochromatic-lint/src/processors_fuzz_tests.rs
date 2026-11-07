@@ -13,7 +13,7 @@
 /// Original-host mapping uses the real finding helper.
 use super::finding;
 /// Import the actual processor and production host edit implementation.
-use super::{Edit, Fix, ProcessorLanguage};
+use super::{Edit, Fix, FixClass, ProcessorLanguage};
 /// Exercise exact original-host application,
 ///  not a test-owned replacement algorithm.
 use crate::edits::apply_fixes;
@@ -83,6 +83,7 @@ fn processors_seeded_fuzz_exercises_delimiters_unicode_prefixes_and_atomic_group
         mapped += 1;
         let safe: Fix = rust
             .project_fix(&Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: at,
                     end: at + 1,
@@ -97,6 +98,7 @@ fn processors_seeded_fuzz_exercises_delimiters_unicode_prefixes_and_atomic_group
         let adversarial: &str =
             ["~~~~\n", "*/", "\n# let injected: u32 = 2;", "\n", "😀"][random(&mut seed) % 5];
         let candidate: Fix = Fix {
+            class: FixClass::Content,
             edits: vec![
                 Edit {
                     start: at,

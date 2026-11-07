@@ -1,11 +1,12 @@
 # Splitting `monochromatic-lint --fix` into whitespace fixes and content fixes
 
 Status:
-a proposal,
-written 2026-11-07 by the agent that fixed the whitespace defects of `--fix`,
-awaiting the owner's choice.
-Nothing in this document is decided,
-and no rule severity changed.
+written 2026-11-07 by the agent that fixed the whitespace defects of `--fix`.
+The coordinator picked option A on 2026-11-07 (a coordinator pick,
+the owner's veto open),
+and the branch `feat/monochromatic-lint-fix-classes-whitespace-and-content` builds it;
+see "What option A built".
+No rule severity changed.
 
 ## Why this exists
 
@@ -178,4 +179,29 @@ The five whitespace defects of the report were fixed in `package/linter/monochro
   the one case laziness excludes.
   A reader who prefers `>` on every line writes it by hand.
 
-The classes of this proposal are not implemented.
+## What option A built
+
+- Every `Fix` carries a `FixClass`,
+  `whitespace` or `content`,
+  set by the rule beside the edit it builds.
+  `markdown/semantic-line-breaks` is `whitespace`;
+  the seven other fixable Markdown rules are `content`.
+- Plain `--fix` applies only `whitespace` fixes.
+  `--fix-content` applies both and fixes without `--fix`.
+  A fix outside the run's scope is withheld before the fix loop sees it,
+  and its finding is still reported.
+- `--rules` prints `fixClass` (`whitespace`,
+  `content` or `null`) beside `fixable`.
+- The in-process entry `run_embedded::fix_source` applies both classes.
+  The commit path's `markdown/autofix` runs only `markdown/lfs-image-url`,
+  which rewrites an image URL and is therefore a content fix,
+  and its configuration names that one rule on purpose.
+  Making that entry whitespace-only would switch the policy's rewrite off,
+  so it is left as a flagged choice for the owner:
+  `package/git-policy/cli/src/native/markdown/markdown_linter.rs` is unchanged.
+- The root task `format:monochromatic-lint` already ran plain `--fix`,
+  so it now changes no token;
+  its description and comment in `mise.toml` say so,
+  and content fixes are run by hand with `monochromatic-lint --fix-content <paths>`.
+- The property check covers plain `--fix` with every fixable Markdown rule enabled,
+  over fixtures and over a real tree.

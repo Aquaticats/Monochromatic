@@ -11,7 +11,7 @@
 //! ```
 
 /// Import the consumer helpers and atomic fix models shared by every processor test module.
-use super::{Edit, Fix, ProcessorLanguage, VirtualSource, finding, inputs};
+use super::{Edit, Fix, FixClass, ProcessorLanguage, VirtualSource, finding, inputs};
 /// Inspect mapped labels and severities exactly as an output engine would.
 use crate::diagnostic::{Diagnostic, Severity};
 /// Typed refusals carry the original-host anchor under test.
@@ -147,6 +147,7 @@ fn processors_anchor_refusals_at_authored_containers_and_render_them() {
     let virtuals: Vec<VirtualSource> = inputs(DOC_HOST, ProcessorLanguage::Rust);
     let overlap: ProcessorError = virtuals[0]
         .project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![
                 Edit {
                     start: 0,
@@ -172,6 +173,7 @@ fn processors_anchor_refusals_at_authored_containers_and_render_them() {
     let body: usize = rust.source().find("value;").expect("visible line");
     let closer: ProcessorError = rust
         .project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: body,
                 end: body,

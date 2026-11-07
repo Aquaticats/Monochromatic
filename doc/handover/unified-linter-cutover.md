@@ -388,8 +388,9 @@ The new linter is `monochromatic-lint .` with the worktree configuration.
   The same change stops `--fix` from rewriting pipe tables,
   from wrapping a URL whose link text holds a backtick,
   and from adding `>` to a broken blockquote line;
-  the open split of whitespace fixes from content fixes is in
-  `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`.
+  the split of whitespace fixes from content fixes is built as described in
+  `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`:
+  plain `--fix` applies only whitespace fixes and `--fix-content` also applies the content fixes.
 - Every other per-file,
    per-rule Markdown count is identical between the two linters.
 
