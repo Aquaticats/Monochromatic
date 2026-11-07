@@ -17,7 +17,10 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { promisify, } from 'node:util';
 import {
   describe,
@@ -48,7 +51,9 @@ import {
 
 const execFileAsync = promisify(execFile,);
 const BIN = new URL('../dist/final/node/run-repository-move.mjs', import.meta.url,).pathname;
-const TOOLS_FOLDER = new URL('.', import.meta.url,).pathname.replace(/\/$/u, '',);
+/** Mode of the stand-in `sudo` script: readable and executable by everyone, writable by its owner. */
+const EXECUTABLE_MODE = 0o755;
+const TOOLS_FOLDER = dirname(new URL(import.meta.url,).pathname,);
 
 type HomeFolder = {
   readonly path: string;
@@ -111,16 +116,14 @@ async function writeStandInSudo(home: string,): Promise<StandInSudo> {
   const log = join(home, 'stand-in-sudo.log',);
   await mkdir(folder, { recursive: true, },);
   await writeFile(join(folder, 'sudo',), '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$STAND_IN_SUDO_LOG"\nexit 0\n',);
-  await chmod(join(folder, 'sudo',), 0o755,);
+  await chmod(join(folder, 'sudo',), EXECUTABLE_MODE,);
   return { folder, log, };
 }
 
 /** Marks stages of the prepare phase done, as a completed earlier run would have. */
 async function markPrepareDone({ config, ids, }: { config: GuidedConfig; ids: readonly string[]; },): Promise<void> {
   await mkdir(join(config.wiz, 'done', 'prepare',), { recursive: true, },);
-  for (const id of ids) {
-    await writeFile(join(config.wiz, 'done', 'prepare', id,), '2026-01-01T00:00:00.000Z\n',);
-  }
+  await Promise.all(ids.map((id,) => writeFile(join(config.wiz, 'done', 'prepare', id,), '2026-01-01T00:00:00.000Z\n',)),);
 }
 
 /** Runs the real prepare command through the built bin with the stand-in sudo first on the path. */
@@ -577,7 +580,8 @@ await describe({
               expect(output,).toContain('f1a-folder',);
               expect(sudoLog,).toContain(`mkfs.btrfs --quiet ${fixture}/source.img`,);
               expect(sudoLog,).not.toContain('DRYRUN',);
-              expect(await exists(join(fixture, 'source.img',),),).toBe(true,);
+              const imageExists = await exists(join(fixture, 'source.img',),);
+              expect(imageExists,).toBe(true,);
             },);
           },
         },),

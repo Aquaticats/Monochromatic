@@ -390,6 +390,12 @@ export async function runGuided(
         config,
         flags,
       },),
+      restage: async function restage() {
+        return await stagesFor({
+          config,
+          flags,
+        },);
+      },
       out,
     },);
     if ((!flags.dryRun) && ((flags.command === 'thaw') || (flags.command === 'rollback'))) {

@@ -14,6 +14,7 @@ import { join, } from 'node:path';
 import { pathExists, } from './completion-records.ts';
 import { MILLISECONDS_PER_SECOND, } from './constants.ts';
 import { GuidedStopError, } from './guided-stop.ts';
+import type { Stage, } from './guided-types.ts';
 import {
   recordTimer,
   windowRemaining,
@@ -36,11 +37,18 @@ import {
 /**
  Runs one stage: show, assert, run, check, record.
 
- @param stageRun - the stage in its phase
+ @param listedRun - the stage in its phase, as the first build listed it
  
  @throws GuidedStopError when the stage fails, its check fails, an assertion is missing, or the window is over
  */
-async function runStage(stageRun: StageRun,): Promise<void> {
+async function runStage(listedRun: StageRun,): Promise<void> {
+  /**
+   The stage in its phase with the stage as it reads now.
+   */
+  const stageRun: StageRun = {
+    ...listedRun,
+    stage: await currentStage(listedRun,),
+  };
   /**
    The parts of the value this function uses, taken out of it.
    */
@@ -136,6 +144,48 @@ async function runStage(stageRun: StageRun,): Promise<void> {
       `${new Date().toISOString()}\n`,
     );
   }
+}
+
+/**
+ Gives the stage as it reads now: when the run can build its list again, the stage at the same place in a fresh list,
+ so text that names a file an earlier stage of this run wrote is current.
+
+ @param stageRun - the stage in its phase, as the first build listed it
+ 
+ @returns the stage to run
+ 
+ @throws Error when the fresh list has no stage at that place or its id differs, because the order the owner read must not change mid-run
+ */
+async function currentStage(stageRun: StageRun,): Promise<Stage> {
+  /**
+   The parts of the value this function uses, taken out of it.
+   */
+  const {
+    run,
+    stage,
+    index,
+  } = stageRun;
+  /**
+   The function that builds the list again, when the run has one.
+   */
+  const { restage, } = run;
+  if (restage === undefined) {
+    return stage;
+  }
+  /**
+   The list built again from what is on disk now.
+   */
+  const fresh = await restage();
+  /**
+   The stage this list has at the place the first build gave this one.
+   */
+  const current = fresh[index - 1];
+  if (current?.id !== stage.id) {
+    throw new Error(
+      `The stage list changed while the run was in progress at ${stage.id}; run the command again.`,
+    );
+  }
+  return current;
 }
 
 /**
