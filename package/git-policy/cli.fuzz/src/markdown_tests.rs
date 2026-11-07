@@ -1,6 +1,9 @@
-//! What: Controls proving the Markdown generators reach every outcome and the invariants
+//! What:
+//! Controls proving the Markdown generators reach every outcome and the invariants
 //!       hold on fixed hard cases.
-//! Why: An invariant that is never reached proves nothing; these controls count what the
+//! Why:
+//! An invariant that is never reached proves nothing;
+//! these controls count what the
 //!      generators produce and run the same checks the fuzz targets run.
 //!
 //! In TS you'd write (pseudocode):
@@ -16,7 +19,10 @@ use super::{
 };
 use std::collections::BTreeSet;
 
-/// A deterministic sample of fuzz inputs: the empty one, every two-byte input, and longer mixes.
+/// A deterministic sample of fuzz inputs:
+/// the empty one,
+/// every two-byte input,
+/// and longer mixes.
 fn inputs() -> Vec<Vec<u8>> {
     let mut all: Vec<Vec<u8>> = vec![Vec::new()];
     for first in 0..=255_u8 {
@@ -32,7 +38,10 @@ fn inputs() -> Vec<Vec<u8>> {
     return all;
 }
 
-/// Every corruption kind, and clean runs of none, one and several findings, are reached.
+/// Every corruption kind,
+/// and clean runs of none,
+/// one and several findings,
+/// are reached.
 #[test]
 fn generated_findings_reach_every_outcome() {
     let mut kinds: BTreeSet<&'static str> = BTreeSet::new();
@@ -60,7 +69,8 @@ fn generated_findings_reach_every_outcome() {
     }
 }
 
-/// Raw runs reach every way a run ends: a usable run and each failure status.
+/// Raw runs reach every way a run ends:
+/// a usable run and each failure status.
 #[test]
 fn raw_runs_hold_the_invariants() {
     let mut statuses: BTreeSet<Option<u8>> = BTreeSet::new();
@@ -80,8 +90,13 @@ fn raw_runs_hold_the_invariants() {
     }
 }
 
-/// The hard cases hold: a run ending in each status, an empty source for a file and for an empty file, the
-/// largest position, a second label that is not read, and a failure explanation past its bound.
+/// The hard cases hold:
+/// a run ending in each status,
+/// an empty source for a file and for an empty file,
+/// the
+/// largest position,
+/// a second label that is not read,
+/// and a failure explanation past its bound.
 #[test]
 fn hard_runs_hold_the_invariants() {
     let warning = generated_finding(&[3, 2, 0, b'm']).finding;

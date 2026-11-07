@@ -1,6 +1,9 @@
-//! What: Raw bytes and generated text through the PID file reader and the stat-line reader.
-//! Why: The index-lock evidence decides between waiting without limit and retiring a lock from
-//!      these two readers; what they accept must mean one thing.
+//! What:
+//! Raw bytes and generated text through the PID file reader and the stat-line reader.
+//! Why:
+//! The index-lock evidence decides between waiting without limit and retiring a lock from
+//!      these two readers;
+//! what they accept must mean one thing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

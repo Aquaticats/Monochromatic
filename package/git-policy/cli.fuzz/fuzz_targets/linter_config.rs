@@ -1,5 +1,8 @@
-//! What: Exclude patterns through the one-rule linter configuration.
-//! Why: The repository chooses the patterns; none may change the document's structure.
+//! What:
+//! Exclude patterns through the one-rule linter configuration.
+//! Why:
+//! The repository chooses the patterns;
+//! none may change the document's structure.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

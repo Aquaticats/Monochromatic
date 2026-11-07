@@ -34,7 +34,8 @@ use git_policy_cli::candidate_error::{CandidateError, CandidateFailure};
 use git_policy_cli::candidate_prediction::{CandidateRequest, PreparedCandidates};
 use git_policy_cli::command_commit::parse_commit_region;
 use git_policy_cli::global_arguments::{GlobalOutcome, global_layout};
-/// The production conversion of raw bytes to an argument, so the generators feed the code under test the same way.
+/// The production conversion of raw bytes to an argument,
+/// so the generators feed the code under test the same way.
 use git_policy_cli::path_bytes::os_from_path_bytes as argument;
 use git_policy_cli::policy_checks::{ShippedChecks, shipped_checks};
 use git_policy_cli::policy_content::LifecycleContent;
@@ -403,7 +404,8 @@ pub struct FixedFacts {
     pub location: RepositoryLocation,
     /// The answer to `index_vs_head`.
     pub index: IndexVsHead,
-    /// The answer to `worktree_dirty`, for either scope.
+    /// The answer to `worktree_dirty`,
+    /// for either scope.
     pub dirty: bool,
     /// The answer to `sequencer_state`.
     pub sequencer: SequencerState,
@@ -467,8 +469,11 @@ impl RepositoryFacts for FixedFacts {
         ));
     }
 
-    /// What: The fixed location, as already known.
-    /// Why:  Recovery before a read-only command then probes a location that does not exist,
+    /// What:
+    /// The fixed location,
+    /// as already known.
+    /// Why:
+    ///  Recovery before a read-only command then probes a location that does not exist,
     ///       which finds no transaction and starts no Git.
     ///
     /// In TS you'd write (pseudocode):
@@ -479,10 +484,13 @@ impl RepositoryFacts for FixedFacts {
         return Some(Ok(self.location.clone()));
     }
 
-    /// What: A transaction context naming a Git that does not exist,
+    /// What:
+    /// A transaction context naming a Git that does not exist,
     ///       with the common directory of the fixed location when it has one.
-    /// Why:  Any Git the lifecycle tried to start would fail instead of touching a repository,
-    ///       and a location without a repository has no common directory, as in the real facts.
+    /// Why:
+    ///  Any Git the lifecycle tried to start would fail instead of touching a repository,
+    ///       and a location without a repository has no common directory,
+    /// as in the real facts.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

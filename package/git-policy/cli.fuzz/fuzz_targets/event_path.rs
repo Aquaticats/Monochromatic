@@ -1,6 +1,13 @@
-//! What: Pathname bytes through the event form, its base64 and rendered event lines.
-//! Why: Git allows any bytes in a name; an event must carry the readable text and, for a
-//!      name that is not UTF-8, the exact bytes, without breaking its JSON line.
+//! What:
+//! Pathname bytes through the event form,
+//! its base64 and rendered event lines.
+//! Why:
+//! Git allows any bytes in a name;
+//! an event must carry the readable text and,
+//! for a
+//!      name that is not UTF-8,
+//! the exact bytes,
+//! without breaking its JSON line.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
