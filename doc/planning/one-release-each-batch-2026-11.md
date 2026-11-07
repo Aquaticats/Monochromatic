@@ -1174,6 +1174,13 @@ proved the Wayland library step.
   (built from `d6dec5bcac`),
   crates.io `2026-11-07T11:55:20.267501Z`, `yanked` false.
 
+- `monochromatic-search-shadow` 0.2.1 to 0.2.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370262671`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370330409`
+  (built from `b3a85f3e8d`),
+  crates.io `2026-11-07T11:58:24.564425Z`, `yanked` false.
+  GitHub release `monochromatic-search-shadow-v0.2.2` holds both Linux tarballs and the checksums file.
+
 ## Evidence log
 
 - crates.io API reads:
