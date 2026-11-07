@@ -180,7 +180,7 @@ fn overflowing(view: &ShapedView, width: f32) -> Vec<String> {
     for row in &view.rows {
         for (index, line) in row.layout.lines().enumerate() {
             let metrics = line.metrics();
-            let visible = (metrics.advance - metrics.trailing_whitespace) / scale;
+            let visible = (metrics.advance - metrics.hanging_advance) / scale;
             if visible > width + 0.01 && line.text_range().len() > 1 {
                 found.push(format!(
                     "line {} row {index} is {visible} px wide in {width}",

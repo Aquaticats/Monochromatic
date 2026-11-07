@@ -4212,11 +4212,21 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     start recorded by `f191d45681`),
     with an alpha release
     and lock move.
-    Separately unmerged since 2026-11-04:
-    round 21 `feat/cargo-shadow-check-to-start-race`
-    (16 commits,
-    worktree `.claude/worktrees/cargo-shadow-r21`,
-    no agent on it).
+    Round 21 `feat/cargo-shadow-check-to-start-race` merged to main 2026-11-07T14:01:31-05:00 (`4c31f33751`),
+    released as 0.1.5-alpha.2 and locked (`62d3f69165`);
+    what it did,
+    the review and the open sixth-pass list (groups 5,
+    8 to 14,
+    the fifth-pass list,
+    packets cert7):
+    `doc/planning/cargo-shadow-update.md`,
+    "Round 21 merge record (2026-11-07)".
+    Worktree `.claude/worktrees/cargo-shadow-r21` is merged and can be removed.
+    Open defect found on the way,
+    not cargo-shadow's:
+    `search-shadow` links of two versions on `PATH` (a worktree's stale `.cache/search-shadow-bin` and main's)
+    each pick the other as the real `grep` and re-`execve` forever at about 89 percent CPU;
+    a stale worktree `.cache` is refreshed by `mise run toolchain:install` in that worktree.
   - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text;
     a
     rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
@@ -4349,6 +4359,21 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   an injected overflow event with a small fixed count,
   never writes scaled by a host limit,
   and a search for other tests sized from `/proc/sys`.
+- Incident (self-recursion,
+  found by the cargo-shadow round 21 agent,
+  2026-11-07):
+  a `cargo-shadow` test hung more than twelve minutes because two `search-shadow` `grep` links of different versions
+  (main's `.cache/search-shadow-bin` 0.2.2 and a worktree's stale 0.2.1)
+  each took the other for the real `grep` and re-executed it in a loop at about 89% CPU
+  (`strace -e execve`);
+  refreshing the worktree's links ended it.
+  Against the owner's "We should never invoke ourselves recursively" and "nothing should ever wait forever or indefinitely".
+  Given to an agent (`fix/shadows-never-start-another-shadow`):
+  identity check plus arrival marker so no shadow starts any shadow,
+  an audit of every shadow and launcher,
+  alpha releases.
+  Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
+  its worktree and branch are removed.
 - Music player:
   merged into main `9944c1ffe8` (1601 of 1601 desktop-app tests,
   Clippy and e2e lint clean;

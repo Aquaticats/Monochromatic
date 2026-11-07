@@ -1930,6 +1930,73 @@ not to crates.io.
   `mise run toolchain:install` since alpha.4 still has an older launcher and fails until it does;
   174 records name another tree's lock file.
 
+### Release record: `monochromatic-cargo-shadow` 0.1.5-alpha.2, round 21 starts a compiled real cargo through the file that was checked (2026-11-07T14:08:29-05:00)
+
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session.";
+"nothing should ever wait forever or indefinitely".
+The fourth cargo-shadow-or-sibling alpha of the day under the label gate:
+it goes to the GitHub release and the toolchain lock,
+not to crates.io.
+
+- The change it carries (branch `feat/cargo-shadow-check-to-start-race`,
+  merged to main by `4c31f33751` 2026-11-07T14:01:31-05:00 after `eb2f651af5`):
+  the chosen real cargo is opened once and a readable compiled (ELF) program is started through that open file,
+  so a path made to name the shadow after the check cannot reach the start;
+  scripts,
+  unreadable executables and the install step's contained cargo keep the pathname with the check repeated.
+  The details,
+  the cross-vendor review and what stays open are in `doc/planning/cargo-shadow-update.md`,
+  "Round 21 merge record (2026-11-07)",
+  and the contract block "Round 21 additions" in `doc/planning/cargo-shadow-guarantees.md`.
+- Gates before the merge (the final tree):
+  test 679 run,
+  679 passed,
+  18 skipped;
+  `lint` and `lint:clippy` with warnings denied exit 0.
+  One earlier full run of the same tree failed two timing tests of `bounded_contain_tests`
+  (a 3 second bound and a 1.5 second wait) while the host load average was 40 to 60:
+  the whole early batch of contained starts took 5 to 6 seconds instead of 0.04 seconds,
+  the same two tests passed alone three times at load 32 to 35,
+  and the next full run passed.
+  The cause measured is a slow scope start at suite start under that load;
+  the tests' fixed bounds do not tolerate it and were not touched.
+- Red first:
+  the full gate found one red test the round caused (the new `spawned` trace event);
+  the cross-vendor reviewer found one production defect no test reached
+  (the exec site closed the descriptor before `exec`),
+  an execute-only refusal and an inclusive process id bound;
+  a second review round found the execute-only script case.
+  Each has a red commit before its fix.
+- Release dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42404208563` (`success`;
+  the publish job skipped).
+  Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42404324402`
+  (2026-11-07T19:03:27Z to 19:04:45Z),
+  bump commit `20d7f38f67` (2026-11-07T19:04:33Z),
+  version 0.1.5-alpha.1 to 0.1.5-alpha.2.
+  Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42404426395`
+  (built from `20d7f38f67`,
+  2026-11-07T19:04:42Z to 19:07:00Z,
+  `success`);
+  the wait task said `crates.io 0.1.5-alpha.2: skipped, the alpha label is not published to crates.io`,
+  and `https://crates.io/api/v1/crates/monochromatic-cargo-shadow/0.1.5-alpha.2` answered HTTP 404.
+- GitHub release `monochromatic-cargo-shadow-v0.1.5-alpha.2` (published 2026-11-07T19:06:57Z):
+  `isPrerelease` false,
+  `isDraft` false;
+  the aarch64 and x86_64 Linux tarballs and the checksums file.
+- Lock move (commit `62d3f69165`,
+  2026-11-07T14:08:29-05:00):
+  `mise run toolchain:update` moved `cargo:monochromatic-cargo-shadow` 0.1.5-alpha.1 to 0.1.5-alpha.2 and nothing else
+  ("1 tools moved");
+  the aarch64 and x86_64 SHA-256 values in the lock equal the release's checksums file.
+  `mise run toolchain:install` reported `1 installed, 65 unchanged, 0 failed`.
+- Installed binary:
+  `.cache/cargo-shadow-bin/cargo --version` prints `cargo-shadow 0.1.5-alpha.2, shadowing cargo at .../.cache/toolchain-bin/cargo`;
+  `cargo new` and `cargo build` of a scratch crate through that directory (capped scope) finished and
+  the program printed `Hello, world!`.
+
 ## Evidence log
 
 - crates.io API reads:

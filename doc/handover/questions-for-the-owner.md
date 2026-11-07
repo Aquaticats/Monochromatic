@@ -18,6 +18,28 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: where a blank at the end of a row goes in the IDE (not asked yet; the owner asked to focus on the Git wrapper)
+
+The text-layout library the IDE uses (Parley) moved to 0.12 in the daily update,
+and it now follows the CSS Text 4 rule for blanks at a line end:
+an overflowing blank "hangs" past the edge instead of staying on the row and pushing what follows down.
+Two IDE tests describe the old behavior and now fail
+(`ide::wrap_keys a_hanging_blank_at_the_end_of_the_text_leaves_no_empty_row`,
+`ide::wrap_keys the_fixtures_wrap_as_described`);
+their fixture text says "an overflowing blank stays on the upper row,
+so a tab right after it starts the next row".
+Measured at width 240,
+scale 1:
+a continuation row now starts with a tab (rows `0..28`,
+`28..38`),
+and no fixture produced an empty tail.
+Source:
+`parley-0.12.0/src/layout/whitespace.rs` (header doc),
+merge `d2598b2842`.
+The choice:
+keep the IDE's old rule (our code moves the blank back)
+or adopt the CSS rule (the tests change).
+
 ## Answered 2026-11-07T13:52:06-05:00 to 13:57:11-05:00 (question tool, then plain messages)
 
 - Enforcing "agents never run sudo" after an agent ran `sudo -n true`
