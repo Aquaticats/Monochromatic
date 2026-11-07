@@ -209,7 +209,12 @@ fn layout_a_group_that_is_never_closed_ends_with_the_source() {
 fn layout_group_entries_of_several_segments_and_globs_are_read_whole() {
     assert_eq!(
         references_of("use crate::{a::b::c, d::e, f::*, g::{h::*}};"),
-        ["crate::a::b::c", "crate::d::e", "crate::f::*", "crate::g::h::*"]
+        [
+            "crate::a::b::c",
+            "crate::d::e",
+            "crate::f::*",
+            "crate::g::h::*"
+        ]
     );
 }
 
@@ -217,8 +222,15 @@ fn layout_group_entries_of_several_segments_and_globs_are_read_whole() {
 ///  where a lone `self` names the prefix itself.
 #[test]
 fn layout_a_self_path_inside_a_group_keeps_its_self_segment() {
+    assert_eq!(references_of("use crate::{self::b};"), ["crate::self::b"]);
+}
+
+/// A path that starts exactly where a public `use` item ends is not part of that item,
+///  so it is not a re-export.
+#[test]
+fn layout_a_path_right_after_a_public_use_is_not_a_reexport() {
     assert_eq!(
-        references_of("use crate::{self::b};"),
-        ["crate::self::b"]
+        references_of("pub use a::B;crate::x::y!();"),
+        ["pub a::B", "crate::x::y"]
     );
 }
