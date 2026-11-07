@@ -3604,6 +3604,15 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
   "semantic evidence unavailable for .../core-exec/task.ts: project-not-found" (a preference log line, not a finding;
   not investigated).
+- Layout, 2026-11-07T11:05:21-05:00: rescan and library verdicts merged (`docs/git-policy-cli-layout-after-adopted-crates`);
+  owner answered "Shelf + summaries (Recommended)", "Four libraries (Recommended)" (starting-and-watching-programs,
+  parallel-work-within-a-budget, fix-packages-after-copying-a-folder, dependent-version-bump-check) and
+  "tracing (Recommended)" for library logs; recorded in the layout plan. Still "Not yet." from the owner: test helpers,
+  where the libraries live. Running: `monochromatic-lint` group-summary checks
+  (`feat/monochromatic-lint-group-folder-summaries`). Next: after the remaining tokio steps, rescan, then move steps 2
+  to 6 on branches. Also from that pass: `mpm-shadow` fixed for global pnpm installs (merge `dea47ef164`; physical
+  `PNPM_HOME`); an agent releases it as `0.2.7-alpha.2` after checking a `tagPrefix` field the main build rejected in
+  the global plan and making install re-observe what pnpm added, then repairs the 11 global tools.
 - Layout (owner: "Layout + linting fixes are the biggest priority."): the redone split waits on the owner, who
   answered "Not yet." for the test helpers and for where libraries live, "One level of groups" for the program, and
   asked "Why are we not using already established crates for some functions?" An agent now rescans main, checks each
