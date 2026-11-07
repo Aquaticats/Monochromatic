@@ -3578,6 +3578,19 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The wrapper (0.5.34 to 0.6.0) can go after the other 15 crates.
 - The earlier per-user scratch (`<state>/cli-git/scratch`) is still not swept; the owner's pick covered the repository scratch only.
 - The daily toolchain timer must not run for real until the batch ends (its agent was told).
+  Its agent finished: code merged as `c6daf6161e` (plus doc commits `baac0829e2`, `798360d773`);
+  units `toolchain-daily-update.service` and `.timer` installed but disabled; rehearsal 20 min 51 s in a throwaway worktree.
+  After the batch, in this order: merge `feat/toolchain-always-latest-landing` (plan and lock to latest, plus the
+  `bincode-1` catalog that keeps the placeholder bincode 3.0.0 out), run `mise run toolchain:timer:install`,
+  start `toolchain-daily-update.service` once and read its journal. Main's lock stays on bun 1.3.14 until then
+  (installed bun matched it when checked shortly before 2026-11-07T07:14:14-05:00).
+  Deviation: it updated the real global plan and lock (outside the repo) during the rehearsal, so the global toolchain
+  already moved. A guard refused `git restore` of two formatter side effects; it saved the diff to
+  `~/temp/agent/tal/format-side-effects.patch` and force-removed the worktree.
+  Follow-ups it found: terminal and music-player Containerfiles still hard-code `ZIG_VERSION=0.15.2`
+  while the lock moves to 0.17.1; `llama.cpp` stays pinned until `mpm-shadow` can pick prereleases;
+  `core-exec`'s `depends.unit.test.ts` ran over half an hour (stopped, not investigated);
+  scratch branches `feat/toolchain-always-latest` and `feat/toolchain-always-latest-code` remain.
 - The batch agent started after merge `73173e0f41` with the 15 crates; "go wrapper" waits for the background-prompt fix below.
   It runs on the default subagent model because an `opus` override was refused by a permission rule;
   the owner, asked, answered "Keep it running (Recommended)".
