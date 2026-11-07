@@ -211,9 +211,13 @@ in order:
     Check:
     `pass first finished` and a received record for every manifest row.
 12. `p4d-external-first` (root),
-    `p4e-sizes` (root):
+    `p4e-sizes` (root),
+    `p4f-verify-first` (root):
     a new subvolume per external folder with a root `rsync` into it,
     and the size table for the cut-over's choice of subvolumes to compare.
+    The last compares every first-pass copy with the read-only snapshot it was sent from, by path, type, size, time and
+    mode (`rsync --dry-run`, no data read), excusing exactly the inventoried nested subvolumes.
+    A difference stops the run and names the copy.
 
 The runner then stops.
 It does not start the cut-over.

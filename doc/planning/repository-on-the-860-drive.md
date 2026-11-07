@@ -2557,6 +2557,20 @@ and a snapshot that is kept pins old extents while the live tree changes.
   no mechanism reserves space for commits,
   and the plan does not claim one.
 
+## The send plan, 2026-11-07 (coordinator's pick, owner's veto open)
+
+Found on the first real fixture runs of the guided runner; the source trace and the measurements are in
+`doc/troubleshooting/btrfs-send-clone-sources-need-a-parent.md`.
+`btrfs send` with clone sources and no parent stops ("parent determination failed"), and a parent that is a snapshot of
+another subvolume can pair two different inodes made in one transaction (the kernel pairs inodes by number and
+generation), which failed loudly on the fixture and could silently misdescribe a file on a real run.
+The copy tool therefore sends every first-pass subvolume as `-p <empty parent> -c <every earlier copy>`, sends the final
+pass `-p` the first-pass snapshot of the same subvolume, refuses a destination that holds two subvolumes with one
+received UUID or an entry of the received folder that no record knows, and verifies every first-pass copy against its
+snapshot (`--pass=verify-first`, stage `p4f-verify-first`, required before the cut-over) before the window.
+Open and unmeasured: how many extents of the real set exceed the kernel's 1024-reference clone cap (`SEND_MAX_EXTENT_REFS`)
+and are written in full, which the destination's free space must absorb.
+
 ## The copy
 
 Method M1 (send and receive with clone sources,
