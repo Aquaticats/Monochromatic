@@ -12,7 +12,7 @@ The historical native document link now resolves from this archive directory.
 The former README used `../../../doc/` for repository documentation links.
 Their current prefix in this archive is `../../../../doc/` (moved 2026-10-17).
 
-# @monochromatic-dev/pi-plugin-auto-mode
+## @monochromatic-dev/pi-plugin-auto-mode
 
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
