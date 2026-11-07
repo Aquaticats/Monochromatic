@@ -73,7 +73,7 @@ const FORBIDDEN_IN_CODE: &[&str] = &[
 /// a file,
 /// and the text it may carry.
 /// The removal of the link an earlier release made.
-const ALLOWED_CODE: &[(&str, &str)] = &[("service/service_provision.rs", "sockets.target.wants")];
+const ALLOWED_CODE: &[(&str, &str)] = &[("service/service_provision_earlier_service_retirement.rs", "sockets.target.wants")];
 
 /// The lines of a unit's text that would make it start at startup or at login (`systemd.unit(5)`,
 /// "[Install] Section Options"):
@@ -201,7 +201,7 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
         }
     }
     assert_eq!(found, Vec::<String>::new());
-    let provision: String = std::fs::read_to_string(root.join("service").join("service_provision.rs")).expect("provisioning");
+    let provision: String = std::fs::read_to_string(root.join("service").join("service_provision_earlier_service_retirement.rs")).expect("retirement of the earlier service");
     assert!(provision.contains("sockets.target.wants"), "the exception is still needed; remove it from the list when the code goes");
 }
 
