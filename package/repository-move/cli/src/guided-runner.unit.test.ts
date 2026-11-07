@@ -522,6 +522,46 @@ await describe({
           },
         },),
         it({
+          name: 'parseGuidedFlags refuses every flag it does not know, an empty value, and extra words, naming them and the valid flags',
+          fn: async () => {
+            for (const bad of [['--log-file=/x',], ['--redo=',], ['--assert=',], ['--dryrun',], ['extra',], ['--redo',],]) {
+              let caught: unknown;
+              try {
+                parseGuidedFlags(['prepare', ...bad,],);
+              }
+              catch (error) {
+                caught = error;
+              }
+              expect(caught,).toBeInstanceOf(GuidedStopError,);
+              expect((caught as GuidedStopError).message,).toContain(bad[0] ?? '',);
+              expect((caught as GuidedStopError).message,).toContain('--dry-run',);
+            }
+          },
+        },),
+        it({
+          name: 'runGuided refuses a --redo or --assert that names no stage of the command, listing the stage ids',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const outcomes = await Promise.all([{ redo: ['no-such-stage',], asserted: [], }, { redo: [], asserted: ['no-such-stage',], },].map(async (flags,) => {
+                const lines: string[] = [];
+                const status = await runGuided({
+                  config,
+                  flags: { command: 'prepare', dryRun: true, ...flags, },
+                  out: (text,) => {
+                    lines.push(text,);
+                  },
+                },);
+                return { status, text: lines.join('',), };
+              },),);
+              for (const { status, text, } of outcomes) {
+                expect(status,).toBe(64,);
+                expect(text,).toContain('no-such-stage',);
+                expect(text,).toContain('f1-images',);
+              }
+            },);
+          },
+        },),
+        it({
           name: 'createGuidedConfig refuses a path with a character the shown commands would not quote',
           fn: async () => {
             await withConfig(async ({ home, },) => {

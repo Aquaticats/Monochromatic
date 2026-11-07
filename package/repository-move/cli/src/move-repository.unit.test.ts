@@ -7,6 +7,7 @@
  */
 
 import {
+  chmod,
   mkdir,
   readdir,
   readFile,
@@ -76,6 +77,12 @@ async function linkTo(target: string,): Promise<LinkedFolder> {
     },
   };
 }
+
+/** Permission bits of a folder only its owner may use. */
+const RESTRICTED_FOLDER_MODE = 0o750;
+
+/** The permission bits of a file mode. */
+const PERMISSION_BITS = 0o777;
 
 /** Deletes the partial receive a failed send leaves in the received folder, as the owner would after listing it. */
 async function removePartialReceive(fixture: Fixture,): Promise<void> {
@@ -582,7 +589,7 @@ await describe({
             await using fixture = await makeFixture({ names: ['a',], },);
             expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
             expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
-            const result = await runCopyTool({ fixture, pass: 'final', env: { STUBS: 'wt/a', }, },);
+            const result = await runCopyTool({ fixture, pass: 'final', },);
             expect(result.status,).toBe(0,);
             expect(result.stderr,).toContain('pass final finished',);
             expect(await records(fixture,),).toContain('f001.placed.json',);
@@ -599,9 +606,61 @@ await describe({
             await addWorktree({ fixture, name: 'late', uuid: 'u-late', },);
             await writeInventory({ fixture, rows: [['a', 'u-a',], ['late', 'u-late',],], },);
             expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
-            const result = await runCopyTool({ fixture, pass: 'final', env: { STUBS: 'wt/a,wt/late', }, },);
+            const result = await runCopyTool({ fixture, pass: 'final', },);
             expect(result.status,).toBe(0,);
             expect(result.stderr,).toContain('has no first-pass copy',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'placement of a nested subvolume at its final path',
+      children: [
+        it({
+          name: 'makes the missing parent folders with the mode of the source folders when the received copy has no placeholder',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await chmod(join(fixture.main, 'wt',), RESTRICTED_FOLDER_MODE,);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            const result = await runCopyTool({ fixture, pass: 'final', },);
+            expect(result.status,).toBe(0,);
+            expect(await records(fixture,),).toContain('f001.placed.json',);
+            expect((await stat(join(fixture.base, 'final', 'Monochromatic', 'wt',),)).mode & PERMISSION_BITS,).toBe(RESTRICTED_FOLDER_MODE,);
+          },
+        },),
+        it({
+          name: 'removes an empty folder at the path, then places',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            const result = await runCopyTool({ fixture, pass: 'final', env: { STUBS: 'wt/a', }, },);
+            expect(result.status,).toBe(0,);
+            expect(await records(fixture,),).toContain('f001.placed.json',);
+          },
+        },),
+        it({
+          name: 'refuses a folder that is not empty, naming it and removing nothing, and a rerun after the owner clears it places the rest',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            const refused = await runCopyTool({ fixture, pass: 'final', env: { STUBS: 'wt/a/inner', }, },);
+            expect(refused.status,).toBe(1,);
+            const target = join(fixture.base, 'final', 'Monochromatic', 'wt', 'a',);
+            expect(refused.stderr,).toContain(target,);
+            expect(refused.stderr,).toContain('not empty',);
+            expect(
+              await exists(join(target, 'inner',),),
+            ).toBe(true,);
+            expect(await records(fixture,),).toContain('f000.placed.json',);
+            expect(await records(fixture,),).not.toContain('f001.placed.json',);
+            await rm(join(target, 'inner',), { recursive: true, },);
+            const again = await runCopyTool({ fixture, pass: 'final', },);
+            expect(again.status,).toBe(0,);
+            expect(await records(fixture,),).toContain('f001.placed.json',);
+            expect(await sendCalls({ fixture, snapshot: 'f000', },),).toBe(1,);
           },
         },),
       ],
