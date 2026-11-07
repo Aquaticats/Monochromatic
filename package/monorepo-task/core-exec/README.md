@@ -290,7 +290,7 @@ so a machine behind a proxy sets that variable for the task.
 Notes go to standard error so that standard output stays the program's (`bin --json` is read by other programs).
 The modules behind it import only `node:` modules,
 so the command runs from source on a checkout without `node_modules`;
-`.github/actions/repo-tools-setup/action.yml` does the same in shell for CI.
+`.github/actions/repo-tools-setup/action.yml` does the same for CI by running `src/repo-tools-setup.ts` from source.
 
 ```sh
 # Repository root
