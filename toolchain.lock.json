@@ -464,10 +464,10 @@
     },
     "rust": {
       "request": "rust@nightly",
-      "version": "nightly-2026-11-01",
+      "version": "nightly-2026-11-07",
       "route": "rustup-toolchain",
       "manager": "rustup",
-      "packageId": "nightly-2026-11-01",
+      "packageId": "nightly-2026-11-07",
       "bins": [
         "cargo",
         "cargo-clippy",
@@ -482,7 +482,7 @@
         "rustup"
       ],
       "env": {
-        "RUSTUP_TOOLCHAIN": "nightly-2026-11-01"
+        "RUSTUP_TOOLCHAIN": "nightly-2026-11-07"
       },
       "options": {
         "rustComponents": [
@@ -1525,5 +1525,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:084708529622847c87d99a6a9732cc5f2e75a63620b1dd385f5d5384e97a68de"
+  "digest": "sha256:1f201c55cab8d3755c7920a1783cbc2f5502bf86a9b5a0c3c73898fc84d65a20"
 }
