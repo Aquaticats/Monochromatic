@@ -1195,6 +1195,12 @@ proved the Wayland library step.
   crates.io `2026-11-07T12:08:46.831419Z`, `yanked` false.
   GitHub release `monochromatic-nested-wayland-session-v0.6.3` holds both Linux tarballs and the checksums file. Wave 0 is complete on crates.io.
 
+- `monochromatic-catalog-specifier` 0.1.0 to 0.1.1:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371369818`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371457006`
+  (built from `f6239c698a`),
+  crates.io `2026-11-07T12:13:51.127758Z`, `yanked` false.
+
 ## Evidence log
 
 - crates.io API reads:
