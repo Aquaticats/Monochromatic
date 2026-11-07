@@ -126,7 +126,9 @@ mise run //package/music-player/android-app:lint
 - `lint` alone completed successfully.
 - `prototype:build` followed by `lint` completed successfully with no cache-registration
   diagnostic.
-- `prototype:install`, whose assemble and install steps are sequential, completed
+- `prototype:install`,
+  whose assemble and install steps are sequential,
+  completed
   successfully.
 
 ### Failing catalog
@@ -172,16 +174,22 @@ different Gradle projects may still run concurrently when they do not share an o
 
 ## Upstream filing decision
 
-1. **Is it really upstream's fault?** No.
+1. **Is it really upstream's fault?**
+   No.
    The repository harness launched two commands
    concurrently against one mutable Gradle output directory.
-2. **Can upstream fix it?** Not evaluated because the first constraint fails.
-3. **Are they supporting this use case?** No evidence was found that separate Gradle
+2. **Can upstream fix it?**
+   Not evaluated because the first constraint fails.
+3. **Are they supporting this use case?**
+   No evidence was found that separate Gradle
    invocations may mutate one project cache concurrently.
-4. **Would the repository welcome our contribution?** Not evaluated because this is a
+4. **Would the repository welcome our contribution?**
+   Not evaluated because this is a
    consumer scheduling error.
-5. **Will they likely fix it?** Not applicable.
-6. **Have we prototyped a minimal fix?** The consumer-side fix is verified serialization;
+5. **Will they likely fix it?**
+   Not applicable.
+6. **Have we prototyped a minimal fix?**
+   The consumer-side fix is verified serialization;
    no upstream patch is warranted.
 
 No matching exemption exists under `.out-of-scope/`.

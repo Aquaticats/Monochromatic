@@ -69,7 +69,8 @@ The sandbox environment is assembled in layers that each overwrite the
     For `org.winehq.Wine` the deployed metadata file
     (`/var/lib/flatpak/app/org.winehq.Wine/x86_64/stable/active/metadata`)
     contains `[Environment] WINEPREFIX=/var/data/wine`.
-3.  Override layers merge after metadata
+3.
+ Override layers merge after metadata
     (`common/flatpak-run.c:3411`):
 
 ```c
@@ -88,7 +89,8 @@ The sandbox environment is assembled in layers that each overwrite the
     later layers winning
     (`common/flatpak-context.c:1976`,
     `g_hash_table_insert` on `env_vars`).
-4.  `flatpak run --env` merges last,
+4.
+ `flatpak run --env` merges last,
     labelled `"Command-line overrides"` in its own debug dump
     (`common/flatpak-run.c:3423`):
 
@@ -129,7 +131,8 @@ Resulting precedence,
 
 Documentation state:
  `flatpak-run(1)` states the intent
- ("The application metadata can override environment variables, as well
+ ("The application metadata can override environment variables,
+as well
  as the `--env` option",
  `doc/flatpak-run.xml:81`),
  but `flatpak-metadata(5)`'s `[Environment]` section

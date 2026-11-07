@@ -432,7 +432,8 @@ const COLD_DRIVER: [(&str, &str); 3] = [
     ),
 ];
 
-/// Run the executable on a machine whose driver cache, scratch location and `rustup` are the stub's directories.
+/// Run the executable on a machine whose driver cache,
+/// scratch location and `rustup` are the stub's directories.
 /// `driver_version_line` installs a driver for the toolchain `nightly-fixture` that reports that line.
 /// The variables are set on the child only.
 fn run_on_machine(
@@ -705,6 +706,7 @@ fn host_real_run_over_wg_quicker_exempt() {
     );
 }
 
-/// The unit-test scratch root, shared with the library test build and placed in the build directory.
+/// The unit-test scratch root,
+/// shared with the library test build and placed in the build directory.
 #[path = "test_scratch.rs"]
 mod test_scratch;

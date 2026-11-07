@@ -62,17 +62,21 @@ That Git harness failure does not establish a pnpm packaging failure.
 
 The supported workspace configuration installs all 26 immutable archives in run `39134064943`.
 Twenty-five packages expose runtime entries and import successfully.
-The ownership marker declares only `types` entries; runtime import correctly raises
+The ownership marker declares only `types` entries;
+runtime import correctly raises
 `ERR_PACKAGE_PATH_NOT_EXPORTED`.
-An external compiler consumer, using the exact packed marker archive,
+An external compiler consumer,
+using the exact packed marker archive,
 compiles both exported marker types and rejects an invalid field with TypeScript `7.0.2` diagnostic `TS2322`.
 Its runtime-negative control confirms the intended absence of a runtime entry.
 
-Run `39136177894` also passes all five actual functional consumers, including the installed mutation CLI
+Run `39136177894` also passes all five actual functional consumers,
+including the installed mutation CLI
 with supported `--package cli-fixture --dry-run src/value.ts`.
 The CLI enumerates two mutants and a selected unit file without executing either.
 The retained red aggregate is the research runtime-import assumption for the types-only package,
 not a failed application assertion.
-Run `39135404757` is separate: a truncated bootstrap activated an older plan.
+Run `39135404757` is separate:
+a truncated bootstrap activated an older plan.
 Actual bootstrap execution plus decoded plan/task equality qualifies the replacement harness.
 The [coverage research](../planning/depot-complete-coverage-research.md) retains exact boundaries and sealed receipts.

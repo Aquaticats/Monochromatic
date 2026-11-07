@@ -19,8 +19,7 @@ use tracing::{debug, info, warn};
 use zbus::{
     message::{Flags, Header},
     object_server::SignalEmitter,
-    zvariant::{OwnedValue, Value},
-    ObjectServer,
+    ObjectServer, OwnedVariant, Variant,
 };
 
 /// Imports the items this module uses from `crate`.
@@ -53,16 +52,16 @@ impl JobView {
 }
 
 /// Looks up one property of an `update` call as a plain value.
-fn property<'a>(properties: &'a HashMap<String, OwnedValue>, key: &str) -> Option<&'a Value<'static>> {
+fn property<'a>(properties: &'a HashMap<String, OwnedVariant>, key: &str) -> Option<&'a Variant<'static>> {
     let value = properties.get(key)?;
     return Some(value);
 }
 
 /// Reads a string property,
 ///  or `None` when the key is absent or not a string.
-fn string_property(properties: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
+fn string_property(properties: &HashMap<String, OwnedVariant>, key: &str) -> Option<String> {
     return match property(properties, key) {
-        Some(Value::Str(text)) => Some(text.to_string()),
+        Some(Variant::Str(text)) => Some(text.to_string()),
         _ => None,
     };
 }
@@ -76,30 +75,30 @@ fn string_property(properties: &HashMap<String, OwnedValue>, key: &str) -> Optio
 ///  which converts between integer widths,
 ///  so a caller that sends `int32` instead of `uint32` still moves the bar.
 ///  The log shows the signature the caller used.
-fn percent_property(properties: &HashMap<String, OwnedValue>, key: &str) -> Option<u32> {
+fn percent_property(properties: &HashMap<String, OwnedVariant>, key: &str) -> Option<u32> {
     return match property(properties, key) {
-        Some(Value::U8(number)) => Some(u32::from(*number)),
-        Some(Value::U16(number)) => Some(u32::from(*number)),
-        Some(Value::U32(number)) => Some(*number),
-        Some(Value::U64(number)) => u32::try_from(*number).ok(),
-        Some(Value::I16(number)) => u32::try_from(*number).ok(),
-        Some(Value::I32(number)) => u32::try_from(*number).ok(),
-        Some(Value::I64(number)) => u32::try_from(*number).ok(),
+        Some(Variant::U8(number)) => Some(u32::from(*number)),
+        Some(Variant::U16(number)) => Some(u32::from(*number)),
+        Some(Variant::U32(number)) => Some(*number),
+        Some(Variant::U64(number)) => u32::try_from(*number).ok(),
+        Some(Variant::I16(number)) => u32::try_from(*number).ok(),
+        Some(Variant::I32(number)) => u32::try_from(*number).ok(),
+        Some(Variant::I64(number)) => u32::try_from(*number).ok(),
         _ => None,
     };
 }
 
 /// Reads a boolean property,
 ///  or `None` when the key is absent or not a boolean.
-fn bool_property(properties: &HashMap<String, OwnedValue>, key: &str) -> Option<bool> {
+fn bool_property(properties: &HashMap<String, OwnedVariant>, key: &str) -> Option<bool> {
     return match property(properties, key) {
-        Some(Value::Bool(flag)) => Some(*flag),
+        Some(Variant::Bool(flag)) => Some(*flag),
         _ => None,
     };
 }
 
 /// Decodes the properties that change what a job shows.
-fn job_changes(properties: &HashMap<String, OwnedValue>) -> JobChanges {
+fn job_changes(properties: &HashMap<String, OwnedVariant>) -> JobChanges {
     return JobChanges {
         title: string_property(properties, "title"),
         info_message: string_property(properties, "infoMessage"),
@@ -128,8 +127,8 @@ const _: () = {
         ///  and `descriptionField` is ignored,
         ///  as in Plasma's `job_p.cpp`.
         #[zbus(name = "update")]
-        async fn update(&self, properties: HashMap<String, OwnedValue>, #[zbus(header)] header: Header<'_>) {
-            let no_reply = header.primary().flags().contains(Flags::NoReplyExpected);
+        async fn update(&self, properties: HashMap<String, OwnedVariant>, #[zbus(header)] header: Header<'_>) {
+            let no_reply = header.primary().flags().contains(Flags::NO_REPLY_EXPECTED);
             let call = UpdateCall {
                 id: self.id,
                 no_reply,
@@ -147,11 +146,11 @@ const _: () = {
             &self,
             error_code: u32,
             error_message: String,
-            hints: HashMap<String, OwnedValue>,
+            hints: HashMap<String, OwnedVariant>,
             #[zbus(header)] header: Header<'_>,
             #[zbus(object_server)] server: &ObjectServer,
         ) {
-            let no_reply = header.primary().flags().contains(Flags::NoReplyExpected);
+            let no_reply = header.primary().flags().contains(Flags::NO_REPLY_EXPECTED);
             let call = TerminateCall {
                 id: self.id,
                 no_reply,

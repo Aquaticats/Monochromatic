@@ -129,12 +129,15 @@ It passes the rule but already has the changed error shape.
 `${HOME}/temp/agent/pi-preserve-caught-error-probe-20261015.log`
 and `preserve-error-probe/receipt.json` record:
 
-- Direct construction: one target diagnostic;
+- Direct construction:
+  one target diagnostic;
   own keys change from `stack,message,errors` to `stack,message,cause,errors`.
   The new cause is the second original failure.
-- Factory construction: zero target diagnostics;
+- Factory construction:
+  zero target diagnostics;
   source and own keys stay unchanged after autofix.
-- Explicit cause: zero target diagnostics;
+- Explicit cause:
+  zero target diagnostics;
   source and own keys stay unchanged after autofix.
 - Every variant retains both original failure objects,
   in their original order,
@@ -179,19 +182,25 @@ or suppression changed.
 
 No upstream report is warranted for the observed enforcement of this rule's documented policy.
 
-1.  Upstream fault: no demonstrated mismatch.
+1.  Upstream fault:
+    no demonstrated mismatch.
     The rule explicitly requires a cause property and recognizes aggregate constructors.
-2.  Fixability: accepting aggregate membership would be possible by changing the rule's policy.
+2.  Fixability:
+    accepting aggregate membership would be possible by changing the rule's policy.
     That is a different policy from the current options-argument test.
-3.  Supported use case: direct aggregate construction is supported with an explicit cause;
+3.  Supported use case:
+    direct aggregate construction is supported with an explicit cause;
     source tests at `preserve_caught_error.rs:437` include that form.
-4.  Contribution policy: the checked `CONTRIBUTING.md` welcomes contributions,
+4.  Contribution policy:
+    the checked `CONTRIBUTING.md` welcomes contributions,
     requires AI disclosure,
     and rejects unreviewed generated content.
     No contribution is proposed here.
-5.  Acceptance evidence: the documented cause requirement is evidence against treating the observed behavior
+5.  Acceptance evidence:
+    the documented cause requirement is evidence against treating the observed behavior
     as an implementation defect.
-6.  Prototype: no upstream prototype is justified because the fault gate fails.
+6.  Prototype:
+    no upstream prototype is justified because the fault gate fails.
     The owned factory and disposable before/after probe establish the local resolution.
 
 The `.out-of-scope/` inventory was checked;

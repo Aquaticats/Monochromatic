@@ -10,25 +10,39 @@ so every one of those trailers names a real repository issue about unrelated wor
 GitHub acts on a closing keyword when the commit carrying it reaches the repository's default branch.
 These commits sit on `translation-repair-rebased`,
 so nothing has closed yet:
-checked 2026-08-21, eight of the ten named issues were still open,
+checked 2026-08-21,
+eight of the ten named issues were still open,
 and the two that were closed had closed for their own reasons.
 
-On merge to `main`, GitHub would close all eight.
+On merge to `main`,
+GitHub would close all eight.
 
 ## The affected commits
 
-Each line is the commit, the trailer it carries, and the repository issue that trailer actually names.
+Each line is the commit,
+the trailer it carries,
+and the repository issue that trailer actually names.
 
--   `655b4bb3d` `Closes #53`, against `build: assign distinct DEFAULT_PORT values across webapps`.
--   `8f02e72bf` `close #72`, against `refactor: consolidate webapp-forge/server jsx-runtime.ts with ssg-test`.
--   `a6b0c6b83` `Closes #112`, against `build: investigate agent-initiated compaction approach`.
--   `41fca1a72` `Closes #116`, against `build: track upstream dprint fix for exec plugin extension-fallback`.
--   `e0a655186` `Closes #117`, against `fix(paper2vn): document or fix [hidden] attribute specificity collision`.
--   `67228e9ab` `Closes #126`, against `perf: declare sideEffects: false on pure module packages`.
--   `446f9b510` `Closes #152`, against `build(module/es): document JSONC parser rationale`.
--   `0cf2f759b` `Closes #153`, against `fix(exa-search): use replicating element logic`.
--   `5de9d9085` `Closes #155`, against `fix(pi/auto-mode): add missing TSDoc per TODO in context.ts`.
--   `d428bf5db` `Closes #159`, against `build(automation): set up release versioning and publishing automation`.
+-   `655b4bb3d` `Closes #53`,
+    against `build: assign distinct DEFAULT_PORT values across webapps`.
+-   `8f02e72bf` `close #72`,
+    against `refactor: consolidate webapp-forge/server jsx-runtime.ts with ssg-test`.
+-   `a6b0c6b83` `Closes #112`,
+    against `build: investigate agent-initiated compaction approach`.
+-   `41fca1a72` `Closes #116`,
+    against `build: track upstream dprint fix for exec plugin extension-fallback`.
+-   `e0a655186` `Closes #117`,
+    against `fix(paper2vn): document or fix [hidden] attribute specificity collision`.
+-   `67228e9ab` `Closes #126`,
+    against `perf: declare sideEffects: false on pure module packages`.
+-   `446f9b510` `Closes #152`,
+    against `build(module/es): document JSONC parser rationale`.
+-   `0cf2f759b` `Closes #153`,
+    against `fix(exa-search): use replicating element logic`.
+-   `5de9d9085` `Closes #155`,
+    against `fix(pi/auto-mode): add missing TSDoc per TODO in context.ts`.
+-   `d428bf5db` `Closes #159`,
+    against `build(automation): set up release versioning and publishing automation`.
 
 One commit on the branch gets it right:
 `b3e3b01c5` carries `Closes #426`,

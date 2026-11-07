@@ -150,14 +150,20 @@ An upstream issue search for `repeater model pointer click` returned no matches;
 the [related model replacement investigation][scroll] is a separate scroll-gesture incident,
 not a claim of identical input behavior.
 
-1.  Upstream fault: not demonstrated.
+1.  Upstream fault:
+    not demonstrated.
     Replacement correctly prevents the tested stale click.
-2.  Fixability: no corrective toolkit change is required for this consumer.
-3.  Supported use: the installed repeater explicitly handles model replacement,
+2.  Fixability:
+    no corrective toolkit change is required for this consumer.
+3.  Supported use:
+    the installed repeater explicitly handles model replacement,
     and the application test exercises its actual event boundary.
-4.  Contribution policy: no upstream feature or correction is being proposed.
-5.  Corrective change: none is requested for the verified behavior.
-6.  Prototype: the consumer guard-removal experiment is complete.
+4.  Contribution policy:
+    no upstream feature or correction is being proposed.
+5.  Corrective change:
+    none is requested for the verified behavior.
+6.  Prototype:
+    the consumer guard-removal experiment is complete.
     An upstream patch is not warranted because the first condition is unmet.
 
 [scroll]: slint-flickable-windowed-model-scroll.md

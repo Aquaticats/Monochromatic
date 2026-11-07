@@ -142,7 +142,9 @@ The browser checks exercised caret motion after an End-key positive control,
 focused-control ownership,
 Search visit behavior,
 popup containment and current-row reveal in four responsive/theme contexts.
-The human accepted the whole map, including the playback-region scope, as built (D102).
+The human accepted the whole map,
+including the playback-region scope,
+as built (D102).
 The next independent design item is the settled light error/Undo state
 family,
 recorded in `doc/planning/music-player-light-error-undo.md`.

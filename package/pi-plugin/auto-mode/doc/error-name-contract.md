@@ -25,7 +25,8 @@ The exception applies to this declaration only,
 with the rule enabled immediately after the class.
 
 The installed release source was inspected at Oxc commit
-`6941b4ed45ead21c45bc2164cb80a180eed85b43`, tag `oxlint_v1.88.0`:
+`6941b4ed45ead21c45bc2164cb80a180eed85b43`,
+tag `oxlint_v1.88.0`:
 
 - `crates/oxc_linter/src/rules/unicorn/custom_error_definition.rs:84`
   explicitly lists the dynamic assignment as invalid.
@@ -49,7 +50,8 @@ It therefore fails the existing consumer contract.
 No global rule configuration was weakened.
 
 The native build copies this typed module without minification.
-At source checkpoint `98add8596e`, its source and private built copy are byte-identical:
+At source checkpoint `98add8596e`,
+its source and private built copy are byte-identical:
 808 bytes,
 SHA-256 `7963f2c721d6641934b0d1455b4a6c70e2556771b2d18afab2660458a57a5253`.
 This measurement precedes the formatting and exception comment.

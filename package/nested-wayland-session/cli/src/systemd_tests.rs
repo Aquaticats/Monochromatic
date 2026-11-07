@@ -68,5 +68,5 @@ fn named_memory_and_task_limits_replace_the_defaults() {
 /// The fixed disk weight stays within the owner's limit.
 #[test]
 fn fixed_disk_weight_constant_stays_within_the_owner_limit() {
-    assert!(APP_IO_WEIGHT > 0 && APP_IO_WEIGHT <= OWNER_MAXIMUM_IO_WEIGHT);
+    const { assert!(APP_IO_WEIGHT > 0 && APP_IO_WEIGHT <= OWNER_MAXIMUM_IO_WEIGHT) };
 }

@@ -81,9 +81,12 @@ but this pass is still an instantiation boundary.
 
 ```rust
 /// Walk the component tree and every active popup to materialize every
-/// Repeater, Conditional and ComponentContainer.  Runs change handlers
+/// Repeater,
+/// Conditional and ComponentContainer.
+///  Runs change handlers
 /// and the instantiation pass in a loop because init callbacks may set
-/// properties that trigger change handlers, and change handlers may
+/// properties that trigger change handlers,
+/// and change handlers may
 /// make new conditionals/repeaters dirty.
 pub fn ensure_tree_instantiated(&self) {
     for _ in 0..10 {

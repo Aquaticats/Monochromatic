@@ -66,7 +66,8 @@ Whatever the arguments,
 a forwarded command must not be a `git commit` without a dry-run or status-format option,
 a `git push` without a dry-run option while the built-in content policy is on,
 or a `git add` in a worktree while that policy is on
-(the fixed answers prepare no candidates, so that policy cannot read them).
+(the fixed answers prepare no candidates,
+so that policy cannot read them).
 A worktree creation or possible alias run from a linked worktree is forwarded:
 the executable settles the worktree copy around it.
 The dry-run options are restated from Git's documentation instead of read from the subject's tables.
@@ -148,7 +149,10 @@ and the `/proc/<pid>/stat` start-time reader
 over raw bytes and over records and stat lines built from the input.
 A built owner lock record is restated by the subject's encoder
 and then edited once by one of a fixed list of field edits
-(a PID of 0, negative, fractional, beyond the safe range or text,
+(a PID of 0,
+negative,
+fractional,
+beyond the safe range or text,
 an empty or renamed token,
 an empty identity,
 another schema version,
@@ -240,11 +244,14 @@ every control effect,
 a control spelling that survives as a value or path,
 every ending of the lifecycle,
 every reply kind and reply failure,
-equal, changed, removed and new paths of a staged delta,
+equal,
+changed,
+removed and new paths of a staged delta,
 every `rulesFile` refusal,
 every final-newline outcome,
 accepted and refused owner lock records,
-running, exited and malformed stat lines,
+running,
+exited and malformed stat lines,
 so an invariant that is never reached cannot pass unnoticed.
 
 `mise run //package/git-policy/cli.fuzz:test:planted` proves the invariants can fail.
@@ -290,7 +297,8 @@ and the manifest in the evidence directory records it.
 `--targets=<name,...>` limits the run to the named targets.
 Each target's standard output and standard error go straight to `stdout.log` and `stderr.log` in the evidence directory,
 because a target such as `wrapper_controls` prints a line for every commit it forwards
-(about 140 KiB per second measured on 2026-10-17), which overflowed the earlier in-memory capture.
+(about 140 KiB per second measured on 2026-10-17),
+which overflowed the earlier in-memory capture.
 Corpora,
 artifacts,
 and logs are retained under `target/verification/campaign-*`.

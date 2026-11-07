@@ -3,7 +3,9 @@
 `toml_edit` round-trips an unedited document byte for byte,
 but the plain edit calls
 (index assignment `doc["a"]["b"] = value(...)` as the crate README shows,
-`Array::remove`, `Table::remove`, and `Table::insert`)
+`Array::remove`,
+`Table::remove`,
+and `Table::insert`)
 silently delete comments or leave a comment next to a different element.
 No error is raised.
 
@@ -12,7 +14,8 @@ comments stored as `Decor` trivia on the node that owns them,
 and edit calls that replace or remove that node together with its trivia.
 It was found by the differential edit harness in
 [the Rust structured-edit research](../planning/monorepo-manager-route-research/rust-structured-edits.md)
-("Probe results by candidate", "TOML"),
+("Probe results by candidate",
+"TOML"),
 where `toml_edit` used as its README shows passed 12 of 21 cases
 and a repository wrapper over the same crate passed 21 of 21.
 Status (2026-09-17):
@@ -125,7 +128,8 @@ identical to the published crate source
 For a key-value line,
 all trivia collected since the previous item becomes the key's leaf-decor prefix,
 and the whitespace plus comment after the value up to the newline becomes the value's decor suffix
-(`crates/toml_edit/src/parser/document.rs:61-111`, excerpt):
+(`crates/toml_edit/src/parser/document.rs:61-111`,
+excerpt):
 
 ```rust
 // crates/toml_edit/src/parser/document.rs:61-111 (excerpt)
@@ -149,7 +153,9 @@ comment,
 and newline event,
 blank lines included,
 with no split at a blank line
-(`crates/toml_edit/src/parser/document.rs:113-115`, `:271-274`, `:465-470`):
+(`crates/toml_edit/src/parser/document.rs:113-115`,
+`:271-274`,
+`:465-470`):
 
 ```rust
 // crates/toml_edit/src/parser/document.rs:113-115
@@ -170,7 +176,8 @@ and `"  # foo trailing"` is the suffix of value `1`.
 Inside an array,
 trivia after a comma is collected as the prefix of the next value,
 because `finish_value` runs at the comma and clears `current_value`
-(`crates/toml_edit/src/parser/array.rs:65-68`, `:99-117`):
+(`crates/toml_edit/src/parser/array.rs:65-68`,
+`:99-117`):
 
 ```rust
 // crates/toml_edit/src/parser/array.rs:65-68
@@ -222,14 +229,16 @@ pub fn value<V: Into<Value>>(v: V) -> Item {
 Assignment through that slot replaces the whole `Value`,
 including the decor suffix holding the same-line comment.
 The encoder then uses the default value decor `(" ", "")`
-(`crates/toml_edit/src/encode.rs:333-335`, `crates/toml_edit/src/value.rs:361`).
+(`crates/toml_edit/src/encode.rs:333-335`,
+`crates/toml_edit/src/value.rs:361`).
 The key and its leaf decor are untouched,
 which is why `# comment above clap` survives index assignment.
 The crate documents that formatting lives on the value
 (`crates/toml_edit/src/item.rs:407-409`):
 
 ```rust
-/// Since formatting is part of a `Value`, the right hand side of the
+/// Since formatting is part of a `Value`,
+/// the right hand side of the
 /// assignment needs to be decorated with a space before the value.
 /// The `value` function does just that.
 ```
@@ -244,7 +253,8 @@ so the replaced element loses the `" # first\n  "` prefix that held the comment 
 
 `Array::remove` removes the element and its decor;
 `Table::remove` shift-removes the key and its leaf decor
-(`crates/toml_edit/src/array.rs:305-311`, `crates/toml_edit/src/table.rs:461-464`):
+(`crates/toml_edit/src/array.rs:305-311`,
+`crates/toml_edit/src/table.rs:461-464`):
 
 ```rust
 // crates/toml_edit/src/array.rs:305-311
@@ -309,20 +319,25 @@ so it is lost independently of the key reset.
 `insert_formatted` instead stores the caller's key (`crates/toml_edit/src/table.rs:445-459`).
 
 This is intended behavior.
-Commit `9bca304` ("fix(edit): Preserve new key's formatting when inserting",
+Commit `9bca304` ("fix(edit):
+Preserve new key's formatting when inserting",
 2024-09-24,
 first released in `v0.22.22`) added the reset to restore 0.22.20 behavior after
 [toml-rs/toml#787][issue-787],
 where the maintainer wrote
-"In light of `insert_formatted`, I'm tempted to keep `insert` not preserving the existing formatting"
+"In light of `insert_formatted`,
+I'm tempted to keep `insert` not preserving the existing formatting"
 and,
 on changing it later,
-"Likely based on feedback and, at this point, through a breaking change".
+"Likely based on feedback and,
+at this point,
+through a breaking change".
 The doc comment on both `insert` methods still says only "Inserts a key-value pair into the map."
 
 ### Documented limitations versus bugs
 
-The crate README "Limitations" (`crates/toml_edit/README.md:39-44`, mirrored in `crates/toml_edit/src/lib.rs:64-69`)
+The crate README "Limitations" (`crates/toml_edit/README.md:39-44`,
+mirrored in `crates/toml_edit/src/lib.rs:64-69`)
 lists only two things it does not preserve:
 the order of dotted keys ([toml-rs/toml#163][issue-163])
 and the lack of a trailing newline ([toml-rs/toml#1158][issue-1158]).
@@ -336,7 +351,8 @@ Classification of each symptom against upstream intent:
 - Index assignment dropping the same-line comment:
    intended value-replacement semantics,
    documented indirectly (`item.rs:407-409`;
-   "By default, values are created with default formatting",
+   "By default,
+  values are created with default formatting",
    `lib.rs:38`).
   The missing piece is an API that carries formatting over,
    which the maintainer opened as [toml-rs/toml#231][issue-231] in 2021 and is still open.
@@ -361,7 +377,8 @@ plus the `insert` doc comments.
 - The research note
    "`Table::insert` on an occupied key calls `entry.key_mut().fmt()` ...
    the reset that deleted a comment"
-   (`rust-structured-edits.md`, "Probe results by candidate")
+   (`rust-structured-edits.md`,
+  "Probe results by candidate")
    merged two mechanisms.
   The key reset deletes leading comment lines and key spacing;
    the same-line comment is deleted by the item replacement.
@@ -408,7 +425,8 @@ toml_edit = "=0.25.15"
 
 ```rust
 // ~/temp/agent/toml-edit-quirks/src/bin/reproduce.rs
-//! toml_edit 0.25.15 edits written the way the crate README shows, plus the crate APIs that keep decor.
+//! toml_edit 0.25.15 edits written the way the crate README shows,
+//! plus the crate APIs that keep decor.
 use toml_edit::{DocumentMut, InlineTable, Item, Value, value};
 
 const CARGO: &str = "[dependencies]\n# comment above clap\n\
@@ -527,8 +545,15 @@ podman run --rm --memory=2g --cpus=2 \
 ```
 
 The same symptoms appear in the research harness cases
-`t01`, `t03`, `t07`, `t10`, `t14`, `t16`, and `t18`
-([research doc](../planning/monorepo-manager-route-research/rust-structured-edits.md), "Probe results by candidate").
+`t01`,
+`t03`,
+`t07`,
+`t10`,
+`t14`,
+`t16`,
+and `t18`
+([research doc](../planning/monorepo-manager-route-research/rust-structured-edits.md),
+"Probe results by candidate").
 
 ### Patterns that keep every comment
 
@@ -593,7 +618,8 @@ The same symptoms appear in the research harness cases
 
 All workarounds live at our boundary as consumer-side helpers;
 none edits `toml_edit`.
-The research wrapper (`rust-structured-edits.md`, "Probe results by candidate",
+The research wrapper (`rust-structured-edits.md`,
+"Probe results by candidate",
 226 plus 69 lines of Rust) passed all 21 harness cases,
 and additionally creates deep paths as dotted keys,
 appends to inline tables and multi-line arrays using sibling formatting,
@@ -629,15 +655,20 @@ fn raw(part: Option<&toml_edit::RawString>) -> String {
     part.and_then(|r| r.as_str()).unwrap_or_default().to_owned()
 }
 
-/// Replaces an existing value in place, carrying its decor (leading space, same-line comment) over.
-/// The key and its decor are never touched, so `Table::insert` is never called on an occupied key.
+/// Replaces an existing value in place,
+/// carrying its decor (leading space,
+/// same-line comment) over.
+/// The key and its decor are never touched,
+/// so `Table::insert` is never called on an occupied key.
 fn replace_value(slot: &mut Value, mut next: Value) {
     *next.decor_mut() = slot.decor().clone();
     *slot = next;
 }
 
-/// Removes an array element and hands its prefix, which holds the previous element's
-/// same-line comment, to the next element (or to the array trailing when it was last).
+/// Removes an array element and hands its prefix,
+/// which holds the previous element's
+/// same-line comment,
+/// to the next element (or to the array trailing when it was last).
 fn remove_element(array: &mut Array, index: usize) {
     let prefix = raw(array.remove(index).decor().prefix());
     match array.get_mut(index) {
@@ -652,7 +683,8 @@ fn remove_element(array: &mut Array, index: usize) {
     }
 }
 
-/// Removes a key; comments a blank line separates from it move onto the next key.
+/// Removes a key;
+/// comments a blank line separates from it move onto the next key.
 fn remove_key(table: &mut Table, key: &str) {
     let prefix = table.get_key_value(key).map(|(k, _)| raw(k.leaf_decor().prefix())).unwrap_or_default();
     let detached = prefix.rfind("\n\n").map(|cut| prefix[..cut + 2].to_owned()).unwrap_or_default();
@@ -770,7 +802,8 @@ Tradeoffs:
 - The copied prefix is the old leading whitespace,
    usually `" "`;
    a caller that wants canonical spacing must set it explicitly.
-- The new value's inner formatting is crate default (`["derive"]`, `{ version = "4", ... }`),
+- The new value's inner formatting is crate default (`["derive"]`,
+  `{ version = "4", ... }`),
    not the old inner layout;
    a multi-line inline array replaced wholesale becomes single-line.
 - Presence must be checked with `get` before `get_mut`:
@@ -823,7 +856,9 @@ Tradeoffs:
 
 `remove_key` splits the removed key's prefix at the last blank line
 and moves the detached part onto the next key.
-Verified by `wrapper-remove-key-after-blank-line` (output `# file header`, blank line, `# about bar`).
+Verified by `wrapper-remove-key-after-blank-line` (output `# file header`,
+blank line,
+`# about bar`).
 
 Tradeoffs:
 
@@ -851,7 +886,8 @@ Tradeoffs:
    Use `Array::replace`.
 - **Renaming by `remove` then `insert`.**
   The key moves to the end of the table and its leading comment is deleted
-   (research case `t15`, output `next = 2` / `new = 1  # trail` from `# above` / `old = 1  # trail` / `next = 2`).
+   (research case `t15`,
+  output `next = 2` / `new = 1  # trail` from `# above` / `old = 1  # trail` / `next = 2`).
    `toml_edit` has no rename API;
    the research wrapper rebuilds the table order with `remove_entry` and `insert_formatted`.
 - **Calling `Table::fmt` or `InlineTable::fmt` to tidy up after an edit.**
@@ -859,7 +895,8 @@ Tradeoffs:
    and the maintainer called it "fairly naive in what it does".
 - **Waiting for upstream to attach comments by paragraph.**
   The maintainer declined that heuristic in [toml-rs/toml#791][issue-791]:
-   "At this time, I think I'd rather avoid heuristics as we can easily get things wrong.
+   "At this time,
+  I think I'd rather avoid heuristics as we can easily get things wrong.
    You are welcome to explore these ideas in helpers built on top".
 
 ## Upstream filing artifact (do not file)
@@ -884,7 +921,8 @@ Walking the six constraints:
     The upstream-owned part is wording:
     the README promises comment preservation without an edit caveat,
     and the `Table::insert` and `InlineTable::insert` doc comments
-    (`table.rs:428`, `inline_table.rs:395`) do not mention the key reset.
+    (`table.rs:428`,
+    `inline_table.rs:395`) do not mention the key reset.
 2.  **Can upstream fix it?**
     Yes.
     Documentation is a small change;
@@ -902,7 +940,9 @@ Walking the six constraints:
 4.  **Would the repo welcome our contribution?**
     No.
     `AI_POLICY.md` at `toml-rs/toml` HEAD (added 2026-08-12,
-    commits `d016feb`, `516da22`, `8b090d2`) says
+    commits `d016feb`,
+    `516da22`,
+    `8b090d2`) says
     "**AI should not be used to generate comments when communicating with maintainers.**",
     "If you are opening an issue,
     we expect you to have personally reproduced the problem and to describe it in your own words",
@@ -914,7 +954,8 @@ Walking the six constraints:
     so we cannot truthfully provide the human-authored filing the policy requires.
     Also checked:
     `CONTRIBUTING.md` (welcomes issues and asks for discussion before pull requests),
-    `.github/PULL_REQUEST_TEMPLATE.md` ("LLM involvement:" field),
+    `.github/PULL_REQUEST_TEMPLATE.md` ("LLM involvement:"
+    field),
     no issue templates (`gh api repos/toml-rs/toml/contents/.github/ISSUE_TEMPLATE` returned 404).
 5.  **Will they likely fix it?**
     Split by symptom.
@@ -928,7 +969,9 @@ Walking the six constraints:
     related #888 (2025-05-02,
     open) notes "This also requires manual work to maintain the `Decor` when changing a `Value`".
     `insert` key reset:
-    "Likely based on feedback and, at this point, through a breaking change" (#787).
+    "Likely based on feedback and,
+    at this point,
+    through a breaking change" (#787).
     Commits since 2026-02 touching `table.rs`,
     `array.rs`,
     `index.rs`,
@@ -993,23 +1036,32 @@ Pull request terms:
  `Array::remove`.
 Threads read in full:
 
-- [toml-rs/toml#231][issue-231] (open, 2021-10-05, maintainer-authored):
+- [toml-rs/toml#231][issue-231] (open,
+  2021-10-05,
+  maintainer-authored):
    "Allow inserting where we carry over the original formatting";
    covers index assignment dropping the same-line comment.
    No comments.
-- [toml-rs/toml#791][issue-791] (closed, declined, 2024-09-25):
+- [toml-rs/toml#791][issue-791] (closed,
+  declined,
+  2024-09-25):
    removing a table deletes the file header comment and misplaces commented-out entries
    because all trivia lands in the next node's prefix;
    covers `Table::remove` deleting a blank-line-separated comment.
-- [toml-rs/toml#818][issue-818] (open, 2024-12-10):
+- [toml-rs/toml#818][issue-818] (open,
+  2024-12-10):
    `fmt` drops comments;
    maintainer stance on comment association.
-- [toml-rs/toml#787][issue-787] (closed, 2024-09-24):
+- [toml-rs/toml#787][issue-787] (closed,
+  2024-09-24):
    origin of the `insert` key reset.
-- [toml-rs/toml#888][issue-888] (open, 2025-05-02):
+- [toml-rs/toml#888][issue-888] (open,
+  2025-05-02):
    "Consider splitting `Decor` out of types".
-- [toml-rs/toml#1043][pr-1043] (closed, 2025-09-19):
-   maintainer WIP "fix(edit): Auto-adjust decor" for #267,
+- [toml-rs/toml#1043][pr-1043] (closed,
+  2025-09-19):
+   maintainer WIP "fix(edit):
+  Auto-adjust decor" for #267,
    closed with "This is getting a bit messy and we may want to re-think how we encode to make this easier".
 
 No thread reports `Array::remove` moving a same-line comment onto the previous element,

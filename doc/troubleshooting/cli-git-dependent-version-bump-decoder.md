@@ -65,7 +65,8 @@ Repeating the original command after the new manifests are already committed doe
 ## Verified workaround
 
 The CLI documents policy-specific one-invocation escapes in
-`package/git-policy/cli/README.md`, section "Wrapper-only options" (`--no-enforce-<policy id>`).
+`package/git-policy/cli/README.md`,
+section "Wrapper-only options" (`--no-enforce-<policy id>`).
 The successful extraction used:
 
 ```sh
@@ -119,10 +120,12 @@ two `git commit` invocations stopped before forwarding with the identical engine
 
 Both invocations named more than one package in one commit:
 
-- the core extraction, spanning `package/search-fetch/core`,
+- the core extraction,
+  spanning `package/search-fetch/core`,
   `package/search-fetch/pi-plugin`,
   and `pnpm-lock.yaml`
-- the server package, spanning `package/search-fetch/mcp`,
+- the server package,
+  spanning `package/search-fetch/mcp`,
   `package/search-fetch/pi-plugin/package.json`,
   and `pnpm-lock.yaml`
 

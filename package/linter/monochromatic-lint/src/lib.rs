@@ -251,12 +251,12 @@ mod resolved_rules;
 pub mod run_check;
 /// The `shell/` rules over one extracted workflow step.
 mod run_check_shell;
-/// The in-process entry:
-///  fix one in-memory source under an in-memory configuration with the executable's own code.
-pub mod run_embedded;
 /// Mode selection and the complete lint invocation with injected environment.
 #[doc(hidden)]
 pub mod run_command;
+/// The in-process entry:
+///  fix one in-memory source under an in-memory configuration with the executable's own code.
+pub mod run_embedded;
 /// Core processing-failure and refused-fix findings.
 #[doc(hidden)]
 pub mod run_failure;
@@ -330,15 +330,15 @@ pub mod rust_file_engine;
 #[doc(hidden)]
 #[path = "rust_file_engine_syntax.rs"]
 pub mod rust_file_engine;
-/// Cargo-manifest facts that need no compiler front end.
-#[doc(hidden)]
-pub mod rust_manifest;
 /// Generic parameter ownership and argument-spelling helpers.
 #[cfg(feature = "semantic")]
 mod rust_generic_arguments;
 /// Semantic disambiguation of type-shaped generic constant placeholders.
 #[cfg(feature = "semantic")]
 mod rust_inferred_constants;
+/// Cargo-manifest facts that need no compiler front end.
+#[doc(hidden)]
+pub mod rust_manifest;
 /// Typed Rust rule selection from validated merged JSONC.
 #[doc(hidden)]
 pub mod rust_rule_settings;
@@ -470,7 +470,8 @@ mod processors_spans;
 /// Virtual shell files for the steps of a workflow or composite action.
 mod processors_workflow;
 
-/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+/// Registers the unit-test scratch root,
+/// placed in the build directory instead of `/tmp`.
 #[cfg(test)]
 mod test_scratch;
 

@@ -144,15 +144,21 @@ No matching rust-analyzer exemption was present in the inspected `.out-of-scope/
 No issue or comment is proposed,
 so no external mutation was performed.
 
-1.  Upstream fault: no.
+1.  Upstream fault:
+    no.
     The consumer omitted a required scope and called an explicitly deprecated,
     disabled filesystem method.
-2.  Fixability: the supported APIs already provide the needed behavior.
-3.  Supported use: the loader explicitly documents external library consumers;
+2.  Fixability:
+    the supported APIs already provide the needed behavior.
+3.  Supported use:
+    the loader explicitly documents external library consumers;
     its source and the semantic APIs were inspected.
-4.  Contribution policy: not evaluated for filing because there is no upstream defect claim.
-5.  Expected upstream action: none is requested.
-6.  Upstream prototype: not applicable;
+4.  Contribution policy:
+    not evaluated for filing because there is no upstream defect claim.
+5.  Expected upstream action:
+    none is requested.
+6.  Upstream prototype:
+    not applicable;
     the named-callback consumer correction was run,
     and the filesystem-call correction is being reverified locally.
 

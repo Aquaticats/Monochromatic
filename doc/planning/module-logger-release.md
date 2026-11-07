@@ -405,7 +405,8 @@ imports `createLogger`,
 `tagged` and `createFileSink` through the published exports,
 and confirms the workspace-only `/ts` export remains unavailable.
 Independent verified file sinks retain separate files.
-Five tagged, large and reentrant records parse as complete JSONL,
+Five tagged,
+large and reentrant records parse as complete JSONL,
 with the inner serialized record preceding its outer record.
 
 The release is published and consumer-verified.

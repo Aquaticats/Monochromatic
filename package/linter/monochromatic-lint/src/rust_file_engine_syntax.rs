@@ -1,8 +1,10 @@
 //! What:
 //!  The Rust-input router of a build without the `semantic` feature:
-//!  syntax checks run, and a selected semantic rule is an explicit failure.
+//!  syntax checks run,
+//! and a selected semantic rule is an explicit failure.
 //! Why:
-//!  The semantic rule needs the rust-analyzer backend, whose code and start-up work a caller such as the Git
+//!  The semantic rule needs the rust-analyzer backend,
+//! whose code and start-up work a caller such as the Git
 //!  policy wrapper does not want in its executable.
 //!  A rule that cannot run must fail loudly instead of passing the file unchecked.
 //!
@@ -16,7 +18,8 @@
 use crate::diagnostic::Diagnostic;
 /// Import the syntax-rule dispatcher that runs the enabled checks on one Rust source.
 use crate::rust_dispatch::check_syntax_rules;
-/// Import the preparation choice, which the callers name even when no workspace is ever loaded.
+/// Import the preparation choice,
+/// which the callers name even when no workspace is ever loaded.
 use crate::rust_manifest::WorkspacePreparation;
 /// Import the resolved settings that tell the dispatcher which rules are enabled.
 use crate::rust_rule_settings::RustRuleSettings;

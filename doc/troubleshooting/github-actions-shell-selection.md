@@ -170,7 +170,8 @@ It also does not establish support for every current TypeScript syntax feature i
 ## Verified alternative invocation
 
 The invocation that existed until its deletion on 2026-10-13 (commit `724d70bfa7`) was line 37 of
-`.github/workflows/cli-git-performance.yml`, readable with
+`.github/workflows/cli-git-performance.yml`,
+readable with
 `git show 4c815fb13f5e31fc481d75dde215e5ef274e4ff1:.github/workflows/cli-git-performance.yml`:
 
 ```yaml

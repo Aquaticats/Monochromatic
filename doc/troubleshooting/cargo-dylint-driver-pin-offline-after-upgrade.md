@@ -337,7 +337,9 @@ and `wrangler` (locked 4.156.0,
 observed 4.155.0).
 `mise run toolchain:sync`,
 run as the capped unit `fe-toolchain-sync`,
-reported "4 installed, 59 unchanged, 0 failed" in 36 s.
+reported "4 installed,
+59 unchanged,
+0 failed" in 36 s.
 The warm command in "Verified workarounds" then compiled `dylint_driver v6.3.1` and the driver crate in 58.3 s
 with the toolchain-exposed cargo (`.cache/toolchain-bin/cargo`),
 and checked `monochromatic-xml-edit` with exit 0.

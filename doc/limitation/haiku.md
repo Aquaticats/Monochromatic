@@ -1,9 +1,11 @@
 # Haiku limitations
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -23,10 +25,13 @@ set through the UI only and restored afterward.
 
 ### Files involved
 
-- `/home/user/temp/agent/start-settings-pane-runtime.ts`: the launch script the agent used for the emulator.
-- `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`: the repo record of which emulator flags boot
+- `/home/user/temp/agent/start-settings-pane-runtime.ts`:
+  the launch script the agent used for the emulator.
+- `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`:
+  the repo record of which emulator flags boot
   and which crash.
-- `/home/user/temp/agent/agent-settings-ref2/notes.txt`: the agent's log of the attempts.
+- `/home/user/temp/agent/agent-settings-ref2/notes.txt`:
+  the agent's log of the attempts.
 
 ### Mistakes
 
@@ -48,12 +53,15 @@ the software path that crashes `qemu`.
 The documented working launch has no such flag.
 It also wrapped the headless emulator in `xvfb-run` and capped the container at 2 CPUs and 6 GiB
 while giving the guest 2 cores and 4 GiB,
-and it used `-no-snapshot`, which forces a cold boot every run.
+and it used `-no-snapshot`,
+which forces a cold boot every run.
 The orchestrator asked for a comparison run with corrected flags,
 and the agent still had not completed the task when it was stopped on 2026-10-12,
-2.8 hours after its first transcript record (measured from the transcript timestamps, 21:51 to 00:39 UTC),
+2.8 hours after its first transcript record (measured from the transcript timestamps,
+21:51 to 00:39 UTC),
 while it was still trying to make the Developer options navigation script wait long enough.
-The user's observation: GPT models never had a problem using the emulator,
+The user's observation:
+GPT models never had a problem using the emulator,
 and the difference is that they always launched it headfully (with its window),
 whereas every launch in this task was headless.
 The failure recorded here is that the agent never compared its launch against `doc/troubleshooting/`
@@ -66,7 +74,8 @@ The Build number taps showed a pressed highlight but never counted,
 with seven plain taps and slower taps.
 The agent did not look for why the taps were not counted,
 and its report says the cause was not identified.
-The press-duration variant and the unlock-switch fallback came from the orchestrator's instructions, not the agent.
+The press-duration variant and the unlock-switch fallback came from the orchestrator's instructions,
+not the agent.
 
 ### What the agent did well
 
@@ -78,7 +87,9 @@ A write to a platform flag was refused and it did not look for a way around the 
 
 ### Lesson
 
-When a Haiku agent reports an environment cause (load, flaky host, slow machine) for repeated failures,
+When a Haiku agent reports an environment cause (load,
+flaky host,
+slow machine) for repeated failures,
 check the cause with a measurement and compare the agent's launch command with the repo's troubleshooting records
 before accepting it or waiting.
 The brief for this task also did not tell the agent to search `doc/troubleshooting/`,
@@ -105,7 +116,9 @@ because `lint:slint` runs the `slint-viewer` that mise installs at `latest` (1.1
 not the version the app compiles with.
 The agent treated a green lint as proof that the file compiles in the app.
 
-Correct behavior: after a Slint edit, build the app itself (or render with the app's own Slint version) before reporting
+Correct behavior:
+after a Slint edit,
+build the app itself (or render with the app's own Slint version) before reporting
 the file as verified,
 and read the version the project pins before using syntax from release notes.
 The orchestrator reverted the rename.
@@ -139,7 +152,8 @@ but the work came back unverified for every gate the brief required.
 
 #### The prescribed stress condition did not reproduce the problem
 
-The brief's four-core, 32-load condition showed zero underruns on the unchanged code too,
+The brief's four-core,
+32-load condition showed zero underruns on the unchanged code too,
 so the effect shows only in one-core controls that the agent chose.
 The agent also never proved that the PipeWire xrun counter can move,
 so its statement that PipeWire scheduling is not a cause is unvalidated by its own admission.
@@ -153,7 +167,8 @@ so its exit is unexplained.
 
 ### Lesson
 
-For measurement tasks, a Haiku agent will stop early and report honestly what it skipped.
+For measurement tasks,
+a Haiku agent will stop early and report honestly what it skipped.
 The orchestrator should treat the skipped gates as the remaining work,
 resume the agent with exactly those gates,
 and require a state check of every process the agent does not own at start and end.
@@ -213,7 +228,8 @@ A second Haiku round fixed them.
 
 The first native captures of the player screen showed text and icons in black on the dark canvas,
 because the agent provided no content color.
-The same gap appeared again in the debug host for the Search, Settings and template editor routes.
+The same gap appeared again in the debug host for the Search,
+Settings and template editor routes.
 
 ### What worked
 
@@ -232,7 +248,12 @@ and the brief should state the lint rules (KDoc on every declaration) up front.
 
 Port the landing loop of the Rust Git policy wrapper (`package/git-policy/cli/src/native/`) in the worktree
 `.claude/worktrees/cli-git-lane-landing`:
-phase markers, landing support, object migration, post-index, the real index lock install, the landing attempt and
+phase markers,
+landing support,
+object migration,
+post-index,
+the real index lock install,
+the landing attempt and
 its acceptance tests and gates.
 The lane's record is `doc/handover/cli-git-native-landing.md`.
 
@@ -242,34 +263,49 @@ The lane's record is `doc/handover/cli-git-native-landing.md`.
 
 The first hand-back came with the phase markers uncommitted and no result for their tests.
 After the orchestrator resumed the agent with the ordered step list and the instruction "do not hand back until done",
-it handed back three more times, each with the lane unfinished and each time asking to be resumed.
-The harness also sometimes drops hand-back reports, so every early hand-back cost a watchdog cycle to detect.
+it handed back three more times,
+each with the lane unfinished and each time asking to be resumed.
+The harness also sometimes drops hand-back reports,
+so every early hand-back cost a watchdog cycle to detect.
 
 #### Misread its own commit as not landed
 
-After a commit through the wrapper printed a logger error ("sink verification failed for entry 3: Timed out after
-5000ms"), the agent reported that the commit did not land and the files were still staged.
+After a commit through the wrapper printed a logger error ("sink verification failed for entry 3:
+Timed out after
+5000ms"),
+the agent reported that the commit did not land and the files were still staged.
 The branch log showed two commits from that attempt (`a3b6fb29b8` and `15ee7bdda0`).
 It did not run `git log` before reporting.
-The orchestrator, trusting the report, committed the staged files again and produced an empty duplicate commit.
+The orchestrator,
+trusting the report,
+committed the staged files again and produced an empty duplicate commit.
 
 #### Proposed a behavior regression as a deviation
 
-The plan wrote the PID file before `index-lock-<n>.json`, the reverse of the TypeScript incumbent, and listed it under
+The plan wrote the PID file before `index-lock-<n>.json`,
+the reverse of the TypeScript incumbent,
+and listed it under
 "Deviations to record" while noting that recovery cannot attribute a lock in that window.
-A window in which recovery cannot attribute a lock is a regression against the incumbent, not a documentation item.
+A window in which recovery cannot attribute a lock is a regression against the incumbent,
+not a documentation item.
 The orchestrator told the agent to match the incumbent's order or to prove it impossible and make recovery tolerate it.
 
 ### What went well
 
 The agent kept its evidence doc and said plainly what was unconfirmed and not started.
-Its landing support, object migration and post-index modules passed their tests.
+Its landing support,
+object migration and post-index modules passed their tests.
 
 ### Lesson
 
-For a serial slice with crash-consistency requirements, send the lane to a Sonnet subagent from the start.
-When a Haiku agent reports the state of the repository (committed, staged, clean), read the repository
-(`git log`, `git status`) before acting on the report.
+For a serial slice with crash-consistency requirements,
+send the lane to a Sonnet subagent from the start.
+When a Haiku agent reports the state of the repository (committed,
+staged,
+clean),
+read the repository
+(`git log`,
+`git status`) before acting on the report.
 A brief that says "do not hand back until done" did not hold a Haiku agent to it.
 
 ## Slint IDE scroll pipeline and soft wrap (2026-10-11)
@@ -277,17 +313,26 @@ A brief that says "do not hand back until done" did not hold a Haiku agent to it
 ### Goal
 
 Make the source view of the read-only Slint IDE (`package/ide/app`) scroll smoothly even under extreme host
-load, then wrap long lines like IntelliJ does.
-Haiku subagents did the stage 1 overscan tile, the old-versus-new scroll measurements, the stage 2 worker thread tile
-build, the code surveys, the Parley research, and the wrap shaping measurement.
+load,
+then wrap long lines like IntelliJ does.
+Haiku subagents did the stage 1 overscan tile,
+the old-versus-new scroll measurements,
+the stage 2 worker thread tile
+build,
+the code surveys,
+the Parley research,
+and the wrap shaping measurement.
 The plans are `doc/planning/slint-ide-scroll-pipeline.md` and `doc/planning/slint-ide-soft-wrap.md`.
 
 ### Files involved
 
-- `package/ide/app/src/native/tile.rs` and `tile_build.rs`: the stage 2 worker.
-- `/home/user/temp/agent/ide-scroll-new-vs-old/ide-scroll-build-compare.mjs`: the measurement harness a Haiku agent
+- `package/ide/app/src/native/tile.rs` and `tile_build.rs`:
+  the stage 2 worker.
+- `/home/user/temp/agent/ide-scroll-new-vs-old/ide-scroll-build-compare.mjs`:
+  the measurement harness a Haiku agent
   wrote.
-- `/home/user/temp/agent/ide-wrap-measure/`: the wrap shaping measurement.
+- `/home/user/temp/agent/ide-wrap-measure/`:
+  the wrap shaping measurement.
 
 ### Mistakes
 
@@ -297,10 +342,13 @@ The harness a Haiku agent wrote counts the 1.5 s idle wait after the last wheel 
 Even perfect painting of the 1.9 s input phase therefore scores about 115 of 204.
 The agent reported "about half of the possible frames painted" for every renderer and both builds,
 with no positive control that could show a better number,
-and the orchestrator repeated it in a plan, the handover and a landing message before a second Haiku agent read the
+and the orchestrator repeated it in a plan,
+the handover and a landing message before a second Haiku agent read the
 harness source and found the denominator.
 A rerun restricted to the input phase painted 103 of 115 slots.
-The same agent's `rendersInScroll` counts a log line for viewport tile presentations, not paints, which the report did
+The same agent's `rendersInScroll` counts a log line for viewport tile presentations,
+not paints,
+which the report did
 not say.
 The agent also never wrote the summary step of its brief.
 
@@ -310,7 +358,8 @@ The stage 2 implementer was told to send one final report only when everything h
 It ended its turn while its own gate units were still running more than twenty times;
 each time the harness delivered a notice that carried no report ("has not reported yet"),
 and each one woke the orchestrator.
-Waiting for a gate belongs in one blocking command (an `until` loop on the unit), not in ending the turn.
+Waiting for a gate belongs in one blocking command (an `until` loop on the unit),
+not in ending the turn.
 
 #### Chained gate commands with a missing argument, and lint failures on its own code
 
@@ -318,7 +367,8 @@ The guard tasks need a Cargo target cache argument.
 The agent's chain ran `inspect:sidebar-guards` and `inspect:theme-guards` without it and they failed with
 "Missing required arg: <cache>";
 `inspect:find-guards` failed in the same chain without it and passed with it.
-Its first full lint run also failed clippy, rustfmt and the release lint on the new worker code,
+Its first full lint run also failed clippy,
+rustfmt and the release lint on the new worker code,
 because it had not run the lints before reporting the feature as built.
 
 #### Deferred a known defect, and a drop that blocks the window close
@@ -326,7 +376,8 @@ because it had not run the lints before reporting the feature as built.
 The worker's error arm kept the dead worker and re-logged every 20 ms.
 The agent listed the fix as planned and deferred it because a gate was compiling;
 the orchestrator found the defect in review and had it fixed.
-Dropping the worker joined its thread, so closing the window waited for a tile build in flight;
+Dropping the worker joined its thread,
+so closing the window waited for a tile build in flight;
 the `inspect:bundle` close timeouts were consistent with that.
 The agent had flagged neither in its design doubts as a close-path risk until asked.
 
@@ -340,70 +391,101 @@ the agent then rewrote the test to drop on its own thread with a bounded receive
 #### Lost its own work product, and refused a report file
 
 The wrap shaping measurement agent copied its test file to the scratch directory in parallel with
-`git worktree remove --force`, the copy failed on a name clash, and the file was lost;
+`git worktree remove --force`,
+the copy failed on a name clash,
+and the file was lost;
 it rebuilt the file from memory and said so.
-Its first full run failed on two errors of its own: a missing `mut` and a control that read `full_width()` of an
-unbroken layout, which is 0.
+Its first full run failed on two errors of its own:
+a missing `mut` and a control that read `full_width()` of an
+unbroken layout,
+which is 0.
 It left 966 rows with an advance wider than the width unexplained.
 The Parley research agent declined to write the report as a Markdown file ("my agent rules forbid writing report .md
-files") although the brief asked for it, so the orchestrator wrote the doc from the hand-back.
+files") although the brief asked for it,
+so the orchestrator wrote the doc from the hand-back.
 
 ### What went well
 
 The stage 1 implementer landed the overscan tile with a structural test and a guard that was seen failing.
 The survey agents gave file and line evidence and marked what they could not verify,
 which made the stage 2 design reviewable.
-The stage 2 implementer reproduced the edit test flake (5 of 20 failures under load), measured the cold start cost
-instead of accepting the orchestrator's hypothesis, found the real cause (the poll timer stopping while a cancelled job
-was in flight), and proved the fix (0 of 30).
+The stage 2 implementer reproduced the edit test flake (5 of 20 failures under load),
+measured the cold start cost
+instead of accepting the orchestrator's hypothesis,
+found the real cause (the poll timer stopping while a cancelled job
+was in flight),
+and proved the fix (0 of 30).
 It reported its flakes and its own mistakes plainly.
 
 ### Lesson
 
-Send work that spans many modules or needs a design judgment (the soft wrap rows model, the worker integration, keys
-and pointer) to a Sonnet subagent from the start; keep Haiku for surveys, measurements and mechanical fixes with an
+Send work that spans many modules or needs a design judgment (the soft wrap rows model,
+the worker integration,
+keys
+and pointer) to a Sonnet subagent from the start;
+keep Haiku for surveys,
+measurements and mechanical fixes with an
 explicit step list.
-Before trusting a Haiku measurement, read what the harness counts and ask for a positive control that can show the
+Before trusting a Haiku measurement,
+read what the harness counts and ask for a positive control that can show the
 good number.
 Tell a Haiku agent to wait inside one blocking command and to run every task with its documented arguments,
-and read `git log`, the gate JSON and the unit state yourself before acting on its report.
+and read `git log`,
+the gate JSON and the unit state yourself before acting on its report.
 
 ## Native commit-path post-landing lane (2026-10-11)
 
 ### Goal
 
-Port the post-landing completion of the Rust Git policy wrapper (added-path copies, shadow and transaction removal,
-automatic maintenance, the `post-commit` hook under the hook lock, capture-record pruning).
+Port the post-landing completion of the Rust Git policy wrapper (added-path copies,
+shadow and transaction removal,
+automatic maintenance,
+the `post-commit` hook under the hook lock,
+capture-record pruning).
 The lane's record is `doc/handover/cli-git-native-post-landing.md`.
 
 ### Mistakes
 
 #### Went silent for almost an hour with a stale record
 
-After two commits (`136cf6d0fd`, `89d0fc7a0c`) the agent made no commit, no file change and no gate run for 57 minutes
+After two commits (`136cf6d0fd`,
+`89d0fc7a0c`) the agent made no commit,
+no file change and no gate run for 57 minutes
 while the harness still listed it as running.
-Its evidence doc still said "Nothing is committed beyond the skeleton yet" and "Modules written, not yet green",
-so a reader of the doc alone would have believed the lane was a different, earlier state.
+Its evidence doc still said "Nothing is committed beyond the skeleton yet" and "Modules written,
+not yet green",
+so a reader of the doc alone would have believed the lane was a different,
+earlier state.
 The orchestrator stopped the agent and handed the lane to a Sonnet agent.
 
 ### Lesson
 
-Check the dated state of the repository (`git log`, file modification times) against the evidence doc before trusting
-either; a Haiku agent's doc can lag its commits by hours.
+Check the dated state of the repository (`git log`,
+file modification times) against the evidence doc before trusting
+either;
+a Haiku agent's doc can lag its commits by hours.
 
 ## Slint IDE soft wrap, slice 1: library pieces (2026-10-11)
 
 ### Goal
 
-IntelliJ's break rules as a Parley override, the continuation indent, wrapped shaping of one logical line, multi-row
-geometry in `ShapedRow`, and the caret affinity bit, with no UI change.
-The branch is `feat/ide-soft-wrap`; the brief required a seen-failing check per rule.
+IntelliJ's break rules as a Parley override,
+the continuation indent,
+wrapped shaping of one logical line,
+multi-row
+geometry in `ShapedRow`,
+and the caret affinity bit,
+with no UI change.
+The branch is `feat/ide-soft-wrap`;
+the brief required a seen-failing check per rule.
 
 ### Mistakes
 
 #### Replayed a commit and produced duplicates
 
-A chained commit landed, the agent then retried it in the foreground, and the wrapper replayed it onto a new base
+A chained commit landed,
+the agent then retried it in the foreground,
+and the wrapper replayed it onto a new base
 after a landing race.
 The branch holds two commits (`4c41c7150d` and `7bf157b370`) with identical content.
 The brief said never to repeat a commit command that seems to hang and to check `git log` first.
@@ -414,23 +496,37 @@ The agent inverted every predicate in `src/wrap.rs` at once and counted 9 of 15 
 Two tests (the grapheme guard precedence and the pairs without a rule) still passed under inversion,
 so they do not isolate their predicate;
 the integration tests were not run under mutation because the library run stopped first.
-It said so, but the brief asked for every rule seen failing, and that was not met.
+It said so,
+but the brief asked for every rule seen failing,
+and that was not met.
 
 #### Gate runs in a loop
 
-It ran the gate six times, fixing clippy implicit returns, shadowing and rustfmt one round at a time,
+It ran the gate six times,
+fixing clippy implicit returns,
+shadowing and rustfmt one round at a time,
 because it did not run the lints before the first gate.
 
 ### What went well
 
 It stopped on a real conflict (adding a field to `ReadingPosition` breaks about 47 struct literals in existing tests,
-and the brief forbade editing them) and asked, instead of editing the tests.
-Its list of differences between the plan and IntelliJ's Java source was specific (identifier rule, both-sided space
-and tab breaks, BMP-only eastern rule, the indent from the first non-blank x), and it named what Parley cannot
-reproduce (the weight product, the look-back, the beyond-width fallback).
+and the brief forbade editing them) and asked,
+instead of editing the tests.
+Its list of differences between the plan and IntelliJ's Java source was specific (identifier rule,
+both-sided space
+and tab breaks,
+BMP-only eastern rule,
+the indent from the first non-blank x),
+and it named what Parley cannot
+reproduce (the weight product,
+the look-back,
+the beyond-width fallback).
 
 ### Lesson
 
-Run each lint locally before the first gate and make mutation evidence per rule, with the test that failed named for
-each; a combined inversion hides tests that do not isolate their rule.
-When a commit seems to hang, read `git log` before retrying.
+Run each lint locally before the first gate and make mutation evidence per rule,
+with the test that failed named for
+each;
+a combined inversion hides tests that do not isolate their rule.
+When a commit seems to hang,
+read `git log` before retrying.

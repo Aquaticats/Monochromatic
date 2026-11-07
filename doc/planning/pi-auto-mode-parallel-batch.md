@@ -2,43 +2,71 @@
 
 ## Superseded by individual judgments
 
-On 2026-10-19, the user changed the requirement:
-parallel tool calls must always be judged individually, and `codemode` counts as one tool call.
-Each outer invocation owns its prepared input, rule answers, verdict, review allowance, and manual approval.
+On 2026-10-19,
+the user changed the requirement:
+parallel tool calls must always be judged individually,
+and `codemode` counts as one tool call.
+Each outer invocation owns its prepared input,
+rule answers,
+verdict,
+review allowance,
+and manual approval.
 Parse a complete `codemode` body without creating inner approval units.
-The shared-batch design and prototypes in this document are historical, not current implementation requirements.
+The shared-batch design and prototypes in this document are historical,
+not current implementation requirements.
 The [active rebuild plan](../../package/pi-plugin/auto-mode/doc/planning/ground-up-rebuild.md)
 and [question inventory](../../package/pi-plugin/auto-mode/doc/planning/rebuild-question-inventory.md)
 own the replacement design.
 
 ## Current constraint and graceful fallback
 
-On 2026-10-19, the user explicitly prohibits maintaining or copying Pi internals,
-duplicating existing Pi functionality, and using private Pi APIs, without exception.
-Use supported public plugin APIs and leave execution, scheduling, argument preparation,
-session handling, and existing tool behavior owned by Pi.
-If a desired review behavior cannot be implemented through those APIs, gracefully fall back.
-A missing capability never authorizes another dispatcher, host copy, source transformation, or private hook.
+On 2026-10-19,
+the user explicitly prohibits maintaining or copying Pi internals,
+duplicating existing Pi functionality,
+and using private Pi APIs,
+without exception.
+Use supported public plugin APIs and leave execution,
+scheduling,
+argument preparation,
+session handling,
+and existing tool behavior owned by Pi.
+If a desired review behavior cannot be implemented through those APIs,
+gracefully fall back.
+A missing capability never authorizes another dispatcher,
+host copy,
+source transformation,
+or private hook.
 
-Degrade as little as possible, aiming for no degradation of the end-user experience where possible.
-First seek an equivalent supported public-API path; otherwise retain the greatest supported review coverage.
-Per-call review is now the intended behavior, not a degraded replacement for batch review.
-A missing integration capability does not itself require manual approval, blocked execution, or disabled auto-mode.
+Degrade as little as possible,
+aiming for no degradation of the end-user experience where possible.
+First seek an equivalent supported public-API path;
+otherwise retain the greatest supported review coverage.
+Per-call review is now the intended behavior,
+not a degraded replacement for batch review.
+A missing integration capability does not itself require manual approval,
+blocked execution,
+or disabled auto-mode.
 Keep ordinary Pi usable and explain material limitations without claiming guarantees the fallback lacks.
 Do not deadlock Pi while waiting for an event its scheduler cannot yet deliver.
 
 The [active rebuild plan](../../package/pi-plugin/auto-mode/doc/planning/ground-up-rebuild.md)
-owns current grouping, review budgets, and implementation work.
-The private prototypes recorded here are withdrawn historical experiments, not integration candidates.
+owns current grouping,
+review budgets,
+and implementation work.
+The private prototypes recorded here are withdrawn historical experiments,
+not integration candidates.
 Their passing fixtures do not authorize maintaining them or migrating their functionality into the plugin.
 The agent pursued those mechanisms without user approval.
 
 The user also accepts later extensions changing arguments after review as an unsupported case on 2026-10-19.
-Design as though those later mutations do not occur; this does not require ordering guards or fallback prompts.
+Design as though those later mutations do not occur;
+this does not require ordering guards or fallback prompts.
 Historical post-guard mutation qualifications in this document are not remaining work.
 
-Before replacing the shared-review requirement, the user clarified that individual calls could be blocked independently.
-That correction remains useful evidence about Pi, but no longer implies a shared batch assessment.
+Before replacing the shared-review requirement,
+the user clarified that individual calls could be blocked independently.
+That correction remains useful evidence about Pi,
+but no longer implies a shared batch assessment.
 The historical shared-decision and whole-group-denial prototypes do not establish a current execution requirement.
 
 ## Historical requirement and budgets
@@ -303,7 +331,8 @@ The orchestration seam must supply the actual complete parallel set.
 ## Withdrawn private-integration work
 
 The following former work list is withdrawn as of 2026-10-19.
-Retain it only to explain the historical experiments; do not execute it.
+Retain it only to explain the historical experiments;
+do not execute it.
 
 - Integrate the qualified batch-admission seam into the real extension rather than only the private prototype.
 - Extend the verified native preparation and result-hook ordering beyond the finite inert-tool fixtures.

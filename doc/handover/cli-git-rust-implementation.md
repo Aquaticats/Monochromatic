@@ -3972,10 +3972,39 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     Limit:
     a file system
     without leases makes the fold fail with its one-line message and keep every byte;
-  - tokio:
-    the three coordinator settlements,
-    then T8 and T9 (`feat/git-policy-cli-on-tokio`);
-  - index lock without links or no-replace rename (`fix/git-policy-cli-index-lock-without-links`);
+  - tokio (`feat/git-policy-cli-on-tokio`,
+    tip `1dc503d259`,
+    not merged):
+    the three settlements (one-shot pipe reader,
+    futex name-claim wait,
+    measured bounds),
+    the fixture-group helper (`end_with_its_group`),
+    T8 (`zbus` 6.2.1 on the process runtime)
+    and T9 (`hyper` with `rustls`;
+    `ureq` gone),
+    gate 5179 of 5179,
+    lint clean.
+    The leftover ref lock is not a T5 regression:
+    Git 2.56's SIGTERM handler removes the lock's pid file,
+    then the lock,
+    and a disk step of up to 6.03 s (seen once,
+    load about 70) lets the 5 s `STOP_GRACE` kill land between them;
+    reproduced deterministically with an injected `unlink` delay.
+    Owner answer 2026-11-07T11:52:20-05:00,
+    "3× worst case":
+    `HELD_NAME_WAIT` and the stop ceiling become about 18 s,
+    and a stop waits past the grace only while a member is in uninterruptible sleep.
+    The agent is merging main (`rust-catalog.toml` conflict:
+    keep both sides),
+    building that stop change test-first,
+    then one container gate;
+    the coordinator merges and then runs the mutation campaign over its files.
+    Slip recorded:
+    the agent ran `pkill --newest --exact git` once during an experiment,
+    a kill by name on a host where other sessions run Git;
+    told never to kill by name.
+  - index lock without links or no-replace rename:
+    merged `136a40fe69`;
   - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`,
     worktree
     `.claude/worktrees/tokio-mutants`):
@@ -4185,6 +4214,113 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     running (`feat/monorepo-task-daily-update-opens-fix-forward-issues`;
     start
     recorded by `1a47d9353f`).
+    Incident:
+    the owner got many desktop notifications with the app name `toolchain-daily-update`
+    while the timer had never fired;
+    the coordinator stopped the agent's measurement unit `daily-measure-pass.service`
+    (started 11:54:15) on a wrong inference:
+    its check effects (`daily-update-check-effects.ts`) do not import `daily-update-effects.ts`,
+    so it had no path to `notifyOwner`.
+    Read from the code:
+    on main the only code that sends with the app name `toolchain-daily-update` is `notifyOwner`,
+    reached only through `realEffects` from `daily-update-process.ts:77`,
+    which only `daily-update.ts` runs (`main()` at load),
+    and nothing imports that file;
+    so the notifications came from runs of `toolchain:update:daily` or `node daily-update.ts`
+    outside the timer and outside a journaled unit.
+    Which agent ran them is not yet known;
+    the daily-update agent is asked to name it.
+    Owner,
+    verbatim:
+    "You can send real desktop notifications.
+    But you can also make sure I don't see them.
+    We already have the nested wayland compositor.
+    And we might not need it in full."
+    So tests and runs may send real notifications into a private session bus the owner never sees,
+    reusing what `package/nested-wayland-session/cli` has (its stand-in notification service);
+    the agent proposes the smallest shared piece,
+    keeps a red-first guard against reaching the owner's bus,
+    and limits a real run to one summary notification.
+- `monochromatic-lint` package clean on its own gates
+  (rustfmt,
+  README line breaks,
+  71 repository-lint findings,
+  merge `b75b3755ea`)
+  and released as `0.5.2-alpha.1`,
+  locked `86ce4da394`,
+  installed.
+  Fixer output measured unchanged on all 3051 Markdown files with three binaries.
+  `mutation:coverage` passes:
+  new scopes `--layout` (415 mutants) and `--workflow-shell` (741),
+  two files added to `--semantic`.
+  Campaigns over those three running (`test/monochromatic-lint-layout-and-workflow-mutants`).
+- zbus 6:
+  `package/nested-wayland-session/cli` and `package/music-player/desktop-app` ported to zbus 6 async
+  (`zbus::block_on` on zbus's own runtime;
+  every D-Bus step bounded,
+  5 s and 3 s,
+  measured connect 1.2 to 1.4 ms)
+  and merged into main `83b7328102` (293 and 1600 tests);
+  the `zbus-5` hold is gone.
+  Commit `566c50665d` over-claims its subject;
+  corrected by commit comment 208708911.
+  Found on main and given to an agent (`fix/three-packages-red-after-the-daily-update`):
+  `package/ide/app` Clippy `E0308` at `src/tile_scene.rs:141` after a `parley` API change;
+  `package/terminal/app` lint fails in the `libghostty-vt-sys` build script fetching Ghostty;
+  `cargo-shadow install` offline fails on the music player because the cached index marks `clipboard-win` 5.4.1 yanked.
+  The music-player ellipsis test passed three times for the zbus agent;
+  its cause is still unmeasured.
+- Held settle message:
+  merged into main `66dbb1ca27` (gate 5194 of 5194,
+  lint clean).
+  It names the process ID,
+  the program (first word of the command line)
+  and the unresolved `--journal` folder,
+  says other arguments are not shown because any can be a secret,
+  and agrees in number ("1 batch ... was").
+  The service log line carries the same and no other argument.
+  Not merged into the fold of earlier names,
+  which still reports only the reason.
+- Worktree tools:
+  a shell started in the main checkout resolves `cargo` in a linked worktree to main's
+  `.cache/toolchain-launchers/cargo-shadow`,
+  so after main locked `cargo-shadow` `0.1.5-alpha.1` (`c6177b875b`) a worktree whose lock still says 0.1.4 failed its host tests,
+  and `toolchain:install` in the worktree did not clear it.
+  Agent running on `fix/worktrees-use-their-own-locked-tools`
+  (reproduce with the exact error,
+  fix in the owning tool,
+  release if needed).
+- Future task,
+  not now (owner,
+  verbatim:
+  "That means we missed porting notifications on changes of managed files in watch mode when we rewrote it to rust from ts.
+  Add this as a future task and persist it,
+  but do not do it now as it's not immediately fatal."):
+  issue #6264.
+  The TypeScript `file-enforcer` sent a desktop notification after watch mode changed managed files
+  (`package/file-enforcer/core/src/watch/notify.ts` at `e7b5130459^`,
+  the commit that deleted it);
+  the Rust watch loop (`core-rust/src/watch.rs`) has none.
+  Linux only;
+  tests on a private session bus with the stand-in server from `nested-wayland-session`.
+- Plugin bundles now match their sources:
+  guardrail `b8e5bf3b0c`,
+  `bash-output-filter` and `terminal-title` `6873d8e020`
+  (unbash 6.0.1 to 6.0.3;
+  the only visible change is a terminal title that now ends at a NUL escape,
+  as bash does).
+  The drift-check proposal (A:
+  a task that rebuilds every plugin bundle in scratch and compares,
+  run in CI;
+  B:
+  a new `file-enforcer` rule kind;
+  C:
+  a commit-time guard) is in `package/claude-code-plugin/guardrail/README.md` "Maintenance";
+  not built,
+  for the owner.
+  A leftover:
+  `.claude/worktrees/guardrail-bundle-matches-sources` holds two uncommitted,
+  regenerable sibling builds.
 - `monochromatic-lint` group folders merged into main `62874c227d` (869 of 869 tests;
   every new check red first).
   A group is any folder holding child folders (`mod.rs` plus at least one source folder);

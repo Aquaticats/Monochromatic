@@ -92,15 +92,21 @@ No issue,
 comment,
 or external message is drafted or sent.
 
-1.  Upstream fault: a contract discrepancy is reproduced;
+1.  Upstream fault:
+    a contract discrepancy is reproduced;
     its hosted code or configuration cause is not established.
-2.  Fixability: unknown without the deciding implementation;
+2.  Fixability:
+    unknown without the deciding implementation;
     no impossibility or effort estimate is asserted.
-3.  Supported use: the current hosted model and limits references advertise the tested row boundary.
-4.  Contribution policy: not investigated because no external contribution is proposed.
-5.  Maintainer willingness: unknown;
+3.  Supported use:
+    the current hosted model and limits references advertise the tested row boundary.
+4.  Contribution policy:
+    not investigated because no external contribution is proposed.
+5.  Maintainer willingness:
+    unknown;
     no communication was sent.
-6.  Prototype: controlled consumer requests reproduce the boundary;
+6.  Prototype:
+    controlled consumer requests reproduce the boundary;
     no source-grounded hosted patch can be built from the different public runtime.
 
 ## Drex 2.0 rejects the complete native question batch
@@ -214,16 +220,22 @@ or omitting questions would change the required assessment and was not attempted
 
 Nothing is filed or drafted for the bounded release check.
 
-1.  Upstream fault: the field-type error belongs to the owned adapter;
+1.  Upstream fault:
+    the field-type error belongs to the owned adapter;
     the question-limit response differs from hosted documentation,
     but its deciding code is unavailable.
-2.  Upstream fixability: unknown without that code;
+2.  Upstream fixability:
+    unknown without that code;
     no impossibility or fix-size claim is made.
-3.  Supported use: hosted documentation covers text instructions and question batches up to 512.
-4.  Contribution policy: not investigated because no external report is proposed.
-5.  Willingness to change: unknown;
+3.  Supported use:
+    hosted documentation covers text instructions and question batches up to 512.
+4.  Contribution policy:
+    not investigated because no external report is proposed.
+5.  Willingness to change:
+    unknown;
     no maintainer communication was sent.
-6.  Prototype: the owned conversion was executed and retained;
+6.  Prototype:
+    the owned conversion was executed and retained;
     no source-justified hosted patch can be built from the inspected local runtime.
 
 ## Historical Drex v1.1 full-policy responses report v1.0

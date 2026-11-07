@@ -20,7 +20,8 @@ The corrected deployed harness is `aa501f4a5c0e74a0a993b668c98b00fe3be2da19`;
 its largest actual `run` field is 12,005 characters.
 The actual bootstrap executes locally,
 its generated task bytes match the expected task file,
-Mise parses the generated task, and Node checks its module syntax.
+Mise parses the generated task,
+and Node checks its module syntax.
 Application assertions remain frozen.
 
 ## Separate evidence-handoff failures
@@ -30,7 +31,8 @@ Public run `39141147245` exposed a separate
 [log-filename boundary](node-task-log-filenames.md)
 and a separately verified [hidden-root upload boundary](github-artifact-hidden-sdk-resources.md).
 Correcting one does not prove the others.
-The public recovery is `39144499822`; its completed Mac artifact restores the actual owner output.
+The public recovery is `39144499822`;
+its completed Mac artifact restores the actual owner output.
 
 ## Upstream filing decision
 

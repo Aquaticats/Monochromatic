@@ -242,11 +242,13 @@ Searched Wine's trackers on 2026-10-26:
 Nearest historical traffic:
  the 2011 wine-users thread
  "Windows has a behavior where if a DLL is located in the same directory
- as an application, windows preferentially chooses the DLL's in that
+ as an application,
+windows preferentially chooses the DLL's in that
  directory",
  answered by moderator `vitamin` with
  "If Wine's dll isn't compiled to prefer native Wine will always try
- it's own first. This is intentional."
+ it's own first.
+This is intentional."
  That statement,
  plus the 11.6 heuristic,
  frames the Upstream filing decision.

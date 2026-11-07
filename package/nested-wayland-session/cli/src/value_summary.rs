@@ -8,9 +8,9 @@
 /// Imports `HashMap` from `std::collections`.
 use std::collections::HashMap;
 
-/// Imports `OwnedValue`,
-///  `Value` from `zbus::zvariant`.
-use zbus::zvariant::{OwnedValue, Value};
+/// Imports `OwnedVariant`,
+///  `Variant` from `zbus`.
+use zbus::{OwnedVariant, Variant};
 
 /// Imports `encode_text` from `crate::wire_text`.
 use crate::wire_text::encode_text;
@@ -46,31 +46,31 @@ pub struct ValueSummary {
 /// Renders one value as printable text.
 ///
 /// What:
-///      `pub fn describe_value(value: &Value<'_>) -> String`.
+///      `pub fn describe_value(value: &Variant<'_>) -> String`.
 ///  A variant inside a variant is unwrapped to the innermost value.
 /// Why:
 ///       Doubles,
 ///  booleans,
 ///  and integers print as a reader expects.
 #[must_use]
-pub fn describe_value(value: &Value<'_>) -> String {
+pub fn describe_value(value: &Variant<'_>) -> String {
     return match value {
-        Value::U8(number) => number.to_string(),
-        Value::Bool(flag) => flag.to_string(),
-        Value::I16(number) => number.to_string(),
-        Value::U16(number) => number.to_string(),
-        Value::I32(number) => number.to_string(),
-        Value::U32(number) => number.to_string(),
-        Value::I64(number) => number.to_string(),
-        Value::U64(number) => number.to_string(),
-        Value::F64(number) => number.to_string(),
-        Value::Str(text) => text.to_string(),
-        Value::Signature(signature) => signature.to_string(),
-        Value::ObjectPath(path) => path.to_string(),
-        Value::Value(inner) => describe_value(inner),
-        Value::Array(array) => format!("array-{}", array.len()),
-        Value::Dict(dict) => format!("dict-{}", dict.iter().count()),
-        Value::Structure(_) => "struct".to_string(),
+        Variant::U8(number) => number.to_string(),
+        Variant::Bool(flag) => flag.to_string(),
+        Variant::I16(number) => number.to_string(),
+        Variant::U16(number) => number.to_string(),
+        Variant::I32(number) => number.to_string(),
+        Variant::U32(number) => number.to_string(),
+        Variant::I64(number) => number.to_string(),
+        Variant::U64(number) => number.to_string(),
+        Variant::F64(number) => number.to_string(),
+        Variant::Str(text) => text.to_string(),
+        Variant::Signature(signature) => signature.to_string(),
+        Variant::ObjectPath(path) => path.to_string(),
+        Variant::Variant(inner) => describe_value(inner),
+        Variant::Array(array) => format!("array-{}", array.len()),
+        Variant::Dict(dict) => format!("dict-{}", dict.iter().count()),
+        Variant::Structure(_) => "struct".to_string(),
         _ => "other".to_string(),
     };
 }
@@ -79,12 +79,12 @@ pub fn describe_value(value: &Value<'_>) -> String {
 ///  sorted by key so the order never depends on hashing.
 ///
 /// What:
-///      `pub fn summarize_map(map: &HashMap<String, OwnedValue>) -> Vec<ValueSummary>`.
+///      `pub fn summarize_map(map: &HashMap<String, OwnedVariant>) -> Vec<ValueSummary>`.
 /// Why:
 ///       A `HashMap` iterates in an unstable order,
 ///  and a log line must read the same every run.
 #[must_use]
-pub fn summarize_map(map: &HashMap<String, OwnedValue>) -> Vec<ValueSummary> {
+pub fn summarize_map(map: &HashMap<String, OwnedVariant>) -> Vec<ValueSummary> {
     let mut keys: Vec<&String> = map.keys().collect();
     keys.sort();
     let mut summaries = Vec::with_capacity(keys.len());

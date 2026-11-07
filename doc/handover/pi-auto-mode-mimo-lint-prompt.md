@@ -16,12 +16,14 @@ later native input repairs are built as `native-release-EWv4wy`.
 See the [current frontier](pi-auto-mode-current-frontier.md) for the active incident and evidence location.
 
 The 2026-10-18 full Oxlint run reports **83 errors and 13,834 warnings**
-across **818 files and 486 rules**, using one thread.
+across **818 files and 486 rules**,
+using one thread.
 This is the measured pre-control-regression snapshot,
 so run full lint again after the assigned checkpoint before selecting remaining clusters.
 The previous intermediate snapshot reported 30 errors and 13,163 warnings.
 Phase extraction and its genuine host fixtures add findings while removing retired protocols;
-this is an explicit increase in diagnostic debt, not a clean-lint claim.
+this is an explicit increase in diagnostic debt,
+not a clean-lint claim.
 
 The exact diagnostics and per-file error index are private:
 
@@ -33,13 +35,17 @@ The exact diagnostics and per-file error index are private:
 
 1.  Read the [package architecture](../../package/pi-plugin/auto-mode/doc/architecture.md)
     and the [implemented compact design](../../package/pi-plugin/auto-mode/doc/compact-review-design.md).
-    Each major responsibility links to its callers, invariants, alternatives, and verification.
+    Each major responsibility links to its callers,
+    invariants,
+    alternatives,
+    and verification.
 2.  Select a coherent error cluster from the measured error index.
     Regenerate the private index from the fresh full diagnostic log rather than treating a historical index as current.
     Native phase fixtures,
     the shared dispatcher and phase callbacks are separate candidate clusters.
     The linter rule source and actual borrowed API determine a valid restructuring.
-3.  After a coherent change, the package type check and affected consumer tests establish preservation.
+3.  After a coherent change,
+    the package type check and affected consumer tests establish preservation.
     Execution changes also need a native build before their consumer tests.
 4.  Completion requires a fresh full-package lint result with zero errors and warnings,
     passing type checking and affected native tests,
@@ -70,14 +76,23 @@ The verified complete replay build is `native-release-mmaT8k`.
 The current lint host pins `native-release-EWv4wy`.
 The canonical frontier records its live fixture and controller;
 do not reuse a closed diagnosis host pinned to an earlier release.
-Both direct and child groups use Pi's actual preparation, execution, and finalization bodies.
-The same prepared group owns automatic review, manual confirmation, membership, and execution maps.
-Native slots expose phase retention; the retired `invokeProgramNative` API and whole-call adapters are absent.
+Both direct and child groups use Pi's actual preparation,
+execution,
+and finalization bodies.
+The same prepared group owns automatic review,
+manual confirmation,
+membership,
+and execution maps.
+Native slots expose phase retention;
+the retired `invokeProgramNative` API and whole-call adapters are absent.
 Restoring them to satisfy fixture typing would restore removed architecture.
 
 The complete `mmaT8k` baseline has passing full units and type checking.
 Its native lifecycle catalog passes all 22 modes,
-including actual child preparation, hidden-property rejection, hook blocking, and cancellation.
+including actual child preparation,
+hidden-property rejection,
+hook blocking,
+and cancellation.
 The newer progress/fallback catalog also passes on `EWv4wy`,
 including exact-group Allow after native progress and source/cancellation rejection controls.
 The current full-unit run fails on the known stale network fixture's missing private receipt path;
@@ -93,10 +108,15 @@ with zero selectors and 62 actual live-Luna requests.
 The separate fragmented-thinking stress replay `pi-mimo-failure-rpc-LD83ST` passes the same call and request counts.
 Its synthetic character fragments are not claimed to reproduce unknown original network chunk boundaries.
 The actual transmitted requests pass positive-controlled payload inspection:
-raw structured commands, thinking, and signatures are absent.
+raw structured commands,
+thinking,
+and signatures are absent.
 The prohibition replay `pi-hyper-rpc-allow-cU2EQs` withholds both process/Bash members
 with zero selectors and three actual Luna responses.
-The private replay retains configured extensions, skills, tool catalogs, and preceding turns.
+The private replay retains configured extensions,
+skills,
+tool catalogs,
+and preceding turns.
 Configured Stop,
 cancel and abort controls each show one selector,
 withhold both members and finish normally.
@@ -116,11 +136,23 @@ Private replay and mutation tasks live in the investigation scratch `mise.toml`.
 
 Luna remains `openai/gpt-6-luna-decisions` with cutoff `0.60`.
 Assessments retain three sequential bundles of up to three parallel calls,
-at most 200 questions per call, and the existing eligible one-retry allowance.
+at most 200 questions per call,
+and the existing eligible one-retry allowance.
 Fifteen seconds remains advisory.
-Clause, heading, unit, and whole-operation fallback semantics remain distinct.
-Source identity, exact membership, tool freshness, cancellation, callbacks, event ordering,
-scoped Allow/Stop, headless withholding, the fixed program guard, and issued-work drain remain required.
+Clause,
+heading,
+unit,
+and whole-operation fallback semantics remain distinct.
+Source identity,
+exact membership,
+tool freshness,
+cancellation,
+callbacks,
+event ordering,
+scoped Allow/Stop,
+headless withholding,
+the fixed program guard,
+and issued-work drain remain required.
 
 The root `TCV` rule is unchanged by the user's decision.
 The package-local [review-input lesson](../../package/pi-plugin/auto-mode/native/review-input-verification.md)
@@ -151,7 +183,9 @@ which succeeds with registry provenance.
 Automatic release eviction and log retention are not implemented.
 
 The [current frontier](pi-auto-mode-current-frontier.md) retains incident evidence,
-commits, failed experiments, and historical measurements.
+commits,
+failed experiments,
+and historical measurements.
 The original second group's discarded transport cause remains unknown.
 Desktop `notify-send` termination is a separate incident.
 

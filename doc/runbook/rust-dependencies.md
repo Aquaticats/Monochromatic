@@ -11,14 +11,22 @@ Design and rationale:
 
 ## Add a dependency
 
-1.  In the crate directory, run `cargo add <crate>`
-     (with `--features`, `--optional`, or `--no-default-features` as needed).
-2.  From the repository root, run `mise run sync:files`.
+1.  In the crate directory,
+    run `cargo add <crate>`
+     (with `--features`,
+    `--optional`,
+    or `--no-default-features` as needed).
+2.  From the repository root,
+    run `mise run sync:files`.
     The sync adopts the literal version into `rust-catalog.toml` as a `>=` floor
      (or raises an existing floor to satisfy it)
      and rewrites the crate's entry to `workspace = true`,
-     keeping its `features`, `optional`, and `default-features`.
-3.  Commit `rust-catalog.toml`, the crate's `Cargo.toml`, and its `Cargo.lock` together.
+     keeping its `features`,
+    `optional`,
+    and `default-features`.
+3.  Commit `rust-catalog.toml`,
+    the crate's `Cargo.toml`,
+    and its `Cargo.lock` together.
 
 A crate that already uses the dependency elsewhere can write `name = { workspace = true }` directly
  when the catalog has the entry.
@@ -26,7 +34,9 @@ A crate that already uses the dependency elsewhere can write `name = { workspace
 ## Change features or optional
 
 Edit the use site only:
- `features`, `optional`, and `default-features` stay crate-local.
+ `features`,
+`optional`,
+and `default-features` stay crate-local.
 When every site of a dependency in one crate writes `default-features = false`,
  the sync also writes `default-features = false` into that crate's generated entry,
  which Cargo needs before 1.99 and for pre-2024 editions.
@@ -55,7 +65,8 @@ Then run `mise run sync:files`.
 
 ## Depend on another first-party crate
 
-Use a path dependency, not the catalog:
+Use a path dependency,
+not the catalog:
  `other = { path = "../other" }`.
 The sync writes `version = "=<other's package.version>"` beside the path,
  the counterpart of `workspace:*`.
@@ -85,19 +96,27 @@ With `catalogPrune = true` (the repository's setting),
 
 The update needs the nightly cargo pinned in `toolchain.lock.json`.
 Its trust checks cache crates.io histories under `.cache/cargo-shadow/crates-io/`.
-After `catalog:tighten` and `sync:files`, any cargo command that resolves dependencies (`cargo check`, `cargo build`, ...)
- runs the shadow's install step first, which makes each lockfile satisfy its manifests again;
- `cargo-shadow install` does it for every crate at once, and in CI it fails naming the stale lockfiles instead.
+After `catalog:tighten` and `sync:files`,
+any cargo command that resolves dependencies (`cargo check`,
+`cargo build`,
+...)
+ runs the shadow's install step first,
+which makes each lockfile satisfy its manifests again;
+ `cargo-shadow install` does it for every crate at once,
+and in CI it fails naming the stale lockfiles instead.
 See [`package/cargo-shadow/cli/README.md`](../../package/cargo-shadow/cli/README.md)
  for the policy details.
 
 ## Exceptions to the release age or trust policy
 
 - `minimumReleaseAgeExclude = ["ring", "tokio*", "zbus@5.19.0"]` exempts names,
-   name patterns, or exact versions from the release age.
+   name patterns,
+  or exact versions from the release age.
 - `trustPolicyExclude` takes the same selectors and exempts them from the trust policy.
    Review the release first;
-   a refusal names the crate, the version, and the evidence (publisher change or repository change).
+   a refusal names the crate,
+  the version,
+  and the evidence (publisher change or repository change).
 - With `minimumReleaseAgeExcludePrune` and `trustPolicyExcludePrune` on,
    the update removes selectors that no locked version needs any more.
 

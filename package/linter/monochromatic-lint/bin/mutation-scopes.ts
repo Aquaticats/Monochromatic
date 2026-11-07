@@ -207,8 +207,41 @@ export const scopes: ReadonlyMap<string, MutationScope> = new Map<string, Mutati
       ],
     }
   ],
+  // Every layout module: the folder `uses` links, the group folders, the file order and the loop checks they share.
+  // The `layout_` filter is the slice `mise run test:layout` runs, in the library and in the `binary` test target,
+  // so there is no `--lib`. None loads a Cargo workspace: the manifest lookup the layout step needs is
+  // `src/rust_manifest.rs`, which is under the semantic scope.
+  [
+    '--layout',
+    {
+      description: 'every layout module (folder links, group folders, file order, loops) against the layout tests',
+      select: fileArguments('src/layout_*.rs'),
+      run: [
+        '--',
+        'layout_'
+      ],
+    }
+  ],
+  // The workflow shell rules: the step extraction and walk, and the four shell dialect scanners with their rule
+  // settings. The two filters run both groups of tests, because the walk calls the scanners.
+  [
+    '--workflow-shell',
+    {
+      description: 'the workflow walk and the shell dialect scanners against the workflow and shell tests',
+      select: [
+        'src/workflow_*.rs',
+        'src/shell_*.rs',
+      ].flatMap(fileArguments),
+      run: [
+        '--',
+        'workflow_',
+        'shell_'
+      ],
+    }
+  ],
   // The semantic engine: workspace discovery and loading, the compiler query, the per-invocation engine, the
-  // session and the explicit-type rule. Its tests are the Cargo-workspace suites, so this scope runs the whole
+  // session and the explicit-type rule, with the manifest lookup and the router of a build without the `semantic`
+  // feature that sit beside them. Its tests are the Cargo-workspace suites, so this scope runs the whole
   // suite. Its first unmutated baseline tested in 251 seconds on a loaded host (mutation-VFaIKp), already over
   // the 180 second default, so its limit is 1,200 seconds: 4.8 times that baseline, just under cargo-mutants'
   // own automatic limit of five times the baseline. Record: doc/handover/unified-linter-mutation-close.md.
@@ -218,6 +251,8 @@ export const scopes: ReadonlyMap<string, MutationScope> = new Map<string, Mutati
       description: 'the semantic engine and the explicit-type rule against the whole suite',
       select: [
         'src/rust_file_engine.rs',
+        'src/rust_file_engine_syntax.rs',
+        'src/rust_manifest.rs',
         'src/rust_toolchain.rs',
         'src/rust_workspace.rs',
         'src/rust_explicit_*.rs',

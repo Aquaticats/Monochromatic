@@ -31,7 +31,8 @@ Command failed: virsh --connect 'qemu:///session' list --all
 ```
 
 `mvm list` from the repository root reproduced it on 2026-10-05 and exited 1.
-The final lines of its output, verbatim:
+The final lines of its output,
+verbatim:
 
 ```text
 SubprocessError: Command failed: virsh --connect 'qemu:///session' list --all
@@ -113,7 +114,8 @@ Probes run on 2026-10-05:
 - `flatpak run --command=virsh org.virt_manager.virt-manager --version` prints `12.4.0`.
 
 The spawn failure surfaced as `Command failed` because `nano-spawn` 2.1.0 wraps it:
-`source/result.js` builds `new SubprocessError(`Command failed: ${command}`, {cause: error})`,
+`source/result.js` builds `new SubprocessError(`Command failed:
+${command}`, {cause: error})`,
 and the operating system's `ENOENT` is only in that cause.
 
 ### A piped `virsh` call waits for the session daemon's sandbox
@@ -152,7 +154,8 @@ because `nano-spawn` 2.1.0 does:
 and Node emits `close` only when the process has ended and its stdio streams are closed.
 
 This document's version from before the fix called the pipe explanation
-"an inference, not a measurement".
+"an inference,
+not a measurement".
 The timeline and the process list are the measurement.
 The 122 seconds were not a slow daemon start:
 the daemon answered within 8 seconds.
@@ -188,7 +191,8 @@ and shared memory backing for it,
   if (sharedDir !== undefined) {
 ```
 
-libvirt 12.4.0 (tag `v12.4.0`, commit `eb0b2e768d22`) prepares every virtiofs device before a start.
+libvirt 12.4.0 (tag `v12.4.0`,
+commit `eb0b2e768d22`) prepares every virtiofs device before a start.
 `src/qemu/qemu_extdevice.c:113`:
 
 ```c
@@ -529,7 +533,8 @@ Tradeoffs:
   A `guest-file-read` of 3 MiB,
   whose base64 answer is that long before its JSON wrapping,
   failed with `error: Unable to encode message payload`
-  (raised in `virNetMessageEncodePayload`, `src/rpc/virnetmessage.c:381`),
+  (raised in `virNetMessageEncodePayload`,
+  `src/rpc/virnetmessage.c:381`),
   and so did the status of a guest command that had printed 3.5 MiB.
   The agent drops a finished command's result once it has answered,
   so that result is lost.

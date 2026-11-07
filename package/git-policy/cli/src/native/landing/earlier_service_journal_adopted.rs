@@ -39,7 +39,7 @@
 //! if (!(await earlierServiceHold(instance))) await recoverInstance(earlierJournal, instance);
 //! ```
 
-use crate::earlier_service_process_look::{Hold, ServiceLook, earlier_service_hold, effective_user};
+use crate::earlier_service_process_look::{Holding, ServiceLook, earlier_service_hold, effective_user};
 /// How long that look may take.
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 /// The context a recovery runs in,
@@ -158,8 +158,8 @@ pub enum RequestedSettlement {
     Held {
         /// How many batches are open.
         open: usize,
-        /// Why nothing was settled.
-        because: Hold,
+        /// Why nothing was settled, with the program behind it when a program that cannot be ruled out is.
+        because: Holding,
     },
     /// The batches were dealt with by the finish-only recovery, and the batches it could not examine are named.
     Settled {
@@ -171,7 +171,7 @@ pub enum RequestedSettlement {
 }
 
 /// The look at the sockets and processes of the earlier helper of an instance, for journals in `earlier`.
-pub fn hold_on_earlier_helper(earlier: &EarlierJournals, instance: &str, proc_root: &Path) -> Option<Hold> {
+pub fn hold_on_earlier_helper(earlier: &EarlierJournals, instance: &str, proc_root: &Path) -> Option<Holding> {
     let look: ServiceLook = ServiceLook {
         instance: instance.to_string(),
         journals: vec![earlier.per_instance.clone(), earlier.shared.clone()],
@@ -202,10 +202,13 @@ pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: 
     }
     if let Some(because) = hold_on_earlier_helper(earlier, instance, proc_root) {
         crate::service_log!(
-            "the earlier service's journals {} and {} were not settled, because {}; {open} open batch(es) stay where they are",
+            "the earlier service's journals {} and {} were not settled, because {}{}; {open} open batch(es) stay where they are",
             earlier.per_instance.display(),
             earlier.shared.display(),
-            because.words()
+            because.because.words(),
+            because.program.as_ref().map_or_else(String::new, |program| {
+                return format!(" (process {}, program `{}`, journal folder `{}`: {}; its other arguments are not logged)", program.pid, program.program, program.journal_word, program.reason);
+            })
         );
         return RequestedSettlement::Held { open, because };
     }

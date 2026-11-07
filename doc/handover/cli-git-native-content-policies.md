@@ -1,9 +1,11 @@
 # cli-git native content policies
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -18,8 +20,10 @@ the built-in `final-newline`,
 and `mono/forbidden-root-context`.
 `markdown/autofix` stays unported
 and keeps refusing with exit 2 whenever it is enabled and the lifecycle has candidates.
-`mono/dependent-version-bump` no longer refuses: on `feat/cli-git-native-dependent-version` it is wired
-(see `doc/handover/cli-git-native-dependent-version.md`, section "Wiring into the native executable").
+`mono/dependent-version-bump` no longer refuses:
+on `feat/cli-git-native-dependent-version` it is wired
+(see `doc/handover/cli-git-native-dependent-version.md`,
+section "Wiring into the native executable").
 
 Paths starting with `src/` or `bin/` are relative to `package/git-policy/cli/`;
 every other path is repository-relative.
@@ -29,7 +33,8 @@ Respond by merging the branch into `main` and by vetoing any item under "Choices
 
 ## Status
 
-Complete on this branch, pending review and merge.
+Complete on this branch,
+pending review and merge.
 Done:
 the two candidate sources,
 the coded failure outcome,
@@ -39,15 +44,18 @@ the coded failure outcome,
 three fuzz targets,
 and the differential runs.
 The final gate,
-the fuzz smoke campaign and the mutation campaigns are recorded in their own sections, Final gate and Mutation testing.
+the fuzz smoke campaign and the mutation campaigns are recorded in their own sections,
+Final gate and Mutation testing.
 
 ## Differential harness
 
 ### How the incumbent runs with its optional plugins
 
 The incumbent is the built TypeScript wrapper of the main checkout,
-`package/git-policy/cli/dist/final/node/index.mjs` (build output of the TypeScript wrapper, gone since 2026-10-13)
-(built 2026-09-26 15:43, after the last source commit under `package/git-policy/cli/src`,
+`package/git-policy/cli/dist/final/node/index.mjs` (build output of the TypeScript wrapper,
+gone since 2026-10-13)
+(built 2026-09-26 15:43,
+after the last source commit under `package/git-policy/cli/src`,
 `cf2bf70d2` at 15:39 the same day).
 It is run as `node <that file> <arguments>` with `PATH=/usr/bin:/bin`,
 so its real Git is `/usr/bin/git`.
@@ -81,7 +89,8 @@ Two sources the candidate layer did not provide,
 both staged on a private copy of the real index:
 
 - What `git add` would stage
-  (`src/native/candidate/candidate_prediction.rs`, `CandidateRequest::Add`).
+  (`src/native/candidate/candidate_prediction.rs`,
+  `CandidateRequest::Add`).
   The real index path comes from `git rev-parse --path-format=absolute --git-path index`,
   so `GIT_INDEX_FILE`,
   a linked worktree's own index and `--git-dir` are honored.
@@ -93,7 +102,8 @@ both staged on a private copy of the real index:
   `git ls-files --stage -z --full-name -- :/` lists the copy before and after
   `git <prefix> add <region>` runs on it,
   and the candidates are the paths whose complete record lists differ
-  (`src/native/candidate/candidate_stage.rs`, `staged_delta`),
+  (`src/native/candidate/candidate_stage.rs`,
+  `staged_delta`),
   in the incumbent's order:
   paths the index held first,
   in index order,
@@ -183,9 +193,11 @@ Commit `30ce6cab5`.
   the incumbent's code for the same failure.
 - `final-newline` (`src/native/policy/policy_final_newline.rs`) and `mono/forbidden-root-context`
   (`src/native/policy/policy_root_context.rs`) check the candidates with the incumbent's codes and messages.
-- Superseded on `feat/cli-git-native-dependent-version`: `mono/dependent-version-bump` is wired
+- Superseded on `feat/cli-git-native-dependent-version`:
+  `mono/dependent-version-bump` is wired
   and no longer answers `Unavailable`.
-- At this commit, `markdown/autofix` and `mono/dependent-version-bump` answered `Unavailable`
+- At this commit,
+  `markdown/autofix` and `mono/dependent-version-bump` answered `Unavailable`
   wherever the lifecycle has candidates,
   naming "the native Markdown linter" and "planning dependent version bumps".
   `security/forbidden-strings` and a `direct-fix` correction did the same at this commit,
@@ -294,7 +306,8 @@ Commit `ed3f10514`.
   A backup that cannot be restored is left in place and the message says so.
 - Only `final-newline`,
   `markdown/autofix` and `mono/dependent-version-bump` run on `direct-fix`
-  (`policy_trigger.rs`, as in the incumbent),
+  (`policy_trigger.rs`,
+  as in the incumbent),
   so a fix never runs forbidden-strings or root-context.
 
 Gate on that tree:
@@ -359,7 +372,8 @@ Smoke campaign,
 `GIT_POLICY_NATIVE_IMAGE_TAG=content-policies mise run //package/git-policy/cli.fuzz:smoke`
 on `e37dad30a`'s fuzz package
 and `ed3f10514`'s subject
-(the later `e4725f72c` changes only the private index directory builder, which no target calls):
+(the later `e4725f72c` changes only the private index directory builder,
+which no target calls):
 the controls and Clippy passed in the container,
 then each of the eight targets ran 30 seconds under AddressSanitizer and exited 0
 with no artifact.
@@ -528,8 +542,11 @@ which does not convert;
 - `git add` in a worktree refused with exit status 2 whenever any content policy was on,
   which by default is always,
   because `final-newline` is built in:
-  "cli-git: predicting what git add would stage, which the policy final-newline needs,
-  is not implemented in this native development executable, so git add was not run.
+  "cli-git:
+  predicting what git add would stage,
+  which the policy final-newline needs,
+  is not implemented in this native development executable,
+  so git add was not run.
   Run it with the installed cli-git."
 - `git cli-git check` and `git cli-git fix` refused the same way whenever a content policy was selected,
   needing "reading the worktree files that git cli-git check and fix select".
@@ -544,10 +561,15 @@ which does not convert;
   and the lifecycle has candidates,
   the command still refuses with exit status 2 and the existing one-line notice,
   for example
-  "cli-git: the native Markdown linter, which the policy markdown/autofix needs,
-  is not implemented in this native development executable, so git add was not run.
+  "cli-git:
+  the native Markdown linter,
+  which the policy markdown/autofix needs,
+  is not implemented in this native development executable,
+  so git add was not run.
   Run it with the installed cli-git."
-  and "planning dependent version bumps, which the policy mono/dependent-version-bump needs, ...".
+  and "planning dependent version bumps,
+  which the policy mono/dependent-version-bump needs,
+  ...".
 - Controls:
   `binary_frontier_tests.rs`,
   `add_runs_ported_content_policies_and_refuses_unported_ones`
@@ -630,7 +652,9 @@ none was fixed.
   both exit 2,
   the incumbent with `plugin-threw` "Forbidden-strings scanner exited with infrastructure status 2.",
   the native wrapper with `policy-incomplete` "cli-git could not load the forbidden-strings rules,
-  so no file was scanned: read rules <path>: No such file or directory (os error 2).".
+  so no file was scanned:
+  read rules <path>:
+  No such file or directory (os error 2).".
   Failure codes follow their cause;
   `plugin-threw` named plugins,
   which the native wrapper does not have
@@ -659,15 +683,18 @@ none was fixed.
   `SPEC.md` line 362 makes event paths repository-relative.
 - From a subdirectory,
   `fix -- file.txt`:
-  the incumbent fails with `transaction-failed` "Deleted candidate lacks HEAD entry: file.txt";
+  the incumbent fails with `transaction-failed` "Deleted candidate lacks HEAD entry:
+  file.txt";
   the native wrapper corrects `sub/file.txt` and reports it.
   The incumbent confuses the two relative forms.
 - `git add -- missing.txt`
   (a pathspec that matches nothing):
   the incumbent exits 1 with Git's message as plain text;
   the native wrapper exits 2 with `content-unavailable`
-  "cli-git could not predict what git add stages: git add failed:
-  fatal: pathspec 'missing.txt' did not match any files".
+  "cli-git could not predict what git add stages:
+  git add failed:
+  fatal:
+  pathspec 'missing.txt' did not match any files".
   A failure before Git runs exits 2 under the spec's exit contract
   (open decisions,
   "A wrapper failure before Git runs").
@@ -675,8 +702,11 @@ none was fixed.
   same exit status and code,
   `transaction-failed`;
   the message wording differs
-  ("git add --all -- missing.txt failed: ..." against
-  "cli-git could not read the selected worktree files: git add failed: ...").
+  ("git add --all -- missing.txt failed:
+  ..." against
+  "cli-git could not read the selected worktree files:
+  git add failed:
+  ...").
   The native message does not repeat the command's arguments;
   Git's own message still quotes the pathspec.
 
@@ -694,7 +724,8 @@ none was fixed.
   not staged into the private index as patches;
   a fix pass starts no Git process for them.
 - A state equal to the one just before it counts as settled
-  (`policy_convergence::converge`, unchanged here);
+  (`policy_convergence::converge`,
+  unchanged here);
   the incumbent calls that a cycle.
   No shipped correction can produce it.
 - `rulesFile` is checked by its words only;
@@ -718,7 +749,8 @@ none was fixed.
   it keeps refusing.
 - `mono/dependent-version-bump` needs native dependent-version planning,
   which another branch ports;
-  it kept refusing at this commit (superseded on `feat/cli-git-native-dependent-version`, which wires it),
+  it kept refusing at this commit (superseded on `feat/cli-git-native-dependent-version`,
+  which wires it),
   and this branch did not touch those modules.
 - Manual-push listings,
   commit transactions and post-commit candidates are outside this branch.

@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// Imports `Context` for the option and result messages of the assertions.
+use anyhow::Context;
+
 /// Process spawning, the re-executed test helpers, and timing that the moved bus code no longer brings in.
 use std::{process::Command, sync::mpsc, time::Duration};
 
@@ -28,14 +31,14 @@ fn color_scheme_parser_accepts_dark_and_light() {
 fn private_portal_serves_light_scheme_without_host_bus() -> anyhow::Result<()> {
     let portal = start_portal(ColorSchemePreference::Light)?;
     let directory = portal.bus.directory().to_path_buf();
-    let connection = zbus::blocking::connection::Builder::address(portal.bus_address())?.build()?;
-    let proxy = zbus::blocking::Proxy::new(
+    let connection = crate::bus_test_client::connect(portal.bus_address())?;
+    let proxy = crate::bus_test_client::Proxy::new(
         &connection,
         PORTAL_BUS_NAME,
         PORTAL_OBJECT_PATH,
         "org.freedesktop.portal.Settings",
     )?;
-    let value: OwnedValue = proxy.call("ReadOne", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY))?;
+    let value: OwnedVariant = proxy.call("ReadOne", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY))?;
     assert_eq!(value.downcast_ref::<u32>()?, 2);
     drop(proxy);
     drop(connection);
@@ -48,14 +51,14 @@ fn private_portal_serves_light_scheme_without_host_bus() -> anyhow::Result<()> {
 #[test]
 fn private_portal_serves_dark_scheme_through_read_all() -> anyhow::Result<()> {
     let portal = start_portal(ColorSchemePreference::Dark)?;
-    let connection = zbus::blocking::connection::Builder::address(portal.bus_address())?.build()?;
-    let proxy = zbus::blocking::Proxy::new(
+    let connection = crate::bus_test_client::connect(portal.bus_address())?;
+    let proxy = crate::bus_test_client::Proxy::new(
         &connection,
         PORTAL_BUS_NAME,
         PORTAL_OBJECT_PATH,
         "org.freedesktop.portal.Settings",
     )?;
-    let values: HashMap<String, HashMap<String, OwnedValue>> =
+    let values: HashMap<String, HashMap<String, OwnedVariant>> =
         proxy.call("ReadAll", &Vec::<String>::new())?;
     let appearance = values
         .get(APPEARANCE_NAMESPACE)
@@ -71,14 +74,14 @@ fn private_portal_serves_dark_scheme_through_read_all() -> anyhow::Result<()> {
 #[test]
 fn private_portal_rejects_unknown_setting() -> anyhow::Result<()> {
     let portal = start_portal(ColorSchemePreference::Dark)?;
-    let connection = zbus::blocking::connection::Builder::address(portal.bus_address())?.build()?;
-    let proxy = zbus::blocking::Proxy::new(
+    let connection = crate::bus_test_client::connect(portal.bus_address())?;
+    let proxy = crate::bus_test_client::Proxy::new(
         &connection,
         PORTAL_BUS_NAME,
         PORTAL_OBJECT_PATH,
         "org.freedesktop.portal.Settings",
     )?;
-    let result = proxy.call::<_, _, OwnedValue>("ReadOne", &("org.example", "missing"));
+    let result = proxy.call::<_, _, OwnedVariant>("ReadOne", &("org.example", "missing"));
     assert!(result.is_err());
     return Ok(())
 }
@@ -97,16 +100,18 @@ const PLANTED_SERVICE: &str = "org.example.MonochromaticPlantedService";
 /// same requests that made the stock configuration try to execute `org.a11y.Bus`.
 fn run_planted_role() -> anyhow::Result<()> {
     let portal = start_portal(ColorSchemePreference::Dark)?;
-    let connection = zbus::blocking::connection::Builder::address(portal.bus_address())?.build()?;
-    let bus = zbus::blocking::fdo::DBusProxy::new(&connection)?;
+    let connection = crate::bus_test_client::connect(portal.bus_address())?;
+    let bus = crate::bus_test_client::block_on(zbus::fdo::DBusProxy::new(&connection))?;
     let mut activatable = Vec::new();
-    for name in bus.list_activatable_names()? {
+    for name in crate::bus_test_client::block_on(bus.list_activatable_names())? {
         activatable.push(name.to_string());
     }
     // Only the bus driver itself: no service directory was read, planted or host.
     assert_eq!(activatable, ["org.freedesktop.DBus"]);
     for service in [PLANTED_SERVICE, "org.a11y.Bus"] {
-        let started = bus.start_service_by_name(zbus::names::WellKnownName::try_from(service)?, 0);
+        let started = crate::bus_test_client::block_on(
+            bus.start_service_by_name(zbus::names::WellKnownName::try_from(service)?, 0),
+        );
         // let-else binds the refusal message or stops the test with the unexpected outcome.
         let Err(zbus::fdo::Error::ServiceUnknown(message)) = started else {
             panic!("expected ServiceUnknown for {service}, got {started:?}");
@@ -167,9 +172,9 @@ const SWITCH_ROLE_VARIABLE: &str = "NESTED_WAYLAND_SESSION_TEST_SWITCH_ROLE";
 /// The destination is the well-known portal name,
 ///  so zbus applies the same sender filter
 /// Slint's `receive_signal("SettingChanged")` subscription relies on.
-fn settings_proxy(portal: &AppearancePortal) -> anyhow::Result<zbus::blocking::Proxy<'static>> {
-    let connection = zbus::blocking::connection::Builder::address(portal.bus_address())?.build()?;
-    let proxy = zbus::blocking::Proxy::new(
+fn settings_proxy(portal: &AppearancePortal) -> anyhow::Result<crate::bus_test_client::Proxy<'static>> {
+    let connection = crate::bus_test_client::connect(portal.bus_address())?;
+    let proxy = crate::bus_test_client::Proxy::new(
         &connection,
         PORTAL_BUS_NAME,
         PORTAL_OBJECT_PATH,
@@ -182,10 +187,10 @@ fn settings_proxy(portal: &AppearancePortal) -> anyhow::Result<zbus::blocking::P
 ///  deprecated `Read`,
 ///  and `ReadAll`,
 ///  in that order.
-fn served_values(proxy: &zbus::blocking::Proxy<'_>) -> anyhow::Result<[u32; 3]> {
-    let read_one: OwnedValue = proxy.call("ReadOne", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY))?;
-    let read: OwnedValue = proxy.call("Read", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY))?;
-    let all: HashMap<String, HashMap<String, OwnedValue>> =
+fn served_values(proxy: &crate::bus_test_client::Proxy<'_>) -> anyhow::Result<[u32; 3]> {
+    let read_one: OwnedVariant = proxy.call("ReadOne", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY))?;
+    let read: OwnedVariant = proxy.call("Read", &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY))?;
+    let all: HashMap<String, HashMap<String, OwnedVariant>> =
         proxy.call("ReadAll", &Vec::<String>::new())?;
     let read_all = all
         .get(APPEARANCE_NAMESPACE)
@@ -205,7 +210,7 @@ fn decode_setting_changed(message: &zbus::Message) -> anyhow::Result<(String, St
     let body = message.body();
     // The wire header carries the body signature without the outer tuple parentheses.
     let signature = body.signature().to_string_no_parens();
-    let (namespace, key, value): (String, String, OwnedValue) = body.deserialize()?;
+    let (namespace, key, value): (String, String, OwnedVariant) = body.deserialize()?;
     return Ok((namespace, key, value.downcast_ref::<u32>()?, signature))
 }
 
@@ -304,9 +309,9 @@ fn runtime_switch_never_contacts_environment_session_bus() -> anyhow::Result<()>
         return run_switch_role();
     }
     let decoy = PrivateBus::start()?;
-    let watcher = zbus::blocking::connection::Builder::address(decoy.address())?.build()?;
-    let bus = zbus::blocking::fdo::DBusProxy::new(&watcher)?;
-    let mut connections = bus.receive_name_owner_changed()?;
+    let watcher = crate::bus_test_client::connect(decoy.address())?;
+    let bus = crate::bus_test_client::block_on(zbus::fdo::DBusProxy::new(&watcher))?;
+    let mut connections = crate::bus_test_client::block_on(bus.receive_name_owner_changed())?;
 
     let status = Command::new(std::env::current_exe()?)
         .arg("--exact")
@@ -319,14 +324,16 @@ fn runtime_switch_never_contacts_environment_session_bus() -> anyhow::Result<()>
         .status()?;
     assert!(status.success(), "re-executed switch role failed: {status}");
 
-    let sentinel = zbus::blocking::connection::Builder::address(decoy.address())?.build()?;
+    let sentinel = crate::bus_test_client::connect(decoy.address())?;
     let sentinel_name = sentinel
         .unique_name()
         .context("sentinel connection has no unique name")?
         .to_string();
-    let first = connections
-        .next()
-        .context("decoy bus stopped before reporting the sentinel connection")?;
+    let first = crate::bus_step_bound::block_on_bounded("waiting for the decoy bus to report a connection", async {
+        return futures_util::StreamExt::next(&mut connections)
+            .await
+            .context("decoy bus stopped before reporting the sentinel connection");
+    })?;
     let arguments = first.args()?;
     assert_eq!(
         arguments.name().to_string(),

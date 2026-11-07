@@ -10,7 +10,8 @@ The failure and its repair remain the same incident.
 
 `AGENTS.md:403` already requires fresh backing for source claims through its `NVS` rule.
 The proposed refinement makes both definitions explicit before publishing boundary or scope claims.
-This is a proposal; no policy change is implemented or needed to continue the CI work.
+This is a proposal;
+no policy change is implemented or needed to continue the CI work.
 
 ## Proposed existing-rule refinement
 

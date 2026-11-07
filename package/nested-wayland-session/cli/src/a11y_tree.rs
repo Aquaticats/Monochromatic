@@ -1,18 +1,19 @@
 //! Reads the hosted application's accessibility tree over AT-SPI and formats it for the `a11y` command.
 
 /// Standard library items.
-use std::{sync::mpsc, time::Duration};
+use std::time::Duration;
 
 /// Error handling with context.
 use anyhow::{Context, Result};
 /// Structured logging.
 use tracing::{debug, warn};
 /// The D-Bus client and server library.
-use zbus::{blocking::{Connection, Proxy}, zvariant::OwnedObjectPath};
+use zbus::{Connection, OwnedObjectPath, Proxy};
 
 /// Sibling modules of this crate.
 use crate::{
     a11y_service::{A11yService, Application},
+    bus_step_bound::block_on_within,
     protocol::Response,
     state::Compositor,
     wire_text::{encode_text, format_records},
@@ -234,7 +235,7 @@ pub fn format_tree(nodes: &[Node]) -> String {
 /// Build a proxy for one AT-SPI interface of one object.
 ///
 /// What:
-///      `fn proxy<'a>(connection: &Connection, bus_name: &'a str, path: &'a str, interface: &'a str) -> Result<Proxy<'a>>`.
+///      `async fn proxy<'a>(connection: &Connection, bus_name: &'a str, path: &'a str, interface: &'a str) -> Result<Proxy<'a>>`.
 /// Why:
 ///       Every read goes through these proxies.
 ///
@@ -242,15 +243,16 @@ pub fn format_tree(nodes: &[Node]) -> String {
 /// ```ts
 /// function proxy(connection: Connection, busName: string, path: string, iface: string): Proxy { ... }
 /// ```
-fn proxy<'a>(connection: &Connection, bus_name: &'a str, path: &'a str, interface: &'a str) -> Result<Proxy<'a>> {
+async fn proxy<'a>(connection: &Connection, bus_name: &'a str, path: &'a str, interface: &'a str) -> Result<Proxy<'a>> {
     return Proxy::new(connection, bus_name, path, interface)
+        .await
         .with_context(|| format!("opening {interface} of {path} on {bus_name}"))
 }
 
 /// Read one node and queue its children.
 ///
 /// What:
-///      `fn read_node(connection, bus_name, path, depth) -> Result<(Node, Vec<(String, String)>)>`.
+///      `async fn read_node(connection, bus_name, path, depth) -> Result<(Node, Vec<(String, String)>)>`.
 /// Why:
 ///       The walk is iterative over a work list,
 ///  so a deep tree cannot overflow the stack.
@@ -259,14 +261,14 @@ fn proxy<'a>(connection: &Connection, bus_name: &'a str, path: &'a str, interfac
 /// ```ts
 /// function readNode(connection: Connection, busName: string, path: string, depth: number): [Node, Child[]] { ... }
 /// ```
-fn read_node(connection: &Connection, bus_name: &str, path: &str, depth: usize) -> Result<(Node, Vec<(String, String)>)> {
-    let accessible = proxy(connection, bus_name, path, "org.a11y.atspi.Accessible")?;
-    let role = role_name(accessible.call::<_, _, u32>("GetRole", &()).context("GetRole")?);
-    let name: String = accessible.get_property("Name").unwrap_or_default();
-    let states: Vec<u32> = accessible.call("GetState", &()).unwrap_or_default();
-    let children: Vec<(String, OwnedObjectPath)> = accessible.call("GetChildren", &()).unwrap_or_default();
-    let bounds = match proxy(connection, bus_name, path, "org.a11y.atspi.Component") {
-        Ok(component) => component.call::<_, _, (i32, i32, i32, i32)>("GetExtents", &(0_u32,)).ok(),
+async fn read_node(connection: &Connection, bus_name: &str, path: &str, depth: usize) -> Result<(Node, Vec<(String, String)>)> {
+    let accessible = proxy(connection, bus_name, path, "org.a11y.atspi.Accessible").await?;
+    let role = role_name(accessible.call::<_, _, u32>("GetRole", &()).await.context("GetRole")?);
+    let name: String = accessible.get_property("Name").await.unwrap_or_default();
+    let states: Vec<u32> = accessible.call("GetState", &()).await.unwrap_or_default();
+    let children: Vec<(String, OwnedObjectPath)> = accessible.call("GetChildren", &()).await.unwrap_or_default();
+    let bounds = match proxy(connection, bus_name, path, "org.a11y.atspi.Component").await {
+        Ok(component) => component.call::<_, _, (i32, i32, i32, i32)>("GetExtents", &(0_u32,)).await.ok(),
         Err(error) => {
             debug!("no component interface for {path}: {error:#}");
             None
@@ -280,7 +282,7 @@ fn read_node(connection: &Connection, bus_name: &str, path: &str, depth: usize) 
 /// Read the whole tree of one application.
 ///
 /// What:
-///      `fn read_application(connection: &Connection, application: &Application) -> Result<Vec<Node>>`.
+///      `async fn read_application(connection: &Connection, application: &Application) -> Result<Vec<Node>>`.
 ///  Depth first,
 ///  parents before children,
 ///  stopping at `MAX_DEPTH` and `MAX_NODES`.
@@ -291,7 +293,7 @@ fn read_node(connection: &Connection, bus_name: &str, path: &str, depth: usize) 
 /// ```ts
 /// function readApplication(connection: Connection, application: Application): Node[] { ... }
 /// ```
-fn read_application(connection: &Connection, application: &Application) -> Result<Vec<Node>> {
+async fn read_application(connection: &Connection, application: &Application) -> Result<Vec<Node>> {
     let mut nodes = Vec::new();
     let mut pending = vec![(application.bus_name.clone(), application.path.clone(), 0_usize)];
     while let Some((bus_name, path, depth)) = pending.pop() {
@@ -299,7 +301,7 @@ fn read_application(connection: &Connection, application: &Application) -> Resul
             warn!("accessibility tree read stopped at the node or depth limit");
             break;
         }
-        let (node, children) = read_node(connection, &bus_name, &path, depth)?;
+        let (node, children) = read_node(connection, &bus_name, &path, depth).await?;
         nodes.push(node);
         for (child_bus, child_path) in children.into_iter().rev() {
             pending.push((child_bus, child_path, depth + 1));
@@ -308,42 +310,46 @@ fn read_application(connection: &Connection, application: &Application) -> Resul
     return Ok(nodes)
 }
 
-/// Read every registered application on a helper thread with a time budget.
+/// Read every registered application on the calling thread inside a time budget.
 ///
 /// What:
 ///      `pub fn read_all(service: &A11yService) -> Result<Vec<Node>>`.
+///  One `zbus::block_on` call walks every application,
+///  and the walk is dropped when `READ_BUDGET` has passed.
 /// Why:
 ///       The calls wait for another process,
 ///  which may be slow or stopped,
 ///  and the compositor's event loop must not wait forever.
+///  The walk is a future now,
+///  so the budget ends it where the old reader thread was left running after the wait gave up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function readAll(service: A11yService): Promise<Node[]> { ... } // with a 5 s timeout
 /// ```
 pub fn read_all(service: &A11yService) -> Result<Vec<Node>> {
+    return read_all_within(service, READ_BUDGET);
+}
+
+/// Read every registered application on the calling thread inside `budget`.
+///
+/// What:
+///      `pub fn read_all_within(service: &A11yService, budget: Duration) -> Result<Vec<Node>>`.
+/// Why:
+///       `read_all` fixes the budget at `READ_BUDGET`;
+///  a test names a short one to see a stalled application end the read.
+pub fn read_all_within(service: &A11yService, budget: Duration) -> Result<Vec<Node>> {
     let connection = service.connection().clone();
     let applications = service.applications();
-    let (sender, receiver) = mpsc::channel();
-    std::thread::Builder::new()
-        .name("nws-a11y-read".to_string())
-        .spawn(move || {
-            let mut nodes = Vec::new();
-            for application in &applications {
-                match read_application(&connection, application) {
-                    Ok(mut found) => nodes.append(&mut found),
-                    Err(error) => {
-                        let _ = sender.send(Err(error));
-                        return;
-                    }
-                }
-            }
-            let _ = sender.send(Ok(nodes));
-        })
-        .context("starting the accessibility reader thread")?;
-    return receiver
-        .recv_timeout(READ_BUDGET)
-        .map_err(|error| return anyhow::anyhow!("the application did not answer its accessibility tree within {READ_BUDGET:?}: {error}"))?
+    let walk = async move {
+        let mut nodes = Vec::new();
+        for application in &applications {
+            nodes.append(&mut read_application(&connection, application).await?);
+        }
+        return Ok::<Vec<Node>, anyhow::Error>(nodes);
+    };
+    return block_on_within(budget, "the application's accessibility tree read", walk)
+        .context("the application did not answer its accessibility tree");
 }
 
 /// Answer `a11y`.

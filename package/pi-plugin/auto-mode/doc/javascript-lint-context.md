@@ -5,8 +5,10 @@
 The user removed the unapproved native Pi implementation during the ground-up rebuild.
 The mixed-language lint project and separate `tsconfig.types.json` are retired.
 One `tsconfig.json` now extends the standard repository configuration for the future TypeScript plugin.
-Two empty, untracked probe configs were also removed.
-The findings that follow describe the removed implementation, not a required plugin architecture.
+Two empty,
+untracked probe configs were also removed.
+The findings that follow describe the removed implementation,
+not a required plugin architecture.
 
 ## Original reason for the split
 

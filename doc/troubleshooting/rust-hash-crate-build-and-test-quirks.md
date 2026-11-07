@@ -10,7 +10,8 @@ Uncommitted by instruction of the vet brief;
 ## `blake3` 1.8.7 cannot build for aarch64 without a C cross compiler
 
 `blake3`'s AVX-512 and NEON kernels are C and assembly compiled by `cc` in `build.rs`
- (`c/blake3_avx512_x86-64_unix.S`, `c/blake3_neon.c`).
+ (`c/blake3_avx512_x86-64_unix.S`,
+`c/blake3_neon.c`).
 A cross build for `aarch64-unknown-linux-gnu` or `aarch64-unknown-linux-musl` in a container
  without `aarch64-linux-gnu-gcc` fails in the build script:
 
@@ -24,16 +25,24 @@ Workaround:
  the crate's `pure` feature drops the C and assembly kernels,
  and the build then succeeds with rustc alone.
 Cost:
- a `pure` build has SSE2, SSE4.1, and AVX2 in Rust and no aarch64 vector path at all,
+ a `pure` build has SSE2,
+SSE4.1,
+and AVX2 in Rust and no aarch64 vector path at all,
  and it measured 18% to 22% slower than the C build on `x86-64-v4`.
 
 ## `keccak` 0.2.2 has no x86 SIMD backend unless a cfg flag is set
 
 `keccak` auto-detects only the aarch64 SHA-3 extension.
 Its x86 lanes are nightly `portable_simd` code behind
- `--cfg keccak_backend="simd128"`, `"simd256"`, or `"simd512"`
- (`src/lib.rs:1-12`, `:57-64`).
-Without one of those flags a `sha3`, `k12`, `turboshake`, or `cshake` build on x86_64 is scalar,
+ `--cfg keccak_backend="simd128"`,
+`"simd256"`,
+or `"simd512"`
+ (`src/lib.rs:1-12`,
+`:57-64`).
+Without one of those flags a `sha3`,
+`k12`,
+`turboshake`,
+or `cshake` build on x86_64 is scalar,
  which is easy to mistake for "the SIMD path is slow".
 
 ## A pinned `rust-toolchain.toml` breaks offline container runs through a rustup shim
@@ -59,7 +68,8 @@ Setting `RUSTUP_TOOLCHAIN` also works when the image has that toolchain installe
 `rscrypto` 0.9.0 compiles each algorithm behind a feature.
 `cargo test --release --lib` with default features passed 89 tests and covered no hash module;
  with `--features std,xxh3,blake3,sha2` the same command passed 147.
-Worse, `cargo miri test --lib hashes::` exited 0 with
+Worse,
+`cargo miri test --lib hashes::` exited 0 with
 
 ```text
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 71 filtered out
@@ -95,7 +105,13 @@ rustc --print cfg -Ctarget-cpu=x86-64-v4 --target x86_64-unknown-linux-gnu | rg 
 # target_feature="avx512f"
 ```
 
-Crates that dispatch at run time (`sha2`, `sha1`, `aes`, `bitcoin_hashes`, `scytale`, `graviola`, `rscrypto`)
+Crates that dispatch at run time (`sha2`,
+`sha1`,
+`aes`,
+`bitcoin_hashes`,
+`scytale`,
+`graviola`,
+`rscrypto`)
  still reach SHA-NI and AES-NI in such a build;
  crates that select at compile time do not.
 Adding `-Ctarget-feature=+sha,+aes` reaches them,

@@ -193,7 +193,8 @@ Clones:
    (`src/main/protobuf/command_server.proto:266-280`).
 - One output base runs one command at a time;
    the server makes a second command wait,
-   printing "Another command (...) is running. Waiting for it to complete on the server"
+   printing "Another command (...) is running.
+  Waiting for it to complete on the server"
    (`src/main/java/com/google/devtools/build/lib/runtime/BlazeCommandDispatcher.java:229-265`),
    so a separate `bazel query` cannot inspect a build in progress on the same output base.
   An earlier version cited the client-side lock message in `src/main/cpp/blaze_util_posix.cc`;
@@ -224,7 +225,8 @@ The user raised Bazel's community as an advantage over Mise.
    Bazel 25,857.
 - The advantage thins at this repository's integration points:
    `aspect-build/rules_lint` issue #445,
-   "[FR]: oxlint",
+   "[FR]:
+  oxlint",
    has been open with zero comments since 2024-12-05,
    and rules_android describes itself as an incomplete preview.
 

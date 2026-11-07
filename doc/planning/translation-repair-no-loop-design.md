@@ -170,10 +170,12 @@ because an insertion is recovered supplementary content whose absence is a
 recorded gap,
 not a missing required page.
 This sentence is about the insertion path only:
-a passage that is not admitted has no slice, so the artifact records no `sourceText` for it
+a passage that is not admitted has no slice,
+so the artifact records no `sourceText` for it
 and the page stays silent about it.
 A slice that exists and is left unfilled ships its source text under a note
-(owner ruling of 2026-10-23, ledger B827 in
+(owner ruling of 2026-10-23,
+ledger B827 in
 `package/translation-repair/doc/audit-ledger-page-assembly-and-corpus-run-driver.md`).
 The corroboration guard keeps its admission authority unchanged,
 since it is a deterministic-integrity check rather than a quality review.

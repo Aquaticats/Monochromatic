@@ -7,7 +7,9 @@
 Session `2026-10-17T04-53-14-520Z_01a14834-fc97-70de-9615-03cc0636384b`
 reports two approval failures.
 The mixed `process.start` and `bash` group containing `chatcmpl-tool-b60c3965f752386f`
-receives `approve: 0.48`, `deny: 0.34`, `unknown: 0.18`.
+receives `approve: 0.48`,
+`deny: 0.34`,
+`unknown: 0.18`.
 The model answered,
 but its score does not reach the retained `0.60` cutoff.
 The final Bash pair containing `chatcmpl-tool-a7a4468548c5838a` instead throws
@@ -42,7 +44,9 @@ if (name !== 'bash' && !(name === 'process' && input.action === 'start')) return
 ```
 
 Replacing only the process command copies in the saved mixed-group request with parser structure
-changes the result to `approve: 0.69`, `deny: 0.20`, `unknown: 0.11`
+changes the result to `approve: 0.69`,
+`deny: 0.20`,
+`unknown: 0.11`
 in three identical live trials.
 Execution still uses the original input.
 
@@ -57,7 +61,9 @@ projects known command fields while preserving output text and unrelated data:
 const projected=typeof details.command==='string'?projectReviewInput({name:'bash',input:details}):details;
 ```
 
-The same module handles `process`, `processes[]`, and `result.info` records.
+The same module handles `process`,
+`processes[]`,
+and `result.info` records.
 An arbitrary data property named `command` does not select this path.
 
 The custom-message freshness chain begins in
@@ -228,7 +234,8 @@ Review `01906150-53fc-4313-94ad-0c7ae40d26df` retains
 `JudgmentDeadlineError: Judgment preparation and assessment deadline expired`.
 Its first request begins `9772` milliseconds after review start and returns `1050` milliseconds later.
 The final request has no retained answer before the deadline failure.
-This evidence establishes elapsed-time rejection; it does not establish a low-confidence final model answer.
+This evidence establishes elapsed-time rejection;
+it does not establish a low-confidence final model answer.
 
 ### Root cause and correction
 
@@ -254,7 +261,10 @@ return targetAt-current;
 The HTTP sender carries the original `signal` directly into `fetch`;
 there is no elapsed-target abort timer.
 Startup relevance likewise uses an untimed signal instead of its former `45_000` millisecond timer.
-Transport errors, actual cancellation, stale inputs, and provider-call accounting remain separate failure paths.
+Transport errors,
+actual cancellation,
+stale inputs,
+and provider-call accounting remain separate failure paths.
 
 The user also required no model thinking and locally parsed Bash structure.
 `package/pi-plugin/auto-mode/native/contract/integration/action-policy/wire-material.mjs:43`
@@ -267,7 +277,10 @@ return block.type==='toolCall'?{...block,arguments:projectReviewInput({name:bloc
 
 The same file's `projectPreparedOperation` covers prepared inputs.
 Historical tool calls and direct Bash entries use the same maintained projection.
-The incumbent `unbash` parser supplies quoting, nested execution, control flow, and redirection roles;
+The incumbent `unbash` parser supplies quoting,
+nested execution,
+control flow,
+and redirection roles;
 the original command stays local for execution and ownership checks.
 Human confirmation uses a separate thinking-free summary so parsing failure does not disable manual review.
 Literal argument data and quoted here-document bodies remain data even when they resemble shell commands.
@@ -289,43 +302,78 @@ mise run //package/pi-plugin/auto-mode:test:native:decision-fallback
 mise run //package/pi-plugin/auto-mode:test:visible-context
 ```
 
-Passing catalogs include late responses, delayed credential preparation,
-pipelines, logical operators, quoted literal substitutions, active substitutions,
-process substitutions, arithmetic, parameter defaults, and quoted or active here-documents.
-Rejected catalogs include incomplete Bash, cancelled requests, stale inputs,
-unavailable credentials, malformed responses, and established prohibitions.
+Passing catalogs include late responses,
+delayed credential preparation,
+pipelines,
+logical operators,
+quoted literal substitutions,
+active substitutions,
+process substitutions,
+arithmetic,
+parameter defaults,
+and quoted or active here-documents.
+Rejected catalogs include incomplete Bash,
+cancelled requests,
+stale inputs,
+unavailable credentials,
+malformed responses,
+and established prohibitions.
 The thinking-exclusion and late-answer tests failed against the original installed behavior before correction.
 
 The first complete-session replay stopped after eleven tool results with native exit status `137`.
-No native fatal diagnostic was retained, and the output ceiling was not reached.
-It is incomplete evidence, with no established termination cause.
+No native fatal diagnostic was retained,
+and the output ceiling was not reached.
+It is incomplete evidence,
+with no established termination cause.
 The first bounded replay executes all original calls but exposes a harness defect:
-`rg` is absent, and an all-success assertion contradicts the saved transcript's failed search.
+`rg` is absent,
+and an all-success assertion contradicts the saved transcript's failed search.
 The corrected final replay `pi-hyper-rpc-allow-Caf02F` mounts the actual executable,
 retains the original conversation and configured resources,
-and completes all 21 calls across 12 groups without confirmation in a disposable two-CPU, 2 GiB container.
+and completes all 21 calls across 12 groups without confirmation in a disposable two-CPU,
+2 GiB container.
 Both reported tool-call identifiers complete successfully.
 The original failed search retains exit status `1` rather than a missing-executable status `127`.
-All 25 Luna requests succeed; saved-payload inspection covers proposed operations,
-prepared members, per-question copies, and selected historical messages.
-Those surfaces contain no assistant thinking, provider signatures, or raw Bash command fields.
+All 25 Luna requests succeed;
+saved-payload inspection covers proposed operations,
+prepared members,
+per-question copies,
+and selected historical messages.
+Those surfaces contain no assistant thinking,
+provider signatures,
+or raw Bash command fields.
 Installed prohibition fixture `pi-hyper-rpc-prohibited-nNA56F` blocks both reads without confirmation.
-The context, constructor, preparation, and live/retained dependency regressions also pass,
-as do the shared analyzer tests, type checks, focused lint, and the 22-case fallback matrix.
+The context,
+constructor,
+preparation,
+and live/retained dependency regressions also pass,
+as do the shared analyzer tests,
+type checks,
+focused lint,
+and the 22-case fallback matrix.
 
 ### Workaround tradeoffs and rejected approaches
 
 No larger hard timeout implements an advisory timing requirement.
 Ignoring parsing failures would lose permission-relevant operations.
-Instead, incomplete structure reaches original human confirmation when available,
+Instead,
+incomplete structure reaches original human confirmation when available,
 and headless execution remains withheld.
-Parsing alone does not prove runtime expansion values, reachability, or command effects.
+Parsing alone does not prove runtime expansion values,
+reachability,
+or command effects.
 
 ### Upstream filing decision
 
-Nothing to file upstream: the enforced timer and payload projection are repository-owned integration behavior.
-The ownership gate fails for Pi and the parser; no upstream change is needed to implement this correction.
-The other filing gates, supported use, contribution policy, maintainer interest, and upstream prototype,
+Nothing to file upstream:
+the enforced timer and payload projection are repository-owned integration behavior.
+The ownership gate fails for Pi and the parser;
+no upstream change is needed to implement this correction.
+The other filing gates,
+supported use,
+contribution policy,
+maintainer interest,
+and upstream prototype,
 do not become filing obligations for this consumer defect.
 
 ## Symptom
@@ -335,7 +383,10 @@ The session beginning at 22:17:29 UTC records a switch from Hyper to
 `llmgateway-devpass/mimo-v2.6-pro`,
 two connection failures with recovery context edits,
 then a switch to `opencode-go/mimo-v2.6-pro` and a retired-lease failure.
-The user confirms Esc, edit/retry, `/tree`, and `/reload` between attempts.
+The user confirms Esc,
+edit/retry,
+`/tree`,
+and `/reload` between attempts.
 The transcript does not record the full UI action order or the original nested connection-error cause.
 
 The failures reproduce independently in the installed native host without tool calls or external network access.
@@ -443,7 +494,8 @@ The consumer regression is committed as `c408b94879`.
 mise run //package/pi-plugin/auto-mode:test:native:session-actions
 ```
 
-At the reproduction commit, the first case fails with `Follow-up after switch: Connection error.`.
+At the reproduction commit,
+the first case fails with `Follow-up after switch: Connection error.`.
 The individual isolated fixtures are also runnable in
 `${HOME}/temp/agent/pi-reported-errors-20261015/`:
 
@@ -459,19 +511,35 @@ mise run inspect-cause
 
 Failing catalog:
 
-- Provider switch: initial prompt succeeds; follow-up reports `Connection error.`; one transport call total.
-- Tree navigation: initial prompt and navigation succeed; follow-up reports `Root lease has been retired`;
+- Provider switch:
+  initial prompt succeeds;
+  follow-up reports `Connection error.`;
+  one transport call total.
+- Tree navigation:
+  initial prompt and navigation succeed;
+  follow-up reports `Root lease has been retired`;
   one transport call total.
 
 Passing catalog:
 
-- Retry control: authored transport failure on the first prompt; second prompt completes; two transport calls.
-- Reload control: both prompts complete; two transport calls.
-- Abort control: abort after the first completed prompt; second prompt completes; two transport calls.
+- Retry control:
+  authored transport failure on the first prompt;
+  second prompt completes;
+  two transport calls.
+- Reload control:
+  both prompts complete;
+  two transport calls.
+- Abort control:
+  abort after the first completed prompt;
+  second prompt completes;
+  two transport calls.
 
 The abort control does not exercise cancelling an in-flight response.
-The retry control submits a second prompt; it does not exercise automatic retry backoff.
-All fixtures use disposable homes, the built native host, and authored SSE responses.
+The retry control submits a second prompt;
+it does not exercise automatic retry backoff.
+All fixtures use disposable homes,
+the built native host,
+and authored SSE responses.
 No provider outage is necessary to reproduce either failure.
 
 ## Verified workarounds
@@ -524,8 +592,12 @@ function observe({capture,fallback}){
 ```
 
 Unavailable automatic evidence opens manual approval for the complete prepared group.
-Allow executes that group; Stop, cancellation, and unavailable UI execute nothing.
-This is the user's corrected fallback, adopted on 2026-10-15.
+Allow executes that group;
+Stop,
+cancellation,
+and unavailable UI execute nothing.
+This is the user's corrected fallback,
+adopted on 2026-10-15.
 The tradeoff is that an unsupported event can leave its source owner unavailable for automatic decisions;
 subsequent affected tools still require manual review.
 No test establishes universal automatic-evidence recovery after arbitrary event data.
@@ -539,40 +611,71 @@ It preserves prohibitions and independent authorization requirements.
 
 The disposable package under `${HOME}/temp/agent/pi-host-isolation-20261015/`
 retains the build and consumer logs.
-`complete-matrix.log` passes native session actions, passive callback and transport checks,
-host lifecycle, runtime-hook installation, policy outcomes, and manual fallback on `native-release-JWvYLT`.
+`complete-matrix.log` passes native session actions,
+passive callback and transport checks,
+host lifecycle,
+runtime-hook installation,
+policy outcomes,
+and manual fallback on `native-release-JWvYLT`.
 `approval-matrix.log` on `native-release-LNNqh3` passes original approval,
-native-context reload, fresh confirmation, and uncertainty controls.
+native-context reload,
+fresh confirmation,
+and uncertainty controls.
 Its out-of-profile bypass expectation required updating for the accepted manual fallback.
-The subsequent `approval-final.log` passes that Stop control, the complete approval matrix,
+The subsequent `approval-final.log` passes that Stop control,
+the complete approval matrix,
 and selected-context verification with six assessments and eighteen native child executions.
 
 The installed replacement is `native-release-Yhc7sX`.
 `installed-configured.log` verifies the original installed command with all 17 configured packages:
-Allow executes one read, while prohibition and an unmet independent prerequisite execute none.
+Allow executes one read,
+while prohibition and an unmet independent prerequisite execute none.
 `live-final.log` passes the same policy outcomes using live Luna against the disposable candidate.
 `installed-live.log` then verifies live Luna through the installed command:
-516 questions in three successful HTTP requests, one dialog, and one native read.
+516 questions in three successful HTTP requests,
+one dialog,
+and one native read.
 Primary responses and dialog selection remain authored fixtures.
 No human keyboard approval or universal semantic accuracy is claimed.
 
-`installed-manual-group.log` passes parent identity, native retirement, cancellation,
-host replacement, one-shot execution, and returned-token rejection.
+`installed-manual-group.log` passes parent identity,
+native retirement,
+cancellation,
+host replacement,
+one-shot execution,
+and returned-token rejection.
 A process-local omission of the parent-identity check makes that committed regression fail with
-`changed-parent must reject its stale Allow response`; the production check remains present.
+`changed-parent must reject its stale Allow response`;
+the production check remains present.
 
-The session-action cases include switching providers, tree navigation, explicit retry, reload,
-completed and in-flight abort, combined actions, cancelled and no-op navigation, summary navigation,
-fork, resume, agent retry, and provider retry.
+The session-action cases include switching providers,
+tree navigation,
+explicit retry,
+reload,
+completed and in-flight abort,
+combined actions,
+cancelled and no-op navigation,
+summary navigation,
+fork,
+resume,
+agent retry,
+and provider retry.
 The native callback tests exercise capture failure before and after callbacks,
-exactly-once execution, unchanged return values, and original thrown-value identity.
+exactly-once execution,
+unchanged return values,
+and original thrown-value identity.
 The manual matrix independently injects observation and assessment failure and checks
-Allow, Stop, cancellation, and headless behavior.
+Allow,
+Stop,
+cancellation,
+and headless behavior.
 
 The configured-host harness initially mounted the scratch alias without its canonical generated-import path.
-After mounting both paths, it also needed to preload the candidate's HTTP dispatcher before installing fixture fetch.
+After mounting both paths,
+it also needed to preload the candidate's HTTP dispatcher before installing fixture fetch.
 Preloading the installed release's dispatcher allowed candidate initialization to replace that fixture transport.
-These are harness corrections, not additional provider incidents.
+These are harness corrections,
+not additional provider incidents.
 
 The `NEymiB` replay on 2026-10-18 verifies this namespace requirement against a private candidate
 mounted at the repository's `dist` path.
@@ -587,7 +690,8 @@ The earlier replay's empty capture does not establish payload correctness.
 
 One verification attempt ended with Mise's `killed by SIGABRT` without a retained native fatal diagnostic.
 A later commit hook reported `cannot fork()` and `Resource temporarily unavailable`.
-The shared worker task limit was 256; a later sample measured 245 tasks.
+The shared worker task limit was 256;
+a later sample measured 245 tasks.
 Those samples do not prove the original abort's cause.
 Verification now reduces fixture worker pools and runs the configured checks separately.
 The user subsequently requested 2048 tasks.
@@ -598,7 +702,8 @@ The [worker-limits record](codex-shell-worker-limits.md) documents the coordinat
 
 - Attributing the connection message to the remote provider without checking its nested cause.
 - Treating a passing retry control as proof that tree navigation preserves prompt usability.
-- Treating old-lease rejection as sufficient verification: the next prompt must still work.
+- Treating old-lease rejection as sufficient verification:
+  the next prompt must still work.
 - Declaring the decision-core replacement complete without ordinary provider-selection and navigation consumers.
 
 The user identified an architectural problem after these reproductions.
@@ -610,12 +715,20 @@ Its replacement passes the disposable session reproductions and the installed co
 
 No upstream issue or patch is proposed.
 
-1.  Upstream fault: no; the failing endpoint check and root lease are maintained auto-mode code.
-2.  Upstream fixability: no upstream fix is needed for these demonstrated mechanisms.
-3.  Supported use: the tests invoke the installed session's provider-selection and tree-navigation methods.
-4.  Contribution policy: not investigated because an upstream contribution is not proposed.
-5.  Maintainer willingness: not investigated for the same reason.
-6.  Compatible upstream prototype: inapplicable; the correction belongs to the maintained integration.
+1.  Upstream fault:
+    no;
+    the failing endpoint check and root lease are maintained auto-mode code.
+2.  Upstream fixability:
+    no upstream fix is needed for these demonstrated mechanisms.
+3.  Supported use:
+    the tests invoke the installed session's provider-selection and tree-navigation methods.
+4.  Contribution policy:
+    not investigated because an upstream contribution is not proposed.
+5.  Maintainer willingness:
+    not investigated for the same reason.
+6.  Compatible upstream prototype:
+    inapplicable;
+    the correction belongs to the maintained integration.
 
 ## Pi SDK 1.2.0 first-group review failure with retained MCP catalogs
 
@@ -666,7 +779,8 @@ The 140-tool replay exposed a second source-binding problem after removing the s
 each input searched the entire retained-origin array.
 The traced fixture contained 83,404 inputs and 83,399 retained origins.
 One instrumented search took 113190.85 ms;
-this is a diagnostic observation, not a repeated-run benchmark.
+this is a diagnostic observation,
+not a repeated-run benchmark.
 Commit `3827af2da9` builds a source-identity index once,
 retaining the first origin for duplicate source identities.
 `package/pi-plugin/auto-mode/native/contract/integration/policy-source/run-messages.mjs:28`:
@@ -719,14 +833,28 @@ Separate live Luna checks bridge assessment requests to the real decision servic
 retaining offline MCP metadata and scripted confirmation.
 They do not execute external MCP operations or claim physical human input.
 
-- Failing baseline: `mimo-mcp-forty-before.log` and `run-message-freshness-before.log`.
-- Passing candidate controls: `mimo-candidate-repro.log`, `mimo-regressions.log`, and `mimo-schema-after.log`.
-- Intermediate full-catalog failure: `mimo-full-diagnostic.log`, fixture `pi-hyper-rpc-stop-GRWOl5`.
-- Passing full-catalog candidate: `mimo-full-index-after.log`, fixture `pi-hyper-rpc-stop-fsbmtV`.
-- Final guard omission: `mimo-omission-final.log`.
-- Installed regressions: `direct-installed-regressions.log` and `direct-installed-additional.log`.
-- Installed live Luna confirmation: `direct-installed-allow.log`, fixture `pi-hyper-rpc-allow-LuIIFZ`.
-- Installed live Luna prohibition: `direct-installed-prohibit.log`, fixture `pi-hyper-rpc-prohibited-QwVjXt`.
+- Failing baseline:
+  `mimo-mcp-forty-before.log` and `run-message-freshness-before.log`.
+- Passing candidate controls:
+  `mimo-candidate-repro.log`,
+  `mimo-regressions.log`,
+  and `mimo-schema-after.log`.
+- Intermediate full-catalog failure:
+  `mimo-full-diagnostic.log`,
+  fixture `pi-hyper-rpc-stop-GRWOl5`.
+- Passing full-catalog candidate:
+  `mimo-full-index-after.log`,
+  fixture `pi-hyper-rpc-stop-fsbmtV`.
+- Final guard omission:
+  `mimo-omission-final.log`.
+- Installed regressions:
+  `direct-installed-regressions.log` and `direct-installed-additional.log`.
+- Installed live Luna confirmation:
+  `direct-installed-allow.log`,
+  fixture `pi-hyper-rpc-allow-LuIIFZ`.
+- Installed live Luna prohibition:
+  `direct-installed-prohibit.log`,
+  fixture `pi-hyper-rpc-prohibited-QwVjXt`.
 - Logs live under `${HOME}/temp/agent/pi-host-isolation-20261015/`;
   the named fixture lives directly under `${HOME}/temp/agent/`.
 
@@ -734,7 +862,9 @@ Maintained regressions run through
 `mise run //package/pi-plugin/auto-mode:test:native:run-message-freshness`
 and `mise run //package/pi-plugin/auto-mode:test:native:tool-schema-capacity`
 after building the candidate artifact.
-The configured replay tasks are `mimo-first`, `mimo-candidate`, and `mimo-diagnostic`
+The configured replay tasks are `mimo-first`,
+`mimo-candidate`,
+and `mimo-diagnostic`
 in `${HOME}/temp/agent/pi-tool-call-scope-20261014/`.
 
 Disabling MCP omitted the failing surface and is not a verified repair.
@@ -764,7 +894,10 @@ if ((configured === 'native-inspected-programs-v2') && (effect.prepared?.name ==
 
 Native ownership and currentness checks still authenticate the operation.
 The matcher adds no program-inspection facts or permission.
-`test:native:direct-bash` verifies permission, prohibition, unknown answers, and mixed groups.
+`test:native:direct-bash` verifies permission,
+prohibition,
+unknown answers,
+and mixed groups.
 Each assessment contains both complete proposed operations.
 
 The live candidate and installed prohibition checks returned HTTP 200 and blocked both commands without a dialog.

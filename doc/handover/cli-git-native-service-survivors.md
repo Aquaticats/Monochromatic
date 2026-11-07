@@ -73,8 +73,13 @@ The logs are `~/temp/agent/survivors-service/m-<mutant>.log`.
   (`doc/planning/cli-git-resident-service.md`,
   "bounded commit wait:
   default 10 minutes").
-  (2026-11-03: `COMMIT_WAIT` and that test are gone; the client waits on the service's heartbeats, see
-  `doc/planning/cli-git-shipped-limits-audit.md`, "Commit queue wait, 10 minutes".)
+  (2026-11-03:
+  `COMMIT_WAIT` and that test are gone;
+  the client waits on the service's heartbeats,
+  see
+  `doc/planning/cli-git-shipped-limits-audit.md`,
+  "Commit queue wait,
+  10 minutes".)
 - `service_server.rs` `IDLE_EXIT` `3 * 60 * 60`,
   three mutants listed by the running campaign (`+` in either place,
   `/`):

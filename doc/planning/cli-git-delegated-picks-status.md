@@ -22,27 +22,44 @@ Recorded in `H`,
 the shipped branch-write ceiling (never cut a branch write),
 non-Git tools during `git worktree add` (silence plus a ceiling),
 the design's R-never (reclaim the lane's own stale `index.lock`),
-and the CM7 carve-out (CM7 unchanged; the package docs record that the test images take tools from pacman).
+and the CM7 carve-out (CM7 unchanged;
+the package docs record that the test images take tools from pacman).
 
 ## Built on `fix/git-policy-cli-branch-write-and-tool-ceilings` (2026-11-04)
 
-Three lines for the answered items above, with the owner's words:
+Three lines for the answered items above,
+with the owner's words:
 
-- Branch write: "Never cut a branch write (Recommended)" and "Short extra wait (Recommended)", "7 s (Recommended)".
+- Branch write:
+  "Never cut a branch write (Recommended)" and "Short extra wait (Recommended)",
+  "7 s (Recommended)".
   Built:
-  a ceiling only for the exact forms the cut experiment proved (`NUW`, "The cut experiment"), none for any other form;
+  a ceiling only for the exact forms the cut experiment proved (`NUW`,
+  "The cut experiment"),
+  none for any other form;
   a person's command inside such a step stops at the step's class bound plus 7 s ("Class ceiling + 7 s (Recommended)");
   the commit inside a stuck branch write returns at its own bound plus `SHORT_EXTRA_WAIT` (7 s) with the not-known error;
   a commit behind it is withdrawn at its own `ANSWER_CEILING` naming the write;
   a service stuck in a write never restarts itself.
-- Non-Git tools: "Silence plus a ceiling (Recommended)" and "5x (Recommended)".
+- Non-Git tools:
+  "Silence plus a ceiling (Recommended)" and "5x (Recommended)".
   Built:
-  `REPAIR_TOOL_CEILING` 18 minutes, `LINT_CEILING` 4 minutes, `REVIEW_CALL_CEILING` 1 minute, `REVIEW_CEILING` 2 minutes,
+  `REPAIR_TOOL_CEILING` 18 minutes,
+  `LINT_CEILING` 4 minutes,
+  `REVIEW_CALL_CEILING` 1 minute,
+  `REVIEW_CEILING` 2 minutes,
   each five times the longest measured run rounded up to whole minutes (cold-store runs were shorter than the warm maxima).
-- Pick 7 follow-up (`AUD`, 2976 to 2991): done.
-  `FOREIGN_OWNER_PATIENCE` is `2 * LOCK_CEILING`, 20 minutes, derived in code.
-  Its expiry no longer authorizes a takeover: the owner chose "Refuse and name it (Recommended)" on 2026-11-04 (round 3 of the branch
-  write), and the commands that find an old record from another PID namespace stop, name it and change nothing.
+- Pick 7 follow-up (`AUD`,
+  2976 to 2991):
+  done.
+  `FOREIGN_OWNER_PATIENCE` is `2 * LOCK_CEILING`,
+  20 minutes,
+  derived in code.
+  Its expiry no longer authorizes a takeover:
+  the owner chose "Refuse and name it (Recommended)" on 2026-11-04 (round 3 of the branch
+  write),
+  and the commands that find an old record from another PID namespace stop,
+  name it and change nothing.
 
 ## Picks the owner kept on 2026-11-04
 
@@ -114,7 +131,9 @@ the unmeasured numbers are still to be replaced by measured values as the logs f
 - Pick 7 (2562 to 2585,
   follow-up 2976 to 2991):
   done on `fix/git-policy-cli-branch-write-and-tool-ceilings`:
-  the patience is twice the lock ceiling, 20 minutes, derived in code (see "Built on" above).
+  the patience is twice the lock ceiling,
+  20 minutes,
+  derived in code (see "Built on" above).
 - Picks 8,
   13,
   14,
@@ -233,18 +252,23 @@ decided or landed
 
 - Superseded by owner answers:
   pick 2's unbounded wait and its follow-up (by the 10-minute lock ceiling);
-  pick 5's "Wait while connected" (by "Bound it, keep retrying");
+  pick 5's "Wait while connected" (by "Bound it,
+  keep retrying");
   pick 6's unbounded client wait (by the 20-minute answer and 60 s start ceilings);
-  M-A merge order (by "Branch first, files after");
-  P-wait (by "Merge anyway, unstage x");
+  M-A merge order (by "Branch first,
+  files after");
+  P-wait (by "Merge anyway,
+  unstage x");
   G-root (by G-order);
   automatic restart (withdrawn for B-hand).
 - Decided by the owner:
-  pick 4's principle ("End Git, hold hooks");
+  pick 4's principle ("End Git,
+  hold hooks");
   pick 10 ("Keep pruning by age and size");
   P-carry and W-detect;
   cargo-shadow pick 9;
-  the person's own programs ("No limit; Ctrl-C ends it").
+  the person's own programs ("No limit;
+  Ctrl-C ends it").
 - Landed:
   release contents (0.5.28 published 2026-11-04T03:09:07Z).
 - Not an owner decision:

@@ -1,9 +1,11 @@
 # cli-git native command parser
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -39,9 +41,12 @@ oldest first:
 - `3d61c74ed` tokenize command arguments as Git 2.56.0 parse-options does
 - `df0755d20` port commit region facts and the commit-only decision core
 - `3b7bcaea3` port push and status facts with the atomic-push and status-hints cores
-- `a43282470` port add, reset, clean and stash region facts
+- `a43282470` port add,
+  reset,
+  clean and stash region facts
 - `6099569b5` correct Git 2.56.0 source line citations in the option tables
-- `994c75662` port branch, checkout and switch branch-creation facts
+- `994c75662` port branch,
+  checkout and switch branch-creation facts
 - `bcaea0145` port the require-root decision core with git config scope facts
 - `2421befae` refuse sequencer path output with one or two trailing bytes
 - `fe851e3b4` draft of this document
@@ -181,24 +186,50 @@ Every parser has the shape
 where `region` is the tokens after the subcommand word:
 
 - `parse_commit_region` returns `CommitRegion`
-  (`all`, `only: Option<bool>`, `include`, `interactive`, `patch`, `dry_run`, `amend`,
-  `allow_empty`, `fixup: Option<FixupKind>`, `pathspec_from_file`, `pathspec_file_nul`,
-  `pathspecs`, `wrapper`).
-- `parse_push_region` returns `PushRegion` (`atomic_stated`, `dry_run`, `wrapper`).
-- `parse_status_region` returns `StatusRegion` (`machine_readable`, `wrapper`);
+  (`all`,
+  `only: Option<bool>`,
+  `include`,
+  `interactive`,
+  `patch`,
+  `dry_run`,
+  `amend`,
+  `allow_empty`,
+  `fixup: Option<FixupKind>`,
+  `pathspec_from_file`,
+  `pathspec_file_nul`,
+  `pathspecs`,
+  `wrapper`).
+- `parse_push_region` returns `PushRegion` (`atomic_stated`,
+  `dry_run`,
+  `wrapper`).
+- `parse_status_region` returns `StatusRegion` (`machine_readable`,
+  `wrapper`);
   `has_status_hints_override(global_prefix)` reads the global options.
-- `parse_add_region` returns `AddRegion` (`bulk_matches: Vec<BulkMatch>`, `resolved`, `wrapper`).
-- `parse_reset_region` returns `ResetRegion` (`mode: Option<ResetMode>`, `wrapper`);
+- `parse_add_region` returns `AddRegion` (`bulk_matches: Vec<BulkMatch>`,
+  `resolved`,
+  `wrapper`).
+- `parse_reset_region` returns `ResetRegion` (`mode: Option<ResetMode>`,
+  `wrapper`);
   `reset_changes_worktree` reads it.
-- `parse_clean_region` returns `CleanRegion` (`dry_run`, `interactive`, `wrapper`);
+- `parse_clean_region` returns `CleanRegion` (`dry_run`,
+  `interactive`,
+  `wrapper`);
   `clean_changes_worktree` reads it.
-- `parse_stash_region` returns `StashRegion` (`subcommand: StashSubcommand`, `wrapper`).
+- `parse_stash_region` returns `StashRegion` (`subcommand: StashSubcommand`,
+  `wrapper`).
 - `parse_branch_creation_region(command: BranchCreationCommand, region, wrapper_flags)`
   returns `BranchCreationRegion`
-  (`creates_branch`, `implicit_creation_target: Option<usize>`, `wrapper`);
-  `branch_creation_command(word)` selects `Branch`, `Checkout` or `Switch`.
+  (`creates_branch`,
+  `implicit_creation_target: Option<usize>`,
+  `wrapper`);
+  `branch_creation_command(word)` selects `Branch`,
+  `Checkout` or `Switch`.
 - `parse_config_region` returns `ConfigRegion`
-  (`form: ConfigForm`, `global`, `system`, `lists`, `wrapper`);
+  (`form: ConfigForm`,
+  `global`,
+  `system`,
+  `lists`,
+  `wrapper`);
   `config_table(form)` assembles a form's table.
 
 ### Rule core functions
@@ -217,7 +248,8 @@ where `region` is the tokens after the subcommand word:
 - `decide_require_root(arguments, wrapper_flags) -> RequireRootDecision`
   (`Exempt(RequireRootExemption)` or `NeedsRepositoryRoot`),
   then `resolve_require_root(&RequireRootFacts) -> RequireRootVerdict`
-  (`Pass` or `NotAtRoot(RequireRootViolation)`, code `NOT_AT_ROOT_CODE`).
+  (`Pass` or `NotAtRoot(RequireRootViolation)`,
+  code `NOT_AT_ROOT_CODE`).
 
 ## Ported tests
 
@@ -231,7 +263,8 @@ or as a divergence test whose expectation a real-Git control confirms:
   13 keep their expectation;
   5 cases where an undeclared option consumed the next token now expect Git's refusal.
 - `src/parser/commit.unit.test.ts` (17 cases) to `command_commit_tests.rs`.
-- `src/rule/commit-only.unit.test.ts` (24 cases, several parameterized)
+- `src/rule/commit-only.unit.test.ts` (24 cases,
+  several parameterized)
   to `rule_commit_only_tests.rs`,
   with readings Git differs on in `rule_commit_only_divergence_tests.rs`.
 - `src/rule/atomic-push.unit.test.ts` (5 cases) to `rule_atomic_push_tests.rs`.
@@ -287,20 +320,27 @@ Line numbers refer to the Git 2.56.0 source at commit
 
 - An undeclared option is refused,
   never allowed to consume a following token
-  (`parse-options.c:1164-1165`, `1224-1233`).
-- Letters that spell a long option after one dash (`-all`, `-amend`) are refused
-  (`check_typos`, `parse-options.c:622-640`).
+  (`parse-options.c:1164-1165`,
+  `1224-1233`).
+- Letters that spell a long option after one dash (`-all`,
+  `-amend`) are refused
+  (`check_typos`,
+  `parse-options.c:622-640`).
 - Under `PARSE_OPT_KEEP_UNKNOWN_OPT` abbreviations are disabled (`parse-options.c:502-503`).
 - `--end-of-options` ends option parsing like `--`;
   a lone `-` is positional.
 
 ### Commit and commit-only
 
-- Every letter of a cluster is read, so `-qa` and `-qam msg` contain `-a`;
-  after an optional-value letter the rest is its value, so `-ua` is not `-a`
-  (`parse_short_opt`, `parse-options.c:426-461`).
+- Every letter of a cluster is read,
+  so `-qa` and `-qam msg` contain `-a`;
+  after an optional-value letter the rest is its value,
+  so `-ua` is not `-a`
+  (`parse_short_opt`,
+  `parse-options.c:426-461`).
 - A separated token after `--untracked-files` or `-S` is a pathspec,
-  because those options take an attached value only (`commit.c:1730-1739`, `1766-1775`).
+  because those options take an attached value only (`commit.c:1730-1739`,
+  `1766-1775`).
 - The last of `--all`/`--no-all`,
   `--only`/`--no-only`,
   `--dry-run`/`--no-dry-run`
@@ -308,41 +348,54 @@ Line numbers refer to the Git 2.56.0 source at commit
 - `--fixup=reword:<commit>` turns `--only` on inside Git and refuses `-o` with paths,
   so the rule forwards it unchanged;
   `--fixup=amend:<commit>` may be pathless;
-  an unknown suboption is left to Git (`commit.c:1296-1307`, `1378-1411`).
-- `git commit --porcelain` takes no value, unlike `git status` (`commit.c:1757-1758`).
+  an unknown suboption is left to Git (`commit.c:1296-1307`,
+  `1378-1411`).
+- `git commit --porcelain` takes no value,
+  unlike `git status` (`commit.c:1757-1758`).
 - The escape hatch is removed by position only;
-  the incumbent removed every equal token, including a message.
+  the incumbent removed every equal token,
+  including a message.
 
 ### Push and atomic-push
 
 - `--at` and `--no-at` are `--atomic` and its negation;
   either is the caller's choice and suppresses injection.
 - `-nf` is a dry run;
-  in `-o -n`, `--repo -n` and `--exec -n` the `-n` is a value,
+  in `-o -n`,
+  `--repo -n` and `--exec -n` the `-n` is a value,
   so the push is real (`push.c:707-743`).
 - `--atomic` as an option value or after `--` is not a choice.
 
 ### Status and status-hints
 
-- The last of `--short`, `--porcelain` and `--long` decides the format;
-  `--sh` is ambiguous in `git status` (`--short`, `--show-stash`).
+- The last of `--short`,
+  `--porcelain` and `--long` decides the format;
+  `--sh` is ambiguous in `git status` (`--short`,
+  `--show-stash`).
 - `--config-env=advice.statusHints=VAR` is an explicit override like `-c`.
   The key ends at the first `=` for `-c` and at the last `=` for `--config-env`
-  (`config.c:495`, `511`).
+  (`config.c:495`,
+  `511`).
 
 ### Add
 
-- `-vA`, `-Av`, `--al` and `--no-ignore-removal` are bulk staging;
+- `-vA`,
+  `-Av`,
+  `--al` and `--no-ignore-removal` are bulk staging;
   `-A --no-all` and `-A --ignore-removal` are not,
   because `--ignore-removal` writes the same variable (`add.c:252-259`).
 - `--resolved` is reported as its own fact.
 
 ### Reset, clean and stash
 
-- The five reset modes write one variable, so the last decides (`reset.c:350-382`).
+- The five reset modes write one variable,
+  so the last decides (`reset.c:350-382`).
 - `git clean -i -n` deletes nothing;
   the incumbent treated every interactive clean as deleting
-  (`clean.c:191`, `223`, `267`, `1050-1078`).
+  (`clean.c:191`,
+  `223`,
+  `267`,
+  `1050-1078`).
 - Stash dispatch follows `cmd_stash` (`stash.c:2465-2479`):
   `create` takes every token as message text,
   and `git stash -push` is refused as a single-dash spelling of a long word
@@ -356,19 +409,30 @@ Line numbers refer to the Git 2.56.0 source at commit
 
 ### Branch, checkout and switch
 
-- Display options (`-v`, `--color`, `--format`, `--sort`, `-i`, `--abbrev`, `--column`)
-  do not select listing, so `git branch -v topic` creates `topic`
+- Display options (`-v`,
+  `--color`,
+  `--format`,
+  `--sort`,
+  `-i`,
+  `--abbrev`,
+  `--column`)
+  do not select listing,
+  so `git branch -v topic` creates `topic`
   (`branch.c:1083-1097`).
 - `-a` or `-r` with a name,
   the `--set-upstream` tracking mode,
   `--dry-run` without `--delete-merged`,
   and `--recurse-submodules` with an action
-  make Git refuse, so nothing is created (`branch.c:1099-1107`, `1294-1299`).
+  make Git refuse,
+  so nothing is created (`branch.c:1099-1107`,
+  `1294-1299`).
 - `git checkout --no-track origin/topic` and `git switch --no-track origin/topic` create `topic`
   (`checkout.c:1986-1997`).
 - `git checkout topic --` and `git switch -- topic` still guess a remote branch;
   `git checkout -- topic` restores a path
-  (`checkout.c:1473-1477`, `1487-1492`, `1519-1522`).
+  (`checkout.c:1473-1477`,
+  `1487-1492`,
+  `1519-1522`).
 - A pathspec file does not stop the guess (`checkout.c:2058-2101`);
   `--overlay` and `--no-overlay` do (`checkout.c:1686-1714`).
 - Final states decide:
@@ -378,11 +442,17 @@ Line numbers refer to the Git 2.56.0 source at commit
 
 ### Require-root and git config
 
-- `git config` is exempt only when `--global`, `--system` or listing is in option position;
+- `git config` is exempt only when `--global`,
+  `--system` or listing is in option position;
   `git config user.name --global` stores the text `--global` in the repository
-  (`config.c:1100-1101`, `1155-1156`, `1403-1405`).
-- `git config list`, the 2.56.0 spelling of `--list`, is exempt (`config.c:1633-1660`).
-- When Git runs no subcommand (`git --version status`, an unknown global option),
+  (`config.c:1100-1101`,
+  `1155-1156`,
+  `1403-1405`).
+- `git config list`,
+  the 2.56.0 spelling of `--list`,
+  is exempt (`config.c:1633-1660`).
+- When Git runs no subcommand (`git --version status`,
+  an unknown global option),
   nothing needs a root.
 
 ## Not ported
@@ -418,12 +488,16 @@ Clippy passed (`{"tests":true,"clippy":true}`).
 Image `f157e220fd2bd272df9f09f5a12f19e3befe1cdbb2c089fe9c5ae2fd42db7edb`,
 built from the audited Git 2.56.0 base
 `6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8edf6dc38802a`,
-run with `--network=none`, `--memory=2g`, `--cpus=2` and `--pids-limit=128`.
-Of the 186 tests, 177 are in this branch's modules;
+run with `--network=none`,
+`--memory=2g`,
+`--cpus=2` and `--pids-limit=128`.
+Of the 186 tests,
+177 are in this branch's modules;
 the other 9 are the existing `global_arguments_tests.rs` (5) and `config_loading_tests.rs` (4).
 Cargo prints one manifest warning on every run,
 `unused dependency monochromatic-jsonc-edit`,
-which predates this branch and comes from `Cargo.toml`, which this branch does not change.
+which predates this branch and comes from `Cargo.toml`,
+which this branch does not change.
 
 ### Oracles against the real binary
 
@@ -434,9 +508,16 @@ which predates this branch and comes from `Cargo.toml`, which this branch does n
   and 15 curated sequences).
 - Table oracle against `git <command> --git-completion-helper-all`:
   29 tables
-  (commit, status, push, add, reset, clean,
+  (commit,
+  status,
+  push,
+  add,
+  reset,
+  clean,
   12 stash subcommands,
-  branch, checkout, switch,
+  branch,
+  checkout,
+  switch,
   and 8 `git config` forms).
 - `git branch` differential:
   558 argument lists run against a fixture repository,
@@ -458,17 +539,34 @@ and runs the package's container runner on the copy;
 a mutation counts as killed only when a test fails,
 never when only compilation or Clippy fails.
 
-- Tokenizer, at `3d61c74ed`:
+- Tokenizer,
+  at `3d61c74ed`:
   31 mutations;
   30 killed by tests.
   The survivor removed the lone `-h` special case,
   which is equivalent for tables without an `h` letter;
   `a_lone_h_is_help_even_when_declared` in `command_options_short_tests.rs` now kills it.
-- Ported families, at `bcaea0145`:
-  83 mutations over the commit, commit-only, sequencer, index, push, atomic-push,
-  status, status-hints, rewrite, add, reset, clean, stash, branch, checkout, switch,
+- Ported families,
+  at `bcaea0145`:
+  83 mutations over the commit,
+  commit-only,
+  sequencer,
+  index,
+  push,
+  atomic-push,
+  status,
+  status-hints,
+  rewrite,
+  add,
+  reset,
+  clean,
+  stash,
+  branch,
+  checkout,
+  switch,
   config and require-root guards;
-  78 killed by tests, 5 survived.
+  78 killed by tests,
+  5 survived.
 - The 5 survivors:
   - Dropping the length-remainder check of `sequencer_head_paths` survived
     because no case had one or two trailing bytes;
@@ -476,23 +574,28 @@ never when only compilation or Clippy fails.
   - Swapping first and last `=` in `equals_index` survived
     because no case had a second `=`;
     `fa8a56d2a` adds `-c advice.statusHints=a=b` and `--config-env=advice.statusHints=x=VAR`
-    with real-Git controls (`config.c:495`, `511`).
+    with real-Git controls (`config.c:495`,
+    `511`).
   - Weakening the `-no-` typo check and the `-h` check before an assumed `git stash push`
     survived because the assumed-push pass refuses those tokens with the same kind and index;
     `fa8a56d2a` removes both checks as equivalent and adds the three-letter typo boundary.
   - Dropping the default-listing term of the `git branch` action count survived
     because with no name nothing is created either way;
     `fa8a56d2a` removes the term as equivalent.
-- Follow-up, at `fa8a56d2a`:
+- Follow-up,
+  at `fa8a56d2a`:
   the two remaining survivor guards and three new mutations of the stash typo boundary;
   all 5 killed by tests.
-- Leading wrapper flags of `git config`, at `ee6e3c484`:
-  disabling the skip, and picking the form from the first token again;
+- Leading wrapper flags of `git config`,
+  at `ee6e3c484`:
+  disabling the skip,
+  and picking the form from the first token again;
   both killed by tests.
 
 ## Integration notes
 
-- Edit outside the owned files, in `global_arguments.rs`:
+- Edit outside the owned files,
+  in `global_arguments.rs`:
 
   ```diff
   --- a/package/git-policy/cli/src/native/invocation/global_arguments.rs
@@ -503,8 +606,10 @@ never when only compilation or Clippy fails.
   ```
 
   `command_status.rs` reads it to skip the values of global options.
-  `main` still has the private form, so a merge must keep the `pub(crate)` line.
-- Resolved at integration (main session, 2026-10-05):
+  `main` still has the private form,
+  so a merge must keep the `pub(crate)` line.
+- Resolved at integration (main session,
+  2026-10-05):
   `command_escape_hatch.rs` repeated `WORKTREE_ENFORCEMENT_ESCAPE_HATCH`;
   the file is deleted,
   `BRANCH_WORKTREE_ESCAPE_HATCH` moved into `escape_hatch.rs`,
@@ -515,7 +620,9 @@ never when only compilation or Clippy fails.
 - Resolved at integration:
   `command_test_support.rs` now re-exports `REAL_GIT` and `remove` from `test_support.rs`,
   which were identical.
-  Its `fixture`, `git_output`, `git` and `repository` stay separate on purpose:
+  Its `fixture`,
+  `git_output`,
+  `git` and `repository` stay separate on purpose:
   the `native-command-` directory prefix keeps command fixtures apart from wrapper fixtures in one test process,
   and its runners also set `GIT_EDITOR=true` and close standard input.
 - A parser `Err(OptionError)` means Git 2.56.0 itself refuses the command.
@@ -532,15 +639,20 @@ never when only compilation or Clippy fails.
   the tokens before the subcommand,
   before calling any decision built on `global_layout`.
   `global_layout` reports an unknown global option as `InvalidOption`,
-  and `decide_commit_only`, `atomic_push`, `status_hints_off` and `decide_require_root`
+  and `decide_commit_only`,
+  `atomic_push`,
+  `status_hints_off` and `decide_require_root`
   then leave the command alone,
   so `git --cli-git-keep-going status` from a subdirectory would pass require-root.
 - `resolve_require_root` needs the effective directory and the repository root.
   `main`'s `resolve_worktree_identity` already asks Git with the forwarded global prefix,
   which is one candidate source for the root.
 - The branch-creation facts read option names and argument counts only.
-  Where Git later refuses for an option value, configuration or repository state
-  (`--track=bogus`, `-b a -B b`, `--orphan x --track y`),
+  Where Git later refuses for an option value,
+  configuration or repository state
+  (`--track=bogus`,
+  `-b a -B b`,
+  `--orphan x --track y`),
   the fact still says "creates";
   the policy then rejects a command Git would have refused anyway.
 
@@ -553,7 +665,8 @@ never when only compilation or Clippy fails.
 - Which root does require-root compare with:
   the incumbent's nearest valid Git marker,
   or the worktree top level Git reports?
-  They differ for `--git-dir`, `--work-tree` and `GIT_DIR`.
+  They differ for `--git-dir`,
+  `--work-tree` and `GIT_DIR`.
 - Should the branch-worktree policy keep rejecting commands Git refuses for a value
   (the over-report in "Integration notes"),
   or should it ask Git to validate first?

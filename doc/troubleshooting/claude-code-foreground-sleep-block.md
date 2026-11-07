@@ -60,7 +60,8 @@ curl -sS "${dist}/claude-code-releases/2.1.274/manifest.json"
 The local tweakcc state carries no matching customization:
  `~/.tweakcc/config.json` contains no occurrence of the sentence,
  and the `~/.tweakcc/system-prompts/tool-description-bash-sleep-*.md` segments hold the older
- Claude Code 2.1.53 wording ("If you must sleep, keep the duration short (1-5 seconds)...")
+ Claude Code 2.1.53 wording ("If you must sleep,
+keep the duration short (1-5 seconds)...")
  with no applied-hash entries.
 
 ### Source trace

@@ -1645,16 +1645,19 @@ Picked in the question tool,
 verbatim labels:
 
 1.  When the runtime is built:
-    "Lazily, on first need (Recommended)".
+    "Lazily,
+    on first need (Recommended)".
 2.  What "sized to budget" fixes:
     "Build size + job limit (Recommended)".
 3.  Address-space protection:
     "Cap pools + read limits (Recommended)".
 4.  The landing loop and thread-affine state:
     "Rewrite per-thread state"
-    (option C: each `thread_local!` becomes a task-local or a context value).
+    (option C:
+    each `thread_local!` becomes a task-local or a context value).
 5.  Library API:
-    "Everything async, and safe-file-saving shouldn't be something we own at all."
+    "Everything async,
+    and safe-file-saving shouldn't be something we own at all."
     So every I/O library is async,
     and saving files safely is done with published crates,
     not with a crate or module of ours.
@@ -1672,8 +1675,11 @@ verbatim labels:
     before the layout moves.
 9.  A bound on the runtime build:
     "Helper thread + deadline (Recommended)".
-10. What "Commits should never fail." means for the gate:
-    "Strong: what Git completes, we complete (Recommended)";
+10. What "Commits should never fail."
+    means for the gate:
+    "Strong:
+    what Git completes,
+    we complete (Recommended)";
     each fault case gets a native-Git control.
 11. Calls that can wait on storage when no thread can start:
     "Fail plainly".
@@ -1686,18 +1692,23 @@ verbatim labels:
 Written:
 2026-11-07T07:00:00-05:00.
 The branch is not merged into main (the coordinator holds that until the wrapper's release is out).
-The order follows the owner's answers: the conversions run on today's layout (choice 8), so no step waits for the layout moves.
+The order follows the owner's answers:
+the conversions run on today's layout (choice 8),
+so no step waits for the layout moves.
 
 ### Step T1, the self-invocation ban: already in force, audited
 
 - The three clauses of the step are covered by `source_guard/no_self_invocation_tests.rs` and its rules file:
   rule `own-executable` (`current_exe` and `/proc/self/exe` outside the excused `invocation/real_git.rs`),
   rule `spawn-own-executable` (a `Command::new(` whose argument names the wrapper's own path),
-  and the planted controls (`each_rule_fires_on_its_own_forbidden_text`, and the fixture tests that plant a violation in a
+  and the planted controls (`each_rule_fires_on_its_own_forbidden_text`,
+  and the fixture tests that plant a violation in a
   nested production file and in a file with a test-support name).
 - `clippy.toml` also denies `std::env::current_exe`.
-- `tokio::process::Command::new(` would match the same rule text, and the child helper of step T4 starts children with the
-  standard library, so no new spelling needs a new rule.
+- `tokio::process::Command::new(` would match the same rule text,
+  and the child helper of step T4 starts children with the
+  standard library,
+  so no new spelling needs a new rule.
 - No code commit was needed.
   The broader lint of step T13 (no `std::process::Command` outside the guarded start) stays at T13.
 
@@ -1706,467 +1717,1250 @@ The order follows the owner's answers: the conversions run on today's layout (ch
 - `9d9fc7ec37`:
   `binary/binary_forwarded_command_makes_no_thread_tests.rs` runs a forwarded `rev-parse HEAD` and `status --short` under
   `strace` and counts the `clone`-family calls of the wrapper's own program (`wrapper_spawns` in `binary_budget_trace.rs`).
-  It is green before tokio is linked, so it is a guard, not a red test.
-  The planted control is `the_count_sees_threads_and_children_made_by_the_wrapper_and_only_those`, a trace in which the wrapper
-  starts a thread and a child, which the counter must count (and the harness's `timeout` and Git must not be).
-- `tokio` joined the manifest with the features `rt`, `rt-multi-thread`, `net`, `time`, `fs`, `io-util`, `sync` and `macros`.
+  It is green before tokio is linked,
+  so it is a guard,
+  not a red test.
+  The planted control is `the_count_sees_threads_and_children_made_by_the_wrapper_and_only_those`,
+  a trace in which the wrapper
+  starts a thread and a child,
+  which the counter must count (and the harness's `timeout` and Git must not be).
+- `tokio` joined the manifest with the features `rt`,
+  `rt-multi-thread`,
+  `net`,
+  `time`,
+  `fs`,
+  `io-util`,
+  `sync` and `macros`.
   `process` and `signal` stay off by design (choices 6 and 7).
-  `rustix` (feature `process`) joined for `getrlimit` and, in the later steps, the pidfd and the inotify watch.
-  The dependency landed together with its first use in step T3, because an unused dependency is a cargo warning.
+  `rustix` (feature `process`) joined for `getrlimit` and,
+  in the later steps,
+  the pidfd and the inotify watch.
+  The dependency landed together with its first use in step T3,
+  because an unused dependency is a cargo warning.
 
 ### Step T3, the budget, the limits and the lazy runtime
 
-- Files (all under `src/native/foundation/`, each with a sidecar test file):
-  `runtime_limits.rs` (address space left under `RLIMIT_AS`, threads left under `RLIMIT_NPROC` and under the `pids.max` of the
+- Files (all under `src/native/foundation/`,
+  each with a sidecar test file):
+  `runtime_limits.rs` (address space left under `RLIMIT_AS`,
+  threads left under `RLIMIT_NPROC` and under the `pids.max` of the
   control group and every group above it),
-  `runtime_plan.rs` (workers from the budget, bounded by the limits; current-thread when fewer than two fit),
-  `lazy_runtime.rs` (one `OnceLock` owner, malloc arenas capped to one before the first worker, the multi-thread build on a helper
-  thread with a deadline, the current-thread runtime as the stand-in, a nested call refused with an error),
-  `blocking_job.rs` (a blocking call on the pool; "the system refused a thread" is the error `NoThreadToStart`, never an inline run),
-  `runtime_probe.rs` (the test-only entry, `CLI_GIT_TEST_ONLY_RUNTIME_PROBE`, for the controls that start the built executable).
+  `runtime_plan.rs` (workers from the budget,
+  bounded by the limits;
+  current-thread when fewer than two fit),
+  `lazy_runtime.rs` (one `OnceLock` owner,
+  malloc arenas capped to one before the first worker,
+  the multi-thread build on a helper
+  thread with a deadline,
+  the current-thread runtime as the stand-in,
+  a nested call refused with an error),
+  `blocking_job.rs` (a blocking call on the pool;
+  "the system refused a thread" is the error `NoThreadToStart`,
+  never an inline run),
+  `runtime_probe.rs` (the test-only entry,
+  `CLI_GIT_TEST_ONLY_RUNTIME_PROBE`,
+  for the controls that start the built executable).
 - `invocation/panic_notice.rs` gained `while_panics_are_expected`:
-  tokio panics, instead of returning an error, when a thread is refused; the callers catch that panic and report their own plain
-  error, so the hook's "report this location" notice (which would tell a person of a defect on a command that went on to succeed)
+  tokio panics,
+  instead of returning an error,
+  when a thread is refused;
+  the callers catch that panic and report their own plain
+  error,
+  so the hook's "report this location" notice (which would tell a person of a defect on a command that went on to succeed)
   is silenced for the panics of those two calls only.
-- Values chosen under the owner's answers, each open to the owner's veto and each cited beside the value in the code:
+- Values chosen under the owner's answers,
+  each open to the owner's veto and each cited beside the value in the code:
   deadline `BUILD_DEADLINE` one second (a working build is well under a few milliseconds);
   `ADDRESS_SPACE_RESERVE_BYTES` 64 MiB (three times the 20 MiB the whole process mapped);
-  `THREAD_VIRTUAL_BYTES` the 2 MiB stack plus 64 KiB (measured 2,064 KiB a blocking thread, 2,069 KiB a worker with one arena);
+  `THREAD_VIRTUAL_BYTES` the 2 MiB stack plus 64 KiB (measured 2,064 KiB a blocking thread,
+  2,069 KiB a worker with one arena);
   `MALLOC_ARENA_LIMIT` 1.
 - Departures from the text of this plan:
-  the limits are a value of their own (`RuntimeLimits`) beside `HostResources`, not new fields of it, so the nine call sites and
+  the limits are a value of their own (`RuntimeLimits`) beside `HostResources`,
+  not new fields of it,
+  so the nine call sites and
   every test that builds a `HostResources` by hand stay unchanged;
-  the user's threads are bounded by one read of the system's thread total in `/proc/loadavg`, an upper bound that only lowers the
-  worker count, instead of a scan of every process;
-  the arena cap is always applied, as choice 3 says, not only under an address-space limit.
+  the user's threads are bounded by one read of the system's thread total in `/proc/loadavg`,
+  an upper bound that only lowers the
+  worker count,
+  instead of a scan of every process;
+  the arena cap is always applied,
+  as choice 3 says,
+  not only under an address-space limit.
 - Controls (`binary/binary_runtime_build_under_limits_tests.rs`) start the built executable with the probe under a process limit
-  of one and under address-space limits from 48 MiB to 1500 MiB (the measured hang band included), each with real Git started
+  of one and under address-space limits from 48 MiB to 1500 MiB (the measured hang band included),
+  each with real Git started
   under the same limit as the native control (choice 10).
-  Planted controls, run by hand and reverted:
+  Planted controls,
+  run by hand and reverted:
   removing the limit inputs from the plan failed both the process-limit control (flavor `current-thread-after-failure`) and the
   address-space control (a stand-in after a deadline at 48 MiB);
   the unit control `a_build_that_outlasts_the_deadline_is_replaced_by_the_current_thread_runtime` fails if the wait loses its deadline.
-- Finding, not the runtime's:
-  below 48 MiB of address space the debug build of the wrapper prints nothing, with or without the probe, while real Git
+- Finding,
+  not the runtime's:
+  below 48 MiB of address space the debug build of the wrapper prints nothing,
+  with or without the probe,
+  while real Git
   completes at 24 and 32 MiB.
   The sweep starts at 48 MiB for that reason.
   Whether the release build has the same floor was not measured.
 
 ### The published-crate swaps
 
-- Digests (`47219dc182` red, `1aea0ae238` green):
-  `subvolume/subvolume_sha.rs` is two calls into `sha1` 0.11.0 and `sha2` 0.11.1; the hand-written compression functions are gone.
-  The published test vectors, the reference comparison at every length to a few blocks and the 512 MiB comparison still pass.
-- Time stamps (`7474c396d2` red, `c4a834d4da` green):
+- Digests (`47219dc182` red,
+  `1aea0ae238` green):
+  `subvolume/subvolume_sha.rs` is two calls into `sha1` 0.11.0 and `sha2` 0.11.1;
+  the hand-written compression functions are gone.
+  The published test vectors,
+  the reference comparison at every length to a few blocks and the 512 MiB comparison still pass.
+- Time stamps (`7474c396d2` red,
+  `c4a834d4da` green):
   `foundation/iso_time.rs` formats through `jiff` and `conflict/discarded_prune_stamps.rs` parses through `jiff`;
-  the hand-written calendar (`civil_from_days`, `days_from_civil`) is gone.
+  the hand-written calendar (`civil_from_days`,
+  `days_from_civil`) is gone.
   The text shape is unchanged (`YYYY-MM-DDTHH:MM:SS.mmmZ`).
-  An instant past the end of year 9999 is clamped to the crate's last instant (`9999-12-30T22:00:00.999Z`), where the old code
+  An instant past the end of year 9999 is clamped to the crate's last instant (`9999-12-30T22:00:00.999Z`),
+  where the old code
   printed a meaningless date.
-  `jiff` was first kept at the already locked 0.2.24: the releases from 0.2.32 name `defmt` 1.x as an optional dependency, which
-  locks `defmt-parser` 1.1.0, and the trust policy refused that release (published by account 414585 where 0.4.1 was published
+  `jiff` was first kept at the already locked 0.2.24:
+  the releases from 0.2.32 name `defmt` 1.x as an optional dependency,
+  which
+  locks `defmt-parser` 1.1.0,
+  and the trust policy refused that release (published by account 414585 where 0.4.1 was published
   by account 84779).
-  The owner, 2026-11-07, verbatim: "I'm approving the publisher change for jiff."
-  `rust-catalog.toml` now lists `defmt-parser@1.1.0` in `trustPolicyExclude` (that one release, not the crate, with the sentence
-  beside it), `jiff` moved to 0.2.39 through `cargo update -p jiff` under the shadow (seven versions newly locked, all checked:
-  `bitflags` 1.3.2, `defmt-macros` 1.2.0, `defmt-parser` 1.1.0, `defmt` 1.2.0, `jiff-core` 0.1.2, `jiff-static` 0.2.39, `jiff` 0.2.39),
+  The owner,
+  2026-11-07,
+  verbatim:
+  "I'm approving the publisher change for jiff."
+  `rust-catalog.toml` now lists `defmt-parser@1.1.0` in `trustPolicyExclude` (that one release,
+  not the crate,
+  with the sentence
+  beside it),
+  `jiff` moved to 0.2.39 through `cargo update -p jiff` under the shadow (seven versions newly locked,
+  all checked:
+  `bitflags` 1.3.2,
+  `defmt-macros` 1.2.0,
+  `defmt-parser` 1.1.0,
+  `defmt` 1.2.0,
+  `jiff-core` 0.1.2,
+  `jiff-static` 0.2.39,
+  `jiff` 0.2.39),
   and the catalog floor is raised to 0.2.39.
   The guard is `the_lock_no_longer_holds_jiff_at_the_release_kept_while_the_trust_policy_refused_the_newer_ones` in
   `foundation/iso_time_tests.rs`.
-  With the exclusion in place the daily dependency update has no refusal to trip on at this path; before it, the shadow's update
-  rule would have kept nothing: it sets a refused release aside for an older one in the same caret class and, when that fails,
-  restores every lockfile of the run (`package/cargo-shadow/cli/README.md`, the `cargo update` line of the flag table).
-- Memory headroom (`8955195670` red, `0a59ee9272` green):
+  With the exclusion in place the daily dependency update has no refusal to trip on at this path;
+  before it,
+  the shadow's update
+  rule would have kept nothing:
+  it sets a refused release aside for an older one in the same caret class and,
+  when that fails,
+  restores every lockfile of the run (`package/cargo-shadow/cli/README.md`,
+  the `cargo update` line of the flag table).
+- Memory headroom (`8955195670` red,
+  `0a59ee9272` green):
   `HostResources::read` takes the available memory and the control-group headroom from `sysinfo` 0.40.1 (feature `system` only);
-  the readers of `/proc/meminfo`, `memory.max` and `memory.current` and their tests are gone.
-  Locking `sysinfo` needed the crates of its Windows and macOS targets in the local registry cache; the shadow's offline install
-  could not download them, so the lock was first completed with the toolchain's own `cargo fetch`, and then
+  the readers of `/proc/meminfo`,
+  `memory.max` and `memory.current` and their tests are gone.
+  Locking `sysinfo` needed the crates of its Windows and macOS targets in the local registry cache;
+  the shadow's offline install
+  could not download them,
+  so the lock was first completed with the toolchain's own `cargo fetch`,
+  and then
   `mise run //package/git-policy/cli:native:lock:members` checked the 17 newly locked versions against the release-age and trust policy (all passed).
-- Linux calls (`rustix`): started with `getrlimit` and the pidfd; the file calls move with the safe-file-saving replacement below.
+- Linux calls (`rustix`):
+  started with `getrlimit` and the pidfd;
+  the file calls move with the safe-file-saving replacement below.
 
 ### Step T4, children without a blocking wait (partly)
 
 - `process/child_awaited_through_a_pidfd.rs`:
   the helper of choice 7.
-  `adopt` cannot fail; a failed `pidfd_open` or a failed registration only changes the wait to a timer-driven `try_wait`.
-  Injected failures (`InjectedFailure`) prove the invariant: after each, the live child is still owned, reapable, and ended by a drop;
+  `adopt` cannot fail;
+  a failed `pidfd_open` or a failed registration only changes the wait to a timer-driven `try_wait`.
+  Injected failures (`InjectedFailure`) prove the invariant:
+  after each,
+  the live child is still owned,
+  reapable,
+  and ended by a drop;
   `into_std` hands it over.
 - `process/captured_child_run_to_its_end.rs`:
-  `output_of` runs a command to its end like `Command::output`, with the output in anonymous files (no reader, no pipe).
-  Its blocking face `output_of_blocking` refuses with an error, not a panic, from inside the runtime.
-- The two Linux one-shot callers use it (`repo_read/git_system_config.rs`, `invocation/management_service_repository_selection.rs`).
-  The other one-shot waits named in the step (`process/process_start.rs`, `process/process_identity.rs`, `lock/index_lock_holders.rs`)
-  start `ps`, `lsof` and PowerShell only on macOS and Windows, which the owner said to ignore; they were not converted.
+  `output_of` runs a command to its end like `Command::output`,
+  with the output in anonymous files (no reader,
+  no pipe).
+  Its blocking face `output_of_blocking` refuses with an error,
+  not a panic,
+  from inside the runtime.
+- The two Linux one-shot callers use it (`repo_read/git_system_config.rs`,
+  `invocation/management_service_repository_selection.rs`).
+  The other one-shot waits named in the step (`process/process_start.rs`,
+  `process/process_identity.rs`,
+  `lock/index_lock_holders.rs`)
+  start `ps`,
+  `lsof` and PowerShell only on macOS and Windows,
+  which the owner said to ignore;
+  they were not converted.
 - Not yet done in T4:
-  `AsyncFd` registration is exercised only through `adopt`; the descriptor-limit sweeps of the plan's risk list for the helper are not written.
+  `AsyncFd` registration is exercised only through `adopt`;
+  the descriptor-limit sweeps of the plan's risk list for the helper are not written.
 
 ### Safe file saving
 
 The vet report is `doc/audit/tech-safe-file-saving-published-crates-vet-2026-11-07.md`.
-Summary: `tempfile` (`persist_noclobber`) for the whole publish, `tokio::fs` for create-new, no-follow reads and private folders,
+Summary:
+`tempfile` (`persist_noclobber`) for the whole publish,
+`tokio::fs` for create-new,
+no-follow reads and private folders,
 `rustix::fs::fsync` for the directory sync.
 The one behavior no crate gives is the fallback to a checked rename on a filesystem that supports neither `renameat2`
-with `RENAME_NOREPLACE` nor hard links (evidence: `tempfile-3.27.0/src/file/imp/unix.rs`, function `persist`, lines 94 to 133).
-`openat2` with `RESOLVE_NO_SYMLINKS` was measured and is stricter than the wrapper's `O_NOFOLLOW` (it refused every path on this host because the scratch folder sits behind a link), so it is not adopted for reads.
-The replacement lands with the conversion of the callers (the 38 files that use `foundation/private_storage.rs`), not before.
-The coordinator asked for facts on the one item in conflict with "Commits should never fail" (G1); they are in the vet report,
+with `RENAME_NOREPLACE` nor hard links (evidence:
+`tempfile-3.27.0/src/file/imp/unix.rs`,
+function `persist`,
+lines 94 to 133).
+`openat2` with `RESOLVE_NO_SYMLINKS` was measured and is stricter than the wrapper's `O_NOFOLLOW` (it refused every path on this host because the scratch folder sits behind a link),
+so it is not adopted for reads.
+The replacement lands with the conversion of the callers (the 38 files that use `foundation/private_storage.rs`),
+not before.
+The coordinator asked for facts on the one item in conflict with "Commits should never fail" (G1);
+they are in the vet report,
 section "Facts for the owner's answer on G1".
-In short: no in-kernel filesystem read lacks both `RENAME_NOREPLACE` and hard links (FAT and exFAT have no links but accept the flag;
-NFS rejects the flag but has links); FUSE servers such as `s3fs-fuse` lack both; with `tempfile` only, a plain commit still lands
-(only the post-commit work item is lost), but a commit during or concluding an unfinished merge fails with
-"writing packed-refs failed: Operation not supported (os error 95)" or
-"copying a conclusion entry into the shadow failed: Operation not supported (os error 95)"; the fallback is ten code lines.
-The owner answered G1, 2026-11-07, in the question tool.
-The question said: "Commits keep working on those disks. We own 10 lines plus a 15-line test. On those disks only, two programs
+In short:
+no in-kernel filesystem read lacks both `RENAME_NOREPLACE` and hard links (FAT and exFAT have no links but accept the flag;
+NFS rejects the flag but has links);
+FUSE servers such as `s3fs-fuse` lack both;
+with `tempfile` only,
+a plain commit still lands
+(only the post-commit work item is lost),
+but a commit during or concluding an unfinished merge fails with
+"writing packed-refs failed:
+Operation not supported (os error 95)" or
+"copying a conclusion entry into the shadow failed:
+Operation not supported (os error 95)";
+the fallback is ten code lines.
+The owner answered G1,
+2026-11-07,
+in the question tool.
+The question said:
+"Commits keep working on those disks.
+We own 10 lines plus a 15-line test.
+On those disks only,
+two programs
 saving the same file at the same instant could overwrite one another."
-The owner picked, verbatim: "Keep the fallback (Recommended)".
-So the replacement of `private_storage.rs` is built on `tempfile::persist_noclobber`, and the checked rename stays as the fallback
-for that one case only: the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard link.
+The owner picked,
+verbatim:
+"Keep the fallback (Recommended)".
+So the replacement of `private_storage.rs` is built on `tempfile::persist_noclobber`,
+and the checked rename stays as the fallback
+for that one case only:
+the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard link.
 
 ### Safe file saving: the publish replaced, 2026-11-07T07:55:00-05:00
 
-- The owner's answer on G1 is recorded above, verbatim: "Keep the fallback (Recommended)".
-- `1cff4935cd` records it; `bcaf8579e4` is the red test of the defect the previous agent found
-  (`binary/binary_fault_trace_tests.rs`, `a_filesystem_that_refuses_hard_links_does_not_stop_a_commit`: every `link` and `linkat`
-  of the service and of each Git it starts answers `EOPNOTSUPP`; real Git lands the same commit under the same fault as the native
-  control, the wrapper fails with "The commit service could not finish this commit, so it was not made.");
-  `3ec166d146` is the guard red for the module; `2a503fc9e1` is the replacement; `baf34e09d3` makes `decide` in
-  `service/service_busy.rs` publish its decision file through the same exclusive publish, which turns the first red green.
-- What changed in `foundation/private_storage.rs`: the staging file is `tempfile::Builder` (prefix `.<name>.`, suffix `.partial`),
-  written, synced when durable, chmod to 0600, then `persist_noclobber`; `publish_by_checked_rename` and
-  `settle_exclusive_publish` keep the owner's fallback for any refusal that is not `AlreadyExists`; the directory sync is
-  `rustix::fs::fsync` (feature `fs` added to the manifest, no new locked package).
-  Gone: the hand-built staging name, the link-then-rename order, `staging_removal_report`, the uuid use.
-  The controls: `a_filesystem_with_neither_no_replace_rename_nor_links_gets_the_checked_rename`,
-  `the_checked_rename_refuses_a_taken_name_and_leaves_no_staging_file` (planted control: the fallback replaced by an error failed
-  both), `a_taken_name_is_refused_with_the_operating_systems_error`, `a_published_record_is_private_and_a_failed_publish_leaves_nothing`.
-- Not done, by design: the public faces of the module stay synchronous (the 38 callers become asynchronous in T11), so the reads
-  (`O_NOFOLLOW`), the exclusive scratch create and the private folders still use the standard library; their move to `tokio::fs`
-  lands with the callers, as the vet report's ledger says. Other `hard_link` users outside this module
-  (`binary/binary_wrapper_store.rs`, `conflict/discard_audit*.rs`, `lock/single_owner_claim.rs`, `lock/stale_ref_lock_retire.rs`,
+- The owner's answer on G1 is recorded above,
+  verbatim:
+  "Keep the fallback (Recommended)".
+- `1cff4935cd` records it;
+  `bcaf8579e4` is the red test of the defect the previous agent found
+  (`binary/binary_fault_trace_tests.rs`,
+  `a_filesystem_that_refuses_hard_links_does_not_stop_a_commit`:
+  every `link` and `linkat`
+  of the service and of each Git it starts answers `EOPNOTSUPP`;
+  real Git lands the same commit under the same fault as the native
+  control,
+  the wrapper fails with "The commit service could not finish this commit,
+  so it was not made.");
+  `3ec166d146` is the guard red for the module;
+  `2a503fc9e1` is the replacement;
+  `baf34e09d3` makes `decide` in
+  `service/service_busy.rs` publish its decision file through the same exclusive publish,
+  which turns the first red green.
+- What changed in `foundation/private_storage.rs`:
+  the staging file is `tempfile::Builder` (prefix `.<name>.`,
+  suffix `.partial`),
+  written,
+  synced when durable,
+  chmod to 0600,
+  then `persist_noclobber`;
+  `publish_by_checked_rename` and
+  `settle_exclusive_publish` keep the owner's fallback for any refusal that is not `AlreadyExists`;
+  the directory sync is
+  `rustix::fs::fsync` (feature `fs` added to the manifest,
+  no new locked package).
+  Gone:
+  the hand-built staging name,
+  the link-then-rename order,
+  `staging_removal_report`,
+  the uuid use.
+  The controls:
+  `a_filesystem_with_neither_no_replace_rename_nor_links_gets_the_checked_rename`,
+  `the_checked_rename_refuses_a_taken_name_and_leaves_no_staging_file` (planted control:
+  the fallback replaced by an error failed
+  both),
+  `a_taken_name_is_refused_with_the_operating_systems_error`,
+  `a_published_record_is_private_and_a_failed_publish_leaves_nothing`.
+- Not done,
+  by design:
+  the public faces of the module stay synchronous (the 38 callers become asynchronous in T11),
+  so the reads
+  (`O_NOFOLLOW`),
+  the exclusive scratch create and the private folders still use the standard library;
+  their move to `tokio::fs`
+  lands with the callers,
+  as the vet report's ledger says.
+  Other `hard_link` users outside this module
+  (`binary/binary_wrapper_store.rs`,
+  `conflict/discard_audit*.rs`,
+  `lock/single_owner_claim.rs`,
+  `lock/stale_ref_lock_retire.rs`,
   `landing/service_index_placement.rs`) were not part of the step and were not changed.
-- Two facts for the owner, not decided here:
-  1. On a filesystem with neither no-replace rename nor links, `decide` is a check then rename. Its racers are the landing thread and
-     a connection thread of one service, not two programs, so both can see themselves as the winner: a client could be told its
-     request was withdrawn while the commit lands. The owner's question described the race as two programs saving one file; it
+- Two facts for the owner,
+  not decided here:
+  1. On a filesystem with neither no-replace rename nor links,
+     `decide` is a check then rename.
+     Its racers are the landing thread and
+     a connection thread of one service,
+     not two programs,
+     so both can see themselves as the winner:
+     a client could be told its
+     request was withdrawn while the commit lands.
+     The owner's question described the race as two programs saving one file;
+     it
      did not say this case.
-  2. A commit through the service on such a filesystem still fails for another reason: with `link`, `linkat` and `renameat2` all
-     refused (injected under `strace`), the service answers "cannot take the index lock ...: the btrfs filesystem mounted at ... can
+  2. A commit through the service on such a filesystem still fails for another reason:
+     with `link`,
+     `linkat` and `renameat2` all
+     refused (injected under `strace`),
+     the service answers "cannot take the index lock ...:
+     the btrfs filesystem mounted at ... can
      neither rename a file without replacing another nor make a hard link ... so the lock cannot be created with its marker in one
-     step, and the service takes no lock that a kill could leave empty", and the commit fails; real Git, under the same injection,
-     lands the commit. That refusal is a deliberate earlier design in `landing/service_index_placement.rs`. Whether it should give way
-     to "Commits should never fail" (and what a kill could then leave) needs the owner. The state directory is the subject of the
-     fix above; the repository's Git directory on such a filesystem is this second case.
-- Settled by the coordinator, 2026-11-07T09:12:04-05:00, from owner rules already given (no new owner question):
-  1. The `decide` race is inside one process, so it closes with an in-memory atomic claim (compare-and-swap on the decision's
-     state) taken before the check-then-rename; no lock is added ("Use as few locks as possible."; `CLAUDE.md` rule NLK, atomic
-     first). The cross-process case stays the checked rename the owner kept ("Keep the fallback (Recommended)").
+     step,
+     and the service takes no lock that a kill could leave empty",
+     and the commit fails;
+     real Git,
+     under the same injection,
+     lands the commit.
+     That refusal is a deliberate earlier design in `landing/service_index_placement.rs`.
+     Whether it should give way
+     to "Commits should never fail" (and what a kill could then leave) needs the owner.
+     The state directory is the subject of the
+     fix above;
+     the repository's Git directory on such a filesystem is this second case.
+- Settled by the coordinator,
+  2026-11-07T09:12:04-05:00,
+  from owner rules already given (no new owner question):
+  1. The `decide` race is inside one process,
+     so it closes with an in-memory atomic claim (compare-and-swap on the decision's
+     state) taken before the check-then-rename;
+     no lock is added ("Use as few locks as possible.";
+     `CLAUDE.md` rule NLK,
+     atomic
+     first).
+     The cross-process case stays the checked rename the owner kept ("Keep the fallback (Recommended)").
   2. The index lock on a filesystem with neither no-replace rename nor hard links falls back to the way Git itself takes it:
-     Git 2.56.0 creates `index.lock` with `open(..., O_RDWR | O_CREAT | O_EXCL ...)` (`tempfile.c` line 142, called from
-     `lock_file` in `lockfile.c` lines 168 to 190) and needs neither call. Reason: "Commits should never fail." and the owner's
-     G1 pick to support such filesystems; the fallback is never less safe than plain Git on the same filesystem, which commits
-     there today while the wrapper refuses. What a kill can leave: a lock without its marker, as plain Git leaves one
-     (`unable_to_lock_message`, `lockfile.c` lines 254 to 267, tells the user to remove it). The wrapper never removes such a
-     lock unless the holder is proven gone, and its message names the file and the fix. Clearing it by itself needs a proof
-     that holds on that filesystem (for example, that file locks are honored there); that is a measurement for the agent, and
-     only a proven mechanism ships. Sources fetched to `~/temp/agent/git-prompt-src/lockfile-v2.56.0.c` and
+     Git 2.56.0 creates `index.lock` with `open(..., O_RDWR | O_CREAT | O_EXCL ...)` (`tempfile.c` line 142,
+     called from
+     `lock_file` in `lockfile.c` lines 168 to 190) and needs neither call.
+     Reason:
+     "Commits should never fail."
+     and the owner's
+     G1 pick to support such filesystems;
+     the fallback is never less safe than plain Git on the same filesystem,
+     which commits
+     there today while the wrapper refuses.
+     What a kill can leave:
+     a lock without its marker,
+     as plain Git leaves one
+     (`unable_to_lock_message`,
+     `lockfile.c` lines 254 to 267,
+     tells the user to remove it).
+     The wrapper never removes such a
+     lock unless the holder is proven gone,
+     and its message names the file and the fix.
+     Clearing it by itself needs a proof
+     that holds on that filesystem (for example,
+     that file locks are honored there);
+     that is a measurement for the agent,
+     and
+     only a proven mechanism ships.
+     Sources fetched to `~/temp/agent/git-prompt-src/lockfile-v2.56.0.c` and
      `tempfile-v2.56.0.c` (tag `v2.56.0`).
-- The index lock without links, branch `fix/git-policy-cli-index-lock-without-links`: item 2 above is built. `907416dba7` is the red test
-  (`a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`: `EOPNOTSUPP` on `link`, `linkat` and `renameat2`, real Git
-  as the native control); `place_lock` in `landing/service_index_placement.rs` takes `index.lock` by exclusive creation only when both the
-  rename that does not replace and the hard link were refused, writes and flushes the marker, and hands the created file's descriptor to the
-  hold (`Placed::Created`), because the ownership check compares the lock's inode. The claim chain keeps `place_marked` (a claim must be placed
-  whole). Self-clearing is not shipped: a file lock cannot tell a killed service's empty lock from a live Git's, since the lock file must
-  exist before it can be locked and Git never locks it; the empty lock stays, and the ceiling's words name the file and the fix.
-- Merged into main as `5e441f25d3` (2026-11-07, coordinator), with steps T1 to T4 and the publish swap; main's only wrapper
+- The index lock without links,
+  branch `fix/git-policy-cli-index-lock-without-links`:
+  item 2 above is built.
+  `907416dba7` is the red test
+  (`a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`:
+  `EOPNOTSUPP` on `link`,
+  `linkat` and `renameat2`,
+  real Git
+  as the native control);
+  `place_lock` in `landing/service_index_placement.rs` takes `index.lock` by exclusive creation only when both the
+  rename that does not replace and the hard link were refused,
+  writes and flushes the marker,
+  and hands the created file's descriptor to the
+  hold (`Placed::Created`),
+  because the ownership check compares the lock's inode.
+  The claim chain keeps `place_marked` (a claim must be placed
+  whole).
+  Self-clearing is not shipped:
+  a file lock cannot tell a killed service's empty lock from a live Git's,
+  since the lock file must
+  exist before it can be locked and Git never locks it;
+  the empty lock stays,
+  and the ceiling's words name the file and the fix.
+- Merged into main as `5e441f25d3` (2026-11-07,
+  coordinator),
+  with steps T1 to T4 and the publish swap;
+  main's only wrapper
   changes since the branch's last main merge were rename step 3's README and two TypeScript test files.
 
 ### Step T4, the rest: descriptor-limit sweeps
 
-- `b028cc43c0`, `0e51e63ae4`: `process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs` lowers `RLIMIT_NOFILE` of the test's
-  own process (nextest gives each test a process) in three sweeps: a limit that leaves no descriptor for `pidfd_open` changes the
-  wait to the timer and nothing else (with one free the pidfd is used, which proves the limit reached the call); a refused start
-  is `EMFILE` and leaves no child; a start that worked is awaited to its status; the captured run is whole or the plain `EMFILE`
-  error; in every case the descriptor count returns to its baseline and `waitpid(-1)` finds no child.
-  Planted control: `pidfd_open` made to `expect` failed the first sweep. The sweep of the captured run cannot reach a failing
-  `pidfd_open` (a start needs more descriptors than the pidfd, so a start that worked leaves room), so it does not fail under that
-  plant; it guards leaks and the error kind.
+- `b028cc43c0`,
+  `0e51e63ae4`:
+  `process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs` lowers `RLIMIT_NOFILE` of the test's
+  own process (nextest gives each test a process) in three sweeps:
+  a limit that leaves no descriptor for `pidfd_open` changes the
+  wait to the timer and nothing else (with one free the pidfd is used,
+  which proves the limit reached the call);
+  a refused start
+  is `EMFILE` and leaves no child;
+  a start that worked is awaited to its status;
+  the captured run is whole or the plain `EMFILE`
+  error;
+  in every case the descriptor count returns to its baseline and `waitpid(-1)` finds no child.
+  Planted control:
+  `pidfd_open` made to `expect` failed the first sweep.
+  The sweep of the captured run cannot reach a failing
+  `pidfd_open` (a start needs more descriptors than the pidfd,
+  so a start that worked leaves room),
+  so it does not fail under that
+  plant;
+  it guards leaks and the error kind.
 - `OwnedChild::waits_on_a_pidfd` was added for these controls.
 
 ### The `decide` race closed, 2026-11-07T09:47:00-05:00
 
-- Red `4d372fdd80`: `on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_thread_never_both_win_a_decision`
+- Red `4d372fdd80`:
+  `on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_thread_never_both_win_a_decision`
   (`service/service_busy_tests.rs`) feeds every publish of two threads the refusal of a filesystem with neither no-replace rename nor
-  links (test-only seams in `foundation/private_storage.rs`: `THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH` and
-  `BETWEEN_THE_CHECK_AND_THE_RENAME`), pauses the landing thread between the check and the rename, and decides the same request from a
-  connection thread. It failed with "both threads saw themselves the winner; the file says `landing`".
-- Green `7f39a05469`: `foundation/name_held_while_one_thread_publishes_it.rs` holds the name in a fixed table of atomic flags (a hash
-  of the path picks the slot) from before the check until the rename is done, and `publish_by_checked_rename` takes it. `aeb2948629`
+  links (test-only seams in `foundation/private_storage.rs`:
+  `THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH` and
+  `BETWEEN_THE_CHECK_AND_THE_RENAME`),
+  pauses the landing thread between the check and the rename,
+  and decides the same request from a
+  connection thread.
+  It failed with "both threads saw themselves the winner;
+  the file says `landing`".
+- Green `7f39a05469`:
+  `foundation/name_held_while_one_thread_publishes_it.rs` holds the name in a fixed table of atomic flags (a hash
+  of the path picks the slot) from before the check until the rename is done,
+  and `publish_by_checked_rename` takes it.
+  `aeb2948629`
   corrects the wording.
-- Deviation from the coordinator's wording ("compare-and-swap on the decision's state ... no lock is added"), for the coordinator to accept
-  or send back: the claim is taken by compare-and-swap, but a thread that finds it taken waits for the holder (a bounded yield-then-sleep
-  loop, five seconds, `HELD_NAME_WAIT` in `private_storage.rs`, then `TimedOut` and nothing published). It is not lock-free for that
-  thread, so the module and the code say so. The wait exists so that the loser can read the winner's file whole afterwards; a loser that
-  learned from the flag alone could read the file before the rename. A one-shot claim that carries the outcome has an open obstacle: two
-  names sharing a slot. `source_guard/service_lock_inventory_tests.rs` names mutexes, read-write locks, condition variables and `flock`,
-  so the flag is not an entry there. The wait adds a `thread::sleep` that step T13's source guard must either except by path or this module
+- Deviation from the coordinator's wording ("compare-and-swap on the decision's state ... no lock is added"),
+  for the coordinator to accept
+  or send back:
+  the claim is taken by compare-and-swap,
+  but a thread that finds it taken waits for the holder (a bounded yield-then-sleep
+  loop,
+  five seconds,
+  `HELD_NAME_WAIT` in `private_storage.rs`,
+  then `TimedOut` and nothing published).
+  It is not lock-free for that
+  thread,
+  so the module and the code say so.
+  The wait exists so that the loser can read the winner's file whole afterwards;
+  a loser that
+  learned from the flag alone could read the file before the rename.
+  A one-shot claim that carries the outcome has an open obstacle:
+  two
+  names sharing a slot.
+  `source_guard/service_lock_inventory_tests.rs` names mutexes,
+  read-write locks,
+  condition variables and `flock`,
+  so the flag is not an entry there.
+  The wait adds a `thread::sleep` that step T13's source guard must either except by path or this module
   must lose by moving to a futex wait (`rustix::thread::futex`).
-- Placement: the claim is in the checked rename of `private_storage.rs`, so it covers every publisher in the process, not only `decide`.
-- `HELD_NAME_WAIT` (five seconds) has no measurement beside it; it is the start retry's budget, open to the owner's veto.
-- Gate: host lib tests 4432 of 4432; Clippy and the package lint clean; `a_filesystem_that_refuses_hard_links_does_not_stop_a_commit`
-  passes; container gate 5133 run, 5133 passed (1 slow), 8 skipped, Clippy clean (snapshot at `aeb2948629`).
+- Placement:
+  the claim is in the checked rename of `private_storage.rs`,
+  so it covers every publisher in the process,
+  not only `decide`.
+- `HELD_NAME_WAIT` (five seconds) has no measurement beside it;
+  it is the start retry's budget,
+  open to the owner's veto.
+- Gate:
+  host lib tests 4432 of 4432;
+  Clippy and the package lint clean;
+  `a_filesystem_that_refuses_hard_links_does_not_stop_a_commit`
+  passes;
+  container gate 5133 run,
+  5133 passed (1 slow),
+  8 skipped,
+  Clippy clean (snapshot at `aeb2948629`).
 
 ### Step T5, the child watcher as a task, 2026-11-07T09:47:27-05:00
 
-- `fa518c33a1` red, `7e4dc3aefc` green: a budget of one worker now builds a multi-thread runtime of one worker; the current-thread runtime
-  is the plan only where a limit leaves no thread. Reason: the watcher of a wait that blocks inside a read or a wait is a task that must
-  run beside the blocked thread, and a current-thread runtime runs tasks only while some thread calls `block_on`. This changes the T3
-  plan text "current-thread when fewer than two fit"; the owner said "Full on tokio. Multi-thread." and nothing about one worker.
-- `c5b4559b88`: `ChildWatch` keeps its synchronous face (`start`, `start_with_locks`, `begin`, `end`, `expired`, `never_stop`, `within`,
-  `kept_as`, `ceiling_hit`) so its callers (`transaction/transaction_git.rs`, `candidate/candidate_reader.rs`) and the 24 controls in
-  `push/child_watch_tests.rs` are unchanged and keep every assertion. The watcher is a task started by the new
-  `foundation/lazy_runtime.rs` `spawn_on_runtime` (a task on the runtime's workers; nothing where the runtime has none, as before when the
-  watcher thread could not start), fed by an unbounded tokio channel; the mark receiver, the watcher thread, `recv_timeout` in the
-  loop and the `thread::sleep` loops of `stop_process` are gone. The notice is written on the blocking pool (a terminal that does not take
-  a line must not hold a worker), and the lock sweep of a stopped step runs on the blocking pool; where no thread can start the sweep is
-  not run and is logged (owner, 11, "Fail plainly"), which leaves such a step's `.lock` files for the next Git command to name.
-- Still in the file after T5, deliberately: dropping a `ChildWatch` waits for its task on a standard-library channel with a five-second bound
-  (`WATCHER_END_BOUND`, the start retry's budget, open to the owner's veto); the commit message says "channel timeouts are gone", which
-  is wrong for that one. `output_watched_within` still waits for its child with the standard library, and its `LeaveRunning` waiter is
+- `fa518c33a1` red,
+  `7e4dc3aefc` green:
+  a budget of one worker now builds a multi-thread runtime of one worker;
+  the current-thread runtime
+  is the plan only where a limit leaves no thread.
+  Reason:
+  the watcher of a wait that blocks inside a read or a wait is a task that must
+  run beside the blocked thread,
+  and a current-thread runtime runs tasks only while some thread calls `block_on`.
+  This changes the T3
+  plan text "current-thread when fewer than two fit";
+  the owner said "Full on tokio.
+  Multi-thread."
+  and nothing about one worker.
+- `c5b4559b88`:
+  `ChildWatch` keeps its synchronous face (`start`,
+  `start_with_locks`,
+  `begin`,
+  `end`,
+  `expired`,
+  `never_stop`,
+  `within`,
+  `kept_as`,
+  `ceiling_hit`) so its callers (`transaction/transaction_git.rs`,
+  `candidate/candidate_reader.rs`) and the 24 controls in
+  `push/child_watch_tests.rs` are unchanged and keep every assertion.
+  The watcher is a task started by the new
+  `foundation/lazy_runtime.rs` `spawn_on_runtime` (a task on the runtime's workers;
+  nothing where the runtime has none,
+  as before when the
+  watcher thread could not start),
+  fed by an unbounded tokio channel;
+  the mark receiver,
+  the watcher thread,
+  `recv_timeout` in the
+  loop and the `thread::sleep` loops of `stop_process` are gone.
+  The notice is written on the blocking pool (a terminal that does not take
+  a line must not hold a worker),
+  and the lock sweep of a stopped step runs on the blocking pool;
+  where no thread can start the sweep is
+  not run and is logged (owner,
+  11,
+  "Fail plainly"),
+  which leaves such a step's `.lock` files for the next Git command to name.
+- Still in the file after T5,
+  deliberately:
+  dropping a `ChildWatch` waits for its task on a standard-library channel with a five-second bound
+  (`WATCHER_END_BOUND`,
+  the start retry's budget,
+  open to the owner's veto);
+  the commit message says "channel timeouts are gone",
+  which
+  is wrong for that one.
+  `output_watched_within` still waits for its child with the standard library,
+  and its `LeaveRunning` waiter is
   still a thread.
-- Not done in T5, and why: the one-shot `output_watched_within` on the pidfd helper. Its `EndAt` form reads the child's output through
-  pipes with `wait_with_output` and returns all of it; the pidfd helper reads anonymous files through `Capture::snapshot`, which keeps
-  only the last `STEP_OUTPUT_LIMIT` bytes and appends notes. Moving `EndAt` steps (the commit preparation's Git steps) onto files would
-  change what a large output returns, so it needs an owner-visible decision or an `AsyncFd` pipe reader, not a silent swap.
-- Planted control, run by hand and reverted: `spawn_on_runtime` made to drop the task and return nothing (the watch watches nothing)
-  failed (six) or timed out (three) among the 18 controls of `push/child_watch_tests.rs` that ran before nextest cancelled the run, including (`a_wait_past_the_bound_is_announced_then_the_child_is_stopped`,
-  `a_command_past_the_bound_is_stopped_and_reported`, `a_silent_child_is_ended_after_the_quiet_window_and_a_sibling_is_left_alone`,
-  `a_command_past_the_bound_is_stopped_with_the_processes_it_started`, `a_wait_that_has_ended_is_announced_no_more`, and the three ceiling
-  controls, which waited out nextest's 300 second timeout).
-- New control: `a_spawned_task_runs_while_the_caller_is_blocked` (`foundation/lazy_runtime_tests.rs`).
-- Gate: host lib tests 4433 of 4433; all 700 host binary tests passed (one earlier run stopped at the first failure,
-  `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero`, while a container gate was compiling beside it; it
-  passed alone three times and in the full run that followed; no cause was measured, so it is an unexplained one-off); Clippy and the
-  package lint clean. Container gate (snapshot at `c5b4559b88`): 5134 run, 5134 passed (2 slow), 8 skipped, Clippy clean.
-- Main merged again at `d628f74005` (the fold of the earlier data names `38d54f9b2b`, the verbose masking `870962b7f2`): no conflict, nothing of
-  this branch touches `landing/earlier_service_process_look.rs`. After the merge: host lib tests 4464 of 4464, package lint clean; the container
-  gate of the merged tree ran as the user unit `tokio-gate-merge2` (log `${HOME}/temp/agent/tokio-steps/gate-merge2.log`): 5165 tests run,
-  5165 passed (1 slow), 8 skipped, Clippy clean. The coordinator merged that tree into main as `48611f7e09`.
-- Files T5 changed, for the mutation campaign: `src/native/foundation/lazy_runtime.rs`, `src/native/foundation/runtime_plan.rs`,
-  `src/native/push/child_watch.rs`, `src/native/push/child_watch_clock_marks_and_stopping.rs`; and for the decide fix
+- Not done in T5,
+  and why:
+  the one-shot `output_watched_within` on the pidfd helper.
+  Its `EndAt` form reads the child's output through
+  pipes with `wait_with_output` and returns all of it;
+  the pidfd helper reads anonymous files through `Capture::snapshot`,
+  which keeps
+  only the last `STEP_OUTPUT_LIMIT` bytes and appends notes.
+  Moving `EndAt` steps (the commit preparation's Git steps) onto files would
+  change what a large output returns,
+  so it needs an owner-visible decision or an `AsyncFd` pipe reader,
+  not a silent swap.
+- Planted control,
+  run by hand and reverted:
+  `spawn_on_runtime` made to drop the task and return nothing (the watch watches nothing)
+  failed (six) or timed out (three) among the 18 controls of `push/child_watch_tests.rs` that ran before nextest cancelled the run,
+  including (`a_wait_past_the_bound_is_announced_then_the_child_is_stopped`,
+  `a_command_past_the_bound_is_stopped_and_reported`,
+  `a_silent_child_is_ended_after_the_quiet_window_and_a_sibling_is_left_alone`,
+  `a_command_past_the_bound_is_stopped_with_the_processes_it_started`,
+  `a_wait_that_has_ended_is_announced_no_more`,
+  and the three ceiling
+  controls,
+  which waited out nextest's 300 second timeout).
+- New control:
+  `a_spawned_task_runs_while_the_caller_is_blocked` (`foundation/lazy_runtime_tests.rs`).
+- Gate:
+  host lib tests 4433 of 4433;
+  all 700 host binary tests passed (one earlier run stopped at the first failure,
+  `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero`,
+  while a container gate was compiling beside it;
+  it
+  passed alone three times and in the full run that followed;
+  no cause was measured,
+  so it is an unexplained one-off);
+  Clippy and the
+  package lint clean.
+  Container gate (snapshot at `c5b4559b88`):
+  5134 run,
+  5134 passed (2 slow),
+  8 skipped,
+  Clippy clean.
+- Main merged again at `d628f74005` (the fold of the earlier data names `38d54f9b2b`,
+  the verbose masking `870962b7f2`):
+  no conflict,
+  nothing of
+  this branch touches `landing/earlier_service_process_look.rs`.
+  After the merge:
+  host lib tests 4464 of 4464,
+  package lint clean;
+  the container
+  gate of the merged tree ran as the user unit `tokio-gate-merge2` (log `${HOME}/temp/agent/tokio-steps/gate-merge2.log`):
+  5165 tests run,
+  5165 passed (1 slow),
+  8 skipped,
+  Clippy clean.
+  The coordinator merged that tree into main as `48611f7e09`.
+- Files T5 changed,
+  for the mutation campaign:
+  `src/native/foundation/lazy_runtime.rs`,
+  `src/native/foundation/runtime_plan.rs`,
+  `src/native/push/child_watch.rs`,
+  `src/native/push/child_watch_clock_marks_and_stopping.rs`;
+  and for the decide fix
   `src/native/foundation/name_held_while_one_thread_publishes_it.rs` and `src/native/foundation/private_storage.rs`.
 
 ### The coordinator's three settlements after T5, 2026-11-07T10:20:00-05:00 to 2026-11-07T11:10:00-05:00
 
-Each is a red commit, then a green commit; none is a new owner question.
+Each is a red commit,
+then a green commit;
+none is a new owner question.
 
-- (a) The T5 one-shot form on an `AsyncFd` pipe reader that keeps all the output. Red `8c1e3a2c2b`, green `79b21d6382` (Clippy fix
-  `3c707c0b04`). `process/step_output_read_whole_through_pipes.rs`: the two pipes are made with `std::io::pipe` and their read ends are
-  registered with the reactor (`tokio::net::unix::pipe::Receiver::from_owned_fd`, which sets them non-blocking) before the child starts,
-  so a refusal (a descriptor limit, a call from inside the runtime) starts no child; after the start the command's write ends are
-  replaced (`release_write_ends`), because a write end held by this process keeps the readers from ever seeing the end of the output.
-  `read_until_the_child_ends` joins both reads to their end with the pidfd wait of `OwnedChild`, as `wait_with_output` does (a child
-  that fills a pipe is never waited for first), closes the child's input first as `wait_with_output` does, and ends the child when a read
-  fails. `output_watched_within` uses it for `StepBound::EndAt`; `wait_with_output` is gone from `push/child_watch.rs`. Not changed, by
-  design of the settlement: the `Capture` files of `LeaveRunning` and `Unbounded`, the `Unbounded` blocking `wait`, and the `LeaveRunning`
-  waiter thread (leaving a child running past a command needs a reaper that does not end the child when dropped, which the one-shot
-  settlement did not ask for). Controls (`push/child_watch_one_shot_through_pipes_tests.rs`): both streams of more than the kept tail come
-  back whole (planted control, run by hand and reverted: the read truncated to `STEP_OUTPUT_LIMIT` failed it), a call from inside the
-  runtime is refused with no child started (red before), no descriptor stays open after a run, and a source guard that `wait_with_output`
-  is gone (red before). The 24 controls of `push/child_watch_tests.rs` pass unchanged (28 of 28 with the new four).
-- (b) The name claim's wait is a wake on the flag. Red `b171ba0d9e`, green `d60cf655ca`. `foundation/name_held_while_one_thread_publishes_it.rs`:
-  each slot is an `AtomicU32` (free, held, held with a sleeper); a thread that finds the name held marks a sleeper and sleeps on the word
-  with `rustix::thread::futex::wait` (private, with the time left of the bound); the release swaps the word to free and wakes one sleeper
-  if one is marked. `yield_now` and `thread::sleep` are gone from the module (a source control guards it), so the T13 guard needs no
-  exception for it. The first version took the name after a sleep with a compare-and-swap to plain held, which loses the wake of the
-  other sleepers; two of the new controls failed by hanging (60 and 90 seconds) and caught it, so a thread that has slept takes the name
-  with the word still marked. Controls added: the bound holds with no one to wake the sleeper, and no wake is lost among eight threads
-  taking and giving back one name three hundred times. The `thread` feature of `rustix` was added to `Cargo.toml` (no new locked package;
-  `sync:files` wrote nothing). Where the platform has no futex (macOS, Windows) the sleeper parks for a millisecond slice and looks again;
-  the crate does not build for Windows (README, Requirements) and the owner said to ignore both.
-- (c) `HELD_NAME_WAIT` and `WATCHER_END_BOUND`, measured. Measurement and red controls `e15dd2bfb5`, values `9dee521668`. Both measurements are
-  `#[ignore]` tests run by hand (`--run-ignored only --no-capture measure_how_long`), on this host's btrfs under the load there was
+- (a) The T5 one-shot form on an `AsyncFd` pipe reader that keeps all the output.
+  Red `8c1e3a2c2b`,
+  green `79b21d6382` (Clippy fix
+  `3c707c0b04`).
+  `process/step_output_read_whole_through_pipes.rs`:
+  the two pipes are made with `std::io::pipe` and their read ends are
+  registered with the reactor (`tokio::net::unix::pipe::Receiver::from_owned_fd`,
+  which sets them non-blocking) before the child starts,
+  so a refusal (a descriptor limit,
+  a call from inside the runtime) starts no child;
+  after the start the command's write ends are
+  replaced (`release_write_ends`),
+  because a write end held by this process keeps the readers from ever seeing the end of the output.
+  `read_until_the_child_ends` joins both reads to their end with the pidfd wait of `OwnedChild`,
+  as `wait_with_output` does (a child
+  that fills a pipe is never waited for first),
+  closes the child's input first as `wait_with_output` does,
+  and ends the child when a read
+  fails.
+  `output_watched_within` uses it for `StepBound::EndAt`;
+  `wait_with_output` is gone from `push/child_watch.rs`.
+  Not changed,
+  by
+  design of the settlement:
+  the `Capture` files of `LeaveRunning` and `Unbounded`,
+  the `Unbounded` blocking `wait`,
+  and the `LeaveRunning`
+  waiter thread (leaving a child running past a command needs a reaper that does not end the child when dropped,
+  which the one-shot
+  settlement did not ask for).
+  Controls (`push/child_watch_one_shot_through_pipes_tests.rs`):
+  both streams of more than the kept tail come
+  back whole (planted control,
+  run by hand and reverted:
+  the read truncated to `STEP_OUTPUT_LIMIT` failed it),
+  a call from inside the
+  runtime is refused with no child started (red before),
+  no descriptor stays open after a run,
+  and a source guard that `wait_with_output`
+  is gone (red before).
+  The 24 controls of `push/child_watch_tests.rs` pass unchanged (28 of 28 with the new four).
+- (b) The name claim's wait is a wake on the flag.
+  Red `b171ba0d9e`,
+  green `d60cf655ca`.
+  `foundation/name_held_while_one_thread_publishes_it.rs`:
+  each slot is an `AtomicU32` (free,
+  held,
+  held with a sleeper);
+  a thread that finds the name held marks a sleeper and sleeps on the word
+  with `rustix::thread::futex::wait` (private,
+  with the time left of the bound);
+  the release swaps the word to free and wakes one sleeper
+  if one is marked.
+  `yield_now` and `thread::sleep` are gone from the module (a source control guards it),
+  so the T13 guard needs no
+  exception for it.
+  The first version took the name after a sleep with a compare-and-swap to plain held,
+  which loses the wake of the
+  other sleepers;
+  two of the new controls failed by hanging (60 and 90 seconds) and caught it,
+  so a thread that has slept takes the name
+  with the word still marked.
+  Controls added:
+  the bound holds with no one to wake the sleeper,
+  and no wake is lost among eight threads
+  taking and giving back one name three hundred times.
+  The `thread` feature of `rustix` was added to `Cargo.toml` (no new locked package;
+  `sync:files` wrote nothing).
+  Where the platform has no futex (macOS,
+  Windows) the sleeper parks for a millisecond slice and looks again;
+  the crate does not build for Windows (README,
+  Requirements) and the owner said to ignore both.
+- (c) `HELD_NAME_WAIT` and `WATCHER_END_BOUND`,
+  measured.
+  Measurement and red controls `e15dd2bfb5`,
+  values `9dee521668`.
+  Both measurements are
+  `#[ignore]` tests run by hand (`--run-ignored only --no-capture measure_how_long`),
+  on this host's btrfs under the load there was
   (the logs are `${HOME}/temp/agent/tokio-steps/c-measure1.log` to `c-measure3.log` and the earlier run that stalled):
-  - A name's hold (claim, check, rename): 20,000 publishes by one thread under a load average of about 70: median 181 us, 99.9th percentile
-    312143 us, longest 6031986 us (the 120 second watchdog then ended that run before its crowd part). Three runs of 4,000 under a load
-    average of 15 to 22: medians 24 to 25 us, longest 93, 179 and 296227 us. Eight threads at once (2,000 publishes): median 143 to 156 us,
-    longest 497 to 1126 us. So a hold of 6.03 s of wall time happened (the cause is not measured: the run was inside a scope capped at 1600% of the processors while the load average was about 70, so a throttled or descheduled thread gives the same figure as a stalled disk; a later run of 4,000 in a scope capped at 2400%, load average about 20, had a longest of 94 us, which excludes neither), and the previous five seconds was below it: a thread that waited for that holder
-    would have given up and published nothing. `HELD_NAME_WAIT` is now `LONGEST_HOLD_SEEN` times `HOLD_MARGIN` (ten, because the tail moved
-    by a factor of twenty between runs), 60.3 seconds. No filesystem with neither exclusive publish was available (an S3 bucket through
-    `s3fs-fuse`); a measurement there can only raise the figure. The factor ten is the agent's choice, open to the owner's veto.
-  - Dropping a watch: between waits median 28 to 32 us and longest 505 us; in the middle of a wait median 72 to 94 us and longest 389 us;
-    the lock sweep alone in a repository of forty branches median 309 to 340 us and longest 569 us; a whole stop of a child that answers the
-    request, past the window until the call returns: median 30.6 to 37.2 ms, longest 41680 us. The task can legitimately outlast these only
-    inside a stop's grace (`STOP_GRACE`, five seconds, the wait for a descendant that ignores the request before the kill), and a drop that
-    aborted the task earlier would cancel that kill for a descendant that holds no pipe. `WATCHER_END_BOUND` is now `STOP_GRACE` plus
-    `STOP_TAIL_ALLOWANCE` (one second, twenty-four times the longest tail measured), six seconds; before, it was five seconds, which equals
-    the grace and so could cut it. A notice written to a terminal that never takes the line is the other stall that bound exists for; it
-    has no measurable length, so it is the bound itself.
-  - Controls: `the_wait_for_a_held_name_outlasts_the_longest_hold_ever_measured_with_its_margin` and
+  - A name's hold (claim,
+    check,
+    rename):
+    20,000 publishes by one thread under a load average of about 70:
+    median 181 us,
+    99.9th percentile
+    312143 us,
+    longest 6031986 us (the 120 second watchdog then ended that run before its crowd part).
+    Three runs of 4,000 under a load
+    average of 15 to 22:
+    medians 24 to 25 us,
+    longest 93,
+    179 and 296227 us.
+    Eight threads at once (2,000 publishes):
+    median 143 to 156 us,
+    longest 497 to 1126 us.
+    So a hold of 6.03 s of wall time happened (the cause is not measured:
+    the run was inside a scope capped at 1600% of the processors while the load average was about 70,
+    so a throttled or descheduled thread gives the same figure as a stalled disk;
+    a later run of 4,000 in a scope capped at 2400%,
+    load average about 20,
+    had a longest of 94 us,
+    which excludes neither),
+    and the previous five seconds was below it:
+    a thread that waited for that holder
+    would have given up and published nothing.
+    `HELD_NAME_WAIT` is now `LONGEST_HOLD_SEEN` times `HOLD_MARGIN` (ten,
+    because the tail moved
+    by a factor of twenty between runs),
+    60.3 seconds.
+    No filesystem with neither exclusive publish was available (an S3 bucket through
+    `s3fs-fuse`);
+    a measurement there can only raise the figure.
+    The factor ten is the agent's choice,
+    open to the owner's veto.
+  - Dropping a watch:
+    between waits median 28 to 32 us and longest 505 us;
+    in the middle of a wait median 72 to 94 us and longest 389 us;
+    the lock sweep alone in a repository of forty branches median 309 to 340 us and longest 569 us;
+    a whole stop of a child that answers the
+    request,
+    past the window until the call returns:
+    median 30.6 to 37.2 ms,
+    longest 41680 us.
+    The task can legitimately outlast these only
+    inside a stop's grace (`STOP_GRACE`,
+    five seconds,
+    the wait for a descendant that ignores the request before the kill),
+    and a drop that
+    aborted the task earlier would cancel that kill for a descendant that holds no pipe.
+    `WATCHER_END_BOUND` is now `STOP_GRACE` plus
+    `STOP_TAIL_ALLOWANCE` (one second,
+    twenty-four times the longest tail measured),
+    six seconds;
+    before,
+    it was five seconds,
+    which equals
+    the grace and so could cut it.
+    A notice written to a terminal that never takes the line is the other stall that bound exists for;
+    it
+    has no measurable length,
+    so it is the bound itself.
+  - Controls:
+    `the_wait_for_a_held_name_outlasts_the_longest_hold_ever_measured_with_its_margin` and
     `the_end_bound_covers_a_stop_with_its_whole_grace_and_the_longest_tail_measured` (both red before the values changed).
-  - What the host load did: nothing was waited for to go quiet; the load average read 15 to 70 during these runs and is part of the figures.
+  - What the host load did:
+    nothing was waited for to go quiet;
+    the load average read 15 to 70 during these runs and is part of the figures.
 
 ### The two gate failures of main at `85e6d2ab99`, 2026-11-07T11:40:00-05:00
 
 The coordinator's gate under a load average of about 70 failed two controls that passed 5165 of 5165 in `tokio-gate-merge2`
-(log `${HOME}/temp/agent/tokio-mutants-gate.log`). Neither is a T5 regression.
+(log `${HOME}/temp/agent/tokio-mutants-gate.log`).
+Neither is a T5 regression.
 
-- `push::push_progress::tests::a_write_of_a_process_the_root_started_is_progress` (`DirectoryNotEmpty`): a test-helper defect from before
-  T5. `end()` called `Child::kill`, which signals the leader only; `spawn_owned` ends the child's group only when the test thread's
-  fixtures drop, after `remove()`; the control's background subshell (`(sleep 0.6; echo a >> log; sleep 60) & wait`) outlived `end()`
-  and created `log` while the folder was removed. Any byte moved sets `seen` (the meter counts reads), so the control also stopped
-  before the write. Deterministic reproduction, red `push_progress_tests.rs` `ending_a_child_ends_the_processes_it_started_too` (the
-  subshell writes 0.3 s after it starts; `log` existed after `end()`), then the fix: `testing/test_support.rs` `end_with_its_group`
-  (`killpg`, reap, look until `kill(-group, 0)` says the group is empty) used by `end()`, and the descendant control waits for `log`
-  itself. Other leader-only `kill()` calls in tests were listed (binary service tests kill a service program with no subshell);
-  none of them was changed, and a search for `& wait` in test files found nothing else of this shape.
-- `lock::git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock` (a lock left without its pid file): the stop path of that
-  control is `stop_push` in `push/bounded_push.rs`, which the T5 commits did not touch (`git diff 5e441f25d3 48611f7e09` lists no
-  `bounded_push.rs`), and it uses no runtime, no `ChildWatch` and none of the new files. Evidence for the cause, not a reproduction:
-  Git 2.56's signal handler removes the lock's pid file first and the lock second (`tempfile.c`, `remove_tempfiles`, the list is last
-  registered first; a `strace` of `git update-ref --stdin` told to prepare and sent `SIGTERM` showed `unlink(x~pid.lock)` and then
-  `unlink(x.lock)` 130 microseconds apart), so a `SIGKILL` between the two unlinks leaves exactly the failed state (a 41-byte lock,
-  `pid_file_beside=false`), which the sweep leaves alone because nothing proves its holder gone (`stale_ref_lock_retire.rs`, rule: never
-  remove an unproven lock). The log says the escalation did happen: the sweep that warned ran 12 s after the lock was born, about 8 s
-  after the stop returned, so the killed tree took seconds to be gone, as a process held in a stalled disk call does, or one that the
-  scheduler did not run (this host once took 6.03 s of wall time for a check and a rename, section c above; whether disk or scheduler is not measured). A load of 70 on the gate's few CPUs is the trigger; the cause is the escalation
-  at the end of the grace cutting a handler that the host had not let finish. Reproduced deterministically for the cut itself, not for
-  the delay: `a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock` (`lock/git_stop_lock_tests.rs`, `#[ignore]` because it fails
-  today and would hold the gate) starts the holder under `strace -f -e trace=unlink -e inject=unlink:delay_exit=5000000:when=1`, which
-  holds Git's handler for five seconds after the pid file was removed; the stop's grace of two seconds ends inside that hold, the kill
-  follows, and the run ends with `main.lock` of 41 bytes and `pid_file_beside=false`, the failed state of the gate, after 24.6 s (run by
-  hand, `--run-ignored only`). What is not reproduced is why the handler was slow in the gate (a stalled disk or a processor not given to
-  it). The control's grace for a responsive holder is now twice the longest delay seen (`RESPONSIVE_GRACE`,
-  `git_stop_lock_tests.rs`); a responsive holder ends at once, so the longer grace costs nothing when it works.
-  Exposure that remains in production, for the coordinator and the owner, not fixed here: `STOP_GRACE` is five seconds, below the
-  measured 6.03 s stall, so the same cut can leave a ref lock that the next Git command must name, which weighs against "Commits
-  should never fail." A fix that stays inside the rules would not escalate to `SIGKILL` while a member of the tree is in an
-  uninterruptible call (state `D` in `/proc/<pid>/stat`, where `SIGKILL` cannot end it anyway and only cuts what follows), bounded
-  by a further wait; it needs a decision on that bound, and a way to test it, which the injection above does not give.
+- `push::push_progress::tests::a_write_of_a_process_the_root_started_is_progress` (`DirectoryNotEmpty`):
+  a test-helper defect from before
+  T5.
+  `end()` called `Child::kill`,
+  which signals the leader only;
+  `spawn_owned` ends the child's group only when the test thread's
+  fixtures drop,
+  after `remove()`;
+  the control's background subshell (`(sleep 0.6; echo a >> log; sleep 60) & wait`) outlived `end()`
+  and created `log` while the folder was removed.
+  Any byte moved sets `seen` (the meter counts reads),
+  so the control also stopped
+  before the write.
+  Deterministic reproduction,
+  red `push_progress_tests.rs` `ending_a_child_ends_the_processes_it_started_too` (the
+  subshell writes 0.3 s after it starts;
+  `log` existed after `end()`),
+  then the fix:
+  `testing/test_support.rs` `end_with_its_group`
+  (`killpg`,
+  reap,
+  look until `kill(-group, 0)` says the group is empty) used by `end()`,
+  and the descendant control waits for `log`
+  itself.
+  Other leader-only `kill()` calls in tests were listed (binary service tests kill a service program with no subshell);
+  none of them was changed,
+  and a search for `& wait` in test files found nothing else of this shape.
+- `lock::git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock` (a lock left without its pid file):
+  the stop path of that
+  control is `stop_push` in `push/bounded_push.rs`,
+  which the T5 commits did not touch (`git diff 5e441f25d3 48611f7e09` lists no
+  `bounded_push.rs`),
+  and it uses no runtime,
+  no `ChildWatch` and none of the new files.
+  Evidence for the cause,
+  not a reproduction:
+  Git 2.56's signal handler removes the lock's pid file first and the lock second (`tempfile.c`,
+  `remove_tempfiles`,
+  the list is last
+  registered first;
+  a `strace` of `git update-ref --stdin` told to prepare and sent `SIGTERM` showed `unlink(x~pid.lock)` and then
+  `unlink(x.lock)` 130 microseconds apart),
+  so a `SIGKILL` between the two unlinks leaves exactly the failed state (a 41-byte lock,
+  `pid_file_beside=false`),
+  which the sweep leaves alone because nothing proves its holder gone (`stale_ref_lock_retire.rs`,
+  rule:
+  never
+  remove an unproven lock).
+  The log says the escalation did happen:
+  the sweep that warned ran 12 s after the lock was born,
+  about 8 s
+  after the stop returned,
+  so the killed tree took seconds to be gone,
+  as a process held in a stalled disk call does,
+  or one that the
+  scheduler did not run (this host once took 6.03 s of wall time for a check and a rename,
+  section c above;
+  whether disk or scheduler is not measured).
+  A load of 70 on the gate's few CPUs is the trigger;
+  the cause is the escalation
+  at the end of the grace cutting a handler that the host had not let finish.
+  Reproduced deterministically for the cut itself,
+  not for
+  the delay:
+  `a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock` (`lock/git_stop_lock_tests.rs`,
+  `#[ignore]` because it fails
+  today and would hold the gate) starts the holder under `strace -f -e trace=unlink -e inject=unlink:delay_exit=5000000:when=1`,
+  which
+  holds Git's handler for five seconds after the pid file was removed;
+  the stop's grace of two seconds ends inside that hold,
+  the kill
+  follows,
+  and the run ends with `main.lock` of 41 bytes and `pid_file_beside=false`,
+  the failed state of the gate,
+  after 24.6 s (run by
+  hand,
+  `--run-ignored only`).
+  What is not reproduced is why the handler was slow in the gate (a stalled disk or a processor not given to
+  it).
+  The control's grace for a responsive holder is now twice the longest delay seen (`RESPONSIVE_GRACE`,
+  `git_stop_lock_tests.rs`);
+  a responsive holder ends at once,
+  so the longer grace costs nothing when it works.
+  Exposure that remains in production,
+  for the coordinator and the owner,
+  not fixed here:
+  `STOP_GRACE` is five seconds,
+  below the
+  measured 6.03 s stall,
+  so the same cut can leave a ref lock that the next Git command must name,
+  which weighs against "Commits
+  should never fail."
+  A fix that stays inside the rules would not escalate to `SIGKILL` while a member of the tree is in an
+  uninterruptible call (state `D` in `/proc/<pid>/stat`,
+  where `SIGKILL` cannot end it anyway and only cuts what follows),
+  bounded
+  by a further wait;
+  it needs a decision on that bound,
+  and a way to test it,
+  which the injection above does not give.
 
 ### Step T8, the user-manager D-Bus client on `zbus` 6, 2026-11-07T12:40:00-05:00
 
-- Red `afa89f5ffc`, green `959a79f6ac`, lint fixes `768f215ae3`. `service/systemd_dbus.rs`: the hand-written connection (authentication
-  lines, serial counting, message reading, the reply decoder's use) is replaced by `zbus` 6.2.1 (`default-features = false`, feature
-  `tokio`; the prototype of `doc/research/wrapper-git-free-jobs-and-published-crates.md`, "The prototype", was the model). `Bus` keeps its
-  synchronous face (`connect`, `within`, `reload`, `reset_failed`, `stop_unit`, `stop_unit_alone`, `start_unit`, `active_state`) so
-  `service/service_provision.rs` and `service/service_client_settings_and_watches.rs` are unchanged; each call enters the process's runtime
-  through `lazy_runtime::run_on_runtime` under `tokio::time::timeout` of what is left of the exchange's deadline, connect and `Hello`
-  included. A call from inside the runtime is refused with a plain connection error. The "lack of a blocking api" is worked around by
-  that bridge, which goes when the callers become asynchronous (T11). The `zbus` errors map to the old `CallError` (`MethodError` to
-  `Manager`, handshake to `Authentication`, address and connect failures to `Connection`, a socket timeout and an elapsed deadline to `TimedOut`).
-- Locked: `zbus` 6.2.1 with `zbus_macros`, `zbus_utils`, `zcheapstr`, `zruntime`, `winnow`, `uuid` 1.29.0 (1.29.1 set aside by the release-age and
-  trust policy) and the crates for the platforms the owner said to ignore (`uds_windows`, four `wasm-bindgen` crates, `js-sys`); 25 versions
-  were listed by `native:lock:members` (the whole list is in `${HOME}/temp/agent/tokio-steps/t8-lock1.log`), every one found in the local
-  registry cache, so no `cargo fetch` was needed.
-- Controls: the fake bus of `service/systemd_dbus_tests.rs` follows `zbus`'s handshake (`NEGOTIATE_UNIX_FD`, signals with a path and an
-  interface, a reply before `NameAcquired`, the serial of each call echoed) and its byte-for-byte call comparisons became checks of the
-  member, the unit and the job mode (the plain stop keeps `replace`; the stop that spares dependents names `ignore-dependencies`); a bus that
-  accepts and never answers ends at the deadline (red-proof of the bound: it passed with the hand client as well, so it is a preservation
-  control); `the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself` was the red one. The hand wire format
-  (`service/systemd_dbus_wire_format.rs`) stays for the fake bus, its own controls and the fuzz target `dbus_reply` until T13; its two
+- Red `afa89f5ffc`,
+  green `959a79f6ac`,
+  lint fixes `768f215ae3`.
+  `service/systemd_dbus.rs`:
+  the hand-written connection (authentication
+  lines,
+  serial counting,
+  message reading,
+  the reply decoder's use) is replaced by `zbus` 6.2.1 (`default-features = false`,
+  feature
+  `tokio`;
+  the prototype of `doc/research/wrapper-git-free-jobs-and-published-crates.md`,
+  "The prototype",
+  was the model).
+  `Bus` keeps its
+  synchronous face (`connect`,
+  `within`,
+  `reload`,
+  `reset_failed`,
+  `stop_unit`,
+  `stop_unit_alone`,
+  `start_unit`,
+  `active_state`) so
+  `service/service_provision.rs` and `service/service_client_settings_and_watches.rs` are unchanged;
+  each call enters the process's runtime
+  through `lazy_runtime::run_on_runtime` under `tokio::time::timeout` of what is left of the exchange's deadline,
+  connect and `Hello`
+  included.
+  A call from inside the runtime is refused with a plain connection error.
+  The "lack of a blocking api" is worked around by
+  that bridge,
+  which goes when the callers become asynchronous (T11).
+  The `zbus` errors map to the old `CallError` (`MethodError` to
+  `Manager`,
+  handshake to `Authentication`,
+  address and connect failures to `Connection`,
+  a socket timeout and an elapsed deadline to `TimedOut`).
+- Locked:
+  `zbus` 6.2.1 with `zbus_macros`,
+  `zbus_utils`,
+  `zcheapstr`,
+  `zruntime`,
+  `winnow`,
+  `uuid` 1.29.0 (1.29.1 set aside by the release-age and
+  trust policy) and the crates for the platforms the owner said to ignore (`uds_windows`,
+  four `wasm-bindgen` crates,
+  `js-sys`);
+  25 versions
+  were listed by `native:lock:members` (the whole list is in `${HOME}/temp/agent/tokio-steps/t8-lock1.log`),
+  every one found in the local
+  registry cache,
+  so no `cargo fetch` was needed.
+- Controls:
+  the fake bus of `service/systemd_dbus_tests.rs` follows `zbus`'s handshake (`NEGOTIATE_UNIX_FD`,
+  signals with a path and an
+  interface,
+  a reply before `NameAcquired`,
+  the serial of each call echoed) and its byte-for-byte call comparisons became checks of the
+  member,
+  the unit and the job mode (the plain stop keeps `replace`;
+  the stop that spares dependents names `ignore-dependencies`);
+  a bus that
+  accepts and never answers ends at the deadline (red-proof of the bound:
+  it passed with the hand client as well,
+  so it is a preservation
+  control);
+  `the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself` was the red one.
+  The hand wire format
+  (`service/systemd_dbus_wire_format.rs`) stays for the fake bus,
+  its own controls and the fuzz target `dbus_reply` until T13;
+  its two
   message-type constants are now `#[cfg(test)]`.
-- Not run: the ignored control against the real user manager (`the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit`; it
+- Not run:
+  the ignored control against the real user manager (`the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit`;
+  it
   writes unit files to the account's real service manager).
 
 ### Step T9, the standards-review call on `hyper`, 2026-11-07T13:20:00-05:00
 
-- Red `84404ca225`, green `e4773d1976`. `standards_review/standards_review_client.rs`: `hyper` 1.12 with `hyper-util`'s legacy client,
-  `hyper-rustls` 0.27.10 (`http1`, `ring`, `webpki-tokio`, `tls12`; no system roots), `http-body-util`, `rustls` with the `ring` provider,
-  `webpki-roots` for the embedded roots; the trusted authority is read with `rustls`'s PEM reader. `ureq` and its packages are gone from the
-  manifest and the lock. The call runs through `run_on_runtime` (the plan's inventory puts the review after landing, not on the
-  wait path). The quiet window is one clock: `Marking` wraps every connection the connector makes and marks every read or write that moves
-  bytes, the connect and TLS handshake included, and the call is raced against `silence` (the call ends with "The operation was aborted due to
-  timeout" after a quiet window); the ceiling is `tokio::time::timeout` and ends with the same sentence as before. `ureq` set one timeout per phase;
-  this is one clock over "no byte moved", which is the rule the module's doc states. No redirect is followed, no proxy variable is read, plain
-  `http` is accepted for the loopback mock, the error text carries the whole cause chain.
-- Catalog: `rustls`, `webpki-roots`, `bytes` and `tower-service` joined `rust-catalog.toml` (the other `hyper` entries were there already).
-- Controls: the existing client controls pass unchanged on `hyper` (loopback mock: request line, headers and body, error status as a reply,
-  chunked body, redirect not followed, silent server ends at the window, refused connection, unreadable authority, a reply that keeps
-  arriving is never cut off and is cut at the ceiling); new: `a_tls_server_is_reached_only_through_a_trusted_authority` (a throwaway authority
-  and a leaf made by the `openssl` tool, which the gate image has, and a `rustls` server in the test; the trusted authority is reached with the
-  bearer header, and the embedded roots refuse it; it passed with `ureq` first, so it proves the control reaches TLS), the guard literal
-  of `source_guard/standards_review_boundary_tests.rs` (the library paths `hyper::`, `hyper_util::`, `hyper_rustls::`, `http_body_util::`
-  replace `ureq`, with its fixture controls), and `the_client_is_built_on_hyper_and_no_longer_on_ureq` (red before).
-- Known from the research and not changed: `hyper-util`'s resolver runs `getaddrinfo` on tokio's blocking pool when the URL has a host name,
-  and that thread stays idle for tokio's keep-alive; the endpoint is one fixed host.
+- Red `84404ca225`,
+  green `e4773d1976`.
+  `standards_review/standards_review_client.rs`:
+  `hyper` 1.12 with `hyper-util`'s legacy client,
+  `hyper-rustls` 0.27.10 (`http1`,
+  `ring`,
+  `webpki-tokio`,
+  `tls12`;
+  no system roots),
+  `http-body-util`,
+  `rustls` with the `ring` provider,
+  `webpki-roots` for the embedded roots;
+  the trusted authority is read with `rustls`'s PEM reader.
+  `ureq` and its packages are gone from the
+  manifest and the lock.
+  The call runs through `run_on_runtime` (the plan's inventory puts the review after landing,
+  not on the
+  wait path).
+  The quiet window is one clock:
+  `Marking` wraps every connection the connector makes and marks every read or write that moves
+  bytes,
+  the connect and TLS handshake included,
+  and the call is raced against `silence` (the call ends with "The operation was aborted due to
+  timeout" after a quiet window);
+  the ceiling is `tokio::time::timeout` and ends with the same sentence as before.
+  `ureq` set one timeout per phase;
+  this is one clock over "no byte moved",
+  which is the rule the module's doc states.
+  No redirect is followed,
+  no proxy variable is read,
+  plain
+  `http` is accepted for the loopback mock,
+  the error text carries the whole cause chain.
+- Catalog:
+  `rustls`,
+  `webpki-roots`,
+  `bytes` and `tower-service` joined `rust-catalog.toml` (the other `hyper` entries were there already).
+- Controls:
+  the existing client controls pass unchanged on `hyper` (loopback mock:
+  request line,
+  headers and body,
+  error status as a reply,
+  chunked body,
+  redirect not followed,
+  silent server ends at the window,
+  refused connection,
+  unreadable authority,
+  a reply that keeps
+  arriving is never cut off and is cut at the ceiling);
+  new:
+  `a_tls_server_is_reached_only_through_a_trusted_authority` (a throwaway authority
+  and a leaf made by the `openssl` tool,
+  which the gate image has,
+  and a `rustls` server in the test;
+  the trusted authority is reached with the
+  bearer header,
+  and the embedded roots refuse it;
+  it passed with `ureq` first,
+  so it proves the control reaches TLS),
+  the guard literal
+  of `source_guard/standards_review_boundary_tests.rs` (the library paths `hyper::`,
+  `hyper_util::`,
+  `hyper_rustls::`,
+  `http_body_util::`
+  replace `ureq`,
+  with its fixture controls),
+  and `the_client_is_built_on_hyper_and_no_longer_on_ureq` (red before).
+- Known from the research and not changed:
+  `hyper-util`'s resolver runs `getaddrinfo` on tokio's blocking pool when the URL has a host name,
+  and that thread stays idle for tokio's keep-alive;
+  the endpoint is one fixed host.
 
 ### Gates of the settlements, T8 and T9, 2026-11-07T14:10:00-05:00
 
-- Settlements (a) to (c), snapshot at `9dee521668` (unit `tokio-gate-settle`, log `${HOME}/temp/agent/tokio-steps/gate-settle.log`): 5174 tests
-  run, 5174 passed (3 slow), 11 skipped; the container Clippy then failed on shadowed bindings in `push/child_watch_drop_time_measurement_tests.rs`
+- Settlements (a) to (c),
+  snapshot at `9dee521668` (unit `tokio-gate-settle`,
+  log `${HOME}/temp/agent/tokio-steps/gate-settle.log`):
+  5174 tests
+  run,
+  5174 passed (3 slow),
+  11 skipped;
+  the container Clippy then failed on shadowed bindings in `push/child_watch_drop_time_measurement_tests.rs`
   (fixed in `768f215ae3`).
-- T8 and T9 together, first snapshot at `e4773d1976` (unit `tokio-gate-t8t9`, `gate-t8t9.log`): 5179 run, 5172 passed, 7 failed, all of them
-  the stand-in session bus of the binary controls (`binary/binary_service_provision_tests.rs`), which did not agree to `NEGOTIATE_UNIX_FD` or
-  answer `Hello` with a name, so `zbus` waited out the 20 second exchange. Fixed in the commit that names them.
-- T8 and T9 together, after that fix (unit `tokio-gate-t8t9b`, `gate-t8t9b.log`): 5179 run, 5179 passed (1 slow), 11 skipped, container
-  Clippy clean. Added after that snapshot, all tests or comments: `the_quiet_gap_kept_for_a_call_is_the_calls_own_and_not_the_idle_waiting_thread`
-  (passes: the quiet clock counts the process's established sockets as work, so the idle waiting thread of the `hyper` call does not make
-  the ledger figure hollow), the ignored strace reproduction, and the reworded citation of the 6.03 s; the package lint of that tree is clean
+- T8 and T9 together,
+  first snapshot at `e4773d1976` (unit `tokio-gate-t8t9`,
+  `gate-t8t9.log`):
+  5179 run,
+  5172 passed,
+  7 failed,
+  all of them
+  the stand-in session bus of the binary controls (`binary/binary_service_provision_tests.rs`),
+  which did not agree to `NEGOTIATE_UNIX_FD` or
+  answer `Hello` with a name,
+  so `zbus` waited out the 20 second exchange.
+  Fixed in the commit that names them.
+- T8 and T9 together,
+  after that fix (unit `tokio-gate-t8t9b`,
+  `gate-t8t9b.log`):
+  5179 run,
+  5179 passed (1 slow),
+  11 skipped,
+  container
+  Clippy clean.
+  Added after that snapshot,
+  all tests or comments:
+  `the_quiet_gap_kept_for_a_call_is_the_calls_own_and_not_the_idle_waiting_thread`
+  (passes:
+  the quiet clock counts the process's established sockets as work,
+  so the idle waiting thread of the `hyper` call does not make
+  the ledger figure hollow),
+  the ignored strace reproduction,
+  and the reworded citation of the 6.03 s;
+  the package lint of that tree is clean
   and the quiet-gap control passed on the host.
-- Not measured: `native:perf` (the plan asks for it after T10, T12 and T13). Settlement (a) is the first change on the commit wait path (every
-  `EndAt` Git step of `run_git_watched` now enters the runtime twice, `attach_pipes` and `read_until_the_child_ends`); its cost against "commits
+- Not measured:
+  `native:perf` (the plan asks for it after T10,
+  T12 and T13).
+  Settlement (a) is the first change on the commit wait path (every
+  `EndAt` Git step of `run_git_watched` now enters the runtime twice,
+  `attach_pipes` and `read_until_the_child_ends`);
+  its cost against "commits
   vs native git should not take 5s longer" is an unmeasured exposure until then.
 
 ### The owner's pick on the waits, and the stop that waits for a member that cannot be interrupted, 2026-11-07T15:10:00-05:00
 
-- The question (asked by the coordinator in the question tool): how much longer than the measured worst case (a check and a rename that took 6.03 s
-  of wall time once, cause not measured) the wrapper waits before giving up, for (1) the wait before force-killing a Git asked to stop and (2) the
-  held-name wait. The owner picked, 2026-11-07, verbatim: "3x worst case".
-- Applied in `foundation/worst_delay_seen_on_this_host.rs` (`LONGEST_DELAY_SEEN` 6.031986 s, `OWNER_MARGIN` 3, `WORST_CASE_WITH_MARGIN` about 18.1 s):
-  `HELD_NAME_WAIT` in `private_storage.rs` is that value (it was 60.3 s with the agent's factor ten); `STOP_CEILING` is the same value.
-- The stop: `process/stop_waits_while_a_member_cannot_be_interrupted.rs` `escalation_waits`. After `SIGTERM` the stop waits its grace (`STOP_GRACE`, 5 s);
-  past it, while some member of the stopped tree is in uninterruptible sleep (`/proc/<pid>/stat` state `D`, `process_tree.rs` `in_uninterruptible_sleep`)
-  it keeps waiting, and it forces the end no later than `STOP_CEILING` after the request; with no member in `D` it forces at the grace, as before. The
-  look is at the interval each stop's own loop already used (10 ms, `POLL_PAUSE` and `STOP_POLL`), so no loop was added. Stops that escalate
-  `SIGTERM` to `SIGKILL`: `push/bounded_push.rs` `stop_push` (also the stop of `push/bounded_query.rs`, which calls it) and
-  `push/child_watch_clock_marks_and_stopping.rs` `stop_process` (every watched step). Other kills in production code send `SIGKILL` with no prior
-  request (`candidate/candidate_reader.rs`, `push/auto_push_reconcile_merge_commit.rs`, `repair/package_repair_command.rs`,
+- The question (asked by the coordinator in the question tool):
+  how much longer than the measured worst case (a check and a rename that took 6.03 s
+  of wall time once,
+  cause not measured) the wrapper waits before giving up,
+  for (1) the wait before force-killing a Git asked to stop and (2) the
+  held-name wait.
+  The owner picked,
+  2026-11-07,
+  verbatim:
+  "3x worst case".
+- Applied in `foundation/worst_delay_seen_on_this_host.rs` (`LONGEST_DELAY_SEEN` 6.031986 s,
+  `OWNER_MARGIN` 3,
+  `WORST_CASE_WITH_MARGIN` about 18.1 s):
+  `HELD_NAME_WAIT` in `private_storage.rs` is that value (it was 60.3 s with the agent's factor ten);
+  `STOP_CEILING` is the same value.
+- The stop:
+  `process/stop_waits_while_a_member_cannot_be_interrupted.rs` `escalation_waits`.
+  After `SIGTERM` the stop waits its grace (`STOP_GRACE`,
+  5 s);
+  past it,
+  while some member of the stopped tree is in uninterruptible sleep (`/proc/<pid>/stat` state `D`,
+  `process_tree.rs` `in_uninterruptible_sleep`)
+  it keeps waiting,
+  and it forces the end no later than `STOP_CEILING` after the request;
+  with no member in `D` it forces at the grace,
+  as before.
+  The
+  look is at the interval each stop's own loop already used (10 ms,
+  `POLL_PAUSE` and `STOP_POLL`),
+  so no loop was added.
+  Stops that escalate
+  `SIGTERM` to `SIGKILL`:
+  `push/bounded_push.rs` `stop_push` (also the stop of `push/bounded_query.rs`,
+  which calls it) and
+  `push/child_watch_clock_marks_and_stopping.rs` `stop_process` (every watched step).
+  Other kills in production code send `SIGKILL` with no prior
+  request (`candidate/candidate_reader.rs`,
+  `push/auto_push_reconcile_merge_commit.rs`,
+  `repair/package_repair_command.rs`,
   `process/child_awaited_through_a_pidfd.rs`) and are not stops of this kind.
-- `WATCHER_END_BOUND` is `STOP_CEILING` plus `STOP_TAIL_ALLOWANCE` (one second, twenty-four times the longest tail measured), about 19.1 s; it was
-  `STOP_GRACE` plus the allowance. The earlier text of this plan that gives 60.3 s and 6 s is superseded by this section.
-- Controls: red `c73ca8c76e` (the exact-value control of the held-name wait,
-  the end-bound control, and the strace reproduction, now running); green: the reproduction `a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock`
-  passes; `a_member_held_for_ever_is_ended_at_the_ceiling_and_the_lock_is_swept` (a stop whose member never leaves the blocked state returns one
-  ceiling after the request and the lock is swept), and four unit controls of `escalation_waits` (inside the grace, past it with no member blocked, a
-  member that never leaves, the real ceiling is three times the delay and past the grace). A planted control (the ceiling removed from `escalation_waits`)
+- `WATCHER_END_BOUND` is `STOP_CEILING` plus `STOP_TAIL_ALLOWANCE` (one second,
+  twenty-four times the longest tail measured),
+  about 19.1 s;
+  it was
+  `STOP_GRACE` plus the allowance.
+  The earlier text of this plan that gives 60.3 s and 6 s is superseded by this section.
+- Controls:
+  red `c73ca8c76e` (the exact-value control of the held-name wait,
+  the end-bound control,
+  and the strace reproduction,
+  now running);
+  green:
+  the reproduction `a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock`
+  passes;
+  `a_member_held_for_ever_is_ended_at_the_ceiling_and_the_lock_is_swept` (a stop whose member never leaves the blocked state returns one
+  ceiling after the request and the lock is swept),
+  and four unit controls of `escalation_waits` (inside the grace,
+  past it with no member blocked,
+  a
+  member that never leaves,
+  the real ceiling is three times the delay and past the grace).
+  A planted control (the ceiling removed from `escalation_waits`)
   failed the held-for-ever unit control.
-- A deviation to know: `strace` holds the delayed handler in a tracing stop (state `t`), not in `D`, and a `D` cannot be made on demand. The reproduction and
-  the held-for-ever control therefore install, on their own thread, a stand-in rule (`D` or `t` counts; a test-only seam of `escalation_waits`); the
-  production rule looks for `D` only. So the controls prove the loop's waiting and its ceiling, and that waiting through the handler's cleanup leaves no lock;
-  they do not prove that a real `D` is recognised beyond `the_state_look_reads_a_real_process_and_refuses_a_gone_one`, which reads this test's own process.
+- A deviation to know:
+  `strace` holds the delayed handler in a tracing stop (state `t`),
+  not in `D`,
+  and a `D` cannot be made on demand.
+  The reproduction and
+  the held-for-ever control therefore install,
+  on their own thread,
+  a stand-in rule (`D` or `t` counts;
+  a test-only seam of `escalation_waits`);
+  the
+  production rule looks for `D` only.
+  So the controls prove the loop's waiting and its ceiling,
+  and that waiting through the handler's cleanup leaves no lock;
+  they do not prove that a real `D` is recognised beyond `the_state_look_reads_a_real_process_and_refuses_a_gone_one`,
+  which reads this test's own process.
 
 ### Main merged again at `c23b85309c`, and the gate after the owner's pick, 2026-11-07T16:05:00-05:00
 
-- The merge of main (the fold late-line fix, the index-lock fallback `landing/service_index_*`, the settle-control retry, the held-message work): one
-  conflict, in `rust-catalog.toml` (the default catalog's `branches` and `bytes` lines against main's named catalogs). Resolved by keeping `bytes` and the
-  entries this branch added (`rustls`, `webpki-roots`, `tower-service`) and main's `branches-0-4` and `zbus-5` catalogs as they came; the default
-  catalog's `branches` line, which main removed, stays removed. `mise run sync:files` wrote nothing; `native:lock:members` found the lock satisfying the
-  manifest with no change; the merge changed neither `Cargo.toml` nor `Cargo.lock` of the wrapper against this branch's tip. No source conflict.
-- First gate of the final tree (unit `tokio-gate-final`, `gate-final.log`): 5209 run, 5207 passed, 2 failed, neither in code this branch changed.
-  `lock::index_holder_wait::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`: `Released(2.49917834s)` against a hold of 2.5 s, because the
-  hold was counted from the sleeper thread's own start, which is before the wait's clock starts, so the wait could read a little less than the hold (the
-  mechanism is in the test, 0.8 ms short here; two controls of the file had it, both fixed to count the hold from the wait's first notice). Passed alone and
-  in the earlier gates. `repair::package_repair_command::tests::a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run`: `leader-output` missing
-  from the snapshot; `repair/` and `process/output_capture.rs` are byte for byte those of main and of `5e441f25d3`, the control passed in the five earlier gates
-  (0.31 to 0.32 s) and alone (0.345 s), and failed once at 0.506 s; the cause was not found and is not claimed.
-- Second gate of the final tree (unit `tokio-gate-final2`, `gate-final2.log`): 5209 run, 5209 passed (1 slow), 11 skipped, container Clippy clean.
+- The merge of main (the fold late-line fix,
+  the index-lock fallback `landing/service_index_*`,
+  the settle-control retry,
+  the held-message work):
+  one
+  conflict,
+  in `rust-catalog.toml` (the default catalog's `branches` and `bytes` lines against main's named catalogs).
+  Resolved by keeping `bytes` and the
+  entries this branch added (`rustls`,
+  `webpki-roots`,
+  `tower-service`) and main's `branches-0-4` and `zbus-5` catalogs as they came;
+  the default
+  catalog's `branches` line,
+  which main removed,
+  stays removed.
+  `mise run sync:files` wrote nothing;
+  `native:lock:members` found the lock satisfying the
+  manifest with no change;
+  the merge changed neither `Cargo.toml` nor `Cargo.lock` of the wrapper against this branch's tip.
+  No source conflict.
+- First gate of the final tree (unit `tokio-gate-final`,
+  `gate-final.log`):
+  5209 run,
+  5207 passed,
+  2 failed,
+  neither in code this branch changed.
+  `lock::index_holder_wait::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`:
+  `Released(2.49917834s)` against a hold of 2.5 s,
+  because the
+  hold was counted from the sleeper thread's own start,
+  which is before the wait's clock starts,
+  so the wait could read a little less than the hold (the
+  mechanism is in the test,
+  0.8 ms short here;
+  two controls of the file had it,
+  both fixed to count the hold from the wait's first notice).
+  Passed alone and
+  in the earlier gates.
+  `repair::package_repair_command::tests::a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run`:
+  `leader-output` missing
+  from the snapshot;
+  `repair/` and `process/output_capture.rs` are byte for byte those of main and of `5e441f25d3`,
+  the control passed in the five earlier gates
+  (0.31 to 0.32 s) and alone (0.345 s),
+  and failed once at 0.506 s;
+  the cause was not found and is not claimed.
+- Second gate of the final tree (unit `tokio-gate-final2`,
+  `gate-final2.log`):
+  5209 run,
+  5209 passed (1 slow),
+  11 skipped,
+  container Clippy clean.
 
 ### Where the remaining steps stand after T5
 
-- T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`, the `try_wait` loops of
-  `bounded_push.rs` and `package_repair_command.rs`, the service's per-connection threads, the guard wait of `commit_preparation.rs`).
-  The pattern that worked for T4 and T5 (a synchronous face that enters the runtime, tasks only where something must run beside a blocked
-  thread) does not shorten these: a sleep or a poll in sequential code becomes a `tokio::time` call only when its caller is itself
-  asynchronous, so they are in practice the T11 conversion of the callers, done leaf first. They were not started.
-- Two steps need no async callers and could go first: T9 (the standards review on `hyper`, which needs new locked crates through the
-  toolchain tasks) and the `zbus` 6 client of T8 (the catalog already names `zbus >=6.2.1` and `hyper >=1.12.0`; the "floor 5.19" of the first plan text and of the earlier handover is gone, and no release-age exclusion names `zbus@5.19.0`).
+- T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
+  the `try_wait` loops of
+  `bounded_push.rs` and `package_repair_command.rs`,
+  the service's per-connection threads,
+  the guard wait of `commit_preparation.rs`).
+  The pattern that worked for T4 and T5 (a synchronous face that enters the runtime,
+  tasks only where something must run beside a blocked
+  thread) does not shorten these:
+  a sleep or a poll in sequential code becomes a `tokio::time` call only when its caller is itself
+  asynchronous,
+  so they are in practice the T11 conversion of the callers,
+  done leaf first.
+  They were not started.
+- Two steps need no async callers and could go first:
+  T9 (the standards review on `hyper`,
+  which needs new locked crates through the
+  toolchain tasks) and the `zbus` 6 client of T8 (the catalog already names `zbus >=6.2.1` and `hyper >=1.12.0`;
+  the "floor 5.19" of the first plan text and of the earlier handover is gone,
+  and no release-age exclusion names `zbus@5.19.0`).
 
 ### What is left
 
-Steps T5 (the watcher task landed; its one-shot pidfd form and the `LeaveRunning` thread did not) to T13 (the watchers, `bounded_push`, the signal relay on a pidfd with the registry of children, the service client and
-the `zbus` move, the standards-review call on `hyper`, the service, the callers, the parallel runner, the final removal and lint),
-the replacement of `private_storage.rs`, the descriptor-limit sweeps of the child helper, and the mutation campaign.
+Steps T5 (the watcher task landed;
+its one-shot pidfd form and the `LeaveRunning` thread did not) to T13 (the watchers,
+`bounded_push`,
+the signal relay on a pidfd with the registry of children,
+the service client and
+the `zbus` move,
+the standards-review call on `hyper`,
+the service,
+the callers,
+the parallel runner,
+the final removal and lint),
+the replacement of `private_storage.rs`,
+the descriptor-limit sweeps of the child helper,
+and the mutation campaign.
 
 ## Open choices for the owner
 

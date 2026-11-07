@@ -1,17 +1,22 @@
 # cli-git native candidates and scanner adapter
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
-Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
-`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
-name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+Note 2026-10-29:
+the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now.
+Read every `.mjs` file name here as the same
+name ending in `.ts`;
+the driver `old-format-fixtures` is `old-format-driver`.
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
@@ -57,8 +62,10 @@ and `main` is merged into it twice.
 
 Inspect first:
 the mapping and its three adopted cases under "Failure codes by cause",
-what the engine must add before any of it reaches an event, under "What the engine must add",
-the merged-tree results under "Gate results", "Mutation testing" and "Fuzzing",
+what the engine must add before any of it reaches an event,
+under "What the engine must add",
+the merged-tree results under "Gate results",
+"Mutation testing" and "Fuzzing",
 the lockfile decision under "Lockfile",
 the edits to files outside this delegation under "Edits outside the owned files",
 and the choices under "Choices open to veto".
@@ -172,7 +179,8 @@ so the resolution keeps both,
   because the three lines after them are the same on both sides.
   The result needs two whole tables,
   `wrapper_controls` and `batch_reply`,
-  each with its own `[[bin]]` header and its own `test`, `doc` and `bench` lines.
+  each with its own `[[bin]]` header and its own `test`,
+  `doc` and `bench` lines.
 - `package/git-policy/cli.fuzz/bin/container.mjs`:
   keep both `targets` entries.
 - `package/git-policy/cli.fuzz/bin/planted-controls.mjs`:
@@ -1241,7 +1249,8 @@ It ran against the merged-tree gate image `8ff0051a5b9a132ffa5ef1b01347039511d7a
 started right after that gate with no file edited in between except this document.
 The scope is the new mapping module
 and the one wrapper code file whose conflict was resolved in a merge
-(`lib.rs`, in `27af8f580`;
+(`lib.rs`,
+in `27af8f580`;
 the merge `571fe1003` had no conflict).
 The other conflicted code files,
 `src/lib.rs`,
@@ -1393,10 +1402,18 @@ and `d34761d35` changes only the gate runner,
 so the code a fuzz target compiles is the same at all three commits.
 The run exited with status 0:
 
-- `global_arguments`: 971,930 executions, exit status 0.
-- `config_loading`: 363,596 executions, exit status 0.
-- `config_schema`: 19,909 executions, exit status 0.
-- `batch_reply`: 89,225 executions in 31 seconds, exit status 0,
+- `global_arguments`:
+  971,930 executions,
+  exit status 0.
+- `config_loading`:
+  363,596 executions,
+  exit status 0.
+- `config_schema`:
+  19,909 executions,
+  exit status 0.
+- `batch_reply`:
+  89,225 executions in 31 seconds,
+  exit status 0,
   684 inputs added to the corpus,
   no crash artifact,
   peak resident memory 483 MiB.
@@ -1667,7 +1684,9 @@ No `.ts` file and nothing under `package/cli/forbidden-strings` was edited.
   The write-failure branch of `ObjectReader::request` is reached only when the pipe has no other holder.
 - No consumer-level control exists:
   the executable does not call these layers,
-  so the ledger's "stage clean bytes, dirty the worktree, commit" observation and its `strace` count are open.
+  so the ledger's "stage clean bytes,
+  dirty the worktree,
+  commit" observation and its `strace` count are open.
 - Nothing here was compiled or run on Windows or macOS.
   The new modules hold no platform-specific variant;
   the adapter calls the foundation's `path_from_git_bytes`,

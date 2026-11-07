@@ -1,18 +1,21 @@
 # Outside review of the Rust file-enforcer plan: openai/gpt-6.1-sol
 
 Review of [`doc/planning/file-enforcer-rust-rewrite.md`](../planning/file-enforcer-rust-rewrite.md) as of 2026-10-29,
-run through `pi --print --no-tools --thinking xhigh` with the planning doc, the four research reports and two decisions attached.
+run through `pi --print --no-tools --thinking xhigh` with the planning doc,
+the four research reports and two decisions attached.
 Findings are unverified model output until checked against the repository.
 
 This review uses the attached records only.
 No repository or runtime verification was performed.
-Findings are ranked by severity, with coverage of the requested sections listed at the end.
+Findings are ranked by severity,
+with coverage of the requested sections listed at the end.
 
 ## High severity
 
 ### 1. The new update command stops before updating anything that installers consume
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Lock writer”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Lock writer”:
 
 > `mpm-shadow update` writes only `toolchain.resolution.json`
 
@@ -22,7 +25,8 @@ The same section says:
 
 The toolchain-split research establishes that the replacement installer can consume the lock,
 without needing file-enforcer on the installation path.
-However, no decision defines the orchestration that turns a successful update into an updated lock and manifests.
+However,
+no decision defines the orchestration that turns a successful update into an updated lock and manifests.
 
 A direct replacement of the existing `toolchain:update` task with `mpm-shadow update`
 leaves the installation lock unchanged.
@@ -39,7 +43,8 @@ and reject missing resolutions or resolutions inconsistent with explicit pins be
 
 ### 2. In-memory checking needs an output dependency model that the design does not specify
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Adopted from the request and repository rules”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Adopted from the request and repository rules”:
 
 > `check` renders every output in memory and compares,
 > needing no prior write
@@ -50,11 +55,14 @@ The inventory identifies an existing ordering dependency:
 
 It also requires the catalog operation to collect problems before writing:
 
-> All problems collected first, then written, so a failure writes nothing.
+> All problems collected first,
+> then written,
+> so a failure writes nothing.
 
 The replacement still has dependent transformations:
 
-- Plan and resolution produce the lock; the lock produces the mpm manifests.
+- Plan and resolution produce the lock;
+  the lock produces the mpm manifests.
 - Cargo policy edits and dependency-catalog edits affect the same `Cargo.toml`.
 - A missing local forbidden-strings seed must be planned before the concatenated rules file can consume it.
 - Catalog adoption can change `rust-catalog.toml` before workspace dependency tables are rendered.
@@ -74,7 +82,8 @@ only after validating all catalog conflicts.
 
 ### 3. The single-switch gate requires published artifacts, not merely successful local builds
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Cutover”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Cutover”:
 
 > Everything is built first
 
@@ -103,16 +112,20 @@ A machine without a supported archive and without Cargo cannot execute that fall
 
 Smallest fix:
 make publication and retrieval verification explicit pre-cutover gates.
-Publish dependency libraries, the new shadow, and file-enforcer before switching consumers.
+Publish dependency libraries,
+the new shadow,
+and file-enforcer before switching consumers.
 Record the bootstrap version and artifact hashes.
-For the Cargo fallback, document an independent Rust bootstrap prerequisite.
+For the Cargo fallback,
+document an independent Rust bootstrap prerequisite.
 Specify Docker and CI ordering so neither a prepare task nor file enforcement runs before its binary is installed.
 
 This preserves the owner's single cutover commit.
 
 ### 4. The global conversion does not create the new resolution input or define its renderer
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Global toolchain plan”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Global toolchain plan”:
 
 > a one-off converter writes `toolchain.plan.jsonc` beside it,
 > keeping comments,
@@ -121,7 +134,8 @@ This preserves the owner's single cutover commit.
 
 But the toolchain-split research lists both:
 
-> `plan.tools.data.ts`, `plan.artifacts.data.ts`
+> `plan.tools.data.ts`,
+> `plan.artifacts.data.ts`
 
 The new lock requires `toolchain.resolution.json`.
 Converting only declarations does not seed versions and artifacts into that file.
@@ -142,7 +156,8 @@ Define distinct default config paths for repository commands and `user` commands
 
 ### 5. Preserving the bin-paths JSON does not preserve the IDE consumer
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “bin-paths”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“bin-paths”:
 
 > `mpm-shadow bin-paths` prints the same JSON (`exposureDir`,
 > `pathDirs`,
@@ -190,7 +205,8 @@ The job must fail before any preparation step repairs that output.
 
 ### 7. The mpm lookup choice has not been shown to preserve accepted update semantics
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Update”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Update”:
 
 > npm and PyPI tools:
 > `mpm outdated --output-format json`.
@@ -205,8 +221,10 @@ is a complete resolver for that policy.
 
 Concrete cases requiring evidence:
 
-- The lock is old, but the installed package already equals the registry target.
-  If no outdated row is returned, absence cannot mean “keep the lock.”
+- The lock is old,
+  but the installed package already equals the registry target.
+  If no outdated row is returned,
+  absence cannot mean “keep the lock.”
 - The registry's `latest` tag moves backwards.
   An upgrade-oriented report might omit the required downgrade.
 - A new npm or PyPI declaration has neither an installation nor a resolution.
@@ -215,7 +233,10 @@ Concrete cases requiring evidence:
 
 Smallest fix:
 probe the actual manager-specific invocation in disposable homes,
-including those cases, pinned requests, channels, and release-age policy.
+including those cases,
+pinned requests,
+channels,
+and release-age policy.
 Document how omitted rows are interpreted.
 Define an initial-resolution procedure for new tools that does not silently turn sync into an unpinned install.
 Retain mpm wherever the probes establish sufficient information.
@@ -224,22 +245,31 @@ Retain mpm wherever the probes establish sufficient information.
 
 ### 8. Strict JSON is not the lock's complete consumer contract
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Toolchain plan”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Toolchain plan”:
 
 > `toolchain.lock.json` stays strict JSON for its `jq` readers
 
 The toolchain-split research identifies the relied-on keys:
 
-> `tools.<id>.version`, `.artifacts.<platform>.{url,sha256}`, `.options.androidPackages`
+> `tools.<id>.version`,
+> `.artifacts.<platform>.{url,sha256}`,
+> `.options.androidPackages`
 
 The design preserves parsability but does not explicitly freeze those paths,
-tool IDs, platform keys, or value types.
-A valid JSON redesign can still break Docker, release workflows,
-the test harness, and TypeScript readers.
+tool IDs,
+platform keys,
+or value types.
+A valid JSON redesign can still break Docker,
+release workflows,
+the test harness,
+and TypeScript readers.
 
 The declaration list also omits fields the research identifies as operational inputs:
 
-> `manager`, `packageId`, `env`
+> `manager`,
+> `packageId`,
+> `env`
 
 Those are not interchangeable with tool IDs or executable names.
 
@@ -251,7 +281,8 @@ not merely JSON parsing.
 
 ### 9. Several inventory outcomes have no explicit rule contract or retirement decision
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Config model”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Config model”:
 
 > concatenate,
 > mirror a directory,
@@ -262,7 +293,8 @@ not merely JSON parsing.
 
 The inventory additionally requires:
 
-> `forbidden-strings.append.local.txt` = comment-only seed created only if absent, mode 0600
+> `forbidden-strings.append.local.txt` = comment-only seed created only if absent,
+> mode 0600
 
 It requires the concatenated rules file to be mode 0600,
 and package license generation to:
@@ -275,7 +307,10 @@ license selection,
 or pruning of obsolete license outputs.
 Fan-out alone supplies none of those semantics.
 The catalog section similarly assigns “parsing and rendering” without explicitly carrying
-the required adoption, pruning, internal-version rewriting, and conflict behavior.
+the required adoption,
+pruning,
+internal-version rewriting,
+and conflict behavior.
 
 Smallest fix:
 assign each outcome a concrete built-in or structured operation,
@@ -286,11 +321,13 @@ Reference the complete accepted catalog-sync contract rather than describing it 
 
 ### 10. The cutover omits fixture migrations already required by an accepted decision
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Cutover”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Cutover”:
 
 > deletes `package/file-enforcer/core`
 
-`doc/decision/monorepo-manager-all-rust.md`, “Consequences”:
+`doc/decision/monorepo-manager-all-rust.md`,
+“Consequences”:
 
 > the `file-enforcer-perf` fixture,
 > a `prefer-readonly-parameter-type` fixture read,
@@ -310,7 +347,8 @@ Search and exercise remaining package imports and file-path consumers before del
 
 ### 11. “No lock” has no replacement concurrency policy for structured edits
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Adopted defaults”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Adopted defaults”:
 
 > Writes:
 > temp file then rename,
@@ -319,11 +357,14 @@ Search and exercise remaining package imports and file-path consumers before del
 
 The inventory requires Cargo splices to preserve:
 
-> comments, key order, unowned keys
+> comments,
+> key order,
+> unowned keys
 
 Atomic replacement prevents a reader from seeing a partially written file.
 It does not prevent lost updates.
-For example, watch can read a Cargo manifest,
+For example,
+watch can read a Cargo manifest,
 another writer can change an unowned key,
 and watch can replace the file using its older snapshot.
 
@@ -336,7 +377,8 @@ This does not require restoring the old staleness-manifest machinery.
 
 ### 12. The static-path claim is incompatible with discovery-dependent rules as literally written
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Config model”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Config model”:
 
 > Every input and output path is known from the config without running anything
 
@@ -370,11 +412,13 @@ This does not require an expression language or reversal of the owner's existenc
 
 The crate research describes clap's generated help,
 version output,
-usage, and errors,
+usage,
+and errors,
 but the design does not specify how those paths enter the JSON event stream.
 
 Using clap's ordinary printing path for `--help`,
-`--version`, or an unknown flag would violate the confirmed contract
+`--version`,
+or an unknown flag would violate the confirmed contract
 before the engine starts.
 
 Smallest fix:
@@ -386,7 +430,8 @@ not just successful enforcement and rule failures.
 
 ### 14. A published binary cannot by itself prove the schema matches current source types
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Config schema”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Config schema”:
 
 > The schema is derived from the Rust config types with `schemars`
 
@@ -402,7 +447,8 @@ that binary can reproduce the old schema and report it clean.
 Separately,
 handwritten field decoding and schemars derivation are independent implementations.
 Derivation alone does not establish agreement about tagged values,
-unknown fields, or the config's `$schema` member.
+unknown fields,
+or the config's `$schema` member.
 
 Smallest fix:
 require a source-built schema/check task in development and CI.
@@ -415,7 +461,8 @@ so test it or document a verified manual mapping.
 
 ### 15. The scanner-cache claim has not been exercised at the consumer boundary
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “No scanner step”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“No scanner step”:
 
 > forbidden-strings compiles from that text when its cache is missing or stale
 
@@ -429,11 +476,13 @@ run the real scanner against a disposable rules file,
 first without a compiled cache,
 then after changing a rule while retaining the cache.
 Prove that the changed rule affects a match.
-If it fails, fix runtime cache invalidation rather than silently reinstating the rejected post-step.
+If it fails,
+fix runtime cache invalidation rather than silently reinstating the rejected post-step.
 
 ### 16. The browser rule's consumer compatibility remains unverified
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “browserslist”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“browserslist”:
 
 > writes the same JSON array for `package/config/rolldown/src/browserslist-targets.ts`
 
@@ -458,7 +507,8 @@ that difference is already accepted.
 `doc/research/file-enforcer-rust-rewrite-meow-status.md` records:
 
 > TOML = `toml_edit`
-> behind a repository wrapper (21 of 21 cases; bare `toml_edit` 12)
+> behind a repository wrapper (21 of 21 cases;
+> bare `toml_edit` 12)
 
 The proposed guarded setters and append operations must preserve comments and unowned structure.
 The supplied precedent already shows that the bare editor did not satisfy the complete tested contract.
@@ -474,7 +524,8 @@ comment loss and changes to unowned values do not follow from that allowance.
 
 ### 18. The split section still describes the superseded lock-writing responsibility
 
-`doc/planning/file-enforcer-rust-rewrite.md`, “Toolchain split”:
+`doc/planning/file-enforcer-rust-rewrite.md`,
+“Toolchain split”:
 
 > `update` (network resolution writing lock versions and artifacts)
 
@@ -493,9 +544,25 @@ No new owner decision is needed.
 
 ## Coverage of the requested sections
 
-1. Contradictions: findings 12 and 18.
-2. Required outputs and consumers: findings 4, 5, 8, 9, and 10.
-3. Adopted defaults requiring correction or clarification: findings 3, 11, and 14.
-4. Ordering and bootstrap: findings 1 through 6.
-5. Rule behavior that does not yet establish its intended effect: findings 2, 7, 9, 12, and 13.
-6. Unverified claims: findings 7 and 14 through 17.
+1. Contradictions:
+   findings 12 and 18.
+2. Required outputs and consumers:
+   findings 4,
+   5,
+   8,
+   9,
+   and 10.
+3. Adopted defaults requiring correction or clarification:
+   findings 3,
+   11,
+   and 14.
+4. Ordering and bootstrap:
+   findings 1 through 6.
+5. Rule behavior that does not yet establish its intended effect:
+   findings 2,
+   7,
+   9,
+   12,
+   and 13.
+6. Unverified claims:
+   findings 7 and 14 through 17.

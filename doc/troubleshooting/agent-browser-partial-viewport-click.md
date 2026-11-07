@@ -8,18 +8,24 @@ The Promise lesson's `download #download-reference <path>` command timed out:
 Operation timed out. The page may still be loading or the element may not exist.
 ```
 
-The page was complete, the button existed, and its containing disclosure was open.
+The page was complete,
+the button existed,
+and its containing disclosure was open.
 Process `proc_a208` had passed the chat and workshop checks before reaching this download.
 The failure was not evidence that the download listener or generated file was broken.
 
 ## Root cause
 
-Inspected release: `v0.36.0`, commit `eb05921bad874cd2a1b4fa5d1149f1ed26576cae`.
+Inspected release:
+`v0.36.0`,
+commit `eb05921bad874cd2a1b4fa5d1149f1ed26576cae`.
 The read-only source clone is `~/temp/agent/agent-browser-quality-explorer-2026-09-06`.
 Paths in this section are relative to that clone.
 
 `cli/src/native/actions.rs:6722` defines `handle_download`.
-It configures download handling, subscribes to events, then calls `interaction::click`.
+It configures download handling,
+subscribes to events,
+then calls `interaction::click`.
 `cli/src/native/interaction.rs:37` obtains the point from `resolve_element_center`:
 
 ```rust
@@ -37,7 +43,8 @@ const inView = (r) => r.width > 0 && r.height > 0 &&
     r.left < (window.innerWidth || document.documentElement.clientWidth);
 ```
 
-It scrolls only when that test fails, but subsequently chooses the rectangle's center:
+It scrolls only when that test fails,
+but subsequently chooses the rectangle's center:
 
 ```javascript
 // JavaScript emitted by cli/src/native/element.rs
@@ -51,13 +58,19 @@ const y = rect.y + rect.height / 2;
 
 The measured button rectangle after the failed command was:
 
-- Top: `565.140625` CSS pixels.
-- Height: `48` CSS pixels.
-- Bottom: `613.140625` CSS pixels.
-- Viewport height: `577` CSS pixels.
+- Top:
+  `565.140625` CSS pixels.
+- Height:
+  `48` CSS pixels.
+- Bottom:
+  `613.140625` CSS pixels.
+- Viewport height:
+  `577` CSS pixels.
 
-The rectangle intersects the viewport, so `inView` is true.
-Its center is at `589.140625`, outside that viewport.
+The rectangle intersects the viewport,
+so `inView` is true.
+Its center is at `589.140625`,
+outside that viewport.
 `document.elementFromPoint()` at the measured center returned no element.
 The visibility predicate and the chosen interaction point answer different questions.
 
@@ -68,7 +81,9 @@ Working catalog:
 - `scrollintoview '#download-reference'` before the native download command.
 - Read the resulting rectangle and assert that its center hits the intended element.
 - The revised driver applies this to native clicks and downloads.
-  `proc_28b9` passed the whole advanced suite, downloads, and an unfiltered empty-error check.
+  `proc_28b9` passed the whole advanced suite,
+  downloads,
+  and an unfiltered empty-error check.
 - `proc_f17b` reopened and exercised those downloaded files.
 
 Failing catalog:
@@ -77,7 +92,8 @@ Failing catalog:
 - Inferring a failed application listener from the tool's generic timeout.
 
 Runnable local implementation:
-`~/temp/agent/promises-revision/verify-advanced.mjs`, invoked by `mise run test:advanced`.
+`~/temp/agent/promises-revision/verify-advanced.mjs`,
+invoked by `mise run test:advanced`.
 The additional hit check is:
 
 ```javascript
@@ -93,7 +109,9 @@ element.contains(document.elementFromPoint(
 Tradeoff:
 explicit scrolling changes viewport position.
 It does not establish a general fix for fixed off-screen elements,
-wrapped inline fragments, overlays, or every frame coordinate system.
+wrapped inline fragments,
+overlays,
+or every frame coordinate system.
 Those inputs were not substituted for this measured button.
 
 ## Verified selector-geometry prototype
@@ -102,12 +120,15 @@ A fresh private clone at `~/temp/agent/upstream-prototype.EsTqN4`
 was checked against the origin URL and release commit before editing.
 The installed tool and lesson were not patched.
 
-`mise run probe:click-prototype`, from `~/temp/agent/promises-revision/`,
+`mise run probe:click-prototype`,
+from `~/temp/agent/promises-revision/`,
 compiles the actual Rust `build_selector_js` emitter and `BLOCKER_AT_JS` constant
 before and after the change.
 Only selector lookup is replaced with a fixture lookup for `#target`.
 Compilation uses `rust:1.97-bookworm` with no network,
-no proxy environment, a 2 GiB memory limit, and 2 CPUs.
+no proxy environment,
+a 2 GiB memory limit,
+and 2 CPUs.
 The generated JavaScript computes points in a real disposable browser;
 actual mouse move/down/up commands exercise those points.
 
@@ -156,8 +177,13 @@ The prototype chooses the center of the visible intersection when one exists:
 ```
 
 Coverage limits:
-this compiles and exercises the changed emitter, not the whole CLI.
-It does not test every selector parser, ref path, iframe, clipping ancestor, or wrapped inline element.
+this compiles and exercises the changed emitter,
+not the whole CLI.
+It does not test every selector parser,
+ref path,
+iframe,
+clipping ancestor,
+or wrapped inline element.
 A wholly unreachable rectangle retains its previous fallback behavior.
 The consumer's explicit-scroll workaround remains in use regardless of this prototype.
 
@@ -172,28 +198,37 @@ The consumer's explicit-scroll workaround remains in use regardless of this prot
 
 Initial conjunctive searches returned no matches.
 Broader issue searches for `scroll` and PR searches for `click` found related work.
-The bodies and comments of [issue #1044][issue], [PR #1073][scroll-pr],
+The bodies and comments of [issue #1044][issue],
+[PR #1073][scroll-pr],
 and [PR #1756][fragment-pr] were read in full.
 
 The current source already has conditional scrolling.
 The older wholly-off-screen report is not proof that this version lacks it.
 The wrapped-inline PR concerns another geometry problem and is not treated as this incident's fix.
 
-1.  Fault: the inspected CSS-selector predicate permits the measured off-screen center.
-2.  Fixability: scrolling and point selection are implemented upstream;
+1.  Fault:
+    the inspected CSS-selector predicate permits the measured off-screen center.
+2.  Fixability:
+    scrolling and point selection are implemented upstream;
     the related PR proposes changes at that boundary.
-3.  Supported use: native clicks and downloads are documented commands.
-4.  Contribution policy: no contribution file or issue/PR template exists in the inspected clone.
-    `AGENTS.md` addresses AI contributors; a tracker search for `AI-generated` found no matching policy report.
-5.  Direction: collaborator responses on PR #1073 support improving scroll-before-interaction behavior.
-6.  Prototype: the changed Rust geometry emitter was compiled and its generated points were exercised
+3.  Supported use:
+    native clicks and downloads are documented commands.
+4.  Contribution policy:
+    no contribution file or issue/PR template exists in the inspected clone.
+    `AGENTS.md` addresses AI contributors;
+    a tracker search for `AI-generated` found no matching policy report.
+5.  Direction:
+    collaborator responses on PR #1073 support improving scroll-before-interaction behavior.
+6.  Prototype:
+    the changed Rust geometry emitter was compiled and its generated points were exercised
     before and after the patch as recorded in `Verified selector-geometry prototype`.
     PR #1073 itself was not applied or independently verified.
 
 The skill-relative `.out-of-scope/` directory was absent.
 No new issue is warranted for this related symptom.
 The partial-intersection evidence is additional to the wholly-off-screen case discussed in issue #1044.
-The comment draft remains local; external posting has not been authorized.
+The comment draft remains local;
+external posting has not been authorized.
 The local workaround does not depend on upstream acceptance.
 
 ### Additive comment draft

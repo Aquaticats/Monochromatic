@@ -31,7 +31,7 @@ fn ids() -> Vec<&'static str> {
         .iter()
         .copied()
         .filter(|id| return id.starts_with("markdown/"))
-        .collect()
+        .collect();
 }
 
 /// The selected severity of every rule,

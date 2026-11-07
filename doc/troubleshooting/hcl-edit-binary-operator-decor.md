@@ -2,7 +2,19 @@
 
 `hcl-edit` round-trips most HCL byte for byte,
 but every comment and every newline that sits next to a binary operator
-(`+`, `-`, `*`, `/`, `%`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||`)
+(`+`,
+`-`,
+`*`,
+`/`,
+`%`,
+`==`,
+`!=`,
+`<`,
+`<=`,
+`>`,
+`>=`,
+`&&`,
+`||`)
 is replaced by a single space when the parsed document is printed again.
 Nothing is reported:
 the output still parses and still evaluates to the same value,
@@ -146,7 +158,8 @@ impl Encode for BinaryOp {
 }
 ```
 
-So every byte the author wrote around an operator, comments included,
+So every byte the author wrote around an operator,
+comments included,
 is replaced by `" "`.
 Sibling nodes do not have the bug:
 `Traversal::despan` walks its operators
@@ -154,7 +167,8 @@ Sibling nodes do not have the bug:
 and `ObjectItem::despan` walks its key and value
 (`src/expr/object.rs:174-181`).
 
-An earlier reading, recorded in `stack-declarative-config.md`,
+An earlier reading,
+recorded in `stack-declarative-config.md`,
 was that the printer deliberately normalizes multi-line conditions.
 It is wrong:
 the printer has no normalization pass at all,
@@ -171,7 +185,9 @@ which a formatting choice would not do.
    `nightly-2026-09-12` (`rustc 1.100.0-nightly`).
 - Isolation:
    every build and run happened in `podman run --rm --init --memory=2g --cpus=2 --pids-limit=512
-   --network=none` with no credentials, no home directory, and no repository mount.
+   --network=none` with no credentials,
+  no home directory,
+  and no repository mount.
 
 Harness:
 
@@ -233,18 +249,28 @@ Patterns that round-trip cleanly:
 
 - Any expression with no binary operator.
 - A binary operation whose operands are written without any whitespace (`1+2`),
-   or with exactly one space on each side, which is what the default prints anyway.
+   or with exactly one space on each side,
+  which is what the default prints anyway.
 - Comments anywhere else:
-   before an attribute, after a value, inside arrays and objects, and inside heredocs.
+   before an attribute,
+  after a value,
+  inside arrays and objects,
+  and inside heredocs.
 
 Patterns that lose bytes:
 
 - Block comments and line comments on either side of any binary operator.
-- Newlines around a binary operator inside brackets, parentheses, or a `for` condition,
+- Newlines around a binary operator inside brackets,
+  parentheses,
+  or a `for` condition,
    where HCL allows multi-line expressions.
 
 Corpus scale:
-over 2,246 HCL files from the OpenTofu, HashiCorp HCL, hcl-rs, tofu-ls, and hcl-lang repositories,
+over 2,246 HCL files from the OpenTofu,
+HashiCorp HCL,
+hcl-rs,
+tofu-ls,
+and hcl-lang repositories,
 this defect changed one file,
 because production Terraform rarely puts comments next to operators;
 the meow configuration draft written for this research hits it on two of its expressions.
@@ -252,7 +278,9 @@ the meow configuration draft written for this research hits it on two of its exp
 ## Verified workarounds
 
 - Compare before writing.
-   Parse, print, and refuse to write when `printed != input` unless the caller asked for a rewrite.
+   Parse,
+  print,
+  and refuse to write when `printed != input` unless the caller asked for a rewrite.
   Tradeoff:
    turns silent data loss into a refusal,
    but blocks legitimate edits of any file that contains a comment beside an operator,
@@ -283,7 +311,8 @@ the meow configuration draft written for this research hits it on two of its exp
    (`hcl-edit-0.9.7/src/parser/mod.rs:37-41`).
 - Avoiding the parser's `to_string` by serializing through `hcl-rs`
    (`hcl::format::to_string`)
-   loses every comment in the document, not only those beside operators,
+   loses every comment in the document,
+  not only those beside operators,
    so it is strictly worse.
 
 ## Upstream filing artifact
@@ -293,9 +322,11 @@ the meow configuration draft written for this research hits it on two of its exp
 1. Is it really upstream's fault?
     Yes.
    The crate's stated purpose is "Parse and modify HCL while preserving comments and whitespace"
-    (`hcl-edit` README, first line),
+    (`hcl-edit` README,
+   first line),
     and the maintainer states the crate follows the HCL specifications
-    (`martinohmann/hcl-rs` issue #304, comment of 2024-04-09).
+    (`martinohmann/hcl-rs` issue #304,
+   comment of 2024-04-09).
    Losing comments on an unedited round trip contradicts that purpose.
 2. Can upstream fix it?
     Yes.
@@ -323,12 +354,17 @@ the meow configuration draft written for this research hits it on two of its exp
    The open issue #566 from 2026-09-04 has no maintainer reply yet,
     which is silence rather than a decline.
 6. Have we prototyped a minimal fix compatible with their architecture?
-    Yes, see the diff and its verification.
+    Yes,
+   see the diff and its verification.
 
 ### Duplicate search
 
-Searched `martinohmann/hcl-rs` issues and pull requests, open and closed, on 2026-09-17
-(`gh search issues` and `gh search prs`, `--limit 100`, recorded in
+Searched `martinohmann/hcl-rs` issues and pull requests,
+open and closed,
+on 2026-09-17
+(`gh search issues` and `gh search prs`,
+`--limit 100`,
+recorded in
 `data/dup-search.jsonl` in the research scratchpad):
 `operator comment`,
 `operator whitespace`,
@@ -339,9 +375,12 @@ Searched `martinohmann/hcl-rs` issues and pull requests, open and closed, on 202
 `roundtrip comment`,
 `round trip`.
 No hit describes this behavior.
-The closest are #466 and its fix #467, where a line comment after a binary operator made parsing fail,
+The closest are #466 and its fix #467,
+where a line comment after a binary operator made parsing fail,
 which is a different failure mode and is already released;
-and #567, about object keys not surviving `to_string` plus `parse`, which is a different node type.
+and #567,
+about object keys not surviving `to_string` plus `parse`,
+which is a different node type.
 
 ### Prototype fix and verification
 
@@ -372,7 +411,8 @@ plus three inputs added to the existing `roundtrip_expr` test:
         "[for p in xs : p\n  if p != \"\"\n  && p != \"z\" # trailing\n  && length(p) > 0\n]",
 ```
 
-Verification, both runs in the bounded container:
+Verification,
+both runs in the bounded container:
 
 - Without the source change and with the new test inputs:
    `cargo test --offline --locked -p hcl-edit --lib` printed

@@ -8,8 +8,11 @@ This repo intentionally does **not** maintain `CONTEXT.md`,
  `CONTEXT-MAP.md`,
  or `doc/adr/` directories.
  Cached code summaries stale quickly and create false confidence.
- Working understandings, user-defined meanings, and accepted decisions are nevertheless recorded
- beside the relevant plan or package, with dated evidence and explicit unknowns.
+ Working understandings,
+user-defined meanings,
+and accepted decisions are nevertheless recorded
+ beside the relevant plan or package,
+with dated evidence and explicit unknowns.
  The [understanding practice](understanding.md) describes that record.
  Instead:
 

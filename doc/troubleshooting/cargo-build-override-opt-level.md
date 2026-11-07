@@ -22,7 +22,9 @@ which means rustc's default of 0.
 
 ## Root cause
 
-Cargo treats build scripts, proc macros, and everything they depend on as host units
+Cargo treats build scripts,
+proc macros,
+and everything they depend on as host units
 and resets their optimization level before applying any user override.
 `src/workspace/profiles.rs:451` to `:464` in rust-lang/cargo at `495c385d0875c4ba51eb72ea0448a2d4c018b8d4`:
 
@@ -74,12 +76,15 @@ codegen-units = 256
 
 The same page says profiles are read only from the workspace root manifest
 ("Profile settings defined in dependencies will be ignored"),
-and that "Overrides cannot specify the panic, lto, or rpath settings."
+and that "Overrides cannot specify the panic,
+lto,
+or rpath settings."
 Settings other than those three,
 such as `overflow-checks = true` from the `forbidden-strings` release profile,
 still carry into the build script's units.
 
-The Cargo clone is newer than the installed Cargo (`7941be6fb`, 2026-09-11);
+The Cargo clone is newer than the installed Cargo (`7941be6fb`,
+2026-09-11);
 the pre-change `--verbose` build log confirms the installed Cargo behaves the same way:
 the build-dependency `forbidden_regex` unit was invoked with `--crate-type lib -C overflow-checks=on`
 and no `-C opt-level`,
@@ -94,7 +99,8 @@ Versions under test:
 
 - `cargo 1.100.0-nightly (7941be6fb 2026-09-11)`
 - `rustc 1.100.0-nightly (215a8af4b 2026-09-15)`
-- Linux `7.2.0-ogc6.1.fc44.x86_64`, 16 logical CPUs
+- Linux `7.2.0-ogc6.1.fc44.x86_64`,
+  16 logical CPUs
 
 ### Emulating the build-script profile
 
@@ -224,14 +230,27 @@ sha256sum opt0.bin opt3.bin
 
 With the engine building rules one at a time (before `forbidden-regex` commit `2d7f341f4`):
 
-- `opt-level = 0`, 256 codegen units (Cargo's build-script default): 390.8s
-- `opt-level = 3`, 16 codegen units: 97.5s, peak resident memory 0.88 GB
+- `opt-level = 0`,
+  256 codegen units (Cargo's build-script default):
+  390.8s
+- `opt-level = 3`,
+  16 codegen units:
+  97.5s,
+  peak resident memory 0.88 GB
 
 With the engine building rules on 16 worker threads (from `2d7f341f4`):
 
-- `opt-level = 0`, 256 codegen units: 77.2s
-- `opt-level = 3`, 16 codegen units: 21.3s and 18.2s on two runs, peak resident memory 5.8 GB
-- `opt-level = 3`, 256 codegen units: 18.7s, peak resident memory 5.9 GB
+- `opt-level = 0`,
+  256 codegen units:
+  77.2s
+- `opt-level = 3`,
+  16 codegen units:
+  21.3s and 18.2s on two runs,
+  peak resident memory 5.8 GB
+- `opt-level = 3`,
+  256 codegen units:
+  18.7s,
+  peak resident memory 5.9 GB
 
 Every configuration serialized the same bytes:
 SHA-256 `d5cdce69254b5fc2f546fe69dc2522dd9da1a9451cad92226b2d71f2920bbd2f`.
@@ -241,10 +260,16 @@ SHA-256 `d5cdce69254b5fc2f546fe69dc2522dd9da1a9451cad92226b2d71f2920bbd2f`.
 Each build used a fresh `CARGO_TARGET_DIR`
 and `mise run //package/forbidden-strings/cli:build -- --timings --verbose`.
 
-- before (`9b3c13a82`: no build-override, one-at-a-time engine): 7m 01s total, build script run 400.07s
+- before (`9b3c13a82`:
+  no build-override,
+  one-at-a-time engine):
+  7m 01s total,
+  build script run 400.07s
 - after (`f515ed927` plus later comment and documentation commits;
-  build-override `opt-level = 3`, threaded engine):
-  50.86s total, build script run 19.58s
+  build-override `opt-level = 3`,
+  threaded engine):
+  50.86s total,
+  build script run 19.58s
 
 ## Verified workarounds
 
@@ -259,7 +284,10 @@ opt-level = 3
 opt-level = 3
 ```
 
-The dev override matters because `cargo check`, clippy, `cargo nextest`, and debug builds all run the build script.
+The dev override matters because `cargo check`,
+clippy,
+`cargo nextest`,
+and debug builds all run the build script.
 `package/forbidden-strings/cli.fuzz/Cargo.toml` repeats both tables,
 because it is its own workspace root and Cargo ignores the scanner manifest's profiles there.
 
@@ -268,8 +296,10 @@ Tradeoffs:
 - every host unit is optimized,
   including proc macros such as `serde_derive` and `clap_derive`,
   which lengthens their compile time for no runtime benefit:
-  in the end-to-end clean builds, `serde_derive` went from 1.43s to 4.23s and `clap_derive` from 0.74s to 3.75s
-  (both builds ran units concurrently, so single-unit durations are approximate)
+  in the end-to-end clean builds,
+  `serde_derive` went from 1.43s to 4.23s and `clap_derive` from 0.74s to 3.75s
+  (both builds ran units concurrently,
+  so single-unit durations are approximate)
 - the build-dependency copy of `forbidden-regex` and its dependencies still compiles separately from the runtime copy,
   because the runtime release profile uses `lto = true` and `codegen-units = 1`,
   which an override cannot match (`lto` is not allowed in overrides)
@@ -289,7 +319,8 @@ so the manifest sets only `opt-level`.
   which is why the fuzz crate needs its own copy.
 - `lto` in a `build-override` table:
   the Cargo book lists `lto` among the settings overrides cannot specify.
-- Threading the engine alone, without the override:
+- Threading the engine alone,
+  without the override:
   77.2s unoptimized versus 18.2s to 21.3s optimized,
   so the optimization level is the larger of the two wins.
 
@@ -309,11 +340,15 @@ so it does not exempt the topic.
    and the Cargo book's "Build Dependencies" section.
    Build scripts that do heavy computation are the exception the override exists for.
 2. **Can upstream fix it?**
-   Not applicable: there is no defect.
+   Not applicable:
+   there is no defect.
 3. **Are they supporting this use case?**
-   Yes, through `[profile.<name>.build-override]`, which is the workaround.
+   Yes,
+   through `[profile.<name>.build-override]`,
+   which is the workaround.
 4. **Would the repo welcome our contribution?**
-   Not evaluated, because constraint 1 fails.
+   Not evaluated,
+   because constraint 1 fails.
 5. **Will they likely fix it?**
    Not applicable.
 6. **Have we prototyped a minimal fix?**
@@ -323,7 +358,9 @@ Duplicate search:
 `gh search issues --repo rust-lang/cargo 'build-override'` returned
 rust-lang/cargo#16193 ("Allow specifying build dependencies `opt-level` with `[project.dev.build-override.package]`")
 and rust-lang/cargo#9351 ("Precedence issue with `build-override` and `package."*"`"),
-both about override granularity, not the default.
+both about override granularity,
+not the default.
 Nothing to add to either.
 
-Nothing to file, and no comment to post.
+Nothing to file,
+and no comment to post.

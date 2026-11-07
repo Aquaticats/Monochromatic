@@ -1,7 +1,9 @@
 # Unified-linter processor mutation survivors
 
-Note 2026-10-30: `package/linter/monochromatic-lint/bin/test-container.mjs` and `clippy-container.mjs` are
-TypeScript files now; read those names here as `test-container.ts` and `clippy-container.ts`.
+Note 2026-10-30:
+`package/linter/monochromatic-lint/bin/test-container.mjs` and `clippy-container.mjs` are
+TypeScript files now;
+read those names here as `test-container.ts` and `clippy-container.ts`.
 
 ## Purpose and how to respond
 
@@ -553,7 +555,8 @@ which reported no warnings.
   97 seconds of baseline build and 28 minutes of mutants,
   1,985 seconds for the whole task including the full suite and Clippy.
 - Exit status 3,
-  which `cargo-mutants` 27.1.0 reserves for timeouts (`src/exit_code.rs`, `ExitCode::Timeout`).
+  which `cargo-mutants` 27.1.0 reserves for timeouts (`src/exit_code.rs`,
+  `ExitCode::Timeout`).
   Missed mutants would give status 2.
   The runner reports any nonzero status as a failed task,
   so the task fails while these 2 timeouts remain.

@@ -137,15 +137,20 @@ On both platforms,
 clicking or tapping a track row that is not the current track selects it and leaves it paused,
 and any track that was playing stops (D124),
 when the Auto-play on select setting is off (D129);
-the setting is on by default (D133), and with it on the click also starts the track at once.
+the setting is on by default (D133),
+and with it on the click also starts the track at once.
 Clicking or tapping the current row toggles play and pause,
 which also starts a track restored from the last session.
 A track that failed to open stays selected on both platforms and the next click or tap tries it again (D128);
-Next, Previous and the end of a track still skip unreadable files and report them.
+Next,
+Previous and the end of a track still skip unreadable files and report them.
 `Enter` on the focused row does the same.
 A Search result for a track follows the same rule (D127):
-the first activation selects the track and leaves it paused, and the second toggles play and pause,
-or, with Auto-play on select on (the default), the first activation also starts it.
+the first activation selects the track and leaves it paused,
+and the second toggles play and pause,
+or,
+with Auto-play on select on (the default),
+the first activation also starts it.
 The Play item of the track menu starts a track at once with the setting on or off.
 
 One playback mode of four applies on both platforms,
@@ -230,11 +235,18 @@ template's editor on the other,
 so selecting a row never navigates.
 A narrower window shows the list,
 and a row opens that template's editor page.
-Under the templates, a Playback group holds one switch row,
-Auto-play on select, which is on by default (D133).
-With it on, a click, tap or `Enter` on a track that is not the current track, and a Search result for one,
+Under the templates,
+a Playback group holds one switch row,
+Auto-play on select,
+which is on by default (D133).
+With it on,
+a click,
+tap or `Enter` on a track that is not the current track,
+and a Search result for one,
 selects the track and starts it at once (D129).
-The row toggles in place by click, tap, `Space` or `Enter`,
+The row toggles in place by click,
+tap,
+`Space` or `Enter`,
 opens no editor and leaves the selected template as it is;
 in a narrow list pane the switch sits under the supporting line.
 The page is drawn on the one canvas color,
@@ -280,8 +292,10 @@ plus a GNU `x86_64` build that needs no Microsoft toolchain,
 and uses WASAPI through cpal;
 `desktop-app/README.md` (section "Windows") has the toolchains and tasks.
 The `test-windows` job of `.github/workflows/music-player-release.yml` builds all three and runs the test suite on
-GitHub's Windows runners, on a release or a manual run of that workflow.
-Apart from that, only the Linux `x86_64` build has been run by the project;
+GitHub's Windows runners,
+on a release or a manual run of that workflow.
+Apart from that,
+only the Linux `x86_64` build has been run by the project;
 the other desktop targets are built by CI and have not been tested by hand on their platform.
 
 The desktop source implements LauncherEntry D-Bus taskbar progress on Linux and native taskbar progress on Windows.
@@ -459,7 +473,8 @@ The query `lan` finds a loose track,
 a folder,
 and a track with its parent folder,
 each with the matching text highlighted.
-The header, the status strip and the results share one tone,
+The header,
+the status strip and the results share one tone,
 a thin divider closes the header,
 and each result keeps its glyph in a round tonal disc.
 The on-screen keyboard was closed before the capture so that the results fill the display.
@@ -503,9 +518,11 @@ and the mode group wraps to two rows.
 ![Inner display with two panes in dark appearance and a playing track](https://monochromatic-lfs.aquaticat.workers.dev/bdfe6255fecba3dca4a8ebb349494e8ee2282c80757e011eeda75f5f2eeb2825/package/music-player/asset/readme/android-inner-two-pane-dark.png)
 
 On the inner display Settings keeps the template list on the left with Track rows selected,
-the Auto-play on select switch under it, below the Playback heading,
+the Auto-play on select switch under it,
+below the Playback heading,
 and the Licenses row below the About heading.
-The Licenses page covers the whole window (the right half on a creased screen, so no text crosses the fold),
+The Licenses page covers the whole window (the right half on a creased screen,
+so no text crosses the fold),
 and Back or Escape returns to the two panes.
 The right pane shows that template's preview from the open library,
 its template text,
@@ -558,7 +575,8 @@ Every release is a pre-release,
 because the project is under active development.
 A release holds one file per platform and a `SHA256SUMS` file:
 
-- Windows: `music-player-<version>-windows-x64.exe` and `music-player-<version>-windows-arm64.exe`.
+- Windows:
+  `music-player-<version>-windows-x64.exe` and `music-player-<version>-windows-arm64.exe`.
   `music-player-<version>-windows-x64-gnu.exe` is the same source for x64 built with MinGW-w64 and GNU ld,
   without Microsoft's toolchain;
    it needs no Visual C++ runtime either.
@@ -573,7 +591,10 @@ A release holds one file per platform and a `SHA256SUMS` file:
    `music-player-<version>-linux-musl-x64.tar.gz` and `music-player-<version>-linux-musl-arm64.tar.gz`.
   These are for Alpine 3.24 or newer (musl libc) on x86_64 or aarch64;
   the Linux archives above do not run on Alpine.
-- Android: `music-player-<version>-android-arm64-v8a.apk` for phones, tablets and foldables (64-bit ARM), and
+- Android:
+  `music-player-<version>-android-arm64-v8a.apk` for phones,
+  tablets and foldables (64-bit ARM),
+  and
   `music-player-<version>-android-x86_64.apk` for x86_64 devices and emulators.
 - License notices:
    `music-player-<version>-desktop-third-party-licenses.txt` and
@@ -584,12 +605,16 @@ A release holds one file per platform and a `SHA256SUMS` file:
 
 The project has run the Linux `x86_64` build on Wayland with PipeWire,
 and the Android app on emulators.
-Every other file is built by CI, not yet tested on this platform:
+Every other file is built by CI,
+not yet tested on this platform:
 CI starts each desktop program once with `--version` and does nothing more.
-No build has run on a real Android device, on macOS or on Windows.
-The Alpine files have more checking than the other CI-built files, though not on real hardware:
+No build has run on a real Android device,
+on macOS or on Windows.
+The Alpine files have more checking than the other CI-built files,
+though not on real hardware:
 the `test-alpine` job of the release workflow runs the unit tests and a headless window and sound check
-in Alpine containers on both architectures, on debug builds,
+in Alpine containers on both architectures,
+on debug builds,
 and the release run starts each Alpine program with `--version` in an Alpine image.
 Treat those downloads as unverified and report what you find as issues.
 
@@ -608,24 +633,35 @@ so SmartScreen may show "Windows protected your PC":
 choose "More info",
 then "Run anyway".
 The executable opens no console window when you double-click it.
-Started from a terminal (Command Prompt or PowerShell), it attaches to that terminal,
+Started from a terminal (Command Prompt or PowerShell),
+it attaches to that terminal,
 so `music-player.exe --version` and `--help` print there and its log lines appear there;
 `cmd.exe` and PowerShell return to the prompt at once instead of waiting for the program to end.
-In `cmd.exe` and in bash, `> file.txt` and a pipe work as usual.
+In `cmd.exe` and in bash,
+`> file.txt` and a pipe work as usual.
 PowerShell never reads the output of a GUI program,
 so `music-player.exe --version > file.txt` leaves an empty file there;
-use `music-player.exe --version | Out-File file.txt`, `| Out-String`,
+use `music-player.exe --version | Out-File file.txt`,
+`| Out-String`,
 or `Start-Process -Wait -NoNewWindow -RedirectStandardOutput file.txt music-player.exe --version`.
-Started by a double-click, the program has no console,
+Started by a double-click,
+the program has no console,
 so its log lines are not shown anywhere.
 When such a start fails (the program cannot open its connection to the desktop,
-cannot create its window, its window stops working, or it hits an internal error),
-a Windows message box names the step that failed, what Windows reported, and what you can do.
-Started from a terminal, the program prints the same text there instead and shows no box
+cannot create its window,
+its window stops working,
+or it hits an internal error),
+a Windows message box names the step that failed,
+what Windows reported,
+and what you can do.
+Started from a terminal,
+the program prints the same text there instead and shows no box
 (after an internal error it prints the standard panic message).
 Log lines are colored only on a console that shows the colors;
-redirected to a file or a pipe, they are plain text.
-The program takes one optional folder or file to open: `music-player.exe C:\Music`.
+redirected to a file or a pipe,
+they are plain text.
+The program takes one optional folder or file to open:
+`music-player.exe C:\Music`.
 
 ### macOS
 
@@ -635,7 +671,9 @@ so the first launch needs your confirmation:
 
 1.  Try to open Music Player once.
     macOS shows a warning and does not start it.
-2.  Open System Settings, go to Privacy & Security, scroll down and click "Open Anyway".
+2.  Open System Settings,
+    go to Privacy & Security,
+    scroll down and click "Open Anyway".
 3.  Click "Open" when the warning appears again.
 
 macOS remembers the choice after that.
@@ -656,7 +694,8 @@ so an AppImage would depend on the host as much as the archive does.
 
 ### Alpine Linux download
 
-Use the `linux-musl` archive that matches your processor (`x86_64` is `x64`, `aarch64` is `arm64`).
+Use the `linux-musl` archive that matches your processor (`x86_64` is `x64`,
+`aarch64` is `arm64`).
 Install the runtime packages as root,
 then extract the archive and run `bin/music-player`:
 
@@ -670,7 +709,9 @@ Without PipeWire the player plays through the default ALSA device.
 It needs a Wayland compositor;
 the X11 path is untested.
 The binary is dynamically linked against musl and runs only on musl systems.
-The other differences from a Fedora desktop (fonts, the folder chooser, notifications) are in
+The other differences from a Fedora desktop (fonts,
+the folder chooser,
+notifications) are in
 [Alpine Linux](#alpine-linux).
 
 ### Android
@@ -739,7 +780,8 @@ The application itself runs on the host session.
  macOS builds target Apple
 Silicon,
  and Windows builds target `x86_64` and `aarch64` (MSVC) and `x86_64` (GNU);
- all build natively on Windows, and the GNU one also cross-compiles in a container.
+ all build natively on Windows,
+and the GNU one also cross-compiles in a container.
 The desktop application accepts one optional file or directory path;
  a file selects its parent directory.
 Pass `--start-playing` only when automatic playback on launch is required.
@@ -918,7 +960,9 @@ Mise.
 Use synthetic audio and folder names when creating visual fixtures.
 The desktop captures in the gallery come from the session helpers of [`desktop-e2e`](desktop-e2e),
 which play into a private null sink.
-The method of this gallery, and the facts for retaking the Android gallery, are in
+The method of this gallery,
+and the facts for retaking the Android gallery,
+are in
 [`doc/handover/music-player-readme-and-gallery.md`](../../doc/handover/music-player-readme-and-gallery.md).
 
 ## Related documentation

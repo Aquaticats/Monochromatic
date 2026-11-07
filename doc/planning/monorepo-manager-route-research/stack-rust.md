@@ -12,8 +12,10 @@ Outcome on 2026-09-16:
 - Configuration hosting for Option 1 is being redesigned;
    see "Current stack direction" in `doc/planning/monorepo-manager-from-scratch-design.md`.
 
-Research date: 2026-09-16.
-Scope: read-only design deep dive for two options from
+Research date:
+2026-09-16.
+Scope:
+read-only design deep dive for two options from
 `doc/planning/monorepo-manager-from-scratch-design.md`,
 "Tech stack options":
 
@@ -279,36 +281,46 @@ so each component is a directory of sibling modules.
 - `pre_exec` runs "in the context of the child process after a `fork`",
    forbids allocation-dependent operations,
    and notes that `Error::new` and `Error::other` allocate
-   (`STD/os/unix/process.rs:60-110`, verified;
-   the same text is on <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html>, std 1.98.1,
+   (`STD/os/unix/process.rs:60-110`,
+  verified;
+   the same text is on <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html>,
+  std 1.98.1,
    verified by curl).
 - The child applies `setpgid` (`STD/sys/process/unix/unix.rs:346-348`) and `setsid` (`:350-352`)
    before running closures (`:388-390`),
    so the cgroup write happens after process-group setup (verified).
 - Any `pre_exec` closure disables the `posix_spawn` fast path,
    `|| !self.get_closures().is_empty()` then `return Ok(None)`
-   (`STD/sys/process/unix/unix.rs:469-477`, verified),
+   (`STD/sys/process/unix/unix.rs:469-477`,
+  verified),
    so every task spawn uses `fork` of the daemon.
   The fork cost for the daemon's resident memory is unmeasured.
 - Kernel `cgroup.procs` doc:
    "A PID can be written to migrate the process associated with the PID to the cgroup",
    the writer needs write access to `cgroup.procs` of the destination and of the common ancestor
-   (<https://docs.kernel.org/admin-guide/cgroup-v2.html>, verified by curl).
+   (<https://docs.kernel.org/admin-guide/cgroup-v2.html>,
+  verified by curl).
   The page does not mention writing `0` (verified by the extracted section text).
 - Kernel source:
-   a `0` PID selects `current` (`SCR/rust-stack/src/linux-cgroup.c:3131-3139`, verified),
+   a `0` PID selects `current` (`SCR/rust-stack/src/linux-cgroup.c:3131-3139`,
+  verified),
    and permission checks use "the credentials from file open to protect against inherited fd attacks"
-   (`:5504-5510`, verified),
+   (`:5504-5510`,
+  verified),
    so a parent-opened descriptor carries the daemon user's credentials into the child.
 - Kernel doc for `cgroup.freeze`:
    completion updates `frozen` in `cgroup.events`,
    and frozen processes "can be killed by a fatal signal";
    `cgroup.kill` sends `SIGKILL` to the subtree,
    "deal[s] with concurrent forks appropriately and is protected against migrations"
-   (<https://docs.kernel.org/admin-guide/cgroup-v2.html>, verified by curl).
+   (<https://docs.kernel.org/admin-guide/cgroup-v2.html>,
+  verified by curl).
 - `clone3` with `CLONE_INTO_CGROUP` (Linux 5.7) creates the child directly in a cgroup given by a directory descriptor
-   (<https://man7.org/linux/man-pages/man2/clone.2.html>, verified by curl;
-   kernel `cgroup_css_set_fork`, `SCR/rust-stack/src/linux-cgroup.c:6863-6950`, verified).
+   (<https://man7.org/linux/man-pages/man2/clone.2.html>,
+  verified by curl;
+   kernel `cgroup_css_set_fork`,
+  `SCR/rust-stack/src/linux-cgroup.c:6863-6950`,
+  verified).
   Rejected for 0.x:
   - std's spawn has no `clone3` path;
      `rg 'pidfd|PidFd|create_pidfd|clone3|CLONE_INTO_CGROUP'`
@@ -317,20 +329,29 @@ so each component is a directory of sibling modules.
      standard-descriptor setup,
      and error reporting that std already implements.
   - `libc`'s `CLONE_INTO_CGROUP` is a deprecated `c_int` holding `0x200000000`
-     (`REG/libc-0.2.189/src/unix/linux_like/linux/gnu/mod.rs:871-876`, verified),
+     (`REG/libc-0.2.189/src/unix/linux_like/linux/gnu/mod.rs:871-876`,
+    verified),
      which evaluates to `0` (libc constant probe),
      so passing it silently spawns into the parent's cgroup.
-  - The `clone3` crate's last release is 0.2.3 on 2022-12-07 (crates.io API, verified).
+  - The `clone3` crate's last release is 0.2.3 on 2022-12-07 (crates.io API,
+    verified).
 - pidfd:
-   std's `create_pidfd` is nightly-only (`linux_pidfd`, issue 82971)
-   (`STD/os/linux/process.rs:5`, `:191-210`, verified;
+   std's `create_pidfd` is nightly-only (`linux_pidfd`,
+  issue 82971)
+   (`STD/os/linux/process.rs:5`,
+  `:191-210`,
+  verified;
    <https://doc.rust-lang.org/std/os/linux/process/trait.CommandExt.html> shows "This is a nightly-only experimental
-   API", verified by curl).
+   API",
+  verified by curl).
   `rustix::process::pidfd_open` is stable
-   (`REG/rustix-1.1.4/src/process/pidfd.rs:20-30`, verified).
+   (`REG/rustix-1.1.4/src/process/pidfd.rs:20-30`,
+  verified).
 - `std::thread::available_parallelism` reads cgroup quotas on Linux and is recomputed on every call
-   (`STD/thread/functions.rs:633-666`, verified;
-   repository note `doc/troubleshooting/rust-std-thread-defaults-for-compute.md`, verified),
+   (`STD/thread/functions.rs:633-666`,
+  verified;
+   repository note `doc/troubleshooting/rust-std-thread-defaults-for-compute.md`,
+  verified),
    so the default concurrency should be read once and cached.
 
 #### cgroup crates
@@ -339,26 +360,35 @@ so each component is a directory of sibling modules.
   - `Cgroup::create` for v2 calls `create_v2_cgroup`,
      which writes `+<controller>` to `cgroup.subtree_control` of the hierarchy root and of every ancestor on the path,
      discarding each write result with `let _rest = fs::write(...)`
-     (`src/fs/cgroup.rs:83-92`, `:512-517`, `:545-569`, verified).
+     (`src/fs/cgroup.rs:83-92`,
+    `:512-517`,
+    `:545-569`,
+    verified).
     With the standard root `/sys/fs/cgroup`,
      a task path under the delegated scope would also write to `user@1000.service` and `app.slice`,
      which systemd created and this user can write (delegated cgroup ownership probe);
      systemd's delegation doc forbids writing attributes of cgroups systemd created
-     (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:708-712`, verified).
+     (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:708-712`,
+    verified).
     The resulting ancestor writes are inference from the code and ownership;
      not executed.
   - Controller availability is read from the global root `/sys/fs/cgroup/cgroup.controllers`,
-     not from the delegated parent (`src/fs/cgroup.rs:520-527`, verified).
+     not from the delegated parent (`src/fs/cgroup.rs:520-527`,
+    verified).
   - `FreezerController::state` for v2 reads `cgroup.freeze` and maps `1` to `Frozen`
-     (`src/fs/freezer.rs:113-125`, verified),
+     (`src/fs/freezer.rs:113-125`,
+    verified),
      which reports the requested state,
      while the kernel doc puts completion in `cgroup.events`.
   - `FsManager::destroy` moves each process to the root cgroup and ignores errors
-     (`src/manager/fs.rs:770-790`, verified),
+     (`src/manager/fs.rs:770-790`,
+    verified),
      which an unprivileged delegated user cannot do (inference).
-  - `zbus = "5.8"` is a non-optional dependency (`Cargo.toml:23`, verified).
+  - `zbus = "5.8"` is a non-optional dependency (`Cargo.toml:23`,
+    verified).
   - Culled.
-- `cgroups` 0.1.0 (2018-12-23) and `controlgroup` 0.3.0 (2020-03-29) are stale (crates.io API, verified);
+- `cgroups` 0.1.0 (2018-12-23) and `controlgroup` 0.3.0 (2020-03-29) are stale (crates.io API,
+  verified);
    not examined further.
 
 ### R2 recursive watching
@@ -367,18 +397,21 @@ so each component is a directory of sibling modules.
 
 - One `inotify::Inotify` instance converted with `into_event_stream`.
 - Walk with `ignore::WalkBuilder`,
-   whose `follow_links` defaults to `false` (`REG/ignore-0.4.33/src/walk.rs:567`, verified).
+   whose `follow_links` defaults to `false` (`REG/ignore-0.4.33/src/walk.rs:567`,
+  verified).
   Exclude `node_modules`,
    `.git`,
    `target`,
    and `dist`;
    5,480 directories remain against 99,416 when only `.git` is excluded
-   (design doc "Watching and affected work", measured earlier).
+   (design doc "Watching and affected work",
+  measured earlier).
 - Mask:
    `CREATE | DELETE | CLOSE_WRITE | MOVED_FROM | MOVED_TO | ATTRIB | DELETE_SELF | MOVE_SELF | ONLYDIR | DONT_FOLLOW | EXCL_UNLINK`,
    without `OPEN` or `ACCESS`,
    so builds reading sources generate no events
-   (flags exist in `REG/inotify-0.11.4/src/watches.rs:195-221`, verified).
+   (flags exist in `REG/inotify-0.11.4/src/watches.rs:195-221`,
+  verified).
 - `CREATE` with `ISDIR` in a watched,
    non-ignored directory:
    add a watch,
@@ -392,7 +425,8 @@ so each component is a directory of sibling modules.
 - `IGNORED`:
    drop the descriptor mapping.
   The same watch descriptor returns for a second path to the same inode
-   (`REG/inotify-0.11.4/src/watches.rs:278-290`, verified),
+   (`REG/inotify-0.11.4/src/watches.rs:278-290`,
+  verified),
    so the map is descriptor to a set of paths.
 - `ENOSPC` when adding a watch:
    fail closed and point at `doctor`;
@@ -405,29 +439,42 @@ so each component is a directory of sibling modules.
 #### Evidence and the `notify` cull
 
 - inotify(7) documents `IN_Q_OVERFLOW` and non-recursive directory monitoring
-   (<https://man7.org/linux/man-pages/man7/inotify.7.html>, verified by curl for `IN_Q_OVERFLOW`).
+   (<https://man7.org/linux/man-pages/man7/inotify.7.html>,
+  verified by curl for `IN_Q_OVERFLOW`).
 - `notify` 8.2.0,
-   the newest stable release (crates.io API, verified):
-  - Always adds `WatchMask::OPEN` (`REG/notify-8.2.0/src/inotify.rs:425-432`, verified)
-     and turns it into `Access(Open)` events (`:349-351`, verified).
+   the newest stable release (crates.io API,
+  verified):
+  - Always adds `WatchMask::OPEN` (`REG/notify-8.2.0/src/inotify.rs:425-432`,
+    verified)
+     and turns it into `Access(Open)` events (`:349-351`,
+    verified).
     A daemon whose own builds open thousands of watched sources would receive those events
      and approach the 16,384-event queue (inference).
   - The event-kind filter `EventKindMask` exists only from `9.0.0-rc.1` (2026-01-25)
-     (`~/temp/agent/notify-2026-09-16/notify/CHANGELOG.md:75`, `:83`, verified).
+     (`~/temp/agent/notify-2026-09-16/notify/CHANGELOG.md:75`,
+    `:83`,
+    verified).
   - No path exclusion exists for recursive watches;
      8.2.0 `Config` offers only poll interval,
      manual polling,
      content comparison,
-     and symlink following (`REG/notify-8.2.0/src/config.rs:58-106`, verified).
-  - Recursive walks follow symbolic links "On by default" (`REG/notify-8.2.0/src/config.rs:100-106`, verified).
+     and symlink following (`REG/notify-8.2.0/src/config.rs:58-106`,
+    verified).
+  - Recursive walks follow symbolic links "On by default" (`REG/notify-8.2.0/src/config.rs:100-106`,
+    verified).
   - New subdirectories get watches only after the whole event batch,
-     with no scan events for their contents (`REG/notify-8.2.0/src/inotify.rs:61-76`, `:383-397`, verified).
+     with no scan events for their contents (`REG/notify-8.2.0/src/inotify.rs:61-76`,
+    `:383-397`,
+    verified).
     Open issue #727 (2025-10-31) reports that `create_dir_all("1/2/.../10")` yields only one create event
-     (`gh issue view 727 --repo notify-rs/notify`, verified).
+     (`gh issue view 727 --repo notify-rs/notify`,
+    verified).
   - Fixes for silently unwatched subtrees,
      "never abandon a recursive watch" (#970),
      and a watcher TOCTOU (#792) exist only in release candidates
-     (`CHANGELOG.md:23-24`, `:64`, verified);
+     (`CHANGELOG.md:23-24`,
+    `:64`,
+    verified);
      the 9.0 line has been in release candidates since 2026-01-25.
   - Documentation triggers are listed under "R9 documentation quality".
   - Culled.
@@ -443,7 +490,8 @@ so each component is a directory of sibling modules.
    then `tokio::net::UnixListener::from_std`.
 - On accept,
    compare `UnixStream::peer_cred()` uid with the daemon's uid
-   (`REG/tokio-1.53.1/src/net/unix/stream.rs:966-967`, verified).
+   (`REG/tokio-1.53.1/src/net/unix/stream.rs:966-967`,
+  verified).
 - Framing:
    `(&mut reader).take(MAX_LINE)` plus `AsyncBufReadExt::read_until(b'\n', ...)`;
    a line reaching the cap closes the connection with an error.
@@ -468,21 +516,27 @@ so each component is a directory of sibling modules.
 
 - `std` rejects any NUL byte in a socket path,
    "paths must not contain interior null bytes"
-   (`STD/os/unix/net/addr.rs:25-37`, verified).
+   (`STD/os/unix/net/addr.rs:25-37`,
+  verified).
 - `tokio::net::UnixListener::bind` treats a path starting with NUL as an abstract socket
-   (`REG/tokio-1.53.1/src/net/unix/listener.rs:76-89`, verified),
-   and its doc comment does not say so (`:65-75`, verified);
+   (`REG/tokio-1.53.1/src/net/unix/listener.rs:76-89`,
+  verified),
+   and its doc comment does not say so (`:65-75`,
+  verified);
    abstract sockets carry no file permissions (design doc "RPC").
   Hence binding with `std`.
 - `jsonrpsee`:
   - Server transports are HTTP and WebSocket;
      custom transports are client-side only
-     (`~/temp/agent/jsonrpsee-2026-09-16/README.md:15-19`, verified).
+     (`~/temp/agent/jsonrpsee-2026-09-16/README.md:15-19`,
+    verified).
   - The generic `serve` runs hyper HTTP over any `AsyncRead + AsyncWrite`
-     (`server/src/utils.rs:86-107`, verified),
+     (`server/src/utils.rs:86-107`,
+    verified),
      so it cannot speak newline-delimited JSON-RPC.
   - Newest feature release 0.26.0 on 2025-08-11;
-     0.24.11 on 2026-05-27 is a backport (crates.io versions API, verified).
+     0.24.11 on 2026-05-27 is a backport (crates.io versions API,
+    verified).
   - Documentation triggers are listed under "R9 documentation quality".
   - Culled.
 - `tokio_util::codec::LinesCodec` is culled on documentation grounds ("R9 documentation quality").
@@ -494,7 +548,8 @@ so each component is a directory of sibling modules.
 - Detection:
    `rustix::fs::statfs(repo)?.f_type == libc::BTRFS_SUPER_MAGIC`
    (`REG/rustix-1.1.4/src/fs/abs.rs:269`;
-   `REG/libc-0.2.189/src/unix/linux_like/mod.rs:1531`, verified).
+   `REG/libc-0.2.189/src/unix/linux_like/mod.rs:1531`,
+  verified).
   `doctor` parses `/proc/self/mountinfo` super options for `user_subvol_rm_allowed`.
 - Cache restore:
    open the cache blob read-only;
@@ -505,43 +560,59 @@ so each component is a directory of sibling modules.
    `EINVAL`,
    or `EOPNOTSUPP`,
    fall back to a copy into the same temporary file
-   (errors per <https://man7.org/linux/man-pages/man2/ioctl_ficlone.2.html>, verified by curl for `EXDEV`).
+   (errors per <https://man7.org/linux/man-pages/man2/ioctl_ficlone.2.html>,
+  verified by curl for `EXDEV`).
 - Subvolumes and snapshots stay optional in 0.x,
    because the checkout is not a subvolume (design doc "btrfs acceleration").
   When enabled:
    `#[repr(C)]` mirrors of `btrfs_ioctl_vol_args_v2` and `btrfs_ioctl_get_subvol_info_args`
-   (`SCR/rust-stack/src/linux-uapi-btrfs.h:135`, `:867`, verified)
+   (`SCR/rust-stack/src/linux-uapi-btrfs.h:135`,
+  `:867`,
+  verified)
    and the request numbers for `SUBVOL_CREATE`,
    `SNAP_CREATE_V2`,
    `GET_SUBVOL_INFO`,
-   and `SNAP_DESTROY_V2` (`:1170`, `:1187`, `:1247`, `:1253`, verified),
+   and `SNAP_DESTROY_V2` (`:1170`,
+  `:1187`,
+  `:1247`,
+  `:1253`,
+  verified),
    called through `rustix`'s `unsafe` ioctl interface,
-   with `BTRFS_SUBVOL_RDONLY` (`:49`, verified) set explicitly.
+   with `BTRFS_SUBVOL_RDONLY` (`:49`,
+  verified) set explicitly.
   Setting the flag explicitly sidesteps the btrfs-progs documentation contradiction about the default snapshot mode
-   (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:606-607`, verified).
+   (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:606-607`,
+  verified).
 
 #### Evidence
 
 - `rustix::fs::ioctl_ficlone` is a safe function wrapping `ioctl(fd, FICLONE, src_fd)`
-   (`REG/rustix-1.1.4/src/fs/ioctl.rs:45-58`, verified).
+   (`REG/rustix-1.1.4/src/fs/ioctl.rs:45-58`,
+  verified).
 - `reflink-copy` 0.1.30:
   - Its Linux `reflink` creates the destination path itself with `create_new`,
      clones into it,
-     and deletes it on failure (`src/sys/unix/linux.rs:7-16`; `src/sys/utility.rs:19-27`, `:55-67`, verified),
+     and deletes it on failure (`src/sys/unix/linux.rs:7-16`;
+    `src/sys/utility.rs:19-27`,
+    `:55-67`,
+    verified),
      then sets permissions afterward (`linux.rs:15`).
   - Documentation triggers are listed under "R9 documentation quality".
   - Culled.
 - No `BTRFS_IOC` constant exists in `libc` 0.2.189,
    `rustix` 1.1.4,
    or `nix` 0.31.3
-   (`rg --count-matches 'BTRFS_IOC'` over those sources exited 1 with no matches, verified).
+   (`rg --count-matches 'BTRFS_IOC'` over those sources exited 1 with no matches,
+  verified).
 - `libbtrfsutil` 0.8.0 generates bindings with bindgen and needs `libclang` plus `libbtrfsutil` headers
    (its README,
-   `gh api repos/zhangyuannie/libbtrfsutil-rs/readme`, verified);
+   `gh api repos/zhangyuannie/libbtrfsutil-rs/readme`,
+  verified);
    this bootc host has only the runtime `libbtrfsutil.so.1*` (btrfs user-space probe),
    so building it would need layered packages or a container.
   Culled.
-- `btrfsutil` 0.2.0 (2023-10-05) and `btrfs` 1.2.2 (2017-07-04) are stale (crates.io API, verified).
+- `btrfsutil` 0.2.0 (2023-10-05) and `btrfs` 1.2.2 (2017-07-04) are stale (crates.io API,
+  verified).
 
 ### R5 hashing
 
@@ -552,11 +623,13 @@ so each component is a directory of sibling modules.
    run files in parallel on a bounded blocking pool.
 - Skip `update_rayon`:
    its docs say it is slower than `update` below 128 KiB on x86_64
-   (`REG/blake3-1.8.7/src/lib.rs:1482-1486`, verified),
+   (`REG/blake3-1.8.7/src/lib.rs:1482-1486`,
+  verified),
    and only 152 files reach that size (content-hash input volume probe).
 - Never enable `mmap`:
    the crate's private comment says a concurrent change can make the hasher "hash nonsense bytes or crash with SIGBUS"
-   (`REG/blake3-1.8.7/src/io.rs:39-44`, verified),
+   (`REG/blake3-1.8.7/src/io.rs:39-44`,
+  verified),
    and repository files change under the daemon by design.
 
 #### Evidence
@@ -565,7 +638,9 @@ so each component is a directory of sibling modules.
    BLAKE3 6,866 MiB/s and OpenSSL SHA-256 484 MiB/s at 16 KiB inputs,
    single-threaded,
    on an AWS c5.metal Cascade Lake-SP 8275CL
-   (`benchmarks/bar_chart.py:9-35`, `:72` in BLAKE3-team/BLAKE3-specs at `ac784c9f`, verified by fetch).
+   (`benchmarks/bar_chart.py:9-35`,
+  `:72` in BLAKE3-team/BLAKE3-specs at `ac784c9f`,
+  verified by fetch).
 - This host has AVX-512 and SHA extensions (CPU probe),
    so neither published figure transfers directly (unverified).
 - Arithmetic on the published figures,
@@ -585,14 +660,17 @@ so each component is a directory of sibling modules.
    piped `stdout` and `stderr`,
    and the cgroup `pre_exec`.
 - Convert each pipe with `tokio::net::unix::pipe::Receiver::from_owned_fd`
-   (`REG/tokio-1.53.1/src/net/unix/pipe.rs:967`, verified).
+   (`REG/tokio-1.53.1/src/net/unix/pipe.rs:967`,
+  verified).
 - Exit:
    the pidfd becomes readable,
    then `Child::try_wait` reaps
    ("If the child has exited then on Unix the process ID is reaped",
-   `STD/process.rs:2404-2411`, verified).
+   `STD/process.rs:2404-2411`,
+  verified).
   The supervisor owns each `Child` until it is reaped,
-   because "There is no implementation of `Drop` for child processes" (`STD/process.rs:180`, verified).
+   because "There is no implementation of `Drop` for child processes" (`STD/process.rs:180`,
+  verified).
 - No `SIGCHLD` handler,
    no `waitpid(-1)`,
    and no child subreaper,
@@ -607,89 +685,121 @@ so each component is a directory of sibling modules.
   Second `SIGINT`:
    `cgroup.kill` everything and exit.
   The handler replaces default `SIGINT` behavior for the whole process lifetime
-   (`REG/tokio-1.53.1/src/signal/unix.rs:332-352`, verified),
+   (`REG/tokio-1.53.1/src/signal/unix.rs:332-352`,
+  verified),
    which is why the second-signal path must exist.
 - Terminal Ctrl+C goes to the foreground process group;
    tasks in their own groups do not receive it
    (tokio's `process_group` doc example says so,
-   `REG/tokio-1.53.1/src/process/mod.rs:757-793`, verified).
+   `REG/tokio-1.53.1/src/process/mod.rs:757-793`,
+  verified).
 
 #### Evidence and culls
 
 - `tokio::process`:
   - Module doc:
      "The asynchronous process support is provided through signal handling on Unix"
-     (`REG/tokio-1.53.1/src/process/mod.rs:6-7`, verified;
-     same text on <https://docs.rs/tokio/latest/tokio/process/index.html>, tokio 1.53.1, verified by curl).
+     (`REG/tokio-1.53.1/src/process/mod.rs:6-7`,
+    verified;
+     same text on <https://docs.rs/tokio/latest/tokio/process/index.html>,
+    tokio 1.53.1,
+    verified by curl).
   - On Linux the implementation first tries a pidfd reaper and falls back to `SIGCHLD` only if `pidfd_open` fails
      (`src/process/unix/mod.rs:106-133`;
-     `src/process/unix/pidfd_reaper.rs:30-58`, `:150-162`, verified).
+     `src/process/unix/pidfd_reaper.rs:30-58`,
+    `:150-162`,
+    verified).
   - Reaping of dropped children is "best-effort" with "No additional guarantees"
-     (`src/process/mod.rs:197-227`, `:640-667`, verified).
+     (`src/process/mod.rs:197-227`,
+    `:640-667`,
+    verified).
   - Culled on the documentation contradiction;
      the std plus pidfd design replaces it.
 - `tokio::signal::ctrl_c` is culled on documentation grounds ("R9 documentation quality").
 - `process-wrap` 10.0.0 manages process groups and `killpg`
-   (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:425-426`, verified);
+   (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:425-426`,
+  verified);
    cgroups replace that role here.
 
 ### R8 repository fit
 
 - Rust rules:
-   `MXR` 300 code lines per `.rs` file (`AGENTS.md:1012-1020`, verified);
+   `MXR` 300 code lines per `.rs` file (`AGENTS.md:1012-1020`,
+  verified);
    `RDC` rustdoc on every documentable item,
-   private included (`AGENTS.md:1022-1028`, verified).
+   private included (`AGENTS.md:1022-1028`,
+  verified).
 - Clippy baseline enforced by file-enforcer:
    `disallowed_methods = "deny"`,
    `implicit_return = "deny"`,
-   `needless_return = "allow"` (`doc/planning/cargo-toml-file-enforcer.md:86-91`, verified);
+   `needless_return = "allow"` (`doc/planning/cargo-toml-file-enforcer.md:86-91`,
+  verified);
    the root `clippy.toml` bans `Result::unwrap` (verified).
 - No Cargo workspace;
    every crate is its own root with an empty `[workspace]` table
-   (`doc/planning/cargo-toml-file-enforcer.md:12-22`, `:92-98`, verified).
+   (`doc/planning/cargo-toml-file-enforcer.md:12-22`,
+  `:92-98`,
+  verified).
 - Toolchain:
-   floating `nightly` for every crate with no per-package override (`mise.no-env.toml:80-93`, verified);
+   floating `nightly` for every crate with no per-package override (`mise.no-env.toml:80-93`,
+  verified);
    no `rust-toolchain*` file exists
-   (`rg --files --hidden --glob 'rust-toolchain*'` exited 1, verified).
+   (`rg --files --hidden --glob 'rust-toolchain*'` exited 1,
+  verified).
 - Build and test tasks per package call Cargo from `mise.toml`:
    `build` as `cargo build --release`,
    `lint:clippy`,
    `lint:rust` via `monochromatic-rust-linter`,
    and `test` as `cargo nextest run --release`
-   (`package/forbidden-strings/cli/mise.toml`, verified);
-   `cargo-nextest` is a root tool (`mise.no-env.toml:105`, verified).
+   (`package/forbidden-strings/cli/mise.toml`,
+  verified);
+   `cargo-nextest` is a root tool (`mise.no-env.toml:105`,
+  verified).
 - Release precedent:
    `.github/workflows/cargo-publish.yml` has per-crate job sets.
-  The publish jobs install the mise toolchain (`:113-114`, `:386-387`, verified),
+  The publish jobs install the mise toolchain (`:113-114`,
+  `:386-387`,
+  verified),
    while the binary jobs run `rustup target add` and `cargo build --release --target` without mise
-   (`:198-205`, `:467-474`, verified),
+   (`:198-205`,
+  `:467-474`,
+  verified),
    so release binaries use the runner's default toolchain rather than the repository's nightly
    (which toolchain the runner provides is unverified).
-  A Linux-only binary already has precedent in the `nws-*` jobs (x86_64 and aarch64 GNU only, verified).
+  A Linux-only binary already has precedent in the `nws-*` jobs (x86_64 and aarch64 GNU only,
+  verified).
   The same workflow's shell logic is cited as an embedded-code gap in
   `doc/planning/load-bearing-code-languages.md:29-33` (verified).
 - Recorded Rust build durations:
   - forbidden-strings clean release build 50.86 s after the build-override fix
-     (`doc/troubleshooting/cargo-build-override-opt-level.md:247`, verified).
+     (`doc/troubleshooting/cargo-build-override-opt-level.md:247`,
+    verified).
   - A Tauri Android debug build including hyper,
      tokio,
      and reqwest,
-     40.53 s (`doc/decision/kotlin-android-kopia-pcloud-vet-report/vet-tauri.md:330`, verified).
+     40.53 s (`doc/decision/kotlin-android-kopia-pcloud-vet-report/vet-tauri.md:330`,
+    verified).
   - mise built from source in a bounded container,
-     4 min 17 s (`doc/troubleshooting/mise-rust-components.md:546`, verified).
+     4 min 17 s (`doc/troubleshooting/mise-rust-components.md:546`,
+    verified).
   - Nothing is recorded for a tokio daemon of this shape
-     (absence in the `rg` over `doc` and `package` Markdown, verified).
+     (absence in the `rg` over `doc` and `package` Markdown,
+    verified).
 - Existing tokio use:
    `rt`,
    `sync`,
    and `macros` features in the music-player crates
-   (`package/music-player/desktop-app/Cargo.toml:116`, `package/music-player/android-app/rust/Cargo.toml:81`, verified);
+   (`package/music-player/desktop-app/Cargo.toml:116`,
+  `package/music-player/android-app/rust/Cargo.toml:81`,
+  verified);
    no repository crate uses tokio networking or process APIs (inference from that `rg`).
 - Language approval:
    the proposal keeps "TypeScript as default for repository automation"
-   (`doc/planning/load-bearing-code-languages.md:82`, verified)
+   (`doc/planning/load-bearing-code-languages.md:82`,
+  verified)
    and says approval is explicit per scope,
-   not inferred from existing files (`:108-114`, verified).
+   not inferred from existing files (`:108-114`,
+  verified).
   Both options need Rust approved for this scope.
 
 ### R9 documentation quality
@@ -705,10 +815,12 @@ unless noted.
 - `notify` 8.2.0,
    <https://docs.rs/notify/latest/notify/>:
   - The Installation section shows `notify = 8.1.0` on the 8.2.0 page (verified).
-  - "Linux: Bad File Descriptor / No space left on device" says to run `sudo sysctl fs.inotify.max_user_watches=524288`
+  - "Linux:
+    Bad File Descriptor / No space left on device" says to run `sudo sysctl fs.inotify.max_user_watches=524288`
      and then `sudo sysctl -p`,
      which reloads the configuration file rather than persisting the value just set,
-     so the remediation reads as persistent when it is not (verified text; `sysctl -p` semantics from recall).
+     so the remediation reads as persistent when it is not (verified text;
+    `sysctl -p` semantics from recall).
   - The example comment "All files and directories at that path and below will be monitored"
      conflicts with the same page's "Watching large directories" warning and with issue #727 (verified).
   - Result:
@@ -716,10 +828,13 @@ unless noted.
 - `jsonrpsee-server`:
   - <https://docs.rs/jsonrpsee-server/latest/jsonrpsee_server/fn.serve.html>:
      "Serve a service over a TCP connection",
-     while the signature accepts any `AsyncRead + AsyncWrite` (`server/src/utils.rs:86-99`, verified).
+     while the signature accepts any `AsyncRead + AsyncWrite` (`server/src/utils.rs:86-99`,
+    verified).
   - <https://docs.rs/jsonrpsee-server/latest/jsonrpsee_server/struct.ServerConfigBuilder.html>:
      "`n` messages can be buffered and if the client can't keep
-     with up the server." is an incomplete sentence (`server/src/server.rs:448-450`, verified).
+     with up the server."
+    is an incomplete sentence (`server/src/server.rs:448-450`,
+    verified).
   - <https://docs.rs/jsonrpsee/latest/jsonrpsee/server/fn.serve.html> returns "This page does not exist" (verified).
   - Result:
      cull `jsonrpsee`.
@@ -737,14 +852,16 @@ unless noted.
      cull `cgroups-rs`.
 - `reflink-copy` 0.1.30,
    <https://docs.rs/reflink-copy/latest/reflink_copy/fn.reflink.html>:
-   "NOTE that it generates a temporary file and is not atomic" (`src/lib.rs:43`, verified),
+   "NOTE that it generates a temporary file and is not atomic" (`src/lib.rs:43`,
+  verified),
    while the Linux code creates the destination path itself ("R4 btrfs").
   Result:
    cull `reflink-copy`.
 - `libc` `CLONE_INTO_CGROUP`,
    <https://docs.rs/libc/latest/libc/constant.CLONE_INTO_CGROUP.html>:
    renders `pub const CLONE_INTO_CGROUP: c_int = 0x200000000;`
-   with "Deprecated since 0.2.188: This constant overflows" (verified),
+   with "Deprecated since 0.2.188:
+  This constant overflows" (verified),
    while the value compiles to `0` (libc constant probe).
   Result:
    cull the constant;
@@ -758,12 +875,15 @@ unless noted.
 - `tokio::signal::ctrl_c`,
    <https://docs.rs/tokio/latest/tokio/signal/fn.ctrl_c.html>:
    the doc of a function returning a future says "Even if this `Signal` instance is dropped",
-   and "the time it arrives, it will be translated to a stream event" is garbled
-   (`REG/tokio-1.53.1/src/signal/ctrl_c.rs:18-31`, verified).
+   and "the time it arrives,
+  it will be translated to a stream event" is garbled
+   (`REG/tokio-1.53.1/src/signal/ctrl_c.rs:18-31`,
+  verified).
   Result:
    cull `ctrl_c`;
    use `tokio::signal::unix::signal`,
-   whose caveat text is coherent (`src/signal/unix.rs:332-352`, verified).
+   whose caveat text is coherent (`src/signal/unix.rs:332-352`,
+  verified).
 - `tokio::net::UnixListener::bind`,
    <https://docs.rs/tokio/latest/tokio/net/struct.UnixListener.html>:
    omits the abstract-socket branch ("R3 Unix socket JSON-RPC 2.0").
@@ -775,7 +895,8 @@ unless noted.
    "Subsequent calls will discard up to `limit` bytes from that line until a newline character is reached"
    leaves unclear what happens to the rest of an overlong line,
    and names `limit` for a parameter called `max_length`
-   (`REG/tokio-util-0.7.18/src/codec/lines_codec.rs:50-59`, verified).
+   (`REG/tokio-util-0.7.18/src/codec/lines_codec.rs:50-59`,
+  verified).
   Result:
    cull;
    use `take` plus `read_until`.
@@ -788,25 +909,33 @@ unless noted.
    keep the crate.
 - `libbtrfsutil`:
    its README docs badge points at `img.shields.io/docsrs/btrfsutil`,
-   a different crate (README line 4, verified).
+   a different crate (README line 4,
+  verified).
   Combined with the build requirements in "R4 btrfs",
    cull.
 - btrfs-progs documentation contradicts itself on the default snapshot mode
-   (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:606-607`, verified).
+   (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:606-607`,
+  verified).
   Result:
    set `BTRFS_SUBVOL_RDONLY` explicitly through the ioctl instead of relying on CLI defaults.
 - `rustix::process::set_child_subreaper(pid: Option<Pid>)` documents a `Pid` parameter
    for a `prctl` option that takes a flag,
-   without saying what the `Pid` means (`REG/rustix-1.1.4/src/process/prctl.rs:858-866`, verified).
+   without saying what the `Pid` means (`REG/rustix-1.1.4/src/process/prctl.rs:858-866`,
+  verified).
   The design does not use it.
 
 #### Pages loaded without a trigger in the sections read
 
-- <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html> (`pre_exec`, `process_group`).
-- <https://doc.rust-lang.org/std/os/linux/process/struct.PidFd.html> (loaded; unstable API not used).
-- <https://docs.rs/tokio/latest/tokio/process/struct.Command.html> (loaded; module culled).
+- <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html> (`pre_exec`,
+  `process_group`).
+- <https://doc.rust-lang.org/std/os/linux/process/struct.PidFd.html> (loaded;
+  unstable API not used).
+- <https://docs.rs/tokio/latest/tokio/process/struct.Command.html> (loaded;
+  module culled).
 - <https://docs.rs/tokio/latest/tokio/sync/broadcast/index.html>
-   (lag semantics clear; not used, the event ring replaces it).
+   (lag semantics clear;
+  not used,
+  the event ring replaces it).
 - <https://docs.rs/tokio/latest/tokio/io/trait.AsyncBufReadExt.html> (`read_until`).
 - <https://docs.rs/tokio/latest/tokio/io/unix/struct.AsyncFd.html> (edge-triggered readiness text present).
 - <https://docs.rs/tokio/latest/tokio/net/unix/pipe/struct.Receiver.html> (`from_owned_fd`).
@@ -821,12 +950,16 @@ unless noted.
    no contradiction found.
 - <https://docs.rs/libc/latest/libc/struct.clone_args.html> (not used after the `clone3` rejection).
 - <https://docs.rs/ignore/latest/ignore/struct.WalkBuilder.html> (`follow_links`).
-- <https://docs.rs/serde_json/latest/serde_json/> (loaded; not read in depth).
-- <https://docs.kernel.org/admin-guide/cgroup-v2.html> (`cgroup.procs`, `cgroup.freeze`, `cgroup.kill` sections read).
+- <https://docs.rs/serde_json/latest/serde_json/> (loaded;
+  not read in depth).
+- <https://docs.kernel.org/admin-guide/cgroup-v2.html> (`cgroup.procs`,
+  `cgroup.freeze`,
+  `cgroup.kill` sections read).
 - <https://man7.org/linux/man-pages/man2/clone.2.html> (`CLONE_INTO_CGROUP` section read).
 - <https://man7.org/linux/man-pages/man7/inotify.7.html>,
    <https://man7.org/linux/man-pages/man2/ioctl_ficlone.2.html>,
-   <https://man7.org/linux/man-pages/man2/pidfd_open.2.html> (loaded; checked text present).
+   <https://man7.org/linux/man-pages/man2/pidfd_open.2.html> (loaded;
+  checked text present).
 - Option-specific pages are listed in each option's R9.
 
 Noted without culling:
@@ -901,18 +1034,22 @@ fetched 2026-09-16.
 
 - The shared Rust core,
    plus a Rust `file-enforcer` library crate implementing FE01 to FE24
-   (requirement codes in `doc/audit/tech-monorepo-manager-vet-2026-09-16.md:97-193`, verified).
+   (requirement codes in `doc/audit/tech-monorepo-manager-vet-2026-09-16.md:97-193`,
+  verified).
 - Library mapping:
   - FE11 TOML splice edits:
-     `toml_edit` (0.25.15, 2026-09-11).
+     `toml_edit` (0.25.15,
+    2026-09-11).
   - FE12 XML entries:
-     `quick-xml` (0.42.0, 2026-08-22) with byte-offset splicing.
+     `quick-xml` (0.42.0,
+    2026-08-22) with byte-offset splicing.
   - FE09 staleness manifest and lock:
      ported.
   - FE18 and FE19 package provisioning and the Repology index:
      ported,
      or delegated to Meta Package Manager as the vet allows
-     (`doc/audit/tech-monorepo-manager-vet-2026-09-16.md:195-217`, per the research doc).
+     (`doc/audit/tech-monorepo-manager-vet-2026-09-16.md:195-217`,
+    per the research doc).
   - FE21 to FE23 watching,
      protection,
      and echo suppression:
@@ -966,7 +1103,8 @@ As "Shared Rust core evidence",
 As "Shared Rust core evidence",
 "R5 hashing".
 FE09's destination SHA-256 checks
-(`package/file-enforcer/core/src/io/staleness-destination-match.ts:30-76`, per the research doc)
+(`package/file-enforcer/core/src/io/staleness-destination-match.ts:30-76`,
+per the research doc)
 can move to BLAKE3 in a rewrite,
 which invalidates every existing manifest once (inference).
 
@@ -989,7 +1127,8 @@ so they are approximate.
    36,213 lines,
    29,105 code lines.
 - `data/packages.generated.ts` alone is 22,608 lines,
-   9,647 Repology entries (its header, verified).
+   9,647 Repology entries (its header,
+  verified).
   Hand-written code is therefore 13,605 lines and 6,508 code lines.
 - By directory,
    files and code lines:
@@ -1009,7 +1148,8 @@ so they are approximate.
    `src/index.ts` exports 119 names,
    values and types together,
    across FE03 to FE24
-   (a `node` count of names inside its `export { }` and `export type { }` blocks, verified).
+   (a `node` count of names inside its `export { }` and `export type { }` blocks,
+  verified).
 - Root config:
    `file-enforcer.config.ts` is 2,330 lines (1,113 code lines),
    with 68 function declarations,
@@ -1022,18 +1162,22 @@ so they are approximate.
    `node:fs/promises`,
    `nano-spawn`,
    the file-enforcer API,
-   and `@monochromatic-dev/config-pnpr/ts` (`file-enforcer.config.ts:1-34`, verified).
+   and `@monochromatic-dev/config-pnpr/ts` (`file-enforcer.config.ts:1-34`,
+  verified).
 - Other TypeScript consumers:
    `package/vm-builder/cli/src/import.ts:9` and `src/build-and-import.ts:20` import `exec`;
    `package/test-fixture/file-enforcer-perf/src/perf.config.ts:21` imports the API (verified).
 - Configuration rules:
-   `AD2` says "Switch from config-as-data to TypeScript when conf needs logic" (`AGENTS.md:1737-1740`, verified).
+   `AD2` says "Switch from config-as-data to TypeScript when conf needs logic" (`AGENTS.md:1737-1740`,
+  verified).
   The user relaxed FE01 so the configuration need not be TypeScript
-   (`doc/audit/tech-monorepo-manager-vet-2026-09-16.md:97-101`, verified),
+   (`doc/audit/tech-monorepo-manager-vet-2026-09-16.md:97-101`,
+  verified),
    but `AD2` itself is unchanged.
 - Output parity:
    the TypeScript TOML path reformats a value it re-sets (`["derive"]` becomes `[ "derive", ]`),
-   so the engine writes only on real differences (`doc/planning/cargo-toml-file-enforcer.md:57-64`, verified).
+   so the engine writes only on real differences (`doc/planning/cargo-toml-file-enforcer.md:57-64`,
+  verified).
   Whether `toml_edit` and `quick-xml` splices reproduce today's bytes is unverified.
 - Variant consequences (inference from the facts in this list):
   - 1a keeps a child-process boundary per evaluation and adds a compile per config edit;
@@ -1058,9 +1202,11 @@ so they are approximate.
 - About 6,508 hand-written code lines move to Rust,
    where `MXR` and `RDC` apply to every item.
 - Moving repository automation to Rust departs from the proposal's TypeScript default for repository automation
-   (`doc/planning/load-bearing-code-languages.md:82`, verified).
+   (`doc/planning/load-bearing-code-languages.md:82`,
+  verified).
 - The root `sync:files` tasks run the TypeScript CLI today
-   (`mise.no-env.toml:1120-1127`, per `doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:64-66`,
+   (`mise.no-env.toml:1120-1127`,
+  per `doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:64-66`,
 verified).
 
 ### R9 documentation quality
@@ -1185,7 +1331,9 @@ most severe first.
 - `stderr` carries tagged logs,
    which the daemon relays with a task prefix;
    the logger already writes to `stderr` in process runtimes
-   (`package/logger/core/src/sink/console.ts:226`, `:242`, verified).
+   (`package/logger/core/src/sink/console.ts:226`,
+  `:242`,
+  verified).
 - Descriptor 3 is created by `dup2` in the same `pre_exec` closure that joins the cgroup,
    avoiding `stdout` collisions with any library output.
 - The daemon's watcher subscribes to the union of tracked reads,
@@ -1208,7 +1356,8 @@ most severe first.
    because module records accumulate,
    module-global singletons persist,
    and a running import cannot be cancelled except by killing the worker
-   (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:150-160`, verified).
+   (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:150-160`,
+  verified).
 
 ### R1 per-task cgroup v2
 
@@ -1220,9 +1369,12 @@ with each Node evaluation in its own task cgroup.
 - Killing a child that holds the staleness manifest lock leaves a lock owned by a dead PID,
    which the next run recovers
    (dead-owner recovery,
-   `src/io/staleness-manifest-lock-recovery.ts:83-103`, per the research doc).
+   `src/io/staleness-manifest-lock-recovery.ts:83-103`,
+  per the research doc).
 - Freezing a lock holder makes other writers time out after 5 s
-   (`src/io/staleness-manifest-lock.ts:21-31`, `:165-172`, per the research doc).
+   (`src/io/staleness-manifest-lock.ts:21-31`,
+  `:165-172`,
+  per the research doc).
   The daemon never runs two evaluations of one config,
    so only manual CLI runs outside the daemon hit that timeout (inference).
 
@@ -1239,9 +1391,11 @@ plus:
    parent directories of tracked reads,
    writes,
    and the config,
-   plus glob static roots (`src/watch/watch-filter.ts:43-66`, per the research doc).
+   plus glob static roots (`src/watch/watch-filter.ts:43-66`,
+  per the research doc).
 - The protected-versus-echo rule today compares `floor(mtimeMs)` with the recorded write time
-   (`src/watch/watch-filter.ts:149-179`, per the research doc);
+   (`src/watch/watch-filter.ts:149-179`,
+  per the research doc);
    the daemon replaces it with a content-hash comparison,
    because inotify events and descriptor-3 events arrive on separate channels with no ordering guarantee (inference).
 
@@ -1273,7 +1427,8 @@ plus:
 - A non-zero Node exit marks the evaluation failed;
    the daemon relays the last `stderr` lines.
 - Cancelling an evaluation is `cgroup.kill`;
-   destination writes are atomic renames (`src/io/write-atomic.ts`, per the research doc),
+   destination writes are atomic renames (`src/io/write-atomic.ts`,
+  per the research doc),
    so a killed child leaves old or new content,
    not torn files (inference).
 
@@ -1289,21 +1444,30 @@ plus:
   The tracker already exposes `reads`,
    `writes`,
    `globs`,
-   and `writeTimestamps` (`src/index.ts` exports, verified by reading),
-   and per-builder capture uses `AsyncLocalStorage` (`src/tracker-capture.ts:62`, per the research doc).
+   and `writeTimestamps` (`src/index.ts` exports,
+  verified by reading),
+   and per-builder capture uses `AsyncLocalStorage` (`src/tracker-capture.ts:62`,
+  per the research doc).
   A fresh child per evaluation isolates the module-global singletons
-   (`src/tracker.ts:21-38`, per the research doc).
+   (`src/tracker.ts:21-38`,
+  per the research doc).
 - Input tracking gaps at the boundary:
   - Modules imported by the config are not stamped today
-     (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:124-125`, verified).
+     (`doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:124-125`,
+    verified).
   - `module.registerHooks` can observe resolution and loading;
-     Node documents it as "Added in: v23.5.0, v22.15.0" and "Stability: 1.2 - Release candidate"
-     (<https://nodejs.org/api/module.html>, verified by curl).
+     Node documents it as "Added in:
+    v23.5.0,
+    v22.15.0" and "Stability:
+    1.2 - Release candidate"
+     (<https://nodejs.org/api/module.html>,
+    verified by curl).
     Whether its hooks see every import in this config is unverified.
   - Direct `readFile`,
      `glob`,
      and `nano-spawn` calls in the root config bypass the tracker
-     (`file-enforcer.config.ts:1-13`, per the research doc).
+     (`file-enforcer.config.ts:1-13`,
+    per the research doc).
     This gap exists in Option 1 too,
      unless a rewrite forces all I/O through tracked APIs.
 - Schema:
@@ -1320,8 +1484,10 @@ plus:
    "R8 repository fit".
 - file-enforcer stays TypeScript,
    matching the proposal's TypeScript default for repository automation
-   (`doc/planning/load-bearing-code-languages.md:82`, verified).
-- The root config keeps satisfying `AD2` (`AGENTS.md:1737-1740`, verified).
+   (`doc/planning/load-bearing-code-languages.md:82`,
+  verified).
+- The root config keeps satisfying `AD2` (`AGENTS.md:1737-1740`,
+  verified).
 - `vm-builder` and the perf fixture keep importing the TypeScript API unchanged.
 - The daemon needs Node 26 with type stripping on `PATH` for evaluations;
    the repository already requires it,

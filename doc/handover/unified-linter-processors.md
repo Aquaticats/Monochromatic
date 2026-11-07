@@ -330,7 +330,8 @@ Read the upstream `v27.1.0` source at commit
 The declaration at `src/main.rs:183` makes the conflict unconditional on the supplied job count:
 
 ```rust,compile_fail
-//! cargo-mutants v27.1.0: src/main.rs:183
+//! cargo-mutants v27.1.0:
+//! src/main.rs:183
 #[arg(
     long,
     help_heading = "Copying",

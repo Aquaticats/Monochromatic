@@ -15,7 +15,7 @@ use nested_wayland_session::{
     notification_mode::NotificationMode,
     notification_service::{NOTIFICATIONS_INTERFACE, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH},
 };
-use zbus::zvariant::OwnedObjectPath;
+use zbus::OwnedObjectPath;
 use zbus_xml::{ArgDirection, Interface, Node};
 
 use super::support::{proxy, start, Fixture};

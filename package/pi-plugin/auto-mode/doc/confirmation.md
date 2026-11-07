@@ -90,17 +90,22 @@ Removing the obsolete extension entry does not remove native bypass or its fixed
 ### Interpreting a low operation score
 
 The 2026-10-19 scoped-commit incident receives scores
-`approve: 0.56`, `deny: 0.38`, `unknown: 0.06`.
+`approve: 0.56`,
+`deny: 0.38`,
+`unknown: 0.06`.
 The previous unconditional `0.6` floor caused the escalation.
 The user replaced it with an uncertainty-dependent rule:
-when `unknown < 0.2`, take the uniquely highest-scored supported action;
-when `unknown >= 0.2`, that action must also score `>= 0.6`.
+when `unknown < 0.2`,
+take the uniquely highest-scored supported action;
+when `unknown >= 0.2`,
+that action must also score `>= 0.6`.
 Ties and unresolved winning labels ask for human review.
 The recorded scoped commit therefore qualifies for approval.
 Built boundary tests and the original native consumer verify this rule before readiness claims.
 Root's subsequent claim that excluding `APG` proves a concrete authorization gap was incorrect.
 That rule describes auto-push behavior and does not grant permission;
-the captured context includes `PX3`, which addresses local work and current-repository GitHub mutations.
+the captured context includes `PX3`,
+which addresses local work and current-repository GitHub mutations.
 Policy-text omission alone does not establish a missing authorization or justify changing admission policy.
 
 ### Existing fallback alternatives

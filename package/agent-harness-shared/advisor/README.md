@@ -272,7 +272,8 @@ scores in `AdvisorDefaultSelection.ranking` and the details `costRanking`.
 With a
 policy,
 ranking entries carry canonical slugs and the policy's reason replaces the
-cost reason, so serial fallback and `defaultReviewerModel` composition keep
+cost reason,
+so serial fallback and `defaultReviewerModel` composition keep
 working on either ranking.
 
 ## Behavior picks (Q5 and Q6)
