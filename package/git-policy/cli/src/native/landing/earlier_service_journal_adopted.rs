@@ -22,9 +22,25 @@
 //!  example when the earlier units are stopped or removed, or after a reboot, since the earlier units live in the runtime
 //!  directory. While an earlier unit stays active and no earlier client ever connects, a batch it left open stays open; the
 //!  index shows the landed commit as reverted until then.
-//! Still open: a wrapper of the earlier release that runs in the same worktree writes its units again and starts the socket,
-//!  which can start the earlier helper between the look and the end of the adoption; nothing the earlier release left behind
-//!  stops that, and the recovery's checks of the branch and the index make the second settling a repeat of the same step.
+//! What the provisioning does about the earlier socket:
+//!  When a commit sets up this release's service for a worktree, it also stops the earlier release's socket unit of the same
+//!  worktree (`cli-git@<instance>.socket`, the same instance text; owner, 2026-11-07, "Stop the old socket"), so that nothing
+//!  can start the earlier helper by a connection (`service_provision.rs`, `stop_earlier_instance_socket`). A helper of the earlier
+//!  release that is still running is left as it is, with its socket: its service `Requires` the socket, so a stop of the socket
+//!  in the usual job mode would stop it mid-batch (measured with throwaway units), and the stop that is sent names the socket
+//!  alone and is sent only after the service has been seen not to run. The socket keeps listening, so this look keeps waiting;
+//!  the helper finishes its batches and exits when idle (three hours after its last client, `IDLE_EXIT` at the tag), and the next
+//!  commit that sets the service up stops the socket, after which the next start of this service can adopt. A stop that fails
+//!  (no bus, no such unit, permission) is logged and never fails the commit; the adoption then waits as before.
+//! Adoption is off in the unit this release writes:
+//!  A wrapper of the earlier release that runs in the same worktree writes its units again and starts the socket, which can
+//!  start the earlier helper between the look and the end of the adoption; nothing stops that, and the fifth cross-vendor review
+//!  (2026-11-07) rated it a defect. The guard systemd would enforce, a mask of the earlier unit, makes that wrapper fail its commit
+//!  (tag `monochromatic-git-policy-cli-v0.5.34`, `service_provision.rs` line 453 starts the socket and line 435 returns the
+//!  refusal; `service_commit.rs` lines 386 to 388 stop the commit with it; `commit_command.rs` lines 105 to 108 exit 1), so it was
+//!  not built. `service_main.rs` therefore calls `adopt_open_batches` only when started with `--adopt-earlier-journals`, which
+//!  the unit does not pass, until the owner chooses
+//!  (`doc/planning/git-policy-cli-program-rename.md`, "Changes after the fifth review").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -246,7 +246,8 @@ fn start_instance_service(name: &str, journal: &Path, instance: &str, further: &
 
 /// The owner's rule is "never discard user data": a batch that the helper of an earlier release accepted and left open must
 ///  still be finished after the switch to the unit of this release, whose journal is in a state folder named after the renamed
-///  program. The earlier helper is gone (killed, or its session ended) and only the new program runs afterwards.
+///  program. The earlier helper is gone (killed, or its session ended) and only the new program runs afterwards. The service
+///  finishes the batch when it is started with the option that turns the adoption on, which the unit does not pass.
 #[test]
 fn a_batch_the_earlier_helper_left_open_is_finished_by_the_service_of_this_release() {
     let fixture: Fixture = fixture("service-adopt-earlier");

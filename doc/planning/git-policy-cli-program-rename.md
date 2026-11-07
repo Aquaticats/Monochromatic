@@ -231,6 +231,90 @@ Recorded 2026-11-07T02:25:36-05:00, after the fourth cross-vendor run
   behind can stop that, and the recovery's checks of the branch and the index make the second settling a repeat of the same
   step.
 
+#### Changes after the fifth review
+
+Recorded 2026-11-07, after the fifth cross-vendor run (`~/temp/agent/issue-6261/sol-review-fix-5/review.txt`) found one defect
+and closed the other three fixes (the process command line and the folder identity).
+
+- Owner decision, 2026-11-07, picked option "Stop the old socket", verbatim: "When the new program sets up its own service for a
+  worktree, it stops and removes the old cli-git@<worktree>.socket unit of that same worktree (these are runtime units, gone at
+  reboot anyway). Pros: half-done work is finished at once; no old units linger. Cons: the new program touches the old
+  program's units; an old-release wrapper still used in that worktree would set its unit up again."
+- Built in `service_provision.rs` (`stop_earlier_instance_socket`), run by `provision_with` after this release's socket has
+  started, through the wrapper's own bus client (`systemd_dbus.rs`, new method `stop_unit_alone`).
+  - The old and the new instance name are one text.
+    Tag `monochromatic-git-policy-cli-v0.5.34`, `service_instance.rs` lines 47 to 56 hash the canonical path of the worktree's
+    own Git directory with the 128-bit FNV-1a constants of lines 31 to 35; main's `instance_of` in the same file is the same body
+    (the diff of the two bodies is only the `unwrap_or_else` spelling), and both callers pass the same Git directory
+    (`service_route.rs` line 108 at the tag and on main).
+    The old units are `cli-git@{instance}.socket` and `.service` (tag lines 69 to 75); main spells the prefix
+    `SERVICE_UNIT.earlier`.
+    So the old unit of a worktree is exactly `cli-git@{host.instance}.socket`, and another worktree's has another hash.
+  - What it does: ask the manager for the state of the old service, then of the old socket; stop the socket only when the
+    service is `inactive`, `failed` or not loaded; ask again, and when the socket is at rest remove its socket file
+    (`<runtime>/cli-git/<instance>.sock`).
+    The manager leaves that file behind after a stop (measured with throwaway units: file present after `StopUnit`), and a file
+    left would make the next commit look again.
+  - The stop is sent in the job mode `ignore-dependencies`.
+    Measured with throwaway units shaped like the old pair (`Requires=` and `After=` the socket): `systemctl --user stop` in
+    the default mode stopped the running service with the socket; with `--job-mode=ignore-dependencies` the service stayed
+    active.
+    `systemd.unit(5)` says the same for `Requires=`: when the required unit "is explicitly stopped" the requiring unit is stopped
+    too.
+    So a plain stop would cut a running helper's batch; the state check skips a running helper, and the job mode keeps a helper
+    that started between the check and the stop.
+  - What is left alone: any other worktree's old units (nothing names them); the old templates `cli-git@.socket` and
+    `cli-git@.service` in `$XDG_RUNTIME_DIR/systemd/user`, which the old program wrote as its only unit files
+    (tag `service_provision.rs` lines 421 and 154) and which every worktree's instance is made from; the old state folders.
+    There is no per-worktree unit file to remove: "remove" is the manager unloading the stopped instance (measured: the unit is
+    gone from `list-units --all` after the stop), plus the socket file above.
+  - A running helper: not stopped, its socket kept, nothing logged; the helper exits when idle (`IDLE_EXIT`, three hours, tag
+    `service_server.rs` line 70) and the next commit that sets the service up stops the socket.
+  - Failure: any bus failure, a refusal, a timeout or a missing unit is logged as a warning naming the unit (a missing unit is
+    not logged) and provisioning carries on; the commit never fails for this.
+    The calls share one exchange's time (`EXCHANGE_WAIT`, 20 s, the budget the reload and the start already have).
+    `in_place` is false while the old socket file of the worktree exists, so a skipped or failed stop is tried again by the next
+    commit; it costs two state questions on the bus.
+- The review's defect: an old-release wrapper in the same worktree can write its units again and start its socket between the
+  adoption's look and the end of the recovery, and the module already said so ("Still open").
+  The reviewer asked for exclusion at the launch paths, "Merely stopping the currently listening sockets, or adding another
+  scan, leaves the race."
+  - Candidate guard: mask `cli-git@<instance>.socket`, which systemd enforces whatever the old program does.
+    Documentation: `systemctl mask` links the unit to `/dev/null` so that "any start operation" fails
+    (`systemctl(1)`, `mask`), in `~/.config/systemd/user` or with `--runtime` below `$XDG_RUNTIME_DIR`
+    ("Similar restrictions apply for `--user` mode"), and fails when a file of that name already exists there.
+    `systemd.unit(5)`, "Unit File Load Path": the user directory outranks `$XDG_RUNTIME_DIR/systemd/user`, and systemd "will first
+    search for the literal unit name" and only then for the template, so an instance-named mask beats the template the old
+    program writes; the old program writes only templates, so its `write_atomically` never touches a file of the instance's name.
+    Measured with a throwaway template pair: `systemctl --user start` of the masked instance fails with "Unit ... is masked",
+    of another instance succeeds, and the service of the masked instance fails with "Unit ...socket is masked".
+  - What the old wrapper does when its start is refused (tag `monochromatic-git-policy-cli-v0.5.34`): `provision` returns
+    `provision_with` (`service_provision.rs` line 457); the start at line 453 gets the masked refusal; line 435 returns it
+    through `refusal` (line 385: `CouldNotStart`); `service_commit.rs` lines 386 to 388 turn it into
+    `TransactionStop::Message`; `commit_command.rs` lines 105 to 108 print it and exit 1.
+    There is no fallback to Git or to landing in process (the matches for "fallback" in `invocation/` are about finding the real
+    Git).
+    So a mask makes every commit of an old-release wrapper in that worktree fail, against "Commits should never fail."
+    (it would not write the old journal, because it never reaches the service).
+  - Other ways the old helper starts: none outside systemd.
+    `service_main.rs` line 4 says it is "never started by the wrapper"; the client's start watch (`service_client.rs` lines 136
+    to 138 and 291) asks the manager to start the service unit, which a mask refuses too; `management_arguments.rs` line 429
+    accepts `service status` only; a development run needs `--abstract` or `--path`.
+  - Result: the second condition (the old wrapper neither fails a commit nor writes the journal) fails, so the mask was not built.
+- What was done instead: the adoption is off in the unit this release writes.
+  `service_main.rs` runs `adopt_open_batches` only when started with `--adopt-earlier-journals`, which the unit does not pass;
+  the control that finishes a batch passes it.
+  This reverses the effect of the owner's pick for the batches (the stop remains, and the open batches stay open), pending the
+  owner.
+- Options for the owner:
+  1. Stop the socket, adoption off (built): no race, no failing commit, open batches stay open until the owner runs a recovery.
+  2. Stop the socket, adoption on (the owner's pick as worded; one unit file change, the option in `ExecStart`): finishes batches
+     at once; the race stays for an old-release wrapper used in the same worktree, and the recovery's checks of the branch and
+     the index make a second settling a repeat of the same step.
+  3. Stop and mask: the race is closed, and every commit by an old-release wrapper in that worktree fails with the refusal.
+  4. Adoption on demand: finish the batches when the person asks (`doctor` or `fix`) after saying no old wrapper runs.
+  5. Status quo before the stop: batches stay open until a reboot, because the old units live in the runtime directory.
+
 ### Where the plan was wrong or incomplete
 
 - The plan's units section says a running old helper "keeps landing commits until replaced".

@@ -67,6 +67,14 @@ impl Manager for Recorder {
     }
 }
 
+/// What provisioning asks last of a manager that holds no unit of the earlier release for the worktree: whether its service
+///  runs, then whether its socket listens.
+fn with_earlier_instance_questions(mut calls: Vec<String>) -> Vec<String> {
+    calls.push(format!("state {}", earlier_service_unit_instance(INSTANCE)));
+    calls.push(format!("state {}", earlier_socket_unit_instance(INSTANCE)));
+    return calls;
+}
+
 /// The instance the fixture machine's worktree has.
 const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
 
@@ -135,7 +143,7 @@ fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
         assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "{name} carries the marker");
     }
     assert!(written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()));
-    assert_eq!(recorder.calls(), vec![format!("start {}", instance_socket())]);
+    assert_eq!(recorder.calls(), with_earlier_instance_questions(vec![format!("start {}", instance_socket())]));
     remove(machine.root.as_path());
 }
 
@@ -153,7 +161,7 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
     provision_with(&machine.host, &mut second).expect("provisioned again");
     assert_eq!(
         second.calls(),
-        vec![format!("reset-failed {}", instance_service()), format!("reset-failed {}", instance_socket()), format!("start {}", instance_socket())]
+        with_earlier_instance_questions(vec![format!("reset-failed {}", instance_service()), format!("reset-failed {}", instance_socket()), format!("start {}", instance_socket())])
     );
     let after: Vec<std::time::SystemTime> = [SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]
         .map(|name| { return std::fs::metadata(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name)).expect("unit").modified().expect("time"); })
@@ -225,12 +233,12 @@ fn a_unit_naming_a_removed_program_is_repaired_with_a_reload_and_a_reset() {
     assert!(in_place(&machine.host));
     assert_eq!(
         recorder.calls(),
-        vec![
+        with_earlier_instance_questions(vec![
             String::from("reload"),
             format!("reset-failed {}", instance_service()),
             format!("reset-failed {}", instance_socket()),
             format!("start {}", instance_socket())
-        ]
+        ])
     );
     remove(machine.root.as_path());
 }
@@ -402,7 +410,7 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     assert_eq!(
         recorder.calls(),
-        vec![
+        with_earlier_instance_questions(vec![
             format!("stop {LEGACY_SOCKET_UNIT_NAME}"),
             // The service is asked to retire and given the wait to finish its batch before the manager is asked to stop it.
             format!("state {LEGACY_SERVICE_UNIT_NAME}"),
@@ -411,7 +419,7 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
             format!("state {LEGACY_SERVICE_UNIT_NAME}"),
             String::from("reload"),
             format!("start {}", instance_socket())
-        ]
+        ])
     );
     assert!(!directory.join(LEGACY_SOCKET_UNIT_NAME).exists() && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
     assert!(!earlier_socket.exists(), "the earlier socket's file is gone");
@@ -509,8 +517,9 @@ fn the_retirement_questions_and_the_start_have_budgets_of_their_own() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let budgets: Vec<std::time::Duration> = recorder.budgets.lock().expect("lock").clone();
     assert_eq!(budgets.first(), Some(&EXCHANGE_WAIT), "the stop calls get a whole exchange's time: {budgets:?}");
-    assert_eq!(budgets.last(), Some(&EXCHANGE_WAIT), "the start gets a whole exchange's time again: {budgets:?}");
-    let questions: &[std::time::Duration] = &budgets[1..budgets.len() - 1];
+    // The last budget is the earlier socket of the worktree's, and the one before it the start's.
+    assert_eq!(budgets[budgets.len() - 2], EXCHANGE_WAIT, "the start gets a whole exchange's time again: {budgets:?}");
+    let questions: &[std::time::Duration] = &budgets[1..budgets.len() - 2];
     assert!(!questions.is_empty(), "{budgets:?}");
     assert!(questions.iter().all(|budget| { return *budget <= machine.host.retirement_wait; }), "{budgets:?}");
     remove(machine.root.as_path());
@@ -768,13 +777,14 @@ fn a_missing_earlier_unit_is_not_an_error() {
     assert!(recorder.calls().contains(&format!("state {}", earlier_socket())), "the manager was asked: {:?}", recorder.calls());
     assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop"); }), "{:?}", recorder.calls());
     assert!(entries.is_empty(), "nothing to say: {entries:?}");
-    let machine: Machine = self::machine("provision-earlier-socket-vanished-lib");
+    remove(machine.root.as_path());
+    let vanished: Machine = self::machine("provision-earlier-socket-vanished-lib");
     let mut vanishing: Recorder = Recorder::default();
     script(&vanishing, earlier_socket().as_str(), &["active"]);
     *vanishing.stop_alone_failure.lock().expect("lock") = Some(CallError::Manager { name: NO_SUCH_UNIT.to_string(), text: String::from("not loaded") });
-    let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut vanishing).expect("provisioned"); });
-    assert!(entries.is_empty(), "a unit that is gone is what the stop was for: {entries:?}");
-    remove(machine.root.as_path());
+    let vanished_entries = crate::service_timing::capture::entries_of(|| { provision_with(&vanished.host, &mut vanishing).expect("provisioned"); });
+    assert!(vanished_entries.is_empty(), "a unit that is gone is what the stop was for: {vanished_entries:?}");
+    remove(vanished.root.as_path());
 }
 
 /// A manager that cannot be asked, refuses, or runs out of time for the earlier socket never fails the commit ("Commits should

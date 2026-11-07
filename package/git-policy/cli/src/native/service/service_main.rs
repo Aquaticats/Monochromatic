@@ -11,6 +11,12 @@
 //!  give `--idle-seconds <n>` and `--release <text>` (the release announced to clients; default this build's). The unit
 //!  instance of one worktree passes `--instance <name>` (`service_instance.rs`), and that service refuses messages about
 //!  any other worktree; without it a development run serves any.
+//!  `--adopt-earlier-journals` turns on the finishing of the batches an earlier release's helper left open
+//!  (`earlier_service_journal_adopted.rs`). The unit this release writes does not pass it: the look that adoption relies on
+//!  cannot exclude a wrapper of the earlier release that sets its socket unit up and starts the helper after the look, and the
+//!  only guard systemd enforces (masking the earlier unit) makes that wrapper fail its commits (tag
+//!  `monochromatic-git-policy-cli-v0.5.34`, `service_commit.rs` lines 386 to 388, `commit_command.rs` lines 105 to 108), so the
+//!  adoption stays off until the owner chooses (`doc/planning/git-policy-cli-program-rename.md`, "Changes after the fifth review").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,6 +42,9 @@ pub const SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.current, "service", "run"];
 /// The words a unit file an earlier release wrote passes;
 ///  the service mode answers them the same.
 pub const EARLIER_SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.earlier, "service", "run"];
+
+/// The option that turns on the finishing of the batches an earlier release's helper left open. The unit file does not pass it.
+pub const ADOPT_OPTION: &str = "--adopt-earlier-journals";
 
 /// The exit status of a start that was refused for its arguments or its Git.
 pub const EXIT_REFUSED: i32 = 2;
@@ -218,7 +227,9 @@ pub fn run(arguments: &[String]) -> i32 {
         let _pruned = prune_done(shared, DONE_RETAINED);
         // The unit of this release keeps the journal in a state folder named after the renamed program: the batches the earlier
         //  helper of this worktree left open in its own folder are finished here too, when no service of the worktree runs.
-        let _adopted = adopt_open_batches(&context, instance, std::path::Path::new("/proc"));
+        if arguments.iter().any(|argument| { return argument == ADOPT_OPTION; }) {
+            let _adopted = adopt_open_batches(&context, instance, std::path::Path::new("/proc"));
+        }
     }
     crate::service_log!("ready");
     serve(listener, &context, &settings);
