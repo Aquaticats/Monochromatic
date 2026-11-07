@@ -292,8 +292,16 @@ await describe({
             expect(
               isHexTag(playwrightImageTag(DOCKERFILE,),),
             ).toBe(true,);
-            expect(isHexTag(TAG.toUpperCase(),),).toBe(false,);
-            expect(isHexTag(TAG.slice(0, -1,),),).toBe(false,);
+            /**
+             The tag in capitals, which is not a lowercase hex tag.
+             */
+            const capitalTag = TAG.toUpperCase();
+            /**
+             The tag without its last digit, which is too short.
+             */
+            const shortTag = TAG.slice(0, -1,);
+            expect(isHexTag(capitalTag,),).toBe(false,);
+            expect(isHexTag(shortTag,),).toBe(false,);
           },
         },),
         it({

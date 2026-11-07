@@ -6,6 +6,7 @@ import {
 
 import { maximumBuildTimeoutSeconds } from './campaign-files.ts';
 import { parseTimeoutAndExamine } from './campaign-options.ts';
+import { defaultUnitTasksMax } from './constants.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
   type Environment,
@@ -89,6 +90,7 @@ await describe({
               gateSlotArguments: [],
               unitMemoryMax: '12G',
               unitCpuQuota: '500%',
+              unitTasksMax: defaultUnitTasksMax,
               timeoutSeconds: 900,
               attempts: 3,
               retryMarker: 'FAILED   Unmutated baseline',
@@ -133,6 +135,7 @@ await describe({
                 '--lock-dir', '/locks',
                 '--unit-memory-max', '8G',
                 '--unit-cpu-quota', '300%',
+                '--unit-tasks-max', '96',
                 '--timeout', '60',
                 '--attempts', '2',
                 '--retry-marker', 'again',
@@ -155,6 +158,7 @@ await describe({
               gateSlotArguments: ['--slot-count', '4', '--lock-dir', '/locks'],
               unitMemoryMax: '8G',
               unitCpuQuota: '300%',
+              unitTasksMax: 96,
               timeoutSeconds: 60,
               attempts: 2,
               retryMarker: 'again',
@@ -282,6 +286,9 @@ await describe({
           ['a non-numeric slot count', [...required, '--slot-count', 'many', 'l', 'f.rs']],
           ['a unit memory cap with a shell metacharacter', [...required, '--unit-memory-max', '1G;x', 'l', 'f.rs']],
           ['a unit CPU quota with a space', [...required, '--unit-cpu-quota', '5 00%', 'l', 'f.rs']],
+          ['a zero unit task limit', [...required, '--unit-tasks-max', '0', 'l', 'f.rs']],
+          ['a fractional unit task limit', [...required, '--unit-tasks-max', '1.5', 'l', 'f.rs']],
+          ['an unlimited unit task limit', [...required, '--unit-tasks-max', 'infinity', 'l', 'f.rs']],
           ['an empty container memory limit', [...required, '--memory', '', 'l', 'f.rs']],
           ['an environment entry without a name', [...required, '--setenv', '=x', 'l', 'f.rs']],
           ['an environment entry with a bad name', [...required, '--setenv', 'A-B=1', 'l', 'f.rs']],

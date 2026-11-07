@@ -68,8 +68,14 @@ Run the script without arguments for the same list with defaults.
   which no option raises.
 - `--passes <1|2>` is forwarded to the task only when given.
   `--passes 2` asks a product that offers it to run each file's campaign in two passes (see "Two passes").
-- `--unit-memory-max <value>` and `--unit-cpu-quota <value>` cap the whole systemd unit (the task, the container client
-  and the build), not the container; they are separate from `--memory` and `--cpus` (defaults `12G` and `500%`).
+- `--unit-memory-max <value>`, `--unit-cpu-quota <value>` and `--unit-tasks-max <count>` cap the whole systemd unit
+  (the task, the container client and the build), not the container; they are separate from `--memory`, `--cpus`
+  and `--pids-limit` (defaults `12G`, `500%` and 256 tasks).
+  The task limit counts threads as well as processes and must be a whole number; `defaultUnitTasksMax` in
+  `src/constants.ts` records the measurement it comes from, and a start that fails against it reports a bare `EAGAIN`,
+  which is the sign to raise it.
+  Every unit also gets `IOWeight=10`, the highest the owner's rule in `CLAUDE.md` (RXS) allows;
+  no option raises it, and the container, which sits outside the unit, has its own lowest weight (see the `--memory` and `--cpus` entry).
 - `--unit-prefix`, `--log-prefix`, `--log-dir`, `--tmp-dir` and `--root` place names and files;
   the working tree comes from `--root`, then `MUT_ROOT`, then the checkout that holds this package.
   Logs and `TMPDIR` default under `<home>/temp/agent`.
