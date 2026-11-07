@@ -271,13 +271,15 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
 
         output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(30))).expect("runs");
         use_route_settings_for_test(None);
-        // The scope's name follows the launch event, and a weaker-path notice comes first and is observed by its own test; the order of the
-        // record, its sync and the launch is what is compared here.
-        let trace: Vec<String> = take_trace_for_test().into_iter().filter(|event| { return !event.starts_with("notice "); }).map(|event| { return if event.starts_with("launch scope ") { "launch scope".to_string() } else { event }; }).collect();
+        // The scope's name follows the launch event and the direct child's process id follows the spawned event (both vary per run), and a
+        // weaker-path notice comes first and is observed by its own test; the order of the record, its sync, the launch and the spawn is what
+        // is compared here.
+        let trace: Vec<String> = take_trace_for_test().into_iter().filter(|event| { return !event.starts_with("notice "); }).map(|event| { return if event.starts_with("launch scope ") { "launch scope".to_string() } else if event.starts_with("spawned ") { "spawned".to_string() } else { event }; }).collect();
 
         let kind: &str = if weaker { "pgroup-starting" } else { "scope" };
         let launch: &str = if weaker { "launch pgroup" } else { "launch scope" };
-        let intended: Vec<String> = vec![format!("attempt {kind}"), format!("written {kind}"), format!("sync {kind} whole=true"), format!("synced {kind}"), launch.to_string()];
+        // The spawn of the direct child is traced right after the launch (round 21), before the launcher line or the group record.
+        let intended: Vec<String> = vec![format!("attempt {kind}"), format!("written {kind}"), format!("sync {kind} whole=true"), format!("synced {kind}"), launch.to_string(), "spawned".to_string()];
         assert_eq!(trace[..intended.len()], intended[..], "weaker={weaker}: the order is not record, sync, launch: {trace:?}");
         let rest: Vec<&str> = trace[intended.len()..].iter().map(String::as_str).collect();
         if weaker {
