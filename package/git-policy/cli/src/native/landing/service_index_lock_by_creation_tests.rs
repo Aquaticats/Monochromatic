@@ -6,7 +6,7 @@ use crate::service_index_lock::*;
 use crate::service_index_marker::{marker_text, own_identity};
 use crate::service_protocol::FailureCode;
 use crate::test_support::{fixture, remove};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -79,15 +79,26 @@ fn exclusive_creation_is_used_only_when_both_the_rename_and_the_link_are_refused
 
 /// The lock made by exclusive creation holds the marker of its holder, whole, by the time the hold begins; a lock another
 /// program holds is waited for to the ceiling and stays exactly as it was, whether it is a Git's empty lock (the state a kill
-/// between creation and marker leaves) or anything else, and the wait ends with `IndexInUse`.
+/// between creation and marker leaves) or anything else, and the wait ends with `IndexInUse` and words that name the file and the fix.
 #[test]
 fn a_lock_that_exists_is_never_removed_or_replaced_by_the_fallback() {
     let (root, index) = index_in("lock-creation-existing");
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, b"").expect("a lock without a marker, as plain Git leaves one");
     let platform: Platform = Platform { rename: &rename_refused, link: &link_refused, ..SYSTEM };
-    let failure = acquire_within(&platform, &index, 5, SHORT_CEILING, &|_| {}).expect_err("a held lock ends at the ceiling");
+    let said: RefCell<Vec<String>> = RefCell::new(Vec::new());
+    let failure = acquire_within(&platform, &index, 5, SHORT_CEILING, &|note| {
+        if let Announce::Waiting(text) = note {
+            said.borrow_mut().push(text);
+        }
+    })
+    .expect_err("a held lock ends at the ceiling");
     assert_eq!(failure.code, FailureCode::IndexInUse);
+    let said: String = said.borrow().join("\n");
+    assert!(
+        said.contains(lock.to_string_lossy().as_ref()) && said.contains("removing the file") && said.contains("was not made"),
+        "the person is told which file this is and how to clear it: {said}"
+    );
     assert_eq!(std::fs::read(&lock).expect("the lock stays"), b"", "the lock without a marker is left as it was");
     assert!(try_acquire_on(&platform, &index, 6).is_none());
     assert!(lock.exists());
