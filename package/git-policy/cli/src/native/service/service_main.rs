@@ -243,7 +243,7 @@ pub fn run(arguments: &[String]) -> i32 {
         journal,
         on_objects_written: None,
         // A control gives a short ceiling with `--lock-ceiling-millis`; a service the manager starts never passes it.
-        lock_ceiling: number_option(arguments, "--lock-ceiling-millis").map_or(crate::wait_ceilings::LOCK_CEILING, Duration::from_millis),
+        lock_ceiling: number_option(arguments, "--lock-ceiling-millis").map_or(crate::wait_ceilings::LANDING_LOCK_CEILING, Duration::from_millis),
     };
     let idle: Duration = number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
     let mut settings: ServeSettings = ServeSettings::new(idle);
@@ -265,6 +265,9 @@ pub fn run(arguments: &[String]) -> i32 {
         let _pruned = prune_done(shared, DONE_RETAINED);
     }
     crate::service_log!("ready");
+    // The repository this service served before warms its compiled rules now, on the blocking pool, so an upgrade's new cache is
+    //  filled before the first commit that would compile it.
+    crate::service_rules_precompile::warm_remembered(context.journal.as_path());
     serve(listener, &context, &settings);
     return 0;
 }

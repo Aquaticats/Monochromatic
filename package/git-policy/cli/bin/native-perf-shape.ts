@@ -6,8 +6,10 @@
  with the hooks and the refreshed index such a worktree has.
  */
 import {
+  appendFile,
   copyFile,
   readdir,
+  writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -271,4 +273,184 @@ export function makeFixture({
       shape,
       ...(hooksFrom === undefined ? {} : { hooksFrom, }),
     });
+}
+
+/**
+ The files every commit sample edits and how it edits them: the repository-relative paths the commit of a sample names, and a
+ `prepare` step that appends one line to each of them in a repository, so the next commit of those files is a real change, and
+ creates and stages the new files of the sample, so the commit names staged additions as well.
+ */
+export type SampleEdits = {
+  readonly pathsOf: (sample: number) => readonly string[];
+  readonly prepare: (target: {
+    readonly directory: string;
+    readonly sample: number;
+  }) => Promise<void>;
+};
+
+/**
+ The tracked files every commit sample edits: the one file of the default run, or the first tracked text files of the
+ repository, so a commit has the size the run was asked to measure.
+
+ Only Markdown, TypeScript, Rust and text sources count: they are text, so an appended line is an ordinary change, and a
+ repository holds many of them. The two fixtures of a run are copies of each other, so the names hold in both.
+
+ @param files - the `--files` text, how many files a sample edits; absent means one
+
+ @param added - the `--new-files` text, how many new files each sample creates and stages with `git add` before its commit, which
+   then names them with the edited ones; absent means none
+
+ @param changeRules - whether each sample first appends a comment line to the repository's optional local rules file
+   (`forbidden-strings.append.local.txt`), so a commit in a repository whose configuration names that file meets rules text whose
+   compiled form is in no cache (the default thirty-file fixture has no configuration, so the option changes nothing there)
+
+ @param root - scratch root that holds `bin` and `home`, which staging runs in
+
+ @param shaped - whether the fixtures are copies of a prepared repository, which tracks `README.md` at its root (`DPL`), instead of
+   the thirty generated files
+
+ @param directory - repository whose index names the files
+
+ @returns the names and the edit
+
+ @throws Error when the count is not a positive integer or the repository tracks fewer text files than asked for
+
+ @example
+ ```ts
+ const edits = await sampleEditsOf({ files: '50', shaped: true, directory });
+ ```
+ */
+export async function sampleEditsOf({
+  files,
+  added,
+  changeRules,
+  root,
+  shaped,
+  directory,
+}: {
+  readonly files?: string;
+  readonly added?: string;
+  readonly changeRules?: boolean;
+  readonly root: string;
+  readonly shaped: boolean;
+  readonly directory: string;
+}): Promise<SampleEdits> {
+  /**
+   How many files a sample edits.
+   */
+  const count = Number(files ?? '1');
+  if ((!Number.isInteger(count)) || (count < 1)) {
+    throw new Error('--files must be a positive integer');
+  }
+  /**
+   Names the index holds that end in a text-source extension, NUL separated; only asked for when more than one file is wanted.
+   */
+  const listed = count === 1
+    ? ''
+    : (await runCommand({
+      command: REAL_GIT,
+      args: [
+        '-C',
+        directory,
+        'ls-files',
+        '-z',
+        '--',
+        '*.md',
+        '*.ts',
+        '*.rs',
+        '*.txt',
+      ],
+      capture: true,
+    })).stdout;
+  /**
+   The files of a sample.
+   */
+  const names = count === 1
+    ? [shaped ? 'README.md' : 'file-0.txt']
+    : listed.split('\0')
+      .filter(Boolean)
+      .slice(
+      0,
+      count,
+      );
+  if (names.length < count) {
+    throw new Error(`the repository tracks ${String(names.length)} text files, fewer than the ${String(count)} asked for`);
+  }
+  /**
+   How many new files each sample creates and stages.
+   */
+  const created = Number(added ?? '0');
+  if ((!Number.isInteger(created)) || (created < 0)) {
+    throw new Error('--new-files must be a non-negative integer');
+  }
+  /**
+   The new files of one sample, named by the sample so no two samples share one.
+
+   @param sample - number of the sample
+
+   @returns repository-relative names
+   */
+  function addedBy(sample: number): readonly string[] {
+    return Array.from(
+      { length: created, },
+      function nameOf(
+        _unused,
+        index
+      ) {
+        return `perf-added-${String(sample)}-${String(index)}.txt`;
+      },
+    );
+  }
+  return {
+    pathsOf(sample) {
+      return [
+        ...names,
+        ...addedBy(sample),
+      ];
+    },
+    async prepare({
+      directory: target,
+      sample,
+    }) {
+      await Promise.all(names.map(function edit(name) {
+        return appendFile(
+          join(
+            target,
+            name,
+          ),
+          `edit ${String(sample)} ${String(Math.random())}\n`,
+        );
+      }));
+      if (changeRules === true) {
+        await appendFile(
+          join(
+            target,
+            'forbidden-strings.append.local.txt',
+          ),
+          `# rules change of sample ${String(sample)}\n`,
+        );
+      }
+      if (created > 0) {
+        await Promise.all(addedBy(sample)
+          .map(function create(name) {
+            return writeFile(
+              join(
+                target,
+                name,
+              ),
+              `new ${name}\n`,
+            );
+          }));
+        await setup({
+          root,
+          directory: target,
+          arguments_: [
+            'add',
+            '--',
+            ...addedBy(sample),
+          ],
+        });
+      }
+    },
+  };
 }

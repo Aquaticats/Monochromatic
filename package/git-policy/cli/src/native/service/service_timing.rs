@@ -27,6 +27,7 @@ use crate::service_index_found::WaitNotes;
 use crate::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, cut, one_line};
 use crate::lfs_output_mask::mask_userinfo_text;
 use crate::quiet_ledger::longest_healthy;
+use crate::transaction_step_durations::{StepFigure, steps_word};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -150,6 +151,15 @@ pub struct Answered<'record> {
     /// so the first answer of a batch holds
     ///  what the batch's steps showed and the others of that batch hold nothing.
     pub quiet: &'record [(String, Duration)],
+    /// Every Git step the service started since the previous answered line,
+    /// as program and subcommand with the offset from the
+    ///  connection's acceptance and the duration (`transaction_step_durations.rs`).
+    /// Taken like `quiet`:
+    /// the first answer of a batch
+    ///  holds the batch's steps.
+    pub steps: &'record [StepFigure],
+    /// How many steps came after the list reached its bound.
+    pub steps_dropped: usize,
 }
 
 /// What:
@@ -308,7 +318,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} index_update_ms={} attempts={} landing_ms={} \
-         answer_ms={} total_ms={} quiet_ms={} quiet_steps={:?}",
+         answer_ms={} total_ms={} quiet_ms={} quiet_steps={:?} steps={:?} steps_dropped={}",
         answered.request,
         answered.reference,
         answered.outcome,
@@ -331,6 +341,8 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
         answered.total.as_millis(),
         longest_healthy(answered.quiet),
         quiet_steps(answered.quiet),
+        steps_word(answered.steps),
+        answered.steps_dropped,
     );
 }
 

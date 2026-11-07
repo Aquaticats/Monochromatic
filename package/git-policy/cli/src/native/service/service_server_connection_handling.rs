@@ -142,7 +142,7 @@ pub(crate) fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &
             crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
             send(&stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected });
         }
-        Ok(ClientMessage::Scratch { git_dir, .. } | ClientMessage::Work { git_dir, .. }) if is_foreign(instance, git_dir.as_path()) => {
+        Ok(ClientMessage::Scratch { git_dir, .. } | ClientMessage::Work { git_dir, .. } | ClientMessage::Warm { git_dir, .. }) if is_foreign(instance, git_dir.as_path()) => {
             crate::service_warn!("refused a message for {}, which another instance serves", git_dir.display());
             send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
         }
@@ -188,6 +188,10 @@ pub(crate) fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &
             busy.fetch_sub(1, Ordering::SeqCst);
             let _unused = git_dir;
             let _queued = queue.send(Job::Release(path));
+        }
+        Ok(ClientMessage::Warm { repository, .. }) => {
+            // Nothing is answered: the compile is a job of the blocking pool, and the connection closes with this function.
+            crate::service_rules_precompile::warm_in_background(repository);
         }
         Ok(ClientMessage::Work { git_dir, review_key }) => {
             let _queued = work.send((git_dir, review_key));

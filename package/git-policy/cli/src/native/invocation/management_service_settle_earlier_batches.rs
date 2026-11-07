@@ -44,7 +44,7 @@ use crate::management_service_repository_selection::{Selection, status_git_dir};
 use crate::service_instance::{earlier_service_unit_instance, earlier_socket_unit_instance, instance_of};
 use crate::service_land::Handled;
 use crate::transaction_git::GitContext;
-use crate::wait_ceilings::LOCK_CEILING;
+use crate::wait_ceilings::SETTLE_LOCK_CEILING;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -324,7 +324,7 @@ pub(crate) fn settle_earlier_batches_action(request: &SettleRequest<'_>, conditi
     if let Err(error) = say_condition(condition_out) {
         return refused(format!("the safety condition could not be written to standard error ({error}), so nothing was settled.").as_str());
     }
-    let (settled, unanswered) = match settle_on_request(git, &earlier, instance.as_str(), request.proc_root, LOCK_CEILING) {
+    let (settled, unanswered) = match settle_on_request(git, &earlier, instance.as_str(), request.proc_root, SETTLE_LOCK_CEILING) {
         RequestedSettlement::Settled { batches, unanswered } => (batches, unanswered),
         RequestedSettlement::Held { because, .. } => return held_back(open, instance.as_str(), because),
         RequestedSettlement::NothingOpen => return Action::Exit { code: 0, stdout: String::from("No batch of the earlier release is left open for this worktree. Nothing to settle.\n"), stderr: String::new() },

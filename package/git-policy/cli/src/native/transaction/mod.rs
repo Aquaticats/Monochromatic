@@ -34,6 +34,12 @@ pub mod transaction_git_step_rerun_and_end_rules;
 /// How long a Git step is waited for and what happens at the bound.
 pub mod transaction_git_step_bounds;
 
+/// The Git steps a command ran,
+/// each with its name,
+/// start and duration,
+/// for the timing records.
+pub mod transaction_step_durations;
+
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 

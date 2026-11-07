@@ -34,6 +34,7 @@ use crate::discard_audit::append_line;
 use crate::iso_time::now_iso;
 use crate::json_record::{quote, string_array};
 use crate::quiet_ledger::{drain, longest_healthy, object_json};
+use crate::transaction_step_durations::{StepFigure, drain_steps, steps_json};
 use crate::service_instance::instance_of;
 use crate::service_protocol::RELEASE;
 use std::path::{Path, PathBuf};
@@ -295,6 +296,14 @@ pub struct CommitTiming {
     ///  is written;
     /// a step that was ended for being quiet is listed apart from the steps that ended by themselves.
     pub quiet: Vec<(String, Duration)>,
+    /// Every Git step this command started,
+    /// each with its program and subcommand,
+    /// when it began (from the command's start) and how
+    ///  long it ran,
+    /// taken from the step ledger when the record is written (`transaction_step_durations.rs`).
+    pub steps: Vec<StepFigure>,
+    /// How many steps came after the list reached its bound.
+    pub steps_dropped: usize,
 }
 
 impl CommitTiming {
@@ -321,6 +330,8 @@ impl CommitTiming {
             gate: Duration::ZERO,
             handoff: Duration::ZERO,
             quiet: Vec::new(),
+            steps: Vec::new(),
+            steps_dropped: 0,
         };
     }
 
@@ -363,7 +374,7 @@ impl CommitTiming {
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
              \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
              \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"otherMs\":{},\
-             \"longestQuietMs\":{},\"quietMs\":{}}}\n",
+             \"longestQuietMs\":{},\"quietMs\":{},\"steps\":{},\"stepsDropped\":{}}}\n",
             quote(now_iso().as_str()),
             self.start_millis,
             std::process::id(),
@@ -395,6 +406,8 @@ impl CommitTiming {
             self.other(total).as_millis(),
             longest_healthy(self.quiet.as_slice()),
             object_json(self.quiet.as_slice()),
+            steps_json(self.steps.as_slice()),
+            self.steps_dropped,
         );
     }
 
@@ -419,6 +432,7 @@ impl CommitTiming {
         // The ledger holds what this command's Git steps and tools showed; the record takes it and the next command starts empty.
         let mut with_quiet: CommitTiming = self.clone();
         with_quiet.quiet = drain();
+        (with_quiet.steps, with_quiet.steps_dropped) = drain_steps(self.began);
         let line: String = with_quiet.line(self.began.elapsed(), exit_code);
         if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
             debug(TAG, &format!("the timing record could not be written to {}: {error}", target.display()));

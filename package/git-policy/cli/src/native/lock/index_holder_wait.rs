@@ -52,7 +52,7 @@ use crate::process_start::resolve_process_start;
 /// The place of the lock and the watch on its directory.
 use crate::service_index_lock::{Watch, lock_path_of};
 /// The longest a wait lasts.
-use crate::wait_ceilings::LOCK_CEILING;
+use crate::wait_ceilings::MERGE_LOCK_CEILING;
 /// How long a wait without a watch sleeps between looks.
 use crate::service_index_watch::POLL_PAUSE;
 use crate::wait_progress::{Cadence, Ticker};
@@ -159,7 +159,7 @@ fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, fir
 /// await waitForIndexRelease(realIndex, 'merge', cadence, stderr)
 /// ```
 pub fn wait_for_index_release(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write) -> IndexWait {
-    return wait_for_index_release_within(real_index, command, LOCK_CEILING, cadence, out);
+    return wait_for_index_release_within(real_index, command, MERGE_LOCK_CEILING, cadence, out);
 }
 
 /// `wait_for_index_release` that gives up after `ceiling`.

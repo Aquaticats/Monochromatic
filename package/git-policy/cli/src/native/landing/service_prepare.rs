@@ -37,7 +37,7 @@
 use crate::service_prepare_ready_shapes::ReplayConflict;
 pub use crate::service_prepare_ready_shapes::{NativeInputs, Prepared, Ready, Scratch};
 use crate::service_prepare_ready_shapes::ReadyShape;
-pub use crate::service_prepare_changes_config_and_pathspec_steps::config_needs_native;
+pub use crate::service_prepare_changes_config_and_pathspec_steps::{config_needs_native, config_signs};
 use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, pathspec_file_for, zero_object};
 use crate::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
 use crate::private_index_request::{CaptureIndexes, indexed_request};

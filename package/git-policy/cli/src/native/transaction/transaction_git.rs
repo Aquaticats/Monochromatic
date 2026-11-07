@@ -405,8 +405,11 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     } else {
         None
     };
-    let output: std::process::Output =
-        output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound)?;
+    // The step is written down whatever its outcome: a step that failed or was ended spent its time too.
+    let began: std::time::Instant = std::time::Instant::now();
+    let watched = output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound);
+    crate::transaction_step_durations::note_step(ledger_step.as_str(), began, began.elapsed());
+    let output: std::process::Output = watched?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

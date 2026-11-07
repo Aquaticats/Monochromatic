@@ -27,7 +27,7 @@ use crate::autostash_carry::carry_stash;
 use crate::conclusion_cleanup::reproduce_conclusion_cleanup;
 use crate::diagnostic_log::warn;
 use crate::index_holder_wait::{IndexWait, wait_for_index_release_within};
-use crate::wait_ceilings::LOCK_CEILING;
+use crate::wait_ceilings::RECONCILE_LOCK_CEILING;
 use crate::wait_progress::Cadence;
 use crate::inner_git_words::record_words;
 use crate::service_index_lock::IndexLock;
@@ -241,7 +241,7 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 /// await updateIndex(git, repository, index, newCommit, paths)
 /// ```
 pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
-    return update_index_within(git, repository, index, LOCK_CEILING, new, paths);
+    return update_index_within(git, repository, index, RECONCILE_LOCK_CEILING, new, paths);
 }
 
 /// `update_index` that gives up on a holder of the index lock after `ceiling`,
