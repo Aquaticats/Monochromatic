@@ -25,6 +25,7 @@
 use crate::pid_namespace::{current_pid_namespace, foreign_owner_standing};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
 use crate::subvolume_error::MigrateError;
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
@@ -119,7 +120,10 @@ fn encode(record: &Record) -> String {
 /// The record a claim file's text holds, or nothing when the text is not a claim of this command.
 fn decode(text: &str) -> Option<Record> {
     let mut lines = text.lines();
-    if lines.next() != Some(CLAIM_HEADER) {
+    // The files are named as before the rename, so a claim of the earlier release is found, and read in its own spelling.
+    let earlier_header: String = CLAIM_HEADER.replacen(DATA_FOLDER.current, DATA_FOLDER.earlier, 1);
+    let first: &str = lines.next()?;
+    if first != CLAIM_HEADER && first != earlier_header {
         return None;
     }
     let second: &str = lines.next()?;

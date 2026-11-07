@@ -398,6 +398,86 @@ command found three defects, fixed on `fix/git-policy-cli-settle-command-review-
   (`LEGACY_SOCKET_RELATIVE`), where the first releases wrote `cli-git/service.sock`; that is a separate question to check
   before the message may promise it.
 
+#### Earlier names after the rename audit
+
+Recorded 2026-11-07, after the coordinator confirmed a wrongly renamed constant: `LEGACY_SOCKET_RELATIVE` named the earlier
+program's file (`cli-git/service.sock`, tag `monochromatic-git-policy-cli-v0.5.34`, `service_instance.rs` line 26) and held this
+release's folder name.
+The audit compares the tag with `main` for every name in the crate's non-test source (`package/git-policy/cli/src`, leaving out
+`*_tests.rs`, `*test_support*.rs`, `testing/`, `binary/` and the word-merge corpus files).
+
+Method and counts:
+
+- `git grep -n -E '"[^"]*cli-git[^"]*"'` at the tag: 313 lines naming `cli-git` in a string literal; on `main` the same search finds 74.
+- `git diff -U0 monochromatic-git-policy-cli-v0.5.34 HEAD -- package/git-policy/cli/src` with the same exclusions, keeping the
+  removed lines that are not comments and name `cli-git`: 417 lines.
+  By a pattern for constants, `join(...)`, ref names, unit lines, thread names and file names, 122 of them are names of
+  things; the rest are message text (the `cli-git:` prefix, `git cli-git ...` in help and hints).
+  Each of the 122 was read next to its `main` counterpart.
+- `git grep -h -o -E '\b(CLI_GIT|MONOCHROMATIC)_[A-Z_0-9]+'` at the tag and on `main`: 42 names each, the same set (a `diff` of the
+  sorted names is empty).
+- The 12 pairs of `foundation/wrapper_names_old_and_new.rs` were followed to their uses of `.earlier`
+  (`rg -n '\.earlier\b'`): `COMMAND_WORD` in `invocation/entry.rs` and `service/service_main.rs`, `SETTINGS_FILE` in
+  `config/config_file.rs`, `SERVICE_UNIT` in `service/service_instance.rs` and `service/earlier_unix_sockets_that_listen.rs`,
+  `DATA_FOLDER` in the two landing modules, and every folder and log pair through `foundation/kept_names_in_the_git_directories.rs`
+  (moved in place by `repo_read/repository_facts.rs` on the first command in a repository).
+  `PROGRAM` and `MESSAGE_PREFIX` hold their earlier half only for the table and for messages.
+- `env!("CARGO_PKG_NAME")` in `invocation/real_git_candidate.rs` is the crate's name, which did not change (the `[[bin]]` did),
+  so launcher records of earlier installs are still recognized.
+
+Wrongly renamed (the name is the earlier program's artifact and held the new name), each fixed with a red test first:
+
+- `LEGACY_SOCKET_RELATIVE` in `service/service_instance.rs`: now `cli-git/service.sock`.
+  `retire_earlier_service` and `in_place` look for the single service of the first releases there.
+  With the old value they looked in a folder of this release that nothing writes, so that service was found only through its unit
+  files, `ask_to_retire` was sent to a path nothing listens on, and a socket file at its real path did not keep the installation
+  from counting as in place.
+- `RECORD_MAGIC`, `SKIPPED_MAGIC` and `LOST_MAGIC` in `push/push_failure_notice.rs`: the first lines of the records of failed
+  pushes.
+  The folder of the records is moved in place, so earlier records are there with the earlier first line, and `parse_record` took
+  them for the finished text of a still earlier release and showed them raw, to any worktree.
+  Both spellings are read now; records are written in the current one.
+- `CLAIM_HEADER` in `lock/single_owner_claim.rs`: the first line of the claim files of `migrate-to-subvolume` and
+  `convert-worktree-to-subvolume`, whose file names keep the earlier prefix (`cli-git-convert.owner.N`).
+  A claim of the earlier release, released or from a dead owner, was "not a claim file this command wrote" and stopped the command.
+  Both spellings are read now.
+
+Correctly renamed (the name is this release's own artifact; the earlier counterpart is handled where stated):
+
+- The units, the template names, the socket folder `%t/monochromatic-git-policy-cli/`, the state folder
+  `monochromatic-git-policy-cli/service/<instance>` and `SyslogIdentifier`: this release's service.
+  The earlier ones are named through `SERVICE_UNIT.earlier` (`earlier_*` helpers in `service/service_instance.rs`) and the
+  adoption journals (`earlier_journals_in_state`), and the single service of the first releases through the kept `cli-git.socket`
+  and `cli-git.service` names and the fixed `LEGACY_SOCKET_RELATIVE`.
+- The command word, the settings file, the data folders and logs in the Git directories, the merge and worktree-copy record
+  folders: pairs, moved in place or read under the earlier name.
+- Folders and files under the data folder (`discarded`, `notices`, `orphaned-notices`, `work`, `removal-snapshots`,
+  `standards-review-shadow.md`, `shadow/`): they move with the folder.
+- Scratch and cache names (`REPOSITORY_SCRATCH_NAME`, the state and cache folders of `foundation/scratch_location.rs` and
+  `invocation/git_version_cache.rs`, the cache header, `SCRATCH_PREFIX`, `cli-git-service-<id>` scratch names, the journal
+  identifiers and log prefixes, `LOG_COMMAND` and `RESTART_COMMAND`, thread and tag names): this release's own, rebuilt on use.
+- The messages' `cli-git:` prefix and the `git cli-git ...` spellings in help and hints.
+
+Correctly kept as the earlier name (74 literal lines on `main`; the artifact is shared with the earlier release or is still written
+under that name, so a reader of either release finds it):
+
+- The ref names `refs/cli-git/kept/`, `refs/cli-git/trash`, `refs/cli-git/auto-push/fetch-` and `refs/worktree/cli-git-service/`.
+- The index-lock marker `cli-git-service ` and the `cli-git-private-copy v1` marker.
+- The sibling and stage names `.cli-git-converting`, `.cli-git-migrate-*`, `.cli-git-worktree-copy-`, `.cli-git-added-`,
+  `.cli-git-direct-fix-`, `.cli-git-marker`, `.cli-git-new`, `.cli-git-claim.tmp.`, and the `cli-git-convert` journal, lock and
+  claim names with their `cli-git-convert v1` header.
+- `cli-git-transactions` and `cli-git-transaction`, `.claude/cli-git-trash`, `/dev/null/cli-git-no-hooks`, `--cli-git-keep-going`,
+  `cli-git-lfs-pre-push`, the legacy `cli-git.config.mjs` and `cli-git.config.ts`, and the 42 environment variable and journal
+  field names.
+
+Gaps found, not rename errors, not changed here:
+
+- `invocation/real_git_record.rs` reads the recorded Git from this release's service template only; an installation that has not
+  yet written it does not use the earlier template as a fallback.
+- The scratch, state and cache folders of the earlier release (`<state>/cli-git`, `<cache>/cli-git`, `cli-git-scratch` in a Git
+  directory) are not swept or moved; they hold nothing the wrapper reads.
+- The TypeScript packages the plan lists (`package/git-executable/core` and the others) were outside this audit of the crate.
+
 ### Where the plan was wrong or incomplete
 
 - The plan's units section says a running old helper "keeps landing commits until replaced".

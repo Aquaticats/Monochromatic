@@ -23,8 +23,10 @@ use std::path::{Path, PathBuf};
 pub const SOCKET_DIRECTORY: &str = SERVICE_UNIT.current;
 
 /// The socket of the one service every worktree of an account shared until the release that gave each worktree its own. A
-///  service still listening here is asked to retire and its units are removed.
-pub const LEGACY_SOCKET_RELATIVE: &str = "monochromatic-git-policy-cli/service.sock";
+///  service still listening here is asked to retire and its units are removed. It is a file of the earlier program, in the
+///  earlier program's folder (`SERVICE_UNIT.earlier`, tag `monochromatic-git-policy-cli-v0.5.34`, `service_instance.rs` line
+///  26), and keeps that spelling; a rename of this release's names does not reach it.
+pub const LEGACY_SOCKET_RELATIVE: &str = "cli-git/service.sock";
 
 /// The number of hexadecimal digits of an instance name.
 pub const INSTANCE_LENGTH: usize = 32;

@@ -179,7 +179,7 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
     listen_at(&world, "service.sock");
     let ((shared_code, _, shared_err), _) = run(&world.request());
     assert_eq!(shared_code, 1);
-    for wanted in ["every worktree", "systemctl --user stop cli-git.socket cli-git.service", "Nothing was changed"] {
+    for wanted in ["every worktree", "systemctl --user stop cli-git.socket cli-git.service", "Nothing was changed", "next commit made with this release", "asks the service to finish its batch"] {
         assert!(shared_err.contains(wanted), "{wanted}: {shared_err}");
     }
     assert!(!shared_err.contains(own_units.as_str()) && !shared_err.contains("three hours"), "units that are not the cause, or a wait that clears nothing: {shared_err}");
