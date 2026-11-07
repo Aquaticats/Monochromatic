@@ -370,3 +370,35 @@ fn layout_a_summary_link_to_a_folder_of_its_own_group_is_an_unneeded_link() {
         extra[0]
     );
 }
+
+/// One child folder that uses two folders of another group makes one missing-summary finding,
+///  on the reference of the smaller proof,
+///  although the folder it names later in order is the one used first in the file.
+#[cfg(unix)]
+#[test]
+fn layout_the_smallest_proof_wins_among_the_folders_one_child_uses_in_a_group() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod g;\nmod h;\n"),
+        ("src/g/mod.rs", "//! The group g.\nmod a;\nmod b;\n"),
+        ("src/g/a/mod.rs", "pub struct X;\n"),
+        ("src/g/b/mod.rs", "pub struct Y;\n"),
+        ("src/h/mod.rs", "mod c;\n"),
+        (
+            "src/h/c/mod.rs",
+            "use crate::g::b::Y;\nuse crate::g::a::X;\n",
+        ),
+    ]);
+    link(&fixture.path, "src/h/c/uses/a", "../../../g/a");
+    link(&fixture.path, "src/h/c/uses/b", "../../../g/b");
+    let missing: Vec<String> = findings_of(&fixture.path)
+        .into_iter()
+        .filter(|item| return item.contains("src/h/uses has no link to src/g"))
+        .collect::<Vec<String>>();
+    assert_eq!(missing.len(), 1, "{missing:#?}");
+    assert!(
+        missing[0].starts_with("src/h/c/mod.rs:1 "),
+        "{}",
+        missing[0]
+    );
+    assert!(missing[0].contains("src/g/b"), "{}", missing[0]);
+}
