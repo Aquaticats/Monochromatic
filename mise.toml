@@ -609,6 +609,28 @@ run = """
 runMpmShadow(['outdated', '--global'])
 """
 
+# The daily update runs the TypeScript source directly (node strips the types), never a built copy, so a stale build
+# can never be what the timer runs. Rationale and measured run: doc/planning/toolchain-always-latest.md.
+[tasks."toolchain:update:daily"]
+description = "Update the repository toolchain, the machine-global toolchain and the pnpm and Cargo dependency locks, then commit what moved; a failed step lands nothing from its group and notifies (the daily timer runs this)"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Options: --repository <path>, --global-lock <path>"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+execFileSync('node', [join(monorepoRoot, 'package', 'monorepo-task', 'core-exec', 'src', 'daily-update.ts'), ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' })
+"""
+
+[tasks."toolchain:timer:install"]
+description = "Install the daily update's systemd user units from package/monorepo-task/core-exec/systemd into ~/.config/systemd/user and enable the timer only; run it from the main checkout; `-- --no-enable` writes the units and leaves the timer off"
+shell = "node --input-type=module-typescript -e"
+usage = 'arg "[args]" var=#true help="Options: --no-enable, --unit-directory <path>, --repository <path>"'
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+execFileSync('node', [join(monorepoRoot, 'package', 'monorepo-task', 'core-exec', 'src', 'daily-update-timer-install.ts'), ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' })
+"""
+
 #endregion Utility Tasks
 
 #region Build Tasks

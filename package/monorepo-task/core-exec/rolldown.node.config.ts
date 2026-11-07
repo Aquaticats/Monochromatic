@@ -27,6 +27,8 @@ const config: NodeFlavorConfig = nodeConfig({
     './src/tsc-filter.ts',
     './src/playwright-image.ts',
     './src/mpm-shadow.ts',
+    './src/daily-update.ts',
+    './src/daily-update-timer-install.ts',
     './src/testing.ts',
   ],
 },);
