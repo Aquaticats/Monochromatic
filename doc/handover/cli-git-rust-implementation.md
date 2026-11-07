@@ -3533,11 +3533,36 @@ the holder's PID, program, start time and `kill` command in the line the person 
 `LANDING_LOCK_CEILING` (one minute: five times the longest self-released foreign wait, 8 s, three waits only),
 the refusal at once of the commits queued behind a lock that already outlasted one wait (`service_index_refused_lock.rs`),
 and a summary of the unreadable processes in the unproven line.
+The coordinator searched both journals around the lock's creation for kills:
+the system journal 12:50 to 13:10 (`oom|Killed process|killed|SIGKILL|out of memory`) has only `btrfs-cleaner-io-weight.service` TERM kills,
+and the user journal 12:58 to 13:06 (`oom|Killed|SIGKILL|code=killed|status=9`) has nothing.
+That rules out an out-of-memory or systemd kill, not a direct kill (a tool timeout or `kill -9` is not journaled); the creator stays unidentified.
 Open, for the owner or the next agent:
 whether a size 0 lock that no readable process has open, with no PID file, may be removed by the service (today never: the owner picked "kept" for locks without a PID file);
 the merge, the settling of earlier batches and the index reconciliation after a landing still wait `LOCK_CEILING` (10 minutes, unmeasured);
 a native `git commit --only` in its hook phase holds the lock with no descriptor open and no PID file, and processes of other user namespaces are unreadable,
 so such a holder stays unprovable by descriptor.
+
+### Timing record names every step; the other lock waits; the staged-additions lead (2026-11-07)
+
+Branch `feat/git-policy-cli-commit-timing-names-every-step`, cut from `5f5bb6a6d1`.
+The commit timing record now has `steps` (every Git step with program and subcommand, offset and duration in ms, at most 64) and `stepsDropped`;
+the service's `answered` line ends with `steps="name@offset+duration;..."` and `steps_dropped`.
+The commit Git builds in the scratch repository (`commit/commit_preparation.rs`, `run_native_commit`) ran with the terminal attached and no watch,
+which is why the 248 s commit had no notice and no `git commit` key in `quietMs`; its entry is now the only record of its time, signing included.
+That step is still unbounded and unwatched (an editor may be open in it): a wait with no ceiling, open for the owner.
+The merge, the settling of earlier batches and the index reconciliation take ceilings derived from their measurements (`wait_ceilings.rs`);
+none of the three logs a duration except the settle (`settle_ms`, longest 172 ms of 3,630), so merge and reconciliation take the landing's ceiling.
+The staged-additions lead: `git read-tree --reset`, `git update-index --add` and `git diff-index` are issued in the prepare phase, not the build,
+by `initialize_commit_index` and `carry_selected_staged_additions` (`commit/commit_index.rs`, `commit_staged_additions.rs`, `private_index_stage.rs`),
+when the real index differs from the base tree or the commit names staged additions; they cost about 100 ms together (43 to 66, 13, 17) and native Git does the
+same work inside its one process.
+Sampling the stacks of a slow first commit of that shape (`eu-stack`, 100 ms) put most samples in `forbidden_regex::parallel::build_rules`
+(`RuntimeRules` compile of the rules list): the compile runs once per distinct rules text and release (`~/.cache/forbidden-strings/v<version>/`), 1.7 s warm
+and about 20 s on the first commit of a fresh cache under load; the production cache held three entries of the current version today, so it is a cost of the first
+commit after a change of the rules text or a new release, not of every commit.
+Open: precompile the rules for a repository off the commit's path (the service after a landing, or at install); that touches the service's work loop and the scanner
+adapter and waits for the coordinator.
 
 ### Plain commit with unmerged files finishes the merge
 
