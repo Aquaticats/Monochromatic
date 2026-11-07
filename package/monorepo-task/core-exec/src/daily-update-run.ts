@@ -9,9 +9,10 @@
  */
 
 import { oneAfterAnother, } from './daily-update-one-after-another.ts';
-import type {
-  UpdateGroup,
-  UpdateStep,
+import {
+  selects,
+  type UpdateGroup,
+  type UpdateStep,
 } from './daily-update-plan.ts';
 import {
   absoluteOf,

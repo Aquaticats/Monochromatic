@@ -61,6 +61,46 @@ export function relativeOf({
 }
 
 /**
+ One snapshot entry with named parts, so callbacks destructure properties instead of a positional tuple.
+ */
+export type SnapshotFile = {
+  /**
+   Absolute path of the file.
+   */
+  readonly absolutePath: string;
+  /**
+   Text the file had when the snapshot was taken.
+   */
+  readonly text: string;
+};
+
+/**
+ Names the parts of every snapshot entry.
+
+ @param snapshot - absolute path to original text
+
+ @returns one named pair per entry, in snapshot order
+
+ @example
+ ```ts
+ snapshotFilesOf(new Map([['/r/a', 'x',],],),); // [{ absolutePath: '/r/a', text: 'x', },]
+ ```
+ */
+export function snapshotFilesOf(snapshot: ReadonlyMap<string, string>,): readonly SnapshotFile[] {
+  /**
+   Entries in snapshot order.
+   */
+  const files: SnapshotFile[] = [];
+  for (const [absolutePath, text,] of snapshot) {
+    files.push({
+      absolutePath,
+      text,
+    },);
+  }
+  return files;
+}
+
+/**
  Puts files back to the text they had before the group began.
 
  @param effects - the outside world
@@ -86,34 +126,27 @@ export async function restoreFiles({
   readonly selector?: PathSelector;
 },): Promise<readonly string[]> {
   /**
-   Snapshot entries among those to put back.
+   Snapshot files among those to put back.
    */
-  const wantedEntries = [...snapshot,].filter(function isWanted(entry: readonly [
-    string,
-    string
-  ],): boolean {
-    /**
-     Absolute path of the entry.
-     */
-    const absolutePath = entry[0];
-    return (selector === undefined)
-      || selects({
-        selector,
-        repositoryPath: relativeOf({
-          repository: effects.repository,
-          absolutePath,
-        },),
-      },);
-  },);
+  const wantedFiles = snapshotFilesOf(snapshot,)
+    .filter(function isWanted({ absolutePath, }: SnapshotFile,): boolean {
+      return (selector === undefined)
+        || selects({
+          selector,
+          repositoryPath: relativeOf({
+            repository: effects.repository,
+            absolutePath,
+          },),
+        },);
+    },);
   // Files are independent of each other, so they are checked and written back side by side.
   /**
    Per wanted file: its path when it was written back, empty when it already had its snapshot text.
    */
-  const written = await Promise.all(wantedEntries.map(async function putBack(entry: readonly [
-    string,
-    string
-  ],): Promise<readonly string[]> {
-    const [absolutePath, text,] = entry;
+  const written = await Promise.all(wantedFiles.map(async function putBack({
+    absolutePath,
+    text,
+  }: SnapshotFile,): Promise<readonly string[]> {
     // Reading before writing keeps untouched files untouched, so their modification times stay.
     if (await effects.readText(absolutePath,) === text)
       return [];
@@ -205,21 +238,21 @@ export async function changedOwnedPaths({
   /**
    Per file: its repository-relative path when its text changed, empty for an unchanged or external file.
    */
-  const changed = await Promise.all([...snapshot,].map(async function changedPath(entry: readonly [
-    string,
-    string
-  ],): Promise<readonly string[]> {
-    const [absolutePath, text,] = entry;
+  const changed = await Promise.all(snapshotFilesOf(snapshot,)
+    .map(async function changedPath({
+      absolutePath,
+      text,
+    }: SnapshotFile,): Promise<readonly string[]> {
     /**
      Repository-relative path, empty for an external file.
      */
-    const repositoryPath = relativeOf({
-      repository: effects.repository,
-      absolutePath,
-    },);
-    if ((repositoryPath !== '') && (await effects.readText(absolutePath,) !== text))
-      return [repositoryPath,];
-    return [];
-  },),);
+      const repositoryPath = relativeOf({
+        repository: effects.repository,
+        absolutePath,
+      },);
+      if ((repositoryPath !== '') && (await effects.readText(absolutePath,) !== text))
+        return [repositoryPath,];
+      return [];
+    },),);
   return changed.flat();
 }
