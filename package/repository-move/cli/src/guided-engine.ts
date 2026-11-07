@@ -205,6 +205,7 @@ async function currentStage(stageRun: StageRun,): Promise<Stage> {
 export async function runPhase(run: EngineRun,): Promise<void> {
   for (const [position, stage,] of run.stages
     .entries()) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- stages of a phase run one after another: each depends on what the earlier one did and stops the run at its first failure; see doc/lint/sequential-awaits.md
     await runStage({
       run,
       stage,

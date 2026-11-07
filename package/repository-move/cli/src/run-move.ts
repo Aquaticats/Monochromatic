@@ -15,6 +15,7 @@ import {
 } from './freeze-pass.ts';
 import { reconcileInventory, } from './inventory.ts';
 import { parseMoveOptions, } from './move-options.ts';
+import { runVerifyPass, } from './verify-pass.ts';
 
 /**
  Runs one pass.
@@ -53,6 +54,13 @@ export async function runMove(argv: readonly string[],): Promise<void> {
   },);
   if ((options.pass === 'external-first') || (options.pass === 'external-final')) {
     await runExternalPass({
+      options,
+      runner,
+    },);
+    return;
+  }
+  if ((options.pass === 'verify-first') || (options.pass === 'verify-final')) {
+    await runVerifyPass({
       options,
       runner,
     },);

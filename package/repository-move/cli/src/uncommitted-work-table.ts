@@ -323,6 +323,7 @@ export async function buildUncommittedWorkTable(
    */
   const rows = [];
   for (const path of paths) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one Git status at a time, so the scan adds a bounded load while agents work; see doc/lint/sequential-awaits.md
     rows.push(await rowOf({
       path,
       timeoutMilliseconds,

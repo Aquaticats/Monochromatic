@@ -35,6 +35,7 @@ const REQUIRED_PREPARE_STAGES: readonly string[] = [
   'p4c-first',
   'p4d-external-first',
   'p4e-sizes',
+  'p4f-verify-first',
   'm1b-mount-option',
 ];
 

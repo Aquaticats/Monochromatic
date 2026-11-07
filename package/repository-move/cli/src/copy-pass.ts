@@ -22,6 +22,8 @@ import {
   STATE_FOLDER_MODE,
 } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
+import { checkDestination, } from './destination-check.ts';
+import { emptyParentStep, } from './empty-parent-step.ts';
 import { requireSharedFilesystems, } from './filesystem-preflight.ts';
 import { requireFrozen, } from './freeze-pass.ts';
 import type { Subvolume, } from './inventory.ts';
@@ -148,6 +150,16 @@ export async function runCopyPass(
         }\n`,
       },));
   }
+  await checkDestination({
+    options,
+    runner,
+    records,
+  },);
+  await emptyParentStep({
+    options,
+    runner,
+    records,
+  },);
   /**
    The sent of this step.
    */
@@ -177,6 +189,7 @@ export async function runCopyPass(
       subvolume.name,
     );
     runner.log(`${subvolume.name} ${subvolume.path}`,);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
     if (options.run && (await freeGiB(options.receivedFolder,) < options.minFreeGiB)) {
       throw new MoveStopError(
         `the 860 has under ${
@@ -184,6 +197,7 @@ export async function runCopyPass(
         } GiB free before ${subvolume.name}; stopping with every earlier step recorded`,
       );
     }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
     await snapshotStep({
       context,
       snapshot,
@@ -200,6 +214,7 @@ export async function runCopyPass(
       runner.log(`${subvolume.path} has no first-pass copy, so its final send is a full send`,);
     }
     if ((parent !== undefined) && options.run
+      // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
       && (!await records.has({
         name: parent.name,
         step: 'received',
@@ -212,9 +227,9 @@ export async function runCopyPass(
      What this send starts from.
      */
     const plan = planSend({
-      subvolume,
-      everyone: subvolumes,
-      sent,
+      sent: sent.map(function nameOf(copy,) {
+        return copy.name;
+      },),
       firstPassCopy: parent?.name ?? '',
       cloneSources: options.cloneSources,
     },);
@@ -241,6 +256,7 @@ export async function runCopyPass(
           ];
         },),
     ];
+    // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
     await receiveStep({
       context,
       snapshot,
@@ -248,6 +264,7 @@ export async function runCopyPass(
       sendOptions,
     },);
     if (isFinal) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
       await placeStep({
         context,
         received,
