@@ -1,9 +1,15 @@
 //! What:
-//! Round 11 tests: the launcher record (the owner's pick "Record the launcher" for the way out of 9a D1).
+//! Round 11 tests:
+//! the launcher record (the owner's pick "Record the launcher" for the way out of 9a D1).
 //! Why:
-//! A run that never recorded its end is refused (round 10), which sends every killed wrapper to a person.
-//! After the launcher is spawned the wrapper notes its process id, start time and process id namespace; a recovery that finds the
-//! launcher gone knows it can never join the scope, so it may read the scope as final, and a launcher that is alive keeps blocking.
+//! A run that never recorded its end is refused (round 10),
+//! which sends every killed wrapper to a person.
+//! After the launcher is spawned the wrapper notes its process id,
+//! start time and process id namespace;
+//! a recovery that finds the
+//! launcher gone knows it can never join the scope,
+//! so it may read the scope as final,
+//! and a launcher that is alive keeps blocking.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -49,7 +55,8 @@ fn repository() -> tempfile::TempDir {
     return root;
 }
 
-/// A judge that refuses the live lockfile, so that a recovery which goes ahead restores the snapshot.
+/// A judge that refuses the live lockfile,
+/// so that a recovery which goes ahead restores the snapshot.
 fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
@@ -66,7 +73,8 @@ fn live_lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("lock");
 }
 
-/// A process that stands for a launcher that has not reached the manager: it waits at a gate file that the tests never create.
+/// A process that stands for a launcher that has not reached the manager:
+/// it waits at a gate file that the tests never create.
 struct HeldLauncher {
     /// The process.
     child: Child,
@@ -98,7 +106,8 @@ impl HeldLauncher {
         return Record::Launcher { pid: self.pid(), start: process_start(self.pid()).expect("the start time"), pid_namespace: pid_namespace_id().expect("the namespace"), path: scope.to_path_buf() };
     }
 
-    /// Ends it and reaps it, so the process id is gone.
+    /// Ends it and reaps it,
+    /// so the process id is gone.
     fn end(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
@@ -121,12 +130,16 @@ impl Drop for HeldLauncher {
     }
 }
 
-/// A route whose scopes are made inside a delegated holder scope, so a test can create a control group by hand where a manager would.
+/// A route whose scopes are made inside a delegated holder scope,
+/// so a test can create a control group by hand where a manager would.
 fn route_inside(holder: &Path, route: &Route) -> Route {
     return Route { slice_dir: holder.to_path_buf(), slice_view: view_of(holder).expect("the view of the holder"), ..route.clone() };
 }
 
-/// Contract A1 (round 11): the record names the launcher, reads back as written, and a damaged one is not understood.
+/// Contract A1 (round 11):
+/// the record names the launcher,
+/// reads back as written,
+/// and a damaged one is not understood.
 #[test]
 fn a_launcher_record_reads_back_and_a_damaged_one_is_not_understood() {
     let record: Record = Record::Launcher { pid: 4242, start: 987_654, pid_namespace: 4_026_531_836, path: PathBuf::from("/sys/fs/cgroup/a b/c.scope") };
@@ -136,8 +149,12 @@ fn a_launcher_record_reads_back_and_a_damaged_one_is_not_understood() {
     }
 }
 
-/// Contract A1 (round 11), the question the recovery asks first:
-/// a live process is alive, a reaped one is gone, a different start time is unknown (a reused id cannot be told from a start time read on another time basis), another process id namespace is unknown,
+/// Contract A1 (round 11),
+/// the question the recovery asks first:
+/// a live process is alive,
+/// a reaped one is gone,
+/// a different start time is unknown (a reused id cannot be told from a start time read on another time basis),
+/// another process id namespace is unknown,
 /// and a zombie that is not reaped yet is alive because only its reaping shows it ended.
 #[test]
 fn the_launcher_question_tells_gone_from_alive_reused_other_namespace_and_zombie() {
@@ -159,9 +176,15 @@ fn the_launcher_question_tells_gone_from_alive_reused_other_namespace_and_zombie
     assert_eq!(launcher_state(zombie_pid, zombie_start, namespace), LauncherState::Gone);
 }
 
-/// The real recovery and the real admission refuse while the launcher lives (certification, third pass): the recovery names the
-/// running launcher, restores nothing and keeps the journal, and a new transaction is not admitted beside it; this holds also after
-/// an acknowledgement, which no entry point may let override a live launcher.
+/// The real recovery and the real admission refuse while the launcher lives (certification,
+/// third pass):
+/// the recovery names the
+/// running launcher,
+/// restores nothing and keeps the journal,
+/// and a new transaction is not admitted beside it;
+/// this holds also after
+/// an acknowledgement,
+/// which no entry point may let override a live launcher.
 fn assert_entry_points_refuse(root: &Path, journal: &Path, label: &str) {
     let messages: Vec<String> = recover(root, &refusing);
     assert!(messages.iter().any(|message| { return message.contains("launcher") && message.contains("still running"); }), "{label}: the recovery did not name the running launcher: {messages:?}");
@@ -171,9 +194,14 @@ fn assert_entry_points_refuse(root: &Path, journal: &Path, label: &str) {
     assert_eq!(journal_dirs(root).len(), 1, "{label}: the refused admission left a journal behind");
 }
 
-/// Acceptance rows A1, V2 (round 11): a launcher that is alive keeps blocking, whatever the scope looks like, and no acknowledgement
+/// Acceptance rows A1,
+/// V2 (round 11):
+/// a launcher that is alive keeps blocking,
+/// whatever the scope looks like,
+/// and no acknowledgement
 /// overrides it:
-/// the scope is absent (the launcher has not reached the manager) and the scope exists and is empty (created, not attached),
+/// the scope is absent (the launcher has not reached the manager) and the scope exists and is empty (created,
+/// not attached),
 /// the two round 10 schedules of 9a D1.
 #[test]
 fn a_live_launcher_blocks_whether_its_scope_is_absent_or_empty() {
@@ -211,9 +239,16 @@ fn a_live_launcher_blocks_whether_its_scope_is_absent_or_empty() {
     }
 }
 
-/// Acceptance rows A1, V2 (round 11): once the launcher is gone, nothing can join the scope later, so the scope is final:
-/// absent and empty both recover without an acknowledgement, and a scope that has a member still blocks.
-/// A process id with another start time is unknown, not gone (round 15): the record's start time may be on another time basis.
+/// Acceptance rows A1,
+/// V2 (round 11):
+/// once the launcher is gone,
+/// nothing can join the scope later,
+/// so the scope is final:
+/// absent and empty both recover without an acknowledgement,
+/// and a scope that has a member still blocks.
+/// A process id with another start time is unknown,
+/// not gone (round 15):
+/// the record's start time may be on another time basis.
 #[test]
 fn a_gone_launcher_lets_the_recovery_read_the_scope_as_final() {
     let Some(route) = delegated_route() else {
@@ -249,7 +284,10 @@ fn a_gone_launcher_lets_the_recovery_read_the_scope_as_final() {
     assert_eq!(live_lock(root.path()), "original", "the journal was not settled without an acknowledgement: {recovered:?}");
 }
 
-/// Acceptance rows A1, V2 (11b 2.4): a gone launcher does not clear a scope that has a member, and no acknowledgement overrides it:
+/// Acceptance rows A1,
+/// V2 (11b 2.4):
+/// a gone launcher does not clear a scope that has a member,
+/// and no acknowledgement overrides it:
 /// the descendants of a program that ended are still in the scope.
 #[test]
 fn a_gone_launcher_does_not_clear_a_scope_with_a_member() {
@@ -283,8 +321,12 @@ fn a_gone_launcher_does_not_clear_a_scope_with_a_member() {
     assert!(journal_dirs(root.path()).is_empty(), "the control: with the member gone the journal was not recovered: {after:?}");
 }
 
-/// The real recovery and admission refuse for a live scope member: the refusal names a process that is still running, nothing is
-/// restored, the journal stays, and a new transaction is not admitted.
+/// The real recovery and admission refuse for a live scope member:
+/// the refusal names a process that is still running,
+/// nothing is
+/// restored,
+/// the journal stays,
+/// and a new transaction is not admitted.
 fn assert_entry_points_refuse_for_a_member(root: &Path, journal: &Path, label: &str) {
     let messages: Vec<String> = recover(root, &refusing);
     assert!(messages.iter().any(|message| { return message.contains("still running"); }), "{label}: the recovery did not name the running member: {messages:?}");
@@ -294,9 +336,14 @@ fn assert_entry_points_refuse_for_a_member(root: &Path, journal: &Path, label: &
     assert_eq!(journal_dirs(root).len(), 1, "{label}: the refused admission left a journal behind");
 }
 
-/// Acceptance rows A1, V2 (round 11): what the launcher record cannot prove still waits for an acknowledgement:
-/// another process id namespace, a missing launcher record (a journal of an older version), a launcher record that names no scope of
-/// the journal, and a launcher record that is not understood.
+/// Acceptance rows A1,
+/// V2 (round 11):
+/// what the launcher record cannot prove still waits for an acknowledgement:
+/// another process id namespace,
+/// a missing launcher record (a journal of an older version),
+/// a launcher record that names no scope of
+/// the journal,
+/// and a launcher record that is not understood.
 /// Each is cleared by `cargo-shadow acknowledge` and not otherwise.
 #[test]
 fn what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement() {
@@ -328,10 +375,16 @@ fn what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement() {
     }
 }
 
-/// Durability of the launcher record (round 11): the line is appended without a sync, which is enough because a lost or torn line
+/// Durability of the launcher record (round 11):
+/// the line is appended without a sync,
+/// which is enough because a lost or torn line
 /// is read as no proof.
-/// Every proper prefix of the bytes production appends (the line and its line feed), as a torn write or a lost tail leaves it, keeps
-/// the journal blocked, including the whole text with only its line feed missing; none reads as a gone launcher (11b 2.6).
+/// Every proper prefix of the bytes production appends (the line and its line feed),
+/// as a torn write or a lost tail leaves it,
+/// keeps
+/// the journal blocked,
+/// including the whole text with only its line feed missing;
+/// none reads as a gone launcher (11b 2.6).
 #[test]
 fn a_torn_launcher_line_never_reads_as_a_gone_launcher() {
     let Some(route) = delegated_route() else {
@@ -357,8 +410,11 @@ fn a_torn_launcher_line_never_reads_as_a_gone_launcher() {
 }
 
 /// The helper process of the killed-wrapper test:
-/// it begins a transaction and runs a program through the bounded runner; the program publishes its own process id, then waits at a
-/// release gate file (the wrapper is killed while it waits). Run on its own it does nothing.
+/// it begins a transaction and runs a program through the bounded runner;
+/// the program publishes its own process id,
+/// then waits at a
+/// release gate file (the wrapper is killed while it waits).
+/// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone"]
 fn wrapper_running_a_program_fixture() {
@@ -378,10 +434,20 @@ fn wrapper_running_a_program_fixture() {
     let _ = output_within(Command::new("sh").args(["-c", &script]), None, &bound);
 }
 
-/// Acceptance rows A1, V2, V3/V4 (round 11, the owner's pick), end to end:
-/// the real wrapper records the real launcher (its process id, start time and namespace are compared with the program that says who
-/// it is), is killed once that record is whole while the program waits at a release gate, and the recovery refuses while the program
-/// lives; after the program is released and the launcher is shown gone, and the scope collected, the same recovery settles the
+/// Acceptance rows A1,
+/// V2,
+/// V3/V4 (round 11,
+/// the owner's pick),
+/// end to end:
+/// the real wrapper records the real launcher (its process id,
+/// start time and namespace are compared with the program that says who
+/// it is),
+/// is killed once that record is whole while the program waits at a release gate,
+/// and the recovery refuses while the program
+/// lives;
+/// after the program is released and the launcher is shown gone,
+/// and the scope collected,
+/// the same recovery settles the
 /// journal with no acknowledgement.
 #[test]
 fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {

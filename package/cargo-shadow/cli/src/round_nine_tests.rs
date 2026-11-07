@@ -1,9 +1,16 @@
 //! What:
-//! Round 9 tests: the pending launcher (8a F1), the bounds on discovery and the internal locks (8a F2, F3), the strict and durable
-//! acknowledgement (8a F4), the unknown inventory (8a K1), and the boot identity of the contract (assumption c).
+//! Round 9 tests:
+//! the pending launcher (8a F1),
+//! the bounds on discovery and the internal locks (8a F2,
+//! F3),
+//! the strict and durable
+//! acknowledgement (8a F4),
+//! the unknown inventory (8a K1),
+//! and the boot identity of the contract (assumption c).
 //! Why:
 //! The reviews of round 8 named schedules inside existing rows of the acceptance list;
-//! each test here is one of them, with a handshake at the boundary and not an elapsed sleep.
+//! each test here is one of them,
+//! with a handshake at the boundary and not an elapsed sleep.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -44,7 +51,8 @@ fn repository() -> tempfile::TempDir {
     return root;
 }
 
-/// A judge that refuses the live lockfile, so that a recovery which goes ahead restores the snapshot.
+/// A judge that refuses the live lockfile,
+/// so that a recovery which goes ahead restores the snapshot.
 fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
@@ -61,7 +69,8 @@ fn live_lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("lock");
 }
 
-/// The state letter of a process in `/proc/<pid>/stat`, or `None` when it is gone.
+/// The state letter of a process in `/proc/<pid>/stat`,
+/// or `None` when it is gone.
 fn state_of(pid: i32) -> Option<char> {
     let stat: String = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     return stat.rsplit(')').next()?.trim_start().chars().next();
@@ -72,11 +81,15 @@ fn bound() -> Bound {
     return Bound { limit: Duration::from_secs(30), what: "the contained command".to_string(), rerun: "contained-command".to_string() };
 }
 
-/// Acceptance rows A1, V2, V3 (8a F1):
+/// Acceptance rows A1,
+/// V2,
+/// V3 (8a F1):
 /// the wrapper is killed after its launcher was spawned and before the manager made the scope.
 /// The launcher is held there by a handshake (it stops itself before it can ask the manager),
-/// the scope is absent and its record is on disk, and a recovery must not read that as a run that ended;
-/// when the launcher goes on and the scope appears with a member, the recovery sees the member.
+/// the scope is absent and its record is on disk,
+/// and a recovery must not read that as a run that ended;
+/// when the launcher goes on and the scope appears with a member,
+/// the recovery sees the member.
 #[test]
 fn a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended() {
     let Some(route) = delegated_route() else {
@@ -113,9 +126,11 @@ fn a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended() 
     assert!(stopped);
 }
 
-/// Acceptance rows A1, V3:
+/// Acceptance rows A1,
+/// V3:
 /// a run that ended records its end,
-/// and a recovery then reads its collected, absent scope as ended.
+/// and a recovery then reads its collected,
+/// absent scope as ended.
 #[test]
 fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
     if delegated_route().is_none() {
@@ -138,10 +153,16 @@ fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
     drop(transaction);
 }
 
-/// Acceptance rows A1, V3 (certification, third pass): the settled-only branch of verified absence.
+/// Acceptance rows A1,
+/// V3 (certification,
+/// third pass):
+/// the settled-only branch of verified absence.
 /// A run that recorded its end and whose scope was collected is read as ended even when no launcher record remains to prove that the
-/// launcher is gone: the `settled` line is the proof, so the real recovery removes the journal without an acknowledgement.
-/// The first test of this pair keeps the launcher line and so could pass through the gone launcher; this one removes it.
+/// launcher is gone:
+/// the `settled` line is the proof,
+/// so the real recovery removes the journal without an acknowledgement.
+/// The first test of this pair keeps the launcher line and so could pass through the gone launcher;
+/// this one removes it.
 #[test]
 fn a_settled_run_whose_scope_was_collected_is_read_as_ended_without_any_launcher_record() {
     if delegated_route().is_none() {
@@ -244,7 +265,8 @@ fn a_busy_unsynced_registry_returns_at_once_and_answers_conservatively() {
     assert_eq!(answered, Ok(true), "a caller waited for a busy registry, or answered that the directory was durable");
 }
 
-/// A route that was found, for the cache test.
+/// A route that was found,
+/// for the cache test.
 fn some_route() -> Route {
     return Route {
         systemd_run: "systemd-run".to_string(),
@@ -256,7 +278,8 @@ fn some_route() -> Route {
     };
 }
 
-/// Acceptance row V6 (8a F3), the production cache:
+/// Acceptance row V6 (8a F3),
+/// the production cache:
 /// a caller that finds another caller in the middle of the discovery does not wait for it.
 #[test]
 fn the_route_cache_does_not_make_a_caller_wait_for_a_discovery_in_flight() {
@@ -286,9 +309,14 @@ fn the_route_cache_does_not_make_a_caller_wait_for_a_discovery_in_flight() {
     assert!(CACHE.get_or_discover(&|| { return Err(crate::control_group::GroupUnavailable { reason: "must not be asked".to_string() }); }).is_ok(), "the answer was not kept");
 }
 
-/// Acceptance row V6 (certification, third pass), the production cache with its own mutex held:
-/// a caller that finds the cache's mutex held answers at once, discovering for itself, and does not wait for the holder.
-/// The holder keeps the mutex until the answer arrived, so a caller that waited for the lock would never answer in the window.
+/// Acceptance row V6 (certification,
+/// third pass),
+/// the production cache with its own mutex held:
+/// a caller that finds the cache's mutex held answers at once,
+/// discovering for itself,
+/// and does not wait for the holder.
+/// The holder keeps the mutex until the answer arrived,
+/// so a caller that waited for the lock would never answer in the window.
 #[test]
 fn the_route_cache_answers_at_once_while_its_own_mutex_is_held() {
     static CACHE: RouteCache = RouteCache::new();
@@ -312,9 +340,12 @@ fn an_acknowledgement_with_three_lines_that_are_not_a_process_id_and_a_time_does
     assert_eq!(survivor_note(&journal), None, "a whole record did not count");
 }
 
-/// Acceptance row "Weaker path" (8a, the acknowledgement-durability boundary; 9b 3.6):
+/// Acceptance row "Weaker path" (8a,
+/// the acknowledgement-durability boundary;
+/// 9b 3.6):
 /// a recovery relies on an acknowledgement only after it made the file and then its directory entry durable itself;
-/// a failure of either step means the acknowledgement does not count, each step is failed on its own with its fault reached,
+/// a failure of either step means the acknowledgement does not count,
+/// each step is failed on its own with its fault reached,
 /// and it counts once both can be made.
 #[test]
 fn an_acknowledgement_the_reader_cannot_make_durable_does_not_count_until_it_can() {
@@ -331,10 +362,14 @@ fn an_acknowledgement_the_reader_cannot_make_durable_does_not_count_until_it_can
     assert_eq!(survivor_note(&journal), None, "a whole, durable acknowledgement did not count");
 }
 
-/// Acceptance row "Weaker path" (9b 3.6, the interrupted publication):
+/// Acceptance row "Weaker path" (9b 3.6,
+/// the interrupted publication):
 /// a publication that stopped after the complete text was written under its temporary name and before the rename leaves the journal
-/// unacknowledged, a recovery does not settle it, and acknowledging again publishes it whole.
-/// The state is built by hand from a real acknowledgement (the rename is not injectable); the sibling name is the temporary kind that
+/// unacknowledged,
+/// a recovery does not settle it,
+/// and acknowledging again publishes it whole.
+/// The state is built by hand from a real acknowledgement (the rename is not injectable);
+/// the sibling name is the temporary kind that
 /// the journal's own listing already tolerates.
 #[test]
 fn an_interrupted_publication_leaves_the_journal_unacknowledged_until_it_is_made_again() {
@@ -379,7 +414,8 @@ fn an_acknowledgement_whose_barrier_or_publication_fails_is_not_reported_as_made
 
 /// Acceptance row "Weaker path" (8b 2.7):
 /// the whole schedule the name promises:
-/// a journal of the weaker path is acknowledged, a recovery settles it like any other,
+/// a journal of the weaker path is acknowledged,
+/// a recovery settles it like any other,
 /// the lockfile is put back and the refused copy is kept.
 #[test]
 fn an_acknowledged_weaker_path_journal_is_settled_like_any_other() {
@@ -397,7 +433,8 @@ fn an_acknowledged_weaker_path_journal_is_settled_like_any_other() {
 
 /// Acceptance row K1 (8a K1):
 /// a crate root that cannot be listed gives a warning that the inventory is unknown,
-/// also when no count is past the threshold; it never refuses.
+/// also when no count is past the threshold;
+/// it never refuses.
 #[test]
 fn an_unreadable_crate_root_gives_an_unknown_inventory_warning_and_never_refuses() {
     let root = repository();
@@ -423,16 +460,20 @@ fn after_a_reboot() -> Identity {
     return Identity { boot: with_first_digit_changed(&now.boot), machine: now.machine };
 }
 
-/// An id of the same format whose first digit differs (round 10, 9a D2: the identity must stay well formed to count).
+/// An id of the same format whose first digit differs (round 10,
+/// 9a D2:
+/// the identity must stay well formed to count).
 fn with_first_digit_changed(id: &str) -> String {
     let mut bytes: Vec<u8> = id.as_bytes().to_vec();
     bytes[0] = if bytes[0] == b'0' { b'1' } else { b'0' };
     return String::from_utf8(bytes).expect("ascii");
 }
 
-/// Contract assumption c, the boot identity:
+/// Contract assumption c,
+/// the boot identity:
 /// a recovery that reads the same machine id and a different boot id treats the run's process liveness as discharged,
-/// and settles the journal of the weaker path without an acknowledgement, with every other check still running.
+/// and settles the journal of the weaker path without an acknowledgement,
+/// with every other check still running.
 #[test]
 fn a_reboot_of_the_same_machine_discharges_the_liveness_of_a_weaker_path_journal() {
     let root = repository();
@@ -449,8 +490,12 @@ fn a_reboot_of_the_same_machine_discharges_the_liveness_of_a_weaker_path_journal
     assert!(journal_dirs(root.path()).is_empty());
 }
 
-/// Contract assumption c, the boot identity:
-/// another machine id, an unreadable identity of this system, a journal without a recorded identity, and the same boot
+/// Contract assumption c,
+/// the boot identity:
+/// another machine id,
+/// an unreadable identity of this system,
+/// a journal without a recorded identity,
+/// and the same boot
 /// (a suspend and resume keeps the boot id) all keep the refusal.
 #[test]
 fn another_machine_an_unreadable_identity_no_record_or_the_same_boot_keeps_the_refusal() {
@@ -478,7 +523,8 @@ fn another_machine_an_unreadable_identity_no_record_or_the_same_boot_keeps_the_r
     assert!(no_record.is_some(), "a journal without a recorded identity was cleared by a reboot");
 }
 
-/// Contract assumption c, the boot identity:
+/// Contract assumption c,
+/// the boot identity:
 /// the discharge is of process liveness only:
 /// a missing snapshot and an incomplete listing of the journals still keep the journal,
 /// and a recorded scope that has a member after a reboot is a contradiction that blocks.
@@ -534,7 +580,8 @@ fn the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member() {
 
 /// Acceptance rows A1 and V6 (reaping):
 /// a direct child that cannot be reaped within its bound makes the run not quiescent,
-/// with writers possibly remaining and the journal retained, and the return is not a wait without end.
+/// with writers possibly remaining and the journal retained,
+/// and the return is not a wait without end.
 #[test]
 fn a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent() {
     if delegated_route().is_none() {
@@ -571,7 +618,9 @@ fn a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent() {
 }
 
 /// Acceptance rows V3 and V4 (8b 2.5):
-/// a record that cannot be written, or cannot be made durable, starts no program,
+/// a record that cannot be written,
+/// or cannot be made durable,
+/// starts no program,
 /// in the delegated path and in the weaker path.
 /// The failure of the sync is the proof that the sync comes before the start.
 #[test]
@@ -621,7 +670,9 @@ fn a_record_that_cannot_be_written_or_made_durable_starts_no_program() {
 }
 
 /// Acceptance rows V3 and V4 (preparation windows):
-/// a journal cut off after its record, or after its record and view, holds no child,
+/// a journal cut off after its record,
+/// or after its record and view,
+/// holds no child,
 /// and a recovery removes it without touching the lockfile.
 #[test]
 fn a_journal_cut_off_during_its_preparation_is_removed_without_touching_the_lockfile() {
@@ -643,8 +694,10 @@ fn a_journal_cut_off_during_its_preparation_is_removed_without_touching_the_lock
 }
 
 /// Acceptance row V5:
-/// a journal of two roots with their manifests, one root refused and the other accepted:
-/// the refused root's lockfile and manifest go back together, the accepted root keeps both,
+/// a journal of two roots with their manifests,
+/// one root refused and the other accepted:
+/// the refused root's lockfile and manifest go back together,
+/// the accepted root keeps both,
 /// and the refused lockfile is saved without overwriting an existing refused copy.
 #[test]
 fn two_roots_with_manifests_are_restored_or_kept_together_per_root() {
@@ -681,10 +734,16 @@ fn two_roots_with_manifests_are_restored_or_kept_together_per_root() {
     assert!(journal_dirs(root.path()).is_empty());
 }
 
-/// Acceptance row V5 (certification, third pass): a root whose lockfile restore fails keeps its manifest as it is, never splitting the
-/// pair, while another root of the same journal is still restored with its manifest, and the journal is kept for a later run.
+/// Acceptance row V5 (certification,
+/// third pass):
+/// a root whose lockfile restore fails keeps its manifest as it is,
+/// never splitting the
+/// pair,
+/// while another root of the same journal is still restored with its manifest,
+/// and the journal is kept for a later run.
 /// The failure is a crate directory that cannot take the temporary file of the replacement (made read-only by the hook that runs
-/// right before the replacement), so the restore of that root returns an error.
+/// right before the replacement),
+/// so the restore of that root returns an error.
 #[test]
 fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_is_restored_with_its_own() {
     use std::os::unix::fs::PermissionsExt;
@@ -737,9 +796,15 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
     assert_eq!(journal_dirs(root.path()), vec![journal], "the journal of an unsettled recovery was not kept");
 }
 
-/// Acceptance rows V3 and V4 (certification, fourth pass): a record write that returns having written only part of the line starts no
-/// program, in the delegated path and in the weaker path. The cut-short write is the real result of the write call (half the line
-/// reaches the file), so the length check after it is what refuses; a regression that drops the check lets the program start.
+/// Acceptance rows V3 and V4 (certification,
+/// fourth pass):
+/// a record write that returns having written only part of the line starts no
+/// program,
+/// in the delegated path and in the weaker path.
+/// The cut-short write is the real result of the write call (half the line
+/// reaches the file),
+/// so the length check after it is what refuses;
+/// a regression that drops the check lets the program start.
 #[test]
 fn a_record_that_is_written_only_in_part_starts_no_program() {
     for weaker in [false, true] {

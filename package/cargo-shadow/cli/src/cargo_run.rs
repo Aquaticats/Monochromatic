@@ -131,7 +131,8 @@ pub struct RealCargo {
 /// a run that resolves with an empty registry cache (and so shows the real upper end) is what must be measured to set this number.
 /// The owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely") justifies that a bound exists;
 /// the number is a Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open.
 pub const CARGO_CALL_SECONDS: u64 = 1_800;
 
 /// What:

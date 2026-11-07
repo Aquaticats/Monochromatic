@@ -163,7 +163,8 @@ pub(crate) fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<
 #[cfg(test)]
 thread_local! {
     /// A hook that runs inside `assess` after every record was queried and before the unsettled scopes are judged,
-    /// so a test can make a launcher create its scope in the gap between the two observations (round 10, 9a D1).
+    /// so a test can make a launcher create its scope in the gap between the two observations (round 10,
+    /// 9a D1).
     static AFTER_QUERY: std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
@@ -262,10 +263,14 @@ fn acknowledge_hint(directory: &Path) -> String {
 /// `fn assess(directory: &Path) -> Option<Finding>` reads the records of one journal and says what they show about writers.
 /// Why:
 /// A record is written before every child starts,
-/// so an empty record, or a directory with no files at all (a begin cut off right after its creation),
+/// so an empty record,
+/// or a directory with no files at all (a begin cut off right after its creation),
 /// shows that no child started;
-/// a directory that holds other files but lost its record is uncertainty, never "no children"
-/// (round 7, 6b2 2: neither the ready record nor the absence of one stands in for it).
+/// a directory that holds other files but lost its record is uncertainty,
+/// never "no children"
+/// (round 7,
+/// 6b2 2:
+/// neither the ready record nor the absence of one stands in for it).
 /// A journal that holds records is also checked for the mount and inode view it was made in (contract assumption c).
 ///
 /// In TS you'd write (pseudocode):
@@ -492,9 +497,14 @@ fn assess(directory: &Path) -> Option<Finding> {
 /// Why:
 /// The end of the wrapper's lock does not say whether its cargo ended.
 /// A live recorded scope or process group always blocks.
-/// Any other uncertainty about the containment (a weaker-path run, a missing, unreadable or damaged record, a recorded scope that
-/// cannot be examined, another mount view) blocks until a person acknowledges the journal
-/// (`cargo-shadow acknowledge`), who thereby asserts that every process or worker of the run has stopped.
+/// Any other uncertainty about the containment (a weaker-path run,
+/// a missing,
+/// unreadable or damaged record,
+/// a recorded scope that
+/// cannot be examined,
+/// another mount view) blocks until a person acknowledges the journal
+/// (`cargo-shadow acknowledge`),
+/// who thereby asserts that every process or worker of the run has stopped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

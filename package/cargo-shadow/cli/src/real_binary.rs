@@ -105,9 +105,13 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option
 /// `pub fn find_in_path_with_image(name, path_variable, skip, image) -> Option<PathBuf>` is `find_in_path` with the identity of the
 /// running executable image given.
 /// Why:
-/// The identity of the image that is running comes from the open image, not from a pathname: an installer may replace the installed
-/// path while the shadow runs, after which the path names another file (or reads with a ` (deleted)` suffix) and a hard link of the
-/// image still on PATH would not be recognized. A test gives the identity it took before such a replacement.
+/// The identity of the image that is running comes from the open image,
+/// not from a pathname:
+/// an installer may replace the installed
+/// path while the shadow runs,
+/// after which the path names another file (or reads with a ` (deleted)` suffix) and a hard link of the
+/// image still on PATH would not be recognized.
+/// A test gives the identity it took before such a replacement.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,22 +150,33 @@ pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf]
     return None;
 }
 
-/// The suffix of the record that the toolchain writes beside a launcher (`mpm-shadow`, `package/mpm-shadow/cli/README.md`, section "The launcher").
+/// The suffix of the record that the toolchain writes beside a launcher (`mpm-shadow`,
+/// `package/mpm-shadow/cli/README.md`,
+/// section "The launcher").
 pub const LAUNCH_RECORD_SUFFIX: &str = ".launch";
 
-/// How many launchers in a row are followed before the chain is taken as one that never reaches a program: a record chain longer than
-/// this is a loop, and a loop leads back.
+/// How many launchers in a row are followed before the chain is taken as one that never reaches a program:
+/// a record chain longer than
+/// this is a loop,
+/// and a loop leads back.
 const MAX_LAUNCHER_HOPS: usize = 8;
 
 /// What:
 /// `pub fn refuse_if_ourselves(program: &Path) -> Result<(), String>` fails when the file a chosen program names is now the running image
 /// (or a recorded launcher that leads to it).
 /// Why:
-/// The choice of the real cargo and its start are two steps, and a path can be made to name the shadow between them (an ordinary
-/// installation swapping a link). The check is repeated right before each start, so the window shrinks to the instants between this
-/// check and the start itself; the shadow no longer starts itself for a path that already named it when the start was made
-/// (fifth certification pass). A file descriptor opened at the check and executed would close that window; it breaks scripts and
-/// proxies that open their own path, so it is not done without an owner decision.
+/// The choice of the real cargo and its start are two steps,
+/// and a path can be made to name the shadow between them (an ordinary
+/// installation swapping a link).
+/// The check is repeated right before each start,
+/// so the window shrinks to the instants between this
+/// check and the start itself;
+/// the shadow no longer starts itself for a path that already named it when the start was made
+/// (fifth certification pass).
+/// A file descriptor opened at the check and executed would close that window;
+/// it breaks scripts and
+/// proxies that open their own path,
+/// so it is not done without an owner decision.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -181,8 +196,10 @@ pub fn refuse_if_ourselves(program: &Path) -> Result<(), String> {
 /// What:
 /// `pub fn running_image_identity() -> Option<(u64, u64)>` is the device and inode of the executable image this process runs.
 /// Why:
-/// `/proc/self/exe` opened as a file names the open image even when its installed path was replaced or removed; `None` where it
-/// cannot be opened, in which case only the pathname-based skips apply.
+/// `/proc/self/exe` opened as a file names the open image even when its installed path was replaced or removed;
+/// `None` where it
+/// cannot be opened,
+/// in which case only the pathname-based skips apply.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,10 +211,13 @@ pub fn running_image_identity() -> Option<(u64, u64)> {
 }
 
 /// What:
-/// `fn identity_of(path: &Path) -> Option<(u64, u64)>` is the device and inode of the file a path names, through links.
+/// `fn identity_of(path: &Path) -> Option<(u64, u64)>` is the device and inode of the file a path names,
+/// through links.
 /// Why:
-/// Two names of one executable (hard links) have different resolved pathnames and one identity; `None` for a path that cannot be
-/// examined, which then matches nothing.
+/// Two names of one executable (hard links) have different resolved pathnames and one identity;
+/// `None` for a path that cannot be
+/// examined,
+/// which then matches nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -210,12 +230,21 @@ fn identity_of(path: &Path) -> Option<(u64, u64)> {
 
 /// What:
 /// `fn leads_back_to(resolved: &Path, skip: &[PathBuf]) -> bool` says whether a PATH candidate is a launcher whose record names a
-/// binary that is one of the skipped paths, directly or through further launchers.
+/// binary that is one of the skipped paths,
+/// directly or through further launchers.
 /// Why:
-/// The toolchain puts a launcher between the link on PATH and the shadow: the launcher is a file of its own, so its resolved path is
-/// not the shadow's, yet starting it starts the shadow again. The record beside the launcher (`<launcher>.launch`, a JSON object
-/// with the `real` binary) names the program it starts, and reading it starts nothing, so the candidate is skipped before it is run
-/// and no second instance of the shadow exists. An unreadable or unparsable record is not a launcher.
+/// The toolchain puts a launcher between the link on PATH and the shadow:
+/// the launcher is a file of its own,
+/// so its resolved path is
+/// not the shadow's,
+/// yet starting it starts the shadow again.
+/// The record beside the launcher (`<launcher>.launch`,
+/// a JSON object
+/// with the `real` binary) names the program it starts,
+/// and reading it starts nothing,
+/// so the candidate is skipped before it is run
+/// and no second instance of the shadow exists.
+/// An unreadable or unparsable record is not a launcher.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -423,7 +423,9 @@ pub struct Seams<'a> {
 /// The most names tried when a kept file's name is taken,
 /// and the most temporary names tried.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 /// Collisions were not counted;
 /// the names carry the process id,
 /// a nanosecond clock and a counter,
@@ -433,21 +435,25 @@ pub struct Seams<'a> {
 const MAX_NAME_ATTEMPTS: u32 = 10_000;
 
 /// The directories this process knows it left unsynchronized because a sync after their creation failed.
-/// Contract assumption b: such a directory is not treated as durable merely because it exists now.
+/// Contract assumption b:
+/// such a directory is not treated as durable merely because it exists now.
 /// The registry lives as long as the process;
 /// across processes a directory left unsynced is a pre-existing directory and assumption b applies to it.
 static UNSYNCED: std::sync::Mutex<std::collections::BTreeSet<PathBuf>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
 
 /// Set when the registry could not be updated because another thread held it:
-/// knowledge may be missing, so every directory counts as unsynced from then on (the safe answer continues the walk).
+/// knowledge may be missing,
+/// so every directory counts as unsynced from then on (the safe answer continues the walk).
 static UNSYNCED_UNKNOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// What:
 /// `fn remember_unsynced(directory: &Path)` records a directory whose creation was not made durable.
 /// Why:
 /// The walk of a later preservation continues through it.
-/// The registry is only touched with `try_lock` and no file-system call is made while it is held (contract V6: an internal lock
-/// returns at once); when it is busy the knowledge is not lost but widened to "unknown".
+/// The registry is only touched with `try_lock` and no file-system call is made while it is held (contract V6:
+/// an internal lock
+/// returns at once);
+/// when it is busy the knowledge is not lost but widened to "unknown".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -467,7 +473,8 @@ fn remember_unsynced(directory: &Path) {
 /// `fn forget_unsynced(directory: &Path)` removes a directory from the registry once its entry has been synchronized.
 /// Why:
 /// A later preservation may stop at it again.
-/// A busy registry keeps the entry, which only makes later walks longer.
+/// A busy registry keeps the entry,
+/// which only makes later walks longer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -482,7 +489,10 @@ fn forget_unsynced(directory: &Path) {
 /// What:
 /// `fn is_unsynced(directory: &Path) -> bool` says whether this process knows it left the directory unsynchronized.
 /// Why:
-/// A busy or unreadable registry, and a registry that missed an update, count as "unsynced": the safe answer continues the walk.
+/// A busy or unreadable registry,
+/// and a registry that missed an update,
+/// count as "unsynced":
+/// the safe answer continues the walk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

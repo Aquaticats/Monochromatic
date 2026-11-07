@@ -2,9 +2,15 @@
 //! The message of a cargo-shadow that was started by another cargo-shadow's own start of the real `cargo`.
 //! Why:
 //! A program on PATH named `cargo` that leads back to cargo-shadow (a script or launcher that has no `.launch` record beside it)
-//! would make cargo-shadow start itself again without end. The second start stops at once, before doing any work, with exit status 2,
-//! and tells a reader who knows nothing about cargo-shadow what happened and what to type, step by step (owner decision of
-//! 2026-11-04: option A, "make the help message descriptive enough that even a monkey can understand and execute it").
+//! would make cargo-shadow start itself again without end.
+//! The second start stops at once,
+//! before doing any work,
+//! with exit status 2,
+//! and tells a reader who knows nothing about cargo-shadow what happened and what to type,
+//! step by step (owner decision of
+//! 2026-11-04:
+//! option A,
+//! "make the help message descriptive enough that even a monkey can understand and execute it").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,7 +30,8 @@ pub const ARRIVAL_EXIT_CODE: i32 = 2;
 /// What:
 /// `pub fn shell_quote(text: &str) -> String` quotes text for a POSIX shell inside single quotes.
 /// Why:
-/// Every command in the message works as printed, whatever the paths contain.
+/// Every command in the message works as printed,
+/// whatever the paths contain.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,7 +41,9 @@ pub fn shell_quote(text: &str) -> String {
     return format!("'{}'", text.replace('\'', "'\\''"));
 }
 
-/// One `cargo` found on PATH, in PATH order, and what it is.
+/// One `cargo` found on PATH,
+/// in PATH order,
+/// and what it is.
 struct Found {
     /// The path as PATH spells it.
     spelled: PathBuf,
@@ -44,7 +53,9 @@ struct Found {
     candidate: bool,
 }
 
-/// The `cargo` files of a PATH, in order, each classified.
+/// The `cargo` files of a PATH,
+/// in order,
+/// each classified.
 fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
     let image: Option<(u64, u64)> = running_image_identity();
     let mut found: Vec<Found> = Vec::new();
@@ -82,8 +93,13 @@ fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
 /// `pub fn arrival_message(guard: &Guard, own_executable: &Path, path_variable: &str) -> String` is the whole text printed when
 /// this cargo-shadow was started by another one.
 /// Why:
-/// It states in one sentence what happened, shows the chain with full paths, the `PATH` this program saw, why it stops, and numbered
-/// steps with commands that work as printed, then how to check the fix.
+/// It states in one sentence what happened,
+/// shows the chain with full paths,
+/// the `PATH` this program saw,
+/// why it stops,
+/// and numbered
+/// steps with commands that work as printed,
+/// then how to check the fix.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

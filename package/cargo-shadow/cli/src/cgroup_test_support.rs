@@ -1,9 +1,11 @@
 //! What:
 //! Helpers the tests of the delegated scope share:
-//! a scope started the way a run starts it, stopped when the test ends however it ends,
+//! a scope started the way a run starts it,
+//! stopped when the test ends however it ends,
 //! and the proof that a test used delegated containment.
 //! Why:
-//! A test that needs a delegated scope must fail loudly where none can be had, not pass without proving anything;
+//! A test that needs a delegated scope must fail loudly where none can be had,
+//! not pass without proving anything;
 //! `CARGO_SHADOW_ALLOW_NO_CGROUP=1` turns that into a printed skip for hosts that cannot delegate (some CI runners).
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +21,9 @@ use std::time::{Duration, Instant};
 
 use crate::control_group::{ControlGroup, Record, Route, RouteSettings, detect_route, parse_record};
 
-/// The environment variable that lets the tests that need a delegated scope skip, with a printed reason, where none can be had.
+/// The environment variable that lets the tests that need a delegated scope skip,
+/// with a printed reason,
+/// where none can be had.
 pub(crate) const ALLOW_NO_CGROUP: &str = "CARGO_SHADOW_ALLOW_NO_CGROUP";
 
 /// How long a test gives a scope to stop.
@@ -65,7 +69,8 @@ pub(crate) struct TestScope {
 /// How the guard cleans up.
 impl Drop for TestScope {
     /// What:
-    /// `fn drop(&mut self)` kills the program, stops the scope and reaps the program.
+    /// `fn drop(&mut self)` kills the program,
+    /// stops the scope and reaps the program.
     /// Why:
     /// A failed assertion must not leave a process behind.
     ///
@@ -85,7 +90,8 @@ impl Drop for TestScope {
 /// through the same launcher a run uses,
 /// and returns once the program is in the scope (a member is listed).
 /// Why:
-/// The kernel-behavior probes need a scope with a program in it, without the runner around it.
+/// The kernel-behavior probes need a scope with a program in it,
+/// without the runner around it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,9 +123,12 @@ pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> Option<Te
 }
 
 /// What:
-/// `pub(crate) fn wait_until(what: &str, condition: &dyn Fn() -> bool)` waits for a condition, up to twenty seconds.
+/// `pub(crate) fn wait_until(what: &str, condition: &dyn Fn() -> bool)` waits for a condition,
+/// up to twenty seconds.
 /// Why:
-/// A handshake with a state of the system, not a sleep: it returns at the first turn the condition holds.
+/// A handshake with a state of the system,
+/// not a sleep:
+/// it returns at the first turn the condition holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,13 +144,21 @@ pub(crate) fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
 
 /// What:
 /// `pub(crate) fn run_until_the_payload_started<T>(first: Duration, reset: &dyn Fn(), started: &dyn Fn() -> bool, attempt: &mut dyn FnMut(Duration) -> T) -> (T, Duration)`
-/// runs `attempt` with a bound, and repeats it with a doubled bound while the payload did not start inside it.
+/// runs `attempt` with a bound,
+/// and repeats it with a doubled bound while the payload did not start inside it.
 /// Why:
-/// The bound of a run counts from the start of the run, scope startup included. A bound that ended while the scope was still being
-/// made says nothing about stopping a payload at its bound; on a host whose disk or user manager is busy that is what a short
-/// bound measures (a bound of 400 ms failed a full run for it). The attempt that is judged is the first in which the payload
-/// really started; each earlier attempt is reset and repeated, so the wait follows the event and not the clock.
-/// An attempt where the payload does not start even with the longest bound is returned too, and the caller's assertions fail on it.
+/// The bound of a run counts from the start of the run,
+/// scope startup included.
+/// A bound that ended while the scope was still being
+/// made says nothing about stopping a payload at its bound;
+/// on a host whose disk or user manager is busy that is what a short
+/// bound measures (a bound of 400 ms failed a full run for it).
+/// The attempt that is judged is the first in which the payload
+/// really started;
+/// each earlier attempt is reset and repeated,
+/// so the wait follows the event and not the clock.
+/// An attempt where the payload does not start even with the longest bound is returned too,
+/// and the caller's assertions fail on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -205,7 +222,8 @@ pub(crate) fn scope_directory_of(groups_file: &str) -> PathBuf {
 /// What:
 /// `pub(crate) fn wrapper_group() -> String` is the control group line of this process (the wrapper) as `/proc/self/cgroup` gives it.
 /// Why:
-/// A test that claims a run used a delegated scope must show the program's group differs from the wrapper's own, which may itself be
+/// A test that claims a run used a delegated scope must show the program's group differs from the wrapper's own,
+/// which may itself be
 /// a scope of the harness (9b 3.5).
 ///
 /// In TS you'd write (pseudocode):
@@ -218,9 +236,12 @@ pub(crate) fn wrapper_group() -> String {
 
 /// What:
 /// `pub(crate) fn assert_ran_in_recorded_scope(groups_file: &str, program_group: &str, wrapper_group: &str)` asserts that the program
-/// ran in the very scope the journal recorded for the run, and not in the group the wrapper already had.
+/// ran in the very scope the journal recorded for the run,
+/// and not in the group the wrapper already had.
 /// Why:
-/// Finding a route is not selecting it, and a group that ends in `.scope` is not the run's scope (9b 3.5): a downgraded run inherits
+/// Finding a route is not selecting it,
+/// and a group that ends in `.scope` is not the run's scope (9b 3.5):
+/// a downgraded run inherits
 /// the harness's own scope and would satisfy a suffix check.
 ///
 /// In TS you'd write (pseudocode):
