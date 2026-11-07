@@ -158,7 +158,8 @@ fn both_budgets_report_together() {
     assert_eq!(found[1].code, "shell/no-semicolon");
 }
 
-/// In `cmd`, a line that is only `rem` (any case) is a comment and every other line counts.
+/// In `cmd`,
+/// a line that is only `rem` (any case) is a comment and every other line counts.
 #[test]
 fn shell_a_bare_rem_line_is_a_cmd_comment_and_other_lines_count() {
     let comment_only: &str = "rem\nREM\n  Rem  \necho a\n";

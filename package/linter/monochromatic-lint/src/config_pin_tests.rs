@@ -22,7 +22,8 @@ use std::path::{Path, PathBuf};
 const REAL_HEADER: &str = "[[tools.\"cargo:monochromatic-lint\"]]";
 
 /// The running version every control compares against.
-/// It is fixed here, not read from the manifest,
+/// It is fixed here,
+/// not read from the manifest,
 ///  so that no control changes meaning when a release bumps the version;
 ///  the pre-release controls pass their own running version to the probe instead.
 const RUNNING_VERSION: &str = "2.3.4";

@@ -14,7 +14,8 @@
 //! ```
 #![cfg(not(feature = "semantic"))]
 
-/// Import the router, the settings it reads and the findings it returns.
+/// Import the router,
+/// the settings it reads and the findings it returns.
 use monochromatic_lint::{
     diagnostic::{Diagnostic, Severity},
     rust_file_engine::RustFileEngine,
