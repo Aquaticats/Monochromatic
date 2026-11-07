@@ -1,0 +1,52 @@
+[
+  {
+    "name": "blockquote with a long first line and short lines",
+    "filename": "quote.md",
+    "source": "> I think we can make it much better. Because we control the code.\n> Second line, here.\n"
+  },
+  {
+    "name": "nested blockquotes with omitted markers",
+    "filename": "nested-quote.md",
+    "source": ">>> foo, bar. Then the rest of it\n> bar\n>>baz\n"
+  },
+  {
+    "name": "blockquote inside a list item",
+    "filename": "list-quote.md",
+    "source": "- > first, second here.\n  > third, fourth here.\n"
+  },
+  {
+    "name": "code spans with break characters and URLs",
+    "filename": "spans.md",
+    "source": "See `https://x.example/a, b. c` for details, then more. Then `a, b. c; d` too.\n"
+  },
+  {
+    "name": "code span broken by a list marker so a URL follows a stray backtick",
+    "filename": "stray-backtick.md",
+    "source": "- `curl 'a/\n- b'`, see `<script>` tags.\n  All except `https://x.example/` (DNS\n  failure).\n"
+  },
+  {
+    "name": "pipe table with code spans and escaped pipes",
+    "filename": "table.md",
+    "source": "| Name | Code |\n| - | - |\n| first, one. | `a\\|b, c. d` |\n"
+  },
+  {
+    "name": "fenced Rust listing with doc comments",
+    "filename": "fenced-rust.md",
+    "source": "Quoted source:\n\n```rust\n//! Crate docs. More words here.\n\n/// Adds one. Then returns it.\nfn f() {}\n```\n"
+  },
+  {
+    "name": "fenced text and indented code",
+    "filename": "fenced-text.md",
+    "source": "```text\nOne, two. Three, four.\n```\n\n    Indented, code. Stays.\n"
+  },
+  {
+    "name": "prose with emphasis, link and heading",
+    "filename": "prose.md",
+    "source": "# Heading, with a comma\n\nA sentence. **Bold, text.** More [link, text](https://x.example/p) here. And so on, and on.\n"
+  },
+  {
+    "name": "doc comments of a Rust file with a fenced example",
+    "filename": "documented.rs",
+    "source": "//! Crate docs. More words here.\n\n/// Adds one. Then returns it.\n///\n/// ```rust\n/// /// Inner doc. More words.\n/// fn g() {}\n/// ```\nfn f() {}\n"
+  }
+]

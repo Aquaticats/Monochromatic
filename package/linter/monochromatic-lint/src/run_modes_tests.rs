@@ -33,7 +33,8 @@ use std::path::Path;
 /// Markdown rules without a fixer:
 ///  their remedy is structural,
 ///  so no grouped edit can repair them.
-const UNFIXABLE_MARKDOWN: [&str; 4] = [
+const UNFIXABLE_MARKDOWN: [&str; 5] = [
+    "markdown/no-pipe-tables",
     "markdown/heading-increment",
     "markdown/no-duplicate-heading",
     "markdown/single-h1",

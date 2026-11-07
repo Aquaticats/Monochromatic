@@ -197,6 +197,28 @@ await describe({
       },
     },),
     it({
+      name: 'names the stage a start stopped at when no state line was ever read',
+      fn: async ({ expect, }) => {
+        const { dir, logPath, } = await scratchLog(
+          'INFO nested_wayland_session::backend_select: selected the render backend\n'
+            + 'INFO nested_wayland_session::control_socket: control socket listening at /s.sock\n'
+            + 'INFO nested_wayland_session::child: spawned hosted client /app on "wayland-2"\n',
+        );
+        const log = createUiStateLog({ logPath, },);
+        let caught: unknown;
+        try {
+          await log.waitState({ predicate: () => true, what: 'the first state', timeoutMs: 50, },);
+        }
+        catch (error: unknown) {
+          caught = error;
+        }
+        const { message, } = (caught as Error);
+        expect(message,).toContain('timed out waiting for the first state',);
+        expect(message,).toContain('start stopped at: app-spawned',);
+        await rm(dir, { recursive: true, force: true, },);
+      },
+    },),
+    it({
       name: 'counts shortcut uses, all or by action, in lines without color sequences',
       fn: async ({ expect, }) => {
         const { dir, logPath, } = await scratchLog(

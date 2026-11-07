@@ -74,14 +74,15 @@ fn fix_rewrites_files_and_reports_the_remainder() {
         "# Title\n\n```text\ncode\n```\n\n# Second\n"
     );
     let mdx: String = read(&fixture.path, "b.mdx");
-    assert!(mdx.starts_with("# Title\n\n<table>"), "{mdx}");
-    assert!(!mdx.contains("| A | B |"), "{mdx}");
+    // A pipe table is reported and never rewritten.
+    assert_eq!(mdx, "# Title\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n");
     // Rust rules have no fixes; the file is untouched and still reported.
     assert_eq!(read(&fixture.path, "c.rs"), "fn main() {}\n");
     assert_eq!(
         codes(output.stdout.as_str()),
         [
             "markdown/single-h1",
+            "markdown/no-pipe-tables",
             "rust/require-rustdoc",
             "rust/require-rustdoc"
         ]

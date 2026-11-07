@@ -3,13 +3,16 @@
  `music-player-desktop-e2e`: runs the keyboard end-to-end suite of the desktop music player against its release
  binary. Run it from the desktop app directory, or name that directory with `--app-dir`.
  
- Importing this module runs nothing; the run starts only when the file is the entry point.
+ The run is headless: nothing appears on the desktop. A person who wants to watch passes `--visible` (or sets
+ `E2E_VISIBLE=1`), which opens a nested window in the current graphical session. Importing this module runs nothing; the
+ run starts only when the file is the entry point.
  
  @example
  ```bash
  music-player-desktop-e2e
  music-player-desktop-e2e --app-dir package/music-player/desktop-app
  E2E_ONLY=seek music-player-desktop-e2e
+ music-player-desktop-e2e --visible
  ```
  
  @packageDocumentation
@@ -53,29 +56,49 @@ export class ChecksFailedError extends Error {
 }
 
 /**
+ What the command line asks for.
+ */
+export type CommandLine = {
+  /**
+   The directory of the desktop app: the `--app-dir` value, else the current directory.
+   */
+  readonly appDir: string;
+  /**
+   True when `--visible` was given: a person asked for a nested window on the desktop.
+   */
+  readonly visible: boolean;
+};
+
+/**
  Reads the command line.
  
  @param args - arguments after the script name
  
- @returns the directory of the desktop app: the `--app-dir` value, else the current directory
+ @returns the directory of the desktop app and whether a visible window was asked for
  
  @throws TypeError when an unknown flag is given
  
  @example
  ```ts
- parseAppDir(['--app-dir', 'package/music-player/desktop-app',],); // absolute path
+ parseCommandLine(['--app-dir', 'package/music-player/desktop-app',],); // { appDir: '/abs/...', visible: false }
  ```
  */
-export function parseAppDir(args: readonly string[],): string {
+export function parseCommandLine(args: readonly string[],): CommandLine {
   /**
    Parsed flags.
    */
   const { values, } = parseArgs({
     args: [...args,],
-    options: { 'app-dir': { type: 'string', }, },
+    options: {
+      'app-dir': { type: 'string', },
+      visible: { type: 'boolean', },
+    },
     strict: true,
   },);
-  return resolve(values['app-dir'] ?? process.cwd(),);
+  return {
+    appDir: resolve(values['app-dir'] ?? process.cwd(),),
+    visible: values.visible === true,
+  };
 }
 
 /**
@@ -102,14 +125,19 @@ export async function main(args: readonly string[],): Promise<void> {
   /**
    The directory of the desktop app.
    */
-  const appDir = parseAppDir(args,);
+  const {
+    appDir,
+    visible,
+  } = parseCommandLine(args,);
   rl.info(`running against ${appDir}`,);
 
   /**
-   Values the user set in the environment.
+   Values the user set in the environment, and the visible window if the flag asked for it.
    */
-  const overrides = overridesFromEnvironment();
-
+  const overrides = {
+    ...overridesFromEnvironment(),
+    ...visible ? { visible: true, } : {},
+  };
   /**
    The compositor to start: `E2E_COMPOSITOR`, else the one mise has installed.
    */
@@ -141,7 +169,9 @@ export async function main(args: readonly string[],): Promise<void> {
       return !outcome.ok;
     },)
     .map(function describeFailure(outcome,): string {
-      return `FAILED ${outcome.id}: ${outcome.detail}`;
+      return `FAILED ${outcome.id}: ${outcome.detail}${
+        outcome.evidence === undefined ? '' : ` (evidence: ${outcome.evidence})`
+      }`;
     },);
   for (const line of failures)
     printErrorLine(line,);

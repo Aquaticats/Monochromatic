@@ -82,17 +82,25 @@ pub fn no_bare_urls(context: &MarkdownSource, severity: Severity) -> Vec<Diagnos
         let (replacement, message): (String, &str) =
             bare_link_replacement(context.mdx, written, url);
         let (start, end) = context.offsets(*id);
+        // A backtick inside the link text is a code span delimiter the autolink swallowed,
+        //  so the author wrote code that an earlier unpaired backtick displaced;
+        //  wrapping would move the delimiter into the link and the finding stays for a hand fix.
+        let edit: Option<Edit> = if written.contains('`') {
+            None
+        } else {
+            Some(Edit {
+                start,
+                end,
+                replacement,
+            })
+        };
         findings.push(finding(
             context,
             *id,
             "markdown/no-bare-urls",
             severity,
             String::from(message),
-            Some(Edit {
-                start,
-                end,
-                replacement,
-            }),
+            edit,
         ));
     }
     return findings;
