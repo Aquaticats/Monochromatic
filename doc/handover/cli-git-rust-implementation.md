@@ -5334,6 +5334,23 @@ they and the scratch files that hold a child's standard error,
 used by the LFS upload and the held-lock retry,
 are in append mode now).
 
+- `fault_limits::a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` failed once in the
+  gate of the repository-lint branch at `d75d5a2d91`:
+  the service logged `cannot start the thread for the after-commit work: Resource temporarily unavailable (os error 11)`
+  and the further commit found no service;
+  a rerun passed.
+  The service ends with status 4 on that error by design (the manager starts it again),
+  so the one defect found is in the fixture:
+  it counted a service as started when its socket accepted a connection,
+  which the kernel does as soon as the service listens,
+  before the service starts its work thread,
+  and the control lowers the service's process limit right after the start.
+  Fixed on `fix/git-policy-cli-flakes-and-open-findings` by counting a service as started when it greets a connection.
+  Not reproduced:
+  0 of 60 services lowered after the start ended early at full CPU and at a 15% quota,
+  and a thread census right after the start found all threads in place in every sample,
+  so the window is closed by the fix on code reading and the log line alone;
+  a failure that keeps the service's own log would settle it.
 - `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` failed
   once in a full
   binary run,
