@@ -1,7 +1,9 @@
 # Repository on the 860 drive: measurements, inventory, the symlink design and runbook
 
 Status:
-revised 2026-11-07T06:45:00-05:00 to the design the owner picked (a symbolic link at the old path).
+revised 2026-11-07T06:45:00-05:00 to the design the owner picked (a symbolic link at the old path),
+and revised again 2026-11-07T07:15:00-05:00 to answer the cross-vendor review (section "Cross-vendor review of the first
+symlink revision").
 The first version of this plan (automount over a locked stub,
 option A) is at commit `93fec99100`
 and its option text stays in this file as history.
@@ -10,7 +12,10 @@ copied,
 mounted,
 unmounted,
 unlocked,
-stopped or deleted while writing either version.
+stopped or deleted while writing either version,
+with one exception:
+a read-only flag was set on the real main checkout by mistake and cleared about a minute later
+(section "Quiesce and freeze").
 Every command in the runbook that needs root is for the owner to run;
 agents do not run `sudo`.
 
@@ -49,7 +54,20 @@ agents do not run `sudo`.
   "Commits should never fail.",
   "Disk pressure being high is not an excuse.",
   "load is not an excuse."
-- The Git wrapper never starts itself at system startup or login (systemd units are fine).
+- Nothing starts itself at login:
+  "It should never do that!
+  Follow Bazel."
+  and "Systemd units are fine."
+  (2026-11-07).
+  The Git wrapper never starts itself at system startup or login.
+  A systemd user unit that starts the wrapper's own services is allowed.
+- On questions:
+  "Overloading me with non-question questions will only make things worse."
+  (2026-11-07).
+  This plan keeps a question for the owner only when its answer changes what happens,
+  no owner decision or measurement settles it,
+  and it is destructive or a matter of preference.
+  Everything else is adopted with its ranked pick in the section "Adopted decisions" and is open to the owner's veto.
 - "Never generate synthetic host load in any session or subagent:
   no `stress-ng`,
   busy loops,
@@ -74,18 +92,285 @@ it specifies the picked one and makes it safe.
   open to the owner's veto:
   the place on the 860 (a dedicated 0700 directory),
   the guard on the mountpoint,
-  the shared check every tool calls,
+  the shared identity check every tool calls,
   the per-tool work items,
-  the two-pass btrfs send and receive copy,
-  and the cut-over and rollback order.
+  the two-pass btrfs send and receive copy with an enforced freeze,
+  the cut-over phases,
+  and the reverse migration.
+  The section "Adopted decisions" lists each with its reason.
 - Left to the owner:
-  the ranked open questions at the end of the file.
+  one question at the end of the file.
 - Not run here:
   anything that needs root,
   so the guards on a real mountpoint and the btrfs send and receive were not exercised.
-  The user-level fixture in the section "Dangling-link guards,
-  measured" exercised everything a namespace allows,
-  and the section "The copy" gives the exact root fixture test for the rest.
+  The user-level fixtures exercised everything a user namespace or the user's own subvolumes on the 860 allow,
+  and the section "Fixture test before the real run" gives the exact root test for the rest.
+
+## Cross-vendor review of the first symlink revision
+
+The plan as of commit `837fc9a6eb` was reviewed by `openai/gpt-6.1-sol`
+(review text kept at `/var/home/user/temp/agent/860-review/sol-review.txt`).
+Its bottom line:
+keep the owner's design,
+but write the plan as a state-preserving migration with a complete filesystem inventory,
+explicit phases,
+enforceable final-write exclusion,
+identity-aware readiness checks,
+fail-closed transfers and a verified reverse migration.
+Its verdict was that rollback and verification were not yet safe enough for cut-over.
+This revision answers every finding.
+Each line says fixed,
+rejected or unverified,
+the evidence,
+and where the text is.
+
+1.  Rollback was not a state-preserving reverse migration:
+    fixed.
+    "Before any commit" was the wrong boundary;
+    the fast path is now limited to the validation window in which every writer is still excluded,
+    and any rollback after release is a full reverse migration through the same fail-closed script
+    (section "Rollback").
+2.  The copy inventory came from Git's registry,
+    not the filesystem:
+    fixed.
+    A root inventory of every nested subvolume is reconciled with the registry by the script,
+    and the script refuses to run on a difference.
+    Measured at user level:
+    at 2026-11-07T06:57:00-05:00 the 248 directories under `.claude/worktrees` equal the 248 registered ones (243 subvolumes,
+    5 plain directories),
+    and a depth-3 `find -xdev -inum 256` of the main checkout found no other subvolume root.
+    A subvolume deeper inside a worktree needs `btrfs subvolume list -o`,
+    which needs root:
+    unverified until the owner runs step R0.
+3.  "Ready" did not establish identity:
+    fixed.
+    The check now compares the btrfs filesystem UUID,
+    the expected path and the link text with a recorded identity (section "Work items per tool",
+    W1).
+    Measured:
+    `findmnt --target` prints the btrfs UUID at user level
+    (`01c308e7-06fa-4737-8a7b-3bb5fcba871d` for the 860,
+    `1bb3d23e-ec16-473a-b932-0deb3c450b94` for `/var/home`),
+    and `statfs` `f_fsid` differs between subvolumes of one filesystem
+    (`a281dfd5d053415f` for the main checkout,
+    `a281dfd5d0534dac` for `/var`),
+    so `f_fsid` is not used.
+4.  Drain was an observation,
+    not a write barrier:
+    fixed with an enforced freeze,
+    and its limit measured.
+    `btrfs property set -ts <subvolume> ro true` worked as the subvolume's owner without root on a scratch
+    subvolume on the 860:
+    a new file,
+    an open for write and a rename all failed with `Read-only file system`,
+    and `ro false` restored writes.
+    A write through a file descriptor opened before the freeze still succeeded and reached the file
+    (measured).
+    A read-only bind mount has the same limit (measured in a user namespace).
+    So the exclusion is the freeze plus two holder scans (before and after the freeze),
+    and any holder with a descriptor open in the tree stops the cut-over
+    (section "Quiesce and freeze").
+    The 93 external worktrees write the common `.git` through paths that the freeze refuses.
+5.  Guards installed before the swap rejected the legitimate pre-migration repository:
+    fixed.
+    The check has a phase,
+    `before` or `after`,
+    recorded in a small file;
+    the new binaries are installed in `before`,
+    and the owner's step in the drained window flips it
+    (section "Work items per tool",
+    W1,
+    and "Cut-over").
+6.  "All worktrees" left the 16 under `~/worktrees` on the NVMe:
+    fixed.
+    They move too (adopted,
+    former question Q9).
+    They are plain directories,
+    so they are copied by `rsync` as root into new subvolumes,
+    and the reboot test is forbidden until every dirty worktree has a verified copy off the NVMe
+    (sections "The copy" and "Cut-over").
+7.  Pre-swap Git verification could inspect the old repository:
+    fixed.
+    Verification runs in a private mount namespace that bind-mounts the staged tree over the real path,
+    so every gitfile resolves into the staged copy.
+    Measured in a user-namespace fixture:
+    a staged worktree's `.git` file still names the source path,
+    and with the staged tree bind-mounted over it `git status` and `git worktree list` read the staged tree
+    (section "Verification of the real copy").
+    Baselines are captured after the freeze.
+8.  The `rsync` comparison crossed subvolume boundaries:
+    fixed and measured.
+    On a scratch subvolume with a nested subvolume on the 860,
+    `rsync --dry-run --itemize-changes --delete` of the parent's read-only snapshot against the assembled tree printed
+    `*deleting   nested/inner.txt` without `--one-file-system` and printed no deletion with it
+    (the nested stub in the snapshot is an empty directory of inode 2).
+    The check now uses `--one-file-system --omit-dir-times` and runs once per subvolume.
+    The same fixture showed that `rmdir` of the stub and a snapshot placed at its path both succeed on btrfs
+    as an ordinary user.
+9.  Send pipelines did not propagate failure:
+    fixed and tested.
+    `/bin/sh` here is bash without `pipefail`:
+    `sh -c 'false | true'` exits 0 (measured).
+    The script runs each pipeline as `bash -o pipefail -c`,
+    stops at the first failure,
+    checks that the received copy is read-only with the sent UUID as its received UUID,
+    and writes a completion record before a copy may be placed.
+    Seven control-flow cases ran against a btrfs test double
+    (clean pass,
+    failing send with a receiving side that still exits 0,
+    a leftover partial receive,
+    a copy that is not read-only,
+    a transfer past its deadline,
+    first then final pass,
+    an inventory with a subvolume Git does not know);
+    each stopped or finished as specified.
+    Real `btrfs send` and `receive` need root:
+    unverified.
+10. The space bound was unsupported:
+    fixed.
+    The sentence "at most 263.6 GiB" is withdrawn.
+    The section "Capacity policy" gives a measured-as-root estimate that includes the 16 plain-directory worktrees,
+    thresholds,
+    and what is retained.
+11. A startup check does not prevent wrong-disk writes after the check:
+    accepted and narrowed.
+    For arbitrary commands the check is a diagnostic;
+    concurrent replacement of the link during a command is outside the guarantee
+    (fixture state 6 shows it cannot be prevented by a mode).
+    For tools this repository controls,
+    W1 provides an anchored directory descriptor (section "Work items per tool").
+12. The hidden-mountpoint procedure lacked propagation isolation:
+    fixed.
+    R1 and R2 now run in one `unshare --mount --propagation private` shell with an identity check before each mutation.
+    The private-namespace bind pattern itself was measured at user level (item 7).
+    Root effects are unverified.
+13. "Bounded" confused resource limits with time:
+    fixed.
+    The section "Deadlines" lists a wall-clock deadline,
+    containment,
+    leftover state and retry safety for each waiting operation,
+    and states the limit that a timeout cannot end a task stuck in uninterruptible I/O.
+14. MCP startup still depends on order:
+    partly adopted.
+    The Claude Code documentation says a stdio server whose first connection fails is marked failed and is restarted by
+    Reconnect in `/mcp`,
+    and `/mcp reconnect all` from v2.1.284
+    ([MCP documentation][claude-mcp],
+    section on stdio servers that exit or fail to start,
+    fetched 2026-11-07;
+    the installed `claude` is 2.1.319).
+    The launcher waits up to a bounded time for the repository before failing,
+    which covers the login race;
+    a later start is one `/mcp reconnect all`.
+    A proxy that answers before the repository exists is not built (see W7 for the reason).
+15. A failed `ExecStop` does not mean the service stays active:
+    fixed.
+    The reboot test reports service state,
+    mount state and mapper state separately,
+    drains every consumer of the 860 first,
+    uses a drop-in that replaces `ExecStart` instead of a stop,
+    and the pcloud claim is withdrawn.
+16. The check executable may not be on the manager's search path:
+    fixed.
+    Units use the absolute path.
+    The existing user units already do
+    (`claude-cpu-watch.service` and `kopia-snapshot-all.service` name absolute `ExecStart` programs).
+17. The root fixture did not test the final-pass operation:
+    fixed.
+    The new fixture runs the real script with `-p` and `-c` over changed content,
+    reassembles the tree,
+    compares every subvolume,
+    injects an interrupted receive,
+    and flips a known byte.
+18. The throwaway fixture paths were not safely allocated:
+    fixed.
+    A fresh `mktemp -d` directory,
+    exclusive creation under `noclobber`,
+    and cleanup only of what the invocation created.
+    Measured:
+    a second create under `noclobber` was refused.
+19. Harness-state migration was underspecified:
+    fixed.
+    Backups,
+    absent-destination requirement,
+    writer exclusion and an atomic replace with a concurrent-change check
+    (section "What the canonical path changes").
+    Which key the harness uses stays unverified until the first session after cut-over.
+20. Requirement conflict with "Commits should never fail.":
+    adopted with a question.
+    Refusing a commit before any state changes,
+    with a message that names the cause,
+    when the repository path is unavailable,
+    is not a failed commit and acknowledges nothing it did not write;
+    a deferred-commit queue is rejected (it would acknowledge before landing).
+    The bounded maintenance window of the cut-over is the one real conflict and is the owner's question.
+21. Correction in the "sound sections" list:
+    `btrfs device add` refuses a device that holds a filesystem unless forced
+    (`btrfs-device(8)`:
+    "A device with existing filesystem detected by blkid ... will prevent device addition and has to be forced").
+    Option D below is corrected.
+
+[claude-mcp]: https://code.claude.com/docs/en/mcp
+
+## Adopted decisions
+
+These were open questions in the first revision.
+Each is now a decision with its reason and is open to the owner's veto.
+None needs an answer for the plan to proceed.
+
+- `$PATH` entries inside the repository (was Q1):
+  leave the fall-through.
+  Ranking was leave > global stubs > move the launchers.
+  Reason:
+  the shadows' policies apply to work inside the repository,
+  no work happens there while it is away,
+  and a stub in front of the real tool is a hazard for every other project.
+- How `claude-cpu-watch` copes at start (was Q2):
+  the pre-start check with a long retry delay and no start limit (W8).
+  Ranking was retry loop > `ExecCondition` > `.path` unit.
+  Reason:
+  the live unit already restarts every two seconds without end when the path dangles (measured),
+  so a retry loop is the existing behavior at a gentler rate,
+  and the other two options break the owner's ordering rule or can wait indefinitely.
+- `user_subvol_rm_allowed` on the 860 (was Q3):
+  add it.
+  Reason:
+  measured that the user cannot delete a subvolume on the 860 without it (`EPERM`),
+  and 243 of the nested worktrees are subvolumes.
+- Rule hooks when their script is missing (was Q4):
+  non-blocking for the output filter,
+  `onFailure: block` for hooks that enforce a rule.
+  Reason:
+  a skipped rule is a silent loss,
+  a blocked session says why.
+- Harness history (was Q5):
+  rename the old folders with the safe procedure.
+  Reason:
+  rename keeps history without relying on unmeasured link handling.
+- Clone sources (was Q6):
+  `all`,
+  decided by a measurement step.
+  The first twenty worktree sends are timed under both settings;
+  the faster one that keeps footprint under the capacity threshold is used.
+- The pnpm store (was Q7):
+  leave on the NVMe;
+  the first install after the move is measured.
+- Snapshots and backups of the repository on the 860 (was Q8):
+  out of scope for this plan.
+  Kopia keeps its source,
+  and a snapper configuration for the 860 is a separate request.
+- The 16 worktrees under `~/worktrees` (was Q9):
+  they move,
+  because the owner said "All worktrees (Recommended)" and two of them hold uncommitted files that a reboot can lose.
+  The old folder becomes a link so old paths keep working.
+- Third spelling `/home/user/Monochromatic`:
+  left as it resolves.
+  Configuration this plan writes uses `/var/home/user/Monochromatic`.
+- Refusing writes with a plain message while the repository is unavailable:
+  adopted (review item 20).
+- Freeze method:
+  `btrfs property set -ts <path> ro true` per subvolume,
+  plus holder scans before and after (review item 4).
 
 ## Measurements
 
@@ -263,7 +548,11 @@ because the nested worktrees decide what can fit:
   263.6 GiB of logical bytes measured in "Whole-set figure",
   fewer on disk after compression.
   860 free:
-  662G minus at most 263.6 GiB leaves at least about 398 GiB.
+  662G minus 263.6 GiB leaves about 398 GiB before the 16 external worktrees,
+  metadata and retained snapshots
+  (this is an estimate,
+  not a bound;
+  see "Capacity policy").
   NVMe free after the owner removes the old copy:
   up to the shared-extent footprint of that copy comes back,
   which this plan did not separate from other data on the NVMe pool and does not estimate.
@@ -483,7 +772,10 @@ is in the section "Work items per tool".
   (5 starts in 10 s,
   read with `systemctl --user show`) never trips the start limit:
   the unit restarts every few seconds without end
-  (measured, see W8; an earlier version of this plan said it ends in a failed unit, which the measurement disproved).
+  (measured,
+  see W8;
+  an earlier version of this plan said it ends in a failed unit,
+  which the measurement disproved).
   This is the item most sensitive to ordering.
 - Claude Code hooks (`bash-output-filter`,
   statusline) and the two MCP servers:
@@ -783,8 +1075,9 @@ so the fixture test in the runbook repeats these):
 ### Option D: btrfs device add (the 860 joins the NVMe pool)
 
 - Disqualified.
-  `btrfs device add` overwrites an existing filesystem unless forced,
-  which destroys the 860's 3.0T of data
+  `btrfs device add` refuses a device that holds a filesystem unless forced
+  (`btrfs-device(8)`),
+  and forcing it destroys the 860's 3.0T of data
   (`never discard user data`).
   The pool would then need the 860 present to mount `/var/home`,
   so a late or failed unlock stops the home
@@ -932,8 +1225,8 @@ M3 does not fit.
 - `/var/mnt/encrypted/repository/received-read-only`:
   the read-only copies that `btrfs receive` makes.
   They are the parents of the final increments and stay until the owner removes them;
-  they share extents with the live tree,
-  so they cost almost no space.
+  they share extents with the live tree when they are made,
+  and cost more as either side changes (section "Capacity policy").
 - `/var/home/user/Monochromatic`:
   a symbolic link (absolute target) to `/var/mnt/encrypted/repository/Monochromatic`.
   `/var/home/user` is owned by `user` with mode 0750 (measured),
@@ -990,52 +1283,59 @@ and immutable.
   The trap:
   `sudo chattr +i /var/mnt/encrypted` while the 860 is mounted sets the flag on the 860's top-level inode,
   not on the hidden NVMe directory.
-  The commands below reach the hidden directory through a non-recursive bind mount of `/var`,
-  which does not carry the 860 mount with it,
-  so the 860 stays mounted and nothing is unmounted.
+- The commands below reach the hidden directory through a non-recursive bind mount of `/var` made inside a private
+  mount namespace.
+  Private propagation matters:
+  on a shared hierarchy a mount event elsewhere could otherwise appear at the alias and make `chown`,
+  `chmod` or `chattr` act on the 860 instead of the hidden directory.
+  The pattern (a bind inside `unshare --mount --propagation private`) was exercised at user level in a user namespace;
+  the root effects are unverified.
 
-Owner's root test (R1),
-which inspects,
-guards and proves the flag in one pass,
-bounded:
+Owner's root test (R1 and R2) in one namespace,
+with identity checks before every mutation.
+It stops at the first failure and unmounts nothing real:
 
 ```bash
-# R1: inspect the hidden mountpoint through a non-recursive bind of /var (the 860 stays mounted).
-sudo mkdir /run/underlying-var
-sudo mount --bind /var /run/underlying-var
-stat --format='%U:%G %a %n' /run/underlying-var/mnt/encrypted
-lsattr -d /run/underlying-var/mnt/encrypted
-ls -A /run/underlying-var/mnt/encrypted
+# R1 and R2: inspect, then guard, the hidden mountpoint. The shell below sees /var/mnt/encrypted only through a bind.
+sudo unshare --mount --propagation private bash -euo pipefail -c '
+  alias_dir=$(mktemp --directory /run/underlying-var.XXXXXX)
+  mount --bind /var "$alias_dir"
+  hidden="$alias_dir/mnt/encrypted"
+  # The alias must be the NVMe /var, never the 860: compare btrfs filesystem UUIDs.
+  [ "$(findmnt --noheadings --output UUID --target "$alias_dir")" = "$(findmnt --noheadings --output UUID --target /var)" ]
+  [ "$(findmnt --noheadings --output UUID --target "$alias_dir")" != "$(findmnt --noheadings --output UUID --target /var/mnt/encrypted)" ]
+  stat --format="%U:%G %a %n" "$hidden"
+  lsattr -d "$hidden"
+  echo "entries under the hidden mountpoint: $(ls -A "$hidden" | wc -l)"
+  chown root:root "$hidden"
+  chmod 0755 "$hidden"
+  chattr +i "$hidden"
+  lsattr -d "$hidden"
+  umount "$alias_dir"
+  rmdir "$alias_dir"
+'
+lsattr -d /var/mnt/encrypted
 ```
 
-Expected:
+Expected from the first lines:
 owner `root:root`,
 mode 755,
 no flags,
-and an empty listing.
-If the listing is not empty,
+and zero entries.
+If there are entries,
 something was written under the mountpoint while the 860 was away;
-it is hidden by the mount and must be read and moved by the owner before anything else.
-Then:
+the shell stops being useful for that case,
+so the owner reads and moves them before running the guard lines.
+Expected from the last `lsattr`:
+the mounted 860,
+with no `i` flag.
 
-```bash
-# R2: make the hidden directory root-owned, unwritable and immutable.
-sudo chown root:root /run/underlying-var/mnt/encrypted
-sudo chmod 0755 /run/underlying-var/mnt/encrypted
-sudo chattr +i /run/underlying-var/mnt/encrypted
-lsattr -d /run/underlying-var/mnt/encrypted
-lsattr -d /var/mnt/encrypted
-sudo umount /run/underlying-var
-sudo rmdir /run/underlying-var
-```
-
-The first `lsattr` must show the `i` flag,
-the second (the mounted 860) must not.
-Whether a mount can be placed over an immutable directory is proven by the next login:
-`mount-860.service` runs `mount` at login and notifies on failure.
-After that login repeat R1 and expect the `i` flag still set and the 860 mounted.
-If the mount fails with the flag set,
-run `sudo chattr -i` on the hidden directory through the same bind and keep root-owned 0755 as the guard.
+Whether a mount can be placed over an immutable directory is proven before any login depends on it,
+in the loop-file test F8 below.
+The next login then repeats the proof with the real mount:
+`mount-860.service` mounts at login and notifies on failure.
+If the real mount fails with the flag set,
+the owner runs `chattr -i` on the hidden directory through the same namespace pattern and keeps root-owned 0755.
 
 ### Fixture results: what a process sees in each state
 
@@ -1172,9 +1472,9 @@ repository directory present
   Two scratch subvolumes made by that test,
   `/var/home/user/temp/agent/dangling/svfix` and `.../svfix-snap`,
   are left for the owner to delete with `sudo btrfs subvolume delete`.
-  Removing a worktree that is a subvolume (242 of the 246 nested worktrees)
+  Removing a worktree that is a subvolume (243 of the 248 nested worktrees)
   needs that option after the move.
-  See open question Q3.
+  See the adopted decision on `user_subvol_rm_allowed`.
 - Mount-time facts:
   the 860 is mounted whole (`subvolid=5`),
   options `compress=zstd:3,noatime,ssd,space_cache=v2`.
@@ -1197,14 +1497,69 @@ repository directory present
   at start it asks the shared check (W1);
   if the answer is "not ready" it fails plainly with the cause and the next use asks again,
   or (for a daemon) it retries on a fixed delay.
-  No call waits for the mount.
+  Resource limits (CPU,
+  memory,
+  tasks,
+  I/O weight) are not time limits,
+  so each waiting step also has a wall-clock deadline (section "Deadlines").
 - `mount-860.service` is left as it is:
   it is `Type=oneshot` with `TimeoutStartSec=infinity`,
   but nothing in the repository's chain waits on it,
   which is why the owner's answer to the unlock timeout question was "N/A".
-  It gains two changes in the root steps:
-  `user_subvol_rm_allowed` in its mount options (open question Q3),
-  and nothing else.
+  A synchronous `systemctl start mount-860.service` would wait on it,
+  so every step in this plan that starts it uses `--no-block` and polls with a deadline.
+  It gains one change in the root steps:
+  `user_subvol_rm_allowed` in its mount options (adopted decision).
+
+## Deadlines
+
+A resource cap such as `CPUQuota` or `MemoryMax` bounds how much a command may use,
+not how long it may take.
+Every step that can wait has its own wall-clock deadline,
+what happens to the child processes,
+what it leaves behind,
+and whether a retry is safe.
+
+- The shared check (W1):
+  a deadline of a few seconds enforced by the caller
+  (a worker thread or `timeout` around the check),
+  because `stat` on a stalled drive can block in the kernel.
+  Containment:
+  the worker is abandoned and the caller reports "the drive did not answer" as a failure.
+  Leftover state:
+  none.
+  Retry:
+  safe.
+- A unit that runs the check (`claude-cpu-watch.service`):
+  `TimeoutStartSec` on the unit.
+  Leftover:
+  none.
+  Retry:
+  the unit's own retry delay.
+- Each `btrfs send | btrfs receive`:
+  `timeout --kill-after=30 <seconds>` around a `bash -o pipefail` inside the `systemd-run --scope`,
+  so the whole pipeline and its children die together.
+  The default is 14400 s per transfer,
+  the plan author's choice until the first measured transfer replaces it.
+  Leftover:
+  a partial received subvolume with no completion record.
+  Retry:
+  not automatic;
+  the script stops and names the exact `btrfs subvolume delete` for the owner to run.
+- `git fsck --full`,
+  `rsync --checksum` comparisons:
+  one deadline per subvolume chosen by the owner at run time;
+  leftover none;
+  retry safe.
+- The drain:
+  the owner's deadline;
+  at the deadline nothing is signalled and the cut-over does not happen.
+- `systemctl start mount-860.service`:
+  `--no-block` followed by `systemctl is-active` polled for at most 180 s,
+  because the unit can retry its unlock three times with a ten-second pause and a slow key derivation.
+- A userspace deadline cannot end a task stuck in uninterruptible kernel I/O (state `D`).
+  The controller then returns a bounded failure and treats the unfinished work as not done;
+  the stuck process is reported for the owner and is not killed.
 
 ## Work items per tool
 
@@ -1217,13 +1572,39 @@ the label is in brackets),
 the change,
 and the test.
 
-Messages all name the cause in plain words and the next step.
-The probe returns one of five answers:
+The identity the check enforces is recorded once,
+by the owner's cut-over step,
+in `~/.config/monochromatic-dev/repository-link.json`:
+the link path,
+the exact link text,
+the approved canonical root,
+the btrfs filesystem UUID of the 860,
+and the phase (`before` or `after`).
+The check reads that file and never writes it.
 
-- Ready:
-  the path is a symbolic link,
-  its target resolves to a directory,
-  and `<target>/.git` exists.
+The probe returns one of these answers:
+
+- Ready,
+  phase `after`:
+  `lstat` of the link path says symbolic link;
+  its text equals the recorded text;
+  the target resolves to the recorded canonical root;
+  `/proc/self/mountinfo` shows the target on the filesystem whose UUID equals the recorded 860 UUID
+  (`findmnt --target <path> --output UUID` prints that UUID at user level,
+  measured);
+  the root is a directory;
+  and `<root>/.git` is a directory whose own filesystem UUID equals the root's.
+  A link to a directory on another filesystem is not ready (the review's outside-the-860 case).
+  A directory named `.git` alone is not identity,
+  so the check also requires the recorded repository marker (the first commit hash of `main`,
+  read from `.git/` without running Git:
+  the file `.git/monochromatic-root-commit` written at cut-over).
+- Ready,
+  phase `before`:
+  `lstat` says directory,
+  its filesystem UUID equals the recorded NVMe UUID,
+  and `.git` is a directory.
+  Phase `before` exists so the new binaries can be installed while the repository is still on the NVMe.
 - The 860 is not mounted:
   the target is missing and `/var/mnt/encrypted` is not a mount point in `/proc/self/mountinfo`.
   Message:
@@ -1236,23 +1617,22 @@ The probe returns one of five answers:
   Message:
   "the 860 drive is mounted but /var/mnt/encrypted/repository/Monochromatic does not exist;
   nothing was written".
-- A real folder replaced the link:
+- A real folder replaced the link (phase `after`):
   `lstat` of `/var/home/user/Monochromatic` says directory.
   Message:
   "/var/home/user/Monochromatic is a real folder,
   not the link to the 860;
   nothing was written".
-- No repository inside:
-  the target is a directory without `.git`.
+- Wrong filesystem or wrong repository:
+  the link resolves but the UUID or the marker differs.
+  Message names both values.
 
 Exit status:
 128 for the Git wrapper (Git's own fatal status),
 75 (`EX_TEMPFAIL`) for every other tool.
 Every call is a few `lstat`,
 `stat` and one read of `/proc/self/mountinfo`;
-none opens a file inside the target,
-creates anything,
-or waits.
+none creates anything.
 
 1.  W1,
     the shared check.
@@ -1265,22 +1645,38 @@ or waits.
     it follows `SGD` and `VGW`),
     installed outside the repository (`~/.local/share/monochromatic-dev/toolchain-global`)
     so the check itself never dangles,
-    plus a second bin `repository-link-run <command...>` that checks and then replaces itself with the command.
+    plus a second bin `repository-link-run [--wait-seconds=<n>] <command...>` that checks and then replaces itself with
+    the command.
+    With `--wait-seconds` it re-asks every second until the deadline,
+    then fails (used by launchers of long-lived programs such as MCP servers).
+    For programs this repository controls the library also offers `openRepositoryRoot()`:
+    it runs the full check once,
+    opens the resolved root as a directory descriptor,
+    and returns it,
+    so later operations use descriptor-relative calls or `/proc/self/fd/<n>/...` and never look the link up again.
+    A held descriptor also makes an ordinary `umount` of the 860 refuse
+    (a working-directory holder did,
+    measured in fixture state 5).
+    For arbitrary commands the check is a diagnostic:
+    a command that re-resolves the link later can be redirected by a replaced link,
+    and the plan excludes that from its guarantee (review item 11).
     The Git wrapper is Rust,
     so it carries the same logic as a function and the same test table.
     Tests:
-    one table of fixture states (ready,
+    one table of fixture states (ready in each phase,
     not mounted,
     mounted without folder,
     replaced by a folder,
-    no `.git`,
-    link to a directory outside the 860)
+    no marker,
+    a link to a directory on another filesystem,
+    a wrong filesystem mounted at the mountpoint)
     run against the library,
     both bins and the Rust copy,
     with adversarial paths (a target with a newline,
     a space,
     `..` segments,
-    a link chain).
+    a link chain),
+    and a stalled-drive case (a path on a hung test mount) asserting the deadline.
 2.  W2,
     the Git wrapper client (`cli-git-native`,
     `package/git-policy/cli`).
@@ -1305,8 +1701,22 @@ or waits.
     (`service_instance.rs`,
     function `instance_of`) [read from source].
     Change:
-    run W1 first for any target path that names the repository link;
+    run W1 first for any target path that names the repository link,
+    for its alternate spellings (`/home/user/Monochromatic`,
+    the approved canonical root,
+    the stale NVMe path),
+    and for any Git directory the wrapper resolves through `GIT_DIR`,
+    `GIT_WORK_TREE`,
+    `GIT_COMMON_DIR` or a
+    worktree `.git` file:
+    the test is on the canonical path the wrapper finally uses,
+    not on the text of the argument,
+    so a command that spells the repository by its physical path is checked too;
     print the plain message with status 128;
+    during the freeze window (a write answers `Read-only file system`) print "the repository is frozen for the move to
+    the 860;
+    nothing was written;
+    try again after the move finishes";
     make `instance_of` return an error when `canonicalize` fails,
     so no instance,
     journal directory or socket is ever named for an unreachable path,
@@ -1380,7 +1790,7 @@ or waits.
     the search limits for `rg`) are skipped silently outside the repository.
     Change:
     none in the programs beyond W1 at start for an explicit repository path;
-    the silent fall-through is open question Q1.
+    the silent fall-through is an adopted decision (leave it).
     Tests:
     a launcher fixture with a missing `.launch` target asserting a plain message.
 6.  W6,
@@ -1397,7 +1807,7 @@ or waits.
     sections on exit codes and on hook failures,
     fetched 2026-11-07).
     Change:
-    the command becomes `repository-link-run node <script>`,
+    the command becomes `<absolute path>/repository-link-run node <script>`,
     so the message is plain and the status is 75 (non-blocking);
     a hook that enforces a rule (the `guardrail` package under `package/claude-code-plugin`,
     if it is configured) sets
@@ -1417,10 +1827,23 @@ or waits.
     a missing script fails the server start with the Node stack [measured for Node with a missing script];
     Codex's `--cd` to a missing folder is inferred to fail the same way [not measured].
     Change:
-    commands go through `repository-link-run`;
+    commands go through the absolute path of `repository-link-run --wait-seconds=20`,
+    which re-asks every second for at most twenty seconds before failing,
+    so a server started in the login race still comes up;
+    a server that missed even that is restarted by `/mcp reconnect all` in the session (documented behavior,
+    see the
+    review table,
+    item 14).
+    A proxy that answers `initialize` before the repository exists and starts its backend later is not built:
+    it is a new MCP frontend for two servers,
+    and the documented reconnect already recovers a session without restarting it.
     Codex's `--cd` stays and the server's own error is accepted.
     Tests:
-    start each configured command with the link dangling and assert the first line.
+    start each configured command with the link dangling and assert the first line;
+    start one with the link dangling,
+    make the target appear after five seconds (a fixture swap),
+    and assert it comes up inside the wait.
+    Reconnect after a missed start is not testable without a live harness session and is unverified.
 8.  W8,
     `claude-cpu-watch.service`.
     Today:
@@ -1432,8 +1855,11 @@ or waits.
     With the unit loaded and `cpu-watch.ts` missing,
     `Restart=always` with `RestartSec=2` and the default start limit
     (5 starts in 10 s;
-    `systemctl --user show` at 2026-11-07T06:44:29-05:00 printed `StartLimitIntervalUSec=10s`, `StartLimitBurst=5`,
-    `Restart=always`, `RestartUSec=2s`, `NRestarts=0` for the live unit)
+    `systemctl --user show` at 2026-11-07T06:44:29-05:00 printed `StartLimitIntervalUSec=10s`,
+    `StartLimitBurst=5`,
+    `Restart=always`,
+    `RestartUSec=2s`,
+    `NRestarts=0` for the live unit)
     restarts without end and never reaches a failed state.
     Measured after the owner approved the probe that the tool guard had refused:
     a transient unit `dangling-probe-cpu-watch` with the same restart settings,
@@ -1442,12 +1868,15 @@ or waits.
     and `NRestarts=12` after a further thirty-second watch,
     and was stopped and cleared at 2026-11-07T06:45:43-05:00.
     Starts two seconds apart never put more than five starts inside a ten-second window.
-    An earlier version of this item said the unit ends failed and stays failed; that reading was wrong.
+    An earlier version of this item said the unit ends failed and stays failed;
+    that reading was wrong.
     Change:
     the unit file in `~/.config/systemd/user` becomes a regular copy
     (the repository keeps the original;
     a check compares the two);
-    its start runs `ExecStartPre=repository-link-check` so a dangling path fails with status 75 and the plain message,
+    its start runs `ExecStartPre=<absolute path>/repository-link-check` (the manager does not read the shell's `PATH`;
+    the existing units already name absolute programs) with `TimeoutStartSec=20s`,
+    so a dangling path fails with status 75 and the plain message,
     with `Restart=on-failure`,
     `RestartSec=30`,
     and `StartLimitIntervalSec=0`
@@ -1458,7 +1887,7 @@ or waits.
     run by the owner,
     asserting it stays in `activating (auto-restart)`,
     then reaches `active (running)` after the target appears.
-    Alternatives are open question Q2.
+    The alternatives were weighed and the retry loop adopted (section "Adopted decisions").
 9.  W9,
     `~/.local/bin/spawn-claude` and `spawn-pi`.
     Today:
@@ -1489,14 +1918,24 @@ or waits.
     which refuses with a held mount [measured in the fixture],
     and `cryptsetup luksClose`;
     both silent (`2>/dev/null`).
+    A failed stop command does not mean the service stays active:
+    systemd may leave the unit failed or inactive while the mount and the mapping remain [from `systemd.service(5)`
+    semantics;
+    not measured on this unit].
     Change:
-    none required.
+    none required for correctness.
     Optional,
     owner's file:
     list holders in the stop path with a message,
-    and never `umount -l`.
+    do not run `luksClose` after a failed `umount`,
+    and never use `umount -l` or `--force`.
     Tests:
-    stop with a holder (a shell with its working folder in the repository) asserting the unit stays active.
+    with a holder (a shell with its working folder in the repository) run the stop and report three states separately:
+    the service state (`systemctl is-active`),
+    the mount state (`findmnt /var/mnt/encrypted`),
+    and the mapper state (`ls /dev/mapper/crypt_sda`).
+    The pcloud claim of the earlier revision (that stopping this system unit stops the user unit) is withdrawn:
+    `pcloud.service` lives in the user manager and the plan does not rely on any cross-manager effect.
 12. W12,
     `kopia-snapshot-all.service`.
     Today:
@@ -1560,7 +1999,7 @@ or waits.
     nothing watches it;
     the fixture's state 6 shows a real folder can replace it.
     Change:
-    W1 reports a real folder at the link path;
+    W1 reports a real folder at the link path once the phase is `after`;
     the wrapper's `doctor` prints the same line;
     the cut-over checklist runs `repository-link-check` first.
     Tests:
@@ -1650,8 +2089,13 @@ That pair is the source of every two-spelling effect below.
   file from the link spelling to the physical one,
   and after a rename of the main folder `repair <worktree path>` fixed a broken pair.
   Handling:
-  run `git worktree repair` once after cut-over to make all 340 pairs physical;
-  it is optional,
+  `git worktree repair` is not run during the cut-over and not before the owner decides rollback is no longer needed:
+  it rewrites the pointers of every worktree,
+  including the external ones,
+  so a rollback would have to undo it
+  (the reverse migration does,
+  section "Rollback").
+  Afterwards it is optional,
   but it removes the third spelling from every `gitdir` file and from `git worktree list`.
   Git writes the physical spelling for every new `worktree add`.
 - Harness project folders.
@@ -1666,12 +2110,28 @@ That pair is the source of every two-spelling effect below.
   `~/.claude.json` has a `projects` entry for `/var/home/user/Monochromatic` with trust and MCP settings;
   `~/.pi/agent/sessions/--var-home-user-Monochromatic--` is keyed the same way.
   Handling,
-  while no session is running:
-  rename the old Claude folder to the new name,
-  copy the `projects` entry in `~/.claude.json` to the new key with a scratch `.ts` and check by key names only,
-  and rename the Pi folder likewise.
-  Which spelling the harness uses is confirmed by starting one session and seeing which folder gets the new `.jsonl`.
-  Open question Q5.
+  in this order and only after the first session after cut-over has shown which key the harness uses:
+  1.  Stop every writer of the shared files (no `claude`,
+      Pi or Codex session running anywhere,
+      including sessions outside this repository).
+  2.  Back up `~/.claude.json` and the old project folders (a reflink copy is enough).
+  3.  Require that the destination folder does not exist (`test ! -e <new>`);
+      if it exists,
+      merge by hand file by file,
+      because `mv <old> <existing-dir>` would nest the old folder inside it.
+  4.  Rename the old Claude folder and the Pi folder to the new names.
+  5.  Copy the `projects` entry in `~/.claude.json` to the new key with a scratch `.ts`
+      (read the file,
+      compare its modification time and size to the values read at the start,
+      write a temporary file
+      beside it,
+      compare again,
+      then rename it over the original;
+      abort without writing if either changed).
+  Check by key names only.
+  Renaming a folder does not rewrite paths embedded inside the session files;
+  the old spelling stays in them and still resolves through the link.
+  Which spelling the harness uses is unverified until then.
 - kopia.
   The source path is unchanged (W12).
 - Editor workspaces.
@@ -1692,18 +2152,59 @@ That pair is the source of every two-spelling effect below.
 - Files that name the path inside tracked docs (191 files,
   420 occurrences) stay as written (rule `WR6`).
 
-## Drain
+## Quiesce and freeze
 
 Goal:
-nothing changes in the repository between the final snapshot and the swap,
+nothing changes in the repository between the baseline and the swap,
 and nothing is lost.
 Agents are not killed.
+Whether the quiet state was reached is decided by evidence taken after the freeze,
+not by a scan taken before it.
+
+The mechanisms and their measured limits:
+
+- Cooperative drain:
+  sessions are asked to finish.
+  No signal is sent.
+- Freeze of each subvolume:
+  `btrfs property set -ts <subvolume> ro true`.
+  Measured on a scratch subvolume on the 860 as the owner of that subvolume (no root):
+  creating a file,
+  opening a file for write and renaming a file all failed with `Read-only file system`,
+  and `ro false` restored writes.
+  The same property is what the script sets on the main checkout and on every nested subvolume.
+  Limit (measured):
+  a write through a file descriptor that was opened for write before the freeze still succeeded and reached the file.
+  The freeze therefore stops Git's lock-file-and-rename writes,
+  new files and new opens,
+  but not a long-lived writer such as a log being appended.
+- Read-only bind mount for the 16 plain-directory external worktrees,
+  which cannot be frozen as subvolumes:
+  `mount --bind <dir> <dir>` then `mount -o remount,ro,bind <dir>` as root.
+  Measured in a user namespace:
+  new files and removals failed with `Read-only file system`,
+  and a descriptor opened for write before the bind could still write.
+  Same limit.
+- Holder scan before and after the freeze:
+  because of the limit,
+  the scan is the check for writers that already hold a descriptor.
+  Any holder blocks the cut-over (below).
+- An accident worth recording:
+  while probing the property at 2026-11-07T06:52:00-05:00 the agent that wrote this revision ran
+  `btrfs property set -ts /var/home/user/Monochromatic ro true` on the real main checkout by mistake and ran
+  `ro false` within about a minute (`ro=false` confirmed at 2026-11-07T06:52:28-05:00;
+  a write test then succeeded).
+  Any session that wrote to the main checkout in that minute would have seen `Read-only file system`.
+  No data was changed by the agent.
+  The freeze is a destructive-adjacent action and happens only in the owner-run cut-over.
+
+Steps:
 
 1.  List the holders.
     The user can see only its own processes:
 
     ```bash
-    # Holders by working folder and open file, repository and every nested worktree.
+    # Holders by working folder and open file, repository and every nested worktree. Not the shadowed find.
     /usr/bin/find /proc -maxdepth 3 \( -name cwd -o -path '/proc/*/fd/*' \) -lname '/var/home/user/Monochromatic*' -printf '%p %l\n'
     ```
 
@@ -1715,156 +2216,260 @@ Agents are not killed.
     the Codex server,
     the IDE,
     and `rust-*` runs (30 processes with the repository as working folder at 2026-11-07T05:47:00-05:00).
+    The same scan runs for `/var/home/user/worktrees` and for the 77 worktrees on the 860,
+    because their processes write the common `.git`.
 2.  Ask each session to finish,
     with a deadline of the owner's choosing.
-    At the deadline run the command again.
+    At the deadline run the scan again.
     If a holder remains,
     the cut-over does not happen and the holder list is the report.
     Nothing is signalled.
-3.  List uncommitted work in every worktree,
-    before and after the move.
-    The script is `/var/home/user/temp/agent/dangling/list-uncommitted-work.ts`;
-    it runs `/usr/bin/git --no-optional-locks -C <worktree> status --porcelain=v1 --untracked-files=all` for each line of
-    `git worktree list --porcelain`,
-    counts changed and untracked files,
-    reports an unfinished merge,
-    rebase,
-    cherry-pick,
-    revert or bisect (files in the Git directory) and a held `index.lock`,
-    and writes one tab-separated row per worktree.
-    `--no-optional-locks` means it writes nothing.
-    Run:
-
-    ```bash
-    systemd-run --user --scope --property=CPUQuota=100% --property=MemoryMax=1G --property=TasksMax=64 --property=IOWeight=10 \
-      timeout 3000 node /var/home/user/temp/agent/dangling/list-uncommitted-work.ts \
-      /var/home/user/Monochromatic /var/home/user/temp/agent/dangling/uncommitted-before.tsv 180
-    ```
-
-    The copy carries uncommitted files and the old tree is kept,
-    so nothing is discarded.
-    The list exists for two checks:
-    any row with an unfinished operation or a held `index.lock` is settled by its owner first,
-    and after the final pass the same script on the 860 tree must print the same table
-    (`diff` of the two files is empty).
-    Measured run:
-    Run from 2026-11-07T06:15:00-05:00 to 2026-11-07T06:26:00-05:00 in the bounded scope above
-    (the same script and bounds):
-    340 worktrees listed and none missing or failing.
-    44 have something a move would strand:
-    32 of the 246 nested worktrees,
-    7 of the 71 on the 860,
-    3 of the 6 reached through `~/temp/agent`,
-    and 2 of the 16 under `~/worktrees`;
-    the main checkout is clean.
-    In total 350 changed and 5188 untracked files.
-    No worktree has an unfinished merge,
-    rebase,
-    cherry-pick,
-    revert or bisect,
-    and none has a held `index.lock`.
-    The largest is 782 files in
-    `/var/home/user/temp/agent/music-player-theme-compose-prototype` (on the 860,
-    so it does not move).
-    The table is `/var/home/user/temp/agent/dangling/real-uncommitted.tsv`.
-    Only the 32 dirty nested worktrees move;
-    the rest stay where they are.
-    This is a snapshot:
-    other sessions keep working,
-    so the script is run again after the drain.
-4.  Wrapper services.
-    For every loaded `cli-git@*.service` (15 at 2026-11-07T06:03:00-05:00),
-    its state folder `~/.local/state/cli-git/service/<instance>` must have no file in `busy/` and none in
-    `push-retries/`,
-    and `git monochromatic-git-policy-cli service status` must answer.
-    Also list `.git/cli-git-transactions/*.pending`.
-    The check is bounded:
-    repeat at a fixed interval for the owner's deadline,
-    then stop and report the branches named in any `push-retries/` file;
-    for those the owner pushes by hand before the swap.
-5.  Stop the user units that run from the repository
+3.  Stop the user units that run from the repository
     (`systemctl --user stop claude-cpu-watch.service` and the `cli-git@*` sockets and services).
     They start again after the swap.
     The services are socket-activated,
     and the wrapper never starts itself at login.
+    Check the wrapper's own state first:
+    for every loaded `cli-git@*.service` (15 at 2026-11-07T06:03:00-05:00),
+    its state folder `~/.local/state/cli-git/service/<instance>` must have no file in `busy/` and none in
+    `push-retries/`,
+    and `git monochromatic-git-policy-cli service status` must answer.
+    List `.git/cli-git-transactions/*.pending` (3 on 2026-11-07).
+    A non-empty `push-retries/` would resume under the old instance name and never run after the move,
+    so the owner pushes those branches by hand and the check is repeated.
+4.  Freeze (`move-repository.ts --freeze`,
+    or the lines it prints),
+    then scan the holders again.
+    A holder with a descriptor in the tree means a writer that the freeze cannot stop:
+    thaw (`ro false` on every subvolume the script froze,
+    printed by the script),
+    report the holder,
+    and stop.
+5.  Capture the baseline now,
+    after the freeze,
+    with the script below.
+    Values taken earlier legitimately differ because sessions commit while they finish.
+
+The baseline script is `/var/home/user/temp/agent/dangling/list-uncommitted-work.ts`.
+For each line of `git worktree list --porcelain` it runs
+`/usr/bin/git --no-optional-locks -C <worktree> status --porcelain=v1 --untracked-files=all`,
+counts changed and untracked files,
+reports an unfinished merge,
+rebase,
+cherry-pick,
+revert or bisect (files in the Git directory) and a held `index.lock`,
+and records `HEAD` and the SHA-256 of the index file.
+`--no-optional-locks` means it writes nothing.
+Run:
+
+```bash
+systemd-run --user --scope --property=CPUQuota=100% --property=MemoryMax=1G --property=TasksMax=64 --property=IOWeight=10 \
+  timeout 3000 node /var/home/user/temp/agent/dangling/list-uncommitted-work.ts \
+  /var/home/user/Monochromatic /var/home/user/temp/agent/dangling/baseline-frozen.tsv 180
+```
+
+The copy carries uncommitted files and the old tree is kept,
+so nothing is discarded.
+The table exists for two checks:
+any row with an unfinished operation or a held `index.lock` is settled by its owner before the freeze,
+and the table taken on the staged tree must equal this one byte for byte (the paths are equal because the
+verification below runs under a bind mount).
+
+Measured scan before the freeze was designed,
+run from 2026-11-07T06:15:00-05:00 to 2026-11-07T06:26:00-05:00 in a bounded scope with the first version of the script
+(without the `HEAD` and index columns):
+340 worktrees listed and none missing or failing.
+44 have something a move would strand:
+32 of the 246 nested worktrees,
+7 of the 71 on the 860,
+3 of the 6 reached through `~/temp/agent`,
+and 2 of the 16 under `~/worktrees`;
+the main checkout is clean.
+In total 350 changed and 5188 untracked files.
+No worktree has an unfinished merge,
+rebase,
+cherry-pick,
+revert or bisect,
+and none has a held `index.lock`.
+The largest is 782 files in
+`/var/home/user/temp/agent/music-player-theme-compose-prototype` (on the 860,
+so it does not move).
+The table is `/var/home/user/temp/agent/dangling/real-uncommitted.tsv`.
+Only the dirty nested worktrees and the 2 dirty external ones move.
+This is a snapshot:
+other sessions keep working.
+
+## Capacity policy
+
+The sentence "at most 263.6 GiB" of the earlier revision is withdrawn.
+263.6 GiB is a user-level measurement of the nested tree with sharing counted once,
+with 126 unreadable files omitted,
+taken while sessions kept writing.
+It excludes metadata overhead,
+sharing that the send strategy does not reproduce,
+the 16 external worktrees,
+and anything pinned by retained snapshots.
+Sharing is reproduced only as far as the clone sources allow,
+and a snapshot that is kept pins old extents while the live tree changes.
+
+- Estimate to be measured as root before the copy:
+  `btrfs filesystem du --summarize --raw` of the main checkout (counts the root-owned files),
+  plus `du --summarize --one-file-system` of each of the 16 external worktrees (they are plain directories on a
+  different filesystem,
+  so a copy cannot share their extents with anything),
+  plus `btrfs filesystem usage` of both filesystems for data and metadata allocation and unallocated space.
+  External worktrees measured at user level so far:
+  `du --summarize --one-file-system --block-size=1M` over the 16 registered worktrees under `~/worktrees` (run from
+  2026-11-07T07:00:00-05:00 to 2026-11-07T07:13:00-05:00 in a bounded scope) summed to 74.3 GiB (76076 MiB):
+  `translation-repair` 40.7 GiB,
+  `verify-coverage` 3.6 GiB,
+  and the fourteen `tr-*` folders 2.0 to 2.7 GiB each.
+  The folder `readonly-result-provenance` (3 MiB) is not a registered worktree and is carried as plain data.
+  `du` counts shared extents once per path,
+  so any sharing among these folders on the NVMe is not visible in the sum;
+  on the 860 none is kept,
+  so 74.3 GiB is the expected footprint,
+  before compression differences.
+- Pre-flight rule:
+  the destination's free space after subtracting the estimate and a margin of one quarter of the estimate
+  (the plan author's choice) must be at least the script's `--min-free-gib` (default 150,
+  the plan author's choice);
+  otherwise the copy does not start.
+  The NVMe's free space (350G at 2026-11-07T05:47:00-05:00) must stay above 100 GiB (author's choice)
+  while source snapshots exist.
+- During the copy:
+  the script checks the destination's free space before every subvolume and stops with every earlier step recorded.
+  The owner watches the NVMe with `df` between passes.
+- What is retained and for how long:
+  the source snapshots `s###` and `f###` on the NVMe,
+  the received `s###` and `f###` on the 860,
+  and the frozen old tree.
+  They pin extents while anything changes.
+  The old tree and the source snapshots are frozen or read-only,
+  so they pin little after the freeze;
+  the received first-pass copies `s###` become unnecessary after the final verification and are deleted by the owner
+  once the validation window has closed.
+- Cancellation:
+  the script stops at a step boundary;
+  the state folder says what completed;
+  partial receives are named for the owner to delete.
+  The source tree is untouched except for the freeze,
+  which the script prints the thaw for.
+- The earlier claim that retained received copies "cost almost no space" is corrected:
+  they share extents with the live tree at the moment of the snapshot and cost more as either side changes.
+- "Commits should never fail" is not promised against disk pressure:
+  no mechanism reserves space for commits,
+  and the plan does not claim one.
 
 ## The copy
 
 Method M1 (send and receive with clone sources,
 section "Copy methods") in two passes,
-as root.
-Footprint to expect on the 860:
-at most 263.6 GiB (section "Whole-set figure"),
-leaving at least about 398 GiB free on 662G.
-Compression (`zstd:3`) makes the on-disk footprint smaller.
+as root,
+for every subvolume in the reconciled inventory;
+plain directories (the 5 plain-directory worktrees inside the main checkout,
+and the 16 external worktrees) are handled as described below.
 
-The generator `/var/home/user/temp/agent/dangling/print-move-commands.ts` prints the commands and runs none.
-It reads `git worktree list --porcelain`,
-keeps the worktrees under the main folder that are subvolume roots (inode 256;
-242 of the 246 nested ones at 2026-11-07T06:21:00-05:00),
-and writes a manifest of names.
-The 4 plain-directory worktrees travel inside the main subvolume's send.
-The 16 worktrees under `~/worktrees` (NVMe) and the 77 on the 860 (71 under `/var/mnt/encrypted/temp/agent` and 6 reached
-through `~/temp/agent`,
-which is a link to the same place) are outside the tree and do not move.
+The script `/var/home/user/temp/agent/dangling/move-repository.ts` replaces the print-only generator of the earlier
+revision.
+Without `--run` it prints every step and runs nothing;
+with `--run` it needs root,
+runs the steps in order,
+and stops at the first failure.
+It was exercised against a btrfs test double for control flow (seven cases listed in the review table,
+item 9);
+the real `btrfs send` and `receive` are unverified until the root fixture test below.
+
+What the script does for each subvolume (main first,
+then the nested ones in sorted order):
+
+1.  A pre-flight:
+    the inventory (see below),
+    the destination's free space,
+    a state folder with mode 0700.
+2.  `btrfs subvolume snapshot -r <source> <snapshot folder>/<name>`,
+    then a completion record
+    (`<name>.snapshot.json` with the subvolume UUID).
+3.  `systemd-run --scope ... timeout --kill-after=30 <deadline> bash -o pipefail -c 'btrfs send [-p <first-pass parent>]
+    [-c <earlier snapshot>]... <snapshot> | btrfs receive <received folder>'`.
+    The pipeline fails if either side fails.
+4.  Verification of the receive:
+    `btrfs property get -ts <received> ro` must print `ro=true`,
+    and `Received UUID` of the received subvolume must equal `UUID` of the sent snapshot.
+    Only then is `<name>.received.json` written (written to a temporary file and renamed).
+5.  An existing `<received>/<name>` with no completion record stops the script with the exact
+    `btrfs subvolume delete` for the owner to run.
+    The script never deletes anything.
+6.  Final pass only:
+    a copy is placed only if its completion record exists.
+    The empty stub of a nested subvolume in the received parent is removed with `rmdir`
+    (measured on btrfs as an ordinary user:
+    the stub is an empty directory of inode 2,
+    `rmdir` succeeds,
+    and `btrfs subvolume snapshot` to that path succeeds and gives a root with inode 256),
+    then `btrfs subvolume snapshot <received> <final path>`,
+    then a check that the placed subvolume is writable.
+
+Inventory (review item 2).
+Before anything is generated,
+the owner runs as root:
 
 ```bash
-# On the NVMe, as the user (0700 folders), then on the 860 as root.
+# R0: every nested subvolume of the main checkout, as the filesystem knows them.
+sudo btrfs subvolume list -o /var/home/user/Monochromatic > /var/home/user/temp/agent/dangling/inventory-nested.txt
+sudo findmnt --list --output TARGET,SOURCE,FSTYPE | grep -F /var/home/user/Monochromatic
+```
+
+The script reads the file with `--inventory`,
+maps the `home/` prefix of each path to `/var/home/` (the prefix is a flag,
+`--inventory-prefix`),
+and refuses to run when the filesystem's list and Git's registered subvolumes differ in either direction,
+printing the differences.
+A subvolume Git does not know needs an owner-approved disposition (copy it with its own entry or exclude it in
+writing) before the copy runs.
+Mount boundaries are listed by the second command;
+any mount inside the tree needs its own disposition.
+The path mapping of `btrfs subvolume list` output is unverified (root only);
+the script stops on a line it cannot map.
+
+Invocation (print first,
+read the output,
+then run):
+
+```bash
 mkdir -m 0700 /var/home/user/repository-move-snapshots
 sudo mkdir -m 0700 /var/mnt/encrypted/repository
 sudo chown user:user /var/mnt/encrypted/repository
 mkdir -m 0700 /var/mnt/encrypted/repository/received-read-only
-```
-
-```bash
-# Print the first-pass and final-pass commands to files the owner reads before running anything.
-node /var/home/user/temp/agent/dangling/print-move-commands.ts \
-  /var/home/user/Monochromatic /var/home/user/repository-move-snapshots \
-  /var/mnt/encrypted/repository/received-read-only /var/mnt/encrypted/repository/Monochromatic \
-  /var/home/user/temp/agent/dangling/move-manifest.tsv --pass=first > pass-first.txt
+node /var/home/user/temp/agent/dangling/move-repository.ts --pass=first --main=/var/home/user/Monochromatic \
+  --snapshots=/var/home/user/repository-move-snapshots --received=/var/mnt/encrypted/repository/received-read-only \
+  --final=/var/mnt/encrypted/repository/Monochromatic --state=/var/home/user/repository-move-state \
+  --inventory=/var/home/user/temp/agent/dangling/inventory-nested.txt
+sudo node /var/home/user/temp/agent/dangling/move-repository.ts --run --pass=first ...same arguments...
 ```
 
 Worked example,
-the first pass for the main checkout and the first worktree (generator output,
-2026-11-07T06:21:00-05:00):
+the first lines of the first pass in print mode for the main checkout and the first worktree
+(each `systemd-run` line is one line in the output):
 
 ```bash
-# main /var/home/user/Monochromatic
 btrfs subvolume snapshot -r /var/home/user/Monochromatic /var/home/user/repository-move-snapshots/s000
 systemd-run --scope --collect --property=CPUQuota=200% --property=MemoryMax=2G --property=TasksMax=32 --property=IOWeight=10 \
-  sh -c 'btrfs send /var/home/user/repository-move-snapshots/s000 | btrfs receive /var/mnt/encrypted/repository/received-read-only'
-btrfs subvolume show /var/mnt/encrypted/repository/received-read-only/s000 > /dev/null && echo received s000
-# worktree /var/home/user/Monochromatic/.claude/worktrees/add-explains-slow-route
+  timeout --kill-after=30 14400 bash -o pipefail -c 'btrfs send /var/home/user/repository-move-snapshots/s000 | btrfs receive /var/mnt/encrypted/repository/received-read-only'
 btrfs subvolume snapshot -r /var/home/user/Monochromatic/.claude/worktrees/add-explains-slow-route /var/home/user/repository-move-snapshots/s001
 systemd-run --scope --collect --property=CPUQuota=200% --property=MemoryMax=2G --property=TasksMax=32 --property=IOWeight=10 \
-  sh -c 'btrfs send -c /var/home/user/repository-move-snapshots/s000 /var/home/user/repository-move-snapshots/s001 | btrfs receive /var/mnt/encrypted/repository/received-read-only'
-btrfs subvolume show /var/mnt/encrypted/repository/received-read-only/s001 > /dev/null && echo received s001
+  timeout --kill-after=30 14400 bash -o pipefail -c 'btrfs send -c /var/home/user/repository-move-snapshots/s000 /var/home/user/repository-move-snapshots/s001 | btrfs receive /var/mnt/encrypted/repository/received-read-only'
 ```
 
-(The generator prints each `systemd-run` and its `sh -c` on one line;
-they are shown here on two for reading.)
-
-The final pass,
-after the drain,
-for the same two (generator output,
-`--pass=final`):
-
-```bash
-btrfs subvolume snapshot -r /var/home/user/Monochromatic /var/home/user/repository-move-snapshots/f000
-systemd-run --scope --collect --property=CPUQuota=200% --property=MemoryMax=2G --property=TasksMax=32 --property=IOWeight=10 \
-  sh -c 'btrfs send -p /var/home/user/repository-move-snapshots/s000 /var/home/user/repository-move-snapshots/f000 | btrfs receive /var/mnt/encrypted/repository/received-read-only'
-btrfs subvolume snapshot /var/mnt/encrypted/repository/received-read-only/f000 /var/mnt/encrypted/repository/Monochromatic
-# then for each worktree, in order:
-btrfs subvolume snapshot -r /var/home/user/Monochromatic/.claude/worktrees/add-explains-slow-route /var/home/user/repository-move-snapshots/f001
-systemd-run --scope --collect --property=CPUQuota=200% --property=MemoryMax=2G --property=TasksMax=32 --property=IOWeight=10 \
-  sh -c 'btrfs send -p /var/home/user/repository-move-snapshots/s001 -c /var/home/user/repository-move-snapshots/f000 /var/home/user/repository-move-snapshots/f001 | btrfs receive /var/mnt/encrypted/repository/received-read-only'
-rmdir /var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/add-explains-slow-route
-btrfs subvolume snapshot /var/mnt/encrypted/repository/received-read-only/f001 /var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/add-explains-slow-route
-```
-
-The generator's `--clone-sources=main` lists only the main snapshot as clone source instead of all earlier ones;
-the default `all` shares most but costs more per send.
-The first real worktree send is timed under both and the choice is the owner's (Q6).
+The final pass prints,
+for the same two,
+the freeze lines when `--freeze` is given,
+a new snapshot `f000`,
+a send with `-p .../s000`,
+the placement of `f000` at `/var/mnt/encrypted/repository/Monochromatic`,
+and for the worktree a send with `-p .../s001 -c .../f000`,
+an `rmdir` of the stub and the placement of `f001` at
+`/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/add-explains-slow-route`.
 
 The bounds (`CPUQuota=200%`,
 `MemoryMax=2G`,
@@ -1874,481 +2479,511 @@ not measured.
 No synthetic load is generated;
 the copy is real work.
 
+Clone sources:
+the default `--clone-sources=all` lists every earlier snapshot,
+`main` only the first.
+The first twenty worktree sends are timed under both and the faster one that keeps the footprint under the capacity
+threshold is used (adopted decision).
+
+External worktrees under `~/worktrees` (adopted,
+review item 6).
+They are plain directories,
+so `btrfs send` cannot move them and nothing of theirs shares extents with anything on the 860.
+For each one the owner runs as root,
+in the same two passes:
+
+```bash
+# Pass one while everything runs: a new subvolume per external worktree, then a root rsync into it.
+sudo btrfs subvolume create /var/mnt/encrypted/repository/external-worktrees/<name>
+sudo systemd-run --scope --collect --property=CPUQuota=200% --property=MemoryMax=2G --property=TasksMax=32 \
+  --property=IOWeight=10 timeout --kill-after=30 7200 rsync --archive --hard-links --acls --xattrs --numeric-ids \
+  --one-file-system /var/home/user/worktrees/<name>/ /var/mnt/encrypted/repository/external-worktrees/<name>/
+```
+
+Pass two repeats the `rsync` after the read-only bind mount of the source.
+`/var/mnt/encrypted/repository/external-worktrees` is created with mode 0700 first.
+After the swap `~/worktrees` is moved aside like the repository and a link
+`~/worktrees -> /var/mnt/encrypted/repository/external-worktrees` takes its place,
+so the old paths keep working.
+The `.git` files of these worktrees name `/var/home/user/Monochromatic/.git/worktrees/<id>`,
+and the administrative `gitdir` file in the main tree names `/var/home/user/worktrees/<name>/.git`;
+both resolve through the two links.
+
 ### Fixture test before the real run (root, throwaway loop files)
 
-Four facts are unverified and decide the copy:
+Facts that are still unverified for the real copy and that decide it:
 that `-c` keeps sharing between sibling worktrees,
-that an incremental `-p` send with clone sources works,
-that the empty stub of a nested subvolume in a received parent can be removed with `rmdir`,
-and that `btrfs receive` checks the stream (a corrupted stream must fail).
+that an incremental `-p` send with clone sources reproduces changed content,
+that the reassembled tree equals the source subvolume by subvolume,
+that an interrupted receive is detected on retry,
+that a corrupted stream fails,
+and that a mount can be placed over an immutable directory.
+Already measured as an ordinary user on the 860's btrfs:
+stub removal and placement (inode 2 stub,
+`rmdir`,
+snapshot to the path),
+the `rsync --one-file-system` boundary behavior,
+and the `ro` property freeze.
 
 ```bash
-# F1: two throwaway btrfs files on the 860's scratch folder, bounded; removed at the end.
-mkdir -p /var/home/user/temp/agent/send-fixture
-truncate --size=3G /var/home/user/temp/agent/send-fixture/source.img
-truncate --size=3G /var/home/user/temp/agent/send-fixture/dest.img
-sudo mkfs.btrfs --quiet /var/home/user/temp/agent/send-fixture/source.img
-sudo mkfs.btrfs --quiet /var/home/user/temp/agent/send-fixture/dest.img
-sudo mkdir /run/send-fixture-source /run/send-fixture-dest
-sudo mount -o loop /var/home/user/temp/agent/send-fixture/source.img /run/send-fixture-source
-sudo mount -o loop /var/home/user/temp/agent/send-fixture/dest.img /run/send-fixture-dest
+# F1: a fresh private folder; nothing is overwritten and only what this invocation creates is removed.
+set -o noclobber
+fixture=$(mktemp --directory /var/home/user/temp/agent/send-fixture.XXXXXX)
+: > "$fixture/source.img"
+: > "$fixture/dest.img"
+truncate --no-create --size=3G "$fixture/source.img" "$fixture/dest.img"
+sudo mkfs.btrfs --quiet "$fixture/source.img"
+sudo mkfs.btrfs --quiet "$fixture/dest.img"
+sudo mkdir "$fixture/source" "$fixture/dest"
+sudo mount -o loop "$fixture/source.img" "$fixture/source"
+sudo mount -o loop "$fixture/dest.img" "$fixture/dest"
+findmnt --noheadings --output SOURCE,TARGET "$fixture/source" "$fixture/dest"
 ```
 
-```bash
-# F2: a main subvolume with a 300 MiB file, two nested worktree subvolumes that are snapshots of it, one edited.
-sudo btrfs subvolume create /run/send-fixture-source/main
-sudo dd if=/dev/urandom of=/run/send-fixture-source/main/big bs=1M count=300 status=none
-sudo mkdir /run/send-fixture-source/main/wt
-sudo btrfs subvolume snapshot /run/send-fixture-source/main /run/send-fixture-source/main/wt/a
-sudo btrfs subvolume snapshot /run/send-fixture-source/main /run/send-fixture-source/main/wt/b
-sudo dd if=/dev/urandom of=/run/send-fixture-source/main/wt/b/extra bs=1M count=5 status=none
-sudo mkdir /run/send-fixture-source/snap /run/send-fixture-dest/recv
-sudo btrfs subvolume snapshot -r /run/send-fixture-source/main /run/send-fixture-source/snap/s000
-sudo btrfs subvolume snapshot -r /run/send-fixture-source/main/wt/a /run/send-fixture-source/snap/s001
-sudo btrfs subvolume snapshot -r /run/send-fixture-source/main/wt/b /run/send-fixture-source/snap/s002
-```
+The mount identity line is read before the next step;
+a missing line stops the test.
 
 ```bash
-# F3: send main, then a with -c main, then b with -c main -c a; each into the destination.
-sudo sh -c 'btrfs send /run/send-fixture-source/snap/s000 | btrfs receive /run/send-fixture-dest/recv'
-sudo sh -c 'btrfs send -c /run/send-fixture-source/snap/s000 /run/send-fixture-source/snap/s001 | btrfs receive /run/send-fixture-dest/recv'
-sudo sh -c 'btrfs send -c /run/send-fixture-source/snap/s000 -c /run/send-fixture-source/snap/s001 /run/send-fixture-source/snap/s002 | btrfs receive /run/send-fixture-dest/recv'
-sudo btrfs filesystem du --summarize /run/send-fixture-dest/recv/s000 /run/send-fixture-dest/recv/s001 /run/send-fixture-dest/recv/s002
-sudo btrfs filesystem du --summarize /run/send-fixture-dest/recv
-df --block-size=1M /run/send-fixture-dest
-```
-
-Expected:
-the destination uses about 305 MiB,
-not about 900,
-and the last `du` shows `Set shared` near 300 MiB.
-If it uses about 900 MiB the clone sources did not keep sharing and the method is wrong for this repository.
-
-```bash
-# F4: stub removal and the final placement.
-sudo btrfs subvolume snapshot /run/send-fixture-dest/recv/s000 /run/send-fixture-dest/final
-ls -la /run/send-fixture-dest/final/wt
-sudo rmdir /run/send-fixture-dest/final/wt/a
-sudo btrfs subvolume snapshot /run/send-fixture-dest/recv/s001 /run/send-fixture-dest/final/wt/a
-sudo btrfs filesystem du --summarize /run/send-fixture-dest/final
+# F2: a main checkout that is a subvolume, a Git repository, and two worktrees that are subvolumes.
+sudo btrfs subvolume create "$fixture/source/main"
+sudo chown user:user "$fixture/source/main"
+git -C "$fixture/source/main" init --quiet
+head --bytes=300M /dev/urandom > "$fixture/source/main/big"
+git -C "$fixture/source/main" add big
+git -C "$fixture/source/main" -c user.name=t -c user.email=t@t commit --quiet --message base
+mkdir --parents "$fixture/source/main/.claude/worktrees"
+sudo btrfs subvolume create "$fixture/source/main/.claude/worktrees/a"
+sudo btrfs subvolume create "$fixture/source/main/.claude/worktrees/b"
+sudo chown user:user "$fixture/source/main/.claude/worktrees/a" "$fixture/source/main/.claude/worktrees/b"
+git -C "$fixture/source/main" worktree add --force --quiet "$fixture/source/main/.claude/worktrees/a" -b a
+git -C "$fixture/source/main" worktree add --force --quiet "$fixture/source/main/.claude/worktrees/b" -b b
+sudo btrfs subvolume list -o "$fixture/source/main" > "$fixture/inventory.txt"
 ```
 
 Expected:
-`wt/a` is an empty directory in the received parent,
-`rmdir` succeeds,
-and the snapshot places the worktree there.
-If `rmdir` or the snapshot fails,
-placement changes to `mv` of a writable snapshot into place and the generator changes with it.
+the checkout of `big` in each worktree is a copy,
+not a reflink,
+so sharing in this fixture comes from `-c` only for the shared objects;
+the destination size is compared with the source's in F3.
 
 ```bash
-# F5: an incremental send with a parent, and a corrupted stream.
-sudo btrfs subvolume snapshot -r /run/send-fixture-source/main /run/send-fixture-source/snap/f000
-sudo sh -c 'btrfs send -p /run/send-fixture-source/snap/s000 /run/send-fixture-source/snap/f000 | btrfs receive /run/send-fixture-dest/recv'
-sudo sh -c 'btrfs send /run/send-fixture-source/snap/s001 > /run/send-fixture-dest/stream.bin'
-sudo sh -c 'printf "X" | dd of=/run/send-fixture-dest/stream.bin bs=1 seek=100000 conv=notrunc status=none'
-sudo sh -c 'btrfs receive /run/send-fixture-dest/recv-bad < /run/send-fixture-dest/stream.bin'
+# F3: the first pass with the real script, then a change, then the final pass with a freeze.
+sudo node move-repository.ts --run --pass=first --main="$fixture/source/main" --snapshots="$fixture/snap" \
+  --received="$fixture/dest/recv" --final="$fixture/dest/final" --state="$fixture/state" --inventory="$fixture/inventory.txt" \
+  --inventory-prefix="<path prefix reported by the list>=$fixture/" --deadline-seconds=600 --min-free-gib=1
+echo changed >> "$fixture/source/main/.claude/worktrees/b/extra.txt"
+git -C "$fixture/source/main" -c user.name=t -c user.email=t@t commit --allow-empty --quiet --message after
+sudo node move-repository.ts --run --freeze --pass=final ...same arguments...
 ```
 
-The last receive must fail with a checksum error;
-`/run/send-fixture-dest/recv-bad` is made first with `sudo mkdir`.
-Clean up:
-`sudo umount` both,
-`sudo rmdir` both folders,
-delete the two image files.
+Both runs must end `finished`,
+and `ls "$fixture/state"` must show a `received` and a `placed` record for each of `f000`,
+`f001`,
+`f002`.
+
+```bash
+# F4: compare every subvolume with the boundary policy, and check sharing and received state.
+for path in main main/.claude/worktrees/a main/.claude/worktrees/b; do
+  sudo rsync --archive --checksum --dry-run --itemize-changes --delete --one-file-system --omit-dir-times \
+    "$fixture/source/$path/" "$fixture/dest/final/${path#main}/"
+done
+sudo btrfs property get -ts "$fixture/dest/recv/f001" ro
+sudo btrfs subvolume show "$fixture/dest/recv/f001" | grep 'Received UUID'
+sudo btrfs filesystem du --summarize "$fixture/dest/recv" "$fixture/source/main"
+df --block-size=1M "$fixture/source" "$fixture/dest"
+```
+
+Each `rsync` must print nothing.
+`ro=true` and a `Received UUID` equal to the source snapshot's `UUID` are required.
+The destination must use close to the size of the objects once,
+not once per worktree;
+if it uses about three times as much the clone sources did not keep sharing and the method is wrong for this
+repository.
+
+```bash
+# F5: an interrupted receive is detected, and a corrupted stream fails on a flipped known byte.
+sudo node move-repository.ts --run --pass=first ...arguments with --deadline-seconds=1 on a fresh state folder...
+sudo node move-repository.ts --run --pass=first ...arguments with the normal deadline, same state folder...
+sudo sh -c "btrfs send '$fixture/snap/s001' > '$fixture/stream.bin'"
+python3 -I -c "import sys; p=sys.argv[1]; f=open(p,'r+b'); f.seek(100000); b=f.read(1); f.seek(100000); f.write(bytes([b[0]^255]))" "$fixture/stream.bin"
+sudo mkdir "$fixture/dest/recv-bad"
+sudo btrfs receive "$fixture/dest/recv-bad" < "$fixture/stream.bin"
+```
+
+The first run with a one-second deadline must stop;
+the second must refuse with the exact `btrfs subvolume delete` for the partial copy;
+the owner runs it and the third run must finish.
+The last `receive` must fail with a checksum error.
+
+```bash
+# F6: the staged-verification pattern: a private namespace with the staged tree bind-mounted over the source path.
+sudo unshare --mount --propagation private bash -euo pipefail -c "
+  mount --bind '$fixture/dest/final' '$fixture/source/main'
+  git -C '$fixture/source/main' worktree list
+  git -C '$fixture/source/main' fsck --full
+  node list-uncommitted-work.ts '$fixture/source/main' '$fixture/staged.tsv' 60
+"
+```
+
+`worktree list` must show the same paths as before the namespace and `staged.tsv` must be a table of the staged tree.
+
+```bash
+# F7: cleanup of exactly what F1 created.
+sudo umount "$fixture/source" "$fixture/dest"
+sudo rmdir "$fixture/source" "$fixture/dest"
+rm -- "$fixture/source.img" "$fixture/dest.img"
+```
+
+```bash
+# F8: can a mount cover an immutable directory? (loop files, nothing real)
+sudo mkdir "$fixture/mp"
+sudo chattr +i "$fixture/mp"
+sudo mount -o loop "$fixture/dest.img" "$fixture/mp"
+lsattr -d "$fixture/mp"
+sudo umount "$fixture/mp"
+lsattr -d "$fixture/mp"
+sudo chattr -i "$fixture/mp"
+sudo rmdir "$fixture/mp"
+```
+
+The mount must succeed;
+`lsattr -d` while mounted shows the mounted filesystem's flags (no `i`);
+after the unmount the directory shows `i` again.
+F8 runs before F7's image removal.
 
 ### Verification of the real copy
 
-After every send the generator's `btrfs subvolume show ... && echo received` line proves the received subvolume
-exists;
-the stream is checksummed by `btrfs receive` (F5).
-After the final pass:
+All checks run in a private mount namespace in which the staged tree is bind-mounted over the real path,
+so every `.git` file,
+`gitdir` file and absolute path resolves into the copy and nothing reaches the source by accident
+(measured on a fixture in a user namespace:
+a staged worktree's `.git` file names the source path;
+with the staged tree bind-mounted over it,
+`git status` and `git worktree list` read the staged tree):
 
-1.  `git fsck --full` on the 860 main (bounded scope;
-    it is long and reads every object).
-2.  `git for-each-ref | sha256sum` and `git worktree list --porcelain | sha256sum` on the 860 tree equal the values
-    recorded from the NVMe tree before the drain,
-    except that `worktree list` shows the same paths through the link.
-3.  File counts equal for main and for a sample of worktrees
-    (the six largest and six smallest by the per-worktree `du` list,
-    plus every worktree with a non-clean row in `uncommitted-before.tsv`):
-    `find <snapshot> -xdev -type f | wc -l` against the same on the received copy.
-4.  A content check of the same sample:
-    `rsync --archive --checksum --dry-run --itemize-changes --delete <ro snapshot>/ <final>/` run as root prints nothing
-    (this reads both sides in full;
-    run it in its own scope,
-    one worktree at a time).
+```bash
+sudo unshare --mount --propagation private bash -euo pipefail -c '
+  mount --bind /var/mnt/encrypted/repository/Monochromatic /var/home/user/Monochromatic
+  # the external worktrees are bound the same way: mount --bind <staged external folder> /var/home/user/worktrees
+  ...checks...
+'
+```
+
+1.  `git fsck --full` on the staged main checkout (its own scope,
+    with a deadline).
+2.  The table from `list-uncommitted-work.ts` on the staged tree equals `baseline-frozen.tsv` byte for byte
+    (`diff` is empty).
+    That compares,
+    for every worktree,
+    the registration,
+    `HEAD`,
+    the SHA-256 of the index,
+    the counts of changed and untracked files,
+    and any unfinished operation.
+    Paths are equal because of the bind.
+3.  `git for-each-ref | sha256sum` equals the value taken on the frozen source.
+4.  Per subvolume,
+    `rsync --archive --checksum --dry-run --itemize-changes --delete --one-file-system --omit-dir-times` of the
+    source's final read-only snapshot against the placed subvolume prints nothing.
+    `--one-file-system` keeps the comparison at the subvolume boundary (measured:
+    without it `*deleting   nested/inner.txt` is reported for a correctly assembled tree);
+    `--omit-dir-times` ignores the directory times that stub removal changes.
+    Nested subvolumes are compared by their own run.
+    Run it for every subvolume if time allows;
+    at minimum for main,
+    the six largest and six smallest by size,
+    and every worktree that has a non-clean row in the baseline.
+    The 5 plain-directory worktrees are inside main's comparison.
 5.  Sharing kept:
-    `sudo btrfs filesystem du --summarize --raw /var/mnt/encrypted/repository/Monochromatic` shows exclusive plus
-    set shared close to 283010162688 bytes (263.6 GiB,
-    the figure from the NVMe) and `Total` close to 4115920404480.
-    As root the 126 unreadable files are counted too,
-    so the figures are slightly larger than the user-level ones.
-    A footprint much larger than 263.6 GiB means sharing was lost and the swap does not happen.
-6.  `list-uncommitted-work.ts` on the 860 tree prints the same table as `uncommitted-before.tsv`.
+    `sudo btrfs filesystem du --summarize --raw /var/mnt/encrypted/repository/Monochromatic` is compared with the same
+    command on the frozen source,
+    both as root.
+    A footprint much larger than the source's means sharing was lost and the swap does not happen.
+6.  File counts equal for every subvolume
+    (`find <path> -xdev -type f | wc -l` on source snapshot and placed copy).
 7.  Root-owned files survived:
-    `sudo find /var/mnt/encrypted/repository/Monochromatic -user root -name '*.log.jsonl' | wc -l` is not zero
-    in the two worktrees that had them.
+    `sudo find /var/mnt/encrypted/repository/Monochromatic -user root -name '*.log.jsonl' | wc -l` is not zero in the two
+    worktrees that had them.
+8.  The external worktrees:
+    `rsync --archive --checksum --dry-run --itemize-changes --one-file-system` of each source (read-only bind) against
+    its copy prints nothing.
+9.  After the swap,
+    still before release,
+    the same table and `git fsck` run through the real link (second end-to-end validation).
 
 Any difference stops the runbook with the old tree untouched.
 
 ## Cut-over
 
-Until step 8 the NVMe tree is still the repository,
-so steps 1 to 7 need no undo for the repository itself.
+Phases.
+Until the swap the NVMe tree is the repository.
 
-1.  Commit and push everything that matters (rule `RBT`).
-2.  Root steps that need no quiet:
+1.  Phase 0,
+    preparation (no effect on running work).
+    Commit and push everything that matters (rule `RBT`).
+    Run R0 (inventory),
     R1 and R2 (mountpoint guard),
-    the `repository` folder and the other folders above,
-    and the mount option:
+    F1 to F8 on the loop files,
+    and the capacity measurement.
+    Create the folders and add `user_subvol_rm_allowed`:
 
     ```bash
-    # Q3 if accepted: allow the user to delete subvolumes on the 860 now, and at every mount from the next login.
     sudo mount -o remount,user_subvol_rm_allowed /var/mnt/encrypted
     findmnt --target /var/mnt/encrypted --output OPTIONS
     sudo systemctl edit --full mount-860.service
     ```
 
     In the unit's `mount -o compress=zstd:3,noatime` add `,user_subvol_rm_allowed`.
-3.  Install W1 and the work items W2 to W10 (they are code;
-    they land through the repository as normal commits and a toolchain update).
-    The cut-over does not depend on them,
-    but the plan's guarantees do.
-4.  Replace the symlinked unit:
-    copy `package/claude-cpu-cap/daemon/systemd/claude-cpu-watch.service` over
-    `~/.config/systemd/user/claude-cpu-watch.service` (remove the link first),
-    and apply W8's edits,
+    Install the work items (they land through the repository and a toolchain update) with the identity file in phase
+    `before`.
+    Copy `package/claude-cpu-cap/daemon/systemd/claude-cpu-watch.service` over the symlinked unit file in
+    `~/.config/systemd/user` (remove the link first) and apply W8's edits,
     then `systemctl --user daemon-reload`.
-5.  Pass one of the copy (repository keeps running).
-6.  Drain (steps 1 to 5 of the section "Drain").
-7.  Final pass and verification.
-8.  Swap,
-    as the user:
+2.  Phase 1,
+    first pass while everything runs:
+    `move-repository.ts --pass=first` and the external worktrees' first `rsync`.
+3.  Phase 2,
+    quiesce:
+    holder scan,
+    wrapper state check,
+    stop the repository's user units,
+    freeze,
+    second holder scan,
+    baseline
+    (section "Quiesce and freeze").
+4.  Phase 3,
+    final pass and staged verification:
+    `move-repository.ts --pass=final` (with the freeze already done),
+    the external worktrees' second `rsync`,
+    then every check of the section "Verification of the real copy".
+    If anything differs,
+    thaw and stop.
+5.  Phase 4,
+    swap and activation,
+    in the same quiet window and as the user:
 
     ```bash
-    mv /var/home/user/Monochromatic /var/home/user/Monochromatic.nvme-before-860-2026-11-07T00-00-00-05-00
+    mv /var/home/user/Monochromatic /var/home/user/Monochromatic.nvme-before-860-<timestamp>
     ln -s /var/mnt/encrypted/repository/Monochromatic /var/home/user/Monochromatic
-    readlink -f /var/home/user/Monochromatic
+    mv /var/home/user/worktrees /var/home/user/worktrees.nvme-before-860-<timestamp>
+    ln -s /var/mnt/encrypted/repository/external-worktrees /var/home/user/worktrees
     ```
 
-    Replace the timestamp with the real one.
-    The rename is within one filesystem and atomic;
-    the two commands leave a short window with no path,
-    which is why the drain comes first.
-    The old tree is the kept copy.
-    Its worktrees' `.git` files still name `/var/home/user/Monochromatic/.git`,
+    Replace the timestamps with real ones.
+    Then write the identity file with phase `after` (the owner's step records the link text,
+    the canonical root,
+    the 860 filesystem UUID read with `findmnt --noheadings --output UUID --target /var/mnt/encrypted`,
+    and the root-commit marker `.git/monochromatic-root-commit`)
+    and run `repository-link-check`.
+    The old trees stay frozen (`ro true`) and read-only,
+    so nothing can write to the stale copy through a habit or a stale path.
+    The renames are within one filesystem and atomic;
+    the commands leave a short window with no path,
+    which is why the window is quiet.
+    The old tree's worktrees' `.git` files still name `/var/home/user/Monochromatic/.git`,
     which is now the 860 tree,
     so the old tree is cold storage,
     not a second working repository.
-9.  Harness and trust,
-    with no session running:
-    `mise trust --all` from the repository,
-    rename the harness project folders and copy the `~/.claude.json` entry (section "What the canonical path
-    changes"),
-    `git worktree repair` from the repository.
-10. Start `claude-cpu-watch.service`,
-    and make one commit through the wrapper in a throwaway worktree (`git worktree add` creates a snapshot on the
-    860).
-11. Checks:
-    `repository-link-check` prints ready;
-    `git -C /var/home/user/Monochromatic status`;
-    `git worktree list` has the same number of entries as recorded;
-    `systemctl --user is-active claude-cpu-watch.service`;
-    `mise trust --show`;
-    one `created` container starts;
-    the hourly kopia job's first run uploads about as much as a normal increment;
-    a fresh worktree's `pnpm install` and `find node_modules -xtype l` (nothing);
-    the harness lists the old sessions.
-12. Reboot test after step 11 (commit and push first):
-    log in and wait for `mount-860.service` to finish,
-    then before opening the repository run `sudo systemctl stop mount-860.service`
-    (nothing holds the 860 yet,
-    so the plain `umount` in its stop path succeeds;
-    pcloud stops with it).
-    With the 860 locked,
-    open a terminal in the repository and run `git status`,
+6.  Phase 5,
+    validation window (writers are still excluded):
+    the second end-to-end validation
+    (`git fsck`,
+    the table equal to the baseline,
+    one test commit in a throwaway worktree made by the wrapper,
+    `git worktree list`,
+    `mise trust --all` followed by `mise trust --show`,
+    one `created` container starts,
+    `systemctl --user is-active claude-cpu-watch.service`,
+    and a fresh worktree's `pnpm install` followed by `find node_modules -xtype l`,
+    which must print nothing).
+    Rollback inside this window is the exact fast path.
+7.  Phase 6,
+    release:
+    start the user units,
+    announce that sessions may start,
+    and keep the old trees until the owner removes them.
+    One probe session is started in the repository only to see which project key the harness writes;
+    then the harness migration (section "What the canonical path changes") is done with no session running,
+    and sessions restart.
+8.  Reboot test (commit and push first,
+    rule `RBT`).
+    Forbidden until every piece of NVMe-resident user data that matters has a verified copy off the NVMe:
+    the dirty nested worktrees and the 2 dirty external ones are in the verified copy,
+    and the old trees on the NVMe are copies,
+    not the only data.
+    It also needs every consumer of the 860 stopped by its owner (pcloud,
+    backups,
+    scratch sessions,
+    external
+    worktrees),
+    because "before opening the repository" does not mean nothing holds the 860.
+    The test of a locked drive uses a drop-in instead of stopping the unit:
+    `sudo systemctl edit mount-860.service` with `[Service]`,
+    an empty `ExecStart=` line and `ExecStart=/bin/true`,
+    then a reboot.
+    After login report three states separately:
+    `systemctl is-active mount-860.service` (`active`),
+    `findmnt /var/mnt/encrypted` (nothing),
+    and `ls /dev/mapper/crypt_sda` (absent).
+    Open a terminal in the repository and run `git status`,
     which must print the plain message in well under a second,
     and `systemctl --user status claude-cpu-watch.service` must show `activating (auto-restart)`.
-    Then run `sudo systemctl start mount-860.service` and confirm the unit becomes active within one retry delay
-    and `repository-link-check` prints ready.
+    Then remove the drop-in,
+    run `sudo systemctl start --no-block mount-860.service`,
+    poll `systemctl is-active` for at most 180 s,
+    and confirm `repository-link-check` prints ready and the unit becomes active within one retry delay.
 
 ## Rollback
 
-- Before step 8 of the cut-over:
-  nothing to undo.
-  Remove the received copies later (they cost almost nothing,
-  see the layout).
-- After step 8 and before any commit on the 860 tree:
-  stop the user units that use the repository,
-  then `rm /var/home/user/Monochromatic` (it is a link;
-  `rm` of a link removes only the link) and
-  `mv /var/home/user/Monochromatic.nvme-before-860-<timestamp> /var/home/user/Monochromatic`.
-  The old instance hashes,
+The two cases are different because writes after the swap change the state.
+
+- Fast path,
+  only inside the validation window of phase 5:
+  every writer is still excluded,
+  and the 860 tree has received only the test commit in a throwaway worktree.
+  Steps:
+  confirm the table of the old (frozen) tree still equals `baseline-frozen.tsv`;
+  remove the link and the `~/worktrees` link (`rm` of a link removes only the link);
+  `mv` the two `.nvme-before-860-<timestamp>` folders back;
+  set the identity file's phase to `before`;
+  thaw the old subvolumes (`btrfs property set -ts <path> ro false`,
+  printed by the script);
+  run `repository-link-check`.
+  The old canonical path is back,
+  so the old instance hashes,
   the old trust links,
-  the old harness keys (rename them back) and the old state folders are valid again,
-  because the old canonical path is back.
-  The new instance folders and new trust links become stale files and harm nothing.
-- After commits on the 860 tree:
-  first carry the work back.
-  In the old tree run
-  `git fetch /var/mnt/encrypted/repository/Monochromatic '+refs/*:refs/from-860/*'`
-  for committed work (worktree HEADs and indexes are not refs;
-  they are not carried by `fetch`).
-  For uncommitted work and worktree state use the reverse of the copy:
-  the generator with source and destination swapped and `--pass=first` into a new folder on the NVMe,
-  or `rsync` of the named worktrees as root.
-  Then do the previous bullet.
-- The old tree stays until the owner removes it
+  the old harness keys and the old state folders are valid again.
+  The throwaway worktree is removed.
+- Full path,
+  after release (or after any pointer repair,
+  harness migration,
+  or any write to the 860 tree):
+  a reverse migration with the same fail-closed script and the same verification,
+  because renaming the old tree back would restore stale data.
+  1.  Drain and quiesce again with the same holder scans,
+      freeze the 860 tree,
+      and capture a new baseline of the 860 tree (the table includes worktrees added since the move).
+  2.  Run `move-repository.ts` with the 860 tree as `--main`,
+      a new NVMe staging folder as the destination
+      (`/var/home/user/Monochromatic.rollback-staging`),
+      and a new state folder.
+      It copies the main checkout,
+      every nested subvolume (including worktrees created after the move),
+      and the external worktrees.
+  3.  Verify the staging tree against the frozen 860 baseline in the private bind namespace
+      (the staging tree bind-mounted over the real path) with the same nine checks.
+  4.  Undo pointer changes:
+      if `git worktree repair` ran after the move,
+      run it again from the staging tree under the bind (it rewrites the pointers to the NVMe spelling),
+      restore the harness folders and the `~/.claude.json` entry from the backups taken at the migration
+      (the backups are kept until rollback is no longer wanted),
+      and re-run `mise trust --all`.
+  5.  Swap:
+      move the link aside,
+      move the staging tree to `/var/home/user/Monochromatic`,
+      restore the `~/worktrees` folder the same way,
+      set the phase to `before`,
+      and run the second end-to-end validation.
+  6.  Keep both previous trees (the frozen NVMe tree from the first move and the frozen 860 tree) until the owner
+      has validated the restored repository.
+- The old trees stay until the owner removes them
   (`btrfs subvolume delete` of each nested subvolume then the root;
   the NVMe mount allows it as the user).
   Removal is read-first:
-  compare against `uncommitted-before.tsv` and the 860 tree's table,
+  compare against the baselines,
   and never delete a tree whose table has an unfinished operation that was not carried over.
+- Unverified:
+  the reverse migration was not exercised (it needs root);
+  F3 to F6 exercise the same script and verification in the forward direction.
 
-## Open questions for the owner
+## Open question for the owner
 
-Ranked by how much they change the plan.
-Each has options,
-pros,
-cons and a ranking.
+One question remains.
+Everything else is in the section "Adopted decisions".
 
-### Q1. `$PATH` entries inside the repository
+### Q1. A bounded maintenance window, against "Commits should never fail."
 
-With the repository away,
-the shell skips `.cache/*-bin` and falls to unshadowed tools (W5).
+The cut-over needs a window in which the repository accepts no writes
+(the freeze,
+the final pass,
+the staged verification and the swap).
+During it a commit is refused with a plain message that names the cause and the time the window began;
+nothing is written and no data is lost.
+This is the only part of the plan that conflicts with the standing rule "Commits should never fail."
+The length of the window is not known:
+it is the duration of the final pass,
+which only a root run can measure.
+The final pass sends increments,
+so its length depends on what changed since the first pass.
 
-- Leave as it is:
+- Accept a bounded window and refuse commits during it (the plan's choice):
   pros,
-  no change,
-  cannot hang;
+  small change,
+  nothing is acknowledged that was not written,
+  the freeze is enforced by the kernel;
   cons,
-  `cargo`,
-  `pnpm`,
-  `rg` and the search tools silently lose their policy outside a working repository,
-  and `command not found` for the shadow's own commands.
-- Global stubs placed after the repository entries in `$PATH`,
-  for the shadowed names that are not also system tools (`cargo`,
-  `pnpm`,
-  `mpm`,
-  `rg`):
+  commits are refused during the window,
+  which the owner's rule disallows without an exception,
+  and the window length is unmeasured until the first full run.
+- Accept commits during the window into a durable queue and land them after the swap:
   pros,
-  a plain message instead of a silent fall-through;
+  no commit is ever refused;
   cons,
-  a stub in the way of the real tool for every other project on this machine,
-  so it must exit through to the real tool when the working folder is not under the repository,
-  which is exactly the silent fall-through again.
-- Move the shadows' launchers out of the repository (the global scope that `git` already uses):
+  a new mechanism in the wrapper that must acknowledge before landing,
+  which is the thing the rule forbids doing falsely,
+  plus ordering and conflict handling between queued commits and the moved tree;
+  weeks of work for a one-time event.
+- Do the cut-over only at an owner-chosen idle time with a stated maximum window,
+  after the first pass has been timed:
   pros,
-  they never dangle;
+  limits the number of refused commits to zero in practice,
+  because no session is running;
   cons,
-  the launcher's per-tree lock comparison is the point of the repository scope,
-  and this is a redesign of `mpm-shadow` scopes.
+  needs the owner to be present and agents to stop for the duration.
 - Ranking:
-  leave > global stubs > move the launchers,
-  because a shadow's policy only applies to work inside the repository and no work happens there while it is away;
-  stubs add a hazard for every other project;
-  moving launchers redesigns a tool for a case with no write risk.
-
-### Q2. How `claude-cpu-watch` copes with a dangling path at start
-
-- Retry every thirty seconds with `StartLimitIntervalSec=0` and a pre-start check (W8):
-  pros,
-  recovers on its own with no ordering,
-  never ends in a permanent failure;
-  cons,
-  one journal line per retry for as long as the 860 is away.
-- `ExecCondition=` on the check:
-  pros,
-  the unit goes inactive cleanly with no log noise;
-  cons,
-  nothing starts it again after the mount,
-  so it stays off until the next login or a manual start,
-  which is a start-order dependency.
-- A `.path` unit with `PathExists=` on the script:
-  pros,
-  no polling;
-  cons,
-  `systemd.path(5)` says path units use inotify and "suffer by the same limitations as inotify",
-  and a mount appearing is not a change event for a watcher on the folder above,
-  so it can wait indefinitely [inferred;
-  not tested];
-  the same page says a path unit beneath a mount unit gets an automatic requirement and ordering dependency on it,
-  which is the dependency the owner rejected.
-- Ranking:
-  retry loop > `ExecCondition` > `.path` unit,
-  because only the first recovers without help and without an unbounded wait;
-  `ExecCondition` breaks the owner's ordering rule;
-  the `.path` unit can wait indefinitely and adds the mount dependency.
-
-### Q3. `user_subvol_rm_allowed` on the 860
-
-- Add it to the 860's mount (live remount and `mount-860.service`):
-  pros,
-  worktrees that are subvolumes (242 of 246) can be removed in one step as the user,
-  as on the NVMe;
-  the wrapper's `doctor` stops reporting it;
-  cons,
-  it applies to the whole 860 mount,
-  so any subvolume the user can write may be deleted by the user.
-- Leave it off and use `sudo btrfs subvolume delete`:
-  pros,
-  no change to the mount;
-  cons,
-  agents cannot remove worktrees (measured:
-  `EPERM` as the user),
-  and the wrapper's behavior in that case is unmeasured.
-- Ranking:
-  add > leave,
-  because removal of 242 worktrees without root is how the repository works today,
-  and the extra reach is limited to what the user already owns.
-
-### Q4. Hooks that enforce rules when their script is missing
-
-- Non-blocking for the output filter,
-  `onFailure: block` for hooks that enforce a rule (W6):
-  pros,
-  no rule is skipped silently;
-  cons,
-  with the repository away a rule hook blocks every tool call in a session that is not in the repository.
-- Non-blocking for all:
-  pros,
-  sessions elsewhere keep working;
-  cons,
-  rule hooks are silently skipped.
-- Ranking:
-  split > non-blocking for all,
-  because a skipped rule is a silent loss and a blocked session says why.
-
-### Q5. Harness history
-
-- Rename the old project folders and copy the settings entry (cut-over step 9):
-  pros,
-  history and trust carry over;
-  cons,
-  an edit of live harness state while no session runs.
-- Start fresh at the new key:
-  pros,
-  nothing to edit;
-  cons,
-  the old sessions cannot be resumed from the repository,
-  and the project trust dialog and MCP settings reappear.
-- Symbolic link from the new key to the old folder:
-  pros,
-  old and new sessions share one folder;
-  cons,
-  whether the harness follows a linked project folder is unmeasured.
-- Ranking:
-  rename > fresh start > link,
-  because rename keeps history without relying on unmeasured link handling,
-  and a fresh start loses it.
-
-### Q6. Clone sources and compression for the real run
-
-- `--clone-sources=all`:
-  pros,
-  keeps sharing between every pair of worktrees;
-  cons,
-  each send looks up more clone sources and may be slow late in the run.
-- `--clone-sources=main`:
-  pros,
-  fast;
-  cons,
-  sharing that exists only between two worktrees is lost,
-  so the footprint on the 860 may exceed 263.6 GiB.
-- Ranking:
-  all > main,
-  with the first twenty sends timed under both before choosing,
-  because losing sharing costs space that is scarce (662G free) and slowness costs only time.
-  `--compressed-data` for `btrfs send` was not evaluated.
-
-### Q7. The pnpm store
-
-- Leave on the NVMe:
-  pros,
-  no change;
-  cons,
-  installs in the 860 repository copy instead of clone (a different filesystem).
-- Move to `/var/mnt/encrypted/.pnpm-store`:
-  pros,
-  clones work again;
-  cons,
-  other repositories depend on the 860.
-- Ranking:
-  leave > move for now,
-  because a measurement of the first install should decide.
-
-### Q8. Snapshots and backups on the 860
-
-- Snapper covers `/var/home` only and never covered the repository (a nested subvolume);
-  the 860 has no snapper configuration.
-  Kopia keeps the same source.
-- Option:
-  a snapper configuration for the 860's `repository` folder.
-  Not part of this plan;
-  the owner's call.
-
-### Q9. The 16 worktrees under `~/worktrees` on the NVMe
-
-The owner chose "All worktrees" for the question that counted the nested ones.
-These 16 are outside the repository tree,
-so the copy leaves them where they are.
-Their `.git` files name the repository through the link,
-so they keep working while the 860 is mounted and show "not a git repository" while it is not.
-
-- Leave them:
-  pros,
-  nothing moves,
-  no new copy;
-  cons,
-  they cross filesystems (the wrapper's copy fallback applies to new ones),
-  and 2 of them have uncommitted files (scan in the section "Drain").
-- Move them to the 860 (one send each,
-  then a path change in the owner's habits):
-  pros,
-  one filesystem for everything;
-  cons,
-  their paths change,
-  so every reference to them changes,
-  and `git worktree move` is needed per worktree.
-- Ranking:
-  leave > move,
-  because leaving changes nothing and the 2 dirty ones keep their state;
-  moving changes paths for no stated need.
+  accept a bounded window at an owner-chosen idle time > accept a window without a time > durable queue.
+  The first adds to the plan's choice only the timing and costs nothing;
+  the second leaves the length of the refusal unbounded in practice;
+  the queue costs the most and breaks the acknowledge-only-after-landing rule if done carelessly.
 
 ## What was not verified
 
 - Nothing that needs root was run:
   the mountpoint's real owner,
   mode and flags,
-  whether a mount covers an immutable directory,
-  and the whole copy (`send -c`,
-  `-p`,
-  stub removal,
-  stream checks).
-  R1,
-  R2 and the loop-file fixture are the tests.
-- The user-level fixture used tmpfs in a user namespace,
-  not btrfs and not the real 860;
-  its results for ownership and mode are the kernel's general behavior,
-  not the real mount's.
-- A transient systemd unit meant to re-measure the `claude-cpu-watch` start limit,
-  and a follow-up `systemctl --user show`,
-  were refused by the tool guard;
-  after the owner approved both exact commands, the coordinator ran them at 2026-11-07T06:44:29-05:00 to 06:45:43-05:00
-  (results in W8: the unit restarts without end rather than failing).
+  whether a mount covers an immutable directory (F8),
+  the root inventory (R0) and its path mapping,
+  the real `btrfs send` and `receive` including `-c` sharing and `-p` increments,
+  and the reverse migration.
+- The user-level fixtures used tmpfs in a user namespace or the user's own scratch subvolumes on the 860,
+  not the real mountpoint and not the real repository.
+  Their results for ownership and mode are the kernel's general behavior.
+- The test double for `btrfs` proves the script's control flow
+  (stop on failure,
+  completion records,
+  refusal of a partial receive,
+  inventory reconciliation),
+  not the behavior of the real commands.
+- Subvolumes nested deeper inside a worktree:
+  the depth-3 search of the main checkout and the equality of the directory list with Git's registry found none,
+  but only `btrfs subvolume list -o` as root is complete.
 - The commit service's behavior when its repository vanishes mid-request,
   `cargo`,
   `pnpm` and `search-shadow` mid-run failures,
   Codex's `--cd`,
-  the harness's handling of a linked project folder,
+  the harness's handling of a linked project folder and which project key it writes,
+  `/mcp reconnect all` recovering a server that missed a start,
   permission-rule matching across the link,
   IDE index keys,
   and kopia's first incremental size after the move.
 - A real `pnpm install` in the real tree through the link.
 - Uncommitted work changes while other sessions run:
-  the scan in the section "Drain" is one snapshot and is repeated after the drain.
+  the scan is one snapshot and is repeated after the freeze.
 - The systemd source was read at the `main` branch,
   not at the installed 262.1 tag (history section).
-- Two scratch subvolumes,
-  `svfix` and `svfix-snap` in `/var/home/user/temp/agent/dangling`,
-  could not be deleted without root.
+- Scratch subvolumes on the 860 that the user cannot delete without root
+  (the 860 is mounted without `user_subvol_rm_allowed`):
+  `svfix`,
+  `svfix-snap`,
+  `svfix-snap-ro`,
+  `svfix-asm` and the nested subvolumes inside `svfix` and `svfix-asm` in `/var/home/user/temp/agent/dangling`.
