@@ -6,7 +6,7 @@
 > let value = call(|| 1);
 > ```
 
-See <https://example.com/a> for details.
+See https://example.com/a for details.
 
 ```
 plain
