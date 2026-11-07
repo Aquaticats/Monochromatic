@@ -323,6 +323,20 @@ Stages marked window run inside the window and are refused once its maximum has 
     reading every byte.
     The old tree (`.nvme-before-860-<timestamp>`) stays for the rollback until this stage is recorded done;
     the `status` command prints `DO NOT DELETE` until then and says the tree may be deleted by the owner after it.
+13. `c23-link-check` to `c28-ide-through-link` (as the user,
+    outside the window):
+    the checks after the cut-over of the plan's items W12 to W15.
+    `c23-link-check` runs the installed check again (the wrapper's `doctor` prints the same line);
+    `c24-mise-trust` runs `mise trust --all` and shows the trust of the root,
+    a package and a worktree;
+    `c25-pnpm-links` installs in a fresh worktree and lists every link of `node_modules` that points nowhere,
+    which must be none (the worktree and branch stay for you to remove);
+    `c26-kopia-snapshot` makes the first snapshot of the repository source and lists the last ones to read their size;
+    `c27-container-bind` starts a container with the repository as a read-only bind spelled through the link,
+    on the first image already on the host with the memory,
+    processor and process counts capped;
+    `c28-ide-through-link` needs `--assert=c28-ide-through-link`,
+    because only you can see the IDE read the files through the link.
 
 ### The thaw and rollback commands
 

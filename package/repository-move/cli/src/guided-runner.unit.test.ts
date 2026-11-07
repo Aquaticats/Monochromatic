@@ -805,21 +805,22 @@ await describe({
               for (const id of after) {
                 expect(ids.indexOf(id,),).toBeGreaterThan(ids.indexOf('c21-release',),);
               }
-              const stage = (id: string,) => stages.find((s,) => s.id === id,) as Stage;
-              const text = async (id: string,) => await resolvedCommand({ stage: stage(id,), config, },);
+              const stageOf = (id: string,) => stages.find((s,) => s.id === id,) as Stage;
+              const text = async (id: string,) => await resolvedCommand({ stage: stageOf(id,), config, },);
               expect(await text('c23-link-check',),).toContain('check.mjs',);
-              expect(stage('c23-link-check',).check,).toContain('ready (on the 860)',);
+              expect(stageOf('c23-link-check',).check,).toContain('ready (on the 860)',);
               expect(await text('c24-mise-trust',),).toContain('mise trust --all',);
               expect(await text('c24-mise-trust',),).toContain('mise trust --show',);
               expect(await text('c25-pnpm-links',),).toContain('find node_modules -xtype l',);
-              expect(stage('c25-pnpm-links',).check,).toContain('test ! -s',);
+              expect(stageOf('c25-pnpm-links',).check,).toContain('test ! -s',);
               expect(await text('c26-kopia-snapshot',),).toContain('kopia snapshot create',);
               expect(await text('c27-container-bind',),).toContain('--mount type=bind',);
-              expect(stage('c28-ide-through-link',).assertion,).toBeDefined();
-              for (const id of after) {
-                expect(stage(id,).check,).toBeDefined();
-                expect(stage(id,).root,).toBe('no',);
-                expect(await text(id,),).not.toContain('sudo',);
+              expect(stageOf('c28-ide-through-link',).assertion,).toBeDefined();
+              const texts = await Promise.all(after.map(async (id,) => await text(id,),),);
+              for (const [index, id,] of after.entries()) {
+                expect(stageOf(id,).check,).toBeDefined();
+                expect(stageOf(id,).root,).toBe('no',);
+                expect(texts[index],).not.toContain('sudo',);
               }
             },);
           },
