@@ -9,12 +9,12 @@
 //! describe('configuration matching', () => { /* glob and precedence controls */ });
 //! ```
 
-/// Import production parsing,
-///  preparation and result types.
-use crate::rust_rule_settings::DEFAULT_MAX_LINES;
 use super::{FileConfiguration, PreparedConfiguration, prepare_configuration};
 use crate::config_lookup::{CONFIG_NAME, ConfigurationSource};
 use crate::configuration::parse_configuration;
+/// Import production parsing,
+///  preparation and result types.
+use crate::rust_rule_settings::DEFAULT_MAX_LINES;
 use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
 use std::path::Path;
 

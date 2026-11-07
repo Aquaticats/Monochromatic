@@ -4217,14 +4217,81 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     Incident:
     the owner got many desktop notifications with the app name `toolchain-daily-update`
     while the timer had never fired;
-    the agent's measurement unit `daily-measure-pass.service`
-    (started 11:54:15,
-    real check effects over every package)
-    was the only run on that code path and was stopped by the coordinator,
-    after which nothing ran in that worktree.
-    The agent is finding the exact call path,
-    adding a red-first guard that no test or measurement can reach `notify-send` or the session bus,
-    and limiting a real run to one summary notification.
+    the coordinator stopped the agent's measurement unit `daily-measure-pass.service`
+    (started 11:54:15) on a wrong inference:
+    its check effects (`daily-update-check-effects.ts`) do not import `daily-update-effects.ts`,
+    so it had no path to `notifyOwner`.
+    Read from the code:
+    on main the only code that sends with the app name `toolchain-daily-update` is `notifyOwner`,
+    reached only through `realEffects` from `daily-update-process.ts:77`,
+    which only `daily-update.ts` runs (`main()` at load),
+    and nothing imports that file;
+    so the notifications came from runs of `toolchain:update:daily` or `node daily-update.ts`
+    outside the timer and outside a journaled unit.
+    Which agent ran them is not yet known;
+    the daily-update agent is asked to name it.
+    Owner,
+    verbatim:
+    "You can send real desktop notifications.
+    But you can also make sure I don't see them.
+    We already have the nested wayland compositor.
+    And we might not need it in full."
+    So tests and runs may send real notifications into a private session bus the owner never sees,
+    reusing what `package/nested-wayland-session/cli` has (its stand-in notification service);
+    the agent proposes the smallest shared piece,
+    keeps a red-first guard against reaching the owner's bus,
+    and limits a real run to one summary notification.
+- Held settle message:
+  merged into main `66dbb1ca27` (gate 5194 of 5194,
+  lint clean).
+  It names the process ID,
+  the program (first word of the command line)
+  and the unresolved `--journal` folder,
+  says other arguments are not shown because any can be a secret,
+  and agrees in number ("1 batch ... was").
+  The service log line carries the same and no other argument.
+  Not merged into the fold of earlier names,
+  which still reports only the reason.
+- Worktree tools:
+  a shell started in the main checkout resolves `cargo` in a linked worktree to main's
+  `.cache/toolchain-launchers/cargo-shadow`,
+  so after main locked `cargo-shadow` `0.1.5-alpha.1` (`c6177b875b`) a worktree whose lock still says 0.1.4 failed its host tests,
+  and `toolchain:install` in the worktree did not clear it.
+  Agent running on `fix/worktrees-use-their-own-locked-tools`
+  (reproduce with the exact error,
+  fix in the owning tool,
+  release if needed).
+- Future task,
+  not now (owner,
+  verbatim:
+  "That means we missed porting notifications on changes of managed files in watch mode when we rewrote it to rust from ts.
+  Add this as a future task and persist it,
+  but do not do it now as it's not immediately fatal."):
+  issue #6264.
+  The TypeScript `file-enforcer` sent a desktop notification after watch mode changed managed files
+  (`package/file-enforcer/core/src/watch/notify.ts` at `e7b5130459^`,
+  the commit that deleted it);
+  the Rust watch loop (`core-rust/src/watch.rs`) has none.
+  Linux only;
+  tests on a private session bus with the stand-in server from `nested-wayland-session`.
+- Plugin bundles now match their sources:
+  guardrail `b8e5bf3b0c`,
+  `bash-output-filter` and `terminal-title` `6873d8e020`
+  (unbash 6.0.1 to 6.0.3;
+  the only visible change is a terminal title that now ends at a NUL escape,
+  as bash does).
+  The drift-check proposal (A:
+  a task that rebuilds every plugin bundle in scratch and compares,
+  run in CI;
+  B:
+  a new `file-enforcer` rule kind;
+  C:
+  a commit-time guard) is in `package/claude-code-plugin/guardrail/README.md` "Maintenance";
+  not built,
+  for the owner.
+  A leftover:
+  `.claude/worktrees/guardrail-bundle-matches-sources` holds two uncommitted,
+  regenerable sibling builds.
 - `monochromatic-lint` group folders merged into main `62874c227d` (869 of 869 tests;
   every new check red first).
   A group is any folder holding child folders (`mod.rs` plus at least one source folder);

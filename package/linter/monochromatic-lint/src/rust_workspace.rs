@@ -8,7 +8,8 @@
 //! // Discover an explicit Cargo manifest and compiler source, prepare the requested inputs, then own the loaded session.
 //! ```
 
-/// Re-export the preparation choice and manifest discovery, which the closure check and the no-semantic build share.
+/// Re-export the preparation choice and manifest discovery,
+/// which the closure check and the no-semantic build share.
 pub use crate::rust_manifest::{WorkspacePreparation, discover_manifest};
 /// Import typed setup failures,
 ///  session ownership and validated toolchain discovery.

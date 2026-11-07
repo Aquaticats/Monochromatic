@@ -29,9 +29,12 @@ use std::sync::Arc;
 ///  The step's own `shell:` wins,
 ///  then the job's `defaults.run.shell`,
 ///  then the workflow's.
-///  With none, a Windows runner means PowerShell and every other runner means a POSIX shell.
-///  `Ok(None)` is a non-shell interpreter, which is out of scope;
-///  a shell the rules cannot classify is an error, so the ban fails closed.
+///  With none,
+/// a Windows runner means PowerShell and every other runner means a POSIX shell.
+///  `Ok(None)` is a non-shell interpreter,
+/// which is out of scope;
+///  a shell the rules cannot classify is an error,
+/// so the ban fails closed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

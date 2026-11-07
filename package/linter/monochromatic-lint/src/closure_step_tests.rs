@@ -363,7 +363,8 @@ fn messages_are_prefixed_and_come_first() {
 
 //region Dylint driver check
 
-/// A `cargo-dylint` that prints its version, so the driver check has a version to compare.
+/// A `cargo-dylint` that prints its version,
+/// so the driver check has a version to compare.
 const VERSIONED: (&str, &str) = ("dylint-version.stdout", "cargo-dylint 6.3.0\n");
 
 /// The answers that make the offline resolution of the throwaway driver crate fail.
@@ -484,7 +485,9 @@ fn a_stale_driver_with_a_warm_cache_lets_the_package_run() {
     );
 }
 
-/// A version that cannot be read, or facts that cannot be found, do not skip anything:
+/// A version that cannot be read,
+/// or facts that cannot be found,
+/// do not skip anything:
 /// the check is noted for `--debug` and the run decides.
 #[test]
 fn a_driver_check_that_cannot_be_made_is_a_note_and_the_run_proceeds() {

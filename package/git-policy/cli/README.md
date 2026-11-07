@@ -499,6 +499,13 @@ Before it acts, the command checks that no socket of the earlier units listens a
  when one does, it settles nothing, says which one it is, and says what to stop for that one:
  this worktree's earlier units, or the single service of the first releases (`cli-git.socket` and `cli-git.service`),
  which serves every worktree.
+A running program whose command line carries `--journal` with a folder the check cannot look up
+ (an unrelated tool can carry the option too) also holds the command back,
+ because it cannot be ruled out as an earlier helper;
+ the message then names that program by process ID and executable path, gives the folder and the system's answer,
+ and says how to go on:
+ wait for it, stop it, or run the command again after it ends.
+Its other arguments are never printed or logged, because any of them can be a secret.
 It offers to wait for a helper's idle exit (three hours after its last client) only when no socket is left listening,
  because a listening socket starts the helper again and does not stop by waiting.
 When the checks pass it says the condition above on standard error,

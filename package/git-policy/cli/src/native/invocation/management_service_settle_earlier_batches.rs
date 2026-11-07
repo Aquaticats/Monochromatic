@@ -19,7 +19,8 @@
 use crate::action::Action;
 use crate::child_environment::{child_environment_overlay, environment_value};
 use crate::earlier_service_journal_adopted::{RequestedSettlement, SettledBatch, UnansweredBatch, earlier_journals_in_state, hold_on_earlier_helper, open_batch_count, settle_on_request};
-use crate::earlier_service_process_look::Hold;
+use crate::earlier_service_process_look::{Hold, Holding};
+use crate::earlier_service_unsure_program::UnsureProgram;
 use crate::management_service_repository_selection::{Selection, status_git_dir};
 use crate::service_instance::{earlier_service_unit_instance, earlier_socket_unit_instance, instance_of};
 use crate::service_land::Handled;
@@ -65,9 +66,19 @@ pub(crate) fn state_dir_of(environment: &[(OsString, OsString)]) -> Option<PathB
     };
 }
 
-/// "1 batch" or "3 batches".
+/// The noun that agrees with a count: "batch" for one, "batches" for any other number.
+fn batch_noun(count: usize) -> &'static str {
+    return if count == 1 { "batch" } else { "batches" };
+}
+
+/// The count with its noun, as "1 batch" or "3 batches".
 fn batches(count: usize) -> String {
-    return if count == 1 { String::from("1 batch") } else { format!("{count} batches") };
+    return format!("{count} {}", batch_noun(count));
+}
+
+/// The past-tense verb that agrees with a count, as "was" for one and "were" for any other number.
+fn was_or_were(count: usize) -> &'static str {
+    return if count == 1 { "was" } else { "were" };
 }
 
 /// An exit that settled nothing, with the reason on standard error.
@@ -85,9 +96,10 @@ fn refused(reason: &str) -> Action {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const wayOn = (hold: Hold, instance: string): string => ...
+/// const wayOn = (holding: Holding, instance: string): string => ...
 /// ```
-fn way_on(because: Hold, instance: &str) -> String {
+fn way_on(holding: &Holding, instance: &str) -> String {
+    let because: Hold = holding.because;
     let own_units: String = format!("`systemctl --user stop {} {}`", earlier_socket_unit_instance(instance), earlier_service_unit_instance(instance));
     let shared_units: String = format!("`systemctl --user stop {SHARED_SOCKET_UNIT} {SHARED_SERVICE_UNIT}`");
     let again: String = format!("Then run `{COMMAND}` again.");
@@ -104,11 +116,58 @@ fn way_on(because: Hold, instance: &str) -> String {
         Hold::SharedHelperRuns => format!(
             "That service serves every worktree of this account. The next commit made with this release, in any worktree, retires it by itself: it asks the service to finish its batch and exit, then stops its units (if the service is still working after ten seconds, that commit stops and says so). Or stop it now with {shared_units} when no commit by the earlier release is running in any worktree, or wait: nothing listens that could start it again, and it exits by itself when idle, three hours after its last client. {again}"
         ),
-        Hold::HelperUnsure => format!(
-            "It is not known which one, so to go on, stop this worktree's earlier units with {own_units} and the single service of the first releases with {shared_units} (that one serves every worktree), when no commit by the earlier release is running. {again}"
-        ),
+        Hold::HelperUnsure => match holding.program.as_ref() {
+            Some(program) => unsure_way_on(program, own_units.as_str(), shared_units.as_str(), again.as_str()),
+            None => format!(
+                "It is not known which one, so to go on, stop this worktree's earlier units with {own_units} and the single service of the first releases with {shared_units} (that one serves every worktree), when no commit by the earlier release is running. {again}"
+            ),
+        },
         Hold::CannotLook => format!("To go on, try again in a moment. If it keeps happening, this program cannot read the list of running programs and sockets on this machine, and the batches stay open. {again}"),
     };
+}
+
+/// What:
+///  What to do when a program that cannot be ruled out holds the command back: wait for it, stop it, or stop the earlier units
+///  when it is one, then run the command again.
+/// Why:
+///   The program may be an earlier commit service or an unrelated tool that happens to take a `--journal` option, and this check
+///  cannot tell which. Stopping the earlier units ends the first kind and leaves the second running, so the text says which
+///  way clears which case; only waiting for the program or stopping it clears both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unsureWayOn = (program: UnsureProgram, ownUnits: string, sharedUnits: string, again: string): string => ...
+/// ```
+fn unsure_way_on(program: &UnsureProgram, own_units: &str, shared_units: &str, again: &str) -> String {
+    let pid: u32 = program.pid;
+    return format!(
+        "To go on, do one of these: wait for process {pid} to end; stop it yourself if it is yours to stop (for example by closing the program that started it); or, if it is an earlier commit service, stop this worktree's earlier units with {own_units} and the single service of the first releases with {shared_units} (that one serves every worktree), when no commit by the earlier release is running. Stopping those units does not end an unrelated program, so for such a program only waiting for it or stopping it clears this. {again}"
+    );
+}
+
+/// What:
+///  The sentences that name the program behind a hold that rests on a folder this check could not resolve, or nothing for any
+///  other hold.
+/// Why:
+///   The person must be able to tell what blocks the command: the process ID and the program it runs, the folder that did not
+///  resolve and the system's answer, and why that is not enough to rule the program out. The look
+///  stops at the first such program, so the text says another may be named once this one is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const programSentences = (holding: Holding): string => holding.program ? `That program is process ...` : ''
+/// ```
+fn program_sentences(holding: &Holding) -> String {
+    let Some(program) = holding.program.as_ref() else {
+        return String::new();
+    };
+    let pid: u32 = program.pid;
+    let folder: &str = program.journal_word.as_str();
+    let relative: String = if program.journal_word_is_relative { format!(" (a relative path, looked up in the working directory of process {pid})") } else { String::new() };
+    return format!(
+        " That program is process {pid}, running `{}` (its other arguments are not shown, because any of them can be a secret). This check looked up the folder its `--journal` option names, `{folder}`{relative}, and the system answered: {}. A folder that cannot be looked up cannot be compared with this worktree's earlier journals, so process {pid} cannot be ruled out as the earlier commit service of this worktree, and an unrelated program that takes a `--journal` option looks the same. It is the first such program this check found; another may be named once it is gone.",
+        program.program, program.reason
+    );
 }
 
 /// The socket unit of the single service of the first releases, which served every worktree.
@@ -158,11 +217,18 @@ pub(crate) fn settle_earlier_batches_action(request: &SettleRequest<'_>, conditi
     if open == 0 {
         return Action::Exit { code: 0, stdout: String::from("No batch of the earlier release is left open for this worktree. Nothing to settle.\n"), stderr: String::new() };
     }
-    let held = |because: Hold| -> Action {
+    let held = |because: Holding| -> Action {
         return Action::Exit {
             code: 1,
             stdout: String::new(),
-            stderr: format!("{} the earlier release's commit service left open for this worktree were not settled, because {}. Nothing was changed. {}\n", batches(open), because.words(), way_on(because, instance.as_str())),
+            stderr: format!(
+                "{} the earlier release's commit service left open for this worktree {} not settled, because {}.{} Nothing was changed. {}\n",
+                batches(open),
+                was_or_were(open),
+                because.because.words(),
+                program_sentences(&because),
+                way_on(&because, instance.as_str())
+            ),
         };
     };
     if let Some(because) = hold_on_earlier_helper(&earlier, instance.as_str(), request.proc_root) {
