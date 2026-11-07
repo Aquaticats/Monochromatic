@@ -59,14 +59,18 @@ static HELD: Mutex<Vec<(PathBuf, File)>> = Mutex::new(Vec::new());
 /// const scratchName = (): string // the same string on every call within one process
 /// ```
 pub fn scratch_name() -> &'static str {
-    return NAME.get_or_init(|| {
-        let nanoseconds = match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(since) => since.as_nanos(),
-            // A clock before the epoch still gives a valid name: the id alone separates live processes of one namespace.
-            Err(_) => 0,
-        };
-        return format!("{PREFIX}{}-{nanoseconds:x}", std::process::id());
-    });
+    return NAME.get_or_init(make_scratch_name);
+}
+
+/// The name that [`scratch_name`] keeps for the life of the process,
+///  made once from the process id and the clock.
+fn make_scratch_name() -> String {
+    let nanoseconds = match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(since) => since.as_nanos(),
+        // A clock before the epoch still gives a valid name: the id alone separates live processes of one namespace.
+        Err(_) => 0,
+    };
+    return format!("{PREFIX}{}-{nanoseconds:x}", std::process::id());
 }
 
 /// What:
@@ -92,13 +96,19 @@ fn is_process_name(name: &str) -> bool {
         return false;
     };
     return !id.is_empty()
-        && id.bytes().all(|byte| {
-            return byte.is_ascii_digit();
-        })
+        && id.bytes().all(is_decimal_digit_byte)
         && !nonce.is_empty()
-        && nonce.bytes().all(|byte| {
-            return byte.is_ascii_hexdigit();
-        });
+        && nonce.bytes().all(is_hexadecimal_digit_byte);
+}
+
+/// True for the ASCII byte of a decimal digit.
+fn is_decimal_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
+/// True for the ASCII byte of a hexadecimal digit of either case.
+fn is_hexadecimal_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_hexdigit();
 }
 
 /// True when the last component of a path is a name this module makes.
