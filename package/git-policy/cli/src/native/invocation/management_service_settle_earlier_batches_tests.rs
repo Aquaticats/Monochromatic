@@ -1,5 +1,8 @@
-//! Controls for `service settle-earlier-batches` and the note `doctor` adds about it: what each answer says, that the
-//!  condition of the command is said before it acts, and that nothing is changed while an earlier helper may run or start.
+//! Controls for `service settle-earlier-batches` and the note `doctor` adds about it:
+//! what each answer says,
+//! that the
+//!  condition of the command is said before it acts,
+//! and that nothing is changed while an earlier helper may run or start.
 
 use super::*;
 use crate::service_instance::instance_of;
@@ -10,7 +13,10 @@ use crate::wrapper_names_old_and_new::DATA_FOLDER;
 /// The command word the notes name.
 const COMMAND: &str = "git monochromatic-git-policy-cli service settle-earlier-batches";
 
-/// One disposable world: a state folder, a Git directory, a process table.
+/// One disposable world:
+/// a state folder,
+/// a Git directory,
+/// a process table.
 struct Setup {
     root: PathBuf,
     state: PathBuf,
@@ -33,7 +39,8 @@ impl Setup {
         return instance_of(self.git_dir.as_path());
     }
 
-    /// Leaves `count` open batches of this worktree in its earlier journal, and one of another worktree beside them.
+    /// Leaves `count` open batches of this worktree in its earlier journal,
+    /// and one of another worktree beside them.
     fn leave_open_batches(&self, count: u64) {
         let journal: PathBuf = self.state.join(DATA_FOLDER.earlier).join("service").join(self.instance());
         std::fs::create_dir_all(&journal).expect("the earlier journal");
@@ -83,14 +90,17 @@ fn parts(action: Action) -> (i32, String, String) {
     return (code, stdout, stderr);
 }
 
-/// Runs the command, giving what it said before acting as well.
+/// Runs the command,
+/// giving what it said before acting as well.
 fn run(request: &SettleRequest<'_>) -> ((i32, String, String), String) {
     let mut before: Vec<u8> = Vec::new();
     let action: Action = settle_earlier_batches_action(request, &mut before);
     return (parts(action), String::from_utf8_lossy(before.as_slice()).into_owned());
 }
 
-/// The state folder is `XDG_STATE_HOME` when set and not empty, else `.local/state` of the home folder, else unknown.
+/// The state folder is `XDG_STATE_HOME` when set and not empty,
+/// else `.local/state` of the home folder,
+/// else unknown.
 #[test]
 fn the_state_folder_follows_the_environment() {
     let pair = |name: &str, value: &str| -> (OsString, OsString) { return (OsString::from(name), OsString::from(value)) };
@@ -101,7 +111,9 @@ fn the_state_folder_follows_the_environment() {
     assert_eq!(state_dir_of(&[]), None);
 }
 
-/// With no batch left, the command says so and exits 0, and says nothing of a condition because it acts on nothing.
+/// With no batch left,
+/// the command says so and exits 0,
+/// and says nothing of a condition because it acts on nothing.
 #[test]
 fn with_no_batch_left_the_command_says_so_and_acts_on_nothing() {
     let world: Setup = setup("settle-command-nothing");
@@ -112,7 +124,9 @@ fn with_no_batch_left_the_command_says_so_and_acts_on_nothing() {
     remove(world.root.as_path());
 }
 
-/// A command that cannot tell which worktree, or where the journals are, settles nothing and says why.
+/// A command that cannot tell which worktree,
+/// or where the journals are,
+/// settles nothing and says why.
 #[test]
 fn a_command_that_cannot_find_the_worktree_or_the_journals_says_so_and_changes_nothing() {
     let world: Setup = setup("settle-command-unknown");
@@ -155,11 +169,21 @@ fn run_process(world: &Setup, words: &[String]) {
     std::fs::write(process.join("cmdline"), bytes).expect("command line");
 }
 
-/// A socket that listens, a process that runs, and a look that cannot be made each hold the command back with their own words,
-///  the count of open batches, what was not done, and the way on that fits the cause; nothing is changed and nothing was said
-///  as if acting. This worktree's units are named for this worktree's socket and helper; the single service of the first
-///  releases is named as serving every worktree, with the units that exist for it; a way on never names units that are not the
-///  cause, and the wait for an idle exit is offered only where no socket listens that would start the helper again.
+/// A socket that listens,
+/// a process that runs,
+/// and a look that cannot be made each hold the command back with their own words,
+///  the count of open batches,
+/// what was not done,
+/// and the way on that fits the cause;
+/// nothing is changed and nothing was said
+///  as if acting.
+/// This worktree's units are named for this worktree's socket and helper;
+/// the single service of the first
+///  releases is named as serving every worktree,
+/// with the units that exist for it;
+/// a way on never names units that are not the
+///  cause,
+/// and the wait for an idle exit is offered only where no socket listens that would start the helper again.
 #[test]
 fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the_way_that_fits() {
     let world: Setup = setup("settle-command-held");
@@ -207,8 +231,14 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
     remove(world.root.as_path());
 }
 
-/// Before it acts, the command says the condition it is safe under, in plain words, and what an earlier-release wrapper does
-///  to it. Here Git gives no answer for the batch, so the batch is named as one the command could not examine, stays on disk,
+/// Before it acts,
+/// the command says the condition it is safe under,
+/// in plain words,
+/// and what an earlier-release wrapper does
+///  to it.
+/// Here Git gives no answer for the batch,
+/// so the batch is named as one the command could not examine,
+/// stays on disk,
 ///  and the exit status says that something was not done.
 #[test]
 fn the_condition_is_said_before_the_command_acts_and_a_batch_git_cannot_answer_for_is_named() {
@@ -227,7 +257,8 @@ fn the_condition_is_said_before_the_command_acts_and_a_batch_git_cannot_answer_f
     remove(world.root.as_path());
 }
 
-/// A writer that fails, as standard error does when it is closed or its reader is gone.
+/// A writer that fails,
+/// as standard error does when it is closed or its reader is gone.
 struct FailingWriter {
     fail_flush_only: bool,
 }
@@ -245,8 +276,12 @@ impl std::io::Write for FailingWriter {
     }
 }
 
-/// The condition must reach the person before anything is changed: when it cannot be written (or flushed), the command refuses,
-///  says so, and has settled and examined nothing, so no intent is touched and nothing is logged as examined.
+/// The condition must reach the person before anything is changed:
+/// when it cannot be written (or flushed),
+/// the command refuses,
+///  says so,
+/// and has settled and examined nothing,
+/// so no intent is touched and nothing is logged as examined.
 #[test]
 fn a_condition_that_cannot_be_delivered_stops_the_command_before_it_acts() {
     for fail_flush_only in [false, true] {
@@ -265,8 +300,11 @@ fn a_condition_that_cannot_be_delivered_stops_the_command_before_it_acts() {
     }
 }
 
-/// The doctor's note counts the open batches of the worktree without changing a file, names the command, says it only
-///  reports, and is empty when there is nothing to say or nothing to read.
+/// The doctor's note counts the open batches of the worktree without changing a file,
+/// names the command,
+/// says it only
+///  reports,
+/// and is empty when there is nothing to say or nothing to read.
 #[test]
 fn the_doctor_note_counts_the_batches_names_the_command_and_is_empty_otherwise() {
     let world: Setup = setup("settle-command-note");

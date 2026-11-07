@@ -291,8 +291,12 @@ pub fn lockfile_pid_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsStri
 }
 
 /// The prefix of a variable in the `environment` of an in-process command that the Git children of that command receive
-///  without the prefix: `CLI_GIT_CHILD_SET_GIT_EDITOR` becomes `GIT_EDITOR` for them. The wrapper's second merge pass uses it to
-///  run the continuing step of a rebase without an editor, as the rebase would have run without a conflict. Nothing of the
+///  without the prefix:
+/// `CLI_GIT_CHILD_SET_GIT_EDITOR` becomes `GIT_EDITOR` for them.
+/// The wrapper's second merge pass uses it to
+///  run the continuing step of a rebase without an editor,
+/// as the rebase would have run without a conflict.
+/// Nothing of the
 ///  wrapper's own process environment is changed.
 pub const CHILD_SET_PREFIX: &str = "CLI_GIT_CHILD_SET_";
 
@@ -335,10 +339,15 @@ pub fn child_environment_overlay(
 
 /// What:
 ///  The complete environment of a Git child that is started with a cleared environment:
-///  the caller's variables, with every name the overlay sets replaced by the overlay's value.
+///  the caller's variables,
+/// with every name the overlay sets replaced by the overlay's value.
 /// Why:
-///   The incumbent's push coordination, push and manual-push probe inherit the whole process environment
-///  (`HOME`, `PATH`, `SSH_AUTH_SOCK`, the user's `GIT_*` variables) plus the overlay,
+///   The incumbent's push coordination,
+/// push and manual-push probe inherit the whole process environment
+///  (`HOME`,
+/// `PATH`,
+/// `SSH_AUTH_SOCK`,
+/// the user's `GIT_*` variables) plus the overlay,
 ///  and a credential helper or transport needs them;
 ///  the overlay alone would start Git with an almost empty environment.
 ///
@@ -368,7 +377,8 @@ pub fn environment_with_overlay(
     return result;
 }
 
-/// The variable Git and git-lfs run a password program from before they read `GIT_TERMINAL_PROMPT`; set to the empty string it
+/// The variable Git and git-lfs run a password program from before they read `GIT_TERMINAL_PROMPT`;
+/// set to the empty string it
 ///  stops the search for one.
 pub const ASKPASS_VARIABLE: &str = "GIT_ASKPASS";
 
@@ -379,13 +389,22 @@ pub const TERMINAL_PROMPT_VARIABLE: &str = "GIT_TERMINAL_PROMPT";
 ///  The two variables that make a Git or git-lfs run that needs a login fail at once instead of asking anyone:
 ///  `GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0`.
 /// Why:
-///   Git 2.56.0 (`prompt.c`) and git-lfs 3.8.1 (`creds/creds.go`) try `GIT_ASKPASS`, then `core.askPass`, then `SSH_ASKPASS`
-///  before they read `GIT_TERMINAL_PROMPT`, and the systemd user manager that starts the commit service carries
-///  `SSH_ASKPASS=/usr/bin/ksshaskpass` with a display, so `GIT_TERMINAL_PROMPT=0` alone opened a desktop dialog nobody was
-///  there to answer. A set but empty `GIT_ASKPASS` stops both programs before `core.askPass` and `SSH_ASKPASS`, and they fail
-///  with "terminal prompts disabled". `SSH_ASKPASS` stays in the environment: OpenSSH reads it for key passphrases.
+///   Git 2.56.0 (`prompt.c`) and git-lfs 3.8.1 (`creds/creds.go`) try `GIT_ASKPASS`,
+/// then `core.askPass`,
+/// then `SSH_ASKPASS`
+///  before they read `GIT_TERMINAL_PROMPT`,
+/// and the systemd user manager that starts the commit service carries
+///  `SSH_ASKPASS=/usr/bin/ksshaskpass` with a display,
+/// so `GIT_TERMINAL_PROMPT=0` alone opened a desktop dialog nobody was
+///  there to answer.
+/// A set but empty `GIT_ASKPASS` stops both programs before `core.askPass` and `SSH_ASKPASS`,
+/// and they fail
+///  with "terminal prompts disabled".
+/// `SSH_ASKPASS` stays in the environment:
+/// OpenSSH reads it for key passphrases.
 ///  The owner's pick of 2026-11-07 is "Never prompt" for background Git and git-lfs
-///  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`, "What this repository does about it").
+///  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`,
+/// "What this repository does about it").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -399,11 +418,18 @@ pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
 }
 
 /// What:
-///  Every variable the commit service adds for the Git and git-lfs children it starts on its own, with no person at a
-///  terminal: the lock PID injection and the never-prompt pair.
+///  Every variable the commit service adds for the Git and git-lfs children it starts on its own,
+/// with no person at a
+///  terminal:
+/// the lock PID injection and the never-prompt pair.
 /// Why:
-///   The service's landing, upkeep, push, reconcile fetch and LFS upload all start from this one list, so a start added
-///  later cannot miss the pair. A command the person typed (`child_environment_overlay`) is left to Git's own prompting.
+///   The service's landing,
+/// upkeep,
+/// push,
+/// reconcile fetch and LFS upload all start from this one list,
+/// so a start added
+///  later cannot miss the pair.
+/// A command the person typed (`child_environment_overlay`) is left to Git's own prompting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

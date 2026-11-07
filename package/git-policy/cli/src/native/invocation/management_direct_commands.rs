@@ -1,8 +1,11 @@
 //! What:
 //!  The direct commands of the `monochromatic-git-policy-cli` namespace that run in this process (`git monochromatic-git-policy-cli <command> ...`):
-//!  their refusals, the configuration failure text, and the plan that runs one.
+//!  their refusals,
+//! the configuration failure text,
+//! and the plan that runs one.
 //! Why:
-//!  `management.rs` plans every management command; the direct ones are a large part of it and depend on nothing in it,
+//!  `management.rs` plans every management command;
+//! the direct ones are a large part of it and depend on nothing in it,
 //!  so they sit in a file it uses.
 //!
 //! In TS you'd write (pseudocode):

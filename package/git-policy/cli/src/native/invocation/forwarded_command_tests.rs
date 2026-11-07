@@ -234,7 +234,9 @@ fn one_expansion_past_the_limit_is_unresolved() {
     assert!(!resolved.is_builtin());
 }
 
-/// Only `worktree add` creates a linked worktree; a move registers nothing new, and other forms do not create one.
+/// Only `worktree add` creates a linked worktree;
+/// a move registers nothing new,
+/// and other forms do not create one.
 #[test]
 fn only_worktree_add_creates_worktrees() {
     let context: GitContext = context_with_aliases(&[]);

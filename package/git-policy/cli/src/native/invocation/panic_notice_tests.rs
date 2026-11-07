@@ -139,7 +139,9 @@ fn panic_with_secret() {
     panic!("{}", secret());
 }
 
-/// A call that its caller catches is marked expected while it runs, nested calls keep the mark until the outermost ends, and
+/// A call that its caller catches is marked expected while it runs,
+/// nested calls keep the mark until the outermost ends,
+/// and
 ///  the caught panic comes back as a value.
 #[test]
 fn a_panic_inside_an_expected_call_is_caught_and_the_mark_ends_with_the_call() {
