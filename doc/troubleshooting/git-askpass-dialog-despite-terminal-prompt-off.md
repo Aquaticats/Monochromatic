@@ -300,9 +300,15 @@ Nothing is drafted, because the first constraint fails.
 
 1. Is it upstream's fault?
    No.
-   The order is Git's documented behavior: the `gitcredentials` manual lists `GIT_ASKPASS`, `core.askPass` and `SSH_ASKPASS`
-   before the terminal ([gitcredentials][git-doc-credentials]),
-   and `GIT_TERMINAL_PROMPT` is documented as controlling terminal prompts only ([git][git-doc-terminal-prompt]).
+   The order is Git's documented behavior.
+   The `gitcredentials` manual ([gitcredentials][git-doc-credentials]) says, read on 2026-11-07:
+   "If the GIT_ASKPASS environment variable is set, the program specified by the variable is invoked.",
+   then "Otherwise, if the core.askPass configuration variable is set",
+   then "Otherwise, if the SSH_ASKPASS environment variable is set",
+   and only then "Otherwise, the user is prompted on the terminal."
+   The `git` manual ([git][git-doc-terminal-prompt]) says of `GIT_TERMINAL_PROMPT`:
+   "If this Boolean environment variable is set to false, git will not prompt on the terminal
+   (e.g., when asking for HTTP authentication)."
    git-lfs follows the same order.
 2. Can upstream fix it?
    They could change the order, but that would break every user who relies on a desktop prompt with terminal prompts off.
@@ -319,5 +325,5 @@ Nothing is drafted, because the first constraint fails.
 [lfs-creds-order]: https://github.com/git-lfs/git-lfs/blob/a662a6dbfedf706cfa9fc7a5b7bcc7ba2e2c8a65/creds/creds.go#L104-L121
 [lfs-creds-prompt]: https://github.com/git-lfs/git-lfs/blob/a662a6dbfedf706cfa9fc7a5b7bcc7ba2e2c8a65/creds/creds.go#L280-L282
 [lfs-auth]: https://github.com/git-lfs/git-lfs/blob/a662a6dbfedf706cfa9fc7a5b7bcc7ba2e2c8a65/lfsapi/auth.go#L18-L32
-[git-doc-credentials]: https://git-scm.com/docs/gitcredentials
-[git-doc-terminal-prompt]: https://git-scm.com/docs/git
+[git-doc-credentials]: https://git-scm.com/docs/gitcredentials#:~:text=If%20the%20GIT_ASKPASS%20environment%20variable%20is%20set
+[git-doc-terminal-prompt]: https://git-scm.com/docs/git#:~:text=git%20will%20not%20prompt%20on%20the%20terminal
