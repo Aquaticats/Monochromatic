@@ -213,10 +213,16 @@ impl Drop for ChildWatch {
 }
 
 /// How long dropping a watch waits for its task to end: the bound of "nothing should ever wait forever" on a wait that is over in
-///  a few milliseconds (the task reads the closed marks at its next look, at most `STOP_POLL` after, then sweeps the lock files
-///  of a step it ended). No measurement picked it; it is the budget the start retry gives a refused start
-///  (`start_retry.rs`, `START_RETRY_BUDGET`), open to the owner's veto.
-const WATCHER_END_BOUND: Duration = Duration::from_secs(5);
+///  a few hundred microseconds. Measured on 2026-11-07 (`push/child_watch_drop_time_measurement_tests.rs`, three runs by hand under
+///  a load average of 15 to 40): dropping a watch between waits took at most 505 us and in the middle of a wait at most 389 us, the
+///  lock sweep alone at most 569 us, and a whole stop of a child that answers the request at most 41680 us past the window. A task
+///  can legitimately outlast those only inside a stop whose grace is not cut short, which is `STOP_GRACE` (a descendant that ignores
+///  the request is killed when the grace ends), so the bound is that grace plus `STOP_TAIL_ALLOWANCE`: aborting earlier would cancel the kill of a stubborn descendant that holds no pipe.
+const WATCHER_END_BOUND: Duration = crate::bounded_push::STOP_GRACE.saturating_add(STOP_TAIL_ALLOWANCE);
+
+/// What a stop needs beyond its grace: the kill, the look at the processes, the lock sweep and the end of the task. One second is
+///  twenty-four times the longest tail measured (41680 us), see `WATCHER_END_BOUND`.
+const STOP_TAIL_ALLOWANCE: Duration = Duration::from_secs(1);
 
 /// A watcher task and the signal that it has ended.
 struct RunningWatcher {
