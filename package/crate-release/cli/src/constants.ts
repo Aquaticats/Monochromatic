@@ -10,8 +10,48 @@
 /**
  Memory cap, as a systemd `MemoryMax` value, of the unit that runs the publish dry run; packaging a large crate
  compiles it, which can exhaust a shared host without a cap.
+
+ Measured on 2026-11-07, on the largest releasable crate (`monochromatic-git-policy-cli` 0.6.0) with a cold build
+ directory: `cargo publish --dry-run --locked --allow-dirty` in a `systemd-run --user --scope` with `MemoryMax=40G`,
+ `CPUQuota=2400%`, `TasksMax=4096` and `IOWeight=10` peaked at `memory.peak` 8738709504 bytes (8.1 GiB). The same run
+ at `CPUQuota=800%` peaked at 5322653696 bytes, and the smallest crate (`monochromatic-jsonc-edit` 0.1.3) at 159973376
+ bytes. 12G is about one and a half times the widest peak, and it is the value this default had before the
+ measurement; raise it with `--memory-max` when a unit is killed for memory.
  */
 export const defaultMemoryMax = '12G';
+
+/**
+ CPU cap, as a systemd `CPUQuota` value, of the unit that runs the publish dry run; `800%` is eight hardware threads.
+
+ Measured on 2026-11-07 with the same cold dry run of `monochromatic-git-policy-cli` 0.6.0 as `defaultMemoryMax`: at
+ `CPUQuota=800%` it took 88.5 s of wall time and 342.6 s of CPU time (3.9 threads on average), while the compile phase
+ of the run at `CPUQuota=2400%` took 73 s. So eight threads cost about a fifth in wall time on the largest crate and
+ leave most of the host to other work; raise it with `--cpu-quota` for a quicker release.
+ */
+export const defaultCpuQuota = '800%';
+
+/**
+ Task limit, as a systemd `TasksMax` value, of the unit that runs the publish dry run. A control group counts threads as
+ well as processes, so the limit bounds both together.
+
+ Measured on 2026-11-07 with the cold dry runs of `defaultMemoryMax`: `pids.peak` was 468 at `CPUQuota=2400%`, 99 at
+ `CPUQuota=800%` and 33 for the smallest crate. The value, 2048, is a power of two over four times the widest peak,
+ because a start that hits the limit fails with a bare `EAGAIN` that names no limit, while a runaway fork loop is still
+ stopped far below the user manager's own limit. Raise it with `--tasks-max` when a unit reports that failure.
+ */
+export const defaultTasksMax = '2048';
+
+/**
+ Disk weight, as a systemd `IOWeight` value, of the unit that runs the publish dry run. The owner's rule (`CLAUDE.md`,
+ rule RXS) is never above 10; a unit without the property gets systemd's default of 100. 10 is the value every other
+ capped unit of the repository uses, and the compile writes a large build directory.
+ */
+export const unitIoWeight = 10;
+
+/**
+ Highest `IOWeight` a unit this package starts may carry: the owner's rule (`CLAUDE.md`, rule RXS) is never above 10.
+ */
+export const maximumUnitIoWeight = 10;
 
 /**
  Suffix appended to the crate name to name the transient unit of the publish dry run when `--unit-name` is absent.

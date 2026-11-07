@@ -5,8 +5,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  defaultCpuQuota,
   defaultMemoryMax,
   defaultReleaseHost,
+  defaultTasksMax,
   defaultUnitSuffix,
 } from './constants.ts';
 import { parseCrateRegistry } from './crate-registry.ts';
@@ -108,6 +110,8 @@ await describe({
               lockDirectories: [],
               host: defaultReleaseHost,
               memoryMax: defaultMemoryMax,
+              cpuQuota: defaultCpuQuota,
+              tasksMax: defaultTasksMax,
               unitName: `monochromatic-git-policy-cli${defaultUnitSuffix}`,
             });
           },
@@ -300,16 +304,16 @@ await describe({
           name: 'reads --cpu-quota and --tasks-max',
           fn: async () => {
             const options = parse([...requiredOptions, '--cpu-quota', '700%', '--tasks-max', '77', '0.4.2', '0.4.3', 'n']);
-            expect((options as Record<string, unknown>).cpuQuota).toBe('700%');
-            expect((options as Record<string, unknown>).tasksMax).toBe('77');
+            expect(options.cpuQuota).toBe('700%');
+            expect(options.tasksMax).toBe('77');
           },
         }),
         it({
           name: 'defaults the CPU quota and the task limit to systemd values',
           fn: async () => {
-            const options = parse([...requiredOptions, '0.4.2', '0.4.3', 'n']) as Record<string, unknown>;
-            expect(options.cpuQuota).toMatch(/^[0-9]+%$/);
-            expect(options.tasksMax).toMatch(/^[0-9]+$/);
+            const options = parse([...requiredOptions, '0.4.2', '0.4.3', 'n']);
+            expect(options.cpuQuota).toBe(defaultCpuQuota);
+            expect(options.tasksMax).toBe(defaultTasksMax);
           },
         }),
         it({
@@ -346,6 +350,8 @@ await describe({
               lockDirectories: ['package/git-policy/cli.fuzz'],
               host: 'runner',
               memoryMax: defaultMemoryMax,
+              cpuQuota: defaultCpuQuota,
+              tasksMax: defaultTasksMax,
               unitName: `monochromatic-git-policy-cli${defaultUnitSuffix}`,
             });
           },

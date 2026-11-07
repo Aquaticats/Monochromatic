@@ -12,7 +12,9 @@ import {
   gitProgram,
   lockFileName,
   manifestFileName,
+  maximumUnitIoWeight,
   systemdRunProgram,
+  unitIoWeight,
 } from './constants.ts';
 import type { ReleaseOptions } from './release-options.ts';
 import {
@@ -228,6 +230,8 @@ await describe({
               unitName: 'cli-git-publish-dry',
               workingDirectory: '/repo/package/git-policy/cli',
               memoryMax: '12G',
+              cpuQuota: '800%',
+              tasksMax: '2048',
             })).toEqual([
               '--user',
               '--unit=cli-git-publish-dry',
@@ -236,6 +240,9 @@ await describe({
               '--pipe',
               '--working-directory=/repo/package/git-policy/cli',
               '--property=MemoryMax=12G',
+              '--property=CPUQuota=800%',
+              '--property=TasksMax=2048',
+              `--property=IOWeight=${String(unitIoWeight)}`,
               cargoProgram,
               'publish',
               '--dry-run',
@@ -286,6 +293,8 @@ await describe({
             const [weight] = propertyValues({ args, property: 'IOWeight' });
             expect(Number(weight)).toBeGreaterThan(0);
             expect(Number(weight)).toBeLessThanOrEqual(ownerMaximumIoWeight);
+            expect(maximumUnitIoWeight).toBeLessThanOrEqual(ownerMaximumIoWeight);
+            expect(unitIoWeight).toBeLessThanOrEqual(maximumUnitIoWeight);
           },
         }),
       ],
@@ -363,6 +372,9 @@ await describe({
                   '--pipe',
                   '--working-directory=/repo/package/git-policy/cli',
                   '--property=MemoryMax=12G',
+                  `--property=CPUQuota=${gitPolicyOptions.cpuQuota}`,
+                  `--property=TasksMax=${gitPolicyOptions.tasksMax}`,
+                  `--property=IOWeight=${String(unitIoWeight)}`,
                   cargoProgram,
                   'publish',
                   '--dry-run',
