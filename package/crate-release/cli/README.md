@@ -87,6 +87,7 @@ directly.
     (the earliest run built from a commit that holds the released version),
     follows that,
     and checks crates.io and the GitHub release.
+    For a version that never goes to crates.io (see "Labels and crates.io") it leaves crates.io out and says so.
 
 A release that fails before the push leaves `main` as it was.
 A push that finds a path the release depends on changed on `main` pushes nothing,
@@ -112,6 +113,82 @@ Add `--dry-run` to the dispatch to run everything except the push and the publis
 A dry run is the way to prove a new runner setup before a real release,
 and it is followed with `gh run watch <run URL>`,
 because no publish run follows it.
+
+## Labels and crates.io
+
+The owner's rule of 2026-11-07,
+verbatim:
+"My thinking is to deploy all releases on pnpr,
+but only publish rc and stable releases on crates.io",
+with the pick "Label decides"
+(`doc/planning/crates-io-footprint.md`):
+
+- a version ending `-alpha.N` or `-beta.N` never goes to crates.io;
+- a version ending `-rc.N` and a plain number do.
+
+pnpr does not serve crates yet,
+so for now an alpha or a beta goes to its GitHub release only.
+A GitHub release made by `cargo-publish.yml` is never flagged as a prerelease,
+whatever the version,
+because the `@latest` resolution of `mpm-shadow` (`github:<owner>/<repo>@latest` with a `tagPrefix`) skips flagged and draft releases,
+and the lock of this repository installs its tools that way.
+
+The label is the first dot-separated identifier of the pre-release part,
+and only the exact shape `<label>.<N>` with one number counts.
+Build metadata after a plus sign is ignored.
+Every other form is called unlabelled:
+`-alpha` without a number,
+`-rc.1.2`,
+`-RC.1`,
+`-dev.1`,
+and a text that is no version.
+An unlabelled version does not go to crates.io either,
+because a crates.io publish cannot be undone and a form the rule does not name must not reach it.
+The decision is made twice and a unit test compares the two over one list of versions
+(`src/crates-io-version-label-cases.ts`):
+
+- in TypeScript by `src/crates-io-version-label.ts`
+  (`releaseLabel`,
+  `goesToCratesIo` and `cratesIoRoute`),
+  which the release command,
+  the dispatch command and the wait commands use;
+- in shell by the composite action `.github/actions/decide-whether-a-version-goes-to-crates-io`,
+  which every `detect` job of `cargo-publish.yml` runs on its own crate's `Cargo.toml`
+  (a runner has no Node installation step in those jobs,
+  and an action keeps the shell in one place).
+
+What a version that does not go to crates.io skips:
+
+- In `cargo-publish.yml`,
+  every step that touches crates.io:
+  `cargo package` (it verifies against crates.io),
+  the provenance attestation of the `.crate`,
+  the Trusted Publishing login,
+  both `cargo publish` steps,
+  the wait for a `forbidden-strings` version in the index (`gpc-publish-crate`),
+  and the index check of a push of `forbidden-strings`.
+  Each reads `needs.<crate>-detect.outputs.goes_to_crates_io` of its own crate.
+  The `publish-crate` job itself still runs,
+  because each `create-release` job needs it,
+  and a skipped job would skip the GitHub release that an alpha exists for.
+  The build of the binaries and the GitHub release (with the assets) run as before,
+  and its notes say the version is not on crates.io.
+- In the release command,
+  the `cargo publish --dry-run` step,
+  because it asks crates.io.
+- In the wait commands,
+  the crates.io lookup:
+  the report says `crates.io <version>: skipped, <reason>` and the result depends on the workflow run and the GitHub release.
+
+A release that does go to crates.io is refused,
+by the release command on the runner before any file is edited and by the dispatch command before it spends a run,
+when a crate of the registry that it depends on is not at such a version.
+The dependency's own manifest and the exact pin in the released crate's manifest are both read,
+a dependency written as an inline table or as a table of its own counts,
+and a dependency without a version does not (a published manifest drops it).
+The refusal names each dependency,
+its version and the manifests that hold it.
+An alpha or a beta release has no such need.
 
 ## Starting a release
 
@@ -405,7 +482,7 @@ The command
     so a dispatch for another crate made on `main` after the bump and before the release's own dispatch cannot be told apart.
     When no run matches, the last result lists every run seen and why it was passed over;
 3.  watches the publish run,
-    then checks crates.io for `<version>` and the GitHub release for the expected assets,
+    then checks crates.io (unless the version never goes there) and the GitHub release for the expected assets,
     as the wait command does.
 
 It exits 0 only when every part succeeded.
@@ -510,7 +587,7 @@ mise run //package/crate-release/cli:release:wait:commit -- --crate-name <name> 
 
 The command waits for the publish workflow run of commit `<sha>` (a prefix of at least seven hexadecimal digits),
 watches it,
-then checks crates.io for `<version>` and the GitHub release for the expected assets.
+then checks crates.io for `<version>` (unless the version never goes there) and the GitHub release for the expected assets.
 It is for a publish that something other than the release workflow started,
 such as a push to `main`.
 It prints
@@ -586,6 +663,12 @@ the hash is never placed in a `gh --jq` program.
   `push-options.ts`,
   `await-options.ts`,
   `wait-options.ts`).
+- `crates-io-version-label.ts` gives a version its label and says whether it goes to crates.io,
+  `crates-io-dependency-check.ts` refuses a crates.io release whose dependencies do not,
+  and `crates-io-label-gate-workflow.unit.test.ts` checks the decision action,
+  that each of the sixteen crates of `cargo-publish.yml` decides and gates its crates.io steps,
+  and runs the real `detect` script of every crate for alpha, beta, rc and plain versions
+  (`workflow-text.ts` holds the readers of workflow files that the workflow tests share).
 - `origin-containment.ts` builds the `git` calls of the origin check, parses origin's default branch and writes the refusals.
 - `release-run.ts`,
   `dispatch-run.ts`,

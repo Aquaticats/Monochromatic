@@ -171,6 +171,30 @@ fn build_for_this_process() -> Result<BuiltRuntime, String> {
 }
 
 /// What:
+///  Starts `future` as a task of the process's runtime, building the runtime on the first call, and returns nothing where that
+///  runtime has no worker thread of its own (the current-thread stand-in, or a build that failed).
+/// Why:
+///  A watcher runs beside a thread that is blocked in a read or a wait, so it needs a worker that runs without a caller driving
+///  it; a current-thread runtime runs tasks only while some thread calls `block_on`, so a task spawned there would not run while
+///  the caller is blocked, and `None` tells the caller that nothing watches. Callable from any context, the runtime itself
+///  included.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const task = setImmediate(() => future); // Node's loop is always there; a blocked caller there would block the task too.
+/// ```
+pub fn spawn_on_runtime<F>(future: F) -> Option<tokio::task::JoinHandle<F::Output>>
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    return match RUNTIME.get_or_init(build_for_this_process) {
+        Ok(built) if matches!(built.flavor, BuiltFlavor::MultiThread { .. }) => Some(built.runtime.spawn(future)),
+        Ok(_) | Err(_) => None,
+    };
+}
+
+/// What:
 ///  Runs `future` to its end on the process's runtime, building the runtime on the first call.
 /// Why:
 ///  One owner builds the only runtime, lazily, so a command that needs none never pays for one. A call from inside the runtime

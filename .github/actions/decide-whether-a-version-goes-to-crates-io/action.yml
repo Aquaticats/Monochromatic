@@ -1,0 +1,57 @@
+name: decide whether a version goes to crates.io
+description: >
+  Reads the version a crate manifest holds and says whether it is published to crates.io, by the owner's rule of
+  2026-11-07 ("Label decides", doc/planning/crates-io-footprint.md): a plain number and a version ending -rc.N go to
+  crates.io; a version ending -alpha.N or -beta.N never does and goes to GitHub releases only. Every other form is
+  unlabelled and never goes to crates.io either, because a crates.io publish cannot be undone. The same decision is
+  made in TypeScript by package/crate-release/cli/src/crates-io-version-label.ts, and a unit test compares the two over
+  one list of versions. Plain shell only, so using it adds no external action to the repository's allow-list.
+
+inputs:
+  manifest-path:
+    description: >
+      Repository-relative path of the Cargo.toml whose first `version = "..."` line is the version, the line the
+      publish workflow's detect step reads.
+    required: true
+
+outputs:
+  goes_to_crates_io:
+    description: '"true" for a plain number and -rc.N; "false" for -alpha.N, -beta.N and every other form'
+    value: ${{ steps.decide.outputs.goes_to_crates_io }}
+  label:
+    description: 'stable, rc, beta, alpha or unlabelled'
+    value: ${{ steps.decide.outputs.label }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read the version and decide
+      id: decide
+      shell: bash
+      env:
+        MANIFEST_PATH: ${{ inputs.manifest-path }}
+      run: |
+        set -euo pipefail
+        version=$(awk -F'"' '/^version = / { print $2; exit }' "$MANIFEST_PATH")
+        number='(0|[1-9][0-9]*)'
+        core="${number}\.${number}\.${number}"
+        build='(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?'
+        label=unlabelled
+        goes=false
+        # 64 is maximumVersionLength of package/crate-release/cli/src/constants.ts, so both decisions refuse the same long text.
+        if [ "${#version}" -le 64 ]; then
+          if [[ "$version" =~ ^${core}${build}$ ]]; then
+            label=stable
+            goes=true
+          elif [[ "$version" =~ ^${core}-rc\.${number}${build}$ ]]; then
+            label=rc
+            goes=true
+          elif [[ "$version" =~ ^${core}-(alpha|beta)\.${number}${build}$ ]]; then
+            label="${BASH_REMATCH[4]}"
+          fi
+        fi
+        echo "${MANIFEST_PATH} holds version '${version}': label ${label}, goes to crates.io: ${goes}"
+        {
+          echo "goes_to_crates_io=${goes}"
+          echo "label=${label}"
+        } >> "$GITHUB_OUTPUT"

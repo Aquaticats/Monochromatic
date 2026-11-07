@@ -112,19 +112,16 @@ fn neither_name_gives_the_current_path_and_creates_nothing() {
 
 /// Both folders:
 ///  the current one is used,
-///  the earlier one is left byte for byte,
-///  and the notice names both and says what to do.
+///  the earlier one is left byte for byte by the placement,
+///  and the placement says nothing because the fold (`earlier_names_folded_into_current.rs`) speaks when it waits or fails.
 #[test]
-fn both_names_use_the_current_and_leave_the_earlier_untouched_and_reported() {
+fn both_names_use_the_current_and_leave_the_earlier_to_the_fold() {
     let parent: PathBuf = fixture("both");
     earlier_folder_with_file(parent.as_path(), DATA_FOLDER, "earlier bytes");
     current_folder_with_file(parent.as_path(), DATA_FOLDER, "current bytes");
     let placed: Placement = place_kept_name(parent.as_path(), DATA_FOLDER);
     assert_eq!(placed.path, parent.join(DATA_FOLDER.current));
-    let notice: String = placed.notice.expect("both names are reported");
-    assert!(notice.contains(DATA_FOLDER.earlier) && notice.contains(DATA_FOLDER.current), "{notice}");
-    assert!(notice.contains("left as it is"), "{notice}");
-    assert!(notice.ends_with('\n') && notice.matches('\n').count() == 1, "one line: {notice:?}");
+    assert_eq!(placed.notice, None, "the placement of two existing names is silent");
     assert_eq!(std::fs::read_to_string(parent.join(DATA_FOLDER.earlier).join("saved")).expect("earlier"), "earlier bytes");
     assert_eq!(std::fs::read_to_string(parent.join(DATA_FOLDER.current).join("saved")).expect("current"), "current bytes");
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
@@ -155,8 +152,8 @@ fn a_competitor_that_renames_first_leaves_one_folder_and_no_error() {
 
 /// A competitor that made the current folder fresh after this process looked:
 ///  the rename refuses to replace it,
-///  the earlier folder stays,
-///  and the notice reports both.
+///  the earlier folder stays for the fold,
+///  and the placement is silent.
 #[test]
 fn a_current_folder_that_appears_after_the_look_is_not_replaced() {
     let parent: PathBuf = fixture("race-appears");
@@ -166,7 +163,7 @@ fn a_current_folder_that_appears_after_the_look_is_not_replaced() {
     std::fs::create_dir_all(parent.join(DATA_FOLDER.current)).expect("the competitor's folder");
     let placed: Placement = carry_out(looked, parent.as_path(), DATA_FOLDER, rename_noreplace);
     assert_eq!(placed.path, parent.join(DATA_FOLDER.current));
-    assert!(placed.notice.expect("reported").contains(DATA_FOLDER.earlier));
+    assert_eq!(placed.notice, None);
     assert_eq!(std::fs::read_to_string(parent.join(DATA_FOLDER.earlier).join("saved")).expect("earlier"), "earlier bytes");
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }

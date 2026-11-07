@@ -1,6 +1,16 @@
 # mpm-shadow 0.2.6 `install` in a worktree made from a snapshot removes the source checkout's postinstall links and empties its `.cache/*-bin` folders
 
 Recorded 2026-11-07T09:30:00-05:00.
+
+Status: fixed in `monochromatic-mpm-shadow` 0.2.7-alpha.1 (release run `42384727529`,
+GitHub release published 2026-11-07T10:10:11-05:00),
+which the lock has named since commit `fb7e05141c` (2026-11-07T10:19:16-05:00) and which `mise run toolchain:install` installed.
+Checked at the user boundary with the installed binary:
+a plain `git worktree add --detach <path> main` followed by `mise run toolchain:install` inside the copy,
+then `git worktree remove --force`, left main's four `.cache/*-bin` link folders with identical links,
+targets and modification times
+(`doc/planning/one-release-each-batch-2026-11.md`, "Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.1").
+The section "Workarounds until the fixed `mpm-shadow` is installed" applies only to a checkout that still runs 0.2.6.
 The tool is `package/mpm-shadow/cli`, which this repository owns,
 so there is no upstream to file against (see "Upstream filing decision").
 

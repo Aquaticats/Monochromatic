@@ -7,11 +7,64 @@ import spawn from 'nano-spawn';
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
+  readFileSync,
   rmSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { join, } from 'node:path';
+import { setInterval as everyMs, } from 'node:timers/promises';
+
+//region Bounds: no test waits forever on a child process
+
+/**
+ Longest a single CLI invocation may run before the test ends it, in milliseconds.
+
+ Owner rule: nothing waits forever or indefinitely. Measured on 2026-11-07 with the file run alone through
+ `node src/depends.unit.test.ts`: the whole file took about 5 s with 16 invocations in flight at once, and a run of the
+ whole package took about 2.6 s per suite; this bound is far above both, so a pass never nears it, while a child
+ stuck for good (a Node process that could not start a thread under a full process-count ceiling sleeps in `futex_do_wait`
+ and never exits) ends the invocation here instead of holding the file open without end.
+ */
+const COMMAND_TIMEOUT_MS = 60_000;
+
+/**
+ Query and command bounds the bounded-wait tests hand to the CLI, in seconds.
+
+ Short on purpose: each test waits for the bound to fire, and a fractional second is enough for a child that sleeps for
+ {@link STUCK_CHILD_SLEEP_SECONDS}.
+ */
+const CLI_BOUND_SECONDS = 1;
+
+/**
+ How long the stuck stand-in child sleeps, in seconds; far above {@link CLI_BOUND_SECONDS}, so only the bound ends the wait,
+ and short enough that a leftover shell child from a killed pipeline ends by itself soon after the test.
+ */
+const STUCK_CHILD_SLEEP_SECONDS = 30;
+
+/**
+ Exclusive upper bound of the random fraction that makes a stuck pipeline's `sleep` argument unique to one test run.
+ */
+const RANDOM_SUFFIX_RANGE = 1_000_000;
+
+/**
+ How long in milliseconds the stop test looks for the pipeline it started before it stops the CLI anyway.
+ */
+const SLEEP_APPEARS_WITHIN_MS = 5_000;
+
+/**
+ Milliseconds between two looks of the stop test.
+ */
+const SLEEP_APPEARS_POLL_MS = 50;
+
+/**
+ How long the harness lets one bounded-wait test run, in milliseconds; above the CLI bound plus the Node start of both
+ processes, below {@link COMMAND_TIMEOUT_MS} so the CLI's own message is what a failure shows.
+ */
+const BOUNDED_WAIT_TEST_TIMEOUT_MS = 30_000;
+
+//endregion Bounds
 
 /**
  Runs a shell command and resolves with its captured output.
@@ -30,7 +83,65 @@ import { join, } from 'node:path';
  ```
  */
 function execAsync(command: string,): Promise<{ readonly stdout: string; readonly stderr: string; }> {
-  return spawn(command, { shell: true, },);
+  return spawn(command, { shell: true, timeout: COMMAND_TIMEOUT_MS, killSignal: 'SIGKILL', },);
+}
+
+/**
+ Runs a shell command that must fail and resolves with the failure's captured `stderr`.
+
+ @param command - Full shell command line to execute
+
+ @returns Captured `stderr` of the failed run
+
+ @throws When the command succeeds
+
+ @example
+ ```ts
+ const stderr = await stderrOfFailure('node ./cli.ts --bad'); // stderr includes the CLI's message
+ ```
+ */
+async function stderrOfFailure(command: string,): Promise<string> {
+  try {
+    await execAsync(command,);
+  }
+  catch (error) {
+    return String((error as { readonly stderr?: string; }).stderr,);
+  }
+  throw new Error(`command succeeded but was expected to fail: ${command}`,);
+}
+
+/**
+ Process ids of live `sleep <seconds>` processes with exactly this argument, read from `/proc`.
+
+ Matches the argument vector, not a command line that merely mentions the text, so the CLI under test and the shell
+ that started it never count. An unreadable or vanished entry is a process that ended while being read and is skipped.
+
+ @param seconds - Exact text of the one argument the `sleep` was given
+
+ @returns Process ids still alive
+
+ @example
+ ```ts
+ const alive = sleepPidsWithArgument('31.123456'); // [] once the pipeline is gone
+ ```
+ */
+function sleepPidsWithArgument(seconds: string,): readonly number[] {
+  return readdirSync('/proc',)
+    .filter(function isProcessEntry(entry,): boolean {
+      return Number.isInteger(Number(entry,),);
+    },)
+    .filter(function hasSleepArgument(entry,): boolean {
+      try {
+        return readFileSync(`/proc/${entry}/cmdline`, 'utf8',) === `sleep\0${seconds}\0`;
+      }
+      catch (error) {
+        // The process ended between listing and reading: it is not alive, so it does not count.
+        if ((Error.isError(error,)) && ('code' in error) && (error.code === 'ENOENT'))
+          return false;
+        throw error;
+      }
+    },)
+    .map(Number,);
 }
 
 //region Fixture Setup: temp directory with controllable source and output files
@@ -1053,6 +1164,171 @@ await describe({
             )
               .rejects
               .toThrow();
+
+            teardown(fixtures,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'task-depends bounded waits',
+      children: [
+        it({
+          name: 'ends a sh: source item that outlives --query-timeout-seconds and names the bound',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, outDir, markerPath, } = fixtures;
+
+            const stderr = await stderrOfFailure(
+              `node ${cliPath} --query-timeout-seconds ${CLI_BOUND_SECONDS} -s "sh:exec sleep ${STUCK_CHILD_SLEEP_SECONDS}" -o "${outDir}/**" -- ${
+                writeMarkerCmd(markerPath,)
+              }`,
+            );
+
+            expect(stderr,).toContain(`timed out after ${CLI_BOUND_SECONDS} seconds`,);
+            expect(existsSync(markerPath,),).toBe(false,);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'ends a sh: time strategy that outlives --query-timeout-seconds and names the bound',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, outDir, markerPath, } = fixtures;
+
+            const stderr = await stderrOfFailure(
+              `node ${cliPath} --query-timeout-seconds ${CLI_BOUND_SECONDS} --source-time-strategy "sh:exec sleep ${STUCK_CHILD_SLEEP_SECONDS}" -s "sh:echo 1" -s "sh:echo 2" -o "${outDir}/**" -- ${
+                writeMarkerCmd(markerPath,)
+              }`,
+            );
+
+            expect(stderr,).toContain(`timed out after ${CLI_BOUND_SECONDS} seconds`,);
+            expect(existsSync(markerPath,),).toBe(false,);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'ends a command that outlives --command-timeout-seconds and names the bound',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, } = fixtures;
+
+            const stderr = await stderrOfFailure(
+              `node ${cliPath} --command-timeout-seconds ${CLI_BOUND_SECONDS} -s "sh:echo Infinity" -o "sh:echo -Infinity" -- sleep ${STUCK_CHILD_SLEEP_SECONDS}`,
+            );
+
+            expect(stderr,).toContain(`timed out after ${CLI_BOUND_SECONDS} seconds`,);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'leaves no pipeline member of a timed-out sh: source item running',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, outDir, } = fixtures;
+            // A fresh fraction makes the argument unique to this run, so no other process on the host can match it.
+            const pipelineSleep = `${STUCK_CHILD_SLEEP_SECONDS + 1}.${Math.floor(Math.random() * RANDOM_SUFFIX_RANGE,)}`;
+
+            await stderrOfFailure(
+              `node ${cliPath} --query-timeout-seconds ${CLI_BOUND_SECONDS} -s "sh:sleep ${pipelineSleep} | cat" -o "${outDir}/**" -- true`,
+            );
+            const leftover = sleepPidsWithArgument(pipelineSleep,);
+            for (const pid of leftover)
+              process.kill(pid, 'SIGKILL',);
+
+            expect(leftover,).toEqual([],);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'leaves no pipeline member of a timed-out command running',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, } = fixtures;
+            const pipelineSleep = `${STUCK_CHILD_SLEEP_SECONDS + 1}.${Math.floor(Math.random() * RANDOM_SUFFIX_RANGE,)}`;
+
+            await stderrOfFailure(
+              `node ${cliPath} --command-timeout-seconds ${CLI_BOUND_SECONDS} -s "sh:echo Infinity" -o "sh:echo -Infinity" -- sh -c "sleep ${pipelineSleep} | cat"`,
+            );
+            const leftover = sleepPidsWithArgument(pipelineSleep,);
+            for (const pid of leftover)
+              process.kill(pid, 'SIGKILL',);
+
+            expect(leftover,).toEqual([],);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'ends the command and its pipeline when task-depends itself is told to stop',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, } = fixtures;
+            const pipelineSleep = `${STUCK_CHILD_SLEEP_SECONDS + 1}.${Math.floor(Math.random() * RANDOM_SUFFIX_RANGE,)}`;
+            /**
+             The CLI, running a pipeline that would outlive the test.
+             */
+            const running = spawn(
+              'node',
+              [
+                cliPath,
+                '-s',
+                'sh:echo Infinity',
+                '-o',
+                'sh:echo -Infinity',
+                '--',
+                'sh',
+                '-c',
+                `sleep ${pipelineSleep} | cat`,
+              ],
+            );
+            const cli = await running.nodeChildProcess;
+            /**
+             Moment after which the stop test gives up waiting for its pipeline to appear.
+             */
+            const lookUntil = Date.now() + SLEEP_APPEARS_WITHIN_MS;
+            for await (const _tick of everyMs(SLEEP_APPEARS_POLL_MS,)) {
+              if ((sleepPidsWithArgument(pipelineSleep,).length > 0) || (Date.now() > lookUntil))
+                break;
+            }
+            const startedBeforeStop = sleepPidsWithArgument(pipelineSleep,);
+            cli.kill('SIGTERM',);
+            // The CLI was stopped on purpose, so its outcome is not the point; only what it left behind matters.
+            await Promise.allSettled([running,],);
+            const leftover = sleepPidsWithArgument(pipelineSleep,);
+            for (const pid of leftover)
+              process.kill(pid, 'SIGKILL',);
+
+            expect(startedBeforeStop.length,).toBeGreaterThan(0,);
+            expect(leftover,).toEqual([],);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'lets a command that finishes inside --command-timeout-seconds succeed',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, markerPath, } = fixtures;
+
+            await execAsync(
+              `node ${cliPath} --command-timeout-seconds ${STUCK_CHILD_SLEEP_SECONDS} -s "sh:echo Infinity" -o "sh:echo -Infinity" -- ${
+                writeMarkerCmd(markerPath,)
+              }`,
+            );
+
+            expect(existsSync(markerPath,),).toBe(true,);
 
             teardown(fixtures,);
           },

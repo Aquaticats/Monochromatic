@@ -10,8 +10,10 @@ import { resolve } from 'node:path';
 import { runCli } from '../src/cli-main.ts';
 import {
   type CrateRegistry,
+  findCrate,
   loadCrateRegistry,
 } from '../src/crate-registry.ts';
+import { assertDependenciesReachCratesIo } from '../src/crates-io-dependency-check.ts';
 import { parseDispatchArguments } from '../src/dispatch-options.ts';
 import { dispatchRelease } from '../src/dispatch-run.ts';
 import { findRepositoryRoot } from '../src/repository-root.ts';
@@ -92,14 +94,31 @@ async function execute(argv: readonly string[]): Promise<number> {
    The registry, read before the arguments so the parse can stay synchronous.
    */
   const registry = await readRegistry();
+  /**
+   The validated options, parsed before anything is run.
+   */
+  const options = parseDispatchArguments({
+    argv,
+    root: findRoot,
+    registry: function knownRegistry() {
+      return registry;
+    },
+  });
+  // The release job refuses this too, on a runner; refusing it here costs no workflow run.
+  await assertDependenciesReachCratesIo({
+    crateName: options.crate,
+    crateDirectory: findCrate({
+      registry,
+      name: options.crate
+    })
+      .crateDirectory,
+    to: options.to,
+    registry,
+    root: options.root,
+    readText: readUtf8,
+  });
   return await dispatchRelease({
-    options: parseDispatchArguments({
-      argv,
-      root: findRoot,
-      registry: function knownRegistry() {
-        return registry;
-      },
-    }),
+    options,
     run,
     print: console.log,
   });

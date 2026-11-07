@@ -57,15 +57,15 @@ pub enum RuntimePlan {
 
 /// What:
 ///  The plan for this host: the budget's worker count, bounded by the threads and the address space the limits leave, and the
-///  current-thread runtime when fewer than two workers fit.
+///  current-thread runtime when not even one worker fits.
 /// Why:
-///  A pool of one worker only adds a thread; and a plan that asks for more than the limits leave is the failure the plan exists
-///  to avoid.
+///  The watchers of waits are tasks that run beside a thread blocked in a read or a wait, so one worker is the least that gives
+///  them a thread; a plan that asks for more than the limits leave is the failure the plan exists to avoid.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const workers = Math.min(budget, (threadsLeft - 1) / 2, (addressLeft - reserve) / (2 * threadBytes));
-/// return workers < 2 ? { kind: 'current' } : { kind: 'multi', workers, blockingThreads: workers };
+/// return workers < 1 ? { kind: 'current' } : { kind: 'multi', workers, blockingThreads: workers };
 /// ```
 pub fn plan_runtime(host: &HostResources, limits: &RuntimeLimits) -> RuntimePlan {
     let by_budget: usize = worker_budget(&BudgetRequest {
@@ -84,7 +84,7 @@ pub fn plan_runtime(host: &HostResources, limits: &RuntimeLimits) -> RuntimePlan
         return usize::try_from(pairs).unwrap_or(usize::MAX);
     });
     let workers: usize = by_budget.min(by_threads).min(by_address_space);
-    if workers < 2 {
+    if workers < 1 {
         return RuntimePlan::CurrentThread;
     }
     return RuntimePlan::MultiThread { workers, blocking_threads: workers };

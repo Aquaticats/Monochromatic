@@ -9,6 +9,7 @@ import { shellQuote } from '@monochromatic-dev/shell-argument-core/ts/shell-quot
 import {
   buildTimeoutFlag,
   examineFlag,
+  maximumUnitIoWeight,
 } from './constants.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
@@ -17,6 +18,16 @@ import {
   parseLauncherOptions,
 } from './options.ts';
 import { planUnits } from './plan.ts';
+
+/**
+ Start of the `systemd-run` argument that sets a unit's disk weight.
+ */
+const ioWeightPrefix = '--property=IOWeight=';
+
+/**
+ Start of the `systemd-run` argument that sets a unit's task limit.
+ */
+const tasksMaxPrefix = '--property=TasksMax=';
 
 /**
  Build options through the real parser, so the plan is checked against what a command line produces.
@@ -84,6 +95,34 @@ await describe({
             expect(plan?.systemdRunArguments).toContain('--property=MemoryMax=8G');
             expect(plan?.systemdRunArguments).toContain('--property=CPUQuota=300%');
             expect(plan?.systemdRunArguments.at(-1)).toContain(`'--file' 'src/native/a.rs'`);
+          },
+        }),
+        it({
+          name: 'starts every unit with a disk weight within the owner limit and a task limit by default',
+          fn: async () => {
+            const plans = planUnits(options({ argv: ['w5', 'a.rs', 'b.rs'] }));
+            expect(plans).toHaveLength(2);
+            for (const plan of plans) {
+              const weights = plan.systemdRunArguments
+                .filter((argument) => argument.startsWith(ioWeightPrefix))
+                .map((argument) => Number(argument.slice(ioWeightPrefix.length)));
+              expect(weights).toHaveLength(1);
+              expect(weights[0]).toBeLessThanOrEqual(maximumUnitIoWeight);
+              const limits = plan.systemdRunArguments
+                .filter((argument) => argument.startsWith(tasksMaxPrefix))
+                .map((argument) => Number(argument.slice(tasksMaxPrefix.length)));
+              expect(limits).toHaveLength(1);
+              expect(limits[0]).toBeGreaterThan(0);
+            }
+          },
+        }),
+        it({
+          name: 'applies the named task limit to every unit',
+          fn: async () => {
+            const plans = planUnits(options({ argv: ['--unit-tasks-max', '96', 'w5', 'a.rs', 'b.rs'] }));
+            expect(plans).toHaveLength(2);
+            for (const plan of plans)
+              expect(plan.systemdRunArguments).toContain('--property=TasksMax=96');
           },
         }),
         it({

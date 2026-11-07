@@ -750,3 +750,17 @@ fn the_preview_for_a_kept_copy_gives_the_reason_and_the_moves_install_would_stil
 }
 
 //endregion
+
+#[test]
+fn a_record_newer_than_the_managed_copy_by_the_alpha_number_read_as_a_number_keeps_the_old_copy() {
+    let scene = Scene::new();
+    scene.write_old_copy();
+    scene.install_managed("0.4.5-alpha.9");
+    scene.list_worktrees(&[]);
+    scene.write_record("0.4.5-alpha.10");
+    let newer = plan_old_copies(&scene.context(), &[]);
+    assert!(newer.plans[0].kept.as_deref().unwrap_or("").contains("0.4.5-alpha.10"), "{newer:?}");
+    scene.write_record("0.4.5-alpha.8");
+    let older = plan_old_copies(&scene.context(), &[]);
+    assert_eq!(older.plans[0].kept, None, "alpha.8 does not outrank the managed alpha.9: {older:?}");
+}

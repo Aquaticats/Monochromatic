@@ -75,6 +75,15 @@ pub mod earlier_name_moved_to_current_in_place;
 ///  and the finder for a reader that moves nothing.
 pub mod kept_names_in_the_git_directories;
 
+/// The lines of a log an earlier release wrote added to the log under the current name, restartable after a kill.
+pub mod earlier_log_lines_added_to_current_log;
+
+/// The entries of a folder an earlier release wrote moved into the folder under the current name.
+pub mod earlier_folder_entries_moved_into_current_folder;
+
+/// Every kept name that exists under both spellings folded into the current one when no earlier program writes it.
+pub mod earlier_names_folded_into_current;
+
 /// What is left of the limits a process that starts threads lives under: address space, `RLIMIT_NPROC` and `pids.max`.
 pub mod runtime_limits;
 
@@ -89,3 +98,6 @@ pub mod blocking_job;
 
 /// The test-only entry that builds the runtime and runs a blocking job, for the controls that start the executable under limits.
 pub mod runtime_probe;
+
+/// The in-memory claim on a file name that one thread of this process is publishing by the checked rename.
+pub mod name_held_while_one_thread_publishes_it;

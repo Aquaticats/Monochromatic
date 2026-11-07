@@ -260,6 +260,10 @@ export type PublishReport = {
 
  @param createdAt - crates.io creation time, or a miss when crates.io does not have the version
 
+ @param skippedCratesIoReason - why crates.io was not asked, for a version that is never published there; when given,
+ the report leaves crates.io out of the check and says so, and the result depends on the workflow run and the release
+ only
+
  @param tag - release tag
 
  @param expectedAssets - asset names the release must hold
@@ -277,6 +281,7 @@ export function formatPublishResult({
   watchStatus,
   version,
   createdAt,
+  skippedCratesIoReason,
   tag,
   expectedAssets,
   release,
@@ -284,6 +289,7 @@ export function formatPublishResult({
   readonly watchStatus: number;
   readonly version: string;
   readonly createdAt: Lookup<string>;
+  readonly skippedCratesIoReason?: string;
   readonly tag: string;
   readonly expectedAssets: readonly string[];
   readonly release: Lookup<readonly string[]>;
@@ -300,7 +306,7 @@ export function formatPublishResult({
    */
   const problems = [
     ...(watchStatus === 0 ? [] : [`workflow run exited ${String(watchStatus)}`]),
-    ...(createdAt.found ? [] : [`${version} is not on crates.io`]),
+    ...((skippedCratesIoReason !== undefined) || createdAt.found ? [] : [`${version} is not on crates.io`]),
     ...(missing.length === 0 ? [] : [`missing release assets: ${missing.join(', ')}`]),
   ];
   /**
@@ -313,7 +319,9 @@ export function formatPublishResult({
   return {
     lines: [
       `watch exit ${String(watchStatus)}`,
-      `crates.io ${version}: ${createdAt.found ? createdAt.value : 'not found'}`,
+      skippedCratesIoReason === undefined
+        ? `crates.io ${version}: ${createdAt.found ? createdAt.value : 'not found'}`
+        : `crates.io ${version}: skipped, ${skippedCratesIoReason}`,
       `release ${tag} assets: ${assetText}`,
       problems.length === 0 ? 'PUBLISHED' : `PUBLISH CHECK FAILED: ${problems.join('; ')}`,
     ],
