@@ -76,6 +76,28 @@ impl VirtualSource {
         return matches!(self.mapping.guard, Guard::Docs { .. });
     }
 
+    /// What:
+    ///  Whether this source lies inside a fenced listing of its host,
+    ///  at any depth.
+    /// Why:
+    ///  A listing quotes source word for word,
+    ///  so a rewrite of its comments adds tokens to the quotation.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function isInsideFence(source): boolean { return ancestors(source).some(isFence); }
+    /// ```
+    pub fn is_inside_fence(&self) -> bool {
+        let mut current: Option<&Arc<Mapping>> = Some(&self.mapping);
+        while let Some(mapping) = current {
+            if matches!(mapping.guard, Guard::Fence { .. }) {
+                return true;
+            }
+            current = mapping.parent.as_ref();
+        }
+        return false;
+    }
+
     /// Map a whole atomic fix,
     ///  or refuse it without returning a partial edit group.
     pub fn project_fix(&self, fix: &Fix) -> Result<Fix, ProcessorError> {

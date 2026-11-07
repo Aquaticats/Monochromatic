@@ -245,6 +245,11 @@ impl<'run> HostChecker<'run> {
         source: &str,
         findings: &mut Vec<Diagnostic>,
     ) {
+        let mut finding: Diagnostic = finding;
+        // A listing quotes source word for word; its comments are reported and never rewritten.
+        if input.is_inside_fence() && finding.fix.is_some() {
+            finding.fix = None;
+        }
         let mut without_fix: Option<Diagnostic> = None;
         if finding.fix.is_some() {
             let mut copy: Diagnostic = finding.clone();
