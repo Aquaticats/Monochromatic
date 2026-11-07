@@ -11,8 +11,6 @@
 //! const workers = workerBudget({ items: 48, perItemMemory: 256 * MiB, ceiling: undefined, cap: undefined, host: readHost() });
 //! ```
 
-use std::path::{Path, PathBuf};
-
 /// The smallest number of entries at which creating them on several threads beat creating them on one, for the three places that
 ///  make files by cloning: 16 entries. Measured with the copy stage (`copy_manifest_entries`), the install (`install_snapshot`
 ///  with a recorder that syncs every batch) and `clone_tree`, each forced to 1, 2, 4 and 8 workers on reflinked trees of this
@@ -38,15 +36,6 @@ const CPU_MARGIN_DIVISOR: usize = 8;
 ///  (128 MiB at most per item) it admits more than 180 items at once, so it binds only on hosts of a few gigabytes. A share
 ///  cannot be measured as a quantity: the coordinator's pick under the owner's delegation, open to the owner's veto.
 const MEMORY_SHARE_DIVISOR: u64 = 2;
-
-/// Where the kernel lists the memory it can still give out.
-const MEMORY_INFORMATION: &str = "/proc/meminfo";
-
-/// Where the kernel names the control group of the process.
-const CONTROL_GROUP_NAME: &str = "/proc/self/cgroup";
-
-/// The root of the unified control-group hierarchy.
-const CONTROL_GROUP_ROOT: &str = "/sys/fs/cgroup";
 
 /// What:
 ///  The facts a budget is derived from.
@@ -101,90 +90,31 @@ impl HostResources {
     /// ```
     pub fn read() -> HostResources {
         let parallelism: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        // A file that cannot be read gives no figure, as `.ok()` did before.
-        let system: Option<u64> = match std::fs::read_to_string(MEMORY_INFORMATION) {
-            Ok(text) => memory_available_from(text.as_str()),
-            Err(_unreadable) => None,
-        };
-        let group: Option<u64> = own_group_headroom();
-        let memory_available: Option<u64> = match (system, group) {
-            (Some(left), Some(right)) => Some(left.min(right)),
-            (left, right) => left.or(right),
-        };
-        return HostResources { parallelism, memory_available };
+        return HostResources { parallelism, memory_available: memory_available_now() };
     }
 }
 
 /// What:
-///  The headroom of the control group this process runs in, nothing when the group cannot be named or has no numeric limit.
+///  The bytes that can still be given out: the smaller of the system's available memory and the room left in the control group
+///  this process runs in and the groups above it, from the published `sysinfo` crate; nothing when the crate cannot start.
 /// Why:
-///  `HostResources::read` takes the smaller of this and the system figure, and each step here gives up with `None` as the
-///  `.ok().and_then(..)` chain it replaces did.
+///  The owner's ruling of 2026-11-07 ("Memory headroom: sysinfo") replaces the wrapper's own readers of `/proc/meminfo` and of the
+///  control groups' `memory.max` and `memory.current`. The crate's cgroup reader takes the least headroom up the hierarchy, as the
+///  hand-written walk did; the two agreed within a page under two `MemoryMax` caps
+///  (`doc/research/wrapper-git-free-jobs-and-published-crates.md`, "Parallel work within a budget").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const name = tryRead(CONTROL_GROUP_NAME); const path = name && controlGroupPath(name); return path && groupHeadroom(ROOT, path);
+/// const available = Math.min(os.freemem(), cgroupHeadroom());
 /// ```
-fn own_group_headroom() -> Option<u64> {
-    let Ok(name_text) = std::fs::read_to_string(CONTROL_GROUP_NAME) else {
-        return None;
-    };
-    let path: String = control_group_path(name_text.as_str())?;
-    return group_headroom(Path::new(CONTROL_GROUP_ROOT), path.as_str());
-}
-
-/// The `MemAvailable` figure of `/proc/meminfo` text, in bytes.
-pub fn memory_available_from(text: &str) -> Option<u64> {
-    // The first line that starts with the label is the figure.
-    let mut found: Option<&str> = None;
-    for candidate in text.lines() {
-        if candidate.starts_with("MemAvailable:") {
-            found = Some(candidate);
-            break;
-        }
-    }
-    let line: &str = found?;
-    let kibibytes: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
-    return kibibytes.checked_mul(1024);
-}
-
-/// The path of the unified (version 2) control group in `/proc/self/cgroup` text: the line that starts with `0::`.
-pub fn control_group_path(text: &str) -> Option<String> {
-    for line in text.lines() {
-        if let Some(path) = line.strip_prefix("0::") {
-            return Some(String::from(path));
-        }
-    }
-    return None;
-}
-
-/// The bytes a control group can still take under its limit: `max` minus `current`, nothing when there is no numeric limit.
-pub fn headroom_from(max: &str, current: &str) -> Option<u64> {
-    let limit: u64 = max.trim().parse().ok()?;
-    let used: u64 = current.trim().parse().ok()?;
-    return Some(limit.saturating_sub(used));
-}
-
-/// The least headroom of the group at `path` below `root` and of every group above it, nothing when none has a limit.
-fn group_headroom(root: &Path, path: &str) -> Option<u64> {
-    let mut least: Option<u64> = None;
-    let mut directory: PathBuf = root.join(path.trim_start_matches('/'));
-    loop {
-        let limit: Option<String> = std::fs::read_to_string(directory.join("memory.max")).ok();
-        let current: Option<String> = std::fs::read_to_string(directory.join("memory.current")).ok();
-        if let (Some(max_text), Some(current_text)) = (limit, current)
-            && let Some(room) = headroom_from(max_text.as_str(), current_text.as_str())
-        {
-            least = Some(match least {
-                Some(known) => known.min(room),
-                None => room,
-            });
-        }
-        if directory == root || !directory.pop() || !directory.starts_with(root) {
-            break;
-        }
-    }
-    return least;
+fn memory_available_now() -> Option<u64> {
+    let mut system: sysinfo::System = sysinfo::System::new().ok()?;
+    system.refresh_memory_specifics(sysinfo::MemoryRefreshKind::nothing().with_ram());
+    let by_system: u64 = system.available_memory();
+    return Some(match system.cgroup_limits() {
+        Some(group) => by_system.min(group.free_memory),
+        None => by_system,
+    });
 }
 
 /// The threads left free for everything else: an eighth of them, at least one, and none when the process may run only two.

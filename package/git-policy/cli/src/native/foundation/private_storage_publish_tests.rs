@@ -5,59 +5,84 @@ use super::*;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
-/// A hard link cannot name a directory (Linux and macOS answer `EPERM`), which is the one refusal of the link that
-///  an unprivileged test can cause on any filesystem: the publisher then falls back to the rename, and the directory
-///  and what it holds appear at the final name.
+/// A staging file for `path` with `content` in it, and the refusal a filesystem with neither `renameat2` with `RENAME_NOREPLACE`
+///  nor hard links gives (`s3fs-fuse` answers `ENOTSUP` to the link), as `persist_noclobber` reports it with the file handed back.
+#[cfg(unix)]
+fn refused_publish(path: &Path, content: &[u8]) -> (PathBuf, Result<std::fs::File, tempfile::PersistError>) {
+    let mut staged: tempfile::NamedTempFile = staging_beside(path).expect("staging file");
+    staged.as_file_mut().write_all(content).expect("staged content");
+    let staged_path: PathBuf = staged.path().to_path_buf();
+    let refusal: tempfile::PersistError = tempfile::PersistError { error: std::io::Error::from_raw_os_error(libc::ENOTSUP), file: staged };
+    return (staged_path, Err(refusal));
+}
+
+/// The owner's answer on a filesystem that has neither (2026-11-07, "Keep the fallback (Recommended)"): the staged file is
+///  published by the rename, the staging name is gone, and nothing is left to remove later.
 #[cfg(unix)]
 #[test]
-fn a_refused_link_falls_back_to_the_rename() {
-    let root: PathBuf = fixture("publish-link-refused");
-    let staged: PathBuf = root.join("staged");
+fn a_filesystem_with_neither_no_replace_rename_nor_links_gets_the_checked_rename() {
+    let root: PathBuf = fixture("publish-neither");
     let path: PathBuf = root.join("published");
-    std::fs::create_dir(&staged).expect("staged directory");
-    std::fs::write(staged.join("inner"), b"whole").expect("staged content");
-    let probe: PathBuf = root.join("probe");
-    let refusal: std::io::Error = std::fs::hard_link(&staged, &probe).expect_err("the control: a directory cannot be linked");
-    assert_ne!(refusal.kind(), std::io::ErrorKind::AlreadyExists, "the control: the refusal is not a taken name");
-    assert!(!probe.exists(), "the control: the refused link created nothing");
-    publish_exclusive(staged.as_path(), path.as_path()).expect("a refused link is published by rename");
-    assert_eq!(std::fs::read(path.join("inner")).expect("published content"), b"whole");
-    assert!(!staged.exists(), "the rename moved the staged entry");
+    let (staged_path, outcome) = refused_publish(path.as_path(), b"whole");
+    assert!(staged_path.exists(), "the control: the staged file exists before the publish");
+    assert!(!path.exists(), "the control: nothing is published yet");
+    settle_exclusive_publish(path.as_path(), outcome).expect("the refusal is answered by the rename");
+    assert_eq!(std::fs::read(&path).expect("published content"), b"whole");
+    assert!(!staged_path.exists(), "the rename moved the staged file");
     remove(root.as_path());
 }
 
-/// A taken name is reported with the operating system's own `EEXIST`, straight from the link, and the record that
-///  holds the name is left as it was.
+/// The fallback still refuses a taken name with `AlreadyExists`, leaves the record that holds it as it was, and leaves no
+///  staging file behind.
+#[cfg(unix)]
+#[test]
+fn the_checked_rename_refuses_a_taken_name_and_leaves_no_staging_file() {
+    let root: PathBuf = fixture("publish-neither-taken");
+    let path: PathBuf = root.join("record");
+    std::fs::write(&path, b"old").expect("record");
+    let (staged_path, outcome) = refused_publish(path.as_path(), b"new");
+    let error: std::io::Error = settle_exclusive_publish(path.as_path(), outcome).expect_err("the name is taken");
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(std::fs::read(&path).expect("record"), b"old");
+    assert!(!staged_path.exists(), "the refused publish removed its staging file");
+    remove(root.as_path());
+}
+
+/// A taken name is reported with the operating system's own `EEXIST`, straight from the publish, the record that holds the name
+///  is left as it was, and the refused write leaves no staging file.
 #[cfg(unix)]
 #[test]
 fn a_taken_name_is_refused_with_the_operating_systems_error() {
     let root: PathBuf = fixture("publish-taken");
-    let staged: PathBuf = root.join("staged");
     let path: PathBuf = root.join("record");
-    std::fs::write(&staged, b"new").expect("staged file");
     std::fs::write(&path, b"old").expect("record");
-    let error: std::io::Error = publish_exclusive(staged.as_path(), path.as_path()).expect_err("the name is taken");
+    let error: std::io::Error = write_private_file(path.as_path(), b"new").expect_err("the name is taken");
     assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
-    assert_eq!(error.raw_os_error(), Some(libc::EEXIST), "the link's own refusal, not a rebuilt one");
+    assert_eq!(error.raw_os_error(), Some(libc::EEXIST), "the publish's own refusal, not a rebuilt one");
     assert_eq!(std::fs::read(&path).expect("record"), b"old");
-    assert_eq!(std::fs::read(&staged).expect("staged"), b"new");
+    let names: Vec<String> = std::fs::read_dir(&root).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert_eq!(names, vec![String::from("record")], "no staging file stays");
     remove(root.as_path());
 }
 
-/// A staged file that is gone makes the link fail with `ENOENT`, not a taken name: the publisher must then check
-///  the final name before it renames, and still answer `AlreadyExists` when the name is taken.
+/// A publish that works leaves exactly the record, mode `0600`, and no staging file; a failure between the write and the publish
+///  leaves neither the record nor a staging file.
 #[cfg(unix)]
 #[test]
-fn a_link_that_fails_for_another_reason_still_checks_the_taken_name() {
-    let root: PathBuf = fixture("publish-staged-missing");
-    let staged: PathBuf = root.join("staged");
+fn a_published_record_is_private_and_a_failed_publish_leaves_nothing() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("publish-private");
     let path: PathBuf = root.join("record");
-    std::fs::write(&path, b"old").expect("record");
-    let control: std::io::Error = std::fs::hard_link(&staged, &path).expect_err("the control: the link fails");
-    assert_eq!(control.kind(), std::io::ErrorKind::NotFound, "the control: the source is checked before the name");
-    let error: std::io::Error = publish_exclusive(staged.as_path(), path.as_path()).expect_err("the name is taken");
-    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
-    assert_eq!(std::fs::read(&path).expect("record"), b"old");
+    write_private_file_unsynced(path.as_path(), b"whole").expect("publish");
+    assert_eq!(std::fs::metadata(&path).expect("record").permissions().mode() & 0o777, PRIVATE_FILE_MODE);
+    let other: PathBuf = root.join("other");
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the disk filled")); })); });
+    let failed: std::io::Result<()> = write_private_file_unsynced(other.as_path(), b"cut");
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    failed.expect_err("the injected failure");
+    let mut names: Vec<String> = std::fs::read_dir(&root).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    names.sort();
+    assert_eq!(names, vec![String::from("record")], "the failed write left no record and no staging file");
     remove(root.as_path());
 }
 
@@ -85,14 +110,29 @@ fn a_filesystem_without_directory_sync_counts_as_synced() {
     settle_directory_sync(Path::new("/unused"), Ok(())).expect("a sync that worked");
 }
 
-/// A staging file that is already gone (the rename moved it) needs no diagnostic, a success needs none, and any other
-///  removal failure is reported with the staging path.
+/// The owner's rulings of 2026-11-07 ("safe-file-saving shouldn't be something we own at all", and the answer "Keep the
+///  fallback (Recommended)" on a filesystem that has neither `renameat2` with `RENAME_NOREPLACE` nor hard links) put the exclusive
+///  publish in the `tempfile` crate (`persist_noclobber`); the module keeps only the checked rename for that one case, so it holds
+///  no hard link of its own and builds no staging name of its own.
 #[test]
-fn only_a_real_removal_failure_is_reported() {
-    let staged: &Path = Path::new("/records/.record.partial");
-    assert_eq!(staging_removal_report(staged, Ok(())), None);
-    assert_eq!(staging_removal_report(staged, Err(std::io::Error::from(std::io::ErrorKind::NotFound))), None);
-    let report: String = staging_removal_report(staged, Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)))
-        .expect("a permission failure is reported");
-    assert!(report.contains("/records/.record.partial"), "the report names the staging file: {report}");
+fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
+    let source: &str = include_str!("private_storage.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    assert!(code.contains("persist_noclobber"), "private_storage.rs does not publish through `persist_noclobber`");
+    for needle in ["hard_link", "random_uuid", "fn staging_path"] {
+        assert!(!code.contains(needle), "private_storage.rs still holds `{needle}`: the publish belongs to the tempfile crate");
+    }
+}
+
+/// A staging file that cannot be made reports the system's own error, with its code and without the staging path the
+///  `tempfile` crate adds, so the callers' texts say exactly what they said when the standard library made the file.
+#[cfg(unix)]
+#[test]
+fn a_staging_file_that_cannot_be_made_reports_the_plain_system_error() {
+    let root: PathBuf = fixture("publish-no-directory");
+    let path: PathBuf = root.join("absent-directory").join("record");
+    let error: std::io::Error = write_private_file(path.as_path(), b"x").expect_err("the directory is missing");
+    assert_eq!(error.raw_os_error(), Some(libc::ENOENT));
+    assert_eq!(error.to_string(), "No such file or directory (os error 2)");
+    remove(root.as_path());
 }

@@ -285,19 +285,20 @@ fn a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation() {
     assert_eq!(record.begin_group(ids(&["r"]).as_slice()), GroupAdmission::default(), "the request is still admitted, not dropped");
 }
 
-/// A temporary file of a decision is removed whichever way the decision ends (sol-1 round 2, P2: a failed write returned before the
-/// removal and left it). The failure is injected inside `decide`, after its temporary file was made and written, so removing the
-/// guard from `decide` leaves a file behind and fails this control (round 3: the earlier control failed a closure of its own).
+/// A staging file of a decision is removed whichever way the decision ends (sol-1 round 2, P2: a failed write returned before the
+/// removal and left it). The failure is injected inside the shared publish, after the staging file was made and written, so a
+/// publish that stopped removing its staging file leaves one behind and fails this control (round 3: the earlier control failed a
+/// closure of its own).
 #[test]
 fn a_decision_whose_write_fails_leaves_no_temporary_file() {
     let directory: std::path::PathBuf = crate::test_support::fixture("service-busy-temporary");
     let record: Arc<LandingBoard> = LandingBoard::new(directory.join("journal"), AT_ONCE);
-    AFTER_THE_TEMPORARY_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the write failed after the file was made")); })); });
+    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the write failed after the file was made")); })); });
     for round in 0..5 {
         assert!(record.decide("same", LANDING).is_err(), "round {round}");
     }
-    AFTER_THE_TEMPORARY_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
-    let leftovers = |board: &LandingBoard| -> usize { return std::fs::read_dir(board.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".tmp"); }).count(); };
+    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    let leftovers = |board: &LandingBoard| -> usize { return std::fs::read_dir(board.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".partial"); }).count(); };
     assert_eq!(leftovers(&record), 0, "a failed write leaves no temporary file");
     assert!(!record.decision_path("same").exists(), "and decided nothing");
     for round in 0..20 {

@@ -204,6 +204,14 @@ mod budget_trace;
 #[path = "binary_budget_tests.rs"]
 mod budget;
 
+/// A forwarded command makes no thread or child of its own before Git replaces the wrapper, so a runtime is never built for it.
+#[path = "binary_forwarded_command_makes_no_thread_tests.rs"]
+mod forwarded_command_makes_no_thread;
+
+/// The runtime build finishes and the command carries on under a process limit and under address-space limits, with Git as the control.
+#[path = "binary_runtime_build_under_limits_tests.rs"]
+mod runtime_build_under_limits;
+
 /// Content a parent commit's tree already holds is not scanned again by forbidden-strings.
 #[path = "binary_known_content_tests.rs"]
 mod known_content;

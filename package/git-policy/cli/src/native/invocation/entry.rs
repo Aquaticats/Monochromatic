@@ -327,6 +327,10 @@ fn plan_with_real_git(
 /// function runProcess(args: string[], environment: [string, string][]): number;
 /// ```
 pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
+    // The test-only runtime probe answers before anything else of the wrapper runs (nothing in production sets its variable).
+    if crate::runtime_probe::is_requested(environment) {
+        return crate::runtime_probe::run();
+    }
     // From here on every real-Git start of this process runs with traditional hooks off.
     crate::hooks_off::activate();
     let action: Action = match process_resolution_inputs(environment) {

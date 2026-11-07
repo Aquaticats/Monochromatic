@@ -3592,6 +3592,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
   (`fix/containers-zig-from-lock`); both briefs are saved in
   `~/temp/agent/coordinator-briefs/waiting-for-a-slot.md` (scratch, lost on reboot).
+- Tokio T1 to T4 merged into main as `5e441f25d3` (branch gate 5127 of 5127, Clippy and lint clean; main's only wrapper
+  changes since the branch's last main merge were rename step 3's README and two TypeScript files). It brings the fix for the
+  service decision file that needed hard links. The agent's two owner questions were settled from owner rules, recorded in
+  `doc/planning/git-policy-cli-full-tokio.md` ("Settled by the coordinator"). A new tokio agent continues on the same branch:
+  the in-process `decide` race first, then T5 to T13. Waiting for a slot, with brief points in the same scratch file: the
+  index-lock fallback (`fix/git-policy-cli-index-lock-without-links`) and the mutation campaign over the merged tokio files.
 - Left for later: the old `cli-git@` units of each worktree still run 0.5.34 until their three-hour idle exit (0.6.0 neither
   stops nor removes them, `package/git-policy/cli/README.md` lines 40 to 41); old `cargo/<crate>/<version>` install folders
   stay on disk; `toolchain:install:global` and `toolchain:list:global` disagree on 12 npm-routed tools (not investigated).

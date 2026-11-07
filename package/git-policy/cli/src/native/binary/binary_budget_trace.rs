@@ -53,6 +53,8 @@ pub(super) struct Counts {
     pub(super) other_syncs: BTreeMap<String, usize>,
     /// Every started Git command line, in trace order, for failure messages.
     pub(super) commands: Vec<String>,
+    /// Threads and processes the wrapper (its program, not Git's) made with a `clone`-family call.
+    pub(super) wrapper_spawns: usize,
 }
 
 /// Decode a quoted `strace` string at the start of `text`; returns the string and the text after it and any `...`.
@@ -246,7 +248,11 @@ pub(super) fn count(trace: &str, fixture_root: &str, real_git: &str) -> Counts {
                 Program::Other(name) => *counts.other_syncs.entry(name.clone()).or_default() += 1,
                 Program::Harness => panic!("the harness made a sync call, so the trace is not of the command alone"),
             },
-            Event::Spawn { .. } => {}
+            Event::Spawn { parent, .. } => {
+                if *program_at(&starts, &parents, *parent, position) == Program::Wrapper {
+                    counts.wrapper_spawns += 1;
+                }
+            }
         }
     }
     return counts;
