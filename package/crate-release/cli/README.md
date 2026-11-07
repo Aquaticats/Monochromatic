@@ -265,7 +265,7 @@ Each step is printed as `== <step>` and a `$ ...` line that can be pasted into a
   a crate whose name only starts with this crate's name is not
   matched,
   and so are an array of tables, a `[workspace.dependencies.<crate>]` table and a nested table of the crate.
-  Measured 2026-11-07: this edit applied to every registered crate at once (each one patch version up)
+  Measured 2026-11-07T05:17:51-05:00: this edit applied to every registered crate at once (each one patch version up)
   left `file-enforcer check` with no drift beyond the local `.config/mise/conf.d/10-bin.local.toml`,
   so a release leaves nothing for `file-enforcer write` to correct.
 - Notes are one line without control characters,

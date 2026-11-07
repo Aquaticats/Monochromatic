@@ -878,7 +878,7 @@ and done before the first dispatch:
 
 ### What exists now
 
-Written 2026-11-07,
+Written 2026-11-07T05:19:18-05:00,
 on the branch `feat/crate-release-register-every-published-crate`.
 
 - `package/crate-release/cli/releasable-crates.json` lists all sixteen crates.
