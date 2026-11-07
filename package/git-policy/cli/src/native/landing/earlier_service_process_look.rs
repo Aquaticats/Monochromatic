@@ -29,7 +29,7 @@ const JOURNAL_OPTION: &str = "--journal";
 
 /// Most bytes of one process's command line that are read;
 ///  the options of the service are in the first few hundred bytes.
-const COMMAND_LINE_BYTES: u64 = 65_536;
+pub const COMMAND_LINE_BYTES: u64 = 65_536;
 
 /// What a look needs to know to recognise a service of one worktree.
 #[derive(Clone, Debug)]
