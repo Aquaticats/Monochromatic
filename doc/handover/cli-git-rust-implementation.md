@@ -3588,7 +3588,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     `service/service_busy_answers_and_name_checks.rs`, `service/service_busy_step_record_on_this_thread.rs`,
     `push/child_watch_step_bounds_and_errors.rs`. Before it starts, an agent fixes the launcher
     (`fix/mutation-test-units-obey-disk-weight-and-task-limits`): its file units set `IOWeight=50` and no `TasksMax`,
-    against `CLAUDE.md` rule RXS; survivors then go to an agent for kill tests;
+    against `CLAUDE.md` rule RXS; survivors then go to an agent for kill tests.
+    Launcher fixed (`0c1c5a7d87`); branch merged with main (`85e6d2ab99`, `node_modules` installed). Its gate failed
+    2 of 5165 under load about 70 on 28 CPUs, on Rust code identical to the 5165-of-5165 `tokio-gate-merge2` run:
+    `lock::git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock` (a stopped push left
+    `refs/remotes/origin/main.lock`) and `push::push_progress::tests::a_write_of_a_process_the_root_started_is_progress`
+    (fixture removal hit `DirectoryNotEmpty`). Both touch child stopping, which T5 rewrote; sent to the tokio agent as
+    priority before T8. The campaign waits for a clean gate. Note: `systemd-run` expands `$VAR` in its command line,
+    so a literal `$?` must be written `$$?`;
   - the settle-command test that fails only in its suite (`fix/git-policy-cli-settle-test-in-suite`).
 - `core-exec` depends branch merged as `adadb1d03b` (`buildAndTest` 52 suites pass, `lint:types` clean, `lint` 0
   warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
