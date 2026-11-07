@@ -3,7 +3,7 @@
 ## Current state
 
 - Written:
-  2026-11-07T09:58:00-05:00.
+  2026-11-07T10:40:00-05:00.
 - Branch and worktree:
   `feat/git-policy-cli-on-tokio` in `.claude/worktrees/wrapper-on-tokio`.
   Main merged into it by fast-forward at `cb0b734efa` (the coordinator had merged the branch at `5e441f25d3`); the coordinator may merge gated checkpoints.
@@ -39,6 +39,12 @@
   decision first; the plan says why.
 - Next, in the order that needs no async callers: T9 (`hyper`) and the `zbus` 6 client of T8; T6 to T12 are the leaf-first conversion of the
   callers (T11's work in practice), see the plan, "Where the remaining steps stand after T5".
+- Running at this checkpoint: the user unit `tokio-gate-merge2` (container gate of the tree after the merge `d628f74005`; log
+  `${HOME}/temp/agent/tokio-steps/gate-merge2.log`). It writes its own log; read it, then record its count in the plan beside
+  "Main merged again at `d628f74005`". Previous gates: step 1 5133 of 5133, T5 5134 of 5134, both Clippy clean.
+- Exact next step for the next agent: T9 (`hyper`) or the `zbus` 6 client of T8; the catalog already names `zbus >=6.2.1`, `hyper >=1.12.0`,
+  `hyper-util`, `hyper-rustls`, and the local registry cache holds `zbus-6.2.1` and `hyper-1.12.0`, so the plan's "floor 5.19" is out of date.
+  `native:perf` was not run (the plan asks for it after T10, T12, T13). Scratch logs: `${HOME}/temp/agent/tokio-steps/`.
 - The `HELD_NAME_WAIT` and `WATCHER_END_BOUND` values (five seconds each, the start retry's budget) have no measurement beside them; they
   are open to the owner's veto. The name claim is a bounded wait, not lock-free, which deviates from "add no lock" for the coordinator to accept.
 - T5 to T13 as listed in the plan, with the owner's answers applied (task-local state instead of a `LocalSet`, the registry of
