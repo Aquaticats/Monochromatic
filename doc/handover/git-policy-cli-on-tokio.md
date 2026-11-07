@@ -135,6 +135,25 @@
 - The one `thread::sleep` that stays by design is the forwarded command's start pause in `push/start_retry.rs` (`sleep_for`):
   a forwarded command builds no runtime.
 
+- Merges (2026-11-07):
+  `feat/git-policy-cli-on-tokio` is in main as `6e8521c8fa` (gate 5222 of 5222,
+  container Clippy clean,
+  package lint 0 and 0).
+  T6 and T7 followed it (gate 5229 of 5229,
+  2 slow,
+  container Clippy clean,
+  package lint 0 and 0).
+  No test failed in any of these gates,
+  so there is no failure text to record as open.
+  The lint branch's rules (named closures,
+  the 300 code-line limit) found work in the tokio code at the merge:
+  the closures of `systemd_dbus.rs` and `standards_review_client.rs` are named functions now,
+  the stop and sweep of a push live in
+  `push/stop_of_a_push_and_sweep_of_its_locks.rs`,
+  and `end_with_its_group` lives in `testing/child_ended_with_its_whole_group.rs`.
+- T10 waits for the commit-stall branch (the coordinator,
+  2026-11-07),
+  which changes the same service files.
 ## Open work, in order
 
 - Done since the previous handover (details and figures:
