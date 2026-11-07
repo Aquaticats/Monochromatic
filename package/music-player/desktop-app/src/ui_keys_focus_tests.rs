@@ -183,7 +183,7 @@ fn the_settings_page_keeps_tab_inside_it_and_a_template_line_does_not_swallow_ta
 }
 
 #[test]
-fn opening_settings_after_a_request_for_the_track_list_leaves_the_keyboard_on_the_settings_list() {
+fn a_track_list_made_again_while_settings_is_open_leaves_the_keyboard_on_the_settings_list() {
     let (app, _host) = fresh_window_at(850.0, 900.0);
     load_library(&app);
     chord(&app, &["Alt"], "2");
@@ -192,12 +192,17 @@ fn opening_settings_after_a_request_for_the_track_list_leaves_the_keyboard_on_th
     chord(&app, &["Ctrl", "Alt"], "s");
     assert_eq!(app.get_route(), Route::Settings.to_int());
     assert_eq!(focus_label(&app), "settings-list", "Settings opens with its list focused");
-    // The track list of the player page is still asked for (the request stays until another one replaces it). Frames pass,
-    // so the list's own focus timer gets its turn while the page covers the player and the list refuses focus.
+    // The track list stays asked for (the request is kept until another one replaces it). A rescan of the library shows the
+    // first-run pane for a moment and then makes the track list again; the new list's focus timer fires one frame later,
+    // while the Settings page covers the player and the list refuses focus.
+    app.set_first_run_state(1);
+    advance(32);
+    app.set_first_run_state(0);
     advance(200);
+    assert_eq!(app.get_route(), Route::Settings.to_int(), "Settings is still open");
     assert_eq!(
         focus_label(&app),
         "settings-list",
-        "the covered track list must not move the keyboard to the Back button when its focus timer fires"
+        "a track list made again under the Settings page must not move the keyboard to the Back button"
     );
 }
