@@ -1008,20 +1008,24 @@ pointer input and move no content; they are drawn from `Theme` roles.
 
 ### Known limits
 
-- The end-to-end run presses the Menu key through the nested compositor (0.4.0 or newer); the window tests press it too.
+- The end-to-end run presses the Menu key through the nested compositor (0.4.0 or newer, 0.6.0 for the headless default);
+  the window tests press it too.
 - Ctrl+Shift+3 and 4 may be taken by the screenshot shortcuts of macOS, and the digit chords assume a layout where
   Shift+digit gives the usual symbol; neither is verified here, and the macOS and Windows key mapping is untested.
 
 ### End-to-end run
 
 `mise run //package/music-player/desktop-app:test:e2e` builds the release binary, then hosts it in the nested
-compositor that mise has installed (0.4.0 or newer; an older one is refused before the run starts) with scratch
+compositor that mise has installed, headless unless a person asks for a window (0.6.0 or newer for the headless
+default, 0.4.0 or newer for a visible window; an older one is refused before the run starts), with scratch
 XDG directories and a generated library (the 1k scale library plus tone tracks), and
 presses every shortcut as a real key event. It plays into its own PipeWire null sink (checked by node id against
 every output stream of the app, and stops at once if one links elsewhere), never touches another player process, and
 prints one pass, fail or not-injectable line per shortcut. State is read from the app's `ui_state` log lines, from
 screenshots and from files; `E2E_ONLY` (a check id or group prefix), `E2E_OUT` (default `target/e2e`, with
-screenshots and `e2e-summary.json`), `E2E_TMP` and `E2E_LIBRARY_GENERATOR` tune it. Run it alone.
+screenshots, `e2e-summary.json` and, for each failing check, a `failures` folder with its text and last states),
+`E2E_TMP` and `E2E_LIBRARY_GENERATOR` tune it. Nothing appears on the desktop unless the command gets `--visible` (or
+`E2E_VISIBLE=1`). Run it alone.
 The runner itself is the `package/music-player/desktop-e2e` package (see its `README.md`);
 the task only builds the release binary and calls that package's command from this directory.
 

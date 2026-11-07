@@ -36,8 +36,10 @@ through, and the frame from the debug run shows it at full ink.
 ## Fix
 
 `SoftwarePlatform::duration_since_start` returns a thread-local test clock, and each draw pass in `render_window_with`
-moves it by `Theme.motion-enter`. Other render tests that read the wall clock (`src/ui_render_support.rs`) pass today
-but have the same exposure to a faster build.
+moves it by `Theme.motion-enter`. The other render tests (`src/ui_render_support.rs`) also read the wall clock; measured on
+2026-11-07, they could not change a result (a draw pass with no clock progress and one with the longest animation time give
+the same results), and they now move their own clock too. Record:
+`music-player-e2e-search-answer-and-headless-start.md`, section "ui_render_support.rs reads the wall clock".
 
 ## Not a cause
 
