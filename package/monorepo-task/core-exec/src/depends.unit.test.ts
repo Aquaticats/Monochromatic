@@ -13,6 +13,41 @@ import {
 } from 'node:fs';
 import { join, } from 'node:path';
 
+//region Bounds: no test waits forever on a child process
+
+/**
+ Longest a single CLI invocation may run before the test ends it, in milliseconds.
+
+ Owner rule: nothing waits forever or indefinitely. Measured on 2026-11-07 with the file run alone through
+ `node src/depends.unit.test.ts`: the whole file took about 5 s with 16 invocations in flight at once, and a run of the
+ whole package took about 2.6 s per suite; this bound is far above both, so a pass never nears it, while a child
+ stuck for good (a Node process that could not start a thread under a full process-count ceiling sleeps in `futex_do_wait`
+ and never exits) ends the invocation here instead of holding the file open without end.
+ */
+const COMMAND_TIMEOUT_MS = 60_000;
+
+/**
+ Query and command bounds the bounded-wait tests hand to the CLI, in seconds.
+
+ Short on purpose: each test waits for the bound to fire, and a fractional second is enough for a child that sleeps for
+ {@link STUCK_CHILD_SLEEP_SECONDS}.
+ */
+const CLI_BOUND_SECONDS = 1;
+
+/**
+ How long the stuck stand-in child sleeps, in seconds; far above {@link CLI_BOUND_SECONDS}, so only the bound ends the wait,
+ and short enough that a leftover shell child from a killed pipeline ends by itself soon after the test.
+ */
+const STUCK_CHILD_SLEEP_SECONDS = 30;
+
+/**
+ How long the harness lets one bounded-wait test run, in milliseconds; above the CLI bound plus the Node start of both
+ processes, below {@link COMMAND_TIMEOUT_MS} so the CLI's own message is what a failure shows.
+ */
+const BOUNDED_WAIT_TEST_TIMEOUT_MS = 30_000;
+
+//endregion Bounds
+
 /**
  Runs a shell command and resolves with its captured output.
  
@@ -30,7 +65,37 @@ import { join, } from 'node:path';
  ```
  */
 function execAsync(command: string,): Promise<{ readonly stdout: string; readonly stderr: string; }> {
-  return spawn(command, { shell: true, },);
+  return spawn(command, { shell: true, timeout: COMMAND_TIMEOUT_MS, killSignal: 'SIGKILL', },);
+}
+
+/**
+ Runs a shell command that must fail and resolves with the failure's captured `stderr`.
+
+ @param command - Full shell command line to execute
+
+ @returns Captured `stderr` of the failed run
+
+ @throws When the command succeeds
+
+ @example
+ ```ts
+ const stderr = await stderrOfFailure('node ./cli.ts --bad'); // stderr includes the CLI's message
+ ```
+ */
+async function stderrOfFailure(command: string,): Promise<string> {
+  /**
+   The failure the command raised; stays undefined when the command succeeded.
+   */
+  let caught: unknown;
+  try {
+    await execAsync(command,);
+  }
+  catch (error) {
+    caught = error;
+  }
+  if (caught === undefined)
+    throw new Error(`command succeeded but was expected to fail: ${command}`,);
+  return String((caught as { readonly stderr?: string; }).stderr,);
 }
 
 //region Fixture Setup: temp directory with controllable source and output files
@@ -1053,6 +1118,83 @@ await describe({
             )
               .rejects
               .toThrow();
+
+            teardown(fixtures,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'task-depends bounded waits',
+      children: [
+        it({
+          name: 'ends a sh: source item that outlives --query-timeout-seconds and names the bound',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, outDir, markerPath, } = fixtures;
+
+            const stderr = await stderrOfFailure(
+              `node ${cliPath} --query-timeout-seconds ${CLI_BOUND_SECONDS} -s "sh:exec sleep ${STUCK_CHILD_SLEEP_SECONDS}" -o "${outDir}/**" -- ${
+                writeMarkerCmd(markerPath,)
+              }`,
+            );
+
+            expect(stderr,).toContain(`timed out after ${CLI_BOUND_SECONDS} seconds`,);
+            expect(existsSync(markerPath,),).toBe(false,);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'ends a sh: time strategy that outlives --query-timeout-seconds and names the bound',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, outDir, markerPath, } = fixtures;
+
+            const stderr = await stderrOfFailure(
+              `node ${cliPath} --query-timeout-seconds ${CLI_BOUND_SECONDS} --source-time-strategy "sh:exec sleep ${STUCK_CHILD_SLEEP_SECONDS}" -s "sh:echo 1" -s "sh:echo 2" -o "${outDir}/**" -- ${
+                writeMarkerCmd(markerPath,)
+              }`,
+            );
+
+            expect(stderr,).toContain(`timed out after ${CLI_BOUND_SECONDS} seconds`,);
+            expect(existsSync(markerPath,),).toBe(false,);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'ends a command that outlives --command-timeout-seconds and names the bound',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, } = fixtures;
+
+            const stderr = await stderrOfFailure(
+              `node ${cliPath} --command-timeout-seconds ${CLI_BOUND_SECONDS} -s "sh:echo Infinity" -o "sh:echo -Infinity" -- sleep ${STUCK_CHILD_SLEEP_SECONDS}`,
+            );
+
+            expect(stderr,).toContain(`timed out after ${CLI_BOUND_SECONDS} seconds`,);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'lets a command that finishes inside --command-timeout-seconds succeed',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, markerPath, } = fixtures;
+
+            await execAsync(
+              `node ${cliPath} --command-timeout-seconds ${STUCK_CHILD_SLEEP_SECONDS} -s "sh:echo Infinity" -o "sh:echo -Infinity" -- ${
+                writeMarkerCmd(markerPath,)
+              }`,
+            );
+
+            expect(existsSync(markerPath,),).toBe(true,);
 
             teardown(fixtures,);
           },
