@@ -330,7 +330,7 @@ fn a_leader_that_does_not_end_is_handed_to_a_reaper_after_the_budget() {
     let child: Child = command.spawn().expect("the leader");
     let pid: i32 = i32::try_from(child.id()).expect("a process number");
     let began: Instant = Instant::now();
-    assert!(!reap_within(child, Duration::from_millis(300)), "the leader had not ended");
+    assert!(!run_on_runtime(reap_within(child, Duration::from_millis(300))).expect("the runtime runs the reaping"), "the leader had not ended");
     assert!(began.elapsed() < Duration::from_secs(10), "the reaping gave up after its budget");
     assert!(is_running(pid), "the leader is still there: nothing waited for it");
     // SAFETY: the control ends the process it started.
@@ -343,7 +343,7 @@ fn a_leader_that_does_not_end_is_handed_to_a_reaper_after_the_budget() {
 fn a_leader_that_ends_is_reaped_within_the_budget() {
     let mut command: Command = Command::new("true");
     let child: Child = command.spawn().expect("the leader");
-    assert!(reap_within(child, Duration::from_secs(10)));
+    assert!(run_on_runtime(reap_within(child, Duration::from_secs(10))).expect("the runtime runs the reaping"));
 }
 
 /// A tool that writes more than the snapshot keeps,
@@ -391,7 +391,7 @@ fn a_stopped_tool_is_reaped_through_the_budgeted_reaper_after_its_output_is_rele
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
     let calls = std::cell::Cell::new(0_u32);
     let verdict = std::cell::RefCell::new(String::new());
-    let run: ToolRun = run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: Duration::from_secs(3) }, &|mut leader: Child, captured: &Capture| -> bool {
+    let run: ToolRun = run_on_runtime(run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: Duration::from_secs(3) }, &async |mut leader: Child, captured: &Capture| -> bool {
         calls.set(calls.get() + 1);
         let tool_had_written: bool = written.exists();
         let emptied: bool = captured.snapshot(1024).stdout.is_empty();
@@ -399,7 +399,7 @@ fn a_stopped_tool_is_reaped_through_the_budgeted_reaper_after_its_output_is_rele
         // A leader that does not end is the reaper's to wait for: this one is reaped here.
         let _ended = leader.wait();
         return false;
-    });
+    })).expect("the runtime runs the tool");
     assert_eq!(run.end, ToolEnd::CeilingReached(Duration::from_secs(3)));
     assert_eq!(calls.get(), 1, "the stop path reaps through the reaper it was given");
     assert_eq!(verdict.borrow().as_str(), "written=true emptied=true", "the tool had written, and what it wrote was released before the reaper ran");
@@ -424,16 +424,52 @@ fn a_wait_that_fails_stops_the_tool_and_releases_its_output() {
     WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { *seam.borrow_mut() = Some(written.clone()); });
     let calls = std::cell::Cell::new(0_u32);
     let verdict = std::cell::RefCell::new(String::new());
-    let run: ToolRun = run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: ROOMY }, &|mut leader: Child, captured: &Capture| -> bool {
+    let run: ToolRun = run_on_runtime(run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: ROOMY }, &async |mut leader: Child, captured: &Capture| -> bool {
         calls.set(calls.get() + 1);
         *verdict.borrow_mut() = format!("emptied={}", captured.snapshot(1024).stdout.is_empty());
         let _ended = leader.wait();
         return false;
-    });
+    })).expect("the runtime runs the tool");
     WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { *seam.borrow_mut() = None; });
     let ToolEnd::Failed(text) = &run.end else { panic!("{run:?}") };
     assert!(text.contains("could not be waited for"), "{text}");
     assert_eq!(calls.get(), 1, "the leader goes to the reaper");
     assert_eq!(verdict.borrow().as_str(), "emptied=true", "the output was released");
     remove(&root);
+}
+
+/// The wait for a tool is the runtime's:
+/// a task beside it runs while the tool does,
+/// and the run still reports its end.
+#[test]
+fn the_wait_for_a_running_tool_lets_other_tasks_run() {
+    let root: PathBuf = fixture("runs-wait-beside-a-ticker");
+    let program: PathBuf = root.join("tool");
+    executable(program.as_path(), b"#!/bin/sh\nsleep 0.3\n");
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let (run, ticks): (ToolRun, u32) = crate::ticker_beside_a_wait::with_a_ticker_beside(run_tool_reaping(
+        program.as_path(),
+        &command,
+        ToolLimits { window: GENEROUS, ceiling: GENEROUS },
+        &async |leader: Child, _captured: &Capture| -> bool { return reap_within(leader, Duration::from_secs(1)).await; },
+    ));
+    assert_eq!(run.end, ToolEnd::Succeeded);
+    assert!(ticks > 0, "the wait for the tool held the thread: the task beside it never ran");
+    remove(&root);
+}
+
+/// The reaping of a stopped leader is the runtime's too:
+/// a task beside it runs through the whole budget when the leader does not end.
+#[test]
+fn the_reaping_of_a_leader_that_does_not_end_lets_other_tasks_run() {
+    let mut command: Command = Command::new("sleep");
+    command.arg("30");
+    let child: Child = command.spawn().expect("the leader");
+    let pid: i32 = i32::try_from(child.id()).expect("a process number");
+    let (reaped, ticks): (bool, u32) = crate::ticker_beside_a_wait::with_a_ticker_beside(reap_within(child, Duration::from_millis(300)));
+    assert!(!reaped, "the leader had not ended");
+    assert!(ticks > 0, "the reaping held the thread: the task beside it never ran");
+    // SAFETY: the control ends the process it started.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    assert!(is_gone_soon(pid), "the task the leader was handed to reaped it when it ended");
 }

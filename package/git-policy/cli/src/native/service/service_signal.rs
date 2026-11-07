@@ -258,6 +258,9 @@ pub fn install() {
     {
         NATIVE_DESCRIPTOR.store(descriptor, Ordering::Relaxed);
     }
+    // The stop of the service is an operation of its own: no commit's signal guard in this process takes these handlers or relays a
+    //  stop to the Git child of a commit the service is preparing (owner, 2026-11-07, "Only that operation's children").
+    crate::signal_relay::leave_signals_to_the_service();
     for signal in HANDLED {
         // SAFETY: `on_signal` has the signature a handler needs and only calls functions that are safe in a handler.
         unsafe {

@@ -68,6 +68,9 @@ pub mod bounded_query;
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
 
+/// The stop of a running push and the sweep of the lock files it and what it started leave.
+pub mod stop_of_a_push_and_sweep_of_its_locks;
+
 /// The bytes a push and its processes move,
 /// sampled,
 /// and the clock that stops it on a stall.

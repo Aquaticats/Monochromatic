@@ -6,7 +6,8 @@
   2026-11-07T13:30:00-05:00.
 - Branch and worktree:
   `feat/git-policy-cli-on-tokio` in `.claude/worktrees/wrapper-on-tokio`.
-  Main was last merged into it at `6c0ff76dc9` (the coordinator merged the branch at `48611f7e09`); the coordinator may merge gated checkpoints.
+  Main was last merged into it at `6c0ff76dc9` (the coordinator merged the branch at `48611f7e09`);
+  the coordinator may merge gated checkpoints.
   Main merged into it by fast-forward at `cb0b734efa` (the coordinator had merged the branch at `5e441f25d3`);
   the coordinator may merge gated checkpoints.
 - Plan and the owner's answers:
@@ -72,26 +73,154 @@
   then run the
   `lock:members` task so the release-age and trust policy checks the new versions.
 
+## Where steps T6 onward stand (2026-11-07T15:55:00-05:00)
+
+- Branch `feat/git-policy-cli-tokio-steps-6-onward` in `.claude/worktrees/tokio-steps-6-onward`,
+  created from the frozen tip `9afcac4a26`
+  of `feat/git-policy-cli-on-tokio`;
+  main is not merged into it (the coordinator says when,
+  after the repository-lint branch and the tokio
+  branch are in main;
+  carry edits for `push/child_watch.rs` to its split file).
+- Done:
+  T6 (`start_retry`,
+  `bounded_push`,
+  `bounded_query`,
+  the repair tool's wait and reaper) and T7 (the signal relay on a pidfd,
+  no guard wait,
+  a service's stop not relayed).
+  Details,
+  controls,
+  measurements and gates:
+  the plan,
+  "Steps T6 and T7".
+- Written for the owner:
+  open choice 12 (what a stop of the service does to the Git child of a commit it is preparing),
+  with a ranking.
+- Not started:
+  T10 (the service),
+  T11 (callers),
+  T12 (parallel runner),
+  T13 (removal,
+  lint).
+  T10 follows the owner's answer to choice 4
+  ("Rewrite per-thread state"):
+  the production `thread_local!` items to turn into task-local or context values are in
+  `service/service_busy_step_record_on_this_thread.rs`,
+  `service/service_busy.rs`,
+  `landing/service_durable.rs`,
+  `landing/service_index_*.rs`,
+  `landing/service_built_checks.rs`,
+  `landing/service_land_git_steps_and_import_stream.rs`,
+  `transaction/transaction_git_step_bounds.rs`,
+  `repo_read/repo_read_tree.rs` (an `Rc`),
+  `repo_read/repo_read_odb.rs`,
+  `foundation/private_storage.rs`,
+  `foundation/scoped_start.rs`,
+  `process/pid_namespace.rs`,
+  `worktree/add_timing.rs`,
+  `invocation/panic_notice.rs`;
+  the remaining production `thread::sleep` calls
+  (`landing/service_land_follow.rs`,
+  `landing/service_index_hold.rs`,
+  `landing/service_index_wait.rs`,
+  `landing/service_index_attempts.rs`,
+  `lock/index_holder_wait.rs`,
+  `push/auto_push.rs`,
+  `service/service_client*.rs`,
+  `service/service_server.rs`,
+  `service/service_provision.rs`,
+  `transaction/transaction_git.rs` (`run_git_pausing`),
+  `transaction/transaction_phase.rs`) are T10 and T11 work.
+- The one `thread::sleep` that stays by design is the forwarded command's start pause in `push/start_retry.rs` (`sleep_for`):
+  a forwarded command builds no runtime.
+
+- Merges (2026-11-07):
+  `feat/git-policy-cli-on-tokio` is in main as `6e8521c8fa` (gate 5222 of 5222,
+  container Clippy clean,
+  package lint 0 and 0).
+  T6 and T7 followed it (gate 5229 of 5229,
+  2 slow,
+  container Clippy clean,
+  package lint 0 and 0).
+  No test failed in any of these gates,
+  so there is no failure text to record as open.
+  The lint branch's rules (named closures,
+  the 300 code-line limit) found work in the tokio code at the merge:
+  the closures of `systemd_dbus.rs` and `standards_review_client.rs` are named functions now,
+  the stop and sweep of a push live in
+  `push/stop_of_a_push_and_sweep_of_its_locks.rs`,
+  and `end_with_its_group` lives in `testing/child_ended_with_its_whole_group.rs`.
+- T10 waits for the commit-stall branch (the coordinator,
+  2026-11-07),
+  which changes the same service files.
 ## Open work, in order
 
-- Done since the previous handover (details and figures: the plan, "The coordinator's three settlements after T5", "The two gate failures
-  of main at `85e6d2ab99`", "Step T8" and "Step T9"): the T5 one-shot form on runtime pipes that keep all output, the futex wait of the
-  name claim, the measured `HELD_NAME_WAIT` (60.3 s, because a hold of 6.03 s was seen) and `WATCHER_END_BOUND` (stop grace plus one
-  second), the test-helper fix for the `DirectoryNotEmpty` gate failure, the measured cause of the left ref lock, T8 (`zbus` 6) and T9
-  (`hyper`, `ureq` gone).
-- Not started, in the plan's order: T6 (`start_retry`, `try_wait` loops, `sweep_after_exit`), T7 (the signal relay on a pidfd with the
-  registry of children), T10 (the service), T11 (the callers become `async`, the synchronous bridges go), T12 (the parallel runner),
-  T13 (removal of what nothing uses: the hand wire format `service/systemd_dbus_wire_format.rs` and its fuzz target, the thread helpers,
-  the poll constants; the source guards; `native:perf` with a same-binary control; the mutation campaign). T6 to T12 convert code whose
-  callers are synchronous, so they are in practice T11's leaf-first conversion.
-- Left on purpose by the settlements: the `LeaveRunning` waiter thread and the `Unbounded` blocking `wait` of `output_watched_within`
+- Done since the previous handover (details and figures:
+  the plan,
+  "The coordinator's three settlements after T5",
+  "The two gate failures
+  of main at `85e6d2ab99`",
+  "Step T8" and "Step T9"):
+  the T5 one-shot form on runtime pipes that keep all output,
+  the futex wait of the
+  name claim,
+  the measured `HELD_NAME_WAIT` (60.3 s,
+  because a hold of 6.03 s was seen) and `WATCHER_END_BOUND` (stop grace plus one
+  second),
+  the test-helper fix for the `DirectoryNotEmpty` gate failure,
+  the measured cause of the left ref lock,
+  T8 (`zbus` 6) and T9
+  (`hyper`,
+  `ureq` gone).
+- Not started,
+  in the plan's order:
+  T6 (`start_retry`,
+  `try_wait` loops,
+  `sweep_after_exit`),
+  T7 (the signal relay on a pidfd with the
+  registry of children),
+  T10 (the service),
+  T11 (the callers become `async`,
+  the synchronous bridges go),
+  T12 (the parallel runner),
+  T13 (removal of what nothing uses:
+  the hand wire format `service/systemd_dbus_wire_format.rs` and its fuzz target,
+  the thread helpers,
+  the poll constants;
+  the source guards;
+  `native:perf` with a same-binary control;
+  the mutation campaign).
+  T6 to T12 convert code whose
+  callers are synchronous,
+  so they are in practice T11's leaf-first conversion.
+- Left on purpose by the settlements:
+  the `LeaveRunning` waiter thread and the `Unbounded` blocking `wait` of `output_watched_within`
   (a reaper that does not end the child when dropped is needed first).
-- Settled by the owner, 2026-11-07, "3x worst case" (plan, "The owner's pick on the waits"): `HELD_NAME_WAIT` and the stop's ceiling are three
-  times the longest delay measured (about 18.1 s); a stop waits past its grace while a member is in state `D`. Still open: the cause of the 6.03 s
-  (disk or scheduler) is not measured; the index-lock fallback belongs to another agent.
-- The mutation campaign is the coordinator's. Files changed since the last list: `src/native/process/step_output_read_whole_through_pipes.rs`,
-  `src/native/push/child_watch.rs`, `src/native/foundation/name_held_while_one_thread_publishes_it.rs`, `src/native/foundation/private_storage.rs`,
-  `src/native/service/systemd_dbus.rs`, `src/native/standards_review/standards_review_client.rs`, `src/native/process/stop_waits_while_a_member_cannot_be_interrupted.rs`, `src/native/process/process_tree.rs`, `src/native/push/bounded_push.rs`, `src/native/push/child_watch_clock_marks_and_stopping.rs`, `src/native/foundation/worst_delay_seen_on_this_host.rs` (the test helper
+- Settled by the owner,
+  2026-11-07,
+  "3x worst case" (plan,
+  "The owner's pick on the waits"):
+  `HELD_NAME_WAIT` and the stop's ceiling are three
+  times the longest delay measured (about 18.1 s);
+  a stop waits past its grace while a member is in state `D`.
+  Still open:
+  the cause of the 6.03 s
+  (disk or scheduler) is not measured;
+  the index-lock fallback belongs to another agent.
+- The mutation campaign is the coordinator's.
+  Files changed since the last list:
+  `src/native/process/step_output_read_whole_through_pipes.rs`,
+  `src/native/push/child_watch.rs`,
+  `src/native/foundation/name_held_while_one_thread_publishes_it.rs`,
+  `src/native/foundation/private_storage.rs`,
+  `src/native/service/systemd_dbus.rs`,
+  `src/native/standards_review/standards_review_client.rs`,
+  `src/native/process/stop_waits_while_a_member_cannot_be_interrupted.rs`,
+  `src/native/process/process_tree.rs`,
+  `src/native/push/bounded_push.rs`,
+  `src/native/push/child_watch_clock_marks_and_stopping.rs`,
+  `src/native/foundation/worst_delay_seen_on_this_host.rs` (the test helper
   `src/native/testing/test_support.rs` is not mutated code).
 - T4 is done on Linux (descriptor-limit sweeps landed).
   T5 landed as a task behind an unchanged synchronous face;
