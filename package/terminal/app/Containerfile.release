@@ -45,10 +45,12 @@ RUN arch="$(uname -m)" \
 
 # The toolchain is the one toolchain.lock.json pins (`.tools.rust.version`), so the image builds with what
 # developers and CI build with. The build context is this package directory, not the repository root, so the
-# lock cannot be read at build time: this default is kept in sync with that key, and
-# `--build-arg RUST_TOOLCHAIN=` overrides it. A floating `stable` here gave the IDE image cargo 1.98, which
+# lock cannot be read at build time: the caller reads that key and passes it as
+# `--build-arg RUST_TOOLCHAIN=` (package/test-harness/core-matrix/src/bin/locked-rust-toolchain.ts prints it); an empty value stops the build. A floating `stable` here gave the IDE image cargo 1.98, which
 # rejected manifests the repository's nightly accepts (doc/troubleshooting/cargo-1-98-inherited-default-features.md).
-ARG RUST_TOOLCHAIN=nightly-2026-10-29
+ARG RUST_TOOLCHAIN
+RUN test -n "${RUST_TOOLCHAIN}" \
+    || { echo "RUST_TOOLCHAIN is empty: pass --build-arg RUST_TOOLCHAIN=<tools.rust.version of toolchain.lock.json>" >&2; exit 1; }
 ENV RUSTUP_HOME=/rustup
 RUN curl --proto '=https' --tlsv1.2 --silent --show-error --fail https://sh.rustup.rs \
       | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \

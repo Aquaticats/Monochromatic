@@ -13,7 +13,9 @@
     "task-pnpm": "dist/final/node/pnpm-filter.mjs",
     "task-tsc": "dist/final/node/tsc-filter.mjs",
     "task-playwright-image": "dist/final/node/playwright-image.mjs",
-    "task-mpm-shadow": "dist/final/node/mpm-shadow.mjs"
+    "task-mpm-shadow": "dist/final/node/mpm-shadow.mjs",
+    "task-daily-update": "dist/final/node/daily-update.mjs",
+    "task-daily-update-timer-install": "dist/final/node/daily-update-timer-install.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

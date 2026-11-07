@@ -48,9 +48,11 @@ RUN ln --symbolic "$(command -v x86_64-w64-mingw32-windres)" /usr/local/bin/wind
 # root toolchain.lock.json pins (`.tools.rust.version`, read with `jq --raw-output '.tools.rust.version'
 # toolchain.lock.json`), so the proof builds with what developers and the workflow build with. The image
 # build context is this package directory, not the repository root, so the lock cannot be read at build
-# time: this default is kept in sync with that key, and `--build-arg RUST_TOOLCHAIN=` overrides it.
+# time: the caller reads that key and passes it as `--build-arg RUST_TOOLCHAIN=` (package/test-harness/core-matrix/src/bin/locked-rust-toolchain.ts prints it); an empty value stops the build.
 # The Windows GNU standard library is added as a target; the host stays x86_64-unknown-linux-gnu.
-ARG RUST_TOOLCHAIN=nightly-2026-10-29
+ARG RUST_TOOLCHAIN
+RUN test -n "${RUST_TOOLCHAIN}" \
+    || { echo "RUST_TOOLCHAIN is empty: pass --build-arg RUST_TOOLCHAIN=<tools.rust.version of toolchain.lock.json>" >&2; exit 1; }
 ENV RUSTUP_HOME=/rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
       | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \
