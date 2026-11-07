@@ -12,9 +12,12 @@ import {
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
+import { execFile, } from 'node:child_process';
 import { join, } from 'node:path';
+import { promisify, } from 'node:util';
 import {
   describe,
   expect,
@@ -29,6 +32,31 @@ import {
   runCopyTool,
   writeInventory,
 } from './move-fixture.ts';
+
+/**
+ Specialized promisified `execFile`, typed through Node's own adapter contract.
+ The generic `promisify(execFile)` form trips `strict-void-return`;
+ see `doc/troubleshooting/oxlint-promisify-void-return.md`.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+const execFileAsync = promisifyExecFile(execFile,);
+
+type LinkedFolder = {
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/** Makes a symbolic link to a folder beside it, and removes the link (never the folder) at the end of the scope. */
+async function linkTo(target: string,): Promise<LinkedFolder> {
+  const path = `${target}-link`;
+  await symlink(target, path,);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { force: true, },);
+    },
+  };
+}
 
 async function records(fixture: Fixture,): Promise<string[]> {
   return (await readdir(join(fixture.base, 'state',),)).filter((name,) => name.endsWith('.json',)).toSorted();
@@ -119,6 +147,72 @@ await describe({
             const result = await runCopyTool({ fixture, pass: 'first', },);
             expect(result.status,).toBe(1,);
             expect(result.stderr,).toContain('was replaced',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'one folder spelled in different ways (links, dot-dot, trailing slash)',
+      children: [
+        it({
+          name: 'agrees when the main checkout and the inventory mapping are spelled through a link and Git holds the physical paths',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a', 'b',], },);
+            await using linked = await linkTo(fixture.base,);
+            await writeInventory({ fixture, rows: [['a', 'u-a',], ['b', 'u-b',],], },);
+            const result = await runCopyTool({
+              fixture,
+              pass: 'first',
+              mainPath: join(linked.path, 'main',),
+              inventoryBase: linked.path,
+            },);
+            expect(result.stderr,).toContain('inventory agrees: 2 nested subvolumes',);
+            expect(result.status,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'agrees when only the inventory mapping goes through a link, or the main path has a trailing slash or a dot-dot segment',
+          fn: async () => {
+            const spellings: readonly ((fixture: Fixture, linked: string,) => { mainPath: string; inventoryBase: string; })[] = [
+              (fixture, linked,) => ({ mainPath: fixture.main, inventoryBase: linked, }),
+              (fixture,) => ({ mainPath: `${fixture.main}/`, inventoryBase: fixture.base, }),
+              (fixture,) => ({ mainPath: join(fixture.base, 'main', 'wt', '..',), inventoryBase: fixture.base, }),
+            ];
+            const outcomes = await Promise.all(spellings.map(async (spell,) => {
+              await using fixture = await makeFixture({ names: ['a',], },);
+              await using linked = await linkTo(fixture.base,);
+              await writeInventory({ fixture, rows: [['a', 'u-a',],], },);
+              const result = await runCopyTool({ fixture, pass: 'first', ...spell(fixture, linked.path,), },);
+              return { status: result.status, agrees: result.stderr.includes('inventory agrees: 1 nested subvolumes',), };
+            },),);
+            expect(outcomes,).toEqual(spellings.map(() => ({ status: 0, agrees: true, }),),);
+          },
+        },),
+        it({
+          name: 'agrees when a worktree was registered through a link',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: [], },);
+            await using linked = await linkTo(fixture.base,);
+            await mkdir(join(fixture.main, 'wt',), { recursive: true, },);
+            await execFileAsync('/usr/bin/git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-C', join(linked.path, 'main',), 'worktree', 'add', '--quiet', join(linked.path, 'main', 'wt', 'x',), '-b', 'x',],);
+            await writeFile(join(fixture.main, 'wt', 'x', '.stub-subvolume',), 'u-x\n',);
+            await writeInventory({ fixture, rows: [['x', 'u-x',],], },);
+            const result = await runCopyTool({ fixture, pass: 'first', mainPath: join(linked.path, 'main',), inventoryBase: linked.path, },);
+            expect(result.stderr,).toContain('inventory agrees: 1 nested subvolumes',);
+            expect(result.status,).toBe(0,);
+          },
+        },),
+        it({
+          name: 'a real difference is still refused, naming the canonical path and the spelling it was listed in',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await using linked = await linkTo(fixture.base,);
+            await writeInventory({ fixture, rows: [['a', 'u-a',], ['hidden', 'u-hidden',],], },);
+            const result = await runCopyTool({ fixture, pass: 'first', mainPath: join(linked.path, 'main',), inventoryBase: linked.path, },);
+            expect(result.status,).toBe(1,);
+            expect(result.stderr,).toContain('subvolumes Git does not know',);
+            expect(result.stderr,).toContain(join(fixture.base, 'main', 'wt', 'hidden',),);
+            expect(result.stderr,).toContain(`listed as ${join(linked.path, 'main', 'wt', 'hidden',)}`,);
           },
         },),
       ],

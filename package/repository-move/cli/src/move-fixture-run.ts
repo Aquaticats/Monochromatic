@@ -47,6 +47,10 @@ export const COPY_TOOL: string = new URL(
  
  @param env - further environment, for the double's knobs
  
+ @param mainPath - the main checkout as the caller spells it; the fixture's own folder when absent
+ 
+ @param inventoryBase - the folder the inventory's top-level name maps to, as the caller spells it; the fixture's own folder when absent
+ 
  @returns exit status and both streams
  */
 export async function runCopyTool(
@@ -55,11 +59,15 @@ export async function runCopyTool(
     pass,
     extra = [],
     env = {},
+    mainPath = fixture.main,
+    inventoryBase = fixture.base,
   }: {
     readonly fixture: Fixture;
     readonly pass: string;
     readonly extra?: readonly string[];
     readonly env?: Readonly<Record<string, string>>;
+    readonly mainPath?: string;
+    readonly inventoryBase?: string;
   },
 ): Promise<RunResult> {
   try {
@@ -71,7 +79,7 @@ export async function runCopyTool(
       [
         COPY_TOOL,
         `--pass=${pass}`,
-        `--main=${fixture.main}`,
+        `--main=${mainPath}`,
         `--snapshots=${join(
         fixture.base,
         'snap',
@@ -91,7 +99,7 @@ export async function runCopyTool(
       )}`,
         `--inventory=${fixture.inventory}`,
         `--inventory-main=${INVENTORY_TOP}/main`,
-        `--inventory-prefix=${INVENTORY_TOP}/=${fixture.base}/`,
+        `--inventory-prefix=${INVENTORY_TOP}/=${inventoryBase}/`,
         '--run',
         '--no-scope',
         '--subvolume-marker=.stub-subvolume',
