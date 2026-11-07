@@ -122,6 +122,11 @@ verbatim:
   - Rescan before step 0:
     taken by the coordinator without asking (option A),
     because the measured zero loops describe the tree of `f44d921e24`, not today's `main`.
+  - On text identical to JavaScript output (the job of `text-time-and-log-line-formats` as drafted),
+    verbatim:
+    "\" text identical to JavaScript output\" - that's not needed."
+    So no job keeps byte-identity with JavaScript or the old TypeScript tools as a requirement;
+    a reader of a format that is still in the repository is listed before that format changes.
 
 `AGENTS.md`,
 verbatim:
