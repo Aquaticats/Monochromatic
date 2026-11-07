@@ -3580,7 +3580,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   - fold late lines: red test `ead9d7463c` only (design: read-lease probe for open writers);
   - `core-exec` depends: process-group kill done (`8a19368c49`), lint fixes half done, tip `69ac4ed029` does not
     compile (WIP);
-  - Zig containers: pending its report.
+  - Zig containers `fix/containers-zig-from-lock`: lock-driven Zig and cargo-about (`92d5749e4b`), 0.17.1 shown in
+    every proof image; Zig 0.17.1 broke `libghostty-vt-sys` 0.2.2, fixed forward to a pinned `libghostty-rs` revision
+    (WIP `a92fae96d3`); lint, terminal Clippy and nextest, main merge still open. Found separately: the music-player
+    release build fails on nightly-2026-11-07 in crate `branches` 0.4.6 (`core::intrinsics::abort` gone), and two
+    decision records pin Zig against "always latest" (`ide-releases.md:948`, `desktop-app-podman-build.md:67`; owner
+    approval needed to amend).
 - Commit comment posted on `c5b4559b88` (its message overstates removed timeouts):
   https://github.com/Aquaticats/Monochromatic/commit/c5b4559b88f4582103acc18cd3fe6294aab42734#commitcomment-208645485
 
