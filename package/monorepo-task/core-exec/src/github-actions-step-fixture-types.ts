@@ -126,7 +126,7 @@ export type ArchiveRequest = {
    */
   readonly name: string;
   /**
-   The one folder every member sits in, which `--strip-components=1` removes.
+   The one folder every member sits in, which `--strip-components=1` removes; empty puts the members at the archive's root.
    */
   readonly top: string;
   /**

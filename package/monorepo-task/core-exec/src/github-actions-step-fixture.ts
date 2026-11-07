@@ -236,7 +236,7 @@ export async function createStepFixture(): Promise<StepFixture> {
           path,
           '--directory',
           staging,
-          top,
+          top === '' ? '.' : top,
         ],
         env: { PATH: '/usr/bin:/bin', },
         cwd: root,

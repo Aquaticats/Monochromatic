@@ -124,7 +124,7 @@ if (args[0] === '--version') {
 /**
  Source of the stand-in `cargo-binstall`, packed into the archive the catalog-specifiers lock row points at.
 
- It records its arguments, then installs into the folder after `--root`: with `FAKE_BINSTALL_PROGRAM` set to
+ It records its arguments and whether `GITHUB_TOKEN` reached it (never the value), then installs into the folder after `--root`: with `FAKE_BINSTALL_PROGRAM` set to
  `monochromatic-git-policy-cli` or `cli-git-native` it writes that program (a script that prints one version line) into
  `<root>/bin`; with `FAKE_BINSTALL_EXIT` set it prints a failure and ends with that status instead.
  */
@@ -132,7 +132,10 @@ export const FAKE_BINSTALL_SOURCE: string = `
 const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
-fs.appendFileSync(path.join(process.env.${FAKE_RECORD_DIRECTORY_VARIABLE}, 'binstall-calls.jsonl'), JSON.stringify(args) + '\\n');
+fs.appendFileSync(
+  path.join(process.env.${FAKE_RECORD_DIRECTORY_VARIABLE}, 'binstall-calls.jsonl'),
+  JSON.stringify({ args, tokenPresent: process.env.GITHUB_TOKEN !== undefined }) + '\\n',
+);
 if (process.env.FAKE_BINSTALL_EXIT !== undefined) {
   console.error('cargo-binstall: ERROR Fatal error: fake failure');
   process.exit(Number(process.env.FAKE_BINSTALL_EXIT));
