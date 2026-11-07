@@ -294,11 +294,13 @@ with the final placement but without this redo's named changes it prints 18 uses
 with the first guess of 15 surviving libraries it printed 44 uses in 14 files.
 
 Numbers printed by the final run,
-2026-11-07T02:21:12-05:00,
+2026-11-07T02:37:27-05:00,
 on the scan of `main` at `f44d921e24`:
 
 - crates:
-  9 (8 libraries and the program);
+  9 production crates (8 libraries and the program);
+  the test-folders library has no production file in the table and is a dev-dependency of the others,
+  so its own build is shown at its lift;
   crate loops 0.
 - folders:
   87 (74 in the program);
@@ -341,7 +343,11 @@ A library crate stands on its own only if all of these hold:
 - It builds,
   lints and passes its tests from its own `Cargo.toml` alone
   (the test-folders crate counts only if it passes too).
-- Its name passes the monkey test alone.
+- Its name passes the monkey test alone,
+  or the jargon in it is explained in the top doc of its `lib.rs`
+  (the owner's rule for names,
+  MKY,
+  allows jargon that nothing can replace).
 - It may depend on lower libraries of this split that also pass
   (crates list their dependencies in `Cargo.toml`,
   never in `uses/`),
@@ -355,8 +361,21 @@ weaker).
 
 ### Result
 
-Eight of the 46 libraries pass,
-four with tier-one evidence and four with tier-two evidence.
+Eight of the 46 libraries pass the test on paper,
+against the scan;
+the proof is the lift,
+one library at a time ("How standing alone will be shown").
+Four have tier-one evidence and four tier-two evidence.
+Tier one means a sibling carries its own copy of an operation the library's first paragraph names;
+tier two means no such copy,
+but a sibling whose own job would call the library.
+The two fixed uses of "operation":
+`renameat2` exchange is named in the first paragraph of `linux-file-and-disk-calls`,
+while `time_text.rs` reads RFC 3339 text from a registry and the first paragraph of
+`text-time-and-log-line-formats` names JavaScript's exact output,
+so that one is tier two.
+The owner may regrade;
+the counts follow.
 The fixtures crate passes only in its Git-free half,
 as a ninth library used only by tests.
 The other 38 libraries fold into the program crate as folders with `uses/` links,
@@ -364,14 +383,18 @@ or give some of their files to a passing library.
 The program crate holds 74 folders and 522 files.
 
 How this squares with "I refuse to believe C means splitting into fewer crates":
-the number of crates now follows from the Git-free jobs the repository's other tools can use,
-as the owner asked,
+the number of crates now follows from the owner's two rulings of 2026-11-07,
+which narrow the earlier sentence,
+and from the Git-free jobs the repository's other tools could use
+(the coordinator's evidence bar,
+not the owner's words),
 and not from a target;
 the program crate keeps principle 3 inside itself,
 because each of its folders holds a `uses/` folder of links,
 so fewer crates is not everything in one crate.
-If the owner reads that sentence as still too few,
-open point "Which Git-free jobs become crates" has the wider option.
+The tension with the owner's earlier sentence is not settled by this paragraph:
+the owner decides it,
+and open point "Which Git-free jobs become libraries" has the wider option.
 
 ### The 46 libraries and the fixtures crate, one by one
 
@@ -413,16 +436,26 @@ each with the sibling that could use it:
   (tier two):
   `package/pnpm-shadow/cli` and `package/cargo-shadow/cli` own the pnpm and Cargo state such a repair rewrites.
   Weakest of the eight:
-  no sibling carries a copy or asks for it.
+  no sibling carries a copy or asks for it,
+  and no concrete operation of a sibling that would call it is named yet.
+  A candidate pending evidence;
+  the first to fold if the owner finds none.
 - `dependent-version-bump-check`
   (tier two):
   `package/pnpm-shadow/cli` reads the same workspace of `package.json` files.
-  The coordinator named the pnpm wrapper as the sibling.
+  The coordinator named the pnpm wrapper as the sibling;
+  no concrete call from it is named yet,
+  so this one is also a candidate pending evidence.
   It loses three policy-bound files.
 
 Failing (the other 38 libraries and the fixtures crate),
-in the draft's order,
-each with the reason and what happens to it
+in the draft's order.
+Three kinds of reason appear and each entry says which:
+coupled to Git (fails the owner's ruling),
+no demonstrated user (fails the third point of the test),
+or duplicates a published crate the siblings already use (a rule the coordinator added for this redo,
+separate from the test).
+Each entry gives the reason and what happens to it
 ("folds" means the crate becomes folders of the program crate;
 the folder names are in section "Inside each crate"):
 
@@ -474,9 +507,11 @@ the folder names are in section "Inside each crate"):
   widening it leaves only the arm,
   kill and pause half of `transaction_phase` (a named step read from an environment variable),
   because `service_fault` holds the service's own switches and both hold this wrapper's phase names.
-  The sibling `package/cargo-shadow/cli/src/failpoints.rs` has a different design (armed in process,
+  No user is demonstrated:
+  the sibling `package/cargo-shadow/cli/src/failpoints.rs` arms its points in process,
   once,
-  on one thread).
+  on one thread,
+  and whether it would take an environment-variable mechanism is untested.
   Folds.
 - `durable-work-items`:
   a Git-free file queue,
@@ -629,7 +664,9 @@ and opening and removing files without following links."
 - Joins three files that remove a folder tree below a held parent without following links or crossing mounts
   (`worktree_trash_remove`,
   `subvolume_remove`,
-  `subvolume_remove_walk`).
+  `subvolume_remove_walk`),
+  renamed `removing_a_folder_tree_below_a_held_parent_folder`,
+  `removing_a_folder_tree_after_making_folders_writable` and `emptying_a_held_folder_step_by_step`.
   They use only `fs_beneath`.
   The engine shows no other use.
 - API:
@@ -666,8 +703,11 @@ and ends a program that shows no sign of work."
 - Items that move into it so it needs nothing above:
   `Patience` into the progress file,
   `positive_seconds` into the notice clock,
-  `STOP_GRACE` into the watch clock file,
-  `CONNECTED_PUSH_QUIET_WINDOW` into the progress file with its measurement beside it.
+  `STOP_GRACE` into the watch clock file.
+  The push-specific quiet window (`CONNECTED_PUSH_QUIET_WINDOW`) stays in the program and is passed in
+  (it was the default of `Clock::start`,
+  line 363 of `push_progress`;
+  the watcher's terms carry it).
 - API:
   the watcher takes plain terms (quiet window,
   notice grace,
@@ -731,7 +771,10 @@ and prints tagged debug and warning lines."
 
 README,
 first paragraph:
-"Starts and looks up systemd user units by speaking D-Bus to the user manager directly."
+"Starts and looks up systemd user units by speaking D-Bus to the user manager directly.
+systemd is the Linux program that starts and watches background services;
+a user unit is one such service run for one person;
+D-Bus is the channel the user manager listens on."
 
 - Nothing leaves or joins,
   nothing in its API changes,
@@ -836,7 +879,9 @@ each of the nine is lifted bottom first and shown,
 one at a time:
 
 - It has its own `Cargo.toml` that lists only the libraries named above as `path` dependencies with an exact `=` pin,
-  and `disposable-test-folders` as a dev-dependency.
+  and,
+  for every package except `disposable-test-folders` itself,
+  that library as a dev-dependency.
 - Its README opens with the paragraph above;
   a search of its README,
   public names and `Cargo.toml` for the Git words (`git`,
@@ -846,12 +891,17 @@ one at a time:
   `worktree`,
   `cli-git`,
   `wrapper`,
-  `policy`) finds none.
+  `policy`) finds none,
+  and the public items listed from the build (`cargo doc --no-deps`) are read,
+  not only searched.
+  This holds for the names of option A in open point "Where the libraries live and what they are named";
+  with the draft's `monochromatic-git-policy-<name>` names it fails by construction.
 - Its own tests pass from its own folder with `CARGO_TARGET_DIR` unset,
   through its `mise.toml` tasks,
   in a throwaway copy that holds only that package and its listed dependencies.
   The test output is read for the expected suite and test names (`TRV`).
-- `cargo tree` lists exactly the dependencies of its `Cargo.toml`.
+- `cargo tree --depth 1` lists exactly the dependencies of its `Cargo.toml`,
+  and the full tree is read for anything else that comes in.
 - The owner is told the result for each before the next one is lifted.
 
 ### Jobs found buried in the program
@@ -875,7 +925,8 @@ Each lifts again the day one does:
   uses only the text formats.
 - `sha-1-and-sha-256-digests`:
   one file;
-  replace by `sha2` instead.
+  replace by the `sha2` crate for SHA-256 and a SHA-1 crate for SHA-1 instead
+  (`package/forbidden-strings/cli` already takes both from `gix-hash`).
 - The conversion core of a folder into a btrfs subvolume:
   about ten files of `converting_the_main_checkout`
   (journal,
@@ -1078,7 +1129,8 @@ disposable-test-folders
   because a group is a layer,
   not a job.
 - A few layer crates (the owner's option B and C sketches):
-  rejected by the owner's own words above.
+  not chosen,
+  because a layer is not a reusable unit ("Crates obviously have to be reusable").
 - One crate:
   rejected by the owner ("We should not put everything in one crate.").
 - `process-facts`,
@@ -2517,7 +2569,8 @@ which is why the engine counts no use of the lock file by the watcher.
 - Plain terms for the watcher.
   `WatchTerms::for_class(ChildClass)` and `grace_for(class, ...)` leave `child_watch_clock_marks_and_stopping`;
   the watcher takes a quiet window,
-  a notice grace and the name of the variable that changes the window,
+  a notice grace,
+  the quiet window of a connected transfer and the name of the variable that changes the window,
   and the program's `child_class` builds them from its step classes.
   `child_watch` stops naming `ChildClass`,
   `CHILD_WAIT_VARIABLE` and `OBJECT_STEP_CEILING`;
@@ -2528,7 +2581,6 @@ which is why the engine counts no use of the lock file by the watcher.
   - `STOP_GRACE` to `watch_clock_marks_and_stopping` in `starting-and-watching-programs` (from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) or `longest_waits` in the program folder `how_long_the_program_waits_for_git_steps` (old file `wait_ceilings`)).
   - `Patience` to `measuring_progress_of_a_program_and_what_it_started` in `starting-and-watching-programs` (from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) or `how_long_a_push_may_show_nothing` in the program folder `how_long_the_program_waits_for_git_steps` (old file `push_deadline_and_patience_settings`)).
   - `positive_seconds` to `wait_notice_clock` in `starting-and-watching-programs` (from `pushing_until_it_ends_or_stalls` in the program folder `running_git_push_until_it_ends_or_stalls` (old file `bounded_push`) or `how_long_a_push_may_show_nothing` in the program folder `how_long_the_program_waits_for_git_steps` (old file `push_deadline_and_patience_settings`)).
-  - `CONNECTED_PUSH_QUIET_WINDOW` to `measuring_progress_of_a_program_and_what_it_started` in `starting-and-watching-programs` (from `longest_waits` in the program folder `how_long_the_program_waits_for_git_steps` (old file `wait_ceilings`)).
   - `REPAIR_TOOL_CEILING` to `package_repair_request` in `fix-packages-after-copying-a-folder` (from `longest_waits` in the program folder `how_long_the_program_waits_for_git_steps` (old file `wait_ceilings`)).
   - `environment_value` to `private_scratch_places` in `safe-file-saving` (from `environment_variables_for_git_children` in the program folder `environment_variables_for_git_children` (old file `child_environment`)).
 - Names of the program,
@@ -3269,7 +3321,7 @@ the recommendation is the first option.
     less code of our own to keep correct.
     Cons:
     a code change nobody has authorized,
-    and the Git index code needs SHA-1 as well.
+    and SHA-1 needs a second crate (`sha2` has no SHA-1).
   - B,
     keep the hand-written file as a program folder.
     Pros:
@@ -3447,8 +3499,77 @@ with its folding advice overtaken by the owner's rule of 2026-11-07 (those crate
 
 ## Second review, of the redone split (2026-11-07)
 
-Requested from the cross-vendor reviewer on the section "The crate split" and the stand-alone test;
-the answer had not returned when this version was committed.
+The reviewer was `openai/gpt-6.1-sol` (thinking xhigh),
+given only the owner's words and the section "The crate split" with its stand-alone test,
+with no tools.
+It started at 2026-11-07T02:30:42-05:00 and answered at 2026-11-07T02:36:50-05:00,
+well inside the hour.
+It did not rerun the scanners or read the source.
+Its findings,
+and what was done:
+
+- Two passes (`fix-packages-after-copying-a-folder`,
+  `dependent-version-bump-check`) lack evidence of a concrete call by the named sibling:
+  taken in part.
+  Both are marked candidates pending evidence and are the first to fold;
+  they were not folded because the coordinator named the pnpm wrapper.
+- The digest library was rejected by a criterion the test does not hold:
+  taken.
+  The rule "duplicates a published crate the siblings already use" is now named as the coordinator's addition,
+  separate from the test.
+- The tiers are graded unevenly:
+  taken.
+  The unit is now stated (an operation the library's first paragraph names),
+  and the one case that depends on it (`text-time-and-log-line-formats`) is explained;
+  the owner may regrade.
+- Folded entries mix "no demonstrated user" with "different design":
+  taken.
+  Each failing entry says which of three kinds of reason applies,
+  and the crash-points entry no longer calls the sibling's design a reason.
+- The sentence "as the owner asked" credits the owner with the evidence bar:
+  taken.
+  It now says the bar is the coordinator's.
+- "Fewer crates is not everything in one crate" does not answer "I refuse to believe C means splitting into fewer crates",
+  and "rejected by the owner's own words" overstated the earlier sentences:
+  taken.
+  The tension is stated as the owner's to decide,
+  and the layer-crates entry no longer claims an owner rejection.
+- Crate names of the draft (`monochromatic-git-policy-<name>`) contradict the Git-free check:
+  taken.
+  The check is stated against the names of option A and fails by construction for option B.
+- `CONNECTED_PUSH_QUIET_WINDOW` carries push tuning into a library,
+  and the moved files have no neutral names:
+  taken.
+  The constant stays in the program and is passed in;
+  the engine was rerun (still no use of a program file by a library file,
+  still no loops);
+  the three moved files' new names are given;
+  the public items are listed from the build and read at each lift.
+- The name `talking-to-the-systemd-user-manager` fails the "name alone" gate with unexplained jargon:
+  taken.
+  The test now keeps the owner's exception for jargon explained in the top doc,
+  and the README paragraph explains systemd,
+  user unit and D-Bus.
+- The crate total leaves out the ninth library:
+  taken.
+  The figure is labelled production crates,
+  and the test-folders library's build is shown at its lift.
+- "Pass" overstates what a plan on an old scan shows:
+  taken.
+  The section says "pass the test on paper,
+  against the scan".
+- `sha2` does not replace SHA-1:
+  taken and corrected;
+  a SHA-1 crate is named too.
+- The fixture library would list itself as a dev-dependency,
+  and `cargo tree` shows transitive dependencies:
+  taken,
+  both reworded.
+- Nothing found in the nine README opening paragraphs that mentions Git or the wrapper
+  (the reviewer's only finding of that kind was the naming conflict above).
+  Not acted on:
+  its remark that no folded crate is shown to pass every condition,
+  since none is claimed to.
 
 ## Next
 
