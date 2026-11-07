@@ -368,7 +368,7 @@ await describe({
               caught = error;
             }
             expect(caught).toBeInstanceOf(CargoMutantsToolingError);
-            expect(String((caught as Error).message)).toContain(lockFile);
+            expect((caught as Error).message).toContain(lockFile);
             expect(await liveOwnerOf({
               directory: directory.path,
               prefix: slotClaimPrefix(1),

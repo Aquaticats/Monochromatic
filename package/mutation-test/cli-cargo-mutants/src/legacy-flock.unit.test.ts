@@ -351,7 +351,7 @@ await describe({
               caught = error;
             }
             expect(caught).toBeInstanceOf(CargoMutantsToolingError);
-            expect(String((caught as Error).message)).toContain(path);
+            expect((caught as Error).message).toContain(path);
             expect((await lstat(path)).isFIFO()).toBe(true);
           },
         }),
