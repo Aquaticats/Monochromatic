@@ -1,8 +1,7 @@
 # How much this repository puts on crates.io, and how to put less there
 
-Status: proposal; the owner's answers are pending.
-Nothing here is decided until the owner picks;
-nothing on crates.io, in the toolchain lock or in the publish workflow has been changed for it.
+Status: the install-route move and the one release of each crate are done (2026-11-07, see "Install route: done");
+the other options below stand as the owner answered them above.
 
 ## The owner's question
 
@@ -246,7 +245,30 @@ b beats c because it puts the owner's notice where crates.io users see it.
 Ranking: leave out > keep, because no one outside the repository runs these tests
 and the repository runs them from its own checkout.
 
+## Install route: done (2026-11-07T08:24:40-05:00)
+
+The seven tools moved from the `cargo:` route to the `archive` route right after the one release of each crate,
+as the owner picked ("Right after the release").
+Commit `c048f3a566`; the batch record is `doc/planning/one-release-each-batch-2026-11.md`, "Steps after the batch".
+
+- Plan: each of the seven entries is `"request": "github:Aquaticats/Monochromatic@latest"`, `"route": "archive"` with
+  `options.tagPrefix` `monochromatic-<crate>-v`, the way `mpm-shadow` is.
+  The ids keep their `cargo:` spelling (two workflows read the lock by them).
+  The wrapper's `bins` and link `sourceBin` are `monochromatic-git-policy-cli`.
+  The machine-global plan's wrapper row moved the same way.
+- Lock: a SHA-256 for each Linux archive (`artifacts` was `{}` on the `cargo:` route); each equals the digest GitHub reports
+  for the release asset.
+  Versions: `monochromatic-lint` 0.5.1, `monochromatic-git-policy-cli` 0.6.0, `monochromatic-cargo-shadow` 0.1.4,
+  `monochromatic-pnpm-shadow` 0.1.2, `monochromatic-search-shadow` 0.2.2, `monochromatic-file-enforcer-cli` 0.1.3,
+  `monochromatic-nested-wayland-session` 0.6.3.
+- Measured: `mise run toolchain:install` 31.7 s with 19 tools installed, none compiled; the global install 17.3 s
+  (the global install of the earlier rehearsal took 14 min 34 s because it compiled the wrapper).
+- `postinstall` `link` (wrapper, `cargo-shadow`, `pnpm-shadow`) and `run` (`search-shadow link`) both worked on the
+  `archive` route: `.cache/cli-git-bin/git`, `.cache/cargo-shadow-bin/cargo`, `.cache/pnpm-shadow-bin/pnpm` and the
+  `.cache/search-shadow-bin` links were rebuilt and point at the new launchers and archives.
+- Yank: after the lock moved, the 14 older versions were yanked (not `forbidden-strings`, not `forbidden-regex`).
+  A fresh install of any lock older than `c048f3a566` that names a yanked version now fails.
+
 ## Not verified yet
 
-- That every postinstall form the seven tools use (`link`, and `run` for `search-shadow`) works on the `archive` route;
-  the README documents both for the lock, and `mpm-shadow` itself uses `link`.
+- Nothing of the postinstall forms: both are verified (see "Install route: done").
