@@ -289,8 +289,17 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // execvp(program, args);  // never returns on success; Node has no exec, this is the POSIX call
     // ```
     if will_exec {
-        let mut command: Command = match crate::real_binary::vet(&program).and_then(|vetted| { return vetted.command().map(|started| { return (vetted, started); }); }) {
-            Ok((_vetted, started)) => started,
+        // The vetted program owns the open file that a compiled program is started through (`/proc/self/fd/<n>`): it must stay open
+        // until `exec` has replaced this process, so it is a binding of this block and is not taken apart into the command.
+        let vetted: crate::real_binary::Vetted = match crate::real_binary::vet(&program) {
+            Ok(vetted) => vetted,
+            Err(reason) => {
+                eprintln!("cargo-shadow: {reason}");
+                return EXEC_FAILED_EXIT_CODE;
+            }
+        };
+        let mut command: Command = match vetted.command() {
+            Ok(started) => started,
             Err(reason) => {
                 eprintln!("cargo-shadow: {reason}");
                 return EXEC_FAILED_EXIT_CODE;
