@@ -18,6 +18,34 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: how long may a commit's own signed `git commit` step run? (not asked yet)
+
+Your global config signs every commit,
+so the wrapper builds each commit with a real `git commit` in a scratch repository
+(branch `feat/git-policy-cli-commit-timing-names-every-step`,
+not merged yet).
+That step runs with the terminal attached,
+unwatched and with no ceiling.
+That is why the commit that took 248 s on 2026-11-07 showed no waiting notice.
+Your rule says "nothing should ever wait forever or indefinitely",
+but an editor can legitimately stay open in that step when no message was given.
+The coordinator will add a waiting notice that names the step either way;
+the question is the ceiling.
+- A:
+  when the message came with the command (`-m`,
+  `-F`,
+  `-C`),
+  a ceiling from measured signing times (three times the worst seen);
+  with an editor,
+  no ceiling,
+  only the waiting notice.
+- B:
+  a ceiling in both cases,
+  generous for the editor case.
+- C:
+  no ceiling;
+  the waiting notice only.
+
 ## Open: may the repository's own lint run fail when the closure check skips a package? (not asked yet)
 
 Your decision record says
