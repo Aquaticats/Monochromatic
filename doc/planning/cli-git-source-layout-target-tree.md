@@ -145,6 +145,18 @@ verbatim:
     and the standards-review HTTPS call moves from `ureq` to `hyper`, `hyper-util`, `hyper-rustls` and `http-body-util`
     (all already in `rust-catalog.toml`).
     Which tokio runtime flavour is chosen by measurement inside the wrapper.
+  - Then, on the runtime:
+    picked "Multi-thread, sized to budget"
+    (worker count from the wrapper's existing budget for parallel work),
+    and verbatim:
+    "Full on tokio. Multi-thread."
+    So the wrapper moves to tokio as a whole, not only for D-Bus and HTTPS;
+    the migration plan is `doc/planning/git-policy-cli-full-tokio.md`, and nothing is rewritten before the owner
+    has seen it.
+  - On the toolchain,
+    verbatim:
+    "Rust nightly should always be latest."
+    Moving the lock and keeping it latest: `doc/planning/rust-nightly-always-latest.md`.
 
 `AGENTS.md`,
 verbatim:
