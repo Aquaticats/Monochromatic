@@ -1999,6 +1999,40 @@ Each is a red commit, then a green commit; none is a new owner question.
     `the_end_bound_covers_a_stop_with_its_whole_grace_and_the_longest_tail_measured` (both red before the values changed).
   - What the host load did: nothing was waited for to go quiet; the load average read 15 to 70 during these runs and is part of the figures.
 
+### The two gate failures of main at `85e6d2ab99`, 2026-11-07T11:40:00-05:00
+
+The coordinator's gate under a load average of about 70 failed two controls that passed 5165 of 5165 in `tokio-gate-merge2`
+(log `${HOME}/temp/agent/tokio-mutants-gate.log`). Neither is a T5 regression.
+
+- `push::push_progress::tests::a_write_of_a_process_the_root_started_is_progress` (`DirectoryNotEmpty`): a test-helper defect from before
+  T5. `end()` called `Child::kill`, which signals the leader only; `spawn_owned` ends the child's group only when the test thread's
+  fixtures drop, after `remove()`; the control's background subshell (`(sleep 0.6; echo a >> log; sleep 60) & wait`) outlived `end()`
+  and created `log` while the folder was removed. Any byte moved sets `seen` (the meter counts reads), so the control also stopped
+  before the write. Deterministic reproduction, red `push_progress_tests.rs` `ending_a_child_ends_the_processes_it_started_too` (the
+  subshell writes 0.3 s after it starts; `log` existed after `end()`), then the fix: `testing/test_support.rs` `end_with_its_group`
+  (`killpg`, reap, look until `kill(-group, 0)` says the group is empty) used by `end()`, and the descendant control waits for `log`
+  itself. Other leader-only `kill()` calls in tests were listed (binary service tests kill a service program with no subshell);
+  none of them was changed, and a search for `& wait` in test files found nothing else of this shape.
+- `lock::git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock` (a lock left without its pid file): the stop path of that
+  control is `stop_push` in `push/bounded_push.rs`, which the T5 commits did not touch (`git diff 5e441f25d3 48611f7e09` lists no
+  `bounded_push.rs`), and it uses no runtime, no `ChildWatch` and none of the new files. Evidence for the cause, not a reproduction:
+  Git 2.56's signal handler removes the lock's pid file first and the lock second (`tempfile.c`, `remove_tempfiles`, the list is last
+  registered first; a `strace` of `git update-ref --stdin` told to prepare and sent `SIGTERM` showed `unlink(x~pid.lock)` and then
+  `unlink(x.lock)` 130 microseconds apart), so a `SIGKILL` between the two unlinks leaves exactly the failed state (a 41-byte lock,
+  `pid_file_beside=false`), which the sweep leaves alone because nothing proves its holder gone (`stale_ref_lock_retire.rs`, rule: never
+  remove an unproven lock). The log says the escalation did happen: the sweep that warned ran 12 s after the lock was born, about 8 s
+  after the stop returned, so the killed tree took seconds to be gone, as a process held in a stalled disk call does (this host's
+  metadata calls stalled up to 6.03 s, section c above). A load of 70 on the gate's few CPUs is the trigger; the cause is the escalation
+  at the end of the grace cutting a handler that the host had not let finish. Not reproduced deterministically: the stall cannot be
+  made on demand (an injected delay in `strace` is a ptrace stop, which is not an uninterruptible call, so it would test the
+  injection, not the stall). The control's grace for a responsive holder is now twice the longest stall seen (`RESPONSIVE_GRACE`,
+  `git_stop_lock_tests.rs`); a responsive holder ends at once, so the longer grace costs nothing when it works.
+  Exposure that remains in production, for the coordinator and the owner, not fixed here: `STOP_GRACE` is five seconds, below the
+  measured 6.03 s stall, so the same cut can leave a ref lock that the next Git command must name, which weighs against "Commits
+  should never fail." A fix that stays inside the rules would not escalate to `SIGKILL` while a member of the tree is in an
+  uninterruptible call (state `D` in `/proc/<pid>/stat`, where `SIGKILL` cannot end it anyway and only cuts what follows), bounded
+  by a further wait; it needs a decision on that bound, and a way to test it, which the injection above does not give.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`, the `try_wait` loops of
