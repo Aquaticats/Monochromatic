@@ -301,7 +301,8 @@ export type SampleEdits = {
    then names them with the edited ones; absent means none
 
  @param changeRules - whether each sample first appends a comment line to the repository's optional local rules file
-   (`forbidden-strings.append.local.txt`), so the commit meets rules text whose compiled form is in no cache
+   (`forbidden-strings.append.local.txt`), so a commit in a repository whose configuration names that file meets rules text whose
+   compiled form is in no cache (the default thirty-file fixture has no configuration, so the option changes nothing there)
 
  @param root - scratch root that holds `bin` and `home`, which staging runs in
 

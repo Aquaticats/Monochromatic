@@ -3,7 +3,8 @@
 //! so the client that scans a commit finds them compiled.
 //! Why:
 //!  The client compiles the rules in the prepare phase of a commit when the cache holds no compiled form of their text:
-//! 1.7 s of processor time on a quiet host and about 20 s on the first commit of a fresh cache under load
+//! between 1.2 s and 1.3 s as measured on 2026-11-07 under the host's load at the time,
+//! and about 20 s on the first commit of a fresh cache under heavier load
 //! (`forbidden_regex::parallel::build_rules`,
 //! sampled on 2026-11-07).
 //! The cache is shared by every worktree and keyed by the joined text of the rules files,

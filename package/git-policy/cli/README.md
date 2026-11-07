@@ -2746,7 +2746,8 @@ this waits for the service's hold for up to `SERVICE_HOLD_CEILING`, then runs an
 The forbidden-strings rules are compiled once per text of the rules files and kept in a cache shared by every worktree
 (`~/.cache/forbidden-strings/v<version>/<platform>/<digest of the rules text>/rules.bin`).
 A commit that finds no compiled form compiles the rules itself in its prepare phase,
-about 1.3 s on a quiet host and about 20 s on the first commit of a fresh cache under load.
+between 1.2 s and 1.3 s as measured on 2026-11-07 under the host's load at the time,
+and about 20 s on the first commit of a fresh cache under heavier load.
 The commit service therefore compiles them on its own time,
 on the blocking pool and never on the landing thread:
 
@@ -3221,8 +3222,9 @@ mise run //package/git-policy/cli:native:test:container
   refreshes its index and gives it the tracked file `README.md` to edit;
   `--files <count>` edits and commits that many tracked text files by name in every sample (the size of the commit;
   one by default),
-  `--change-rules` appends a comment line to the optional local rules file before every sample,
-  so the commit meets rules text with no compiled form in the cache,
+  `--change-rules` appends a comment line to `forbidden-strings.append.local.txt` before every sample,
+  so a `--shape` repository whose configuration names that file (this repository's does) meets rules text with no compiled form in the cache;
+  it changes nothing a commit reads in a fixture whose configuration does not name the file,
   `--new-files <count>` also creates that many new files per sample and stages them with `git add` before the commit names them (staged additions),
   `--hooks-from <git directory>` copies that repository's policy hooks,
   `--tool <path>` puts an executable such as `git-lfs`
