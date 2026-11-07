@@ -33,6 +33,10 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   childFailureOf,
   createGuidedConfig,
+  FIXTURE_COPY_SETS_KEPT,
+  FIXTURE_GUARD_MIN_GIB,
+  FIXTURE_MAIN_DATA_MIB,
+  FIXTURE_SUBVOLUME_COUNT,
   cutoverStages,
   execFileAsync,
   footprintOf,
@@ -635,6 +639,29 @@ await describe({
               for (const { stage: s, command, } of await withCommands({ stages, config, },)) {
                 const texts = [command, s.check ?? '', s.rollback ?? '',].join('\n',);
                 expect([s.id, texts.includes('/x/snap',),],).toEqual([s.id, false,],);
+              }
+            },);
+          },
+        },),
+        it({
+          name: 'the fixture images are sized from what the fixture stages write, and every stage that guards free space uses the one guard minimum',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await prepareStages({ c: config, fixtureFolder: '/x', },);
+              const images = stages.find((s,) => s.id === 'f1-images',) as Stage;
+              const sizes = [...images.command.matchAll(/truncate --size=(\d+)G/g,),].map((match,) => Number(match[1],),);
+              const bytesWrittenMiB = FIXTURE_MAIN_DATA_MIB * FIXTURE_SUBVOLUME_COUNT * FIXTURE_COPY_SETS_KEPT;
+              const mibPerGib = 1_024;
+              expect(sizes.length,).toBeGreaterThan(0,);
+              for (const size of sizes) {
+                expect(size * mibPerGib,).toBeGreaterThanOrEqual(bytesWrittenMiB + (FIXTURE_GUARD_MIN_GIB * mibPerGib),);
+              }
+              const populate = stages.find((s,) => s.id === 'f2-populate',) as Stage;
+              expect(populate.command,).toContain(`head --bytes=${String(FIXTURE_MAIN_DATA_MIB,)}M`,);
+              const guards = stages.flatMap((s,) => [...(s.command ?? '').matchAll(/--min-free-gib=(\d+)/g,),].map((match,) => Number(match[1],),),);
+              expect(guards.length,).toBeGreaterThan(0,);
+              for (const guard of guards.filter((value,) => value !== config.minFreeGiB,)) {
+                expect(guard,).toBe(FIXTURE_GUARD_MIN_GIB,);
               }
             },);
           },

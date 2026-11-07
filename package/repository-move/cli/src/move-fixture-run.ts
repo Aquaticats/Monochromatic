@@ -48,6 +48,8 @@ export const COPY_TOOL: string = new URL(
  
  @param run - false for print mode, which shows every command and runs none; true by default
  
+ @param minFreeGiB - the free space the received folder's filesystem must keep before each copy; zero (no guard) by default
+ 
  @param snapshotFolder - the snapshot folder; the fixture's own `snap` folder when absent
  
  @param receivedFolder - the received folder; the fixture's own `recv` folder when absent
@@ -70,6 +72,7 @@ export async function runCopyTool(
     extra = [],
     env = {},
     run = true,
+    minFreeGiB = 0,
     mainPath = fixture.main,
     inventoryBase = fixture.base,
     snapshotFolder = join(
@@ -86,6 +89,7 @@ export async function runCopyTool(
     readonly extra?: readonly string[];
     readonly env?: Readonly<Record<string, string>>;
     readonly run?: boolean;
+    readonly minFreeGiB?: number;
     readonly mainPath?: string;
     readonly inventoryBase?: string;
     readonly snapshotFolder?: string;
@@ -119,7 +123,7 @@ export async function runCopyTool(
         ...(run ? ['--run',] : []),
         '--no-scope',
         '--subvolume-marker=.stub-subvolume',
-        '--min-free-gib=0',
+        `--min-free-gib=${String(minFreeGiB,)}`,
         ...extra,
       ],
       {

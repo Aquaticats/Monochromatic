@@ -152,6 +152,17 @@ await describe({
           },
         },),
         it({
+          name: 'the free-space stop names the folder whose filesystem it measured, not the 860',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            const received = join(fixture.base, 'recv',);
+            const result = await runCopyTool({ fixture, pass: 'first', minFreeGiB: 999_999_999, },);
+            expect(result.status,).not.toBe(0,);
+            expect(result.stderr,).toContain(`the filesystem that holds ${received} has under 999999999 GiB free before`,);
+            expect(result.stderr,).not.toContain('the 860',);
+          },
+        },),
+        it({
           name: 'stops when a received copy is not read-only',
           fn: async () => {
             await using fixture = await makeFixture({ names: ['a',], },);
