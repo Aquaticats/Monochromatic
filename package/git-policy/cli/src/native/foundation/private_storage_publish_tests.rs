@@ -96,3 +96,17 @@ fn only_a_real_removal_failure_is_reported() {
         .expect("a permission failure is reported");
     assert!(report.contains("/records/.record.partial"), "the report names the staging file: {report}");
 }
+
+/// The owner's rulings of 2026-11-07 ("safe-file-saving shouldn't be something we own at all", and the answer "Keep the
+///  fallback (Recommended)" on a filesystem that has neither `renameat2` with `RENAME_NOREPLACE` nor hard links) put the exclusive
+///  publish in the `tempfile` crate (`persist_noclobber`); the module keeps only the checked rename for that one case, so it holds
+///  no hard link of its own and builds no staging name of its own.
+#[test]
+fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
+    let source: &str = include_str!("private_storage.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    assert!(code.contains("persist_noclobber"), "private_storage.rs does not publish through `persist_noclobber`");
+    for needle in ["hard_link", "random_uuid", "fn staging_path"] {
+        assert!(!code.contains(needle), "private_storage.rs still holds `{needle}`: the publish belongs to the tempfile crate");
+    }
+}
