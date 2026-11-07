@@ -10,7 +10,7 @@ use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME};
 use super::fixtures::sample_lock;
 use super::layout::{
     applies_to_family, bin_search_dirs, find_bin_under, find_tool_bin, install_dir_name, is_executable,
-    manager_native_bin_dirs, platform_id, tool_directory, tool_install_dir,
+    manager_native_bin_dirs, physical_pnpm_home, platform_id, tool_directory, tool_install_dir,
 };
 use super::model::{LockedTool, OsFamily};
 use super::scope::{
@@ -155,6 +155,40 @@ fn manager_directories_follow_the_environment() {
     assert_eq!(dirs[3], PathBuf::from("/uv"));
     assert_eq!(dirs[4], PathBuf::from("/pnpm/bin"));
     assert_eq!(dirs[5], PathBuf::from("/npm/bin"));
+}
+
+#[cfg(unix)]
+#[test]
+fn the_physical_pnpm_home_resolves_the_longest_existing_ancestor_and_keeps_the_rest() {
+    let directory = scratch();
+    let physical = directory.path().join("physical");
+    fs::create_dir_all(physical.join("share")).expect("make the physical directories");
+    let link = directory.path().join("link");
+    std::os::unix::fs::symlink(&physical, &link).expect("link");
+    let canonical = fs::canonicalize(&physical).expect("exists");
+
+    let existing = EnvMap::from_pairs(&[("HOME", "/h"), ("PNPM_HOME", link.join("share").to_str().expect("utf-8"))]);
+    assert_eq!(physical_pnpm_home(&existing, Path::new("/h")), canonical.join("share"), "an existing home resolves through the link");
+
+    let missing = EnvMap::from_pairs(&[("HOME", "/h"), ("PNPM_HOME", link.join("share").join("pnpm").join("deeper").to_str().expect("utf-8"))]);
+    assert_eq!(
+        physical_pnpm_home(&missing, Path::new("/h")),
+        canonical.join("share").join("pnpm").join("deeper"),
+        "the part that does not exist yet follows the resolved ancestor in its original order"
+    );
+
+    let default_home = EnvMap::from_pairs(&[]);
+    assert_eq!(
+        physical_pnpm_home(&default_home, &link),
+        canonical.join(".local").join("share").join("pnpm"),
+        "without PNPM_HOME the default under the home is resolved the same way"
+    );
+}
+
+#[test]
+fn a_pnpm_home_with_no_existing_ancestor_keeps_its_spelling() {
+    let env = EnvMap::from_pairs(&[("HOME", "/h"), ("PNPM_HOME", "no-such-relative-directory/pnpm")]);
+    assert_eq!(physical_pnpm_home(&env, Path::new("/h")), PathBuf::from("no-such-relative-directory/pnpm"));
 }
 
 #[test]

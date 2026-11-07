@@ -32,7 +32,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 /// Imports `manager_native_bin_dirs` from `super::layout`.
-use super::layout::manager_native_bin_dirs;
+use super::layout::{manager_native_bin_dirs, physical_pnpm_home};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
 
@@ -230,5 +230,33 @@ pub fn toolchain_path_env(scope: &Scope, env: &EnvMap) -> BTreeMap<String, Strin
         Err(_) => env.get("PATH").unwrap_or("").to_string(),
     };
     merged.insert("PATH".to_string(), joined);
+    return merged;
+}
+
+/// What:
+/// The environment `pnpm` runs with:
+/// the toolchain environment with `PNPM_HOME` set to the physical spelling of the pnpm home,
+/// and that home's `bin` directory first on `PATH` in the same spelling.
+/// Why:
+/// pnpm links a global package relative to the spelling of its home,
+/// so a home reached through a symbolic link makes `pnpm add --global` write links `pnpm list --global` cannot read,
+/// and pnpm refuses a global bin directory that `PATH` holds in another spelling than `PNPM_HOME`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function pnpmEnv(scope: Scope, env: EnvMap): Record<string, string>
+/// ```
+pub fn pnpm_env(scope: &Scope, env: &EnvMap) -> BTreeMap<String, String> {
+    let mut merged: BTreeMap<String, String> = toolchain_path_env(scope, env);
+    let physical_home: PathBuf = physical_pnpm_home(env, &scope.home);
+    let mut directories: Vec<PathBuf> = vec![physical_home.join("bin")];
+    if let Some(existing) = merged.get("PATH") {
+        directories.extend(std::env::split_paths(existing));
+    }
+    // A directory name holding the separator cannot be joined; the toolchain PATH then stands as it was.
+    if let Ok(path) = std::env::join_paths(&directories) {
+        merged.insert("PATH".to_string(), path.to_string_lossy().to_string());
+    }
+    merged.insert("PNPM_HOME".to_string(), physical_home.to_string_lossy().to_string());
     return merged;
 }

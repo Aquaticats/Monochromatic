@@ -71,7 +71,7 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
     let request: RunRequest = RunRequest {
         command: pnpm.to_string_lossy().to_string(),
         args,
-        env: Some(ctx.path_env()),
+        env: Some(ctx.pnpm_env()),
         cwd: None,
     };
     run_checked(ctx, &request, "pnpm add --global", &tool.declaration.id)?;
