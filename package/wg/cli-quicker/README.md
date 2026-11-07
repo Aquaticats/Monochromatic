@@ -32,29 +32,51 @@ such as `resolvectl dns <name>` and `wg show <name>`.
 `WG_QUICKER_RUNTIME_DIRECTORY` does not cross `sudo` into the root run,
 so the caller cannot choose that directory for it;
 a disposable fixture sets the variable inside the root command.
-The state file is still not trusted, because whoever can write the directory can write the file:
+The state file is still not trusted,
+because whoever can write the directory can write the file:
 the name in it must pass the same rule,
 and a state file with another name is refused.
-The routes in it are deleted as root, and `ip` reads a keyword by any prefix and lets a later one overwrite an earlier one,
+The routes in it are deleted as root,
+and `ip` reads a keyword by any prefix and lets a later one overwrite an earlier one,
 so each route must match the grammar the route writers use and nothing else:
-`default` or `unreachable default`, then `via <address>`, `dev <name>`, `onlink` and `metric <number>`,
-and `table <claimed table>` and `proto 201`, each at most once and in that one spelling.
+`default` or `unreachable default`,
+then `via <address>`,
+`dev <name>`,
+`onlink` and `metric <number>`,
+and `table <claimed table>` and `proto 201`,
+each at most once and in that one spelling.
 The claimed table must be at least the first table the allocator hands out (52000).
 A route copied by an earlier version with a preferred source or a router preference is read with those dropped;
 any other route is refused.
 The bypass table copies only those attributes of a physical default route.
-It drops `src`, `pref`, `scope`, `mtu`, `hoplimit`, `advmss`, `linkdown` and `dead`.
+It drops `src`,
+`pref`,
+`scope`,
+`mtu`,
+`hoplimit`,
+`advmss`,
+`linkdown` and `dead`.
 That is not free:
-an IPv6 default with `pref high` or `pref low` is copied as `medium`, and the kernel ranks IPv6 defaults of the same metric by it;
-a marked socket that is not bound to an address, on an interface with several addresses,
-gets the interface's primary source address, not the preferred source the physical route named;
+an IPv6 default with `pref high` or `pref low` is copied as `medium`,
+and the kernel ranks IPv6 defaults of the same metric by it;
+a marked socket that is not bound to an address,
+on an interface with several addresses,
+gets the interface's primary source address,
+not the preferred source the physical route named;
 and the copy does not carry the path's MTU or hop limit.
-A physical default route that carries any other attribute (for example `features ecn`, `initcwnd`, `realm`, `tos`, `nhid` or `nexthop`)
+A physical default route that carries any other attribute (for example `features ecn`,
+`initcwnd`,
+`realm`,
+`tos`,
+`nhid` or `nexthop`)
 is outside the grammar and the dropped set.
 It stops the application bypass with a `BypassRouteError` that names the route,
-before any state changes: `up` installs nothing, and the route watcher leaves the bypass table as it is.
+before any state changes:
+`up` installs nothing,
+and the route watcher leaves the bypass table as it is.
 It fails closed.
-A state file written by an older build that holds such a form fails to parse, and the error names the state file.
+A state file written by an older build that holds such a form fails to parse,
+and the error names the state file.
 The other places that read a name back do not trust it either:
 the OpenSnitch state compares the name it holds with the one asked for and refuses a difference,
 and every other name comes from the config,
@@ -643,7 +665,8 @@ and adds no rule of its own:
   and so is a packet from an update host that starts a flow,
   so neither passes any more.
   Two forged packets from a guest can still make a "reply" in the tracker:
-  one that opens a flow towards the update host's address, and one that carries that address as its source.
+  one that opens a flow towards the update host's address,
+  and one that carries that address as its source.
   The reply rules therefore also match `iifname` of the physical default interfaces of their address family,
   where a real reply arrives and a guest's packet does not.
   The interfaces are the `dev` of the routes that the bypass table copies from the main table,
