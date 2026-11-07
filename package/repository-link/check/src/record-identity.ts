@@ -25,11 +25,19 @@ import type {
   LinkPhase,
   Probe,
 } from './link-types.ts';
+import { errorCodeOf, } from './error-code-of.ts';
+
+/**
+ Specialized promisified `execFile`, typed through Node's own adapter contract.
+ The generic `promisify(execFile)` form trips `strict-void-return`;
+ see `doc/troubleshooting/oxlint-promisify-void-return.md`.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
 
 /**
  Runs a program and waits for it to end.
  */
-const execFileAsync = promisify(execFile,);
+const execFileAsync = promisifyExecFile(execFile,);
 
 /**
  Git's own program, never the repository's wrapper.
@@ -44,6 +52,7 @@ export class RecordIdentityError extends Error {
    Creates the error.
 
    @param message - what was refused
+
    @param options - the error options, for a cause
    */
   public constructor(
@@ -151,7 +160,7 @@ async function writeMarker(
     if (error instanceof RecordIdentityError) {
       throw error;
     }
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+    if (errorCodeOf(error,) !== 'ENOENT') {
       throw error;
     }
     await writeFile(
@@ -274,6 +283,13 @@ async function identityAfter(
  @returns the identity written and the check's answer for it
  
  @throws RecordIdentityError when the current state does not fit the phase
+
+ @example
+ ```ts
+ import { recordIdentity, } from '\@monochromatic-dev/repository-link-check';
+ 
+ const result = await recordIdentity({ phase, identityFile, linkPath, mountPoint, probe, },);
+ ```
  */
 export async function recordIdentity(
   {

@@ -22,6 +22,7 @@ import {
   STATE_FOLDER_MODE,
 } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
+import { requireSharedFilesystems, } from './filesystem-preflight.ts';
 import { requireFrozen, } from './freeze-pass.ts';
 import type { Subvolume, } from './inventory.ts';
 import type { MoveOptions, } from './move-options.ts';
@@ -46,6 +47,13 @@ import {
  @param subvolumes - main first, then nested
  
  @throws MoveStopError when any step stops the run
+
+ @example
+ ```ts
+ import { runCopyPass, } from './copy-pass.ts';
+ 
+ await runCopyPass({ options, runner, subvolumes, },);
+ ```
  */
 export async function runCopyPass(
   {
@@ -62,6 +70,10 @@ export async function runCopyPass(
    The is final of this step.
    */
   const isFinal = options.pass === 'final';
+  await requireSharedFilesystems({
+    options,
+    subvolumes,
+  },);
   /**
    The prefix of this step.
    */

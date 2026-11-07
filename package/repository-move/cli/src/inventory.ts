@@ -18,6 +18,7 @@ import {
   MISSING_PATH_CODE,
   pathExists,
 } from './completion-records.ts';
+import { canonicalOptions, canonicalPath, } from './canonical-path.ts';
 import { SUBVOLUME_ROOT_INODE, } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
 import type { MoveOptions, } from './move-options.ts';
@@ -56,15 +57,47 @@ const UUID_LABEL = ' uuid ';
 const PATH_LABEL = ' path ';
 
 /**
- Lists the worktrees Git registers below the main checkout.
+ A folder named in its canonical spelling, with the spelling the other side gave it when that differs.
+ */
+export type SpelledPath = {
+  readonly canonical: string;
+  readonly given: string;
+};
 
- @param mainPath - the main checkout
+/**
+ Names a folder for a person: the canonical path, plus the spelling it was given in when that is a different text.
+
+ @param spelled - the folder in both spellings
  
- @returns absolute paths, in Git's order
+ @param label - what the other spelling is called (`registered as`, `listed as`)
+ 
+ @returns the text to print
+ */
+function describeSpelled(
+  {
+    spelled,
+    label,
+  }: {
+    readonly spelled: SpelledPath;
+    readonly label: string;
+  },
+): string {
+  return spelled.canonical === spelled.given ? spelled.canonical : `${spelled.canonical} (${label} ${spelled.given})`;
+}
+
+/**
+ Lists the worktrees Git registers below the main checkout, each in its canonical spelling beside the one Git printed.
+
+ Git records a worktree by its resolved path, while the caller may name the main checkout through a link, so both sides
+ are resolved before they are compared.
+
+ @param mainPath - the main checkout, in any spelling
+ 
+ @returns the worktrees in Git's order
  
  @throws MoveStopError when Git cannot list them
  */
-export async function listRegisteredWorktrees(mainPath: string,): Promise<readonly string[]> {
+export async function listRegisteredWorktreeSpellings(mainPath: string,): Promise<readonly SpelledPath[]> {
   try {
     /**
      The output of the listing command.
@@ -81,17 +114,32 @@ export async function listRegisteredWorktrees(mainPath: string,): Promise<readon
       ],
       { encoding: 'utf8', },
     );
-    return listing.stdout
+    /**
+     The main checkout in its canonical spelling.
+     */
+    const canonicalMain = await canonicalPath(mainPath,);
+    /**
+     The worktrees as Git printed them, each with its canonical spelling.
+     */
+    const spelled = await Promise.all(listing.stdout
       .split('\n',)
       .filter(function isWorktreeLine(line,) {
         return line.startsWith('worktree ',);
       },)
-      .map(function stripLabel(line,) {
-        return line.slice('worktree '.length,);
-      },)
-      .filter(function isBelowMain(path,) {
-        return path.startsWith(`${mainPath}/`,);
-      },);
+      .map(async function spell(line,): Promise<SpelledPath> {
+        /**
+         The path as Git printed it.
+         */
+        const given = line.slice('worktree '.length,);
+        return {
+          canonical: await canonicalPath(given,),
+          given,
+        };
+      },),);
+    return spelled.filter(function isBelowMain(entry,) {
+      return entry.canonical
+        .startsWith(`${canonicalMain}/`,);
+    },);
   }
   catch (error) {
     throw new MoveStopError(
@@ -99,6 +147,21 @@ export async function listRegisteredWorktrees(mainPath: string,): Promise<readon
       { cause: error, },
     );
   }
+}
+
+/**
+ Lists the worktrees Git registers below the main checkout.
+
+ @param mainPath - the main checkout, in any spelling
+ 
+ @returns absolute canonical paths, in Git's order
+ 
+ @throws MoveStopError when Git cannot list them
+ */
+export async function listRegisteredWorktrees(mainPath: string,): Promise<readonly string[]> {
+  return (await listRegisteredWorktreeSpellings(mainPath,)).map(function canonicalOf(entry,) {
+    return entry.canonical;
+  },);
 }
 
 /**
@@ -391,7 +454,7 @@ export function parseInventory(
  */
 export async function reconcileInventory(
   {
-    options,
+    options: givenOptions,
     log,
   }: {
     readonly options: MoveOptions;
@@ -399,44 +462,51 @@ export async function reconcileInventory(
   },
 ): Promise<readonly Subvolume[]> {
   /**
-   The worktrees of this step.
+   The options with the folders the move compares in their canonical spelling.
    */
-  const worktrees = await listRegisteredWorktrees(options.mainPath,);
+  const canonical = await canonicalOptions(givenOptions,);
+  /**
+   The worktrees of this step, each in both spellings.
+   */
+  const worktrees = await listRegisteredWorktreeSpellings(canonical.mainPath,);
   /**
    The subvolume flags of this step.
    */
-  const subvolumeFlags = await Promise.all(worktrees.map(async function check(path,) {
+  const subvolumeFlags = await Promise.all(worktrees.map(async function check(entry,) {
     return await isSubvolume({
-      path,
-      marker: options.subvolumeMarker,
+      path: entry.canonical,
+      marker: canonical.subvolumeMarker,
     },);
   },),);
   /**
-   The registered of this step.
+   The registered of this step, in canonical spelling.
    */
   const registered = worktrees.filter(function keepSubvolume(
-    _path,
+    _entry,
     index,
   ) {
     return subvolumeFlags[index] === true;
   },)
+    .map(function canonicalOf(entry,) {
+      return entry.canonical;
+    },)
     .toSorted();
   /**
    The limited of this step.
    */
   const limited = registered.slice(
     0,
-    options.limit,
+    canonical.limit,
   );
-  if (options.inventoryFile === '') {
-    if (options.run) {
+  if (canonical.inventoryFile === '') {
+    if (canonical.run) {
       throw new MoveStopError(
         '--run needs --inventory (root: btrfs subvolume list -u of the whole filesystem), because every record is keyed by UUID',
       );
     }
     return [
       {
-        path: options.mainPath,
+        path: canonical.mainPath,
         uuid: UNKNOWN_UUID,
       },
       ...limited.map(function unknown(path,) {
@@ -455,10 +525,10 @@ export async function reconcileInventory(
     nested,
   } = parseInventory({
     text: await readFile(
-      options.inventoryFile,
+      canonical.inventoryFile,
       'utf8',
     ),
-    options,
+    options: canonical,
   },);
   /**
    The listed paths of this step.
@@ -479,20 +549,61 @@ export async function reconcileInventory(
     return !listedPaths.includes(path,);
   },);
   if ((unknownToGit.length > 0) || (notSubvolumes.length > 0)) {
+    /**
+     The inventory rows as the caller's mapping spells them, by canonical path.
+     */
+    const listedAs = new Map(parseInventory({
+      text: await readFile(
+        givenOptions.inventoryFile,
+        'utf8',
+      ),
+      options: givenOptions,
+    },).nested.map(function entryOf(row,): readonly [string, string,] {
+      return [
+        row.path.replace(givenOptions.inventoryPrefixTo, canonical.inventoryPrefixTo,),
+        row.path,
+      ];
+    },),);
+    /**
+     The registered worktrees by canonical path.
+     */
+    const registeredAs = new Map(worktrees.map(function entryOf(entry,): readonly [string, string,] {
+      return [entry.canonical, entry.given,];
+    },),);
     throw new MoveStopError(
-      `inventory differs from the Git registry; subvolumes Git does not know: ${unknownToGit.join(' ',) || 'none'}; `
+      `inventory differs from the Git registry; subvolumes Git does not know: ${
+        unknownToGit.map(function describe(path,) {
+          return describeSpelled({
+            spelled: {
+              canonical: path,
+              given: listedAs.get(path,) ?? path,
+            },
+            label: 'listed as',
+          },);
+        },)
+          .join(' ',) || 'none'
+      }; `
         + `registered but not subvolumes: ${
-          notSubvolumes.join(' ',) || 'none'
+          notSubvolumes.map(function describe(path,) {
+            return describeSpelled({
+              spelled: {
+                canonical: path,
+                given: registeredAs.get(path,) ?? path,
+              },
+              label: 'registered as',
+            },);
+          },)
+            .join(' ',) || 'none'
         }. Give each an owner-approved disposition first.`,
     );
   }
   if (main.path === '') {
-    throw new MoveStopError(`the inventory has no row for the main checkout at ${options.inventoryMain}`,);
+    throw new MoveStopError(`the inventory has no row for the main checkout at ${canonical.inventoryMain}`,);
   }
   log(`inventory agrees: ${String(nested.length,)} nested subvolumes`,);
   return [
     {
-      path: options.mainPath,
+      path: canonical.mainPath,
       uuid: main.uuid,
     },
     ...nested.filter(function isCovered(row,) {
