@@ -228,6 +228,14 @@ export function sessionEnvironment(
 }
 
 /**
+ One variable of the unit's environment as `Object.entries` gives it: the name, then the value.
+ */
+type EnvironmentEntry = readonly [
+  name: string,
+  value: string,
+];
+
+/**
  Builds the `systemd-run` argument vector that starts the compositor with the app inside a transient user unit whose
  output goes to the session log.
  
@@ -286,7 +294,7 @@ export function systemdRunArguments(
     `--property=StandardOutput=append:${logPath}`,
     `--property=StandardError=append:${logPath}`,
     ...Object.entries(environment,)
-      .map(function setenv([key, value,],): string {
+      .map(function setenv([key, value,]: EnvironmentEntry,): string {
         return `--setenv=${key}=${value}`;
       },),
     compositorPath,
