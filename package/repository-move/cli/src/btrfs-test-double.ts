@@ -251,6 +251,33 @@ async function send(args: readonly string[],): Promise<void> {
   ) {
     return option === '-c' ? [basename(options[index + 1] ?? '',),] : [];
   },);
+  if ((!options.includes('-p',)) && (clones.length > 0)) {
+    /**
+     The metadata of the snapshot being sent.
+     */
+    const sentMeta = await readMeta(snapshotPath,);
+    /**
+     The metadata of every clone source.
+     */
+    const cloneMetas = await Promise.all(options.flatMap(function clonePath(
+      option,
+      index,
+    ) {
+      return option === '-c' ? [options[index + 1] ?? '',] : [];
+    },)
+      .map(async function metaOfClone(path,) {
+        return await readMeta(path,);
+      },),);
+    // The real `btrfs send` with clone sources and no `-p` searches for a parent (btrfs-progs `find_good_parent`): the
+    // subvolume the snapshot was taken from must be a clone source, or a clone source must be a snapshot of the same
+    // subvolume. Anything else ends with "parent determination failed".
+    if (!cloneMetas.some(function isRelated(clone,) {
+      return (clone.parent === sentMeta.parent) || (clone.uuid === sentMeta.parent);
+    },)) {
+      console.error(`ERROR: parent determination failed for ${name}`,);
+      exit(1,);
+    }
+  }
   stdout.write(`${
     JSON.stringify({
       uuid: (await readMeta(snapshotPath,)).uuid,
