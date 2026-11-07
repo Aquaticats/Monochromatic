@@ -578,7 +578,9 @@ which leaves its other rules selected:
 ## Rust layout rules
 
 Two crate-wide rules check that the folder tree of a Rust package shows who depends on whom
-(`AGENTS.md` rules LYD, LYL, LYC and LYF).
+(`AGENTS.md` rules LYD,
+LYL,
+LYC and LYF).
 Both are off by default and are switched on for a package in configuration,
 by selecting them for any of its Rust files:
 
@@ -675,7 +677,8 @@ Findings:
 Decisions:
 
 - A folder that holds child folders is a group folder and follows the shelf rules in "Group folders".
-  Before the group rules, a parent folder with code of its own and its child folders were folders like any other,
+  Before the group rules,
+  a parent folder with code of its own and its child folders were folders like any other,
   and the parent and a child that named each other were a loop;
   now a folder that holds child folders holds nothing else,
   and a folder inside it never names it.
@@ -770,8 +773,9 @@ so a finding is never reported twice.
   A used entry without a link,
   and a link to an entry that no folder of the group uses,
   are findings.
-  A link that points to a folder inside another group (not to the group) is a finding of its own that says to link the group.
-  The proving reference of a missing link is the first use in file order,
+  A link that points to a folder inside another group (not to the group) is a finding of its own
+  that says to link the group.
+  The proving reference of a missing link is the smallest one by file and line,
   and the help gives the command that creates the link.
 - A folder inside a group keeps the exact links of the folder rule:
   one link for each folder its code uses and none for any other,
@@ -794,9 +798,30 @@ so a finding is never reported twice.
   a folder inside a group that holds child folders is a finding,
   because the owner's rule is one level of groups.
 
+The finding texts,
+one for each check
+(the file and line are the proving reference of a use,
+or the link or file the finding is about):
+
 ```text
-src/h uses the folder src/g/a (`crate::g::a::X` in src/h/c/mod.rs:1), which is in the group src/g, but src/h/uses has no link to src/g.
+src/g holds the file helper.rs, but a group folder holds only its child folders and its mod.rs.
+src/g/mod.rs is the index of the group folder src/g, so it may hold only its top doc and `mod` lines, but it holds a function `helper`.
+src/h/c uses the folder src/g/a (`crate::g::a::X`), which is in the group src/g, but src/h/uses has no link to src/g.
+src/h/uses/k links to src/k, but no folder inside src/h uses it.
+src/h/uses/a links to src/g/a, which is inside the group src/g, so a group links the group and not a folder inside it.
+src/h/c uses the group folder src/g itself (`crate::g`), but a folder names the folders inside a group that it uses, never the group itself.
+src/h/c/uses/g links to the group folder src/g, but a folder links the folders inside a group that it uses, never the group itself.
+These groups and folders use each other in a loop: src/g uses src/h (src/g/a/mod.rs:1 `crate::h::c::Y`); src/h uses src/g (src/h/d/mod.rs:1 `crate::g::b::X`).
+src/g/a holds folders, so it is a group folder, but it sits inside the group folder src/g, and groups go one level deep.
 ```
+
+A one-folder entry also keeps exact links:
+when its code names a folder inside a group,
+its `uses` folder links that folder and never the group.
+The source lives in `src/layout_group_entries.rs` (which folders are groups),
+`src/layout_group_summary_links.rs` (the summaries) and `src/layout_group_folders.rs` (the shelf rules,
+the groups that are named or linked,
+and the loop between entries).
 
 The links in a group's `uses` folder are written like the links of any other folder
 (a link named like its target,
