@@ -16,7 +16,8 @@
   },
   "bin": {
     "repository-move-copy": "dist/final/node/move-repository.mjs",
-    "repository-move-scan": "dist/final/node/list-uncommitted-work.mjs"
+    "repository-move-scan": "dist/final/node/list-uncommitted-work.mjs",
+    "repository-move-run": "dist/final/node/run-repository-move.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

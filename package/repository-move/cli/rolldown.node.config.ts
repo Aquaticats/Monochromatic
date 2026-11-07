@@ -15,6 +15,7 @@ const config: NodeFlavorConfig = nodeConfig({
     'index': './src/index.ts',
     'move-repository': './src/move-repository.ts',
     'list-uncommitted-work': './src/list-uncommitted-work.ts',
+    'run-repository-move': './src/run-repository-move.ts',
   },
 },);
 
