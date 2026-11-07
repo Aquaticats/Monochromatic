@@ -3663,15 +3663,41 @@ left.
 It then becomes the lock in one step:
 a rename that does not replace (`RENAME_NOREPLACE`),
 else a hard link whose staging name is removed after.
-A filesystem that offers neither (a vfat mount on a kernel without the rename flag,
-for example) gets no lock:
-the attempt fails with the code `unavailable`,
-nothing stays in the directory,
-and the service's log names the filesystem,
-both refusals and what to do.
-Creating the lock and writing the marker afterwards is not done,
-because a kill between the two leaves an empty lock that may be native Git mid-write,
-which no restart can take over.
+A filesystem that offers neither (a FUSE server such as `s3fs-fuse`, or a vfat mount on a kernel without the rename flag,
+for example) gets the lock the way Git takes its own:
+`open` with `O_CREAT | O_EXCL` creates `index.lock`
+(Git 2.56.0, `tempfile.c` line 142, called from `lock_file` in `lockfile.c` lines 168 to 190),
+the marker is written into that file and flushed,
+and the holder keeps that file's descriptor, so the ownership check at release compares the lock's own inode.
+The fallback is taken only when the rename that does not replace and the hard link were both refused
+(`EINVAL`, `ENOSYS`, `EOPNOTSUPP` for the rename; `EPERM`, `EOPNOTSUPP` for the link),
+never when the lock exists or storage failed, and never as the first choice.
+Reason: "Commits should never fail." and the owner's pick "Keep the fallback (Recommended)" for such filesystems;
+real Git commits there and the fallback is never less safe than plain Git on the same filesystem.
+A marker that cannot be written or flushed removes the lock the attempt created and fails the attempt with the storage error.
+The service's log says once per acquisition that the lock was taken this way and why.
+What a kill can leave there:
+the lock created and the marker not yet written leaves an empty lock, as plain Git leaves one
+(`unable_to_lock_message`, `lockfile.c` lines 254 to 267, tells the person to remove it).
+It may be a Git that is mid-write, so nothing here removes it:
+a wrapped `git add` meets it as Git does,
+a landing waits for it until `LOCK_CEILING` and ends with `index_in_use`,
+and the words at the ceiling name the file and the command that clears it.
+A kill after the marker is written leaves the whole marker of a gone process,
+which the next landing removes where a claim file can be placed (any filesystem that offers a rename that does not replace or a hard link);
+on a filesystem that offers neither no claim can be placed, the lock stays (`Unguarded`),
+and the notice names the file, the batch and the command that removes it.
+Self-clearing of an empty lock is not shipped.
+The one proof considered was a file lock held on the lock file (`flock`),
+and it cannot close the gap:
+Git never takes a file lock on `index.lock`,
+and the lock file must exist before anything can lock it,
+so a kill between the creation and the file lock leaves a file that is indistinguishable from a live Git's empty lock.
+The claim chain cannot be used for it either, because a claim must be placed whole and that is the call this filesystem refuses.
+The claim chain stays on the whole-file placement alone (`place_marked`); only the index lock has the fallback (`place_lock`).
+The kill controls are `binary/binary_fault_trace_lock_without_links_tests.rs`
+(kills at `lock-created-unmarked`, `lock-marked-unsynced` and each batch point under `strace --inject` of `EOPNOTSUPP` on `link`, `linkat` and `renameat2`);
+the end-to-end control with real Git as the control is `a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`.
 A process that cannot read its own birth identity writes no marker and takes no lock,
 for the same reason:
 a marker without an identity reads as a dead instance's.
