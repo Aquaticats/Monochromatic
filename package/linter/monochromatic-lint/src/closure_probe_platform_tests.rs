@@ -74,12 +74,33 @@ fn the_ide_without_artifacts_is_skipped() {
     assert!(ide_setup(&fixture.path).is_err());
 }
 
+/// Where the IDE's `build.rs` looks for the artifacts of a build script output directory:
+///  the parent of the nearest ancestor named `build` is the profile directory,
+///  `runtime` lies in it,
+///  and `crate-licenses.json` lies beside it.
+fn locations_read_by_the_ide_build_script(out_directory: &Path) -> (PathBuf, PathBuf) {
+    let profile: &Path = out_directory
+        .ancestors()
+        .find(|ancestor| return ancestor.file_name().is_some_and(|name| return name == "build"))
+        .and_then(Path::parent)
+        .expect("an ancestor is named build");
+    return (
+        profile.join("runtime"),
+        profile
+            .parent()
+            .expect("the profile directory has a parent")
+            .join("crate-licenses.json"),
+    );
+}
+
 /// With the artifacts,
-/// the build directory gets both links and is selected;
+/// the build directory gets both links where the IDE's `build.rs` reads them for the layouts of Cargo's build
+/// script directories before and after the layout with a directory per package,
+/// and is selected;
 /// a second call replaces the links.
 #[cfg(unix)]
 #[test]
-fn the_ide_with_artifacts_links_them_into_the_build_directory() {
+fn the_ide_with_artifacts_links_them_where_its_build_script_reads_them() {
     let fixture: Fixture = Fixture::new();
     let package: PathBuf = fixture.path.join("ide package");
     prepare_artifacts(&package);
@@ -93,22 +114,32 @@ fn the_ide_with_artifacts_links_them_into_the_build_directory() {
                 build.to_string_lossy().into_owned()
             )]
         );
-        let runtime_link: PathBuf = build.join("debug").join("build").join("runtime");
-        assert!(
-            runtime_link.join("manifest.json").is_file(),
-            "the runtime link resolves"
-        );
-        assert!(
-            build.join("debug").join("crate-licenses.json").is_file(),
-            "the licenses link resolves"
-        );
-        assert!(
-            runtime_link
-                .symlink_metadata()
-                .expect("link")
-                .file_type()
-                .is_symlink()
-        );
+        for layout in [
+            ["debug", "build", "ide-0123456789abcdef", "out"].as_slice(),
+            ["debug", "build", "ide", "0123456789abcdef", "out"].as_slice(),
+        ] {
+            let out_directory: PathBuf = layout
+                .iter()
+                .fold(build.clone(), |path, part| return path.join(part));
+            let (runtime, licenses) = locations_read_by_the_ide_build_script(&out_directory);
+            assert!(
+                runtime.join("manifest.json").is_file(),
+                "the runtime link resolves at {}",
+                runtime.display()
+            );
+            assert!(
+                licenses.is_file(),
+                "the licenses link resolves at {}",
+                licenses.display()
+            );
+            assert!(
+                runtime
+                    .symlink_metadata()
+                    .expect("link")
+                    .file_type()
+                    .is_symlink()
+            );
+        }
     }
 }
 
@@ -118,7 +149,7 @@ fn the_ide_with_artifacts_links_them_into_the_build_directory() {
 fn a_stale_file_in_place_of_a_link_is_replaced() {
     let fixture: Fixture = Fixture::new();
     prepare_artifacts(&fixture.path);
-    let place: PathBuf = fixture.path.join("target").join("dylint").join("debug");
+    let place: PathBuf = fixture.path.join("target").join("dylint");
     std::fs::create_dir_all(&place).expect("build directory");
     std::fs::write(place.join("crate-licenses.json"), "stale").expect("stale file");
     ide_setup(&fixture.path).expect("prepared");

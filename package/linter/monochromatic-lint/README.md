@@ -548,8 +548,10 @@ The kinds:
 - `ide-runtime-artifacts`:
   `true`;
   `target/debug/runtime/manifest.json` and `target/crate-licenses.json` must exist.
-  The linter builds in `target/dylint` and links both artifacts into it,
-  because the IDE's `build.rs` finds them relative to the build directory.
+  The linter builds in `target/dylint` and links the runtime as `target/dylint/debug/runtime`
+  and the license list as `target/dylint/crate-licenses.json`,
+  because the IDE's `build.rs` takes the parent of the nearest `build` directory above `OUT_DIR` as the profile
+  directory and reads `runtime` in it and `crate-licenses.json` beside it.
 - `android-ndk`:
   `true`;
   `cargo ndk-env --target arm64-v8a` must print the NDK variables,
