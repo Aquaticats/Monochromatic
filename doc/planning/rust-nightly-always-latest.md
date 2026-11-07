@@ -71,12 +71,17 @@ Logs are in `/var/home/user/temp/agent/rust-nightly/logs/`.
 
 Two facts about the gates change what a pass means:
 
-- The container gates (`package/git-policy/cli:native:test:container`, the `nested-wayland-session` cargo tasks,
-  `package/ide/app` tasks) compile with pacman's `rust` inside the image, not with the lock's nightly
-  (`package/git-policy/cli/native-test-base.Containerfile`; the nested-wayland-session tasks fall back to a container
-  because this host lacks the wayland-server, xkbcommon and libdrm development files).
-  Their result is the same on either nightly and says nothing about the move.
-  The gate ran anyway: 5051 tests passed on the new worktree.
+- The container gates do not use the lock's nightly.
+  The git-policy gate (`package/git-policy/cli:native:test:container`) compiles with pacman's `rust`
+  (`package/git-policy/cli/native-test-base.Containerfile`); it ran anyway: 5051 tests passed on the new worktree.
+  The `nested-wayland-session` cargo tasks fall back to a container because this host lacks the wayland-server,
+  xkbcommon and libdrm development files, and `package/ide/app` builds on the `terminal` image.
+  Those images install rustup with `ARG RUST_TOOLCHAIN=nightly-2026-10-29`, a hand-kept copy of the lock's version
+  that is already stale (the lock said `nightly-2026-11-01`), so their results are the same on either lock.
+  The same default sits in `package/terminal/app/Containerfile` and `Containerfile.release`,
+  `package/nested-wayland-session/cli/Containerfile`, `package/music-player/desktop-app/Containerfile` and
+  `Containerfile.windows-gnu`, `package/forbidden-strings/core/mutants.Containerfile`,
+  and as `PINNED` in `package/cargo-shadow/cli/src/toolchain_tests.rs`.
 - The host tasks use the lock's nightly through the mise environment fragment; those are the evidence.
 
 Passed on the new nightly (host tasks, `lint:clippy` or `lint` plus `test` unless noted):
@@ -101,7 +106,7 @@ Failed on both nightlies, for a cause unrelated to the move:
   `update_entry_points_tests::source_tests::listed_mpm_shadow_verbs_match_the_current_grammar`
   (a source-text check against the mpm-shadow grammar); the run stops there with the rest not run on either.
 - `package/git-policy/cli.fuzz:test`: the same E0432, unresolved import `git_policy_cli::owner_lock_record`.
-- `package/ide/app:test` (container, pacman Rust): the same single failing test,
+- `package/ide/app:test` (container on the 2026-10-29 nightly image): the same single failing test,
   `ide::change_watch recovery::queue_overflow_requests_a_full_reread`.
 - `package/music-player/desktop-app:lint:clippy`: five code lints
   (`shadow_unrelated` at `src/theme_roles_declaration.rs:320`, two `assertions_on_constants`,
@@ -117,15 +122,18 @@ Fixed by the move (failed on `nightly-2026-11-01`, passes on `nightly-2026-11-07
 
 - zbus 5.19.0 in `package/nested-wayland-session/cli`: `cargo check --package zbus` on the host fails with
   E0391 on `nightly-2026-11-01` and finishes on `nightly-2026-11-07`
-  (the mise tasks of that package run in the stable container, so this was run as a plain cargo command in the
-  package, with a private build directory).
+  (the mise tasks of that package run in a container, so this was run as a plain cargo command in the package,
+  with a private build directory).
 - zbus 5.19.0 in `package/music-player/desktop-app` and 5.16.0 in `package/terminal/app`:
   E0391 in the `clippy` task on the old pin, compiled on the new.
 - `package/music-player/android-app` (`lint:clippy`): E0391 on `turso_parser::ast::Select` on the old pin,
   passes on the new.
   This package was not on the list of suspected zbus packages; the same compiler cycle reaches `turso`.
-- `package/ide/app` locks zbus 5.19.0 as well, but its tasks run in the stable container,
-  so they show nothing about the move.
+- `package/nested-wayland-session/cli` in a scratch image built with `RUST_TOOLCHAIN=nightly-2026-11-07`
+  (the package's own container flags): `rustc` reports `c980177d8 2026-11-06`, `cargo clippy --release --all-targets`
+  with warnings denied finishes, and `cargo nextest run` passes all of its tests.
+- zbus 5.19.0 in `package/ide/app`: the same plain `cargo check --package zbus` fails with E0391 on
+  `nightly-2026-11-01` and finishes on `nightly-2026-11-07`.
 
 Not run: Windows and macOS tasks (owner: ignore them until told), `test:host`/mutation/e2e/inspect tasks that need a
 desktop session or hours, and the `monochromatic-lint-closure` host run against another package.
@@ -155,6 +163,8 @@ Options for the fix on latest (all keep the lock on the newest nightly):
   Pros: smallest change, no lock lag.
   Cons: the `default_field_values` feature is an unstable feature gate that can move again.
 - Wait for a Dylint release that fixes the macro, and patch only the `caller_bounds` call.
+  `dylint_linting` 6.3.2 is published (the package asks for at least 6.2); the E0797 comes from rustc's own
+  `declare_lint!` expansion, and whether any Dylint release removes the need for the gate was not tested.
   Pros: no feature gate.
   Cons: the package stays red until then, and it was already red.
 - Retire the lint, or build it only when a person asks.
@@ -196,7 +206,8 @@ Nothing here is built.
 
 - For each crate that builds on a runner, `cargo clippy --all-targets` and the tests with the candidate nightly
   (the host tasks above are the list; a file next to the lock would name them so that adding a crate is one line).
-- The container gates do not count: they use pacman's Rust.
+- The container gates do not count: they use pacman's Rust or the hand-kept 2026-10-29 default.
+  The job would also move that default, or the images would read it from the lock, so the images follow the lock.
 - The four zbus-bearing packages need the development files a runner lacks, so a runner check of
   `cargo check --package zbus` against their lock files stands in for them.
 - Packages that already fail on the current lock are recorded as the baseline, so a candidate is judged by
@@ -278,6 +289,7 @@ Before building, the owner picks hold or move-anyway.
 - Tasks that need a desktop session, a device, hours or Windows and macOS were not run.
 - `package/terminal/app` stopped in a build script on both nightlies, so its own source was not compiled.
 - `package/wg/cli-quicker-exempt:test:unit` stops at its first failure on both, so the later tests were not run.
-- The container gates compile with pacman's Rust and so do not exercise the lock's nightly; this is a gap in what
-  those gates prove, recorded here, not changed.
+- The container gates compile with pacman's Rust or the hand-kept 2026-10-29 default and so do not exercise the
+  lock's nightly; this is a gap in what those gates prove, recorded here, not changed.
+  Moving those defaults to the new nightly was not done, and is part of the proposal.
 - `package/linter/monochromatic-lint-closure` tests were not run with the scratch fix.
