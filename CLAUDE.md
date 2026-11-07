@@ -894,7 +894,9 @@ CM6:
 
 CM7:
  Install tools only via `mise run toolchain:install`
- (containers, CI: the lock row's archive and sha256);
+ (containers,
+CI:
+the lock row's archive and sha256);
  never compile a locked tool this repo publishes;
  mpm-shadow can still compile a third-party one
  when no archive fits.
@@ -1041,8 +1043,11 @@ MKY:
 
 VGW:
  Each file and folder name says what its contents do;
- a word that fits any code (`native`, `core`, `helpers`) never stands alone:
- `helpers_for_git_push`, not `helpers`.
+ a word that fits any code (`native`,
+`core`,
+`helpers`) never stands alone:
+ `helpers_for_git_push`,
+not `helpers`.
 Package folders are exempt.
 
 LYD:
@@ -1054,7 +1059,8 @@ LYL:
  and the package's lint fails when a folder's `uses/` folder of links and its code disagree.
 
 LYC:
- A crate lists the crates it uses in its `Cargo.toml` dependencies, never in a `uses/` folder;
+ A crate lists the crates it uses in its `Cargo.toml` dependencies,
+never in a `uses/` folder;
  cargo refuses loops between crates.
 
 LYF:
