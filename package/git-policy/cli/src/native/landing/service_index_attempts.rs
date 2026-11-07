@@ -20,13 +20,13 @@
 
 use crate::index_lock_evidence::{
     Verdict, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
-    ceiling_line, blocker_words,
+    ceiling_line, blocker_words, unproven_removal_advice,
 };
 use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::process_start::resolve_process_start;
-use crate::service_index_lock::{Announce, LockFailure, notice_every};
+use crate::service_index_lock::{Announce, Announcer, LockFailure, notice_every};
 use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
-use crate::service_index_placement::{Platform, Reclaimed, log_placement_failure, place_marked, reclaim};
+use crate::service_index_placement::{Placed, Platform, Reclaimed, log_placement_failure, place_lock, reclaim};
 use crate::service_index_reclaim::{foreign_words, stale_lock_words, unjudged_words};
 use crate::service_index_staging::refresh_age;
 use crate::service_index_watch::{POLL_PAUSE, Watch};
@@ -130,6 +130,8 @@ fn until_next_wake(to_notice: Duration, to_ceiling: Duration, watched: bool) -> 
 pub(crate) struct Placing<'a> {
     pub(crate) staged: &'a Path,
     pub(crate) held: &'a std::fs::File,
+    /// The text of the marker, which the lock is given when it must be created before it can be written.
+    pub(crate) marker: &'a str,
     pub(crate) lock: &'a Path,
     pub(crate) lock_name: &'a std::ffi::OsStr,
     pub(crate) index: &'a Path,
@@ -139,8 +141,8 @@ pub(crate) struct Placing<'a> {
 
 /// The attempts and the wait of `acquire`,
 /// with the staging file already written.
-pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<(), LockFailure> {
-    let Placing { staged, held, lock, lock_name, index, ceiling } = *placing;
+pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<Placed, LockFailure> {
+    let Placing { staged, held, marker, lock, lock_name, index, ceiling } = *placing;
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let began: Instant = Instant::now();
     let mut first: bool = true;
@@ -153,8 +155,8 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         let mut left_stale: Option<(String, &str)> = None;
         // The hold begins at the placement, not at the staging that may have been long ago.
         refresh_age(held);
-        match place_marked(platform, staged, lock) {
-            Ok(()) => return Ok(()),
+        match place_lock(platform, staged, marker, lock) {
+            Ok(placed) => return Ok(placed),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 // A lock with the service's marker whose holder is gone is a dead instance's: it is removed, and the
                 //  attempt is made again at once; so is a lock that was replaced while it was judged. A live holder of any
@@ -205,7 +207,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         }
         if due {
             if let Some(text) = looked.line {
-                announce(Announce::Waiting(text));
+                announce.announce(Announce::Waiting(text));
             }
             first = false;
             last_notice = Instant::now();
@@ -215,14 +217,23 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         //  then the wait ends, naming the blocker, and the batch is withdrawn by the caller.
         if proof == Proved::Dead {
             if let Some(text) = looked.ending {
-                announce(Announce::Waiting(text));
+                announce.announce(Announce::Waiting(text));
             }
-            announce(Announce::Holder(looked.who.unwrap_or_else(|| { return String::from("Another program"); })));
+            announce.announce(Announce::Holder(match looked.who {
+                Some(who) => who,
+                None => String::from("Another program"),
+            }));
             return Err(LockFailure { code: FailureCode::IndexInUse });
         }
         if at_ceiling && proof != Proved::Gone {
-            announce(Announce::Waiting(ceiling_line(lock, looked.blocker.as_str(), waited.as_secs(), COMMIT_NOT_MADE)));
-            announce(Announce::Holder(looked.who.unwrap_or_else(|| { return String::from("Another program"); })));
+            announce.announce(Announce::Waiting(ceiling_line(lock, looked.blocker.as_str(), waited.as_secs(), COMMIT_NOT_MADE)));
+            if proof == Proved::Nothing {
+                announce.announce(Announce::Waiting(unproven_removal_advice(lock)));
+            }
+            announce.announce(Announce::Holder(match looked.who {
+                Some(who) => who,
+                None => String::from("Another program"),
+            }));
             return Err(LockFailure { code: FailureCode::IndexInUse });
         }
         match watch.as_ref() {

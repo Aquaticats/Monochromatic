@@ -57,15 +57,30 @@ jobs:
         "$RUNNER_TEMP/binstall/cargo-binstall" --no-confirm --disable-strategies compile \
           --root "$RUNNER_TEMP/cli-git" --version "$cli_git" monochromatic-git-policy-cli
         echo "$RUNNER_TEMP/cli-git/bin" >> "$GITHUB_PATH"
-        "$RUNNER_TEMP/cli-git/bin/cli-git-native" --version
+        # The pinned release may predate the rename of the program (2026-11-04): it then holds `cli-git-native`, answers
+        # `git cli-git <command>` and reads `cli-git.config.jsonc`; a release after it holds `monochromatic-git-policy-cli`
+        # for all three. The steps below use whichever the pinned release has.
+        program=cli-git-native
+        if [ -x "$RUNNER_TEMP/cli-git/bin/monochromatic-git-policy-cli" ]; then
+          program=monochromatic-git-policy-cli
+          { echo 'CLI_PROGRAM=monochromatic-git-policy-cli'; echo 'CLI_WORD=monochromatic-git-policy-cli'; echo 'CLI_SETTINGS=monochromatic-git-policy-cli.config.jsonc'; } >> "$GITHUB_ENV"
+        else
+          { echo 'CLI_PROGRAM=cli-git-native'; echo 'CLI_WORD=cli-git'; echo 'CLI_SETTINGS=cli-git.config.jsonc'; } >> "$GITHUB_ENV"
+          # Once the checkout's settings file carries the new name (the lock step renames it), the earlier program, which
+          # reads only the earlier name, gets a copy of the file under that name in this disposable checkout.
+          if [ -f monochromatic-git-policy-cli.config.jsonc ] && [ ! -e cli-git.config.jsonc ]; then
+            cp monochromatic-git-policy-cli.config.jsonc cli-git.config.jsonc
+          fi
+        fi
+        "$RUNNER_TEMP/cli-git/bin/$program" --version
 
     - name: Check every tracked manifest
       # Exit 0 means every `package.json` uses `catalog:`, `catalog:<name>` or exactly `workspace:*` (peer dependencies:
       # `*`, `catalog:` or `catalog:<name>`) and no `package.json5`, `package.yaml` or `package.yml` is tracked.
-      # Exit 2 means the policy is not listed in cli-git.config.jsonc, so the check would have run nothing; that fails too.
+      # Exit 2 means the policy is not listed in the repository's settings file (monochromatic-git-policy-cli.config.jsonc, or cli-git.config.jsonc for a pinned release before the rename), so the check would have run nothing; that fails too.
       run: |
         set -euo pipefail
-        cli-git-native cli-git check --all --policy mono/catalog-specifiers
+        "$CLI_PROGRAM" "$CLI_WORD" check --all --policy mono/catalog-specifiers
 
     - name: Negative control, the check must reject a literal version
       # A check that cannot fail proves nothing. This stages one literal dependency in a throwaway repository and
@@ -76,11 +91,11 @@ jobs:
         mkdir --parents "$control"
         cd "$control"
         git init --quiet
-        printf '%s\n' '{ "policies": { "mono/catalog-specifiers": "error" } }' > cli-git.config.jsonc
+        printf '%s\n' '{ "policies": { "mono/catalog-specifiers": "error" } }' > "$CLI_SETTINGS"
         printf '%s\n' '{ "name": "control", "dependencies": { "left-pad": "1.3.0" } }' > package.json
-        git add -- cli-git.config.jsonc package.json
+        git add -- "$CLI_SETTINGS" package.json
         status=0
-        output=$(cli-git-native cli-git check --all --policy mono/catalog-specifiers) || status=$?
+        output=$("$CLI_PROGRAM" "$CLI_WORD" check --all --policy mono/catalog-specifiers) || status=$?
         if [ "$status" -ne 1 ]; then
           echo "::error::The negative control exited $status, expected 1."
           echo "$output"

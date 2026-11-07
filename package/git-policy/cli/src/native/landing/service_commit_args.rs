@@ -12,6 +12,7 @@
 //! const parsed = parseServiceCommit(args); // undefined when the line needs native git commit
 //! ```
 
+pub use crate::service_commit_args_editor_opening::opens_editor;
 use std::ffi::OsString;
 
 /// What a covered command line asked for.
@@ -75,7 +76,9 @@ fn long_value<'a>(token: &'a str, name: &str, arguments: &'a [OsString], index: 
         *index += 1;
         return Some(Some(value));
     }
-    return token.strip_prefix(name).and_then(|rest| { return rest.strip_prefix('='); }).map(Some);
+    let rest: &str = token.strip_prefix(name)?;
+    let value: &str = rest.strip_prefix('=')?;
+    return Some(Some(value));
 }
 
 /// What:
@@ -183,105 +186,21 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
     // An amend with no message option and `--no-edit` keeps the message of the commit it replaces; with neither, an editor
     //  opens, which is not covered.
     let has_text: bool = sources == 1 || (parsed.amend && parsed.no_edit && sources == 0);
-    let author_ok: bool = parsed.author.as_deref().is_none_or(|author| { return author.contains('<') && author.trim_end().ends_with('>'); });
+    // An author, when given, is `Name <email>`; none is fine.
+    let author_ok: bool = match parsed.author.as_deref() {
+        Some(author) => author.contains('<') && author.trim_end().ends_with('>'),
+        None => true,
+    };
+    // A message file named `-` reads standard input, which is not covered.
+    let file_ok: bool = match parsed.file.as_deref() {
+        Some(file) => file != "-",
+        None => true,
+    };
     // `-C` takes the author and its date from the reused commit, and `--reset-author` is not covered.
     let reuse_ok: bool = parsed.reuse.is_none() || (parsed.author.is_none() && parsed.date.is_none());
     // `--reset-author` names its own author, so it is covered only for an amend that sets no author, no date and no reused commit.
     let reset_ok: bool = !parsed.reset_author || (parsed.amend && parsed.reuse.is_none() && parsed.author.is_none() && parsed.date.is_none());
-    return if has_text && reuse_ok && reset_ok && author_ok && parsed.file.as_deref().is_none_or(|file| { return file != "-"; }) { Some(parsed) } else { None };
-}
-
-/// Long options with no value that never decide whether an editor opens.
-const NEUTRAL_LONG: [&str; 15] = [
-    "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
-    "--amend", "--reset-author", "--allow-empty-message", "--verbose", "--include", "--pathspec-file-nul",
-];
-
-/// Long options with a value that never decide whether an editor opens.
-const NEUTRAL_VALUE_LONG: [&str; 7] = ["--author", "--date", "--trailer", "--cleanup", "--gpg-sign", "--template", "--pathspec-from-file"];
-
-/// What:
-///  Whether `git commit` with these arguments may open an editor.
-/// Why:
-///   The answer decides what happens to a commit Git built when the branch moved meanwhile: with no editor it is built
-///  again on the new tip, with an editor the typed message is saved for the person instead of being lost. It errs towards
-///  "may open": an option this reading does not know, or a spelling Git accepts as an abbreviation, counts as an editor,
-///  because a message saved without need costs nothing and a message lost costs the person's typing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// opensEditor(args)
-/// ```
-pub fn opens_editor(arguments: &[OsString]) -> bool {
-    let mut message_source: bool = false;
-    let mut edit: Option<bool> = None;
-    let mut index: usize = 0;
-    while index < arguments.len() {
-        let Some(token) = arguments[index].to_str() else { return true };
-        index += 1;
-        if token == "--" {
-            break;
-        }
-        if !token.starts_with('-') || token == "-" {
-            continue;
-        }
-        if let Some(long) = token.strip_prefix("--") {
-            let (name, value): (&str, Option<&str>) = match long.split_once('=') {
-                Some((name, value)) => (name, Some(value)),
-                None => (long, None),
-            };
-            let dashed: String = format!("--{name}");
-            let takes_value: bool = ["--message", "--file", "--reuse-message", "--reedit-message", "--fixup", "--squash"].contains(&dashed.as_str())
-                || NEUTRAL_VALUE_LONG.contains(&dashed.as_str());
-            // A separate value is the next token, except for the options whose value may be attached only.
-            let detached: Option<&str> = if takes_value && value.is_none() && !["--gpg-sign", "--squash"].contains(&dashed.as_str()) {
-                index += 1;
-                arguments.get(index - 1).and_then(|next| { return next.to_str(); })
-            } else {
-                None
-            };
-            let given: Option<&str> = value.or(detached);
-            match dashed.as_str() {
-                "--edit" => edit = Some(true),
-                "--no-edit" => edit = Some(false),
-                "--message" | "--file" | "--reuse-message" => message_source = true,
-                "--reedit-message" | "--squash" => return true,
-                "--fixup" => {
-                    if given.is_none_or(|text| { return text.contains(':'); }) {
-                        return true;
-                    }
-                    message_source = true;
-                }
-                other if NEUTRAL_LONG.contains(&other) || NEUTRAL_VALUE_LONG.contains(&other) => {}
-                _ => return true,
-            }
-        } else {
-            let letters: Vec<char> = token.chars().skip(1).collect();
-            let mut at: usize = 0;
-            while at < letters.len() {
-                let letter: char = letters[at];
-                at += 1;
-                match letter {
-                    'e' => edit = Some(true),
-                    'c' => return true,
-                    'm' | 'F' | 'C' | 't' => {
-                        message_source |= letter != 't';
-                        if at == letters.len() {
-                            index += 1;
-                        }
-                        at = letters.len();
-                    }
-                    'S' => at = letters.len(),
-                    'q' | 'n' | 'o' | 'a' | 's' | 'v' | 'i' => {}
-                    _ => return true,
-                }
-            }
-        }
-    }
-    return match edit {
-        Some(wanted) => wanted,
-        None => !message_source,
-    };
+    return if has_text && reuse_ok && reset_ok && author_ok && file_ok { Some(parsed) } else { None };
 }
 
 /// What:
@@ -307,7 +226,7 @@ pub fn cleanup_message(messages: &[String]) -> Option<String> {
         lines.push(trimmed);
         previous_blank = blank;
     }
-    while lines.last().is_some_and(|line| { return line.is_empty(); }) {
+    while matches!(lines.last(), Some(line) if line.is_empty()) {
         lines.pop();
     }
     if lines.is_empty() {
@@ -326,6 +245,37 @@ const MESSAGE_FLAG_LONG: [&str; 4] = ["--edit", "--no-edit", "--signoff", "--no-
 const BORROWING_LONG: [&str; 5] = ["--reedit-message", "--reuse-message", "--squash", "--fixup", "--amend"];
 
 /// What:
+///  An argument as text, with bytes that are not valid text replaced.
+/// Why:
+///  The commit options are read as text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lossyText = (token: Buffer) => token.toString('utf8');
+/// ```
+fn lossy_text(token: &OsString) -> String {
+    return token.to_string_lossy().into_owned();
+}
+
+/// What:
+///  Whether a name is the start of one of the known long options.
+/// Why:
+///  Git accepts an unambiguous abbreviation of a long option, so a name that starts a known option is not a safe option to pass on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// known.some((option) => option.startsWith(name))
+/// ```
+fn abbreviates_a_known_option(known: &[&str], name: &str) -> bool {
+    for option in known {
+        if option.starts_with(name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  The arguments of a commit Git built, rewritten so that the message the person already typed is used as it is and no
 ///  editor opens.
 /// Why:
@@ -339,7 +289,7 @@ const BORROWING_LONG: [&str; 5] = ["--reedit-message", "--reuse-message", "--squ
 /// withFixedMessage(args, subcommandIndex, file) // undefined when the line cannot be rebuilt from the message alone
 /// ```
 pub fn with_fixed_message(arguments: &[OsString], subcommand_index: usize, file: &std::path::Path) -> Option<Vec<OsString>> {
-    let text: Vec<String> = arguments.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();
+    let text: Vec<String> = arguments.iter().map(lossy_text).collect();
     let region: Vec<String> = crate::commit_args::normalise_commit_args(text.get(subcommand_index + 1..)?);
     let split: usize = crate::commit_args::separator_index(region.as_slice()).unwrap_or(region.len());
     let (options, tail): (&[String], &[String]) = region.split_at(split);
@@ -354,7 +304,7 @@ pub fn with_fixed_message(arguments: &[OsString], subcommand_index: usize, file:
                 None => (format!("--{long}"), false),
             };
             let all: Vec<&str> = MESSAGE_VALUE_LONG.iter().chain(&MESSAGE_FLAG_LONG).chain(&BORROWING_LONG).copied().collect();
-            if BORROWING_LONG.contains(&name.as_str()) || (!all.contains(&name.as_str()) && all.iter().any(|known| { return known.starts_with(name.as_str()); })) {
+            if BORROWING_LONG.contains(&name.as_str()) || (!all.contains(&name.as_str()) && abbreviates_a_known_option(all.as_slice(), name.as_str())) {
                 return None;
             }
             if MESSAGE_VALUE_LONG.contains(&name.as_str()) {

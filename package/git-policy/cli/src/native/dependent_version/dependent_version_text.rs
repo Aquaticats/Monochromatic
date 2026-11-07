@@ -66,11 +66,12 @@ fn literal_end(bytes: &[u8], start: usize) -> Option<usize> {
 /// function skipWhitespace({ text, start }): number;
 /// ```
 fn skip_whitespace(bytes: &[u8], start: usize) -> usize {
-    return bytes
-        .iter()
-        .skip(start)
-        .position(|byte: &u8| return !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
-        .map_or(bytes.len(), |offset: usize| return start + offset);
+    for (offset, byte) in bytes.iter().skip(start).enumerate() {
+        if !matches!(byte, b' ' | b'\t' | b'\r' | b'\n') {
+            return start + offset;
+        }
+    }
+    return bytes.len();
 }
 
 /// What: The incumbent's failure for a literal that never closes; it names no manifest.
@@ -115,8 +116,9 @@ pub fn replace_manifest_version(
             b'{' | b'[' => depth += 1,
             b'}' | b']' => depth -= 1,
             b'"' => {
-                let end: usize =
-                    literal_end(bytes, index).ok_or_else(|| return unterminated(path))?;
+                let Some(end) = literal_end(bytes, index) else {
+                    return Err(unterminated(path));
+                };
                 let after: usize = skip_whitespace(bytes, end + 1);
                 if depth == 1
                     && &bytes[index..=end] == VERSION_KEY
@@ -151,8 +153,9 @@ fn replace_value(
     if bytes.get(value_start) != Some(&b'"') {
         return Err(shape(path, "has a non-string top-level \"version\""));
     }
-    let value_end: usize =
-        literal_end(bytes, value_start).ok_or_else(|| return unterminated(path))?;
+    let Some(value_end) = literal_end(bytes, value_start) else {
+        return Err(unterminated(path));
+    };
     // Both ends are ASCII quotes, so these byte offsets are character boundaries.
     let literal: &str = &text[value_start..=value_end];
     let expected: String = json_quote_units(&from.encode_utf16().collect::<Vec<u16>>());

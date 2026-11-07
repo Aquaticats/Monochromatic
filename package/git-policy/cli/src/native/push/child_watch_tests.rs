@@ -4,6 +4,7 @@
 #![cfg(unix)]
 
 use super::*;
+use crate::wait_progress::Cadence;
 use crate::test_support::{ActionSink, SharedSink};
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
@@ -111,7 +112,7 @@ fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
     let lines: Vec<&str> = text.lines().collect();
     assert!(!lines.is_empty(), "{text}");
     for line in &lines {
-        assert!(line.starts_with("cli-git: still waiting for the sleeper (process "), "{text}");
+        assert!(line.starts_with("monochromatic-git-policy-cli: still waiting for the sleeper (process "), "{text}");
         assert!(line.contains("(CLI_GIT_CHILD_WAIT_SECONDS changes this)"), "{text}");
     }
     assert_eq!(text.matches("Hint:").count(), 1, "{text}");
@@ -235,7 +236,7 @@ fn a_command_that_runs_long_is_announced_and_its_output_is_kept() {
     assert!(output.status.success());
     let text: String = shared.text();
     assert!(text.lines().count() >= 2, "{text}");
-    assert!(text.starts_with("cli-git: still waiting for the slow command (process "), "{text}");
+    assert!(text.starts_with("monochromatic-git-policy-cli: still waiting for the slow command (process "), "{text}");
     crate::test_support::remove(root.as_path());
 }
 
@@ -573,4 +574,17 @@ fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
         std::thread::sleep(Duration::from_millis(50));
     }
     crate::test_support::remove(directory.as_path());
+}
+
+/// What a step wrote is released once it is read (sol-1 round 3, P2 E): a descendant that keeps the files open cannot keep the pages
+/// the reader no longer needs.
+#[test]
+fn the_output_of_a_step_is_released_once_it_is_read() {
+    let capture: Capture = Capture::new().expect("the files");
+    let (out, err) = capture.stdio().expect("the streams");
+    let status = Command::new("sh").args(["-c", "echo kept-for-the-reader; echo and-this >&2"]).stdout(out).stderr(err).status().expect("the child");
+    let output: Output = output_of(status, Some(&capture));
+    assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("kept-for-the-reader"));
+    let again: crate::output_capture::Captured = capture.snapshot(1024);
+    assert!(again.stdout.is_empty() && again.stderr.is_empty(), "the files were emptied after the read");
 }

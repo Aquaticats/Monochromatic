@@ -155,7 +155,8 @@ Implementation evidence for the passing axes:
    glob expansions,
   and destination content hashes,
    and lazy builders skip their content callbacks when those still match.
-  Scoped: the root config contains no lazy builder and records no entries at all,
+  Scoped:
+  the root config contains no lazy builder and records no entries at all,
    so A5 pays nothing for this config even though the machinery works.
   See `doc/troubleshooting/file-enforcer-staleness.md`.
   Evidence:

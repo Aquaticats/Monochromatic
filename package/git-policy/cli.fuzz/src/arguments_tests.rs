@@ -112,6 +112,7 @@ fn invariants_hold_for_fixed_boundary_cases() {
         b"tag\0--\0--list",
         b"-c\0alias.x=commit\0x",
         b"cli-git\0check\0--all",
+        b"monochromatic-git-policy-cli\0check\0--all",
         b"branch\0-\xff",
         b"tag\0\0",
     ] {

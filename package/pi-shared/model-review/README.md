@@ -13,6 +13,13 @@ prompts,
 verdict schemas,
 and interpretation of valid verdicts.
 
+## Pi dependency trust
+
+PZF:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Structured attempt
 
 `runStructuredReviewAttempt()` performs one complete reviewer attempt:

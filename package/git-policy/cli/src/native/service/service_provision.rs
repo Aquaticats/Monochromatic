@@ -20,40 +20,43 @@
 //!  `~/.config/systemd/user` outrank the runtime ones in the unit search path, so they are recognized by their content and
 //!  removed; a unit of the same name that something else wrote is never touched, and the commit stops with a message naming
 //!  the file.
+//!  The socket that the earlier release set up for the same worktree (`cli-git@<instance>.socket`, the same instance text) is
+//!  stopped after this release's socket has started, so that the earlier helper cannot be started by a connection and the
+//!  batches it left open can be finished (`earlier_service_journal_adopted.rs`); see `stop_earlier_instance_socket`. The stop
+//!  never fails a commit. A helper of the earlier release that is running is not stopped and its socket stays; the next commit
+//!  looks again. The templates the earlier release wrote are shared by every worktree's instance and are left alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await provision({ runtimeDir, configHome, busPath, serviceBinary, git, instance }) // writes templates, reloads, starts the socket
 //! ```
 
+pub use crate::service_provision_unit_file_ownership_and_writes::OWN_MARKERS;
+use crate::service_provision_unit_file_ownership_and_writes::{any_named_anywhere, carries_own_marker, is_own_unit_file, own_unit_file_in_runtime_or_user_directory, remove_settled, write_atomically};
 use crate::service_messages::{ClientFailure, Platform};
-use crate::service_client::ask_to_retire;
-use crate::service_instance::{LEGACY_SOCKET_RELATIVE, service_unit_instance, socket_path, socket_unit_instance};
+use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
+use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
+use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
 
 /// The socket template's text, with the marker on its first line.
-pub const SOCKET_UNIT: &str = include_str!("service_units/cli-git@.socket");
+pub const SOCKET_UNIT: &str = include_str!("service_units/monochromatic-git-policy-cli@.socket");
 
 /// The service template's text, with `@SERVICE_BINARY@` and `@GIT@` still to fill in.
-pub const SERVICE_UNIT: &str = include_str!("service_units/cli-git@.service");
+pub const SERVICE_UNIT: &str = include_str!("service_units/monochromatic-git-policy-cli@.service");
 
 /// File name of the socket template.
-pub const SOCKET_UNIT_NAME: &str = "cli-git@.socket";
+pub const SOCKET_UNIT_NAME: &str = "monochromatic-git-policy-cli@.socket";
 
 /// File name of the service template.
-pub const SERVICE_UNIT_NAME: &str = "cli-git@.service";
+pub const SERVICE_UNIT_NAME: &str = "monochromatic-git-policy-cli@.service";
 
 /// File name of the socket unit of the single service every worktree shared until one service per worktree.
 pub const LEGACY_SOCKET_UNIT_NAME: &str = "cli-git.socket";
 
 /// File name of the service unit of the single service every worktree shared until one service per worktree.
 pub const LEGACY_SERVICE_UNIT_NAME: &str = "cli-git.service";
-
-/// The words that mark a unit file as written by this wrapper: the marker its units carry now, and the descriptions the
-///  units of earlier releases carried.
-pub const OWN_MARKERS: [&str; 3] =
-    ["(cli-git-unit)", "Description=Commit service socket for the git wrapper", "Description=Commit service for the git wrapper"];
 
 const BINARY_PLACEHOLDER: &str = "@SERVICE_BINARY@";
 const GIT_PLACEHOLDER: &str = "@GIT@";
@@ -95,6 +98,8 @@ pub trait Manager {
     fn start(&mut self, unit: &str) -> Result<(), CallError>;
     /// Stops a unit.
     fn stop(&mut self, unit: &str) -> Result<(), CallError>;
+    /// Stops a unit and none of the units that require it.
+    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError>;
     /// The unit's state as the manager reports it (`active`, `deactivating`, `inactive`, `failed`), or nothing when the
     ///  manager holds no such unit.
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError>;
@@ -119,6 +124,10 @@ impl Manager for Bus {
 
     fn stop(&mut self, unit: &str) -> Result<(), CallError> {
         return Bus::stop_unit(self, unit);
+    }
+
+    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+        return Bus::stop_unit_alone(self, unit);
     }
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
@@ -155,7 +164,7 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 
 /// What:
 ///  Whether the installed templates are the ones this wrapper would write, the worktree's socket is there, and nothing of
-///  the single service of the earlier releases is left.
+///  the single service of the earlier releases is left, and no socket of the earlier release for this worktree listens.
 /// Why:
 ///   The socket belongs to the manager and outlives every upgrade, so its presence says nothing about which program the
 ///  service template names; the text does. A few small reads and two `stat` calls decide, and the bus is not touched when
@@ -166,31 +175,37 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 /// inPlace(host) // false: write, reload, start
 /// ```
 pub fn in_place(host: &ProvisionHost) -> bool {
-    let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
-    let current = |(name, text): (&str, String)| -> bool {
-        return std::fs::read_to_string(directory.join(name)).is_ok_and(|installed| { return installed == text; });
-    };
-    // A file of an earlier name that something else wrote is not the wrapper's to retire, and does not keep it from being in place.
-    let earlier_left: bool = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME].iter().any(|name| {
-        return std::iter::once(&directory).chain(host.user_unit_dir.iter()).any(|found| { return is_own_unit_file(found.join(name).as_path()); });
-    }) || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
-    return unit_texts(host).into_iter().all(current)
-        && socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists()
-        && !earlier_left;
+    return in_place_with(host, Path::new("/proc"));
 }
 
-static TEMPORARY_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-/// Writes `text` to `path` through a temporary file and a rename, so a reader sees the old file or the new one whole.
-fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
-    let number: u64 = TEMPORARY_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let temporary: PathBuf = path.with_extension(format!("tmp-{}-{number}", std::process::id()));
-    std::fs::write(&temporary, text.as_bytes())?;
-    let renamed: std::io::Result<()> = std::fs::rename(&temporary, path);
-    if renamed.is_err() {
-        let _removed = std::fs::remove_file(&temporary);
+/// `in_place` with the process table to read the listening sockets from.
+pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
+    let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
+    // Every unit file holds exactly the text the wrapper would write.
+    let mut all_current: bool = true;
+    for (name, text) in unit_texts(host) {
+        if !matches!(std::fs::read_to_string(directory.join(name)), Ok(installed) if installed == text) {
+            all_current = false;
+            break;
+        }
     }
-    return renamed;
+    // A file of an earlier name that something else wrote is not the wrapper's to retire, and does not keep it from being in place.
+    let mut earlier_left: bool = false;
+    for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
+        if own_unit_file_in_runtime_or_user_directory(directory.as_path(), host.user_unit_dir.as_deref(), name) {
+            earlier_left = true;
+            break;
+        }
+    }
+    earlier_left = earlier_left || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
+    if !all_current || earlier_left || !socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists() {
+        return false;
+    }
+    // The earlier release's socket of this worktree: a listener there starts the earlier helper on a connection, so the stop
+    //  has to be tried (again). The socket's file stays after the unit stops and says nothing; the table of sockets is read
+    //  only when that file is there, which a worktree the earlier release never served never has.
+    let earlier_file: PathBuf = earlier_socket_path(host.runtime_dir.as_path(), host.instance.as_str());
+    return !(earlier_file.exists() && earlier_socket_of_instance_listens(proc_root, host.instance.as_str()));
 }
 
 /// What the user's own unit directory holds under the names the wrapper uses.
@@ -205,7 +220,7 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
             }
             continue;
         };
-        if !OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }) {
+        if !carries_own_marker(text.as_str()) {
             return Err(ClientFailure::UnitInTheWay(path.display().to_string()));
         }
         remove_settled(path.as_path())?;
@@ -213,7 +228,7 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
     }
     // The enabling link an earlier release made points at the file just removed.
     let link: PathBuf = directory.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME);
-    if std::fs::symlink_metadata(&link).is_ok_and(|meta| { return meta.file_type().is_symlink(); }) {
+    if matches!(std::fs::symlink_metadata(&link), Ok(meta) if meta.file_type().is_symlink()) {
         let _removed = std::fs::remove_file(&link);
         removed = true;
     }
@@ -238,16 +253,30 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
     // The releases that wrote into the user's own directory left their service running just the same.
     let directories: Vec<PathBuf> = std::iter::once(directory.clone()).chain(host.user_unit_dir.clone()).collect();
     let socket_file: PathBuf = host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
-    let named_anywhere = |name: &str| -> bool { return directories.iter().any(|found| { return found.join(name).exists(); }); };
     let both: [&str; 2] = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME];
     // Only a unit whose definition the manager reads is ours to stop: a file of the same name in the runtime directory
     //  does not make a unit that the user's own directory defines ours.
-    let mut units: Vec<&str> = both.into_iter().filter(|name| { return effective_unit_file(host, name).is_some_and(|file| { return is_own_unit_file(file.as_path()); }); }).collect();
+    let mut units: Vec<&str> = Vec::new();
+    for name in both {
+        let ours: bool = match effective_unit_file(host, name) {
+            Some(file) => is_own_unit_file(file.as_path()),
+            None => false,
+        };
+        if ours {
+            units.push(name);
+        }
+    }
     // Only a file that carries the marker is ours to remove, whichever file defines the unit.
-    let owned_files: Vec<PathBuf> = both.into_iter().map(|name| { return directory.join(name); }).filter(|file| { return is_own_unit_file(file.as_path()); }).collect();
+    let mut owned_files: Vec<PathBuf> = Vec::new();
+    for name in both {
+        let file: PathBuf = directory.join(name);
+        if is_own_unit_file(file.as_path()) {
+            owned_files.push(file);
+        }
+    }
     // A socket file with no unit file of that name anywhere is what a release that removed the files but not the service left
     //  behind: the service may still run, so both names are stopped. A file of that name that is someone else's blocks this.
-    if units.is_empty() && owned_files.is_empty() && socket_file.exists() && !both.iter().any(|name| { return named_anywhere(name); }) {
+    if units.is_empty() && owned_files.is_empty() && socket_file.exists() && !any_named_anywhere(directories.as_slice(), &both) {
         units = both.to_vec();
     }
     if units.is_empty() && owned_files.is_empty() {
@@ -258,7 +287,15 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
         // The time spent asking the earlier service to retire is not taken from the stop calls.
         manager.within(EXCHANGE_WAIT);
         // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
-        let (sockets, services): (Vec<&str>, Vec<&str>) = units.iter().partition(|name| { return **name == LEGACY_SOCKET_UNIT_NAME; });
+        let mut sockets: Vec<&str> = Vec::new();
+        let mut services: Vec<&str> = Vec::new();
+        for name in &units {
+            if *name == LEGACY_SOCKET_UNIT_NAME {
+                sockets.push(name);
+            } else {
+                services.push(name);
+            }
+        }
         stop_units(manager, sockets.as_slice())?;
         // The manager's stop ends the whole unit, the Git children of a landing in progress with it, and a Git step that cannot run
         //  twice may be one of them. The service is asked to retire, which it handles between batches, and is given the wait to
@@ -287,11 +324,6 @@ fn stop_units(manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFai
     return Ok(());
 }
 
-/// Whether the unit file at `path` carries a marker of this wrapper's units.
-fn is_own_unit_file(path: &Path) -> bool {
-    return std::fs::read_to_string(path).is_ok_and(|text| { return OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }); });
-}
-
 /// What:
 ///  The file that defines the unit `name` for the user's manager: the one in the user's own unit directory when there is
 ///  one, else the one in the runtime unit directory.
@@ -304,30 +336,35 @@ fn is_own_unit_file(path: &Path) -> bool {
 /// effectiveUnitFile(host, 'cli-git.service') // the path the manager reads
 /// ```
 fn effective_unit_file(host: &ProvisionHost, name: &str) -> Option<PathBuf> {
-    return host
-        .user_unit_dir
-        .iter()
-        .map(|directory| { return directory.join(name); })
-        .chain(std::iter::once(runtime_unit_dir(host.runtime_dir.as_path()).join(name)))
-        .find(|file| { return file.exists(); });
+    // The user's own directory first, then the runtime directory.
+    if let Some(directory) = host.user_unit_dir.as_ref() {
+        let file: PathBuf = directory.join(name);
+        if file.exists() {
+            return Some(file);
+        }
+    }
+    let runtime_file: PathBuf = runtime_unit_dir(host.runtime_dir.as_path()).join(name);
+    if runtime_file.exists() {
+        return Some(runtime_file);
+    }
+    return None;
 }
 
 /// What:
-///  Removes a unit file whose ownership was just checked; a file that is gone by now is a removal someone else finished.
+///  The failure for an earlier commit service that is still running after the retirement wait.
 /// Why:
-///   Several commits provision at once without any lock, so two of them can read the same owned file and both remove it:
-///  the second one's removal finds nothing, and the cleanup it wanted is done.
+///  The service may be in the middle of a landing that stopping it would cut, so the person is told to run the commit again or
+///  to stop it by hand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await rm(path, { force: true }) // other failures throw
+/// const stillStopping = (host, unit) => new ClientFailure('could-not-start', `the earlier commit service (${unit}) is still running ...`);
 /// ```
-fn remove_settled(path: &Path) -> Result<(), ClientFailure> {
-    return match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(ClientFailure::CouldNotStart(format!("{} cannot be removed: {error}", path.display()))),
-    };
+fn still_stopping(host: &ProvisionHost, unit: &str) -> ClientFailure {
+    return ClientFailure::CouldNotStart(format!(
+        "the earlier commit service ({unit}) is still running after {:.1} seconds, and it may be in the middle of a landing that stopping it would cut; run the commit again in a moment, or, when no commit is running, stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
+        host.retirement_wait.as_secs_f64()
+    ));
 }
 
 /// What:
@@ -344,12 +381,6 @@ fn remove_settled(path: &Path) -> Result<(), ClientFailure> {
 /// ```
 fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
     let deadline: std::time::Instant = std::time::Instant::now() + host.retirement_wait;
-    let still_stopping = |unit: &str| -> ClientFailure {
-        return ClientFailure::CouldNotStart(format!(
-            "the earlier commit service ({unit}) is still running after {:.1} seconds, and it may be in the middle of a landing that stopping it would cut; run the commit again in a moment, or, when no commit is running, stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
-            host.retirement_wait.as_secs_f64()
-        ));
-    };
     loop {
         let mut running: Option<&str> = None;
         for name in units {
@@ -358,16 +389,16 @@ fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[
             manager.within(deadline.saturating_duration_since(std::time::Instant::now()));
             let state: Option<String> = match manager.active_state(name) {
                 Ok(found) => found,
-                Err(CallError::TimedOut) => return Err(still_stopping(name)),
+                Err(CallError::TimedOut) => return Err(still_stopping(host, name)),
                 Err(error) => return Err(refusal(error)),
             };
-            if state.is_some_and(|text| { return !matches!(text.as_str(), "inactive" | "failed"); }) {
+            if matches!(&state, Some(text) if !matches!(text.as_str(), "inactive" | "failed")) {
                 running = Some(name);
             }
         }
         let Some(unit) = running else { return Ok(()) };
         if std::time::Instant::now() >= deadline {
-            return Err(still_stopping(unit));
+            return Err(still_stopping(host, unit));
         }
         std::thread::sleep(RETIREMENT_POLL);
     }
@@ -405,7 +436,9 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     let mut reload: bool = retire_earlier_service(host, manager)?;
     reload |= clear_earlier_units(host)?;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
-    std::fs::create_dir_all(&directory).map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be created: {error}", directory.display())); })?;
+    if let Err(error) = std::fs::create_dir_all(&directory) {
+        return Err(ClientFailure::CouldNotStart(format!("{} cannot be created: {error}", directory.display())));
+    }
     // Whether the manager may hold state for these units: a unit file was already there, so a start may have failed under it.
     let mut known: bool = false;
     let mut written: Vec<PathBuf> = Vec::new();
@@ -413,11 +446,12 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         let path: PathBuf = directory.join(name);
         let existed: bool = path.exists();
         known |= existed;
-        if std::fs::read_to_string(&path).is_ok_and(|current| { return current == text; }) {
+        if matches!(std::fs::read_to_string(&path), Ok(current) if current == text) {
             continue;
         }
-        write_atomically(&path, text.as_str())
-            .map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be written: {error}", path.display())); })?;
+        if let Err(error) = write_atomically(&path, text.as_str()) {
+            return Err(ClientFailure::CouldNotStart(format!("{} cannot be written: {error}", path.display())));
+        }
         written.push(path);
         reload |= existed;
     }
@@ -432,6 +466,7 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         }
         return Err(refusal(error));
     }
+    stop_earlier_instance_socket(host, manager);
     return Ok(());
 }
 
@@ -451,12 +486,83 @@ fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool, instance: &
     return manager.start(socket_unit_instance(instance).as_str());
 }
 
+/// Whether a unit's state says it runs no process and listens on nothing: `inactive` or `failed`.
+fn is_at_rest(state: &str) -> bool {
+    return matches!(state, "inactive" | "failed");
+}
+
+/// The manager's failure in words for a log line.
+fn describe(error: &CallError) -> String {
+    return match error {
+        CallError::Connection(reason) => format!("the session bus could not be reached ({reason})"),
+        CallError::Authentication(reason) => format!("the session bus refused the connection ({reason})"),
+        CallError::TimedOut => String::from("the session bus did not answer in time"),
+        CallError::Manager { text, name } if text.is_empty() => format!("the service manager refused the request ({name})"),
+        CallError::Manager { text, .. } => format!("the service manager refused the request ({text})"),
+        CallError::Malformed(reason) => format!("the service manager's answer could not be read ({reason})"),
+    };
+}
+
+/// What:
+///  Stops the socket unit `cli-git@<instance>.socket` that the earlier release set up for this very worktree, when no helper
+///  of that unit runs. Nothing here fails the commit.
+/// Why:
+///   The owner's pick of 2026-11-07 ("Stop the old socket"): while that socket listens, a connection starts the earlier helper
+///  at any moment, which keeps the person's earlier batches from being settled on request
+///  (`earlier_service_journal_adopted.rs`). The instance name is the same text in both releases (the same hash of the same Git
+///  directory), so the unit is this worktree's and no other's. The earlier release wrote only two shared templates, from which
+///  every worktree's instance is made, so there is no file of this instance to remove and the templates stay; a stopped instance
+///  is unloaded by the manager. A helper that runs is left as it is: the earlier service `Requires=` its socket, so a plain stop
+///  of the socket stops it mid-batch, and the stop that is sent names the one unit. The socket file is never unlinked, because
+///  an earlier-release wrapper can make its unit listen again at that path between any answer of the manager and an unlink.
+///  Whether the stop is still to be done is read from the table of listening sockets (`in_place_with`). Every failure is logged
+///  and ignored, each call is bounded by one exchange's time, and an earlier-release wrapper that sets the unit up again
+///  undoes this (the owner accepted that).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await stopEarlierInstanceSocket(host, manager) // logs and returns on any failure
+/// ```
+fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager) {
+    let socket: String = earlier_socket_unit_instance(host.instance.as_str());
+    let service: String = earlier_service_unit_instance(host.instance.as_str());
+    // The start that came before may have used the time of its exchange; these calls have a time of their own.
+    manager.within(EXCHANGE_WAIT);
+    let unreadable = |unit: &str, error: &CallError| {
+        crate::service_warn!(
+            "the commit service of the earlier release for this worktree ({unit}) was not stopped: {}; the batches it left open stay open, and the next commit tries again",
+            describe(error)
+        );
+    };
+    // A helper that runs finishes its own batches; it is not touched.
+    match manager.active_state(service.as_str()) {
+        Ok(Some(state)) if !is_at_rest(state.as_str()) => return,
+        Ok(_) => {}
+        Err(error) => return unreadable(service.as_str(), &error),
+    }
+    let held: Option<String> = match manager.active_state(socket.as_str()) {
+        Ok(state) => state,
+        Err(error) => return unreadable(socket.as_str(), &error),
+    };
+    if !matches!(&held, Some(state) if !is_at_rest(state.as_str())) {
+        return;
+    }
+    match manager.stop_alone(socket.as_str()) {
+        Ok(()) => {}
+        Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => {}
+        Err(error) => unreadable(socket.as_str(), &error),
+    }
+}
+
 /// Provisions through the session bus, unless the units and the socket are already in place.
 pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     if in_place(host) {
         return Ok(());
     }
-    let mut bus: Bus = Bus::connect(host.bus.as_path(), EXCHANGE_WAIT).map_err(|_| { return ClientFailure::NoActivation(platform_without_manager()); })?;
+    let mut bus: Bus = match Bus::connect(host.bus.as_path(), EXCHANGE_WAIT) {
+        Ok(connected) => connected,
+        Err(_refused) => return Err(ClientFailure::NoActivation(platform_without_manager())),
+    };
     return provision_with(host, &mut bus);
 }
 
@@ -464,3 +570,9 @@ pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
 #[cfg(test)]
 #[path = "service_provision_tests.rs"]
 mod tests;
+
+/// The owner's rule that nothing of the wrapper starts at system startup or at login, held by guards that fail when a unit, a link, a
+///  file outside the runtime directory or a call to the manager would make it so.
+#[cfg(test)]
+#[path = "service_provision_never_starts_at_login_tests.rs"]
+mod never_starts_at_login_tests;

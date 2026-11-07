@@ -92,7 +92,10 @@ impl LinuxPlatform {
     /// const platform = linuxPlatform({ ...environment, [FORWARD_TARGET]: realGit });
     /// ```
     pub fn forwarding_to(environment: &[(OsString, OsString)], real_git: Option<&Path>) -> LinuxPlatform {
-        let named: Vec<(OsString, OsString)> = real_git.map_or_else(|| { return environment.to_vec(); }, |found: &Path| { return with_real_git(environment, found); });
+        let named: Vec<(OsString, OsString)> = match real_git {
+            Some(found) => with_real_git(environment, found),
+            None => environment.to_vec(),
+        };
         return LinuxPlatform { git_environment: named };
     }
 }
@@ -120,18 +123,14 @@ impl Platform for LinuxPlatform {
     }
 
     fn removal_allowed(&self, path: &Path) -> bool {
-        return read_mount_facts(path)
-            .ok()
-            .flatten()
-            .is_some_and(|facts| { return facts.has_option("user_subvol_rm_allowed"); });
+        let Ok(Some(facts)) = read_mount_facts(path) else { return false };
+        return facts.has_option("user_subvol_rm_allowed");
     }
 
     fn is_mount_point(&self, path: &Path) -> bool {
         let Ok(real) = std::fs::canonicalize(path) else { return false };
-        return read_mount_facts(real.as_path())
-            .ok()
-            .flatten()
-            .is_some_and(|facts| { return facts.mount_point == real; });
+        let Ok(Some(facts)) = read_mount_facts(real.as_path()) else { return false };
+        return facts.mount_point == real;
     }
 
     fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), PrimitiveError> {

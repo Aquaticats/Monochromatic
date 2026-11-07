@@ -1,5 +1,5 @@
 //! What:
-//!  Turn `cli-git.config.jsonc` text into validated typed settings.
+//!  Turn `monochromatic-git-policy-cli.config.jsonc` text into validated typed settings.
 //! Why:
 //!  Every unknown key,
 //!  wrong type or ambiguous duplicate is rejected before any
@@ -30,7 +30,7 @@ use crate::config_values::{boolean, member_keys, member_path, safe_integer, wron
 /// What:
 ///  Import the repository's JSONC parser and its value type.
 /// Why:
-///   cli-git reads its configuration through the shared JSONC package only.
+///   monochromatic-git-policy-cli reads its configuration through the shared JSONC package only.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,16 +67,16 @@ const ACCEPTED_KEYS: &str = "policies, hooks, indexLock, landing, discardedCopie
 fn unknown_top_level_key(key: &str) -> ConfigError {
     if key == "plugins" {
         return ConfigError::new(
-            "Configuration key plugins is retired: policies are compiled into cli-git and \
+            "Configuration key plugins is retired: policies are compiled into monochromatic-git-policy-cli and \
              JSONC configuration cannot load plugin code. Remove the key and configure the \
              shipped policies under policies.",
         );
     }
     if key == "postCommit" {
         return ConfigError::new(
-            "Configuration key postCommit is not supported: cli-git runs no program named by any configuration, so \
+            "Configuration key postCommit is not supported: monochromatic-git-policy-cli runs no program named by any configuration, so \
              there is nothing to declare under it. Remove the key. A check that must run on every commit belongs in \
-             a cli-git policy under policies.",
+             a monochromatic-git-policy-cli policy under policies.",
         );
     }
     if key == "trust" {

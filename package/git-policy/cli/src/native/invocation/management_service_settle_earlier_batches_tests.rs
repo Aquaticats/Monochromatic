@@ -1,0 +1,352 @@
+//! Controls for `service settle-earlier-batches` and the note `doctor` adds about it: what each answer says, that the
+//!  condition of the command is said before it acts, and that nothing is changed while an earlier helper may run or start.
+
+use super::*;
+use crate::service_instance::instance_of;
+use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, write_intent};
+use crate::test_support::{REAL_GIT, fixture, isolated_overlay, remove};
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
+
+/// The command word the notes name.
+const COMMAND: &str = "git monochromatic-git-policy-cli service settle-earlier-batches";
+
+/// One disposable world: a state folder, a Git directory, a process table.
+struct Setup {
+    root: PathBuf,
+    state: PathBuf,
+    git_dir: PathBuf,
+    proc_root: PathBuf,
+}
+
+fn setup(name: &str) -> Setup {
+    let root: PathBuf = fixture(name);
+    let git_dir: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&git_dir).expect("git directory");
+    let proc_root: PathBuf = root.join("proc");
+    std::fs::create_dir_all(proc_root.join("net")).expect("net folder");
+    std::fs::write(proc_root.join("net/unix"), "Num       RefCount Protocol Flags    Type St Inode Path\n").expect("an empty table");
+    return Setup { state: root.join("state"), root, git_dir, proc_root };
+}
+
+impl Setup {
+    fn instance(&self) -> String {
+        return instance_of(self.git_dir.as_path());
+    }
+
+    /// Leaves `count` open batches of this worktree in its earlier journal, and one of another worktree beside them.
+    fn leave_open_batches(&self, count: u64) {
+        let journal: PathBuf = self.state.join(DATA_FOLDER.earlier).join("service").join(self.instance());
+        std::fs::create_dir_all(&journal).expect("the earlier journal");
+        for seq in 1..=count {
+            write_intent(journal.as_path(), &self.intent(seq, self.git_dir.as_path())).expect("an open batch");
+        }
+        let shared: PathBuf = self.state.join(DATA_FOLDER.earlier).join("service");
+        write_intent(shared.as_path(), &self.intent(90, self.root.join("elsewhere/.git").as_path())).expect("another worktree's batch");
+    }
+
+    fn intent(&self, seq: u64, git_dir: &Path) -> Intent {
+        return Intent {
+            seq,
+            repository: self.root.join("repo-that-is-not-there"),
+            common_dir: git_dir.to_path_buf(),
+            reference: String::from("refs/heads/main"),
+            old: "a".repeat(40),
+            new: "b".repeat(40),
+            ids: vec![format!("id-{seq}")],
+            commits: vec!["c".repeat(40)],
+            paths: vec![String::from("a.txt")],
+            derived: false,
+            cleanup: None,
+            index: git_dir.join("index"),
+            git_dir: git_dir.to_path_buf(),
+        };
+    }
+
+    fn request(&self) -> SettleRequest<'_> {
+        return SettleRequest {
+            selection: Selection::Found(self.git_dir.clone()),
+            state_dir: Some(self.state.as_path()),
+            git: Some(GitContext { real_git: PathBuf::from(REAL_GIT), overlay: isolated_overlay(), global_prefix: Vec::new(), common_dir: None }),
+            proc_root: self.proc_root.as_path(),
+        };
+    }
+
+    fn open_files(&self) -> usize {
+        let journal: PathBuf = self.state.join(DATA_FOLDER.earlier).join("service").join(self.instance());
+        return (1..=9).filter(|seq| { return batch_path(journal.as_path(), *seq, OPEN_EXTENSION).exists(); }).count();
+    }
+}
+
+/// The parts of an action that exits.
+fn parts(action: Action) -> (i32, String, String) {
+    let Action::Exit { code, stdout, stderr } = action else { panic!("the command exits") };
+    return (code, stdout, stderr);
+}
+
+/// Runs the command, giving what it said before acting as well.
+fn run(request: &SettleRequest<'_>) -> ((i32, String, String), String) {
+    let mut before: Vec<u8> = Vec::new();
+    let action: Action = settle_earlier_batches_action(request, &mut before);
+    return (parts(action), String::from_utf8_lossy(before.as_slice()).into_owned());
+}
+
+/// The state folder is `XDG_STATE_HOME` when set and not empty, else `.local/state` of the home folder, else unknown.
+#[test]
+fn the_state_folder_follows_the_environment() {
+    let pair = |name: &str, value: &str| -> (OsString, OsString) { return (OsString::from(name), OsString::from(value)) };
+    assert_eq!(state_dir_of(&[pair("XDG_STATE_HOME", "/s"), pair("HOME", "/h")]), Some(PathBuf::from("/s")));
+    assert_eq!(state_dir_of(&[pair("XDG_STATE_HOME", ""), pair("HOME", "/h")]), Some(PathBuf::from("/h/.local/state")));
+    assert_eq!(state_dir_of(&[pair("HOME", "/h")]), Some(PathBuf::from("/h/.local/state")));
+    assert_eq!(state_dir_of(&[pair("HOME", "")]), None);
+    assert_eq!(state_dir_of(&[]), None);
+}
+
+/// With no batch left, the command says so and exits 0, and says nothing of a condition because it acts on nothing.
+#[test]
+fn with_no_batch_left_the_command_says_so_and_acts_on_nothing() {
+    let world: Setup = setup("settle-command-nothing");
+    let ((code, stdout, stderr), before) = run(&world.request());
+    assert_eq!(code, 0);
+    assert!(stdout.contains("No batch of the earlier release is left open for this worktree"), "{stdout}");
+    assert_eq!((stderr.as_str(), before.as_str()), ("", ""));
+    remove(world.root.as_path());
+}
+
+/// A command that cannot tell which worktree, or where the journals are, settles nothing and says why.
+#[test]
+fn a_command_that_cannot_find_the_worktree_or_the_journals_says_so_and_changes_nothing() {
+    let world: Setup = setup("settle-command-unknown");
+    world.leave_open_batches(1);
+    let mut outside = world.request();
+    outside.selection = Selection::Outside;
+    let ((outside_code, outside_out, outside_err), before) = run(&outside);
+    assert_eq!((outside_code, outside_out.as_str(), before.as_str()), (1, "", ""));
+    assert!(outside_err.contains("not inside a repository"), "{outside_err}");
+    let mut unresolved = world.request();
+    unresolved.selection = Selection::Unresolved(String::from("Git said: boom"));
+    let ((unresolved_code, _, unresolved_err), _) = run(&unresolved);
+    assert_eq!(unresolved_code, 1);
+    assert!(unresolved_err.contains("Git said: boom"), "{unresolved_err}");
+    let mut homeless = world.request();
+    homeless.state_dir = None;
+    let ((homeless_code, _, homeless_err), _) = run(&homeless);
+    assert_eq!(homeless_code, 1);
+    assert!(homeless_err.contains("state folder"), "{homeless_err}");
+    assert_eq!(world.open_files(), 1);
+    remove(world.root.as_path());
+}
+
+/// Appends a listening socket line to the fake table.
+fn listen_at(world: &Setup, file: &str) {
+    let table: PathBuf = world.proc_root.join("net/unix");
+    let before: String = std::fs::read_to_string(&table).expect("table");
+    std::fs::write(&table, format!("{before}0000000000000001: 00000002 00000000 00010000 0001 01 1 /run/user/1000/cli-git/{file}\n")).expect("a listening socket");
+}
+
+/// Puts a fake process with `words` in the table.
+fn run_process(world: &Setup, words: &[String]) {
+    let process: PathBuf = world.proc_root.join("77");
+    std::fs::create_dir_all(&process).expect("process");
+    let mut bytes: Vec<u8> = Vec::new();
+    for word in words {
+        bytes.extend(word.as_bytes());
+        bytes.push(0);
+    }
+    std::fs::write(process.join("cmdline"), bytes).expect("command line");
+}
+
+/// A socket that listens, a process that runs, and a look that cannot be made each hold the command back with their own words,
+///  the count of open batches, what was not done, and the way on that fits the cause; nothing is changed and nothing was said
+///  as if acting. This worktree's units are named for this worktree's socket and helper; the single service of the first
+///  releases is named as serving every worktree, with the units that exist for it; a way on never names units that are not the
+///  cause, and the wait for an idle exit is offered only where no socket listens that would start the helper again.
+#[test]
+fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the_way_that_fits() {
+    let world: Setup = setup("settle-command-held");
+    world.leave_open_batches(2);
+    let instance: String = world.instance();
+    let own_units: String = format!("cli-git@{instance}.socket cli-git@{instance}.service");
+    let table: PathBuf = world.proc_root.join("net/unix");
+    let header: String = std::fs::read_to_string(&table).expect("header");
+    listen_at(&world, format!("{instance}.sock").as_str());
+    let ((socket_code, socket_out, socket_err), before) = run(&world.request());
+    assert_eq!((socket_code, socket_out.as_str(), before.as_str()), (1, "", ""));
+    for wanted in ["2 batches", "listens", "Nothing was changed", own_units.as_str(), COMMAND] {
+        assert!(socket_err.contains(wanted), "{wanted}: {socket_err}");
+    }
+    assert!(!socket_err.contains("three hours") && !socket_err.contains("cli-git.socket"), "a listening socket does not stop by waiting: {socket_err}");
+    std::fs::write(&table, header.as_str()).expect("an empty table");
+    listen_at(&world, "service.sock");
+    let ((shared_code, _, shared_err), _) = run(&world.request());
+    assert_eq!(shared_code, 1);
+    for wanted in ["every worktree", "systemctl --user stop cli-git.socket cli-git.service", "Nothing was changed", "next commit made with this release", "asks the service to finish its batch", "still working after ten seconds"] {
+        assert!(shared_err.contains(wanted), "{wanted}: {shared_err}");
+    }
+    assert!(!shared_err.contains(own_units.as_str()) && !shared_err.contains("three hours"), "units that are not the cause, or a wait that clears nothing: {shared_err}");
+    std::fs::write(&table, header.as_str()).expect("an empty table");
+    run_process(&world, &[String::from("/p/cli-git"), String::from("cli-git"), String::from("service"), String::from("run"), String::from("--instance"), instance.clone()]);
+    let ((process_code, _, process_err), _) = run(&world.request());
+    assert_eq!(process_code, 1);
+    for wanted in ["is running as the commit service of this worktree", "Nothing was changed", own_units.as_str(), "three hours"] {
+        assert!(process_err.contains(wanted), "{wanted}: {process_err}");
+    }
+    run_process(&world, &[String::from("/p/cli-git-native"), String::from("--journal"), world.state.join("cli-git/service").display().to_string()]);
+    let ((single_code, _, single_err), _) = run(&world.request());
+    assert_eq!(single_code, 1);
+    assert!(single_err.contains("every worktree") && single_err.contains("systemctl --user stop cli-git.socket cli-git.service") && !single_err.contains(own_units.as_str()), "{single_err}");
+    run_process(&world, &[String::from("/p/cli-git-native"), String::from("--journal"), String::from("/nowhere/at/all")]);
+    let ((unsure_code, _, unsure_err), _) = run(&world.request());
+    assert_eq!(unsure_code, 1);
+    assert!(unsure_err.contains(own_units.as_str()) && unsure_err.contains("cli-git.socket cli-git.service"), "both sets of units, because the cause is not known: {unsure_err}");
+    std::fs::remove_dir_all(world.proc_root.join("77")).expect("process gone");
+    std::fs::remove_file(&table).expect("no table");
+    let ((blind_code, _, blind_err), _) = run(&world.request());
+    assert_eq!(blind_code, 1);
+    assert!(blind_err.contains("could not be looked at") && blind_err.contains("Nothing was changed"), "{blind_err}");
+    assert_eq!(world.open_files(), 2, "nothing was settled or removed");
+    remove(world.root.as_path());
+}
+
+/// A program that carries `--journal` with a folder the check cannot resolve holds the command back, and the message names
+///  that program, so a person with an unrelated tool that happens to take the option can tell what blocks them: its process
+///  ID, the program it runs (the executable path of its first word) and the folder that did not resolve with the system's
+///  reason, why the program cannot be ruled out, and what to do: wait for it, stop it, or run the command again after it ends.
+///  No other word of its command line is shown, because any of them can be a secret that no masker knows (`--token`,
+///  `--password`, a URL's credentials); the message says that they are not shown. Which programs hold the command back is
+///  not changed: a folder that exists holds nothing back.
+#[test]
+fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_shows_no_other_argument() {
+    let world: Setup = setup("settle-command-names-the-program");
+    world.leave_open_batches(1);
+    let words: Vec<String> = [
+        "/usr/bin/unrelated-tool",
+        "--journal",
+        "/gone/for/good",
+        "--remote",
+        "https://user:s3cret@example.invalid/x",
+        "--token",
+        "s3cret-token",
+        "--password",
+        "hunter2",
+    ]
+    .iter()
+    .map(|word| { return String::from(*word); })
+    .collect();
+    run_process(&world, words.as_slice());
+    let ((code, stdout, stderr), before) = run(&world.request());
+    assert_eq!((code, stdout.as_str(), before.as_str()), (1, "", ""));
+    assert!(stderr.contains(crate::earlier_service_process_look::Hold::HelperUnsure.words()), "the reason's words stay: {stderr}");
+    for wanted in ["process 77", "`/usr/bin/unrelated-tool`", "`/gone/for/good`", "No such file or directory", "cannot be ruled out", "wait for process 77", "stop it", "again", COMMAND, "Nothing was changed", "other arguments are not shown"] {
+        assert!(stderr.contains(wanted), "{wanted}: {stderr}");
+    }
+    for secret in ["s3cret", "s3cret-token", "hunter2", "--token", "--password", "--remote", "example.invalid"] {
+        assert!(!stderr.contains(secret), "{secret} of another argument must not be printed: {stderr}");
+    }
+    assert_eq!(stderr.matches('\n').count(), 1, "one line: {stderr:?}");
+    run_process(&world, &[String::from("tool-by-name"), String::from("--journal"), String::from("two\nlines"), String::from("--token"), String::from("x")]);
+    let ((named_code, _, named_err), _) = run(&world.request());
+    assert_eq!(named_code, 1);
+    assert!(named_err.contains("`tool-by-name`") && named_err.contains("`two\\nlines`"), "a bare program name, a control character escaped: {named_err}");
+    assert_eq!(named_err.matches('\n').count(), 1, "one line: {named_err:?}");
+    run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("not/yet/there")]);
+    let ((relative_code, _, relative_err), _) = run(&world.request());
+    assert_eq!(relative_code, 1);
+    assert!(relative_err.contains("`not/yet/there`") && relative_err.contains("working directory of process 77"), "a relative folder says what it is relative to: {relative_err}");
+    std::fs::create_dir_all(world.root.join("exists")).expect("a folder that exists");
+    run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), world.root.join("exists").display().to_string()]);
+    let ((resolved_code, _, resolved_err), _) = run(&world.request());
+    assert_eq!(resolved_code, 1, "the command goes on and Git gives no answer for the fixture's batch, which it names: {resolved_err}");
+    assert!(!resolved_err.contains("process 77"), "{resolved_err}");
+    assert_eq!(world.open_files(), 1);
+    remove(world.root.as_path());
+}
+
+/// The count of open batches agrees with the verb in every hold: one batch "was" not settled, several "were" not.
+#[test]
+fn the_held_message_agrees_in_number_with_the_count_of_open_batches() {
+    for (count, wanted) in [(1_u64, "1 batch the earlier release's commit service left open for this worktree was not settled"), (2, "2 batches the earlier release's commit service left open for this worktree were not settled"), (3, "3 batches the earlier release's commit service left open for this worktree were not settled")] {
+        let world: Setup = setup(format!("settle-command-number-{count}").as_str());
+        world.leave_open_batches(count);
+        run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("/gone/for/good")]);
+        let ((code, _, stderr), _) = run(&world.request());
+        assert_eq!(code, 1);
+        assert!(stderr.starts_with(wanted), "{wanted}: {stderr}");
+        remove(world.root.as_path());
+    }
+}
+
+/// Before it acts, the command says the condition it is safe under, in plain words, and what an earlier-release wrapper does
+///  to it. Here Git gives no answer for the batch, so the batch is named as one the command could not examine, stays on disk,
+///  and the exit status says that something was not done.
+#[test]
+fn the_condition_is_said_before_the_command_acts_and_a_batch_git_cannot_answer_for_is_named() {
+    let world: Setup = setup("settle-command-condition");
+    world.leave_open_batches(1);
+    let ((code, stdout, stderr), before) = run(&world.request());
+    for wanted in ["no wrapper of the earlier release is in use in this worktree", "sets its commit service up again", "start the earlier helper"] {
+        assert!(before.contains(wanted), "{wanted}: {before}");
+    }
+    assert_eq!(code, 1);
+    for wanted in ["batch 1", "could not be examined", "stays on disk"] {
+        assert!(stdout.contains(wanted), "{wanted}: {stdout}");
+    }
+    assert!(stderr.contains("nothing was discarded"), "{stderr}");
+    assert_eq!(world.open_files(), 1);
+    remove(world.root.as_path());
+}
+
+/// A writer that fails, as standard error does when it is closed or its reader is gone.
+struct FailingWriter {
+    fail_flush_only: bool,
+}
+
+impl std::io::Write for FailingWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if self.fail_flush_only {
+            return Ok(bytes.len());
+        }
+        return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "standard error is closed"));
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "standard error is closed"));
+    }
+}
+
+/// The condition must reach the person before anything is changed: when it cannot be written (or flushed), the command refuses,
+///  says so, and has settled and examined nothing, so no intent is touched and nothing is logged as examined.
+#[test]
+fn a_condition_that_cannot_be_delivered_stops_the_command_before_it_acts() {
+    for fail_flush_only in [false, true] {
+        let world: Setup = setup("settle-command-writer");
+        world.leave_open_batches(1);
+        let entries = crate::service_timing::capture::entries_of(|| {
+            let action: Action = settle_earlier_batches_action(&world.request(), &mut FailingWriter { fail_flush_only });
+            let (code, stdout, stderr) = parts(action);
+            assert_eq!((code, stdout.as_str()), (1, ""));
+            assert!(stderr.contains("could not be written") && stderr.contains("nothing was settled"), "{stderr}");
+            assert!(!stderr.contains("could not be examined"), "the recovery did not start: {stderr}");
+        });
+        assert!(entries.iter().all(|entry| { return !entry.message.contains("Git gave no answer"); }), "{entries:?}");
+        assert_eq!(world.open_files(), 1);
+        remove(world.root.as_path());
+    }
+}
+
+/// The doctor's note counts the open batches of the worktree without changing a file, names the command, says it only
+///  reports, and is empty when there is nothing to say or nothing to read.
+#[test]
+fn the_doctor_note_counts_the_batches_names_the_command_and_is_empty_otherwise() {
+    let world: Setup = setup("settle-command-note");
+    assert_eq!(earlier_batches_note(&Selection::Found(world.git_dir.clone()), Some(world.state.as_path())), "");
+    world.leave_open_batches(2);
+    let note: String = earlier_batches_note(&Selection::Found(world.git_dir.clone()), Some(world.state.as_path()));
+    for wanted in ["2 batches", COMMAND, "nothing was changed"] {
+        assert!(note.contains(wanted), "{wanted}: {note}");
+    }
+    assert_eq!(earlier_batches_note(&Selection::Outside, Some(world.state.as_path())), "");
+    assert_eq!(earlier_batches_note(&Selection::Unresolved(String::from("x")), Some(world.state.as_path())), "");
+    assert_eq!(earlier_batches_note(&Selection::Found(world.git_dir.clone()), None), "");
+    assert_eq!(world.open_files(), 2);
+    remove(world.root.as_path());
+}

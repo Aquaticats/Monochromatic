@@ -131,7 +131,7 @@ fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
     let stderr = stderr_of(&observed);
     assert_eq!(observed.code, Some(0), "{stderr}");
     assert!(stderr.contains("[rejected]"), "Git's own report is unchanged: {stderr}");
-    assert!(stderr.contains("cli-git: push: origin/main had new commits"), "{stderr}");
+    assert!(stderr.contains("monochromatic-git-policy-cli: push: origin/main had new commits"), "{stderr}");
     let published = oid(&fixture, race.origin.as_path(), "main");
     assert!(reachable(&fixture, &race, &landed, &published));
     assert!(reachable(&fixture, &race, &oid(&fixture, race.rival.as_path(), "HEAD"), &published));

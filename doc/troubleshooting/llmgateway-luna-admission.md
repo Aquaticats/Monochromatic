@@ -5,11 +5,15 @@
 ### Symptom and evidence
 
 Session `2026-10-16T02-17-34-349Z` reached manual approval while inspecting task headings with `grep`
-and reading the handover with `sed`, after preceding inspection calls succeeded.
+and reading the handover with `sed`,
+after preceding inspection calls succeeded.
 The installed whole-operation request included the full root policy and Pi's hidden tool-use guidance.
-Three identical live requests returned `deny: 0.57`, `approve: 0.41`, and `unknown: 0.02`.
+Three identical live requests returned `deny: 0.57`,
+`approve: 0.41`,
+and `unknown: 0.02`.
 The `0.60` action cutoff correctly withheld automatic approval.
-The defect was the selected review scope and inputs, not a transport timeout.
+The defect was the selected review scope and inputs,
+not a transport timeout.
 The concurrent sessionStorage warning is explicitly outside this incident's investigation.
 
 ### Source trace and correction
@@ -32,13 +36,19 @@ const sources=Object.freeze([
 ]);
 ```
 
-Hidden prompts, tool metadata, and skill descriptions remain local provenance inputs.
+Hidden prompts,
+tool metadata,
+and skill descriptions remain local provenance inputs.
 They do not become review questions or shared model context.
 Additional policy inputs must bind to actual readable files through the incumbent observer.
 Complete root-policy copies in transcript strings are replaced with a selected-excerpt reference.
 
 The existing relevance cache was disconnected from production initialization and admitted no exclusions.
-Commits `d9e9771bd8`, `c35670685a`, and `22532b415e` connect initialization, selection, and wire projection.
+Commits `d9e9771bd8`,
+`c35670685a`,
+and `22532b415e` connect initialization,
+selection,
+and wire projection.
 `package/pi-plugin/auto-mode/native/contract/integration/native-host/startup-relevance.mjs:25`
 constructs requests from individual changed rules and fixed remit text:
 
@@ -48,7 +58,8 @@ const body=JSON.stringify({model:ruleAssessmentModel,state:{remit:request.defini
 ```
 
 No complete policy field accompanies those questions.
-Unchanged classifications persist across owners; changed rule text or classifier profile requires fresh estimates.
+Unchanged classifications persist across owners;
+changed rule text or classifier profile requires fresh estimates.
 The user's subsequent instruction to cull uncertain rules is implemented in
 `package/pi-plugin/auto-mode/native/contract/integration/policy-source/decision-material.mjs:11`:
 
@@ -59,15 +70,23 @@ const excluded=Object.freeze((relevance?.rules??[]).filter(function notAdmitted(
 
 Selected excerpts retain original source spans and freshness checks.
 Relevance selection does not grant execution permission.
-Startup classification failure preserves chat; tool calls require scoped confirmation or remain withheld without UI.
+Startup classification failure preserves chat;
+tool calls require scoped confirmation or remain withheld without UI.
 
 ### Verification and limits
 
 Installed release `native-release-8uGKtw` passes built startup and readable-context regressions.
 The relevance boundary includes `0.60` and excludes lower estimates.
-Cold, warm, and changed-rule fixtures request four, zero, and one classifications respectively.
+Cold,
+warm,
+and changed-rule fixtures request four,
+zero,
+and one classifications respectively.
 A disposable build fails the regression with culling removed and passes when restored.
-The startup failure matrix covers chat, Allow, Stop, and headless withholding.
+The startup failure matrix covers chat,
+Allow,
+Stop,
+and headless withholding.
 
 ```sh
 # Repository root; built consumer tests with disposable fixtures
@@ -80,7 +99,8 @@ The full reported conversation replay executes nine original calls across six gr
 The live explicit prohibited-read control blocks both calls without confirmation.
 Receipts and the resource comparison are indexed in
 [the current handover](../handover/pi-auto-mode-current-frontier.md).
-These observations establish the exercised interactions, not universal classifier accuracy.
+These observations establish the exercised interactions,
+not universal classifier accuracy.
 Removing uncertain rules can omit a relevant restriction when its relevance estimate is low;
 that tradeoff follows the user's explicit selection policy.
 
@@ -93,10 +113,16 @@ that tradeoff follows the user's explicit selection policy.
 
 ### Upstream filing decision
 
-Nothing to add upstream: source selection, permission scope, and disconnected cache integration are application defects.
+Nothing to add upstream:
+source selection,
+permission scope,
+and disconnected cache integration are application defects.
 The upstream-fault gate fails.
-The Decisions route supports the requests exercised here; upstream fixability, contribution policy,
-maintainer intent, and prototype gates do not justify a provider report for these local corrections.
+The Decisions route supports the requests exercised here;
+upstream fixability,
+contribution policy,
+maintainer intent,
+and prototype gates do not justify a provider report for these local corrections.
 No external issue or message is prepared.
 
 ## Repository inspection blocked by unresolved prerequisites on 2026-10-16
@@ -114,7 +140,8 @@ Neither proposed operation required another authorization under the reported tas
 The original local logs omitted per-clause distributions,
 so the exact clause causing that incident is unknown.
 An unchanged installed replay subsequently reached a dialog;
-its `PX2` prerequisite score was `0.39`, below admission.
+its `PX2` prerequisite score was `0.39`,
+below admission.
 That replay does not establish that `PX2` caused this incident.
 The separate 2026-10-15 `proof.txt` incident has its own retained `0.60` evidence.
 
@@ -129,7 +156,9 @@ converted unresolved authorization requirements into the quoted terminal explana
 if (authorization.state === 'unresolved') {
 ```
 
-The agent's initial interpretation, routing those estimates directly to a dialog, was rejected.
+The agent's initial interpretation,
+routing those estimates directly to a dialog,
+was rejected.
 The user required the decision model to reconsider the complete operation first.
 Current `package/pi-plugin/auto-mode/native/contract/integration/action-policy/decision-core.mjs:108`
 now selects that path before native confirmation:
@@ -142,7 +171,10 @@ const operationDecision=policy!==undefined&&(automaticOutcome.state!=='resolved'
 ```
 
 The new question retains complete selected context and every original prepared tool operation.
-It shares the existing model, categorical cutoff, deadline, and transport allowance.
+It shares the existing model,
+categorical cutoff,
+deadline,
+and transport allowance.
 A recoverable clause-assessment failure also reaches this model question.
 An established governing prohibition remains terminal.
 Unresolved or failed final review reaches scoped confirmation when available.
@@ -158,7 +190,11 @@ so a model timeout can still reach last-resort manual review for an unchanged op
 
 The user identified missing decision evidence as a logging defect.
 `package/pi-plugin/auto-mode/native/contract/integration/action-policy/compiler.mjs:138`
-records each selected clause, distribution, serving model, priority, and admission result:
+records each selected clause,
+distribution,
+serving model,
+priority,
+and admission result:
 
 ```js
 // package/pi-plugin/auto-mode/native/contract/integration/action-policy/compiler.mjs:138
@@ -175,7 +211,10 @@ const reviewId = reviewIds.get(judgment) ?? randomUUID();
 
 Assessment records include complete selected model input and parsed replies under `assessmentId` and `operationId`.
 Question evidence joins those records to `reviewId` through the same operation digest.
-Decision records retain routing, model outcomes, scoped confirmation, and nested failures.
+Decision records retain routing,
+model outcomes,
+scoped confirmation,
+and nested failures.
 Invalid reply records retain the malformed reply.
 Transport credentials and the archived primary-provider request are excluded from assessment records.
 These local logs contain command and policy contents and are not public issue attachments.
@@ -192,7 +231,8 @@ and all 140 cached MCP tool definitions.
 It made four successful Luna calls,
 executed both commands,
 and opened no dialog.
-Receipt: `${HOME}/temp/agent/pi-host-isolation-20261015/repo-decision-candidate.log`.
+Receipt:
+`${HOME}/temp/agent/pi-host-isolation-20261015/repo-decision-candidate.log`.
 
 The built consumer regression covers automatic approve and deny,
 unknown and lower-scoring answers,
@@ -215,13 +255,22 @@ mise run //package/pi-plugin/auto-mode:test:native:decision-fallback
 The earlier synthetic working-directory policy did not establish behavior under the real repository policy.
 The older original logs cannot be repaired retroactively.
 Authored cases establish routing and retention;
-live results establish the named observed operations, not general model accuracy.
+live results establish the named observed operations,
+not general model accuracy.
 Installed release `native-release-Jg5gMF` passes the same live repository-policy replay in
-fixture `pi-hyper-rpc-allow-HTVK1s`, with four successful Luna calls, both commands executed, and no dialog.
+fixture `pi-hyper-rpc-allow-HTVK1s`,
+with four successful Luna calls,
+both commands executed,
+and no dialog.
 Its persisted JSONL records contain 518 question answers and 515 clause-admission records,
 linked to both complete assessment exchanges and the final approval.
 The installed prohibition control `pi-hyper-rpc-prohibited-a1TH2T` blocks both proposed reads without a dialog.
-The fallback, original-budget, ownership, public API, type, and focused zero-error lint checks pass.
+The fallback,
+original-budget,
+ownership,
+public API,
+type,
+and focused zero-error lint checks pass.
 Complete installed receipts are indexed in [the current handover](../handover/pi-auto-mode-current-frontier.md).
 
 ### Upstream filing decision
@@ -230,7 +279,10 @@ Nothing to add upstream for this incident:
 the demonstrated missing fallback and diagnostics are owned application behavior.
 The original model interpretation cannot be attributed to a specific clause from its retained logs.
 The upstream-fault gate therefore fails;
-upstream fixability, contribution acceptance, maintainer intent, and an upstream prototype do not arise.
+upstream fixability,
+contribution acceptance,
+maintainer intent,
+and an upstream prototype do not arise.
 The existing provider supports the Decisions request shape exercised by the retained live HTTP 200 receipts.
 No upstream message or speculative provider patch is prepared.
 
@@ -298,9 +350,13 @@ and live Luna assessments:
 - `pi-hyper-rpc-allow-xBd3tp`:
   one scoped confirmation and one completed native file read.
 - `pi-hyper-rpc-prohibited-jdUv2C`:
-  an actual file-read prohibition, no confirmation, and no child execution.
+  an actual file-read prohibition,
+  no confirmation,
+  and no child execution.
 - `pi-hyper-rpc-generic-L5IYbS`:
-  required approval from an external records office, no confirmation, and no child execution.
+  required approval from an external records office,
+  no confirmation,
+  and no child execution.
 
 Each assessment used three HTTP calls under the original fifteen-second budget.
 The permission case retained 516 questions and request sizes of 370631,

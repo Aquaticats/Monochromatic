@@ -1,0 +1,143 @@
+diff --git a/pnpm/crates/fs/src/symlink_dir.rs b/pnpm/crates/fs/src/symlink_dir.rs
+index ce24634..cc81561 100644
+--- a/pnpm/crates/fs/src/symlink_dir.rs
++++ b/pnpm/crates/fs/src/symlink_dir.rs
+@@ -110,14 +110,31 @@ pub fn to_native_separators(path: &Path) -> Cow<'_, Path> {
+ }
+ 
+ /// Compute the symlink contents for a true symlink: the path from the
+-/// link's parent directory to `original`, equivalent to
+-/// `path.relative(path.dirname(dest), src)`.
++/// physical parent directory to `original`. The target itself stays spelled
++/// as supplied, so a target symlink can be retargeted after this link is made.
+ ///
+ /// Returns an absolute path when no relative form exists between the
+ /// two arguments.
+ fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
++    let parent = physical_link_parent(link);
++    // What: absolute returns a Result; the closure keeps the supplied path if
++    // the current directory cannot be read. Why: relative targets are cwd-based.
++    // TS: const target = tryAbsolute(original) ?? original;
++    let target = std::path::absolute(original).unwrap_or_else(|_| original.to_path_buf());
++    // Borrow both paths; return the relative path without consuming either.
++    crate::relative_path(&parent, &target)
++}
++
++/// What: return an owned PathBuf for the directory containing a link; &Path
++/// borrows the caller's path. Why: the kernel interprets relative link contents
++/// from the physical parent, even when the caller used a directory alias.
++/// TS: function physicalLinkParent(link: string): string { ... }
++fn physical_link_parent(link: &Path) -> PathBuf {
++    // What: unwrap_or_else chooses cwd for a bare filename. TS: dirname(link).
+     let parent = link.parent().unwrap_or_else(|| Path::new(""));
+-    crate::relative_path(parent, original)
++    // What: realpath_missing resolves existing ancestors; the fallback preserves
++    // the syscall's own error for an inaccessible parent. TS: tryRealpath(parent) ?? parent.
++    crate::realpath_missing(parent).unwrap_or_else(|_| parent.to_path_buf())
+ }
+ 
+ /// Whether `link` is a directory symlink or, on Windows, a junction —
+diff --git a/pnpm/crates/fs/src/symlink_dir/reuse.rs b/pnpm/crates/fs/src/symlink_dir/reuse.rs
+index 79b95f5..4bf501d 100644
+--- a/pnpm/crates/fs/src/symlink_dir/reuse.rs
++++ b/pnpm/crates/fs/src/symlink_dir/reuse.rs
+@@ -22,7 +22,7 @@ pub(super) fn force_symlink(
+ 
+ /// Lexical "does the existing link resolve to the wanted target?"
+ /// check: resolve the existing link's contents to an absolute path
+-/// (using `link`'s parent dir when the contents are relative), then
++/// (using `link`'s physical parent dir when the contents are relative), then
+ /// compare lexically against `wanted`. Single-level — does not follow
+ /// chained symlinks.
+ ///
+@@ -39,9 +39,13 @@ pub(super) fn existing_symlink_up_to_date(
+     let existing_absolute = if existing_link_string.is_absolute() {
+         existing_link_string.to_path_buf()
+     } else {
+-        link.parent()
+-            .unwrap_or_else(|| Path::new(""))
+-            .join(existing_link_string)
++        super::physical_link_parent(link).join(existing_link_string)
+     };
+-    crate::lexical_normalize(&existing_absolute) == crate::lexical_normalize(wanted)
++    // What: convert a cwd-relative target to absolute without following its leaf
++    // symlink. The closure preserves syscall error behavior if cwd is unreadable.
++    // Why: use the same target semantics as relative_target_for.
++    // TS: const absoluteWanted = tryAbsolute(wanted) ?? wanted;
++    let absolute_wanted = std::path::absolute(wanted).unwrap_or_else(|_| wanted.to_path_buf());
++    // Borrow the paths for normalization; equality decides whether to reuse.
++    crate::lexical_normalize(&existing_absolute) == crate::lexical_normalize(&absolute_wanted)
+ }
+diff --git a/pnpm/crates/fs/src/symlink_dir/tests.rs b/pnpm/crates/fs/src/symlink_dir/tests.rs
+index 7b4c295..337d2af 100644
+--- a/pnpm/crates/fs/src/symlink_dir/tests.rs
++++ b/pnpm/crates/fs/src/symlink_dir/tests.rs
+@@ -16,6 +16,68 @@ use super::{is_reparse_point, relative_target_for};
+ use std::fs;
+ use tempfile::tempdir;
+ 
++// What: compile this filesystem regression only on Unix, where the fixture can
++// create directory symlinks without special privileges. TS: if (unix) test(...).
++#[cfg(unix)]
++// What: register a Rust test. TS: test('symlinked parent', testFunction).
++#[test]
++// What: a no-argument test function. Why: check real filesystem resolution,
++// including parent creation and a target symlink that changes after linking.
++// TS: function unix_links_under_symlinked_parent_remain_resolvable() { ... }
++fn unix_links_under_symlinked_parent_remain_resolvable() {
++    // What: expect extracts success or fails the test. Why: give each setup
++    // failure a useful location. TS: const root = makeTemporaryDirectory();
++    let root = tempdir().expect("create fixture");
++    // Borrow the temporary path for canonicalization; keep the fixture owner alive.
++    let root_path = fs::canonicalize(root.path()).expect("canonical fixture root");
++    let physical = root_path.join("physical/deeper");
++    let alias = root_path.join("alias");
++    let target = root_path.join("target");
++    let replacement = root_path.join("replacement");
++    let target_alias = root_path.join("target-alias");
++    // What: & lends a path to fs without transferring ownership. Why: reuse
++    // these paths in assertions. TS: mkdir(physical, { recursive: true });
++    fs::create_dir_all(&physical).expect("create physical parent");
++    fs::create_dir_all(&target).expect("create target");
++    fs::create_dir_all(&replacement).expect("create replacement");
++    // What: :: chooses the Unix filesystem function. Why: construct the input
++    // symlinks independently of the implementation under test. TS: symlink(...).
++    std::os::unix::fs::symlink(&physical, &alias).expect("link parent alias");
++    std::os::unix::fs::symlink(&target, &target_alias).expect("link target alias");
++    let direct = alias.join("direct");
++    let nested = alias.join("missing/child/link");
++    // Borrow both paths for the public writers under test.
++    symlink_dir(&target_alias, &direct).expect("write direct link");
++    force_symlink_dir(&target_alias, &nested).expect("write link with absent parents");
++    // What: the array owns read-only references; for borrows each named path.
++    // Why: assert the same contract for both public entry points.
++    // TS: for (const link of [direct, nested]) { ... }
++    for link in [&direct, &nested] {
++        // What: assert_eq! fails on inequality. Why: check what the filesystem
++        // actually reaches, not merely the text stored in the symlink.
++        // TS: assert.equal(realpath(link), target);
++        assert_eq!(fs::canonicalize(link).expect("resolve created link"), target);
++    }
++    fs::remove_file(&target_alias).expect("remove target alias");
++    std::os::unix::fs::symlink(&replacement, &target_alias).expect("retarget alias");
++    for link in [&direct, &nested] {
++        assert_eq!(fs::canonicalize(link).expect("follow retargeted alias"), replacement);
++    }
++    let outcome = force_symlink_dir(&target_alias, &direct).expect("reuse correct link");
++    // What: assert! requires true. Why: repeat linking must reuse the correct link.
++    // TS: assert.equal(outcome.reused, true);
++    assert!(outcome.reused);
++    let stale = alias.join("stale");
++    // Recreate the lexical link text emitted when the alias was treated as a real directory.
++    let stale_contents = crate::relative_path(&alias, &target_alias);
++    std::os::unix::fs::symlink(&stale_contents, &stale).expect("plant broken legacy link");
++    // The planted control must actually be broken before testing repair.
++    assert!(!stale.exists());
++    let repaired = force_symlink_dir(&target_alias, &stale).expect("repair legacy link");
++    assert!(!repaired.reused);
++    assert_eq!(fs::canonicalize(&stale).expect("resolve repaired link"), replacement);
++}
++
+ #[cfg(unix)]
+ #[test]
+ fn unix_symlink_contents_are_relative_to_link_parent() {

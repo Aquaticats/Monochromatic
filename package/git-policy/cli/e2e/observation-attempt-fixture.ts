@@ -272,7 +272,7 @@ async function laterCaptureContents({
 
  @example
  ```ts
- await readNames('/work/s1/repo/.git/cli-git/work/done');
+ await readNames('/work/s1/repo/.git/monochromatic-git-policy-cli/work/done');
  ```
  */
 async function readNames(directory: string,): Promise<readonly string[]> {
@@ -289,7 +289,7 @@ async function readNames(directory: string,): Promise<readonly string[]> {
 
 /**
  Counts the settled push records the service holds per landed commit.
- The wrapper writes one `push-<oid>` record under `cli-git/work/pending` for every commit that landed,
+ The wrapper writes one `push-<oid>` record under `monochromatic-git-policy-cli/work/pending` for every commit that landed,
  and the service moves it to `done`, or to `failed` after too many tries.
 
  @param repository - scenario repository
@@ -308,7 +308,7 @@ export async function settledPushRecords(repository: ScenarioRepository,): Promi
   const names = (await Promise.all(SETTLED_STATES.map(async function listState(state,) {
     return await readNames(join(
       repository.gitDir,
-      'cli-git',
+      'monochromatic-git-policy-cli',
       'work',
       state,
     ),);

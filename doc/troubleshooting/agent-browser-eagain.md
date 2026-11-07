@@ -426,3 +426,103 @@ The helper's argument checks did not find its private profile flag.
 Handling that observed representation for its whitespace-free fixture path corrected identification.
 This is separate from the daemon-read diagnostic and does not explain that diagnostic.
 No new upstream defect or filing is established by these observations.
+
+## Cargo source verification cleanup at 2026-11-04T19:08:58-05:00
+
+The owned `cargo-protocol-20261104` session of `agent-browser 0.41.0`
+successfully opened the Cargo documentation and matched the cited text fragments.
+Its subsequent `close` returned the daemon-read diagnostic quoted in this document.
+The session PID file and `/proc/2458786/environ` identified daemon PID `2458786` as this session.
+Process inspection showed its Chrome child `2458794` as a zombie.
+This records the cleanup failure separately from the successful source-page verification;
+it does not establish why Chrome exited or why the close response was absent.
+
+The documented TERM recovery was attempted against that verified owned PID.
+Bash's `kill --signal TERM` form was rejected before sending a signal;
+the supported `kill -s TERM` form succeeded,
+but a subsequent process check still showed the daemon and zombie child.
+`kill -s KILL 2458786` then removed both inspected PIDs,
+and the browser's identified systemd scope disappeared from `list-units`.
+No other browser session was terminated.
+This recovery discards the disposable session state and is not a graceful browser shutdown.
+The historical PIDs must never be reused as cleanup targets.
+
+No source defect was attributed,
+so upstream fault and fixability remain unresolved.
+The successful navigation establishes the supported use case;
+contribution policy and maintainer intent were not reassessed,
+and no patch was prototyped.
+There is no new upstream filing artifact beyond the recorded observation.
+
+## Advisor verification browser limits at 2026-11-05T13:32:48-05:00
+
+`agent-browser 0.41.0` returned
+`Operation timed out. The page may still be loading or the element may not exist.`
+for owned source-reading and disposable DSH verification sessions.
+The subsequent DSH snapshot returned `page_wedged`.
+The source-reading evaluation returned
+`Failed to read: Resource temporarily unavailable (os error 11)`.
+
+These sessions' cgroups retained explicit evidence:
+`pids.max` was `128`,
+and `pids.events` reported `max 6` and `max 11` respectively.
+Their memory-event counters recorded no limit or OOM event.
+These counters show rejected task creation during these launches;
+they do not identify every timed-out browser operation's cause.
+
+Normal `agent-browser close` succeeded for both sessions.
+Replacement sessions used `CPUQuota=200%`,
+`MemoryMax=4G`,
+`TasksMax=512`,
+and `IOWeight=10`,
+with `TMPDIR` under the private agent scratch directory.
+Source navigation,
+source-text evaluation,
+the DSH Plugins page,
+and its Advisor enablement query then succeeded.
+The page-error check was empty.
+Both replacements were closed,
+and both original cgroups were confirmed inactive.
+
+The supported workload needed a larger task allowance than the initial agent-command configuration supplied.
+This recovery does not establish an upstream browser source defect.
+No new upstream filing is proposed.
+
+## Audio scheduling source checks at 2026-11-07T07:38:45-05:00
+
+The owned `music-audio-scheduling` session of `agent-browser 0.39.1`
+returned `Operation timed out. The page may still be loading or the element may not exist.`
+while opening a GitHub source selection.
+Its scope had `TasksMax=128` and `MemoryMax=2G`.
+The scope's `pids.events` recorded `max 46`;
+every `memory.events` counter was zero.
+The journal also recorded Chrome core dumps during this launch.
+The counters establish rejected task creation,
+without establishing the cause of each Chrome crash.
+
+Normal `agent-browser close` succeeded.
+A fresh `music-audio-scheduling-verified` session used the previously verified allowance:
+`CPUQuota=200%`,
+`MemoryMax=4G`,
+`TasksMax=512`,
+and `IOWeight=10`,
+with `TMPDIR` in the private agent scratch directory.
+GitHub source selections,
+Apple documentation,
+and Android documentation loaded and their expected text was read successfully.
+The replacement session was also closed normally.
+This reused the recorded recovery;
+no new upstream defect or filing is claimed.
+
+### Separate command-resolution observation
+
+The initial `agent-browser --help` invocation resolved through a Mise shim and emitted
+`mise ERROR No version is set for shim: agent-browser`.
+The global exposure link pointed at a missing former pnpm entry.
+The installed executable under
+`${HOME}/.local/share/mise/installs/npm-agent-browser/0.39.1/bin/agent-browser`
+successfully printed help and ran the source checks.
+No install,
+global configuration,
+or exposure link was changed.
+This command-resolution issue is separate from the browser task-limit observation.

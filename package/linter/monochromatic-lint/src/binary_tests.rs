@@ -30,15 +30,16 @@ use std::{
 use monochromatic_lint::cli_options::{ABOUT, long_options};
 /// The configuration filename the executable discovers.
 use monochromatic_lint::config_lookup::CONFIG_NAME;
-/// The lockfile name, table header and diagnostic codes the controls expect,
-///  re-exported by the library for its executable tests.
-use monochromatic_lint::{LOCK_NAME, NON_SUPPRESSIBLE, TOOL_TABLE, UNUSED};
-/// The shipped rule registry the listing controls compare against.
-use monochromatic_lint::run_modes::RULES as REGISTRY;
 /// The core diagnostic codes the controls expect.
 use monochromatic_lint::run_failure::{FIX_REFUSED, PROCESSING_FAILURE};
 /// The program name the executable's output carries.
 use monochromatic_lint::run_finish::PROGRAM;
+/// The shipped rule registry the listing controls compare against.
+use monochromatic_lint::run_modes::RULES as REGISTRY;
+/// The lockfile name,
+/// table header and diagnostic codes the controls expect,
+///  re-exported by the library for its executable tests.
+use monochromatic_lint::{LOCK_NAME, NON_SUPPRESSIBLE, TOOL_TABLE, UNUSED};
 
 /// The path of the executable Cargo built for this test run.
 const BINARY: &str = env!("CARGO_BIN_EXE_monochromatic-lint");
@@ -220,9 +221,8 @@ fn help_version_and_usage_errors_use_the_documented_statuses() {
     let help: Run = run(&fixture.path, &["--help"], b"");
     assert_eq!(help.status, 0);
     assert!(
-        help.stdout.starts_with(
-            format!("{ABOUT}\n\nUsage: {PROGRAM} [OPTIONS] [PATH]...").as_str()
-        ),
+        help.stdout
+            .starts_with(format!("{ABOUT}\n\nUsage: {PROGRAM} [OPTIONS] [PATH]...").as_str()),
         "{}",
         help.stdout
     );
@@ -1146,7 +1146,10 @@ fn rules_init_print_config_and_debug_modes() {
     assert_eq!(debug.status, 1);
     assert!(!debug.stderr.is_empty());
     for line in debug.stderr.lines() {
-        assert!(line.starts_with(format!("{PROGRAM}: debug: ").as_str()), "{line}");
+        assert!(
+            line.starts_with(format!("{PROGRAM}: debug: ").as_str()),
+            "{line}"
+        );
     }
     assert_eq!(fixture.read("a.md"), "# Title.\n");
 }
@@ -1432,6 +1435,141 @@ fn directives_through_the_executable() {
     let rules: Run = run(&fixture.path, &["--rules"], b"");
     let listed: Vec<serde_json::Value> = records(rules.stdout.as_str());
     assert_listing_matches_registry(listed.as_slice());
+}
+
+/// The built executable runs the two layout rules only where configuration selects them,
+///  reads each file behind a `uses` link once,
+///  names both folders and a proving reference,
+///  and a package whose links match the code is clean.
+#[cfg(unix)]
+#[test]
+fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "mod top;\nmod middle;\n");
+    // The marker is wrapped after its comma, as the Markdown rule demands.
+    fixture.write("src/top/mod.rs", "//! Files in this folder,\n//! each using only files listed before it:\n//! - `user.rs`: uses the thing.\nmod user;\n");
+    fixture.write("src/top/user.rs", "use crate::middle::Thing;\n");
+    fixture.write("src/middle/mod.rs", "mod thing;\npub use thing::Thing;\n");
+    fixture.write("src/middle/thing.rs", "pub struct Thing;\n");
+    let configuration: &str = r#"[{ "files": ["**/*.rs"], "rules": {
+      "rust/folder-uses-links": { "severity": "error" },
+      "rust/file-order-in-folder": { "severity": "warn" },
+      "rust/tests-in-sidecars": { "severity": "error" }
+    } }]"#;
+    fixture.write(CONFIG, configuration);
+    // Off by default: the starter configuration names neither layout rule.
+    fixture.write(
+        "plain/Cargo.toml",
+        "[package]\nname = \"plain\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("plain/src/lib.rs", "mod a;\nmod b;\n");
+    fixture.write("plain/src/a.rs", "use crate::b::X;\n");
+    fixture.write("plain/src/b.rs", "use crate::a::X;\n");
+    fixture.write("plain/monochromatic-lint.config.jsonc", r#"[{ "files": ["**/*.rs"], "rules": { "rust/tests-in-sidecars": { "severity": "error" } } }]"#);
+    let off: Run = run(&fixture.path.join("plain"), &[], b"");
+    assert_eq!(
+        (off.status, off.stdout.as_str(), off.stderr.as_str()),
+        (0, "", "")
+    );
+    // On: the use of `middle` by `top` has no link, and `src` has no file list.
+    let missing: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!(missing.status, 1, "{}", missing.stderr);
+    let found: Vec<String> = located(missing.stdout.as_str());
+    assert!(
+        found.contains(&String::from("src/top/user.rs rust/folder-uses-links 1 1")),
+        "{found:?}"
+    );
+    assert!(
+        missing
+            .stdout
+            .contains("src/top uses the folder src/middle (`crate::middle::Thing`)"),
+        "{}",
+        missing.stdout
+    );
+    // With the link in place, and a file list for the root folder, the layout findings are gone,
+    // and a test function behind the link is reported once, not once per path to it.
+    std::fs::create_dir_all(fixture.path.join("src/top/uses")).expect("uses folder");
+    std::os::unix::fs::symlink("../../middle", fixture.path.join("src/top/uses/middle"))
+        .expect("link");
+    let list: &str = "//! Files in this folder, each using only files listed before it:\n//! - `thing.rs`: the thing.\n";
+    fixture.write(
+        "src/middle/mod.rs",
+        format!("{list}mod thing;\npub use thing::Thing;\n#[test]\nfn stray() {{}}\n").as_str(),
+    );
+    fixture.write("src/lib.rs", "//! Files in this folder, each using only files listed before it:\nmod top;\nmod middle;\n");
+    let linked: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!(
+        located(linked.stdout.as_str()),
+        ["src/middle/mod.rs rust/tests-in-sidecars 6 4"],
+        "{}",
+        linked.stderr
+    );
+}
+
+/// The built executable checks group folders:
+///  a group's `uses` summary is wanted when a child uses another group,
+///  accepted once it links the group,
+///  and a child that links the group itself is told so.
+#[cfg(unix)]
+#[test]
+fn layout_group_folders_run_in_the_built_executable() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "mod g;\nmod h;\n");
+    let list: &str = "//! Files in this folder, each using only files listed before it:\n//!\n";
+    fixture.write("src/g/mod.rs", "mod a;\n");
+    fixture.write(
+        "src/g/a/mod.rs",
+        format!("{list}//! - `thing.rs`: the thing.\nmod thing;\n").as_str(),
+    );
+    fixture.write("src/g/a/thing.rs", "pub struct X;\n");
+    fixture.write("src/h/mod.rs", "mod c;\n");
+    fixture.write(
+        "src/h/c/mod.rs",
+        format!("{list}//! - `user.rs`: uses the thing.\nmod user;\n").as_str(),
+    );
+    fixture.write("src/h/c/user.rs", "use crate::g::a::X;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["**/*.rs"], "rules": {
+      "rust/folder-uses-links": { "severity": "error" },
+      "rust/file-order-in-folder": { "severity": "error" }
+    } }]"#,
+    );
+    std::fs::create_dir_all(fixture.path.join("src/h/c/uses")).expect("child uses folder");
+    std::os::unix::fs::symlink("../../../g/a", fixture.path.join("src/h/c/uses/a"))
+        .expect("child link");
+    // The child's link is exact, but the group has no summary of the entry its child uses.
+    let missing: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!(missing.status, 1, "{}", missing.stderr);
+    assert_eq!(
+        located(missing.stdout.as_str()),
+        ["src/h/c/user.rs rust/folder-uses-links 1 1"],
+        "{}",
+        missing.stdout
+    );
+    assert!(
+        missing.stdout.contains("src/h/uses has no link to src/g."),
+        "{}",
+        missing.stdout
+    );
+    // With the summary in place nothing is left.
+    std::fs::create_dir_all(fixture.path.join("src/h/uses")).expect("group uses folder");
+    std::os::unix::fs::symlink("../../g", fixture.path.join("src/h/uses/g")).expect("group link");
+    let clean: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!(
+        (clean.status, clean.stdout.as_str()),
+        (0, ""),
+        "{}",
+        clean.stderr
+    );
 }
 
 /// The unit-test scratch root,

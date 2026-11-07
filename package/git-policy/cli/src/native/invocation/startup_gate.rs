@@ -55,12 +55,12 @@ pub enum Gate {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: ${directory} holds a commit journal in a format this executable does not recover. ...`
+/// `monochromatic-git-policy-cli: ${directory} holds a commit journal in a format this executable does not recover. ...`
 /// ```
 pub fn legacy_notice(directory: &Path) -> String {
     return format!(
-        "cli-git: {} holds a commit journal in a format this executable does not recover. \
-         Nothing was changed. Run any git command once with the previous cli-git executable to \
+        "monochromatic-git-policy-cli: {} holds a commit journal in a format this executable does not recover. \
+         Nothing was changed. Run any git command once with the previous monochromatic-git-policy-cli executable to \
          recover it, then run this command again.\n",
         directory.display()
     );
@@ -118,12 +118,19 @@ pub fn shell_word(path: &Path) -> String {
 /// ```
 pub fn registry_note(registry: &Path) -> Option<String> {
     let entries: std::fs::ReadDir = std::fs::read_dir(registry).ok()?;
-    let left: bool = entries.flatten().any(|entry| { return is_canonical_uuid(entry.file_name().to_string_lossy().as_ref()); });
+    // The first leftover record decides it; an entry that cannot be read is skipped by `flatten`.
+    let mut left: bool = false;
+    for entry in entries.flatten() {
+        if is_canonical_uuid(entry.file_name().to_string_lossy().as_ref()) {
+            left = true;
+            break;
+        }
+    }
     if !left {
         return None;
     }
     return Some(format!(
-        "cli-git: {} holds commit records an earlier release left unfinished. This release no longer uses that directory and \
+        "monochromatic-git-policy-cli: {} holds commit records an earlier release left unfinished. This release no longer uses that directory and \
          does not read it. Run `git log -1` and `git status` to see whether that commit was made. Once you have, remove the \
          directory with: rm --recursive --force -- {}\n",
         registry.display(),

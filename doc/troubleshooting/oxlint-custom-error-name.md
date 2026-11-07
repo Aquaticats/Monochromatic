@@ -151,18 +151,24 @@ or policy-authority condition changes with this choice.
 No upstream report is warranted.
 The rule documents and tests the observed rejection.
 
-1.  Upstream fault: no.
+1.  Upstream fault:
+    no.
     The emitted diagnostic matches the literal-name policy and its stated minification rationale.
-2.  Fixability: implementation could accept another expression,
+2.  Fixability:
+    implementation could accept another expression,
     but that would change the documented policy rather than repair this observation.
-3.  Supported use case: dynamic constructor names are explicitly listed as rejected code.
-4.  Contribution policy: `CONTRIBUTING.md` welcomes contributions,
+3.  Supported use case:
+    dynamic constructor names are explicitly listed as rejected code.
+4.  Contribution policy:
+    `CONTRIBUTING.md` welcomes contributions,
     requires AI disclosure,
     and rejects unreviewed generated content.
     Its linked [contribution guide](https://oxc.rs/docs/contribute/introduction.html) repeats those requirements.
-5.  Likelihood of acceptance: the explicit literal-name policy is evidence against requesting this exception
+5.  Likelihood of acceptance:
+    the explicit literal-name policy is evidence against requesting this exception
     as a correction to the existing rule.
-6.  Prototype: no upstream prototype is justified because the fault and supported-use gates fail.
+6.  Prototype:
+    no upstream prototype is justified because the fault and supported-use gates fail.
     The owned literal-name implementation and its consumer observations provide the local resolution.
 
 The `.out-of-scope/` entries were checked;

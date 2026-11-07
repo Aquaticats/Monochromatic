@@ -22,7 +22,8 @@ Derived from [`conf`](https://github.com/sindresorhus/conf) by
  validation behavior,
  migration bookkeeping,
  and error message texts come from `conf`'s GitHub source at fork time
- (commit `83e267178f`, version-labeled 15.1.0).
+ (commit `83e267178f`,
+version-labeled 15.1.0).
  npm `conf` 15.1.0 predates that commit and differs observably,
  so the fuzz sidecar's differential oracle pins the forked snapshot
  instead of the npm release.

@@ -41,8 +41,14 @@ run = "cargo run --release --manifest-path ../core.bench/Cargo.toml"
 
 [tasks."test:mutation:image"]
 description = "Build the Podman image that runs mutation testing (one-time; layer-cached)"
-# Single bare command; podman caches layers so re-runs are fast no-ops.
-run = "podman build --tag forbidden-regex-mutants --file mutants.Containerfile ."
+# Podman caches layers so re-runs are fast no-ops; the toolchain argument comes from toolchain.lock.json.
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArgument = execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
+execFileSync('podman', ['build', '--build-arg', rustToolchainBuildArgument, '--tag', 'forbidden-regex-mutants', '--file', 'mutants.Containerfile', '.'], { stdio: 'inherit' })
+"""
 
 [tasks."test:mutation:snapshot"]
 description = "Bake the crate, its tests, its lockfile, its cargo-mutants configuration and its fetched dependencies into the source snapshot image a mutation campaign layers over; `-- --memory <size> --cpus <count>` bound the build"
@@ -87,3 +93,11 @@ if (files.length === 0) { throw new Error('format:scripts:oxlint requires at lea
 ensureOxlintConfig()
 runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...files])
 """
+
+[tasks.release]
+description = "Start the forbidden-regex release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish). The crate-release workflow bumps the crate and every exact pin of it, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
+run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate forbidden-regex"
+
+[tasks."release:wait"]
+description = "Follow the release run that `release` printed, then the cargo-publish run it started, then check crates.io (a library has no GitHub release, so the check ends with PUBLISH CHECK FAILED naming only the missing release assets; the crates.io line is its result): `-- <run URL or id> <version>`"
+run = "node ../../crate-release/cli/bin/await-release.ts --crate forbidden-regex"

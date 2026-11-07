@@ -36,7 +36,7 @@ fn a_clean_repository_reports_nothing() {
 fn the_inert_index_lock_and_landing_keys_are_named_with_the_remedy() {
     let root: PathBuf = fixture("doctor-config-inert");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    let config: PathBuf = repo.join("cli-git.config.jsonc");
+    let config: PathBuf = repo.join("monochromatic-git-policy-cli.config.jsonc");
     std::fs::write(&config, "{ \"policies\": {} }\n").expect("config");
     let neither: ConfigFindings = config_findings(&git_context(), repo.as_path());
     assert!(!neither.retired_index_lock_key && !neither.retired_landing_key);
@@ -72,11 +72,11 @@ fn the_inert_index_lock_and_landing_keys_are_named_with_the_remedy() {
 fn the_retired_key_and_a_broken_file_are_reported() {
     let root: PathBuf = fixture("doctor-config-retired");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    std::fs::write(repo.join("cli-git.config.jsonc"), "{ \"hooks\": { \"concurrentCommits\": true } }\n").expect("config");
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), "{ \"hooks\": { \"concurrentCommits\": true } }\n").expect("config");
     let findings: ConfigFindings = config_findings(&git_context(), repo.as_path());
     assert!(findings.retired_hooks_key);
     assert!(render_notes(&findings).contains("accepted so older files still load, and ignored"));
-    std::fs::write(repo.join("cli-git.config.jsonc"), "{ not json").expect("config");
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), "{ not json").expect("config");
     let broken: ConfigFindings = config_findings(&git_context(), repo.as_path());
     assert!(!broken.retired_hooks_key);
     assert_eq!(render_notes(&broken), "");

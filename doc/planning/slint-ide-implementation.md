@@ -62,7 +62,10 @@ and resumption details are in [the handover][handover].
   Headless native callbacks and actual nested Wayland input pass,
   including failed-open retention and long-distance reveal.
 - [x] Combined path/content search.
-  Dark/light native input, scoped directory search, content-line opening, and independent failures pass.
+  Dark/light native input,
+      scoped directory search,
+      content-line opening,
+      and independent failures pass.
   Seven guard-removal controls fail as intended and pass after restoration;
   whole-model pointer cancellation is tested separately as a Slint lifecycle behavior.
 - [x] In-file find.

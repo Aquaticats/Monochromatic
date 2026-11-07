@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-nested-wayland-session"
-version = "0.6.2"
+version = "0.6.3"
 categories = ["command-line-utilities", "development-tools::testing"]
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/nested-wayland-session/cli"
@@ -84,9 +84,19 @@ crossbeam-channel = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
-# Private XDG Settings portal used by --color-scheme. The blocking API owns its
-# executor thread while the Smithay event loop stays synchronous.
+# Private XDG Settings portal, notification services, launcher listener and accessibility bus.
+# zbus 6 has no blocking API: each synchronous caller drives the async API with `zbus::block_on`,
+# which runs zbus's own zruntime on that thread, and a helper thread keeps a live connection served
+# between calls. The Smithay event loop stays synchronous and no second runtime is added.
 zbus = { workspace = true }
+
+# The same zruntime that `zbus::block_on` drives. zbus's timeout helper is crate-private and its
+# connection builder bounds method calls only, so connects, signal sends and the accessibility walk
+# race zruntime's timer (`SharedRuntime::current().timeout`, which needs `helper`) from inside the call.
+zruntime = { workspace = true, default-features = false, features = ["runtime", "helper"] }
+
+# `StreamExt::next` for the launcher listener's `zbus::MessageStream`; zbus re-exports only futures-core.
+futures-util = { workspace = true, default-features = false }
 
 # The compositor toolkit. Pinned EXACTLY to the crates.io 0.7.0 release with `=`,
 # not a caret range: Smithay is pre-1.0, its git HEAD is far ahead of 0.7.0 with
@@ -145,10 +155,12 @@ smithay = "pinned"
 [workspace.dependencies]
 anyhow = ">=1.0.104"
 clap = ">=4.6.7"
-crossbeam-channel = ">=0.5.15"
+crossbeam-channel = ">=0.5.17"
+futures-util = { version = ">=0.3.34", default-features = false }
 image = { version = ">=0.25.10", default-features = false }
 smithay = { version = "=0.7.0", default-features = false }
 tracing = ">=0.1.44"
 tracing-subscriber = ">=0.3.23"
-zbus = ">=5.19.0"
-zbus_xml = ">=5.2.1"
+zbus = ">=6.2.1"
+zbus_xml = ">=6.0.0"
+zruntime = { version = ">=0.2.2", default-features = false }

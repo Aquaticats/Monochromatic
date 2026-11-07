@@ -1,0 +1,326 @@
+//! What:
+//!  What the work of the commit service is made of: the kinds it runs, the handlers that run each kind, which records are
+//!  acceptable work, how claims are settled, what a drain returned and how a push that failed is planned again.
+//! Why:
+//!  The drain of pending claims (`service_work_drain_pending_claims.rs`), the drains of directories (`service_work.rs`) and the
+//!  rounds (`service_work_run_round.rs`) all speak in these; they sit in a file that uses none of those.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! interface WorkHandlers { review(...); push(...); maintenance(...); trash(...) }; function isAcceptable(item, gitDir): boolean
+//! ```
+
+use crate::kept_names_in_the_git_directories::path_for_reading;
+use crate::journald_native::Priority;
+use crate::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
+use crate::push_retry::{Due, RetryChange, pause_before};
+use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
+use crate::service_claim_renewal::HeldClaims;
+use crate::service_review_key::ReviewKey;
+use crate::service_timing::log_entry;
+use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+/// The kinds of work the service runs itself.
+pub const SERVICE_KINDS: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash];
+
+/// How many times an item is tried before it is given up on.
+pub const MAX_TRIES: u32 = 3;
+
+/// What a wake message brings: the repository to work on and the review credential that came with it, if any.
+pub type Wake = (PathBuf, Option<ReviewKey>);
+
+/// What a handler came to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Verdict {
+    /// The work was done, or there was nothing to do.
+    Done,
+    /// The work failed; the text is what the person should be told.
+    Failed(String),
+    /// Nothing was done and nothing is left to retry, but the person should be told why; the text is what they are told.
+    Skipped(String),
+    /// The push failed for a reason that can pass (a stall, the network, an LFS server error, a held lock, a remote that advanced again);
+    /// the text is what the person should be told, and the service tries the push again on its own, with growing pauses.
+    Retry(String),
+}
+
+/// What runs each kind of work.
+pub trait WorkHandlers {
+    /// Push the branch of these items, which share a repository and a branch; the last is the newest.
+    fn push(&self, items: &[WorkItem]) -> Verdict;
+    /// Run the repository's automatic upkeep.
+    fn maintenance(&self, item: &WorkItem) -> Verdict;
+    /// Review one landed commit into the repository's shadow log.
+    fn review(&self, item: &WorkItem) -> Verdict;
+    /// Empty the directory of left-out files a snapshot-made worktree set aside; a handler that does not know it skips.
+    fn trash(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler does not empty trash directories"));
+    }
+}
+
+/// The work directory of a repository.
+pub fn work_directory(git_dir: &Path) -> PathBuf {
+    return path_for_reading(git_dir, WORK_DIRECTORY);
+}
+
+/// What:
+///  Whether an item is one this service should act on for this repository.
+/// Why:
+///   Anyone who can write the work directory can write an item, so the fields that become a directory, a reference or a
+///  program argument are checked before they are used.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isAcceptable(item, gitDir)
+/// ```
+pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
+    return Path::new(item.repository.as_str()).is_absolute()
+        && Path::new(item.repository.as_str()).is_dir()
+        && Path::new(item.git_dir.as_str()) == git_dir
+        && item.branch_ref.starts_with("refs/")
+        && !item.branch_ref.contains(['\0', '\n', ' '])
+        && item.oid.len() >= 40
+        && item.oid.as_bytes().iter().all(u8::is_ascii_hexdigit);
+}
+
+/// Moves the claims to `state` and stops renewing them; a claim that another instance took over is said, and left to it.
+pub(crate) fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed], state: &str) {
+    for item in claimed {
+        if let Err(reason) = held.settle(work_dir, item.id.as_str(), state) {
+            crate::service_warn!("{reason}");
+        }
+    }
+}
+
+/// What:
+///  The claims of `claimed` that this instance still holds, before their work starts.
+/// Why:
+///   A claim whose renewal found it gone was taken over: another instance runs that item now, so running it here as well would
+///  do it twice. The claim is forgotten and the loss said, and nothing else is done for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claimed.filter((c) => held.isHeld(c.id))
+/// ```
+pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claimed>) -> Vec<Claimed> {
+    let mut mine: Vec<Claimed> = Vec::new();
+    let mut lost: Vec<Claimed> = Vec::new();
+    for item in claimed {
+        if held.is_held_on_disk(work_dir, item.id.as_str()) {
+            mine.push(item);
+        } else {
+            lost.push(item);
+        }
+    }
+    for item in lost {
+        crate::service_warn!("the claim on {} ran out before this instance could run it, so another instance took the work over and it is not run here",
+            item.id
+        );
+        held.release(item.id.as_str());
+    }
+    return mine;
+}
+
+/// What:
+///  Whether a common Git directory belongs to a repository with no main worktree, which `core.bare` in its own `config`, or in its
+///  `config.worktree` when `extensions.worktreeConfig` turns that file on, says.
+/// Why:
+///   A bare repository has no instance whose Git directory is the common one, so the instances of its linked worktrees are the
+///  only ones that can run the records left there; a repository with a main worktree has that instance, which owns them.
+///   Git moves `core.bare` into `config.worktree` when the extension is enabled (`git help config`, "extensions.worktreeConfig"),
+///  and reads that file after `config` only while the extension is on and the repository has a format version
+///  (`repo_read_layout.rs`), so the last `core.bare` of the two decides. An unreadable or unparsable file, or a spelling this
+///  reader leaves to Git, reads as not bare, and the records then stay for the main worktree's instance, which is the safe side
+///  of a wrong answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isBareCommonDirectory(commonDir)
+/// ```
+pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
+    let Ok(text) = std::fs::read(common.join("config")) else {
+        return false;
+    };
+    let Some(mut entries) = parse_config_text(text.as_slice()) else {
+        return false;
+    };
+    let worktree_config: bool = matches!(last_entry(entries.as_slice(), "extensions.worktreeconfig"), Some(entry) if parse_bool(entry.value.as_deref()) == Some(true))
+        && last_entry(entries.as_slice(), "core.repositoryformatversion").is_some();
+    if worktree_config {
+        // A missing file is an empty file; one that is there and cannot be read or parsed leaves the answer to Git.
+        match std::fs::read(common.join("config.worktree")) {
+            Ok(bytes) => match parse_config_text(bytes.as_slice()) {
+                Some(more) => entries.extend(more),
+                None => return false,
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return false,
+        }
+    }
+    return matches!(last_entry(entries.as_slice(), "core.bare"), Some(entry) if parse_bool(entry.value.as_deref()) == Some(true));
+}
+
+/// What:
+///  Leaves a notice for each push the service gave up on without ever finishing it: its holder was stopped, or lost, on every
+///  try.
+/// Why:
+///   Such an item moves to `failed` by recovery, not by a handler, so nothing else records why the commit was never backed up
+///  and the person would not be told. The notice is the one a skipped push leaves, because nothing failed and nothing was sent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const item of givenUp.filter(isPush)) await recordPushSkip(gitDir, item, reason)
+/// ```
+pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
+    for item in given_up {
+        if item.kind != WorkKind::Push {
+            continue;
+        }
+        let reason: String = format!(
+            "monochromatic-git-policy-cli: the commit service stopped {MAX_TRIES} times before it finished pushing {} (a restart, a kill or a crash each time), so it gave up on that push.",
+            item.branch_ref
+        );
+        if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
+            crate::service_error!("the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
+        }
+    }
+}
+
+/// What:
+///  What one drain of a directory hands back: how long until it must be looked at again for a claim another instance holds, and
+///  the changes it asks of the retry plan.
+/// Why:
+///   A drain runs on a worker and cannot change the plan, which the service loop owns; it returns what it did and the loop
+///  applies it (`PushRetries::apply`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Drained = { wait?: number; changes: RetryChange[] };
+/// ```
+#[derive(Debug, Default)]
+pub struct Drained {
+    /// How long until a claim another instance holds runs out its lease, or nothing when there is none.
+    pub wait: Option<Duration>,
+    /// The plans and the forgets the drain asks of the retry plan, in the order they were made.
+    pub changes: Vec<RetryChange>,
+}
+
+/// What:
+///  The retry state one drain works with: the first pause (nothing when a retryable push is to be reported as failed) and the
+///  changes it has asked of the plan so far.
+/// Why:
+///   One value is passed down to the places that plan or forget a retry, so none of them reads the plan or shares it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Replanning = { first?: number; changes: RetryChange[] };
+/// ```
+pub(crate) struct Replanning {
+    /// The pause before the first new try, or nothing for a drain that keeps no plan.
+    pub(crate) first: Option<Duration>,
+    /// What was asked of the plan.
+    pub(crate) changes: Vec<RetryChange>,
+}
+
+/// Methods over the state.
+impl Replanning {
+    /// Ask the plan to drop the branch: its push landed, or the person must act.
+    pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
+    }
+}
+
+/// What:
+///  Plan the next try of a push that failed for a reason that can pass, say so in the journal, and give the words the person's
+///  failure record carries.
+/// Why:
+///   The journal line names the cause, the number of the try that is planned and the pause before it, so the service's quiet
+///  between tries is explained; the person's record says the service keeps trying, so they do not push by hand for nothing.
+///  The plan is asked of the service loop (`Replanning`), which owns it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = plannedRetry(gitDir, replanning, first, item, attempt, text);
+/// ```
+pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> String {
+    let pause: Duration = pause_before(attempt, first);
+    replanning.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause });
+    let plan: String = format!(
+        "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
+        pause.as_secs(),
+        attempt + 1
+    );
+    let fields: [(&str, String); 3] = [
+        ("CLI_GIT_BRANCH", item.branch_ref.clone()),
+        ("CLI_GIT_OID", item.oid.clone()),
+        ("CLI_GIT_OUTCOME", String::from("retrying")),
+    ];
+    log_entry(
+        Priority::Warning,
+        format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), text.lines().next().unwrap_or_default()).as_str(),
+        &fields,
+    );
+    return format!("{plan}\n{text}");
+}
+
+/// What:
+///  Push again every branch of this Git directory whose pause is over, with no new commit needed.
+/// Why:
+///   The work loop looks at the repository when `drain` tells it to (the wait it returns), and this is what the look does for
+///  a push the service stopped: it lands and the person's failure record goes, it is planned again with a longer pause, or it
+///  is given up on because a conflict needs the person. The due pushes come with the directory's request, taken from the plan
+///  by the service loop before the round.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const due of request.due.filter((d) => d.gitDir === gitDir)) await settleRetry(await handlers.push([due.item]));
+/// ```
+pub(crate) fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, candidates: &[Due], replanning: &mut Replanning) {
+    for due in candidates {
+        if due.git_dir != git_dir {
+            continue;
+        }
+        let branch: &str = due.item.branch_ref.as_str();
+        let commit: &str = due.item.oid.as_str();
+        if !is_acceptable(&due.item, git_dir) {
+            crate::service_warn!("the push of {branch} is not tried again: its repository or branch record is no longer acceptable");
+            replanning.forget(git_dir, branch);
+            continue;
+        }
+        let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
+        let began: Instant = Instant::now();
+        let verdict: Verdict = handlers.push(std::slice::from_ref(&due.item));
+        match verdict {
+            Verdict::Done => {
+                clear_push_failures_before(git_dir, branch, pushing_since);
+                replanning.forget(git_dir, branch);
+                crate::service_log!("the push of {branch:?} landed on try {} push_ms={}", due.attempt + 1, began.elapsed().as_millis());
+            }
+            Verdict::Retry(text) => {
+                let said: String = match replanning.first {
+                    Some(first) => planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str()),
+                    None => {
+                        replanning.forget(git_dir, branch);
+                        text
+                    }
+                };
+                if let Err(reason) = record_push_failure(git_dir, branch, commit, said.as_str()) {
+                    crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                }
+            }
+            Verdict::Failed(text) => {
+                crate::service_warn!("the push of {branch:?} failed on try {} and needs you: {}", due.attempt + 1, text.lines().next().unwrap_or_default());
+                replanning.forget(git_dir, branch);
+                if let Err(reason) = record_push_failure(git_dir, branch, commit, text.as_str()) {
+                    crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                }
+            }
+            Verdict::Skipped(text) => {
+                replanning.forget(git_dir, branch);
+                if !text.is_empty() && let Err(reason) = record_push_skip(git_dir, branch, commit, text.as_str()) {
+                    crate::service_error!("the skipped push of {commit} could not be recorded for the person: {reason}");
+                }
+            }
+        }
+    }
+}

@@ -211,10 +211,10 @@ pub fn plan_error_message(error: &PlanError) -> String {
     match error {
         PlanError::ContentUnavailable(unavailable) => {
             // `.as_deref()` borrows the optional path; `map_or` picks a default for none.
-            let subject: String = unavailable.path.as_deref().map_or_else(
-                || return String::from("the list of tracked files"),
-                |path: &[u8]| return display_path(path),
-            );
+            let subject: String = match unavailable.path.as_deref() {
+                Some(path) => display_path(path),
+                None => String::from("the list of tracked files"),
+            };
             return format!(
                 "mono/dependent-version-bump could not read {subject}: {}. \
                  Nothing was decided; retry once the content is readable, \

@@ -26,7 +26,7 @@ fn a_forwarded_fetch_clears_what_is_proven_stale_and_says_so() {
     let mut held: Held = killed::hold_fetch(&stage);
     held.kill();
     let notice: String = forwarded_lock_notice(b"fetch", prefix(&stage).as_slice(), &[], &killed::judge());
-    assert!(notice.contains("cli-git: removed the reference lock"), "{notice}");
+    assert!(notice.contains("monochromatic-git-policy-cli: removed the reference lock"), "{notice}");
     assert!(!stage.lock_of(killed::GONE_REF).exists() && !stage.packed_lock().exists());
     stage.finish();
 }

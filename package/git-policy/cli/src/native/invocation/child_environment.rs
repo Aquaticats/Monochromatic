@@ -1,5 +1,5 @@
 //! What:
-//!  The environment variables cli-git adds for every real Git it starts.
+//!  The environment variables monochromatic-git-policy-cli adds for every real Git it starts.
 //! Why:
 //!  Native Git must write lock-owner PID files,
 //!  and a wrapper must be able to
@@ -31,7 +31,7 @@ pub const COUNT_VARIABLE: &str = "GIT_CONFIG_COUNT";
 /// What:
 ///  The variable naming the executable this wrapper selected as real Git.
 /// Why:
-///   If the selected executable is itself a cli-git wrapper (for example another
+///   If the selected executable is itself a monochromatic-git-policy-cli wrapper (for example another
 ///       build that file identity cannot recognise),
 ///  it finds its own path here and
 ///       stops instead of forwarding back and forth forever.
@@ -177,7 +177,7 @@ pub fn parse_config_count(value: &OsStr) -> Option<u64> {
 }
 
 /// What:
-///  Report whether a configuration value is one of the true spellings cli-git
+///  Report whether a configuration value is one of the true spellings monochromatic-git-policy-cli
 ///       itself writes or recognises (`true`,
 ///  `yes`,
 ///  `on`,
@@ -186,7 +186,7 @@ pub fn parse_config_count(value: &OsStr) -> Option<u64> {
 /// Why:
 ///   When the last numbered `core.lockfilePid` entry already reads as true,
 ///  a
-///       nested cli-git must not grow the list again.
+///       nested monochromatic-git-policy-cli must not grow the list again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -297,7 +297,7 @@ pub fn lockfile_pid_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsStri
 pub const CHILD_SET_PREFIX: &str = "CLI_GIT_CHILD_SET_";
 
 /// What:
-///  Compute every variable cli-git sets for a real Git child:
+///  Compute every variable monochromatic-git-policy-cli sets for a real Git child:
 ///  the lock PID
 ///       injection plus the forward-target marker naming `real_git`.
 /// Why:
@@ -317,7 +317,11 @@ pub fn child_environment_overlay(
     let mut overlay: Vec<(OsString, OsString)> = lockfile_pid_overlay(environment);
     // A command the wrapper runs for itself, in process, names the variables its Git children must get this way.
     for (name, value) in environment {
-        if let Some(child_name) = name.to_str().and_then(|text| { return text.strip_prefix(CHILD_SET_PREFIX); }) {
+        // A name that is not valid text never carries the prefix.
+        let Some(text) = name.to_str() else {
+            continue;
+        };
+        if let Some(child_name) = text.strip_prefix(CHILD_SET_PREFIX) {
             overlay.push((OsString::from(child_name), value.clone()));
         }
     }
@@ -349,15 +353,66 @@ pub fn environment_with_overlay(
     // `mut` lets the overlay entries be appended after the surviving caller entries.
     let mut result: Vec<(OsString, OsString)> = Vec::with_capacity(environment.len() + overlay.len());
     for (name, value) in environment {
-        let replaced: bool = overlay.iter().any(|(overlaid, _value)| {
-            return overlaid == name;
-        });
+        let mut replaced: bool = false;
+        for (overlaid, _value) in overlay {
+            if overlaid == name {
+                replaced = true;
+                break;
+            }
+        }
         if !replaced {
             result.push((name.clone(), value.clone()));
         }
     }
     result.extend(overlay.iter().cloned());
     return result;
+}
+
+/// The variable Git and git-lfs run a password program from before they read `GIT_TERMINAL_PROMPT`; set to the empty string it
+///  stops the search for one.
+pub const ASKPASS_VARIABLE: &str = "GIT_ASKPASS";
+
+/// The variable that tells Git and git-lfs not to ask on a terminal.
+pub const TERMINAL_PROMPT_VARIABLE: &str = "GIT_TERMINAL_PROMPT";
+
+/// What:
+///  The two variables that make a Git or git-lfs run that needs a login fail at once instead of asking anyone:
+///  `GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0`.
+/// Why:
+///   Git 2.56.0 (`prompt.c`) and git-lfs 3.8.1 (`creds/creds.go`) try `GIT_ASKPASS`, then `core.askPass`, then `SSH_ASKPASS`
+///  before they read `GIT_TERMINAL_PROMPT`, and the systemd user manager that starts the commit service carries
+///  `SSH_ASKPASS=/usr/bin/ksshaskpass` with a display, so `GIT_TERMINAL_PROMPT=0` alone opened a desktop dialog nobody was
+///  there to answer. A set but empty `GIT_ASKPASS` stops both programs before `core.askPass` and `SSH_ASKPASS`, and they fail
+///  with "terminal prompts disabled". `SSH_ASKPASS` stays in the environment: OpenSSH reads it for key passphrases.
+///  The owner's pick of 2026-11-07 is "Never prompt" for background Git and git-lfs
+///  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`, "What this repository does about it").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const neverPrompt: [string, string][] = [['GIT_ASKPASS', ''], ['GIT_TERMINAL_PROMPT', '0']];
+/// ```
+pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
+    return vec![
+        (OsString::from(ASKPASS_VARIABLE), OsString::new()),
+        (OsString::from(TERMINAL_PROMPT_VARIABLE), OsString::from("0")),
+    ];
+}
+
+/// What:
+///  Every variable the commit service adds for the Git and git-lfs children it starts on its own, with no person at a
+///  terminal: the lock PID injection and the never-prompt pair.
+/// Why:
+///   The service's landing, upkeep, push, reconcile fetch and LFS upload all start from this one list, so a start added
+///  later cannot miss the pair. A command the person typed (`child_environment_overlay`) is left to Git's own prompting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [...lockfilePidOverlay(environment), ...neverPrompt]
+/// ```
+pub fn service_child_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+    let mut overlay: Vec<(OsString, OsString)> = lockfile_pid_overlay(environment);
+    overlay.extend(never_prompt_overlay());
+    return overlay;
 }
 
 /// Lookup and count-parsing controls,

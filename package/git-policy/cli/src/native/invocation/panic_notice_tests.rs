@@ -16,7 +16,7 @@
 //! ```
 
 /// Import the module under test.
-use super::{install_payload_free_panic_hook, panic_notice};
+use super::{install_payload_free_panic_hook, panic_notice, panics_are_expected_here, while_panics_are_expected};
 use std::process::{Command, Output};
 
 /// The variable that makes the re-run test act as the child,
@@ -38,7 +38,7 @@ fn the_notice_names_only_the_location() {
     assert!(
         with_location.starts_with(
             format!(
-                "cli-git: internal error at {}:{}:{}; its message is not shown because it may contain repository content.",
+                "monochromatic-git-policy-cli: internal error at {}:{}:{}; its message is not shown because it may contain repository content.",
                 location.file(),
                 location.line(),
                 location.column()
@@ -52,7 +52,7 @@ fn the_notice_names_only_the_location() {
     let without_location: String = panic_notice(None);
     assert!(
         without_location.starts_with(
-            "cli-git: internal error; its message is not shown because it may contain repository content."
+            "monochromatic-git-policy-cli: internal error; its message is not shown because it may contain repository content."
         ),
         "{without_location}"
     );
@@ -106,7 +106,7 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
     }
     // With the hook: the notice and its location, never the payload.
     assert!(
-        stderr_by_mode[0].contains("cli-git: internal error at ")
+        stderr_by_mode[0].contains("monochromatic-git-policy-cli: internal error at ")
             && stderr_by_mode[0].contains("panic_notice_tests.rs"),
         "{}",
         stderr_by_mode[0]
@@ -122,7 +122,7 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
         "{}",
         stderr_by_mode[1]
     );
-    assert!(!stderr_by_mode[1].contains("cli-git: internal error"));
+    assert!(!stderr_by_mode[1].contains("monochromatic-git-policy-cli: internal error"));
 }
 
 /// What:
@@ -137,4 +137,20 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
 /// ```
 fn panic_with_secret() {
     panic!("{}", secret());
+}
+
+/// A call that its caller catches is marked expected while it runs, nested calls keep the mark until the outermost ends, and
+///  the caught panic comes back as a value.
+#[test]
+fn a_panic_inside_an_expected_call_is_caught_and_the_mark_ends_with_the_call() {
+    assert!(!panics_are_expected_here());
+    let outer = while_panics_are_expected(|| {
+        let inner = while_panics_are_expected(|| { return panics_are_expected_here(); });
+        return (inner.expect("the inner call returns"), panics_are_expected_here());
+    });
+    assert_eq!(outer.expect("the outer call returns"), (true, true));
+    assert!(!panics_are_expected_here());
+    let caught = while_panics_are_expected(|| -> u8 { panic!("expected by the caller") });
+    assert!(caught.is_err());
+    assert!(!panics_are_expected_here(), "the mark must end when the call panics");
 }

@@ -1,9 +1,18 @@
 //! Controls for the work-item record: idempotent enqueue, exclusive claims, lease expiry on the right clock, recovery that
 //! cannot take another instance's claim, and refusal of bad records.
 
+use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired, requeue_expired_reporting};
+use crate::work_item_state_directories_and_claim_names::NAME_SEPARATOR;
 use super::*;
 use crate::test_support::{fixture, remove};
-use crate::work_item_recovery::{STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
+use crate::work_item_recovery::{ClaimExpiry, STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
+
+/// A function-like value with the right shape is an expiry test in these controls: the shipped caller writes a small struct.
+impl<Test: Fn(&ClaimTime) -> bool> ClaimExpiry for Test {
+    fn has_expired(&self, stamp: &ClaimTime) -> bool {
+        return self(stamp);
+    }
+}
 
 /// The lease the tests use.
 const LEASE: Duration = Duration::from_secs(60);
@@ -198,7 +207,7 @@ fn a_recovery_that_looked_earlier_leaves_a_claim_acquired_since_alone() {
     let later: ClaimTime = now.advanced(LEASE * 2);
     let first_look: std::cell::Cell<bool> = std::cell::Cell::new(true);
     let successor: std::cell::RefCell<Option<Claimed>> = std::cell::RefCell::new(None);
-    let moved: usize = requeue_with(work.as_path(), &later, MAX_TRIES, &|_stamp| {
+    let moved: usize = requeue_with(work.as_path(), &later, MAX_TRIES, &|_stamp: &ClaimTime| {
         if first_look.replace(false) {
             // The other instance's whole recovery and its new claim.
             assert_eq!(requeue_expired(work.as_path(), &later, LEASE, MAX_TRIES), 1);
@@ -234,7 +243,7 @@ fn a_renewal_between_the_look_and_the_take_keeps_the_claim() {
     let held: Claimed = claim_next(work.as_path(), &now).expect("claim").expect("item");
     let later: ClaimTime = now.advanced(LEASE * 2);
     let renewed: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
-    let moved: usize = requeue_with(work.as_path(), &later, MAX_TRIES, &|_stamp| {
+    let moved: usize = requeue_with(work.as_path(), &later, MAX_TRIES, &|_stamp: &ClaimTime| {
         *renewed.borrow_mut() = renew_claim(work.as_path(), held.name.as_str(), &later);
         return true;
     })

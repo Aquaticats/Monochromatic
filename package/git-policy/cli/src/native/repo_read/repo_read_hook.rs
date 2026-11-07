@@ -11,12 +11,13 @@
 //! const output = tryInProcess(args, overlay) ?? (await spawnGit(args, overlay));
 //! ```
 
+use crate::call_catching_panics::call_catching_panics;
 use crate::git_metadata::MetadataOutput;
 #[cfg(unix)]
 use crate::repo_read_config_scan::ScopeEnvironment;
 #[cfg(unix)]
 use crate::repo_read_query::{Answer, Query, answer_with};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest};
+use crate::transaction_git_request_and_reply_types::{GitContext, GitOutput, GitRequest};
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::path::Path;
@@ -26,8 +27,15 @@ pub const SWITCH_VARIABLE: &str = "CLI_GIT_IN_PROCESS_READS";
 
 /// Whether the answers are enabled in this process and for this run's added variables.
 pub fn enabled(variables: &[(OsString, OsString)]) -> bool {
-    let added_off: bool = variables.iter().any(|(name, value)| { return name == SWITCH_VARIABLE && value == "off"; });
-    return !added_off && std::env::var_os(SWITCH_VARIABLE).is_none_or(|value| { return value != "off"; });
+    for (name, value) in variables {
+        if name == SWITCH_VARIABLE && value == "off" {
+            return false;
+        }
+    }
+    return match std::env::var_os(SWITCH_VARIABLE) {
+        Some(value) => value != "off",
+        None => true,
+    };
 }
 
 /// What:
@@ -53,17 +61,29 @@ pub fn switch_off() -> [(OsString, OsString); 1] {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// try { return read(); } catch (error) { log(error); return undefined; }
+/// try { return read(state); } catch (error) { log(error); return undefined; }
 /// ```
-pub fn guarded<T>(read: impl FnOnce() -> Option<T>) -> Option<T> {
-    return match std::panic::catch_unwind(std::panic::AssertUnwindSafe(read)) {
+pub fn guarded<S, T>(state: S, read: fn(S) -> Option<T>) -> Option<T> {
+    return match call_catching_panics(state, read) {
         Ok(found) => found,
         Err(payload) => {
-            let message: &str = payload.downcast_ref::<&str>().copied().or_else(|| { return payload.downcast_ref::<String>().map(String::as_str); }).unwrap_or("a panic without text");
+            let message: &str = if let Some(text) = payload.downcast_ref::<&str>() {
+                text
+            } else if let Some(text) = payload.downcast_ref::<String>() {
+                text.as_str()
+            } else {
+                "a panic without text"
+            };
             crate::diagnostic_log::warn("repo-read-guard", format!("an in-process read panicked and Git answers instead: {message}").as_str());
             None
         }
     };
+}
+
+/// The answer of the readers for one query, as the guard calls it with the query, the base environment and the scope.
+#[cfg(unix)]
+fn answer_for_query((query, base, scope): (Query<'_>, Vec<(OsString, OsString)>, &ScopeEnvironment)) -> Option<Answer> {
+    return answer_with(&query, base, scope);
 }
 
 /// The answer for a command line, if the readers have one and the switch allows it.
@@ -81,7 +101,7 @@ fn attempt(
     let mut effective: Vec<(OsString, OsString)> = base.clone();
     effective.extend(variables.iter().cloned());
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(effective.as_slice());
-    return guarded(|| { return answer_with(&Query { arguments, directory, variables, input }, base, &scope); });
+    return guarded((Query { arguments, directory, variables, input }, base, &scope), answer_for_query);
 }
 
 /// What:
@@ -153,9 +173,12 @@ pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutp
     if let Some(objects) = &request.object_directory {
         variables.push((OsString::from("GIT_OBJECT_DIRECTORY"), objects.clone().into_os_string()));
     }
-    let base: Vec<(OsString, OsString)> = std::env::vars_os()
-        .filter(|(name, _)| { return !request.unset.contains(name); })
-        .collect();
+    let mut base: Vec<(OsString, OsString)> = Vec::new();
+    for (name, value) in std::env::vars_os() {
+        if !request.unset.contains(&name) {
+            base.push((name, value));
+        }
+    }
     let found: Answer = attempt(arguments.as_slice(), Some(request.cwd.as_path()), base, variables.as_slice(), request.input.as_deref())?;
     return Some(GitOutput { code: Some(found.code), stdout: found.stdout, stderr: found.stderr });
 }

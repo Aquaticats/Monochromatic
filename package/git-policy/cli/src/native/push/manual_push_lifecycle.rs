@@ -17,7 +17,8 @@ use crate::candidate_prediction::PushedScope;
 use crate::manual_push_cause::ManualPushCause;
 use crate::manual_push_probe::{GitRefusal, MOST_CONCURRENT_LOCAL_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_updates};
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::line_sink::LineSink;
+use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
 use crate::manual_push_range::{
     ManualPushRangeError, UpdateScope, peel_commits, published_tips, tracking_commits, update_scope,
 };
@@ -101,36 +102,91 @@ pub fn scopes_of_updates(
     return scopes_of_updates_on(&HostResources::read(), git, updates);
 }
 
+/// What:
+///  The scope of one update, run by a worker of the ordered runner.
+/// Why:
+///   The Git context and the published tips are what each update reads; the runner shares them among its worker threads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ScopeOfEachUpdate implements OrderedWork<PushUpdate, Result<UpdateScope>> { run(i, update) { return updateScope(git, update, tips.get(update.remoteName) ?? []); } }
+/// ```
+struct ScopeOfEachUpdate<'a> {
+    /// The coordinator's Git, whose queries are bounded.
+    git: &'a PushGit,
+    /// The tips already published at each destination, by remote name.
+    tips: &'a BTreeMap<String, Vec<String>>,
+}
+
+impl OrderedWork<PushUpdate, Result<UpdateScope, ManualPushRangeError>> for ScopeOfEachUpdate<'_> {
+    fn run(&self, _index: usize, update: &PushUpdate, _say: &mut dyn LineSink) -> Result<UpdateScope, ManualPushRangeError> {
+        let published: Vec<String> = self.tips.get(&update.remote_name).cloned().unwrap_or_default();
+        return update_scope(self.git, update, &published);
+    }
+}
+
+/// What:
+///  Keeps the scopes in update order and the first failure; once an update has failed, later results are dropped.
+/// Why:
+///   The runner reports on the calling thread only and in update order, so the first update that fails decides the error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class KeepScopesUntilTheFirstFailure implements OrderedEvents<Result<UpdateScope>> { scopes: UpdateScope[]; failure?: Error }
+/// ```
+struct KeepScopesUntilTheFirstFailure<'a> {
+    /// The scopes so far.
+    scopes: &'a mut Vec<UpdateScope>,
+    /// The first failure, when an update has failed.
+    failure: &'a mut Option<ManualPushRangeError>,
+}
+
+impl OrderedEvents<Result<UpdateScope, ManualPushRangeError>> for KeepScopesUntilTheFirstFailure<'_> {
+    fn on_event(&mut self, event: Event<'_, Result<UpdateScope, ManualPushRangeError>>) {
+        if let Event::End(_index, outcome) = event {
+            match outcome {
+                Ok(scope) if self.failure.is_none() => self.scopes.push(scope),
+                Err(error) if self.failure.is_none() => *self.failure = Some(error),
+                Ok(_) | Err(_) => {}
+            }
+        }
+    }
+}
+
 /// `scopes_of_updates` with the host's resources chosen by the caller, so a control states a host of any size.
 pub fn scopes_of_updates_on(
     host: &HostResources,
     git: &PushGit,
     updates: &[PushUpdate],
 ) -> Result<Vec<UpdateScope>, ManualPushFailure> {
-    let remote_names: Vec<String> = updates.iter().fold(Vec::new(), |mut names, update| {
-        if !names.contains(&update.remote_name) {
-            names.push(update.remote_name.clone());
+    let mut remote_names: Vec<String> = Vec::new();
+    for update in updates {
+        if !remote_names.contains(&update.remote_name) {
+            remote_names.push(update.remote_name.clone());
         }
-        return names;
-    });
-    let tracking: BTreeMap<String, Vec<String>> =
-        tracking_commits(git, &remote_names).map_err(|error| {
-            return from_range(&error);
-        })?;
-    let prior_oids: Vec<String> = updates
-        .iter()
-        .filter_map(|update| {
-            return update.remote_oid.clone();
-        })
-        .collect();
-    let prior: BTreeMap<String, String> = peel_commits(git, &prior_oids).map_err(|error| {
-        return from_range(&error);
-    })?;
+    }
+    let tracking: BTreeMap<String, Vec<String>> = match tracking_commits(git, &remote_names) {
+        Ok(found) => found,
+        Err(error) => return Err(from_range(&error)),
+    };
+    let mut prior_oids: Vec<String> = Vec::new();
+    for update in updates {
+        if let Some(oid) = update.remote_oid.clone() {
+            prior_oids.push(oid);
+        }
+    }
+    let prior: BTreeMap<String, String> = match peel_commits(git, &prior_oids) {
+        Ok(found) => found,
+        Err(error) => return Err(from_range(&error)),
+    };
     let tips: BTreeMap<String, Vec<String>> = published_tips(updates, &prior, &tracking);
     // Each update is bounded by its own destination's tips and read by its own `cat-file` and `rev-list`, so the updates are
     //  independent reads and run side by side, at most `MOST_CONCURRENT_LOCAL_QUERIES` at once; the scopes come back in the order Git
     //  negotiated the updates, and the first update that fails decides the error.
-    let lanes: Vec<Vec<usize>> = (0..updates.len()).map(|index: usize| { return vec![index]; }).collect();
+    let mut lanes: Vec<Vec<usize>> = Vec::new();
+    for index in 0..updates.len() {
+        lanes.push(vec![index]);
+    }
     let workers: usize = worker_budget(&BudgetRequest { items: updates.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_LOCAL_QUERIES), cap: None, host });
     let mut scopes: Vec<UpdateScope> = Vec::new();
     let mut failure: Option<ManualPushRangeError> = None;
@@ -138,19 +194,8 @@ pub fn scopes_of_updates_on(
         items: updates,
         lanes: lanes.as_slice(),
         workers,
-        work: &|_index: usize, update: &PushUpdate, _say: &mut dyn FnMut(&str)| {
-            let published: Vec<String> = tips.get(&update.remote_name).cloned().unwrap_or_default();
-            return update_scope(git, update, &published);
-        },
-        on_event: &mut |event: Event<'_, Result<UpdateScope, ManualPushRangeError>>| {
-            if let Event::End(_index, outcome) = event {
-                match outcome {
-                    Ok(scope) if failure.is_none() => scopes.push(scope),
-                    Err(error) if failure.is_none() => failure = Some(error),
-                    Ok(_) | Err(_) => {}
-                }
-            }
-        },
+        work: &ScopeOfEachUpdate { git, tips: &tips },
+        on_event: &mut KeepScopesUntilTheFirstFailure { scopes: &mut scopes, failure: &mut failure },
     });
     return match failure {
         Some(error) => Err(from_range(&error)),
@@ -175,20 +220,20 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
             UpdateScope::None => {}
             UpdateScope::Commits(names) => {
                 for name in names {
-                    let oid = parse_object_id(name.as_bytes()).ok_or_else(|| {
-                        return ManualPushFailure::step(ManualPushCause::UnexpectedOutput, format!(
+                    let Some(oid) = parse_object_id(name.as_bytes()) else {
+                        return Err(ManualPushFailure::step(ManualPushCause::UnexpectedOutput, format!(
                             "Git named a commit that is not an object name: {name}"
-                        ));
-                    })?;
+                        )));
+                    };
                     if !commits.contains(&oid) {
                         commits.push(oid);
                     }
                 }
             }
             UpdateScope::FinalTree(tip) => {
-                let oid = parse_object_id(tip.as_bytes()).ok_or_else(|| {
-                    return ManualPushFailure::step(ManualPushCause::UnexpectedOutput, format!("Git named a commit that is not an object name: {tip}"));
-                })?;
+                let Some(oid) = parse_object_id(tip.as_bytes()) else {
+                    return Err(ManualPushFailure::step(ManualPushCause::UnexpectedOutput, format!("Git named a commit that is not an object name: {tip}")));
+                };
                 if !trees.contains(&oid) {
                     trees.push(oid);
                 }
@@ -214,10 +259,10 @@ pub fn manual_push_scope(
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<PushedScope, ManualPushFailure> {
-    let updates =
-        probe_manual_push_updates(git, global_prefix, post_subcommand).map_err(|error| {
-            return from_probe(&error);
-        })?;
+    let updates = match probe_manual_push_updates(git, global_prefix, post_subcommand) {
+        Ok(found) => found,
+        Err(error) => return Err(from_probe(&error)),
+    };
     let scopes = scopes_of_updates(git, &updates)?;
     return pushed_scope(&scopes);
 }

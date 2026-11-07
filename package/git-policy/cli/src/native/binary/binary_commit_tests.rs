@@ -97,7 +97,7 @@ pub(super) fn assert_nothing_left(fixture: &Fixture, repo: &Path) {
         .unwrap_or_default();
     assert_eq!(registry, Vec::<String>::new(), "no transaction or lock stays in the registry");
     assert!(!git_dir.join("index.lock").exists(), "the real index lock is released");
-    let shadows: Vec<String> = std::fs::read_dir(git_dir.join("cli-git/shadow"))
+    let shadows: Vec<String> = std::fs::read_dir(git_dir.join("monochromatic-git-policy-cli/shadow"))
         .map(|entries| {
             return entries
                 .flatten()
@@ -200,7 +200,7 @@ fn a_dry_run_commits_nothing() {
     let dry: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--dry-run", "--message=x", "a.txt"]);
     assert_eq!(dry.code, Some(0), "{}", stderr_of(&dry));
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head);
-    assert!(!repo.join(".git/cli-git").exists(), "a dry run creates no shadow area");
+    assert!(!repo.join(".git/monochromatic-git-policy-cli").exists(), "a dry run creates no shadow area");
     remove_settled(&fixture);
 }
 

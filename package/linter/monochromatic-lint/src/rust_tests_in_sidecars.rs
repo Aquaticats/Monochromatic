@@ -40,7 +40,7 @@ fn file_stem(file: &str) -> &str {
 /// Whether a path is already a sidecar:
 ///  a `*_tests.rs` file,
 /// a `tests.rs` file or anything under a `tests` directory.
-fn is_sidecar_path(filename: &str) -> bool {
+pub(crate) fn is_sidecar_path(filename: &str) -> bool {
     let (directories, file): (Vec<String>, String) = path_parts(filename);
     for directory in &directories {
         if directory == "tests" {
@@ -79,7 +79,7 @@ fn predicate_enables_test(predicate: &ast::CfgPredicate, negated: bool) -> bool 
 }
 
 /// Whether an item carries a `#[cfg(...)]` that selects test builds.
-fn has_test_cfg(item: &impl HasAttrs) -> bool {
+pub(crate) fn has_test_cfg(item: &impl HasAttrs) -> bool {
     for attribute in item.attrs() {
         let Some(ast::Meta::CfgMeta(cfg)): Option<ast::Meta> = attribute.meta() else {
             continue;
@@ -97,7 +97,7 @@ fn has_test_cfg(item: &impl HasAttrs) -> bool {
 /// Whether a function carries a test attribute:
 ///  `#[test]` or a runtime's `#[tokio::test]`,
 /// which share the last path segment `test`.
-fn has_test_attribute(function: &ast::Fn) -> bool {
+pub(crate) fn has_test_attribute(function: &ast::Fn) -> bool {
     for attribute in function.attrs() {
         let Some(path): Option<ast::Path> = attribute.path() else {
             continue;

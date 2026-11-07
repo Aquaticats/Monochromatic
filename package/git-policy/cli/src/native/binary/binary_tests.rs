@@ -19,6 +19,26 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// The names of the two programs a control starts and the time bound every wrapped command runs under.
+#[path = "binary_support_program_names_and_time_bound.rs"]
+mod support_program_names_and_time_bound;
+
+/// The limits a control puts on a fixture service process, and how it applies them.
+#[path = "binary_support_resource_limits.rs"]
+mod support_resource_limits;
+
+/// The fixture of a control and the resident service process it may start.
+#[path = "binary_support_fixture_service.rs"]
+mod support_fixture_service;
+
+/// Making and removing the disposable directory of a fixture and the wrapper link inside it.
+#[path = "binary_support_fixture_directories.rs"]
+mod support_fixture_directories;
+
+/// Running a wrapped command with a time bound and reading what it did.
+#[path = "binary_support_observation.rs"]
+mod support_observation;
+
 /// The hang guard: a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
 #[path = "binary_supervisor.rs"]
 mod supervisor;
@@ -116,13 +136,17 @@ mod markdown;
 #[path = "binary_event_path_tests.rs"]
 mod event_path;
 
-/// The `git cli-git` management namespace.
+/// The program under its new name and its earlier names: the command word, the settings file and the kept folders.
+#[path = "binary_program_rename_tests.rs"]
+mod program_rename_guard;
+
+/// The `git monochromatic-git-policy-cli` management namespace.
 #[path = "binary_management_tests.rs"]
 mod management;
-/// `git cli-git migrate-to-subvolume` and the doctor's filesystem section through the executable.
+/// `git monochromatic-git-policy-cli migrate-to-subvolume` and the doctor's filesystem section through the executable.
 #[path = "binary_subvolume_tests.rs"]
 mod subvolume;
-/// `git cli-git convert-worktree-to-subvolume` started the way a person starts it, with no forward-target variable.
+/// `git monochromatic-git-policy-cli convert-worktree-to-subvolume` started the way a person starts it, with no forward-target variable.
 #[path = "binary_convert_tests.rs"]
 mod convert;
 
@@ -179,6 +203,14 @@ mod budget_trace;
 /// Ratchet budgets: the process starts and fsync-class calls of a wrapped commit can only go down.
 #[path = "binary_budget_tests.rs"]
 mod budget;
+
+/// A forwarded command makes no thread or child of its own before Git replaces the wrapper, so a runtime is never built for it.
+#[path = "binary_forwarded_command_makes_no_thread_tests.rs"]
+mod forwarded_command_makes_no_thread;
+
+/// The runtime build finishes and the command carries on under a process limit and under address-space limits, with Git as the control.
+#[path = "binary_runtime_build_under_limits_tests.rs"]
+mod runtime_build_under_limits;
 
 /// Content a parent commit's tree already holds is not scanned again by forbidden-strings.
 #[path = "binary_known_content_tests.rs"]
@@ -260,7 +292,7 @@ mod push_scope;
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
 
-/// Traditional hooks never run through the wrapper, and `git cli-git doctor` explains the Git LFS shims.
+/// Traditional hooks never run through the wrapper, and `git monochromatic-git-policy-cli doctor` explains the Git LFS shims.
 #[path = "binary_hooks_off_tests.rs"]
 mod hooks_off;
 
@@ -307,6 +339,14 @@ mod lfs_hang;
 /// The wrapped commit command through the resident service, compared with native Git.
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
+
+/// The service as a mode of the one executable: refused starts, the wrapper as `--git`, and the words behind a global option.
+#[path = "binary_service_mode_tests.rs"]
+mod service_mode;
+
+/// The upgrade from the release with the service as a second program: the unit is rewritten, the old service retires.
+#[path = "binary_service_upgrade_one_executable_tests.rs"]
+mod service_upgrade_one_executable;
 
 /// A commit whose prepared content was pruned before it landed: prepared again once, then a plain failure.
 #[path = "binary_service_pruned_tests.rs"]

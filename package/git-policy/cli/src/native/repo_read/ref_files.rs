@@ -79,6 +79,21 @@ fn hex_length(object_format: &str) -> Option<usize> {
     };
 }
 
+/// Whether `byte` is a lower-case hexadecimal digit.
+fn is_lower_hex_digit(byte: u8) -> bool {
+    return matches!(byte, b'0'..=b'9' | b'a'..=b'f');
+}
+
+/// Whether `byte` is the digit zero.
+fn is_zero_digit(byte: u8) -> bool {
+    return byte == b'0';
+}
+
+/// Whether `byte` may appear in a component of a reference name this reader takes: a letter, a digit, `.`, `_` or `-`.
+fn is_reference_name_byte(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-');
+}
+
 /// What:
 ///  Whether `text` is exactly one object name of `length` lowercase hexadecimal digits that is not the null name.
 /// Why:
@@ -94,8 +109,8 @@ fn is_object_name(text: &str, length: usize) -> bool {
     if text.len() != length {
         return false;
     }
-    let all_hex: bool = text.bytes().all(|byte| { return matches!(byte, b'0'..=b'9' | b'a'..=b'f'); });
-    let all_zero: bool = text.bytes().all(|byte| { return byte == b'0'; });
+    let all_hex: bool = text.bytes().all(is_lower_hex_digit);
+    let all_zero: bool = text.bytes().all(is_zero_digit);
     return all_hex && !all_zero;
 }
 
@@ -124,9 +139,7 @@ pub fn is_plain_branch_name(name: &str) -> bool {
         if component.is_empty() || component.starts_with('.') || component.ends_with(".lock") {
             return false;
         }
-        let plain: bool = component
-            .bytes()
-            .all(|byte| { return byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'); });
+        let plain: bool = component.bytes().all(is_reference_name_byte);
         if !plain {
             return false;
         }

@@ -34,9 +34,8 @@
 /// ```ts
 /// import { runPolicyPass } from './policy_pass.ts';
 /// ```
+use crate::wrapped_command_notices_snapshots_and_manual_push::{prepare_manual_push, record_escape_use, show_push_failures, snapshot_before_worktree_removal};
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
-use crate::auto_push_single_flight::PushGit;
-use crate::child_environment::environment_with_overlay;
 /// `git add` asks for what it would stage.
 use crate::candidate_prediction::CandidateRequest;
 use crate::command_options::OptionError;
@@ -46,11 +45,8 @@ use crate::command_commit::{CommitRegion, parse_commit_region};
 use crate::commit_command::{CommitCommand, run_commit_command};
 use crate::config_schema::{CliGitConfig, PolicyConfig};
 use crate::diagnostics::EngineFailureCode;
-use crate::discard_audit::{AuditOutcome, record_audit};
 use crate::global_arguments::GlobalOutcome;
 use crate::invocation_config::{config_invalid_event, load_identity_config};
-use crate::manual_push_cause::ManualPushCause;
-use crate::manual_push_lifecycle::manual_push_scope;
 use crate::policy_checks::ShippedChecks;
 /// What the command offers its content policies.
 use crate::policy_content::LifecycleContent;
@@ -61,11 +57,7 @@ use crate::event_hints::manual_push_failure_hint;
 use crate::policy_events::{EngineFailureHint, PolicyEvent, render_policy_events};
 use crate::policy_pass::{PassResult, policies_of_kind, run_policy_pass};
 use crate::policy_registry::PolicyId;
-use crate::landed_summary::short_name;
-use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, take_orphaned_failures, take_push_failures_for};
-use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
 use crate::policy_trigger::Trigger;
-use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::RepositoryLocation;
 /// Startup recovery as a command step.
@@ -73,7 +65,6 @@ use crate::startup_gate::{Gate, recover_for_command};
 /// A valid preparation lease marks a command started by a hook of a live transaction.
 use crate::unported::{Unported, unported_from_unavailable, unported_notice};
 use crate::worktree_identity::worktree_root;
-use crate::wrapper_controls::is_escaped;
 use crate::wrapper_invocation::{StrippedInvocation, command_region, command_word};
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
@@ -89,9 +80,6 @@ use crate::wrapper_invocation::{StrippedInvocation, command_region, command_word
 /// // string, but byte-preserving.
 /// ```
 use std::ffi::OsString;
-use std::io::Write;
-/// Paths of the probe's working directory.
-use std::path::{Path, PathBuf};
 
 /// What:
 ///  How the lifecycle of one wrapped command ended.
@@ -277,7 +265,7 @@ fn prepare_guarded_command<F: RepositoryFacts>(
             return Err(WrappedOutcome::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
                 // `format!` builds the owned, line-terminated text.
-                stderr: format!("cli-git: {message}\n"),
+                stderr: format!("monochromatic-git-policy-cli: {message}\n"),
             });
         }
     };
@@ -365,30 +353,6 @@ fn run_commit_if_real<F: RepositoryFacts>(
 }
 
 /// What:
-///  Record a guarded command form that runs because the invocation carries the escape for the linked-worktree-only
-///  policy.
-/// Why:
-///   The policy never runs under its escape, so nothing else would say that a discarding form was deliberately let
-///  through; a later loss must be attributable to the escape.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// recordEscapeUse(stripped, checks);
-/// ```
-fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
-    if !is_escaped(&stripped.controls, PolicyId::LinkedWorktreeOnly) {
-        return;
-    }
-    let command = match decide_linked_worktree(stripped.arguments.as_slice()) {
-        LinkedWorktreeDecision::Pass => return,
-        LinkedWorktreeDecision::NeedsEffectiveTarget(command) | LinkedWorktreeDecision::WhenDirty(command) => command,
-    };
-    if let Ok(location) = checks.facts.location() {
-        record_audit(&location.identity, command, AuditOutcome::Hatch, stripped.arguments.as_slice(), None);
-    }
-}
-
-/// What:
 ///  Recover before a read-only command that already asked Git for the repository location;
 ///       a live transaction does not stop it,
 ///  a legacy directory or a recovery failure does.
@@ -417,81 +381,6 @@ fn recover_before_read_only<F: RepositoryFacts>(
                 code: ENGINE_FAILURE_EXIT_CODE,
                 stderr,
             });
-        }
-    }
-}
-
-/// What:
-///  Shows, on standard error, each backup push failure the service recorded since one was last shown and that belongs to this
-///  worktree, before the command runs.
-/// Why:
-///   The service pushes after a commit returned, so the command that made the commit cannot print the failure; the next
-///  command in the worktree whose commit it was does, because the records live under that worktree's own Git directory.
-///  A command whose output a program reads shows nothing and takes
-///  nothing, and neither does a command run where the repository is not found without starting Git. When nothing
-///  failed the check is one directory read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (!isMachineRead(command)) for (const text of takePushFailures(gitDir)) stderr.write(text + '\n');
-/// ```
-fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
-    if is_machine_read(command_word(stripped), command_region(stripped)) {
-        return;
-    }
-    // The records are the worktree's own, so a notice shows in the worktree whose push failed.
-    let Some(git_dir) = checks.facts.known_git_dir() else { return };
-    let common_dir: PathBuf = checks.facts.known_common_dir().unwrap_or_else(|| { return git_dir.clone(); });
-    // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next. What could not be kept
-    //  for the person is said here, each time, until it can be.
-    for problem in settle_removals(common_dir.as_path()) {
-        // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{problem}");
-    }
-    // Nothing failed: two directory checks, and no question to Git.
-    let own: bool = notice_directory(git_dir.as_path()).is_dir();
-    let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
-    if !own && !orphaned {
-        return;
-    }
-    let context = checks.facts.transaction_context();
-    let cwd: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return git_dir.clone(); });
-    let objects: PathBuf = common_dir.join("objects");
-    // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
-    let abbreviate = |commit: &str| -> String { return short_name(&context, cwd.as_path(), objects.as_path(), None, commit); };
-    let mut texts: Vec<String> = take_push_failures_for(git_dir.as_path(), None, &abbreviate);
-    texts.extend(take_orphaned_failures(common_dir.as_path(), &abbreviate));
-    for text in texts {
-        // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{text}");
-    }
-}
-
-/// What:
-///  Before `git worktree remove` or `git worktree prune`, copies the records of the linked worktrees into snapshots that
-///  survive the removal.
-/// Why:
-///   Git deletes a removed worktree's Git directory, and with it the failed pushes nobody was told about and the pushes the
-///  service had not run yet; the process is handed to Git, so only a copy made first can keep them. Which worktrees go is
-///  decided later, from whether each still exists (`worktree_removal_rescue.rs`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (command === 'worktree' && ['remove', 'prune'].includes(region[0])) await snapshotLinkedWorktrees(commonDir);
-/// ```
-fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
-    if command_word(stripped) != b"worktree" {
-        return;
-    }
-    let removes: bool = command_region(stripped).first().is_some_and(|word| { return matches!(word.as_encoded_bytes(), b"remove" | b"prune"); });
-    if !removes {
-        return;
-    }
-    if let Some(common_dir) = checks.facts.known_common_dir() {
-        // A record that could not be saved is lost with the worktree, so the person is told before Git runs.
-        for problem in snapshot_linked_worktrees(common_dir.as_path()) {
-            // A closed terminal is not a reason to stop the command the person asked for.
-            let _written = writeln!(std::io::stderr(), "{problem}");
         }
     }
 }
@@ -618,48 +507,6 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
         arguments: pass.arguments,
         stderr: format!("{}{}", checks.notices.concat(), render_policy_events(0, events.as_slice())),
     };
-}
-
-/// Lifecycle order,
-///  fact use and every ending stay out of the release executable.
-/// What:
-///  Discover the scope of a manual push and hand it to the manual-push stage as its candidates.
-/// Why:
-///   The stage reads only what the push publishes, and the discovery runs against the repository the
-///  command targets, with the invocation's global options and environment.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const scope = await manualPushScope({ gitPath, cwd, args }); // then the manual-push stage reads it
-/// ```
-fn prepare_manual_push<F: RepositoryFacts>(
-    checks: &mut ShippedChecks<F>,
-    environment: &[(OsString, OsString)],
-    post_subcommand: &[OsString],
-) -> Result<(), crate::manual_push_lifecycle::ManualPushFailure> {
-    let worktree: Option<PathBuf> = match checks.facts.location() {
-        Ok(location) => worktree_root(&location.identity).map(Path::to_path_buf),
-        Err(message) => return Err(crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, message)),
-    };
-    let context = checks.facts.transaction_context();
-    let cwd = match worktree {
-        Some(root) => root,
-        None => std::env::current_dir().map_err(|error| {
-            return crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, format!(
-                "the working directory could not be read: {error}"
-            ));
-        })?,
-    };
-    let git = PushGit {
-        real_git: context.real_git,
-        cwd,
-        environment: environment_with_overlay(environment, context.overlay.as_slice()),
-        // The scope probe is a dry-run push; an upload during it would run before any policy has decided.
-        lfs: false,
-    };
-    let scope = manual_push_scope(&git, context.global_prefix.as_slice(), post_subcommand)?;
-    checks.candidates = LifecycleContent::Requested(CandidateRequest::Pushed(scope));
-    return Ok(());
 }
 
 #[cfg(test)]

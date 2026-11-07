@@ -3,6 +3,13 @@
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
 
 use super::*;
+
+/// A function-like value with the right shape is an announcer in these controls: the shipped callers write a small struct that holds the state.
+impl<Say: Fn(Announce)> Announcer for Say {
+    fn announce(&self, note: Announce) {
+        self(note);
+    }
+}
 use crate::process_identity::{ProcessIdentityError, process_birth_identity};
 use crate::service_index_marker::own_identity;
 use crate::service_index_placement::{place_marked, rename_noreplace};
@@ -431,21 +438,25 @@ fn staged_by_the_last_release(lock: &Path, pid: u32, seq: u64) -> PathBuf {
 //endregion
 
 /// Where neither a rename without replacing nor a hard link works,
-/// no lock is created at all:
-/// creating one and writing the marker after would leave an empty lock for as long as a kill between the two lasts,
-/// which no restart may take over.
-///  The attempt fails with the code the clients are answered with,
+/// the lock is taken as Git takes it:
+/// created by exclusive creation and then given its marker,
+/// so a commit lands there as it does with plain Git.
+/// The hold is the lock's own file,
+/// so its release installs the new index and removes the lock,
 /// and nothing stays in the directory.
 #[test]
-fn a_filesystem_that_can_place_no_lock_atomically_gets_none() {
+fn a_filesystem_that_can_place_no_lock_atomically_gets_one_by_exclusive_creation() {
     let (root, index) = index_in("index-lock-bare");
     let rename = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EINVAL); };
     let link = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EPERM); };
     let platform: Platform = bare_filesystem(&rename, &link);
-    let failure = acquire_on(&platform, &index, 20, &|_| {}).expect_err("refused");
-    assert_eq!(failure.code, FailureCode::Unavailable);
-    assert!(!lock_path_of(&index).exists(), "no lock, so none can be left empty");
-    assert!(try_acquire_on(&platform, &index, 21).is_none());
+    let lock = acquire_on(&platform, &index, 20, &|_| {}).expect("taken as Git takes it");
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(20), "the marker is in the lock once the hold begins");
+    assert!(try_acquire_on(&platform, &index, 21).is_none(), "a live holder's lock is not taken over");
+    let built: PathBuf = index.with_file_name("index.built");
+    std::fs::write(&built, "new index").expect("built");
+    lock.release_with(&built).expect("the hold names the created lock, so the release finds it the holder's own");
+    assert_eq!(std::fs::read_to_string(&index).expect("index"), "new index");
     assert!(!lock_path_of(&index).exists());
     assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
     remove(root.as_path());
@@ -664,10 +675,13 @@ fn the_scan_for_open_holders_stops_at_its_deadline_and_says_so() {
     let holder: Holder = Holder(std::process::Command::new("sh").arg("-c").arg("exec 3<\"$0\"; exec sleep 30").arg(&lock_path).spawn().expect("a holder"));
     let pid: u32 = holder.0.id();
     let began: Instant = Instant::now();
-    while !std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
+    // The holder is ready when it has the lock open and has become `sleep`: the shell opens the lock first and executes `sleep` after,
+    //  so a look in between names the shell (measured in the container gate, 2026-11-07: `open_by=[14748 (sh)]`).
+    while !(std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
         return entries.flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock_path; }); });
-    }) {
-        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock");
+    }) && std::fs::read_to_string(format!("/proc/{pid}/comm")).is_ok_and(|name| { return name.trim() == "sleep"; }))
+    {
+        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock and became sleep");
         std::thread::sleep(Duration::from_millis(5));
     }
     let metadata = std::fs::metadata(&lock_path).expect("lock");
@@ -1189,7 +1203,7 @@ fn the_notice_interval_is_a_positive_number_of_seconds_or_the_default() {
 
 /// A failure to place says what failed,
 /// a lock that exists is no failure,
-/// and a filesystem that offers neither atomic way is named with what to do:
+/// and a filesystem that answers that it cannot place a file is named with what to do:
 /// the log is the only place the person who reads it finds these.
 #[test]
 fn a_placement_failure_is_worded_by_what_failed() {
@@ -1203,7 +1217,8 @@ fn a_placement_failure_is_worded_by_what_failed() {
     assert!(storage_said.contains(storage.to_string().as_str()) && !storage_said.contains("can neither rename"), "{storage_said}");
     let unsupported = std::io::Error::new(std::io::ErrorKind::Unsupported, "no way");
     let unsupported_said: String = placement_failure_text(&lock_path, &unsupported).expect("a failure");
-    assert!(unsupported_said.contains("can neither rename") && unsupported_said.contains("filesystem") && unsupported_said.contains("no way"), "{unsupported_said}");
+    assert!(unsupported_said.contains("cannot place a file") && unsupported_said.contains("filesystem") && unsupported_said.contains("no way"), "{unsupported_said}");
+    assert!(!unsupported_said.contains("can neither rename"), "the refusal of both atomic ways is no longer a failure: {unsupported_said}");
     remove(root.as_path());
 }
 
@@ -1323,10 +1338,13 @@ fn a_foreign_lock_is_described_with_the_process_that_has_it_open() {
     );
     let pid: u32 = holder.0.id();
     let began: Instant = Instant::now();
-    while !std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
+    // The holder is ready when it has the lock open and has become `sleep`: the shell opens the lock first and executes `sleep` after,
+    //  so a look in between names the shell (measured in the container gate, 2026-11-07: `open_by=[14748 (sh)]`).
+    while !(std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
         return entries.flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock_path; }); });
-    }) {
-        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock");
+    }) && std::fs::read_to_string(format!("/proc/{pid}/comm")).is_ok_and(|name| { return name.trim() == "sleep"; }))
+    {
+        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock and became sleep");
         std::thread::sleep(Duration::from_millis(5));
     }
     // The foreign holder lets go a while after the wait's first look, however long the marker's flush took before it.

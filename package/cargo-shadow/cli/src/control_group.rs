@@ -65,6 +65,9 @@ use std::process::{Command, Stdio};
 /// Imports `std::time::{Duration, Instant}` for this file.
 use std::time::{Duration, Instant};
 
+/// Imports the limits the scope of a run carries from its caller.
+use crate::inherited_limits::{InheritedLimits, caller_limits};
+
 /// Imports `rustix::event::{PollFd, PollFlags, Timespec, poll}` for this file.
 use rustix::event::{PollFd, PollFlags, Timespec, poll};
 
@@ -79,6 +82,9 @@ use rustix::process::{Pid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 
 /// Where the unified control group hierarchy is mounted.
 pub(crate) const CGROUP_ROOT: &str = "/sys/fs/cgroup";
+
+/// The file that names the control group of this process.
+const OWN_CGROUP_FILE: &str = "/proc/self/cgroup";
 
 /// The file system type number of a cgroup v2 mount (`CGROUP2_SUPER_MAGIC`, ASCII "cgrp"), from `statfs(2)`.
 const CGROUP2_MAGIC: u64 = 0x6367_7270;
@@ -204,6 +210,8 @@ pub(crate) struct RouteSettings {
     pub(crate) question: Option<Vec<String>>,
     /// How long the question may take.
     pub(crate) discovery_bound: Duration,
+    /// The file that names this process's own control group.
+    pub(crate) own_cgroup_file: PathBuf,
 }
 
 /// The settings of an ordinary host.
@@ -227,6 +235,7 @@ impl Default for RouteSettings {
             environment: Vec::new(),
             question: None,
             discovery_bound: DISCOVERY_BOUND,
+            own_cgroup_file: PathBuf::from(OWN_CGROUP_FILE),
         };
     }
 }
@@ -245,6 +254,9 @@ pub(crate) struct Route {
     pub(crate) namespace: u64,
     /// How the slice directory is seen now.
     pub(crate) slice_view: View,
+    /// The limits of the caller's control group that every scope of this route carries.
+    /// Shared, not inline, so a `Route` stays small enough to sit in the run's containment value (`clippy::large_enum_variant`).
+    pub(crate) limits: Arc<InheritedLimits>,
 }
 
 /// Who ran: the machine and the boot of the kernel that held the processes of a run.
@@ -1052,7 +1064,9 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
     }
     let namespace: u64 = namespace_id().map_err(|error| { return unavailable(format!("the cgroup namespace cannot be identified ({error})")); })?;
     let slice_view: View = view_of(&slice_dir).map_err(|error| { return unavailable(format!("{} cannot be examined ({error})", slice_dir.display())); })?;
-    return Ok(Route { systemd_run: settings.systemd_run.clone(), slice: settings.slice.clone(), slice_dir, namespace, slice_view });
+    let limits: InheritedLimits = caller_limits(&settings.own_cgroup_file, &settings.cgroup_root, &slice_dir)
+        .map_err(|error| { return unavailable(format!("the resource limits of the caller's control group cannot be read ({error}), and a scope without them would loosen the run")); })?;
+    return Ok(Route { systemd_run: settings.systemd_run.clone(), slice: settings.slice.clone(), slice_dir, namespace, slice_view, limits: Arc::new(limits) });
 }
 
 /// The scope of one run.
@@ -1224,6 +1238,8 @@ impl ControlGroup {
     /// The working directory and the variables of the original are given to the launcher;
     /// a command that clears the environment runs through `env --ignore-environment`,
     /// so the manager is still reachable by the launcher and the program sees only the variables it was given.
+    /// The scope carries the limits of the caller's control group that the route read (`inherited_limits.rs`): the manager makes the
+    /// scope under its own slice, so without them a capped caller would get an uncapped run.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1232,6 +1248,10 @@ impl ControlGroup {
     pub(crate) fn launcher(&self, route: &Route, original: &Command, clean_environment: bool) -> Command {
         let mut launch: Command = Command::new(&route.systemd_run);
         launch.args(["--user", "--scope", "--quiet", "--collect", "--property=Delegate=yes"]);
+        // The scope sits under the manager's slice, so the caller's own limits would not reach it: it carries them (absent stay absent).
+        for property in route.limits.properties() {
+            launch.arg(format!("--property={property}"));
+        }
         launch.arg(format!("--unit={}", self.name));
         launch.arg(format!("--slice={}", route.slice));
         launch.arg("--");

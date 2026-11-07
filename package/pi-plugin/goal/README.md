@@ -8,6 +8,13 @@ background worker,
 interruption manager,
 or unrelated-tool policy.
 
+## Pi dependency trust
+
+PJX:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Command contract
 
 Start or replace active objective:

@@ -4,9 +4,20 @@
 use super::*;
 use crate::auto_push::{AutoPushOutcome, AutoPushResult, PUSH_FAILED_NOTE, push_once};
 use crate::auto_push_single_flight::PushGit;
+use crate::auto_push_reconcile_branch_advance::status_differs;
+use crate::auto_push_reconcile_merge_commit::PushRunner;
+use crate::merge_second_pass::GitRunner;
 use crate::test_support::{fixture, git, remove};
+use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+
+/// A function-like value with the right shape is a merge push in these controls: the shipped callers write a small struct that holds the state.
+impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>> MergePusher for Push {
+    fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
+        return self(destination, merge_oid);
+    }
+}
 
 /// A bare remote, the repository under test, and a second clone that stands for another worktree's work.
 struct Scenario {
@@ -1332,7 +1343,7 @@ fn integrate(
     scenario: &Scenario,
     landed: &str,
     explicit: bool,
-    push_merge: &mut dyn FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>,
+    push_merge: &mut dyn MergePusher,
 ) -> Integrated {
     let plan = Reconcile {
         destination: Destination {
@@ -1579,8 +1590,8 @@ fn the_union_attribute_of_the_local_tip_applies_without_a_worktree_file() {
 /// The auto-push runs inside the service and journals under the service's identifier; a push a person typed journals as the wrapper.
 #[test]
 fn the_journal_identifier_follows_who_runs_the_reconcile() {
-    assert_eq!(journal_identifier(false), "cli-git-service");
-    assert_eq!(journal_identifier(true), "cli-git");
+    assert_eq!(journal_identifier(false), "monochromatic-git-policy-cli-service");
+    assert_eq!(journal_identifier(true), "monochromatic-git-policy-cli");
 }
 //endregion
 
@@ -1663,6 +1674,22 @@ fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_th
     assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the checkout matches the branch");
     assert_ne!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "a.txt is not the published merge's");
     assert!(s.local.join("z.txt").exists());
-    assert_eq!(std::fs::read_dir(s.local.join(".git/cli-git-merges")).map_or(0, Iterator::count), 0, "no record is left");
+    assert_eq!(std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "no record is left");
     remove(&s.root);
+}
+
+/// A second-pass command whose input thread cannot start is stopped and reported, not left waiting for input and not a panic
+/// (`std::thread::spawn` panicked there). The starts are refused to this thread by the seam of `scoped_start`.
+#[test]
+fn a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported() {
+    let root: PathBuf = crate::test_support::fixture("reconcile-no-input-thread");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let git: PushGit = push_git(repo.as_path());
+    let runner: PushRunner<'_> = PushRunner { git: &git };
+    let positive = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect("positive control: the command runs with a thread");
+    assert_eq!(positive.code, Some(0));
+    let _refused = crate::scoped_start::RefusedStarts::here();
+    let reported: String = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect_err("no thread to give it its input");
+    assert!(reported.contains("no thread could be started") && reported.contains("hash-object"), "{reported}");
+    crate::test_support::remove(root.as_path());
 }

@@ -28,6 +28,15 @@ pub mod package_repair_pnpm;
 #[cfg(target_os = "linux")]
 pub mod package_repair_cargo;
 
+/// The runner that does one job for every item of a list on several threads.
+pub mod package_repair_cargo_concurrent;
+
+/// The reading of `Cargo.lock` before a clean and its restoring afterwards.
+pub mod package_repair_cargo_lock;
+
+/// The Cargo workspaces of a new worktree and the manifests that lead to them.
+pub mod package_repair_cargo_workspaces;
+
 /// The toolchain repair of a new worktree: rebuild the links and launchers that name another checkout's lock.
 #[cfg(target_os = "linux")]
 pub mod package_repair_toolchain;
@@ -35,3 +44,7 @@ pub mod package_repair_toolchain;
 /// The repair of a new worktree's package-manager state after a rung filled it and the ignored files were copied.
 #[cfg(target_os = "linux")]
 pub mod package_repair;
+
+/// What a repair reads and is asked:
+///  the person's switches, what the process offers, and the request that holds both.
+pub mod package_repair_request;

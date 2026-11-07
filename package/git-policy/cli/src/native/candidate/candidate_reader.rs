@@ -83,9 +83,9 @@ use std::rc::Rc;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const OBJECT_MISSING_PREFIX = 'cli-git could not read candidate content: Git has no object ';
+/// const OBJECT_MISSING_PREFIX = 'monochromatic-git-policy-cli could not read candidate content: Git has no object ';
 /// ```
-pub const OBJECT_MISSING_PREFIX: &str = "cli-git could not read candidate content: Git has no object ";
+pub const OBJECT_MISSING_PREFIX: &str = "monochromatic-git-policy-cli could not read candidate content: Git has no object ";
 
 /// What:
 ///  The request and reply pipes of a running reader.
@@ -149,7 +149,7 @@ fn reader_ended(detail: &str) -> CandidateError {
     return CandidateError::new(
         CandidateFailure::ReaderEnded,
         format!(
-            "cli-git could not read a Git object: the git cat-file --batch process {detail}. \
+            "monochromatic-git-policy-cli could not read a Git object: the git cat-file --batch process {detail}. \
              Run `git cat-file --batch-check` in this repository to see Git's own diagnostic."
         )
         .as_str(),
@@ -223,7 +223,7 @@ pub fn start_object_reader_with(
             return Err(CandidateError::new(
                 CandidateFailure::GitNotStarted,
                 format!(
-                    "cli-git could not start git cat-file --batch to read Git objects: {error}."
+                    "monochromatic-git-policy-cli could not start git cat-file --batch to read Git objects: {error}."
                 )
                 .as_str(),
             ));
@@ -296,7 +296,7 @@ impl ObjectReader {
             return Err(CandidateError::new(
                 CandidateFailure::ReaderEnded,
                 format!(
-                    "cli-git could not read a Git object: {}",
+                    "monochromatic-git-policy-cli could not read a Git object: {}",
                     watched_timeout_text(reader_subject().as_str(), self.watch.limit())
                 )
                 .as_str(),
@@ -383,7 +383,7 @@ impl ObjectReader {
                     return Err(CandidateError::new(
                         CandidateFailure::ObjectKindUnexpected,
                         format!(
-                            "cli-git could not read candidate content: object {} is not a blob.",
+                            "monochromatic-git-policy-cli could not read candidate content: object {} is not a blob.",
                             object.as_str()
                         )
                         .as_str(),
@@ -418,7 +418,7 @@ impl ObjectReader {
                 if kind != ObjectKind::Commit {
                     return Err(CandidateError::new(
                         CandidateFailure::ObjectKindUnexpected,
-                        "cli-git could not list candidate files: HEAD does not name a commit.",
+                        "monochromatic-git-policy-cli could not list candidate files: HEAD does not name a commit.",
                     ));
                 }
                 return Ok(Some(object));

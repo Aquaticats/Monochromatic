@@ -5,7 +5,9 @@ use super::*;
 use crate::test_support::executable;
 use crate::package_repair_report::{Outcome, Tool};
 use crate::test_support::{SharedSink, fixture, git_context, remove};
+use std::ffi::OsString;
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// The arguments of a command line as the wrapper receives them.
 fn words(values: &[&str]) -> Vec<OsString> {
@@ -156,4 +158,12 @@ fn the_workers_are_what_the_host_offers() {
     assert_eq!(workers_for(large_host), large_host);
     assert_eq!(workers_for(1), 1);
     assert_eq!(workers_for(0), 1, "a host that reports nothing still runs one worker");
+}
+
+/// Where the system starts no thread the pnpm and toolchain repairs are made on the calling thread and the report is the same (the
+/// starts are refused to this thread by the seam of `scoped_start`).
+#[test]
+fn a_working_repair_reports_the_same_where_no_thread_can_start() {
+    let _refused = crate::scoped_start::RefusedStarts::here();
+    a_working_repair_reports_one_line_unless_quiet();
 }

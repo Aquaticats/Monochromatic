@@ -10,6 +10,13 @@ its accurate context window and its selectable thinking levels,
 and a
 checked-in snapshot of the same listing serves while the API is unreachable.
 
+## Pi dependency trust
+
+PJN:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## How it serves
 
 Activation is one settings write plus one bounded async fetch:

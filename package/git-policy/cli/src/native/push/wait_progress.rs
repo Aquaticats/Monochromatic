@@ -18,7 +18,7 @@
 //! ```
 
 /// Positive-seconds parsing shared with the lock wait limits.
-use crate::bounded_push::positive_seconds;
+use crate::push_deadline_and_patience_settings::positive_seconds;
 /// Borrowed OS text of the environment value.
 use std::ffi::OsStr;
 /// `Write` is the sink a notice goes to.
@@ -227,7 +227,7 @@ pub struct ChildWaitFacts<'facts> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; ending it only after ${limit} seconds with no sign of work`
+/// `monochromatic-git-policy-cli: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; ending it only after ${limit} seconds with no sign of work`
 /// ```
 pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     let hint: &str = if facts.repeat {
@@ -238,7 +238,7 @@ pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     // A child is ended for being quiet and never for being slow, and a step that may not be run twice is never ended.
     if !facts.ends_when_quiet {
         return format!(
-            "cli-git: still waiting for {} (process {}) after {} seconds; it is a step that may not be run twice, so it is \
+            "monochromatic-git-policy-cli: still waiting for {} (process {}) after {} seconds; it is a step that may not be run twice, so it is \
              waited for as long as it lives{}.{hint}",
             facts.waiting_for,
             facts.pid,
@@ -247,7 +247,7 @@ pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
         );
     }
     return format!(
-        "cli-git: still waiting for {} (process {}) after {} seconds; it is ended only after {} seconds with no sign of work{}.{hint}",
+        "monochromatic-git-policy-cli: still waiting for {} (process {}) after {} seconds; it is ended only after {} seconds with no sign of work{}.{hint}",
         facts.waiting_for,
         facts.pid,
         facts.waited.as_secs(),
@@ -257,15 +257,34 @@ pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
 }
 
 /// What:
+///  What the caller needs to build the line of a notice that is due.
+/// Why:
+///   The line is built by the caller, from its own variables, only when a notice is due, so a poll that is not due costs a
+///  clock read and nothing else, and no closure has to carry the caller's variables into the reporter.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DueNotice = { waitedMs: number; repeat: boolean };
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct DueNotice {
+    /// How long the wait has lasted.
+    pub waited: Duration,
+    /// Whether an earlier notice of this wait was printed.
+    pub repeat: bool,
+}
+
+/// What:
 ///  Prints a wait's notices to a sink at the pace of its ticker.
 /// Why:
 ///   Wait loops that poll (reservations, child processes) share one printing rule:
-///  the line is built only when it is due,
+///  the caller builds the line only when `notice_due` says it is due,
 ///  so a poll that is not due costs a clock read and nothing else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const reporter = new WaitReporter(cadence, stderr); reporter.poll((waitedMs) => line(waitedMs));
+/// const reporter = new WaitReporter(cadence, stderr);
+/// const due = reporter.noticeDue(); if (due) reporter.printNotice(line(due.waitedMs, due.repeat));
 /// ```
 pub struct WaitReporter<'sink> {
     /// When the wait began.
@@ -289,19 +308,22 @@ impl<'sink> WaitReporter<'sink> {
         };
     }
 
-    /// Print the line built by `line` when a notice is due;
-    ///  `line` gets how long the wait has lasted and whether an earlier notice of this wait was printed.
-    ///  Whether one was printed.
-    pub fn poll(&mut self, line: impl FnOnce(Duration, bool) -> String) -> bool {
+    /// Say whether a notice is due now, and how long the wait has lasted and whether an earlier notice of this wait was
+    ///  printed, which is what the caller needs to build the line.
+    ///  A due notice is answered once; the caller then hands the line to `print_notice`.
+    pub fn notice_due(&mut self) -> Option<DueNotice> {
         let waited: Duration = self.started.elapsed();
         if !self.ticker.due(waited) {
-            return false;
+            return None;
         }
-        let text: String = line(waited, self.printed > 0);
+        return Some(DueNotice { waited, repeat: self.printed > 0 });
+    }
+
+    /// Print the line the caller built for the notice that `notice_due` reported, and count it.
+    pub fn print_notice(&mut self, text: &str) {
         self.printed += 1;
         // Terminal output error: a notice is advisory; a failed write must not stop the wait.
         let _written = writeln!(self.sink, "{text}");
-        return true;
     }
 }
 

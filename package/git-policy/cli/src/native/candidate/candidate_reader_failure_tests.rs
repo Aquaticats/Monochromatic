@@ -83,7 +83,7 @@ fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
     let text: String = sink.text();
     // The notice that is due goes out before the bound is checked, so a stopped process was announced at least once.
     assert!(text.lines().count() >= 1, "{text}");
-    assert!(text.starts_with(format!("cli-git: still waiting for {} (process ", reader_subject()).as_str()), "{text}");
+    assert!(text.starts_with(format!("monochromatic-git-policy-cli: still waiting for {} (process ", reader_subject()).as_str()), "{text}");
     let later: CandidateError = subject.head_commit().expect_err("closed");
     assert_eq!(later.failure, CandidateFailure::ReaderEnded);
     drop(subject);
@@ -223,7 +223,7 @@ fn unstartable_git_is_reported() {
     assert!(
         error
             .message
-            .starts_with("cli-git could not start git cat-file --batch to read Git objects: "),
+            .starts_with("monochromatic-git-policy-cli could not start git cat-file --batch to read Git objects: "),
         "{error}"
     );
 }

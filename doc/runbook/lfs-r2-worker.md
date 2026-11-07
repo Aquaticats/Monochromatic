@@ -301,22 +301,42 @@ The failure mode,
 
 Downloads are anonymous,
  so only machines that add images need this.
-The token lives in local git config,
- never in the committed `.lfsconfig`.
+The token lives in a Git credential helper,
+ never in a Git config value,
+ a URL or a file under the repository
+(the incident that ended the old practice is `doc/troubleshooting/lfs-credential-in-url.md`).
 
-1. Point local git LFS at the Worker with the token embedded as Basic-auth userinfo.
-   Replace `<TOKEN>` with the current `LFS_WRITE_TOKEN`.
+1. Point a credential helper at the Worker host.
+   The stock `git credential-store` with a file scoped to this host needs nothing installed;
+   a keyring helper can replace it.
 
    ```sh
-   git config --local lfs.url "https://lfs:<TOKEN>@monochromatic-lfs.aquaticat.workers.dev"
+   # doc/runbook/lfs-r2-worker.md
+   mkdir --parents --mode 700 "${HOME}/.config/monochromatic-lfs"
+   git config --global credential.https://monochromatic-lfs.aquaticat.workers.dev.helper \
+     "store --file ${HOME}/.config/monochromatic-lfs/credentials"
    ```
 
    Expected:
-    no output;
-   `git config --get lfs.url` then prints the URL.
+    no output.
+   The config value holds a helper command and a path,
+   never the token.
 
-2. Add an image and push it normally.
+2. Leave `lfs.url` unset locally,
+   so the committed `.lfsconfig` supplies the plain URL.
+   Optionally keep git-lfs from asking a Worker that has no locks API:
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   git config --local lfs.https://monochromatic-lfs.aquaticat.workers.dev.locksverify false
+   ```
+
+3. Add an image and push it normally.
    The pre-push hook runs `git lfs push` against the Worker.
+   On the first upload `git-lfs` asks `git credential fill` for the credential,
+   finds none,
+   prompts at the terminal for a user name (any value) and the token,
+   and hands the pair to the helper once the Worker accepts it.
 
    ```sh
    git add path/to/new-image.png
@@ -328,60 +348,55 @@ The token lives in local git config,
     the push log includes a line like
    `Uploading LFS objects: 100% (1/1), ... done`.
 
+4. Confirm that no Git config scope carries a credential.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   mise run "//package/config/lfs-r2-worker:check:no-credential-in-git-config"
+   ```
+
+   Expected exact last line:
+    `credential-free: yes`.
+   A `no` lists each offending key with the credential masked;
+   remove the key and move the credential into the helper.
+
+### Move a token out of an existing clone's `lfs.url`
+
+A clone configured before 2026-11-07 may hold the token in `lfs.url` and in the name of a
+`lfs.<url>.locksverify` key.
+Never print either key unmasked:
+the key name embeds the token.
+Rotating the token (above) makes the old value useless,
+and the check in the previous procedure names the keys that remain.
+The status of this machine's migration is recorded in `doc/troubleshooting/lfs-credential-in-url.md`.
+
 ### Migrate an existing clone after the Worker URL changes
 
 A committed `.lfsconfig` change does not reach a clone that carries a local `lfs.url` override,
 because git-lfs prefers the local value.
-Every pushing machine has such an override,
-since that is where its token lives.
-Download-only clones need no migration:
-a plain `git pull` picks up the new `.lfsconfig`.
+With the credential in a helper,
+no clone needs such an override:
+unset `lfs.url` and the `lfs.<url>.locksverify` key of the old host,
+and a plain `git pull` picks up the new `.lfsconfig`.
 
-Never print `lfs.url` or the `lfs.<url>.locksverify` key name unredacted;
-both embed the token.
-
-1. List the local LFS keys with the credential masked.
+1. List the local LFS keys with any URL userinfo masked.
 
    ```sh
    # doc/runbook/lfs-r2-worker.md
-   git config --local --get-regexp '^lfs\.' | cut -d' ' -f1 | sed -E 's#//[^@]*@#//<credential>@#'
+   git config --local --get-regexp '^lfs\.' | cut -d' ' -f1 | sed -E 's#//[^@/]*@#//<credentials>@#'
    ```
 
    Expected:
-    `lfs.url` carrying the old host,
-   plus one `lfs.<url>.locksverify` key that embeds the same old URL.
+    keys for the plain host only.
 
-2. Drop the stale `locksverify` key without echoing it.
+2. If the output still names the old host,
+   unset the stale keys with the masked listing's names (an unmasked name passes through the process table).
 
-   ```sh
-   # doc/runbook/lfs-r2-worker.md
-   git config --local --get-regexp '^lfs\.https://.*\.locksverify$' \
-     | cut -d' ' -f1 \
-     | xargs --no-run-if-empty -n1 git config --local --unset-all
-   ```
-
-   The key name passes through the process table as an argument,
-   so run this on a machine whose process list you trust.
-
-3. Set both keys against the new host,
-   replacing `<TOKEN>` with the current `LFS_WRITE_TOKEN`.
-
-   ```sh
-   # doc/runbook/lfs-r2-worker.md
-   git config --local lfs.url "https://lfs:<TOKEN>@monochromatic-lfs.aquaticat.workers.dev"
-   git config --local --add \
-     "lfs.https://lfs:<TOKEN>@monochromatic-lfs.aquaticat.workers.dev.locksverify" false
-   ```
-
-   Expected:
-    no output.
-   Re-run the listing command from this procedure and confirm both keys name the new host.
-
-4. Confirm the write path end to end with the write-path check in "What to check".
+3. Run the write-path check in "What to check".
 
    Expected exact output:
    `oid match: true; authenticated PUT: 200; unauthenticated PUT: 401`.
-   A `401` for the authenticated `PUT` means the endpoint credential no longer matches the Worker secret.
+   A `401` for the authenticated `PUT` means the credential in the helper no longer matches the Worker secret.
 
 ## What to check
 
@@ -429,31 +444,34 @@ TODO
    not pointer text.
 
 4. The write path accepts the configured push credential and refuses everyone else.
-   This needs a machine whose local `lfs.url` carries the token,
+   This needs a machine whose credential helper holds the token,
    and it re-uploads an object that already exists,
    so it stores nothing new:
    objects are content-addressed,
    and putting identical bytes under the same oid is a no-op.
+   The script asks `git credential fill` for the credential in memory and prints no credential.
 
    ```sh
    # doc/runbook/lfs-r2-worker.md
    node --input-type=module -e '
    import { createHash } from "node:crypto";
    import { execFileSync } from "node:child_process";
-   const endpoint = new URL(execFileSync("git", ["config", "--local", "--get", "lfs.url"], { encoding: "utf8" }).trim());
-   const authorization = `Basic ${Buffer.from(`${decodeURIComponent(endpoint.username)}:${decodeURIComponent(endpoint.password)}`).toString("base64")}`;
+   const origin = "https://monochromatic-lfs.aquaticat.workers.dev";
+   const filled = execFileSync("git", ["credential", "fill"], { input: "protocol=https\nhost=monochromatic-lfs.aquaticat.workers.dev\n\n", encoding: "utf8", env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+   const fields = Object.fromEntries(filled.split("\n").filter((line) => line.includes("=")).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
+   const authorization = `Basic ${Buffer.from(`${fields.username}:${fields.password}`).toString("base64")}`;
    const oid = "8a2f3dfd12cbaf3aa59a65937584ce25070bf3be5156dcbc14f0b4920626c0b8";
-   const bytes = new Uint8Array(await (await fetch(`${endpoint.origin}/${oid}`)).arrayBuffer());
+   const bytes = new Uint8Array(await (await fetch(`${origin}/${oid}`)).arrayBuffer());
    const digest = createHash("sha256").update(bytes).digest("hex");
-   const put = await fetch(`${endpoint.origin}/${oid}`, { method: "PUT", headers: { Authorization: authorization }, body: bytes });
-   const anonymous = await fetch(`${endpoint.origin}/${oid}`, { method: "PUT", body: bytes });
+   const put = await fetch(`${origin}/${oid}`, { method: "PUT", headers: { Authorization: authorization }, body: bytes });
+   const anonymous = await fetch(`${origin}/${oid}`, { method: "PUT", body: bytes });
    console.log(`oid match: ${digest === oid}; authenticated PUT: ${put.status}; unauthenticated PUT: ${anonymous.status}`);
    '
    ```
 
    Expected exact output:
    `oid match: true; authenticated PUT: 200; unauthenticated PUT: 401`.
-   An authenticated `401` means the local credential no longer matches the Worker secret,
+   An authenticated `401` means the credential in the helper no longer matches the Worker secret,
    or that the secret is blank,
    since a blank secret fails closed;
    the three-credential probe in "Set or rotate the upload token" tells those apart.

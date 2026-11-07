@@ -15,7 +15,8 @@
 //! ```
 
 use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
-use crate::bounded_push::{Patience, run_bounded_push_once};
+use crate::bounded_push::run_bounded_push_once;
+use crate::push_deadline_and_patience_settings::Patience;
 use crate::diagnostic_log::warn;
 use crate::git_directory_roots::roots_of_command;
 use crate::stale_ref_lock_judge::Judge;
@@ -25,7 +26,7 @@ use std::process::Command;
 use std::time::Duration;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What Git prints when another process holds the lock of a reference it updates, also from a push that exits 0.
 const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";

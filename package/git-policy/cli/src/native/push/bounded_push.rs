@@ -33,7 +33,7 @@ use crate::stopped_git_locks::LockLedger;
 use crate::scratch_location::scratch_file;
 use crate::start_retry::RetryStart;
 /// Owned OS strings of the child environment.
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 /// `File` is the shared anonymous output file; `Read`, `Seek` and `SeekFrom` read it back from its start.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -41,25 +41,14 @@ use std::io::{Read, Seek, SeekFrom};
 use std::process::{Child, Command, ExitStatus, Stdio};
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
+pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, Patience, positive_seconds, push_deadline, push_patience, strip_one_line_break};
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What a person is told when a push is ended for showing no progress: the owner's answer of 2026-11-03, "Bound it, keep retrying
 ///  (Recommended)", is that the service's retry plan keeps the push and tries it again, and the line says so.
 pub const PUSH_QUEUED_LINE: &str = "The push is queued: the commit service keeps it in its retry plan and tries it again.";
-
-/// Environment variable that sets the push deadline in whole seconds.
-pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";
-
-/// How long a push with no connection to a remote open may go without any sign of work (the stall window) when the variable is
-///  absent or unusable. Where no progress can be measured, it is how long the push may run in all.
-///  Citation: no measurement or owner decision determines 30 seconds. The owner decided the rule, "Stop only on no progress
-///  (Recommended)", and not the number. The journal of the commit service (read-only, 794 pushes that landed since 2026-10-20) holds
-///  whole-push times, p50 3.5 s, p99 26.4 s, maximum 72.4 s, which include connected time and so are not a measure of silence
-///  without a connection; no silence of a disconnected push is logged anywhere. The number is an open question for the owner
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Push stall window, 30 seconds").
-pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 ///  Citation: partial. The helpers of a stopped push were measured on 2026-11-03 to outlive it for 60 seconds, and a `git-lfs` that
@@ -83,115 +72,6 @@ pub const WAIT_NOTE_PHRASE: &str = "is waiting for the server";
 
 /// Pause between two looks at the running push.
 const POLL_PAUSE: Duration = Duration::from_millis(10);
-
-/// What:
-///  Read a positive whole number of seconds from one environment value.
-/// Why:
-///   A zero, negative, fractional, empty or non-text value is no setting at all,
-///  never "no limit",
-///  so a typo cannot remove a bound.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const seconds = Number(value); return Number.isInteger(seconds) && seconds > 0 ? seconds * 1000 : undefined;
-/// ```
-pub fn positive_seconds(name: &str, value: &OsStr) -> Option<Duration> {
-    let parsed: Option<u64> = match value.to_str() {
-        Some(text) => text.trim().parse::<u64>().ok(),
-        None => None,
-    };
-    return match parsed {
-        Some(count) if count > 0 => Some(Duration::from_secs(count)),
-        Some(_) | None => {
-            debug(
-                TAG,
-                &format!("{name} is not a positive whole number; ignoring it"),
-            );
-            None
-        }
-    };
-}
-
-/// What:
-///  Read a positive whole number of seconds from the child environment.
-/// Why:
-///   The last of repeated entries wins,
-///  as in an environment block.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// positiveSeconds(env[name])
-/// ```
-fn seconds_variable(environment: &[(OsString, OsString)], name: &str) -> Option<Duration> {
-    let mut found: Option<&OsString> = None;
-    for (key, value) in environment {
-        if key.to_str() == Some(name) {
-            found = Some(value);
-        }
-    }
-    let value: &OsString = found?;
-    return positive_seconds(name, value.as_os_str());
-}
-
-/// What:
-///  The push deadline: the environment's value, or the default.
-/// Why:
-///   A person may need a longer deadline on a slow link or a shorter one on a flaky one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const deadlineMs = secondsOf(env.CLI_GIT_PUSH_DEADLINE_SECONDS) ?? DEFAULT_MS;
-/// ```
-pub fn push_deadline(environment: &[(OsString, OsString)]) -> Duration {
-    return seconds_variable(environment, PUSH_DEADLINE_VARIABLE).unwrap_or(DEFAULT_PUSH_DEADLINE);
-}
-
-/// What:
-///  How long a bounded child may take: a fixed time, or a time without any sign of work and without an open connection.
-/// Why:
-///   A slow push that keeps moving data is working and should finish, and one whose connection to a remote is open is waiting
-///  for the remote and should wait too; one that shows nothing and holds no connection is stuck and should stop fast. A query has
-///  no transfer to measure and keeps a fixed bound.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Patience = { kind: 'fixed'; ms: number } | { kind: 'progress'; stallMs: number };
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Patience {
-    /// Stop after this long, whatever the child does.
-    Fixed(Duration),
-    /// Stop after `stall` without data moved, processor time used, or a task at work, by the child and everything it started,
-    ///  unless a process of them holds an open connection to a remote: that is waited for, however long it takes.
-    Progress {
-        /// How long the child may show nothing while no connection is open.
-        stall: Duration,
-    },
-}
-
-/// The patience of a push from the environment: the stall window.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// ({ kind: 'progress', stallMs: pushDeadline(env) })
-/// ```
-pub fn push_patience(environment: &[(OsString, OsString)]) -> Patience {
-    return Patience::Progress { stall: push_deadline(environment) };
-}
-
-/// Remove exactly one trailing `\n` or `\r\n`, as the captured output of the incumbent does.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// output.endsWith('\n') ? output.slice(0, output.endsWith('\r\n') ? -2 : -1) : output
-/// ```
-pub fn strip_one_line_break(text: &str) -> &str {
-    let without_lf = match text.strip_suffix('\n') {
-        Some(stripped) => stripped,
-        None => return text,
-    };
-    return without_lf.strip_suffix('\r').unwrap_or(without_lf);
-}
 
 /// Ask a running push to end,
 ///  so Git can stop the helper processes it started.
@@ -248,6 +128,14 @@ fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
     }
 }
 
+/// What a clock keeps as the longest quiet gap: its figure when it reads anything, nothing when it reads nothing.
+fn quiet_gap_kept(watched: &Clock) -> Option<Duration> {
+    if watched.measures() {
+        return Some(watched.longest_quiet());
+    }
+    return None;
+}
+
 /// What:
 ///  Collect a killed child that the kernel has not released, and sweep the locks it leaves, on a thread of its own.
 /// Why:
@@ -261,7 +149,7 @@ fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
 /// void child.exited.then(() => locks.sweep(tree));
 /// ```
 pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<std::thread::JoinHandle<()>> {
-    return std::thread::Builder::new()
+    let started = std::thread::Builder::new()
         .name(String::from("cli-git-lock-sweep"))
         .spawn(move || {
             // The exit status is not reported: the push was reported at its deadline.
@@ -271,11 +159,14 @@ pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedg
                 std::thread::sleep(POLL_PAUSE);
             }
             locks.sweep(tree.as_slice());
-        })
-        .inspect_err(|error| {
+        });
+    return match started {
+        Ok(handle) => Some(handle),
+        Err(error) => {
             debug(TAG, &format!("could not start the thread that sweeps a stopped push's locks: {error}"));
-        })
-        .ok();
+            None
+        }
+    };
 }
 
 /// What:
@@ -350,7 +241,7 @@ pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
 pub fn settle_locks(child: Child, collected: bool, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<std::thread::JoinHandle<()>> {
     if collected {
         wait_for_tree(tree.as_slice(), grace);
-        if tree.iter().all(|member| { return !still_running(member); }) {
+        if !tree.iter().any(still_running) {
             locks.sweep(tree.as_slice());
             return None;
         }
@@ -453,10 +344,9 @@ fn wait_with_clock(
     quiet: &mut Option<Duration>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     // Nothing is kept where the clock reads nothing: its figure would be the elapsed time, not a quiet gap.
-    let kept = |watched: &Clock| -> Option<Duration> { return watched.measures().then(|| { return watched.longest_quiet(); }); };
     loop {
         if let Some(status) = child.try_wait().map_err(SingleFlightError::Start)? {
-            *quiet = kept(&clock);
+            *quiet = quiet_gap_kept(&clock);
             return Ok(Ok(status));
         }
         for output in outputs {
@@ -465,12 +355,12 @@ fn wait_with_clock(
                 Err(_) => u64::MAX,
             };
             if is_flood(size) {
-                *quiet = kept(&clock);
+                *quiet = quiet_gap_kept(&clock);
                 return Ok(Err(StopCause::Flood));
             }
         }
         if let Some(cause) = clock.check() {
-            *quiet = kept(&clock);
+            *quiet = quiet_gap_kept(&clock);
             return Ok(Err(cause));
         }
         if let Some(report) = clock.take_wait_note() {
@@ -519,11 +409,11 @@ pub fn command_label(command: &Command) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: ${label} ${WAIT_NOTE_PHRASE}: the connection to the remote is open (silent ${silent} seconds)`
+/// `monochromatic-git-policy-cli: ${label} ${WAIT_NOTE_PHRASE}: the connection to the remote is open (silent ${silent} seconds)`
 /// ```
 fn wait_line(label: &str, report: &WaitReport) -> String {
     return format!(
-        "cli-git: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing has moved for {} seconds \
+        "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing has moved for {} seconds \
          (elapsed_seconds={}); the remote may be checking the push or preparing its answer. It is waited for until it answers or \
          the connection closes; no time limit applies while the connection is open.",
         report.silent.as_secs(),
@@ -605,7 +495,7 @@ pub fn run_bounded_push_once(
         Err(cause) => {
             let reason: String = match cause {
                 StopCause::Deadline => format!(
-                    "cli-git: git push did not finish within {} seconds and was stopped (limit=deadline); \
+                    "monochromatic-git-policy-cli: git push did not finish within {} seconds and was stopped (limit=deadline); \
                      {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
                     match patience {
@@ -615,7 +505,7 @@ pub fn run_bounded_push_once(
                     extend_clause()
                 ),
                 StopCause::Stalled(report) => format!(
-                    "cli-git: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
+                    "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
                      elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
                     report.limit.as_secs(),
@@ -624,7 +514,7 @@ pub fn run_bounded_push_once(
                     extend_clause()
                 ),
                 StopCause::Flood => format!(
-                    "cli-git: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output and was stopped. Hint: if a hook or the \
+                    "monochromatic-git-policy-cli: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output and was stopped. Hint: if a hook or the \
                      remote prints this much, run `git ls-remote` to see whether your commits arrived, and read the \
                      hook's own output by running it directly before pushing again."
                 ),

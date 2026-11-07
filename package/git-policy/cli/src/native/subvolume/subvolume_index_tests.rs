@@ -4,6 +4,20 @@
 
 use super::*;
 
+/// A function-like value with the right shape is a lookup in tests: the shipped callers write a small struct that holds the state.
+impl<Lookup: FnMut(&[u8]) -> Option<StatFields>> StatLookup for Lookup {
+    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+        return self(path);
+    }
+}
+
+/// A function-like value with the right shape is a trust check in tests: the shipped callers write a small struct that holds the state.
+impl<Check: FnMut(&[u8], &StoredStat) -> bool> StatTrust for Check {
+    fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool {
+        return self(path, stored);
+    }
+}
+
 /// How the built index checksums itself.
 #[derive(Clone, Copy)]
 enum Checksum {

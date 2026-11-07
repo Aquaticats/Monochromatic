@@ -11,12 +11,15 @@ not a prohibition on transmitting retry metadata.
 
 Read-only source checkout:
 `/var/home/user/temp/agent/promises-review-assessment.qUhUdO/openai-python-2026-09-08`.
-Commit: `2d4b97cc84d5c3ca051cc2ac2d8a6c9928b4d5f0`.
+Commit:
+`2d4b97cc84d5c3ca051cc2ac2d8a6c9928b4d5f0`.
 `src/openai/_version.py:2` identifies version `3.11.0`.
-Upstream: [OpenAI Python source][source].
+Upstream:
+[OpenAI Python source][source].
 
 `src/openai/_base_client.py:473` defines `BaseClient._build_headers` with a `retries_taken` input.
-At lines 487 to 489, the SDK supplies the retry-count header unless the caller overrides or omits it:
+At lines 487 to 489,
+the SDK supplies the retry-count header unless the caller overrides or omits it:
 
 ```python
 # src/openai/_base_client.py:487
@@ -38,16 +41,24 @@ It does not establish that a server uses the header to decide whether an attempt
 ## Verification and limits
 
 The source was retrieved with `gh repo clone openai/openai-python` and `--depth 1`.
-The checkout's commit, version, header builder, and existing test cases were inspected.
-No SDK dependencies were installed, no SDK tests were executed, and no API request was sent.
+The checkout's commit,
+version,
+header builder,
+and existing test cases were inspected.
+No SDK dependencies were installed,
+no SDK tests were executed,
+and no API request was sent.
 
 Source-supported cases:
 
-- Default metadata: `tests/test_client.py:1228` asserts that
+- Default metadata:
+  `tests/test_client.py:1228` asserts that
   `response.http_request.headers.get("x-stainless-retry-count")` equals the retries taken.
-- Omission: `tests/test_client.py:1257` supplies `Omit()`;
+- Omission:
+  `tests/test_client.py:1257` supplies `Omit()`;
   line 1260 asserts the outgoing header list is empty.
-- Override: `tests/test_client.py:1289` supplies `"42"`;
+- Override:
+  `tests/test_client.py:1289` supplies `"42"`;
   line 1292 asserts that exact outgoing header value.
 
 Rejected interpretation:
@@ -65,14 +76,27 @@ No lesson wording or implementation was changed during this review.
 
 ## Upstream filing decision
 
-Nothing to file: the problem is an overbroad proposed teaching statement, not an SDK failure.
+Nothing to file:
+the problem is an overbroad proposed teaching statement,
+not an SDK failure.
 
-1.  Upstream fault: no; the source intentionally adds metadata and has corresponding tests.
-2.  Fixability: not applicable; no SDK change is requested.
-3.  Supported use: the named source tests cover default, omitted, and overridden metadata.
-4.  Contribution welcome: not investigated because no contribution is proposed.
-5.  Likelihood of an upstream fix: not applicable because there is no upstream defect to fix.
-6.  Prototype: not applicable; this is a source-backed correction to a local review recommendation.
+1.  Upstream fault:
+    no;
+    the source intentionally adds metadata and has corresponding tests.
+2.  Fixability:
+    not applicable;
+    no SDK change is requested.
+3.  Supported use:
+    the named source tests cover default,
+    omitted,
+    and overridden metadata.
+4.  Contribution welcome:
+    not investigated because no contribution is proposed.
+5.  Likelihood of an upstream fix:
+    not applicable because there is no upstream defect to fix.
+6.  Prototype:
+    not applicable;
+    this is a source-backed correction to a local review recommendation.
 
 No issue/comment draft or external communication was produced.
 An upstream duplicate search is unnecessary for a filing that is not proposed.

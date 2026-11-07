@@ -21,7 +21,7 @@ use std::ffi::OsString;
 /// The rejection text naming the given tokens.
 fn rejection(tokens: &str) -> Option<String> {
     return Some(format!(
-        "cli-git: git add rejects bulk-staging patterns ({tokens}) because they sweep up paths \
+        "monochromatic-git-policy-cli: git add rejects bulk-staging patterns ({tokens}) because they sweep up paths \
          the caller did not intend to stage, leaving the index in a state that does not match a \
          single logical change. Name the paths explicitly, or pass --no-enforce-bulk-add to \
          bypass for this invocation."

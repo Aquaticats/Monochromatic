@@ -142,17 +142,23 @@ renaming or minifying a constructing subclass can change that name.
 
 ## Upstream filing decision
 
-- Upstream fault: not established.
+- Upstream fault:
+  not established.
   The consumer introduced the executable field.
-- Fixability: the engine implementation is changeable,
+- Fixability:
+  the engine implementation is changeable,
   but changing JavaScript field definition is not the proposed consumer repair.
-- Supported use case: Node documents erasable TypeScript syntax,
+- Supported use case:
+  Node documents erasable TypeScript syntax,
   and its V8 source implements class fields through own-property definitions.
-- Contribution policy: not inspected because no upstream change is proposed;
+- Contribution policy:
+  not inspected because no upstream change is proposed;
   no restriction or welcome is inferred.
-- Maintainer disposition: not investigated;
+- Maintainer disposition:
+  not investigated;
   no claim about a future upstream fix is made.
-- Prototype: the consumer correction and its positive controls are verified.
+- Prototype:
+  the consumer correction and its positive controls are verified.
   No engine patch is proposed.
 
 Nothing to add upstream:

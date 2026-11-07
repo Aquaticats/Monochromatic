@@ -32,7 +32,7 @@ use std::time::{Duration, Instant};
 
 /// The prefix of every line the service writes,
 /// which `journalctl` shows after the unit name.
-pub const LOG_PREFIX: &str = "cli-git-service: ";
+pub const LOG_PREFIX: &str = "monochromatic-git-policy-cli-service: ";
 
 /// When a connection was accepted and how long its request line took to arrive.
 #[derive(Clone, Copy, Debug)]
@@ -145,9 +145,23 @@ pub struct Answered<'record> {
     pub quiet: &'record [(String, Duration)],
 }
 
+/// What:
+///  One quiet gap as a word: `name=milliseconds` with three decimals.
+/// Why:
+///  `quiet_steps` joins the words of all the gaps with semicolons.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const quietStepWord = ([step, gap]: [string, number]) => `${step}=${(gap / 1000).toFixed(3)}`;
+/// ```
+fn quiet_step_word(figure: &(String, Duration)) -> String {
+    let (step, gap) = figure;
+    return format!("{step}={:.3}", gap.as_micros() as f64 / 1000.0);
+}
+
 /// The text of the quiet gaps in the answered line: `name=milliseconds` joined by semicolons.
 fn quiet_steps(figures: &[(String, Duration)]) -> String {
-    let words: Vec<String> = figures.iter().map(|(step, gap)| { return format!("{step}={:.3}", gap.as_micros() as f64 / 1000.0); }).collect();
+    let words: Vec<String> = figures.iter().map(quiet_step_word).collect();
     return words.join(";");
 }
 
@@ -229,13 +243,26 @@ const LEGACY_INDEX_UPDATE_KEY: &str = "sync_ms";
 /// Number(/ index_update_ms=(\d+)/.exec(line)?.[1] ?? / sync_ms=(\d+)/.exec(line)?.[1])
 /// ```
 pub fn index_update_ms_of(line: &str) -> Option<u64> {
-    let value_of = |key: &str| -> Option<u64> {
-        let word: String = format!(" {key}=");
-        let from: usize = line.find(word.as_str())? + word.len();
-        let digits: String = line[from..].chars().take_while(char::is_ascii_digit).collect();
-        return digits.parse::<u64>().ok();
-    };
-    return value_of("index_update_ms").or_else(|| { return value_of(LEGACY_INDEX_UPDATE_KEY); });
+    if let Some(found) = digits_after_key(line, "index_update_ms") {
+        return Some(found);
+    }
+    return digits_after_key(line, LEGACY_INDEX_UPDATE_KEY);
+}
+
+/// What:
+///  The number that follows ` key=` in a log line, nothing when the key is absent or no digits follow.
+/// Why:
+///  `index_update_ms_of` reads the current key first and the legacy key after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Number(new RegExp(` ${key}=(\\d+)`).exec(line)?.[1])
+/// ```
+fn digits_after_key(line: &str, key: &str) -> Option<u64> {
+    let word: String = format!(" {key}=");
+    let from: usize = line.find(word.as_str())? + word.len();
+    let digits: String = line[from..].chars().take_while(char::is_ascii_digit).collect();
+    return digits.parse::<u64>().ok();
 }
 
 /// What:
@@ -332,7 +359,10 @@ pub fn exit_line(reason: ExitReason, uptime: Duration) -> String {
 /// The wall clock in whole milliseconds since the Unix epoch,
 /// the time a log line states for its own event.
 pub fn wall_millis() -> u128 {
-    return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_millis(); });
+    return match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_millis(),
+        Err(_before_the_epoch) => 0,
+    };
 }
 
 /// What:
@@ -428,9 +458,16 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     // Masked before it is cut: a cut that falls just before the `@` of `scheme://user:secret@host` would leave a password
     //  that no longer looks like userinfo.
     let masked: String = mask_userinfo_text(line);
-    let mut all: Vec<(&str, String)> = CONTEXT.get().map_or_else(Vec::new, |context| { return context.iter().map(|(name, value)| { return (*name, value.clone()); }).collect(); });
+    let mut all: Vec<(&str, String)> = Vec::new();
+    if let Some(context) = CONTEXT.get() {
+        for (name, value) in context.iter() {
+            all.push((*name, value.clone()));
+        }
+    }
     all.push(("CLI_GIT_AT_MS", at_ms.to_string()));
-    all.extend(fields.iter().map(|(name, value)| { return (*name, mask_userinfo_text(value.as_str())); }));
+    for (name, value) in fields {
+        all.push((*name, mask_userinfo_text(value.as_str())));
+    }
     // A native entry carries the text as written (a newline in the length-prefixed form); the line on standard error is one line.
     let message: String = format!("{} at_ms={at_ms}", cut(masked.as_str(), MESSAGE_LIMIT));
     #[cfg(test)]
@@ -501,47 +538,8 @@ macro_rules! service_log {
 
 /// What a control sees of the entries the code under test writes, on the thread that runs it.
 #[cfg(test)]
-pub mod capture {
-    use super::Priority;
-    use std::cell::RefCell;
-
-    /// One entry as written: its priority, its message with the time, and its fields.
-    #[derive(Clone, Debug, Eq, PartialEq)]
-    pub struct Captured {
-        /// How serious the entry is.
-        pub priority: Priority,
-        /// The message as the journal would show it.
-        pub message: String,
-        /// The fields beside the message.
-        pub fields: Vec<(String, String)>,
-    }
-
-    thread_local! {
-        static ENTRIES: RefCell<Option<Vec<Captured>>> = const { RefCell::new(None) };
-    }
-
-    /// Whether a control is capturing the entries of this thread.
-    pub fn active() -> bool {
-        return ENTRIES.with(|entries| { return entries.borrow().is_some(); });
-    }
-
-    /// Notes an entry when a control is capturing on this thread; says whether it did.
-    pub fn record(priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
-        return ENTRIES.with(|entries| {
-            return entries.borrow_mut().as_mut().is_some_and(|taken| {
-                taken.push(Captured { priority, message: message.to_string(), fields: fields.iter().map(|(name, value)| { return ((*name).to_string(), value.clone()); }).collect() });
-                return true;
-            });
-        });
-    }
-
-    /// Runs `body` and gives its entries, which are not written anywhere.
-    pub fn entries_of(body: impl FnOnce()) -> Vec<Captured> {
-        ENTRIES.with(|entries| { *entries.borrow_mut() = Some(Vec::new()); });
-        body();
-        return ENTRIES.with(|entries| { return entries.borrow_mut().take().unwrap_or_default(); });
-    }
-}
+#[path = "service_timing_capture_test_support.rs"]
+pub mod capture;
 
 /// The lines,
 /// their fields,

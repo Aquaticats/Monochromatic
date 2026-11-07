@@ -1,0 +1,18 @@
+# Source of the user timer that starts toolchain-daily-update.service once a day.
+# `mise run toolchain:timer:install` copies it to ~/.config/systemd/user and enables it;
+# doc/planning/toolchain-always-latest.md ("The daily update") explains each setting.
+[Unit]
+Description=Daily update of the toolchain locks and the dependency locks
+Documentation=file://@REPOSITORY@/doc/planning/toolchain-always-latest.md
+
+[Timer]
+OnCalendar=daily
+# A run missed because the machine was off or asleep starts at the next boot or wake.
+Persistent=true
+# The start moves by a random amount so it never lands on a fixed minute that other jobs also use.
+RandomizedDelaySec=2h
+AccuracySec=1min
+Unit=toolchain-daily-update.service
+
+[Install]
+WantedBy=timers.target

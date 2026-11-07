@@ -18,8 +18,11 @@
 //! landing.settle(published); // true: hand the queue to the background thread; false: sync it now
 //! ```
 
+use crate::scoped_start::{Started, start_or_run_with};
+use crate::side_by_side_threads::{ScopeBody, in_thread_scope};
 use std::cell::{Cell, RefCell};
 use std::fs::File;
+use std::thread::Scope;
 use std::sync::OnceLock;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
@@ -57,16 +60,63 @@ pub static BACKGROUND_SYNCED: std::sync::atomic::AtomicU64 = std::sync::atomic::
 /// Sync every handle of a batch at once, one thread each, and log what failed: nobody waits for this, so a failure cannot
 ///  fail a commit that was already answered, and the next landing or restart handles the record as it would after a power cut.
 fn sync_batch(batch: Vec<Pending>) {
-    std::thread::scope(|scope| {
-        for pending in &batch {
-            scope.spawn(move || {
-                if let Err(error) = pending.handle.sync_all() {
-                    crate::service_warn!("the background sync of the {} failed: {error}", pending.what);
-                }
-                BACKGROUND_SYNCED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            });
+    sync_all_at_once(batch.as_slice(), true);
+}
+
+/// What:
+///  Syncs every handle of a batch at once, one thread each, and says once when a sync had to be made on the calling thread.
+///  A background sync is counted for the controls that wait for them and words its failures as the background's.
+/// Why:
+///  The background thread and the landing that must wait both sync a batch this way; only the wording and the count differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.all(batch.map(async (pending) => { try { await pending.handle.sync(); } catch (e) { warn(e); } if (background) synced++; }));
+/// ```
+fn sync_all_at_once(batch: &[Pending], background: bool) {
+    in_thread_scope(SyncAll { batch, background });
+}
+
+/// The syncs of one batch, started together inside one thread scope.
+struct SyncAll<'batch> {
+    /// The handles to sync, one thread each.
+    batch: &'batch [Pending],
+    /// Whether the batch is the background's, which counts each sync and words its failures as the background's.
+    background: bool,
+}
+
+impl<'batch> ScopeBody<'batch> for SyncAll<'batch> {
+    type Output = ();
+
+    /// Start one sync per pending handle, then say once when any of them had to run here.
+    fn run<'scope>(self, scope: &'scope Scope<'scope, 'batch>) {
+        let mut started: Vec<Started<'scope, ()>> = Vec::new();
+        for pending in self.batch {
+            started.push(start_or_run_with(scope, (pending, self.background), sync_one_pending));
         }
-    });
+        say_once_if_inline(started.as_slice());
+    }
+}
+
+/// Sync one handle, log a failure, and count a background sync.
+fn sync_one_pending((pending, background): (&Pending, bool)) {
+    if let Err(error) = pending.handle.sync_all() {
+        if background {
+            crate::service_warn!("the background sync of the {} failed: {error}", pending.what);
+        } else {
+            crate::service_warn!("the sync of the {} failed: {error}", pending.what);
+        }
+    }
+    if background {
+        BACKGROUND_SYNCED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Logs once, for a batch, that a sync was made on the calling thread because the system could not start a thread for it.
+fn say_once_if_inline<T>(started: &[Started<'_, T>]) {
+    if started.iter().any(Started::ran_inline) {
+        crate::service_warn!("the system could not start a thread for a sync of the landing's records; it was made where it was asked for");
+    }
 }
 
 /// The background thread: takes the jobs in order until the sender is gone.
@@ -83,14 +133,25 @@ fn background(jobs: &Receiver<Job>) {
 
 /// The sender of the background thread, started when first asked for.
 fn sender() -> &'static Sender<Job> {
-    return BACKGROUND.get_or_init(|| {
-        let (sender, jobs) = channel::<Job>();
-        let started = std::thread::Builder::new().name(String::from("cli-git-durable")).spawn(move || { background(&jobs); });
-        if let Err(error) = started {
-            crate::service_warn!("the thread that makes the landing's syncs could not start ({error}); they are made where they are asked for");
-        }
-        return sender;
-    });
+    return BACKGROUND.get_or_init(start_background);
+}
+
+/// What:
+///  Makes the channel to the background thread and starts the thread; when no thread can start, the syncs are made where they are asked for.
+/// Why:
+///  `sender` runs it once, the first time a sync is handed to the background.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function startBackground(): Sender<Job> { const { sender, jobs } = channel(); try { spawn(() => background(jobs)); } catch (e) { warn(e); } return sender; }
+/// ```
+fn start_background() -> Sender<Job> {
+    let (sender, jobs) = channel::<Job>();
+    let started = std::thread::Builder::new().name(String::from("cli-git-durable")).spawn(move || { background(&jobs); });
+    if let Err(error) = started {
+        crate::service_warn!("the thread that makes the landing's syncs could not start ({error}); they are made where they are asked for");
+    }
+    return sender;
 }
 
 /// Waits until every sync handed to the background thread so far is done.
@@ -111,17 +172,17 @@ pub struct Deferral {
 /// Starts queueing the syncs of the landing on this thread.
 ///  `hardens_index` says whether the index file the landing installs is flushed before the rename (`core.fsync` names it).
 pub fn begin(hardens_index: bool) -> Deferral {
-    DEFERRING.with(|flag| { flag.set(true); });
-    INDEX_HARDENED.with(|flag| { flag.set(hardens_index); });
-    QUEUED.with(|queue| { queue.borrow_mut().clear(); });
+    DEFERRING.set(true);
+    INDEX_HARDENED.set(hardens_index);
+    QUEUED.with_borrow_mut(Vec::clear);
     return Deferral { settled: false };
 }
 
 /// Ends the deferral on this thread and returns what it queued.
 fn end() -> Vec<Pending> {
-    DEFERRING.with(|flag| { flag.set(false); });
-    INDEX_HARDENED.with(|flag| { flag.set(true); });
-    return QUEUED.with(|queue| { return std::mem::take(&mut *queue.borrow_mut()); });
+    DEFERRING.set(false);
+    INDEX_HARDENED.set(true);
+    return QUEUED.take();
 }
 
 /// Syncs every handle now, all at once, and names each as waited for.
@@ -129,15 +190,7 @@ fn force(batch: Vec<Pending>) {
     for pending in &batch {
         crate::service_fault::note(format!("sync-waited:{}", pending.what).as_str());
     }
-    std::thread::scope(|scope| {
-        for pending in &batch {
-            scope.spawn(move || {
-                if let Err(error) = pending.handle.sync_all() {
-                    crate::service_warn!("the sync of the {} failed: {error}", pending.what);
-                }
-            });
-        }
-    });
+    sync_all_at_once(batch.as_slice(), false);
 }
 
 impl Deferral {
@@ -178,10 +231,10 @@ impl Drop for Deferral {
 pub fn flush_file(file: &File, what: &'static str) -> std::io::Result<()> {
     if DEFERRING.with(Cell::get) {
         crate::service_fault::note(format!("sync-queued:{what}").as_str());
-        QUEUED.with(|queue| -> std::io::Result<()> {
-            queue.borrow_mut().push(Pending { handle: file.try_clone()?, what });
-            return Ok(());
-        })?;
+        let handle: File = file.try_clone()?;
+        let mut queued: Vec<Pending> = QUEUED.take();
+        queued.push(Pending { handle, what });
+        QUEUED.set(queued);
         return Ok(());
     }
     let synced: std::io::Result<()> = file.sync_all();

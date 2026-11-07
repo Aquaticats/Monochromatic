@@ -193,12 +193,16 @@ No third-party source was changed and no upstream defect is claimed.
 
 ## The same split without a container: a private-HOME copy on the host (2026-10-15)
 
-A release-workflow session ran a private reflink copy of the owned AVD on the host, as the systemd user unit
+A release-workflow session ran a private reflink copy of the owned AVD on the host,
+as the systemd user unit
 `rel-emu-music-player` from the launch form in `android-emulator-37-software-renderer-sigsegv.md`.
-The unit set `HOME`, `ANDROID_USER_HOME` and `ANDROID_AVD_HOME` to directories of the copy and
-`ANDROID_ADB_SERVER_PORT=5640`, with the emulator on ports `5612,5613`.
+The unit set `HOME`,
+`ANDROID_USER_HOME` and `ANDROID_AVD_HOME` to directories of the copy and
+`ANDROID_ADB_SERVER_PORT=5640`,
+with the emulator on ports `5612,5613`.
 The calling shell kept the real `HOME` and exported only the port.
-Emulator `37.1.11` and the SDK's `adb`, both from `/home/user/Android/Sdk`.
+Emulator `37.1.11` and the SDK's `adb`,
+both from `/home/user/Android/Sdk`.
 
 Two failures followed from the shell and the unit having different homes.
 
@@ -214,7 +218,9 @@ List of devices attached
 emulator-5612	unauthorized
 ```
 
-The emulator's own journal, whose adb calls reached that same server, repeated:
+The emulator's own journal,
+whose adb calls reached that same server,
+repeated:
 
 ```text
 This adb server's $ADB_VENDOR_KEYS is not set
@@ -234,13 +240,16 @@ HOME=/home/user/temp/agent/rel-emu-copy/home ANDROID_ADB_SERVER_PORT=5640 \
 Which file decided the authorization is not established here.
 The working hypothesis is that the copied guest trusts the key in the copy's `.android` directory (`adbkey.pub`),
 and the server started under the real `HOME` presented a different key.
-No `adb` client or server source was read for this, and no key content was printed.
+No `adb` client or server source was read for this,
+and no key content was printed.
 The observation is only that the server's `HOME` decided `unauthorized` against `device`.
 
 ### Failure 2: `emu kill` from the real HOME failed the console token check
 
-After the test, the graceful shutdown from the shell with the real `HOME` printed the same two lines as the
-container case, and the unit stayed `active`:
+After the test,
+the graceful shutdown from the shell with the real `HOME` printed the same two lines as the
+container case,
+and the unit stayed `active`:
 
 ```text
 KO: authentication token does not match ~/.emulator_console_auth_token
@@ -248,9 +257,12 @@ KO: unknown command, try 'help'
 active
 ```
 
-This is the mechanism traced in [Root cause](#root-cause): the client builds the `auth` command from the token file in
-its own home directory, and the emulator holds the token of the home it runs in.
-Here the two homes differed on one machine, not across a container boundary.
+This is the mechanism traced in [Root cause](#root-cause):
+the client builds the `auth` command from the token file in
+its own home directory,
+and the emulator holds the token of the home it runs in.
+Here the two homes differed on one machine,
+not across a container boundary.
 Running the client with the emulator's home worked (the `adb: device still authorizing` line is from the
 `shell sync` that ran while the new server was still starting):
 
@@ -266,12 +278,19 @@ adb -s emulator-5612 emu kill
 
 ### Rule for a private-HOME copy
 
-Run every `adb` client and the server of that emulator with the same `HOME`, `ANDROID_USER_HOME` and
-`ANDROID_ADB_SERVER_PORT` as the emulator unit, including the first `adb devices` and the final `emu kill`.
-The tradeoff is that the shell command needs those variables on each call, or an exported block, for the whole session.
-Not tested: exporting only `HOME` without `ANDROID_USER_HOME` (the key lookup may differ), another emulator build,
+Run every `adb` client and the server of that emulator with the same `HOME`,
+`ANDROID_USER_HOME` and
+`ANDROID_ADB_SERVER_PORT` as the emulator unit,
+including the first `adb devices` and the final `emu kill`.
+The tradeoff is that the shell command needs those variables on each call,
+or an exported block,
+for the whole session.
+Not tested:
+exporting only `HOME` without `ANDROID_USER_HOME` (the key lookup may differ),
+another emulator build,
 and the same sequence with the real `HOME` and a copied token file (which this repository does not do).
-No upstream defect is claimed; the behavior is consistent with the documented console authentication.
+No upstream defect is claimed;
+the behavior is consistent with the documented console authentication.
 
 ## What does not work
 

@@ -9,7 +9,7 @@ use crate::transaction_git::{GitOutput, run_git_checked};
 fn shadow_paths_derive_from_the_id() {
     assert_eq!(
         shadow_repository_path(Path::new("/repo/.git"), "0b6c"),
-        PathBuf::from("/repo/.git/cli-git/shadow/0b6c")
+        PathBuf::from("/repo/.git/monochromatic-git-policy-cli/shadow/0b6c")
     );
 }
 
@@ -84,7 +84,7 @@ fn shadow_commands_ignore_redirects() {
 #[test]
 fn shadows_are_removed_whole() {
     let root: PathBuf = fixture("shadow-git-remove");
-    let shadow: PathBuf = root.join("cli-git").join("shadow").join("0b6c");
+    let shadow: PathBuf = root.join("monochromatic-git-policy-cli").join("shadow").join("0b6c");
     std::fs::create_dir_all(shadow.join("objects")).expect("shadow");
     std::fs::write(shadow.join("objects").join("x"), b"x").expect("object");
     remove_shadow_repository(shadow.as_path()).expect("removed");

@@ -10,7 +10,7 @@
 //! const finding = await repairPnpm(destination, environment); // undefined when pnpm has nothing to relink
 //! ```
 
-use crate::package_repair::RepairEnvironment;
+use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_command::{ToolCommand, ToolRun, find_program, run_tool};
 use crate::package_repair_report::{Finding, Tool, finding_from, missing_tool};
 use crate::shell_quote::shell_quote;

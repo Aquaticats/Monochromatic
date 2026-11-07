@@ -55,9 +55,9 @@ pub enum Trigger {
     /// Before a manual `git push`,
     ///  against newly published content.
     ManualPush,
-    /// `git cli-git check`.
+    /// `git monochromatic-git-policy-cli check`.
     DirectCheck,
-    /// `git cli-git fix`.
+    /// `git monochromatic-git-policy-cli fix`.
     DirectFix,
 }
 

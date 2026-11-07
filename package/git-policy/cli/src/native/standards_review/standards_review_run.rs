@@ -66,6 +66,37 @@ pub struct ReviewOptions {
 }
 
 /// What:
+///  Where the review's options read the variables of the environment.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The service's environment carries no secret: the key comes in the wake message, so the lookup holds the key it was given and
+///  answers every other name from the environment. A struct that holds the key implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface EnvironmentVariables { variable(name: string): string | undefined }
+/// ```
+pub trait EnvironmentVariables {
+    /// The value the name has, or nothing.
+    fn variable(&self, name: &str) -> Option<String>;
+}
+
+/// What:
+///  Where the review reads the patch and the files of a landed commit.
+/// Why:
+///   The read needs the Git context, the directory, the commit and the subject, and tests fix the answer; a struct that holds
+///  them implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface LandedCommitReader { read(files: string[]): LandedCommit } // throws a reason
+/// ```
+pub trait LandedCommitReader {
+    /// Read the commit as far as `files` (its code files) are concerned.
+    fn read(&self, files: &[String]) -> Result<LandedCommit, String>;
+}
+
+/// What:
 ///  The options the script's environment variables give for a repository: the live log under `common_dir` unless
 ///  `SHADOW_REVIEW_LOG` names another, and the first credential variable that is set, even to an empty text.
 /// Why:
@@ -73,11 +104,18 @@ pub struct ReviewOptions {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${commonDir}/cli-git/standards-review-shadow.md`;
+/// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${commonDir}/monochromatic-git-policy-cli/standards-review-shadow.md`;
 /// ```
-pub fn options_from_environment(common_dir: &Path, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
-    let log_path: PathBuf = variable(LOG_VARIABLE).map_or_else(|| return shared_log_path(common_dir), PathBuf::from);
-    let api_key: Option<String> = variable(KEY_VARIABLES[0]).or_else(|| return variable(KEY_VARIABLES[1]));
+pub fn options_from_environment(common_dir: &Path, variable: &dyn EnvironmentVariables) -> ReviewOptions {
+    let log_path: PathBuf = match variable.variable(LOG_VARIABLE) {
+        Some(configured) => PathBuf::from(configured),
+        None => shared_log_path(common_dir),
+    };
+    // The second variable is read only when the first is unset, as `.or_else(...)` did.
+    let api_key: Option<String> = match variable.variable(KEY_VARIABLES[0]) {
+        Some(key) => Some(key),
+        None => variable.variable(KEY_VARIABLES[1]),
+    };
     return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), quiet_window: SCRIPT_QUIET_WINDOW, call_ceiling: crate::wait_ceilings::REVIEW_CALL_CEILING, trusted_pem: None };
 }
 
@@ -120,6 +158,20 @@ pub enum ReviewOutcome {
 }
 
 /// What:
+///  The verdict of a gateway step that failed: no top choice, and the message in the outcome line.
+/// Why:
+///   `ask_gateway` reports every failure (no key, no reply, an unreadable reply) the same way, and a named function
+///  stands where a closure that built this verdict stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lunaFailed = (message: string) => ({ top: '', outcome: `Luna failed: ${message}` });
+/// ```
+fn luna_failed(message: String) -> Judged {
+    return Judged { top: String::new(), outcome: format!("Luna failed: {message}") };
+}
+
+/// What:
 ///  The gateway step: the verdict, or the failure message, and the elapsed milliseconds.
 /// Why:
 ///   A missing credential fails before any connection, as in the script.
@@ -129,16 +181,19 @@ pub enum ReviewOutcome {
 /// try { ...fetch... } catch (error) { lunaOutcome = 'Luna failed: ' + message }
 /// ```
 fn ask_gateway(input: &ReviewInput, options: &ReviewOptions) -> Judged {
-    let failed = |message: String| return Judged { top: String::new(), outcome: format!("Luna failed: {message}") };
     let key: &str = options.api_key.as_deref().unwrap_or("");
     if key.is_empty() {
-        return failed(String::from(NO_KEY_MESSAGE));
+        return luna_failed(String::from(NO_KEY_MESSAGE));
     }
     let gateway: Gateway = Gateway { url: options.endpoint.as_str(), api_key: key, quiet_window: options.quiet_window, ceiling: options.call_ceiling, trusted_pem: options.trusted_pem.as_deref() };
     let reply: Result<Reply, String> = post_decision(&gateway, request_body(input.model_input.as_str()).as_str());
-    return match reply.and_then(|answer| return read_answer(answer.status, answer.body.as_str())) {
+    let read: Result<Judged, String> = match reply {
+        Ok(answer) => read_answer(answer.status, answer.body.as_str()),
+        Err(message) => Err(message),
+    };
+    return match read {
         Ok(judged) => judged,
-        Err(message) => failed(message),
+        Err(message) => luna_failed(message),
     };
 }
 
@@ -156,7 +211,7 @@ pub fn review_landed(
     names: &[String],
     sha: &str,
     subject: &str,
-    read: &dyn Fn(&[String]) -> Result<LandedCommit, String>,
+    read: &dyn LandedCommitReader,
     options: &ReviewOptions,
     now_millis: &dyn Fn() -> u64,
 ) -> ReviewOutcome {
@@ -173,7 +228,7 @@ pub fn review_landed(
     if names_commit(options.log_path.as_path(), sha) {
         return ReviewOutcome::AlreadyLogged;
     }
-    let commit: LandedCommit = match read(code_files.as_slice()) {
+    let commit: LandedCommit = match read.read(code_files.as_slice()) {
         Ok(read_commit) => read_commit,
         Err(message) => return ReviewOutcome::Unread(message),
     };
@@ -239,6 +294,13 @@ pub struct Containment {
     /// The generation of the job in the high bits and `IDLE`, `RUNNING` or `ABANDONED` in the low two. A change names the generation
     ///  it expects, so a caller that gave up on job 7 can never change the state of job 8.
     state: std::sync::atomic::AtomicU64,
+    /// How long the caller waits for the value of a job that ended as the caller gave up, when the value does not come: the short
+    ///  extra wait of the owner's "7 s (Recommended)" (`wait_ceilings.rs`, `SHORT_EXTRA_WAIT`). A job that released the runner has
+    ///  not necessarily sent its value, so the wait is bounded (sol-1 round 3, P1 D).
+    handoff_wait: Duration,
+    /// A control holds this to keep a worker between its release of the runner and its send of the value.
+    #[cfg(test)]
+    handoff_gate: std::sync::Mutex<()>,
 }
 
 /// No job.
@@ -256,7 +318,17 @@ pub static RUNNER: Containment = Containment::new();
 impl Containment {
     /// A runner with no job.
     pub const fn new() -> Self {
-        return Self { state: std::sync::atomic::AtomicU64::new(IDLE) };
+        return Self::with_handoff_wait(crate::wait_ceilings::SHORT_EXTRA_WAIT);
+    }
+
+    /// A runner whose caller waits `handoff_wait` for the value of a job that ended as the caller gave up.
+    pub const fn with_handoff_wait(handoff_wait: Duration) -> Self {
+        return Self {
+            state: std::sync::atomic::AtomicU64::new(IDLE),
+            handoff_wait,
+            #[cfg(test)]
+            handoff_gate: std::sync::Mutex::new(()),
+        };
     }
 
     /// How many jobs the caller stopped waiting for are still running: zero or one.
@@ -272,7 +344,10 @@ impl Containment {
             return None;
         }
         let generation: u64 = (seen >> 2) + 1;
-        return self.state.compare_exchange(seen, (generation << 2) | RUNNING, Ordering::SeqCst, Ordering::SeqCst).ok().map(|_| { return generation; });
+        return match self.state.compare_exchange(seen, (generation << 2) | RUNNING, Ordering::SeqCst, Ordering::SeqCst) {
+            Ok(_) => Some(generation),
+            Err(_) => None,
+        };
     }
 
     /// Move job `generation` from `from` to `to`; false when the state is not that job's in that status any more.
@@ -339,6 +414,8 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
         let release: Release<'static> = Release { runner, generation };
         let value: T = job();
         drop(release);
+        #[cfg(test)]
+        drop(runner.handoff_gate.lock());
         let _ = sender.send(value);
     });
     if worker.is_err() {
@@ -353,8 +430,13 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
             if runner.change(generation, RUNNING, ABANDONED) {
                 Contained::CeilingReached(ceiling)
             } else {
-                // The job ended between the timeout and now: its value is in the channel, or it panicked.
-                receiver.recv().map_or(Contained::Panicked, Contained::Finished)
+                // The job released the runner between the timeout and now. Its value is in the channel, or on its way, or it panicked; the
+                //  release is not proof the value was sent, so the wait is bounded, and a value that does not come is a ceiling.
+                match receiver.recv_timeout(runner.handoff_wait) {
+                    Ok(value) => Contained::Finished(value),
+                    Err(mpsc::RecvTimeoutError::Disconnected) => Contained::Panicked,
+                    Err(mpsc::RecvTimeoutError::Timeout) => Contained::CeilingReached(ceiling),
+                }
             }
         }
     }

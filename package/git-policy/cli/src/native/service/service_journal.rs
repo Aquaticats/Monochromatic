@@ -12,9 +12,8 @@
 //! await writeIntent(dir, intent); // file fsync, rename, directory fsync: the batch's only synchronous write
 //! ```
 
-use crate::repo_read_layout::dot_git_target;
+pub use crate::service_journal_intent_text_and_parse::{Intent, intent_text, parse_intent};
 use crate::service_land_start::{IndexWitness, decode, encode};
-use crate::service_protocol::Cleanup;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Write;
@@ -38,47 +37,6 @@ pub const CLAIM_EXTENSION: &str = "claim";
 ///  1,302 landings in the service journal (`journal_ms`, 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) was 40,188 ms, the 99th
 ///  percentile 3,792 ms, so ten minutes is fifteen times the longest. Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const TEMPORARY_GRACE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
-
-/// What:
-///  What the service decided to do for a batch, written before the branch moves.
-/// Why:
-///   Enough to finish the batch after a kill: where the branch was, where it goes, which requests, which index paths.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Intent = { seq; repository; commonDir; reference; old; new; ids; paths };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Intent {
-    /// Number of the batch, unique and increasing within one journal.
-    pub seq: u64,
-    /// Worktree root whose index the batch updates.
-    pub repository: PathBuf,
-    /// Common git directory.
-    pub common_dir: PathBuf,
-    /// The branch.
-    pub reference: String,
-    /// The branch before the batch.
-    pub old: String,
-    /// The branch after the batch.
-    pub new: String,
-    /// Identities of the requests in the batch.
-    pub ids: Vec<String>,
-    /// The commit each request became, in the same order as the identities.
-    pub commits: Vec<String>,
-    /// Paths whose index entries the batch updates.
-    pub paths: Vec<String>,
-    /// Whether the index entries to update are the paths that differ between `old` and `new`, read from the repository
-    ///  when they are needed (a commit Git built has no list of changes to carry, and its names are bytes).
-    pub derived: bool,
-    /// The conclusion state the landing removes after the branch moved; nothing for any other batch.
-    pub cleanup: Option<Cleanup>,
-    /// The real index whose lock the landing held, so a restart can remove its own stale lock and finish the index.
-    pub index: PathBuf,
-    /// The worktree's own Git directory, which names the instance that serves the batch; an intent written before it was
-    ///  recorded reads as the Git directory of its repository's worktree.
-    pub git_dir: PathBuf,
-}
 
 /// What a restart does with an open intent.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -104,88 +62,6 @@ pub fn recovery_for(intent: &Intent, current: &str, new_is_ancestor_of_current: 
         return Recovery::Finish;
     }
     return Recovery::Drop;
-}
-
-/// The text of an intent: `key=value` lines, tabs between list items.
-pub fn intent_text(intent: &Intent) -> String {
-    let cleanup: String = intent.cleanup.as_ref().map_or_else(String::new, |found| {
-        return format!("{}\t{}\t{}", found.git_dir.display(), found.scratch.display(), u8::from(found.reftable));
-    });
-    return format!(
-        "seq={}\nrepository={}\ncommon={}\nref={}\nold={}\nnew={}\nids={}\ncommits={}\npaths={}\nderived={}\ncleanup={}\nindex={}\ngitdir={}\n",
-        intent.seq,
-        intent.repository.display(),
-        intent.common_dir.display(),
-        intent.reference,
-        intent.old,
-        intent.new,
-        intent.ids.join("\t"),
-        intent.commits.join("\t"),
-        intent.paths.join("\t"),
-        u8::from(intent.derived),
-        cleanup,
-        intent.index.display(),
-        intent.git_dir.display(),
-    );
-}
-
-/// What:
-///  The worktree's own Git directory, read from the worktree's `.git` entry: the entry itself when it is a directory, the
-///  directory a `gitdir:` file names for a linked worktree, and `.git` under the worktree when it cannot be read.
-/// Why:
-///   An intent written before it recorded its Git directory has only the repository to name the worktree by; the worktree's
-///  instance is the hash of this directory, so the recovery that finds the intent must resolve it the way a commit does.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// gitDirOfWorktree('/work/repo') // '/work/repo/.git', or '/work/main/.git/worktrees/repo' for a linked worktree
-/// ```
-fn git_dir_of_worktree(repository: &Path) -> PathBuf {
-    return match dot_git_target(repository) {
-        Some(Some((git_dir, _))) => git_dir,
-        Some(None) | None => repository.join(".git"),
-    };
-}
-
-/// What:
-///  Reads an intent's text.
-/// Why:
-///   A damaged file is no intent: recovery drops it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// parseIntent(text) // undefined when damaged
-/// ```
-pub fn parse_intent(text: &str) -> Option<Intent> {
-    let value = |key: &str| -> Option<&str> { return text.lines().find_map(|line| { return line.strip_prefix(key)?.strip_prefix('='); }); };
-    let list = |key: &str| -> Option<Vec<String>> {
-        return Some(value(key)?.split('\t').filter(|item| { return !item.is_empty(); }).map(str::to_string).collect());
-    };
-    let index: PathBuf = value("index").map_or_else(|| { return PathBuf::from(value("repository").unwrap_or("")).join(".git").join("index"); }, PathBuf::from);
-    let repository: PathBuf = PathBuf::from(value("repository")?);
-    // An intent written before the Git directory was recorded names its worktree by the repository it was made for, never
-    //  by the directory its index sits in, which `GIT_INDEX_FILE` can put anywhere.
-    let worktree_git_dir: PathBuf = value("gitdir").map_or_else(|| { return git_dir_of_worktree(repository.as_path()); }, PathBuf::from);
-    return Some(Intent {
-        seq: value("seq")?.parse().ok()?,
-        repository,
-        common_dir: PathBuf::from(value("common")?),
-        reference: value("ref")?.to_string(),
-        old: value("old")?.to_string(),
-        new: value("new")?.to_string(),
-        ids: list("ids")?,
-        commits: list("commits")?,
-        paths: list("paths")?,
-        // Intents written before these fields existed name neither.
-        derived: value("derived") == Some("1"),
-        index,
-        git_dir: worktree_git_dir,
-        cleanup: value("cleanup").and_then(|entry| {
-            let mut parts = entry.split('\t');
-            let (git_dir, scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
-            return Some(Cleanup { git_dir: PathBuf::from(git_dir), scratch: PathBuf::from(scratch), reftable: reftable == "1" });
-        }),
-    });
 }
 
 /// The path of a batch's file with an extension.
@@ -255,7 +131,10 @@ pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),
         }
-        seq = seq.checked_add(1).ok_or_else(|| { return std::io::Error::other("the journal holds every batch number"); })?;
+        seq = match seq.checked_add(1) {
+            Some(next) => next,
+            None => return Err(std::io::Error::other("the journal holds every batch number")),
+        };
     }
 }
 
@@ -400,6 +279,77 @@ pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
 }
 
 /// What:
+///  Whether a leftover temporary or claim file is old enough to be the remains of a write that was killed.
+/// Why:
+///  `list_intents` removes only such files; a younger one may be another instance's write in progress. A file whose age cannot be
+///  read is not abandoned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Date.now() - statSync(path).mtimeMs > TEMPORARY_GRACE_MS
+/// ```
+fn is_abandoned(entry: &fs::DirEntry) -> bool {
+    let Ok(meta) = entry.metadata() else {
+        return false;
+    };
+    let Ok(modified) = meta.modified() else {
+        return false;
+    };
+    return match modified.elapsed() {
+        Ok(age) => age > TEMPORARY_GRACE,
+        Err(_in_the_future) => false,
+    };
+}
+
+/// What:
+///  The number a listed intent sorts by: its batch number, or the length of its path when it could not be read.
+/// Why:
+///  `list_intents` sorts so the batches come in their order and the damaged ones sort apart; the sort is stable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// found.sort((a, b) => key(a) - key(b))
+/// ```
+fn sort_key_of_found(listed: &(PathBuf, Option<Intent>)) -> u64 {
+    let (path, intent) = listed;
+    return match intent {
+        Some(parsed) => parsed.seq,
+        None => path.to_string_lossy().len() as u64,
+    };
+}
+
+/// What:
+///  The batch number and path of a directory entry that is a finished batch file, nothing for any other entry.
+/// Why:
+///  `prune_done` touches only files named as a batch number with the finished extension.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// /^\d+\.done$/.test(name) && isFile(entry) ? [Number(stem), path] : undefined
+/// ```
+fn finished_batch_of_entry(entry: fs::DirEntry) -> Option<(u64, PathBuf)> {
+    let path: PathBuf = entry.path();
+    if path.extension()? != DONE_EXTENSION || !entry.file_type().ok()?.is_file() {
+        return None;
+    }
+    let seq: u64 = path.file_stem()?.to_str()?.parse().ok()?;
+    return Some((seq, path));
+}
+
+/// What:
+///  The sort key that puts the newest finished batch first.
+/// Why:
+///  `prune_done` keeps the newest batches and removes the rest, so it lists them newest first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// finished.sort((a, b) => b[0] - a[0])
+/// ```
+fn newest_first_key(finished: &(u64, PathBuf)) -> std::cmp::Reverse<u64> {
+    return std::cmp::Reverse(finished.0);
+}
+
+/// What:
 ///  The intents in the journal with an extension, in batch order, and the abandoned temporary files removed on the way.
 /// Why:
 ///   Recovery reads the open ones; startup reads the done ones for the request identities. A temporary file younger than the
@@ -410,34 +360,52 @@ pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
 /// listIntents(dir, 'intent')
 /// ```
 pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>)> {
+    return list_intents_removing_abandoned(dir, extension, true);
+}
+
+/// What:
+///  `list_intents` that removes nothing from the journal.
+/// Why:
+///   A journal another service may still be writing (an earlier helper's) is read, never tidied: its temporary and claim files
+///  are that service's, however old they look, and removing one fails its rename or hands its batch number to a second landing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listIntentsReadOnly(dir, 'intent')
+/// ```
+pub fn list_intents_read_only(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>)> {
+    return list_intents_removing_abandoned(dir, extension, false);
+}
+
+/// `list_intents`, with the removal of abandoned temporary and claim files chosen by the caller.
+fn list_intents_removing_abandoned(dir: &Path, extension: &str, remove_abandoned: bool) -> Vec<(PathBuf, Option<Intent>)> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };
     let mut found: Vec<(PathBuf, Option<Intent>)> = Vec::new();
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
-        match path.extension().and_then(|text| { return text.to_str(); }) {
+        match path.extension().and_then(std::ffi::OsStr::to_str) {
             Some(TEMPORARY_EXTENSION | CLAIM_EXTENSION) => {
                 // Only the remains of a write or a landing that was killed: a younger file may be another instance's write in
                 //  progress, and removing it would fail that instance's rename or hand its number to a second landing.
-                let abandoned: bool = entry
-                    .metadata()
-                    .and_then(|meta| { return meta.modified(); })
-                    .is_ok_and(|modified| { return modified.elapsed().is_ok_and(|age| { return age > TEMPORARY_GRACE; }); });
+                let abandoned: bool = remove_abandoned && is_abandoned(&entry);
                 if abandoned {
                     let _removed = fs::remove_file(&path);
                 }
             }
             Some(found_extension) if found_extension == extension => {
-                let parsed: Option<Intent> = fs::read_to_string(&path).ok().and_then(|text| { return parse_intent(text.as_str()); });
+                // A file that cannot be read or parsed is listed with no intent.
+                let parsed: Option<Intent> = match fs::read_to_string(&path) {
+                    Ok(text) => parse_intent(text.as_str()),
+                    Err(_unreadable) => None,
+                };
                 found.push((path, parsed));
             }
             _ => {}
         }
     }
-    found.sort_by_key(|(path, intent)| {
-        return intent.as_ref().map_or_else(|| { return path.to_string_lossy().len() as u64; }, |parsed| { return parsed.seq; });
-    });
+    found.sort_by_key(sort_key_of_found);
     return found;
 }
 
@@ -468,23 +436,33 @@ pub fn prune_done(dir: &Path, retained: usize) -> usize {
     };
     let mut finished: Vec<(u64, PathBuf)> = entries
         .flatten()
-        .filter_map(|entry| {
-            let path: PathBuf = entry.path();
-            if path.extension()? != DONE_EXTENSION || !entry.file_type().ok()?.is_file() {
-                return None;
-            }
-            let seq: u64 = path.file_stem()?.to_str()?.parse().ok()?;
-            return Some((seq, path));
-        })
+        .filter_map(finished_batch_of_entry)
         .collect();
-    finished.sort_by_key(|(seq, _)| { return std::cmp::Reverse(*seq); });
-    return finished.into_iter().skip(retained).filter(|(_, path)| { return fs::remove_file(path).is_ok(); }).count();
+    finished.sort_by_key(newest_first_key);
+    // Each removal is tried in turn, and only the ones that worked are counted.
+    let mut removed: usize = 0;
+    for (_, path) in finished.into_iter().skip(retained) {
+        if fs::remove_file(path).is_ok() {
+            removed += 1;
+        }
+    }
+    return removed;
 }
 
 /// The request identities of every finished batch, each with the commit it became.
 pub fn landed_commits(dir: &Path) -> HashMap<String, String> {
+    return landed_in(list_intents(dir, DONE_EXTENSION));
+}
+
+/// The request identities of every finished batch of a journal another service may still write, read without removing anything.
+pub fn landed_commits_read_only(dir: &Path) -> HashMap<String, String> {
+    return landed_in(list_intents_read_only(dir, DONE_EXTENSION));
+}
+
+/// The identities of the finished batches listed, each with the commit it became.
+fn landed_in(listed: Vec<(PathBuf, Option<Intent>)>) -> HashMap<String, String> {
     let mut landed: HashMap<String, String> = HashMap::new();
-    for (_, intent) in list_intents(dir, DONE_EXTENSION) {
+    for (_, intent) in listed {
         if let Some(parsed) = intent {
             landed.extend(parsed.ids.into_iter().zip(parsed.commits));
         }

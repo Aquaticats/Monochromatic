@@ -44,7 +44,7 @@ fn failure_of(output: &[u8]) -> CandidateError {
     assert!(
         error
             .message
-            .starts_with("cli-git could not list candidate files: changed-path record "),
+            .starts_with("monochromatic-git-policy-cli could not list candidate files: changed-path record "),
         "{error}"
     );
     return error;

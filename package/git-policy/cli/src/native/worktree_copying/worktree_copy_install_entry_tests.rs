@@ -65,7 +65,7 @@ fn file_in_parent_position_is_refused() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: ignored-state parent is not a directory: \"a\" in {}.",
+            "monochromatic-git-policy-cli: ignored-state parent is not a directory: \"a\" in {}.",
             quote(root.to_string_lossy().as_ref())
         )
     );

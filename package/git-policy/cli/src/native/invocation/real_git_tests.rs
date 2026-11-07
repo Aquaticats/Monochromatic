@@ -280,7 +280,7 @@ fn resolution_failure_reports_examined_and_skipped_counts() {
     assert!(
         said.starts_with(
             "Could not find a real Git executable after examining 4 PATH candidates and skipping 2 \
-             cli-git wrappers, so no Git command was run. PATH is wrapper:linked:plain:missing."
+             monochromatic-git-policy-cli wrappers, so no Git command was run. PATH is wrapper:linked:plain:missing."
         ),
         "{said}"
     );

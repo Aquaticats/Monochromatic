@@ -15,140 +15,24 @@
 //! ```
 
 /// The probe's Git runner, its bounded queries and its environment.
-use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
+use crate::auto_push_single_flight::{PushGit, run_query};
 /// The destination Git would pick for a bare push, and the porcelain report's parser.
-use crate::lfs_upload_plan::resolve_push_remote;
+use crate::lfs_upload_plan::{GitQuery, resolve_push_remote};
 /// Removes userinfo from text that may name a remote, and the cause a failure carries.
 use crate::lfs_output_mask::mask_userinfo_text;
 use crate::manual_push_cause::ManualPushCause;
+pub use crate::manual_push_probe_error::{GitRefusal, ManualPushProbeError};
+use crate::manual_push_probe_error::{cause_of_query, probe_error};
 use crate::manual_push_porcelain::{PorcelainBlock, PorcelainUpdate, RemoteBefore, parse_porcelain};
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::line_sink::LineSink;
+use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
 /// The push's own reading of its destination.
 use crate::command_options::{Boundary, DEFAULT_MODE, parse_options};
 use crate::command_push::{PUSH_TABLE, push_shape};
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
-
-/// What:
-///  Git's own refusal of a push: the exit status and the standard error it ended with.
-/// Why:
-///   When the dry run exits with a failure before it reports any destination, Git has refused the push itself (a ref to
-///  delete that the remote lacks, a refspec naming nothing, a remote that does not exist, an option it does not know).
-///  Nothing could be published, so Git's words and status are the answer, and the wrapper adds none of its own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type GitRefusal = { code: number; stderr: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GitRefusal {
-    /// The exit status Git ended with; never zero.
-    pub code: i32,
-    /// What Git wrote to standard error, as Git wrote it.
-    pub stderr: String,
-}
-
-/// What:
-///  Why the probe could not establish the updates Git would push.
-/// Why:
-///   Every variant stops the policy lifecycle; none guesses an update. A failure of the wrapper's own reading is a
-///  content-unavailable engine failure, and a refusal by Git carries Git's own report instead.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class ManualPushProbeError extends Error { refusal?: GitRefusal }
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ManualPushProbeError {
-    /// Diagnostic naming what could not be established.
-    pub message: String,
-    /// Git's refusal when Git itself ended the dry run before it reported any destination; `None` for a failure of the
-    ///  wrapper's own reading.
-    pub refusal: Option<GitRefusal>,
-    /// What the person can do about it, which the hint is chosen by.
-    pub cause: ManualPushCause,
-}
-
-impl std::fmt::Display for ManualPushProbeError {
-    /// Writes the diagnostic text.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str(&self.message);
-    }
-}
-
-impl std::error::Error for ManualPushProbeError {}
-
-/// Build a probe error from text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// new ManualPushProbeError(cause, message)
-/// ```
-fn probe_error(cause: ManualPushCause, message: String) -> ManualPushProbeError {
-    return ManualPushProbeError { message, refusal: None, cause };
-}
-
-/// What:
-///  The cause of a Git query that could not produce an exit status.
-/// Why:
-///   A query that never started means the Git the wrapper runs is missing; one stopped at its deadline already says in its
-///  message which setting changes the deadline; anything else Git did not explain.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// error instanceof StartError ? 'git-not-started' : error instanceof TimedOut ? 'self-explained' : 'git-silent'
-/// ```
-fn cause_of_query(error: &SingleFlightError) -> ManualPushCause {
-    return match error {
-        SingleFlightError::Start(_) => ManualPushCause::GitNotStarted,
-        SingleFlightError::TimedOut { .. } => ManualPushCause::SelfExplained,
-        SingleFlightError::Git { .. } | SingleFlightError::Io(_) => ManualPushCause::GitSilent,
-    };
-}
-
-/// What:
-///  One confirmed push update, the public fact the policies read.
-/// Why:
-///   An absent value is `None`, which replaces the incumbent's `ABSENT_GIT_VALUE` sentinel.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type PushUpdate = { localOid: string | typeof ABSENT_GIT_VALUE; remoteOid: string | typeof ABSENT_GIT_VALUE; remoteName; remoteRef };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PushUpdate {
-    /// Local object name; `None` for a deletion.
-    pub local_oid: Option<String>,
-    /// Destination object name confirmed by `ls-remote`; `None` when the ref is absent.
-    pub remote_oid: Option<String>,
-    /// Destination remote name.
-    pub remote_name: String,
-    /// Destination ref.
-    pub remote_ref: String,
-}
-
-/// The most per-destination queries that open a connection to a remote and run at once (`git ls-remote` of each destination):
-///  the bound `SPEC.md` gives, four. The remote side (how many connections a server tolerates) was not measured, so the value is
-///  the one the SPEC already gave; it is the coordinator's pick under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", concurrent per-update queries, option B).
-pub const MOST_CONCURRENT_REMOTE_QUERIES: usize = 4;
-
-/// The most per-update queries of the local repository that run at once (`git cat-file` and `git rev-list` of each update). Measured
-///  on 16 branch tips of this repository, medians of three runs in alternating orders, other sessions running: `git ls-tree -r`
-///  took 218, 114, 80, 50 and 46 ms at 1, 2, 4, 8 and 16 at once, and `git rev-list` of a whole branch 845, 413, 231, 190 and 194
-///  ms, so eight is where the gain stops. The coordinator's pick under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", concurrent per-update queries, option B).
-pub const MOST_CONCURRENT_LOCAL_QUERIES: usize = LOCAL_QUERY_GAIN_STOPS_AT;
-
-/// The number of queries at once at which the measured gain of local queries stopped (see `MOST_CONCURRENT_LOCAL_QUERIES`).
-pub const LOCAL_QUERY_GAIN_STOPS_AT: usize = 8;
-
-/// The bytes one query holds at its peak when it lists the whole history of this repository: the largest resident size of
-///  `git rev-list --all` in three runs (29,164 KiB, 29,032 KiB and 28,848 KiB, so 29,863,936 bytes) plus the 1,413,721 bytes of
-///  its output, which the wrapper reads whole (34,481 commits on 2026-11-03). `git ls-tree -r` of the main tree peaked at 26,080
-///  KiB with 2,459,743 bytes of output.
-pub const MEASURED_WHOLE_HISTORY_QUERY: u64 = 29_863_936 + 1_413_721;
+pub use crate::manual_push_update_and_query_limits::{LOCAL_QUERY_GAIN_STOPS_AT, MEASURED_WHOLE_HISTORY_QUERY, MOST_CONCURRENT_LOCAL_QUERIES, MOST_CONCURRENT_REMOTE_QUERIES, PushUpdate};
 
 /// The bytes one query holds at its peak: `MEASURED_WHOLE_HISTORY_QUERY` rounded up to a power of two. The coordinator's pick
 ///  under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps
@@ -175,9 +59,16 @@ pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString])
             Boundary::DashDash(at) | Boundary::EndOfOptions(at) => Some(at),
             Boundary::End | Boundary::NonOption(_) => None,
         },
-        Err(_) => post_subcommand.iter().position(|argument| {
-            return argument.as_os_str() == "--";
-        }),
+        Err(_) => {
+            let mut first: Option<usize> = None;
+            for (position, argument) in post_subcommand.iter().enumerate() {
+                if argument.as_os_str() == "--" {
+                    first = Some(position);
+                    break;
+                }
+            }
+            first
+        }
     };
     let insertion = separator.unwrap_or(post_subcommand.len());
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
@@ -202,13 +93,13 @@ pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString])
 
 /// Whether text typed as the repository is an URL, an scp-style address or a path, not a remote name.
 fn looks_like_location(typed: &str) -> bool {
-    return typed.contains("://")
-        || typed.starts_with('/')
-        || typed.starts_with("./")
-        || typed.starts_with("../")
-        || typed.split_once(':').is_some_and(|(front, _)| {
-            return !front.contains('/');
-        });
+    if typed.contains("://") || typed.starts_with('/') || typed.starts_with("./") || typed.starts_with("../") {
+        return true;
+    }
+    return match typed.split_once(':') {
+        Some((front, _)) => !front.contains('/'),
+        None => false,
+    };
 }
 
 /// One Git query of the probe: its trimmed standard output when it exits with status zero.
@@ -247,10 +138,9 @@ fn local_objects(git: &PushGit, global_prefix: &[OsString], names: &[&str]) -> R
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     arguments.push(OsString::from("rev-parse"));
     arguments.extend(names.iter().map(OsString::from));
-    let listing: String = answer(git, arguments.as_slice())
-        .ok_or_else(|| {
-            return probe_error(ManualPushCause::ContentMissing, format!("the local objects of {names:?} could not be read"));
-        })?;
+    let Some(listing) = answer(git, arguments.as_slice()) else {
+        return Err(probe_error(ManualPushCause::ContentMissing, format!("the local objects of {names:?} could not be read")));
+    };
     let objects: Vec<String> = listing.lines().map(str::to_owned).collect();
     if objects.len() != names.len() {
         return Err(probe_error(ManualPushCause::UnexpectedOutput, format!("rev-parse answered {} names for {}", objects.len(), names.len())));
@@ -280,13 +170,13 @@ pub fn confirm_group(
         OsString::from("--refs"),
         OsString::from(remote_location),
     ];
-    arguments.extend(updates.iter().map(|(update, _local)| {
-        return OsString::from(&update.to);
-    }));
-    let output = run_query(git, arguments.as_slice())
-        .map_err(|error| {
-            return probe_error(cause_of_query(&error), mask_userinfo_text(format!("ls-remote of {remote_location} failed: {error}").as_str()));
-        })?;
+    for (update, _local) in updates {
+        arguments.push(OsString::from(&update.to));
+    }
+    let output = match run_query(git, arguments.as_slice()) {
+        Ok(found) => found,
+        Err(error) => return Err(probe_error(cause_of_query(&error), mask_userinfo_text(format!("ls-remote of {remote_location} failed: {error}").as_str()))),
+    };
     if output.code != Some(0) {
         return Err(probe_error(
             ManualPushCause::RemoteUnreachable,
@@ -298,13 +188,15 @@ pub fn confirm_group(
     let listing: String = String::from_utf8_lossy(&output.stdout).into_owned();
     let mut confirmed: Vec<PushUpdate> = Vec::new();
     for (update, local) in updates {
-        let authoritative: Option<String> = listing.lines().find_map(|line| {
-            return line.split_once('\t').filter(|(_oid, name)| {
-                return *name == update.to;
-            }).map(|(oid, _name)| {
-                return oid.to_owned();
-            });
-        });
+        let mut authoritative: Option<String> = None;
+        for line in listing.lines() {
+            if let Some((oid, name)) = line.split_once('\t')
+                && name == update.to
+            {
+                authoritative = Some(oid.to_owned());
+                break;
+            }
+        }
         let changed: bool = match &update.before {
             RemoteBefore::Absent => authoritative.is_some(),
             RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),
@@ -348,13 +240,15 @@ pub fn probe_manual_push_updates_on(
     post_subcommand: &[OsString],
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
     let arguments: Vec<OsString> = probe_arguments(global_prefix, post_subcommand);
-    let output = run_query(git, arguments.as_slice()).map_err(|error| {
-        return probe_error(cause_of_query(&error), format!("probe push could not run: {error}"));
-    })?;
+    let output = match run_query(git, arguments.as_slice()) {
+        Ok(found) => found,
+        Err(error) => return Err(probe_error(cause_of_query(&error), format!("probe push could not run: {error}"))),
+    };
     let report: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    let blocks = parse_porcelain(report.as_str()).map_err(|message| {
-        return probe_error(ManualPushCause::UnexpectedOutput, message);
-    })?;
+    let blocks = match parse_porcelain(report.as_str()) {
+        Ok(found) => found,
+        Err(message) => return Err(probe_error(ManualPushCause::UnexpectedOutput, message)),
+    };
     if blocks.is_empty() {
         if output.code == Some(0) {
             return Ok(Vec::new());
@@ -371,31 +265,21 @@ pub fn probe_manual_push_updates_on(
             Some(_) | None => probe_error(ManualPushCause::GitSilent, message),
         });
     }
-    let named = push_shape(post_subcommand).and_then(|shape| {
-        return shape.repository;
-    });
-    let typed_location: Option<String> = named.as_ref().map(|typed| {
-        return typed.to_string_lossy().into_owned();
-    });
-    let mut asking = |query: &[&str]| -> Result<String, String> {
-        let mut owned: Vec<OsString> = global_prefix.to_vec();
-        owned.extend(query.iter().map(OsString::from));
-        let answered = run_query(git, owned.as_slice()).map_err(|error| {
-            return error.to_string();
-        })?;
-        let text: String = String::from_utf8_lossy(answered.stdout.as_slice()).trim().to_owned();
-        return match answered.code {
-            Some(0) => Ok(text),
-            Some(1) if text.is_empty() => Ok(text),
-            code => Err(format!("exited with {code:?}")),
-        };
+    let mut named = None;
+    if let Some(shape) = push_shape(post_subcommand) {
+        named = shape.repository;
+    }
+    let mut typed_location: Option<String> = None;
+    if let Some(typed) = named.as_ref() {
+        typed_location = Some(typed.to_string_lossy().into_owned());
+    }
+    // The remote resolver asks its questions through a query that carries the Git context and the global options.
+    let mut asking: RemoteResolverQuery<'_> = RemoteResolverQuery { git, global_prefix };
+    let resolved_remote = match resolve_push_remote(named, &mut asking) {
+        Ok(found) => found,
+        Err(error) => return Err(probe_error(ManualPushCause::SelfExplained, format!("Git could not tell which remote this push goes to: {}", error.0))),
     };
-    let remote_name: String = resolve_push_remote(named, &mut asking)
-        .map_err(|error| {
-            return probe_error(ManualPushCause::SelfExplained, format!("Git could not tell which remote this push goes to: {}", error.0));
-        })?
-        .to_string_lossy()
-        .into_owned();
+    let remote_name: String = resolved_remote.to_string_lossy().into_owned();
     // A destination the caller typed as an URL or a path is its own location, with its credentials; Git's printed `To`
     //  line has them removed, so it is never used as an address. A remote name costs one query for its push URLs.
     let locations: Vec<String> = match typed_location {
@@ -414,7 +298,10 @@ pub fn probe_manual_push_updates_on(
     //  side, at most `MOST_CONCURRENT_REMOTE_QUERIES` at once; the updates come back in the order Git printed the blocks, and the
     //  first block that fails decides the error.
     let destinations: Vec<(&PorcelainBlock, &String)> = blocks.iter().zip(locations.iter()).collect();
-    let lanes: Vec<Vec<usize>> = (0..destinations.len()).map(|index: usize| { return vec![index]; }).collect();
+    let mut lanes: Vec<Vec<usize>> = Vec::new();
+    for index in 0..destinations.len() {
+        lanes.push(vec![index]);
+    }
     let workers: usize = worker_budget(&BudgetRequest { items: destinations.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_REMOTE_QUERIES), cap: None, host });
     let mut confirmed: Vec<PushUpdate> = Vec::new();
     let mut failure: Option<ManualPushProbeError> = None;
@@ -422,21 +309,102 @@ pub fn probe_manual_push_updates_on(
         items: destinations.as_slice(),
         lanes: lanes.as_slice(),
         workers,
-        work: &|_index: usize, destination: &(&PorcelainBlock, &String), _say: &mut dyn FnMut(&str)| { return confirm_block(git, global_prefix, remote_name.as_str(), destination.0, destination.1.as_str()); },
-        on_event: &mut |event: Event<'_, Result<Vec<PushUpdate>, ManualPushProbeError>>| {
-            if let Event::End(_index, outcome) = event {
-                match outcome {
-                    Ok(updates) if failure.is_none() => confirmed.extend(updates),
-                    Err(error) if failure.is_none() => failure = Some(error),
-                    Ok(_) | Err(_) => {}
-                }
-            }
-        },
+        work: &ConfirmEachDestination { git, global_prefix, remote_name: remote_name.as_str() },
+        on_event: &mut KeepConfirmedUntilTheFirstFailure { confirmed: &mut confirmed, failure: &mut failure },
     });
     return match failure {
         Some(error) => Err(error),
         None => Ok(confirmed),
     };
+}
+
+/// What:
+///  The questions the remote resolver asks Git, each as a bounded query run with the global options in front.
+/// Why:
+///   The resolver asks through the `GitQuery` trait; the Git context and the global options a question needs are two borrowed
+///  values, so a struct stands where a closure that captured them stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RemoteResolverQuery implements GitQuery { ask(args: string[]): string {} }
+/// ```
+struct RemoteResolverQuery<'a> {
+    /// The coordinator's Git, whose queries are bounded.
+    git: &'a PushGit,
+    /// The global options that go before every question.
+    global_prefix: &'a [OsString],
+}
+
+impl GitQuery for RemoteResolverQuery<'_> {
+    fn ask(&mut self, query: &[&str]) -> Result<String, String> {
+        let mut owned: Vec<OsString> = self.global_prefix.to_vec();
+        for part in query {
+            owned.push(OsString::from(part));
+        }
+        let answered = match run_query(self.git, owned.as_slice()) {
+            Ok(found) => found,
+            Err(error) => return Err(error.to_string()),
+        };
+        let text: String = String::from_utf8_lossy(answered.stdout.as_slice()).trim().to_owned();
+        return match answered.code {
+            Some(0) => Ok(text),
+            Some(1) if text.is_empty() => Ok(text),
+            code => Err(format!("exited with {code:?}")),
+        };
+    }
+}
+
+/// What:
+///  The confirmation of one destination, run by a worker of the ordered runner.
+/// Why:
+///   The Git context, the global options and the remote name are what each confirmation reads; the runner shares them among its
+///  worker threads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ConfirmEachDestination implements OrderedWork<[Block, string], Result<PushUpdate[]>> { run(i, destination) { return confirmBlock(git, globalPrefix, remoteName, ...destination); } }
+/// ```
+struct ConfirmEachDestination<'a> {
+    /// The coordinator's Git, whose queries are bounded.
+    git: &'a PushGit,
+    /// The global options that go before every question.
+    global_prefix: &'a [OsString],
+    /// The remote the push goes to.
+    remote_name: &'a str,
+}
+
+impl OrderedWork<(&PorcelainBlock, &String), Result<Vec<PushUpdate>, ManualPushProbeError>> for ConfirmEachDestination<'_> {
+    fn run(&self, _index: usize, destination: &(&PorcelainBlock, &String), _say: &mut dyn LineSink) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
+        return confirm_block(self.git, self.global_prefix, self.remote_name, destination.0, destination.1.as_str());
+    }
+}
+
+/// What:
+///  Keeps the confirmed updates in block order and the first failure; once a block has failed, later results are dropped.
+/// Why:
+///   The runner reports on the calling thread only and in block order, so the first block that fails decides the error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class KeepConfirmedUntilTheFirstFailure implements OrderedEvents<Result<PushUpdate[]>> { confirmed: PushUpdate[]; failure?: Error }
+/// ```
+struct KeepConfirmedUntilTheFirstFailure<'a> {
+    /// The updates confirmed so far.
+    confirmed: &'a mut Vec<PushUpdate>,
+    /// The first failure, when a block has failed.
+    failure: &'a mut Option<ManualPushProbeError>,
+}
+
+impl OrderedEvents<Result<Vec<PushUpdate>, ManualPushProbeError>> for KeepConfirmedUntilTheFirstFailure<'_> {
+    fn on_event(&mut self, event: Event<'_, Result<Vec<PushUpdate>, ManualPushProbeError>>) {
+        if let Event::End(_index, outcome) = event {
+            match outcome {
+                Ok(updates) if self.failure.is_none() => self.confirmed.extend(updates),
+                Err(error) if self.failure.is_none() => *self.failure = Some(error),
+                Ok(_) | Err(_) => {}
+            }
+        }
+    }
 }
 
 /// What:
@@ -449,31 +417,25 @@ pub fn probe_manual_push_updates_on(
 /// async function confirmBlock({ git, globalPrefix, remoteName, block, location }): Promise<PushUpdate[]>;
 /// ```
 fn confirm_block(git: &PushGit, global_prefix: &[OsString], remote_name: &str, block: &PorcelainBlock, location: &str) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
-    let unnamed: Vec<&str> = block
-        .updates
-        .iter()
-        .filter(|update| {
-            return !update.from.is_empty() && update.after.is_none();
-        })
-        .map(|update| {
-            return update.from.as_str();
-        })
-        .collect();
+    let mut unnamed: Vec<&str> = Vec::new();
+    for update in &block.updates {
+        if !update.from.is_empty() && update.after.is_none() {
+            unnamed.push(update.from.as_str());
+        }
+    }
     let mut resolved = local_objects(git, global_prefix, unnamed.as_slice())?.into_iter();
-    let group: Vec<(PorcelainUpdate, Option<String>)> = block
-        .updates
-        .iter()
-        .map(|update| {
-            let local: Option<String> = if update.from.is_empty() {
-                None
-            } else {
-                update.after.clone().or_else(|| {
-                    return resolved.next();
-                })
-            };
-            return (update.clone(), local);
-        })
-        .collect();
+    let mut group: Vec<(PorcelainUpdate, Option<String>)> = Vec::new();
+    for update in &block.updates {
+        // A name Git already printed is used as it is; the others take the next object the single `rev-parse` answered.
+        let local: Option<String> = if update.from.is_empty() {
+            None
+        } else if update.after.is_some() {
+            update.after.clone()
+        } else {
+            resolved.next()
+        };
+        group.push((update.clone(), local));
+    }
     return confirm_group(git, location, remote_name, group.as_slice());
 }
 

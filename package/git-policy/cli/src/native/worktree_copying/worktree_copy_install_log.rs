@@ -13,11 +13,10 @@
 
 use crate::json_record::quote;
 use crate::private_storage::sync_directory;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_install_entry::InstalledPath;
-use crate::worktree_copy_journal::{
-    Role, assert_private_path, encode_installed_entry, installed_entry, string_array,
-};
+use crate::worktree_copy_journal::{Role, assert_private_path};
+use crate::worktree_copy_journal_encoding_and_validation::{encode_installed_entry, installed_entry, string_array};
 use crate::worktree_copy_selection::assert_safe_repository_path;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
@@ -86,6 +85,48 @@ pub struct OpenedLog {
 }
 
 /// What:
+///  The error for an install log with a line that is not what the writer wrote.
+/// Why:
+///   A log that cannot be read in full cannot say which paths the install touched, so recovery refuses it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new Error(`monochromatic-git-policy-cli: worktree-copy install log is corrupt: ${quote(path)}.`)
+/// ```
+fn corrupt_install_log(path: &Path) -> WorktreeCopyError {
+    return failure_with_cause(
+        format!("monochromatic-git-policy-cli: worktree-copy install log is corrupt: {}.", quote(path.to_string_lossy().as_ref())).as_str(),
+        None,
+    );
+}
+
+/// What:
+///  A JSON value as text, when it is a string.
+/// Why:
+///   Every path in an install log must be a string.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// typeof value === 'string' ? value : undefined
+/// ```
+fn text_of(item: &serde_json::Value) -> Option<String> {
+    return item.as_str().map(str::to_string);
+}
+
+/// What:
+///  Whether a byte is a line feed.
+/// Why:
+///   A line of the log counts only once its line feed was written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0x0a
+/// ```
+fn is_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
 ///  One line's records.
 /// Why:
 ///   A line carries either intents or creations, never both.
@@ -95,24 +136,16 @@ pub struct OpenedLog {
 /// function parseLine({ line, path }): InstallLogRecords;
 /// ```
 fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopyError> {
-    let corrupt = || {
-        return failure_with_cause(
-            format!(
-                "cli-git: worktree-copy install log is corrupt: {}.",
-                quote(path.to_string_lossy().as_ref())
-            )
-            .as_str(),
-            None,
-        );
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+        return Err(corrupt_install_log(path));
     };
-    let value: serde_json::Value = serde_json::from_str(line).map_err(|_| return corrupt())?;
-    let object = value.as_object().ok_or_else(corrupt)?;
+    let Some(object) = value.as_object() else {
+        return Err(corrupt_install_log(path));
+    };
     if let Some(intended) = object.get("intended").and_then(serde_json::Value::as_array) {
-        let names: Vec<String> = intended
-            .iter()
-            .map(|item| return item.as_str().map(str::to_string))
-            .collect::<Option<Vec<String>>>()
-            .ok_or_else(corrupt)?;
+        let Some(names) = intended.iter().map(text_of).collect::<Option<Vec<String>>>() else {
+            return Err(corrupt_install_log(path));
+        };
         for name in &names {
             assert_safe_repository_path(name.as_str())?;
         }
@@ -122,11 +155,9 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
         });
     }
     if let Some(created) = object.get("created").and_then(serde_json::Value::as_array) {
-        let entries: Vec<InstalledPath> = created
-            .iter()
-            .map(installed_entry)
-            .collect::<Option<Vec<InstalledPath>>>()
-            .ok_or_else(corrupt)?;
+        let Some(entries) = created.iter().map(installed_entry).collect::<Option<Vec<InstalledPath>>>() else {
+            return Err(corrupt_install_log(path));
+        };
         for entry in &entries {
             assert_safe_repository_path(entry.relative_path.as_str())?;
         }
@@ -135,7 +166,7 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
             created: entries,
         });
     }
-    return Err(corrupt());
+    return Err(corrupt_install_log(path));
 }
 
 /// What:
@@ -149,14 +180,17 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
 /// ```
 fn read_complete_records(path: &Path) -> Result<(InstallLogRecords, u64, u64), WorktreeCopyError> {
     assert_private_path(path, Role::JournalFile)?;
-    let content: Vec<u8> = std::fs::read(path).map_err(|error| return raw_failure(&error))?;
-    let complete_length: usize = content
-        .iter()
-        .rposition(|byte| return *byte == b'\n')
-        .map_or(0, |index| return index + 1);
+    let content: Vec<u8> = std::fs::read(path).map_err(raw_failure_of)?;
+    let complete_length: usize = match content.iter().rposition(is_line_feed) {
+        Some(index) => index + 1,
+        None => 0,
+    };
     let text: String = String::from_utf8_lossy(&content[..complete_length]).into_owned();
     let mut records: InstallLogRecords = InstallLogRecords::default();
-    for line in text.split('\n').filter(|line| return !line.is_empty()) {
+    for line in text.split('\n') {
+        if line.is_empty() {
+            continue;
+        }
         let parsed: InstallLogRecords = parse_line(line, path)?;
         records.intended.extend(parsed.intended);
         records.created.extend(parsed.created);
@@ -191,7 +225,7 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
         Ok(file) => file,
         Err(error) => {
             let message: String = format!(
-                "cli-git: could not open worktree-copy install log {}.",
+                "monochromatic-git-policy-cli: could not open worktree-copy install log {}.",
                 quote(path.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error)));
@@ -199,12 +233,12 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
     };
     if complete_length < total_length {
         file.set_len(complete_length)
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
         file.sync_all()
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
     }
     if !existed {
-        sync_directory(stage_container).map_err(|error| return raw_failure(&error))?;
+        sync_directory(stage_container).map_err(raw_failure_of)?;
     }
     return Ok(OpenedLog {
         log: InstallLog { file, path },
@@ -215,17 +249,18 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
 impl InstallLog {
     /// Appends one line and waits until it is durable; an empty batch writes nothing.
     fn append_line(&mut self, line: &str) -> Result<(), WorktreeCopyError> {
-        let written: std::io::Result<()> = self
-            .file
-            .write_all(line.as_bytes())
-            .and_then(|()| return self.file.sync_all());
-        return written.map_err(|error| {
+        let written: std::io::Result<()> = match self.file.write_all(line.as_bytes()) {
+            Ok(()) => self.file.sync_all(),
+            Err(error) => Err(error),
+        };
+        if let Err(error) = written {
             let message: String = format!(
-                "cli-git: could not persist worktree-copy install log {}.",
+                "monochromatic-git-policy-cli: could not persist worktree-copy install log {}.",
                 quote(self.path.to_string_lossy().as_ref())
             );
-            return failure_with_cause(message.as_str(), Some(&error));
-        });
+            return Err(failure_with_cause(message.as_str(), Some(&error)));
+        }
+        return Ok(());
     }
 
     /// Durably appends the selected paths one batch is about to create.

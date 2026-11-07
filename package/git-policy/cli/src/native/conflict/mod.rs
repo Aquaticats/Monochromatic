@@ -38,14 +38,32 @@ pub mod conflict_side_guard;
 /// The append-only record of every command form that can discard uncommitted state.
 pub mod discard_audit;
 
-/// The `discardedCopies` section of `cli-git.config.jsonc`.
+/// The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`.
 pub mod config_discarded;
 
 /// The bound on the folder of saved copies of conflicted files: age, size, audit and doctor report.
 pub mod discarded_prune;
 
+/// The audit line one removed directory leaves.
+pub mod discarded_prune_audit_line;
+
+/// The two limits of the folder of saved copies, their defaults and the reading of a size such as `256m`.
+pub mod discarded_prune_limits;
+
+/// What a pass removes and why.
+pub mod discarded_prune_plan;
+
+/// What can go wrong in a pass over the folder, the words that say it and the listing.
+pub mod discarded_prune_problems;
+
+/// The time stamps in the names of saved-copy directories.
+pub mod discarded_prune_stamps;
+
 /// The folder of saved copies opened once without following a link, with every read and removal addressed through descriptors.
 pub mod discarded_store;
+
+/// The plain values of the descriptor-based reader of the folder of saved copies.
+pub mod discarded_store_records;
 
 /// The marker lines a committed file still holds, and the line about an operation a commit left open.
 pub mod conflict_markers;

@@ -1,5 +1,7 @@
 //! Controls for the record of what the landing thread is stuck in.
 
+use crate::service_busy_step_record_on_this_thread::{detail, enter_step, use_on_this_thread};
+use crate::service_busy_answers_and_name_checks::LONGEST_ID;
 use super::*;
 
 /// A threshold below any step's age, so a step counts as stuck at once.
@@ -283,25 +285,86 @@ fn a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation() {
     assert_eq!(record.begin_group(ids(&["r"]).as_slice()), GroupAdmission::default(), "the request is still admitted, not dropped");
 }
 
-/// A temporary file of a decision is removed whichever way the decision ends (sol-1 round 2, P2: a failed write returned before the
-/// removal and left it): the guard removes its file when it goes out of scope, by an early return as by the end of the function.
+/// A staging file of a decision is removed whichever way the decision ends (sol-1 round 2, P2: a failed write returned before the
+/// removal and left it). The failure is injected inside the shared publish, after the staging file was made and written, so a
+/// publish that stopped removing its staging file leaves one behind and fails this control (round 3: the earlier control failed a
+/// closure of its own).
 #[test]
-fn a_temporary_file_is_removed_by_an_early_return() {
+fn a_decision_whose_write_fails_leaves_no_temporary_file() {
     let directory: std::path::PathBuf = crate::test_support::fixture("service-busy-temporary");
-    let leaking = |path: std::path::PathBuf| -> std::io::Result<()> {
-        let guard: TemporaryFile = TemporaryFile(path);
-        std::fs::write(guard.0.as_path(), b"partial")?;
-        return Err(std::io::Error::other("the write failed after the file was made"));
-    };
-    let file: std::path::PathBuf = directory.join("r.1.1.tmp");
-    assert!(leaking(file.clone()).is_err());
-    assert!(!file.exists(), "the file is removed although the function returned early");
     let record: Arc<LandingBoard> = LandingBoard::new(directory.join("journal"), AT_ONCE);
+    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the write failed after the file was made")); })); });
+    for round in 0..5 {
+        assert!(record.decide("same", LANDING).is_err(), "round {round}");
+    }
+    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    let leftovers = |board: &LandingBoard| -> usize { return std::fs::read_dir(board.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".partial"); }).count(); };
+    assert_eq!(leftovers(&record), 0, "a failed write leaves no temporary file");
+    assert!(!record.decision_path("same").exists(), "and decided nothing");
     for round in 0..20 {
         assert!(record.decide("same", LANDING).is_ok(), "round {round}");
     }
-    let leftovers: usize = std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".tmp"); }).count();
-    assert_eq!(leftovers, 0, "a decision that wins or loses leaves no temporary file");
+    assert_eq!(leftovers(&record), 0, "a decision that wins or loses leaves no temporary file");
+}
+
+/// Request `r` has a confirmed withdrawal, and the retention removed its decision and paused before its confirmation (sol-1 round 3,
+/// P1 A). Withdrawer W1 wins a new decision and is stopped before its journal read; W2 meets that decision beside the old
+/// confirmation. W2 must not answer "withdrawn": the old confirmation belongs to the old decision. W1 then finds the request landed.
+#[test]
+fn a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decision() {
+    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-confirmation").join("journal");
+    let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "the first withdrawal is confirmed");
+    // The retention's first removal, and its pause.
+    std::fs::remove_file(record.decision_path("r")).expect("the retention removed the decision");
+    let seen_by_w2: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::new(std::sync::Mutex::new(None));
+    let sink: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::clone(&seen_by_w2);
+    let other: Arc<LandingBoard> = Arc::clone(&record);
+    AFTER_THE_DECISION_IS_WON.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            // W2, on another thread with a board of its own view, meets W1's decision beside the old confirmation.
+            let board: Arc<LandingBoard> = Arc::clone(&other);
+            let answer: EarlyAnswer = std::thread::spawn(move || { return board.withdraw_early("r"); }).join().expect("W2");
+            *sink.lock().expect("lock") = Some(answer);
+            // The request lands before W1 asks the journal again.
+            record_landed(journal.as_path(), 1, "r");
+        }));
+    });
+    let first: EarlyAnswer = record.withdraw_early("r");
+    AFTER_THE_DECISION_IS_WON.with(|hook| { *hook.borrow_mut() = None; });
+    assert_eq!(*seen_by_w2.lock().expect("lock"), Some(EarlyAnswer::Queued), "the old confirmation is not W1's");
+    assert_eq!(first, EarlyAnswer::Landed("1".repeat(40)), "W1 finds the request in the journal");
+}
+
+/// The retention works from a listing and removes by what it still finds: a decision that replaced the one it listed (another token)
+/// stays, with its confirmation, while the pair it listed is forgotten (sol-1 round 3, P1 A: concurrent pruners from a stale listing).
+#[test]
+fn the_retention_never_removes_a_decision_that_replaced_the_one_it_listed() {
+    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-listing").join("journal");
+    let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    for round in 0..(WITHDRAWALS_RETAINED + 1) {
+        assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    // Between the listing and the removals, the oldest request's pair is replaced by a decision of another withdrawal.
+    let replaced: std::path::PathBuf = record.decision_path("r0");
+    let replacement: String = format!("{WITHDRAWN}:another-token");
+    let target = replaced.clone();
+    AFTER_THE_LISTING.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            std::fs::remove_file(target.as_path()).expect("the old decision goes");
+            std::fs::write(target.as_path(), replacement.as_bytes()).expect("the new decision");
+        }));
+    });
+    record.end_group(&[]);
+    AFTER_THE_LISTING.with(|hook| { *hook.borrow_mut() = None; });
+    assert_eq!(std::fs::read_to_string(replaced).expect("the replacement stays"), format!("{WITHDRAWN}:another-token"));
 }
 
 /// The memory of confirmed withdrawals is bounded: past the retention the oldest are forgotten, decision and confirmation together.
@@ -315,7 +378,91 @@ fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
     for round in 0..(WITHDRAWALS_RETAINED + 6) {
         assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
     }
+    // The retention runs on the landing thread, between two groups.
+    record.end_group(&[]);
     let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
     assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
     assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_RETAINED, "a decision never outlives its confirmation, nor the other way");
+}
+
+/// The memory of confirmed withdrawals is bounded while the landing thread is stuck in a write and prunes nothing (sol-1 round 4,
+/// P2): past `WITHDRAWALS_CEILING` confirmed withdrawals the connection threads leave further withdrawals to the landing thread, as
+/// they do when nothing is stuck, instead of adding a decision and a confirmation for each.
+#[test]
+fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
+    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stuck-bound").join("journal");
+    let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    let mut withdrawn: usize = 0;
+    for round in 0..(WITHDRAWALS_CEILING + 10) {
+        if matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)) {
+            withdrawn += 1;
+        }
+    }
+    let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
+    assert_eq!(withdrawn, WITHDRAWALS_CEILING, "withdrawals past the bound are left to the landing thread");
+    assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_CEILING);
+    assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_CEILING);
+    // The landing thread's retention brings the memory back to the retained number, and withdrawals are answered again.
+    record.end_group(&[]);
+    assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
+    assert!(matches!(record.withdraw_early("after"), EarlyAnswer::Withdrawn(_)));
+}
+
+/// How long the landing thread, paused between the check and the rename of a publish, gives the connection thread to finish its own
+///  publish of the same name: far above the microseconds a publish takes, so a connection thread that nothing holds back has
+///  finished, and a held one is still waiting.
+#[cfg(unix)]
+const TIME_FOR_THE_OTHER_PUBLISHER: Duration = Duration::from_millis(500);
+
+/// How long a control waits for a decision that is certain to come once the landing thread has let go: far above a publish, so
+///  only a decision that never comes ends the wait.
+#[cfg(unix)]
+const TIME_FOR_A_DECISION_TO_COME: Duration = Duration::from_secs(30);
+
+/// On a filesystem that answers neither an exclusive rename nor a hard link, the landing thread and a connection thread of one
+///  service race for one decision with the checked rename (a check, then a rename). The landing thread is paused between its
+///  check and its rename; a connection thread decides the same request meanwhile. Exactly one of them may see itself the winner,
+///  and the other reads what the winner wrote (the plan, "Safe file saving: the publish replaced", fact 1 and its settlement).
+#[cfg(unix)]
+#[test]
+fn on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_thread_never_both_win_a_decision() {
+    use crate::private_storage::{BETWEEN_THE_CHECK_AND_THE_RENAME, THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    let record: Arc<LandingBoard> = board();
+    let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<Decision>>();
+    // What the connection thread decided, when it finished while the landing thread was paused.
+    let decided_while_paused: Rc<RefCell<Option<std::io::Result<Decision>>>> = Rc::new(RefCell::new(None));
+    THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(|flag| { flag.set(true); });
+    let pause_record: Arc<LandingBoard> = Arc::clone(&record);
+    let pause_result: Rc<RefCell<Option<std::io::Result<Decision>>>> = Rc::clone(&decided_while_paused);
+    let pause_receiver = Rc::new(receiver);
+    let later_receiver = Rc::clone(&pause_receiver);
+    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            let (shared_record, shared_sender) = (Arc::clone(&pause_record), sender.clone());
+            std::thread::spawn(move || {
+                THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(|flag| { flag.set(true); });
+                let _sent = shared_sender.send(shared_record.decide("request", "withdrawn:token"));
+            });
+            *pause_result.borrow_mut() = pause_receiver.recv_timeout(TIME_FOR_THE_OTHER_PUBLISHER).ok();
+        }));
+    });
+    let landing: Decision = record.decide("request", LANDING).expect("the landing thread's decision");
+    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| { *hook.borrow_mut() = None; });
+    let withdrawing: Decision = match decided_while_paused.borrow_mut().take() {
+        Some(early) => early,
+        None => later_receiver.recv_timeout(TIME_FOR_A_DECISION_TO_COME).expect("the connection thread's decision comes once the landing thread has let go"),
+    }
+    .expect("the connection thread's decision");
+    let content: String = std::fs::read_to_string(record.decision_path("request")).expect("the decision file");
+    match (landing, withdrawing) {
+        (Decision::Won, Decision::Lost(read)) => assert_eq!(read, LANDING, "the loser reads what the winner wrote"),
+        (Decision::Lost(read), Decision::Won) => assert_eq!(read, content, "the loser reads what the winner wrote"),
+        (Decision::Won, Decision::Won) => panic!("both threads saw themselves the winner; the file says `{content}`"),
+        (Decision::Lost(_), Decision::Lost(_)) => panic!("neither thread won; the file says `{content}`"),
+    }
 }

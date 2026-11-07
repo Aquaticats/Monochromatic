@@ -18,6 +18,11 @@ mod hook_self_invocation_tests;
 #[path = "service_lock_inventory_tests.rs"]
 mod service_lock_inventory_tests;
 
+/// The crate declares only the executable the release archive holds; a second `[[bin]]` breaks cargo-binstall installs.
+#[cfg(test)]
+#[path = "release_bins_tests.rs"]
+mod release_bins_tests;
+
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]
 #[path = "no_self_invocation_tests.rs"]
@@ -31,3 +36,8 @@ mod standards_review_boundary_tests;
 /// is right for nested module directories; never in the release build.
 #[cfg(test)]
 pub(crate) mod source_scan_tests;
+
+/// The owner's rule that nothing of the wrapper starts at system startup or at login: no install line, no enabling call, only listed members.
+#[cfg(test)]
+#[path = "no_start_at_login_tests.rs"]
+pub(crate) mod no_start_at_login_tests;

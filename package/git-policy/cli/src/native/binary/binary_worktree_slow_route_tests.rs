@@ -65,7 +65,7 @@ fn a_dirty_source_says_why_the_add_was_not_a_snapshot() {
     let lines: Vec<String> = slow_lines(&created);
     assert_eq!(lines.len(), 1, "one plain line: {}", stderr_of(&created));
     let line: &str = lines[0].as_str();
-    assert!(line.starts_with("cli-git: "), "{line}");
+    assert!(line.starts_with("monochromatic-git-policy-cli: "), "{line}");
     assert!(line.contains("this worktree has uncommitted changes in 1 path (for example shared.txt)"), "the cause: {line}");
     assert!(line.contains("Commit or stash"), "what makes the next add quick: {line}");
     assert!(!line.contains('[') && !line.to_lowercase().contains("rung"), "plain words, no log prefix, no internal names: {line}");
@@ -160,7 +160,7 @@ fn the_journal_receives_the_slow_route_entry_even_when_quiet() {
         .filter_map(|line: &str| { return line.split_once('=').map(|(field, value): (&str, &str)| { return (field.to_string(), value.to_string()); }); })
         .collect();
     assert_eq!(entry.get("PRIORITY").map(String::as_str), Some("4"), "a warning: {entry:?}");
-    assert_eq!(entry.get("SYSLOG_IDENTIFIER").map(String::as_str), Some("cli-git"), "{entry:?}");
+    assert_eq!(entry.get("SYSLOG_IDENTIFIER").map(String::as_str), Some("monochromatic-git-policy-cli"), "{entry:?}");
     assert!(entry.get("MESSAGE").is_some_and(|message: &String| { return message.contains(SLOW_MARK) && message.contains("shared.txt"); }), "{entry:?}");
     assert_eq!(entry.get("CLI_GIT_WORKTREE").map(String::as_str), Some(fixture.root.join("topic").to_string_lossy().as_ref()), "{entry:?}");
     assert_eq!(entry.get("CLI_GIT_SLOW_CAUSE").map(String::as_str), Some("uncommitted-changes"), "{entry:?}");

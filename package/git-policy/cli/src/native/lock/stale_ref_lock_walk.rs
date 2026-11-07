@@ -30,9 +30,35 @@ pub struct Candidate {
     pub orphan_staging: bool,
 }
 
+/// Whether `path` names a regular file itself (a symbolic link does not count); a path that cannot be looked at is not one.
+fn is_regular_file(path: &Path) -> bool {
+    return match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata.is_file(),
+        Err(_) => false,
+    };
+}
+
+/// Whether nothing exists at `path`: looking at it fails with "not found" (any other failure is not an answer).
+fn is_missing(path: &Path) -> bool {
+    return match std::fs::symlink_metadata(path) {
+        Ok(_) => false,
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    };
+}
+
+/// Order two candidates by lock path.
+fn by_lock(left: &Candidate, right: &Candidate) -> std::cmp::Ordering {
+    return left.lock.cmp(&right.lock);
+}
+
+/// Whether two neighbours in a sorted list name the same lock.
+fn same_lock(left: &mut Candidate, right: &mut Candidate) -> bool {
+    return left.lock == right.lock;
+}
+
 /// Whether a directory entry is a regular file whose name makes it a reference lock.
 fn is_reference_lock(path: &Path, is_file: bool) -> bool {
-    let Some(name) = path.file_name().and_then(|name| { return name.to_str(); }) else {
+    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
         return false;
     };
     return is_file && name.ends_with(LOCK_SUFFIX) && !name.ends_with(PID_LOCK_SUFFIX);
@@ -49,14 +75,12 @@ pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
     for root in roots {
         for name in [PACKED_LOCK, "HEAD.lock"] {
             let path: PathBuf = root.join(name);
-            if std::fs::symlink_metadata(path.as_path()).is_ok_and(|metadata| { return metadata.is_file(); }) {
+            if is_regular_file(path.as_path()) {
                 found.push(Candidate { root: root.clone(), lock: path, orphan_staging: false });
             }
         }
         let staging: PathBuf = root.join(PACKED_STAGING);
-        if std::fs::symlink_metadata(staging.as_path()).is_ok_and(|metadata| { return metadata.is_file(); })
-            && std::fs::symlink_metadata(root.join(PACKED_LOCK)).is_err_and(|error| { return error.kind() == std::io::ErrorKind::NotFound; })
-        {
+        if is_regular_file(staging.as_path()) && is_missing(root.join(PACKED_LOCK).as_path()) {
             found.push(Candidate { root: root.clone(), lock: staging, orphan_staging: true });
         }
         let mut pending: Vec<PathBuf> = vec![root.join("refs")];
@@ -76,14 +100,17 @@ pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
             }
         }
     }
-    found.sort_by(|left, right| { return left.lock.cmp(&right.lock); });
-    found.dedup_by(|left, right| { return left.lock == right.lock; });
+    found.sort_by(by_lock);
+    found.dedup_by(same_lock);
     return found;
 }
 
 /// The pid file Git writes beside a lock: the lock's name without `.lock`, then `~pid.lock`.
 pub fn pid_file_beside(lock: &Path) -> PathBuf {
-    let name: String = lock.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
+    let name: String = match lock.file_name() {
+        Some(file_name) => file_name.to_string_lossy().into_owned(),
+        None => String::new(),
+    };
     let stem: &str = name.strip_suffix(LOCK_SUFFIX).unwrap_or(name.as_str());
     return lock.with_file_name(format!("{stem}{PID_LOCK_SUFFIX}"));
 }
@@ -91,9 +118,14 @@ pub fn pid_file_beside(lock: &Path) -> PathBuf {
 /// The files that go with a lock and exist now: its pid file and, for `packed-refs.lock`, the staging file.
 pub fn companions_of(lock: &Path) -> Vec<PathBuf> {
     let mut companions: Vec<PathBuf> = vec![pid_file_beside(lock)];
-    if lock.file_name().is_some_and(|name| { return name == PACKED_LOCK; }) {
+    if lock.file_name() == Some(std::ffi::OsStr::new(PACKED_LOCK)) {
         companions.push(lock.with_file_name(PACKED_STAGING));
     }
-    companions.retain(|path| { return std::fs::symlink_metadata(path).is_ok_and(|metadata| { return metadata.is_file(); }); });
-    return companions;
+    let mut existing: Vec<PathBuf> = Vec::new();
+    for path in companions {
+        if is_regular_file(path.as_path()) {
+            existing.push(path);
+        }
+    }
+    return existing;
 }

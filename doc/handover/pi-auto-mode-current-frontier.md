@@ -8,128 +8,241 @@
 ## Current work and next actions
 
 The latest user requirement supersedes whole-parallel-batch assessment:
-every tool invocation is judged individually, and `codemode` counts as one invocation.
-Its internal operations are parsed as a whole, not split into approvals or review allowances.
-The user also requires the complete question set, not another isolated Q7 handoff.
+every tool invocation is judged individually,
+and `codemode` counts as one invocation.
+Its internal operations are parsed as a whole,
+not split into approvals or review allowances.
+The user also requires the complete question set,
+not another isolated Q7 handoff.
 `package/pi-plugin/auto-mode/doc/planning/rebuild-question-inventory.md` is the complete current inventory.
-Current choices are Q7, Q8, Q9, Q11, Q12, Q13, Q14, and Q15.
-Q10 is withdrawn: the allowance governs Luna requests, and shadow traffic is separately accounted.
-Q14 concerns the comparison study's scope; Q15 concerns older genuine human messages outside the short window.
-Batch-member attribution, joint survivor selection, shared budgets, and shared manual approvals are withdrawn.
-The plan, understanding, review questions, historical batch plan, and HTML now use the individual-call boundary.
+Current choices are Q7,
+Q8,
+Q9,
+Q11,
+Q12,
+Q13,
+Q14,
+and Q15.
+Q10 is withdrawn:
+the allowance governs Luna requests,
+and shadow traffic is separately accounted.
+Q14 concerns the comparison study's scope;
+Q15 concerns older genuine human messages outside the short window.
+Batch-member attribution,
+joint survivor selection,
+shared budgets,
+and shared manual approvals are withdrawn.
+The plan,
+understanding,
+review questions,
+historical batch plan,
+and HTML now use the individual-call boundary.
 Rendered and visual verification is complete.
-The browser pass covers all 25 options, 18 navigation links, four scenarios, four manual branches,
-keyboard operation, 48-pixel controls, and 390-pixel layout in both themes, with no page or console errors.
+The browser pass covers all 25 options,
+18 navigation links,
+four scenarios,
+four manual branches,
+keyboard operation,
+48-pixel controls,
+and 390-pixel layout in both themes,
+with no page or console errors.
 All 12 diagrams pass geometry and narrow-screen keyboard scrolling in both themes.
-The final Q7 captures include Deny combined with Ask, Approve, and unresolved evidence for the same upload.
+The final Q7 captures include Deny combined with Ask,
+Approve,
+and unresolved evidence for the same upload.
 Commit `ab027b3214` retains 44 inspected captures with image-only PNG chunks:
 `individual-chart-*` and `complete-review-*` beside the HTML.
 The Markdown renderer passed all 14 documents at `auto-mode-rebuild-plan-render-sisOvc`.
 All eight current questions have been presented together in the question tool;
-Helium is open at `#frontier`, and their answers remain pending.
+Helium is open at `#frontier`,
+and their answers remain pending.
 The final Markdown render after recording verification passed at `auto-mode-rebuild-plan-render-o1obBs`.
-After answers arrive, record them and develop only the dependent questions they unlock.
-Implementation remains stopped; no question has been answered by these corrections.
+After answers arrive,
+record them and develop only the dependent questions they unlock.
+Implementation remains stopped;
+no question has been answered by these corrections.
 
 ### Prior checkpoint before the individual-call revision
 
 Plan review is active and implementation remains stopped.
-The user requires thorough research and durable records of all relied-on understandings, including familiar terms.
+The user requires thorough research and durable records of all relied-on understandings,
+including familiar terms.
 `package/pi-plugin/auto-mode/doc/planning/rebuild-understanding.md` is the current semantic/evidence record.
-`doc/agent/understanding.md` defines the standing practice; `AGENTS.md` tightens existing DCK, QPM, and ODM rules.
+`doc/agent/understanding.md` defines the standing practice;
+`AGENTS.md` tightens existing DCK,
+QPM,
+and ODM rules.
 Managed `CLAUDE.md` is regenerated in `4bb5e492ee`.
-Independent source and semantic review confirms the record; all 12 diagrams pass geometry and keyboard checks
-in both themes, and all 22 response options pass.
+Independent source and semantic review confirms the record;
+all 12 diagrams pass geometry and keyboard checks
+in both themes,
+and all 22 response options pass.
 The Markdown renderer checked all 13 affected documents at `auto-mode-rebuild-plan-render-Rik6O5`.
 Final source/semantic review found no remaining discrepancy after the case-caption corrections.
 The final Markdown render is `auto-mode-rebuild-plan-render-ZEuBpU`.
 All 24 light/dark chart captures and 16 review-panel captures were inspected and retained with image-only PNG chunks.
-The final browser pass covers 22 options, nine navigation links, four examples, four manual branches,
-keyboard operation, 48-pixel controls, and 390-pixel layout with no page or console errors.
-Helium has reopened the corrected Q7; Q7 to Q13 remain unanswered.
-Two additional stale example captions were corrected: all-not-applicable approval remains open,
+The final browser pass covers 22 options,
+nine navigation links,
+four examples,
+four manual branches,
+keyboard operation,
+48-pixel controls,
+and 390-pixel layout with no page or console errors.
+Helium has reopened the corrected Q7;
+Q7 to Q13 remain unanswered.
+Two additional stale example captions were corrected:
+all-not-applicable approval remains open,
 and one resolved Ask does not end sibling review.
 The latest correction separates whole-batch assessment from per-call execution outcomes.
-Do not enforce atomic batch execution: cleared tests can proceed while a prohibited upload is blocked.
-Public-only probes now pass 20 asserted cases, including allow-A/block-B and block-A/allow-B without run abort.
-The prior global abort was our last-sibling review prototype's behavior, not a Pi limitation.
-Shared context, every-rule coverage, interaction review, and one group budget remain.
-Terminality applies to resolved affected calls; unresolved siblings can still need review.
-The four-choice-per-rule attribution to call IDs/interactions is not yet designed; do not invent a schema silently.
-Q7 must compare conflicting rules for the upload only, leaving independently cleared tests permitted under either option.
+Do not enforce atomic batch execution:
+cleared tests can proceed while a prohibited upload is blocked.
+Public-only probes now pass 20 asserted cases,
+including allow-A/block-B and block-A/allow-B without run abort.
+The prior global abort was our last-sibling review prototype's behavior,
+not a Pi limitation.
+Shared context,
+every-rule coverage,
+interaction review,
+and one group budget remain.
+Terminality applies to resolved affected calls;
+unresolved siblings can still need review.
+The four-choice-per-rule attribution to call IDs/interactions is not yet designed;
+do not invent a schema silently.
+Q7 must compare conflicting rules for the upload only,
+leaving independently cleared tests permitted under either option.
 All affected diagrams and manual-scope text now distinguish member outcomes from shared review.
-Q1 B and Q4 A are accepted; Q2 and Q6 are withdrawn as settled.
+Q1 B and Q4 A are accepted;
+Q2 and Q6 are withdrawn as settled.
 The next review round is Q7 to Q13 in
 `package/pi-plugin/auto-mode/doc/planning/rebuild-review-round-2.md`
 and the visual review's `#frontier` section.
-It covers reduction, all-not-applicable approval, follow-up reconciliation, shadow budget and durability,
-retention mode, and storage-pressure behavior.
-Question generation and shadow scheduling depend on this round's answers; built-in contents remain deferred.
-The user explicitly challenged stopping after corrections. Finish verification, open Helium, and request this round.
-Do not stop at another status-only response. Implementation remains stopped.
+It covers reduction,
+all-not-applicable approval,
+follow-up reconciliation,
+shadow budget and durability,
+retention mode,
+and storage-pressure behavior.
+Question generation and shadow scheduling depend on this round's answers;
+built-in contents remain deferred.
+The user explicitly challenged stopping after corrections.
+Finish verification,
+open Helium,
+and request this round.
+Do not stop at another status-only response.
+Implementation remains stopped.
 
-The round is implemented in `f9a7745779`, with dependency and accepted-limit corrections in `938c40034b`.
-All 22 option paths, nine navigation links, four scenarios, four manual branches, reply paths, and keyboard pass.
-Both themes and 390-pixel layout pass without overflow or browser errors; controls meet 48 pixels.
+The round is implemented in `f9a7745779`,
+with dependency and accepted-limit corrections in `938c40034b`.
+All 22 option paths,
+nine navigation links,
+four scenarios,
+four manual branches,
+reply paths,
+and keyboard pass.
+Both themes and 390-pixel layout pass without overflow or browser errors;
+controls meet 48 pixels.
 The independent review distinguishes individually unresolved rules (Q9) from admitted-answer conflicts (Q7 B).
-Choosing Q7 B opens conflict reconciliation in the next round; it does not change Q9's individual-rule scope.
+Choosing Q7 B opens conflict reconciliation in the next round;
+it does not change Q9's individual-rule scope.
 Startup relevance failure now falls back to all freshly captured rules without asking solely about failed filtering.
-Retained captures are the `round2-*` PNGs beside the HTML, with no non-image PNG metadata.
-Next action: hand off the opened, verified Q7 to Q13 review through the question tool, then wait for answers.
+Retained captures are the `round2-*` PNGs beside the HTML,
+with no non-image PNG metadata.
+Next action:
+hand off the opened,
+verified Q7 to Q13 review through the question tool,
+then wait for answers.
 
 ### Q7 concrete-example correction, 2026-10-19
 
-The user rejects “Rule A returns Approve; rule B returns Deny” as an example.
+The user rejects “Rule A returns Approve;
+rule B returns Deny” as an example.
 Replace that abstract restatement before continuing the round.
 The new example has a pending parallel test run plus publication of an unredacted customer fixture,
-explicit illustrative project rules, each admitted answer's concrete basis, and each option's execution result.
+explicit illustrative project rules,
+each admitted answer's concrete basis,
+and each option's execution result.
 The initial concrete example still incorrectly made the whole batch atomic.
 The subsequent user correction supersedes those outcomes:
-Q7 A blocks only the upload; Q7 B keeps only its decision unresolved.
+Q7 A blocks only the upload;
+Q7 B keeps only its decision unresolved.
 Both preserve permission for independently cleared tests in the same batch.
-Neither option has been accepted. Q7 to Q13 remain open; do not infer an answer from this correction.
-Proposed `ODM` tightening: option examples name pending actions, relevant rules, admitted answers,
-and each option's visible result; abstract labels alone are not examples.
+Neither option has been accepted.
+Q7 to Q13 remain open;
+do not infer an answer from this correction.
+Proposed `ODM` tightening:
+option examples name pending actions,
+relevant rules,
+admitted answers,
+and each option's visible result;
+abstract labels alone are not examples.
 That proposal was later implemented in `84f13f569d` after the user's standing research-and-record instruction.
 Commit `4dd7fd96e7` supplies the concrete example.
 The independent reviewer confirms that HTML and Markdown agree and both complete Q7 captures are readable.
-All three Q7 response options pass; light/dark rendering and 390-pixel layout pass without browser errors.
-Markdown renders at `auto-mode-rebuild-plan-render-7LJZYv`; the Q7 captures replace the abstract-example images.
+All three Q7 response options pass;
+light/dark rendering and 390-pixel layout pass without browser errors.
+Markdown renders at `auto-mode-rebuild-plan-render-7LJZYv`;
+the Q7 captures replace the abstract-example images.
 Reopen Helium at Q7 and let the user inspect the corrected example before continuing the round.
 
 ### Later extension mutations accepted as a limitation, 2026-10-19
 
 The user says to pretend later extensions changing arguments after review do not exist.
-Record that behavior as an accepted limitation, not a blocker or an open decision.
-Do not add ordering guards, fallback prompts, private hooks, or further qualification for that case.
+Record that behavior as an accepted limitation,
+not a blocker or an open decision.
+Do not add ordering guards,
+fallback prompts,
+private hooks,
+or further qualification for that case.
 Pre-review preparation and transformations remain part of the intended review input.
-The next review round is being assembled; do not stop after acknowledging this correction.
+The next review round is being assembled;
+do not stop after acknowledging this correction.
 
 ### Permanent public-API boundary and graceful fallback, 2026-10-19
 
 The user links the historical parallel-batch plan and explicitly rejects maintaining or copying Pi internals,
-duplicating existing Pi functionality, and private Pi APIs, ever.
+duplicating existing Pi functionality,
+and private Pi APIs,
+ever.
 This is not an option awaiting reconsideration or permission.
-Use supported public plugin APIs; gracefully fall back where they cannot provide the intended behavior.
-The user accepts graceful fallback as preserving supported review, potentially per-call instead of batch review,
+Use supported public plugin APIs;
+gracefully fall back where they cannot provide the intended behavior.
+The user accepts graceful fallback as preserving supported review,
+potentially per-call instead of batch review,
 while keeping Pi usable and disclosing reduced coverage.
-The user's golden rule is to degrade as little as possible, aiming for no end-user experience degradation.
-Try equivalent public-API paths first; preserve the greatest supported functionality if equivalence is impossible.
-Missing integration support alone does not require manual approval, blocked execution, or disabled auto-mode.
+The user's golden rule is to degrade as little as possible,
+aiming for no end-user experience degradation.
+Try equivalent public-API paths first;
+preserve the greatest supported functionality if equivalence is impossible.
+Missing integration support alone does not require manual approval,
+blocked execution,
+or disabled auto-mode.
 The agent's previous manual-first wording was too restrictive and is superseded.
 Actual rule-required human approval remains distinct from a missing integration capability.
 The historical parallel-batch plan now marks its private prototypes and remaining integration work as withdrawn.
-Pi retains execution, scheduling, preparation, sessions, UI, and existing tool behavior.
+Pi retains execution,
+scheduling,
+preparation,
+sessions,
+UI,
+and existing tool behavior.
 The active plan and visual review must reflect the same boundary.
-Public-only disposable probes continue; they do not authorize a replacement implementation.
+Public-only disposable probes continue;
+they do not authorize a replacement implementation.
 
-Native cleanup is complete. Commit `213a4ebce4` regenerates the lockfile after retired dependencies were removed.
-No unrelated lockfile drift was found; the worktree was clean before this documentation correction.
-Next action: finish the public-plugin evidence and fallback record, then resume the remaining design frontier.
+Native cleanup is complete.
+Commit `213a4ebce4` regenerates the lockfile after retired dependencies were removed.
+No unrelated lockfile drift was found;
+the worktree was clean before this documentation correction.
+Next action:
+finish the public-plugin evidence and fallback record,
+then resume the remaining design frontier.
 
-Proposed `EC4` tightening: unsupported capabilities use the least-degrading supported fallback,
-aiming to preserve user experience; explain remaining limits without presenting reduced coverage as full support.
-This proposal addresses the fallback misunderstanding; `AGENTS.md` is unchanged.
+Proposed `EC4` tightening:
+unsupported capabilities use the least-degrading supported fallback,
+aiming to preserve user experience;
+explain remaining limits without presenting reduced coverage as full support.
+This proposal addresses the fallback misunderstanding;
+`AGENTS.md` is unchanged.
 
 Commit `bf8d6731ca` records the minimum-degradation rule and supersedes manual-first fallback wording.
 The updated boundary panel passes light/dark rendering and a 390-pixel viewport without overflow or browser errors.
@@ -137,95 +250,166 @@ The seven affected/referenced Markdown documents render with valid local links a
 `~/temp/agent/auto-mode-rebuild-plan-render-A05tSs`.
 
 Public-plugin qualification finished in `~/temp/agent/pi-public-plugin-probe-20261019/`.
-`mise run lint:types` and `mise run probe` pass all 18 assertions, including deliberate limitation cases.
-Public `prepareLoadout` metadata, persisted message observation, and final sibling `tool_call` review demonstrate
-prepared parallel approval, denial, review failure, per-tool sequential reviews, and skipped-callback accounting.
-These use scripted provider responses and inert tools; no Pi source was copied or modified.
-The candidate denial aborts the active run; this observed behavior is not an adopted product decision.
-Later extensions can still mutate arguments after the guard, as reproduced by the probe.
-Global execution overrides in custom hosts, dynamic loadouts, arbitrary nested grouping,
-real CLI/TUI cancellation, reload/session transitions, and retained-reference mutation remain unqualified.
+`mise run lint:types` and `mise run probe` pass all 18 assertions,
+including deliberate limitation cases.
+Public `prepareLoadout` metadata,
+persisted message observation,
+and final sibling `tool_call` review demonstrate
+prepared parallel approval,
+denial,
+review failure,
+per-tool sequential reviews,
+and skipped-callback accounting.
+These use scripted provider responses and inert tools;
+no Pi source was copied or modified.
+The candidate denial aborts the active run;
+this observed behavior is not an adopted product decision.
+Later extensions can still mutate arguments after the guard,
+as reproduced by the probe.
+Global execution overrides in custom hosts,
+dynamic loadouts,
+arbitrary nested grouping,
+real CLI/TUI cancellation,
+reload/session transitions,
+and retained-reference mutation remain unqualified.
 Use these facts to find equivalent public paths or the least-degrading supported fallback.
 Do not inherit the probe report's suggestion to withhold execution whenever qualification is incomplete;
 the user's accepted fallback rule supersedes that suggestion.
 
 ### Unapproved Pi modification removed, 2026-10-19
 
-The user identifies issue #1786 and prohibits modifying Pi itself; use its public plugin API.
+The user identifies issue #1786 and prohibits modifying Pi itself;
+use its public plugin API.
 The agent introduced the copied/transformed Pi architecture without the user's approval.
 The agent also proposed a private loading hook in the rebuild plan and has withdrawn it.
 Do not describe these as a shared choice or an accepted user decision.
 
-Before the user's removal, a direct import of the copied Pi child-process module reproduced
-`ERR_MODULE_NOT_FOUND` for `cross-spawn`; importing the installed Pi module passed.
-Source inspection confirms generated replacements for the agent loop, session, and other Pi modules.
+Before the user's removal,
+a direct import of the copied Pi child-process module reproduced
+`ERR_MODULE_NOT_FOUND` for `cross-spawn`;
+importing the installed Pi module passed.
+Source inspection confirms generated replacements for the agent loop,
+session,
+and other Pi modules.
 The active release's dependency link targeted an absent Pi 1.2.0 dependency directory.
-The user removed `dist`, then explicitly removed `bin` and `native`.
-Normal plugin build output may recreate `dist`; the prohibition concerns rebuilding or transforming Pi.
+The user removed `dist`,
+then explicitly removed `bin` and `native`.
+Normal plugin build output may recreate `dist`;
+the prohibition concerns rebuilding or transforming Pi.
 
 The package had two tracked TypeScript projects plus two empty untracked probe files.
 The tracked split supported the removed mixed TypeScript/JavaScript implementation.
-The package now has one standard TypeScript config; native tasks and empty probe files are removed.
+The package now has one standard TypeScript config;
+native tasks and empty probe files are removed.
 The user also challenges the copied `types: ["node"]` override.
-The shared `tsconfig.options.json` already supplies it; the package now only declares `extends`.
+The shared `tsconfig.options.json` already supplies it;
+the package now only declares `extends`.
 Do not copy sibling overrides without checking inherited configuration.
-The agent copied the sibling plugin's override without tracing `extends`; that is why the redundancy was missed.
-Proposed guidance tightening: before copying configuration, inspect its inheritance and keep only necessary overrides.
-This is a proposal, not a change to `AGENTS.md`.
+The agent copied the sibling plugin's override without tracing `extends`;
+that is why the redundancy was missed.
+Proposed guidance tightening:
+before copying configuration,
+inspect its inheritance and keep only necessary overrides.
+This is a proposal,
+not a change to `AGENTS.md`.
 The generated PATH source also removes the deleted auto-mode launcher directory.
 Preserve the user's deletions and the pre-rebuild reference worktree.
-Finish generated configuration, stale launcher, documentation, and rendered verification before the next review round.
-Commit `ff55ced353` records the native removal, standard package tasks, accepted Q1/Q4 choices, and plugin constraint.
+Finish generated configuration,
+stale launcher,
+documentation,
+and rendered verification before the next review round.
+Commit `ff55ced353` records the native removal,
+standard package tasks,
+accepted Q1/Q4 choices,
+and plugin constraint.
 Both the package type check and file-enforcer configuration type check pass.
 Package lint checks its remaining TypeScript configuration file with zero warnings or errors.
 The dangling `~/.local/bin/pi` shim targeting the deleted native command is removed.
 Ordinary installed Pi reports version 1.3.0 with empty stderr in a credential-free disposable home.
-The revised HTML has no obsolete Q1/Q4 selectors; its correction form, examples, and navigation pass.
-All 19 controls meet the 48-pixel minimum; both themes and a 390-pixel viewport pass without browser errors.
+The revised HTML has no obsolete Q1/Q4 selectors;
+its correction form,
+examples,
+and navigation pass.
+All 19 controls meet the 48-pixel minimum;
+both themes and a 390-pixel viewport pass without browser errors.
 The actual replacement plugin remains unimplemented and unverified.
 
 Public Pi 1.3.0 source supports observing complete model-issued calls through `message_end`
-and blocking calls through `tool_call`, without modifying Pi.
-This is a candidate public-plugin design, not runtime qualification.
-Final argument mutation, handler ordering, sequential-mode identification, and nested boundaries need disposable probes.
+and blocking calls through `tool_call`,
+without modifying Pi.
+This is a candidate public-plugin design,
+not runtime qualification.
+Final argument mutation,
+handler ordering,
+sequential-mode identification,
+and nested boundaries need disposable probes.
 Do not infer that a missing public capability authorizes private source transformation.
 
-The remaining review queue covers rule reduction, approval sufficiency, focused-evidence reconciliation,
-Stage 0 full-rule fallback, shadow delivery/accounting, and local evidence retention.
-Built-in rule contents remain deferred; Q1 B and Q4 A remain accepted.
+The remaining review queue covers rule reduction,
+approval sufficiency,
+focused-evidence reconciliation,
+Stage 0 full-rule fallback,
+shadow delivery/accounting,
+and local evidence retention.
+Built-in rule contents remain deferred;
+Q1 B and Q4 A remain accepted.
 
-Proposed guidance correction: tighten `HON` to require attributing design choices to their actual decision-maker
-and never calling an agent choice shared without recorded user acceptance. `AGENTS.md` is unchanged.
+Proposed guidance correction:
+tighten `HON` to require attributing design choices to their actual decision-maker
+and never calling an agent choice shared without recorded user acceptance.
+`AGENTS.md` is unchanged.
 
 ### Unique-leader admission and separate human anchor accepted, 2026-10-19
 
-The user answers “Q1 B, Q4 A.”
-Admit any unique highest-probability choice in a valid response, without a minimum, margin, or confidence threshold.
-Exact ties, malformed or missing responses remain unresolved; rule-answer admission does not bypass group reduction.
+The user answers “Q1 B,
+Q4 A.”
+Admit any unique highest-probability choice in a valid response,
+without a minimum,
+margin,
+or confidence threshold.
+Exact ties,
+malformed or missing responses remain unresolved;
+rule-answer admission does not bypass group reduction.
 Keep the latest genuine human request in a separate snapshot field in addition to the bounded visible history.
 Synthetic API user-role feedback and compaction entries do not reset that anchor.
 Remove the rejected threshold and capped-history-only menus from the active review.
 
 The next design frontier requires fresh facts rather than inferred constraints.
-Read-only agents are checking aggregation/follow-up semantics, Stage 0 failure fallback and endpoint capacity,
+Read-only agents are checking aggregation/follow-up semantics,
+Stage 0 failure fallback and endpoint capacity,
 and existing shadow/logger lifecycle ownership and retention preferences.
-Do not reopen the group boundary, terminal Ask contract, or deferred built-in catalogue.
-Next action: commit the accepted choices, assemble the whole unlocked frontier with concrete examples,
-verify its HTML flowcharts/form, open it in Helium, and request the next round of answers.
+Do not reopen the group boundary,
+terminal Ask contract,
+or deferred built-in catalogue.
+Next action:
+commit the accepted choices,
+assemble the whole unlocked frontier with concrete examples,
+verify its HTML flowcharts/form,
+open it in Helium,
+and request the next round of answers.
 
 ### Parallel-batch versus individual-call grouping, 2026-10-19
 
 The user explicitly defines one group as the complete parallel tool-call batch.
-When the model does not call tools in parallel, each call is its own group.
+When the model does not call tools in parallel,
+each call is its own group.
 Do not combine nonparallel A and B into a synthetic group or prepare B before A executes.
-Each separate group receives its own snapshot, verdict, and review budget.
-The three-parallel-request limit concerns Luna review requests, not tool-call membership.
+Each separate group receives its own snapshot,
+verdict,
+and review budget.
+The three-parallel-request limit concerns Luna review requests,
+not tool-call membership.
 
-Withdraw Q6's sequential-group timing menu and response selector; only Q1 and Q4 remain open.
+Withdraw Q6's sequential-group timing menu and response selector;
+only Q1 and Q4 remain open.
 The active SVG now branches by parallel versus nonparallel calls,
 with whole-batch review before parallel dispatch and separate prepare/review/execute stages for nonparallel calls.
-Update Stage 1, host responsibilities, nested-boundary qualification, and acceptance fixtures accordingly.
-The old `flowchart-timing` and `staged-q6` captures are superseded proposals, not the active group contract.
+Update Stage 1,
+host responsibilities,
+nested-boundary qualification,
+and acceptance fixtures accordingly.
+The old `flowchart-timing` and `staged-q6` captures are superseded proposals,
+not the active group contract.
 Built-in contents remain deferred and implementation remains stopped.
 
 Fresh installed Pi agent core 1.3.0 source confirms separate paths in `dist/agent-loop.js`:
@@ -233,97 +417,183 @@ sequential dispatch at line 374 prepares and executes per call;
 parallel dispatch at line 411 prepares members before the execution barrier at line 453.
 Dispatch configuration and per-tool overrides at lines 368 to 372 remain host qualification details.
 Independent review confirms that Q6's old premise conflicted with the settled grouping boundary.
-The proposed `QPM` tightening now requires defining groups before posing timing choices; `AGENTS.md` is unchanged.
+The proposed `QPM` tightening now requires defining groups before posing timing choices;
+`AGENTS.md` is unchanged.
 Committed the grouping contract in `716e87302d`.
-The grouping diagram passed light/dark rendering, node-text bounds, and full 390-pixel keyboard scrolling.
-The response form contains only Q1 and Q4; Q6 has neither a field nor a serialized answer.
-All eight navigation targets, four examples, six answer options, manual branches, and reply branches passed.
-All 21 controls meet the 48-pixel minimum; page errors and console records are empty.
+The grouping diagram passed light/dark rendering,
+node-text bounds,
+and full 390-pixel keyboard scrolling.
+The response form contains only Q1 and Q4;
+Q6 has neither a field nor a serialized answer.
+All eight navigation targets,
+four examples,
+six answer options,
+manual branches,
+and reply branches passed.
+All 21 controls meet the 48-pixel minimum;
+page errors and console records are empty.
 The inspected grouping captures contain only PNG image chunks and are retained beside the review.
 Markdown rendered at `auto-mode-rebuild-plan-render-p66Mem` before these verification notes.
-Next action: continue architecture review from Q1 and Q4 answers; built-in contents remain deferred.
+Next action:
+continue architecture review from Q1 and Q4 answers;
+built-in contents remain deferred.
 
 ### Complete drawing inventory correction, 2026-10-19
 
 The user points out that the flowchart correction did not cover every drawing.
-The prior pass changed startup, group review, and human decision but left nine card-based drawings.
-Replace rule composition, follow-up detail, all four worked-example tabs, Ask routing,
-reversibility, and preparation timing with connected SVG diagrams too.
+The prior pass changed startup,
+group review,
+and human decision but left nine card-based drawings.
+Replace rule composition,
+follow-up detail,
+all four worked-example tabs,
+Ask routing,
+reversibility,
+and preparation timing with connected SVG diagrams too.
 The active artifact now has 12 SVG charts and no `class="flow"` or `class="arrow"` drawing remnants.
 The proposed `VHI` tightening now covers every flow and explicitly includes hidden examples in verification.
-No existing architecture choice, pending question, or deferred built-in catalogue decision changes.
+No existing architecture choice,
+pending question,
+or deferred built-in catalogue decision changes.
 Committed the complete conversion in `a5ab8755eb`.
-The full inventory passed 24 chart/theme checks: all node text fits, charts fit their captures,
+The full inventory passed 24 chart/theme checks:
+all node text fits,
+charts fit their captures,
 and every chart scrolls by keyboard to the full horizontal extent at 390-pixel width without page overflow.
-The navigation, all four example tabs, nine answer options, manual examples, and reply branches also pass.
+The navigation,
+all four example tabs,
+nine answer options,
+manual examples,
+and reply branches also pass.
 Browser errors and console records are empty.
 Independent review inspected all 24 screenshots and source edges with no concrete defect found.
 The 18 new inspected light/dark captures contain only PNG image chunks and are retained beside the review;
 the existing startup/group/manual captures remain valid.
 Markdown rendered at `auto-mode-rebuild-plan-render-vtacLQ` before these verification notes.
-Next action: continue architecture review from Q1, Q4, and Q6 answers without reopening deferred built-in contents.
+Next action:
+continue architecture review from Q1,
+Q4,
+and Q6 answers without reopening deferred built-in contents.
 
 ### Flowchart correction, 2026-10-19
 
 The user rejects the card-row drawings as improper flowcharts.
-Replace startup, group review, and manual decision drawings with connected SVG flowcharts:
-process rectangles, decision diamonds, labeled edges, terminal outcomes, and an actual follow-up loop.
+Replace startup,
+group review,
+and manual decision drawings with connected SVG flowcharts:
+process rectangles,
+decision diamonds,
+labeled edges,
+terminal outcomes,
+and an actual follow-up loop.
 Deterministic approve/deny/ask each exit before per-group Luna;
 only unresolved group outcomes reach the batch-limit decision and the focused-question return path.
-Approve and Stop each show optional reason, durable model-visible record, and execution consequence.
+Approve and Stop each show optional reason,
+durable model-visible record,
+and execution consequence.
 Keep text readable through keyboard-accessible horizontal scrolling on narrow screens.
 Tighten the existing proposed `VHI` guidance in the plan to require connected control-flow notation;
-the actual `AGENTS.md` is unchanged. No architecture decision or built-in catalogue choice is reopened.
+the actual `AGENTS.md` is unchanged.
+No architecture decision or built-in catalogue choice is reopened.
 Committed the connected flowcharts in `68fe46015b`.
 Independent SVG and screenshot review found no connection or semantic defect.
 All charts passed light/dark rendering and 390-pixel keyboard scrolling to their full 621-pixel horizontal extent.
-No group-node text exceeds its shape bounds, no page overflow, and page error/console records are empty.
-Existing navigation, scenarios, nine options, manual branches, reply handling, and keyboard activation still pass.
+No group-node text exceeds its shape bounds,
+no page overflow,
+and page error/console records are empty.
+Existing navigation,
+scenarios,
+nine options,
+manual branches,
+reply handling,
+and keyboard activation still pass.
 The six inspected desktop captures contain only PNG image chunks and are retained beside the review.
 Markdown rendered at `auto-mode-rebuild-plan-render-VBQElO` before these verification notes.
-Next action: continue architecture review from Q1, Q4, and Q6 answers; built-in contents remain deferred.
+Next action:
+continue architecture review from Q1,
+Q4,
+and Q6 answers;
+built-in contents remain deferred.
 
 ### Terminal verdict correction, 2026-10-19
 
 The user corrects the invented ambiguous-ask alternative:
-applicable `AGENTS.md` rules can require asking, and Luna only runs after deterministic checks establish no verdict.
-Deterministic approve, deny, and ask each exit automatic review with zero per-group Luna calls.
-Startup relevance remains separate. After Luna, an established group ask prompts the human without another batch.
+applicable `AGENTS.md` rules can require asking,
+and Luna only runs after deterministic checks establish no verdict.
+Deterministic approve,
+deny,
+and ask each exit automatic review with zero per-group Luna calls.
+Startup relevance remains separate.
+After Luna,
+an established group ask prompts the human without another batch.
 Only an unresolved group outcome enters focused follow-up review.
-An ask explanation names the triggering rule, facts, required human decision, and consequences;
+An ask explanation names the triggering rule,
+facts,
+required human decision,
+and consequences;
 it need not invent uncertainty when the rule requires confirmation with all facts known.
 The plan and HTML remove Q2's alternatives and response field and show the terminal deterministic branches.
 Independent read-only review confirmed the flow and the explanation-contract correction.
-The former Q2 screenshots and historical open-question lists record withdrawn proposals, not current requirements.
-Built-in contents remain deferred. Implementation remains stopped.
+The former Q2 screenshots and historical open-question lists record withdrawn proposals,
+not current requirements.
+Built-in contents remain deferred.
+Implementation remains stopped.
 Committed the correction in `5da6f40e9b`.
-The revised artifact passed seven navigation targets, four scenarios, all nine remaining answer options,
-manual decisions with and without reasons, all reply branches, literal text handling, and keyboard activation.
-All 21 controls meet the 48-pixel minimum. Light/dark and 390-pixel checks report no horizontal overflow.
-Page errors and console records are empty; the Q2 field and serialized answer are absent.
+The revised artifact passed seven navigation targets,
+four scenarios,
+all nine remaining answer options,
+manual decisions with and without reasons,
+all reply branches,
+literal text handling,
+and keyboard activation.
+All 21 controls meet the 48-pixel minimum.
+Light/dark and 390-pixel checks report no horizontal overflow.
+Page errors and console records are empty;
+the Q2 field and serialized answer are absent.
 The complete terminal-flow and settled-ask panels fit in both color schemes and were visually inspected.
 Markdown rendered at `auto-mode-rebuild-plan-render-zba1NV` before these verification notes.
 Independent review found no remaining contradiction in the corrected plan or HTML.
-Next action: reopen the verified page in Helium, then continue from user answers to Q1, Q4, and Q6.
+Next action:
+reopen the verified page in Helium,
+then continue from user answers to Q1,
+Q4,
+and Q6.
 
 ### Built-in contents deferred, 2026-10-19
 
 The user says not to decide exactly what the built-in rules are now.
 Withdraw the proposed catalogue from the active plan and HTML without accepting or rejecting its members.
-Retain only multiple built-ins, each included in the first pass with its own four-choice answer,
-alongside every effective authored rule. Exact count, names, identities, and wording remain unspecified.
-Reversibility is an accepted assessment principle, not a finalized built-in rule.
+Retain only multiple built-ins,
+each included in the first pass with its own four-choice answer,
+alongside every effective authored rule.
+Exact count,
+names,
+identities,
+and wording remain unspecified.
+Reversibility is an accepted assessment principle,
+not a finalized built-in rule.
 Do not resume catalogue design or ask catalogue choices in this round.
-Continue architecture review; outstanding Q1, Q2, Q4, and Q6 are unchanged.
+Continue architecture review;
+outstanding Q1,
+Q2,
+Q4,
+and Q6 are unchanged.
 Implementation remains stopped.
 The historical catalogue section and screenshots record an unaccepted proposal only.
 Committed deferral in `cbf9c8cf91`.
-The simplified panel passed light/dark, 390-pixel width, navigation, and rendered-state checks:
-no proposed catalogue entries remain; the four unrelated architecture questions remain available.
-Page errors and console records are empty. Markdown rendered at `auto-mode-rebuild-plan-render-rVRmtV`
+The simplified panel passed light/dark,
+390-pixel width,
+navigation,
+and rendered-state checks:
+no proposed catalogue entries remain;
+the four unrelated architecture questions remain available.
+Page errors and console records are empty.
+Markdown rendered at `auto-mode-rebuild-plan-render-rVRmtV`
 before these verification notes.
-The updated `#q5` page was reopened in Helium; verification browser closed and compositor quit.
-Next action: continue architecture review from user answers without reopening built-in content design.
+The updated `#q5` page was reopened in Helium;
+verification browser closed and compositor quit.
+Next action:
+continue architecture review from user answers without reopening built-in content design.
 
 ### Historical built-in proposal, contents deferred on 2026-10-19
 
@@ -332,137 +602,252 @@ The catalogue in this historical entry is not active or accepted.
 The user reiterates that built-in rules are plural.
 The prior correction overemphasized reversibility and replaced general-agent checks with its subquestions.
 The revised plan and HTML now show a concrete proposed catalogue of distinct criteria:
-useful progress/evidence, suitable tools/arguments, prerequisites, reversibility,
-effects on other people/systems, resource bounds, and explicit human constraints.
+useful progress/evidence,
+suitable tools/arguments,
+prerequisites,
+reversibility,
+effects on other people/systems,
+resource bounds,
+and explicit human constraints.
 Every criterion receives its own four-choice answer in every first-pass review,
-alongside every effective authored rule. Reversibility is not the sole built-in.
-Cross-package tests, exploration, intentional error probes, and reproducibility reruns remain valid work.
+alongside every effective authored rule.
+Reversibility is not the sole built-in.
+Cross-package tests,
+exploration,
+intentional error probes,
+and reproducibility reruns remain valid work.
 Unknown relevance alone does not veto routine reversible exploration.
-The exact catalogue wording remains proposed; no new implementation authorization is inferred.
+The exact catalogue wording remains proposed;
+no new implementation authorization is inferred.
 The HTML moves the full catalogue near the main flow and shows all built-ins feeding the reducer.
 The proposed `QPM` tightening now says a correction to one criterion must preserve other requirements.
-Catalogue committed in `72b75585f1`; exploration clarifications in `5a11ebb5ea`;
+Catalogue committed in `72b75585f1`;
+exploration clarifications in `5a11ebb5ea`;
 independent review corrections in `06a4017136`.
 Independent review confirmed plural criteria and no package-match gate,
 then corrected a publishing restriction example to name a group that actually publishes,
 and required deterministic shortcuts to satisfy other applicable built-ins.
-Verified seven navigation links, four scenarios, 12 answer options, all manual/form branches,
-keyboard behavior, and all 22 controls at least 48 pixels in both dimensions.
-All seven builtin cards render in light/dark and at 390-pixel width without overflow; page logs are empty.
-Three inspected `builtin-` screenshots are retained. Markdown rendering passed at `auto-mode-rebuild-plan-render-77WFdO`
+Verified seven navigation links,
+four scenarios,
+12 answer options,
+all manual/form branches,
+keyboard behavior,
+and all 22 controls at least 48 pixels in both dimensions.
+All seven builtin cards render in light/dark and at 390-pixel width without overflow;
+page logs are empty.
+Three inspected `builtin-` screenshots are retained.
+Markdown rendering passed at `auto-mode-rebuild-plan-render-77WFdO`
 before these evidence notes.
-The updated catalogue was opened in Helium at `#q5`; verification browser closed and compositor quit.
-Next action is to continue plan review from user answers; this correction does not need reconfirmation.
-Open user choices remain Q1, Q2, Q4, and Q6.
+The updated catalogue was opened in Helium at `#q5`;
+verification browser closed and compositor quit.
+Next action is to continue plan review from user answers;
+this correction does not need reconfirmation.
+Open user choices remain Q1,
+Q2,
+Q4,
+and Q6.
 
 ### Reversibility replaces package matching, 2026-10-19
 
 The user rejects preventing coding agents from running tests in another package.
-The better assessment is reversibility, not exact requested-package conformity.
-Retracted the mandatory positive scope gate, package-match follow-ups,
+The better assessment is reversibility,
+not exact requested-package conformity.
+Retracted the mandatory positive scope gate,
+package-match follow-ups,
 and the former Q3/Q5 choice sets based on that framing.
 Routine reversible supporting work may proceed without exact-call human approval.
-Assess actual effects, available restoration, recovery cost, shared/external consequences,
-and preservation of pre-existing human work; do not trust the word `test` as a harmlessness proof.
-Explicit restrictions remain applicable. Implementation remains stopped.
+Assess actual effects,
+available restoration,
+recovery cost,
+shared/external consequences,
+and preservation of pre-existing human work;
+do not trust the word `test` as a harmlessness proof.
+Explicit restrictions remain applicable.
+Implementation remains stopped.
 The revised HTML contrasts disposable cross-package tests with shared-data-reset tests,
 and recoverable experiments with disclosures that deletion cannot reverse.
-Open user choices are now Q1, Q2, Q4, and Q6.
+Open user choices are now Q1,
+Q2,
+Q4,
+and Q6.
 Independent review confirms the rejected package-match gates and distinguishes actual effects from command labels.
-It also clarified that former Q3 only concerned skipping Luna, not prohibiting work;
+It also clarified that former Q3 only concerned skipping Luna,
+not prohibiting work;
 no deterministic shortcut implementation is selected by this correction.
-The old unchanged-retry premise is also withdrawn: repeating a test can gather reproducibility evidence.
-A tightening of existing `AUT` is proposed in the plan, not applied to `AGENTS.md`.
-The correction is committed in `7eee3e5c83`, with independent-review clarifications in `82a720736f`
+The old unchanged-retry premise is also withdrawn:
+repeating a test can gather reproducibility evidence.
+A tightening of existing `AUT` is proposed in the plan,
+not applied to `AGENTS.md`.
+The correction is committed in `7eee3e5c83`,
+with independent-review clarifications in `82a720736f`
 and the scoped guidance proposal in `8f920ee572`.
-Verified four scenarios, six navigation targets, all 12 remaining answer options,
-all manual decision/reason branches, form validation, literal text, selection, and keyboard activation.
-All 21 controls meet 48 pixels in both dimensions. Both color schemes and 390-pixel width passed.
-Page errors and console messages are empty. Five inspected `reversibility-` screenshots are retained.
+Verified four scenarios,
+six navigation targets,
+all 12 remaining answer options,
+all manual decision/reason branches,
+form validation,
+literal text,
+selection,
+and keyboard activation.
+All 21 controls meet 48 pixels in both dimensions.
+Both color schemes and 390-pixel width passed.
+Page errors and console messages are empty.
+Five inspected `reversibility-` screenshots are retained.
 The Markdown render passed at `auto-mode-rebuild-plan-render-BRQ1p7` before evidence notes were appended.
-The verification browser was closed and nested compositor quit; Helium accepted the updated `#meaning` URL.
-Current next action: use the user’s answers to Q1, Q2, Q4, and Q6 to advance the plan review.
-Implementation remains stopped; the accepted reversibility baseline does not require another confirmation.
+The verification browser was closed and nested compositor quit;
+Helium accepted the updated `#meaning` URL.
+Current next action:
+use the user’s answers to Q1,
+Q2,
+Q4,
+and Q6 to advance the plan review.
+Implementation remains stopped;
+the accepted reversibility baseline does not require another confirmation.
 
 ### Every ask explains the decision, 2026-10-19
 
 The user requires decision-relevant information in every ask;
 the human can already see the transcript and `AGENTS.md`.
-The plan now requires the triggering evidence, exact unresolved judgment,
-why automatic review could not settle it, and the effect of Approve versus Stop.
-This covers deterministic asks, model asks, exhausted review, and failures.
-Do not substitute scores or copied context for an explanation, invent model reasoning,
+The plan now requires the triggering evidence,
+exact unresolved judgment,
+why automatic review could not settle it,
+and the effect of Approve versus Stop.
+This covers deterministic asks,
+model asks,
+exhausted review,
+and failures.
+Do not substitute scores or copied context for an explanation,
+invent model reasoning,
 or mislabel missing reviewer context as missing human input.
-Persist the explanation with the snapshot, choice, and optional reason.
+Persist the explanation with the snapshot,
+choice,
+and optional reason.
 The HTML manual example now demonstrates an upload whose destination identity is unresolved.
 This requirement does not answer the outstanding Q1 through Q6 choices or authorize implementation.
-A tightening of existing `DGT` is proposed in the plan, not applied to `AGENTS.md`.
+A tightening of existing `DGT` is proposed in the plan,
+not applied to `AGENTS.md`.
 Committed the requirement and example in `39c2793ae5`.
-The revised example passed Approve/Stop with and without reasons, literal-text preservation,
-light/dark rendering, and 390-pixel width, with no page errors or console messages.
+The revised example passed Approve/Stop with and without reasons,
+literal-text preservation,
+light/dark rendering,
+and 390-pixel width,
+with no page errors or console messages.
 Retained `explained-ask-light.png` and `explained-ask-dark.png` beside the review.
 Markdown rendering passed at `auto-mode-rebuild-plan-render-HGeAJm`;
 verification evidence is committed in `751e1a630d`.
-The updated `#manual` example was reopened in Helium, which reported “Opening in existing browser session.”
+The updated `#manual` example was reopened in Helium,
+which reported “Opening in existing browser session.”
 The disposable browser was closed and the nested compositor accepted `quit`.
-The current plan questions remain open; this clarification is adopted without requesting confirmation.
+The current plan questions remain open;
+this clarification is adopted without requesting confirmation.
 
 ### User-defined staged review, 2026-10-19
 
 The latest user message replaces the proposed first-pass question selector and three-choice interpretation.
-The plan and HTML now follow this settled sequence. Browser and Markdown checks passed, and the updated review was opened in Helium:
+The plan and HTML now follow this settled sequence.
+Browser and Markdown checks passed,
+and the updated review was opened in Helium:
 
-- Stage 0: on every Pi start, send parsed `AGENTS.md` rules to Luna for potential relevance.
-  Materialize the effective ruleset, expected to contain about 100 rules, and add general-agent built-in rules.
-  The count is an expectation, not a quota or a reason to pad or discard rules.
+- Stage 0:
+  on every Pi start,
+  send parsed `AGENTS.md` rules to Luna for potential relevance.
+  Materialize the effective ruleset,
+  expected to contain about 100 rules,
+  and add general-agent built-in rules.
+  The count is an expectation,
+  not a quota or a reason to pad or discard rules.
 - Capture every pending tool-call set as a complete group and parse every member deeply.
-- Deterministic checks may immediately produce `approve`, `deny`, or `ask` from the parsed results.
-- Otherwise send the complete prepared group, effective ruleset, and bounded visible context to Luna.
+- Deterministic checks may immediately produce `approve`,
+  `deny`,
+  or `ask` from the parsed results.
+- Otherwise send the complete prepared group,
+  effective ruleset,
+  and bounded visible context to Luna.
   Context length is `clamp(5, turns since last user message, 10)`;
   a turn is an assistant thinking/output block or a tool-call set.
-  Every effective rule is a question. Code must not select a useful subset for this first pass.
-- Each question offers `approve`, `deny`, `ask`, and `not-applicable`.
-  Normalize answers into an attributed object; code determines the group outcome.
-- If unresolved, ask a new set of focused questions addressing why the evidence is insufficient.
-  At most three batches; unresolved after that routes to the user.
+  Every effective rule is a question.
+  Code must not select a useful subset for this first pass.
+- Each question offers `approve`,
+  `deny`,
+  `ask`,
+  and `not-applicable`.
+  Normalize answers into an attributed object;
+  code determines the group outcome.
+- If unresolved,
+  ask a new set of focused questions addressing why the evidence is insufficient.
+  At most three batches;
+  unresolved after that routes to the user.
 - Manual Approve records "user approved tool call ..." in session state.
   Manual Stop records "user declined tool call ...".
   Both offer an optional reason and record it in session state.
 
-Read-only follow-up confirms the startup classifier exists, but warm caches skipped model calls;
+Read-only follow-up confirms the startup classifier exists,
+but warm caches skipped model calls;
 the new every-start instruction supersedes that optimization.
-Its old remit excluded workflow, testing, documentation, and tool-choice rules;
-historical evidence retained 25 of 211, not the newly expected approximately 100.
-Pi exposes separate `select` and `input`; custom TUI forms are unavailable through its RPC custom method.
-`appendEntry` is audit-only; `sendMessage` with `triggerTurn:false` can make feedback visible to the agent.
+Its old remit excluded workflow,
+testing,
+documentation,
+and tool-choice rules;
+historical evidence retained 25 of 211,
+not the newly expected approximately 100.
+Pi exposes separate `select` and `input`;
+custom TUI forms are unavailable through its RPC custom method.
+`appendEntry` is audit-only;
+`sendMessage` with `triggerTurn:false` can make feedback visible to the agent.
 Converted custom feedback and compaction summaries use API user roles,
 so context anchoring must use original human-message provenance.
 
-The old `unknown` was an explicit caller-defined choice, not automatic provider uncertainty.
+The old `unknown` was an explicit caller-defined choice,
+not automatic provider uncertainty.
 The four-choice contract therefore needs an explicit numeric admission decision;
 do not substitute `ask` or `1 - confidence` into the old threshold silently.
-Remaining visual questions should concern real unresolved semantics, such as this score mapping and the
-last human instruction when it lies outside the ten-turn history cap, rather than reopen settled stages.
-The rewritten plan is committed in `030091cf07`. The replacement HTML shows only the active staged architecture.
-Its current questions cover four-choice score admission, admitted ask meaning, deterministic approval scope,
-latest-human anchoring, built-in coverage, and sequential preparation timing.
+Remaining visual questions should concern real unresolved semantics,
+such as this score mapping and the
+last human instruction when it lies outside the ten-turn history cap,
+rather than reopen settled stages.
+The rewritten plan is committed in `030091cf07`.
+The replacement HTML shows only the active staged architecture.
+Its current questions cover four-choice score admission,
+admitted ask meaning,
+deterministic approval scope,
+latest-human anchoring,
+built-in coverage,
+and sequential preparation timing.
 A separate factual review confirms alignment with the latest instruction.
-Dependency inventory, parser/logger findings, and implementation stop are preserved.
-Verified the new HTML: six navigation targets, four scenarios, all 18 answer options,
-manual Approve/Stop with and without reasons, form validation, literal notes, selection, and keyboard use.
-All 23 controls meet 48 pixels in both dimensions. Both color schemes and 390-pixel width passed.
-No console messages or browser errors. Expanded Q5/Q6 panels were checked again after their final content edits.
+Dependency inventory,
+parser/logger findings,
+and implementation stop are preserved.
+Verified the new HTML:
+six navigation targets,
+four scenarios,
+all 18 answer options,
+manual Approve/Stop with and without reasons,
+form validation,
+literal notes,
+selection,
+and keyboard use.
+All 23 controls meet 48 pixels in both dimensions.
+Both color schemes and 390-pixel width passed.
+No console messages or browser errors.
+Expanded Q5/Q6 panels were checked again after their final content edits.
 Screenshots with the `staged-` prefix are retained beside the HTML.
 The Markdown renderer passed at `auto-mode-rebuild-plan-render-m8SREJ` under durable scratch.
-Commit `73c90ccb77` contains the new HTML; `3d034972e5` adds full built-in wording and the host timeline.
-Commit `1a8758044e` is empty after replay: its intended newline fix was already applied in the parent.
-A corrective GitHub commit comment records that distinction; no history was amended.
+Commit `73c90ccb77` contains the new HTML;
+`3d034972e5` adds full built-in wording and the host timeline.
+Commit `1a8758044e` is empty after replay:
+its intended newline fix was already applied in the parent.
+A corrective GitHub commit comment records that distinction;
+no history was amended.
 Verification evidence is committed in `6934973012`.
-The final evidence-bearing Markdown rendered at `auto-mode-rebuild-plan-render-dNtIOb`; all 30 local links resolved.
-The Helium launcher reported “Opening in existing browser session.” for the updated review.
+The final evidence-bearing Markdown rendered at `auto-mode-rebuild-plan-render-dNtIOb`;
+all 30 local links resolved.
+The Helium launcher reported “Opening in existing browser session.”
+for the updated review.
 The disposable verification browser was closed and the nested compositor accepted `quit`.
-Current round: await Q1 through Q6 answers or corrections from the HTML form.
-No answer is implementation authorization; the broader plan review remains active.
+Current round:
+await Q1 through Q6 answers or corrections from the HTML form.
+No answer is implementation authorization;
+the broader plan review remains active.
 No plugin implementation is authorized by this planning clarification.
 
 ### Historical visual review, superseded by the staged contract on 2026-10-19
@@ -476,7 +861,8 @@ The user rejected text-only architecture questions and requires HTML diagrams.
 The user also requires opening the HTML review in Helium as part of the handoff.
 The installed `${HOME}/AppImages/helium.appimage` accepted the review URL
 and reported "Opening in existing browser session."
-The initial Q1 is withdrawn pending visual examples; its proposed per-rule meaning is not accepted.
+The initial Q1 is withdrawn pending visual examples;
+its proposed per-rule meaning is not accepted.
 The user also rejected Q2's inferred shortage of useful follow-ups,
 then clarified that the around-100 minimum was set because potentially useful questions remain plentiful.
 Unresolved-rule count is not useful-question count.
@@ -486,53 +872,80 @@ The [updated plan](../../package/pi-plugin/auto-mode/doc/planning/ground-up-rebu
 and [visual review](../../package/pi-plugin/auto-mode/doc/planning/ground-up-rebuild-review.html)
 show the corrected adaptive pool and proposed decision examples.
 That artifact asked about the meaning of each rule’s approval under complete context.
-The user subsequently settled the four-choice contract; that old question is withdrawn.
+The user subsequently settled the four-choice contract;
+that old question is withdrawn.
 The HTML response is about plan semantics and does not authorize implementation.
 
 Read-only source review corrected the nested host entry to `runToolCall`,
 identified sequential preparation timing as a real integration constraint,
 and distinguished raw branch entries from effective session context.
-Parser field omissions, logger output/drain behavior, and replacement task migration are qualification prerequisites.
+Parser field omissions,
+logger output/drain behavior,
+and replacement task migration are qualification prerequisites.
 The source findings are not replacement runtime evidence.
 
-Commits `cd5d6b3b35`, `6f6d46ba30`, and `5ad93dadfb` record the review findings,
-the corrected question-pool premise, and the HTML scenarios respectively.
+Commits `cd5d6b3b35`,
+`6f6d46ba30`,
+and `5ad93dadfb` record the review findings,
+the corrected question-pool premise,
+and the HTML scenarios respectively.
 Visual verification uses a disposable Chrome profile in a nested compositor.
-All scenario controls and form branches passed; 16 controls meet a measured 48-pixel minimum in both dimensions.
-All scenarios render in light and dark mode; every section fits a 390-pixel viewport without horizontal overflow.
+All scenario controls and form branches passed;
+16 controls meet a measured 48-pixel minimum in both dimensions.
+All scenarios render in light and dark mode;
+every section fits a 390-pixel viewport without horizontal overflow.
 Browser error and console records are empty.
 Evidence is under `${HOME}/temp/agent/auto-mode-visual-review-20261019`.
-The diagrams await the user's answer; reduction, reassessment conflict handling,
-host group semantics, and remaining review branches follow that answer and their independent evidence.
+The diagrams await the user's answer;
+reduction,
+reassessment conflict handling,
+host group semantics,
+and remaining review branches follow that answer and their independent evidence.
 
 ### Implementation stopped for plan review, 2026-10-19
 
 The user explicitly stops implementation and requests a Markdown plan for review.
-Do not build anything, write replacement source, install dependencies, change package configuration,
+Do not build anything,
+write replacement source,
+install dependencies,
+change package configuration,
 or continue the legacy removal queue while this review is pending.
 The requested artifact is
 [the package ground-up rebuild plan](../../package/pi-plugin/auto-mode/doc/planning/ground-up-rebuild.md).
 It inventories proposed dependency functions and necessity,
-high-level modules, estimated character budgets, deployment budgets, and unresolved integration decisions.
-These budgets are proposals, not measured implementation footprints.
-The current task ends with the rendered, committed plan and a review handoff.
+high-level modules,
+estimated character budgets,
+deployment budgets,
+and unresolved integration decisions.
+These budgets are proposals,
+not measured implementation footprints.
+The current task ends with the rendered,
+committed plan and a review handoff.
 Discussion of the plan alone is not authorization to resume implementation.
 The draft is committed as `13c7a2767b`.
-Documentation-only verification, `mise run verify-rebuild-plan` in the preparation-failure scratch directory,
+Documentation-only verification,
+`mise run verify-rebuild-plan` in the preparation-failure scratch directory,
 renders the plan and handover through Pandoc and checks their local links.
 The first receipt is `auto-mode-rebuild-plan-render-bKxA2N/receipt.json` under the durable agent scratch root:
-both documents render and all 17 local links resolve within two GiB and two CPUs, without network access.
-No package build, dependency installation, or replacement source execution ran for the plan.
+both documents render and all 17 local links resolve within two GiB and two CPUs,
+without network access.
+No package build,
+dependency installation,
+or replacement source execution ran for the plan.
 The user's subsequent assessment question does not lift the implementation stop.
 The plan now explicitly records why it is not ready for implementation approval:
-an unqualified private host hook, unresolved behavioral reduction and shadow accounting,
-unbounded persistent log retention, unproven size fit, and an incomplete transitive development inventory.
+an unqualified private host hook,
+unresolved behavioral reduction and shadow accounting,
+unbounded persistent log retention,
+unproven size fit,
+and an incomplete transitive development inventory.
 Do not describe the dependency inventory or the architecture as fully validated.
 
 ### Fresh implementation in main, 2026-10-19
 
 The user authorizes starting auto-mode over completely.
-Preserve current HEAD in a separate worktree for reference, then rebuild in `main`.
+Preserve current HEAD in a separate worktree for reference,
+then rebuild in `main`.
 Do not spend time identifying individual parts to retire.
 The requested reference worktree is
 `/var/home/user/temp/agent/pi-auto-mode-before-rebuild-20261019`,
@@ -548,14 +961,21 @@ The user specifies rule-versus-current-request evaluation:
 Each call is expected to assess 100 or more rule-versus-request questions together.
 The user's correction explicitly rejects interpreting this as a handful of questions.
 Verify the actual outgoing payloads at that scale.
-Questions concern approval and denial, with unknown probability;
+Questions concern approval and denial,
+with unknown probability;
 do not reconstruct permission/prohibition/heading/adoption taxonomies.
-Our code determines approve, deny, or ask.
+Our code determines approve,
+deny,
+or ask.
 Allow at most three sequential batches and at most three parallel calls per batch.
 Subsequent batches adapt their questions to the remaining uncertainty.
-Stop when resolved; ask if uncertainty remains after the final batch.
-With `unknown >= 0.2`, an executed action must score `>= 0.6`; otherwise ask.
-With `unknown < 0.2`, select the highest-scored action.
+Stop when resolved;
+ask if uncertainty remains after the final batch.
+With `unknown >= 0.2`,
+an executed action must score `>= 0.6`;
+otherwise ask.
+With `unknown < 0.2`,
+select the highest-scored action.
 Ties remain unresolved.
 Use platform `fetch` for provider calls and no direct `pi-ai` or `openai` package usage.
 Keep Span 02 as a shadow without decision authority.
@@ -570,22 +990,29 @@ Independently verifiable work:
 - Implement adaptive rule review and deterministic resolution with captured-request tests.
 - Implement actual Pi complete-group integration and cancellation cleanup.
 - Implement plain-fetch Luna transport and matching Span 02 shadow requests.
-- Verify through configured Pi sessions, finish package lint and tests, and measure source characters and disk use.
+- Verify through configured Pi sessions,
+  finish package lint and tests,
+  and measure source characters and disk use.
 - Document the purpose of every substantial module inside the package.
 
 Do not revive the legacy lint-repair queue for source being replaced.
-The user corrected another delay: the assistant described a fresh rebuild while leaving `src` in place.
+The user corrected another delay:
+the assistant described a fresh rebuild while leaving `src` in place.
 The three uncommitted source edits are now preserved in `3ef7f32d19`.
 `git rm -r -- package/pi-plugin/auto-mode/src` removed the legacy source from `main`;
 `test ! -e package/pi-plugin/auto-mode/src` confirms the directory is absent.
-The package is intentionally between implementations, with no replacement build or test claim.
+The package is intentionally between implementations,
+with no replacement build or test claim.
 The two untracked legacy TypeScript probe configs remain untouched:
-their owner is host UID `524288` and mode is `700`, so the attempted five-file checkpoint failed
-with `git-policy-cli` diagnostic `content-unavailable`, reporting Git's `Permission denied`.
+their owner is host UID `524288` and mode is `700`,
+so the attempted five-file checkpoint failed
+with `git-policy-cli` diagnostic `content-unavailable`,
+reporting Git's `Permission denied`.
 The subsequent three-source-file checkpoint succeeded.
 Recover the probe configs' ownership and checkpoint their contents before removing them.
 The legacy worker containers are absent from the running-container inspection;
-the remaining shadow, IDE and unrelated container mounts do not include either worker fixture as writable state.
+the remaining shadow,
+IDE and unrelated container mounts do not include either worker fixture as writable state.
 RPC abort commands were submitted to both legacy workers;
 their controller state files remain at 13:15 while submitted commands remain unconsumed at 13:25.
 Establish whether their processes are still alive before checkpointing their files.
@@ -607,25 +1034,34 @@ with `respan/span-02-20261015` and correlated with actual Luna diagnostics:
 native captures `130`/`131` and source captures `166`/`167`.
 Both one-head operation decisions agree;
 seven meaning/admission heads differ across the two 27-head clause assessments.
-This is model disagreement, not established correctness.
+This is model disagreement,
+not established correctness.
 No shadow request failed in this initial sample.
 Its measured call intervals span `640.827` to `4259.027` milliseconds.
 The live runner is the immutable launch copy recorded by its manifest digests.
 Later private source edits adding boolean questions and input-error isolation remain undeployed.
-Next: inspect the differing clause heads,
+Next:
+inspect the differing clause heads,
 qualify observer recovery and bounded retention,
 then ship a maintained runner without coupling it to primary decisions.
 The differing heads have now been inspected in the bounded sidecar container;
 `output/disagreements-inspected.json` retains the exact comparisons and selected source spans.
-The initial differences include PX1, PX2, PX3, RXI, SPG and conversation-span interpretation.
-Later source capture `168`, head `25`, is especially relevant:
+The initial differences include PX1,
+PX2,
+PX3,
+RXI,
+SPG and conversation-span interpretation.
+Later source capture `168`,
+head `25`,
+is especially relevant:
 Luna chooses prohibition at `0.35` with unknown `0.17`;
 Span chooses none at `0.9038082` with unknown `0.05124579`.
 The shared new categorical rule would admit both meanings.
 The current live artifact still uses its older admission policy.
 The asynchronous categorical-scope question was rejected by the user on 2026-10-19.
 Rule-versus-request approval/denial questions replace the meaning-classification pipeline.
-Keep these captures as historical evidence, not verification of the replacement.
+Keep these captures as historical evidence,
+not verification of the replacement.
 The idle native worker received an actual RPC `prompt` to resume its queued fixture work.
 RPC `follow_up` alone had queued the instruction without starting that idle worker.
 The source worker acknowledged the no-SDK constraint and continues its scoped checkpoint.
@@ -649,8 +1085,10 @@ Native SDK staging and serializer extraction remain to be replaced.
 The user prohibits `pi-ai` and `openai` package usage and requires plain `fetch` for API calls.
 Do not recover the native build by reinstalling or reconnecting either package.
 The existing Decisions transport and the completed Span 02 trial already use direct HTTP.
-The unwanted coupling remains in native source emission, provider serializer extraction,
-producer fixtures/contracts, and visible-message type imports.
+The unwanted coupling remains in native source emission,
+provider serializer extraction,
+producer fixtures/contracts,
+and visible-message type imports.
 Remove that coupling while preserving the actual Pi host integration and permission behavior.
 The assistant's suggestion to replace API calls through Pi was corrected by the user:
 API calls use platform `fetch`.
@@ -658,9 +1096,11 @@ API calls use platform `fetch`.
 The interrupted dependency-inspection command partially changed the private inspector to resolve
 the installed `pi-ai` sibling by filesystem path.
 Do not run that inspector as a recovery path.
-Shared installed Pi is now `1.3.0`, while the maintained native source qualification remains `1.2.0`.
+Shared installed Pi is now `1.3.0`,
+while the maintained native source qualification remains `1.2.0`.
 A fresh cancellation-regression build stopped with Node's `Cannot find module 'openai'` before the test ran.
-This is a build failure, not a cancellation-test result.
+This is a build failure,
+not a cancellation-test result.
 The installed active native release remains unchanged.
 
 The uncertainty-rule controls completed 13 recorded steps in
@@ -670,7 +1110,8 @@ restoring the actual rule made both native boundary cases and the unit suite pas
 The refined candidate also passed all nine real producer-lifetime case receipts.
 Commit `20c90b6b18` introduced a fixture verifier that swallowed assertion failures;
 `b86bc331cd` repaired it.
-The original `3a21255dde` verifier rethrew failures, so its older guard evidence remains valid.
+The original `3a21255dde` verifier rethrew failures,
+so its older guard evidence remains valid.
 
 The native MiMo worker finished its separate main-agent and auxiliary type controls.
 Its restored full check is blocked by concurrent shell-analyzer type drift;
@@ -684,27 +1125,38 @@ coordinate the new dependency constraint before touching those files.
 
 The user replaces the unconditional action-score floor with an exact uncertainty-dependent rule:
 `unknown < 0.2` selects the uniquely highest-scored supported action;
-`unknown >= 0.2` requires that action to score `>= 0.6`, otherwise ask.
+`unknown >= 0.2` requires that action to score `>= 0.6`,
+otherwise ask.
 Ties and unresolved winning labels still ask.
 The shared categorical admission function implements this rule in `c5fe88ee50`,
-with independent exact-boundary tests; `008066f50e` adds native incident and denial counterparts.
-Frozen `uncertainty-policy` passes both builds, full types, built policy tests and the full native fallback catalog.
+with independent exact-boundary tests;
+`008066f50e` adds native incident and denial counterparts.
+Frozen `uncertainty-policy` passes both builds,
+full types,
+built policy tests and the full native fallback catalog.
 The exact `0.56/0.38/0.06` mode executes both calls with zero selections;
 the reversed denial executes none with zero selections.
 Scoped lint still reports findings and rebuilt negative controls remain required.
 The broader native semantic task fails its `none` assertion (`unresolved` versus `unspecified`)
 on both the new build and the previously frozen SDK combined baseline.
-This failure predates the uncertainty change; inspect the final fallback semantics before updating that assertion.
+This failure predates the uncertainty change;
+inspect the final fallback semantics before updating that assertion.
 
 The user requests a bounded trial of `https://openrouter.ai/respan/span-02`
 using scoped `AUTO_MODE_OPENROUTER_API_KEY`.
-Current anonymous endpoint metadata advertises `respan/span-02-20261015`, 131,072 context tokens
+Current anonymous endpoint metadata advertises `respan/span-02-20261015`,
+131,072 context tokens
 and prompt pricing of USD 0.01 per million tokens.
-Fetches are retained as `span-02-endpoints.json`, `span-02-page.html` and `openrouter-decisions-current.md`.
-Next: call the documented Decisions endpoint with the original captured state string and mapped criteria,
-preserving original instruction text and distributions; compare recorded requests and an explicit prohibition control.
-This authorizes a trial, not changing the production provider.
-The trial completes as `span02-trial-gXoI7U`: all eight HTTP calls route as authored.
+Fetches are retained as `span-02-endpoints.json`,
+`span-02-page.html` and `openrouter-decisions-current.md`.
+Next:
+call the documented Decisions endpoint with the original captured state string and mapped criteria,
+preserving original instruction text and distributions;
+compare recorded requests and an explicit prohibition control.
+This authorizes a trial,
+not changing the production provider.
+The trial completes as `span02-trial-gXoI7U`:
+all eight HTTP calls route as authored.
 The recorded escalation's three Span 02 repeats approve at `0.982006` to `0.98549366`;
 both explicit prohibition controls deny.
 Its original state SHA-256 matches the Luna incident exactly.
@@ -713,50 +1165,72 @@ Keep provider adoption separate from the completed trial.
 
 The per-message fixed-prefix audit counts 636,425 complete input-budget validations,
 797,221 readable-policy freshness checks and 158,257 native finalizations across 58 prepared batches.
-The call amplification needs a source/runtime causal probe, rather than a logger-level workaround.
+The call amplification needs a source/runtime causal probe,
+rather than a logger-level workaround.
 Root accidentally searched the whole scratch tree on the host and interrupted it with SIGINT;
 the process audit confirms no matching `rg --files --glob` remains.
 Further scratch traversal must remain narrowly scoped or wholly container-bounded.
 
 Source MiMo's `b86bc331cd` restores real semantic case receipts and failure propagation:
-the prior fixture `verify()` swallowed assertions, so prior exit-zero producer results alone were insufficient.
+the prior fixture `verify()` swallowed assertions,
+so prior exit-zero producer results alone were insufficient.
 Source subsequently reports all nine real cases passing and is fixing the authored values helper's lint.
 Root allows Native's private wrapper mutation in dialog `091c826d-82db-4d89-b05c-42f77dbf7678`;
-the backend advances to 74 completed tools, so the UI response was actually consumed.
+the backend advances to 74 completed tools,
+so the UI response was actually consumed.
 
 The user corrected root's claim that omitting `APG` establishes a concrete authorization gap.
 That claim is retracted.
-`APG` states that auto-push is enabled; it does not authorize or prohibit the operation.
-Captured requests include `PX3`, which addresses local work and current-repository GitHub mutations.
+`APG` states that auto-push is enabled;
+it does not authorize or prohibit the operation.
+Captured requests include `PX3`,
+which addresses local work and current-repository GitHub mutations.
 The measured absence of `APG` proves neither lost permission evidence nor the cause of the low operation score.
 The command's actual effects and its authorization remain separate questions.
 Do not broaden policy material or change the admission cutoff on the basis of that unsupported inference.
 Continue investigating the actual supplied permission evidence and unchanged-request variation.
 
 Unchanged request `assessment-request-72.json` is replayed three times through the built HTTP sender
-and maintained response decoder, without executing any proposed operation.
-All three replies are HTTP 200 and return `approve: 0.84`, `deny: 0.05`, `unknown: 0.11`.
-The observed cache headers are absent, which does not prove caching is absent.
+and maintained response decoder,
+without executing any proposed operation.
+All three replies are HTTP 200 and return `approve: 0.84`,
+`deny: 0.05`,
+`unknown: 0.11`.
+The observed cache headers are absent,
+which does not prove caching is absent.
 The subsequent correlation matches request 72 to a different original operation that also returned `0.84`.
-Receipt: `unchanged-decision-repeat-K6yOaJ/home/results.json`.
-The replay is sequential inside two-GiB/two-CPU bounds, with a ninety-second signal per call.
+Receipt:
+`unchanged-decision-repeat-K6yOaJ/home/results.json`.
+The replay is sequential inside two-GiB/two-CPU bounds,
+with a ninety-second signal per call.
 
 Correlation `native-review-correlated-da1cYH/summary.json` identifies request 70 as the actual escalation:
 operation `60b75ac8dcf40ec043f41af2f37f28996ad0ebcd021e4b7db18c20e1d26694d7`,
 state `9f7fc7d610e6b2b3a7511b1ff5f1914d5e3f68308c36542d9229096a9dcbf44c`.
 Three unchanged replays of that exact request all reproduce HTTP 200 and
-`approve: 0.56`, `deny: 0.38`, `unknown: 0.06`.
-Receipt: `unchanged-decision-repeat-OVeEzC/home/results.json`.
-There is no observed variation in these repetitions; absent cache headers do not establish fresh inference.
+`approve: 0.56`,
+`deny: 0.38`,
+`unknown: 0.06`.
+Receipt:
+`unchanged-decision-repeat-OVeEzC/home/results.json`.
+There is no observed variation in these repetitions;
+absent cache headers do not establish fresh inference.
 Request 74 belongs to another operation with an original `0.89` approval score.
-Do not describe differences between requests 70, 72 and 74 as unchanged-input variability.
+Do not describe differences between requests 70,
+72 and 74 as unchanged-input variability.
 
 Frozen combined `sdk-fixture-combined-candidate-TBuHtp` at `ed094e76f2` passes fresh JS/native builds,
-full types, assessment transport units, the complete decision-fallback catalog and producer lifetime/retirement.
+full types,
+assessment transport units,
+the complete decision-fallback catalog and producer lifetime/retirement.
 Its twenty-file scope reports 111 warnings and fifteen errors.
-The HTTP fixture owns 81 warnings; the producer values, fixture and mutation own all other findings.
-Root and Native owner files have zero findings in this scope, which is not a full-package lint result.
-Receipt: `sdk-fixture-combined-results.json`.
+The HTTP fixture owns 81 warnings;
+the producer values,
+fixture and mutation own all other findings.
+Root and Native owner files have zero findings in this scope,
+which is not a full-package lint result.
+Receipt:
+`sdk-fixture-combined-results.json`.
 
 Fixed-prefix log audit `native-log-volume-GMtZqz/summary.json` parses 6,695,322 records
 from 1,044,769,605 bytes.
@@ -766,36 +1240,50 @@ Native-host and readable-policy binding contribute another 263,320,014 bytes.
 Assessment-evidence tags contribute 14,009,349 bytes across 188 records.
 Most measured volume therefore comes from repeated short records.
 Trace actual call amplification before changing logger behavior or claiming a queue leak.
-The receipt-budget implementation validates internal counters, not incoming SDK message categories.
-Its policy-loader caller also serializes retained receipts repeatedly; measure its invocation boundary.
+The receipt-budget implementation validates internal counters,
+not incoming SDK message categories.
+Its policy-loader caller also serializes retained receipts repeatedly;
+measure its invocation boundary.
 
 Source checkpoints `7f482cf7af` and `ed094e76f2` port the authored fixture values to real SDK types
 and correct contextual widening of the mutable model input array.
-Source MiMo is verifying full types and the nine semantic cases, then completing its owned scope.
+Source MiMo is verifying full types and the nine semantic cases,
+then completing its owned scope.
 Native MiMo is still proving private wrapper controls and owned lint.
 Its report of 99 other fixture compiler errors is not a green whole-package compiler result;
-require an explicitly isolated, zero-error compiler baseline before claiming those controls pass.
-Next assigned native repair after those controls: the HTTP fixture's 81 scoped warnings,
+require an explicitly isolated,
+zero-error compiler baseline before claiming those controls pass.
+Next assigned native repair after those controls:
+the HTTP fixture's 81 scoped warnings,
 using actual maintained protocol types and preserving real outbound-request assertions.
 
-Root checkpoints `73c798fd8b`, `8b77ad7bf4` and `23088d1d4a` preserve formatting,
+Root checkpoints `73c798fd8b`,
+`8b77ad7bf4` and `23088d1d4a` preserve formatting,
 correct the wrapper type-check direction and keep aggregate members unknown during classification.
 Frozen combined `post-style-combined-candidate-ZwhD7d` at `8b77ad7bf4` passes both builds,
-full types, assessment transport units, all decision-fallback cases and producer lifetime/retirement.
+full types,
+assessment transport units,
+all decision-fallback cases and producer lifetime/retirement.
 The first lifetime invocation failed in the scratch task allow-list before running a consumer;
 the registered follow-up actually passes both producer consumers.
 The first scope task attempted to rebuild the shared Oxlint config on a read-only mount.
 Giving only that config's generated `dist` a disposable writable mount makes the real task run.
 It reports 84 warnings/zero errors on sixteen files and 486 rules.
-Eighty-one warnings remain in the HTTP fixture; the other three are fixed in `23088d1d4a`
+Eighty-one warnings remain in the HTTP fixture;
+the other three are fixed in `23088d1d4a`
 and need fresh compilation/scope on a new frozen candidate.
-The handover and package documents render: 49 documents, zero broken local links.
+The handover and package documents render:
+49 documents,
+zero broken local links.
 
 Decoded native decision records establish why the valid scoped commit escalated:
 review `0a9d99e3-941a-456a-8361-708b3a64f23d` receives an operation-decision estimate
-`approve: 0.56`, `deny: 0.38`, `unknown: 0.06` from `openai/gpt-6-luna-decisions`.
+`approve: 0.56`,
+`deny: 0.38`,
+`unknown: 0.06` from `openai/gpt-6-luna-decisions`.
 The adopted 0.6 cutoff routes that estimate to manual review.
-This explains routing, not why the model doubts the authorized operation.
+This explains routing,
+not why the model doubts the authorized operation.
 Inspect the original supplied policy/conversation and unchanged-request variation before changing policy.
 Receipt `native-review-trace-NxM2p6/summary.json` scans 2,374 events with zero skipped records.
 The logger stores JSONL envelopes whose `message` contains the tagged decision JSON;
@@ -803,12 +1291,16 @@ looking for unescaped JSON in raw lines misses the evidence.
 The first 128-MiB and 512-MiB bounded scans hit their explicit byte limits and establish no absence.
 The completed scan reads 1,077,602,982 bytes within two-GiB/two-CPU bounds.
 Its two substantial private worker logs measure 569,531,445 and 475,233,446 bytes at inventory time.
-Measure emitting tags and duplication; disk volume is an open investigation, not proof of a logger queue leak.
+Measure emitting tags and duplication;
+disk volume is an open investigation,
+not proof of a logger queue leak.
 
-Source MiMo then escalates an ordinary explicit five-path `git add`, again on the older pinned artifact.
+Source MiMo then escalates an ordinary explicit five-path `git add`,
+again on the older pinned artifact.
 Root inspects its whole prepared group and sends Allow for dialog
 `669aba43-edae-4f6d-97d7-0d4eec72d28b` to continue the already authorized work.
-The deleted MJS path was already staged; inspect the real tool result before prescribing repeat staging.
+The deleted MJS path was already staged;
+inspect the real tool result before prescribing repeat staging.
 No general claim of freedom from false escalations is supported.
 
 The bounded heap analyzer accepts the repeat snapshot and finds the actual 2,097,168-byte control backing store.
@@ -816,33 +1308,43 @@ Its largest request-body strings are 7,405,880 and 7,405,328 bytes,
 reachable respectively through observation `currentScope` and runtime `lastReview`.
 Other paths expose retained source-contribution/context copies and the chunk interner.
 Receipt `retained-heap-analysis-anchored-repeat-dvCipA/heap-summary.json` records the graph.
-These are strong graph paths, not dominator sizes or proof of the remaining growth cause.
+These are strong graph paths,
+not dominator sizes or proof of the remaining growth cause.
 
 `cff20750f2` fixes temporary HTTP 503 classification within the existing bounded retry allowance.
 Separate candidate `unavailable-http-green-candidate-LTnUVp` passes fresh JS/native builds,
-full types, assessment transport units and the complete native decision-fallback catalog.
-Both unavailable approval and denial require three physical attempts, two successful assessments
-and zero selections; approval executes two calls while denial executes none.
-The rebuilt guard experiment removes only 503 classification, rebuilds JS/native,
+full types,
+assessment transport units and the complete native decision-fallback catalog.
+Both unavailable approval and denial require three physical attempts,
+two successful assessments
+and zero selections;
+approval executes two calls while denial executes none.
+The rebuilt guard experiment removes only 503 classification,
+rebuilds JS/native,
 and fails the intended unit classification and native three-attempt assertion.
 Restoring and rebuilding makes both pass.
 Receipt `http-unavailable-built-guard-results.json` is complete with eight rows.
 
 The native worker's valid scoped commit still reaches manual approval on its older qualified artifact.
 Its capture inspection `replay-failure-ACHCyt/summary.json` finds 87 HTTP 200 responses and no other statuses.
-This is a separate unresolved escalation, not evidence that the HTTP 503 fix addresses it.
-The capture preloader saves request bodies and response statuses, not response bodies.
+This is a separate unresolved escalation,
+not evidence that the HTTP 503 fix addresses it.
+The capture preloader saves request bodies and response statuses,
+not response bodies.
 Trace correlated decision diagnostics before assigning its cause.
 The root-pinned native artifact remains unchanged.
 
 The independent unchanged content-aligned repeat in `8MVcK9` completes 36 tools and exits zero/signal null.
-Heap samples after 12, 24 and 36 tools are respectively
+Heap samples after 12,
+24 and 36 tools are respectively
 151,188,176/151,157,456/151,157,456 bytes,
 157,287,888/157,281,160/157,281,160 bytes and
 165,338,400/163,369,656/163,364,264 bytes.
-Its final heap snapshot is 104,143,256 bytes, collected within the same two-GiB/two-CPU container
+Its final heap snapshot is 104,143,256 bytes,
+collected within the same two-GiB/two-CPU container
 with the 262,144-element positive control visible to the inspector.
-Receipt: `anchored-pages-repeat-memory-b.log`.
+Receipt:
+`anchored-pages-repeat-memory-b.log`.
 The preceding `Bi7rJj` repeat also completes 36 tools with zero tool errors/dialogs,
 ending at 163,341,560/163,334,896/163,336,232 bytes.
 These repeats still grow by about six MB per warmed twelve-call stage.
@@ -850,7 +1352,8 @@ Inspect the final snapshot against the fixed-page snapshot before claiming the r
 
 Source checkpoint `20c90b6b18` adds SDK-authored fixture values with private correlation maps.
 Its MJS JSDoc is outside the maintained TypeScript include set.
-Source MiMo is now proving actual SDK assignment, preferably with a typed values helper,
+Source MiMo is now proving actual SDK assignment,
+preferably with a typed values helper,
 including mutable SDK content arrays and removal of undeclared `startedAt` fixture data.
 Native checkpoint `a60ea72be1` replaces the runtime-valued compatibility consumer with type-only assertions.
 Its wrapper assignment direction and optional factory argument require correction and private compiler controls.
@@ -859,8 +1362,10 @@ root stopped that approach and confirmed the shared owner-types diff was restore
 Run all negative mutations in disposable archives only.
 
 The source worker's invalid stage command named nonexistent `auto-life` and hid failure behind an OR fallback.
-Root stopped it; the eventual four-path checkpoint is preserved.
-One root RPC reply initially used a synthetic ID and extra `responseId`, so the backend ignored it.
+Root stopped it;
+the eventual four-path checkpoint is preserved.
+One root RPC reply initially used a synthetic ID and extra `responseId`,
+so the backend ignored it.
 The installed RPC declaration requires `id` itself to equal the pending dialog ID.
 The corrected reply produces a real aborted tool result.
 Scratch `mimo-rpc-command.ts` now rejects mismatched IDs and `responseId` before submission.
@@ -868,23 +1373,31 @@ Do not trust a controller's locally cleared dialog state without backend progres
 
 Actual bounded formatter/scope execution on eleven root-owned files reports 87 warnings and one error.
 Eighty-one warnings belong to `domain-fixture-assessment.mjs`.
-The remaining findings concern the retry error name/example, compact unit statements,
+The remaining findings concern the retry error name/example,
+compact unit statements,
 nullable signal comparison and sanitized-message documentation.
 Root adopts the four formatter-modified files only after matching each saved original against main.
-Current source edits retain wrapping, rename the owned error with the required `Error` suffix,
+Current source edits retain wrapping,
+rename the owned error with the required `Error` suffix,
 make optional cancellation explicit and document the sanitized message.
 Fresh combined build/types/scope and semantic verification are still required after checkpointing.
 The green HTTP candidate was formatted after the guard experiment and is no longer pristine `cff20750f2` source.
 The active causal memory artifact was not changed.
 
-Next queue: qualify both worker checkpoints; trace the valid scoped-commit escalation;
-inspect retained heap; reproduce and fix cancellation lifecycle stderr;
-probe genuine SDK option/stream compatibility; broaden adversarial page boundaries;
-continue full-package lint, architecture and character-size audits.
+Next queue:
+qualify both worker checkpoints;
+trace the valid scoped-commit escalation;
+inspect retained heap;
+reproduce and fix cancellation lifecycle stderr;
+probe genuine SDK option/stream compatibility;
+broaden adversarial page boundaries;
+continue full-package lint,
+architecture and character-size audits.
 SDK class/options and frozen-stream concerns are hypotheses requiring actual consumer probes,
 not established defects or permission to add incoming category gates.
 Root accidentally ran recursive capture-name discovery across the scratch archive on the host.
-It emitted 3,144 lines before truncation; do not repeat it.
+It emitted 3,144 lines before truncation;
+do not repeat it.
 Known-file reads and bounded container traversal must cover log collection as well as child verification.
 
 ### Resumed after shutdown, 2026-10-19
@@ -895,29 +1408,41 @@ The maintained test fails on fixed pages with 32,937,656 additional retained byt
 Private same-catalog comparison independently measures tail growth at 83,688 bytes
 and prefix growth at 32,853,608 bytes.
 Fixed page offsets duplicate reference arrays when earlier messages shift unchanged text.
-Receipts: `maintained-prefix-red.log`, `unique-tail-capacity-probe.log`, `prefix-capacity-probe.log`.
+Receipts:
+`maintained-prefix-red.log`,
+`unique-tail-capacity-probe.log`,
+`prefix-capacity-probe.log`.
 
 `7cd0274c5d` adds content-aligned page selection with an eight-ordinal rolling window,
-64-reference minimum and 256-reference maximum; the final page can be shorter.
-Fingerprint collisions affect boundary selection only; exact ordinal sequences still determine equality.
+64-reference minimum and 256-reference maximum;
+the final page can be shorter.
+Fingerprint collisions affect boundary selection only;
+exact ordinal sequences still determine equality.
 `b2515d2891` moves slicing into the partition generator and documents the module without a root-scoped mutable offset.
 The separate causal candidate `anchored-pages-causal-candidate-YEc6MF/dist/native-release-e7qSh0`
 contains base `3a21255dde` with only the page fix and its regression from `7cd0274c5d` overlaid.
-It passes fresh JS/native builds, full types, the maintained prefix guard,
-exact content, streaming/retained context and producer lifetime/retirement consumers.
+It passes fresh JS/native builds,
+full types,
+the maintained prefix guard,
+exact content,
+streaming/retained context and producer lifetime/retirement consumers.
 The negative prefix heap delta is not a literal storage size or quantified improvement.
-Scope at the first overlay has 27 warnings/four errors; documentation/scope errors are addressed in the later source,
+Scope at the first overlay has 27 warnings/four errors;
+documentation/scope errors are addressed in the later source,
 but actual formatting and fresh scope receipts remain required.
 Do not alter this causal artifact while its configured replay runs.
 
-The fixed-page configured run A completes 36 tools, zero tool errors and normal exit zero/signal null,
+The fixed-page configured run A completes 36 tools,
+zero tool errors and normal exit zero/signal null,
 ending at 208,384,280 to 208,404,824 heap bytes.
 It still grows about 20 MB between the final warmed stages.
 Fixed-page run B also completes 36 tools and closes with exit zero/signal null.
-Its final samples are 208,250,920, 208,230,376 and 208,231,712 bytes.
+Its final samples are 208,250,920,
+208,230,376 and 208,231,712 bytes.
 The run captures a 178,328,379-byte private heap snapshot under fixture `EYxK3o`.
 Content-aligned run A on `e7qSh0` stops at tool 18 with a confirmation request;
-after 12 tools its three samples are 152,517,120, 151,125,464 and 151,118,736 bytes.
+after 12 tools its three samples are 152,517,120,
+151,125,464 and 151,118,736 bytes.
 Its actual captured assessment responses include 35 HTTP 200 responses and one HTTP 503.
 The local sender assigns every HTTP status failure the permanent category,
 so the existing judgment retry is not available for this temporary failure.
@@ -927,37 +1452,55 @@ The initial types invocation lacks a preceding private native build and therefor
 the prerequisite native build and subsequent full type check pass at `69a5d6f49c`.
 `cff20750f2` adds HTTP 503 classification and native approval/denial regressions within the original retry allowance.
 Their fresh green qualification remains required.
-Other status failures, credentials, cancellation and malformed responses remain ineligible.
-The failed replay's process exits zero/signal null, but cancellation emits
+Other status failures,
+credentials,
+cancellation and malformed responses remain ineligible.
+The failed replay's process exits zero/signal null,
+but cancellation emits
 `SourceCollectionError: Collection cancelled` from `auto-mode-request-observation`.
-Investigate that lifecycle error separately; a normal exit does not prove clean stderr.
-Content-aligned run B is active in fixture `Bi7rJj`, with separate receipts and unchanged inputs.
-Its 24-tool stage measures 158,820,928, 157,338,872 and 157,338,872 heap bytes.
+Investigate that lifecycle error separately;
+a normal exit does not prove clean stderr.
+Content-aligned run B is active in fixture `Bi7rJj`,
+with separate receipts and unchanged inputs.
+Its 24-tool stage measures 158,820,928,
+157,338,872 and 157,338,872 heap bytes.
 These partial observations do not establish bounded long-term retention.
 Keep all `content-pages-memory-*` and `anchored-pages-memory-*` receipts separate.
-Still queued: broaden prefix probes beyond sequential unique ordinals and repeat independent heap controls.
-Content-selected cuts can resynchronize common boundaries, but maximum-length forced cuts are not a universal sharing proof.
+Still queued:
+broaden prefix probes beyond sequential unique ordinals and repeat independent heap controls.
+Content-selected cuts can resynchronize common boundaries,
+but maximum-length forced cuts are not a universal sharing proof.
 
-Native MiMo commits `27e9ea0277`, including an actual constructor-binding type consumer,
+Native MiMo commits `27e9ea0277`,
+including an actual constructor-binding type consumer,
 and is continuing its remaining owned lint corrections.
 Root independently reads pre-port `owner.mjs` at `520a947723~1` and confirms original conditional omission of absent group.
 Root's assertion that omission began during the typed port was incorrect and has been retracted.
 The one genuine production constructor contract and valid controlled SDK fixtures remain the chosen simplification;
 do not describe a changed invalid-fixture invocation as preserving historical omission behavior.
-Source MiMo is constructing those genuine fixtures, still without incoming SDK category gates or type assertions.
+Source MiMo is constructing those genuine fixtures,
+still without incoming SDK category gates or type assertions.
 
 `d95dd376a0` adds the missing producer-owner module justification and actual Oxlint 1.88.0 exception audit.
 Forty-nine documents render with no broken local links in `render-current-docs-AG3KMl`,
 including the owner module doc and Git recovery incident.
 The latest complete frozen full lint at `3a21255dde` is 10,716 warnings/86 errors on 894 files,
-486 rules, 30.5 seconds within two-GiB/two-CPU bounds.
-This precedes the new regression, page fix and subsequent constructor/fixture corrections.
+486 rules,
+30.5 seconds within two-GiB/two-CPU bounds.
+This precedes the new regression,
+page fix and subsequent constructor/fixture corrections.
 
 Fresh combined artifact `resumed-owner-combined-candidate-N8p6OB/dist/native-release-NTWxaG`
 at `3a21255dde` passes JS/native builds and full types.
 The generated-import closure failure is cleared at this source checkpoint.
-It also passes nine producer-lifetime cases, producer retirement, exact input-content controls,
-sequence capacity, streaming capacity, retained context, all phases, both inflight consumers,
+It also passes nine producer-lifetime cases,
+producer retirement,
+exact input-content controls,
+sequence capacity,
+streaming capacity,
+retained context,
+all phases,
+both inflight consumers,
 source freshness and tool-schema capacity.
 Scope lint remains 44 warnings/one error across nine files:
 35 test-helper warnings and nine owner warnings plus missing `invocationScope` documentation.
@@ -972,22 +1515,28 @@ Both baseline consumers and restored consumers pass.
 Removing handler completion retains 51,282,736 measured heap bytes;
 removing the whole-state clear retains 49,776,760 bytes and fails the actual capacity assertion.
 The three other rebuilt variants fail their named semantic cases.
-Receipt: `resumed-owner-controls-results.json`, complete true.
+Receipt:
+`resumed-owner-controls-results.json`,
+complete true.
 
 Completed configured full-history replay `content-pages-memory a` uses `NTWxaG`,
 using the same closed original `kARc6q` session and finite primary as baseline A/B.
 Its recorded input hashes are `content-pages-memory-inputs.json`;
 new receipts use separate `content-pages-memory-*` and `worker-source-pages-*` names.
-The replay has real configured extensions and Luna, a read-only repository and two-GiB/two-CPU limits.
+The replay has real configured extensions and Luna,
+a read-only repository and two-GiB/two-CPU limits.
 Do not substitute a new worker history when comparing warmed retention.
 
 Git read availability incident #1784 is filed and recorded in
 `doc/troubleshooting/cli-git-superseded-index-recovery.md`.
-The observed owner-probe `EPERM` is established; a PID-namespace cause remains a hypothesis.
-Protected reads worked again after the concurrent checkpoint; no transaction was deleted or commit retried.
+The observed owner-probe `EPERM` is established;
+a PID-namespace cause remains a hypothesis.
+Protected reads worked again after the concurrent checkpoint;
+no transaction was deleted or commit retried.
 
 The user returned and authorized continuing.
-The package's tracked, staged and untracked pending paths survived shutdown;
+The package's tracked,
+staged and untracked pending paths survived shutdown;
 unrelated `.serena/project.yml` and `package/dev-script/ci-admission/` changes remain untouched.
 The stopped controllers' terminal states were checked before copying their saved histories.
 
@@ -1000,24 +1549,37 @@ The stopped controllers' terminal states were checked before copying their saved
   Native owns the typed producer-owner split and declaration-closure repair.
   Both received explicit resume prompts requiring exact-path checkpoint commits,
   preservation of concurrent staging and inspection after ambiguous Git failures.
-- Root delivers the latest literal matcher correction in `d5906aa231`, exactly four paths including the new doc.
+- Root delivers the latest literal matcher correction in `d5906aa231`,
+  exactly four paths including the new doc.
   Source resumes focused lint with 35 remaining unsafe-type warnings and zero errors on the older artifact.
   Its scratch task-registration group needs manual intervention after automatic review remains unresolved;
   root inspects and allows only private directory creation and the focused task file.
   This run is not evidence of fully automatic consumer behavior.
-  The previous physical scratch persists under the stopped fixture's `home`, despite a new virtual `/fixture-home`.
+  The previous physical scratch persists under the stopped fixture's `home`,
+  despite a new virtual `/fixture-home`.
 - Scratch `verify-producer-built-guards.ts` now accepts an explicit frozen-candidate label,
-  targets the typed owner and separate lifecycle implementation, and refuses real-package mutation.
+  targets the typed owner and separate lifecycle implementation,
+  and refuses real-package mutation.
   The read-only `plan-producer-built-guards` invocation finds exactly five expected mutation anchors.
-  This validates the mutation plan only; rebuilt negative controls still remain required.
-- Producer repair: finish checkpoints, freeze combined sources, fresh-build JS/native, run types,
-  scope lint, nine semantic lifetime cases and the retirement capacity guard;
+  This validates the mutation plan only;
+  rebuilt negative controls still remain required.
+- Producer repair:
+  finish checkpoints,
+  freeze combined sources,
+  fresh-build JS/native,
+  run types,
+  scope lint,
+  nine semantic lifetime cases and the retirement capacity guard;
   retarget and rebuild the five separate source-removal controls.
-- Retention qualification: run the actual configured full-history replay on the fresh combined artifact,
+- Retention qualification:
+  run the actual configured full-history replay on the fresh combined artifact,
   compare warmed post-GC retention against unchanged baseline runs and retain payload/shutdown checks.
-- Lint completion: resolve the complete backlog without weakening policy or adding incoming SDK category gates.
-  The latest complete frozen receipt remains 10,835 warnings and 136 errors, not zero lint.
-- Architecture and deployment size: continue character/role and dependency-closure reduction,
+- Lint completion:
+  resolve the complete backlog without weakening policy or adding incoming SDK category gates.
+  The latest complete frozen receipt remains 10,835 warnings and 136 errors,
+  not zero lint.
+- Architecture and deployment size:
+  continue character/role and dependency-closure reduction,
   justify major responsibilities in package docs and verify the actual configured consumer.
   Existing directory/inode and installed-dependency measurements are not a minimal deployment proof.
 
@@ -1028,577 +1590,954 @@ Do not interpret this checkpoint as completion or readiness for another lint han
 Resume from the saved sessions and pending edits when the user returns.
 
 - Both supervised MiMo controllers received `controller_shutdown` and reached `closed`,
-  exit code zero, signal null.
+  exit code zero,
+  signal null.
   Source ends at 65 tool results and ten tool errors;
-  native ends at 63 tool results and ten tool errors, including interrupted work.
-  These are shutdown receipts, not passing verification results.
+  native ends at 63 tool results and ten tool errors,
+  including interrupted work.
+  These are shutdown receipts,
+  not passing verification results.
 - Persistent scratch is `~/temp/agent/pi-mimo-preparation-failure-20261018`.
   `shutdown-preserved-current.json` records both terminal controller states and backup location.
-  The backup is `shutdown-preserved-TtsSZD`, with separate staged, unstaged and combined tracked patches,
-  the package status, untracked owner implementation files and `receipt.json`.
+  The backup is `shutdown-preserved-TtsSZD`,
+  with separate staged,
+  unstaged and combined tracked patches,
+  the package status,
+  untracked owner implementation files and `receipt.json`.
   Backup runs with two-GiB/two-CPU bounds and a read-only repository mount.
-  Two permission-restricted, untracked probe configs remain preserved in the repository;
-  their backup read failures are explicitly recorded. Do not delete or change their permissions.
-- Source fixture: `~/temp/agent/pi-mimo-rpc-session-wmudZ2`;
-  saved history: `home/resumed-source-session.jsonl`.
-  Native fixture: `~/temp/agent/pi-mimo-rpc-session-z78qJS`;
-  saved history: `home/resumed-native-session.jsonl`.
+  Two permission-restricted,
+  untracked probe configs remain preserved in the repository;
+  their backup read failures are explicitly recorded.
+  Do not delete or change their permissions.
+- Source fixture:
+  `~/temp/agent/pi-mimo-rpc-session-wmudZ2`;
+  saved history:
+  `home/resumed-source-session.jsonl`.
+  Native fixture:
+  `~/temp/agent/pi-mimo-rpc-session-z78qJS`;
+  saved history:
+  `home/resumed-native-session.jsonl`.
   Both last used the qualified private artifact
   `decision-responsibility-split-candidate-o30Fdb/dist/native-release-fO486Z`.
-  Reuse persistent histories; do not assume stopped containers or old process IDs survive reboot.
+  Reuse persistent histories;
+  do not assume stopped containers or old process IDs survive reboot.
 - Repository HEAD before this documentation checkpoint is `aec7d2c714`.
   Native owner/type/factory edits and new `owner-errors.ts`/`owner-judgments.ts` remain uncommitted.
   Source matcher documentation and three lifetime helpers retain both staged and unstaged corrections.
-  Preserve the index and working tree independently; no reset, stash or bulk staging.
-  Preserve unrelated concurrent changes, including `.serena/project.yml` if still present.
-- First resume action: inspect current HEAD, pending paths, saved controller states and histories.
+  Preserve the index and working tree independently;
+  no reset,
+  stash or bulk staging.
+  Preserve unrelated concurrent changes,
+  including `.serena/project.yml` if still present.
+- First resume action:
+  inspect current HEAD,
+  pending paths,
+  saved controller states and histories.
   Finish and review the exact native/source checkpoints before freezing new verification inputs.
-  Then fresh-build JS and native together, run types, scoped lint, nine lifetime cases and capacity guard;
-  retarget and rebuild the five separate source-removal controls, then run the configured full-history replay.
+  Then fresh-build JS and native together,
+  run types,
+  scoped lint,
+  nine lifetime cases and capacity guard;
+  retarget and rebuild the five separate source-removal controls,
+  then run the configured full-history replay.
   The complete lint backlog and footprint/deployment reduction remain open.
 
 ### Latest checkpoint
 
 - Owned content storage scope now passes zero warnings/errors after private formatting and named probe constants:
-  `input-content.ts`, `input-content-pieces.ts`, `native-content-sequence-capacity.test.mjs`.
+  `input-content.ts`,
+  `input-content-pieces.ts`,
+  `native-content-sequence-capacity.test.mjs`.
   Receipt `owned-pages-format-final.log` at frozen-source candidate `Nrz2Ma` with the owned edits.
   Root adoption verifies each original file against `97197764fa` before copying the three owned results.
-  The semantic storage consumers precede these formatting/constants-only edits; fresh combined types remain required.
+  The semantic storage consumers precede these formatting/constants-only edits;
+  fresh combined types remain required.
 - The rebuilt native component candidate also passes all nine producer-lifetime cases and the separate
-  producer-retirement capacity guard. These do not clear the clean JS/declaration build frontier or five source mutants.
+  producer-retirement capacity guard.
+  These do not clear the clean JS/declaration build frontier or five source mutants.
 - Forty-seven current documents render with no broken local links in bounded fixture `render-current-docs-4lSyrt`.
   Source MiMo confirms the corrected JS context clears the Node-receiver findings;
   its latest scope still has 36 warnings/zero errors before its last owned style fix and fresh typed-owner artifact.
-  Native MiMo is still active on owner splitting, genuine declarations, types and clean-archive build.
-- Next actions: finish native worker's source checkpoint, review exact owner/factory boundaries,
-  fresh-build the combined artifact and run types, scope lint, all nine producer cases and capacity guard;
-  retarget/rebuild the five separate source controls; run the controlled full-history replay on that artifact
-  and compare post-GC warmed growth with runs A/B. Continue the complete lint backlog and footprint/deployment reduction.
-  Do not repeat the known clean-JS failure until its owning source changes; do not qualify stale JS over new native sources.
-- Correct the catalog terminology: `test:native:producer-lifetime` runs nine semantic cases,
-  four lifetime cases and five mutation-path cases. Those five cases are not rebuilt source-removal controls.
+  Native MiMo is still active on owner splitting,
+  genuine declarations,
+  types and clean-archive build.
+- Next actions:
+  finish native worker's source checkpoint,
+  review exact owner/factory boundaries,
+  fresh-build the combined artifact and run types,
+  scope lint,
+  all nine producer cases and capacity guard;
+  retarget/rebuild the five separate source controls;
+  run the controlled full-history replay on that artifact
+  and compare post-GC warmed growth with runs A/B.
+  Continue the complete lint backlog and footprint/deployment reduction.
+  Do not repeat the known clean-JS failure until its owning source changes;
+  do not qualify stale JS over new native sources.
+- Correct the catalog terminology:
+  `test:native:producer-lifetime` runs nine semantic cases,
+  four lifetime cases and five mutation-path cases.
+  Those five cases are not rebuilt source-removal controls.
   Separate scratch `verify-producer-built-guards.ts` rebuilds five source variants and requires their
-  lifetime/capacity consumers to fail, then restores both consumers. Keep both evidence layers separate.
+  lifetime/capacity consumers to fail,
+  then restores both consumers.
+  Keep both evidence layers separate.
 - `97197764fa` installs the mixed-language default lint project and explicitly retained `tsconfig.types.json`.
   Fresh full-package Oxlint at this frozen commit reports 10,835 warnings/136 errors across 892 files,
-  486 rules, 45.5 seconds under two-GiB/two-CPU bounds.
-  Its fresh JS build still hits the known native declaration-closure failure; the native fix is uncommitted.
-  Owned content-page scope reports 46 formatting warnings/zero errors; its private formatter is running.
+  486 rules,
+  45.5 seconds under two-GiB/two-CPU bounds.
+  Its fresh JS build still hits the known native declaration-closure failure;
+  the native fix is uncommitted.
+  Owned content-page scope reports 46 formatting warnings/zero errors;
+  its private formatter is running.
 - Native content-page consumer regressions pass in candidate `KPNOhL` at `62c3796aca`:
   changing sequences preserve every digest with 56,296 additional retained bytes;
-  exact code units, surrogate digest collision and foreign-accessor controls pass;
+  exact code units,
+  surrogate digest collision and foreign-accessor controls pass;
   1,600 native streaming updates retain 11,033,856 measured bytes;
   600 distinct source publications preserve 713,092,714 logical receipt bytes.
-  The last retained-heap delta is negative, so do not describe it as a literal storage size.
+  The last retained-heap delta is negative,
+  so do not describe it as a literal storage size.
   This candidate rebuilt native sources over the pinned initial JS output after the clean JS build blocker,
-  so these are component consumer results, not a freshly combined host qualification.
+  so these are component consumer results,
+  not a freshly combined host qualification.
 - The phase identity negative control replaces only the stored original update with a clone.
   The actual parallel native consumer fails `updated` after `returned` at `native-phase-assertions.ts:162`.
-  Restoring the private source passes the same consumer. Root sources and publication remain unchanged.
+  Restoring the private source passes the same consumer.
+  Root sources and publication remain unchanged.
 - `9163ffd584` shares immutable pages of at most 256 chunk references across retained input versions.
   The isolated red probe retains 24,589,536 bytes for 24 changing versions versus unchanged controls
-  of 1,091,016 and 1,029,504 bytes. The new source probe retains 131,160 bytes versus controls
-  of 75,152 and 18,232 bytes; its additional 56,008 bytes are within the 56,920-byte unchanged spread.
-  Every original digest and version identity passes. This is isolated source evidence, not a configured-host fix claim.
+  of 1,091,016 and 1,029,504 bytes.
+  The new source probe retains 131,160 bytes versus controls
+  of 75,152 and 18,232 bytes;
+  its additional 56,008 bytes are within the 56,920-byte unchanged spread.
+  Every original digest and version identity passes.
+  This is isolated source evidence,
+  not a configured-host fix claim.
   Maintained capacity regression is committed and moved to the existing MJS native-consumer harness.
-  Fresh combined build, actual consumers, lint and full-history replay remain required.
+  Fresh combined build,
+  actual consumers,
+  lint and full-history replay remain required.
 - Fresh `build:js` after `520a947723` fails Rolldown `UNRESOLVED_IMPORT` on generated
-  `native-return-consumer.mjs` and `maintained-policy.mjs`, reached through the new judgment-factory closure.
+  `native-return-consumer.mjs` and `maintained-policy.mjs`,
+  reached through the new judgment-factory closure.
   Native MiMo has the exact log and owns this clean-archive build repair alongside the owner split/type fixes.
 - The phase formatter succeeds with zero warnings/errors after private source mounts are writable.
   Its actual fix changes only indentation of the member/comparison continuation;
-  root retains it in `28c3057995`. The cloned-update negative control is still required.
-- Protected Git reports successful commit `3e3fdd7baa`, then exits 2 with
-  `engine-failure`/`transaction-failed`: missing transaction `index-installed` completion-marker directory.
-  Root verifies its exact two committed paths and does not retry. GitHub issue #1781 records this distinct incident.
+  root retains it in `28c3057995`.
+  The cloned-update negative control is still required.
+- Protected Git reports successful commit `3e3fdd7baa`,
+  then exits 2 with
+  `engine-failure`/`transaction-failed`:
+  missing transaction `index-installed` completion-marker directory.
+  Root verifies its exact two committed paths and does not retry.
+  GitHub issue #1781 records this distinct incident.
   Source MiMo's later unrelated-image LFS commit failure remains the existing #1770 incident.
 - The private separated-project probe preserves the original TS-only configuration byte-for-byte.
   Its type-check command catches a deliberately wrong string assignment with `TS2322`;
   removing that fixture passes the restored full check on the qualified phase artifact.
   MJS Node assertions resolve while the intentional unsafe member/return findings remain.
   An initial attempted isolated-declaration control produced no isolated diagnostic and also used a stale artifact;
-  it does not prove declaration-emission behavior. Keep existing compiler options in the types project.
-- Source MiMo's regex-free checkpoint remains staged after #1770, not committed.
+  it does not prove declaration-emission behavior.
+  Keep existing compiler options in the types project.
+- Source MiMo's regex-free checkpoint remains staged after #1770,
+  not committed.
   Root requests a single literal-message predicate and a stable literal for the three supersession diagnostics,
-  replacing the unnecessary ordered-pattern/gap scanner. Its general regex-equivalence claim needs a counterexample check.
-  Preserve all nine actual consumer cases and thrown-value identity checks; root will deliver exact corrected paths if needed.
-- Controlled replay B completes 36 groups, zero tool errors, no approval dialog, normal exit zero/signal null.
-  Three post-GC samples are 271,912,280 to 271,933,368 bytes, reproducing run A's continued warmed growth.
-  Its private heap snapshot is 254,001,162 bytes; bounded analysis succeeds with the positive retained-array control.
+  replacing the unnecessary ordered-pattern/gap scanner.
+  Its general regex-equivalence claim needs a counterexample check.
+  Preserve all nine actual consumer cases and thrown-value identity checks;
+  root will deliver exact corrected paths if needed.
+- Controlled replay B completes 36 groups,
+  zero tool errors,
+  no approval dialog,
+  normal exit zero/signal null.
+  Three post-GC samples are 271,912,280 to 271,933,368 bytes,
+  reproducing run A's continued warmed growth.
+  Its private heap snapshot is 254,001,162 bytes;
+  bounded analysis succeeds with the positive retained-array control.
   Redacted strong paths reach large `chunks` backing arrays through SessionManager's constructed-input reader,
-  `retainContent`, and the content store's `contents` Map. This is a concrete retention path, not yet a causal fix.
+  `retainContent`,
+  and the content store's `contents` Map.
+  This is a concrete retention path,
+  not yet a causal fix.
   Current request and last-review bodies also retain about 7.4 MB each.
-  Analysis receipt: scratch `retained-heap-analysis-repeat-b-final-latest.json`, output `gyayjW`.
+  Analysis receipt:
+  scratch `retained-heap-analysis-repeat-b-final-latest.json`,
+  output `gyayjW`.
 - A discriminating lint probe separates Node assertions from genuinely unsafe JavaScript.
   Both default and named Node assertions are error-typed with the current TS-only project;
   a private default project including JavaScript with `allowJs` removes those findings while preserving
-  the intentional unsafe member/return findings. An equivalent TypeScript file also resolves Node correctly.
+  the intentional unsafe member/return findings.
+  An equivalent TypeScript file also resolves Node correctly.
   Passing a separate config through Oxlint's import-resolution `--tsconfig` flag did not fix the program context.
-  The production remedy must retain declaration checks; private probes disabled `isolatedDeclarations` only
-  because TypeScript disallows combining it with JavaScript input. No production config has changed.
-- Native MiMo commits `520a947723`, exactly five paths: generic typed owner, SDK-derived contracts,
-  MJS entry facade, artifact factory types and the existing declaration generator.
-  Its checkpoint reports 21 warnings/46 errors in scope and six type errors, so it is not qualified.
+  The production remedy must retain declaration checks;
+  private probes disabled `isolatedDeclarations` only
+  because TypeScript disallows combining it with JavaScript input.
+  No production config has changed.
+- Native MiMo commits `520a947723`,
+  exactly five paths:
+  generic typed owner,
+  SDK-derived contracts,
+  MJS entry facade,
+  artifact factory types and the existing declaration generator.
+  Its checkpoint reports 21 warnings/46 errors in scope and six type errors,
+  so it is not qualified.
   Root approved its exact five-path checkpoint commit through RPC using existing commit authorization;
-  automatic review had left this operation unresolved. Record this manual intervention in consumer evidence.
-  The next native assignment fixes types and splits the owner; source retains its test ownership.
+  automatic review had left this operation unresolved.
+  Record this manual intervention in consumer evidence.
+  The next native assignment fixes types and splits the owner;
+  source retains its test ownership.
 - Candidate `phase-identity-clean` at frozen `f42d8884d0` passes both builds and full types.
   A mistakenly broad lint invocation ran the whole package instead of the intended three-file scope;
-  its 10,999 warnings/86 errors are a whole-package snapshot, not a scoped phase result.
+  its 10,999 warnings/86 errors are a whole-package snapshot,
+  not a scoped phase result.
   Correct the invocation and retain the original build logs because the matrix summary is overwritten per call.
-- Source MiMo commits `937954199a`: four files, four lifetime cases plus five rebuilt fault controls,
-  nine total, with the actual nine-case consumer passing. Its reported scope has 103 warnings/zero errors.
-  Main rejects its rationale for fifteen new regex suppressions: test error-message matchers are not
-  incoming SDK category validation. A follow-up prompt orders ordinary assertion predicates and removal
-  of those suppressions, with the root guidance unchanged and a package-local explanation.
+- Source MiMo commits `937954199a`:
+  four files,
+  four lifetime cases plus five rebuilt fault controls,
+  nine total,
+  with the actual nine-case consumer passing.
+  Its reported scope has 103 warnings/zero errors.
+  Main rejects its rationale for fifteen new regex suppressions:
+  test error-message matchers are not
+  incoming SDK category validation.
+  A follow-up prompt orders ordinary assertion predicates and removal
+  of those suppressions,
+  with the root guidance unchanged and a package-local explanation.
   The 29 error-typed Node assertion receivers are a separate unresolved TypeScript program-context question;
   do not attribute them to the untyped owner without a discriminating probe.
 - Source worker's 32-tool checkpoint post-GC heap is 365,008,352 bytes in all three samples.
   Native worker's producer-owner/declaration port and source worker's matcher correction remain active.
 - Controlled run A completes normally at 36 groups and about 272.6 MB heap;
-  run B reaches 24 groups at about 227.9 MB, reproducing warmed growth on the same initial history.
-  Its final snapshot is still pending. Keep this investigation separate from the producer-retirement guard.
+  run B reaches 24 groups at about 227.9 MB,
+  reproducing warmed growth on the same initial history.
+  Its final snapshot is still pending.
+  Keep this investigation separate from the producer-retirement guard.
 - Forty-four documentation files render through Pandoc with no broken local links.
-  The rendered phase-identity document was read; receipt `render-current-docs-receipt.json`, fixture `KYPY1v`.
+  The rendered phase-identity document was read;
+  receipt `render-current-docs-receipt.json`,
+  fixture `KYPY1v`.
   `a834db549c` independently passes both fresh builds and full types;
-  its phase scope leaves only one chain-format warning. The equality operator's final formatting fix
-  still needs the actual scoped receipt, followed by the planned cloned-update negative control.
+  its phase scope leaves only one chain-format warning.
+  The equality operator's final formatting fix
+  still needs the actual scoped receipt,
+  followed by the planned cloned-update negative control.
 - `059a66fd91` removes phase-fixture unsafe event-detail access by retaining the original finite authored updates
-  and matching their opaque identities. Installed native `emitToolExecutionUpdate` forwards the original result;
+  and matching their opaque identities.
+  Installed native `emitToolExecutionUpdate` forwards the original result;
   the full native phase catalog confirms the actual native dispatch does too.
-  The execute callback now derives directly from SDK `ToolDefinition`, avoiding a manual nullish union.
-  Candidate `UlR1fr` passes both builds, full types, full phases, both inflight consumers and schema controls.
+  The execute callback now derives directly from SDK `ToolDefinition`,
+  avoiding a manual nullish union.
+  Candidate `UlR1fr` passes both builds,
+  full types,
+  full phases,
+  both inflight consumers and schema controls.
   Its three-file lint scope has zero errors and three formatting warnings;
   the formatting-only follow-up splits those chains and still needs its actual zero-lint receipt.
   Add a private cloned-authored-update negative control and show the existing update assertions fail.
-- Character/role audit at frozen `fa164036c6` passes Unicode code-point, Unicode-before-comment,
-  wrapping, ambient-declaration and role-reachability controls.
-  Raw source: 885 files, 4,081,015 characters. Runtime-reached roles: 371 files,
+- Character/role audit at frozen `fa164036c6` passes Unicode code-point,
+  Unicode-before-comment,
+  wrapping,
+  ambient-declaration and role-reachability controls.
+  Raw source:
+  885 files,
+  4,081,015 characters.
+  Runtime-reached roles:
+  371 files,
   1,621,116 raw characters and 824,074 non-whitespace characters after Node type erasure and comment removal.
-  There remain 113 nonliteral imports and 65 unresolved local references, not a minimal-runtime proof.
-  Receipt `character-role-audit-final.json`; latest fixture `bounded-native-test-eVyMbo`.
+  There remain 113 nonliteral imports and 65 unresolved local references,
+  not a minimal-runtime proof.
+  Receipt `character-role-audit-final.json`;
+  latest fixture `bounded-native-test-eVyMbo`.
 - Whole footprint traversal/collection ran in two-GiB/two-CPU/512-MiB-heap isolation.
-  Owned directory: 106,478,753 regular-path bytes, 24,213,276 unique regular bytes,
-  29,691,904 allocated owned inode bytes, excluding shared symlink targets.
+  Owned directory:
+  106,478,753 regular-path bytes,
+  24,213,276 unique regular bytes,
+  29,691,904 allocated owned inode bytes,
+  excluding shared symlink targets.
   `dist` has 99,115,872 path bytes and 16,850,395 unique bytes through hardlinked releases.
-  Installed `host-required`: 120,136,973 unique bytes across 81 directories;
-  `all-installed`: 255,684,429 across 96. These are live repair snapshots, not deployment closures.
-  Package architecture/footprint docs record exact scopes in `c77f6e4c30`; rendered verification remains required.
-- Controlled configured replay A finishes 36 real reviewed `pwd` groups, zero tool errors, no manual approvals,
-  normal exit zero/signal null, using the original full saved history and a finite synthetic primary stream
-  while Luna decisions and configured extensions are real, with the repository read-only.
-  Post-GC heaps: idle about 96.3 MB, after 12 about 184.9 MB, after 24 about 227.9 MB,
-  after 36 about 272.6 MB. Continued warmed growth is unresolved and separate from the producer-retirement unit fix.
+  Installed `host-required`:
+  120,136,973 unique bytes across 81 directories;
+  `all-installed`:
+  255,684,429 across 96.
+  These are live repair snapshots,
+  not deployment closures.
+  Package architecture/footprint docs record exact scopes in `c77f6e4c30`;
+  rendered verification remains required.
+- Controlled configured replay A finishes 36 real reviewed `pwd` groups,
+  zero tool errors,
+  no manual approvals,
+  normal exit zero/signal null,
+  using the original full saved history and a finite synthetic primary stream
+  while Luna decisions and configured extensions are real,
+  with the repository read-only.
+  Post-GC heaps:
+  idle about 96.3 MB,
+  after 12 about 184.9 MB,
+  after 24 about 227.9 MB,
+  after 36 about 272.6 MB.
+  Continued warmed growth is unresolved and separate from the producer-retirement unit fix.
   Run B repeats unchanged setup and will capture a private final heap after the recorded measurements,
   with exact PID/executable identity and the retained sampling control checked before inspector use.
-  First hypotheses: retained request snapshots, diagnostic/event retention, then late initialization.
+  First hypotheses:
+  retained request snapshots,
+  diagnostic/event retention,
+  then late initialization.
   Neither the profiler nor the replay result proves the REISUB's cause.
 - `bb0496f82f` ports admission selection to TypeScript using the actual maintained producer collections.
-  Candidate `1jnKM6` passes both builds, full types, full phases, source freshness,
-  both inflight-input consumers and schema controls. The gate's root-let diagnostic is gone.
+  Candidate `1jnKM6` passes both builds,
+  full types,
+  full phases,
+  source freshness,
+  both inflight-input consumers and schema controls.
+  The gate's root-let diagnostic is gone.
   Documentation-only follow-up `d36511f08d` passes its actual one-file scope with zero warnings/errors
   in candidate `P8AaDv` frozen at `fa164036c6`.
 - Native MiMo commits `14e4649937` with exactly the registration declaration and its suppression doc.
   Its actual twelve-file loader scope and types pass with zero warnings/errors.
   The ambient error class needs no custom-error suppression.
   Native worker `z78qJS` completes 18 tools with zero tool errors and no approval dialog.
-  Its post-GC checkpoint is 172,509,608 to 172,509,880 heap bytes, a 272-byte sample spread.
-  This is roughly 84.6 MB above its idle baseline, not evidence of a leak or of bounded long-term growth.
+  Its post-GC checkpoint is 172,509,608 to 172,509,880 heap bytes,
+  a 272-byte sample spread.
+  This is roughly 84.6 MB above its idle baseline,
+  not evidence of a leak or of bounded long-term growth.
   Separate lazy initialization and retained live histories from operation retention using subsequent checkpoints and profiles.
-- Native MiMo now owns the genuine generic producer-owner port, coherent lifetime/state splits,
-  actual closed artifact factory declarations through the existing generator, and necessary runtime specialization.
+- Native MiMo now owns the genuine generic producer-owner port,
+  coherent lifetime/state splits,
+  actual closed artifact factory declarations through the existing generator,
+  and necessary runtime specialization.
   Source MiMo retains ownership of the producer-lifetime test split and its nine cases/five mutants.
   Its steer explicitly forbids hiding the old artifact's untyped factory with assertions or fake facades.
   Retarget the fault controls jointly after the owner's actual implementation paths are committed;
   qualify all sources against a freshly built private artifact before declaring those imports lint-clean.
-  Main continues decision-module cleanup, fresh character/role/dependency evidence,
+  Main continues decision-module cleanup,
+  fresh character/role/dependency evidence,
   actual configured memory/payload/compaction/shutdown qualification and final full-package lint.
-- The full-lint tally now attributes every emitted warning/error, including Oxlint's unruled
-  minified-file display warning and unused-directive warning, and matches 11,047/129 exactly.
-  Of the warnings, 8,498 are unsafe member access, assignment, call, argument or return diagnostics.
-  Actual producer contracts are the main remaining typing work; additional runtime category gates are not a remedy.
-- Fresh full-package Oxlint at `329df9f855`: 11,047 warnings and 129 errors across 885 files,
-  486 rules, completed in 28.2 seconds under two-GiB/two-CPU bounds.
-  Receipt: scratch `decision-responsibility-split-full-lint.log`.
+- The full-lint tally now attributes every emitted warning/error,
+  including Oxlint's unruled
+  minified-file display warning and unused-directive warning,
+  and matches 11,047/129 exactly.
+  Of the warnings,
+  8,498 are unsafe member access,
+  assignment,
+  call,
+  argument or return diagnostics.
+  Actual producer contracts are the main remaining typing work;
+  additional runtime category gates are not a remedy.
+- Fresh full-package Oxlint at `329df9f855`:
+  11,047 warnings and 129 errors across 885 files,
+  486 rules,
+  completed in 28.2 seconds under two-GiB/two-CPU bounds.
+  Receipt:
+  scratch `decision-responsibility-split-full-lint.log`.
   The preceding complete baseline was 11,325 warnings and 157 errors across 882 files at `d58b695428`.
   Whole-package zero lint remains unfinished.
 - Recovered source worker `wmudZ2` and native worker `z78qJS` have opened the saved histories
   on `o30Fdb/dist/native-release-fO486Z` and received their scoped work prompts.
   Their idle explicit post-GC baselines are 96,868,984 to 96,869,592 heap bytes and
-  87,951,928 to 87,952,536 heap bytes respectively, with 608-byte unchanged-input spreads.
-  Source owns the producer-lifetime test responsibility split; native owns the registration suppression warning.
+  87,951,928 to 87,952,536 heap bytes respectively,
+  with 608-byte unchanged-input spreads.
+  Source owns the producer-lifetime test responsibility split;
+  native owns the registration suppression warning.
   Main owns decision modules and actual long-history memory qualification.
-- Decision gate closure now returns its named immutable gate, following the root-let rule's actual
-  helper-function exception. The private shared active review remains owned by that gate across operations.
+- Decision gate closure now returns its named immutable gate,
+  following the root-let rule's actual
+  helper-function exception.
+  The private shared active review remains owned by that gate across operations.
   This shape still requires a fresh lint/build/consumer run before claiming the diagnostic resolved.
-- Recovery after the user's October 19 REISUB: the committed package changes and private qualification receipts survive.
-  `podman ps --all` lists no live worker containers; cached worker state still says connected and is stale.
+- Recovery after the user's October 19 REISUB:
+  the committed package changes and private qualification receipts survive.
+  `podman ps --all` lists no live worker containers;
+  cached worker state still says connected and is stale.
   Do not change that interrupted state to a successful shutdown or treat old session IDs as live processes.
-  Resume the complete original `kARc6q` and `Pcok7j` histories, both closed with exit zero before the reboot,
+  Resume the complete original `kARc6q` and `Pcok7j` histories,
+  both closed with exit zero before the reboot,
   on qualified decision-split candidate `o30Fdb` at `329df9f855`.
   The interrupted startup-only copies `vbLtPm` and `PMHU0O` had no submitted work or completed tools.
-- `329df9f855` separates decision operation lifetime, judgment review, admission questions and shared errors.
-  Fresh JavaScript/native builds, full types, phase catalog, source-freshness work,
+- `329df9f855` separates decision operation lifetime,
+  judgment review,
+  admission questions and shared errors.
+  Fresh JavaScript/native builds,
+  full types,
+  phase catalog,
+  source-freshness work,
   primary/review inflight input and schema mutation consumers all pass.
   Aggregate characters rise from 12,307 to 13,161 through linkage and module structure;
-  the split is not aggregate source reduction. The four-file lint scope has 130 warnings and one error,
-  with no max-lines diagnostic; the remaining error is the original function-root `let` state.
+  the split is not aggregate source reduction.
+  The four-file lint scope has 130 warnings and one error,
+  with no max-lines diagnostic;
+  the remaining error is the original function-root `let` state.
 - `2f2eca3467` commits the seven-path typed-loader cleanup and suppression explanation.
-  Fresh builds/types/phases and both input consumers pass, followed by the actual freshness/schema tasks.
-  One attempted task name, `test:native:source-freshness`, was not registered and never executed;
+  Fresh builds/types/phases and both input consumers pass,
+  followed by the actual freshness/schema tasks.
+  One attempted task name,
+  `test:native:source-freshness`,
+  was not registered and never executed;
   its correctly named `test:native:source-freshness-work` replacement passes.
   Twelve-file scoped Oxlint reports one warning and zero errors:
   `Unused oxlint-disable directive (no problems were reported)` at the registration class's re-enable comment.
-  Resolve that warning with the actual ambient shape; preserve writable dynamic names and the message-only constructor.
+  Resolve that warning with the actual ambient shape;
+  preserve writable dynamic names and the message-only constructor.
 - Explicit post-GC instrumentation uses the installed Node inspector's `HeapProfiler.collectGarbage`,
-  requested through a private worker signal handler, with atomic measurement receipts.
+  requested through a private worker signal handler,
+  with atomic measurement receipts.
   Its bounded fixture releases 8,372,120 bytes after dropping the eight-MiB allocation control;
-  unchanged-input spread is 7,864 bytes. This qualifies the measurement mechanism, not real MiMo retention.
+  unchanged-input spread is 7,864 bytes.
+  This qualifies the measurement mechanism,
+  not real MiMo retention.
   Actual resumed-worker post-GC baselines and long-history growth remain open.
   Preparation input traversal ran with two-GiB/two-CPU bounds and measured 1,896,731 bytes across
   mise configuration/state and project Pi configuration before their fixed-scope copies.
-- Day accounting through `2026-10-19T03:34:17Z`, October 18 in America/New_York:
-  243 relevant commits, comprising 42 fixes, 21 refactors, four performance changes,
-  65 test checkpoints, ten style changes, 100 documentation checkpoints and one chore.
-  These are commit classifications, not completed feature counts.
-  Receipt: `today-work-20261018.json`; reproduction task: `summarize-today-work` in the current private scratch.
+- Day accounting through `2026-10-19T03:34:17Z`,
+  October 18 in America/New_York:
+  243 relevant commits,
+  comprising 42 fixes,
+  21 refactors,
+  four performance changes,
+  65 test checkpoints,
+  ten style changes,
+  100 documentation checkpoints and one chore.
+  These are commit classifications,
+  not completed feature counts.
+  Receipt:
+  `today-work-20261018.json`;
+  reproduction task:
+  `summarize-today-work` in the current private scratch.
 - The eight AST/comment-qualified formatter patches are retained in `b0c703f79c`.
-  Wrapping is formatting, not regression. Character counts audit implementation growth;
-  existing max-lines still requires meaningful module splits. Root QF1 and lint policy stay unchanged.
+  Wrapping is formatting,
+  not regression.
+  Character counts audit implementation growth;
+  existing max-lines still requires meaningful module splits.
+  Root QF1 and lint policy stay unchanged.
 - Source checkpoint `f66ab1e340` commits exactly the three phase SDK-erasure corrections.
-  The fixture initializes `sawSteering`, erases the genuine SDK tool before wrapping it,
-  and registers that erased wrapper directly. Worker `kARc6q` holds its phase scope unchanged.
+  The fixture initializes `sawSteering`,
+  erases the genuine SDK tool before wrapping it,
+  and registers that erased wrapper directly.
+  Worker `kARc6q` holds its phase scope unchanged.
   Fresh candidate `I5x3ww` freezes committed `79ba2916b3` with those changes;
-  JavaScript and native builds pass. Types, full phase catalog and input/schema consumers are running.
+  JavaScript and native builds pass.
+  Types,
+  full phase catalog and input/schema consumers are running.
 - Native worker `Pcok7j` has three scoped warnings and zero errors at its last measured checkpoint.
   Its remaining ambient declaration must preserve the original writable dynamic error name
-  and message-only constructor. The proposed corrected name is sound, but its suppression enable
+  and message-only constructor.
+  The proposed corrected name is sound,
+  but its suppression enable
   comes after the constructor rather than immediately after the documented declaration.
   Stop that complete write and correct the declaration scope before committing and qualifying it.
 - The registered-host reload probe reports zero executions after a genuine disposable policy change,
   followed by one automatic execution after the original SDK reload.
   The initial unregistered probe was not a configured-host reproduction.
   The registered no-reload negative control and complete log audit remain in progress.
-- Next implementation work: split the decision core by review orchestration and admission-scope responsibility;
+- Next implementation work:
+  split the decision core by review orchestration and admission-scope responsibility;
   preserve constructor identity and original decision/lifetime behavior.
   Source MiMo's next held assignment splits the producer-lifetime test by responsibility,
   retaining all nine lifecycle cases and the five rebuilt fault controls.
-- Completion still requires zero package lint, architecture and character/dependency inventories,
-  resumed configured MiMo histories, actual long-history memory qualification,
-  final provider payload and compaction/tool/shutdown verification, package docs and publication.
+- Completion still requires zero package lint,
+  architecture and character/dependency inventories,
+  resumed configured MiMo histories,
+  actual long-history memory qualification,
+  final provider payload and compaction/tool/shutdown verification,
+  package docs and publication.
   The last full frozen lint baseline remains 11,325 warnings and 157 errors across 882 files.
 
 ### Investigation checkpoints
 
-- Incoming-message rejection: the primary-request category-gate defect is closed on `4913ea2cd0`.
-  The gate and its newly introduced classifier are removed; normal input does not need membership in an origin list.
+- Incoming-message rejection:
+  the primary-request category-gate defect is closed on `4913ea2cd0`.
+  The gate and its newly introduced classifier are removed;
+  normal input does not need membership in an origin list.
   Fresh builds and six native consumer suites pass on immutable `native-release-LqreQy` in `3eMYni`.
   Configured full-history replays `rVn75u` and `zdzKWP` each perform one actual reviewed `pwd`,
-  with zero errors or approval dialogs; steering is acknowledged before the original response is released.
-  Each actual primary request is 3,060,823 bytes; each payload audit checks four Luna requests and 239 questions,
-  including required/excluded positive controls. All responses are HTTP 200 and both controllers close normally.
-  Complete stderr has no source-growth, error-level, fatal or bare shutdown error.
+  with zero errors or approval dialogs;
+  steering is acknowledged before the original response is released.
+  Each actual primary request is 3,060,823 bytes;
+  each payload audit checks four Luna requests and 239 questions,
+  including required/excluded positive controls.
+  All responses are HTTP 200 and both controllers close normally.
+  Complete stderr has no source-growth,
+  error-level,
+  fatal or bare shutdown error.
   The strengthened later-request delivery guard at `984834983e` is under fresh rebuilt fault controls.
-  Unmodified installed Pi confirms that steering follows current tools, follow-ups wait for normal completion,
-  and actual abort prevents execution. The queued-text immediate-stop assumption is retracted.
-  Next: finish delivery controls, align phase tests with that contract, and repeat final coherent host verification
-  after the remaining package changes. Live MiMo runtime artifacts remain immutable.
-  Primary-delivery guard controls now detect all three rebuilt faults: restored old category gate,
-  dropped native steering delivery and dropped native follow-up delivery; restored build and both delivery cases pass.
-  Receipt: `inflight-input-delivery-final-controls-results.json`, complete=true, candidate `zn5ROv` at `984834983e`.
-  A separate timing window remains under investigation: input arriving during Luna review,
+  Unmodified installed Pi confirms that steering follows current tools,
+  follow-ups wait for normal completion,
+  and actual abort prevents execution.
+  The queued-text immediate-stop assumption is retracted.
+  Next:
+  finish delivery controls,
+  align phase tests with that contract,
+  and repeat final coherent host verification
+  after the remaining package changes.
+  Live MiMo runtime artifacts remain immutable.
+  Primary-delivery guard controls now detect all three rebuilt faults:
+  restored old category gate,
+  dropped native steering delivery and dropped native follow-up delivery;
+  restored build and both delivery cases pass.
+  Receipt:
+  `inflight-input-delivery-final-controls-results.json`,
+  complete=true,
+  candidate `zn5ROv` at `984834983e`.
+  A separate timing window remains under investigation:
+  input arriving during Luna review,
   which the old `steer-user` phase expectation treats as withholding.
   The new `test:native:inflight-assessment-input` uses real SDK delivery during the assessment response;
   qualify it against the unchanged freshness guards before changing that implementation.
   Baseline `yKnXp3` at `a93c37afe93e` passes builds and primary-time delivery,
   but the new review-time case executes zero tools and fails its exact automatic-execution assertion.
-  Deciding cause: `resource-bindings.mjs` reports `Native run prompt was replaced after this source snapshot`.
+  Deciding cause:
+  `resource-bindings.mjs` reports `Native run prompt was replaced after this source snapshot`.
   `policy-input-collector` has separate pre-approval identity and post-approval dependency checks.
   The authored consolidation uses the incumbent dependency comparison in both phases and removes the stricter duplicate path.
-  It still authenticates snapshots and checks current policy, tool inputs, event runner, immutable governing material,
+  It still authenticates snapshots and checks current policy,
+  tool inputs,
+  event runner,
+  immutable governing material,
   original input append-only ownership and the newly captured base snapshot.
-  Fresh review-time, original primary-time, genuine-policy/tool-change and configured-host checks remain required.
+  Fresh review-time,
+  original primary-time,
+  genuine-policy/tool-change and configured-host checks remain required.
   Corrected `bLWXAD` at `324a7ed707` passes both primary-time cases and both review-time cases,
-  source-freshness work, run-message freshness, session inputs, event receipts, host isolation,
-  constructor, execution and source-binding capacity.
+  source-freshness work,
+  run-message freshness,
+  session inputs,
+  event receipts,
+  host isolation,
+  constructor,
+  execution and source-binding capacity.
   A separate schema-mutation fixture fails before checking its schema because it passes retired `manualOrigins`
-  instead of the current `executionOrigins` map; this is not evidence of a changed production schema guard.
+  instead of the current `executionOrigins` map;
+  this is not evidence of a changed production schema guard.
   The fixture correction uses the actual argument and requires the exact schema-change diagnostic,
   preventing unrelated ownership errors from satisfying its assertion.
-  The source MiMo's held edit is read completely and stopped: an unmatched parenthesis and another normalization drift
-  make that patch unaccepted. It resumes at a settled boundary with a truthful, small JavaScript fixture-helper option
-  and genuine SDK erasure guidance; no invented predicates or new input validation are accepted.
-  Review-time corrected host `native-release-iw9xzU` passes baseline `PQ0UjR`, steering `clGcSZ`
+  The source MiMo's held edit is read completely and stopped:
+  an unmatched parenthesis and another normalization drift
+  make that patch unaccepted.
+  It resumes at a settled boundary with a truthful,
+  small JavaScript fixture-helper option
+  and genuine SDK erasure guidance;
+  no invented predicates or new input validation are accepted.
+  Review-time corrected host `native-release-iw9xzU` passes baseline `PQ0UjR`,
+  steering `clGcSZ`
   and follow-up `Mxx37Y` with full saved history and 3,061,618-byte original requests.
-  Each executes its sole reviewed `pwd`, opens zero approval dialogs, captures four HTTP-200 Luna responses,
+  Each executes its sole reviewed `pwd`,
+  opens zero approval dialogs,
+  captures four HTTP-200 Luna responses,
   and passes required/excluded payload controls over 239 questions.
   Actual serialized requests show steering first delivered in request two and follow-up first in request three;
-  neither is rewritten into the original request. Complete stderr and normal shutdown audits pass.
+  neither is rewritten into the original request.
+  Complete stderr and normal shutdown audits pass.
   Previous-build control `RSjiZv` reproduces the exact review-time snapshot rejection and approval dialog;
-  its complete sole-`pwd` group is audited and stopped, then normal shutdown is requested.
+  its complete sole-`pwd` group is audited and stopped,
+  then normal shutdown is requested.
   Rebuilt controls in `ijhWT8` catch removal of the actual schema guard and restoration of strict review identity;
-  restored build, schema, primary-delivery and review-delivery cases all pass.
-  Receipts: `review-current-*-audit.log`, `review-old-control-audit.log`, `currentness-controls-results.json`.
-- Producer memory: production candidate `VS53fb` passes all fifteen named build/type/consumer tasks
-  and retains 16,688,184 additional heap bytes in the twelve-group, 24-response guard.
+  restored build,
+  schema,
+  primary-delivery and review-delivery cases all pass.
+  Receipts:
+  `review-current-*-audit.log`,
+  `review-old-control-audit.log`,
+  `currentness-controls-results.json`.
+- Producer memory:
+  production candidate `VS53fb` passes all fifteen named build/type/consumer tasks
+  and retains 16,688,184 additional heap bytes in the twelve-group,
+  24-response guard.
   Cleanup candidate `DQrRuL` passes all nine lifetime cases and retains 17,742,936 bytes in that same real-session guard.
-  Five rebuilt mutations are caught in independent `8nNXOe`; restored build, lifetime cases and memory guard pass.
+  Five rebuilt mutations are caught in independent `8nNXOe`;
+  restored build,
+  lifetime cases and memory guard pass.
   Actual long-history growth and final configured replay remain open.
-- Source MiMo: `kARc6q` owns only the phase callback/mode/transport/assertion/type reduction.
+- Source MiMo:
+  `kARc6q` owns only the phase callback/mode/transport/assertion/type reduction.
   Original 432 code lines/126 statements/25 functions became 780/226/45 in the unaccepted consolidation.
-  The catalog passes on its named pre-removal snapshot; its queued-steering assumptions now need correction.
+  The catalog passes on its named pre-removal snapshot;
+  its queued-steering assumptions now need correction.
   The preparation declaration must preserve invalid-input behavior
   while expressing the actual SDK registration boundary honestly.
   The next proposal includes an always-true predicate asserting `BashToolInput` for every unknown;
-  the supervisor rejects that as an unsound assertion, regardless of its projection documentation.
+  the supervisor rejects that as an unsound assertion,
+  regardless of its projection documentation.
   MiMo receives concrete feedback to use the genuine SDK erasure boundary without claiming validation,
   and to align steering assertions with the independently measured native queue timing.
   Its scope now includes the phase catalog registration call if needed.
-  It commits the JavaScript value helper, truthful unknown preparation and actual queued delivery assertions
-  as `46fd9cb0c4`, with exactly eight captured paths.
+  It commits the JavaScript value helper,
+  truthful unknown preparation and actual queued delivery assertions
+  as `46fd9cb0c4`,
+  with exactly eight captured paths.
   Its report incorrectly attributes an already-verified unknown-through-final-defineTool chain to the supervisor;
-  no such clean-chain qualification exists. The wrapper's declared type still loses the SDK's renderer erasure.
+  no such clean-chain qualification exists.
+  The wrapper's declared type still loses the SDK's renderer erasure.
   Independent `sdk-tool-erasure-proof` establishes the real solution with a negative registry-name compiler control,
-  zero diagnostics on the honest unknown-return fixture, and actual SDK/renderer identity assertions.
-  The remaining package diagnostic is the old phase catalog registration at line 185, not the independent proof.
-  Deliver that concrete prototype at the settled checkpoint; do not add validation to satisfy the declared schema.
-- Native MiMo: `Pcok7j` resumes the complete `9Tl0ts` history on the corrected immutable runtime.
-  Its queued concrete implementation is the real policy-loader TypeScript port, not a facade around untyped code.
+  zero diagnostics on the honest unknown-return fixture,
+  and actual SDK/renderer identity assertions.
+  The remaining package diagnostic is the old phase catalog registration at line 185,
+  not the independent proof.
+  Deliver that concrete prototype at the settled checkpoint;
+  do not add validation to satisfy the declared schema.
+- Native MiMo:
+  `Pcok7j` resumes the complete `9Tl0ts` history on the corrected immutable runtime.
+  Its queued concrete implementation is the real policy-loader TypeScript port,
+  not a facade around untyped code.
   Neither worker may mutate root dist or another owner's files.
-  It delivers the actual loader implementation, publication split and boundary declarations with 19 scoped warnings/23 errors.
+  It delivers the actual loader implementation,
+  publication split and boundary declarations with 19 scoped warnings/23 errors.
   Its twelve-path commit fails in the RPC container at the known unrelated staged-LFS shadow boundary.
-  The documented qualified host-wrapper route succeeds as `a751fe27fe`; committed paths exactly match the captured twelve.
+  The documented qualified host-wrapper route succeeds as `a751fe27fe`;
+  committed paths exactly match the captured twelve.
   A post-commit receipt command initially guesses unsupported `git diff-tree --recursive` and fails after committing;
-  the recovery uses the installed command's documented `-r`, verifies exact scope and does not repeat the commit.
-  Qualify the combined build/types/catalogs, then finish scoped lint and inspect every suppression under the package rules.
-- Declaration build: the incumbent Rolldown/Oxc generator emits closed `native-artifact-types` declarations.
+  the recovery uses the installed command's documented `-r`,
+  verifies exact scope and does not repeat the commit.
+  Qualify the combined build/types/catalogs,
+  then finish scoped lint and inspect every suppression under the package rules.
+- Declaration build:
+  the incumbent Rolldown/Oxc generator emits closed `native-artifact-types` declarations.
   Release-relative facades eliminate copied source paths and raw-built-TypeScript project traversal.
   The environment forwards the actual identity-preserving SDK `defineTool` function.
-  Eight owned files have zero scoped lint warnings/errors; all five formatter-generated declaration outputs match byte for byte.
-  Fresh complete types remain open on the phase preparation contract; do not reuse older clean-type claims.
-- Full package lint: latest complete frozen scan reports 11,325 warnings/157 errors across 882 files at `d58b695428`.
+  Eight owned files have zero scoped lint warnings/errors;
+  all five formatter-generated declaration outputs match byte for byte.
+  Fresh complete types remain open on the phase preparation contract;
+  do not reuse older clean-type claims.
+- Full package lint:
+  latest complete frozen scan reports 11,325 warnings/157 errors across 882 files at `d58b695428`.
   The preceding `9e14b79e86` scan reports 11,418 warnings/126 errors across 869 files.
   A fresh complete scan and zero-diagnostic repair remain required after the current ports.
-- Source inventory: frozen `9e14b79e86` now has a bounded, positive-controlled role graph over 869 owned source files,
-  actual generated native imports, explicit shared roles and Node type erasure.
+- Source inventory:
+  frozen `9e14b79e86` now has a bounded,
+  positive-controlled role graph over 869 owned source files,
+  actual generated native imports,
+  explicit shared roles and Node type erasure.
   It reports 75,477 runtime source lines and 31,073 runtime statements across all roles;
   runtime-reached files contribute 32,953 lines/12,949 statements,
-  build-only files 4,879/1,184, and verification-only files 36,953/16,681.
-  There are 113 nonliteral imports and 65 unresolved local references, so this is not a complete deployment graph.
-  No production exclusion uses `assertion`, `case` or `fixture` substrings.
+  build-only files 4,879/1,184,
+  and verification-only files 36,953/16,681.
+  There are 113 nonliteral imports and 65 unresolved local references,
+  so this is not a complete deployment graph.
+  No production exclusion uses `assertion`,
+  `case` or `fixture` substrings.
   The first inventory rejects the executable symlink as an unrecorded root;
   the correction records its owned `native/command.ts` target without following directory links.
-  A repeated scratch preparation also initially duplicates its own task block; preparation is now idempotent.
-- Architecture reduction: the measured runtime source remains unaccepted.
+  A repeated scratch preparation also initially duplicates its own task block;
+  preparation is now idempotent.
+- Architecture reduction:
+  the measured runtime source remains unaccepted.
   Audit internal snapshot checks against their genuine callers and justify each retained validation boundary.
-  The user rejects normal-input category gates; more accepted categories are not the redesign.
+  The user rejects normal-input category gates;
+  more accepted categories are not the redesign.
   Package responsibility docs must justify the retained implementation and its executable consumer evidence.
-- Publication: normal wrapper auto-push publishes root `984834983e` through remote merge `f66614cac61c`,
-  preserving root branch and concurrent dirty work. No root merge or cleanup is authorized by that receipt.
-- Completion queue: finish coherent types/full lint/catalogs/payload audit/shutdown stderr,
-  final inode/dependency/source inventories, package responsibility documentation and safe publication.
-  Root `TCV`, `CPN`, `RXI`, `MWK`, `QF1` stay unchanged by the user's explicit decisions;
+- Publication:
+  normal wrapper auto-push publishes root `984834983e` through remote merge `f66614cac61c`,
+  preserving root branch and concurrent dirty work.
+  No root merge or cleanup is authorized by that receipt.
+- Completion queue:
+  finish coherent types/full lint/catalogs/payload audit/shutdown stderr,
+  final inode/dependency/source inventories,
+  package responsibility documentation and safe publication.
+  Root `TCV`,
+  `CPN`,
+  `RXI`,
+  `MWK`,
+  `QF1` stay unchanged by the user's explicit decisions;
   concrete lessons remain package-local.
-  Preserve unrelated work. Logger `0.4.4` is published and installed-consumer verified;
-  project-first logs with user-state fallback remain selected. Private pnpr access is pending independently.
+  Preserve unrelated work.
+  Logger `0.4.4` is published and installed-consumer verified;
+  project-first logs with user-state fallback remain selected.
+  Private pnpr access is pending independently.
   The next independent lint reduction is a private full-owned-source safe formatter pass,
   followed by complete TypeScript/JavaScript AST and comment comparison before any adoption.
-  Exclude both active MiMo scopes; never overwrite concurrently changed files.
+  Exclude both active MiMo scopes;
+  never overwrite concurrently changed files.
   Continue the architecture audit at the authenticated manager-growth comparison,
   where repeated shape checks may duplicate the collector's actual ownership seam.
   Combined committed `4f3eb91a8c` builds JavaScript and native output and passes the full phase catalog,
-  both primary/review input cases, source freshness and schema mutation.
+  both primary/review input cases,
+  source freshness and schema mutation.
   Its fresh types report only phase-catalog TS2741 (missing initial `sawSteering`)
   and TS2379 (the still-unerased fixture registration).
-  Source MiMo receives the proven SDK erasure prototype; native MiMo resumes its scoped lint repair.
+  Source MiMo receives the proven SDK erasure prototype;
+  native MiMo resumes its scoped lint repair.
   Deliver the additional exact TS2741 evidence at the source worker's next settled boundary.
   Previous-build negative controller `RSjiZv` exits normally after its audited Stop response.
-  The combined checkpoint finishes constructor/execution consumers successfully; its only type errors remain the two phase fixtures.
-  The full formatter experiment changes 34 of 882 files: eight preserve complete AST/comments,
+  The combined checkpoint finishes constructor/execution consumers successfully;
+  its only type errors remain the two phase fixtures.
+  The full formatter experiment changes 34 of 882 files:
+  eight preserve complete AST/comments,
   seventeen change the AST and nine overlap active worker scopes.
   Rejected changes are restored only in the private candidate.
   The initial eight-file candidate builds and passes phases but introduces one extra producer-lifetime lint error.
-  That file is restored privately; seven candidates remain under critical consumer verification before adoption.
+  That file is restored privately;
+  seven candidates remain under critical consumer verification before adoption.
   Its first inflight task does not execute because the private driver lacks that task registration;
   the resumed driver adds the exact maintained tasks without rerunning completed builds or the formatter.
   The source monitor incorrectly hides an approval dialog when its tool count is below the minimum;
-  pending approvals now bypass that threshold. Old loaded watchers remain unchanged until they exit.
+  pending approvals now bypass that threshold.
+  Old loaded watchers remain unchanged until they exit.
   The supervisor gives a proof path whose host-temp symlink target is not mounted in the worker,
   then stops the complete read-only directory-listing detour and supplies the actual proof and fresh diagnostics
   in `/fixture-home` at the next idle boundary.
   Source `kARc6q` resumes as `source-local-proof-and-exact-diagnostics-20261019-18`;
   native `Pcok7j` continues scoped lint and an explicit suppression-source record.
   The seven-file formatter scope preserves error codes but increases the reported line counts in two already-overlong files.
-  Its exact diagnostic comparison rejects that adoption; no formatter changes have reached root.
-  User corrects that rejection: wrapping is formatting, not regression;
+  Its exact diagnostic comparison rejects that adoption;
+  no formatter changes have reached root.
+  User corrects that rejection:
+  wrapping is formatting,
+  not regression;
   character counts assess implementation growth while existing max-lines still requires module splits.
   The producer owner adds 129 whitespace characters and the decision core adds 17;
   their non-whitespace counts stay 9,432 and 10,273 respectively.
   Retain the eight previously AST/comment-qualified formatter patches,
-  including the lifecycle fixture's formatting, then split over-limit responsibilities.
-  Keep lint policy and root QF1 unchanged; the concrete sizing lesson stays in package docs.
+  including the lifecycle fixture's formatting,
+  then split over-limit responsibilities.
+  Keep lint policy and root QF1 unchanged;
+  the concrete sizing lesson stays in package docs.
   The first reload probe lacks the host's resource-owner registration and fails after SDK reload.
-  It is a harness result, not evidence that the configured host cannot recover.
+  It is a harness result,
+  not evidence that the configured host cannot recover.
   Repeat through the actual registered route before drawing a package conclusion.
   Native scoped lint drops to three chain warnings/zero errors across twelve files;
   a malformed escaped-path display command is stopped and the complete actual log is read by the supervisor.
-  Native receives exact diagnostics and a named-local correction; source receives the exact proven type correction.
+  Native receives exact diagnostics and a named-local correction;
+  source receives the exact proven type correction.
   Both old-runtime workers encounter a separate governing-policy invalidation after concurrent root `AGENTS.md` changes.
   Source logs retain `ObservedFileUnstableReadError` followed by permanent policy-link ineligibility;
   native logs retain `Original selected policy capture changed`.
   Do not equate those incidents or treat manual continuation as automatic-approval qualification.
-  Next: prove policy change, reload and subsequent actual tool execution in a disposable session,
+  Next:
+  prove policy change,
+  reload and subsequent actual tool execution in a disposable session,
   then resume the completed worker histories on a newly qualified immutable runtime.
 
 ## Detailed qualification evidence
 
-Work is incomplete. Continue the independently verifiable queue without a readiness handoff.
+Work is incomplete.
+Continue the independently verifiable queue without a readiness handoff.
 
 ### Incoming-message investigation checkpoints
 
-These checkpoints preserve the investigation sequence; current status is in `Current work and next actions`.
+These checkpoints preserve the investigation sequence;
+current status is in `Current work and next actions`.
 
-- Actual configured host: source replay `kARc6q` uses corrected immutable `native-release-YGJ1JD`
-  with the complete saved history. Its first group still fails source growth with
+- Actual configured host:
+  source replay `kARc6q` uses corrected immutable `native-release-YGJ1JD`
+  with the complete saved history.
+  Its first group still fails source growth with
   `Only original unregistered manager, native event or custom data inputs may extend this source snapshot`.
   The supervisor stops the group's four-`&&` initialization chain and submits the scoped continuation after cancellation.
   Do not conflate this source-growth incident with retained heap or claim either is closed by the other.
   A separate private `manager-growth-diagnostic-candidate-AZGRBS` passes fresh builds;
-  its diagnostics contain only original enum metadata, counts and identity-equality booleans.
+  its diagnostics contain only original enum metadata,
+  counts and identity-equality booleans.
   The controlled configured replay compares ordinary output with a steer during the original request,
-  using an authored primary response, full saved history, read-only repository and private state.
+  using an authored primary response,
+  full saved history,
+  read-only repository and private state.
   Diagnose the rejected origin before changing eligibility rules.
   The controlled baseline `VjWPeZ` completes its actual reviewed `pwd` with zero errors.
   The acknowledged-steer-before-response case `eRgzGM` reproduces the same withheld group.
-  Original origin identity checks all pass, but the first added origin is `native-call-input`,
+  Original origin identity checks all pass,
+  but the first added origin is `native-call-input`,
   which the growth guard's category check excludes.
   A committed native-session regression now drives real `session.steer`/`followUp` before the provider response;
   run it on the original build before correcting admission.
   The scratch orchestrator initially races the controller's non-atomic state write and reads empty JSON;
-  its request/steer/release already occurred. Subsequent state and complete stderr establish the actual host failure.
-  Repair that reader/producer race separately; do not rerun the already-submitted commands or blame the package for it.
+  its request/steer/release already occurred.
+  Subsequent state and complete stderr establish the actual host failure.
+  Repair that reader/producer race separately;
+  do not rerun the already-submitted commands or blame the package for it.
   Fresh committed regression candidate `inflight-input-baseline-candidate-1aAqgX` at `2e183592cf`
   passes builds and fails the exact inflight-steer execution assertion with the same source-growth cause.
   A private diagnostic copy reads the actual SDK's four new bare-session origins:
-  call input, unintercepted input, user queue and user Agent steer input, all unregistered with permission=false.
+  call input,
+  unintercepted input,
+  user queue and user Agent steer input,
+  all unregistered with permission=false.
   The user rejects category-based rejection of ordinary incoming messages as unacceptable.
-  The supervisor retracts the phrase "SDK receipts": these records are owned instrumentation,
+  The supervisor retracts the phrase "SDK receipts":
+  these records are owned instrumentation,
   not a requirement imposed by Pi.
   The category-specific repair at `869818daa9` passes both actual-session delivery cases,
   but remains unaccepted and is superseded by removal of the category gate and its new helper.
-  Original ownership, registration, permission, run, replacement and reorder checks remain;
+  Original ownership,
+  registration,
+  permission,
+  run,
+  replacement and reorder checks remain;
   actual governing-policy and executable-tool changes retain their independent guards.
-  Its full phase catalog also fails `steer-primary`: three executions versus an expected zero.
-  The test queues text asking to stop; installed Pi explicitly delivers steering after the current turn's tools.
+  Its full phase catalog also fails `steer-primary`:
+  three executions versus an expected zero.
+  The test queues text asking to stop;
+  installed Pi explicitly delivers steering after the current turn's tools.
   An independent unmodified-SDK probe must establish that behavior before correcting either implementation or assertion.
-  Preserve actual abort/no-execution coverage and test next-request delivery, not text-based cancellation assumptions.
-  Fresh builds, consumer/regression checks and configured replay are required for the category-gate removal.
+  Preserve actual abort/no-execution coverage and test next-request delivery,
+  not text-based cancellation assumptions.
+  Fresh builds,
+  consumer/regression checks and configured replay are required for the category-gate removal.
   Gate removal `4913ea2cd0` builds privately as `native-release-LqreQy` in `3eMYni`.
-  Both actual-session delivery cases, source-binding capacity, constructor, input content,
-  session inputs and execution pass; every named build/consumer result is zero.
-  The independent unmodified installed Agent probe also passes baseline, steering, follow-up and abort controls:
-  queued stop text arrives after execution in both delivery modes; actual abort executes zero tools.
-  Receipt: `stock-input-delivery-probe-fourth.log`, bounded at 2 GiB and 2 CPUs with network disabled.
+  Both actual-session delivery cases,
+  source-binding capacity,
+  constructor,
+  input content,
+  session inputs and execution pass;
+  every named build/consumer result is zero.
+  The independent unmodified installed Agent probe also passes baseline,
+  steering,
+  follow-up and abort controls:
+  queued stop text arrives after execution in both delivery modes;
+  actual abort executes zero tools.
+  Receipt:
+  `stock-input-delivery-probe-fourth.log`,
+  bounded at 2 GiB and 2 CPUs with network disabled.
   The supervisor retracts its proposed immediate-stop interpretation of queued text.
   Configured-history baseline and acknowledged inflight-steer replay are next on the corrected immutable artifact.
   Corrected configured-history baseline `rVn75u` and acknowledged inflight-steer replay `zdzKWP`
-  each settle after one successful actual `pwd`, zero tool errors and no held approval dialog.
-  Both capture four actual Luna HTTP responses; full payload and shutdown audits remain required.
-  Complete configured replay audits now pass in both variants: each original primary request is 3,060,823 bytes,
+  each settle after one successful actual `pwd`,
+  zero tool errors and no held approval dialog.
+  Both capture four actual Luna HTTP responses;
+  full payload and shutdown audits remain required.
+  Complete configured replay audits now pass in both variants:
+  each original primary request is 3,060,823 bytes,
   each Luna capture contains four requests/two operation reviews/239 questions,
   and required-data removal controls plus structured command/thinking/signature controls all detect their faults.
-  Every captured Luna response is HTTP 200, both controllers close normally, and both complete 708-byte stderr logs
-  contain only preflight, model retirement, headless settled notification and helper-shutdown entries.
-  No approval dialog, source-growth error, error-level log, bare shutdown error or fatal error occurs.
-  This closes the reproduced category-gate incident on `4913ea2cd0`; final whole-package qualification remains open.
-  The new later-delivery guard passes its fresh build, but its first restored-old-gate control
+  Every captured Luna response is HTTP 200,
+  both controllers close normally,
+  and both complete 708-byte stderr logs
+  contain only preflight,
+  model retirement,
+  headless settled notification and helper-shutdown entries.
+  No approval dialog,
+  source-growth error,
+  error-level log,
+  bare shutdown error or fatal error occurs.
+  This closes the reproduced category-gate incident on `4913ea2cd0`;
+  final whole-package qualification remains open.
+  The new later-delivery guard passes its fresh build,
+  but its first restored-old-gate control
   reaches an assertion inside the provider fixture before the intended terminal assertion.
-  That is not a qualified control result. Move timing assertions out of the provider callback,
-  preserve its recorded observations, and repeat controls on the corrected committed test.
+  That is not a qualified control result.
+  Move timing assertions out of the provider callback,
+  preserve its recorded observations,
+  and repeat controls on the corrected committed test.
   Future controller instances publish state synchronously through atomic rename,
   avoiding the earlier empty-JSON reader race without altering live controllers.
   The maintained delivery guard now also observes queued input in the subsequent actual serialized request,
-  after the original tool executes; qualify this committed assertion against dropped-delivery controls.
+  after the original tool executes;
+  qualify this committed assertion against dropped-delivery controls.
 
 ### Other qualification checkpoints
 
-- Active memory incident: recovered source worker `7HN2ZH` grows from 89,823,320 to 511,619,256 post-GC heap bytes
-  over 24 tools. Private positive-controlled heap graphs trace old request bodies through producer response records
-  and their retained judgments. Weak-map key liveness and a causal retirement probe still require proof.
+- Active memory incident:
+  recovered source worker `7HN2ZH` grows from 89,823,320 to 511,619,256 post-GC heap bytes
+  over 24 tools.
+  Private positive-controlled heap graphs trace old request bodies through producer response records
+  and their retained judgments.
+  Weak-map key liveness and a causal retirement probe still require proof.
   Native MiMo `9Tl0ts` investigates lifetime semantics read-only on command
   `native-producer-retention-investigation-20261019-09`.
 - The supervisor's full native-host reproduction is `producer-retention-host-probe-candidate-tWDuzA`,
-  frozen at `e601e1043350`. Fresh JavaScript/native builds pass.
+  frozen at `e601e1043350`.
+  Fresh JavaScript/native builds pass.
   An actual session completes twelve approved tool groups and retains all 24 historical assistant responses.
-  Post-GC heap grows by 51,189,592 bytes; the final actual request is 1,632,936 bytes.
+  Post-GC heap grows by 51,189,592 bytes;
+  the final actual request is 1,632,936 bytes.
   Unchanged repeats retain 51,189,592 to 51,582,984 additional heap bytes.
   Two no-judgment controls retain 11,459,160 and 11,462,968 bytes.
   A separate causal candidate `producer-retention-host-retire-probe-candidate-a4bYII`
   clears previous producer slot values on subsequent construction;
   independently logged runs retain 17,779,424 and 17,789,088 bytes with all original executions/history/diagnostics.
-  This establishes the reproduction's owned retention path, not the older worker OOM's complete cause or a qualified fix.
+  This establishes the reproduction's owned retention path,
+  not the older worker OOM's complete cause or a qualified fix.
   The experimental policy can invalidate active concurrent operations and is explicitly unaccepted.
   A maintained actual-session guard and package task are added before the production correction;
   its 32-MiB limit must fail the original artifact before qualification.
-  Fresh original builds pass, but the first maintained guard fails before that limit:
+  Fresh original builds pass,
+  but the first maintained guard fails before that limit:
   whole-outcome equality omits the actual diagnostic `reason` member.
-  This is explicitly not memory-retention evidence; the correction checks state/verdict independently.
+  This is explicitly not memory-retention evidence;
+  the correction checks state/verdict independently.
   Preserve that failed candidate and qualify the corrected committed guard separately.
   Corrected guard `1145180abb` now fails its named memory assertion on a fresh original build:
   `Completed producer judgments retain 55919400 heap bytes with historical assistant responses live`.
-  Receipt: `producer-retirement-guard-corrected-results.json`, candidate `UWs6GQ`.
+  Receipt:
+  `producer-retirement-guard-corrected-results.json`,
+  candidate `UWs6GQ`.
   The production correction is now authored for independent review and built verification:
   each private consumer retains its current slot;
-  only completed slots retire, either on later reservation or on completion after being superseded while active.
+  only completed slots retire,
+  either on later reservation or on completion after being superseded while active.
   A handler-owned outer using scope completes the producer after both group and selector disposal.
-  No reservation, failed construction, auxiliary/reused identities and reentrant completion retain explicit handling.
+  No reservation,
+  failed construction,
+  auxiliary/reused identities and reentrant completion retain explicit handling.
   Response/stream ownership maps and reservation tombstones remain.
-  No production qualification is claimed yet; native MiMo's independent consumer trace is still active.
+  No production qualification is claimed yet;
+  native MiMo's independent consumer trace is still active.
   The independent frozen production candidate is `producer-retirement-qualified-candidate-VS53fb`
   at committed `98381bfa32`.
-  Fresh JavaScript/native builds, package types, the actual-session memory guard
+  Fresh JavaScript/native builds,
+  package types,
+  the actual-session memory guard
   and separate group-only review-retirement test now pass.
   The sequential remaining lifecycle/consumer catalogs run under two GiB/two CPUs;
   receipt `producer-retirement-qualified-results.json` stays incomplete until every named task terminates.
-  Currentness/identity/reuse/completion branch tests, built removal controls and actual long-history MiMo replay remain required.
+  Currentness/identity/reuse/completion branch tests,
+  built removal controls and actual long-history MiMo replay remain required.
   That immutable candidate now completes every fifteen named build/type/consumer tasks with exit zero,
-  including the full phase and fallback catalogs, execution, constructor, host isolation,
-  source binding, run history, event receipts, startup relevance and session inputs.
+  including the full phase and fallback catalogs,
+  execution,
+  constructor,
+  host isolation,
+  source binding,
+  run history,
+  event receipts,
+  startup relevance and session inputs.
   Its actual twelve-group memory guard retains 16,688,184 heap bytes with all 24 historical responses live.
   New `test:native:producer-lifetime` black-box cases are committed separately for active/concurrent completion,
-  latest diagnostics, auxiliary/unjudged responses, failed/reentrant construction and response/stream reuse.
+  latest diagnostics,
+  auxiliary/unjudged responses,
+  failed/reentrant construction and response/stream reuse.
   The independence case binds both consumers to the same issuer so it can detect an incorrectly global current slot.
   These new cases still require their fresh built run and positive-controlled mutations.
   Built mutation qualification now completes in independent `producer-retirement-built-guards-candidate-8nNXOe`
-  at `1cbae79d1c`, with every five named mutations caught after native rebuild:
-  missing handler completion, retained payload value, premature active retirement,
+  at `1cbae79d1c`,
+  with every five named mutations caught after native rebuild:
+  missing handler completion,
+  retained payload value,
+  premature active retirement,
   cross-consumer shared current state and cleanup ambiguity revalidation.
-  Restored native build, every lifetime case and actual-session memory guard then pass.
+  Restored native build,
+  every lifetime case and actual-session memory guard then pass.
   Receipt `producer-retirement-built-guards-results.json` is complete;
   root dist and the live replay runtime remain untouched.
   A further regression now tests a late response alias while its original operation is active:
   completion cleanup must retain the original operation error rather than throw a fresh ownership error over it.
-  This boundary is not yet qualified; run the committed black-box case before correcting the producer.
+  This boundary is not yet qualified;
+  run the committed black-box case before correcting the producer.
   Frozen cleanup baseline `producer-lifetime-cleanup-baseline-candidate-8v0uDt` at `a940bf58b524`
   now passes fresh builds and fails that exact regression with Node's actual `SuppressedError`:
   the disposer adds a response-reuse error over the original operation error.
   The authored correction separates original consumer ownership lookup from ambiguity authorization;
-  completion uses the former, while every policy read and new reservation retains the latter.
+  completion uses the former,
+  while every policy read and new reservation retains the latter.
   Fresh corrected qualification remains required.
   Corrected candidate `producer-lifetime-cleanup-fixed-candidate-DQrRuL` at `b8ec3f2e32`
-  passes fresh builds, every nine producer-lifetime cases, the actual-session memory guard,
+  passes fresh builds,
+  every nine producer-lifetime cases,
+  the actual-session memory guard,
   constructor and execution catalogs.
   The review-retirement command is rejected by the scratch driver's allow-list before entering the container;
-  this is a verification-driver gap, not a package-test result, and must be rerun after registration.
+  this is a verification-driver gap,
+  not a package-test result,
+  and must be rerun after registration.
   Native MiMo delivers its independent read-only trace at 101 tools,
   saved privately as `native-checkpoint-20261019.txt`.
   It supports the per-consumer current-slot/completion seam and identifies the same live consumers.
-  Its bypass claim is incorrect: `prepared-group.mjs:188` calls `constructSource` unconditionally.
+  Its bypass claim is incorrect:
+  `prepared-group.mjs:188` calls `constructSource` unconditionally.
   Its description of disposal error aggregation also requires a real Node probe;
   do not treat either statement as deciding evidence or silently relax invalid-input guards.
   The parent collector initially mistakes a build receipt for a test receipt,
   and its restart output path collides with the second child's log.
-  Both collector failures are retained; that collided log is excluded and a distinct fourth-run log is collected.
+  Both collector failures are retained;
+  that collided log is excluded and a distinct fourth-run log is collected.
 - Source MiMo `7HN2ZH` delivers the requested read-only checkpoint and now receives
   `source-owner-contract-consolidation-20261019-08`.
   Its unaccepted phase port grows from 432 code lines/126 statements/25 functions
@@ -1606,13 +2545,16 @@ These checkpoints preserve the investigation sequence; current status is in `Cur
   It drops the actual async factory await and reads an invented `created` member.
   Consolidation reuses actual session/runtime/SDK owners and removes the generic reader/session adapter.
   Authorized new owner declarations are `native-batch/environment.d.mts`
-  and `domain-fixture-assessment.d.mts`, with one shared fixture-type sibling only if needed.
-  The immutable live artifact must not change; the supervisor builds and verifies the new emitted contract separately.
+  and `domain-fixture-assessment.d.mts`,
+  with one shared fixture-type sibling only if needed.
+  The immutable live artifact must not change;
+  the supervisor builds and verifies the new emitted contract separately.
   MiMo delivers the consolidated checkpoint at 38 tools and is settled.
   It removes its three untracked generic reader/session files,
   preserves the original await/flat result and uses the actual session/runtime/SDK declarations.
   The remaining interop contracts are with the environment and assessment owners.
-  This checkpoint is committed for independent freezing and verification, not accepted as complete.
+  This checkpoint is committed for independent freezing and verification,
+  not accepted as complete.
   Its new no-op `send` callback only satisfies an overly strict runtime input declaration;
   remove that invented callback by accurately expressing the configured semantic transport branch in the owner contract.
   Frozen `phase-owner-contract-checkpoint-candidate-6uvAWU` at `09e386c087` now passes fresh JavaScript/native builds,
@@ -1622,19 +2564,22 @@ These checkpoints preserve the investigation sequence; current status is in `Cur
   copied declarations point into nonexistent `dist/src`,
   and importing built TypeScript implementations crosses the composite project's file list.
   There are also honest fixture-contract mismatches for cwd and the optional SDK update callback.
-  Keep the compiler configuration strict; repair the build owner's emitted declaration boundary,
+  Keep the compiler configuration strict;
+  repair the build owner's emitted declaration boundary,
   using the existing Rolldown/Oxc declaration bundle rather than another caller-side reader/adapter layer.
   The authored build correction adds a type-only fixture entry to the incumbent Rolldown/Oxc build,
   emits release-relative declaration facades during native generation and exposes the original session owner via `.mjs`.
   Source owners refine the guaranteed cwd and optional SDK update callback;
   the runtime transport union distinguishes configured raw-wire policy from the legacy normalized sender.
-  The invented no-op `send` callback is removed. Fresh emitted type/catalog/lint verification is pending.
+  The invented no-op `send` callback is removed.
+  Fresh emitted type/catalog/lint verification is pending.
   Frozen `relocatable-fixture-types-candidate-ZJd3cN` at `ab9e6ed62a` passes fresh builds,
   the complete phase catalog and the properly registered group-only review-retirement test.
   Types improve from 26 failures to one concrete Bash-renderer variance failure in SDK `customTools`.
   The installed SDK publishes `defineTool` specifically for this array boundary and returns its argument unchanged.
   The authored correction forwards that exact function through the fixture environment and uses it at registration;
-  no renderer or tool wrapper is invented. Fresh verification is pending.
+  no renderer or tool wrapper is invented.
+  Fresh verification is pending.
   The next frozen `sdk-tool-fixture-inference-candidate-J5VZkf` passes builds and the complete phase catalog,
   but types expose two remaining source-owner declarations:
   required `modelRuntime: unknown` still permits the SDK's optional undefined value,
@@ -1645,19 +2590,23 @@ These checkpoints preserve the investigation sequence; current status is in `Cur
   The type-only build entry was named `src/native-fixture-types.ts`
   (renamed to `src/native-artifact-types.ts` on 2026-10-18):
   its old name incorrectly classifies an artifact-generating entry as a test-only fixture.
-  The renamed build owner still imports original source types; actual tests keep importing built facades.
+  The renamed build owner still imports original source types;
+  actual tests keep importing built facades.
   Generator documentation/formatting and public declaration exports are being corrected without suppression.
   The eight-file emitted-declaration owner scope now reports zero lint warnings/errors in the private style candidate.
   Adoption checks non-generator runtime syntax with positive difference controls,
   and actually invokes original/formatted generators to compare all five emitted declaration files byte for byte.
-  That generator proof passes; six explicit owned formatting paths are adopted.
-  Source MiMo resumes complete saved history in `kARc6q`, immutable corrected runtime `native-release-YGJ1JD`,
+  That generator proof passes;
+  six explicit owned formatting paths are adopted.
+  Source MiMo resumes complete saved history in `kARc6q`,
+  immutable corrected runtime `native-release-YGJ1JD`,
   under two GiB/two CPUs/1,536-MiB heap with allocation and payload capture.
   Its bounded write scope reduces the phase callback/mode/transport/assertion/type files;
   build/declaration and catalog registration changes remain supervisor-owned.
   Native worker `9Tl0ts` also closes normally with exit zero and no signal before its corrected-runtime resume.
   The current consolidated AST comparison measures 780 code lines/226 statements/45 functions,
-  against the original 432/126/25; its two owner declarations have zero runtime code/statements/functions.
+  against the original 432/126/25;
+  its two owner declarations have zero runtime code/statements/functions.
   Exported/ambient type-only removal has a new positive control so declaration syntax is not counted as executable code.
   This is less than the rejected port's 1,216/357/71 but remains an unaccepted design checkpoint.
   Source worker `7HN2ZH` is asked to close normally after saving its complete 5,332-code-unit checkpoint,
@@ -1666,31 +2615,47 @@ These checkpoints preserve the investigation sequence; current status is in `Cur
   The controller now confirms normal exit zero with no signal.
   Its complete stderr retains the existing source-growth and cancellation failures plus headless notification warnings;
   a normal shutdown is not evidence those earlier incidents are fixed.
-- Factory identity, opacity and forwarding qualify in a separate frozen candidate.
-  Every thirteen rebuilt mutations fail their named regressions, followed by a restored passing build/consumer.
-  Receipt: `policy-input-factory-fixed-built-mutants.json`.
+- Factory identity,
+  opacity and forwarding qualify in a separate frozen candidate.
+  Every thirteen rebuilt mutations fail their named regressions,
+  followed by a restored passing build/consumer.
+  Receipt:
+  `policy-input-factory-fixed-built-mutants.json`.
 - Unused selected-policy-as-system placement is retired and committed as `c0e861302f`.
   Ordinary host custom prompts and resource system inputs remain.
-  Fresh builds, types, scoped zero-warning/zero-error lint and the full recorded catalog set pass.
+  Fresh builds,
+  types,
+  scoped zero-warning/zero-error lint and the full recorded catalog set pass.
   The removed-export assertion fails against the old artifact before the corrected build.
   Root dist and both live worker artifacts remain unchanged.
-- Next native implementation item, after the memory incident: port the real `policy-loader.mjs` implementation
+- Next native implementation item,
+  after the memory incident:
+  port the real `policy-loader.mjs` implementation
   to TypeScript and remove its temporary declaration without a duplicate adapter layer.
 - Last full committed-package lint remains 11,393 warnings and 96 errors at `cabff94ee49a`.
   It excludes the workers' subsequent ports and is not an exact count for current worktree changes.
 - Clean configured replay and payload audit pass for `native-release-sT3Ufn`.
-  They precede the newer factory, retirement and unfinished phase changes.
-  Final acceptance still requires a coherent fresh build, full package lint, maintained catalogs,
-  actual configured long-history host/payload verification, shutdown stderr checks,
-  corrected source/footprint inventories, package responsibility docs and safe publication.
+  They precede the newer factory,
+  retirement and unfinished phase changes.
+  Final acceptance still requires a coherent fresh build,
+  full package lint,
+  maintained catalogs,
+  actual configured long-history host/payload verification,
+  shutdown stderr checks,
+  corrected source/footprint inventories,
+  package responsibility docs and safe publication.
 - Logger `0.4.4` is published and installed-consumer verified.
-  The selected default remains project-first with user-state fallback; explicit destinations stay strict.
+  The selected default remains project-first with user-state fallback;
+  explicit destinations stay strict.
   Private pnpr `E401` access remains a pending question and does not block independent local work.
-- Keep root `TCV`, `CPN` and `RXI` unchanged. Record their concrete lessons in package documentation.
+- Keep root `TCV`,
+  `CPN` and `RXI` unchanged.
+  Record their concrete lessons in package documentation.
   Preserve every concurrent unrelated worktree change.
 
 The canonical scratch directory is `~/temp/agent/pi-mimo-preparation-failure-20261018`.
-All host-exhausting reproduction, graph analysis and package verification runs use two-GiB/two-CPU containers.
+All host-exhausting reproduction,
+graph analysis and package verification runs use two-GiB/two-CPU containers.
 Snapshots and complete raw histories stay private.
 The latest package/handover CommonMark render reports 41 documents with no broken local links;
 the rendered instruction-collection retirement section is inspected.
@@ -1700,7 +2665,8 @@ the rendered instruction-collection retirement section is inspected.
 These entries retain intermediate evidence and decisions.
 The active queue and accepted state are recorded in `Current verified state`.
 
-Work remains incomplete; no readiness handoff has been established.
+Work remains incomplete;
+no readiness handoff has been established.
 After the user's distance-to-completion question,
 a fresh committed `cabff94ee49a` snapshot reports 11,393 warnings and 96 errors across 853 files and 486 rules.
 The actual full-package task runs under 2 GiB memory and two CPUs.
@@ -1899,7 +2865,9 @@ enumerability,
 freezing,
 each borrowed member and genuine forwarding failures.
 The mutation run stops after eight independently rebuilt mutations fail their named regressions.
-The ninth, borrowed `assertCurrent`, survives:
+The ninth,
+borrowed `assertCurrent`,
+survives:
 the test supplies an invalid binding and accepts its unrelated binding error as receiver rejection.
 The maintained correction supplies the genuine current binding and sequences the shared-resource suite,
 whose harness otherwise runs children concurrently.
@@ -1931,7 +2899,8 @@ The user keeps root `TCV`,
 The selected logger policy is project-first defaults with user-state fallback and strict explicit destinations.
 Logger `0.4.4` is published and passes fresh installed-consumer checks,
 including read-only fallback and escaped terminal-control diagnostics.
-Private pnpr publication still returns `E401`; the Coolify/SSH/API access question remains pending.
+Private pnpr publication still returns `E401`;
+the Coolify/SSH/API access question remains pending.
 The deployed pnpr trust configuration has not been inspected.
 
 The current source worker is `pi-mimo-rpc-session-7HN2ZH`,
@@ -2107,16 +3076,21 @@ or historical packet failure is unproven.
 
 The remaining independently verifiable areas are:
 
-- Source catalog: compile the accepted typed port in a fresh coherent runtime,
+- Source catalog:
+  compile the accepted typed port in a fresh coherent runtime,
   repeat its complete mode and variant matrix and inspect complete child stderr.
-- Source lint: finish actual MiMo's measured inventory and advance its next coherent path cluster.
-- Native policy input: complete the static-factory typed port,
+- Source lint:
+  finish actual MiMo's measured inventory and advance its next coherent path cluster.
+- Native policy input:
+  complete the static-factory typed port,
   verify original and counterfeit brand cases through the rebuilt host,
   then port the underlying policy loader and remove the temporary declaration bridge.
-- Architecture and footprint: finish the native lint backlog and typed boundary simplification,
+- Architecture and footprint:
+  finish the native lint backlog and typed boundary simplification,
   justify major responsibilities and measure a runnable dependency closure.
   Neither 13k code lines nor 100 MB is an accepted target.
-- Long-session failures: retain the heap-limit incident separately from generic supervisor-abort diagnostics
+- Long-session failures:
+  retain the heap-limit incident separately from generic supervisor-abort diagnostics
   and the unresolved Git packet error.
   Diagnose retention without treating a higher heap ceiling as a fix.
   The source worker finishes its inventory and closes normally;
@@ -2131,12 +3105,14 @@ The remaining independently verifiable areas are:
   with sampled `structuredClone` allocations leading that sample.
   This is allocation evidence without a retainer graph or forced GC,
   and does not establish the earlier heap failure's cause.
-- Final configured consumer: coherent logger `0.4.4` build,
+- Final configured consumer:
+  coherent logger `0.4.4` build,
   original interaction replay,
   long requests and required/excluded provider controls,
   complete shutdown stderr,
   refreshed documentation rendering and publication receipts.
-- Private publishing: inspect deployed pnpr trust once the requested existing access route is available.
+- Private publishing:
+  inspect deployed pnpr trust once the requested existing access route is available.
 
 Default native release `kFkBoY` remains pinned.
 The resumed source worker uses a separate immutable corrected runtime.
@@ -2146,7 +3122,8 @@ A final coherent auto-mode rebuild embedding logger `0.4.4` is still required.
 
 The following evidence records earlier checkpoints.
 Current open work and superseding results are maintained in `Current verified state`.
-MiMo native controller `42230`, fixture `pi-mimo-rpc-session-I79zzb`,
+MiMo native controller `42230`,
+fixture `pi-mimo-rpc-session-I79zzb`,
 delivered `system-slot-error.mjs` and new `system-slot-error.ts` after the narrowed prompt.
 The supervisor rejects its first proposal's added runtime `name` field:
 a real subclass setter runs once with the original class and zero times with that proposal.
@@ -2160,9 +3137,11 @@ its working directory and Git directory are the actual mounted repository,
 with the local media directory under `.git/lfs/objects`.
 Normal-root recognition does not establish behavior inside the failed commit's filter environment.
 The supervisor retains the queued `system-slot` and `policy-loader` changes.
-MiMo source controller `53002`, fixture `pi-mimo-rpc-session-B7AghW`,
+MiMo source controller `53002`,
+fixture `pi-mimo-rpc-session-B7AghW`,
 delivers only `native-decision-fallback.test.mjs` and thirteen new siblings for that catalog.
-Its observed errors are ordinary command/path failures, not the reported preparation diagnostic.
+Its observed errors are ordinary command/path failures,
+not the reported preparation diagnostic.
 Its typed catalog helpers and JavaScript task entry are written.
 The old worker settles at 114 tools and three ordinary command errors,
 then closes normally with its complete stderr retained.
@@ -2173,7 +3152,8 @@ reuses that list for commit,
 and verifies the actual committed paths match exactly.
 The full mode/variant checks remain pending.
 
-Resumed source controller `2323`, fixture `pi-mimo-rpc-session-bkvsvW`,
+Resumed source controller `2323`,
+fixture `pi-mimo-rpc-session-bkvsvW`,
 continues the complete old session history with `llmgateway-devpass/mimo-v2.6-pro` and high thinking.
 It mounts frozen `ebe81e3364` private runtime `native-release-IFS6IL` read-only,
 with a private home and writable project state under the existing 2 GiB and two-CPU bounds.
@@ -2335,7 +3315,8 @@ The subsequent entry/doc correction still needs its rendered follow-up.
 A fresh `du --bytes --max-depth=2` package snapshot records 23,977,499 apparent bytes,
 including 16,854,136 in retained build output.
 It excludes shared dependency symlink targets and is not a deployment-closure total.
-The cleanup dry run lists `.cache`, `dist` and `node_modules`;
+The cleanup dry run lists `.cache`,
+`dist` and `node_modules`;
 no cleanup has been performed from that listing.
 
 Private native formatting of frozen `d8a1d3cec6` reports 10,067 warnings and 55 errors across 495 files.
@@ -2418,24 +3399,35 @@ An owned Git-wrapper defect or UX issue should be filed in this repository's Git
 The human selected project-local default files with a per-user state fallback when the project is unavailable.
 Explicit directory arguments and `MONOCHROMATIC_LOG_DIRECTORY` remain strict destinations.
 Fallback must identify the actual destination visibly.
-Implement this as logger `0.4.3`, preserving lazy initialization and the existing append-completion contract.
+Implement this as logger `0.4.3`,
+preserving lazy initialization and the existing append-completion contract.
 The full shared-analyzer lint reports zero warnings and errors on 21 files,
 but its fixture omitted that package's private log mount and exposed a real read-only default-file failure.
-Repair both the fixture and the logger behavior; preserve the original stderr as evidence.
+Repair both the fixture and the logger behavior;
+preserve the original stderr as evidence.
 
 Default JavaScript and native `kFkBoY` now build from frozen `f56d63b688` inputs.
-Full units, visible-context catalogs and fresh-cache types pass against this delivered artifact.
-The final original-interaction replay, module census and complete branch checks remain pending.
+Full units,
+visible-context catalogs and fresh-cache types pass against this delivered artifact.
+The final original-interaction replay,
+module census and complete branch checks remain pending.
 The source lint checkpoint still has 1,037 warnings and 47 errors.
-Earlier RPC workers are closed; current replacements and their owned scopes are recorded in the worker records.
+Earlier RPC workers are closed;
+current replacements and their owned scopes are recorded in the worker records.
 Shared analyzer `0.0.2` publication is not verified:
-GitHub run `39139032024` failed with registry `E401` diagnostics, requiring source-backed investigation.
+GitHub run `39139032024` failed with registry `E401` diagnostics,
+requiring source-backed investigation.
 
 ### Worker records
 
-Current native worker `pi-mimo-rpc-session-I79zzb`, controller `42230`, uses delivered `kFkBoY`.
-Current source worker `pi-mimo-rpc-session-B7AghW`, controller `53002`, uses that same immutable release.
-Both actual child environments pass policy-wrapper, Git LFS and attached-payload-capture preflights.
+Current native worker `pi-mimo-rpc-session-I79zzb`,
+controller `42230`,
+uses delivered `kFkBoY`.
+Current source worker `pi-mimo-rpc-session-B7AghW`,
+controller `53002`,
+uses that same immutable release.
+Both actual child environments pass policy-wrapper,
+Git LFS and attached-payload-capture preflights.
 Native owns the system-slot/policy-loader typed cluster.
 Source owns `src/native-decision-fallback.test.mjs` and new siblings for that catalog only.
 They must commit explicit captured paths and settle before supervisor verification.
@@ -2443,28 +3435,36 @@ Neither worker may run heavy full checks inside its model container.
 The native worker's first broad read-only group falls back to ordinary inconclusive review,
 with selector `40258276-5672-4561-9613-d1768676eb63`.
 The supervisor inspects and allows that exact read group.
-This remains evidence of a manual-review fallback, not an automatic-review success.
+This remains evidence of a manual-review fallback,
+not an automatic-review success.
 
-Logger fallback commits `47f973e52a`, `b87742b19f` and `7fded9f00b` preserve the project-first policy.
+Logger fallback commits `47f973e52a`,
+`b87742b19f` and `7fded9f00b` preserve the project-first policy.
 The corrected full package lint has zero warnings and errors on 69 files with 486 rules.
 Fresh-cache types and the complete unit suite pass.
 The real read-only mounted consumer also passes:
-an independent write rejects with `EROFS`, the default logger persists in private user state,
+an independent write rejects with `EROFS`,
+the default logger persists in private user state,
 and an explicit read-only destination stays unavailable.
-Its recursive mkdir failure is reported as `ENOENT`, despite the independent `EROFS` write control;
+Its recursive mkdir failure is reported as `ENOENT`,
+despite the independent `EROFS` write control;
 do not substitute an assumed diagnostic.
 The first type check raced the build and also exposed real callback/optional-property errors;
 corrected checks run after the completed build.
-Both destination guard removals rebuild, fail the maintained regression, restore and rebuild to a passing control.
+Both destination guard removals rebuild,
+fail the maintained regression,
+restore and rebuild to a passing control.
 Their receipt is `logger-destination-mutants-receipt.json`.
-Logger `0.4.3` is bumped for publishing; registry delivery verification remains queued next.
+Logger `0.4.3` is bumped for publishing;
+registry delivery verification remains queued next.
 The package-local logger contract is `package/module/logger/doc/file-destinations.md`.
 
 Public npm workflow `39142362598` succeeds on `8c2743ee33` and publishes logger `0.4.3`.
 Fresh installed consumer `logger043-registry-MfVZDg` passes public exports,
 large/reentrant JSONL records,
 packaged documentation and real read-only fallback controls.
-The first fresh install returns `ETARGET`; a later direct metadata request and fresh install succeed.
+The first fresh install returns `ETARGET`;
+a later direct metadata request and fresh install succeed.
 Retain that failed log rather than claiming every attempt succeeded.
 The README update preserves its concurrent paragraph reflow explicitly in commit `af65103f95`.
 Markdown rendering covers 35 files with no broken local links.
@@ -2472,7 +3472,11 @@ Markdown rendering covers 35 files with no broken local links.
 Additional adversarial filename tests in `aa81cca003` fail on built `0.4.3`:
 both fallback and strict-destination diagnostics pass raw terminal control bytes to the host console.
 The next fix reuses the console sink's existing neutralizer in both internal reporters.
-Build, fresh types, lint, full tests, guard removal proof and a version bump to `0.4.4` remain required.
+Build,
+fresh types,
+lint,
+full tests,
+guard removal proof and a version bump to `0.4.4` remain required.
 
 Private pnpr run `39142278997` again returns npm `E401 Unauthorized` for logger `0.4.3`
 and blocks shared analyzer `0.0.2` through that dependency.
@@ -2498,7 +3502,8 @@ strict explicit failure and real adversarial control-byte diagnostics.
 Both internal-diagnostic guard removals build,
 fail the maintained catalog,
 restore and rebuild to a passing control.
-Receipt: `logger-control-mutants-receipt.json`.
+Receipt:
+`logger-control-mutants-receipt.json`.
 The first control-mutant generator accidentally replaced its own string needle and failed before execution;
 the corrected generator edits the generated driver rather than another generator's source text.
 Full local units,
@@ -2512,7 +3517,8 @@ two required-data and four excluded-data positive controls,
 with no excluded structured fields.
 Corrected module census resolves every file URL:
 2,509 unique regular files and 14,229,802 bytes for the configured host's executed module set.
-The first analyzer missed four npm mount aliases; corrected mapping preserves all files.
+The first analyzer missed four npm mount aliases;
+corrected mapping preserves all files.
 Native binaries,
 assets,
 loader bootstrap,
@@ -2544,7 +3550,8 @@ No readiness handoff is authorized while these changes and full lint remain unfi
 The current package-directory measurement is 23,899,438 bytes from
 `du --bytes --max-depth=2 package/pi-plugin/auto-mode`.
 It counts shared hard links once within that traversal and excludes symlinked dependency contents.
-It includes 16,854,136 bytes of retained `dist`, 805,698 bytes in local `node_modules`,
+It includes 16,854,136 bytes of retained `dist`,
+805,698 bytes in local `node_modules`,
 and 2,115,857 bytes in cache.
 It is not a dependency-closure or final-size claim.
 Earlier dependency-directory measurements and the outstanding real import census still apply.
@@ -2557,14 +3564,16 @@ private homes,
 private caches and qualified Git wrappers.
 The user explicitly authorizes invoking and monitoring MiMo.
 
-- Source worker: `pi-mimo-rpc-session-7O5MPn`,
+- Source worker:
+  `pi-mimo-rpc-session-7O5MPn`,
   controller session `91455`,
   pinned native `EWv4wy`.
   It is closed with exit 0 after withholding a pathspec-less commit attempt.
   Its native-return fixture change is preserved in scoped commit `75e519aca9`.
   Supervisor ownership of `src/` resumes at this settled boundary.
   Navigation assertion evidence was delivered but its correction is still pending.
-- Native worker: `pi-mimo-rpc-session-j2yRJI`,
+- Native worker:
+  `pi-mimo-rpc-session-j2yRJI`,
   controller session `41734`,
   pinned native `LytMAt`.
   It is now closed with exit 0 and no native edits after a separate context-projection failure.
@@ -2574,7 +3583,8 @@ The user explicitly authorizes invoking and monitoring MiMo.
   source currentness,
   reload and collector linkage,
   then settle after one coherent committed cluster when resumed.
-- Supervisor: all other native code,
+- Supervisor:
+  all other native code,
   private builds,
   consumer verification,
   guard mutations and docs.
@@ -2597,7 +3607,8 @@ That approval does not fix automatic currentness failure.
 
 Compaction projection commit `6fac7c5648`:
 
-- Scoped committed-source lint: zero warnings and errors on one file with 486 rules.
+- Scoped committed-source lint:
+  zero warnings and errors on one file with 486 rules.
 - Fresh-cache committed-source types pass.
 - Private native build `jj5kwZ` and actual SDK compaction-input consumer pass.
 - Event-role,
@@ -2605,7 +3616,8 @@ Compaction projection commit `6fac7c5648`:
   string-member and complete-property guard removals each rebuild successfully
   and fail the maintained actual SDK consumer at `Missing expected exception`.
   Each private source is restored and root source/publication hashes remain unchanged.
-  Receipt: `compaction-committed-guard-mutants-receipt.json` in the primary scratch directory.
+  Receipt:
+  `compaction-committed-guard-mutants-receipt.json` in the primary scratch directory.
 
 This cleanup keeps an explicit native iterator receiver and qualified `.call(value)`,
 fills declaration comments and separates the changed-field branch.
@@ -2713,7 +3725,8 @@ executes one scoped Bash call with zero selectors/errors and closes with exit 0.
 Its actual four-request Luna audit covers 239 questions and two review requests,
 passes two required-data and four excluded-data positive controls,
 and finds no excluded structured fields.
-Receipt: `history-replay-payload-audit.log` in primary scratch.
+Receipt:
+`history-replay-payload-audit.log` in primary scratch.
 
 ### Expected parser diagnostics
 
@@ -2897,7 +3910,8 @@ The original failing control remains retained;
 the explicit empty-string case still executes independently.
 The worker's fresh private home does not copy old session scratch files.
 Missing initial scratch in a resumed session is not evidence that every tool call gets a new home.
-The cancellation and compaction projection code remains supervisor-owned; src tests belong to the source worker.
+The cancellation and compaction projection code remains supervisor-owned;
+src tests belong to the source worker.
 The preceding `eZNsLl` controller closes with exit zero before its measured RSS reaches the configured limit again.
 Its command session is `74937`.
 Do not attribute that closed-controller result to the still-running `7O5MPn` worker.
@@ -3225,7 +4239,9 @@ JSON receipts omit undefined object properties.
 That catalog now compares the expected serialized data.
 The corrected collection consumer passes on `q83LlN` in `compaction-inputs-green3.log`.
 The actual configured resume/compact probe `eZNsLl` also passes on that artifact:
-`tokensBefore: 145267`, original callback signal, 108 branch entries,
+`tokensBefore: 145267`,
+original callback signal,
+108 branch entries,
 and no retained capture diagnostic in its complete stderr at the compact response.
 The next actual tool review is running with MiMo's scoped CLI repair assignment.
 Four private rebuilt collection mutations fail the maintained regression:
@@ -3236,7 +4252,8 @@ string members and complete own-property retention.
 Actual provider-payload checks remain pending.
 The MiMo CLI worker `JTeYFr` has exited with code 139 after V8 heap exhaustion;
 it leaves formatting edits in its assigned pair and no completed repair commit.
-Preserve its original session, stderr and captured requests while diagnosing this separate incident.
+Preserve its original session,
+stderr and captured requests while diagnosing this separate incident.
 The new scoped worker uses `eZNsLl` after verified manual compaction,
 with the same configured extensions and real Luna transport.
 

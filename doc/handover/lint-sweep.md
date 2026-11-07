@@ -386,9 +386,11 @@ After all leaves:
    not a foreground polling loop in the main session:
    repeated poll output pollutes the parent context.
    Watch a condition (new `fix(`/`test(` commits,
-   or the child's PID exiting, via `timeout 3600 tail --pid=<pid> --follow /dev/null`)
+   or the child's PID exiting,
+  via `timeout 3600 tail --pid=<pid> --follow /dev/null`)
    and only surface the result.
-   Never loop on `pgrep` by name: the match includes the waiting shell itself.
+   Never loop on `pgrep` by name:
+  the match includes the waiting shell itself.
 - Concurrency is NOT capped at a small number by resources.
    This machine has 16 cores (`os.availableParallelism()` == 16) and runs 16 sessions fine.
    Scale child concurrency toward `os.availableParallelism()`,

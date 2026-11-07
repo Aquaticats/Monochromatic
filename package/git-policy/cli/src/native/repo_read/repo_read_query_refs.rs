@@ -18,7 +18,7 @@
 use crate::repo_read_config_list::{ListedEntry, list_config, listing_bytes};
 use crate::repo_read_object::{ObjectKind, from_hex};
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_query::{Answer, Context, Parsed, flags_are};
+use crate::repo_read_query_request_answer_and_context::{Answer, Context, Parsed, flags_are};
 use crate::repo_read_refs::{Lookup, RefValue, Refs, is_plain_ref_name};
 use std::ffi::OsString;
 
@@ -43,7 +43,41 @@ fn listing(context: &Context) -> Option<Vec<ListedEntry>> {
 
 /// Every value of `key` among the listed entries, in order.
 fn values_of<'a>(listed: &'a [ListedEntry], key: &str) -> Vec<&'a Option<Vec<u8>>> {
-    return listed.iter().filter(|item| { return item.entry.key == key; }).map(|item| { return &item.entry.value; }).collect();
+    let mut values: Vec<&'a Option<Vec<u8>>> = Vec::new();
+    for item in listed {
+        if item.entry.key == key {
+            values.push(&item.entry.value);
+        }
+    }
+    return values;
+}
+
+/// The last non-empty text value of the variable `name` among `variables`, or nothing.
+fn text_variable(variables: &[(OsString, OsString)], name: &str) -> Option<String> {
+    for (candidate, value) in variables.iter().rev() {
+        if candidate == name {
+            return match value.to_str() {
+                Some(text) if !text.is_empty() => Some(text.to_string()),
+                _ => None,
+            };
+        }
+    }
+    return None;
+}
+
+/// Whether a locale name is one whose messages are English: `C`, `POSIX` or starting with `en`.
+fn is_english(value: &str) -> bool {
+    return value == "C" || value == "POSIX" || value.starts_with("en");
+}
+
+/// Whether `byte` may appear in a remote name this reader takes: a letter, a digit, `-`, `_` or `.`.
+fn is_remote_name_byte(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.');
+}
+
+/// Whether `byte` is a newline.
+fn is_newline(byte: &u8) -> bool {
+    return *byte == b'\n';
 }
 
 /// Whether the symbolic ref target `name` is a plain, non-symbolic ref or does not exist yet;
@@ -54,12 +88,24 @@ fn is_terminal(refs: &Refs, name: &str) -> bool {
 
 /// Whether Git's messages are in English under these variables, which the synthesized failures assume.
 fn messages_are_english(variables: &[(OsString, OsString)]) -> bool {
-    let find = |name: &str| -> Option<String> {
-        return variables.iter().rev().find(|(candidate, _)| { return candidate == name; }).and_then(|(_, value)| { return value.to_str().map(str::to_string); }).filter(|value| { return !value.is_empty(); });
-    };
-    let english = |value: &str| -> bool { return value == "C" || value == "POSIX" || value.starts_with("en"); };
-    let locale: Option<String> = find("LC_ALL").or_else(|| { return find("LC_MESSAGES"); }).or_else(|| { return find("LANG"); });
-    return locale.as_deref().is_none_or(english) && find("LANGUAGE").as_deref().is_none_or(english);
+    let mut locale: Option<String> = text_variable(variables, "LC_ALL");
+    if locale.is_none() {
+        locale = text_variable(variables, "LC_MESSAGES");
+    }
+    if locale.is_none() {
+        locale = text_variable(variables, "LANG");
+    }
+    if let Some(name) = locale.as_deref()
+        && !is_english(name)
+    {
+        return false;
+    }
+    if let Some(name) = text_variable(variables, "LANGUAGE")
+        && !is_english(name.as_str())
+    {
+        return false;
+    }
+    return true;
 }
 
 /// `config --list -z --show-scope`.
@@ -77,21 +123,34 @@ pub(crate) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answe
         return None;
     }
     let name: &str = std::str::from_utf8(parsed.operands[1]).ok()?;
-    if name.is_empty() || !name.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'); }) {
+    if name.is_empty() || !name.bytes().all(is_remote_name_byte) {
         return None;
     }
     let listed: Vec<ListedEntry> = listing(context)?;
-    if listed.iter().any(|item| { return item.entry.key.starts_with("url.") && (item.entry.key.ends_with(".insteadof") || item.entry.key.ends_with(".pushinsteadof")); }) {
-        return None;
+    for item in &listed {
+        if item.entry.key.starts_with("url.") && (item.entry.key.ends_with(".insteadof") || item.entry.key.ends_with(".pushinsteadof")) {
+            return None;
+        }
     }
     let key: String = format!("remote.{name}.url");
-    let urls: Vec<&ListedEntry> = listed.iter().filter(|item| { return item.entry.key == key; }).collect();
+    let mut urls: Vec<&ListedEntry> = Vec::new();
+    for item in &listed {
+        if item.entry.key == key {
+            urls.push(item);
+        }
+    }
     if urls.is_empty() {
         // A remote that is configured nowhere, not even by a legacy `remotes/` or `branches/` file, is Git's own refusal.
         let prefix: String = format!("remote.{name}.");
-        let legacy: bool = ["remotes", "branches"].iter().any(|directory| { return std::fs::symlink_metadata(context.layout.common_dir.join(directory).join(name)).is_ok(); });
-        if legacy || listed.iter().any(|item| { return item.entry.key.starts_with(prefix.as_str()); }) {
-            return None;
+        for directory in ["remotes", "branches"] {
+            if std::fs::symlink_metadata(context.layout.common_dir.join(directory).join(name)).is_ok() {
+                return None;
+            }
+        }
+        for item in &listed {
+            if item.entry.key.starts_with(prefix.as_str()) {
+                return None;
+            }
         }
         if !messages_are_english(context.variables.as_slice()) {
             return None;
@@ -102,7 +161,11 @@ pub(crate) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answe
     let [only] = urls.as_slice() else {
         return None;
     };
-    let mut stdout: Vec<u8> = only.entry.value.clone().filter(|value| { return !value.is_empty(); })?;
+    let value: Vec<u8> = only.entry.value.clone()?;
+    if value.is_empty() {
+        return None;
+    }
+    let mut stdout: Vec<u8> = value;
     stdout.push(b'\n');
     return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
 }
@@ -115,7 +178,7 @@ fn peel_to_commit(database: &ObjectDatabase, context: &Context, start: &str) -> 
         match object.kind {
             ObjectKind::Commit => return Some(crate::repo_read_object::to_hex(current.as_slice())),
             ObjectKind::Tag => {
-                let first: &[u8] = object.bytes.split(|byte| { return *byte == b'\n'; }).next()?;
+                let first: &[u8] = object.bytes.split(is_newline).next()?;
                 current = from_hex(first.strip_prefix(b"object ")?, context.layout.object_format)?;
             }
             ObjectKind::Tree | ObjectKind::Blob => return None,
@@ -163,12 +226,17 @@ fn shadowed(refs: &Refs, prefix: &str, short: &str) -> Option<bool> {
 /// The tracking ref a fetch refspec maps `merge` to.
 pub(crate) fn tracking_ref(listed: &[ListedEntry], remote: &str, merge: &str) -> Option<String> {
     let key: String = format!("remote.{remote}.fetch");
-    for item in listed.iter().filter(|item| { return item.entry.key == key; }) {
+    for item in listed {
+        if item.entry.key != key {
+            continue;
+        }
         let spec: &str = std::str::from_utf8(item.entry.value.as_deref()?).ok()?;
         let (source, destination) = spec.strip_prefix('+').unwrap_or(spec).split_once(':')?;
         match (source.split_once('*'), destination.split_once('*')) {
             (Some((head, tail)), Some((to_head, to_tail))) => {
-                if let Some(middle) = merge.strip_prefix(head).and_then(|rest| { return rest.strip_suffix(tail); }) {
+                if let Some(rest) = merge.strip_prefix(head)
+                    && let Some(middle) = rest.strip_suffix(tail)
+                {
                     return Some(format!("{to_head}{middle}{to_tail}"));
                 }
             }

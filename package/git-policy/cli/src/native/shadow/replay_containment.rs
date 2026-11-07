@@ -13,7 +13,7 @@
 //! ```
 
 /// Zero-context hunks and base lines from `replay_patch`.
-use crate::replay_patch::{PatchHunk, PatchLine};
+use crate::replay_patch::PatchHunk;
 
 /// What:
 ///  One zero-context hunk in base line coordinates:
@@ -46,7 +46,16 @@ struct BaseChange {
 /// baseChange(hunk);
 /// ```
 fn base_change(hunk: &PatchHunk) -> BaseChange {
-    let removed: usize = hunk.lines.iter().filter(|line| { return line.op == b'-'; }).count();
+    let mut removed: usize = 0;
+    let mut added: Vec<Vec<u8>> = Vec::new();
+    for line in &hunk.lines {
+        if line.op == b'-' {
+            removed += 1;
+        }
+        if line.op == b'+' {
+            added.push(line.text.clone());
+        }
+    }
     let start: usize = if removed == 0 {
         usize::try_from(hunk.old_start).unwrap_or(0)
     } else {
@@ -55,12 +64,7 @@ fn base_change(hunk: &PatchHunk) -> BaseChange {
     return BaseChange {
         start,
         end: start + removed,
-        added: hunk
-            .lines
-            .iter()
-            .filter(|line: &&PatchLine| { return line.op == b'+'; })
-            .map(|line| { return line.text.clone(); })
-            .collect(),
+        added,
     };
 }
 
@@ -148,27 +152,35 @@ pub fn contains_landed_change(
 ) -> bool {
     let prepared_changes: Vec<BaseChange> = prepared.iter().map(base_change).collect();
     // Each landed change with the index of the prepared change covering it, if any.
-    let covered: Vec<(Option<usize>, BaseChange)> = landed
-        .iter()
-        .map(base_change)
-        .map(|change| {
-            let cover: Option<usize> = prepared_changes
-                .iter()
-                .position(|candidate| { return candidate.start <= change.start && change.end <= candidate.end; });
-            return (cover, change);
-        })
-        .collect();
-    if covered.iter().any(|(cover, _)| { return cover.is_none(); }) {
-        return false;
+    let mut covered: Vec<(Option<usize>, BaseChange)> = Vec::new();
+    for hunk in landed {
+        let change: BaseChange = base_change(hunk);
+        let mut cover: Option<usize> = None;
+        for (index, candidate) in prepared_changes.iter().enumerate() {
+            if candidate.start <= change.start && change.end <= candidate.end {
+                cover = Some(index);
+                break;
+            }
+        }
+        covered.push((cover, change));
     }
-    return prepared_changes.iter().enumerate().all(|(index, change)| {
-        let inside: Vec<BaseChange> = covered
-            .iter()
-            .filter(|(cover, _)| { return *cover == Some(index); })
-            .map(|(_, landed_change)| { return landed_change.clone(); })
-            .collect();
-        return inside.is_empty() || region_contains(change, &inside, base);
-    });
+    for (cover, _) in &covered {
+        if cover.is_none() {
+            return false;
+        }
+    }
+    for (index, change) in prepared_changes.iter().enumerate() {
+        let mut inside: Vec<BaseChange> = Vec::new();
+        for (cover, landed_change) in &covered {
+            if *cover == Some(index) {
+                inside.push(landed_change.clone());
+            }
+        }
+        if !(inside.is_empty() || region_contains(change, &inside, base)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 #[cfg(test)]

@@ -12,16 +12,14 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
-use crate::worktree_copy_stage::StagedSnapshot;
-use crate::worktree_copy_stage_claim::{reap_abandoned_stages, stage_claims_exist};
-use crate::worktree_copy_transaction::{Outcome, complete_journal, snapshot_from_journal};
-use crate::worktree_copy_journal::{
-    PendingJournal, Phase, Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals,
-    remove_pending_journal,
-};
-use std::collections::BTreeSet;
+use crate::worktree_copy_stage_claim::stage_claims_exist;
+use crate::worktree_copy_stage_claim_reaping::{judge_stage_owners, reap_judged_stages};
+use crate::worktree_copy_transaction::{Outcome, SnapshotSource, complete_journal};
+use crate::worktree_copy_journal::{Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals};
+use crate::worktree_copy_journal_encoding_and_validation::{PendingJournal, Phase};
+use crate::worktree_copy_journal_removal::remove_pending_journal;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -127,7 +125,7 @@ pub fn destination_registration(
         }
         Err(error) => {
             let message: String = format!(
-                "cli-git: could not read worktree registration of {}.",
+                "monochromatic-git-policy-cli: could not read worktree registration of {}.",
                 quote(destination.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error)));
@@ -156,7 +154,7 @@ pub fn validate_stage(pending: &PendingJournal) -> Result<StagePresence, Worktre
             }
             Err(error) => {
                 let message: String = format!(
-                    "cli-git: could not validate worktree-copy recovery state for {}.",
+                    "monochromatic-git-policy-cli: could not validate worktree-copy recovery state for {}.",
                     quote(pending.journal.destination_root.as_str())
                 );
                 return Err(failure_with_cause(message.as_str(), Some(&error)));
@@ -191,7 +189,7 @@ fn recover_transaction(
         return Ok((
             false,
             Some(format!(
-                "cli-git: discarded an interrupted ignored-state copy for {destination}, which is no longer a registered worktree."
+                "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy for {destination}, which is no longer a registered worktree."
             )),
         ));
     }
@@ -204,22 +202,19 @@ fn recover_transaction(
         return Ok((
             false,
             Some(format!(
-                "cli-git: discarded an interrupted ignored-state copy into {destination} because its private stage is missing; ignored files there may be incomplete."
+                "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy into {destination} because its private stage is missing; ignored files there may be incomplete."
             )),
         ));
     }
     let journal_for_snapshot: PendingJournal = pending.clone();
-    let snapshot = move |intended: &BTreeSet<String>| -> Result<StagedSnapshot, WorktreeCopyError> {
-        return snapshot_from_journal(&journal_for_snapshot, intended);
-    };
     // `match` on the outcome: a completed installation is recovered; a failed one becomes a notice.
-    match complete_journal(pending, &snapshot)? {
+    match complete_journal(pending, &SnapshotSource::FromJournal(&journal_for_snapshot))? {
         Outcome::Installed(_) => return Ok((true, None)),
         Outcome::Ended(failure) => {
             return Ok((
                 false,
                 Some(format!(
-                    "cli-git: ended an interrupted ignored-state copy into {destination} without finishing it. {}",
+                    "monochromatic-git-policy-cli: ended an interrupted ignored-state copy into {destination} without finishing it. {}",
                     failure.0
                 )),
             ));
@@ -244,10 +239,16 @@ pub fn recover_worktree_copy_transactions(
     let owner = current_copy_owner()?;
     let mut recovered: usize = 0;
     let mut notices: Vec<String> = Vec::new();
+    // Every owner is judged before anything is taken over, finished or removed: an item of another namespace older than the patience
+    //  stops the command here (owner, 2026-11-04, "Refuse and name it (Recommended)"), with nothing changed (sol-1 round 3, P1 C).
+    let mut dead: Vec<PendingJournal> = Vec::new();
     for journal in pending {
-        if !journal_owner_is_dead(&journal)? {
-            continue;
+        if journal_owner_is_dead(&journal)? {
+            dead.push(journal);
         }
+    }
+    let stages = judge_stage_owners(common_dir)?;
+    for journal in dead {
         // `match` on the take-over: another command already took this journal, and it recovers it.
         let Some(mine) = adopt_journal(&journal, &owner)? else {
             continue;
@@ -260,7 +261,7 @@ pub fn recover_worktree_copy_transactions(
             notices.push(line);
         }
     }
-    notices.extend(reap_abandoned_stages(common_dir)?);
+    notices.extend(reap_judged_stages(common_dir, &stages)?);
     return Ok(RecoveryReport { recovered, notices });
 }
 
@@ -278,7 +279,7 @@ pub fn report_recovered(
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
     for notice in &report.notices {
-        writeln!(stderr, "{notice}").map_err(|error| return raw_failure(&error))?;
+        writeln!(stderr, "{notice}").map_err(raw_failure_of)?;
     }
     if report.recovered > 0 {
         let noun: &str = if report.recovered == 1 {
@@ -288,10 +289,10 @@ pub fn report_recovered(
         };
         writeln!(
             stderr,
-            "cli-git: recovered ignored-state copies for {} worktree {noun}.",
+            "monochromatic-git-policy-cli: recovered ignored-state copies for {} worktree {noun}.",
             report.recovered
         )
-        .map_err(|error| return raw_failure(&error))?;
+        .map_err(raw_failure_of)?;
     }
     return Ok(());
 }

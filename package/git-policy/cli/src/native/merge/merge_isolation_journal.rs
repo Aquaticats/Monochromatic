@@ -10,10 +10,11 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await writeFile(join(gitDir, 'cli-git-merges', `${id}.json`), encodeMergeIntent(intent), { flag: 'wx' });
+//! await writeFile(join(gitDir, 'monochromatic-git-policy-cli-merges', `${id}.json`), encodeMergeIntent(intent), { flag: 'wx' });
 //! ```
 
 /// Record writers and readers.
+use crate::wrapper_names_old_and_new::MERGE_INTENT_FOLDER;
 use crate::json_record::{ObjectWriter, decode_fatal, number_equals, parse_object, safe_integer_field, string_field};
 /// The owner of a record.
 use crate::transaction_owner::TransactionOwner;
@@ -25,7 +26,7 @@ use crate::recovery_error::{RecoveryError, io_failure};
 use std::path::{Path, PathBuf};
 
 /// Directory, inside the worktree's Git directory, that holds the intent records.
-pub const MERGE_INTENT_DIRECTORY: &str = "cli-git-merges";
+pub const MERGE_INTENT_DIRECTORY: &str = MERGE_INTENT_FOLDER.current;
 
 /// Schema version of an intent record.
 pub const MERGE_INTENT_SCHEMA_VERSION: i64 = 1;
@@ -64,7 +65,7 @@ pub struct MergeIntent {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// join(gitDir, 'cli-git-merges')
+/// join(gitDir, 'monochromatic-git-policy-cli-merges')
 /// ```
 pub fn intent_directory(git_dir: &Path) -> PathBuf {
     return git_dir.join(MERGE_INTENT_DIRECTORY);
@@ -145,9 +146,10 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
             owner_pid,
             owner_identity: String::from(owner_identity),
             created_at: String::from(string_field(&map, "createdAt")?),
-            owner_pid_namespace: string_field(&map, "ownerPidNamespace")
-                .filter(|namespace| { return !namespace.is_empty(); })
-                .map(String::from),
+            owner_pid_namespace: match string_field(&map, "ownerPidNamespace") {
+                Some(namespace) if !namespace.is_empty() => Some(String::from(namespace)),
+                _ => None,
+            },
         },
         repository_root: String::from(repository_root),
         target_ref: if target_ref.is_empty() { None } else { Some(String::from(target_ref)) },

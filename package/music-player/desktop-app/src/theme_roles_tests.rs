@@ -250,7 +250,7 @@ fn the_fit_moves_lightness_when_a_target_fails_a_positive_control() {
     // A start that fails 4.5 on white must come back darker and passing, proving `fit_lightness` can act.
     let white: Srgb8 = hex(0xFFFFFF);
     let start: Oklch = Oklch { lightness: 0.85, chroma: 0.05, hue: 250.0 };
-    let fitted: Oklch = fit_lightness("control", start, 0.0, &|candidate| {
+    let fitted: Oklch = fit_lightness("control", start, 0.0, |candidate| {
         return contrast_ratio(candidate, white) >= 4.6;
     });
     assert!(fitted.lightness < start.lightness);
@@ -261,7 +261,7 @@ fn the_fit_moves_lightness_when_a_target_fails_a_positive_control() {
 #[test]
 fn the_fit_returns_the_endpoint_when_nothing_can_pass() {
     let start: Oklch = Oklch { lightness: 0.5, chroma: 0.0, hue: 0.0 };
-    let fitted: Oklch = fit_lightness("impossible", start, 0.0, &|_candidate| {
+    let fitted: Oklch = fit_lightness("impossible", start, 0.0, |_candidate| {
         return false;
     });
     assert_eq!(fitted.lightness, 0.0);

@@ -38,6 +38,7 @@ use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_
 use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
 use crate::repo_read_adapter::{location_of, sequencer_of};
 use crate::git_system_config::with_real_git;
+use crate::kept_names_in_the_git_directories::settle_kept_names;
 use crate::repo_read_layout::{RepoLayout, read_layout};
 use crate::repository_location::{
     RepositoryLocation, location_query_arguments, parse_location_output,
@@ -120,13 +121,23 @@ pub trait RepositoryFacts {
     /// A provider that has neither answers nothing.
     fn known_common_dir(&mut self) -> Option<PathBuf> {
         let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
-        return asked.and_then(Result::ok).and_then(|found| { return common_directory(&found.identity).map(Path::to_path_buf); });
+        if let Some(Ok(found)) = asked
+            && let Some(directory) = common_directory(&found.identity)
+        {
+            return Some(directory.to_path_buf());
+        }
+        return None;
     }
     /// The invocation's own Git directory (the worktree's, which holds its work records and notices) when it is known without
     ///  starting Git: from the location already asked, or from the file system. A provider that has neither answers nothing.
     fn known_git_dir(&mut self) -> Option<PathBuf> {
         let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
-        return asked.and_then(Result::ok).and_then(|found| { return git_directory(&found.identity).map(Path::to_path_buf); });
+        if let Some(Ok(found)) = asked
+            && let Some(directory) = git_directory(&found.identity)
+        {
+            return Some(directory.to_path_buf());
+        }
+        return None;
     }
     /// Real Git,
     ///  the child environment and the invocation's global options,
@@ -210,12 +221,12 @@ pub fn git_facts(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const message = `cli-git could not start ${realGit} to read ${fact}: ${error}`;
+/// const message = `monochromatic-git-policy-cli could not start ${realGit} to read ${fact}: ${error}`;
 /// ```
 fn not_started(real_git: &Path, fact: &str, error: &std::io::Error) -> String {
     // `format!` builds owned text; `.display()` shows a path, replacing undecodable bytes.
     return format!(
-        "cli-git could not start {} to read {fact}: {error}",
+        "monochromatic-git-policy-cli could not start {} to read {fact}: {error}",
         real_git.display()
     );
 }
@@ -263,6 +274,10 @@ impl GitFacts {
     fn layout(&mut self) -> Option<&RepoLayout> {
         if self.layout.is_none() {
             self.layout = Some(read_layout(self.global_prefix.as_slice(), with_real_git(self.overlay.as_slice(), self.real_git.as_path()).as_slice()));
+            // The first time the Git directories are known, a name an earlier release kept in them is moved to its current name.
+            if let Some(Some(known)) = &self.layout {
+                settle_kept_names(known.git_dir.as_path(), known.common_dir.as_path());
+            }
         }
         return self.layout.as_ref().and_then(Option::as_ref);
     }
@@ -298,6 +313,12 @@ impl RepositoryFacts for GitFacts {
                 Err(message) => Err(message),
             };
         // `Some(x)` is the "present" case of `Option`.
+        // Git answered because the layout reader declined: the same settling as for a layout read from disk.
+        if let Ok(found) = &answer
+            && let Some(git_dir) = git_directory(&found.identity)
+        {
+            settle_kept_names(git_dir, common_directory(&found.identity).unwrap_or(git_dir));
+        }
         self.location = Some(answer.clone());
         return answer;
     }
@@ -374,14 +395,16 @@ impl RepositoryFacts for GitFacts {
             return common_directory(&found.identity).map(Path::to_path_buf);
         }
         // A plain layout is read from the file system; a layout the reader declines is not worth a Git process here.
-        return self.layout().map(|found| { return found.common_dir.clone(); });
+        let found = self.layout()?;
+        return Some(found.common_dir.clone());
     }
 
     fn known_git_dir(&mut self) -> Option<PathBuf> {
         if let Some(Ok(found)) = &self.location {
             return git_directory(&found.identity).map(Path::to_path_buf);
         }
-        return self.layout().map(|found| { return found.git_dir.clone(); });
+        let found = self.layout()?;
+        return Some(found.git_dir.clone());
     }
 
     fn transaction_context(&self) -> GitContext {

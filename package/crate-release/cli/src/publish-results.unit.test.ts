@@ -340,6 +340,45 @@ await describe({
             expect(last).toContain('missing release assets: a');
           },
         }),
+        it({
+          name: 'leaves crates.io out of the check when the caller says the version is not published there, and still succeeds',
+          fn: async () => {
+            const result = formatPublishResult({
+              watchStatus: 0,
+              version: '0.2.7-alpha.1',
+              createdAt: missingValue('crates.io was not asked'),
+              skippedCratesIoReason: 'the alpha label is not published to crates.io',
+              tag: 'c-v0.2.7-alpha.1',
+              expectedAssets,
+              release: foundValue(expectedAssets),
+            });
+            expect(result.ok).toBe(true);
+            expect(result.lines).toEqual([
+              'watch exit 0',
+              'crates.io 0.2.7-alpha.1: skipped, the alpha label is not published to crates.io',
+              `release c-v0.2.7-alpha.1 assets: ${expectedAssets.join(', ')}`,
+              'PUBLISHED',
+            ]);
+          },
+        }),
+        it({
+          name: 'still fails for a missing release asset or a failed run when crates.io is left out',
+          fn: async () => {
+            const result = formatPublishResult({
+              watchStatus: 1,
+              version: '0.2.7-alpha.1',
+              createdAt: missingValue('crates.io was not asked'),
+              skippedCratesIoReason: 'the alpha label is not published to crates.io',
+              tag: 't',
+              expectedAssets,
+              release: foundValue([]),
+            });
+            expect(result.ok).toBe(false);
+            expect(result.lines.at(-1)).toContain('workflow run exited 1');
+            expect(result.lines.at(-1)).toContain('missing release assets');
+            expect(result.lines.at(-1)).not.toContain('crates.io');
+          },
+        }),
       ],
     }),
   ],

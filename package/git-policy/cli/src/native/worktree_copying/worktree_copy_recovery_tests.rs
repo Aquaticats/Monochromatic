@@ -4,11 +4,11 @@ use super::*;
 use crate::test_support::{dead_copy_owner, fixture, git, git_context, remove, repository};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal::{
-    Journal, adopt_journal, create_journal, create_journal_for, ensure_journal_root, journal_root, read_pending_journals,
-    write_journal,
+    adopt_journal, create_journal, create_journal_for, ensure_journal_root, journal_root, read_pending_journals, write_journal,
 };
+use crate::worktree_copy_journal_encoding_and_validation::Journal;
 use crate::worktree_copy_selection::CopySelection;
-use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
+use crate::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
 use crate::worktree_copy_stage_claim::{claim_stage, claim_stage_for, stage_claims_exist};
 use std::os::unix::fs::PermissionsExt;
 
@@ -101,7 +101,7 @@ fn unregistered_destination_is_discarded_with_notice() {
     assert_eq!(
         report.notices,
         vec![format!(
-            "cli-git: discarded an interrupted ignored-state copy for {}, which is no longer a registered worktree.",
+            "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy for {}, which is no longer a registered worktree.",
             quote(topic.to_string_lossy().as_ref())
         )]
     );
@@ -128,7 +128,7 @@ fn missing_stage_is_discarded_with_notice() {
     assert_eq!(
         report.notices,
         vec![format!(
-            "cli-git: discarded an interrupted ignored-state copy into {} because its private stage is missing; ignored files there may be incomplete.",
+            "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy into {} because its private stage is missing; ignored files there may be incomplete.",
             quote(topic.to_string_lossy().as_ref())
         )]
     );
@@ -337,14 +337,14 @@ fn report_writes_notices_then_summary() {
     report_recovered(
         &RecoveryReport {
             recovered: 1,
-            notices: vec![String::from("cli-git: notice.")],
+            notices: vec![String::from("monochromatic-git-policy-cli: notice.")],
         },
         &mut out,
     )
     .expect("written");
     assert_eq!(
         String::from_utf8(out).expect("utf8"),
-        "cli-git: notice.\ncli-git: recovered ignored-state copies for 1 worktree transaction.\n"
+        "monochromatic-git-policy-cli: notice.\nmonochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"
     );
     let mut plural: Vec<u8> = Vec::new();
     report_recovered(
@@ -357,7 +357,7 @@ fn report_writes_notices_then_summary() {
     .expect("written");
     assert_eq!(
         String::from_utf8(plural).expect("utf8"),
-        "cli-git: recovered ignored-state copies for 2 worktree transactions.\n"
+        "monochromatic-git-policy-cli: recovered ignored-state copies for 2 worktree transactions.\n"
     );
 }
 
@@ -404,7 +404,7 @@ fn incumbent_written_journal_is_recovered_natively() {
     assert_eq!(
         report.notices,
         vec![format!(
-            "cli-git: discarded an interrupted ignored-state copy for {}, which is no longer a registered worktree.",
+            "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy for {}, which is no longer a registered worktree.",
             quote(format!("{base}/topic").as_str())
         )]
     );
@@ -505,6 +505,58 @@ fn a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_cha
     let refused = recover_worktree_copy_transactions(common.as_path()).expect_err("an expired foreign journal stops recovery");
     assert!(refused.0.contains(pending.path.to_string_lossy().as_ref()) && refused.0.contains("31337") && refused.0.contains("pid:[1]") && refused.0.contains("rm -- "), "{}", refused.0);
     assert!(pending.path.exists() && stage.exists(), "the journal and its stage are untouched");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1);
+    remove(root.as_path());
+}
+
+/// Pending journals `[dead A, expired-foreign B]`: the command refuses before it adopts, finishes or removes A (sol-1 round 3, P1 C).
+#[cfg(unix)]
+#[test]
+fn an_expired_foreign_journal_after_a_dead_one_stops_recovery_before_the_dead_one_is_touched() {
+    let root: PathBuf = fixture("recovery-foreign-after-dead");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let foreign = crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
+    let other: PathBuf = root.join("other");
+    // Journals are read in name order, which holds random identifiers: journals are made until the dead one sorts before the foreign one.
+    let (dead, expired): (PendingJournal, PendingJournal) = loop {
+        let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+        let snapshot: StagedSnapshot =
+            stage_ignored_snapshot(&git_context(), source.as_path(), new_stage_container(other.as_path()).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
+        let expired: PendingJournal = create_journal_for(common.as_path(), other.as_path(), &snapshot, &foreign).expect("journal");
+        if dead.path.file_name() < expired.path.file_name() {
+            break (dead, expired);
+        }
+        std::fs::remove_file(dead.path.as_path()).expect("discard the pair");
+        std::fs::remove_file(expired.path.as_path()).expect("discard the pair");
+    };
+    std::fs::File::options().write(true).open(expired.path.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
+    let dead_stage: PathBuf = PathBuf::from(dead.journal.stage_container.as_str());
+    let refused = recover_worktree_copy_transactions(common.as_path()).expect_err("an expired foreign journal stops recovery");
+    assert!(refused.0.contains("31337"), "{}", refused.0);
+    assert!(dead.path.exists() && dead_stage.exists(), "the dead owner's journal and stage are untouched: nothing changed");
+    assert!(expired.path.exists());
+    remove(root.as_path());
+}
+
+/// A recoverable dead journal and an expired foreign stage claim: recovery refuses before it adopts the journal (sol-1 round 4: the
+/// stage owners are judged before the journals are touched, not only before the sweep). Planted: judging the stages after the journal
+/// loop recovers the journal first and fails this control.
+#[cfg(unix)]
+#[test]
+fn an_expired_foreign_stage_claim_stops_recovery_before_a_dead_journal_is_touched() {
+    let root: PathBuf = fixture("recovery-foreign-stage-with-dead-journal");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let dead_stage: PathBuf = PathBuf::from(dead.journal.stage_container.as_str());
+    let foreign = crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
+    let _claim = claim_stage_for(common.as_path(), root.join("elsewhere").as_path(), &foreign).expect("a foreign claim");
+    let claim_path: PathBuf = std::fs::read_dir(crate::worktree_copy_journal::journal_root(common.as_path())).expect("the journal root").flatten().map(|entry| { return entry.path(); }).find(|path| { return path.extension().is_some_and(|extension| { return extension == "stage"; }); }).expect("the claim file");
+    std::fs::File::options().write(true).open(claim_path.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
+    let refused = recover_worktree_copy_transactions(common.as_path()).expect_err("an expired foreign claim stops recovery");
+    assert!(refused.0.contains("31337"), "{}", refused.0);
+    assert!(dead.path.exists() && dead_stage.exists(), "the dead journal and its stage are untouched");
     assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1);
     remove(root.as_path());
 }

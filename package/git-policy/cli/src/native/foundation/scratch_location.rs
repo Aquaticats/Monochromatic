@@ -1,8 +1,9 @@
 //! What:
 //!  Where the wrapper keeps short-lived private files:
-//!  the per-user scratch directory (`<state>/cli-git/scratch`) for work that has no repository
+//!  the per-user scratch directory (`<state>/monochromatic-git-policy-cli/scratch`) for work that has no repository
 //!       in hand,
-//!  and the repository scratch directory (`<common-dir>/cli-git-scratch`) for work inside one.
+//!  and the repository scratch directory (`<common-dir>/monochromatic-git-policy-cli-scratch`) for work inside one;
+//!  the folder an earlier release made under its own name (`cli-git-scratch`) is swept by the same rules.
 //!  Both are checked as private (a real directory of this user, mode `0700`) and swept of entries
 //!       older than a day each time they are prepared.
 //! Why:
@@ -15,7 +16,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const scratch = join(env.XDG_STATE_HOME ?? join(env.HOME, '.local/state'), 'cli-git', 'scratch');
+//! const scratch = join(env.XDG_STATE_HOME ?? join(env.HOME, '.local/state'), 'monochromatic-git-policy-cli', 'scratch');
 //! await mkdir(scratch, { recursive: true, mode: 0o700 });
 //! await sweepOlderThan(scratch, 24 * 60 * 60 * 1000);
 //! ```
@@ -30,15 +31,16 @@ use crate::private_storage::{create_private_directory, create_private_directory_
 #[cfg(unix)]
 use crate::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
 /// OS strings, paths and time.
+use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 /// The tag of this module's diagnostics.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// The entry in a Git common directory that holds repository scratch.
-pub const REPOSITORY_SCRATCH_NAME: &str = "cli-git-scratch";
+pub const REPOSITORY_SCRATCH_NAME: &str = REPOSITORY_SCRATCH.current;
 
 /// How old an entry must be before a preparation removes it:
 ///  far longer than any command of the wrapper runs, so a live process never loses a file. Measured: the longest command in the
@@ -69,7 +71,11 @@ pub const SCRATCH_REFRESH_EVERY: Duration = Duration::from_secs(SCRATCH_STALE_AF
 /// await utimes(path, new Date(), new Date())
 /// ```
 pub fn renew(path: &Path) {
-    let renewed: std::io::Result<()> = std::fs::File::open(path).and_then(|opened| { return opened.set_modified(SystemTime::now()); });
+    // The modification time is set only when the file opened; an open failure is the result as it was.
+    let renewed: std::io::Result<()> = match std::fs::File::open(path) {
+        Ok(opened) => opened.set_modified(SystemTime::now()),
+        Err(error) => Err(error),
+    };
     if let Err(error) = renewed {
         debug(TAG, format!("could not renew {}: {error}", path.display()).as_str());
     }
@@ -77,7 +83,7 @@ pub fn renew(path: &Path) {
 
 /// What:
 ///  The per-user state directory of the wrapper:
-///  `cli-git` under an absolute `XDG_STATE_HOME`,
+///  `monochromatic-git-policy-cli` under an absolute `XDG_STATE_HOME`,
 ///  or under `.local/state` in the home directory.
 /// Why:
 ///   The injected environment decides the location,
@@ -93,14 +99,14 @@ pub fn state_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
     if let Some(state_home) = environment_value(environment, "XDG_STATE_HOME") {
         let state_path: PathBuf = PathBuf::from(state_home);
         if state_path.is_absolute() {
-            return Some(state_path.join("cli-git"));
+            return Some(state_path.join("monochromatic-git-policy-cli"));
         }
     }
     let home: OsString = environment_value(environment, "HOME")?;
     if home.is_empty() {
         return None;
     }
-    return Some(PathBuf::from(home).join(".local").join("state").join("cli-git"));
+    return Some(PathBuf::from(home).join(".local").join("state").join("monochromatic-git-policy-cli"));
 }
 
 /// What:
@@ -118,7 +124,7 @@ pub fn state_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
 pub fn user_scratch_path(environment: &[(OsString, OsString)]) -> Result<PathBuf, String> {
     let Some(state) = state_directory(environment) else {
         return Err(String::from(
-            "cli-git keeps its temporary files in a private directory under XDG_STATE_HOME (or HOME/.local/state) and \
+            "monochromatic-git-policy-cli keeps its temporary files in a private directory under XDG_STATE_HOME (or HOME/.local/state) and \
              never in the system temporary directory, and this command's environment has neither an absolute \
              XDG_STATE_HOME nor a non-empty HOME; set one of them",
         ));
@@ -142,16 +148,20 @@ pub fn user_scratch_path(environment: &[(OsString, OsString)]) -> Result<PathBuf
 pub fn prepare_user_scratch(environment: &[(OsString, OsString)]) -> Result<PathBuf, String> {
     let given: PathBuf = user_scratch_path(environment)?;
     // A relative home would name another place once a child changes directory.
-    let directory: PathBuf = std::path::absolute(&given).unwrap_or_else(|_| { return given.clone(); });
+    // A path that cannot be made absolute stays as given.
+    let directory: PathBuf = match std::path::absolute(&given) {
+        Ok(absolute) => absolute,
+        Err(_refused) => given.clone(),
+    };
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!(
-            "cli-git could not create its private scratch directory {}: {error}",
+            "monochromatic-git-policy-cli could not create its private scratch directory {}: {error}",
             directory.display()
         ));
     }
     if let Err(error) = assert_private_directory(directory.as_path()) {
         return Err(format!(
-            "cli-git will not use {} for temporary files: {error}",
+            "monochromatic-git-policy-cli will not use {} for temporary files: {error}",
             directory.display()
         ));
     }
@@ -202,7 +212,40 @@ pub fn prepare_repository_scratch(common_dir: &Path) -> std::io::Result<PathBuf>
     }
     assert_private_directory(directory.as_path())?;
     sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
+    sweep_earlier_repository_scratch(common_dir);
     return Ok(directory);
+}
+
+/// What:
+///  Sweep the repository scratch folder an earlier release made (`cli-git-scratch`) by the rules of this release's own: it must be a
+///  real directory of this user (a looser mode is tightened), entries older than `SCRATCH_STALE_AFTER` go, and everything else
+///  stays, including entries dated in the future and the folder itself. Nothing is made under the earlier name, and a folder
+///  that fails the check is left alone and logged, because the command that asked for scratch must not fail over a folder it
+///  does not use.
+/// Why:
+///   The folder is in the Git directory the repository scratch is in, the earlier release's commands wrote there and
+///  nothing else would ever collect what a killed one left (owner, 2026-11-07, "Pair the names": one set of rules, and nothing
+///  deleted that those rules would keep).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await sweepStale(await privateDirectoryOrNothing(join(commonDir, REPOSITORY_SCRATCH.earlier)), STALE_AFTER)
+/// ```
+fn sweep_earlier_repository_scratch(common_dir: &Path) {
+    let earlier: PathBuf = common_dir.join(REPOSITORY_SCRATCH.earlier);
+    match std::fs::symlink_metadata(&earlier) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) => {
+            debug(TAG, format!("could not inspect {}: {error}", earlier.display()).as_str());
+            return;
+        }
+    }
+    if let Err(error) = assert_private_directory(earlier.as_path()) {
+        debug(TAG, format!("will not sweep {}: {error}", earlier.display()).as_str());
+        return;
+    }
+    sweep_stale(earlier.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
 }
 
 /// What:
@@ -296,11 +339,16 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration) -> usiz
                 continue;
             }
         };
-        let age: Option<Duration> = metadata
-            .modified()
-            .ok()
-            .and_then(|modified| { return now.duration_since(modified).ok(); });
-        if !age.is_some_and(|found| { return found > max_age; }) {
+        // An entry whose age cannot be told is never old enough to remove.
+        let age: Option<Duration> = match metadata.modified() {
+            Ok(modified) => now.duration_since(modified).ok(),
+            Err(_unsupported) => None,
+        };
+        let old_enough: bool = match age {
+            Some(found) => found > max_age,
+            None => false,
+        };
+        if !old_enough {
             continue;
         }
         let outcome: std::io::Result<()> = if metadata.is_dir() {

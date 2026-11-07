@@ -50,8 +50,17 @@ pub mod repo_read_config_scan;
 /// In-process repository reads: proof that every configuration value Git types at startup is one Git accepts silently.
 pub mod repo_read_config_typed;
 
+/// The table of which configuration keys Git reads at startup and what kind of value each takes.
+pub mod repo_read_config_value_kinds;
+
 /// In-process repository reads: the location, Git paths and object format found from the file system.
 pub mod repo_read_layout;
+
+/// The rules about the environment of a Git command: which variables can move discovery, and the effective environment.
+pub mod repo_read_layout_environment_rules;
+
+/// Small file system and command line facts a layout read needs: owner, device, small file text, the `-C` directory.
+pub mod repo_read_layout_disk_and_directory_facts;
 
 /// The layout reader's answer with some global options and variables left out.
 pub mod repo_read_layout_without;
@@ -73,6 +82,9 @@ pub mod repo_read_odb;
 /// The abbreviated object name Git prints (`core.abbrev`, the automatic length, uniqueness), computed without starting Git.
 #[cfg(unix)]
 pub mod object_abbreviation;
+
+/// Small byte and name checks the abbreviation uses: a NUL, a hexadecimal digit, a shared prefix length.
+pub mod object_abbreviation_byte_and_prefix_checks;
 
 /// In-process repository reads: trees, flattened trees and commit fields.
 #[cfg(unix)]
@@ -99,6 +111,9 @@ pub mod repo_read_config_list;
 /// In-process repository reads: answers to the exact read-only command lines the wrapper issues.
 #[cfg(unix)]
 pub mod repo_read_query;
+
+/// What the in-process Git queries share: the request, the answer, the parsed command line and the query context.
+pub mod repo_read_query_request_answer_and_context;
 
 /// In-process repository reads: answers for the reference and configuration command lines.
 #[cfg(unix)]

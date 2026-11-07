@@ -15,6 +15,10 @@
  Timestamps are aggregated per-side using configurable strategies
  (`--source-time-strategy`, `--output-time-strategy`), then compared:
  `sourceTime > outputTime` → stale.
+
+ Nothing waits forever: every `sh:` item and strategy is ended after `--query-timeout-seconds`
+ (default 60) and the command after `--` after `--command-timeout-seconds` (default 3600).
+ An ended child is a failure with exit code 1, and the message names the bound.
  
  @example
  ```bash
@@ -45,11 +49,20 @@ import {
   option,
 } from '@optique/core/primitives';
 // TODO: deprecate Optique
-import { string, } from '@optique/core/valueparser';
+import {
+  float,
+  string,
+} from '@optique/core/valueparser';
 // TODO: deprecate Optique
 import { runSync, } from '@optique/run';
 import dedent from 'string-dedent';
 
+import { MS_PER_SECOND, } from '@monochromatic-dev/const-core/ts';
+
+import {
+  DEFAULT_COMMAND_TIMEOUT_MS,
+  DEFAULT_QUERY_TIMEOUT_MS,
+} from './depends-bounded-wait.ts';
 import { executeWithCollapsedOutput, } from './depends-exec.ts';
 import {
   type BuiltinTimeStrategy,
@@ -87,6 +100,14 @@ const parser = object({
   outputTimeStrategy: optional(option(
     '--output-time-strategy',
     string(),
+  ),),
+  queryTimeoutSeconds: optional(option(
+    '--query-timeout-seconds',
+    float({ min: 0, },),
+  ),),
+  commandTimeoutSeconds: optional(option(
+    '--command-timeout-seconds',
+    float({ min: 0, },),
   ),),
   allowFailure: option(
     '-a',
@@ -213,6 +234,55 @@ function validateTimeStrategy({
 }
 
 /**
+ Options for {@link secondsToMs}.
+
+ @example
+ ```ts
+ const options: SecondsToMsOptions = {
+   seconds: 1.5,
+   defaultMs: 60_000,
+ };
+ ```
+ */
+type SecondsToMsOptions = {
+  // TODO: deprecate Optique
+  /* oxlint-disable no-restricted-syntax/no-nullish-union -- external boundary: @optique/core `optional()` is typed `Parser<…, TValue | undefined, …>`, so an omitted `--*-timeout-seconds` arrives here as `undefined`; this field mirrors that upstream type */
+  /**
+   Raw seconds from optique (`undefined` when option is omitted)
+   */
+  readonly seconds: number | undefined;
+  /* oxlint-enable no-restricted-syntax/no-nullish-union */
+  /**
+   Bound used when the option is omitted, in milliseconds
+   */
+  readonly defaultMs: number;
+};
+
+/**
+ Turns a `--*-timeout-seconds` value into a bound in milliseconds, falling back to the default when the option is omitted.
+
+ @param seconds - Raw value from optique (`undefined` when option is omitted)
+
+ @param defaultMs - Bound used when the option is omitted
+
+ @returns Bound in milliseconds
+
+ @example
+ ```ts
+ secondsToMs({ seconds: undefined, defaultMs: 60_000 }) // 60000
+ secondsToMs({ seconds: 1.5, defaultMs: 60_000 }) // 1500
+ ```
+ */
+function secondsToMs({
+  seconds,
+  defaultMs,
+}: SecondsToMsOptions,): number {
+  if (seconds === undefined)
+    return defaultMs;
+  return seconds * MS_PER_SECOND;
+}
+
+/**
  Cleaned CLI arguments with nullish values filtered out
  */
 const args = {
@@ -225,6 +295,14 @@ const args = {
   outputTimeStrategy: validateTimeStrategy({
     value: rawArgs.outputTimeStrategy,
     flagName: '--output-time-strategy',
+  },),
+  queryTimeoutMs: secondsToMs({
+    seconds: rawArgs.queryTimeoutSeconds,
+    defaultMs: DEFAULT_QUERY_TIMEOUT_MS,
+  },),
+  commandTimeoutMs: secondsToMs({
+    seconds: rawArgs.commandTimeoutSeconds,
+    defaultMs: DEFAULT_COMMAND_TIMEOUT_MS,
   },),
   allowFailure: rawArgs.allowFailure,
   verbose: rawArgs.verbose,
@@ -265,6 +343,7 @@ const stale = await checkStaleness({
   sources: args.sources,
   outputs: args.outputs,
   verbose: args.verbose,
+  queryTimeoutMs: args.queryTimeoutMs,
   sourceTimeStrategy: args.sourceTimeStrategy,
   outputTimeStrategy: args.outputTimeStrategy,
 },);
@@ -275,6 +354,7 @@ if (stale) {
     commandArgs,
     verbose: args.verbose,
     allowFailure: args.allowFailure,
+    commandTimeoutMs: args.commandTimeoutMs,
   },);
 }
 else if (args.verbose) {

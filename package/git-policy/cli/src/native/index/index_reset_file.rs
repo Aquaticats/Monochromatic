@@ -13,6 +13,7 @@
 //! ```
 
 use crate::diagnostic_log::debug;
+use crate::index_byte_search::has_nonzero_byte;
 use crate::index_full::{FullIndex, parse_full_index};
 use crate::index_full_write::write_full_index;
 use crate::index_reset::reset_paths;
@@ -42,13 +43,29 @@ const POST_INDEX_HOOK: &str = "post-index-change";
 
 /// The checksum of the format's object hash over `bytes`.
 fn checksum(format: ObjectFormat, bytes: &[u8]) -> Vec<u8> {
-    return if name_length(format) == 20 { sha1(bytes).to_vec() } else { sha256(bytes).to_vec() };
+    return if name_length(format) == 20 { sha1_bytes(bytes) } else { sha256_bytes(bytes) };
+}
+
+/// The SHA-1 of `bytes` as a byte vector.
+fn sha1_bytes(bytes: &[u8]) -> Vec<u8> {
+    return sha1(bytes).to_vec();
+}
+
+/// The SHA-256 of `bytes` as a byte vector.
+fn sha256_bytes(bytes: &[u8]) -> Vec<u8> {
+    return sha256(bytes).to_vec();
 }
 
 /// The names (top-relative, as bytes) the update resets.
 fn names_of(database: &ObjectDatabase, layout: &RepoLayout, new_tree: &[u8], paths: IndexPaths<'_>) -> Option<Vec<Vec<u8>>> {
     return match paths {
-        IndexPaths::Listed(listed) => Some(listed.iter().map(|path| { return path.as_bytes().to_vec(); }).collect()),
+        IndexPaths::Listed(listed) => {
+            let mut names: Vec<Vec<u8>> = Vec::new();
+            for path in listed {
+                names.push(path.as_bytes().to_vec());
+            }
+            Some(names)
+        }
         IndexPaths::Named(named) => Some(named.to_vec()),
         IndexPaths::Derived { old } => {
             let old_tree: Option<Vec<u8>> = if is_zero_object(old) { None } else { Some(root_tree(database, old, layout.object_format)?) };
@@ -67,17 +84,51 @@ struct Surroundings {
     database: ObjectDatabase,
 }
 
+/// This process's environment with `added` laid over it, minus the two variables that would point Git at other files.
+fn effective_environment(added: Vec<(OsString, OsString)>) -> Vec<(OsString, OsString)> {
+    let mut effective: Vec<(OsString, OsString)> = Vec::new();
+    for (name, value) in std::env::vars_os() {
+        // A variable the run adds replaces the one of this process.
+        let mut replaced: bool = false;
+        for (own, _) in &added {
+            if *own == name {
+                replaced = true;
+                break;
+            }
+        }
+        if !replaced {
+            effective.push((name, value));
+        }
+    }
+    effective.extend(added);
+    let mut kept: Vec<(OsString, OsString)> = Vec::new();
+    for (name, value) in effective {
+        if name != "GIT_INDEX_FILE" && name != "GIT_OBJECT_DIRECTORY" {
+            kept.push((name, value));
+        }
+    }
+    return kept;
+}
+
+/// Whether the environment sets `GIT_TEST_FSMONITOR` to something, which would turn a file system monitor on.
+fn turns_monitor_on(effective: &[(OsString, OsString)]) -> bool {
+    for (name, value) in effective {
+        if name == "GIT_TEST_FSMONITOR" && !value.is_empty() {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Read the layout, the configuration and the objects, or decline.
 fn surroundings(git: &GitContext, repository: &Path) -> Option<Surroundings> {
     let added: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(git.overlay.as_slice(), git.real_git.as_path());
     if !enabled(added.as_slice()) {
         return None;
     }
-    let mut effective: Vec<(OsString, OsString)> = std::env::vars_os().filter(|(name, _)| { return !added.iter().any(|(own, _)| { return own == name; }); }).collect();
-    effective.extend(added);
-    effective.retain(|(name, _)| { return name != "GIT_INDEX_FILE" && name != "GIT_OBJECT_DIRECTORY"; });
+    let effective: Vec<(OsString, OsString)> = effective_environment(added);
     // Git reads this variable to turn a monitor on; its effect depends on a daemon this update never asks.
-    if effective.iter().any(|(name, value)| { return name == "GIT_TEST_FSMONITOR" && !value.is_empty(); }) {
+    if turns_monitor_on(effective.as_slice()) {
         return None;
     }
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(effective.as_slice());
@@ -97,7 +148,7 @@ fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, u32)> {
     let hash_length: usize = name_length(format);
     let (body, stored) = bytes.split_at(bytes.len().checked_sub(hash_length)?);
     // Git refuses a file whose checksum is wrong; an all-zero checksum is what a skipped hash looks like.
-    if stored != checksum(format, body).as_slice() && stored.iter().any(|byte| { return *byte != 0; }) {
+    if stored != checksum(format, body).as_slice() && has_nonzero_byte(stored) {
         return None;
     }
     let modified: std::time::SystemTime = std::fs::metadata(file).ok()?.modified().ok()?;
@@ -118,8 +169,14 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let tree: Vec<FlatEntry> = tree_entries_at(&around.database, new_tree.as_slice(), names.as_slice(), around.layout.object_format)?;
     reset_paths(&mut index, names.as_slice(), tree.as_slice(), around.settings, timestamp)?;
     let format: ObjectFormat = around.layout.object_format;
-    let bytes: Vec<u8> = write_full_index(&index, &|data: &[u8]| { return checksum(format, data); })?;
+    let hash: fn(&[u8]) -> Vec<u8> = if name_length(format) == 20 { sha1_bytes } else { sha256_bytes };
+    let bytes: Vec<u8> = write_full_index(&index, &hash)?;
     return publish(built, bytes.as_slice(), around.settings.shared_repository).ok();
+}
+
+/// The update of `reset_file`, as the guard calls it with the Git context, the repository, the commit, the paths and the copy.
+fn reset_file_guarded((git, repository, new, paths, built): (&GitContext, &Path, &str, IndexPaths<'_>, &Path)) -> Option<()> {
+    return reset_file(git, repository, new, paths, built);
 }
 
 /// What:
@@ -139,7 +196,7 @@ pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: I
         return false;
     }
     let built: PathBuf = copy.path().to_path_buf();
-    let done: bool = guarded(|| { return reset_file(git, repository, new, paths, built.as_path()); }).is_some();
+    let done: bool = guarded((git, repository, new, paths, built.as_path()), reset_file_guarded).is_some();
     // `publish` flushes the new bytes before it renames them onto the copy, and nothing writes to the copy after it returns.
     copy.set_flushed(done);
     debug("indexResetFile", format!("in-process reset of {}: {}", built.display(), if done { "done" } else { "declined, Git answers" }).as_str());

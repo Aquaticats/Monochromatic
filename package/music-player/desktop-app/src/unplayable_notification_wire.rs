@@ -7,11 +7,11 @@
 
 use std::collections::HashMap;
 
-use zbus::blocking::{Connection, Proxy};
-use zbus::zvariant::Value;
+use zbus::{Connection, Proxy, Variant};
 
 use crate::analysis_notification::Identity;
 use crate::analysis_notification_wire::{NOTIFICATIONS_INTERFACE, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH};
+use crate::dbus_step_bound::step;
 use crate::unplayable_notification_logic::Notice;
 
 /// What: `URGENCY_NORMAL` is the `urgency` hint value of a normal notification.
@@ -27,10 +27,10 @@ pub const EXPIRY_SERVER_DEFAULT: i32 = -1;
 /// What: `notice_hints` builds the `Notify` hints.
 /// Why: the urgency is a byte (a wider integer is a silent type error on the service), and `desktop-entry` ties the
 /// notification to the app's `.desktop` file so the desktop shows its name and icon and groups it with the app.
-pub fn notice_hints(identity: &Identity) -> HashMap<&'static str, Value<'_>> {
+pub fn notice_hints(identity: &Identity) -> HashMap<&'static str, Variant<'_>> {
     return HashMap::from([
-        ("urgency", Value::U8(URGENCY_NORMAL)),
-        ("desktop-entry", Value::from(identity.desktop_entry.as_str())),
+        ("urgency", Variant::U8(URGENCY_NORMAL)),
+        ("desktop-entry", Variant::from(identity.desktop_entry.as_str())),
     ]);
 }
 
@@ -38,9 +38,9 @@ pub fn notice_hints(identity: &Identity) -> HashMap<&'static str, Value<'_>> {
 /// Why: `replaces_id` is 0 because nothing is replaced, the action list is empty because there is nothing to press,
 /// and the expiry is the service's default; the app name and icon are those of the app's identity.
 pub fn post(connection: &Connection, identity: &Identity, notice: &Notice) -> zbus::Result<u32> {
-    let proxy = Proxy::new(connection, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE)?;
+    let proxy = step(Proxy::new(connection, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE))?;
     let actions: Vec<&str> = Vec::new();
-    let id: u32 = proxy.call(
+    let id: u32 = step(proxy.call(
         "Notify",
         &(
             identity.app_name.as_str(),
@@ -52,7 +52,7 @@ pub fn post(connection: &Connection, identity: &Identity, notice: &Notice) -> zb
             notice_hints(identity),
             EXPIRY_SERVER_DEFAULT,
         ),
-    )?;
+    ))?;
     tracing::info!(id, "unplayable-file notification posted");
     return Ok(id);
 }

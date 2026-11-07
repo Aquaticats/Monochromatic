@@ -1,5 +1,5 @@
 //! What:
-//!  The fsmonitor section of `git cli-git doctor`: whether Git's own file-system monitor (`core.fsmonitor`) is off, and
+//!  The fsmonitor section of `git monochromatic-git-policy-cli doctor`: whether Git's own file-system monitor (`core.fsmonitor`) is off, and
 //!  where it is on, the file and scope that turn it on and the command that turns it off.
 //! Why:
 //!  The owner decided on 2026-11-03: "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully
@@ -54,6 +54,34 @@ pub struct FsmonitorEntry {
 }
 
 /// What:
+///  Whether one byte is the NUL byte that ends every field of the listing.
+///  `&u8` borrows the byte, as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether one byte is the line feed that separates a key from its value.
+///  `&u8` borrows the byte, as `position` hands it over.
+/// Why:
+///   `position` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLineFeedByte = (byte: number) => byte === '\n'.charCodeAt(0);
+/// ```
+fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
 ///  The `core.fsmonitor` entries of a `git config --list --show-origin --show-scope -z` listing, in precedence order.
 ///  `Option<Vec<...>>` is `None` when the listing is not in the expected shape.
 /// Why:
@@ -70,12 +98,12 @@ pub fn parse_fsmonitor_entries(listing: &[u8]) -> Option<Vec<FsmonitorEntry>> {
         return Some(entries);
     }
     let body: &[u8] = listing.strip_suffix(&[0])?;
-    let mut fields = body.split(|byte| { return *byte == 0; });
+    let mut fields = body.split(is_nul_byte);
     while let Some(scope) = fields.next() {
         let origin: &[u8] = fields.next()?;
         let record: &[u8] = fields.next()?;
         // Only the first line feed separates key from value; the value may hold more of them.
-        let (key, value): (&[u8], Option<&[u8]>) = match record.iter().position(|byte| { return *byte == b'\n'; }) {
+        let (key, value): (&[u8], Option<&[u8]>) = match record.iter().position(is_line_feed_byte) {
             Some(newline) => (&record[..newline], Some(&record[newline + 1..])),
             None => (record, None),
         };
@@ -127,7 +155,7 @@ GIT_CONFIG_PARAMETERS environment variable that passes it.",
 pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
     let Some(deciding) = entries.last() else {
         return format!(
-            "git cli-git doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is not set). \
+            "git monochromatic-git-policy-cli doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is not set). \
 {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}.\n"
         );
     };
@@ -144,7 +172,7 @@ pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
             format!("{written} (Git reads it as false)")
         };
         return format!(
-            "git cli-git doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is {value} in \
+            "git monochromatic-git-policy-cli doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is {value} in \
 {place}). {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}.\n"
         );
     }
@@ -156,7 +184,7 @@ pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
         (None, None) => unreachable!("a key without a value always reads as true"),
     };
     return format!(
-        "git cli-git doctor: Git's fsmonitor is on, against the owner's decision of {DECISION_DATE} to keep it off: {setting}. \
+        "git monochromatic-git-policy-cli doctor: Git's fsmonitor is on, against the owner's decision of {DECISION_DATE} to keep it off: {setting}. \
 {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}. {}\n",
         remedy(deciding)
     );
@@ -178,16 +206,16 @@ pub fn fsmonitor_report(context: &GitContext, cwd: &Path) -> String {
         Ok(finished) => finished,
         Err(error) => {
             debug("fsmonitorReport", format!("git config --list could not start: {error}").as_str());
-            return format!("git cli-git doctor: could not read Git's fsmonitor setting: git config --list could not start: {error}\n");
+            return format!("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list could not start: {error}\n");
         }
     };
     if !output.succeeded() {
         debug("fsmonitorReport", format!("git config --list failed: {}", output.error_text()).as_str());
-        return format!("git cli-git doctor: could not read Git's fsmonitor setting: git config --list failed: {}\n", output.error_text());
+        return format!("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list failed: {}\n", output.error_text());
     }
     let Some(entries) = parse_fsmonitor_entries(output.stdout.as_slice()) else {
         debug("fsmonitorReport", "the configuration listing has an unexpected shape");
-        return String::from("git cli-git doctor: could not read Git's fsmonitor setting: git config --list printed an unexpected shape\n");
+        return String::from("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list printed an unexpected shape\n");
     };
     return render_fsmonitor(entries.as_slice());
 }

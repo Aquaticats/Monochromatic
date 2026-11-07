@@ -12,6 +12,47 @@
 use std::path::Path;
 
 /// What:
+///  The length of a file from its metadata.
+/// Why:
+///  `Result::map` hands the metadata to a function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lengthOf = (stats: Stats) => stats.size;
+/// ```
+fn length_of(found: std::fs::Metadata) -> u64 {
+    return found.len();
+}
+
+/// What:
+///  Reads the last bytes of a file into `tail`, from `start`.
+/// Why:
+///  Two index files are compared by their tails first, where the checksum sits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await file.read(tail, 0, tail.length, start)
+/// ```
+fn read_tail(file: &mut std::fs::File, tail: &mut Vec<u8>, start: u64) -> std::io::Result<()> {
+    use std::io::{Read as _, Seek as _, SeekFrom};
+    file.seek(SeekFrom::Start(start))?;
+    return file.read_exact(tail.as_mut_slice());
+}
+
+/// What:
+///  Whether a byte is not zero.
+/// Why:
+///  A checksum of all zero bytes means the index was written without one, and then every byte is compared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNonzero = (byte: number) => byte !== 0;
+/// ```
+fn is_nonzero(byte: &u8) -> bool {
+    return *byte != 0;
+}
+
+/// What:
 ///  Whether the file `built` holds the same bytes as the live index file `live`.
 /// Why:
 ///   An index ends with a checksum of all it holds, so files of one size with the same tail are the same file, and the common
@@ -23,12 +64,11 @@ use std::path::Path;
 /// sameIndex(built, live) // true: nothing to install
 /// ```
 pub(crate) fn same_index(built: &Path, live: &Path) -> bool {
-    use std::io::{Read as _, Seek as _, SeekFrom};
     const TAIL: u64 = 32;
     let (Ok(mut first), Ok(mut second)) = (std::fs::File::open(built), std::fs::File::open(live)) else {
         return false;
     };
-    let (Ok(first_size), Ok(second_size)) = (first.metadata().map(|found| { return found.len(); }), second.metadata().map(|found| { return found.len(); })) else {
+    let (Ok(first_size), Ok(second_size)) = (first.metadata().map(length_of), second.metadata().map(length_of)) else {
         return false;
     };
     if first_size != second_size {
@@ -36,15 +76,12 @@ pub(crate) fn same_index(built: &Path, live: &Path) -> bool {
     }
     let kept: u64 = first_size.min(TAIL);
     let mut tails: [Vec<u8>; 2] = [vec![0; kept as usize], vec![0; kept as usize]];
-    let read_tail = |file: &mut std::fs::File, tail: &mut Vec<u8>| -> std::io::Result<()> {
-        file.seek(SeekFrom::Start(first_size - kept))?;
-        return file.read_exact(tail.as_mut_slice());
-    };
     let [first_tail, second_tail] = &mut tails;
-    if read_tail(&mut first, first_tail).is_err() || read_tail(&mut second, second_tail).is_err() || first_tail != second_tail {
+    let tail_start: u64 = first_size - kept;
+    if read_tail(&mut first, first_tail, tail_start).is_err() || read_tail(&mut second, second_tail, tail_start).is_err() || first_tail != second_tail {
         return false;
     }
-    if first_tail.iter().any(|byte| { return *byte != 0; }) {
+    if first_tail.iter().any(is_nonzero) {
         return true;
     }
     // A skipped checksum: compare every byte.

@@ -107,7 +107,7 @@ await mkdir(
  */
 await using context = await mkdtempDisposable(join(
   scratchBase,
-  'cli-git-native-planted-',
+  'monochromatic-git-policy-cli-planted-',
 ));
 try {
   await ensurePlantedControls({

@@ -20,9 +20,15 @@ use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::process::Stdio;
 
-/// The most bytes of one stream a snapshot of a step's output holds, the last ones. Exempt from a citation under `LQM` (class: display
-///  cap): it limits how much of the output of a step the command keeps in memory for its messages, and no result depends on it; the
-///  steps that use it write a few lines (a reference update, a merge) or print a reason at the end (the repair tools).
+/// The most bytes of one stream a snapshot of a step's output holds, the last ones.
+///  Measured on this host's real repositories (`/var/home/user/temp/agent/ceiling-measure/measure-output.ts`, `measure-output.out`,
+///  2026-11-04): the largest output of a step the wrapper captures in full was the diffstat `git merge` prints for the merge with the most
+///  changed files in the Monochromatic history (4096 files), 638,784 bytes; the others were far smaller (`cargo metadata --no-deps` of
+///  35 manifests, at most 21,012 bytes; `pnpm install --offline --frozen-lockfile`, 634 bytes; `mpm install --frozen-lockfile`, 639
+///  bytes; a merge of the other repository on the host, 2,381 bytes). 8 MiB is 13.1 times the largest, about the output of a merge of
+///  50,000 files. A step that writes more has the start of its output left out, said in words (`Captured::notes`), and a reader that
+///  parses an output (the `cargo metadata` of a repair) refuses one that was cut. The coordinator's request for a cited value
+///  (2026-11-04); the margin is open to the owner's veto.
 pub const STEP_OUTPUT_LIMIT: usize = 8 * 1024 * 1024;
 
 /// Two anonymous files that collect a child's standard output and standard error.
@@ -80,9 +86,18 @@ impl Capture {
     /// ```
     pub fn snapshot(&self, limit: usize) -> Captured {
         let mut notes: Vec<String> = Vec::new();
-        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes);
-        let stderr: Vec<u8> = snapshot_of(&self.err, "standard error", limit, &mut notes);
+        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes, &mut do_nothing);
+        let stderr: Vec<u8> = snapshot_of(&self.err, "standard error", limit, &mut notes, &mut do_nothing);
         return Captured { stdout, stderr, notes };
+    }
+
+    /// `snapshot` of standard output, calling `after_chunk` after every chunk it read: a control appends to the file there, which a
+    ///  reader that chases the end of the file would follow for ever.
+    #[cfg(test)]
+    pub fn snapshot_stdout_with(&self, limit: usize, after_chunk: &mut dyn FnMut()) -> (Vec<u8>, Vec<String>) {
+        let mut notes: Vec<String> = Vec::new();
+        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes, after_chunk);
+        return (stdout, notes);
     }
 
     /// Free what the files hold in memory. The child's offset is its own, so what it writes afterwards leaves a hole before it and
@@ -104,9 +119,20 @@ pub struct Captured {
     pub notes: Vec<String>,
 }
 
+/// What:
+///  A callback that does nothing, for the snapshot calls that have no use for the per-chunk hook.
+/// Why:
+///  A named function replaces the empty closure, and `&mut do_nothing` lends it as the `&mut dyn FnMut()` that `snapshot_of` takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function doNothing(): void {}
+/// ```
+fn do_nothing() {}
+
 /// The last `limit` bytes of the first `length` bytes of `file`, where `length` is the size when the call began; a note for the bytes
 ///  left out and for a read that failed.
-fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>) -> Vec<u8> {
+fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>, after_chunk: &mut dyn FnMut()) -> Vec<u8> {
     let length: u64 = match file.metadata() {
         Ok(found) => found.len(),
         Err(error) => {
@@ -129,6 +155,7 @@ fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>) -
             Ok(read) => {
                 collected.extend_from_slice(&buffer[..read]);
                 position += read as u64;
+                after_chunk();
             }
             Err(error) => {
                 notes.push(format!("the {name} of the step could not be read whole ({error}); {} of {wanted} bytes are shown", collected.len()));

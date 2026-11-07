@@ -5,8 +5,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  defaultCpuQuota,
   defaultMemoryMax,
   defaultReleaseHost,
+  defaultTasksMax,
   defaultUnitSuffix,
 } from './constants.ts';
 import { parseCrateRegistry } from './crate-registry.ts';
@@ -21,7 +23,7 @@ const testRegistry = parseCrateRegistry(JSON.stringify({
     crateDir: 'package/git-policy/cli',
     scope: 'git-policy/cli',
     pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-    checkBins: ['cli-git-native'],
+    checkBins: ['monochromatic-git-policy-cli'],
     lockDirs: ['package/git-policy/cli.fuzz'],
   },
   'plain-crate': {
@@ -108,6 +110,8 @@ await describe({
               lockDirectories: [],
               host: defaultReleaseHost,
               memoryMax: defaultMemoryMax,
+              cpuQuota: defaultCpuQuota,
+              tasksMax: defaultTasksMax,
               unitName: `monochromatic-git-policy-cli${defaultUnitSuffix}`,
             });
           },
@@ -124,7 +128,7 @@ await describe({
               '--pin-file',
               'package/x/Cargo.toml',
               '--check-bin',
-              'cli-git-native',
+              'monochromatic-git-policy-cli',
               '--check-bin',
               'second-bin',
               '--lock-dir',
@@ -143,7 +147,7 @@ await describe({
             ]);
             expect(options.root).toBe('/other');
             expect(options.pinFiles).toEqual(['package/git-policy/cli.fuzz/Cargo.toml', 'package/x/Cargo.toml']);
-            expect(options.checkBins).toEqual(['cli-git-native', 'second-bin']);
+            expect(options.checkBins).toEqual(['monochromatic-git-policy-cli', 'second-bin']);
             expect(options.lockDirectories).toEqual(['package/a', 'package/b']);
             expect(options.host).toBe('runner');
             expect(options.memoryMax).toBe('8G');
@@ -297,6 +301,34 @@ await describe({
           },
         }),
         it({
+          name: 'reads --cpu-quota and --tasks-max',
+          fn: async () => {
+            const options = parse([...requiredOptions, '--cpu-quota', '700%', '--tasks-max', '77', '0.4.2', '0.4.3', 'n']);
+            expect(options.cpuQuota).toBe('700%');
+            expect(options.tasksMax).toBe('77');
+          },
+        }),
+        it({
+          name: 'defaults the CPU quota and the task limit to systemd values',
+          fn: async () => {
+            const options = parse([...requiredOptions, '0.4.2', '0.4.3', 'n']);
+            expect(options.cpuQuota).toBe(defaultCpuQuota);
+            expect(options.tasksMax).toBe(defaultTasksMax);
+          },
+        }),
+        it({
+          name: 'refuses a CPU quota that is not a systemd value',
+          fn: async () => {
+            expectRefusal({ argv: [...requiredOptions, '--cpu-quota', '5;x', '0.4.2', '0.4.3', 'n'], mention: '--cpu-quota' });
+          },
+        }),
+        it({
+          name: 'refuses a task limit that is not a systemd value',
+          fn: async () => {
+            expectRefusal({ argv: [...requiredOptions, '--tasks-max', '5;x', '0.4.2', '0.4.3', 'n'], mention: '--tasks-max' });
+          },
+        }),
+        it({
           name: 'refuses a unit name with characters systemd would reject',
           fn: async () => {
             expectRefusal({ argv: [...requiredOptions, '--unit-name', 'a b', '0.4.2', '0.4.3', 'n'], mention: '--unit-name' });
@@ -314,10 +346,12 @@ await describe({
               to: '0.4.3',
               note: 'fix it',
               pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-              checkBins: ['cli-git-native'],
+              checkBins: ['monochromatic-git-policy-cli'],
               lockDirectories: ['package/git-policy/cli.fuzz'],
               host: 'runner',
               memoryMax: defaultMemoryMax,
+              cpuQuota: defaultCpuQuota,
+              tasksMax: defaultTasksMax,
               unitName: `monochromatic-git-policy-cli${defaultUnitSuffix}`,
             });
           },

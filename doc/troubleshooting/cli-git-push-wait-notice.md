@@ -1,5 +1,16 @@
 # Cli-git 0.1.4 announces a push wait before its outcome is known
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 ## Status since 2026-11-01
 
 This record describes release 0.1.4,
@@ -20,9 +31,12 @@ so a commit no longer prints "waiting for process N to finish pushing".
 A failed push is shown by the notice the next command prints.
 A wait on a foreign `index.lock` still prints a "giving up after N seconds" advisory,
 with its limit set by `CLI_GIT_LOCK_WAIT_SECONDS` (`wait_limit.rs`).
-(2026-11-03: the variable and `wait_limit.rs` are gone;
+(2026-11-03:
+the variable and `wait_limit.rs` are gone;
 a holder proven alive is waited for with no bound and the line no longer says
-"giving up", see `package/git-policy/cli/SPEC.md`, "Waits on a lock holder and on the service".)
+"giving up",
+see `package/git-policy/cli/SPEC.md`,
+"Waits on a lock holder and on the service".)
 The interpretation below,
 that a named future limit is not an elapsed timeout,
 stays valid for those advisories.
@@ -163,12 +177,18 @@ and the investigation corrected an interpretation without finding a tool defect.
 The `.out-of-scope/` inventory was checked;
 no listed exemption determined this result.
 
-1.  Fault: no tool failure was established.
-2.  Fixability: no corrective tool change is required by the evidence.
-3.  Supported use: concurrent push waiting and eventual failure reporting have distinct source paths and tests.
-4.  Contribution policy: this is repository-owned code under the repository's existing agent instructions.
-5.  Maintainer disposition: no request for a tool change follows from this incident.
-6.  Prototype: not applicable because the observed operation succeeded and the fault premise failed.
+1.  Fault:
+    no tool failure was established.
+2.  Fixability:
+    no corrective tool change is required by the evidence.
+3.  Supported use:
+    concurrent push waiting and eventual failure reporting have distinct source paths and tests.
+4.  Contribution policy:
+    this is repository-owned code under the repository's existing agent instructions.
+5.  Maintainer disposition:
+    no request for a tool change follows from this incident.
+6.  Prototype:
+    not applicable because the observed operation succeeded and the fault premise failed.
 
 There is nothing to file or add to an external tracker.
 

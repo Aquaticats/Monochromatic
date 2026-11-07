@@ -97,7 +97,8 @@ const RUN_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
 pub(crate) fn arm_watchdog() {
     static ARMED: std::sync::Once = std::sync::Once::new();
     ARMED.call_once(|| {
-        std::thread::spawn(|| {
+        // A process that is given no thread (a control of a site that starts threads) runs without the watchdog; its parent has its own.
+        let _armed = std::thread::Builder::new().spawn(|| {
             std::thread::sleep(RUN_LIMIT);
             eprintln!("the unit-test run exceeded {RUN_LIMIT:?}: a test is stuck");
             std::process::abort();

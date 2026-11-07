@@ -5,6 +5,13 @@ Successor to `@monochromatic-dev/config-tsdown`;
 see `doc/planning/tsdown-removal.md` for the migration record
 and `doc/philosophy/tool-choices.md` for the bundler decision.
 
+## Pi dependency trust
+
+PJJ:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Flavors
 
 - `./.ts`:

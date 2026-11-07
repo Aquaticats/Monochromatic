@@ -238,7 +238,7 @@ fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_know
 /// The error for a commit withdrawn behind a hung write names the log and the restart, the way out when the write never returns.
 #[test]
 fn the_error_for_a_commit_behind_a_hung_write_names_the_way_out() {
-    let failure: ClientFailure = ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("cli-git: the commit service has been inside a write for 21 minutes")) };
+    let failure: ClientFailure = ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("monochromatic-git-policy-cli: the commit service has been inside a write for 21 minutes")) };
     let text: String = crate::service_messages::render(&failure);
     assert!(text.contains("21 minutes") && text.contains(crate::service_messages::RESTART_COMMAND) && text.contains(crate::service_messages::LOG_COMMAND), "{text}");
 }
@@ -253,9 +253,9 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     land_with_failed_index(&world, 1, &[landed]);
     let board: std::sync::Arc<crate::service_busy::LandingBoard> = crate::service_busy::LandingBoard::new(world.context.journal.clone(), Duration::ZERO);
-    crate::service_busy::use_on_this_thread(std::sync::Arc::clone(&board));
+    crate::service_busy_step_record_on_this_thread::use_on_this_thread(std::sync::Arc::clone(&board));
     assert_eq!(board.begin_group(&[String::from("stuck")]), crate::service_busy::GroupAdmission::default());
-    let _step = crate::service_busy::enter_step(String::from("git update-ref --stdin in /repo"));
+    let _step = crate::service_busy_step_record_on_this_thread::enter_step(String::from("git update-ref --stdin in /repo"));
     std::thread::sleep(Duration::from_millis(20));
     assert_eq!(board.withdraw_early("landed"), crate::service_busy::EarlyAnswer::Queued, "its commit is on the branch");
     assert!(matches!(board.withdraw_early("never-seen"), crate::service_busy::EarlyAnswer::Withdrawn(_)), "a request no batch names is withdrawn");

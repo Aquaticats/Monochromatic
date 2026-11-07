@@ -11,6 +11,7 @@ import {
   failureExitCode,
   millisecondsPerSecond,
 } from './constants.ts';
+import { cratesIoRoute } from './crates-io-version-label.ts';
 import { describeDuration } from './publish-results.ts';
 import { waitForPublish } from './wait-run.ts';
 
@@ -249,6 +250,62 @@ await describe({
             });
             expect(result.status).toBe(failureExitCode);
             expect(result.printed).toContain('release c-v0.4.10 assets: release not found');
+          },
+        }),
+        it({
+          name: 'never asks crates.io about a version labelled alpha, and succeeds on the workflow and the release alone',
+          fn: async () => {
+            const alphaOptions: WaitOptions = { ...options, version: '0.4.10-alpha.1' };
+            const route = cratesIoRoute(alphaOptions.version);
+            expect(route.goes).toBe(false);
+            const skipReason = route.goes ? '' : route.reason;
+            const result = await record({
+              script: { release: { status: 0, stdout: JSON.stringify({ assets: [{ name: 'c-0.4.10-alpha.1-a.tar.gz' }, { name: 'c-0.4.10-alpha.1-b.tar.gz' }] }), stderr: '' } },
+              waitOptions: alphaOptions,
+            });
+            expect(result.status).toBe(0);
+            expect(result.calls.some(function isCurl(call) {
+              return call.program === 'curl';
+            })).toBe(false);
+            expect(result.printed).toEqual([
+              'run 42',
+              'watch exit 0',
+              `crates.io 0.4.10-alpha.1: skipped, ${skipReason}`,
+              'release c-v0.4.10-alpha.1 assets: c-0.4.10-alpha.1-a.tar.gz, c-0.4.10-alpha.1-b.tar.gz',
+              'PUBLISHED',
+            ]);
+          },
+        }),
+        it({
+          name: 'skips crates.io for a beta, an unlabelled pre-release and a text that is no version, and asks it for rc and plain numbers',
+          fn: async () => {
+            const versions = ['0.4.10-beta.2', '0.4.10-dev.1', '0.4.10-alpha', '0.4.10-rc.1', '0.4.10'];
+            const asked = Object.fromEntries(
+              await Promise.all(versions.map(async function askedFor(version): Promise<[string, boolean]> {
+                const result = await record({ script: {}, waitOptions: { ...options, version } });
+                return [version, result.calls.some(function isCurl(call) {
+                  return call.program === 'curl';
+                })];
+              })),
+            );
+            expect(asked).toEqual({
+              '0.4.10-beta.2': false,
+              '0.4.10-dev.1': false,
+              '0.4.10-alpha': false,
+              '0.4.10-rc.1': true,
+              '0.4.10': true,
+            });
+          },
+        }),
+        it({
+          name: 'still fails an alpha release whose GitHub release lacks an asset',
+          fn: async () => {
+            const result = await record({
+              script: { release: { status: 0, stdout: JSON.stringify({ assets: [] }), stderr: '' } },
+              waitOptions: { ...options, version: '0.4.10-alpha.1' },
+            });
+            expect(result.status).toBe(failureExitCode);
+            expect(result.printed.at(-1)).toContain('missing release assets');
           },
         }),
       ],

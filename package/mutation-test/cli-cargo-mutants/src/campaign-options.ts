@@ -21,6 +21,18 @@ import { CargoMutantsToolingError } from './error.ts';
 const scopeNameCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_*?.-';
 
 /**
+ Path segments that name no entry below the product directory.
+ */
+const segmentsNamingNoEntryBelow: ReadonlySet<string> = new Set([
+  // An empty segment, as `//` or a leading or trailing `/` leaves.
+  '',
+  // The directory itself.
+  '.',
+  // Its parent, which would leave the product directory.
+  '..',
+]);
+
+/**
  Characters of a `--examine` pattern: names, alternation, grouping and the wildcards of the mutant names.
  */
 const examineCharacters = String.raw`ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_|:.*?()\ -`;
@@ -298,10 +310,18 @@ function isSourceGlob({
   );
   return name.split('/')
     .every(function isSegment(segment) {
-      return (segment !== '') && (segment !== '.') && (segment !== '..') && usesOnly({
+      /**
+       Whether the segment names an entry below the product directory: not empty, not `.`, not `..`.
+       */
+      const namesAnEntryBelow = !segmentsNamingNoEntryBelow.has(segment);
+      /**
+       Whether the segment holds only characters a scope glob may use.
+       */
+      const usesScopeCharacters = usesOnly({
         text: segment,
         allowed: scopeNameCharacters,
       });
+      return namesAnEntryBelow && usesScopeCharacters;
     });
 }
 

@@ -457,7 +457,7 @@ fn failures_report_git_and_leave_the_index_alone() {
     assert_eq!(missing.failure, CandidateFailure::GitFailed);
     assert!(
         missing.message.starts_with(
-            "cli-git could not predict what git add stages: git add failed: fatal: pathspec"
+            "monochromatic-git-policy-cli could not predict what git add stages: git add failed: fatal: pathspec"
         ),
         "{}",
         missing.message
@@ -470,7 +470,7 @@ fn failures_report_git_and_leave_the_index_alone() {
     assert!(
         direct_missing
             .message
-            .starts_with("cli-git could not read the selected worktree files: git add failed:"),
+            .starts_with("monochromatic-git-policy-cli could not read the selected worktree files: git add failed:"),
         "{}",
         direct_missing.message
     );
@@ -488,7 +488,7 @@ fn failures_report_git_and_leave_the_index_alone() {
     assert!(
         outside
             .message
-            .starts_with("cli-git could not predict what git add stages: git rev-parse failed:"),
+            .starts_with("monochromatic-git-policy-cli could not predict what git add stages: git rev-parse failed:"),
         "{}",
         outside.message
     );
@@ -505,7 +505,7 @@ fn failures_report_git_and_leave_the_index_alone() {
     assert!(
         start
             .message
-            .starts_with("cli-git could not read the selected worktree files: git rev-parse could not be started:"),
+            .starts_with("monochromatic-git-policy-cli could not read the selected worktree files: git rev-parse could not be started:"),
         "{}",
         start.message
     );
@@ -627,8 +627,8 @@ fn a_chunk_of_arguments_stays_under_half_the_argument_limit() {
     let limit: libc::c_long = unsafe { libc::sysconf(libc::_SC_ARG_MAX) };
     assert!(limit > 0, "the argument limit is known");
     let half: usize = usize::try_from(limit).expect("a positive limit") / 2;
-    let paths: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE * (crate::service_protocol::P99_CHANGED_PATH_CHARACTERS + 1);
-    let names: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE * (LONGEST_OBJECT_NAME_CHARACTERS + 1);
+    let paths: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE * (crate::service_protocol::P99_CHANGED_PATH_CHARACTERS + 1);
+    let names: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE * (LONGEST_OBJECT_NAME_CHARACTERS + 1);
     assert!(paths <= half, "{paths} bytes of paths must fit under {half}");
     assert!(names <= half, "{names} bytes of names must fit under {half}");
 }
@@ -636,5 +636,5 @@ fn a_chunk_of_arguments_stays_under_half_the_argument_limit() {
 /// The three chunk sizes that split argument lists are one value, so a change is made once.
 #[test]
 fn the_argument_chunk_sizes_are_one_value() {
-    assert_eq!(crate::candidate_attribute::ATTRIBUTE_CHUNK_SIZE, crate::candidate_prediction::PATHSPEC_CHUNK_SIZE);
+    assert_eq!(crate::candidate_attribute::ATTRIBUTE_CHUNK_SIZE, crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE);
 }

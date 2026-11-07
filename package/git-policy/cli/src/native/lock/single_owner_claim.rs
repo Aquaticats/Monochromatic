@@ -25,6 +25,7 @@
 use crate::pid_namespace::{current_pid_namespace, foreign_owner_standing};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
 use crate::subvolume_error::MigrateError;
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
@@ -33,7 +34,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The first line of every claim file.
-const CLAIM_HEADER: &str = "cli-git owner-claim v1";
+const CLAIM_HEADER: &str = "monochromatic-git-policy-cli owner-claim v1";
 
 /// The line of a released claim.
 const RELEASED_LINE: &str = "released";
@@ -119,14 +120,20 @@ fn encode(record: &Record) -> String {
 /// The record a claim file's text holds, or nothing when the text is not a claim of this command.
 fn decode(text: &str) -> Option<Record> {
     let mut lines = text.lines();
-    if lines.next() != Some(CLAIM_HEADER) {
+    // The files are named as before the rename, so a claim of the earlier release is found, and read in its own spelling.
+    let earlier_header: String = CLAIM_HEADER.replacen(DATA_FOLDER.current, DATA_FOLDER.earlier, 1);
+    let first: &str = lines.next()?;
+    if first != CLAIM_HEADER && first != earlier_header {
         return None;
     }
     let second: &str = lines.next()?;
     if second == RELEASED_LINE {
         return Some(Record::Released);
     }
-    let pid: i64 = second.strip_prefix("pid=")?.parse().ok().filter(|pid: &i64| { return *pid > 0; })?;
+    let pid: i64 = second.strip_prefix("pid=")?.parse().ok()?;
+    if pid <= 0 {
+        return None;
+    }
     let birth: String = lines.next()?.strip_prefix("birth=")?.to_string();
     let namespace: String = lines.next()?.strip_prefix("namespace=")?.to_string();
     if birth.is_empty() {
@@ -138,7 +145,7 @@ fn decode(text: &str) -> Option<Record> {
 /// The generation a directory entry names under `prefix`, or nothing for any other name.
 fn generation_of(name: &OsStr, prefix: &OsStr) -> Option<u64> {
     let digits: &[u8] = name.as_bytes().strip_prefix(prefix.as_bytes())?.strip_prefix(b".")?;
-    if digits.is_empty() || !digits.iter().all(|byte: &u8| { return byte.is_ascii_digit(); }) {
+    if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
         return None;
     }
     return std::str::from_utf8(digits).ok()?.parse().ok();
@@ -146,8 +153,16 @@ fn generation_of(name: &OsStr, prefix: &OsStr) -> Option<u64> {
 
 /// Every generation of `prefix` in `directory`, ascending.
 fn generations(directory: &Path, prefix: &OsStr) -> Result<Vec<u64>, MigrateError> {
-    let entries: std::fs::ReadDir = std::fs::read_dir(directory).map_err(|error: std::io::Error| { return MigrateError::io("list the claims in", directory, &error); })?;
-    let mut found: Vec<u64> = entries.flatten().filter_map(|entry: std::fs::DirEntry| { return generation_of(entry.file_name().as_os_str(), prefix); }).collect();
+    let entries: std::fs::ReadDir = match std::fs::read_dir(directory) {
+        Ok(listing) => listing,
+        Err(error) => return Err(MigrateError::io("list the claims in", directory, &error)),
+    };
+    let mut found: Vec<u64> = Vec::new();
+    for entry in entries.flatten() {
+        if let Some(generation) = generation_of(entry.file_name().as_os_str(), prefix) {
+            found.push(generation);
+        }
+    }
     found.sort_unstable();
     return Ok(found);
 }
@@ -162,10 +177,17 @@ fn path_of(directory: &Path, prefix: &OsStr, generation: u64) -> PathBuf {
 /// Write `record` into a new private file beside the claims, synchronized, and return its path.
 fn write_private(directory: &Path, record: &Record) -> std::io::Result<PathBuf> {
     let unique: u64 = TEMPORARY_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed: std::time::Duration| { return elapsed.as_nanos(); });
+    let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_nanos(),
+        Err(_) => 0,
+    };
     let path: PathBuf = directory.join(format!(".cli-git-claim.tmp.{}.{nanos}.{unique}", std::process::id()));
     let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&path)?;
-    let written: std::io::Result<()> = file.write_all(encode(record).as_bytes()).and_then(|()| { return file.sync_all(); });
+    // The synchronization runs only when the write succeeded, as `and_then` did.
+    let mut written: std::io::Result<()> = file.write_all(encode(record).as_bytes());
+    if written.is_ok() {
+        written = file.sync_all();
+    }
     if let Err(error) = written {
         let _removed: std::io::Result<()> = std::fs::remove_file(&path);
         return Err(error);
@@ -175,7 +197,8 @@ fn write_private(directory: &Path, record: &Record) -> std::io::Result<PathBuf> 
 
 /// Make the directory's new entry durable.
 fn sync_directory(directory: &Path) -> std::io::Result<()> {
-    return std::fs::File::open(directory).and_then(|handle: std::fs::File| { return handle.sync_all(); });
+    let handle: std::fs::File = std::fs::File::open(directory)?;
+    return handle.sync_all();
 }
 
 /// Publish `record` as `target` without replacing anything: `AlreadyExists` when the generation exists.
@@ -197,7 +220,7 @@ fn read_record(path: &Path) -> Result<Option<Record>, MigrateError> {
     return match decode(String::from_utf8_lossy(bytes.as_slice()).as_ref()) {
         Some(record) => Ok(Some(record)),
         None => Err(MigrateError::Journal(format!(
-            "{} is not a claim file this command wrote, so it cannot tell whether another command is working here; nothing was changed. Look at the file: if no cli-git command is running on this item, remove it and run the command again",
+            "{} is not a claim file this command wrote, so it cannot tell whether another command is working here; nothing was changed. Look at the file: if no monochromatic-git-policy-cli command is running on this item, remove it and run the command again",
             path.display()
         ))),
     };
@@ -228,7 +251,10 @@ fn live_owner(record: &Record, path: &Path) -> Result<Option<i64>, MigrateError>
 
 /// This process's claim record.
 fn own_record() -> Result<Record, MigrateError> {
-    let birth: String = current_birth_identity().map_err(|error| { return MigrateError::Journal(format!("this process cannot be identified for a claim ({error}); nothing was changed")); })?;
+    let birth: String = match current_birth_identity() {
+        Ok(identity) => identity,
+        Err(error) => return Err(MigrateError::Journal(format!("this process cannot be identified for a claim ({error}); nothing was changed"))),
+    };
     return Ok(Record::Owned { pid: i64::from(std::process::id()), birth, namespace: current_pid_namespace() });
 }
 
@@ -243,8 +269,11 @@ fn own_record() -> Result<Record, MigrateError> {
 /// const outcome = await takeClaim({ directory, prefix });
 /// ```
 pub fn take_claim(directory: &Path, prefix: &OsStr) -> Result<ClaimOutcome, MigrateError> {
-    return take_claim_seamed(directory, prefix, &mut || {});
+    return take_claim_seamed(directory, prefix, &mut do_nothing);
 }
+
+/// The call `take_claim` makes between the listing and the creation: none.
+fn do_nothing() {}
 
 /// `take_claim` with a call between the listing of the generations and the creation of the next one, where a control may let
 ///  another command act.
@@ -272,12 +301,16 @@ pub fn take_claim_seamed(directory: &Path, prefix: &OsStr, after_listing: &mut d
         }
         // A command that read an older generation may have published one below the newest after the others were removed;
         // a newer generation than this one means this claim lost.
-        if generations(directory, prefix)?.last().is_some_and(|newest: &u64| { return *newest > target; }) {
+        if let Some(newest) = generations(directory, prefix)?.last()
+            && *newest > target
+        {
             let _withdrawn: std::io::Result<()> = std::fs::remove_file(&path);
             continue;
         }
-        for older in existing.iter().filter(|older: &&u64| { return **older < target; }) {
-            let _removed: std::io::Result<()> = std::fs::remove_file(path_of(directory, prefix, *older));
+        for older in &existing {
+            if *older < target {
+                let _removed: std::io::Result<()> = std::fs::remove_file(path_of(directory, prefix, *older));
+            }
         }
         return Ok(ClaimOutcome::Held(OwnerClaim { path, directory: directory.to_path_buf(), released: false }));
     }
@@ -302,7 +335,20 @@ pub fn live_owner_of(directory: &Path, prefix: &OsStr) -> Result<Option<BusyOwne
     let Some(newest) = existing.last() else { return Ok(None) };
     let path: PathBuf = path_of(directory, prefix, *newest);
     let Some(found) = read_record(path.as_path())? else { return Ok(None) };
-    return Ok(live_owner(&found, path.as_path())?.map(|pid: i64| { return BusyOwner { pid, path }; }));
+    return match live_owner(&found, path.as_path())? {
+        Some(pid) => Ok(Some(BusyOwner { pid, path })),
+        None => Ok(None),
+    };
+}
+
+/// Replace the claim file at `path` by a released record through a new private file and a rename, then make it durable.
+fn rewrite_as_released(directory: &Path, path: &Path) -> std::io::Result<()> {
+    let private: PathBuf = write_private(directory, &Record::Released)?;
+    if let Err(error) = std::fs::rename(&private, path) {
+        let _removed: std::io::Result<()> = std::fs::remove_file(&private);
+        return Err(error);
+    }
+    return sync_directory(directory);
 }
 
 impl OwnerClaim {
@@ -312,16 +358,12 @@ impl OwnerClaim {
         if self.released {
             return Ok(());
         }
-        let written: std::io::Result<()> = (|| {
-            let private: PathBuf = write_private(self.directory.as_path(), &Record::Released)?;
-            if let Err(error) = std::fs::rename(&private, &self.path) {
-                let _removed: std::io::Result<()> = std::fs::remove_file(&private);
-                return Err(error);
-            }
-            return sync_directory(self.directory.as_path());
-        })();
+        let written: std::io::Result<()> = rewrite_as_released(self.directory.as_path(), self.path.as_path());
         self.released = true;
-        return written.map_err(|error: std::io::Error| { return MigrateError::io("release the claim", self.path.as_path(), &error); });
+        return match written {
+            Ok(()) => Ok(()),
+            Err(error) => Err(MigrateError::io("release the claim", self.path.as_path(), &error)),
+        };
     }
 }
 

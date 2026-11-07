@@ -1,5 +1,5 @@
 //! What:
-//!  Install the corrections a converged `git cli-git fix` settled on into the
+//!  Install the corrections a converged `git monochromatic-git-policy-cli fix` settled on into the
 //!       worktree,
 //!  all of them or none,
 //!  and never touch the index.
@@ -39,7 +39,7 @@ use std::rc::Rc;
 pub const INSTALL_SIBLING_PREFIX: &str = ".cli-git-direct-fix-";
 
 /// The start of every installation failure message.
-const INSTALL_FAILED: &str = "cli-git fix could not install its corrections";
+const INSTALL_FAILED: &str = "monochromatic-git-policy-cli fix could not install its corrections";
 
 /// What:
 ///  One file to correct:
@@ -108,7 +108,7 @@ pub struct Replacement {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const installFailure = (detail: string) => `cli-git fix could not install its corrections: ${detail}`;
+/// const installFailure = (detail: string) => `monochromatic-git-policy-cli fix could not install its corrections: ${detail}`;
 /// ```
 fn install_failure(detail: &str) -> String {
     return format!("{INSTALL_FAILED}: {detail}");
@@ -273,7 +273,7 @@ pub fn prepare_replacements(
         if current.as_slice() != &*change.original {
             cleanup(replacements.as_slice());
             return Err(install_failure(
-                "a selected file changed while cli-git fix ran, so no file was changed. Run cli-git fix again.",
+                "a selected file changed while monochromatic-git-policy-cli fix ran, so no file was changed. Run monochromatic-git-policy-cli fix again.",
             ));
         }
         let parent: PathBuf = match destination.parent() {
@@ -345,7 +345,7 @@ pub fn install_prepared(
     if failure.is_none() {
         failure = match read_index(real_index) {
             Ok(after) if after == *index_before => None,
-            Ok(_) => Some(String::from("the index changed while cli-git fix ran")),
+            Ok(_) => Some(String::from("the index changed while monochromatic-git-policy-cli fix ran")),
             Err(error) => Some(format!("reading the index again failed ({error})")),
         };
     }
@@ -359,7 +359,7 @@ pub fn install_prepared(
         Ok(()) => {
             cleanup(replacements);
             return Err(install_failure(
-                format!("{cause}, so every corrected file was restored. Run cli-git fix again.")
+                format!("{cause}, so every corrected file was restored. Run monochromatic-git-policy-cli fix again.")
                     .as_str(),
             ));
         }

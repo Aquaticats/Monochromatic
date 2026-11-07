@@ -107,6 +107,60 @@ pub mod file_discovery;
 /// Bounded cycle-aware fixpoint execution over exact source snapshots.
 #[doc(hidden)]
 pub mod fix_loop;
+/// Where a Cargo package's code starts:
+///  its library root and executable roots.
+mod layout_crate_roots;
+/// The file rule:
+///  no loops between the files of a folder,
+///  and a top doc that lists them in dependency order.
+mod layout_file_order;
+/// The shape of a finding of a layout rule.
+mod layout_finding;
+/// The files of each folder,
+///  its index file,
+///  and the code check of index files and executable roots.
+mod layout_folder_index_files;
+/// The folder rule:
+///  `uses` links that match the folders the code uses,
+///  and no loop between folders.
+mod layout_folder_links;
+/// The folders each folder uses with a proving reference,
+///  and loops among folders or entries.
+mod layout_folder_uses;
+/// Which folders are groups,
+///  and the entry each folder belongs to.
+mod layout_group_entries;
+/// Group folders:
+///  a folder that holds child folders is a shelf,
+///  never linked or named by a folder,
+///  and its entries form no loop.
+mod layout_group_folders;
+/// The `uses` summary of a group folder.
+mod layout_group_summary_links;
+/// What an index file (`mod.rs`,
+///  or a crate root that is a folder's index) holds besides the index.
+mod layout_index_file_items;
+/// The `uses` folder of one source folder,
+///  entry by entry.
+mod layout_link_entries;
+/// Loops in a directed graph.
+mod layout_loops;
+/// The module tree of a package,
+///  built by following `mod` lines.
+mod layout_module_tree;
+/// Uses of one module by another,
+///  with a proving reference.
+mod layout_module_uses;
+/// Module paths resolved through the module tree.
+mod layout_path_resolution;
+/// The module paths a file's code names.
+mod layout_reference_paths;
+/// The `mod` lines and references of one module body.
+mod layout_source_facts;
+/// The two layout rules as a step of a lint run.
+mod layout_step;
+/// The file list in a folder's top doc.
+mod layout_top_doc;
 /// Prose fix boundary that must not create new Markdown block syntax.
 mod markdown_block_start;
 /// Byte-addressed prose break points and abbreviation exclusions.
@@ -197,12 +251,12 @@ mod resolved_rules;
 pub mod run_check;
 /// The `shell/` rules over one extracted workflow step.
 mod run_check_shell;
-/// The in-process entry:
-///  fix one in-memory source under an in-memory configuration with the executable's own code.
-pub mod run_embedded;
 /// Mode selection and the complete lint invocation with injected environment.
 #[doc(hidden)]
 pub mod run_command;
+/// The in-process entry:
+///  fix one in-memory source under an in-memory configuration with the executable's own code.
+pub mod run_embedded;
 /// Core processing-failure and refused-fix findings.
 #[doc(hidden)]
 pub mod run_failure;
@@ -276,15 +330,15 @@ pub mod rust_file_engine;
 #[doc(hidden)]
 #[path = "rust_file_engine_syntax.rs"]
 pub mod rust_file_engine;
-/// Cargo-manifest facts that need no compiler front end.
-#[doc(hidden)]
-pub mod rust_manifest;
 /// Generic parameter ownership and argument-spelling helpers.
 #[cfg(feature = "semantic")]
 mod rust_generic_arguments;
 /// Semantic disambiguation of type-shaped generic constant placeholders.
 #[cfg(feature = "semantic")]
 mod rust_inferred_constants;
+/// Cargo-manifest facts that need no compiler front end.
+#[doc(hidden)]
+pub mod rust_manifest;
 /// Typed Rust rule selection from validated merged JSONC.
 #[doc(hidden)]
 pub mod rust_rule_settings;
@@ -416,6 +470,11 @@ mod processors_spans;
 /// Virtual shell files for the steps of a workflow or composite action.
 mod processors_workflow;
 
-/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+/// Registers the unit-test scratch root,
+/// placed in the build directory instead of `/tmp`.
 #[cfg(test)]
 mod test_scratch;
+
+/// Disposable Cargo packages and tree builders for the layout tests.
+#[cfg(test)]
+mod layout_test_support;

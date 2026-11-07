@@ -31,15 +31,15 @@ fn age(path: &Path, back: Duration) {
 fn the_state_directory_follows_the_xdg_rules() {
     assert_eq!(
         state_directory(&environment(&[("XDG_STATE_HOME", Path::new("/state")), ("HOME", Path::new("/home/u"))])),
-        Some(PathBuf::from("/state/cli-git"))
+        Some(PathBuf::from("/state/monochromatic-git-policy-cli"))
     );
     assert_eq!(
         state_directory(&environment(&[("XDG_STATE_HOME", Path::new("relative")), ("HOME", Path::new("/home/u"))])),
-        Some(PathBuf::from("/home/u/.local/state/cli-git"))
+        Some(PathBuf::from("/home/u/.local/state/monochromatic-git-policy-cli"))
     );
     assert_eq!(
         state_directory(&environment(&[("HOME", Path::new("/home/u"))])),
-        Some(PathBuf::from("/home/u/.local/state/cli-git"))
+        Some(PathBuf::from("/home/u/.local/state/monochromatic-git-policy-cli"))
     );
 }
 
@@ -63,8 +63,8 @@ fn the_user_scratch_directory_is_created_private_with_its_parents() {
     std::fs::create_dir(&home).expect("home");
     let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
     let scratch: PathBuf = prepare_user_scratch(env.as_slice()).expect("first preparation");
-    assert_eq!(scratch, home.join(".local/state/cli-git/scratch"));
-    for directory in [".local", ".local/state", ".local/state/cli-git", ".local/state/cli-git/scratch"] {
+    assert_eq!(scratch, home.join(".local/state/monochromatic-git-policy-cli/scratch"));
+    for directory in [".local", ".local/state", ".local/state/monochromatic-git-policy-cli", ".local/state/monochromatic-git-policy-cli/scratch"] {
         assert_eq!(mode_of(home.join(directory).as_path()), 0o700, "{directory}");
     }
     assert_eq!(prepare_user_scratch(env.as_slice()).expect("second preparation"), scratch);
@@ -77,9 +77,9 @@ fn a_linked_scratch_directory_is_refused() {
     let root: PathBuf = fixture("scratch-user-link");
     let home: PathBuf = root.join("home");
     let elsewhere: PathBuf = root.join("elsewhere");
-    std::fs::create_dir_all(home.join(".local/state/cli-git")).expect("state");
+    std::fs::create_dir_all(home.join(".local/state/monochromatic-git-policy-cli")).expect("state");
     std::fs::create_dir(&elsewhere).expect("elsewhere");
-    std::os::unix::fs::symlink(&elsewhere, home.join(".local/state/cli-git/scratch")).expect("plant link");
+    std::os::unix::fs::symlink(&elsewhere, home.join(".local/state/monochromatic-git-policy-cli/scratch")).expect("plant link");
     let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
     let reason: String = prepare_user_scratch(env.as_slice()).expect_err("a link is refused");
     assert!(reason.contains("not a directory"), "{reason}");
@@ -96,7 +96,7 @@ fn a_linked_scratch_directory_is_refused() {
 fn a_loose_scratch_directory_of_this_user_is_tightened() {
     let root: PathBuf = fixture("scratch-user-loose");
     let home: PathBuf = root.join("home");
-    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
+    let scratch: PathBuf = home.join(".local/state/monochromatic-git-policy-cli/scratch");
     std::fs::create_dir_all(&scratch).expect("scratch");
     std::fs::set_permissions(&scratch, std::fs::Permissions::from_mode(0o755)).expect("loosen");
     let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
@@ -110,7 +110,7 @@ fn a_loose_scratch_directory_of_this_user_is_tightened() {
 fn the_repository_scratch_directory_is_created_private_beside_the_common_directory_entries() {
     let root: PathBuf = fixture("scratch-repository-create");
     let first: PathBuf = prepare_repository_scratch(root.as_path()).expect("first preparation");
-    assert_eq!(first, root.join("cli-git-scratch"));
+    assert_eq!(first, root.join("monochromatic-git-policy-cli-scratch"));
     assert_eq!(mode_of(first.as_path()), 0o700);
     assert_eq!(prepare_repository_scratch(root.as_path()).expect("second preparation"), first);
     let missing: PathBuf = root.join("no-such-common-directory");
@@ -172,7 +172,7 @@ fn sweeping_a_missing_directory_removes_nothing() {
 fn preparing_a_directory_collects_what_a_killed_process_left() {
     let root: PathBuf = fixture("scratch-prepare-sweep");
     let home: PathBuf = root.join("home");
-    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
+    let scratch: PathBuf = home.join(".local/state/monochromatic-git-policy-cli/scratch");
     std::fs::create_dir_all(&scratch).expect("scratch");
     std::fs::write(scratch.join("cli-git-markdown-stale.jsonc"), b"[]").expect("stale");
     age(scratch.join("cli-git-markdown-stale.jsonc").as_path(), SCRATCH_STALE_AFTER * 2);
@@ -183,10 +183,66 @@ fn preparing_a_directory_collects_what_a_killed_process_left() {
     assert!(scratch.join("cli-git-markdown-live.jsonc").exists());
     let common: PathBuf = root.join("common");
     std::fs::create_dir_all(common.join(REPOSITORY_SCRATCH_NAME)).expect("repository scratch");
-    std::fs::write(common.join("cli-git-scratch/cli-git-input-stale"), b"x").expect("stale");
-    age(common.join("cli-git-scratch/cli-git-input-stale").as_path(), SCRATCH_STALE_AFTER * 2);
+    std::fs::write(common.join("monochromatic-git-policy-cli-scratch/cli-git-input-stale"), b"x").expect("stale");
+    age(common.join("monochromatic-git-policy-cli-scratch/cli-git-input-stale").as_path(), SCRATCH_STALE_AFTER * 2);
     prepare_repository_scratch(common.as_path()).expect("preparation");
-    assert!(!common.join("cli-git-scratch/cli-git-input-stale").exists());
+    assert!(!common.join("monochromatic-git-policy-cli-scratch/cli-git-input-stale").exists());
+    remove(root.as_path());
+}
+
+/// The scratch folder an earlier release made in a Git directory (`cli-git-scratch`) is recognized and swept under the same rules
+///  as this release's own: entries older than the bound go (files and directories with their contents), fresh entries and entries dated in the future stay, and the folder itself stays.
+#[test]
+fn an_earlier_releases_repository_scratch_is_swept_by_the_rules_of_its_own() {
+    let root: PathBuf = fixture("scratch-earlier-sweep");
+    let common: PathBuf = root.join("common");
+    let earlier: PathBuf = common.join(REPOSITORY_SCRATCH.earlier);
+    std::fs::create_dir_all(&earlier).expect("the earlier scratch");
+    protect_path(earlier.as_path(), PRIVATE_DIRECTORY_MODE).expect("private");
+    std::fs::write(earlier.join("cli-git-input-stale"), b"x").expect("stale file");
+    std::fs::create_dir_all(earlier.join("cli-git-service-stale/inner")).expect("stale directory");
+    std::fs::write(earlier.join("cli-git-service-stale/inner/file"), b"x").expect("inner file");
+    std::fs::write(earlier.join("cli-git-input-fresh"), b"x").expect("fresh file");
+    std::fs::write(earlier.join("cli-git-input-future"), b"x").expect("future file");
+    for stale in ["cli-git-input-stale", "cli-git-service-stale"] {
+        age(earlier.join(stale).as_path(), SCRATCH_STALE_AFTER * 2);
+    }
+    std::fs::File::open(earlier.join("cli-git-input-future")).expect("open").set_modified(SystemTime::now() + SCRATCH_STALE_AFTER * 2).expect("future time");
+    prepare_repository_scratch(common.as_path()).expect("preparation");
+    assert!(!earlier.join("cli-git-input-stale").exists(), "a stale file of the earlier release goes");
+    assert!(!earlier.join("cli-git-service-stale").exists(), "and a stale directory with its contents");
+    assert!(earlier.join("cli-git-input-fresh").exists(), "a fresh entry stays");
+    assert!(earlier.join("cli-git-input-future").exists(), "an entry dated in the future stays");
+    assert!(earlier.is_dir(), "the folder itself stays");
+    assert!(prepare_repository_scratch(common.as_path()).expect("second preparation").ends_with(REPOSITORY_SCRATCH.current));
+    remove(root.as_path());
+}
+
+/// The earlier folder is not made when it is not there, and is kept where this release's own would be refused or kept: a link in
+///  its place is not followed and nothing behind it is touched, and a loose mode of a folder this user owns is tightened.
+#[test]
+fn an_earlier_releases_repository_scratch_is_never_made_and_is_kept_where_the_rules_keep_their_own() {
+    let root: PathBuf = fixture("scratch-earlier-kept");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(&common).expect("common directory");
+    prepare_repository_scratch(common.as_path()).expect("preparation");
+    assert!(!common.join(REPOSITORY_SCRATCH.earlier).exists(), "nothing is made under the earlier name");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).expect("elsewhere");
+    std::fs::write(elsewhere.join("old-file"), b"keep").expect("file");
+    age(elsewhere.join("old-file").as_path(), SCRATCH_STALE_AFTER * 2);
+    std::os::unix::fs::symlink(&elsewhere, common.join(REPOSITORY_SCRATCH.earlier)).expect("a link in place of the folder");
+    prepare_repository_scratch(common.as_path()).expect("preparation");
+    assert!(elsewhere.join("old-file").exists(), "nothing behind a link is swept");
+    std::fs::remove_file(common.join(REPOSITORY_SCRATCH.earlier)).expect("link removed");
+    let loose: PathBuf = common.join(REPOSITORY_SCRATCH.earlier);
+    std::fs::create_dir_all(&loose).expect("loose folder");
+    std::fs::set_permissions(&loose, std::fs::Permissions::from_mode(0o755)).expect("loose mode");
+    std::fs::write(loose.join("stale"), b"x").expect("stale");
+    age(loose.join("stale").as_path(), SCRATCH_STALE_AFTER * 2);
+    prepare_repository_scratch(common.as_path()).expect("preparation");
+    assert_eq!(mode_of(loose.as_path()), 0o700, "tightened as the own folder is");
+    assert!(!loose.join("stale").exists(), "and swept");
     remove(root.as_path());
 }
 
@@ -205,7 +261,7 @@ fn a_scratch_file_has_no_name_and_needs_a_home() {
     let mut read: Vec<u8> = Vec::new();
     file.read_to_end(&mut read).expect("read");
     assert_eq!(read, b"bytes");
-    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
+    let scratch: PathBuf = home.join(".local/state/monochromatic-git-policy-cli/scratch");
     assert_eq!(std::fs::read_dir(&scratch).expect("scratch directory").count(), 0, "the file has no name");
     let error: std::io::Error = scratch_file(&[]).expect_err("no home");
     assert!(error.to_string().contains("never in the system temporary directory"), "{error}");

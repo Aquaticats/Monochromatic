@@ -1,11 +1,15 @@
 //! Controls for the service's after-commit work consumer, with handlers that record what they are asked.
 
+use crate::work_item_recovery::requeue_expired;
+use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
+use crate::push_retry::PushRetries;
+use crate::service_work_run_round::run_round;
 use super::*;
 use crate::push_failure_notice::{push_failure_text, take_push_failures};
 use crate::push_retry::FIRST_PAUSE;
 use crate::service_claim_renewal::{DrivenRenewal, RENEWALS_PER_LEASE, Renewal, renewal_interval};
 use crate::test_support::{fixture, remove};
-use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, requeue_expired, state_directory};
+use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::time::Duration;
@@ -168,7 +172,7 @@ fn a_skipped_push_leaves_a_notice_and_keeps_an_earlier_failure() {
     let said: &str = "remote: rejected";
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
     drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(said.to_string())), &ClaimTime::read());
-    let reason: &str = "cli-git: the branch refs/heads/main tracks no remote branch that can be named; skipping auto-push.";
+    let reason: &str = "monochromatic-git-policy-cli: the branch refs/heads/main tracks no remote branch that can be named; skipping auto-push.";
     let skipped: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&skipped));
     drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(reason.to_string())), &ClaimTime::read());
@@ -397,8 +401,8 @@ fn a_skip_whose_notice_cannot_be_written_settles_as_failed() {
     let skipped: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&skipped));
     // A file where the notice directory must be makes writing any notice fail.
-    std::fs::write(repo.common.join("cli-git").join("notices"), "in the way").expect("blocker");
-    drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(String::from("cli-git: nothing to push to."))), &ClaimTime::read());
+    std::fs::write(repo.common.join("monochromatic-git-policy-cli").join("notices"), "in the way").expect("blocker");
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(String::from("monochromatic-git-policy-cli: nothing to push to."))), &ClaimTime::read());
     assert_eq!(names(&repo, FAILED), vec![skipped.id()]);
     assert!(names(&repo, DONE).is_empty());
     remove(repo.root.as_path());

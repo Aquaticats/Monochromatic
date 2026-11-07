@@ -9,7 +9,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // run(wrappedGit, ['worktree', 'add', ...]); expect(run(wrappedGit, ['cli-git', 'check', '--all']).status).toBe(1);
+//! // run(wrappedGit, ['worktree', 'add', ...]); expect(run(wrappedGit, ['monochromatic-git-policy-cli', 'check', '--all']).status).toBe(1);
 //! ```
 
 /// Import the shared fixtures and the bounded process helpers.
@@ -38,7 +38,7 @@ pub(super) fn needle() -> String {
 pub(super) fn repository_with_rules(fixture: &Fixture, with_rules: bool) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         format!(
             "{{ \"policies\": {{ \"security/forbidden-strings\": [\"error\", {{ \"builtinRules\": false, \"rulesFile\": \"{RULES_FILE}\" }}] }} }}\n"
         ),
@@ -49,7 +49,7 @@ pub(super) fn repository_with_rules(fixture: &Fixture, with_rules: bool) -> Path
     git(
         fixture,
         repo.as_path(),
-        &["add", "--", "cli-git.config.jsonc", ".gitignore", "a.txt"],
+        &["add", "--", "monochromatic-git-policy-cli.config.jsonc", ".gitignore", "a.txt"],
     );
     git(
         fixture,
@@ -71,7 +71,7 @@ fn check_all(fixture: &Fixture, worktree: &Path) -> Observed {
     return run_wrapped(
         fixture,
         worktree,
-        &["cli-git", "check", "--policy", "security/forbidden-strings", "--all"],
+        &["monochromatic-git-policy-cli", "check", "--policy", "security/forbidden-strings", "--all"],
     );
 }
 
@@ -111,7 +111,7 @@ fn worktree_added_from_the_main_checkout_receives_its_ignored_state() {
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let summary: String = stderr_of(&created);
     assert!(
-        summary.starts_with("cli-git: copied ")
+        summary.starts_with("monochromatic-git-policy-cli: copied ")
             && summary.contains(format!(" ignored filesystem entries from \"{}\" into 1 new worktree.\n", repo.display()).as_str()),
         "{summary}"
     );
@@ -145,7 +145,7 @@ fn worktree_added_from_the_main_checkout_receives_every_listed_rules_file() {
     let fixture: Fixture = fixture("copy-listed");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         format!(
             "{{ \"policies\": {{ \"security/forbidden-strings\": [\"error\", {{ \"builtinRules\": false, \"rulesFile\": [\"{RULES_FILE}\", {{ \"path\": \".cache/local-rules.txt\", \"optional\": true }}, {{ \"path\": \".cache/never.txt\", \"optional\": true }}] }}] }} }}\n"
         ),
@@ -157,7 +157,7 @@ fn worktree_added_from_the_main_checkout_receives_every_listed_rules_file() {
     git(
         &fixture,
         repo.as_path(),
-        &["add", "--", "cli-git.config.jsonc", ".gitignore", "a.txt", "b.txt"],
+        &["add", "--", "monochromatic-git-policy-cli.config.jsonc", ".gitignore", "a.txt", "b.txt"],
     );
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=configuration"]);
     std::fs::create_dir_all(repo.join(".cache")).expect("cache directory");
@@ -208,7 +208,7 @@ fn worktree_added_from_a_linked_worktree_receives_all_ignored_state() {
     assert_eq!(
         stderr_of(&created),
         format!(
-            "cli-git: copied 5 ignored filesystem entries from \"{}\" into 1 new worktree.\n",
+            "monochromatic-git-policy-cli: copied 5 ignored filesystem entries from \"{}\" into 1 new worktree.\n",
             one.display()
         )
     );
@@ -253,7 +253,7 @@ fn a_main_checkout_without_a_configured_rules_file_still_copies_its_ignored_stat
         &["worktree", "add", "--quiet", "-b", "one", "../one"],
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
-    assert!(stderr_of(&created).starts_with("cli-git: copied "), "{}", stderr_of(&created));
+    assert!(stderr_of(&created).starts_with("monochromatic-git-policy-cli: copied "), "{}", stderr_of(&created));
     assert_eq!(std::fs::read(fixture.root.join("one").join(RULES_FILE)).expect("copied"), b"rules\n");
     remove(&fixture);
 }
@@ -270,7 +270,7 @@ fn a_worktree_registered_with_relative_paths_is_copied_into() {
         &["worktree", "add", "--quiet", "--relative-paths", "-b", "one", "../one"],
     );
     assert_eq!(option.code, Some(0), "{}", stderr_of(&option));
-    assert!(stderr_of(&option).starts_with("cli-git: copied "), "{}", stderr_of(&option));
+    assert!(stderr_of(&option).starts_with("monochromatic-git-policy-cli: copied "), "{}", stderr_of(&option));
     assert_eq!(std::fs::read(fixture.root.join("one").join(RULES_FILE)).expect("copied"), format!("{}\n", needle()).into_bytes());
     let configured: Observed = run_wrapped(
         &fixture,
@@ -278,7 +278,7 @@ fn a_worktree_registered_with_relative_paths_is_copied_into() {
         &["-c", "worktree.useRelativePaths=true", "worktree", "add", "--quiet", "-b", "two", "../two"],
     );
     assert_eq!(configured.code, Some(0), "{}", stderr_of(&configured));
-    assert!(stderr_of(&configured).starts_with("cli-git: copied "), "{}", stderr_of(&configured));
+    assert!(stderr_of(&configured).starts_with("monochromatic-git-policy-cli: copied "), "{}", stderr_of(&configured));
     assert_eq!(std::fs::read(fixture.root.join("two").join(RULES_FILE)).expect("copied"), format!("{}\n", needle()).into_bytes());
     remove(&fixture);
 }
@@ -302,7 +302,7 @@ fn an_aliased_worktree_add_is_copied_and_git_failures_keep_their_status() {
         &["worktree", "add", "--quiet", "-b", "one", "../again"],
     );
     assert_eq!(refused.code, Some(255), "{}", stderr_of(&refused));
-    assert!(!stderr_of(&refused).contains("cli-git: copied"));
+    assert!(!stderr_of(&refused).contains("monochromatic-git-policy-cli: copied"));
     assert!(!fixture.root.join("again").exists());
     remove(&fixture);
 }
@@ -345,7 +345,7 @@ fn an_interrupted_copy_is_recovered_by_the_next_command() {
     assert_eq!(status.stdout, b"true\n");
     assert_eq!(
         stderr_of(&status),
-        "cli-git: recovered ignored-state copies for 1 worktree transaction.\n"
+        "monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"
     );
     assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
     assert!(one.join(RULES_FILE).exists());
@@ -380,7 +380,7 @@ fn a_stage_abandoned_before_its_journal_is_removed_by_the_next_command() {
     let status: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
     assert_eq!(status.code, Some(0), "{}", stderr_of(&status));
     assert_eq!(status.stdout, b"true\n");
-    assert!(stderr_of(&status).starts_with("cli-git: removed the stage "), "{}", stderr_of(&status));
+    assert!(stderr_of(&status).starts_with("monochromatic-git-policy-cli: removed the stage "), "{}", stderr_of(&status));
     assert!(!stage.exists());
     assert!(!stage_claims_exist(common.as_path()).expect("claims"));
     // Removal is not repeated.
@@ -470,7 +470,7 @@ fn an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation() {
     );
     assert_eq!(next.code, Some(0), "{}", stderr_of(&next));
     assert!(
-        stderr_of(&next).starts_with("cli-git: recovered ignored-state copies for 1 worktree transaction.\n"),
+        stderr_of(&next).starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"),
         "{}",
         stderr_of(&next)
     );
@@ -528,12 +528,12 @@ fn a_failed_copy_ends_with_status_two_and_its_message() {
     );
     assert_eq!(created.code, Some(2), "{}", stderr_of(&created));
     assert!(
-        stderr_of(&created).starts_with("cli-git: ignored path ")
+        stderr_of(&created).starts_with("monochromatic-git-policy-cli: ignored path ")
             && stderr_of(&created).contains("has unsupported filesystem type."),
         "{}",
         stderr_of(&created)
     );
-    assert!(!stderr_of(&created).contains("cli-git: copied"), "{}", stderr_of(&created));
+    assert!(!stderr_of(&created).contains("monochromatic-git-policy-cli: copied"), "{}", stderr_of(&created));
     assert!(fixture.root.join("one/.git").exists(), "Git created the worktree");
     assert!(!fixture.root.join("one").join(RULES_FILE).exists());
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");

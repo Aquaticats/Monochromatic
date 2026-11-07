@@ -12,8 +12,10 @@ import {
 
 import {
   cgroupBelongsToUnit,
+  DEFAULT_UNIT_LIMITS,
   hostEnvironment,
   runRefusal,
+  SESSION_IO_WEIGHT,
   sessionEnvironment,
   type SessionOptions,
   systemdRunArguments,
@@ -32,6 +34,26 @@ const OPTIONS: SessionOptions = {
   library: '/lib',
   label: 'wide',
 };
+
+/**
+ Highest `IOWeight` a per-command cgroup may carry: the owner's rule in `CLAUDE.md` (RXS) says never above 10.
+ The test states it itself so a change to the implementation's own constant cannot move it.
+ */
+const OWNER_MAXIMUM_IO_WEIGHT = 10;
+
+/**
+ Values a unit's arguments give one `--property` name, in order.
+
+ @param args - arguments after `systemd-run`
+ @param property - systemd property name such as `TasksMax`
+ @returns the text after `--property=<name>=` of every argument that sets the property
+ */
+function propertyValues({ args, property, }: { readonly args: readonly string[]; readonly property: string; },): readonly string[] {
+  const prefix = `--property=${property}=`;
+  return args
+    .filter((argument,) => argument.startsWith(prefix,),)
+    .map((argument,) => argument.slice(prefix.length,),);
+}
 
 await describe({
   name: unitNameOf.name,
@@ -132,12 +154,13 @@ await describe({
           socket: '/scratch/wide.sock',
           options: OPTIONS,
           releaseBinary: '/app/music-player',
+          limits: DEFAULT_UNIT_LIMITS,
         },);
         expect(args.slice(0, 4,),).toEqual([
           '--user',
           '--unit=music-player-e2e-1-wide',
           '--collect',
-          '--property=MemoryMax=8G',
+          `--property=MemoryMax=${DEFAULT_UNIT_LIMITS.memoryMax}`,
         ],);
         expect(args,).toContain('--property=StandardOutput=append:/scratch/wide.log',);
         expect(args,).toContain('--property=StandardError=append:/scratch/wide.log',);
@@ -161,6 +184,60 @@ await describe({
       },
     },),
     it({
+      name: 'sets memory, CPU, task and disk-weight limits on the unit, one of each',
+      fn: async ({ expect, }) => {
+        const args = systemdRunArguments({
+          unit: 'u',
+          logPath: '/l',
+          environment: {},
+          compositorPath: '/c',
+          socket: '/s',
+          options: OPTIONS,
+          releaseBinary: '/app',
+          limits: DEFAULT_UNIT_LIMITS,
+        },);
+        for (const property of ['MemoryMax', 'CPUQuota', 'TasksMax', 'IOWeight',])
+          expect(propertyValues({ args, property, },),).toHaveLength(1,);
+      },
+    },),
+    it({
+      name: 'never sets a disk weight above the owner limit',
+      fn: async ({ expect, }) => {
+        const args = systemdRunArguments({
+          unit: 'u',
+          logPath: '/l',
+          environment: {},
+          compositorPath: '/c',
+          socket: '/s',
+          options: OPTIONS,
+          releaseBinary: '/app',
+          limits: DEFAULT_UNIT_LIMITS,
+        },);
+        const [weight,] = propertyValues({ args, property: 'IOWeight', },);
+        expect(Number(weight,),).toBeGreaterThan(0,);
+        expect(Number(weight,),).toBeLessThanOrEqual(OWNER_MAXIMUM_IO_WEIGHT,);
+        expect(SESSION_IO_WEIGHT,).toBeLessThanOrEqual(OWNER_MAXIMUM_IO_WEIGHT,);
+      },
+    },),
+    it({
+      name: 'passes the limits it is given',
+      fn: async ({ expect, }) => {
+        const args = systemdRunArguments({
+          unit: 'u',
+          logPath: '/l',
+          environment: {},
+          compositorPath: '/c',
+          socket: '/s',
+          options: OPTIONS,
+          releaseBinary: '/app',
+          limits: { memoryMax: '3G', cpuQuota: '700%', tasksMax: '77', },
+        },);
+        expect(propertyValues({ args, property: 'MemoryMax', },),).toEqual(['3G',],);
+        expect(propertyValues({ args, property: 'CPUQuota', },),).toEqual(['700%',],);
+        expect(propertyValues({ args, property: 'TasksMax', },),).toEqual(['77',],);
+      },
+    },),
+    it({
       name: 'passes explicit app arguments instead of the library',
       fn: async ({ expect, }) => {
         const args = systemdRunArguments({
@@ -171,6 +248,7 @@ await describe({
           socket: '/s',
           options: { ...OPTIONS, appArgs: ['--flag', '/other',], },
           releaseBinary: '/app',
+          limits: DEFAULT_UNIT_LIMITS,
         },);
         expect(args.slice(-3,),).toEqual(['/app', '--flag', '/other',],);
       },
@@ -186,6 +264,7 @@ await describe({
           socket: '/s',
           options: OPTIONS,
           releaseBinary: '/app',
+          limits: DEFAULT_UNIT_LIMITS,
         },);
         expect(['kill', 'pkill', 'signal',].some((word,) => args.join(' ',).includes(word,),),).toBe(false,);
       },

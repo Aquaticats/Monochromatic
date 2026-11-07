@@ -216,12 +216,18 @@ pub fn run_native_commit(
 /// using guard = installSignalGuard(); return exitCode(await guard.runChild(command));
 /// ```
 fn run_guarded_child(command: &mut std::process::Command) -> Result<i32, PreparationError> {
-    let guard: SignalGuard = install_guard_when_free().map_err(|error| {
-        return PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}")));
-    })?;
-    let outcome = guard.run_child(command).map_err(|error| {
-        return PreparationError::Git(GitFailure(format!("git commit could not start: {error}")));
-    })?;
+    let guard: SignalGuard = match install_guard_when_free() {
+        Ok(installed) => installed,
+        Err(error) => {
+            return Err(PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}"))));
+        }
+    };
+    let outcome = match guard.run_child(command) {
+        Ok(finished) => finished,
+        Err(error) => {
+            return Err(PreparationError::Git(GitFailure(format!("git commit could not start: {error}"))));
+        }
+    };
     return Ok(crate::forwarding::exit_code(outcome));
 }
 
@@ -246,19 +252,27 @@ pub fn read_prepared_commit(context: &GitContext, shadow: &Path) -> Result<Prepa
         &shadow_request(shadow, shadow, &["cat-file", "commit", oid.as_str()]),
     )?
     .stdout;
-    let header_end: usize = raw
-        .windows(2)
-        .position(|window| { return window == b"\n\n"; })
-        .unwrap_or(raw.len());
+    let mut header_end: usize = raw.len();
+    for (position, window) in raw.windows(2).enumerate() {
+        if window == b"\n\n" {
+            header_end = position;
+            break;
+        }
+    }
     let header: String = String::from_utf8_lossy(&raw[..header_end]).into_owned();
-    let tree_oid: String = header
-        .lines()
-        .find_map(|line| { return line.strip_prefix("tree "); })
-        .unwrap_or("")
-        .to_string();
-    let signed: bool = header
-        .lines()
-        .any(|line| { return line.starts_with("gpgsig ") || line.starts_with("gpgsig-sha256 "); });
+    // The first `tree ` line names the tree; any `gpgsig` line marks the commit as signed.
+    let mut tree_oid: String = String::new();
+    let mut found_tree: bool = false;
+    let mut signed: bool = false;
+    for line in header.lines() {
+        if !found_tree && let Some(named) = line.strip_prefix("tree ") {
+            tree_oid = named.to_string();
+            found_tree = true;
+        }
+        if line.starts_with("gpgsig ") || line.starts_with("gpgsig-sha256 ") {
+            signed = true;
+        }
+    }
     return Ok(PreparedCommit {
         oid,
         tree_oid,

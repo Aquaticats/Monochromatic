@@ -4,7 +4,8 @@
  Environment variables: `E2E_ONLY` (a check id or group prefix to run alone), `E2E_OUT` (screenshots and summary,
  default `target/e2e` under the app directory), `E2E_TMP` (scratch root, default `temp/agent/music-player-e2e` under the
  home directory), `E2E_LIBRARY_GENERATOR` (the library generator script), `E2E_COMPOSITOR` (the compositor executable,
- default the one mise has installed, found by `compositor-path.ts`).
+ default the one mise has installed, found by `compositor-path.ts`), and `E2E_UNIT_MEMORY_MAX`, `E2E_UNIT_CPU_QUOTA` and
+ `E2E_UNIT_TASKS_MAX` (the systemd limits of each session unit, defaulting to the measured values in `session-launch.ts`).
  
  @example
  ```ts
@@ -23,6 +24,11 @@
 
 import { join, } from 'node:path';
 
+import {
+  DEFAULT_UNIT_LIMITS,
+  type UnitLimits,
+} from './session-launch.ts';
+
 /**
  Everything the run needs to know about its surroundings.
  */
@@ -34,6 +40,7 @@ export type RunConfig = {
   readonly outputRoot: string;
   readonly releaseBinary: string;
   readonly scratchRoot: string;
+  readonly unitLimits: UnitLimits;
 };
 
 /**
@@ -45,11 +52,14 @@ export type RunOverrides = {
   readonly only?: string;
   readonly outputRoot?: string;
   readonly scratchRoot?: string;
+  readonly unitCpuQuota?: string;
+  readonly unitMemoryMax?: string;
+  readonly unitTasksMax?: string;
 };
 
 /**
- Reads the overrides from the environment variables `E2E_ONLY`, `E2E_OUT`, `E2E_TMP`, `E2E_LIBRARY_GENERATOR` and
- `E2E_COMPOSITOR`.
+ Reads the overrides from the environment variables `E2E_ONLY`, `E2E_OUT`, `E2E_TMP`, `E2E_LIBRARY_GENERATOR`,
+ `E2E_COMPOSITOR`, `E2E_UNIT_MEMORY_MAX`, `E2E_UNIT_CPU_QUOTA` and `E2E_UNIT_TASKS_MAX`.
  
  @returns the overrides whose variables are set
  
@@ -68,6 +78,9 @@ export function overridesFromEnvironment(): RunOverrides {
     E2E_ONLY,
     E2E_OUT,
     E2E_TMP,
+    E2E_UNIT_CPU_QUOTA,
+    E2E_UNIT_MEMORY_MAX,
+    E2E_UNIT_TASKS_MAX,
   } = process.env;
   return {
     ...E2E_COMPOSITOR === undefined ? {} : { compositorPath: E2E_COMPOSITOR, },
@@ -75,6 +88,9 @@ export function overridesFromEnvironment(): RunOverrides {
     ...E2E_ONLY === undefined ? {} : { only: E2E_ONLY, },
     ...E2E_OUT === undefined ? {} : { outputRoot: E2E_OUT, },
     ...E2E_TMP === undefined ? {} : { scratchRoot: E2E_TMP, },
+    ...E2E_UNIT_CPU_QUOTA === undefined ? {} : { unitCpuQuota: E2E_UNIT_CPU_QUOTA, },
+    ...E2E_UNIT_MEMORY_MAX === undefined ? {} : { unitMemoryMax: E2E_UNIT_MEMORY_MAX, },
+    ...E2E_UNIT_TASKS_MAX === undefined ? {} : { unitTasksMax: E2E_UNIT_TASKS_MAX, },
   };
 }
 
@@ -138,5 +154,10 @@ export function loadRunConfig(
       'agent',
       'music-player-e2e',
     ),
+    unitLimits: {
+      memoryMax: overrides.unitMemoryMax ?? DEFAULT_UNIT_LIMITS.memoryMax,
+      cpuQuota: overrides.unitCpuQuota ?? DEFAULT_UNIT_LIMITS.cpuQuota,
+      tasksMax: overrides.unitTasksMax ?? DEFAULT_UNIT_LIMITS.tasksMax,
+    },
   };
 }

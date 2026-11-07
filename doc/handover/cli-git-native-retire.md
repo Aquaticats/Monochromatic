@@ -1,8 +1,22 @@
 # cli-git native retirement lane
 
-Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
-`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
-name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
+Note 2026-10-29:
+the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now.
+Read every `.mjs` file name here as the same
+name ending in `.ts`;
+the driver `old-format-fixtures` is `old-format-driver`.
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
@@ -56,7 +70,8 @@ The pinned incumbent revision,
   with their ignored `node_modules`,
    the three mirror blocks of `file-enforcer.config.ts` and
   `package/dev-script/file-enforcer/src/generated-policy-contracts.unit.test.ts`
-  (deleted 2026-10-13 with the differentials, no replacement);
+  (deleted 2026-10-13 with the differentials,
+  no replacement);
    it drops the cli devDependency on
   `git-policy-repository`,
    fixes the `markdown/autofix` sentence of `package/config/lfs-r2-worker/README.md`,
@@ -90,12 +105,15 @@ The pinned incumbent revision,
 - `8cf1d0f5a6` removes `package.json:36` (the root dependency on the incumbent) and the matching `pnpm-lock.yaml`
   lines,
    and the `mise.toml` path entry `package/git-policy/cli/node_modules/.bin`
-   (installed with the TypeScript wrapper, gone since 2026-10-13).
+   (installed with the TypeScript wrapper,
+  gone since 2026-10-13).
 - `7c7e5c8140` names a constant that oxlint flagged and states the Git floor of the end-to-end run.
-- `d42107ec3b` adds this file, the in-place notes to four lane records and the state paragraph of the cutover
+- `d42107ec3b` adds this file,
+  the in-place notes to four lane records and the state paragraph of the cutover
   runbook.
 - The commit after it rewrites the `SPEC.md` section `Compatibility and degradation` and the e2e README paragraphs that
-  described a Git 2.40.0 floor, and corrects the cleanup list and the lint baseline of this file.
+  described a Git 2.40.0 floor,
+  and corrects the cleanup list and the lint baseline of this file.
 
 ## Deviations and decisions
 
@@ -128,7 +146,8 @@ The pinned incumbent revision,
    `module-logger`,
   `module-test`) declares a `bin`,
    which is why `package/git-policy/cli/node_modules/.bin`
-   (installed with the TypeScript wrapper, gone since 2026-10-13)
+   (installed with the TypeScript wrapper,
+  gone since 2026-10-13)
    no longer exists.
   `mise run sync:files` in this worktree also removes 13 other `node_modules/.bin` path entries (eight under
   `package/claude-code-plugin`,
@@ -269,7 +288,8 @@ Listed read-only on 2026-10-14 with `ls -d` and `git check-ignore --verbose`;
    `pack` and `perf`;
    2.2 MiB).
 - `package/git-policy/cli/.cache`
-  (gone since 2026-10-13; the launcher directory is `.cache/cli-git-bin` at the repository root)
+  (gone since 2026-10-13;
+  the launcher directory is `.cache/cli-git-bin` at the repository root)
   (holds `typescript`).
 - `package/git-policy/api`,
    `package/git-policy/forbidden-strings`,

@@ -134,7 +134,8 @@ Nothing keeps the wheel out of the candidate set.
 
 ```rust
 /// Assets that cannot become a runnable tool through mise's normal extraction
-/// path. Keep them out of automatic selection while still allowing an explicit
+/// path.
+/// Keep them out of automatic selection while still allowing an explicit
 /// `asset_pattern` or URL to select one for custom installation logic.
 fn is_non_executable_asset(asset: &str) -> bool {
     let asset = asset.to_lowercase();
@@ -425,9 +426,12 @@ Tradeoffs:
    `CONTRIBUTING.md:4-10` restricts AI replies to Discussions and Issues to
    authors of the thread or accounts with a merged contribution,
    and calls violation "an instant ban across all of jdx's projects",
-   covering "lightly edited, reviewed, or disclosed model output".
+   covering "lightly edited,
+   reviewed,
+   or disclosed model output".
    `gh search prs --repo jdx/mise --author '@me' 'is:merged'` returns nothing,
-   and PR `#13886` ("docs(contributing): make the restricted AI reply policy and
+   and PR `#13886` ("docs(contributing):
+   make the restricted AI reply policy and
    instant ban unmissable") shows the policy is actively reinforced.
 5. **Will they likely fix it?**
    Not assessed.

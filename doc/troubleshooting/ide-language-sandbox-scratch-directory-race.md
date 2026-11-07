@@ -33,7 +33,8 @@ over `/tmp` of the sandbox (`--bind <state>/tmp /tmp`,
 `src/language/confine/recipe.rs`).
 The mise runs of one resolution use the server name `mise`,
 so their directory is `.../mise/tmp`
-(since 2026-10-29 the equivalent launch is the toolchain lookup, `launch_request` in `src/language/toolchain/command.rs`,
+(since 2026-10-29 the equivalent launch is the toolchain lookup,
+`launch_request` in `src/language/toolchain/command.rs`,
 with the server name `toolchain`).
 
 Why the source is missing:
@@ -163,27 +164,33 @@ emptied in place as before.
 The nonce keeps two live processes apart when two process-id namespaces share one cache folder.
 Every server of a project has its own state folder,
 so a process holds one scratch directory per server it has launched
-(the toolchain lookup, `launch_request` in `src/language/toolchain/command.rs`, uses the server name `toolchain`).
+(the toolchain lookup,
+`launch_request` in `src/language/toolchain/command.rs`,
+uses the server name `toolchain`).
 
 ### How a dead owner is detected
 
-A live process holds an exclusive `flock` (`File::try_lock`) on `tmp-<...>.lock`, beside its directory,
+A live process holds an exclusive `flock` (`File::try_lock`) on `tmp-<...>.lock`,
+beside its directory,
 from its first launch of that server until it ends.
 The lock file is made before the directory,
 and its descriptor stays open in a process-wide list,
 so the lock lasts as long as the process.
 Every preparation (`reap_ended`) lists the sibling entries whose names match `tmp-<digits>-<hex>` exactly
 and are directories.
-For each, it opens the lock file and tries to lock it:
+For each,
+it opens the lock file and tries to lock it:
 
-- The lock is free (or the lock file is missing): the owner ended,
+- The lock is free (or the lock file is missing):
+  the owner ended,
   by exit,
   crash,
   or `kill -9`,
   because the system releases a lock with its process.
   The directory and the lock file are removed while the remover holds the lock,
   so two removers cannot both succeed.
-- The lock is held: the owner lives,
+- The lock is held:
+  the owner lives,
   and the directory stays.
 
 A process id alone would not do:
@@ -201,7 +208,8 @@ and links.
 
 - `a_scratch_directory_is_named_for_the_process`
 - `a_second_process_does_not_empty_the_scratch_directory_of_a_running_first_one`:
-  starts a real second process (the test binary again, one `#[ignore]` helper test) on the same state folder,
+  starts a real second process (the test binary again,
+  one `#[ignore]` helper test) on the same state folder,
   and needs the first one's file to survive its preparation,
   and the second one's file to survive a restart of the first.
 - `the_scratch_directory_of_an_ended_process_is_removed_by_the_next_preparation`:
@@ -213,7 +221,8 @@ and links.
 - `entries_that_are_not_scratch_directories_of_a_process_are_left`
 - `a_process_empties_its_own_scratch_directory_in_place_and_keeps_it`
 
-The tests were written first and fail against the shared name (6 of 6 new tests; the commit
+The tests were written first and fail against the shared name (6 of 6 new tests;
+the commit
 `test(desktop-app-ide): a second process must not empty ...` holds that state).
 Guard cases in `bin/inspect-language-guards.ts` (each observed failing with the code removed and passing again):
 `scratch-per-process` (the process-specific name),
@@ -222,19 +231,24 @@ Guard cases in `bin/inspect-language-guards.ts` (each observed failing with the 
 
 ### Measurement
 
-Tool: a scratch script `measure.ts` (not in the repository) that starts `ide-language-inspect`,
+Tool:
+a scratch script `measure.ts` (not in the repository) that starts `ide-language-inspect`,
 which runs the production `LanguageWorker` with the production bubblewrap launch,
 three at a time on one project and one cache folder,
 with the scripted server `ide-scripted-lsp` (it creates `/tmp/marker-<id>` at its start).
 Old arm:
 the debug binaries built in the main checkout on 2026-10-29 at 00:45
-(they contain `empty_in_place`; no `tmp-` directories).
+(they contain `empty_in_place`;
+no `tmp-` directories).
 New arm:
 this branch.
-Arms alternated per round (old, new, old again),
+Arms alternated per round (old,
+new,
+old again),
 each with a cache folder of its own,
 and the second old arm is the same-binary control for the spread.
-The host load average read 89.8 over one minute on 28 cores at 01:19 on 2026-10-29, before the run started;
+The host load average read 89.8 over one minute on 28 cores at 01:19 on 2026-10-29,
+before the run started;
 the run took whatever load other sessions put on the host.
 
 Sharing trial (30 per arm).
@@ -242,9 +256,14 @@ Process A starts and writes its marker in its `/tmp`;
 processes B and C start together after that and finish;
 the marker of A is read from the host path while A's server still runs.
 
-- Old binary, first cache: A's marker gone in 30 of 30 trials.
-- Old binary, second cache (same-binary control): 30 of 30.
-- New binary: 30 of 30 markers kept (0 lost).
+- Old binary,
+  first cache:
+  A's marker gone in 30 of 30 trials.
+- Old binary,
+  second cache (same-binary control):
+  30 of 30.
+- New binary:
+  30 of 30 markers kept (0 lost).
 
 The old arm is the positive control:
 the harness reports the loss on the old code every time.
@@ -252,7 +271,9 @@ The marker is read from the host side of the bind,
 the same files the server sees as `/tmp`;
 the server itself did not check for its file.
 
-Burst trial (200 rounds per arm, three processes started together, 600 launches per arm):
+Burst trial (200 rounds per arm,
+three processes started together,
+600 launches per arm):
 `bwrap:` in the output of 0 of 600 launches for the first old arm,
 0 of 600 for the second,
 0 of 600 for the new binary.
@@ -262,13 +283,16 @@ so this run has no positive control for that message
 (the earlier rate of the removing version was 4 of 709).
 The new binary shows no new cause for it.
 
-Kill trial (10, new binary):
+Kill trial (10,
+new binary):
 a process killed with `SIGKILL` left its directory in 10 of 10
 (nothing can clean up after it),
 the next launch removed it in 10 of 10,
 and a second live process's directory stayed in 10 of 10.
-At the end of the run, each old arm held 1 directory (`tmp`)
-and the new arm held 2 (the directories of the last two processes, both ended,
+At the end of the run,
+each old arm held 1 directory (`tmp`)
+and the new arm held 2 (the directories of the last two processes,
+both ended,
 which only a later launch would remove).
 
 ### What stays

@@ -2,6 +2,13 @@
 
 Pi extension that sends a Freedesktop desktop notification when an agent becomes idle.
 
+## Pi dependency trust
+
+PJP:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Behavior
 
 The extension subscribes only to Pi's `agent_settled` event.

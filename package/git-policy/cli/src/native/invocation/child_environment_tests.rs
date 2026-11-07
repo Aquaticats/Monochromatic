@@ -12,8 +12,8 @@
 
 /// Import the functions under test and native string types.
 use super::{
-    COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, child_environment_overlay, environment_with_overlay,
-    lockfile_pid_overlay,
+    ASKPASS_VARIABLE, COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, TERMINAL_PROMPT_VARIABLE, child_environment_overlay,
+    environment_with_overlay, lockfile_pid_overlay, never_prompt_overlay, service_child_overlay,
 };
 use std::ffi::OsString;
 use std::path::Path;
@@ -281,4 +281,47 @@ fn an_overlaid_environment_with_an_empty_side_is_the_other_side() {
     let caller = environment(&[("HOME", "/home/user")]);
     assert_eq!(environment_with_overlay(caller.as_slice(), &[]), caller);
     assert_eq!(environment_with_overlay(&[], caller.as_slice()), caller);
+}
+
+/// The pair that ends a login prompt at once: an empty askpass program and no terminal prompt.
+#[test]
+fn never_prompt_overlay_sets_an_empty_askpass_and_no_terminal_prompt() {
+    assert_eq!(
+        never_prompt_overlay(),
+        vec![
+            (OsString::from(ASKPASS_VARIABLE), OsString::new()),
+            (OsString::from(TERMINAL_PROMPT_VARIABLE), OsString::from("0")),
+        ]
+    );
+}
+
+/// What the commit service adds for its own Git children is the lock PID injection and then the never-prompt pair.
+#[test]
+fn the_service_overlay_is_the_lockfile_overlay_then_the_never_prompt_pair() {
+    let inherited = environment(&[("HOME", "/home/someone")]);
+    let mut expected = lockfile_pid_overlay(inherited.as_slice());
+    expected.extend(never_prompt_overlay());
+    assert_eq!(service_child_overlay(inherited.as_slice()), expected);
+}
+
+/// A command the person typed keeps Git's own prompting: the overlay of forwarded commands holds neither variable.
+#[test]
+fn the_overlay_of_a_forwarded_command_leaves_prompting_alone() {
+    let overlay = child_environment_overlay(environment(&[]).as_slice(), Path::new("/usr/bin/git"));
+    for (name, _value) in &overlay {
+        assert_ne!(name, ASKPASS_VARIABLE);
+        assert_ne!(name, TERMINAL_PROMPT_VARIABLE);
+    }
+}
+
+/// The host's askpass settings do not survive the service overlay: an inherited `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are
+///  replaced, and `SSH_ASKPASS` stays for OpenSSH.
+#[test]
+fn the_service_overlay_replaces_inherited_prompt_settings_and_keeps_ssh_askpass() {
+    let inherited = environment(&[("GIT_ASKPASS", "/usr/bin/other"), ("GIT_TERMINAL_PROMPT", "1"), ("SSH_ASKPASS", "/usr/bin/ksshaskpass")]);
+    let complete = environment_with_overlay(inherited.as_slice(), service_child_overlay(inherited.as_slice()).as_slice());
+    let value = |name: &str| -> Vec<OsString> { return complete.iter().filter(|(key, _)| { return key == name; }).map(|(_, found)| { return found.clone(); }).collect(); };
+    assert_eq!(value("GIT_ASKPASS"), vec![OsString::new()]);
+    assert_eq!(value("GIT_TERMINAL_PROMPT"), vec![OsString::from("0")]);
+    assert_eq!(value("SSH_ASKPASS"), vec![OsString::from("/usr/bin/ksshaskpass")]);
 }

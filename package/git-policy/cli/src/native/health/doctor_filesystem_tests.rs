@@ -42,8 +42,8 @@ fn an_ordinary_directory_on_btrfs_is_told_a_subvolume_can_help_with_performance(
     let text: String = render_section(&facts(FilesystemKind::Btrfs, false, Some(true)));
     assert_shape(text.as_str());
     assert!(text.contains("ordinary directory, not a subvolume") && text.contains("can help with performance"), "{text}");
-    let dry: usize = text.find("git cli-git migrate-to-subvolume --dry-run").expect("the dry run command");
-    let real: usize = text.rfind("git cli-git migrate-to-subvolume\n").expect("the migrate command");
+    let dry: usize = text.find("git monochromatic-git-policy-cli migrate-to-subvolume --dry-run").expect("the dry run command");
+    let real: usize = text.rfind("git monochromatic-git-policy-cli migrate-to-subvolume\n").expect("the migrate command");
     assert!(dry < real, "{text}");
     assert!(text.contains("from a btrfs snapshot of the worktree it is run from") && text.contains("Until then `git worktree add` clones the tracked files"), "{text}");
     assert!(text.contains("has `user_subvol_rm_allowed`") && text.contains("`git worktree remove` deletes a clean subvolume worktree in one call"), "{text}");
@@ -189,7 +189,7 @@ fn the_host_section_names_the_main_checkout_and_is_empty_for_anything_else() {
 fn the_section_is_informational_and_last() {
     let parent: PathBuf = fixture("doctor-filesystem-order");
     let repo: PathBuf = repository(parent.as_path(), "repo");
-    let section_text: &str = "git cli-git doctor: filesystem: informational test text\n";
+    let section_text: &str = "git monochromatic-git-policy-cli doctor: filesystem: informational test text\n";
     let section = |_common_directory: &Path| -> String { return section_text.to_string(); };
     let split = |action: Action| -> (i32, String, String) {
         let Action::Exit { code, stdout, stderr } = action else { panic!("an exit action") };
@@ -201,7 +201,7 @@ fn the_section_is_informational_and_last() {
     executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
     let found: (i32, String, String) = split(doctor_action_with_section(&git_context(), repo.as_path(), &section));
     assert_eq!(found.0, 1);
-    assert!(found.2.ends_with(section_text) && found.2.contains("never run through cli-git"), "{}", found.2);
+    assert!(found.2.ends_with(section_text) && found.2.contains("never run through monochromatic-git-policy-cli"), "{}", found.2);
     let failed: (i32, String, String) = split(doctor_action_with_section(&git_context(), parent.as_path(), &section));
     assert_eq!(failed.0, 2);
     assert!(!failed.2.contains(SECTION_MARKER), "{}", failed.2);

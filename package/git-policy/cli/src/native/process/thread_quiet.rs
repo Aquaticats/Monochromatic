@@ -149,9 +149,14 @@ impl ThreadSigns {
         if !self.measured {
             return false;
         }
-        let now: (u64, u64) = (bytes.unwrap_or(0), activity.map_or(0, |(ticks, _)| { return ticks; }));
-        let working: bool = activity.is_some_and(|(_, at_work)| { return at_work; });
-        let changed: bool = self.before.is_none_or(|(old_bytes, old_ticks)| { return now.0 > old_bytes || now.1 > old_ticks; });
+        // No activity reading means no processor ticks and not at work.
+        let (ticks, working): (u64, bool) = activity.unwrap_or_default();
+        let now: (u64, u64) = (bytes.unwrap_or(0), ticks);
+        // The first look has nothing to compare with, so it counts as a change.
+        let changed: bool = match self.before {
+            Some((old_bytes, old_ticks)) => now.0 > old_bytes || now.1 > old_ticks,
+            None => true,
+        };
         self.before = Some(now);
         let carried: bool = self.count_sockets && self.socket_bytes_moved() > 0;
         return changed || working || carried;
@@ -209,41 +214,60 @@ impl ThreadClock {
 }
 
 /// What:
-///  Run `job` on this thread while another thread measures how quiet this thread gets, and keep the longest gap in the ledger.
+///  The measurement of how quiet the calling thread gets while a call runs, begun before the call and finished after it.
 /// Why:
 ///   A call that ends itself (the gateway call ends on its transport's own idle timeouts) still needs its quiet gap recorded.
-///  Nothing here ends the job.
+///  Nothing here ends the call. The call runs in place between `begin` and `finish`, so it reads the caller's variables
+///  without a closure to carry them. A measurement that is never finished leaves its sampling thread running, as a call
+///  that panicked between the two always did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const value = await measureQuiet('gateway call', () => post(body));
+/// const measurement = QuietMeasurement.begin('gateway call');
+/// const value = await post(body);
+/// measurement.finish();
 /// ```
-pub fn measured_quiet<T>(step: &str, job: impl FnOnce() -> T) -> T {
-    let Some(tid) = current_thread_id() else {
-        return job();
-    };
-    let done: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    let finished: Arc<AtomicBool> = Arc::clone(&done);
-    let sampler: Option<std::thread::JoinHandle<Duration>> = std::thread::Builder::new()
-        .name(String::from("cli-git-quiet-measure"))
-        .spawn(move || {
-            let mut clock: ThreadClock = ThreadClock::start(tid, Duration::MAX, true);
-            while !finished.load(Ordering::Acquire) {
-                // The result is unused: this clock only measures, and its window is never reached.
-                let _quiet = clock.quiet();
-                std::thread::sleep(MEASURE_PAUSE);
-            }
-            return clock.longest_quiet();
-        })
-        .ok();
-    let value: T = job();
-    done.store(true, Ordering::Release);
-    if let Some(handle) = sampler
-        && let Ok(gap) = handle.join()
-    {
-        crate::quiet_ledger::note(step, gap, false);
+pub struct QuietMeasurement {
+    /// The ledger entry the longest gap is noted under.
+    step: String,
+    /// Tells the sampling thread that the call is over.
+    done: Arc<AtomicBool>,
+    /// The sampling thread, or nothing where the thread's number cannot be read or the thread could not start.
+    sampler: Option<std::thread::JoinHandle<Duration>>,
+}
+
+impl QuietMeasurement {
+    /// Start sampling the calling thread now, to be noted in the ledger as `step` at `finish`.
+    pub fn begin(step: &str) -> Self {
+        let done: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+        let Some(tid) = current_thread_id() else {
+            return Self { step: step.to_string(), done, sampler: None };
+        };
+        let finished: Arc<AtomicBool> = Arc::clone(&done);
+        let sampler: Option<std::thread::JoinHandle<Duration>> = std::thread::Builder::new()
+            .name(String::from("cli-git-quiet-measure"))
+            .spawn(move || {
+                let mut clock: ThreadClock = ThreadClock::start(tid, Duration::MAX, true);
+                while !finished.load(Ordering::Acquire) {
+                    // The result is unused: this clock only measures, and its window is never reached.
+                    let _quiet = clock.quiet();
+                    std::thread::sleep(MEASURE_PAUSE);
+                }
+                return clock.longest_quiet();
+            })
+            .ok();
+        return Self { step: step.to_string(), done, sampler };
     }
-    return value;
+
+    /// Stop sampling and keep the longest gap in the ledger.
+    pub fn finish(self) {
+        self.done.store(true, Ordering::Release);
+        if let Some(handle) = self.sampler
+            && let Ok(gap) = handle.join()
+        {
+            crate::quiet_ledger::note(self.step.as_str(), gap, false);
+        }
+    }
 }
 
 /// How long the measuring thread sleeps between two looks at its clock.

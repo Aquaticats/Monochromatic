@@ -1,6 +1,7 @@
 # TypeScript 7.0.2's type serializer panics on an instantiated generic tuple
 (`interface conversion: checker.TypeData is *checker.TypeReference, not *checker.TupleType`)
-while summarizing `Parameters<Fn>`, and 7.1.0-beta no longer builds the panicking shape
+while summarizing `Parameters<Fn>`,
+and 7.1.0-beta no longer builds the panicking shape
 
 ## Symptom
 

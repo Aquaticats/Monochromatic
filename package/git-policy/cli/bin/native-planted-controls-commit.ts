@@ -63,8 +63,8 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: "the sequencer is copied into the shadow",
     file: "src/native/commit/conclusion_copy.rs",
-    from: "if path_present(sequencer.as_path())",
-    to: "if false && path_present(sequencer.as_path())",
+    from: "if recovery_step(path_present(sequencer.as_path()))? {",
+    to: "if false && recovery_step(path_present(sequencer.as_path()))? {",
     failing: "commit::conclusion_copy::tests::sequencer_is_copied_recursively",
   },
   {
@@ -126,8 +126,8 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: 'gc.autodetach fallback',
     file: 'src/native/landing/maintenance_decision.rs',
-    from: '.or_else(|| return config.get("gc.autodetach"));',
-    to: '.or_else(|| return None);',
+    from: 'else { config.get("gc.autodetach") };',
+    to: 'else { None };',
     failing: 'landing::maintenance_decision::tests::gc_autodetach_false_runs_in_the_foreground',
   },
   {

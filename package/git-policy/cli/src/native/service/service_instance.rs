@@ -13,16 +13,19 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const socket = join(runtimeDir, 'cli-git', `${instanceOf(gitDir)}.sock`);
+//! const socket = join(runtimeDir, 'monochromatic-git-policy-cli', `${instanceOf(gitDir)}.sock`);
 //! ```
 
+use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
 
 /// Directory of the sockets under the user's runtime directory.
-pub const SOCKET_DIRECTORY: &str = "cli-git";
+pub const SOCKET_DIRECTORY: &str = SERVICE_UNIT.current;
 
 /// The socket of the one service every worktree of an account shared until the release that gave each worktree its own. A
-///  service still listening here is asked to retire and its units are removed.
+///  service still listening here is asked to retire and its units are removed. It is a file of the earlier program, in the
+///  earlier program's folder (`SERVICE_UNIT.earlier`, tag `monochromatic-git-policy-cli-v0.5.34`, `service_instance.rs` line
+///  26), and keeps that spelling; a rename of this release's names does not reach it.
 pub const LEGACY_SOCKET_RELATIVE: &str = "cli-git/service.sock";
 
 /// The number of hexadecimal digits of an instance name.
@@ -46,7 +49,11 @@ const FNV_PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
 /// ```
 pub fn instance_of(git_dir: &Path) -> String {
     use std::os::unix::ffi::OsStrExt;
-    let real: PathBuf = std::fs::canonicalize(git_dir).unwrap_or_else(|_| { return git_dir.to_path_buf(); });
+    // A directory that cannot be resolved is named as given.
+    let real: PathBuf = match std::fs::canonicalize(git_dir) {
+        Ok(resolved) => resolved,
+        Err(_unresolvable) => git_dir.to_path_buf(),
+    };
     let mut hash: u128 = FNV_OFFSET;
     for byte in real.as_os_str().as_bytes() {
         hash ^= u128::from(*byte);
@@ -67,12 +74,31 @@ pub fn socket_for(runtime_dir: &Path, git_dir: &Path) -> PathBuf {
 
 /// The name of the socket unit instance of a worktree.
 pub fn socket_unit_instance(instance: &str) -> String {
-    return format!("cli-git@{instance}.socket");
+    return format!("{}@{instance}.socket", SERVICE_UNIT.current);
 }
 
 /// The name of the service unit instance of a worktree.
 pub fn service_unit_instance(instance: &str) -> String {
-    return format!("cli-git@{instance}.service");
+    return format!("{}@{instance}.service", SERVICE_UNIT.current);
+}
+
+/// The name of the socket unit instance that the earlier release (`cli-git@<instance>.socket`) gave the same worktree. The
+///  instance is the same text as this release's: both hash the real path of the worktree's own Git directory with the same
+///  FNV-1a constants (tag `monochromatic-git-policy-cli-v0.5.34`, `service_instance.rs`, `instance_of` and `socket_unit_instance`),
+///  so the earlier unit of one worktree is never the unit of another.
+pub fn earlier_socket_unit_instance(instance: &str) -> String {
+    return format!("{}@{instance}.socket", SERVICE_UNIT.earlier);
+}
+
+/// The name of the service unit instance that the earlier release gave the same worktree.
+pub fn earlier_service_unit_instance(instance: &str) -> String {
+    return format!("{}@{instance}.service", SERVICE_UNIT.earlier);
+}
+
+/// The socket file of the earlier release's unit for an instance (`ListenStream=%t/cli-git/%i.sock`), which the manager makes
+///  and removes.
+pub fn earlier_socket_path(runtime_dir: &Path, instance: &str) -> PathBuf {
+    return runtime_dir.join(SERVICE_UNIT.earlier).join(format!("{instance}.sock"));
 }
 
 /// Instance controls stay out of the release executable.

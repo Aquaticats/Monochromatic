@@ -77,10 +77,17 @@ pub fn prepare_subvolume_destination(plan: &AddPlan) -> Option<CreatedSubvolume>
         return None;
     }
     debug(TAG, format!("created the empty subvolume {}", destination.display()).as_str());
-    let identity: Option<ObjectId> = std::fs::File::open(parent)
-        .and_then(|held: std::fs::File| { return identity_at(&held, destination.file_name().unwrap_or_default()); })
-        .inspect_err(|error: &std::io::Error| { debug(TAG, format!("the identity of the created subvolume {} cannot be read ({error}); settlement will leave it alone", destination.display()).as_str()); })
-        .ok();
+    let read: std::io::Result<ObjectId> = match std::fs::File::open(parent) {
+        Ok(held) => identity_at(&held, destination.file_name().unwrap_or_default()),
+        Err(error) => Err(error),
+    };
+    let identity: Option<ObjectId> = match read {
+        Ok(found) => Some(found),
+        Err(error) => {
+            debug(TAG, format!("the identity of the created subvolume {} cannot be read ({error}); settlement will leave it alone", destination.display()).as_str());
+            None
+        }
+    };
     return Some(CreatedSubvolume { path: destination.to_path_buf(), identity });
 }
 

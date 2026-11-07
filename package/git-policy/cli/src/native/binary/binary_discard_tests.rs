@@ -319,7 +319,7 @@ fn a_saved_patch_makes_the_hatch_revert_reversible() {
 fn each_decision_leaves_one_line_in_the_audit_file() {
     let fixture: Fixture = fixture("discard-audit");
     let repo: PathBuf = dirty_repository(&fixture);
-    let audit: PathBuf = repo.join(".git/cli-git-audit.jsonl");
+    let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
     let rejected: Observed = run_wrapped(&fixture, repo.as_path(), &["restore", "--", "tracked.txt"]);
     assert!(rejected_by_policy(&rejected), "{}", stderr_of(&rejected));
     let text: String = std::fs::read_to_string(&audit).expect("audit file after a rejection");
@@ -369,7 +369,7 @@ fn a_finding_carries_its_hint_beside_an_unchanged_message() {
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"no final newline").expect("file");
     let raw: Observed = observe_raw(
-        wrapped(&fixture).current_dir(repo.as_path()).args(["cli-git", "check", "--all"]),
+        wrapped(&fixture).current_dir(repo.as_path()).args(["monochromatic-git-policy-cli", "check", "--all"]),
         b"",
     );
     let text: String = String::from_utf8_lossy(raw.stdout.as_slice()).into_owned();
@@ -377,6 +377,6 @@ fn a_finding_carries_its_hint_beside_an_unchanged_message() {
         text.contains("\"message\":\"Non-empty text file must end with exactly one LF byte.\",\"hint\":\"Hint: if you are committing or checking this file"),
         "{text}"
     );
-    assert!(text.contains("git cli-git fix -- <path>") || text.contains("exactly one newline"), "{text}");
+    assert!(text.contains("git monochromatic-git-policy-cli fix -- <path>") || text.contains("exactly one newline"), "{text}");
     remove(&fixture);
 }

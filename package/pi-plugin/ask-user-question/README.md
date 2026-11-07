@@ -7,6 +7,13 @@ The question remains fully visible in Pi's transcript.
 The answer opens in the configured editor inside a separate default-terminal window,
 so Pi keeps its normal transcript controls while the answer is pending.
 
+## Pi dependency trust
+
+PJQ:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Installation
 
 Build the package,

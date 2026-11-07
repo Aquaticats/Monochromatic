@@ -1,5 +1,5 @@
 //! What:
-//!  The grammar of `git cli-git <command>`,
+//!  The grammar of `git monochromatic-git-policy-cli <command>`,
 //!  the wrapper's own management namespace.
 //! Why:
 //!  `check` and `fix` run policies over an explicit scope;
@@ -37,21 +37,22 @@ use crate::worktree_convert_arguments::{ConvertArguments, parse_convert_argument
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MANAGEMENT_USAGE = 'Usage: git cli-git check ...';
+/// const MANAGEMENT_USAGE = 'Usage: git monochromatic-git-policy-cli check ...';
 /// ```
 pub const MANAGEMENT_USAGE: &str = "\
-Usage: git cli-git check (--all | -- <pathspec>...) [--policy <id>]...
-       git cli-git fix (--all | -- <pathspec>...) [--policy <id>]...
-       git cli-git doctor
-       git cli-git migrate-to-subvolume [--dry-run | --rollback | --remove-old]
-       git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
-       git cli-git --help
+Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...) [--policy <id>]...
+       git monochromatic-git-policy-cli fix (--all | -- <pathspec>...) [--policy <id>]...
+       git monochromatic-git-policy-cli doctor
+       git monochromatic-git-policy-cli service (status | settle-earlier-batches)
+       git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run | --rollback | --remove-old]
+       git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
+       git monochromatic-git-policy-cli --help
 ";
 
 /// Successful namespace help,
 ///  shown without touching any repository.
 pub const MANAGEMENT_HELP: &str = "\
-Usage: git cli-git <command> [options]
+Usage: git monochromatic-git-policy-cli <command> [options]
 
 Run repository policies directly.
 
@@ -59,10 +60,13 @@ Commands:
   check    Check policies over an explicit scope.
   fix      Apply policy fixes over an explicit scope.
   service  status: whether the commit service answers (it sets itself up when a commit needs it).
+           settle-earlier-batches: finish the batches an earlier release's commit service left open for this worktree (doctor
+           says how many). Run it only when no wrapper of the earlier release is in use in this worktree at that moment; it
+           refuses while an earlier socket listens or an earlier helper runs, and says what to do.
   doctor   List traditional hooks (unsupported). Exit 0 when none or only git-lfs shims are found,
            1 when any other hook is found, 2 outside a repository.
   migrate-to-subvolume
-           Convert the main checkout into a btrfs subvolume (see `git cli-git migrate-to-subvolume --help`).
+           Convert the main checkout into a btrfs subvolume (see `git monochromatic-git-policy-cli migrate-to-subvolume --help`).
   convert-worktree-to-subvolume
            Convert linked worktrees that are ordinary directories into subvolumes (see its `--help`).
 
@@ -74,7 +78,7 @@ Options:
   --policy <id>  Run only this policy; may be repeated.
   --help         Show this help.
 
-Policies are configured as data in cli-git.config.jsonc at the repository top level.
+Policies are configured as data in monochromatic-git-policy-cli.config.jsonc at the repository top level.
 The trust, untrust and status commands are retired: configuration is no longer code,
 so there is nothing to approve.
 ";
@@ -93,11 +97,11 @@ so there is nothing to approve.
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RetiredCommand {
-    /// `git cli-git trust [--yes]`.
+    /// `git monochromatic-git-policy-cli trust [--yes]`.
     Trust,
-    /// `git cli-git untrust`.
+    /// `git monochromatic-git-policy-cli untrust`.
     Untrust,
-    /// `git cli-git status`.
+    /// `git monochromatic-git-policy-cli status`.
     Status,
 }
 
@@ -136,6 +140,9 @@ pub enum ManagementAction {
     ConvertWorktree(Result<ConvertArguments, String>),
     /// `service status`: whether the commit service answers (a diagnostic; the wrapper sets the service up itself).
     ServiceStatus,
+    /// `service settle-earlier-batches`: finish the batches an earlier release's commit service left open, when no earlier
+    ///  helper runs or can start.
+    SettleEarlierBatches,
     /// `check` or `fix` over exactly one scope.
     Direct {
         /// `true` for `fix`,
@@ -373,7 +380,7 @@ fn parse_direct(fix: bool, rest: &[OsString]) -> Result<ManagementAction, Manage
 }
 
 /// What:
-///  Parse the arguments after `git cli-git` into one action or refusal.
+///  Parse the arguments after `git monochromatic-git-policy-cli` into one action or refusal.
 /// Why:
 ///   The leading command name selects one grammar,
 ///  so an invocation naming two
@@ -387,7 +394,7 @@ pub fn parse_management_arguments(
     arguments: &[OsString],
 ) -> Result<ManagementAction, ManagementRefusal> {
     // What: `let Some(name) = arguments.first() else { ... };` unwraps the command name.
-    // Why:  A bare `git cli-git` names no command.
+    // Why:  A bare `git monochromatic-git-policy-cli` names no command.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -429,6 +436,7 @@ pub fn parse_management_arguments(
     if name == "service" {
         return match rest {
             [word] if word == "status" => Ok(ManagementAction::ServiceStatus),
+            [word] if word == "settle-earlier-batches" => Ok(ManagementAction::SettleEarlierBatches),
             _ => Err(ManagementRefusal::Usage),
         };
     }

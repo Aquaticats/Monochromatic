@@ -3,6 +3,8 @@
 //!  a link, large, claimed by a merge driver) is left, with the reason.
 
 use super::*;
+use crate::transaction_git::GitContext;
+use std::ffi::OsString;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
 use std::path::PathBuf;
 
@@ -208,10 +210,10 @@ fn the_report_lines_name_the_file_and_number_the_parts_and_escape_the_text() {
     let part = |merged: &[u8]| { return MergedPart { base: LineSpan { first: 3, count: 0 }, ours: span, theirs: LineSpan { first: 4, count: 1 }, merged: merged.to_vec() }; };
     let stages = Conflict { path: b"dir/a.md".to_vec(), base: None, ours: None, theirs: None };
     let merged = Merged { path: b"dir/a.md".to_vec(), mode: 0o100_644, bytes: Vec::new(), parts: vec![part(b"plain\n"), part(b"\x1b[31mred")], stages };
-    let lines: Vec<String> = report_lines("cli-git: ", &merged);
+    let lines: Vec<String> = report_lines("monochromatic-git-policy-cli: ", &merged);
     assert_eq!(lines.len(), 2);
     for (at, line) in lines.iter().enumerate() {
-        assert!(line.starts_with(format!("cli-git: {REPORT_MARK}: dir/a.md: part {} of 2: ", at + 1).as_str()), "{line}");
+        assert!(line.starts_with(format!("monochromatic-git-policy-cli: {REPORT_MARK}: dir/a.md: part {} of 2: ", at + 1).as_str()), "{line}");
         assert!(line.contains("lines 3 to 4") && line.contains("line 4") && line.contains("no line (before line 3)"), "{line}");
         assert!(!line.contains('\x1b') && !line.contains('\n'), "{line:?}");
     }

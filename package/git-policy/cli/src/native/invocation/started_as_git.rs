@@ -1,6 +1,6 @@
 //! What:
 //!  The marker that every start of the real Git carries,
-//! and the check that stops a cli-git executable which finds it was
+//! and the check that stops a monochromatic-git-policy-cli executable which finds it was
 //!  started as that Git.
 //! Why:
 //!  Which file the wrapper selected as Git can be a launcher,
@@ -13,7 +13,7 @@
 //!  "Git" puts its own process number,
 //! that process's birth identity and the way it starts the program (replacing itself or
 //!  as a child) in the environment of the start.
-//! A cli-git executable that finds itself in the very process,
+//! A monochromatic-git-policy-cli executable that finds itself in the very process,
 //! or the child,
 //!  that a wrapper started as Git has been started as Git,
 //! whatever stood in between,
@@ -27,7 +27,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // child_process.spawn(realGit, args, { env: { ...env, CLI_GIT_STARTED_AS_GIT: `${process.pid}\x1f${identity}\x1fchild` } });
-//! // if (marker && marker.pid === process.ppid && sameBirth(marker)) { stop('started as Git by a cli-git process'); }
+//! // if (marker && marker.pid === process.ppid && sameBirth(marker)) { stop('started as Git by a monochromatic-git-policy-cli process'); }
 //! ```
 
 /// The one lookup of a named variable in an injected environment.
@@ -312,7 +312,7 @@ pub fn marker_of(environment: &[(OsString, OsString)]) -> Option<StartMarker> {
 }
 
 /// What:
-///  The words a person reads when a cli-git executable stops because it was started as Git.
+///  The words a person reads when a monochromatic-git-policy-cli executable stops because it was started as Git.
 ///       `&Path` borrows this executable's path for the message.
 /// Why:
 ///   The message names the executable,
@@ -329,9 +329,9 @@ pub fn marker_of(environment: &[(OsString, OsString)]) -> Option<StartMarker> {
 /// ```
 pub fn refusal_text(marker: &StartMarker, own_executable: &Path, environment: &[(OsString, OsString)]) -> String {
     let how: String = if marker.mode == StartMode::Replace {
-        format!("this is process {}, which a cli-git wrapper replaced with this program", marker.starter_pid)
+        format!("this is process {}, which a monochromatic-git-policy-cli wrapper replaced with this program", marker.starter_pid)
     } else {
-        format!("this is a child of the cli-git wrapper that runs as process {} and waits for its answer", marker.starter_pid)
+        format!("this is a child of the monochromatic-git-policy-cli wrapper that runs as process {} and waits for its answer", marker.starter_pid)
     };
     let chosen: String = match environment_value(environment, FORWARD_TARGET_VARIABLE) {
         Some(target) => format!(" The file that process chose as Git is {}.", Path::new(&target).display()),
@@ -342,12 +342,12 @@ pub fn refusal_text(marker: &StartMarker, own_executable: &Path, environment: &[
         None => String::from(" PATH is not set here."),
     };
     return format!(
-        "this cli-git executable ({}) was started as Git by a cli-git wrapper: {how}.{chosen}{search_path} \
-         A cli-git wrapper never runs itself as Git, so it stops here instead of starting one more wrapper, which would \
-         repeat without end. This happens when the first `git` that PATH offers after the wrapper leads back to cli-git: \
+        "this monochromatic-git-policy-cli executable ({}) was started as Git by a monochromatic-git-policy-cli wrapper: {how}.{chosen}{search_path} \
+         A monochromatic-git-policy-cli wrapper never runs itself as Git, so it stops here instead of starting one more wrapper, which would \
+         repeat without end. This happens when the first `git` that PATH offers after the wrapper leads back to monochromatic-git-policy-cli: \
          a link to it, a copy of it, its toolchain launcher, or another release of it. To fix it, put the directory of the \
-         real Git (for example /usr/bin) on the PATH of the program that started the first cli-git, or remove the entry that \
-         leads back to cli-git from that PATH.",
+         real Git (for example /usr/bin) on the PATH of the program that started the first monochromatic-git-policy-cli, or remove the entry that \
+         leads back to monochromatic-git-policy-cli from that PATH.",
         own_executable.display()
     );
 }
@@ -367,7 +367,7 @@ fn live_identity_of(pid: u32) -> Option<String> {
 }
 
 /// What:
-///  Whether this process was started as Git by a cli-git wrapper,
+///  Whether this process was started as Git by a monochromatic-git-policy-cli wrapper,
 /// read from the live process,
 /// and if so the words to
 ///  say so.

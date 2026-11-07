@@ -1,5 +1,5 @@
 //! What:
-//!  `git cli-git doctor`: list the traditional hooks a repository holds and the external hooks its Git
+//!  `git monochromatic-git-policy-cli doctor`: list the traditional hooks a repository holds and the external hooks its Git
 //!  configuration defines, and note the retired `hooks.concurrentCommits` key.
 //! Why:
 //!  Traditional hooks (executable scripts in `<git-common-dir>/hooks` or in a `core.hooksPath` directory) are
@@ -188,9 +188,9 @@ pub fn render_hooks(hooks: &[PathBuf]) -> String {
 /// ```ts
 /// const explanation: string;
 /// ```
-const FOUND_EXPLANATION: &str = "git cli-git doctor: the traditional hooks listed on standard output never run through \
-cli-git, which supports no external hook program and runs no program named by any configuration. Delete each script, \
-or express what it checked as a policy under policies in cli-git.config.jsonc.\n";
+const FOUND_EXPLANATION: &str = "git monochromatic-git-policy-cli doctor: the traditional hooks listed on standard output never run through \
+monochromatic-git-policy-cli, which supports no external hook program and runs no program named by any configuration. Delete each script, \
+or express what it checked as a policy under policies in monochromatic-git-policy-cli.config.jsonc.\n";
 
 /// What:
 ///  Run one Git query in `cwd` and return its standard output as text.
@@ -203,17 +203,20 @@ or express what it checked as a policy under policies in cli-git.config.jsonc.\n
 /// ```
 fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, String> {
     let request: GitRequest = GitRequest::new(cwd, arguments);
-    let output = run_git(context, &request).map_err(|error| {
-        return format!("git {} could not start: {error}", arguments.join(" "));
-    })?;
+    let output = match run_git(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(format!("git {} could not start: {error}", arguments.join(" "))),
+    };
     if output.code == Some(1) && arguments.first() == Some(&"config") {
         return Ok(None);
     }
     if !output.succeeded() {
         return Err(format!("git {} failed: {}", arguments.join(" "), output.error_text()));
     }
-    let text: String = String::from_utf8(output.stdout)
-        .map_err(|_| { return format!("git {} printed bytes that are not UTF-8", arguments.join(" ")); })?;
+    let text: String = match String::from_utf8(output.stdout) {
+        Ok(decoded) => decoded,
+        Err(_) => return Err(format!("git {} printed bytes that are not UTF-8", arguments.join(" "))),
+    };
     return Ok(Some(text));
 }
 
@@ -239,9 +242,14 @@ pub fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, S
     let (Some(common), Some(git_directory)) = (lines.next(), lines.next()) else {
         return Err(String::from("git rev-parse did not report the common and Git directories"));
     };
-    let configured_text: Option<String> = query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"])?
-        .map(|text| { return text.strip_suffix('\n').unwrap_or(text.as_str()).to_string(); })
-        .filter(|text| { return !text.is_empty(); });
+    // An answer with nothing after its trailing line feed counts as no answer, as `.filter(...)` made it.
+    let configured_text: Option<String> = match query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"])? {
+        Some(text) => {
+            let stripped: String = text.strip_suffix('\n').unwrap_or(text.as_str()).to_string();
+            if stripped.is_empty() { None } else { Some(stripped) }
+        }
+        None => None,
+    };
     let Some(value) = configured_text else {
         return Ok(HooksLocation {
             common_directory: PathBuf::from(common),
@@ -303,7 +311,7 @@ pub fn lfs_shim_text(name: &str) -> String {
 /// ```
 pub fn is_lfs_shim(path: &Path) -> bool {
     use std::io::Read;
-    let Some(name) = path.file_name().and_then(|found| { return found.to_str(); }) else {
+    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
         return false;
     };
     if !LFS_SHIM_NAMES.contains(&name) {
@@ -337,7 +345,7 @@ pub fn is_lfs_shim(path: &Path) -> bool {
 /// ```
 pub fn render_lfs_shims(shims: &[PathBuf]) -> String {
     let mut text: String = String::from(
-        "git cli-git doctor: the hook files below are the Git LFS shims, byte for byte, and nothing needs doing:\n",
+        "git monochromatic-git-policy-cli doctor: the hook files below are the Git LFS shims, byte for byte, and nothing needs doing:\n",
     );
     for shim in shims {
         text.push_str("  ");
@@ -345,17 +353,17 @@ pub fn render_lfs_shims(shims: &[PathBuf]) -> String {
         text.push('\n');
     }
     text.push_str(
-        "git-lfs writes these files again whenever it cleans a file in a Git that cli-git did not start (for example \
+        "git-lfs writes these files again whenever it cleans a file in a Git that monochromatic-git-policy-cli did not start (for example \
 `git add` of an LFS file run as `/usr/bin/git` directly), so they can come back after you delete them; this is \
-normal. cli-git uploads the LFS objects itself before every push and starts Git with traditional hooks off, so these \
-files never run through cli-git. You may delete them or leave them. Only a script that starts Git without cli-git, \
+normal. monochromatic-git-policy-cli uploads the LFS objects itself before every push and starts Git with traditional hooks off, so these \
+files never run through monochromatic-git-policy-cli. You may delete them or leave them. Only a script that starts Git without monochromatic-git-policy-cli, \
 such as `/usr/bin/git` directly, would run them.\n",
     );
     return text;
 }
 
 /// What:
-///  Decide what `git cli-git doctor` prints and exits with.
+///  Decide what `git monochromatic-git-policy-cli doctor` prints and exits with.
 /// Why:
 ///   Exit 0 with no output means no traditional hook was found, exit 1 lists each one on standard output, and exit 2
 ///  reports a repository or a directory that could not be examined.
@@ -367,7 +375,21 @@ such as `/usr/bin/git` directly, would run them.\n",
 /// async function doctor({ context, cwd }): Promise<Action>;
 /// ```
 pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
-    return doctor_action_with_section(context, cwd, &|_common_directory: &Path| { return String::new(); });
+    return doctor_action_with_section(context, cwd, &no_filesystem_section);
+}
+
+/// What:
+///  A filesystem section that is always empty.
+/// Why:
+///   `doctor_action` prints no filesystem section, and `doctor_action_with_section` takes its section as a function,
+///  so this named function stands where a closure that ignored its argument stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noFilesystemSection = (_commonDirectory: string) => '';
+/// ```
+fn no_filesystem_section(_common_directory: &Path) -> String {
+    return String::new();
 }
 
 /// What:
@@ -392,11 +414,20 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
         Ok(listed) => listed,
         Err(error) => return doctor_failure(format!("cannot read a hooks directory: {error}").as_str()),
     };
-    let (shims, hooks): (Vec<PathBuf>, Vec<PathBuf>) =
-        found.into_iter().partition(|path| { return is_lfs_shim(path.as_path()); });
+    let mut shims: Vec<PathBuf> = Vec::new();
+    let mut hooks: Vec<PathBuf> = Vec::new();
+    for path in found {
+        if is_lfs_shim(path.as_path()) {
+            shims.push(path);
+        } else {
+            hooks.push(path);
+        }
+    }
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
     let findings: ConfigFindings = config_findings(context, cwd);
     let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd));
+    // The first time the common Git directory is known to this command, an earlier release's names in it are moved.
+    crate::kept_names_in_the_git_directories::settle_common_directory_names(location.common_directory.as_path());
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
     let section: String = filesystem_section(location.common_directory.as_path());
     if hooks.is_empty() && findings.hooks.is_empty() {
@@ -421,13 +452,13 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// { code: 2, stdout: '', stderr: `git cli-git doctor: ${message}\n` }
+/// { code: 2, stdout: '', stderr: `git monochromatic-git-policy-cli doctor: ${message}\n` }
 /// ```
 fn doctor_failure(message: &str) -> Action {
     return Action::Exit {
         code: ENGINE_FAILURE_EXIT_CODE,
         stdout: String::new(),
-        stderr: format!("git cli-git doctor: {message}\n"),
+        stderr: format!("git monochromatic-git-policy-cli doctor: {message}\n"),
     };
 }
 

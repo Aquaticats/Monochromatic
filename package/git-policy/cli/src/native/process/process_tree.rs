@@ -63,7 +63,11 @@ pub fn descendants_of(root: i32) -> Vec<TreeMember> {
     // Parent number to the children found under it.
     let mut children: HashMap<i32, Vec<TreeMember>> = HashMap::new();
     for entry in listing.flatten() {
-        let Some(pid) = entry.file_name().to_str().and_then(|name| { return name.parse::<i32>().ok(); }) else {
+        let file_name: std::ffi::OsString = entry.file_name();
+        let Some(name) = file_name.to_str() else {
+            continue;
+        };
+        let Ok(pid) = name.parse::<i32>() else {
             continue;
         };
         let Ok(text) = std::fs::read_to_string(entry.path().join("stat")) else {
@@ -126,7 +130,10 @@ pub fn still_running(member: &TreeMember) -> bool {
     let Ok(text) = std::fs::read_to_string(format!("/proc/{}/stat", member.pid)) else {
         return false;
     };
-    return parse_stat(text.as_str()).is_some_and(|(_parent, started, zombie)| { return started == member.started && !zombie; });
+    let Some((_parent, started, zombie)) = parse_stat(text.as_str()) else {
+        return false;
+    };
+    return started == member.started && !zombie;
 }
 
 /// Nothing is found elsewhere, so nothing is still running.

@@ -137,8 +137,8 @@ fn standard_error_that_is_not_the_journal_keeps_the_plain_line() {
     let other: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE + 1)), &target);
     assert!(!other.is_native());
     let mut stderr: Vec<u8> = Vec::new();
-    assert_eq!(other.deliver(Priority::Warning, "m", &[], "cli-git-service: m at_ms=1\n", &mut stderr), Delivery::Stderr);
-    assert_eq!(String::from_utf8(stderr).expect("text"), "cli-git-service: m at_ms=1\n");
+    assert_eq!(other.deliver(Priority::Warning, "m", &[], "monochromatic-git-policy-cli-service: m at_ms=1\n", &mut stderr), Delivery::Stderr);
+    assert_eq!(String::from_utf8(stderr).expect("text"), "monochromatic-git-policy-cli-service: m at_ms=1\n");
     assert!(socket.recv(&mut [0_u8; 16]).is_err(), "nothing was sent to the socket");
 }
 
@@ -149,8 +149,8 @@ fn a_journal_that_is_not_listening_falls_back_to_standard_error_with_the_priorit
     let nobody: Target = Target::Abstract(format!("cli-git-test-journal-nobody-{}", std::process::id()));
     let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
     let mut stderr: Vec<u8> = Vec::new();
-    assert_eq!(sink.deliver(Priority::Warning, "m", &[], "cli-git-service: m at_ms=1\n", &mut stderr), Delivery::Stderr);
-    assert_eq!(String::from_utf8(stderr).expect("text"), "<4>cli-git-service: m at_ms=1\n");
+    assert_eq!(sink.deliver(Priority::Warning, "m", &[], "monochromatic-git-policy-cli-service: m at_ms=1\n", &mut stderr), Delivery::Stderr);
+    assert_eq!(String::from_utf8(stderr).expect("text"), "<4>monochromatic-git-policy-cli-service: m at_ms=1\n");
 }
 
 /// A receiver whose queue is full never makes the sender wait: the entry falls back at once.
@@ -241,8 +241,8 @@ fn a_stream_writer_on_a_file_writes_the_line() {
     let path = root.join("stderr.log");
     let file = std::fs::OpenOptions::new().create(true).append(true).open(&path).expect("a file");
     let mut writer: StreamWriter = StreamWriter::on(file.as_raw_fd());
-    writer.write_all(b"<6>cli-git-service: ready at_ms=1\n").expect("written");
-    assert_eq!(std::fs::read_to_string(&path).expect("file"), "<6>cli-git-service: ready at_ms=1\n");
+    writer.write_all(b"<6>monochromatic-git-policy-cli-service: ready at_ms=1\n").expect("written");
+    assert_eq!(std::fs::read_to_string(&path).expect("file"), "<6>monochromatic-git-policy-cli-service: ready at_ms=1\n");
     crate::command_test_support::remove(root.as_path());
 }
 
@@ -390,7 +390,7 @@ fn a_dropped_entry_is_counted_and_the_next_stream_line_says_so() {
     stream.room = usize::MAX;
     assert_eq!(sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream), Delivery::Stderr);
     let text: String = String::from_utf8(stream.taken).expect("text");
-    assert!(text.starts_with("<4>cli-git-service: 2 log entries were dropped before this one"), "{text}");
+    assert!(text.starts_with("<4>monochromatic-git-policy-cli-service: 2 log entries were dropped before this one"), "{text}");
     assert!(text.ends_with("\n<6>third line\n"), "{text}");
     let mut after: Tight = Tight { taken: Vec::new(), room: usize::MAX };
     sink.deliver(Priority::Info, "four", &[], "fourth line\n", &mut after);
@@ -410,7 +410,7 @@ fn a_line_that_stays_unfinished_drops_the_lines_behind_it() {
     stream.room = usize::MAX;
     assert_eq!(sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream), Delivery::Stderr);
     let text: String = String::from_utf8(stream.taken).expect("text");
-    assert!(text.starts_with("<6>first line\n<4>cli-git-service: 1 log entries were dropped before this one"), "{text}");
+    assert!(text.starts_with("<6>first line\n<4>monochromatic-git-policy-cli-service: 1 log entries were dropped before this one"), "{text}");
     assert!(text.ends_with("\n<6>third line\n"), "{text}");
 }
 

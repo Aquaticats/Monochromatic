@@ -84,3 +84,45 @@ export {
   runCachyosImageCli,
 } from './cachyos-image-cli.ts';
 export type { CachyosImageCliResult, } from './cachyos-image-cli.ts';
+
+/**
+ The Rust toolchain `toolchain.lock.json` records, for container builds that install Rust themselves.
+ */
+export {
+  LockedRustToolchainError,
+  lockedRustToolchainFromText,
+  readLockedRustToolchain,
+  RUST_TOOLCHAIN_BUILD_ARGUMENT_NAME,
+  TOOLCHAIN_LOCK_FILE_NAME,
+} from './locked-rust-toolchain.ts';
+
+/**
+ Build arguments that hand the lock row of Zig or `cargo-about` to a container build that installs the tool itself.
+ */
+export {
+  LOCK_FILE_NAME,
+  LOCKED_BUILD_ARGUMENT_TOOLS,
+  LockedToolBuildArgumentsError,
+  lockedToolBuildArgumentsFromText,
+  readLockedToolBuildArguments,
+  ZIG_LOCK_PLATFORM_BY_HOST_ARCHITECTURE,
+} from './locked-tool-build-arguments.ts';
+export type { LockedBuildArgumentTool, } from './locked-tool-build-arguments.ts';
+
+/**
+ Builds a local container image again when the inputs it was built from, labelled on the image, have changed.
+ */
+export {
+  buildContainerImage,
+  ensureContainerImage,
+  IMAGE_BUILD_INPUTS_LABEL_NAME,
+  inputsDigestOf,
+  isContainerImageCurrent,
+  podmanEngineWith,
+} from './container-image-rebuild-on-changed-inputs.ts';
+export type {
+  ContainerEngine,
+  ContainerImageInputs,
+  ContainerImageOptions,
+  ImageLabelQuery,
+} from './container-image-rebuild-on-changed-inputs.ts';

@@ -46,8 +46,11 @@ RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed 
 # already-persistent PATH, while the real CARGO_HOME is the /cargo named volume set
 # below (mounted at run time, holding only the registry/git cache).
 # The toolchain is the nightly toolchain.lock.json pins (`.tools.rust.version`); the build context is this
-# package directory, so this default is kept in sync with that key, and `--build-arg RUST_TOOLCHAIN=` overrides it.
-ARG RUST_TOOLCHAIN=nightly-2026-10-29
+# package directory, so the caller reads that key and passes it as `--build-arg RUST_TOOLCHAIN=`
+# (package/test-harness/core-matrix/src/bin/locked-rust-toolchain.ts prints it); an empty value stops the build.
+ARG RUST_TOOLCHAIN
+RUN test -n "${RUST_TOOLCHAIN}" \
+    || { echo "RUST_TOOLCHAIN is empty: pass --build-arg RUST_TOOLCHAIN=<tools.rust.version of toolchain.lock.json>" >&2; exit 1; }
 ENV RUSTUP_HOME=/rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
       | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \

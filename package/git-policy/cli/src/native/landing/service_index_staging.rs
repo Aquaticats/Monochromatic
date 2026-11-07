@@ -54,6 +54,20 @@ pub fn staged_path_for(lock: &Path, seq: u64, token: &str) -> PathBuf {
 }
 
 /// What:
+///  The digits at the start of the text after the dot of a staged marker's name.
+/// Why:
+///  The part after the PID names the namespace the writer was in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const digitsOfScope = (tail: Uint8Array) => /^\d*/.exec(decode(tail))[0];
+/// ```
+fn digits_of_scope(tail: &[u8]) -> String {
+    let number: Vec<u8> = tail.iter().copied().take_while(u8::is_ascii_digit).collect();
+    return String::from_utf8_lossy(number.as_slice()).into_owned();
+}
+
+/// What:
 ///  Creates the staging file of the lock at `lock` for batch `seq`,
 /// new and holding `marker`.
 /// Why:
@@ -73,7 +87,10 @@ pub fn staged_path_for(lock: &Path, seq: u64, token: &str) -> PathBuf {
 /// the holder keeps it for as long as the hold lasts,
 /// because it is the lock's own inode.
 pub fn stage_marker(lock: &Path, seq: u64, marker: &str) -> std::io::Result<(PathBuf, std::fs::File)> {
-    let token: String = random_uuid().map_err(|error| { return std::io::Error::other(error.0); })?;
+    let token: String = match random_uuid() {
+        Ok(found) => found,
+        Err(error) => return Err(std::io::Error::other(error.0)),
+    };
     let staged: PathBuf = staged_path_for(lock, seq, token.as_str());
     let mut file = std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(&staged)?;
     if let Err(error) = file.write_all(marker.as_bytes()) {
@@ -92,11 +109,13 @@ fn writer_in_name(suffix: &[u8]) -> Option<(i64, Option<String>)> {
     let digits: Vec<u8> = rest.iter().copied().take_while(u8::is_ascii_digit).collect();
     let pid: i64 = std::str::from_utf8(digits.as_slice()).ok()?.parse::<i64>().ok()?;
     let after: &[u8] = &rest[digits.len()..];
-    let scope: Option<String> = after.strip_prefix(b".").map(|tail| {
-        let number: Vec<u8> = tail.iter().copied().take_while(u8::is_ascii_digit).collect();
-        return String::from_utf8_lossy(number.as_slice()).into_owned();
-    });
-    return Some((pid, scope.filter(|text| { return !text.is_empty(); })));
+    let scope: Option<String> = after.strip_prefix(b".").map(digits_of_scope);
+    // A scope with no digits is no scope.
+    let kept_scope: Option<String> = match scope {
+        Some(text) if !text.is_empty() => Some(text),
+        _ => None,
+    };
+    return Some((pid, kept_scope));
 }
 
 /// What:

@@ -17,13 +17,15 @@ upstream rejection ticks: 3
 fork (return await) rejection ticks: 2
 ```
 
-Resolve paths can still match while reject paths diverge, because an
+Resolve paths can still match while reject paths diverge,
+because an
 already-rejected deferred takes the adoption path one tick earlier when
 awaited inline.
 
 ## Root cause
 
-Step by step, for a deferred that rejects before the `async` function
+Step by step,
+for a deferred that rejects before the `async` function
 returns:
 
 1. `return deferred.promise` inside an `async` function hands the promise to
@@ -91,7 +93,8 @@ fork with `return`: rejection 3, resolution 5
 
 The differential fuzz campaign
 (`mise run //package/upstream-fork/p-map.fuzz:fuzz`) cannot see this class of
-difference: its traces are gate-controlled with macrotask separators,
+difference:
+its traces are gate-controlled with macrotask separators,
  which
 never resolve sub-tick differences.
  Microtask-count probes are the validating
@@ -100,21 +103,26 @@ instrument.
 ## Verified workarounds
 
 - Keep the upstream return shape (`return deferred.promise`) and suppress
-  `require-await` at the `async` declaration with the measured reason, as
+  `require-await` at the `async` declaration with the measured reason,
+  as
   quoted above.
-  Verified: rejection and resolution ticks both match upstream.
+  Verified:
+  rejection and resolution ticks both match upstream.
 
 ## What does not work
 
 - `return await deferred.promise` written to satisfy `require-await`.
-  Verified broken: settles the caller one microtask early on the reject path.
+  Verified broken:
+  settles the caller one microtask early on the reject path.
 - A non-`async` function returning the deferred promise.
   Verified broken:
   skips the adoption hop entirely (rejection observed one tick after the
-  deferred settles, versus upstream's three).
+  deferred settles,
+  versus upstream's three).
 - Comparing settle order in gate-controlled workload traces.
   Verified
-  insufficient: macrotask separators cannot resolve microtask-depth
+  insufficient:
+  macrotask separators cannot resolve microtask-depth
   differences.
 
 ## Upstream filing artifact

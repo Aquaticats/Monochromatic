@@ -2,6 +2,7 @@
 //! The merge itself is checked against real Git through the built executable, in `binary_merge_isolation_tests.rs`.
 
 use super::*;
+use crate::merge_isolation_git_reads::parse_maybe_bool;
 
 /// Git's boolean spellings, in any letter case; anything else is no answer.
 #[test]

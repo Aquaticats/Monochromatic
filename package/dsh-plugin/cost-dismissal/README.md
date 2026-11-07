@@ -9,6 +9,13 @@ The Claude Code twin is the `cccd` hook of
 `package/claude-code-plugin/cost-dismissal`;
 both write one shared log.
 
+## Pi dependency trust
+
+PJL:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Why these events
 
 Each event sees a part of the turn the others miss:

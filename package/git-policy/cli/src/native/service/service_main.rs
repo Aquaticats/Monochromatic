@@ -1,5 +1,5 @@
 //! What:
-//!  The resident commit service as a mode of the one executable: `cli-git-native cli-git service run <options>`.
+//!  The resident commit service as a mode of the one executable: `monochromatic-git-policy-cli monochromatic-git-policy-cli service run <options>`.
 //! Why:
 //!  The release ships one program (owner, 2026-11-04: "Bazel doesn't need to distribute as 2 bins."), so the service is a mode
 //!  of the wrapper's executable and not a second one. The operating system starts it on demand and hands it the listening
@@ -11,13 +11,18 @@
 //!  give `--idle-seconds <n>` and `--release <text>` (the release announced to clients; default this build's). The unit
 //!  instance of one worktree passes `--instance <name>` (`service_instance.rs`), and that service refuses messages about
 //!  any other worktree; without it a development run serves any.
+//!  The service finishes no batch of an earlier release's helper and has no option that does: the look that would guard it cannot
+//!  exclude a wrapper of the earlier release that starts the helper meanwhile (cross-vendor reviews of 2026-11-07), so only
+//!  `git monochromatic-git-policy-cli service settle-earlier-batches`, run by a person, does it
+//!  (`earlier_service_journal_adopted.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (argv.slice(0, 3).join(' ') === 'cli-git service run') process.exit(await runService(argv.slice(3)));
+//! if (argv.slice(0, 3).join(' ') === 'monochromatic-git-policy-cli service run') process.exit(await runService(argv.slice(3)));
 //! ```
 
 use crate::service_journal::{DONE_RETAINED, prune_done};
+use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use crate::service_land::{LandContext, recover_instance};
 use crate::service_protocol::PROTOCOL_VERSION;
 use crate::service_timing::{log, started_line};
@@ -27,9 +32,13 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// The words, first in the arguments, that select the service mode. They sit inside the wrapper's own `cli-git` namespace, and
+/// The words, first in the arguments, that select the service mode. They sit inside the wrapper's own `monochromatic-git-policy-cli` namespace, and
 ///  `run` is a third word apart from `status`, which asks a running service whether it answers.
-pub const SERVICE_WORDS: [&str; 3] = ["cli-git", "service", "run"];
+pub const SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.current, "service", "run"];
+
+/// The words a unit file an earlier release wrote passes;
+///  the service mode answers them the same.
+pub const EARLIER_SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.earlier, "service", "run"];
 
 /// The exit status of a start that was refused for its arguments or its Git.
 pub const EXIT_REFUSED: i32 = 2;
@@ -45,24 +54,66 @@ pub const EXIT_NOT_LISTENING: i32 = 3;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isServiceStart(args) // args[0..3] equal 'cli-git', 'service', 'run'
+/// isServiceStart(args) // args[0..3] equal 'monochromatic-git-policy-cli', 'service', 'run'
 /// ```
 pub fn is_service_start(arguments: &[OsString]) -> bool {
     return arguments.len() >= SERVICE_WORDS.len()
-        && arguments.iter().zip(SERVICE_WORDS).all(|(argument, word)| { return argument == word; });
+        && (starts_with_service_words(arguments, &SERVICE_WORDS) || starts_with_service_words(arguments, &EARLIER_SERVICE_WORDS));
 }
 
 /// The words of the arguments after the service mode words, as text; a word that is not text is refused.
 pub fn service_options(arguments: &[OsString]) -> Result<Vec<String>, OsString> {
-    return arguments
-        .iter()
-        .skip(SERVICE_WORDS.len())
-        .map(|argument| { return argument.to_str().map(str::to_string).ok_or_else(|| { return argument.clone(); }); })
-        .collect();
+    // The first word that is not text is the refusal.
+    let mut options: Vec<String> = Vec::new();
+    for argument in arguments.iter().skip(SERVICE_WORDS.len()) {
+        match argument.to_str() {
+            Some(text) => options.push(text.to_string()),
+            None => return Err(argument.clone()),
+        }
+    }
+    return Ok(options);
+}
+
+/// What:
+///  Whether the arguments start with the words that select the service mode.
+/// Why:
+///  `is_service_start` needs at least that many arguments and each of them equal to its word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// SERVICE_WORDS.every((word, at) => arguments[at] === word)
+/// ```
+fn starts_with_service_words(arguments: &[OsString], words: &[&str; 3]) -> bool {
+    for (argument, word) in arguments.iter().zip(words) {
+        if argument != *word {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  The value of a numeric option, nothing when the option is absent or its value is not a number.
+/// Why:
+///  The ceiling and idle options are read this way; a value that does not parse leaves the default.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const n = Number(option(args, name)); return Number.isInteger(n) && n >= 0 ? n : undefined;
+/// ```
+fn number_option(arguments: &[String], name: &str) -> Option<u64> {
+    let text: String = option(arguments, name)?;
+    return text.parse::<u64>().ok();
 }
 
 fn option(arguments: &[String], name: &str) -> Option<String> {
-    return arguments.iter().position(|argument| { return argument == name; }).and_then(|at| { return arguments.get(at + 1).cloned(); });
+    // The word after the first occurrence of the option name.
+    for (at, argument) in arguments.iter().enumerate() {
+        if argument == name {
+            return arguments.get(at + 1).cloned();
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -104,30 +155,33 @@ pub fn run(arguments: &[String]) -> i32 {
     crate::service_signal::install();
     // The push messages this process writes name the remedies that reach the service, not a terminal's variable.
     crate::push_deadline_advice::mark_service_process();
-    let Some(journal) = option(arguments, "--journal").map(PathBuf::from) else {
-        crate::service_error!("--journal <directory> is required");
-        return EXIT_REFUSED;
-    };
-    let git: PathBuf = option(arguments, "--git").map_or_else(|| { return PathBuf::from("/usr/bin/git"); }, PathBuf::from);
-    if git_is_wrapper(git.as_path()) {
-        crate::service_error!(
-            "--git {} is the cli-git executable itself, a copy of it or a toolchain launcher of it, so every Git the service started would start cli-git again; pass the real Git executable (for example /usr/bin/git), or remove the unit that names this path and let the next cli-git command write it again",
-            git.display()
-        );
-        return EXIT_REFUSED;
-    }
     let address: Bind = match (option(arguments, "--abstract"), option(arguments, "--path")) {
         (Some(name), _) => Bind::Abstract(name),
         (None, Some(path)) => Bind::Path(PathBuf::from(path)),
         (None, None) => Bind::Inherited,
     };
-    // A person who typed `git cli-git service run` has no socket from the manager and named no address: the refusal comes before
-    //  anything is created or bound, so no stray server and no stray directory is left.
+    // A person who typed `git monochromatic-git-policy-cli service run` has no socket from the manager and named no address: the refusal comes before
+    //  anything is read, created or bound, so no stray server and no stray directory is left.
     if matches!(address, Bind::Inherited) && !crate::service_server::socket_passed_in() {
         crate::service_error!(
-            "cli-git service run is started by the service manager, which passes it the listening socket of one worktree's commit service; no socket was passed in and no address was named, so nothing was started. Nothing needs starting by hand: the first commit in a worktree sets the service up. For a development run name an address with --path <socket> or --abstract <name>"
+            "monochromatic-git-policy-cli service run is started by the service manager, which passes it the listening socket of one worktree's commit service; no socket was passed in and no address was named, so nothing was started. Nothing needs starting by hand: the first commit in a worktree sets the service up. For a development run name an address with --path <socket> or --abstract <name>"
         );
         return EXIT_NOT_LISTENING;
+    }
+    let Some(journal) = option(arguments, "--journal").map(PathBuf::from) else {
+        crate::service_error!("--journal <directory> is required");
+        return EXIT_REFUSED;
+    };
+    let git: PathBuf = match option(arguments, "--git") {
+        Some(named) => PathBuf::from(named),
+        None => PathBuf::from("/usr/bin/git"),
+    };
+    if git_is_wrapper(git.as_path()) {
+        crate::service_error!(
+            "--git {} is the monochromatic-git-policy-cli executable itself, a copy of it or a toolchain launcher of it, so every Git the service started would start monochromatic-git-policy-cli again; pass the real Git executable (for example /usr/bin/git), or remove the unit that names this path and let the next monochromatic-git-policy-cli command write it again",
+            git.display()
+        );
+        return EXIT_REFUSED;
     }
     if let Err(error) = std::fs::create_dir_all(&journal) {
         crate::service_error!("cannot create the journal directory {}: {error}", journal.display());
@@ -141,15 +195,13 @@ pub fn run(arguments: &[String]) -> i32 {
         }
     };
     let context: LandContext = LandContext {
-        git: GitContext { real_git: git, overlay: crate::child_environment::lockfile_pid_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
+        git: GitContext { real_git: git, overlay: crate::child_environment::service_child_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
         on_objects_written: None,
         // A control gives a short ceiling with `--lock-ceiling-millis`; a service the manager starts never passes it.
-        lock_ceiling: option(arguments, "--lock-ceiling-millis").and_then(|text| { return text.parse::<u64>().ok(); }).map_or(crate::wait_ceilings::LOCK_CEILING, Duration::from_millis),
+        lock_ceiling: number_option(arguments, "--lock-ceiling-millis").map_or(crate::wait_ceilings::LOCK_CEILING, Duration::from_millis),
     };
-    let idle: Duration = option(arguments, "--idle-seconds")
-        .and_then(|text| { return text.parse::<u64>().ok(); })
-        .map_or(IDLE_EXIT, Duration::from_secs);
+    let idle: Duration = number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
     let mut settings: ServeSettings = ServeSettings::new(idle);
     if let Some(release) = option(arguments, "--release") {
         settings.release = release;

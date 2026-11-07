@@ -10,6 +10,13 @@ The package deliberately does not provide web-answer,
 account-management,
 or per-call search-depth controls.
 
+## Pi dependency trust
+
+PZM:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Configuration
 
 The extension reads one optional global config file:

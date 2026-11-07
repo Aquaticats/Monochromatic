@@ -47,7 +47,8 @@ fn only_exact_names_are_built_in() {
         "ad",
         "added",
         "ADD",
-        "cli-git",
+        "monochromatic-git-policy-cli",
+        "monochromatic-git-policy-cli",
         "gui",
         "worktree ",
     ] {

@@ -42,10 +42,13 @@ Code below is from the crates in the IDE build volume's cargo registry
 
 ```rust
 // i-slint-compiler-1.18.1/builtin_elements.rs:1500
-        /// When false, the content can't be panned by the user, neither by dragging with the mouse
+        /// When false,
+        /// the content can't be panned by the user,
+        /// neither by dragging with the mouse
         /// nor with touch.
         in property <bool> interactive: true;
-        /// When true, the content can be scrolled by clicking on it and dragging it with the cursor.
+        /// When true,
+        /// the content can be scrolled by clicking on it and dragging it with the cursor.
         /// Panning with a touch screen is only affected by `interactive`.
         in property <bool> mouse-drag-pan-enabled: true;
 ```

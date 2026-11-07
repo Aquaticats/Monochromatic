@@ -244,6 +244,10 @@ async function verifyScenario(mode: typeof SCENARIOS[number],): Promise<void> {
           .PATH
           ?? '',
         HOME: home,
+        MONOCHROMATIC_LOG_DIRECTORY: join(
+          root,
+          'logs',
+        ),
         PI_CODING_AGENT_DIR: agentDir,
         PI_OFFLINE: '1',
         PI_TELEMETRY: '0',

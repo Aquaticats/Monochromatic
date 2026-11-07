@@ -93,6 +93,10 @@ pub mod git_sha1;
 /// by a delegated control group (cgroup v2).
 pub mod control_group;
 
+/// The resource limits of the caller's control group,
+/// read so the scope of a run keeps them.
+pub mod inherited_limits;
+
 /// The command that acknowledges a journal of a run without a delegated control group.
 pub mod acknowledge;
 
@@ -809,3 +813,7 @@ mod version_order_tests;
 /// ```
 #[cfg(test)]
 mod workspace_tests;
+
+/// The tests of the limits a run's scope keeps from its caller.
+#[cfg(test)]
+mod inherited_limits_tests;

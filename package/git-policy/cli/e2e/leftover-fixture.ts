@@ -5,11 +5,11 @@
  client scratch directories of the commit service route,
  published or staging transaction directories under `cli-git-transactions/`,
  the legacy single `cli-git-transaction` directory,
- shadow repositories under `cli-git/shadow/`,
+ shadow repositories under `monochromatic-git-policy-cli/shadow/` (or `cli-git/shadow/` from a program before the rename),
  and capture-store entries other than the worktree identity, the sequence, and the landed-record directory,
  including every landed-capture record (`SPEC.md` "Capture order"),
  which the last transaction to finish prunes.
- The persistent `cli-git-transactions/`, `cli-git/shadow/`, and `cli-git-captures/` roots themselves are not leftovers.
+ The persistent `cli-git-transactions/`, `monochromatic-git-policy-cli/shadow/`, and `cli-git-captures/` roots themselves are not leftovers.
 
  @module
  */
@@ -30,7 +30,12 @@ const PERSISTENT_CAPTURE_ENTRIES: ReadonlySet<string> = new Set([
  A client removes it when it ends,
  so one that remains belongs to a client that died.
  */
-const CLIENT_SCRATCH_PREFIX = 'cli-git-service-';
+const CLIENT_SCRATCH_PREFIX = 'monochromatic-git-policy-cli-service-';
+
+/**
+ Name prefix of the scratch directory a commit client of a program before the rename prepared in.
+ */
+const EARLIER_CLIENT_SCRATCH_PREFIX = 'cli-git-service-';
 
 /**
  Returns the leftover root an entry belongs to.
@@ -60,9 +65,10 @@ function leftoverRoot(entry: string,): readonly string[] {
   ) {
     return segment.endsWith('.lock',)
       || segment.startsWith(CLIENT_SCRATCH_PREFIX,)
+      || segment.startsWith(EARLIER_CLIENT_SCRATCH_PREFIX,)
       || (segment === 'cli-git-transaction')
       || (segments[index - 1] === 'cli-git-transactions')
-      || ((segments[index - 1] === 'shadow') && (segments[index - 2] === 'cli-git'))
+      || ((segments[index - 1] === 'shadow') && ((segments[index - 2] === 'monochromatic-git-policy-cli') || (segments[index - 2] === 'cli-git')))
       || ((segments[index - 1] === 'cli-git-captures') && (!PERSISTENT_CAPTURE_ENTRIES.has(segment,)))
       || ((segments[index - 1] === 'landed') && (segments[index - 2] === 'cli-git-captures'));
   },);

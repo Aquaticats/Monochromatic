@@ -272,15 +272,15 @@ fn a_review_without_a_key_records_no_key() {
 fn the_service_environment_never_supplies_a_key() {
     let none = review_variables(None);
     for name in KEY_VARIABLES {
-        assert_eq!(none(name), None, "{name}");
+        assert_eq!(none.variable(name), None, "{name}");
     }
     // A positive control: the lookup does reach the environment for a name that is not a credential.
-    assert_eq!(none("PATH"), std::env::var("PATH").ok());
+    assert_eq!(none.variable("PATH"), std::env::var("PATH").ok());
     assert!(std::env::var("PATH").is_ok());
     let key: ReviewKey = ReviewKey::new(KEY).expect("a key");
     let held = review_variables(Some(&key));
-    assert_eq!(held(KEY_VARIABLES[0]).as_deref(), Some(KEY));
-    assert_eq!(held(KEY_VARIABLES[1]), None);
+    assert_eq!(held.variable(KEY_VARIABLES[0]).as_deref(), Some(KEY));
+    assert_eq!(held.variable(KEY_VARIABLES[1]), None);
 }
 
 /// The clock the review stamps its entry and times the gateway call with is the wall clock:

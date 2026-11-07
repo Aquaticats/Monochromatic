@@ -1,5 +1,16 @@
 # Cli-git push fails after hk retirement because config-based hook remains
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 ## Symptom
 
 The first push after commit `122c5dbd2` removed hk/Pkl provisioning failed with native Git's configured pre-push
@@ -40,7 +51,8 @@ The repository-owned migration mirrors that exact ownership prefix without depen
 
 ## Fix
 
-Remove the registrations by hand, in each Git configuration scope that holds them.
+Remove the registrations by hand,
+in each Git configuration scope that holds them.
 List them with their scope and origin:
 
 ```sh
@@ -58,13 +70,17 @@ git config --local --unset-all <key>
 git config --global --unset-all <key>
 ```
 
-Remove only keys that begin with `hook.hk-`, the prefix that hk's own `remove_config_entries` owns.
+Remove only keys that begin with `hook.hk-`,
+the prefix that hk's own `remove_config_entries` owns.
 Do not delete unrelated `hook.*` entries or files under `.git/hooks`.
-Run the listing again afterwards: it must print nothing.
+Run the listing again afterwards:
+it must print nothing.
 
-A repository-owned task (`cleanup:hk-git-config`), its disposable-fixture test and a runbook automated this removal.
+A repository-owned task (`cleanup:hk-git-config`),
+its disposable-fixture test and a runbook automated this removal.
 They were retired on 2026-10-13 with the TypeScript wrapper they ran on (user decision recorded in
-`doc/planning/cli-git-native-cutover.md`), because the registrations are one-time user state and the manual commands
+`doc/planning/cli-git-native-cutover.md`),
+because the registrations are one-time user state and the manual commands
 above are the complete procedure.
 
 ## Verified bridge
@@ -82,7 +98,9 @@ The push succeeded.
 This bridge is suitable only until the owning user runs the explicit cleanup.
 
 The retired cleanup task had been verified against disposable repositories and a disposable global configuration
-(`GIT_CONFIG_GLOBAL`) for absent, configured, repeated and unrelated-key cases;
+(`GIT_CONFIG_GLOBAL`) for absent,
+configured,
+repeated and unrelated-key cases;
 that verification no longer exists.
 
 ## Rejected hypotheses

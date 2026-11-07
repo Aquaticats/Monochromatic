@@ -56,6 +56,7 @@ pub(crate) const TOKENS: &[&[u8]] = &[
     b"branch",
     b"tag",
     b"cli-git",
+    b"monochromatic-git-policy-cli",
     b"--list",
     b"-l",
     b"-vl",

@@ -232,7 +232,7 @@ fn commit_only_stage(
             return incomplete(
                 arguments,
                 String::from(
-                    "cli-git: the commit-only transform asked for a second repository fact \
+                    "monochromatic-git-policy-cli: the commit-only transform asked for a second repository fact \
                      and cannot decide.",
                 ),
             );

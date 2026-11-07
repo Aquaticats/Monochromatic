@@ -96,15 +96,16 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<()> {
             let Some(done) = stack.pop() else { break };
             if pass == Pass::Remove
                 && let (Some(name), Some(parent)) = (done.name.as_ref(), stack.last())
+                && let Err(error) = remove_at(&parent.directory, name, true)
             {
-                remove_at(&parent.directory, name, true)
-                    .map_err(|error: std::io::Error| { return std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", shown_path(shown, &stack, name).display())); })?;
+                return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", shown_path(shown, &stack, name).display())));
             }
             continue;
         };
         if !is_directory {
-            remove_at(&frame.directory, &name, false)
-                .map_err(|error: std::io::Error| { return std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", shown_path(shown, &stack, &name).display())); })?;
+            if let Err(error) = remove_at(&frame.directory, &name, false) {
+                return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", shown_path(shown, &stack, &name).display())));
+            }
             continue;
         }
         let opened: std::io::Result<File> = open_directory_widening(&frame.directory, &name);

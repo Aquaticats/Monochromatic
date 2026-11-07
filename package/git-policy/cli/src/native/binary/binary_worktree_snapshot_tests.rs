@@ -344,7 +344,7 @@ fn a_snapshot_of_main_sets_aside_what_the_rule_leaves_out() {
     //  with an injected route (`worktree_trash_tests.rs`).
     assert!(!topic.join(".claude/cli-git-trash").exists(), "the trash is gone when the command returns");
     let admin: PathBuf = repo.join(".git/worktrees/topic");
-    let leftover: usize = std::fs::read_dir(admin.join("cli-git/work/pending")).map_or(0, |listing| { return listing.flatten().count(); });
+    let leftover: usize = std::fs::read_dir(admin.join("monochromatic-git-policy-cli/work/pending")).map_or(0, |listing| { return listing.flatten().count(); });
     assert_eq!(leftover, 0, "no work item outlives the foreground emptying");
     assert_eq!(git(&fixture, topic.as_path(), &["status", "--porcelain=v1"]).stdout, b"");
     assert_eq!(git(&fixture, repo.join(".claude/worktrees/ordinary").as_path(), &["status", "--porcelain=v1"]).stdout, b"", "the real nested worktree is untouched");

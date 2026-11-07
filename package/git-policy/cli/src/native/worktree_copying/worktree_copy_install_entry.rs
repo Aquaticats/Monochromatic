@@ -15,16 +15,16 @@
 //! ```
 
 use crate::worktree_copy_compare::lstat_or_absent;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
 use crate::worktree_copy_selection::filesystem_path;
-use crate::worktree_copy_stage::copy_file_exclusive;
+use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
 use crate::json_record::quote;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The permission bits of a directory cli-git creates for a selected entry, before modes are applied.
+///  The permission bits of a directory monochromatic-git-policy-cli creates for a selected entry, before modes are applied.
 /// Why:
 ///   Restrictive modes can block the children installation still has to create, so modes come last.
 ///
@@ -53,7 +53,7 @@ const LINK_UNSUPPORTED_CODES: [i32; 6] = [
 ];
 
 /// What:
-///  One path cli-git created, with the identity the filesystem gave it.
+///  One path monochromatic-git-policy-cli created, with the identity the filesystem gave it.
 /// Why:
 ///   Rollback removes a path only when its device and inode still match this record.
 ///
@@ -76,7 +76,7 @@ pub struct InstalledPath {
 /// What:
 ///  The no-follow identity of a path, read right after its creation.
 /// Why:
-///   The identity names the exact object cli-git made, not whatever later sits at the same path.
+///   The identity names the exact object monochromatic-git-policy-cli made, not whatever later sits at the same path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,7 +88,7 @@ pub fn capture_installed_path(
     selected: bool,
 ) -> Result<InstalledPath, WorktreeCopyError> {
     let metadata: std::fs::Metadata =
-        std::fs::symlink_metadata(destination_path).map_err(|error| return raw_failure(&error))?;
+        std::fs::symlink_metadata(destination_path).map_err(raw_failure_of)?;
     return Ok(InstalledPath {
         device: metadata.dev(),
         inode: metadata.ino(),
@@ -146,7 +146,7 @@ pub fn ensure_parents_remembering(
             Some(metadata) => {
                 if !metadata.is_dir() {
                     let message: String = format!(
-                        "cli-git: ignored-state parent is not a directory: {} in {}.",
+                        "monochromatic-git-policy-cli: ignored-state parent is not a directory: {} in {}.",
                         quote(current.as_str()),
                         quote(destination_root.to_string_lossy().as_ref())
                     );
@@ -155,7 +155,7 @@ pub fn ensure_parents_remembering(
             }
             None => {
                 std::fs::create_dir(destination_path.as_path())
-                    .map_err(|error| return raw_failure(&error))?;
+                    .map_err(raw_failure_of)?;
                 created.push(capture_installed_path(
                     destination_path.as_path(),
                     current.as_str(),
@@ -180,9 +180,10 @@ pub fn ensure_parents_remembering(
 /// function isLinkUnsupported(error: unknown): boolean;
 /// ```
 fn is_link_unsupported(error: &std::io::Error) -> bool {
-    return error
-        .raw_os_error()
-        .is_some_and(|code| return LINK_UNSUPPORTED_CODES.contains(&code));
+    return match error.raw_os_error() {
+        Some(code) => LINK_UNSUPPORTED_CODES.contains(&code),
+        None => false,
+    };
 }
 
 /// What:
@@ -241,16 +242,16 @@ pub fn create_selected_entry(
             return std::fs::DirBuilder::new()
                 .mode(PRIVATE_DIRECTORY_MODE)
                 .create(destination_path.as_path())
-                .map_err(|error| return raw_failure(&error));
+                .map_err(raw_failure_of);
         }
         EntryKind::File => {
             return install_file(stage_path.as_path(), destination_path.as_path(), entry.mode);
         }
         EntryKind::Symlink => {
             let target: PathBuf = std::fs::read_link(stage_path.as_path())
-                .map_err(|error| return raw_failure(&error))?;
+                .map_err(raw_failure_of)?;
             return std::os::unix::fs::symlink(target, destination_path.as_path())
-                .map_err(|error| return raw_failure(&error));
+                .map_err(raw_failure_of);
         }
     }
 }

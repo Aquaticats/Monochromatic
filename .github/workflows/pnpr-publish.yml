@@ -30,6 +30,15 @@ on:
         description: 'Comma-separated package names to publish (empty publishes every missing version)'
         required: false
         default: ''
+      verify_image:
+        description: 'Verify this digest-pinned pnpr image in an isolated registry instead of publishing to production'
+        required: false
+        default: ''
+      rebuild_check:
+        description: 'Build and pack every configured package against an empty disposable registry without publishing'
+        type: boolean
+        required: false
+        default: false
 
 permissions: {}
 
@@ -48,6 +57,7 @@ concurrency:
 
 jobs:
   publish:
+    if: ${{ inputs.verify_image == '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -70,6 +80,179 @@ jobs:
           printf '%s\n' "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Publish missing versions to pnpr
+        if: ${{ !inputs.rebuild_check }}
         env:
           PNPR_PUBLISH_ONLY: ${{ inputs.only }}
         run: task-run //package/config/pnpr:publish
+
+      - name: Start empty registry for the rebuild check
+        if: inputs.rebuild_check
+        shell: node {0}
+        run: |
+          import { execFileSync } from 'node:child_process';
+          import { readFile } from 'node:fs/promises';
+          import { resolve } from 'node:path';
+          import { setTimeout as wait } from 'node:timers/promises';
+          const containerfile = await readFile('package/config/pnpr/Containerfile', 'utf8');
+          const image = containerfile.match(/^FROM (\S+@sha256:[a-f0-9]{64})$/m)?.[1];
+          if (!image) throw new Error('The pnpr Containerfile must pin its base image by digest');
+          execFileSync('docker', ['run', '--detach', '--rm', '--init', '--name', 'pnpr-rebuild-check',
+            '--cpus=2', '--memory=2g', '--pids-limit=256', '--blkio-weight=10',
+            '--publish', '127.0.0.1:17677:7677',
+            '--volume', `${resolve('package/config/pnpr/config.yaml')}:/pnpr/config.yaml:ro`,
+            '--env', 'PNPR_SECRET=ci-disposable-registry-secret-not-for-production',
+            '--env', 'PNPR_PUBLIC_URL=http://127.0.0.1:17677', image,
+            '--config', '/pnpr/config.yaml', '--listen', '0.0.0.0:7677', '--disable-resolver'],
+            { stdio: 'inherit' });
+          const deadline = Date.now() + 60_000;
+          while (true) {
+            try {
+              if ((await fetch('http://127.0.0.1:17677/-/ready')).ok) break;
+            } catch (error) {
+              console.log(`Waiting for the empty registry: ${error.message}`);
+            }
+            if (Date.now() >= deadline) throw new Error('The empty registry did not become ready');
+            await wait(1000);
+          }
+
+      - name: Build and pack every configured package
+        if: inputs.rebuild_check
+        env:
+          PNPR_REGISTRY_ORIGIN: http://127.0.0.1:17677
+          PNPR_PUBLISH_ONLY: ${{ inputs.only }}
+        run: task-run //package/config/pnpr:publish:dry-run
+
+      - name: Stop empty registry
+        if: ${{ always() && inputs.rebuild_check }}
+        run: docker rm --force --volumes pnpr-rebuild-check
+
+  verify-image:
+    if: ${{ inputs.verify_image != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PNPR_VERIFY_IMAGE: ${{ inputs.verify_image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node
+        uses: ./.github/actions/task-cli-setup
+        with:
+          install-dependencies: 'false'
+
+      - name: Prepare isolated registry config
+        id: fixture
+        shell: node {0}
+        run: |
+          import { mkdir, mkdtemp, readFile, writeFile, appendFile } from 'node:fs/promises';
+          import { homedir } from 'node:os';
+          import { join } from 'node:path';
+          async function prepare() {
+            if (!/^ghcr\.io\/(?:pnpm|aquaticat)\/pnpr(?:\:[^@\s]+)?@sha256:[a-f0-9]{64}$/.test(process.env.PNPR_VERIFY_IMAGE)) {
+              throw new Error('verify_image must name a pnpr image pinned by its SHA-256 digest');
+            }
+            const parent = join(homedir(), 'temp', 'agent');
+            await mkdir(parent, { recursive: true, mode: 0o700 });
+            const directory = await mkdtemp(join(parent, 'pnpr-image-check-'));
+            const config = await readFile('package/config/pnpr/config.yaml', 'utf8');
+            // A branch probe trusts that branch only inside this disposable server.
+            await writeFile(join(directory, 'config.yaml'), config.replaceAll('refs/heads/main', process.env.GITHUB_REF));
+            await appendFile(process.env.GITHUB_OUTPUT, `config=${join(directory, 'config.yaml')}\n`);
+          }
+          await prepare();
+
+      - name: Start disposable registry
+        shell: node {0}
+        env:
+          PNPR_VERIFY_CONFIG: ${{ steps.fixture.outputs.config }}
+        # These are verification-container bounds, matching the local image task.
+        # The Node shell hands each argument to Docker as one argv item; a folded `run: >-` command needs shell
+        # quoting for the same, and the workflow shell rules refuse to read a folded `run:`.
+        run: |
+          import { execFileSync } from 'node:child_process';
+          execFileSync('docker', [
+            'run', '--detach', '--rm', '--init', '--name', 'pnpr-image-check',
+            '--cpus=2', '--memory=2g', '--pids-limit=256', '--blkio-weight=10',
+            '--publish', '127.0.0.1:17677:7677',
+            '--volume', `${process.env.PNPR_VERIFY_CONFIG}:/pnpr/config.yaml:ro`,
+            '--env', 'PNPR_SECRET=ci-disposable-registry-secret-not-for-production',
+            '--env', 'PNPR_PUBLIC_URL=http://127.0.0.1:17677',
+            process.env.PNPR_VERIFY_IMAGE,
+            '--config', '/pnpr/config.yaml', '--listen', '0.0.0.0:7677', '--disable-resolver',
+          ], { stdio: 'inherit' });
+
+      - name: Verify signed workload publish and exact archive download
+        shell: node {0}
+        run: |
+          import assert from 'node:assert/strict';
+          import { setTimeout as wait } from 'node:timers/promises';
+          async function verify() {
+            const origin = 'http://127.0.0.1:17677';
+            const source = 'https://pnpr.c.aquati.cat';
+            const name = '@monochromatic-dev/logger-core';
+            const route = `/npm/~monochromatic-dev/${encodeURIComponent(name)}`;
+            const deadline = Date.now() + 60_000;
+            while (true) {
+              try {
+                const health = await fetch(`${origin}/-/ready`);
+                if (health.ok) break;
+                console.log(`Waiting for readiness: HTTP ${health.status}`);
+              } catch (error) {
+                console.log(`Waiting for readiness: ${error.message}`);
+              }
+              if (Date.now() >= deadline) throw new Error('Disposable pnpr did not become ready within the probe deadline');
+              await wait(1000);
+            }
+            const originalResponse = await fetch(`${source}${route}`);
+            assert.equal(originalResponse.status, 200);
+            const original = await originalResponse.json();
+            const version = original['dist-tags'].latest;
+            const metadata = original.versions[version];
+            const archiveResponse = await fetch(metadata.dist.tarball);
+            assert.equal(archiveResponse.status, 200);
+            const archive = Buffer.from(await archiveResponse.arrayBuffer());
+            const filename = new URL(metadata.dist.tarball).pathname.split('/').at(-1);
+            const request = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+            request.searchParams.set('audience', source);
+            const tokenResponse = await fetch(request, {
+              headers: { authorization: `bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
+            });
+            assert.equal(tokenResponse.status, 200);
+            const { value: token } = await tokenResponse.json();
+            assert.equal(typeof token, 'string');
+            console.log(`::add-mask::${token}`);
+            const authorization = `Bearer pnpr_workload_${token}`;
+            const denied = await fetch(`${origin}${route}`, { method: 'PUT', body: '{}' });
+            assert.equal(denied.status, 401);
+            const outside = await fetch(`${origin}/npm/~monochromatic-dev/@monochromatic-dev%2Foidc-claims-probe`, {
+              method: 'PUT', headers: { authorization }, body: '{}',
+            });
+            assert.equal(outside.status, 403);
+            const document = {
+              name, _id: name,
+              'dist-tags': { latest: version },
+              versions: { [version]: metadata },
+              _attachments: { [filename]: { content_type: 'application/octet-stream', data: archive.toString('base64'), length: archive.length } },
+            };
+            const published = await fetch(`${origin}${route}`, {
+              method: 'PUT', headers: { authorization, 'content-type': 'application/json' }, body: JSON.stringify(document),
+            });
+            assert.ok(published.ok, `Signed publish: HTTP ${published.status}: ${await published.text()}`);
+            const copied = await (await fetch(`${origin}${route}`)).json();
+            const downloaded = await fetch(copied.versions[version].dist.tarball);
+            assert.equal(downloaded.status, 200);
+            assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), archive);
+            assert.equal((await fetch(`${origin}/-/metrics`)).status, 404);
+            assert.equal((await fetch(`${origin}/npm/left-pad`)).status, 404);
+            console.log(`Verified ${name}@${version}: anonymous write rejected, off-target workload rejected, signed publish accepted, ${archive.length} archive bytes preserved, metrics and upstream proxy absent`);
+          }
+          await verify();
+
+      - name: Stop disposable registry
+        if: always()
+        run: docker rm --force --volumes pnpr-image-check

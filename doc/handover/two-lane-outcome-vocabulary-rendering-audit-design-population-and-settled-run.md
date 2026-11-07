@@ -1,5 +1,16 @@
 # Lane outcome vocabulary handover: the rendering audit, from design to the settled-artifact run
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 The rendering audit for the translate lane:
 the four artifacts that form its whole input,
 the design decisions and the review that preceded its rebuild,

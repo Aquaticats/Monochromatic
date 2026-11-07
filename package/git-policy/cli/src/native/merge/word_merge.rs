@@ -53,6 +53,20 @@ fn is_word_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || byte == b'_' || byte >= FIRST_NON_ASCII_BYTE;
 }
 
+/// Whether one byte ends a line. `&u8` borrows the byte, as `split_inclusive` hands it over.
+fn is_line_end(byte: &u8) -> bool {
+    return *byte == LINE_END;
+}
+
+/// The pieces of `text` that the ranges name, in order.
+fn slices_of<'a>(text: &'a [u8], ranges: &[Range<usize>]) -> Vec<&'a [u8]> {
+    let mut pieces: Vec<&'a [u8]> = Vec::new();
+    for range in ranges {
+        pieces.push(&text[range.clone()]);
+    }
+    return pieces;
+}
+
 /// What:
 ///  The byte ranges of the tokens of `text` at `level`.
 /// Why:
@@ -67,14 +81,13 @@ fn token_ranges(text: &[u8], level: Level) -> Vec<Range<usize>> {
     match level {
         Level::Line => {
             let mut start: usize = 0;
-            return text
-                .split_inclusive(|byte| { return *byte == LINE_END; })
-                .map(|line| {
-                    let range: Range<usize> = start..start + line.len();
-                    start = range.end;
-                    return range;
-                })
-                .collect();
+            let mut ranges: Vec<Range<usize>> = Vec::new();
+            for line in text.split_inclusive(is_line_end) {
+                let range: Range<usize> = start..start + line.len();
+                start = range.end;
+                ranges.push(range);
+            }
+            return ranges;
         }
         Level::Word => {
             let mut ranges: Vec<Range<usize>> = Vec::new();
@@ -95,10 +108,13 @@ fn token_ranges(text: &[u8], level: Level) -> Vec<Range<usize>> {
             return ranges;
         }
         Level::NonWord => {
-            return (0..text.len())
-                .filter(|index| { return !is_word_byte(text[*index]); })
-                .map(|index| { return index..index + 1; })
-                .collect();
+            let mut ranges: Vec<Range<usize>> = Vec::new();
+            for (index, byte) in text.iter().enumerate() {
+                if !is_word_byte(*byte) {
+                    ranges.push(index..index + 1);
+                }
+            }
+            return ranges;
         }
     }
 }
@@ -161,13 +177,12 @@ fn align<'a>(base: &'a [u8], ours: &'a [u8], theirs: &'a [u8], level: Level) -> 
     if base.is_empty() || ours.is_empty() || theirs.is_empty() {
         return vec![Hunk::Gap(whole)];
     }
-    let [base_ranges, ours_ranges, theirs_ranges] = [base, ours, theirs].map(|text| { return token_ranges(text, level); });
-    let slices = |text: &'a [u8], ranges: &[Range<usize>]| -> Vec<&'a [u8]> {
-        return ranges.iter().map(|range| { return &text[range.clone()]; }).collect();
-    };
-    let base_tokens: Vec<&[u8]> = slices(base, &base_ranges);
-    let to_ours: Vec<Option<usize>> = matched_tokens(&base_tokens, &slices(ours, &ours_ranges));
-    let to_theirs: Vec<Option<usize>> = matched_tokens(&base_tokens, &slices(theirs, &theirs_ranges));
+    let base_ranges: Vec<Range<usize>> = token_ranges(base, level);
+    let ours_ranges: Vec<Range<usize>> = token_ranges(ours, level);
+    let theirs_ranges: Vec<Range<usize>> = token_ranges(theirs, level);
+    let base_tokens: Vec<&[u8]> = slices_of(base, &base_ranges);
+    let to_ours: Vec<Option<usize>> = matched_tokens(&base_tokens, &slices_of(ours, &ours_ranges));
+    let to_theirs: Vec<Option<usize>> = matched_tokens(&base_tokens, &slices_of(theirs, &theirs_ranges));
     let mut hunks: Vec<Hunk<'a>> = Vec::new();
     let mut positions: [usize; 3] = [0, 0, 0];
     for (index, base_range) in base_ranges.iter().enumerate() {
@@ -296,7 +311,12 @@ pub enum WordMerge {
 /// function lineSpan(text: Uint8Array, start: number, length: number): LineSpan;
 /// ```
 fn line_span(text: &[u8], start: usize, length: usize) -> LineSpan {
-    let before: usize = text[..start].iter().filter(|byte| { return **byte == LINE_END; }).count();
+    let mut before: usize = 0;
+    for byte in &text[..start] {
+        if *byte == LINE_END {
+            before += 1;
+        }
+    }
     let count: usize = token_ranges(&text[start..start + length], Level::Line).len();
     return LineSpan { first: before + 1, count };
 }

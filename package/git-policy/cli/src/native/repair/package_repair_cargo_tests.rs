@@ -1,6 +1,8 @@
 //! The Cargo repair: metadata parsing, one repair per workspace, the plan for each layout, and the clean arguments.
 
 use super::*;
+use crate::package_repair_cargo_concurrent::map_concurrent;
+use crate::package_repair_cargo_workspaces::{distinct_workspaces, parse_metadata, read_workspace};
 use std::path::PathBuf;
 
 /// The `cargo metadata --no-deps` text of a workspace, built from the fields the repair reads (the paths are plain text).
@@ -153,4 +155,28 @@ fn every_item_has_its_result_in_item_order() {
         let results: Vec<Result<usize, String>> = map_concurrent(items.as_slice(), workers, &|item: &usize| { return format!("item {item}"); }, &|item: &usize| { return *item + 1; });
         assert_eq!(results, items.iter().map(|item: &usize| { return Ok(*item + 1); }).collect::<Vec<Result<usize, String>>>());
     }
+}
+
+/// Where the system starts no thread the workers' items are done on the calling thread, each with its result in item order. The body
+/// runs in a child that is refused every thread.
+#[test]
+fn concurrent_items_where_no_thread_can_start_are_done_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "concurrent_items_where_no_thread_can_start_are_done_in_turn") {
+        return;
+    }
+    every_item_has_its_result_in_item_order();
+}
+
+/// Output that was cut is never read as the metadata (sol-1 round 4: nothing exercised the refusal): a cargo that succeeds with more
+/// output than the snapshot keeps is an error that says the output could not be taken whole, not a parse of its tail.
+#[test]
+fn metadata_that_was_cut_is_not_parsed() {
+    let root: std::path::PathBuf = crate::test_support::fixture("cargo-metadata-cut");
+    let cargo: std::path::PathBuf = root.join("cargo");
+    let too_much: usize = crate::output_capture::STEP_OUTPUT_LIMIT + 1024;
+    crate::test_support::executable(cargo.as_path(), format!("#!/bin/sh\nhead --bytes={too_much} /dev/zero | tr '\\0' 'x'\n").as_bytes());
+    let limits: ToolLimits = ToolLimits { window: std::time::Duration::from_secs(60), ceiling: std::time::Duration::from_secs(60) };
+    let refused: String = read_workspace(cargo.as_path(), root.as_path(), limits).expect_err("cut output is refused");
+    assert!(refused.contains("could not be taken whole"), "{refused}");
+    crate::test_support::remove(root.as_path());
 }

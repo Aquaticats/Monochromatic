@@ -120,7 +120,8 @@ not an accepted size target or proof that the decomposition is minimal.
 The graph records 113 nonliteral imports and 65 unresolved local references;
 generated imports and dynamically selected SDK paths still require executed-consumer evidence.
 Declaration-only files have no runtime lines.
-An `assertion`, `case` or `fixture` substring cannot remove production code from the count.
+An `assertion`,
+`case` or `fixture` substring cannot remove production code from the count.
 The private `source-role-inventory-final.json` receipt contains every file,
 explicit entry root,
 generated-module seed,

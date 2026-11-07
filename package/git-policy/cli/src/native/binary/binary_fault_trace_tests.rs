@@ -260,6 +260,65 @@ fn slow_flushes_delay_a_commit_and_change_nothing_else() {
     remove_settled(&fixture);
 }
 
+/// One commit through the service while every call in `calls` fails from the first on with `EOPNOTSUPP`, in the service and in each
+///  Git it starts: the commit still lands. The native control runs the same commit with real Git under the same fault, and must
+///  land too ("what Git completes, we complete").
+fn commit_lands_while_calls_are_refused(label: &str, calls: &'static str) {
+    if !strace_available() {
+        eprintln!("skipped: strace is not installed, so no call was refused");
+        return;
+    }
+    let fault: Injection = Injection { syscall: calls, effect: Effect::Fail("EOPNOTSUPP"), when: When::FromNth(1), follow_forks: true };
+    let native: Fixture = fixture(format!("{label}-native").as_str());
+    let native_trace: PathBuf = native.root.join("native-trace.txt");
+    let native_repo: PathBuf = staged_repository(&native, "repo");
+    let words: Vec<OsString> = tracer(native_trace.as_path(), fault.syscall, Some(&fault), true);
+    let mut control: Command = Command::new(&words[0]);
+    control.args(&words[1..]).arg("/usr/bin/git").args(COMMIT_ARGUMENTS);
+    hermetic(&mut control, &native, OsString::from("/usr/bin:/bin").as_os_str());
+    control.current_dir(native_repo.as_path());
+    let native_output: Output = run_watched(&native, &mut control);
+    assert_eq!(
+        native_output.status.code(),
+        Some(0),
+        "the control: real Git lands the commit while links are refused: {}",
+        String::from_utf8_lossy(native_output.stderr.as_slice())
+    );
+    remove_settled(&native);
+    let fixture: Fixture = fixture(label);
+    let trace: PathBuf = fixture.root.join("service-trace.txt");
+    *fixture.service_launch.lock().expect("the service launch") =
+        ServiceLaunch { prefix: tracer(trace.as_path(), fault.syscall, Some(&fault), true), ..ServiceLaunch::default() };
+    let repo: PathBuf = staged_repository(&fixture, "repo");
+    let output: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
+    let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
+    end_the_pressure(&fixture);
+    let traced: String = std::fs::read_to_string(&trace).unwrap_or_default();
+    assert!(took_effect(traced.as_str()), "no link was refused, so nothing was tested: {traced}");
+    assert_eq!(output.status.code(), Some(0), "the commit lands although links are refused: {said}");
+    assert_eq!(verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled), Ok(()));
+    remove_settled(&fixture);
+}
+
+/// A state directory on a filesystem that refuses hard links (a FUSE server such as `s3fs-fuse` answers `ENOTSUP`) must not stop
+///  a commit: the service's decision file is published without a link where the kernel's exclusive rename works.
+#[test]
+fn a_filesystem_that_refuses_hard_links_does_not_stop_a_commit() {
+    commit_lands_while_calls_are_refused("links-refused", "link,linkat");
+}
+
+/// A repository on a filesystem that makes neither a hard link nor a rename that does not replace (a FUSE server such as `s3fs-fuse`
+///  answers `ENOTSUP` to both) must not stop a commit: Git creates `index.lock` by exclusive creation and needs neither call, so the
+///  service takes its lock that way too. The native control lands the same commit with real Git under the same fault.
+#[test]
+fn a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit() {
+    commit_lands_while_calls_are_refused("neither-refused", "link,linkat,renameat2");
+}
+
+/// The service killed at each step of taking the lock on a filesystem that places no file whole, and at each point of a batch.
+#[path = "binary_fault_trace_lock_without_links_tests.rs"]
+mod lock_without_links;
+
 /// The wrapper under a tracer that injects `fault`, for the flow in `repo`.
 fn traced_wrapper(fixture: &Fixture, directory: &Path, arguments: &[&str], trace: &Path, syscall: &str, fault: Option<&Injection>) -> Command {
     let words: Vec<OsString> = tracer(trace, syscall, fault, false);
@@ -360,7 +419,7 @@ fn merge_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<()
     }
     // A record being written is a dot-file that is renamed into place; one left by a kill is no record, no reader takes it, and
     //  a later merge does not trip on it.
-    let records: Vec<PathBuf> = super::merge_isolation::records_in(repo.join(".git/cli-git-merges").as_path())
+    let records: Vec<PathBuf> = super::merge_isolation::records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path())
         .into_iter()
         .filter(|path| { return path.extension().is_none_or(|extension| { return extension != "partial"; }); })
         .collect();

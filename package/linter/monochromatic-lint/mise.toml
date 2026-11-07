@@ -60,6 +60,14 @@ run = "cargo fmt --check"
 description = "Run native unit and conformance tests"
 run = "cargo nextest run --all-targets"
 
+[tasks."test:layout"]
+description = "Run only the layout rule tests (the folder `uses` links and the file order) in this checkout: the library tests and the built-executable test"
+run = "cargo nextest run --lib --test binary layout_"
+
+[tasks."test:layout:container"]
+description = "Run only the layout rule tests in the mount-free, network-disabled 2 GiB / 2 CPU container"
+run = "node bin/test-container.ts layout_"
+
 [tasks."test:host"]
 description = "Run the host-only real run of the closure check over package/wg/cli-quicker-exempt (needs cargo-dylint, the rustc-dev nightly and a warm cargo cache; the container tests use a stub cargo instead)"
 run = "cargo nextest run --test closure_binary --run-ignored only"
@@ -126,8 +134,18 @@ description = "Mutate configuration, findings, inline directives, grouped edits 
 depends = ["lint:container"]
 run = "node bin/mutate-container.ts --core"
 
+[tasks."mutation:layout"]
+description = "Mutate every layout module against the layout tests, after full container tests and Clippy"
+depends = ["lint:container"]
+run = "node bin/mutate-container.ts --layout"
+
+[tasks."mutation:workflow-shell"]
+description = "Mutate the workflow walk and the shell dialect scanners against the workflow and shell tests, after full container tests and Clippy"
+depends = ["lint:container"]
+run = "node bin/mutate-container.ts --workflow-shell"
+
 [tasks."mutation:semantic"]
-description = "Mutate the semantic engine and the explicit-type rule against the whole suite, with a per-mutant limit set from this scope's own baseline, after full container tests and Clippy"
+description = "Mutate the semantic engine, the explicit-type rule, the manifest lookup and the syntax-only router against the whole suite, with a per-mutant limit set from this scope's own baseline, after full container tests and Clippy"
 depends = ["lint:container"]
 run = "node bin/mutate-container.ts --semantic"
 
@@ -142,6 +160,14 @@ run = "node bin/mutate-container.ts --list --executable"
 [tasks."mutation:list:core"]
 description = "Inspect the configuration, findings, inline directive, edits and syntax-only Rust rule mutant scope without mutating or building source"
 run = "node bin/mutate-container.ts --list --core"
+
+[tasks."mutation:list:layout"]
+description = "Inspect the layout mutant scope without mutating or building source"
+run = "node bin/mutate-container.ts --list --layout"
+
+[tasks."mutation:list:workflow-shell"]
+description = "Inspect the workflow and shell mutant scope without mutating or building source"
+run = "node bin/mutate-container.ts --list --workflow-shell"
 
 [tasks."mutation:list:semantic"]
 description = "Inspect the semantic engine and explicit-type rule mutant scope without mutating or building source"
@@ -345,3 +371,11 @@ run = "cargo run --quiet --bin monochromatic-lint --"
 [tasks."test:processors:slice"]
 description = "Run only the processor tests in the tagged mount-free, network-disabled 2 GiB / 2 CPU snapshot"
 run = "node bin/test-container.ts processors"
+
+[tasks.release]
+description = "Start the monochromatic-lint release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish). The crate-release workflow bumps the crate and every exact pin of it, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
+run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate monochromatic-lint"
+
+[tasks."release:wait"]
+description = "Follow the release run that `release` printed, then the cargo-publish run it started, then check crates.io and the GitHub release: `-- <run URL or id> <version>`"
+run = "node ../../crate-release/cli/bin/await-release.ts --crate monochromatic-lint"

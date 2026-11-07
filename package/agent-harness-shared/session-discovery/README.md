@@ -11,6 +11,13 @@ look up `.by-pid/<pid>` mapping files,
 then fall back to the most recently written mapping when sandboxed process trees
 hide the host PID namespace.
 
+## Pi dependency trust
+
+PJD:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Interface
 
 Hosts provide the shallow adapter details:

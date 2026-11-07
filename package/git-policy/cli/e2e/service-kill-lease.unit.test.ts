@@ -19,11 +19,34 @@ import { SCENARIO_TIMEOUT_MS, } from './scenario-model-fixture.ts';
 const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
+ How the service's source must start the lease's line, after its indentation.
+ A commented-out declaration starts with `//` instead, so it is never read as the lease.
+ */
+const LEASE_HEAD = 'pub const CLAIM_LEASE: Duration = Duration::from_secs(';
+
+/**
+ How the lease's line must end.
+ */
+const LEASE_TAIL = ');';
+
+/**
+ Whether a line of Rust source declares the claim lease, in any shape.
+
+ @param line - one line, indentation removed
+
+ @returns true for a line that starts a `CLAIM_LEASE` declaration, `pub` or not
+ */
+function declaresLease(line: string,): boolean {
+  return line.startsWith('pub const CLAIM_LEASE:',) || line.startsWith('const CLAIM_LEASE:',);
+}
+
+/**
  The lease the service gives a claim, in milliseconds, read from the service's source.
 
  @returns the lease
 
- @throws Error when the source no longer spells the lease as `CLAIM_LEASE: Duration = Duration::from_secs(<n>)`
+ @throws Error when the source no longer declares the lease once, on one line, as
+ `pub const CLAIM_LEASE: Duration = Duration::from_secs(<n>);`
  */
 async function serviceClaimLease(): Promise<number> {
   /**
@@ -41,23 +64,29 @@ async function serviceClaimLease(): Promise<number> {
     'utf8',
   );
   /**
-   The source without its comments, so a commented-out declaration cannot be read as the lease.
+   Every line that declares the lease, indentation removed.
    */
-  const code = source.replaceAll(
-    /\/\*[\s\S]*?\*\/|\/\/[^\n]*/gv,
-    '',
-  );
+  const declarations = source
+    .split('\n',)
+    .map(function trimmed(line,) {
+      return line.trim();
+    },)
+    .filter(declaresLease,);
   /**
-   Every declaration of the lease.
+   The one declaration, empty when there is none or more than one.
    */
-  const declarations = [...code.matchAll(/\b(?:pub\s+)?const\s+CLAIM_LEASE\b[^;]*;/gv,),];
+  const declaration = declarations.length === 1 ? declarations[0] ?? '' : '';
   /**
-   The lease in seconds.
+   The seconds between the head and the tail, empty when the declaration has another shape.
    */
-  const seconds = /^(?:pub\s+)?const\s+CLAIM_LEASE:\s*Duration\s*=\s*Duration::from_secs\((?<seconds>\d+)\);$/v
-    .exec(declarations[0]?.[0] ?? '',)?.groups?.['seconds'];
-  if ((declarations.length !== 1) || (seconds === undefined))
-    throw new Error(`src/native/landing/service_work.rs must declare CLAIM_LEASE once, as pub const CLAIM_LEASE: Duration = Duration::from_secs(<n>); found ${String(declarations.length,)} declarations; update service-kill-lease.unit.test.ts and scenario-service-kill-fixture.ts`,);
+  const seconds = declaration.startsWith(LEASE_HEAD,) && declaration.endsWith(LEASE_TAIL,)
+    ? declaration.slice(
+      LEASE_HEAD.length,
+      declaration.length - LEASE_TAIL.length,
+    )
+    : '';
+  if ((seconds === '') || (String(Number(seconds,),) !== seconds))
+    throw new Error(`src/native/landing/service_work.rs must declare CLAIM_LEASE once, on one line, as ${LEASE_HEAD}<n>${LEASE_TAIL} found ${String(declarations.length,)} declarations; update service-kill-lease.unit.test.ts and scenario-service-kill-fixture.ts`,);
   return Number(seconds,) * MILLISECONDS_PER_SECOND;
 }
 

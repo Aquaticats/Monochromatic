@@ -8,6 +8,8 @@ export type {
   RootTaskFile,
   TaskDefinition,
   TaskStep,
+  TaskFunction,
+  TaskFunctionContext,
 } from './types.ts';
 
 export {
@@ -15,3 +17,17 @@ export {
   loadRootTasks,
   resolveDefinition,
 } from './load.ts';
+
+export {
+  createTaskInvocation,
+  TaskDependencyCycleError,
+  TaskInvocationClosedError,
+} from './task-invocation.ts';
+
+export type {
+  ResolvedTaskRequest,
+  RunTask,
+  TaskEvent,
+  TaskExecutor,
+  TaskRequest,
+} from './task-invocation.ts';

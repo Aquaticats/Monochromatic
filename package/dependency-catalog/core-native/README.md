@@ -1,5 +1,7 @@
 # monochromatic-dependency-catalog
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 The native Rust implementation of the `rust-catalog.toml` renderer:
 it turns the repository's single Rust dependency catalog into each Cargo workspace root's generated `[workspace.dependencies]` table.
 The design and its rationale are in `doc/decision/rust-dependency-catalog.md`;

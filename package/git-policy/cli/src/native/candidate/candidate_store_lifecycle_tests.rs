@@ -155,7 +155,7 @@ fn invalidation_retires_versions_and_their_candidates() {
     assert!(
         error
             .message
-            .starts_with("cli-git refused to read a candidate"),
+            .starts_with("monochromatic-git-policy-cli refused to read a candidate"),
         "{error}"
     );
     let after: Rc<CandidateVersion> = subject

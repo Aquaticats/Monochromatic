@@ -11,7 +11,8 @@
 //! await assertFinalSourceEquivalence({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries });
 //! ```
 
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::side_by_side_threads::run_beside_caller;
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
 };
@@ -67,16 +68,16 @@ fn regular_file_bytes_equal(
     right_path: &Path,
 ) -> Result<bool, WorktreeCopyError> {
     let mut left: std::fs::File =
-        std::fs::File::open(left_path).map_err(|error| return raw_failure(&error))?;
+        std::fs::File::open(left_path).map_err(raw_failure_of)?;
     let mut right: std::fs::File =
-        std::fs::File::open(right_path).map_err(|error| return raw_failure(&error))?;
+        std::fs::File::open(right_path).map_err(raw_failure_of)?;
     let left_size: u64 = left
         .metadata()
-        .map_err(|error| return raw_failure(&error))?
+        .map_err(raw_failure_of)?
         .len();
     let right_size: u64 = right
         .metadata()
-        .map_err(|error| return raw_failure(&error))?
+        .map_err(raw_failure_of)?
         .len();
     if left_size != right_size {
         return Ok(false);
@@ -85,9 +86,10 @@ fn regular_file_bytes_equal(
     let mut right_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
     let mut remaining: u64 = left_size;
     while remaining > 0 {
-        let length: usize = usize::try_from(remaining).map_or(COMPARE_BUFFER_BYTES, |size| {
-            return size.min(COMPARE_BUFFER_BYTES);
-        });
+        let length: usize = match usize::try_from(remaining) {
+            Ok(size) => size.min(COMPARE_BUFFER_BYTES),
+            Err(_too_large) => COMPARE_BUFFER_BYTES,
+        };
         let left_chunk: &mut [u8] = &mut left_buffer[..length];
         let right_chunk: &mut [u8] = &mut right_buffer[..length];
         // `read_exact` reports a file that ended early as `UnexpectedEof`, which is a difference, not a failure.
@@ -120,7 +122,7 @@ fn regular_file_bytes_equal(
 /// await readlink(path)
 /// ```
 fn link_target(path: &Path) -> Result<PathBuf, WorktreeCopyError> {
-    return std::fs::read_link(path).map_err(|error| return raw_failure(&error));
+    return std::fs::read_link(path).map_err(raw_failure_of);
 }
 
 /// What:
@@ -186,6 +188,35 @@ pub fn entry_matches_stamped(
 }
 
 /// What:
+///  The manifest of the source under the leave-out rule, as the final check walks it on a thread beside the stage's walk.
+/// Why:
+///   Entries the walk cannot read are not reported here: the final check compares the whole manifest and fails on any difference.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// walkSourcePruned([sourceRoot, selectedRoots, excludedSourceRoots, prune]) // collectPrunedManifest with a discarded unreadable list
+/// ```
+fn walk_source_pruned(
+    (source_root, selected_roots, excluded_source_roots, prune): (&Path, &[String], &[PathBuf], Prune),
+) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+    let mut unreadable: Vec<String> = Vec::new();
+    return collect_pruned_manifest(source_root, selected_roots, excluded_source_roots, prune, &mut unreadable);
+}
+
+/// What:
+///  The manifest of the stage, with no leave-out rule, as the final check walks it on the calling thread.
+/// Why:
+///   The stage holds exactly the selected roots, so nothing is excluded or pruned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// walkStage([stageRoot, selectedRoots]) // collectEntryManifest(stageRoot, selectedRoots, [])
+/// ```
+fn walk_stage((stage_root, selected_roots): (&Path, &[String])) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+    return collect_entry_manifest(stage_root, selected_roots, &[]);
+}
+
+/// What:
 ///  Checks that the source still matches the initial manifest after staging,
 ///  and that the stage holds exactly that manifest.
 /// Why:
@@ -247,28 +278,20 @@ pub fn assert_final_source_equivalence_pruned(
     check: &FinalCheck<'_>,
 ) -> Result<(), WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
-    let (source_walked, stage_walked) = std::thread::scope(|scope| {
-        let source_walk = scope.spawn(|| {
-            let mut unreadable: Vec<String> = Vec::new();
-            return collect_pruned_manifest(
-                source_root,
-                selected_roots,
-                excluded_source_roots,
-                check.prune,
-                &mut unreadable,
-            );
-        });
-        let stage_walk = collect_entry_manifest(stage_root, selected_roots, &[]);
-        let source_result = source_walk
-            .join()
-            .unwrap_or_else(|_panic| return Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))));
-        return (source_result, stage_walk);
-    });
+    let (source_joined, stage_walked): (std::thread::Result<Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>>, Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>) =
+        run_beside_caller(
+            ((source_root, selected_roots, excluded_source_roots, check.prune), walk_source_pruned),
+            ((stage_root, selected_roots), walk_stage),
+        );
+    let source_walked: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = match source_joined {
+        Ok(walked) => walked,
+        Err(_panic) => Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))),
+    };
     let final_source: Vec<WorktreeCopyEntry> = source_walked?;
     let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
     if final_source.len() != staged_entries.len() || final_stage.len() != staged_entries.len() {
         return Err(failure_with_cause(
-            "cli-git: ignored source paths changed while snapshot was staged.",
+            "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged.",
             None,
         ));
     }
@@ -285,7 +308,7 @@ pub fn assert_final_source_equivalence_pruned(
         // The content check runs last so the cheap shape checks fail fast without reading large files.
         if !same_shape || !entry_matches_stamped(stage_root, source_root, staged, stamp)? {
             let message: String = format!(
-                "cli-git: ignored source entry changed while copying: {}.",
+                "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
                 quote(staged.relative_path.as_str())
             );
             return Err(failure_with_cause(message.as_str(), None));

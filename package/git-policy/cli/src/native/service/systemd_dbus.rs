@@ -16,6 +16,8 @@
 //! const bus = await connect(address, 5000); await bus.startUnit('cli-git.socket', 'replace'); // throws with the error name
 //! ```
 
+pub use crate::systemd_dbus_wire_format::{CallError, Reply, Target, decode_reply, encode_call};
+use crate::systemd_dbus_wire_format::{ERROR, METHOD_RETURN, aligned, read_u32};
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
@@ -41,101 +43,6 @@ pub const MANAGER_NAME: &str = "org.freedesktop.systemd1";
 /// The most bytes of one reply this client accepts.
 const MAX_REPLY_BYTES: usize = 1 << 20;
 
-/// Message type of a method call.
-const METHOD_CALL: u8 = 1;
-
-/// Message type of a successful reply.
-const METHOD_RETURN: u8 = 2;
-
-/// Message type of an error reply.
-const ERROR: u8 = 3;
-
-/// Header field code of the number of the call a reply answers.
-const FIELD_REPLY_SERIAL: u8 = 5;
-
-/// Header field codes.
-const FIELD_PATH: u8 = 1;
-const FIELD_INTERFACE: u8 = 2;
-const FIELD_MEMBER: u8 = 3;
-const FIELD_ERROR_NAME: u8 = 4;
-const FIELD_DESTINATION: u8 = 6;
-const FIELD_SIGNATURE: u8 = 8;
-
-/// Why a call did not succeed.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum CallError {
-    /// The socket could not be reached or the connection broke.
-    Connection(String),
-    /// The manager refused the authentication.
-    Authentication(String),
-    /// The bus did not answer within the time the exchange was given, which says nothing about whether the manager is there.
-    TimedOut,
-    /// The manager answered with an error.
-    Manager {
-        /// The error's name, for example `org.freedesktop.systemd1.NoSuchUnit`.
-        name: String,
-        /// The error's text, when it gave one.
-        text: String,
-    },
-    /// The reply was not a message this client reads.
-    Malformed(String),
-}
-
-/// Appends values in D-Bus little-endian wire form.
-struct Writer {
-    bytes: Vec<u8>,
-}
-
-impl Writer {
-    fn align(&mut self, boundary: usize) {
-        while self.bytes.len() % boundary != 0 {
-            self.bytes.push(0);
-        }
-    }
-
-    fn unsigned(&mut self, value: u32) {
-        self.align(4);
-        self.bytes.extend(value.to_le_bytes());
-    }
-
-    fn text(&mut self, value: &str) {
-        self.unsigned(u32::try_from(value.len()).unwrap_or(u32::MAX));
-        self.bytes.extend(value.as_bytes());
-        self.bytes.push(0);
-    }
-
-    fn signature(&mut self, value: &str) {
-        self.bytes.push(u8::try_from(value.len()).unwrap_or(u8::MAX));
-        self.bytes.extend(value.as_bytes());
-        self.bytes.push(0);
-    }
-
-    /// One header field: its code, then a variant holding a string-like or signature value.
-    fn field(&mut self, code: u8, kind: char, value: &str) {
-        self.align(8);
-        self.bytes.push(code);
-        self.signature(&kind.to_string());
-        if kind == 'g' {
-            self.signature(value);
-        } else {
-            self.text(value);
-        }
-    }
-}
-
-/// Where a method call goes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Target<'a> {
-    /// The bus name of the receiver.
-    pub destination: &'a str,
-    /// The object path.
-    pub path: &'a str,
-    /// The interface.
-    pub interface: &'a str,
-    /// The method.
-    pub member: &'a str,
-}
-
 /// `Hello` on the bus daemon, the first call of every connection.
 pub const HELLO: Target<'static> = Target { destination: BUS_NAME, path: BUS_PATH, interface: BUS_NAME, member: "Hello" };
 
@@ -155,6 +62,9 @@ pub const RESET_FAILED_UNIT: Target<'static> =
 /// `GetUnit` on the user manager: the object path of a loaded unit.
 pub const GET_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "GetUnit" };
 
+/// The job mode that applies a stop to the named unit only, leaving the units that require it running.
+pub const STOP_ALONE_MODE: &str = "ignore-dependencies";
+
 /// The interface whose `Get` reads one property of an object.
 const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
 
@@ -168,173 +78,78 @@ pub const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
 const UNKNOWN_OBJECT: &str = "org.freedesktop.DBus.Error.UnknownObject";
 
 /// What:
-///  The bytes of a method call with string arguments.
+///  A byte as two lowercase hexadecimal digits.
 /// Why:
-///   Kept apart from the socket so a test can read them back and compare them with the specification's layout.
+///  The `EXTERNAL` mechanism sends the user id's ASCII digits written in hexadecimal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// encodeCall(serial, START_UNIT, ['cli-git.socket', 'replace'])
+/// const hexOfByte = (byte: number) => byte.toString(16).padStart(2, '0');
 /// ```
-pub fn encode_call(serial: u32, target: &Target<'_>, arguments: &[&str]) -> Vec<u8> {
-    let mut body: Writer = Writer { bytes: Vec::new() };
-    for argument in arguments {
-        body.text(argument);
-    }
-    let mut fields: Writer = Writer { bytes: vec![0; 16] };
-    fields.field(FIELD_PATH, 'o', target.path);
-    fields.field(FIELD_DESTINATION, 's', target.destination);
-    fields.field(FIELD_INTERFACE, 's', target.interface);
-    fields.field(FIELD_MEMBER, 's', target.member);
-    if !arguments.is_empty() {
-        fields.field(FIELD_SIGNATURE, 'g', &"s".repeat(arguments.len()));
-    }
-    // The first sixteen bytes are the fixed header and the array length, filled in below.
-    let array_length: u32 = u32::try_from(fields.bytes.len() - 16).unwrap_or(u32::MAX);
-    fields.align(8);
-    let mut message: Vec<u8> = fields.bytes;
-    message[0] = b'l';
-    message[1] = METHOD_CALL;
-    message[2] = 0;
-    message[3] = 1;
-    message[4..8].copy_from_slice(&u32::try_from(body.bytes.len()).unwrap_or(u32::MAX).to_le_bytes());
-    message[8..12].copy_from_slice(&serial.to_le_bytes());
-    message[12..16].copy_from_slice(&array_length.to_le_bytes());
-    message.extend(body.bytes);
-    return message;
-}
-
-/// A reply: its type, the error name its header carries, and the first string of its body.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Reply {
-    /// Message type: 2 for a return, 3 for an error, 4 for a signal.
-    pub kind: u8,
-    /// The number of the call this message answers.
-    pub reply_serial: Option<u32>,
-    /// The error name of an error reply.
-    pub error_name: Option<String>,
-    /// The first string argument of the body, which an error reply uses for its text.
-    pub first_text: Option<String>,
-}
-
-fn read_u32(bytes: &[u8], at: usize) -> Option<u32> {
-    return bytes.get(at..at.checked_add(4)?).map(|slice| { return u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]]); });
-}
-
-/// The string at `at` and the offset after its end byte, or nothing when it is cut short or the byte after the text is not
-///  the end byte a D-Bus string carries. Callers pass only the bytes of the region the string must lie in, so an end byte
-///  beyond that region is not found.
-fn read_text(bytes: &[u8], at: usize) -> Option<(String, usize)> {
-    let length: usize = usize::try_from(read_u32(bytes, at)?).ok()?;
-    let start: usize = at.checked_add(4)?;
-    let end: usize = start.checked_add(length)?;
-    let text: &[u8] = bytes.get(start..end)?;
-    if *bytes.get(end)? != 0 {
-        return None;
-    }
-    return Some((String::from_utf8_lossy(text).into_owned(), end.saturating_add(1)));
-}
-
-/// The string a variant at `at` holds, or nothing when it holds another type, is cut short, or has a signature that does
-///  not end with its end byte.
-fn read_variant_text(bytes: &[u8], at: usize) -> Option<String> {
-    let length: usize = usize::from(*bytes.get(at)?);
-    let inner_start: usize = at.checked_add(1)?;
-    let inner_end: usize = inner_start.checked_add(length)?;
-    let inner: &[u8] = bytes.get(inner_start..inner_end)?;
-    if inner != b"s" || *bytes.get(inner_end)? != 0 {
-        return None;
-    }
-    // The signature's end byte is checked; the string follows on a four-byte boundary.
-    return read_text(bytes, aligned(inner_end.checked_add(1)?, 4)).map(|(text, _)| { return text; });
-}
-
-fn aligned(offset: usize, boundary: usize) -> usize {
-    return offset.checked_add(boundary - 1).map_or(usize::MAX, |sum| { return sum / boundary * boundary; });
+fn hex_of_byte(byte: u8) -> String {
+    return format!("{byte:02x}");
 }
 
 /// What:
-///  Reads a complete reply message.
+///  A failure to set a socket timeout or to connect or write, as the call's connection error.
 /// Why:
-///   Only the type, the error name and the first string of the body matter; a header field of a kind this reader does not
-///  know ends the walk of the header, which is safe because the fields it needs come first in what the manager sends or
-///  are looked for before any unknown kind.
+///  Every such failure is reported with the operating system's own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// decodeReply(bytes)
+/// const connectionFailure = (error: Error) => new CallError('connection', error.message);
 /// ```
-pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {
-    let malformed = |what: &str| { return CallError::Malformed(what.to_string()); };
-    if bytes.len() < 16 || bytes[0] != b'l' {
-        return Err(malformed("the reply is not a little-endian message"));
-    }
-    let kind: u8 = bytes[1];
-    let body_length: usize = usize::try_from(read_u32(bytes, 4).ok_or_else(|| { return malformed("no body length"); })?).unwrap_or(usize::MAX);
-    let fields_length: usize = usize::try_from(read_u32(bytes, 12).ok_or_else(|| { return malformed("no header length"); })?).unwrap_or(usize::MAX);
-    let fields_end: usize = 16usize.saturating_add(fields_length);
-    let body_start: usize = aligned(fields_end, 8);
-    if bytes.len() < body_start.saturating_add(body_length) || fields_end > bytes.len() {
-        return Err(malformed("the reply is shorter than it says"));
-    }
-    let mut error_name: Option<String> = None;
-    let mut reply_serial: Option<u32> = None;
-    let mut signature: String = String::new();
-    // A header field lies within the declared header and a body value within the declared body, whatever follows them.
-    let header: &[u8] = bytes.get(..fields_end).unwrap_or_default();
-    let body: &[u8] = bytes.get(..body_start.saturating_add(body_length)).unwrap_or_default();
-    let mut at: usize = 16;
-    while at < fields_end {
-        at = aligned(at, 8);
-        let (Some(&code), Some(&signature_length)) = (header.get(at), header.get(at.saturating_add(1))) else { break };
-        let kind_at: usize = at.saturating_add(2);
-        let Some(&value_kind) = header.get(kind_at) else { break };
-        let value_at: usize = kind_at.saturating_add(usize::from(signature_length)).saturating_add(1);
-        match (value_kind, code) {
-            (b's' | b'o', _) => {
-                let Some((text, next)) = read_text(header, aligned(value_at, 4)) else { break };
-                if code == FIELD_ERROR_NAME {
-                    error_name = Some(text);
-                }
-                at = next;
-            }
-            (b'g', _) => {
-                let length: usize = usize::from(*header.get(value_at).unwrap_or(&0));
-                if code == FIELD_SIGNATURE {
-                    let start: usize = value_at.saturating_add(1);
-                    // A signature whose end byte is missing is not read, so the body is not interpreted by it.
-                    if header.get(start.saturating_add(length)) == Some(&0) {
-                        signature = String::from_utf8_lossy(header.get(start..start.saturating_add(length)).unwrap_or_default()).into_owned();
-                    }
-                }
-                at = value_at.saturating_add(length).saturating_add(2);
-            }
-            (b'u', _) => {
-                let number_at: usize = aligned(value_at, 4);
-                if code == FIELD_REPLY_SERIAL {
-                    reply_serial = read_u32(header, number_at);
-                }
-                at = number_at.saturating_add(4);
-            }
-            _ => break,
-        }
-    }
-    // A string and an object path share one wire form; a variant holding a string is its own signature, then that form.
-    let first_text: Option<String> = if signature.starts_with('s') || signature.starts_with('o') {
-        read_text(body, aligned(body_start, 4)).map(|(text, _)| { return text; })
-    } else if signature == "v" {
-        read_variant_text(body, body_start)
-    } else {
-        None
+fn connection_failure(error: std::io::Error) -> CallError {
+    return CallError::Connection(error.to_string());
+}
+
+/// What:
+///  A failure to write during the authentication exchange, as the call's authentication error.
+/// Why:
+///  The exchange reports the operating system's words, with no timeout meaning.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const authenticationFailure = (error: Error) => new CallError('authentication', error.message);
+/// ```
+fn authentication_failure(error: std::io::Error) -> CallError {
+    return CallError::Authentication(error.to_string());
+}
+
+/// What:
+///  A read failure during the authentication exchange: running out of time stays a timeout, anything else is an authentication error.
+/// Why:
+///  `read_line` waits within the call's deadline, and a timeout must be told apart from a refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const authenticationReadFailure = (error: Error) => isTimeout(error) ? timedOut : new CallError('authentication', error.message);
+/// ```
+fn authentication_read_failure(error: std::io::Error) -> CallError {
+    return match socket_failure(&error) {
+        CallError::TimedOut => CallError::TimedOut,
+        _ => CallError::Authentication(error.to_string()),
     };
-    return Ok(Reply { kind, reply_serial, error_name, first_text });
+}
+
+/// What:
+///  A socket failure taken by value, as the call's error.
+/// Why:
+///  `map_err` hands over the error itself, and `socket_failure` borrows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const socketFailureOf = (error: Error) => socketFailure(error);
+/// ```
+fn socket_failure_of(error: std::io::Error) -> CallError {
+    return socket_failure(&error);
 }
 
 /// The user id as the ASCII digits the `EXTERNAL` mechanism sends, written in hexadecimal.
 fn external_identity() -> String {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     let user: u32 = unsafe { libc::geteuid() };
-    return user.to_string().bytes().map(|byte| { return format!("{byte:02x}"); }).collect();
+    return user.to_string().bytes().map(hex_of_byte).collect();
 }
 
 /// The time left of the exchange, or an error when it ran out.
@@ -355,13 +170,8 @@ fn read_line(stream: &mut UnixStream, deadline: Instant) -> Result<String, CallE
     let mut line: Vec<u8> = Vec::new();
     let mut one: [u8; 1] = [0];
     while line.len() < 4096 {
-        stream.set_read_timeout(Some(remaining(deadline)?)).map_err(|error| { return CallError::Connection(error.to_string()); })?;
-        stream.read_exact(&mut one).map_err(|error| {
-            return match socket_failure(&error) {
-                CallError::TimedOut => CallError::TimedOut,
-                _ => CallError::Authentication(error.to_string()),
-            };
-        })?;
+        stream.set_read_timeout(Some(remaining(deadline)?)).map_err(connection_failure)?;
+        stream.read_exact(&mut one).map_err(authentication_read_failure)?;
         if one[0] == b'\n' {
             return Ok(String::from_utf8_lossy(line.as_slice()).trim_end_matches('\r').to_string());
         }
@@ -373,8 +183,8 @@ fn read_line(stream: &mut UnixStream, deadline: Instant) -> Result<String, CallE
 /// Reads exactly one message from the stream.
 fn read_message(stream: &mut UnixStream, deadline: Instant) -> Result<Vec<u8>, CallError> {
     let mut header: Vec<u8> = vec![0; 16];
-    stream.set_read_timeout(Some(remaining(deadline)?)).map_err(|error| { return CallError::Connection(error.to_string()); })?;
-    stream.read_exact(header.as_mut_slice()).map_err(|error| { return socket_failure(&error); })?;
+    stream.set_read_timeout(Some(remaining(deadline)?)).map_err(connection_failure)?;
+    stream.read_exact(header.as_mut_slice()).map_err(socket_failure_of)?;
     let body_length: usize = usize::try_from(read_u32(header.as_slice(), 4).unwrap_or(0)).unwrap_or(usize::MAX);
     let fields_length: usize = usize::try_from(read_u32(header.as_slice(), 12).unwrap_or(0)).unwrap_or(usize::MAX);
     let rest: usize = aligned(16usize.saturating_add(fields_length), 8).saturating_add(body_length).saturating_sub(16);
@@ -382,23 +192,56 @@ fn read_message(stream: &mut UnixStream, deadline: Instant) -> Result<Vec<u8>, C
         return Err(CallError::Malformed(String::from("the reply is larger than this client reads")));
     }
     let mut remainder: Vec<u8> = vec![0; rest];
-    stream.set_read_timeout(Some(remaining(deadline)?)).map_err(|error| { return CallError::Connection(error.to_string()); })?;
-    stream.read_exact(remainder.as_mut_slice()).map_err(|error| { return socket_failure(&error); })?;
+    stream.set_read_timeout(Some(remaining(deadline)?)).map_err(connection_failure)?;
+    stream.read_exact(remainder.as_mut_slice()).map_err(socket_failure_of)?;
     header.extend(remainder);
     return Ok(header);
 }
 
+/// What:
+///  The default session bus socket inside a runtime directory: `bus` there.
+/// Why:
+///  `session_bus_path` falls back to it when the address variable names no usable path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const busInDirectory = (directory: string) => path.join(directory, 'bus');
+/// ```
+fn bus_in_directory(directory: &Path) -> std::path::PathBuf {
+    return directory.join("bus");
+}
+
 /// The path of the session bus socket: the `unix:path=` entry of the address variable, else `$XDG_RUNTIME_DIR/bus`.
 pub fn session_bus_path(address: Option<&str>, runtime_dir: Option<&Path>) -> Option<std::path::PathBuf> {
-    let from_address: Option<std::path::PathBuf> = address.and_then(|list| {
-        return list.split(';').find_map(|entry| {
-            let rest: &str = entry.strip_prefix("unix:")?;
-            let path: &str = rest.split(',').find_map(|option| { return option.strip_prefix("path="); })?;
+    // The first `unix:` entry that names a usable `path=` option wins; an entry that does not is skipped.
+    let mut from_address: Option<std::path::PathBuf> = None;
+    if let Some(list) = address {
+        for entry in list.split(';') {
+            let Some(rest) = entry.strip_prefix("unix:") else {
+                continue;
+            };
+            let mut named: Option<&str> = None;
+            for option in rest.split(',') {
+                if let Some(found) = option.strip_prefix("path=") {
+                    named = Some(found);
+                    break;
+                }
+            }
+            let Some(path) = named else {
+                continue;
+            };
             // Escapes (`%xx`) in a path are not read; a path that uses them falls back to the default location.
-            return if path.contains('%') || path.is_empty() { None } else { Some(std::path::PathBuf::from(path)) };
-        });
-    });
-    return from_address.or_else(|| { return runtime_dir.map(|directory| { return directory.join("bus"); }); });
+            if path.contains('%') || path.is_empty() {
+                continue;
+            }
+            from_address = Some(std::path::PathBuf::from(path));
+            break;
+        }
+    }
+    if from_address.is_some() {
+        return from_address;
+    }
+    return runtime_dir.map(bus_in_directory);
 }
 
 /// An authenticated connection to the session bus, past `Hello`.
@@ -421,16 +264,16 @@ impl Bus {
     /// ```
     pub fn connect(socket: &Path, wait: Duration) -> Result<Bus, CallError> {
         let deadline: Instant = Instant::now() + wait;
-        let mut stream: UnixStream = UnixStream::connect(socket).map_err(|error| { return CallError::Connection(error.to_string()); })?;
-        stream.set_write_timeout(Some(wait)).map_err(|error| { return CallError::Connection(error.to_string()); })?;
+        let mut stream: UnixStream = UnixStream::connect(socket).map_err(connection_failure)?;
+        stream.set_write_timeout(Some(wait)).map_err(connection_failure)?;
         let mut hello: Vec<u8> = vec![0];
         hello.extend(format!("AUTH EXTERNAL {}\r\n", external_identity()).as_bytes());
-        stream.write_all(hello.as_slice()).map_err(|error| { return CallError::Authentication(error.to_string()); })?;
+        stream.write_all(hello.as_slice()).map_err(authentication_failure)?;
         let answer: String = read_line(&mut stream, deadline)?;
         if !answer.starts_with("OK ") {
             return Err(CallError::Authentication(answer));
         }
-        stream.write_all(b"BEGIN\r\n").map_err(|error| { return CallError::Authentication(error.to_string()); })?;
+        stream.write_all(b"BEGIN\r\n").map_err(authentication_failure)?;
         let mut bus: Bus = Bus { stream, deadline, serial: 0 };
         bus.call(&HELLO, &[])?;
         return Ok(bus);
@@ -464,7 +307,7 @@ impl Bus {
     pub fn call(&mut self, target: &Target<'_>, arguments: &[&str]) -> Result<Reply, CallError> {
         self.serial += 1;
         let serial: u32 = self.serial;
-        self.stream.write_all(encode_call(serial, target, arguments).as_slice()).map_err(|error| { return socket_failure(&error); })?;
+        self.stream.write_all(encode_call(serial, target, arguments).as_slice()).map_err(socket_failure_of)?;
         loop {
             let reply: Reply = decode_reply(read_message(&mut self.stream, self.deadline)?.as_slice())?;
             if reply.reply_serial != Some(serial) || !matches!(reply.kind, METHOD_RETURN | ERROR) {
@@ -494,6 +337,21 @@ impl Bus {
     }
 
     /// What:
+    ///  Stops one unit and nothing that depends on it (job mode `ignore-dependencies`).
+    /// Why:
+    ///   A service that `Requires=` a socket is stopped by the manager when that socket is stopped in the `replace` mode
+    ///  (`systemd.unit(5)`, `Requires=`), which would cut the batch of a helper that is running. This mode applies the job to
+    ///  the named unit only.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await bus.stopUnitAlone('cli-git@3f9a.socket') // the service of that socket keeps running
+    /// ```
+    pub fn stop_unit_alone(&mut self, name: &str) -> Result<(), CallError> {
+        return self.call(&STOP_UNIT, &[name, STOP_ALONE_MODE]).map(drop);
+    }
+
+    /// What:
     ///  The unit's `ActiveState` (`active`, `activating`, `deactivating`, `inactive`, `failed`), or nothing when the manager
     ///  does not hold the unit.
     /// Why:
@@ -507,16 +365,19 @@ impl Bus {
     /// ```
     pub fn active_state(&mut self, name: &str) -> Result<Option<String>, CallError> {
         let path: String = match self.call(&GET_UNIT, &[name]) {
-            Ok(reply) => reply.first_text.ok_or_else(|| { return CallError::Malformed(String::from("GetUnit answered without a path")); })?,
+            Ok(reply) => match reply.first_text {
+                Some(text) => text,
+                None => return Err(CallError::Malformed(String::from("GetUnit answered without a path"))),
+            },
             Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => return Ok(None),
             Err(error) => return Err(error),
         };
         let property: Target<'_> = Target { destination: MANAGER_NAME, path: path.as_str(), interface: PROPERTIES_INTERFACE, member: "Get" };
         return match self.call(&property, &[UNIT_INTERFACE, "ActiveState"]) {
-            Ok(reply) => reply
-                .first_text
-                .map(Some)
-                .ok_or_else(|| { return CallError::Malformed(String::from("the state property answered without text")); }),
+            Ok(reply) => match reply.first_text {
+                Some(text) => Ok(Some(text)),
+                None => Err(CallError::Malformed(String::from("the state property answered without text"))),
+            },
             Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT || error == UNKNOWN_OBJECT => Ok(None),
             Err(error) => Err(error),
         };

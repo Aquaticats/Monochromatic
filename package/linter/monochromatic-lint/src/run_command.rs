@@ -22,6 +22,7 @@ use crate::{
     config_lookup::CONFIG_NAME,
     diagnostic::Diagnostic,
     file_discovery::DiscoveryOptions,
+    layout_step::{LayoutOutcome, run_layout_step},
     path_inputs::collect_inputs,
     run_file::FileOutcome,
     run_finish::{PROGRAM, engine, finish},
@@ -177,6 +178,10 @@ fn run_paths(
     let closure: ClosureOutcome = run_closure_step(plans.as_slice(), cwd, options.fix);
     findings.extend(closure.findings);
     notes.extend(closure.notes);
+    // The layout rules need the whole package, so they run after the per-file rules.
+    let layout: LayoutOutcome = run_layout_step(plans.as_slice(), cwd);
+    findings.extend(layout.findings);
+    notes.extend(layout.notes);
     let mut output: RunOutput = finish(options, findings.as_slice(), None, notes.as_slice())?;
     output.stderr = with_messages(output.stderr.as_str(), closure.messages.as_slice(), PROGRAM);
     return Ok(output);

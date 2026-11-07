@@ -15,7 +15,7 @@
 use crate::private_storage::{ReadRefusal, read_regular_file};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, name_length, parse_loose, to_hex};
-use crate::repo_read_pack::Pack;
+use crate::repo_read_pack::{BaseByName, Pack};
 use std::path::{Path, PathBuf};
 
 /// How many alternate object directories deep the reader follows `info/alternates`.
@@ -94,17 +94,50 @@ pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Opt
 /// Whether the repository changes what an object name means: replace refs, a shallow file, grafts.
 fn objects_are_replaced(common_dir: &Path) -> bool {
     let replace_dir: PathBuf = common_dir.join("refs/replace");
-    if std::fs::read_dir(&replace_dir).is_ok_and(|mut entries| { return entries.next().is_some(); }) {
+    if let Ok(mut entries) = std::fs::read_dir(&replace_dir)
+        && entries.next().is_some()
+    {
         return true;
     }
     if common_dir.join("shallow").exists() || common_dir.join("info/grafts").exists() {
         return true;
     }
     return match read_regular_file(common_dir.join("packed-refs").as_path(), PACKED_REFS_LIMIT) {
-        Ok(bytes) => bytes.windows(b" refs/replace/".len()).any(|window| { return window == b" refs/replace/"; }),
+        Ok(bytes) => {
+            let mut names_replace_refs: bool = false;
+            for window in bytes.windows(b" refs/replace/".len()) {
+                if window == b" refs/replace/" {
+                    names_replace_refs = true;
+                    break;
+                }
+            }
+            names_replace_refs
+        }
         Err(ReadRefusal::Missing) => false,
         Err(_) => true,
     };
+}
+
+/// What:
+///  The base of a `REF_DELTA` found through the database, one step deeper in the delta chain than the object that asked.
+/// Why:
+///   The depth counts the bases already followed through names so a cycle ends; the database and the depth are the state the lookup needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class BaseOneDeeper implements BaseByName { baseNamed(name) { return this.database.readAtDepth(name, this.depth + 1); } }
+/// ```
+struct BaseOneDeeper<'a> {
+    /// The database that holds the base.
+    database: &'a ObjectDatabase,
+    /// How many bases were followed through names before this one.
+    depth: usize,
+}
+
+impl BaseByName for BaseOneDeeper<'_> {
+    fn base_named(&self, name: &[u8]) -> Option<RawObject> {
+        return self.database.read_at_depth(name, self.depth + 1);
+    }
 }
 
 impl ObjectDatabase {
@@ -122,7 +155,11 @@ impl ObjectDatabase {
         if objects_are_replaced(common_dir) {
             return None;
         }
-        let own: PathBuf = std::fs::canonicalize(objects_dir.map_or_else(|| { return common_dir.join("objects"); }, Path::to_path_buf)).ok()?;
+        let objects: PathBuf = match objects_dir {
+            Some(directory) => directory.to_path_buf(),
+            None => common_dir.join("objects"),
+        };
+        let own: PathBuf = std::fs::canonicalize(objects).ok()?;
         let mut roots: Vec<PathBuf> = vec![own.clone()];
         alternates_of(own.as_path(), 0, &mut roots)?;
         let mut packs: Vec<Pack> = Vec::new();
@@ -134,7 +171,7 @@ impl ObjectDatabase {
             };
             for entry in listing {
                 let path: PathBuf = entry.ok()?.path();
-                if path.extension().is_some_and(|extension| { return extension == "idx"; }) {
+                if path.extension() == Some(std::ffi::OsStr::new("idx")) {
                     packs.push(Pack::open(path.as_path(), name_length(format))?);
                 }
             }
@@ -158,8 +195,17 @@ impl ObjectDatabase {
             return false;
         }
         let hex: String = to_hex(name);
-        let loose: bool = self.roots.iter().any(|root| { return root.join(&hex[..2]).join(&hex[2..]).is_file(); });
-        return loose || self.packs.iter().any(|pack| { return pack.find(name).is_some(); });
+        for root in &self.roots {
+            if root.join(&hex[..2]).join(&hex[2..]).is_file() {
+                return true;
+            }
+        }
+        for pack in &self.packs {
+            if pack.find(name).is_some() {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// The same read, counting the delta bases already followed through names so a cycle ends.
@@ -169,7 +215,8 @@ impl ObjectDatabase {
         }
         // Git searches the packs first and the loose files after, and so does this: nearly every object a commit reads is packed,
         //  and a look at a loose path that is not there is a system call for each of thousands of objects.
-        let by_name = |base: &[u8]| -> Option<RawObject> { return self.read_at_depth(base, depth + 1); };
+        // The pack follows a delta chain through this value, which carries the database and the depth so far.
+        let by_name: BaseOneDeeper<'_> = BaseOneDeeper { database: self, depth };
         for pack in &self.packs {
             if let Some(offset) = pack.find(name) {
                 if let Some(found) = pack.read(offset, &by_name, 0) {
@@ -182,7 +229,7 @@ impl ObjectDatabase {
         let hex: String = to_hex(name);
         for root in &self.roots {
             let path: PathBuf = root.join(&hex[..2]).join(&hex[2..]);
-            LOOSE_LOOKS.with(|looks| { looks.set(looks.get() + 1); });
+            LOOSE_LOOKS.set(LOOSE_LOOKS.get() + 1);
             let Ok(metadata) = std::fs::symlink_metadata(&path) else {
                 continue;
             };

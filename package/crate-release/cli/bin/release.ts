@@ -16,6 +16,7 @@ import {
   type CrateRegistry,
   loadCrateRegistry,
 } from '../src/crate-registry.ts';
+import { assertDependenciesReachCratesIo } from '../src/crates-io-dependency-check.ts';
 import { parseReleaseArguments } from '../src/release-options.ts';
 import { runRelease } from '../src/release-run.ts';
 import type { ReleaseStep } from '../src/release-steps.ts';
@@ -115,14 +116,28 @@ async function execute(argv: readonly string[]): Promise<number> {
    The registry, read before the arguments so the parse can stay synchronous.
    */
   const registry = await readRegistry();
+  /**
+   The validated options, parsed before anything is read or written.
+   */
+  const options = parseReleaseArguments({
+    argv,
+    root: findRoot,
+    registry: function knownRegistry() {
+      return registry;
+    },
+  });
+  // A release that goes to crates.io needs every dependency in the repository to be there too, so it is refused here,
+  // before a file is edited.
+  await assertDependenciesReachCratesIo({
+    crateName: options.crateName,
+    crateDirectory: options.crateDirectory,
+    to: options.to,
+    registry,
+    root: options.root,
+    readText,
+  });
   return await runRelease({
-    options: parseReleaseArguments({
-      argv,
-      root: findRoot,
-      registry: function knownRegistry() {
-        return registry;
-      },
-    }),
+    options,
     readText,
     writeText,
     runStep,

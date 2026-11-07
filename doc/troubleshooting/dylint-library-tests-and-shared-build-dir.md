@@ -79,7 +79,8 @@ The same failure appeared for `nightly-2026-10-13` and `nightly-2026-10-17`,
 so it is not tied to the newest nightly.
 `strace` showed every TCP `connect` of the nightly cargo ending in `SO_ERROR = ECONNABORTED` right after `EINPROGRESS`;
 the cause was not found at that time.
-It was found later: an OpenSnitch `reject` rule for the toolchain's `cargo` path destroys the sockets
+It was found later:
+an OpenSnitch `reject` rule for the toolchain's `cargo` path destroys the sockets
 (`doc/troubleshooting/cargo-nightly-1-101-cannot-reach-crates-io.md`).
 Workaround used:
 fill the default registry cache with the stable cargo (`cargo +stable fetch --locked` in the package,

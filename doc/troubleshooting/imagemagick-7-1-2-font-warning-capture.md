@@ -19,17 +19,21 @@ publish a substituted clock font without noticing.
 
 ## Root cause
 
-This is documented warning behavior, **not an established ImageMagick bug**.
+This is documented warning behavior,
+**not an established ImageMagick bug**.
 The [ImageMagick exception guide](https://imagemagick.org/exception/) says a
-warning can accompany usable output; a type warning means a font was
+warning can accompany usable output;
+a type warning means a font was
 unavailable and substitution may have occurred.
 The [command-line option reference](https://imagemagick.org/command-line-options/#regard-warnings)
 says `-regard-warnings` treats **some warnings in some image formats** as errors,
 not every warning.
 
 The matching upstream source tag `7.1.2-27` resolves to commit `b661ac9`.
-At `MagickCore/annotate.c:1015-1027`, a font argument that is not an
-accessible path is looked up by name; a failed lookup emits `TypeWarning`:
+At `MagickCore/annotate.c:1015-1027`,
+a font argument that is not an
+accessible path is looked up by name;
+a failed lookup emits `TypeWarning`:
 
 ```c
 if (IsPathAccessible(draw_info->font) != MagickFalse)
@@ -44,7 +48,8 @@ if (type_info == (const TypeInfo *) NULL)
     "UnableToReadFont","`%s'",draw_info->font);
 ```
 
-At `MagickCore/annotate.c:1084-1114`, rendering searches for a default
+At `MagickCore/annotate.c:1084-1114`,
+rendering searches for a default
 type and calls FreeType with the fallback if available:
 
 ```c
@@ -125,10 +130,12 @@ They do **not** show that ImageMagick promises an all-warnings-fatal switch.
 
 ## Verification
 
-- Installed binary: `magick -version` reported ImageMagick
+- Installed binary:
+  `magick -version` reported ImageMagick
   `7.1.2-27 (Beta) Q16-HDRI`.
   Source audit used `ImageMagick/ImageMagick` tag `7.1.2-27`,
-  commit `b661ac9`, in a read-only clone.
+  commit `b661ac9`,
+  in a read-only clone.
 - Working catalog:
 
   ```sh
@@ -164,14 +171,16 @@ They do **not** show that ImageMagick promises an all-warnings-fatal switch.
 - Resolve a real font file with `fc-match sans-serif --format '%{file}'`,
   then pass that absolute path to `magick -font`.
   This may use a different
-  family on another host, so it preserves legibility but not pixel-identical
+  family on another host,
+  so it preserves legibility but not pixel-identical
   typography across machines.
 - In a capture pipeline where **any warning** invalidates visual evidence,
   capture ImageMagick stderr and reject nonempty output even if the exit
   status is 0.
   `package/music-player/design/sanitize-search-review.mjs` on branch
   `prototype/music-player-theme-compose` implements this with `spawnSync`.
-  The tradeoff is deliberate: harmless warnings also stop capture.
+  The tradeoff is deliberate:
+  harmless warnings also stop capture.
 
 ## What does not work
 
@@ -192,20 +201,30 @@ No `.out-of-scope/` entry matches ImageMagick font warnings.
 `ImageMagick/ImageMagick` found no matching GitHub thread.
 No upstream filing is warranted:
 
-1. **Upstream fault:** No established fault. The documented behavior allows
+1. **Upstream fault:**
+   No established fault.
+   The documented behavior allows
    usable output with a warning and narrows `-regard-warnings` to some cases.
-2. **Fixability:** The CLI could offer a new all-warnings-fatal mode,
-   but that is a separate feature request, not a demonstrated regression.
-3. **Supported use case:** Font fallback is documented; an all-warning failure
+2. **Fixability:**
+   The CLI could offer a new all-warnings-fatal mode,
+   but that is a separate feature request,
+   not a demonstrated regression.
+3. **Supported use case:**
+   Font fallback is documented;
+   an all-warning failure
    guarantee is not.
-4. **Contribution policy:** `.github/CONTRIBUTING.md`,
+4. **Contribution policy:**
+   `.github/CONTRIBUTING.md`,
    `.github/ISSUE_TEMPLATE/bug-report.yml`,
    `.github/PULL_REQUEST_TEMPLATE.md` and tracker results were checked.
    They allow ordinary external reports and do not state an AI-assisted ban,
    but there is no bug to report.
-5. **Expected upstream response:** No matching issue or maintainer position
+5. **Expected upstream response:**
+   No matching issue or maintainer position
    establishes demand for an all-warnings-fatal option.
-6. **Tested upstream fix:** None. Constraints 1 and 3 fail;
+6. **Tested upstream fix:**
+   None.
+   Constraints 1 and 3 fail;
    the source audit supports a consumer-side guard,
    not an upstream bug patch.
 

@@ -2,7 +2,7 @@
 //!       plan becomes.
 //! Why: The plan is a pre-commit step. Another forwarded command such as `git add` could
 //!      not apply its patches, so it plans only for `git commit` among forwarded commands,
-//!      and for `git cli-git check` and `git cli-git fix`; and only when a workspace manifest
+//!      and for `git monochromatic-git-policy-cli check` and `git monochromatic-git-policy-cli fix`; and only when a workspace manifest
 //!      is modified, so ordinary commits read nothing. Each stale dependent is one finding
 //!      whose patch rewrites a tracked manifest that may not be a candidate, which adds that
 //!      manifest to the commit (`dependent-version-bump-policy.ts:178-235`).
@@ -130,10 +130,12 @@ pub fn should_plan(request: &DependentRequest) -> bool {
     if request.trigger == Trigger::PreForward && !request.forwards_commit {
         return false;
     }
-    return request.candidates.iter().any(|candidate: &Candidate| {
-        return candidate.change == CandidateChange::Modified
-            && is_workspace_manifest_path(&candidate.path);
-    });
+    for candidate in request.candidates {
+        if candidate.change == CandidateChange::Modified && is_workspace_manifest_path(&candidate.path) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What: The stale finding for one planned bump.
@@ -183,14 +185,13 @@ pub fn find_dependent_bumps(
             }]);
         }
         PlanOutcome::Planned(plan) => {
-            return Ok(plan
-                .bumps
-                .iter()
-                .filter(|bump: &&ManifestBump| {
-                    return matches!(bump.mode, TrackedMode::Regular | TrackedMode::Executable);
-                })
-                .map(|bump: &ManifestBump| return stale_finding(bump, &plan.bumped_names))
-                .collect());
+            let mut findings: Vec<DependentFinding> = Vec::new();
+            for bump in &plan.bumps {
+                if matches!(bump.mode, TrackedMode::Regular | TrackedMode::Executable) {
+                    findings.push(stale_finding(bump, &plan.bumped_names));
+                }
+            }
+            return Ok(findings);
         }
     }
 }

@@ -7,8 +7,12 @@ the end of that stream when the server process ends,
 and every JSON-RPC error response.
 The IDE's Language module (`package/ide/app/src/language`) embeds `helix-lsp`
 and forwards its `log` records into the application log,
-so a clean open, request, close, and quit leaves ERROR-level records.
-The repository rule on quiet cleanup (`AGENTS.md`, code `CXL`) forbids that.
+so a clean open,
+request,
+close,
+and quit leaves ERROR-level records.
+The repository rule on quiet cleanup (`AGENTS.md`,
+code `CXL`) forbids that.
 
 Related:
 [`helix-lsp-embedding-roots-and-stop.md`](helix-lsp-embedding-roots-and-stop.md) covers two other embedding behaviors,
@@ -30,7 +34,8 @@ ERROR helix_lsp::transport: typescript-native err <- "context canceled\n"
 ```
 
 The level is ERROR whatever the server meant.
-Both rust-analyzer lines carry rust-analyzer's own level, `WARN`.
+Both rust-analyzer lines carry rust-analyzer's own level,
+`WARN`.
 
 ### A server process ended
 
@@ -79,7 +84,8 @@ async fn recv_server_error(
 
 ### The end of standard error
 
-When `read_line` returns zero bytes, `recv_server_error` returns `Error::StreamClosed`,
+When `read_line` returns zero bytes,
+`recv_server_error` returns `Error::StreamClosed`,
 and the task that called it logs that value at `error!` before it ends (`helix-lsp/src/transport.rs:355`):
 
 ```rust
@@ -154,7 +160,8 @@ The evidence against it:
 - The record appears when the worker sends `shutdown` and `exit`,
   waits until every server has ended by itself (`language servers were asked to stop still_running=0`),
   and only then drops the registry.
-- The source shows no condition on the record: the end of the stream is always logged.
+- The source shows no condition on the record:
+  the end of the stream is always logged.
 - With the worker's wait removed in a disposable copy,
   the lifetime test fails for another reason (the server never receives `shutdown`),
   so the wait is not what produces the record.
@@ -167,7 +174,9 @@ which was also the head of `master` on 2026-10-05.
 
 ### Harness
 
-Container suite, scripted server, no real language server:
+Container suite,
+scripted server,
+no real language server:
 
 ```sh
 # package/ide/app
@@ -175,13 +184,19 @@ mise run //package/ide/app:test:language quiet::
 ```
 
 `tests/language/quiet.rs` installs the application's log setup with an in-memory writer,
-runs open, one hover, close, and shutdown,
+runs open,
+one hover,
+close,
+and shutdown,
 and collects the ERROR-level records.
 Since 2026-10-06 the scripted server also writes `context canceled` to standard error at shutdown
-and answers the first hover with `-32801`, so all three record shapes occur in that lifetime,
+and answers the first hover with `-32801`,
+so all three record shapes occur in that lifetime,
 and the test runs with the bridge described in "Verified workarounds".
 
-Host, real servers confined by bubblewrap, disposable projects:
+Host,
+real servers confined by bubblewrap,
+disposable projects:
 
 ```sh
 # package/ide/app
@@ -190,27 +205,42 @@ mise run //package/ide/app:inspect:language-lifecycle
 
 ### Records that appear
 
-Scripted server, clean lifetime:
+Scripted server,
+clean lifetime:
 
-- `scripted-ls err: <- StreamClosed`, once.
+- `scripted-ls err: <- StreamClosed`,
+  once.
 
-TypeScript 7.0.2 server, open, one hover, close, quit:
+TypeScript 7.0.2 server,
+open,
+one hover,
+close,
+quit:
 
 - `typescript-native err <- "context canceled\n"`
 - `typescript-native err: <- StreamClosed`
 
-rust-analyzer `1.100.0-nightly (1303417 2026-09-21)`, open, one hover, close, quit:
+rust-analyzer `1.100.0-nightly (1303417 2026-09-21)`,
+open,
+one hover,
+close,
+quit:
 
-- `rust-analyzer err <- "... WARN notify error: No path was found.\n"`, twice
-- `rust-analyzer err <- "... WARN overly long loop turn took ..."`, timing dependent
-- `rust-analyzer <- ServerError(-32801): content modified`, timing dependent
+- `rust-analyzer err <- "... WARN notify error: No path was found.\n"`,
+  twice
+- `rust-analyzer err <- "... WARN overly long loop turn took ..."`,
+  timing dependent
+- `rust-analyzer <- ServerError(-32801): content modified`,
+  timing dependent
 - `rust-analyzer err: <- StreamClosed`
 
 ### Records that do not appear
 
 - Nothing at ERROR from `ide_app` targets in any of these runs.
-- No `Exiting ... after unexpected error`, which is the response reader's record for a real transport failure.
-- With the prototype in "Upstream filing decision" applied, the scripted lifetime logs nothing at ERROR.
+- No `Exiting ... after unexpected error`,
+  which is the response reader's record for a real transport failure.
+- With the prototype in "Upstream filing decision" applied,
+  the scripted lifetime logs nothing at ERROR.
 
 ## Verified workarounds
 
@@ -218,18 +248,31 @@ rust-analyzer `1.100.0-nightly (1303417 2026-09-21)`, open, one hover, close, qu
 
 The repository owner chose this handling on 2026-10-06 ("Re-label in the IDE").
 `package/ide/app/src/logging/relabel.rs` installs the `log` crate's logger for the process.
-It lowers exactly the three shapes, when they come from the `helix_lsp::transport` target at ERROR,
-and passes everything else, at every level, through `tracing_log::format_trace` unchanged:
+It lowers exactly the three shapes,
+when they come from the `helix_lsp::transport` target at ERROR,
+and passes everything else,
+at every level,
+through `tracing_log::format_trace` unchanged:
 
-- a standard-error line, `{name} err <- "{line}"`, to INFO,
+- a standard-error line,
+  `{name} err <- "{line}"`,
+  to INFO,
   the level at which `helix-lsp` logs every other message it reads from a server
   (`helix-lsp/src/transport.rs:147`);
-- the end of standard error, `{name} err: <- StreamClosed`, to DEBUG;
-- an error answer with code `-32801` (content modified) or `-32800` (request cancelled), to DEBUG,
+- the end of standard error,
+  `{name} err: <- StreamClosed`,
+  to DEBUG;
+- an error answer with code `-32801` (content modified) or `-32800` (request cancelled),
+  to DEBUG,
   because the worker asks again for these and shows nothing (`src/language/request/answer.rs`).
 
-Text, target, module, file, and line stay as `helix-lsp` wrote them.
-An error answer with any other code, a failure to read or write a server's streams,
+Text,
+target,
+module,
+file,
+and line stay as `helix-lsp` wrote them.
+An error answer with any other code,
+a failure to read or write a server's streams,
 and every record from another `helix-lsp` module keep ERROR.
 The application's default level is WARN and keeps `helix_lsp` at warnings unless `RUST_LOG` names it,
 so `RUST_LOG=helix_lsp=debug` shows the re-labelled records together with the protocol messages.
@@ -237,18 +280,25 @@ so `RUST_LOG=helix_lsp=debug` shows the re-labelled records together with the pr
 Verification:
 the strict test `quiet::clean_lifetime_logs_no_error_level_record` is enforced and asserts each shape at its new level;
 `quiet::unknown_helix_error_records_keep_their_level` asserts that a refused `initialize` still logs two ERROR records;
-`inspect:language-lifecycle-guards` removes each re-labelling, and widens it to every transport ERROR,
+`inspect:language-lifecycle-guards` removes each re-labelling,
+and widens it to every transport ERROR,
 and observes the named test fail each time and pass when restored
-(`~/temp/agent/ide-language-lifecycle-guard-Z50y1S/results.json`, 2026-10-06, 20 runs as expected).
+(`~/temp/agent/ide-language-lifecycle-guard-Z50y1S/results.json`,
+2026-10-06,
+20 runs as expected).
 
 Tradeoffs:
 
 - It matches `helix-lsp`'s message text at the pinned revision.
-  A changed format string on a `helix-lsp` update makes that record ERROR again, which the enforced test reports;
-  it cannot hide a record, because an unrecognized record keeps its level.
+  A changed format string on a `helix-lsp` update makes that record ERROR again,
+  which the enforced test reports;
+  it cannot hide a record,
+  because an unrecognized record keeps its level.
 - A server's standard error is no longer visible at the default level.
   Since 2026-10-06 the bridge keeps each server's last 8 lines anyway (`src/logging/stderr_tail.rs`):
-  a server that crashes, or ends during its start, leaves the worker's warning `language server process ended`
+  a server that crashes,
+  or ends during its start,
+  leaves the worker's warning `language server process ended`
   with them in its `stderr_tail` field,
   and a server stopped for not answering `initialize` in time leaves them in a warning after the start-deadline error.
   Every line a server writes appears with `RUST_LOG=helix_lsp=info`.
@@ -282,20 +332,29 @@ standard-error lines and error responses stay at ERROR.
   so a redirect inside the launch only moves the end of that pipe to the start of the session.
 - **Turning the `helix_lsp::transport` target off in the filter:**
   it also hides `Exiting ... after unexpected error` and `Failed to send notification`,
-  which report real failures, and it discards server standard error,
+  which report real failures,
+  and it discards server standard error,
   where servers print panics.
   It is the filtering the cleanup rule forbids.
 
 ## Upstream filing decision
 
-`.out-of-scope/` was checked: no entry covers Helix or `helix-lsp`.
+`.out-of-scope/` was checked:
+no entry covers Helix or `helix-lsp`.
 
 Tracker searches on 2026-10-05 in `helix-editor/helix`:
-issues for `StreamClosed`, `"err <-"`, `stderr error level`, `language server stderr`,
+issues for `StreamClosed`,
+`"err <-"`,
+`stderr error level`,
+`language server stderr`,
 and `log level lsp error helix.log`;
-pull requests for `StreamClosed`, `stderr`, and `stderr log level language server`.
-The issue search for `StreamClosed` returned results (a positive control), none about log levels;
-`language server stderr` returned #6334, a SourceKit crash;
+pull requests for `StreamClosed`,
+`stderr`,
+and `stderr log level language server`.
+The issue search for `StreamClosed` returned results (a positive control),
+none about log levels;
+`language server stderr` returned #6334,
+a SourceKit crash;
 the pull-request search for `StreamClosed` returned #9332,
 which introduced the silent end-of-stream handling in the response reader.
 No report or change about the level of these records was found.
@@ -305,13 +364,19 @@ The three records are judged separately.
 ### The end-of-stream record
 
 1.  Is it really upstream's fault?
-    Yes, as an inconsistency:
+    Yes,
+    as an inconsistency:
     the response reader treats `StreamClosed` as a normal end and the standard-error reader logs it as an error,
     for the same event.
 2.  Can upstream fix it?
-    Yes. One match arm.
+    Yes.
+    One match arm.
 3.  Are they supporting this use case?
-    Yes. It happens inside Helix as well, after `:lsp-stop`, `:lsp-restart`, and any server exit;
+    Yes.
+    It happens inside Helix as well,
+    after `:lsp-stop`,
+    `:lsp-restart`,
+    and any server exit;
     embedding is not required to see it.
 4.  Would the repo welcome our contribution?
     `docs/CONTRIBUTING.md` welcomes contributions of any size and states no rule about AI assistance;
@@ -319,12 +384,17 @@ The three records are judged separately.
     Tracker searches for `LLM generated` and `AI generated pull requests policy` found no stated ban.
     A filing must still disclose assistance and name what a human verified.
 5.  Will they likely fix it?
-    No signal against it: no won't-fix, no stated non-goal, no declined request.
+    No signal against it:
+    no won't-fix,
+    no stated non-goal,
+    no declined request.
 6.  Have we prototyped a minimal fix compatible with their architecture?
     Yes.
 
-Prototype, applied to a fresh clone at the pinned revision
-(`~/temp/agent/upstream-prototype.pGRX48oY/helix`, origin `https://github.com/helix-editor/helix.git`):
+Prototype,
+applied to a fresh clone at the pinned revision
+(`~/temp/agent/upstream-prototype.pGRX48oY/helix`,
+origin `https://github.com/helix-editor/helix.git`):
 
 ```diff
 --- a/helix-lsp/src/transport.rs
@@ -339,24 +409,35 @@ Prototype, applied to a fresh clone at the pinned revision
                      break;
 ```
 
-Verification command, with a disposable target directory, Cargo home copy, and the clone:
+Verification command,
+with a disposable target directory,
+Cargo home copy,
+and the clone:
 
 ```sh
 # package/ide/app
 mise run //package/ide/app:inspect:language-lifecycle-guards "$CACHE" "$CARGO" "$HELIX" helix
 ```
 
-Note, 2026-10-06: this `helix` part was removed from `inspect:language-lifecycle-guards`
-when the application started re-labelling the record, because the strict test now passes with or without the change.
+Note,
+2026-10-06:
+this `helix` part was removed from `inspect:language-lifecycle-guards`
+when the application started re-labelling the record,
+because the strict test now passes with or without the change.
 The command runs as written on `main` at commit `45db45d02`;
-to reproduce the prototype result, check out `package/ide/app` at that commit.
+to reproduce the prototype result,
+check out `package/ide/app` at that commit.
 
 Result on 2026-10-05 (`~/temp/agent/ide-language-lifecycle-guard-8DAtvs/results.json`):
-built against the unmodified clone, the strict test fails with `scripted-ls err: <- StreamClosed`;
-with the change it passes, and the enforced test passes;
+built against the unmodified clone,
+the strict test fails with `scripted-ls err: <- StreamClosed`;
+with the change it passes,
+and the enforced test passes;
 with the change reverted it fails again.
 
-Decision: fileable after a human has read the trace and rerun the command. Not filed.
+Decision:
+fileable after a human has read the trace and rerun the command.
+Not filed.
 
 ~~~md
 Title: helix-lsp: stderr reader logs `StreamClosed` at error level on every language server exit
@@ -412,13 +493,19 @@ passes with it and fails again when the change is reverted. A human has reviewed
     so logging standard error at `error!` is what makes a failing server's output visible in the editor's log
     without a verbosity flag.
     The level is a choice that fits the editor.
-2.  Can upstream fix it? Not applicable after constraint 1.
-3.  Are they supporting this use case? Embedding `helix-lsp` outside Helix is not a documented use.
-4.  Would the repo welcome our contribution? Not evaluated.
-5.  Will they likely fix it? Not evaluated.
-6.  Prototype: none.
+2.  Can upstream fix it?
+    Not applicable after constraint 1.
+3.  Are they supporting this use case?
+    Embedding `helix-lsp` outside Helix is not a documented use.
+4.  Would the repo welcome our contribution?
+    Not evaluated.
+5.  Will they likely fix it?
+    Not evaluated.
+6.  Prototype:
+    none.
 
-Decision: do not file.
+Decision:
+do not file.
 
 ### Error responses at ERROR
 
@@ -427,14 +514,21 @@ Decision: do not file.
     Recording every failed request at the transport is a consistent choice for the editor;
     the source makes no distinction between error codes.
     An embedder that reports every failed request itself sees the record as a duplicate,
-    which is a difference in needs, not a defect.
-2.  Can upstream fix it? Not applicable after constraint 1.
-3.  Are they supporting this use case? Not a documented use.
-4.  Would the repo welcome our contribution? Not evaluated.
-5.  Will they likely fix it? Not evaluated.
-6.  Prototype: none.
+    which is a difference in needs,
+    not a defect.
+2.  Can upstream fix it?
+    Not applicable after constraint 1.
+3.  Are they supporting this use case?
+    Not a documented use.
+4.  Would the repo welcome our contribution?
+    Not evaluated.
+5.  Will they likely fix it?
+    Not evaluated.
+6.  Prototype:
+    none.
 
-Decision: do not file.
+Decision:
+do not file.
 
 ~~~md
 Title: (do not file as-is) helix-lsp: server stderr lines and JSON-RPC error responses are logged at error level

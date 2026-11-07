@@ -15,7 +15,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const found = describeLock(lockPath, true); // 'service seq=7 pid=42 state=running age_ms=5000 open_by=[42 (cli-git-service)]'
+//! const found = describeLock(lockPath, true); // 'service seq=7 pid=42 state=running age_ms=5000 open_by=[42 (monochromatic-git-policy-cli)]'
 //! ```
 
 use crate::index_lock_holders::{Holder, HolderEvidence};
@@ -78,13 +78,33 @@ pub fn open_by_text(seen: Option<&HolderEvidence>) -> Option<String> {
     if holders.is_empty() {
         return None;
     }
-    let names: Vec<String> = holders
-        .iter()
-        .map(|holder| {
-            return holder.command.as_ref().map_or_else(|| { return holder.pid.to_string(); }, |command| { return format!("{} ({command})", holder.pid); });
-        })
-        .collect();
+    let mut names: Vec<String> = Vec::new();
+    for holder in holders.iter() {
+        names.push(match holder.command.as_ref() {
+            Some(command) => format!("{} ({command})", holder.pid),
+            None => holder.pid.to_string(),
+        });
+    }
     return Some(format!("open_by=[{}]", names.join(", ")));
+}
+
+/// What:
+///  How many milliseconds ago a file was last changed, zero when that cannot be told.
+/// Why:
+///  `describe_lock` says how old a lock file is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Date.now() - statSync(lock).mtimeMs
+/// ```
+fn age_millis(metadata: &std::fs::Metadata) -> u128 {
+    let Ok(made) = metadata.modified() else {
+        return 0;
+    };
+    return match SystemTime::now().duration_since(made) {
+        Ok(age) => age.as_millis(),
+        Err(_in_the_future) => 0,
+    };
 }
 
 /// What:
@@ -106,7 +126,7 @@ pub fn open_by_text(seen: Option<&HolderEvidence>) -> Option<String> {
 /// ```
 pub fn describe_lock(lock: &Path) -> String {
     let Ok(metadata) = std::fs::metadata(lock) else { return String::from("vanished") };
-    let age_ms: u128 = metadata.modified().ok().and_then(|made| { return SystemTime::now().duration_since(made).ok(); }).map_or(0, |age| { return age.as_millis(); });
+    let age_ms: u128 = age_millis(&metadata);
     return match marker_of(lock) {
         Some(marked) => match marked.holder {
             Some((pid, birth)) => format!(

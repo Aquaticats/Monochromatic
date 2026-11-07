@@ -179,7 +179,7 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
     assert_eq!(
         install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice()),
         Err(String::from(
-            "cli-git fix could not install its corrections: a selected file changed while cli-git fix ran, so no file was changed. Run cli-git fix again."
+            "monochromatic-git-policy-cli fix could not install its corrections: a selected file changed while monochromatic-git-policy-cli fix ran, so no file was changed. Run monochromatic-git-policy-cli fix again."
         ))
     );
     assert_eq!(
@@ -193,7 +193,7 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
             .expect_err("missing file");
     assert!(
         missing.starts_with(
-            "cli-git fix could not install its corrections: reading a corrected file failed ("
+            "monochromatic-git-policy-cli fix could not install its corrections: reading a corrected file failed ("
         ) && missing.ends_with("), so no file was changed."),
         "{missing}"
     );
@@ -204,7 +204,7 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
     assert_eq!(
         install_corrections(&fixture_tree.top, &fixture_tree.index, nameless.as_slice()),
         Err(String::from(
-            "cli-git fix could not install its corrections: Git named a corrected file this system cannot represent, so no file was changed."
+            "monochromatic-git-policy-cli fix could not install its corrections: Git named a corrected file this system cannot represent, so no file was changed."
         ))
     );
     assert_eq!(siblings(&fixture_tree.top), Vec::<String>::new());
@@ -233,7 +233,7 @@ fn an_unwritable_directory_stops_before_any_change() {
             .expect_err("unwritable");
     std::fs::set_permissions(&sub, std::fs::Permissions::from_mode(0o755)).expect("restore");
     assert!(
-        refused.starts_with("cli-git fix could not install its corrections: writing a corrected file beside its original failed (")
+        refused.starts_with("monochromatic-git-policy-cli fix could not install its corrections: writing a corrected file beside its original failed (")
             && refused.ends_with("), so no file was changed."),
         "{refused}"
     );
@@ -255,7 +255,7 @@ fn an_index_that_is_not_as_read_restores_every_file() {
     assert_eq!(
         install_prepared(prepared.as_slice(), &fixture_tree.index, &before),
         Err(String::from(
-            "cli-git fix could not install its corrections: the index changed while cli-git fix ran, so every corrected file was restored. Run cli-git fix again."
+            "monochromatic-git-policy-cli fix could not install its corrections: the index changed while monochromatic-git-policy-cli fix ran, so every corrected file was restored. Run monochromatic-git-policy-cli fix again."
         ))
     );
     assert_eq!(contents(&fixture_tree.top), untouched());
@@ -270,9 +270,9 @@ fn an_index_that_is_not_as_read_restores_every_file() {
             .expect_err("unreadable index");
     assert!(
         unreadable.starts_with(
-            "cli-git fix could not install its corrections: reading the index again failed ("
+            "monochromatic-git-policy-cli fix could not install its corrections: reading the index again failed ("
         ) && unreadable
-            .ends_with("), so every corrected file was restored. Run cli-git fix again."),
+            .ends_with("), so every corrected file was restored. Run monochromatic-git-policy-cli fix again."),
         "{unreadable}"
     );
     assert_eq!(contents(&fixture_tree.top), untouched());
@@ -282,7 +282,7 @@ fn an_index_that_is_not_as_read_restores_every_file() {
             .expect_err("unreadable index");
     assert!(
         first.starts_with(
-            "cli-git fix could not install its corrections: reading the index failed ("
+            "monochromatic-git-policy-cli fix could not install its corrections: reading the index failed ("
         ) && first.ends_with("), so no file was changed."),
         "{first}"
     );
@@ -307,8 +307,8 @@ fn a_failed_replacement_restores_and_a_failed_restore_keeps_its_backup() {
         .expect_err("rename fails");
     assert!(
         failed.starts_with(
-            "cli-git fix could not install its corrections: replacing a corrected file failed ("
-        ) && failed.ends_with("), so every corrected file was restored. Run cli-git fix again."),
+            "monochromatic-git-policy-cli fix could not install its corrections: replacing a corrected file failed ("
+        ) && failed.ends_with("), so every corrected file was restored. Run monochromatic-git-policy-cli fix again."),
         "{failed}"
     );
     assert_eq!(
@@ -328,7 +328,7 @@ fn a_failed_replacement_restores_and_a_failed_restore_keeps_its_backup() {
         install_prepared(lost.as_slice(), &fixture_tree.index, &before).expect_err("restore fails");
     assert!(
         unrestored.starts_with(
-            "cli-git fix could not install its corrections: the index changed while cli-git fix ran, and restoring a corrected file failed ("
+            "monochromatic-git-policy-cli fix could not install its corrections: the index changed while monochromatic-git-policy-cli fix ran, and restoring a corrected file failed ("
         ) && unrestored.ends_with(
             "); its original bytes remain beside it in a file whose name starts with .cli-git-direct-fix-."
         ),

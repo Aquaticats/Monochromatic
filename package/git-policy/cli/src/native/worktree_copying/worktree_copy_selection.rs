@@ -14,7 +14,7 @@
 
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::json_record::quote;
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
@@ -56,6 +56,37 @@ pub fn repository_path_within(candidate: &str, parent: &str) -> bool {
 }
 
 /// What:
+///  Whether a repository path component is empty, `.` or `..`.
+/// Why:
+///   Such a component could leave the repository, so a path with one is unsafe.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// component === '' || component === '.' || component === '..'
+/// ```
+fn is_unsafe_component(component: &str) -> bool {
+    return component.is_empty() || component == "." || component == "..";
+}
+
+/// What:
+///  Whether a repository path is at or below any of the root paths.
+/// Why:
+///   A root already selected covers everything below it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// roots.some((root) => repositoryPathWithin(candidate, root))
+/// ```
+fn within_any_root(candidate: &str, roots: &[String]) -> bool {
+    for root in roots {
+        if repository_path_within(candidate, root.as_str()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Validates one slash-separated path that Git reported before it is joined to a filesystem root.
 /// Why:
 ///   An empty, absolute, `.` or `..` component could select a path outside the worktree.
@@ -68,12 +99,10 @@ pub fn assert_safe_repository_path(repository_path: &str) -> Result<(), Worktree
     let unsafe_path: bool = repository_path.is_empty()
         || repository_path.starts_with('/')
         || Path::new(repository_path).is_absolute()
-        || repository_path
-            .split('/')
-            .any(|component| return component.is_empty() || component == "." || component == "..");
+        || repository_path.split('/').any(is_unsafe_component);
     if unsafe_path {
         return Err(WorktreeCopyError(format!(
-            "cli-git: Git returned unsafe ignored path {}.",
+            "monochromatic-git-policy-cli: Git returned unsafe ignored path {}.",
             quote(repository_path)
         )));
     }
@@ -113,6 +142,19 @@ pub fn js_order(left: &str, right: &str) -> Ordering {
 }
 
 /// What:
+///  Order two names the way JavaScript's default sort does, for a sort of owned names.
+/// Why:
+///   `sort_by` hands its function references to the items, and a generic function over `AsRef<str>` takes them without a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// names.sort()
+/// ```
+pub fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ordering {
+    return js_order(left.as_ref(), right.as_ref());
+}
+
+/// What:
 ///  Keeps the outermost of several ignored roots, dropping every root under another one.
 /// Why:
 ///   Copying a parent already copies its descendants, so a second copy would duplicate work and entries.
@@ -123,13 +165,11 @@ pub fn js_order(left: &str, right: &str) -> Ordering {
 /// ```
 fn collapse_ignored_roots(paths: &[String]) -> Vec<String> {
     let mut candidates: Vec<String> = paths.to_vec();
-    candidates.sort_by(|left, right| return js_order(left, right));
+    candidates.sort_by(by_js_order);
     candidates.dedup();
     let mut roots: Vec<String> = Vec::new();
     for candidate in candidates {
-        let owned: bool = roots
-            .iter()
-            .any(|root| return repository_path_within(candidate.as_str(), root.as_str()));
+        let owned: bool = within_any_root(candidate.as_str(), roots.as_slice());
         if !owned {
             roots.push(candidate);
         }
@@ -163,7 +203,7 @@ fn is_ignored_special_path(
         without_prefix: true,
         ..GitRequest::default()
     };
-    let output = run_git(context, &request).map_err(|error| return raw_failure(&error))?;
+    let output = run_git(context, &request).map_err(raw_failure_of)?;
     // `match` on the exit code: 0 is ignored, 1 is not ignored, anything else is a failure.
     match output.code {
         Some(0) => return Ok(true),
@@ -177,6 +217,37 @@ fn is_ignored_special_path(
 }
 
 /// What:
+///  Whether a byte is NUL, the end of each name in Git's `-z` output.
+/// Why:
+///   Git's listings are split on it, and a path may hold any other byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether a NUL-separated listing holds `wanted` as one of its names.
+/// Why:
+///   Git lists a directory's files rather than the directory, so only an exact name is a file Git ignores.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listing.split('\0').includes(wanted)
+/// ```
+fn lists_exactly(listing: &[u8], wanted: &[u8]) -> bool {
+    for field in listing.split(is_nul_byte) {
+        if field == wanted {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Whether a native path lies at or under one of the excluded absolute directories.
 /// Why:
 ///   Walks skip registered worktrees and the private stage, so they never copy themselves.
@@ -186,9 +257,12 @@ fn is_ignored_special_path(
 /// isFilesystemPathWithin({ candidate, parent })
 /// ```
 fn is_excluded(candidate: &Path, excluded_roots: &[PathBuf]) -> bool {
-    return excluded_roots
-        .iter()
-        .any(|root| return candidate.starts_with(root.as_path()));
+    for root in excluded_roots {
+        if candidate.starts_with(root.as_path()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -215,9 +289,9 @@ fn special_entries(
             filesystem_path(source_root, current.as_str())?
         };
         let listing = std::fs::read_dir(directory_path.as_path())
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
         for listed in listing {
-            let entry: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
+            let entry: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
             let name: String = entry.file_name().to_string_lossy().into_owned();
             let repository_path: String = if current == "." {
                 name
@@ -231,15 +305,13 @@ fn special_entries(
             if is_excluded(source_path.as_path(), excluded_roots) {
                 continue;
             }
-            let selected_ancestor: bool = selected_roots
-                .iter()
-                .any(|root| return repository_path_within(repository_path.as_str(), root.as_str()));
+            let selected_ancestor: bool = within_any_root(repository_path.as_str(), selected_roots);
             if selected_ancestor {
                 continue;
             }
             let file_type: std::fs::FileType = entry
                 .file_type()
-                .map_err(|error| return raw_failure(&error))?;
+                .map_err(raw_failure_of)?;
             // A directory is walked; a file or symbolic link is already selected by Git's listing;
             // anything else is a special entry that needs Git's own ignore answer.
             if file_type.is_dir() {
@@ -286,14 +358,14 @@ pub fn read_ignored_roots(
         without_prefix: true,
         ..GitRequest::default()
     };
-    let output = run_git(context, &request).map_err(|error| return raw_failure(&error))?;
+    let output = run_git(context, &request).map_err(raw_failure_of)?;
     if output.code != Some(0) {
         return Err(raw_failure(&String::from_utf8_lossy(
             output.stderr.as_slice(),
         )));
     }
     let mut paths: Vec<String> = Vec::new();
-    for field in output.stdout.split(|byte| return *byte == 0) {
+    for field in output.stdout.split(is_nul_byte) {
         if field.is_empty() {
             continue;
         }
@@ -369,17 +441,14 @@ pub fn read_named_ignored_roots(
             without_prefix: true,
             ..GitRequest::default()
         };
-        let output = run_git(context, &request).map_err(|error| return raw_failure(&error))?;
+        let output = run_git(context, &request).map_err(raw_failure_of)?;
         if output.code != Some(0) {
             return Err(raw_failure(&String::from_utf8_lossy(
                 output.stderr.as_slice(),
             )));
         }
         // Git lists a directory's files rather than the directory, so only an exact name is a file Git ignores.
-        let listed: bool = output
-            .stdout
-            .split(|byte| return *byte == 0)
-            .any(|field| return field == path.as_bytes());
+        let listed: bool = lists_exactly(output.stdout.as_slice(), path.as_bytes());
         if listed {
             selected.push(path.clone());
         }

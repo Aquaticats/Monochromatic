@@ -41,19 +41,42 @@ impl RetrySchedule {
 
     /// How long until the first entry is due (nothing at all when the schedule is empty, zero for one already due).
     pub fn next_wait(&self, now: Instant) -> Option<Duration> {
-        return self.due.iter().map(|(_, when)| { return when.saturating_duration_since(now); }).min();
+        let mut least: Option<Duration> = None;
+        for (_directory, when) in &self.due {
+            let wait: Duration = when.saturating_duration_since(now);
+            least = Some(match least {
+                Some(known) => known.min(wait),
+                None => wait,
+            });
+        }
+        return least;
     }
 
     /// Removes and returns the repositories that are due at `now`.
     pub fn take_due(&mut self, now: Instant) -> Vec<PathBuf> {
-        let (due, waiting): (Vec<(PathBuf, Instant)>, Vec<(PathBuf, Instant)>) = std::mem::take(&mut self.due).into_iter().partition(|(_, when)| { return *when <= now; });
+        // The entries due now leave the schedule in order; the others stay in order.
+        let mut due: Vec<PathBuf> = Vec::new();
+        let mut waiting: Vec<(PathBuf, Instant)> = Vec::new();
+        for entry in std::mem::take(&mut self.due) {
+            if entry.1 <= now {
+                due.push(entry.0);
+            } else {
+                waiting.push(entry);
+            }
+        }
         self.due = waiting;
-        return due.into_iter().map(|(directory, _)| { return directory; }).collect();
+        return due;
     }
 
     /// Forgets what was scheduled for the repositories a round just ran, and schedules what that round asked for.
     pub fn replace(&mut self, ran: &[PathBuf], retries: Vec<(PathBuf, Duration)>, now: Instant) {
-        self.due.retain(|(directory, _)| { return !ran.contains(directory); });
+        let mut kept: Vec<(PathBuf, Instant)> = Vec::new();
+        for entry in std::mem::take(&mut self.due) {
+            if !ran.contains(&entry.0) {
+                kept.push(entry);
+            }
+        }
+        self.due = kept;
         for (directory, wait) in retries {
             self.due.push((directory, now + wait + RETRY_SLACK));
         }

@@ -67,9 +67,12 @@ pub struct Route {
 
 /// The directory a user's own unit files live in.
 pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
-    return config_home
-        .map(|directory| { return directory.join("systemd").join("user"); })
-        .or_else(|| { return home.map(|directory| { return directory.join(".config").join("systemd").join("user"); }); });
+    // The configuration home when one is set, else `.config` under the home directory.
+    if let Some(directory) = config_home {
+        return Some(directory.join("systemd").join("user"));
+    }
+    let directory: &Path = home?;
+    return Some(directory.join(".config").join("systemd").join("user"));
 }
 
 /// What:
@@ -89,13 +92,16 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     let runtime_dir = inputs.runtime_dir?;
     let socket: PathBuf = socket_for(runtime_dir, inputs.git_dir);
     let socket_exists: bool = socket.exists();
-    let Some(bus) = session_bus_path(inputs.bus_address, Some(runtime_dir)).filter(|path| { return path.exists(); }) else {
-        return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None };
+    // A bus socket that is not there is no bus to provision through.
+    let bus: PathBuf = match session_bus_path(inputs.bus_address, Some(runtime_dir)) {
+        Some(path) if path.exists() => path,
+        _ => return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None },
     };
     // The service is a mode of the wrapper's own executable (`service_main.rs`), so the unit names that file; a path that
     //  is not a file (a deleted executable) is no program for a unit to name.
-    let Some(service_binary) = inputs.own_executable.map(Path::to_path_buf).filter(|path| { return path.is_file(); }) else {
-        return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None };
+    let service_binary: PathBuf = match inputs.own_executable {
+        Some(executable) if executable.is_file() => executable.to_path_buf(),
+        _ => return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None },
     };
     let host: ProvisionHost = ProvisionHost {
         runtime_dir: runtime_dir.to_path_buf(),
@@ -109,7 +115,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     return Some(Route { address: Bind::Path(socket), provision: Some(host) });
 }
 
-/// What `git cli-git service status` prints and exits with.
+/// What `git monochromatic-git-policy-cli service status` prints and exits with.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StatusReport {
     /// Exit status: 0 when the service answered.
@@ -144,6 +150,22 @@ pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 }
 
 /// What:
+///  The path an environment variable holds, nothing when it is unset or empty.
+/// Why:
+///  An empty runtime, configuration or home directory names no place, so the route treats it as unset.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nonEmptyPathVariable = (name: string) => process.env[name] ? process.env[name] : undefined;
+/// ```
+pub(crate) fn non_empty_path_variable(name: &str) -> Option<PathBuf> {
+    return match std::env::var_os(name) {
+        Some(value) if !value.is_empty() => Some(PathBuf::from(value)),
+        _ => None,
+    };
+}
+
+/// What:
 ///  The route to the service of a worktree from this process's environment.
 /// Why:
 ///   The commit and the commands that hand a push over after they moved a branch reach the service the same way.
@@ -153,10 +175,9 @@ pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// routeFromEnvironment(realGit, gitDir) // undefined: no way to reach a service
 /// ```
 pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> {
-    let path_variable = |name: &str| -> Option<PathBuf> { return std::env::var_os(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from); };
-    let runtime: Option<PathBuf> = path_variable("XDG_RUNTIME_DIR");
-    let config_home: Option<PathBuf> = path_variable("XDG_CONFIG_HOME");
-    let home: Option<PathBuf> = path_variable("HOME");
+    let runtime: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
+    let config_home: Option<PathBuf> = non_empty_path_variable("XDG_CONFIG_HOME");
+    let home: Option<PathBuf> = non_empty_path_variable("HOME");
     let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     return choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
@@ -167,6 +188,45 @@ pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> 
         real_git,
         git_dir,
     });
+}
+
+/// What:
+///  Whether something listens on the socket: a connection to it succeeds.
+/// Why:
+///  A service is running when its socket takes a connection.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const serviceAnswers = async (socket: string) => { try { await connect(socket); return true; } catch { return false; } };
+/// ```
+fn service_answers(socket: &Path) -> bool {
+    return std::os::unix::net::UnixStream::connect(socket).is_ok();
+}
+
+/// What:
+///  Whether any socket file in a directory takes a connection.
+/// Why:
+///  Without a worktree to ask about, any commit service of the user counts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await readdir(directory)).some((name) => name.endsWith('.sock') && serviceAnswers(join(directory, name)))
+/// ```
+fn any_socket_answers(directory: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path: PathBuf = entry.path();
+        let is_socket_file: bool = match path.extension() {
+            Some(extension) => extension == "sock",
+            None => false,
+        };
+        if is_socket_file && service_answers(path.as_path()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -181,13 +241,10 @@ pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> 
 /// serviceStatus(runtimeDir, gitDir)
 /// ```
 pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> StatusReport {
-    let answers = |socket: &Path| -> bool { return std::os::unix::net::UnixStream::connect(socket).is_ok(); };
     let (answered, what): (bool, &str) = match (runtime_dir, git_dir) {
-        (Some(runtime), Some(git)) => (answers(socket_for(runtime, git).as_path()), "The commit service of this worktree"),
+        (Some(runtime), Some(git)) => (service_answers(socket_for(runtime, git).as_path()), "The commit service of this worktree"),
         (Some(runtime), None) => {
-            let any: bool = std::fs::read_dir(runtime.join(SOCKET_DIRECTORY)).is_ok_and(|entries| {
-                return entries.flatten().any(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == "sock"; }) && answers(entry.path().as_path()); });
-            });
+            let any: bool = any_socket_answers(runtime.join(SOCKET_DIRECTORY).as_path());
             (any, "A commit service")
         }
         (None, _) => (false, "The commit service"),

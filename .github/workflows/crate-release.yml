@@ -39,6 +39,18 @@ on:
         - monochromatic-cargo-shadow
         - monochromatic-git-policy-cli
         - monochromatic-mpm-shadow
+        - monochromatic-jsonc-edit
+        - monochromatic-dependency-catalog
+        - monochromatic-browserslist
+        - monochromatic-xml-edit
+        - monochromatic-search-shadow
+        - monochromatic-nested-wayland-session
+        - forbidden-regex
+        - monochromatic-catalog-specifier
+        - monochromatic-file-enforcer
+        - monochromatic-lint
+        - monochromatic-pnpm-shadow
+        - monochromatic-file-enforcer-cli
       from:
         description: 'Version the crate holds now (the run fails when its Cargo.toml holds another)'
         type: string
@@ -93,6 +105,12 @@ jobs:
       run: |
         rustup toolchain install nightly --profile minimal --no-self-update
         rustup default nightly
+
+    - name: Install the system libraries the compositor crate links
+      if: ${{ inputs.crate == 'monochromatic-nested-wayland-session' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends pkg-config libwayland-dev libxkbcommon-dev libdrm-dev libegl-dev clang libclang-dev
 
     - name: Set the identity of the local release commit
       run: |

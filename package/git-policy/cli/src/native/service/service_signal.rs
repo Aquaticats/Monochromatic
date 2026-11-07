@@ -172,7 +172,7 @@ pub fn signal_line(signal: libc::c_int, uptime_nanos: u64, at_ms: u64, on_stream
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `PRIORITY=6\nSYSLOG_IDENTIFIER=cli-git-service\nMESSAGE=exiting reason=signal-${signal} uptime_ms=${u} at_ms=${t}\nCLI_GIT_AT_MS=${t}\n`
+/// `PRIORITY=6\nSYSLOG_IDENTIFIER=monochromatic-git-policy-cli-service\nMESSAGE=exiting reason=signal-${signal} uptime_ms=${u} at_ms=${t}\nCLI_GIT_AT_MS=${t}\n`
 /// ```
 pub fn signal_datagram(signal: libc::c_int, uptime_nanos: u64, at_ms: u64) -> ([u8; LINE_CAPACITY], usize) {
     let mut line: [u8; LINE_CAPACITY] = [0; LINE_CAPACITY];

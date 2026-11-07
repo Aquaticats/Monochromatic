@@ -14,8 +14,8 @@ export const plantedLandingControls: readonly PlantedControl[] = [
   {
     name: 'worktree copy recovery leaves a live owner\'s journal',
     file: 'src/native/worktree_copying/worktree_copy_recovery.rs',
-    from: '        if !journal_owner_is_dead(&journal) {',
-    to: '        if false && !journal_owner_is_dead(&journal) {',
+    from: 'if journal_owner_is_dead(&journal)? {',
+    to: 'if journal_owner_is_dead(&journal)? || true {',
     failing: 'worktree_copying::worktree_copy_recovery::tests::pending_check_leaves_a_live_journal_and_recovers_a_dead_one',
   },
   {
@@ -90,10 +90,10 @@ export const plantedLandingControls: readonly PlantedControl[] = [
   },
   {
     name: 'manual-push probe Git children drop the invocation environment',
-    file: 'src/native/invocation/wrapped_command.rs',
+    file: 'src/native/invocation/wrapped_command_notices_snapshots_and_manual_push.rs',
     from: 'environment: environment_with_overlay(environment, context.overlay.as_slice()),',
     to: 'environment: environment_with_overlay(&environment[..0], context.overlay.as_slice()),',
-    failing: 'push::push_environment::a_manual_push_probes_and_pushes_with_the_invocation_environment',
+    failing: 'push_environment::a_manual_push_probes_and_pushes_with_the_invocation_environment',
   },
   {
     name: 'an event path keeps the exact bytes of a name that is not UTF-8',
@@ -105,8 +105,8 @@ export const plantedLandingControls: readonly PlantedControl[] = [
   {
     name: 'the candidate pathspec of a name that is not UTF-8 keeps its exact bytes',
     file: 'src/native/commit/commit_transaction.rs',
-    from: '                return os_from_path_bytes(pathspec.as_slice());',
-    to: '                return OsString::from(String::from_utf8_lossy(pathspec.as_slice()).into_owned());',
+    from: 'pathspecs.push(os_from_path_bytes(pathspec.as_slice()));',
+    to: 'pathspecs.push(OsString::from(String::from_utf8_lossy(pathspec.as_slice()).into_owned()));',
     failing: 'commit::commit_transaction::tests::the_candidate_request_keeps_the_bytes_of_a_name_that_is_not_utf8',
   },
   {
@@ -114,6 +114,6 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     file: 'src/native/commit/private_index_stage.rs',
     from: '    request.arguments.push(os_from_path_bytes(path));',
     to: '    request.arguments.push(std::ffi::OsString::from(String::from_utf8_lossy(path).into_owned()));',
-    failing: 'policy::event_path_commit::a_commit_correction_of_a_name_that_is_not_utf8_reports_the_exact_bytes',
+    failing: 'event_path_commit::a_commit_correction_of_a_name_that_is_not_utf8_reports_the_exact_bytes',
   },
 ];

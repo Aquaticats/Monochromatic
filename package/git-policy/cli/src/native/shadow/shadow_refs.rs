@@ -48,6 +48,16 @@ pub struct RefSnapshotEntry {
     pub symref: String,
 }
 
+/// Order two ref entries by the bytes of their names, which is the order Git lists refs in. `sort_by` takes this function by path.
+fn compare_by_name_bytes(left: &RefSnapshotEntry, right: &RefSnapshotEntry) -> std::cmp::Ordering {
+    return left.name.as_bytes().cmp(right.name.as_bytes());
+}
+
+/// The failure for a `packed-refs` file that could not be written. `map_err` takes this function by path.
+fn packed_refs_failure(error: std::io::Error) -> GitFailure {
+    return GitFailure(format!("writing packed-refs failed: {error}"));
+}
+
 /// What:
 ///  Lists every real ref of the owning worktree in byte order.
 /// Why:
@@ -64,10 +74,15 @@ pub fn list_real_refs(context: &GitContext, cwd: &Path) -> Result<Vec<RefSnapsho
     );
     request.without_prefix = true;
     let output: GitOutput = run_git_checked(context, &request)?;
-    let text: &str = std::str::from_utf8(output.stdout.as_slice())
-        .map_err(|_| { return GitFailure(String::from("git for-each-ref returned non-UTF-8 output.")); })?;
+    let text: &str = match std::str::from_utf8(output.stdout.as_slice()) {
+        Ok(decoded) => decoded,
+        Err(_) => return Err(GitFailure(String::from("git for-each-ref returned non-UTF-8 output."))),
+    };
     let mut refs: Vec<RefSnapshotEntry> = Vec::new();
-    for line in text.split('\n').filter(|line| { return !line.is_empty(); }) {
+    for line in text.split('\n') {
+        if line.is_empty() {
+            continue;
+        }
         let fields: Vec<&str> = line.split('\0').collect();
         let [name, oid, symref] = fields.as_slice() else {
             return Err(GitFailure(format!(
@@ -80,7 +95,7 @@ pub fn list_real_refs(context: &GitContext, cwd: &Path) -> Result<Vec<RefSnapsho
             symref: String::from(*symref),
         });
     }
-    refs.sort_by(|left, right| { return left.name.as_bytes().cmp(right.name.as_bytes()); });
+    refs.sort_by(compare_by_name_bytes);
     return Ok(refs);
 }
 
@@ -95,10 +110,10 @@ pub fn list_real_refs(context: &GitContext, cwd: &Path) -> Result<Vec<RefSnapsho
 /// ```
 pub fn format_packed_refs(refs: &[RefSnapshotEntry], target_ref: &str) -> String {
     let mut text: String = String::from(PACKED_REFS_HEADER);
-    for entry in refs
-        .iter()
-        .filter(|entry| { return entry.symref.is_empty() && entry.name != target_ref; })
-    {
+    for entry in refs {
+        if !(entry.symref.is_empty() && entry.name != target_ref) {
+            continue;
+        }
         text.push_str(format!("{} {}\n", entry.oid, entry.name).as_str());
     }
     return text;
@@ -178,14 +193,14 @@ pub fn write_shadow_refs(
                 PathBuf::from(shadow).join("packed-refs").as_path(),
                 format_packed_refs(&refs, target_ref).as_bytes(),
             )
-            .map_err(|error| { return GitFailure(format!("writing packed-refs failed: {error}")); })?;
+            .map_err(packed_refs_failure)?;
         }
         RefFormat::Reftable => {
             let mut lines: String = String::new();
-            for entry in refs
-                .iter()
-                .filter(|entry| { return entry.symref.is_empty() && entry.name != target_ref; })
-            {
+            for entry in &refs {
+                if !(entry.symref.is_empty() && entry.name != target_ref) {
+                    continue;
+                }
                 lines.push_str(format!("create {} {}\n", entry.name, entry.oid).as_str());
             }
             let mut request: GitRequest = shadow_request(shadow, shadow, &["update-ref", "--stdin"]);
@@ -193,7 +208,10 @@ pub fn write_shadow_refs(
             run_git_checked(context, &request)?;
         }
     }
-    for entry in refs.iter().filter(|entry| { return !entry.symref.is_empty(); }) {
+    for entry in &refs {
+        if entry.symref.is_empty() {
+            continue;
+        }
         run_git_checked(
             context,
             &shadow_request(shadow, shadow, &["symbolic-ref", entry.name.as_str(), entry.symref.as_str()]),

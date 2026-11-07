@@ -20,10 +20,10 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use crate::add_timing::{begin as begin_timing, finish as finish_timing, step as timed};
+use crate::add_timing::{begin as begin_timing, begin_step, end_step, finish as finish_timing};
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
-use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure_of};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_registry::{
@@ -136,8 +136,21 @@ pub enum GitStep<'a> {
     },
 }
 
-/// Runs one real Git step.
-pub type GitRunner<'a> = dyn FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> + 'a;
+/// What:
+///  Runs one real Git step.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The ladder calls it once per Git step; the state a step needs (the invocation, the real Git, the overlay, the parallel-checkout
+///  decision) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface GitRunner { run(step: GitStep): GitStatus } // throws WorktreeCopyError
+/// ```
+pub trait GitRunner {
+    /// Run `step` and report how Git ended.
+    fn run(&mut self, step: &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError>;
+}
 
 /// What:
 ///  The one summary line a successful copy writes.
@@ -160,7 +173,7 @@ pub fn summary_line(copied: usize, destinations: usize, source: Option<&Path>) -
     };
     let entry_noun: &str = if copied == 1 { "entry" } else { "entries" };
     return format!(
-        "cli-git: copied {copied} ignored filesystem {entry_noun} from {source_text} into {destinations} new {worktree_noun}.\n"
+        "monochromatic-git-policy-cli: copied {copied} ignored filesystem {entry_noun} from {source_text} into {destinations} new {worktree_noun}.\n"
     );
 }
 
@@ -196,8 +209,8 @@ pub fn exit_code(settlement: &Settlement) -> i32 {
 /// ```ts
 /// await forwardOnly({ args, gitPath, environment });
 /// ```
-fn forward_only(run_git: &mut GitRunner) -> Result<Settlement, WorktreeCopyError> {
-    let git: GitStatus = run_git(&GitStep::Person)?;
+fn forward_only(run_git: &mut dyn GitRunner) -> Result<Settlement, WorktreeCopyError> {
+    let git: GitStatus = run_git.run(&GitStep::Person)?;
     return Ok(Settlement {
         git,
         copy_failure: None,
@@ -205,21 +218,21 @@ fn forward_only(run_git: &mut GitRunner) -> Result<Settlement, WorktreeCopyError
 }
 
 /// The line a successful `git worktree add` prints when its command line has a form whose destination is not read.
-const UNKNOWN_DESTINATION_NOTICE: &str = "cli-git: this `git worktree add` names its worktree in a form cli-git does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
+const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this `git worktree add` names its worktree in a form monochromatic-git-policy-cli does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
 
 /// What:
 ///  The line for a destination Git made whose registration could not be confirmed.
 /// Why:
 ///   A worktree that gets no copy must say so; here the pointer in its `.git` file and the registration it names do not
-///  name each other, so cli-git cannot tell the worktree is the command's own and copies nothing.
+///  name each other, so monochromatic-git-policy-cli cannot tell the worktree is the command's own and copies nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: ${quote(destination)} was made by git worktree add, but ...`
+/// `monochromatic-git-policy-cli: ${quote(destination)} was made by git worktree add, but ...`
 /// ```
 fn unconfirmed_destination_notice(destination: &Path) -> String {
     return format!(
-        "cli-git: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
+        "monochromatic-git-policy-cli: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
         quote(destination.to_string_lossy().as_ref())
     );
 }
@@ -250,7 +263,7 @@ fn synchronize_after(
     let Some(destination) = invocation.destination.as_deref() else {
         stderr
             .write_all(UNKNOWN_DESTINATION_NOTICE.as_bytes())
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
         return Ok(Vec::new());
     };
     let mut found: CreatedWorktrees =
@@ -264,12 +277,21 @@ fn synchronize_after(
         let line: String = unconfirmed_destination_notice(destination);
         stderr
             .write_all(line.as_bytes())
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
         return Ok(Vec::new());
     }
-    let created_roots: Vec<PathBuf> = found.created.iter().map(|worktree| { return worktree.root.clone(); }).collect();
+    let mut created_roots: Vec<PathBuf> = Vec::new();
+    for worktree in &found.created {
+        created_roots.push(worktree.root.clone());
+    }
     // A destination that received the source's ignored state with a snapshot needs no copy.
-    found.created.retain(|worktree| { return carried != Some(worktree.root.as_path()); });
+    let mut kept = Vec::new();
+    for worktree in found.created {
+        if carried != Some(worktree.root.as_path()) {
+            kept.push(worktree);
+        }
+    }
+    found.created = kept;
     if found.created.is_empty() {
         return Ok(created_roots);
     }
@@ -298,7 +320,7 @@ fn synchronize_after(
     );
     stderr
         .write_all(line.as_bytes())
-        .map_err(|error| return raw_failure(&error))?;
+        .map_err(raw_failure_of)?;
     return Ok(created_roots);
 }
 
@@ -356,17 +378,26 @@ fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn W
 fn settle_creation(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<(Settlement, AfterLock), WorktreeCopyError> {
-    let registered_before: bool = invocation
-        .destination
-        .as_deref()
-        .is_some_and(|destination| { return destination_is_registered(observation.common_dir.as_path(), destination); });
-    let ladder = timed("chooseRung", || { return begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity); });
-    let ran: Result<GitStatus, WorktreeCopyError> = timed("gitAdd", || { return run_git(&ladder.first_step()); });
+    let registered_before: bool = match invocation.destination.as_deref() {
+        Some(destination) => destination_is_registered(observation.common_dir.as_path(), destination),
+        None => false,
+    };
+    let choose_rung_entered: bool = begin_step("chooseRung");
+    let ladder = begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity);
+    end_step(choose_rung_entered);
+    let git_add_entered: bool = begin_step("gitAdd");
+    let ran: Result<GitStatus, WorktreeCopyError> = run_git.run(&ladder.first_step());
+    end_step(git_add_entered);
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
-        Ok(status) => Ok(timed("finishRung", || { return ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout()); })),
+        Ok(status) => {
+            let finish_rung_entered: bool = begin_step("finishRung");
+            let finished = ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout());
+            end_step(finish_rung_entered);
+            Ok(finished)
+        }
         Err(error) => {
             // Git did not start: the ladder only has its empty subvolume to remove, whatever status it is given.
             ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink());
@@ -376,7 +407,10 @@ fn settle_creation(
     let LadderResult { git, carried } = settled?;
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
         if git.succeeded() || invocation.destination.is_some() {
-            match timed("copyIgnored", || { return synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), stderr); }) {
+            let copy_ignored_entered: bool = begin_step("copyIgnored");
+            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), stderr);
+            end_step(copy_ignored_entered);
+            match copy_ignored_outcome {
                 Ok(roots) => (None, roots),
                 // A copy that failed leaves a worktree that is not whole; repairing it would hide that.
                 Err(failure) => (Some(failure), Vec::new()),
@@ -399,7 +433,7 @@ fn settle_creation(
 /// ```
 pub fn run_with_worktree_copy(
     invocation: &Invocation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     return settle_invocation(invocation, run_git, stderr).map_err(lifecycle_failure);
@@ -416,7 +450,7 @@ pub fn run_with_worktree_copy(
 /// ```
 fn settle_invocation(
     invocation: &Invocation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     // `if` chain in the incumbent's order: each bypass forwards without touching the repository.
@@ -455,11 +489,14 @@ fn settle_invocation(
 fn settle_observed(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.
-    timed("recover", || { return recover_pending_worktree_copies(observation.common_dir.as_path(), stderr); })?;
+    let recover_entered: bool = begin_step("recover");
+    let recover_outcome = recover_pending_worktree_copies(observation.common_dir.as_path(), stderr);
+    end_step(recover_entered);
+    recover_outcome?;
     if !invocation.creates {
         return forward_only(run_git);
     }
@@ -467,7 +504,11 @@ fn settle_observed(
     // No lock stands around the add: the repairs touch only the new worktree and read the source, and another add never waits
     //  for them.
     #[cfg(target_os = "linux")]
-    timed("repair", || { repair_created(invocation, &after, stderr); });
+    {
+        let repair_entered: bool = begin_step("repair");
+        repair_created(invocation, &after, stderr);
+        end_step(repair_entered);
+    }
     #[cfg(not(target_os = "linux"))]
     let _after = after;
     return Ok(settlement);

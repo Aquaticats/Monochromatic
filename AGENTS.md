@@ -824,7 +824,9 @@ CM6:
 
 CM7:
  Install tools only via `mise run toolchain:install`
- (containers, CI: the lock row's archive and sha256);
+ (containers,
+CI:
+the lock row's archive and sha256);
  never compile a locked tool this repo publishes;
  mpm-shadow can still compile a third-party one
  when no archive fits.
@@ -961,6 +963,40 @@ MXL:
  helpers),
  re-exporting from `index.ts`;
  never strip docs/`//region` or reformat to fit.
+
+### File and folder layout
+
+MKY:
+ Name every file and folder so someone who knows only `git commit` and `git push` understands it alone;
+ long names are fine;
+ jargon nothing can replace is explained in that file's top doc.
+
+VGW:
+ Each file and folder name says what its contents do;
+ a word that fits any code (`native`,
+`core`,
+`helpers`) never stands alone:
+ `helpers_for_git_push`,
+not `helpers`.
+Package folders are exempt.
+
+LYD:
+ Show who depends on whom in the tree:
+ every source folder inside a crate holds a `uses/` folder of links to the folders its code uses.
+
+LYL:
+ Two source folders never use each other,
+ and the package's lint fails when a folder's `uses/` folder of links and its code disagree.
+
+LYC:
+ A crate lists the crates it uses in its `Cargo.toml` dependencies,
+never in a `uses/` folder;
+ cargo refuses loops between crates.
+
+LYF:
+ Files inside one folder never use each other in a loop;
+ the folder's top doc lists them in dependency order,
+ and the package's lint fails any loop.
 
 ### Concurrency
 
@@ -1291,11 +1327,12 @@ RCI:
  A stopgap for a misbehaving tool is not an owner.
 
 FOT:
- A repo tool that did its job imperfectly gets fixed:
- red test,
- fix,
- rerun the tool;
- never hand-correct or one-off its output.
+ Fix defects in their owning tool:
+ failing test,
+ source fix,
+ rerun.
+Never hand-correct output.
+Label workarounds and record their limits and removal condition.
 
 BXD:
  Containers use the newest CachyOS `latest` image the host CPU runs,

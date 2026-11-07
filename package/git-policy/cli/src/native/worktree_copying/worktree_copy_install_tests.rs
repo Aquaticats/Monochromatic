@@ -101,7 +101,7 @@ fn preflight_refuses_differing_entries_without_overwriting() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: ignored-state copy would overwrite differing destination entry \"cache/top\" in {}.",
+            "monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry \"cache/top\" in {}.",
             quote(destination.to_string_lossy().as_ref())
         )
     );
@@ -177,18 +177,28 @@ fn installation_copies_every_entry_and_applies_modes() {
     remove(root.as_path());
 }
 
+/// Full batches of files that the batching control installs, plus one file more so the last batch is a short one.
+const FULL_BATCHES_OF_FILES: usize = 2;
+
 /// Selected paths are claimed and settled in batches of at most the batch size, so the record count grows by batch, not by entry.
+///  The tree holds more entries than the batch size several times over: a tree that fits in one batch cannot tell batching from
+///  its absence, which is how this control once stopped noticing the removal of the split after the batch size grew.
 #[cfg(unix)]
 #[test]
 fn records_grow_by_batch_not_by_entry() {
     let root: PathBuf = fixture("install-batches");
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(stage.join("many")).expect("many");
-    for index in 0..1_100 {
-        std::fs::write(stage.join(format!("many/file-{index:04}")), b"x").expect("file");
+    let file_count: usize = INSTALL_BATCH_ENTRIES * FULL_BATCHES_OF_FILES + 1;
+    for index in 0..file_count {
+        std::fs::write(stage.join(format!("many/file-{index:05}")), b"x").expect("file");
     }
     let entries: Vec<WorktreeCopyEntry> =
         collect_entry_manifest(stage.as_path(), &[String::from("many")], &[]).expect("manifest");
+    assert!(
+        entries.len() > INSTALL_BATCH_ENTRIES * FULL_BATCHES_OF_FILES,
+        "the tree must span several batches or the control cannot see a missing split"
+    );
     let destination: PathBuf = root.join("destination");
     std::fs::create_dir(destination.as_path()).expect("destination");
     let mut recorder: CountingRecorder = CountingRecorder::default();
@@ -209,12 +219,13 @@ fn records_grow_by_batch_not_by_entry() {
         expected.push(batch);
         remaining -= batch;
     }
+    assert!(expected.len() > FULL_BATCHES_OF_FILES, "several batches: {expected:?}");
     assert_eq!(recorder.intents, expected);
     assert_eq!(recorder.creations, expected);
     // The batch is past the parallel threshold, so several workers created its files; every one arrived, intact.
-    for index in 0..1_100 {
+    for index in 0..file_count {
         assert_eq!(
-            std::fs::read(destination.join(format!("many/file-{index:04}"))).expect("installed file"),
+            std::fs::read(destination.join(format!("many/file-{index:05}"))).expect("installed file"),
             b"x"
         );
     }
@@ -280,7 +291,7 @@ fn failed_installation_rolls_back_its_own_paths() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: ignored-state installation failed for {}. Cause: recorder refused the batch",
+            "monochromatic-git-policy-cli: ignored-state installation failed for {}. Cause: recorder refused the batch",
             quote(destination.to_string_lossy().as_ref())
         )
     );
@@ -317,7 +328,7 @@ fn retained_paths_are_named_in_the_failure() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: ignored-state installation failed for {}. Rollback retained: \"cache/top: filesystem identity changed\", \"cache: Directory not empty (os error 39)\". Cause: recorder refused the batch",
+            "monochromatic-git-policy-cli: ignored-state installation failed for {}. Rollback retained: \"cache/top: filesystem identity changed\", \"cache: Directory not empty (os error 39)\". Cause: recorder refused the batch",
             quote(destination.to_string_lossy().as_ref())
         )
     );
@@ -329,4 +340,15 @@ fn retained_paths_are_named_in_the_failure() {
 #[test]
 fn the_install_threshold_is_the_measured_break_even() {
     assert_eq!(PARALLEL_INSTALL_MIN_LEAVES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
+}
+
+/// Where the system starts no thread the install workers' slices are installed in turn, with the same rollback. The body runs in a
+/// child that is refused every thread.
+#[cfg(unix)]
+#[test]
+fn a_parallel_install_where_no_thread_can_start_is_made_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_parallel_install_where_no_thread_can_start_is_made_in_turn") {
+        return;
+    }
+    a_failed_parallel_batch_rolls_back_every_file_its_workers_created();
 }

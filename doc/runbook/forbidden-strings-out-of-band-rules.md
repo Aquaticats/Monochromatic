@@ -1,5 +1,16 @@
 # Forbidden-strings out-of-band rules
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 How the forbidden-strings deny-list is assembled after the de-root cutover,
  and the maintainer-only and contributor-only steps that keep the sensitive
  rules out of version control.
@@ -38,7 +49,8 @@ The design decision is recorded in `doc/decision/gitignore-negations.md`,
 ## Set up a local appendix (contributor)
 
 Create `forbidden-strings.append.local.txt` at the repository root if it is absent
- (nothing scaffolds it; `file-enforcer` only keeps its mode at 0600 once it exists).
+ (nothing scaffolds it;
+`file-enforcer` only keeps its mode at 0600 once it exists).
 
 Add one rule per line to `forbidden-strings.append.local.txt`;
  the next scan reads it.

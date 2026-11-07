@@ -1,9 +1,21 @@
 # Claude Code 2.1.289 subagent worktree isolation fails because the `cctt` `WorktreeCreate` hook prints no path
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 ## Status
 
 Diagnosed and fixed on 2026-10-05.
-The cause was this repository's hook registration, not a Claude Code defect.
+The cause was this repository's hook registration,
+not a Claude Code defect.
 The user chose to remove the registration;
 "Fix applied" records the change and what built-in isolation provides afterwards.
 "Worktree settings chosen and tested" records the settings that reduce provisioning to one install command.
@@ -12,7 +24,8 @@ The manual-worktree section stays for worktrees created by hand.
 ## Symptom
 
 Launching a subagent with the Agent tool's `isolation: "worktree"` option fails before the agent starts.
-Claude Code 2.1.289 returns this error to the calling agent, verbatim:
+Claude Code 2.1.289 returns this error to the calling agent,
+verbatim:
 
 ```text
 WorktreeCreate hook failed: hook succeeded but returned no worktree path (command: echo the path to stdout; http/callback: return hookSpecificOutput.worktreePath)
@@ -37,7 +50,8 @@ If the hook exits with a non-zero code or prints no path, worktree creation fail
 ```
 
 The local settings register the terminal-title hook `cctt` on that event.
-`.claude/settings.local.json:764` (the file is ignored, `.gitignore:125`):
+`.claude/settings.local.json:764` (the file is ignored,
+`.gitignore:125`):
 
 ```json
     "WorktreeCreate": [
@@ -114,7 +128,8 @@ Claude Code 2.1.289 (`claude --version`),
 Node v26.10.0,
 repository commit `a21467f5e`.
 
-Harness, run from the repository root.
+Harness,
+run from the repository root.
 It feeds `cctt` a `WorktreeCreate` event and measures stdout:
 
 ```sh
@@ -154,7 +169,8 @@ cd -- /var/home/user/Monochromatic && git worktree add -b <branch> .claude/workt
 A worktree created from the main checkout receives no ignored state:
 `package/git-policy/cli/README.md` documents that main worktrees bypass ignored-state synchronization
 "even when they create a linked worktree".
-The first commit in the new worktree therefore failed with this policy event, verbatim:
+The first commit in the new worktree therefore failed with this policy event,
+verbatim:
 
 ```text
 {"schemaVersion":1,"sequence":0,"type":"engine-failure","code":"plugin-threw","message":"Forbidden-strings scanner executable could not be started.","trigger":"pre-forward","policyId":"security/forbidden-strings"}
@@ -210,7 +226,8 @@ Tradeoffs:
 ## Fix applied
 
 On 2026-10-05 the user chose removal over teaching the hook to create worktrees
-(that alternative would move worktree location, branch naming and setup into a title plugin).
+(that alternative would move worktree location,
+branch naming and setup into a title plugin).
 
 - The `WorktreeCreate` entry is removed from `.claude/settings.local.json`;
   a comparison against a backup showed no other difference.
@@ -220,7 +237,8 @@ On 2026-10-05 the user chose removal over teaching the hook to create worktrees
 - The title handler still has its `WorktreeCreate` branch;
   it is unreachable while the event is unregistered.
 
-Verified in the same session, without restarting Claude Code:
+Verified in the same session,
+without restarting Claude Code:
 an Agent launch with `isolation: "worktree"` started,
 which had failed twice before the change.
 A read-only probe inside it reported:
@@ -230,9 +248,11 @@ A read-only probe inside it reported:
   so unpushed local commits are absent from an isolated worktree;
 - no `node_modules` and no `package/forbidden-strings/cli/target/release/forbidden-strings`,
   so its first commit would hit the scanner failure described under "Verified workarounds" until provisioned;
-- a clean status: the main checkout's uncommitted files are not carried over.
+- a clean status:
+  the main checkout's uncommitted files are not carried over.
 
-After the probe returned, the worktree directory and its branch were gone.
+After the probe returned,
+the worktree directory and its branch were gone.
 `cctt` is still registered on `WorktreeRemove`,
 so a non-deleting hook there did not prevent removal of an unchanged worktree.
 Removal of a worktree that has commits was not tested.
@@ -267,7 +287,8 @@ Times are local (UTC-4).
 The second probe's worktree was created at 15:33 with `HEAD` at `1d7bc0fe7`.
 `git reflog show main` has local `main` at `1d7bc0fe7` from 15:32:36 to 15:34:07.
 `git reflog show origin/main` has the remote-tracking ref at `a9010f435` from 15:32:22 to 15:34:12.
-So the worktree started from the local checkout, not from `origin/main`.
+So the worktree started from the local checkout,
+not from `origin/main`.
 Before the setting,
 the read-only probe under "Fix applied" had started from `origin/main`.
 
@@ -331,7 +352,8 @@ The second probe ran with the settings shown under "Worktree settings chosen and
 - Auto-push publishes the agent's branch,
   so cleanup has a remote step.
 
-Cleanup order used for the second probe, from the main checkout:
+Cleanup order used for the second probe,
+from the main checkout:
 
 ```sh
 # doc/troubleshooting/claude-code-worktree-create-hook-no-path.md

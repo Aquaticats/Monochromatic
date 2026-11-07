@@ -386,7 +386,8 @@ compiled-source verifier branch,
 single-group lifecycle controls,
 and explicit semantic-profile admission.
 
-Ranking: add the single-call profile before retaining the existing profile alone,
+Ranking:
+add the single-call profile before retaining the existing profile alone,
 because the installed host currently rejects the ordinary read required by its delivery check.
 General JavaScript execution is not an alternative established by this evidence:
 allowing uninspected control flow would discard complete operation coverage.

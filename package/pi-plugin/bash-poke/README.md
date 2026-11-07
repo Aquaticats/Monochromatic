@@ -2,6 +2,13 @@
 
 Pi extension that runs `!` commands in the background and pokes the model when they finish.
 
+## Pi dependency trust
+
+PJU:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Behavior
 
 Native `!` is foreground:

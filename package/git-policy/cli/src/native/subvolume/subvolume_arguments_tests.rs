@@ -1,4 +1,4 @@
-//! Controls for the grammar of `git cli-git migrate-to-subvolume`: the defaults, every option, every refusal and its
+//! Controls for the grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`: the defaults, every option, every refusal and its
 //!  wording, and the help.
 
 use super::*;

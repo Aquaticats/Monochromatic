@@ -169,8 +169,12 @@ const SELF_SHIM_MARKERS: ReadonlySet<string> = new Set([
 
 /**
  File names of the native Git policy wrapper executable (the crate binary), which the installed `git` link resolves to.
+ The program is named after the crate (`monochromatic-git-policy-cli`) since 2026-11-04; the earlier name `cli-git-native`
+ stays in the list because a worktree still on an older toolchain lock installs the earlier file.
  */
 const NATIVE_WRAPPER_FILE_NAMES: ReadonlySet<string> = new Set([
+  'monochromatic-git-policy-cli',
+  'monochromatic-git-policy-cli.exe',
   'cli-git-native',
   'cli-git-native.exe',
 ],);

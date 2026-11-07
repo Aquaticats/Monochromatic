@@ -24,6 +24,13 @@ pub const ANSWER_CEILING: Duration = Duration::from_secs(20 * 60);
 ///  Measured: the slowest of 52 cold starts took 1,041 ms (`startWaitMs`, `reachMs`). One minute is 58 times that.
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
+/// The longest the look at the running processes (`landing/earlier_service_process_look.rs`) takes before the adoption of an
+///  earlier helper's journal counts the answer as "a service may be running". A read of another process's command line waits
+///  for that process's address-space lock, which a process stuck in the kernel holds without end.
+///  Measured on 2026-11-05 on this host: 899 processes, one `cat` of each `/proc/<pid>/cmdline` from a shell loop, 0.64 s in all
+///  (the look itself starts no process, so it is faster). Ten seconds is 15 times that and well below `START_CEILING`.
+pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
+
 /// The longest a landing, a merge or an index reconciliation waits for a foreign program's `index.lock`.
 ///  Unmeasured: no log holds a wait behind a foreign holder (no `lock_looks` in the service journal, no waiting notice in the
 ///  timing log). Ten minutes is below `ANSWER_CEILING`, so the service ends its own wait and answers before the client gives up;

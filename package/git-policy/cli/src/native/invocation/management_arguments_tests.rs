@@ -1,5 +1,5 @@
 //! What:
-//!  Grammar controls for `git cli-git` arguments.
+//!  Grammar controls for `git monochromatic-git-policy-cli` arguments.
 //! Why:
 //!  A malformed invocation must be refused with the right remedy,
 //!  a pathspec must
@@ -64,11 +64,11 @@ fn help_takes_no_further_arguments() {
             "{arguments:?}"
         );
     }
-    assert!(MANAGEMENT_HELP.starts_with("Usage: git cli-git <command> [options]\n"));
+    assert!(MANAGEMENT_HELP.starts_with("Usage: git monochromatic-git-policy-cli <command> [options]\n"));
     assert!(MANAGEMENT_HELP.contains("The trust, untrust and status commands are retired"));
     assert!(MANAGEMENT_HELP.ends_with("so there is nothing to approve.\n"));
-    assert!(MANAGEMENT_USAGE.starts_with("Usage: git cli-git check (--all | -- <pathspec>...)"));
-    assert!(MANAGEMENT_USAGE.ends_with("git cli-git --help\n"));
+    assert!(MANAGEMENT_USAGE.starts_with("Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...)"));
+    assert!(MANAGEMENT_USAGE.ends_with("git monochromatic-git-policy-cli --help\n"));
 }
 
 /// Retired commands accept exactly the forms they had.
@@ -284,7 +284,7 @@ fn doctor_takes_no_arguments_and_is_documented() {
     for arguments in [vec!["doctor", "--all"], vec!["doctor", "--help"], vec!["doctor", "--", "a.txt"], vec!["doctor", "x"]] {
         assert_eq!(parse(arguments.as_slice()), Err(ManagementRefusal::Usage), "{arguments:?}");
     }
-    assert!(MANAGEMENT_USAGE.contains("git cli-git doctor"), "{MANAGEMENT_USAGE}");
+    assert!(MANAGEMENT_USAGE.contains("git monochromatic-git-policy-cli doctor"), "{MANAGEMENT_USAGE}");
     assert!(MANAGEMENT_HELP.contains("doctor"), "{MANAGEMENT_HELP}");
 }
 
@@ -300,9 +300,18 @@ fn doctor_help_states_the_exit_statuses() {
     assert!(!MANAGEMENT_HELP.contains("exit 1 when any are found"), "{MANAGEMENT_HELP}");
 }
 
-/// `service` takes exactly the word `status`, and anything else (the retired `install` and `uninstall` included) is a usage error.
+/// `service` takes exactly the word `status` or the word `settle-earlier-batches`, and anything else (the retired `install` and
+///  `uninstall` included) is a usage error.
 #[test]
-fn the_service_command_takes_only_status() {
+fn the_service_command_takes_only_status_and_settle_earlier_batches() {
+    assert_eq!(parse(&["service", "settle-earlier-batches"]), Ok(ManagementAction::SettleEarlierBatches));
+    for bad in [vec!["service", "settle-earlier-batches", "--now"], vec!["service", "settle-earlier-batches", "status"], vec!["service", "settle"]] {
+        assert_eq!(parse(&bad), Err(ManagementRefusal::Usage), "{bad:?}");
+    }
+    for text in [MANAGEMENT_USAGE, MANAGEMENT_HELP] {
+        assert!(text.contains("settle-earlier-batches"), "{text}");
+    }
+    assert!(MANAGEMENT_HELP.contains("no wrapper of the earlier release"), "the help states the condition: {MANAGEMENT_HELP}");
     assert_eq!(parse_management_arguments(&[OsString::from("service"), OsString::from("status")]), Ok(ManagementAction::ServiceStatus));
     for bad in [vec!["service"], vec!["service", "install"], vec!["service", "uninstall"], vec!["service", "status", "--now"]] {
         let arguments: Vec<OsString> = bad.iter().map(OsString::from).collect();

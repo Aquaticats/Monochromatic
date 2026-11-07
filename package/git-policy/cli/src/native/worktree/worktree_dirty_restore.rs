@@ -34,11 +34,11 @@ const TAG: &str = "worktreeDirtyRestore";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: the uncommitted changes of the main checkout (${count} paths) were left out of the new worktree.\n`
+/// `monochromatic-git-policy-cli: the uncommitted changes of the main checkout (${count} paths) were left out of the new worktree.\n`
 /// ```
 pub fn left_out_note(changed: &ChangedPaths) -> String {
     let paths: &str = if changed.count == 1 { "path" } else { "paths" };
-    return format!("cli-git: the uncommitted changes of the main checkout ({} {paths}) were left out of the new worktree, which holds what Git's own checkout holds.\n", changed.count);
+    return format!("monochromatic-git-policy-cli: the uncommitted changes of the main checkout ({} {paths}) were left out of the new worktree, which holds what Git's own checkout holds.\n", changed.count);
 }
 
 /// What:
@@ -62,6 +62,47 @@ pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
 }
 
 /// What:
+///  Whether a byte is the NUL that ends each name in Git's `-z` output.
+/// Why:
+///   The untracked names are split on it, and a path may hold any other byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether a name split out of `-z` output holds anything.
+/// Why:
+///   The output ends with a NUL, so the split leaves an empty last piece that names no path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// name.length > 0
+/// ```
+fn is_nonempty_name(name: &&[u8]) -> bool {
+    return !name.is_empty();
+}
+
+/// What:
+///  The words of a Git run in the stage: `-C <stage>` and then `words`.
+/// Why:
+///   Every run of the restore names the stage directory itself, so none can run in the main checkout.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ['-C', stage, ...words]
+/// ```
+fn arguments_in_stage(stage: &Path, words: &[&str]) -> Vec<OsString> {
+    let mut arguments: Vec<OsString> = vec![OsString::from("-C"), stage.as_os_str().to_os_string()];
+    arguments.extend(words.iter().copied().map(OsString::from));
+    return arguments;
+}
+
+/// What:
 ///  Run one captured Git read in the stage under the new worktree's Git directory.
 /// Why:
 ///   The proof reads the stage the way the restore wrote it, never the main checkout.
@@ -73,12 +114,15 @@ pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
 fn ask(context: &GitContext, target: &Target, work_tree: &Path, arguments: &[&str]) -> Result<(Option<i32>, Vec<u8>), String> {
     let request: GitRequest = GitRequest {
         cwd: work_tree.to_path_buf(),
-        arguments: arguments.iter().map(|word: &&str| { return OsString::from(*word); }).collect(),
+        arguments: arguments.iter().copied().map(OsString::from).collect(),
         without_prefix: true,
         environment: checkout_environment(target.admin.as_path(), work_tree),
         ..GitRequest::default()
     };
-    let output = run_git(context, &request).map_err(|error| { return format!("`git {}` could not start ({error})", arguments.join(" ")); })?;
+    let output = match run_git(context, &request) {
+        Ok(finished) => finished,
+        Err(error) => return Err(format!("`git {}` could not start ({error})", arguments.join(" "))),
+    };
     return Ok((output.code, output.stdout));
 }
 
@@ -102,7 +146,7 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -
     if listed != Some(0) {
         return Err(String::from("Git could not list the untracked files of the restored worktree"));
     }
-    if let Some(name) = untracked.split(|byte: &u8| { return *byte == 0; }).find(|name: &&[u8]| { return !name.is_empty(); }) {
+    if let Some(name) = untracked.split(is_nul_byte).find(is_nonempty_name) {
         return Err(format!("{} is still untracked in the restored worktree", crate::worktree_snapshot_source::plain(String::from_utf8_lossy(name).as_ref())));
     }
     let files: Option<i32> = ask(context, target, work_tree, &["diff-files", "--quiet"])?.0;
@@ -122,18 +166,13 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -
 /// ```ts
 /// await restoreDirty({ source, target, stage, runGit, context }); // throws the reason
 /// ```
-pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run_git_step: &mut GitRunner, context: &GitContext) -> Result<(), String> {
+pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run_git_step: &mut dyn GitRunner, context: &GitContext) -> Result<(), String> {
     if stage == source.root.as_path() || target.admin == source.git_dir || target.admin == source.common_dir {
         return Err(String::from("the restore would run in the source's own directory"));
     }
     let began: std::time::Instant = std::time::Instant::now();
     let environment = checkout_environment(target.admin.as_path(), stage);
-    let in_stage = |words: &[&str]| -> Vec<OsString> {
-        let mut arguments: Vec<OsString> = vec![OsString::from("-C"), stage.as_os_str().to_os_string()];
-        arguments.extend(words.iter().map(|word: &&str| { return OsString::from(*word); }));
-        return arguments;
-    };
-    let reset = run_step(run_git_step, in_stage(&["read-tree", "--reset", "-u", target.commit.as_str()]).as_slice(), environment.as_slice())?;
+    let reset = run_step(run_git_step, arguments_in_stage(stage, &["read-tree", "--reset", "-u", target.commit.as_str()]).as_slice(), environment.as_slice())?;
     if !reset.succeeded() {
         return Err(format!("`git read-tree --reset -u` ended with {:?}", reset.code));
     }
@@ -148,7 +187,10 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
         environment: environment.clone(),
         ..GitRequest::default()
     };
-    let clean = run_git(context, &clean_request).map_err(|error| { return format!("`git clean --force -d` could not start ({error})"); })?;
+    let clean = match run_git(context, &clean_request) {
+        Ok(finished) => finished,
+        Err(error) => return Err(format!("`git clean --force -d` could not start ({error})")),
+    };
     if !clean.succeeded() {
         return Err(format!("`git clean --force -d` ended with {:?}", clean.code));
     }

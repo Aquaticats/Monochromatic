@@ -317,11 +317,11 @@ pub(super) fn gray_tint_ceiling(spec: &SchemeSpec) -> f64 {
     ];
     let mut ceiling: f64 = 0.0;
     for row in rows {
-        let Role::Neutral(spec) = row else {
+        let Role::Neutral(neutral) = row else {
             continue;
         };
-        if spec.chroma > ceiling {
-            ceiling = spec.chroma;
+        if neutral.chroma > ceiling {
+            ceiling = neutral.chroma;
         }
     }
     return ceiling;

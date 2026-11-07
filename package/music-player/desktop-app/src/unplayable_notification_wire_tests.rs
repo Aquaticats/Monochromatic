@@ -25,8 +25,8 @@ fn the_hints_are_a_normal_urgency_byte_and_the_desktop_entry_and_nothing_else() 
     let who = identity();
     let hints = notice_hints(&who);
     assert_eq!(hints.len(), 2);
-    assert_eq!(hints.get("urgency"), Some(&Value::U8(URGENCY_NORMAL)));
-    assert_eq!(hints.get("desktop-entry"), Some(&Value::from("monochromatic.music-player")));
+    assert_eq!(hints.get("urgency"), Some(&Variant::U8(URGENCY_NORMAL)));
+    assert_eq!(hints.get("desktop-entry"), Some(&Variant::from("monochromatic.music-player")));
 }
 
 #[test]

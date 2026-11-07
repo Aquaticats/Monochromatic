@@ -88,7 +88,7 @@ fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsStr
 fn run_plainly(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
     return match run_real_git(real_git, arguments, overlay) {
         Ok(outcome) => ForwardedRun::Ran(exit_code(outcome)),
-        Err(error) => ForwardedRun::Failed { stderr: format!("cli-git: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE },
+        Err(error) => ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE },
     };
 }
 
@@ -134,11 +134,15 @@ pub fn run_again_within(
         let code: i32 = match run_once(real_git, arguments, overlay, for_child) {
             Ok(code) => code,
             Err(error) => {
-                return ForwardedRun::Failed { stderr: format!("cli-git: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE };
+                return ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE };
             }
         };
         let mut said: Vec<u8> = Vec::new();
-        let read_back = file.seek(SeekFrom::Start(0)).and_then(|_| { return file.read_to_end(&mut said); });
+        // The output is read back only when the file could be rewound.
+        let read_back: std::io::Result<usize> = match file.seek(SeekFrom::Start(0)) {
+            Ok(_start) => file.read_to_end(&mut said),
+            Err(error) => Err(error),
+        };
         let lost_to_service: bool = code == DIE_STATUS
             && read_back.is_ok()
             && String::from_utf8_lossy(said.as_slice()).contains(LOCK_REFUSAL)
@@ -148,7 +152,9 @@ pub fn run_again_within(
             continue;
         }
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _shown = shown.write_all(said.as_slice()).and_then(|()| { return shown.flush(); });
+        if shown.write_all(said.as_slice()).is_ok() {
+            let _flushed = shown.flush();
+        }
         return ForwardedRun::Ran(code);
     }
     return ForwardedRun::Ran(DIE_STATUS);

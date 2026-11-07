@@ -6879,7 +6879,7 @@ Replace with proper punctuation or restructure sentence.
 ### package/ssg/aquati.cat/src/content/en/web-resources.mdx
 
 - Line 10:
-   [Web Typography - A handbook for designing beautiful and effective responsive typography](https://book.webtypography.
+   [Web Typography - A handbook for designing beautiful and effective responsive typography](<https://book.webtypography>.
    net/)
 - Line 36:
    [Every Layout - Relearn CSS layout by example](https://every-layout.dev/)

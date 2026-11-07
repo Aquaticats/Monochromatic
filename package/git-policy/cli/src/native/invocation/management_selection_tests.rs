@@ -6,7 +6,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(offSelectionError(['mono/catalog-specifiers'], defaults)?.message).toContain('cli-git.config.jsonc');
+//! // expect(offSelectionError(['mono/catalog-specifiers'], defaults)?.message).toContain('monochromatic-git-policy-cli.config.jsonc');
 //! ```
 
 /// Import the module under test.
@@ -49,7 +49,7 @@ fn an_unlisted_optional_policy_is_refused_with_the_key_that_turns_it_on() {
             "{message}"
         );
         assert!(message.contains("does not list"), "{message}");
-        assert!(message.contains("cli-git.config.jsonc"), "{message}");
+        assert!(message.contains("monochromatic-git-policy-cli.config.jsonc"), "{message}");
         assert!(
             message.contains(format!("\"policies\": {{ \"{}\": \"{on}\" }}", descriptor.name).as_str()),
             "{message}"
@@ -109,8 +109,8 @@ fn an_on_policy_without_the_direct_trigger_is_refused_for_that_command() {
         let refused: Option<ConfigError> = selection_error(&[PolicyId::CatalogSpecifiers], &on, trigger);
         assert_eq!(refused.is_none(), runs, "{trigger:?}");
         if let Some(error) = refused {
-            assert!(error.message.contains("does not run for cli-git fix"), "{}", error.message);
-            assert!(error.message.contains("It runs for cli-git check."), "{}", error.message);
+            assert!(error.message.contains("does not run for monochromatic-git-policy-cli fix"), "{}", error.message);
+            assert!(error.message.contains("It runs for monochromatic-git-policy-cli check."), "{}", error.message);
         }
     }
 }

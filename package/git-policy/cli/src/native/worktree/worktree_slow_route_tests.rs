@@ -105,10 +105,10 @@ fn btrfs_a_source_that_is_no_subvolume_is_told_to_convert_and_another_filesystem
     let reason: String = crate::worktree_snapshot_source::snapshot_refusal(&identity, &plan).expect("an ordinary directory is refused");
     let route: SlowRoute = explain_cheap_refusal(&identity, reason.as_str()).expect("a sentence on btrfs");
     assert_eq!(route.word(), "not-subvolume");
-    assert!(route.line().contains("the main checkout is not a btrfs subvolume. Run `git cli-git migrate-to-subvolume` in it"), "{}", route.line());
+    assert!(route.line().contains("the main checkout is not a btrfs subvolume. Run `git monochromatic-git-policy-cli migrate-to-subvolume` in it"), "{}", route.line());
     let linked: WorktreeIdentity = WorktreeIdentity::LinkedWorktree { common_dir: repo.join(".git"), git_dir: repo.join(".git/worktrees/x"), worktree_root: repo.clone() };
     let linked_route: SlowRoute = explain_cheap_refusal(&linked, reason.as_str()).expect("a sentence");
-    assert!(linked_route.line().contains("this worktree is not a btrfs subvolume. Run `git cli-git convert-worktree-to-subvolume`"), "{}", linked_route.line());
+    assert!(linked_route.line().contains("this worktree is not a btrfs subvolume. Run `git monochromatic-git-policy-cli convert-worktree-to-subvolume`"), "{}", linked_route.line());
     let elsewhere: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: PathBuf::from("/proc/.git"), git_dir: PathBuf::from("/proc/.git"), worktree_root: PathBuf::from("/proc") };
     assert!(explain_cheap_refusal(&elsewhere, "not btrfs").is_none(), "nothing the person does makes a snapshot on a filesystem that is not btrfs");
     assert!(explain_cheap_refusal(&WorktreeIdentity::OutsideWorktree, "no worktree").is_none());

@@ -15,7 +15,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // decideAddExplicit(['add', '.']) => 'cli-git: git add rejects bulk-staging patterns (.) ...'
+//! // decideAddExplicit(['add', '.']) => 'monochromatic-git-policy-cli: git add rejects bulk-staging patterns (.) ...'
 //! ```
 
 /// What:
@@ -116,7 +116,7 @@ pub fn decide_add_explicit(arguments: &[OsString]) -> Option<String> {
     }
     // `Some(x)` is the "present" case; `.join(", ")` builds one text with separators.
     return Some(format!(
-        "cli-git: git add rejects bulk-staging patterns ({}) because they sweep up paths the \
+        "monochromatic-git-policy-cli: git add rejects bulk-staging patterns ({}) because they sweep up paths the \
          caller did not intend to stage, leaving the index in a state that does not match a \
          single logical change. Name the paths explicitly, or pass {ADD_ESCAPE_HATCH} to bypass \
          for this invocation.",

@@ -9,6 +9,7 @@ import {
   type Lookup,
   missingValue,
 } from './lookup.ts';
+import { cratesIoRoute } from './crates-io-version-label.ts';
 import {
   describeDuration,
   expandTemplate,
@@ -169,6 +170,10 @@ export type PublishCheckInput = Pick<
 /**
  Watch a publish workflow run to its end, then check crates.io and the GitHub release.
 
+ A version that never goes to crates.io (`-alpha.N`, `-beta.N` and every form the label rule does not name) is not
+ looked up there: the report says crates.io was skipped and why, and the result depends on the workflow run and the
+ GitHub release.
+
  A failed workflow run does not skip the checks, so the report shows everything that is and is not in place. The result
  is zero only when the workflow succeeded, crates.io has the version, and the release holds every expected asset.
 
@@ -211,18 +216,28 @@ export async function checkPublishedRun({
     cwd: options.root,
   });
   /**
-   Answer of crates.io.
+   Whether the label rule sends the version to crates.io, and why not when it does not.
    */
-  const crates = await run({
-    program: curlProgram,
-    args: buildCratesIoArguments({
-      crateName: options.crateName,
-      version: options.version,
-      userAgent: options.userAgent,
-      maxTimeSeconds: options.maxTimeSeconds,
-    }),
-    cwd: options.root,
-  });
+  const route = cratesIoRoute(options.version);
+  /**
+   Answer of crates.io, which is not asked for a version that never goes there.
+   */
+  const crates = route.goes
+    ? await run({
+      program: curlProgram,
+      args: buildCratesIoArguments({
+        crateName: options.crateName,
+        version: options.version,
+        userAgent: options.userAgent,
+        maxTimeSeconds: options.maxTimeSeconds,
+      }),
+      cwd: options.root,
+    })
+    : {
+      status: 0,
+      stdout: '',
+      stderr: ''
+    };
   /**
    Tag of the release.
    */
@@ -249,6 +264,7 @@ export async function checkPublishedRun({
     watchStatus: watched.status,
     version: options.version,
     createdAt: parseCratesIoCreatedAt(crates.stdout),
+    ...(route.goes ? {} : { skippedCratesIoReason: route.reason }),
     tag,
     expectedAssets: options.assetTemplates
       .map(function expandAsset(template) {

@@ -21,8 +21,8 @@ use std::path::{Path, PathBuf};
 
 /// Real common-directory entries the shadow never links:
 ///  its ref store, index, config, object store, message file, copied conclusion state,
-///  and cli-git's own state, which contains the shadow itself.
-pub const PRIVATE_SHADOW_ENTRIES: [&str; 13] = [
+///  and the program's own state under its current name and under the name an earlier release gave it, which contains the shadow itself.
+pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
     "HEAD",
     "refs",
     "packed-refs",
@@ -33,6 +33,7 @@ pub const PRIVATE_SHADOW_ENTRIES: [&str; 13] = [
     "config.worktree",
     "objects",
     "COMMIT_EDITMSG",
+    "monochromatic-git-policy-cli",
     "cli-git",
     "cli-git-transactions",
     "cli-git-transaction",
@@ -100,6 +101,37 @@ fn share_entry(source: &Path, destination: &Path, directory: bool) -> std::io::R
 }
 
 /// What:
+///  Which entries of a real directory are not linked into the shadow.
+///  An `enum` is a closed set of named alternatives; here each alternative may carry a value.
+/// Why:
+///   The two callers skip different entries, and a rule value stands where a closure that decided by name stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SkipRule = { kind: 'PrivateEntries'; alsoInfo: boolean } | { kind: 'Named'; name: string };
+/// ```
+#[derive(Clone, Copy)]
+enum SkipRule {
+    /// The entries a shadow keeps its own (`is_private_shadow_entry`), and `info` too when `also_info` is set.
+    PrivateEntries {
+        /// Whether the `info` directory is kept private too, because the shadow links a single file of it.
+        also_info: bool,
+    },
+    /// The one entry with this exact name.
+    Named(&'static str),
+}
+
+impl SkipRule {
+    /// Whether the entry called `name` is skipped.
+    fn skips(self, name: &str) -> bool {
+        return match self {
+            SkipRule::PrivateEntries { also_info } => is_private_shadow_entry(name) || (also_info && name == "info"),
+            SkipRule::Named(skipped) => name == skipped,
+        };
+    }
+}
+
+/// What:
 ///  Links every shared entry of one real directory into one shadow directory.
 /// Why:
 ///   Entries are typed without following links,
@@ -112,12 +144,12 @@ fn share_entry(source: &Path, destination: &Path, directory: bool) -> std::io::R
 fn link_directory_entries(
     source_directory: &Path,
     shadow_directory: &Path,
-    skip: impl Fn(&str) -> bool,
+    skip: SkipRule,
 ) -> std::io::Result<()> {
     for entry_result in std::fs::read_dir(source_directory)? {
         let entry: std::fs::DirEntry = entry_result?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if skip(name.as_str()) {
+        if skip.skips(name.as_str()) {
             continue;
         }
         let destination: PathBuf = shadow_directory.join(&name);
@@ -163,9 +195,7 @@ pub fn link_shadow_entries(shadow: &Path, common_dir: &Path, git_dir: &Path) -> 
     let per_worktree_sparse: PathBuf = git_dir.join("info").join("sparse-checkout");
     let mixed_info: bool =
         git_dir != common_dir && regular_file_exists(per_worktree_sparse.as_path())?;
-    link_directory_entries(common_dir, shadow, |name| {
-        return is_private_shadow_entry(name) || (mixed_info && name == "info");
-    })?;
+    link_directory_entries(common_dir, shadow, SkipRule::PrivateEntries { also_info: mixed_info })?;
     let worktree_config: PathBuf = git_dir.join("config.worktree");
     if regular_file_exists(worktree_config.as_path())? {
         std::fs::copy(&worktree_config, shadow.join("config.worktree"))?;
@@ -178,9 +208,7 @@ pub fn link_shadow_entries(shadow: &Path, common_dir: &Path, git_dir: &Path) -> 
     std::fs::create_dir(&shadow_info)?;
     set_private_directory(shadow_info.as_path())?;
     let shared_info: PathBuf = common_dir.join("info");
-    match link_directory_entries(shared_info.as_path(), shadow_info.as_path(), |name| {
-        return name == "sparse-checkout";
-    }) {
+    match link_directory_entries(shared_info.as_path(), shadow_info.as_path(), SkipRule::Named("sparse-checkout")) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),

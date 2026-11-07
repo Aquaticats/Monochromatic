@@ -44,5 +44,63 @@ pub mod lexical_path;
 /// How many workers independent items may use together, from the CPUs allowed, the memory free and a measured ceiling.
 pub mod parallel_budget;
 
+/// Where one line of progress goes, as a trait a struct can implement.
+pub mod line_sink;
+
 /// Independent items on a bounded number of threads, reported in input order with no lock.
 pub mod parallel_runner;
+
+/// A call turned into a value when it panics, for the places that guard a function and its state.
+pub mod call_catching_panics;
+
+/// A scoped thread, or the work done in turn where the system cannot start one.
+pub mod scoped_start;
+
+/// Jobs on scoped threads beside each other or beside the calling thread, each a function and the state it reads.
+pub mod side_by_side_threads;
+
+/// The names this program answers to and keeps on disk,
+///  each as the current spelling and the one an earlier release used.
+pub mod wrapper_names_old_and_new;
+
+/// The rename that never replaces an existing name,
+///  and the test for a filesystem that cannot do it.
+pub mod rename_that_never_replaces;
+
+/// Where a kept file or folder is,
+///  moved in place from its earlier name on the first need.
+pub mod earlier_name_moved_to_current_in_place;
+
+/// Every kept name in a repository's Git directories settled to its current spelling,
+///  and the finder for a reader that moves nothing.
+pub mod kept_names_in_the_git_directories;
+
+/// Whether any process has a file open for writing, found with a read lease that is taken and given back at once.
+pub mod file_open_for_write_by_any_process;
+
+/// The lines of a log an earlier release wrote added to the log under the current name, restartable after a kill.
+pub mod earlier_log_lines_added_to_current_log;
+
+/// The entries of a folder an earlier release wrote moved into the folder under the current name.
+pub mod earlier_folder_entries_moved_into_current_folder;
+
+/// Every kept name that exists under both spellings folded into the current one when no earlier program writes it.
+pub mod earlier_names_folded_into_current;
+
+/// What is left of the limits a process that starts threads lives under: address space, `RLIMIT_NPROC` and `pids.max`.
+pub mod runtime_limits;
+
+/// How many workers and blocking threads a runtime gets from the budget and the limits.
+pub mod runtime_plan;
+
+/// The process's one tokio runtime: built on the first need, sized from the budget and the limits, bounded by a deadline.
+pub mod lazy_runtime;
+
+/// A blocking call on tokio's blocking pool, with "no thread to start" as an error value instead of a panic.
+pub mod blocking_job;
+
+/// The test-only entry that builds the runtime and runs a blocking job, for the controls that start the executable under limits.
+pub mod runtime_probe;
+
+/// The in-memory claim on a file name that one thread of this process is publishing by the checked rename.
+pub mod name_held_while_one_thread_publishes_it;

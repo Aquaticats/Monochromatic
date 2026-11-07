@@ -1,8 +1,22 @@
 # cli-git Rust behavior ledger
 
-Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
-`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
-name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
+Note 2026-10-29:
+the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now.
+Read every `.mjs` file name here as the same
+name ending in `.ts`;
+the driver `old-format-fixtures` is `old-format-driver`.
 
 Every responsibility the incumbent TypeScript Git policy wrapper carries,
 who consumes it,
@@ -16,8 +30,10 @@ it changes no accepted decision and proposes no design beyond owner module names
 
 ## Pinned incumbent revision
 
-The TypeScript wrapper this ledger inventories, and the four authoring packages
-(`package/git-policy/{api,forbidden-strings,markdown-lint,repository}`), are deleted from the working tree by the
+The TypeScript wrapper this ledger inventories,
+and the four authoring packages
+(`package/git-policy/{api,forbidden-strings,markdown-lint,repository}`),
+are deleted from the working tree by the
 retirement commits.
 The last commit that contains them is `f4fc1fa213ece65672e4314983a75266837892f9`.
 Every `src/...ts:NN` and `SPEC.md:NN` citation below resolves in that commit

@@ -1,5 +1,5 @@
 //! What:
-//!  The shadow repository's `config` file, written by cli-git itself,
+//!  The shadow repository's `config` file, written by monochromatic-git-policy-cli itself,
 //!       and the repository format facts it copies from the real common config.
 //! Why:
 //!  Git does not apply `core.repositoryformatversion` and `extensions.*` from an included file,
@@ -67,6 +67,16 @@ pub fn quote_git_config_value(value: &str) -> String {
     return format!("\"{body}\"");
 }
 
+/// Whether one byte is the NUL byte that ends each entry of `git config --list -z`. `&u8` borrows the byte, as `split` hands it over.
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// Whether one byte is the line feed that separates a key from its value in one entry. `&u8` borrows the byte.
+fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
 /// What:
 ///  Reads the format facts from the real common config file alone.
 /// Why:
@@ -89,9 +99,12 @@ pub fn read_repository_format(
     let output = run_git_checked(context, &request)?;
     let mut version: Option<String> = None;
     let mut extensions: Vec<(String, String)> = Vec::new();
-    for entry in output.stdout.split(|byte| { return *byte == 0; }).filter(|entry| { return !entry.is_empty(); }) {
+    for entry in output.stdout.split(is_nul_byte) {
+        if entry.is_empty() {
+            continue;
+        }
         // A key without a value line is a valueless boolean, which reads as `true`.
-        let (key, value): (&[u8], &[u8]) = match entry.iter().position(|byte| { return *byte == b'\n'; }) {
+        let (key, value): (&[u8], &[u8]) = match entry.iter().position(is_line_feed_byte) {
             Some(newline) => (&entry[..newline], &entry[newline + 1..]),
             None => (entry, &b"true"[..]),
         };
@@ -103,7 +116,10 @@ pub fn read_repository_format(
         );
     }
     return Ok(RepositoryFormat {
-        version: version.unwrap_or_else(|| { return String::from("0"); }),
+        version: match version {
+            Some(found) => found,
+            None => String::from("0"),
+        },
         extensions,
     });
 }
@@ -149,15 +165,17 @@ pub fn repository_format_from_snapshot(snapshot: &ConfigSnapshot) -> Option<Repo
     if !snapshot.without_global_options() {
         return None;
     }
-    let includes: bool = snapshot.entries().iter().any(|entry| {
-        return entry.key == "include.path" || (entry.key.starts_with("includeif.") && entry.key.ends_with(".path"));
-    });
-    if includes {
-        return None;
+    for entry in snapshot.entries() {
+        if entry.key == "include.path" || (entry.key.starts_with("includeif.") && entry.key.ends_with(".path")) {
+            return None;
+        }
     }
     let mut version: Option<String> = None;
     let mut extensions: Vec<(String, String)> = Vec::new();
-    for entry in snapshot.entries().iter().filter(|candidate| { return candidate.scope == "local"; }) {
+    for entry in snapshot.entries() {
+        if entry.scope != "local" {
+            continue;
+        }
         // A key without a value is a valueless boolean, which reads as `true`.
         let value_text: String = match &entry.value {
             Some(bytes) => String::from_utf8_lossy(bytes).into_owned(),
@@ -166,7 +184,10 @@ pub fn repository_format_from_snapshot(snapshot: &ConfigSnapshot) -> Option<Repo
         note_format_entry(entry.key.as_str(), value_text, &mut version, &mut extensions);
     }
     return Some(RepositoryFormat {
-        version: version.unwrap_or_else(|| { return String::from("0"); }),
+        version: match version {
+            Some(found) => found,
+            None => String::from("0"),
+        },
         extensions,
     });
 }

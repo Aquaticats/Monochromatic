@@ -29,7 +29,7 @@ With the scope running,
 the bare name,
 prints a stub and exits 0:
 
-```
+```text
 Id=rr-sysd-doc-probe.service
 LoadState=not-found
 CPUQuotaPerSecUSec=infinity
@@ -51,7 +51,7 @@ The queries that work:
 systemctl --user show rr-sysd-doc-probe.scope -p Id -p LoadState -p ControlGroup -p CPUQuotaPerSecUSec -p MemoryMax
 ```
 
-```
+```text
 Id=rr-sysd-doc-probe.scope
 LoadState=loaded
 ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/rr-sysd-doc-probe.scope
@@ -500,7 +500,8 @@ caught and that this document corrects:
   commit `9ca433482f2281d71718718705ca8cd3bf562ad6`
   (2025-12-17),
   verified an ancestor of main
-  (main 7928 commits ahead of the tag, 0 behind),
+  (main 7928 commits ahead of the tag,
+  0 behind),
   annotated tag object
   `b2a31f27d42a98086ef1945e7e136fc7cb908ad0`
   dereferencing exactly to the commit,
@@ -549,7 +550,8 @@ Catalogs that work cleanly:
   real values,
   `LoadState=loaded` (A1).
 - kernel `cpu.max` and `memory.max`:
-  `37000 100000` and `134217728` (A2, A3).
+  `37000 100000` and `134217728` (A2,
+  A3).
 - `is-active NAME.scope`:
   `active`,
   exit 0 (B5).
@@ -691,7 +693,10 @@ The six-constraint walk:
    but scoped to systemd-run,
    not `systemctl show`;
    the recent `src/systemctl/systemctl-show.c` commits
-   (`5071cd10`, `ef23a1e3`, `a83a0d2f`, `407358d9`)
+   (`5071cd10`,
+   `ef23a1e3`,
+   `a83a0d2f`,
+   `407358d9`)
    do not touch the not-found handling.
 6. Has a minimal fix been prototyped?
    Not reached:

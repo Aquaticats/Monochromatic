@@ -14,9 +14,9 @@
 //! if (!CopyOwner.fromToken(token).isAlive(path)) { /* the item may be taken over */ }
 //! ```
 
-use crate::pid_namespace::{current_pid_namespace, foreign_owner_standing};
+use crate::pid_namespace::{ExpiredForeignRecord, current_pid_namespace, foreign_owner_standing};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use std::path::Path;
 
 /// What:
@@ -94,9 +94,10 @@ fn unescape_field(text: &str) -> Option<String> {
 /// # Errors
 ///  When the platform cannot report the running process's birth identity.
 pub fn current_copy_owner() -> Result<CopyOwner, WorktreeCopyError> {
-    let birth: String = current_birth_identity().map_err(|error| {
-        return failure_with_cause("cli-git: the identity of this process is unavailable, so a copy cannot name its owner.", Some(&error));
-    })?;
+    let birth: String = match current_birth_identity() {
+        Ok(found) => found,
+        Err(error) => return Err(failure_with_cause("monochromatic-git-policy-cli: the identity of this process is unavailable, so a copy cannot name its owner.", Some(&error))),
+    };
     return Ok(CopyOwner {
         pid: i64::from(std::process::id()),
         birth_identity: birth,
@@ -115,8 +116,14 @@ impl CopyOwner {
     /// The owner a token names, or nothing when the text is no token (a name an older release wrote, or a stranger's).
     pub fn from_token(token: &str) -> Option<CopyOwner> {
         let mut fields = token.split(FIELD_SEPARATOR);
-        let pid: i64 = fields.next()?.parse::<i64>().ok().filter(|found| { return *found >= 1; })?;
-        let birth: String = unescape_field(fields.next()?).filter(|found| { return !found.is_empty(); })?;
+        let pid: i64 = fields.next()?.parse::<i64>().ok()?;
+        if pid < 1 {
+            return None;
+        }
+        let birth: String = unescape_field(fields.next()?)?;
+        if birth.is_empty() {
+            return None;
+        }
         let namespace: String = unescape_field(fields.next()?)?;
         if fields.next().is_some() {
             return None;
@@ -141,7 +148,8 @@ impl CopyOwner {
     ///  Whether the owner still runs.
     /// Why:
     ///   An owner in a PID namespace this process cannot see is judged by how recently its item changed (`item`'s age),
-    ///  because its process id means nothing here; any other owner is alive when a process with its id and its birth exists.
+    ///  because its process id means nothing here; any other owner is alive when a process with its id and its birth exists. The
+    ///  age is read once for the decision.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -149,16 +157,21 @@ impl CopyOwner {
     /// ```
     ///
     /// # Errors
-    ///  When the platform refuses to report the process.
+    ///  When the platform refuses to report the process, or when the owner is in another namespace and its item is older than the
+    ///  patience.
     pub fn is_alive(&self, item: &Path) -> Result<bool, WorktreeCopyError> {
-        if let Some(refusal) = self.expired_foreign_refusal(item) {
-            return Err(refusal);
-        }
-        if foreign_owner_standing(self.pid_namespace.as_deref(), item).is_some() {
-            return Ok(true);
+        return self.alive_by(foreign_owner_standing(self.pid_namespace.as_deref(), item));
+    }
+
+    /// `is_alive` from a standing that was read already, so one decision never reads the age twice.
+    fn alive_by(&self, standing: Option<Result<(), ExpiredForeignRecord>>) -> Result<bool, WorktreeCopyError> {
+        match standing {
+            Some(Err(expired)) => return Err(WorktreeCopyError(expired.describe(self.pid))),
+            Some(Ok(())) => return Ok(true),
+            None => {}
         }
         // `match` on the platform's answer: a live process with the recorded birth is the owner; no process is a dead owner.
-        match process_birth_identity(self.pid).map_err(|error| return raw_failure(&error))? {
+        match process_birth_identity(self.pid).map_err(raw_failure_of)? {
             Some(current) => return Ok(current == self.birth_identity),
             None => return Ok(false),
         }
@@ -169,7 +182,9 @@ impl CopyOwner {
 ///  Whether the owner a token names is proven dead; an absent or unreadable token names nobody, so nobody can be alive there.
 /// Why:
 ///   Items written before owners existed, and strangers' files, must not stay in the journal root forever; and an owner the
-///  platform will not report on is not proven dead, so its item is kept rather than taken.
+///  platform will not report on is not proven dead, so its item is kept rather than taken. An owner of another namespace whose item
+///  is older than the patience is neither: the command stops (owner, 2026-11-04, "Refuse and name it (Recommended)"), from one
+///  reading of the item's age, so that a refusal is never swallowed as "not dead".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -179,12 +194,12 @@ pub fn token_owner_is_dead(token: Option<&str>, item: &Path) -> Result<bool, Wor
     let Some(owner) = token.and_then(CopyOwner::from_token) else {
         return Ok(true);
     };
-    // Owner, 2026-11-04, "Refuse and name it (Recommended)": an old item of another namespace stops the command.
-    if let Some(refusal) = owner.expired_foreign_refusal(item) {
-        return Err(refusal);
+    let standing = foreign_owner_standing(owner.pid_namespace.as_deref(), item);
+    if let Some(Err(expired)) = &standing {
+        return Err(WorktreeCopyError(expired.describe(owner.pid)));
     }
-    // `match` on the proof: only a clean answer of "not running" is a dead owner.
-    match owner.is_alive(item) {
+    // `match` on the proof: only a clean answer of "not running" is a dead owner; what the platform will not say is not proof.
+    match owner.alive_by(standing) {
         Ok(alive) => return Ok(!alive),
         Err(_unproven) => return Ok(false),
     }

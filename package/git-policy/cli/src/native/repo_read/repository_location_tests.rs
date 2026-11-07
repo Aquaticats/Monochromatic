@@ -118,7 +118,7 @@ fn unexpected_output_shapes_are_rejected() {
     ] {
         let error = parse_location_output(true, stdout).expect_err("malformed");
         assert!(
-            error.to_string().starts_with("cli-git could not "),
+            error.to_string().starts_with("monochromatic-git-policy-cli could not "),
             "{error}"
         );
     }
@@ -127,7 +127,7 @@ fn unexpected_output_shapes_are_rejected() {
         parse_location_output(true, b"x")
             .expect_err("no line break")
             .to_string(),
-        "cli-git could not locate the command inside the Git worktree: git rev-parse printed \
+        "monochromatic-git-policy-cli could not locate the command inside the Git worktree: git rev-parse printed \
          no line for the path below the top level."
     );
 }

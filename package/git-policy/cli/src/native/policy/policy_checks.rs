@@ -133,13 +133,13 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// The command's arguments without wrapper controls;
     ///  for a direct command,
     ///  the Git
-    /// global options written before `cli-git`.
+    /// global options written before `monochromatic-git-policy-cli`.
     pub arguments: Vec<OsString>,
     /// What the lifecycle offers content policies.
     pub candidates: LifecycleContent,
     /// Tool-cache directories exempt from linked-worktree enforcement.
     pub allowed_worktree_dirs: Vec<PathBuf>,
-    /// The limits of the folder of saved copies of conflicted files, from `discardedCopies` in `cli-git.config.jsonc`.
+    /// The limits of the folder of saved copies of conflicted files, from `discardedCopies` in `monochromatic-git-policy-cli.config.jsonc`.
     pub discarded_limits: Limits,
     /// The candidates once a content policy prepared them,
     ///  shared by every later one.
@@ -354,12 +354,14 @@ fn check_linked_worktree(
             SideVerdict::NotApplicable => {}
             SideVerdict::Refused(note) => conflict_note = note,
             SideVerdict::Allowed { notice, copies } => {
-                let places: Vec<String> = copies
-                    .iter()
-                    .map(|copy| {
-                        return format!("{} => {}", copy.path, copy.saved_to.as_ref().map_or_else(|| { return String::from("none"); }, |place| { return place.display().to_string(); }));
-                    })
-                    .collect();
+                let mut places: Vec<String> = Vec::new();
+                for copy in &copies {
+                    let saved_to: String = match copy.saved_to.as_ref() {
+                        Some(place) => place.display().to_string(),
+                        None => String::from("none"),
+                    };
+                    places.push(format!("{} => {}", copy.path, saved_to));
+                }
                 record_audit_with_copies(&location.identity, command, AuditOutcome::SavedConflict, arguments, None, places.as_slice());
                 notices.push(notice);
                 return clean();

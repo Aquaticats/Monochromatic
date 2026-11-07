@@ -40,13 +40,13 @@ use std::collections::HashSet;
 /// state.current.devDependencyNames.filter(name => relevant.has(name) && name !== state.current.name);
 /// ```
 fn candidate_edges(state: &ManifestState, relevant: &HashSet<String>) -> Vec<String> {
-    return state
-        .facts
-        .dev_dependency_names
-        .iter()
-        .filter(|name: &&String| return relevant.contains(*name) && **name != state.facts.name)
-        .cloned()
-        .collect();
+    let mut edges: Vec<String> = Vec::new();
+    for name in &state.facts.dev_dependency_names {
+        if relevant.contains(name) && *name != state.facts.name {
+            edges.push(name.clone());
+        }
+    }
+    return edges;
 }
 
 /// What: The texts of a package's non-test source files. `String::from_utf8_lossy`
@@ -88,21 +88,19 @@ pub fn bundled_development_edges(
     states: &[ManifestState],
     bumped_names: &[String],
 ) -> Result<Vec<Vec<String>>, ContentUnavailable> {
-    let every_edge: Vec<WorkspaceNode> = states
-        .iter()
-        .map(|state: &ManifestState| {
-            return WorkspaceNode {
-                name: state.facts.name.clone(),
-                directory: state.directory.clone(),
-                version: None,
-                edge_names: [
-                    state.facts.runtime_dependency_names.as_slice(),
-                    state.facts.dev_dependency_names.as_slice(),
-                ]
-                .concat(),
-            };
-        })
-        .collect();
+    let mut every_edge: Vec<WorkspaceNode> = Vec::new();
+    for state in states {
+        every_edge.push(WorkspaceNode {
+            name: state.facts.name.clone(),
+            directory: state.directory.clone(),
+            version: None,
+            edge_names: [
+                state.facts.runtime_dependency_names.as_slice(),
+                state.facts.dev_dependency_names.as_slice(),
+            ]
+            .concat(),
+        });
+    }
     let mut relevant: HashSet<String> = transitive_dependent_names(&every_edge, bumped_names);
     relevant.extend(bumped_names.iter().cloned());
     let mut bundled: Vec<Vec<String>> = Vec::new();
@@ -115,16 +113,21 @@ pub fn bundled_development_edges(
             continue;
         }
         let texts: Vec<String> = source_texts(content, tracked, &state.directory)?;
-        bundled.push(
-            candidates
-                .into_iter()
-                .filter(|name: &String| {
-                    return texts
-                        .iter()
-                        .any(|text: &String| return imports_package(text, name));
-                })
-                .collect(),
-        );
+        let mut imported: Vec<String> = Vec::new();
+        for name in candidates {
+            // The first text that imports the package settles it, as `any` stopped at the first match.
+            let mut found: bool = false;
+            for text in &texts {
+                if imports_package(text, &name) {
+                    found = true;
+                    break;
+                }
+            }
+            if found {
+                imported.push(name);
+            }
+        }
+        bundled.push(imported);
     }
     return Ok(bundled);
 }

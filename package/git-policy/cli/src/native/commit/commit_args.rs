@@ -105,10 +105,10 @@ fn normalise_inline_short(token: &str) -> Vec<String> {
     let Some(value_index) = find_value_option_index(letters.as_slice()) else {
         return vec![String::from(token)];
     };
-    let mut tokens: Vec<String> = letters[1..value_index]
-        .iter()
-        .map(|letter| format!("-{letter}"))
-        .collect();
+    let mut tokens: Vec<String> = Vec::new();
+    for letter in &letters[1..value_index] {
+        tokens.push(format!("-{letter}"));
+    }
     tokens.push(format!("-{}", letters[value_index]));
     let inline: String = letters[value_index + 1..].iter().collect();
     if !inline.is_empty() {
@@ -275,16 +275,16 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
         }
         if token.starts_with('-') && !token.starts_with("--") && token.len() > 1 {
             let letters: Vec<char> = token[1..].chars().collect();
-            let value_start: Option<usize> = letters
-                .iter()
-                .position(|letter| { return OPTIONAL_VALUE_LETTERS.contains(letter); });
+            let value_start: Option<usize> = letters.iter().position(is_optional_value_letter);
             let flags: &[char] = match value_start {
                 Some(index) => &letters[..index],
                 None => &letters[..],
             };
             let mut cluster: String = String::from("-");
-            for letter in flags.iter().filter(|letter| { return **letter != 'a'; }) {
-                cluster.push(*letter);
+            for letter in flags {
+                if *letter != 'a' {
+                    cluster.push(*letter);
+                }
             }
             if let Some(index) = value_start {
                 for letter in &letters[index..] {
@@ -332,7 +332,14 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
         index += 1;
     }
     for pathspec in pathspecs.iter().rev() {
-        if let Some(position) = without_file.iter().rposition(|token| { return token == pathspec; }) {
+        // The last token equal to the pathspec goes, as `.rposition(...)` found it.
+        let mut last_position: Option<usize> = None;
+        for (position, token) in without_file.iter().enumerate() {
+            if token == pathspec {
+                last_position = Some(position);
+            }
+        }
+        if let Some(position) = last_position {
             without_file.remove(position);
         }
     }
@@ -342,7 +349,11 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
     let mut kept: Vec<String> = Vec::new();
     let mut value_next: bool = false;
     for (position, token) in without_file.into_iter().enumerate() {
-        if separator.is_some_and(|at| { return position > at; }) {
+        let past_separator: bool = match separator {
+            Some(at) => position > at,
+            None => false,
+        };
+        if past_separator {
             kept.push(token);
             continue;
         }
@@ -373,10 +384,27 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
 /// privateSelectionCommitArgs({ args, pathspecs });
 /// ```
 pub fn private_selection_commit_args(args: &[String], pathspecs: &[String]) -> Vec<String> {
-    return private_explicit_commit_args(args, pathspecs)
-        .into_iter()
-        .filter(|token| { return !["-i", "-p", "--include", "--interactive", "--patch"].contains(&token.as_str()); })
-        .collect();
+    let mut kept: Vec<String> = Vec::new();
+    for token in private_explicit_commit_args(args, pathspecs) {
+        if !["-i", "-p", "--include", "--interactive", "--patch"].contains(&token.as_str()) {
+            kept.push(token);
+        }
+    }
+    return kept;
+}
+
+/// What:
+///  Whether a letter of a short-option cluster takes an optional value.
+///  `&char` borrows the letter, as `position` hands it over.
+/// Why:
+///   `position` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isOptionalValueLetter = (letter: string) => OPTIONAL_VALUE_LETTERS.includes(letter);
+/// ```
+fn is_optional_value_letter(letter: &char) -> bool {
+    return OPTIONAL_VALUE_LETTERS.contains(letter);
 }
 
 /// What:

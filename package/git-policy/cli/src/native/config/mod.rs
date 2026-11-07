@@ -1,5 +1,5 @@
 //! What:
-//!  Reading and validating `cli-git.config.jsonc` and the Git configuration one invocation is judged by.
+//!  Reading and validating `monochromatic-git-policy-cli.config.jsonc` and the Git configuration one invocation is judged by.
 //! Why:
 //!  Settings reach every other subsystem through these modules,
 //!  so they are easy to find in one place.
@@ -12,7 +12,7 @@
 /// The one failure type for rejected configuration content or files.
 pub mod config_error;
 
-/// Repository-root discovery and bounded reading of `cli-git.config.jsonc`.
+/// Repository-root discovery and bounded reading of `monochromatic-git-policy-cli.config.jsonc`.
 pub mod config_file;
 
 /// Lazy configuration loading for known inspection versus mutation/ambiguous commands.
@@ -23,6 +23,9 @@ pub mod config_parse;
 
 /// Validation of the `policies` section and per-policy options.
 pub(crate) mod config_policies;
+
+/// Validation of the options of the `markdown/autofix` policy and of its `rules` list.
+pub(crate) mod config_policies_markdown;
 
 /// The `rulesFile` option:
 ///  a repository-relative name that stays inside the repository.

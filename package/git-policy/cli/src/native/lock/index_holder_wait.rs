@@ -108,8 +108,8 @@ fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, fir
         Proof::Dead(_) => unproven_wait_line(lock_path_of(real_index).as_path(), None),
     };
     return format!(
-        "cli-git: git {command} has changed nothing yet and waits for the index lock of this repository; {}",
-        tail.strip_prefix("cli-git: ").unwrap_or(tail.as_str())
+        "monochromatic-git-policy-cli: git {command} has changed nothing yet and waits for the index lock of this repository; {}",
+        tail.strip_prefix("monochromatic-git-policy-cli: ").unwrap_or(tail.as_str())
     );
 }
 
@@ -131,6 +131,13 @@ pub fn wait_for_index_release(real_index: &Path, command: &str, cadence: Cadence
 /// `wait_for_index_release` that gives up after `ceiling`.
 pub fn wait_for_index_release_within(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write) -> IndexWait {
     return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
+}
+
+/// Write `bytes` to `out`, then flush it only if the write succeeded; the callers ignore the result, because a closed terminal
+///  is not a reason to stop the command the person asked for.
+fn write_then_flush(out: &mut dyn Write, bytes: &[u8]) -> std::io::Result<()> {
+    out.write_all(bytes)?;
+    return out.flush();
 }
 
 /// `wait_for_index_release` with the function that sets a watch on the lock's directory, so a control can hand it none.
@@ -158,12 +165,12 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
             proof = look_at(real_index, &gather_here);
         }
         if let Proof::Dead(pid) = &proof {
-            let _noted = out.write_all(dead_owner_diagnostic(lock.as_path(), *pid, consequence.as_str()).as_bytes()).and_then(|()| { return out.flush(); });
+            let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, consequence.as_str()).as_bytes());
             return IndexWait::OwnerGone(elapsed);
         }
         if due {
             // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = out.write_all(notice(command, real_index, elapsed, &proof, !announced).as_bytes()).and_then(|()| { return out.flush(); });
+            let _noted = write_then_flush(out, notice(command, real_index, elapsed, &proof, !announced).as_bytes());
             announced = true;
         }
         // The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". At the ceiling the wait names the blocker and ends;
@@ -175,7 +182,7 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
                 Proof::Nothing(None) | Proof::Dead(_) => String::from("an owner whose evidence could not be read"),
             };
             let line: String = ceiling_line(lock.as_path(), blocker.as_str(), elapsed.as_secs(), consequence.as_str());
-            let _noted = out.write_all(line.as_bytes()).and_then(|()| { return out.flush(); });
+            let _noted = write_then_flush(out, line.as_bytes());
             return IndexWait::GaveUp(elapsed);
         }
         let pause: Duration = ticker.next_in(elapsed).min(ceiling.saturating_sub(elapsed)).max(Duration::from_millis(1));

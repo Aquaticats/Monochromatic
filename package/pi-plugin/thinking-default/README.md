@@ -6,6 +6,13 @@ GPT-shaped models get `xhigh` thinking.
 Non-GPT models get `xhigh` thinking when the model supports it,
  and `high` thinking otherwise.
 
+## Pi dependency trust
+
+PZE:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Installation
 
 Add this package to global pi settings at `~/.pi/agent/settings.json`:

@@ -365,10 +365,7 @@ fn standard_input_setup_failures_exit_two() {
     assert_eq!(refused.stdout, "[unused]: https://example.com\n");
     assert_eq!(
         codes(refused.stderr.as_str()),
-        [
-            FIX_REFUSED,
-            "markdown/link-image-reference-definitions"
-        ]
+        [FIX_REFUSED, "markdown/link-image-reference-definitions"]
     );
 }
 

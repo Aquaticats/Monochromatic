@@ -1,60 +1,110 @@
 # cli-git subvolume migration script (proven on a throwaway, 2026-11-01)
 
-Purpose: a durable copy of the one-off script that converts a Git main checkout into a btrfs subvolume in place.
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
+Purpose:
+a durable copy of the one-off script that converts a Git main checkout into a btrfs subvolume in place.
 It was proven on throwaway copies (the procedure and its measurements are summarized in
 `doc/planning/cli-git-btrfs-worktree.md`,
 "Migration of the main checkout");
 the original lives outside Git under
 `~/temp/agent/subvol-migrate/` and would not survive a reboot of this machine.
 Where the tool lives for good (a wrapper subcommand or printed commands) is an open owner decision;
-this file is the record, not a shipped tool.
+this file is the record,
+not a shipped tool.
 
-To run it, copy the code block into a `.ts` file and run it with `node` as the README part says.
+To run it,
+copy the code block into a `.ts` file and run it with `node` as the README part says.
 
 ## README written with the script
 
-Script: `migrate.ts` in this directory (node, `node:child_process`, no dependencies).
+Script:
+`migrate.ts` in this directory (node,
+`node:child_process`,
+no dependencies).
 Proven on throwaway copies of this repository's checkout under `/var/home/user/subvol-migration-probe-20261101`
-(same filesystem as the real checkout; the other disk under `~/temp` cannot reflink).
-Nothing in the real checkout, its `.git`, its worktrees or the commit service was touched.
+(same filesystem as the real checkout;
+the other disk under `~/temp` cannot reflink).
+Nothing in the real checkout,
+its `.git`,
+its worktrees or the commit service was touched.
 
 ### What it does
 
-- Dry run by default: preflight and plan only.
-- `--apply` runs these journaled steps (journal: `<parent>/.migrate-<name>.journal.json`):
+- Dry run by default:
+  preflight and plan only.
+- `--apply` runs these journaled steps (journal:
+  `<parent>/.migrate-<name>.journal.json`):
   1. `btrfs subvolume create <root>.subvol-new`.
   2. Each linked worktree under `<root>/` (from `.git/worktrees/*/gitdir`) is created as a nested subvolume inside the
-     new tree, so a later snapshot of the root holds an empty stub for it (disable with `--no-nested-worktrees`).
-  3. `cp --archive --reflink=always --remove-destination <root>/. <root>.subvol-new/`: data blocks are shared,
+     new tree,
+     so a later snapshot of the root holds an empty stub for it (disable with `--no-nested-worktrees`).
+  3. `cp --archive --reflink=always --remove-destination <root>/. <root>.subvol-new/`:
+     data blocks are shared,
      only metadata is copied.
   4. `rsync --archive --delete` of whatever changed during the copy.
-  5. Hold `<root>/.git/index.lock`, run `rsync` once more, `mv --exchange --no-target-directory <root> <root>.subvol-new`
-     (renameat2 `RENAME_EXCHANGE`, one atomic step), rename the old tree to `<root>.before-subvolume`, drop the lock
+  5. Hold `<root>/.git/index.lock`,
+     run `rsync` once more,
+     `mv --exchange --no-target-directory <root> <root>.subvol-new`
+     (renameat2 `RENAME_EXCHANGE`,
+     one atomic step),
+     rename the old tree to `<root>.before-subvolume`,
+     drop the lock
      that is now inside the old tree.
   6. One `rsync --archive --update` (no `--delete`) from the old tree to the new root for writes that landed in the old
      tree after the exchange.
   7. Rewrite the stat fields of every copied Git index (main and the linked worktrees inside the root).
-  8. Verify: root inode 256, `btrfs filesystem du`, `git status`, `git worktree list`.
+  8. Verify:
+     root inode 256,
+     `btrfs filesystem du`,
+     `git status`,
+     `git worktree list`.
 - The old tree is never deleted unless `--remove-old` is given.
 
 ### Refusals (preflight)
 
-- Not on btrfs; root is already a subvolume (inode 256); `.git` is not a directory; less than 5 GiB free.
-- Any of `index.lock`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`, `rebase-merge`, `rebase-apply`,
-  `sequencer`, `HEAD.lock`, `config.lock`, `packed-refs.lock`, `shallow.lock` in `.git` or in any `.git/worktrees/*`.
+- Not on btrfs;
+  root is already a subvolume (inode 256);
+  `.git` is not a directory;
+  less than 5 GiB free.
+- Any of `index.lock`,
+  `MERGE_HEAD`,
+  `CHERRY_PICK_HEAD`,
+  `REVERT_HEAD`,
+  `BISECT_LOG`,
+  `rebase-merge`,
+  `rebase-apply`,
+  `sequencer`,
+  `HEAD.lock`,
+  `config.lock`,
+  `packed-refs.lock`,
+  `shallow.lock` in `.git` or in any `.git/worktrees/*`.
 - `.git/cli-git/work/pending` or `.git/cli-git/work/claimed` non-empty.
-- It warns (does not refuse) about processes whose working directory is inside the checkout, with their PIDs.
+- It warns (does not refuse) about processes whose working directory is inside the checkout,
+  with their PIDs.
 
 ### Exact real command line
 
-Dry run first (read-only, reads only `.git` and `.git/worktrees/*/gitdir`, never walks the tree):
+Dry run first (read-only,
+reads only `.git` and `.git/worktrees/*/gitdir`,
+never walks the tree):
 
 ```sh
 # file: dry run
 node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic
 ```
 
-Then the migration, in a bounded scope (the measured bounds):
+Then the migration,
+in a bounded scope (the measured bounds):
 
 ```sh
 # file: migration
@@ -65,70 +115,154 @@ systemd-run --user --scope --property=IOWeight=10 --property=CPUQuota=200% --pro
 
 ### Results on the throwaway (all with the bounds above, host load 11 to 27)
 
-- Layout: 20546 tracked files, `.git` of 700 MiB, one to two linked worktrees, a 5000-file ignored `node_modules`.
-- 45472 entries: copy 2.14 s, each `rsync` pass 1.5 s, exchange under 0.01 s, root inode afterwards 256.
-- 68149 entries: copy 8.46 s, `rsync` passes 2.52 s, 2.37 s and 2.15 s, exchange 0.00 s, index rewrite 0.62 s for
+- Layout:
+  20546 tracked files,
+  `.git` of 700 MiB,
+  one to two linked worktrees,
+  a 5000-file ignored `node_modules`.
+- 45472 entries:
+  copy 2.14 s,
+  each `rsync` pass 1.5 s,
+  exchange under 0.01 s,
+  root inode afterwards 256.
+- 68149 entries:
+  copy 8.46 s,
+  `rsync` passes 2.52 s,
+  2.37 s and 2.15 s,
+  exchange 0.00 s,
+  index rewrite 0.62 s for
   three indexes of 20546 entries each.
-- `btrfs filesystem du --summarize` of the new root: total 3.85 GiB, exclusive 0.00 B, set shared 2.89 GiB.
+- `btrfs filesystem du --summarize` of the new root:
+  total 3.85 GiB,
+  exclusive 0.00 B,
+  set shared 2.89 GiB.
 - Without the index rewrite the first `git status` in the new root took 22.1 s (every copied entry has a new inode and
-  change time, so Git hashes every file and runs the LFS clean filter); with it, 0.17 s, and 0.07 s in a linked worktree.
-- Linked worktrees: inode 256 (nested subvolumes), `.git` file and `.git/worktrees/<name>/gitdir` unchanged because the
-  path is unchanged. `git worktree list`, `git commit` from the main checkout and from a worktree, `git worktree add`,
-  `git worktree remove` (deleted the nested subvolume), `git worktree prune`, `git gc --auto`: all worked (plain Git;
+  change time,
+  so Git hashes every file and runs the LFS clean filter);
+  with it,
+  0.17 s,
+  and 0.07 s in a linked worktree.
+- Linked worktrees:
+  inode 256 (nested subvolumes),
+  `.git` file and `.git/worktrees/<name>/gitdir` unchanged because the
+  path is unchanged.
+  `git worktree list`,
+  `git commit` from the main checkout and from a worktree,
+  `git worktree add`,
+  `git worktree remove` (deleted the nested subvolume),
+  `git worktree prune`,
+  `git gc --auto`:
+  all worked (plain Git;
   a wrapped commit was not run because it would go through the production commit service).
 - A snapshot of the migrated root (`btrfs subvolume snapshot`) took 1.08 s and showed each nested worktree as an empty
-  directory (inode 2); deleting the snapshot took 2 ms (`user_subvol_rm_allowed` is active on this host).
-- The snapshot of a root still contains `.git` and every ignored tree in full (shared blocks, but real directory
-  entries), so the root is not a good snapshot source for a new worktree unless `.git` and the ignored trees are
-  nested subvolumes too. See the planning document.
+  directory (inode 2);
+  deleting the snapshot took 2 ms (`user_subvol_rm_allowed` is active on this host).
+- The snapshot of a root still contains `.git` and every ignored tree in full (shared blocks,
+  but real directory
+  entries),
+  so the root is not a good snapshot source for a new worktree unless `.git` and the ignored trees are
+  nested subvolumes too.
+  See the planning document.
 
 ### Effects on running processes
 
-- A process whose working directory is inside the old tree keeps that directory: after the exchange its relative writes
-  land in `<root>.before-subvolume`, not in the new root. Demonstrated: a loop writing `tick.txt` once a second from a
+- A process whose working directory is inside the old tree keeps that directory:
+  after the exchange its relative writes
+  land in `<root>.before-subvolume`,
+  not in the new root.
+  Demonstrated:
+  a loop writing `tick.txt` once a second from a
   shell started in the checkout wrote 60 in the old tree while the new root stopped at 26 (the copy made by the last
-  `rsync --update` pass); the file written after the pass exists only in the old tree.
+  `rsync --update` pass);
+  the file written after the pass exists only in the old tree.
 - Processes that open paths by absolute name (`/var/home/user/Monochromatic/...`) resolve to the new root from the
-  exchange on. Open descriptors stay on the old inodes.
-- Restart every shell, editor and agent session whose working directory is inside the checkout.
-- `cli-git.service` (read only check on this host): working directory `/var/home/user`, no open descriptor under the
-  checkout; it resolves repository paths per job, so it needs no restart if `pending` and `claimed` are empty. While the
+  exchange on.
+  Open descriptors stay on the old inodes.
+- Restart every shell,
+  editor and agent session whose working directory is inside the checkout.
+- `cli-git.service` (read only check on this host):
+  working directory `/var/home/user`,
+  no open descriptor under the
+  checkout;
+  it resolves repository paths per job,
+  so it needs no restart if `pending` and `claimed` are empty.
+  While the
   script holds `.git/index.lock` (the length of one `rsync` pass) index writers wait or fail on the lock.
 - Rerun the catch-up by hand while old sessions linger:
   `rsync --archive --update --exclude=/.git/index.lock <root>.before-subvolume/ <root>/`.
 
 ### Crash and rollback
 
-- Kill at any point, then `--resume`: proven by simulated SIGKILL after the copy, with the lock held before the
-  exchange, and between the exchange and the rename (environment `MIGRATE_KILL_AT=after-copy|before-exchange|after-exchange-mv`).
+- Kill at any point,
+  then `--resume`:
+  proven by simulated SIGKILL after the copy,
+  with the lock held before the
+  exchange,
+  and between the exchange and the rename (environment `MIGRATE_KILL_AT=after-copy|before-exchange|after-exchange-mv`).
   Every resume ended with root inode 256 and a clean `git status`.
-- `--rollback`: carries newer files back with `rsync --update`, exchanges the trees again, deletes the new subvolume.
-  Proven: a file written to the new root after the migration was present in the restored tree.
-- Before the exchange, nothing in the original tree changed except the temporary `.git/index.lock`.
+- `--rollback`:
+  carries newer files back with `rsync --update`,
+  exchanges the trees again,
+  deletes the new subvolume.
+  Proven:
+  a file written to the new root after the migration was present in the restored tree.
+- Before the exchange,
+  nothing in the original tree changed except the temporary `.git/index.lock`.
 
 ### Extrapolation to the real checkout
 
-- Rates measured: copy 47 to 124 microseconds per entry (47 unloaded-ish, 124 at load 20), `rsync` 33 to 37 microseconds
-  per entry per pass, three passes, index rewrite about 10 microseconds per entry.
-- One real worktree, `.claude/worktrees/integ` (read only source): `cp --archive --reflink=always` took 1.94 s wall for
-  22921 entries (20570 files, 831 MiB: exclusive 0.00 B, shared 826 MiB) at IOWeight 10, 200% CPU, load 11.7.
-- The real checkout was not walked, so its entry count is unknown. It holds at least 86 trees of about 22.9 thousand
-  entries, so at least 2 million entries before `node_modules`; at 160 to 250 microseconds per entry that is 5 to 8 minutes
-  for 2 million and about 10 to 17 minutes for 4 million. The final `rsync` pass, the one that runs under the
-  `index.lock`, is 33 to 37 microseconds per entry: about 1 to 2.5 minutes for 2 to 4 million entries.
-- Btrfs metadata grows by the copied entries (about 1 KiB per entry is an assumption, not measured here); 358 GiB were
+- Rates measured:
+  copy 47 to 124 microseconds per entry (47 unloaded-ish,
+  124 at load 20),
+  `rsync` 33 to 37 microseconds
+  per entry per pass,
+  three passes,
+  index rewrite about 10 microseconds per entry.
+- One real worktree,
+  `.claude/worktrees/integ` (read only source):
+  `cp --archive --reflink=always` took 1.94 s wall for
+  22921 entries (20570 files,
+  831 MiB:
+  exclusive 0.00 B,
+  shared 826 MiB) at IOWeight 10,
+  200% CPU,
+  load 11.7.
+- The real checkout was not walked,
+  so its entry count is unknown.
+  It holds at least 86 trees of about 22.9 thousand
+  entries,
+  so at least 2 million entries before `node_modules`;
+  at 160 to 250 microseconds per entry that is 5 to 8 minutes
+  for 2 million and about 10 to 17 minutes for 4 million.
+  The final `rsync` pass,
+  the one that runs under the
+  `index.lock`,
+  is 33 to 37 microseconds per entry:
+  about 1 to 2.5 minutes for 2 to 4 million entries.
+- Btrfs metadata grows by the copied entries (about 1 KiB per entry is an assumption,
+  not measured here);
+  358 GiB were
   free during the proof.
 
 ## Change of 2026-11-01 for the real run
 
 The first real apply stopped in the copy step on 127 root-owned mode-600 files the user may not read.
-`runCopy` now tolerates only unreadable files (`cp` "cannot open ... for reading: Permission denied" and rsync
-"send_files failed to open ...: Permission denied (13)"), records each once relative to its tree in
-`<parent>/.migrate-<name>.unreadable.txt` and leaves it in the old tree; every other error still stops the run.
-The `--delete` passes carry `--ignore-errors` so deletions still happen, and an unreadable directory is not tolerated,
+`runCopy` now tolerates only unreadable files (`cp` "cannot open ... for reading:
+Permission denied" and rsync
+"send_files failed to open ...:
+Permission denied (13)"),
+records each once relative to its tree in
+`<parent>/.migrate-<name>.unreadable.txt` and leaves it in the old tree;
+every other error still stops the run.
+The `--delete` passes carry `--ignore-errors` so deletions still happen,
+and an unreadable directory is not tolerated,
 because with deletions forced it would wipe that subtree in the new tree.
-Proven on a throwaway (`retest.ts` beside the script: mode-000 files in the main tree and a nested worktree, 11 checks),
-then used for the real checkout; see the handover section "2026-11-01: the checkout is a btrfs subvolume".
+Proven on a throwaway (`retest.ts` beside the script:
+mode-000 files in the main tree and a nested worktree,
+11 checks),
+then used for the real checkout;
+see the handover section "2026-11-01:
+the checkout is a btrfs subvolume".
 ## The script
 
 ```ts

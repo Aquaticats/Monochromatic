@@ -1,5 +1,16 @@
 # cli-git concurrent commits handover
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -189,7 +200,8 @@ instead of all but the first failing on `index.lock` `EEXIST` (issue #560 was a 
   Code:
   `pushedCommits`
 and `createManualPushCandidates` in `package/git-policy/cli/src/policy-engine/manual-push-candidates.ts`
-(moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/push/manual_push_range.rs`).
+(moved on 2026-10-13 with the TypeScript wrapper:
+  now `package/git-policy/cli/src/native/push/manual_push_range.rs`).
   The owner ruled it wrong by design:
   the scan must never walk every commit.
   Fixed on branch `fix/cli-git-manual-push-scans-already-published-history`

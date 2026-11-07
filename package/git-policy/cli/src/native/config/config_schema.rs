@@ -1,5 +1,5 @@
 //! What:
-//!  The typed settings a validated `cli-git.config.jsonc` produces,
+//!  The typed settings a validated `monochromatic-git-policy-cli.config.jsonc` produces,
 //!  with defaults.
 //! Why:
 //!  The policy engine and transactions read plain typed values,
@@ -142,7 +142,7 @@ pub struct RulesFileEntry {
 ///  `Option<Vec<RulesFileEntry>>` is "a
 ///       configured list of files or nothing".
 /// Why:
-///   The scanner is linked into cli-git,
+///   The scanner is linked into monochromatic-git-policy-cli,
 ///  so the remaining choices are whether its
 ///       embedded baseline rules run and which repository files hold the private rules.
 ///       There is deliberately no executable path.
@@ -195,7 +195,7 @@ pub struct PolicyConfig {
 /// Why:
 ///   `hooks.concurrentCommits` tuned the hook lock, and the wrapper runs no external hook, so there is no lock to
 ///  tune.
-///  Older files that set it still load: the value is checked and ignored, and `git cli-git doctor` says so.
+///  Older files that set it still load: the value is checked and ignored, and `git monochromatic-git-policy-cli doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -215,7 +215,7 @@ pub struct HooksConfig {
 ///   `indexLock.unprovenOwnerTimeoutMs` was how long the wrapper backed off for an `index.lock` whose owner is dead or
 ///  unproven. The commit service waits for a foreign `index.lock` for as long as the lock stays there, whether its owner is
 ///  proven to hold it or not, and reads no such value, so the key does nothing.
-///  Older files that set it still load: the value is checked and ignored, and `git cli-git doctor` says so.
+///  Older files that set it still load: the value is checked and ignored, and `git monochromatic-git-policy-cli doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -234,7 +234,7 @@ pub struct IndexLockConfig {
 /// Why:
 ///   `landing.reserveAfterLostRaces` was how many lost landing races passed before a commit asked for the landing
 ///  reservation. The commit service lands in arrival order and bounds the retries of a commit itself, so the key does nothing.
-///  Older files that set it still load: the value is checked and ignored, and `git cli-git doctor` says so.
+///  Older files that set it still load: the value is checked and ignored, and `git monochromatic-git-policy-cli doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -334,7 +334,7 @@ impl ConcurrencyConfig {
 ///   The five built-in policies run everywhere at their default severity.
 ///  The four
 ///       policies that plugins used to provide, and `mono/catalog-specifiers`, run only where
-///       `cli-git.config.jsonc` names them,
+///       `monochromatic-git-policy-cli.config.jsonc` names them,
 ///  whether or not a file exists,
 ///  so an empty file and no file behave alike.
 ///
@@ -427,7 +427,7 @@ impl PolicyConfig {
 /// Whole-configuration defaults.
 impl CliGitConfig {
     /// What:
-    ///  Build the configuration of a repository without `cli-git.config.jsonc`,
+    ///  Build the configuration of a repository without `monochromatic-git-policy-cli.config.jsonc`,
     ///  which
     ///       is also what an empty `{}` file produces.
     /// Why:

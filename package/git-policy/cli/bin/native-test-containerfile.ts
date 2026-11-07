@@ -62,19 +62,23 @@ const compileArguments = [
 
  @param jobs - parallel compile jobs the build container's CPUs allow
 
+ @param settingsFile - name of the repository's settings file at the repository root, copied beside `clippy.toml`
+
  @returns the Containerfile text, ending in a newline
 
  @example
  ```ts
- const text = testContainerfile({ base, jobs: 2 });
+ const text = testContainerfile({ base, jobs: 2, settingsFile: 'cli-git.config.jsonc' });
  ```
  */
 export function testContainerfile({
   base,
   jobs,
+  settingsFile,
 }: {
   readonly base: string;
   readonly jobs: number;
+  readonly settingsFile: string;
 },): string {
   return [
     `FROM ${base}`,
@@ -107,7 +111,7 @@ export function testContainerfile({
       'cargo',
       ...compileArguments
     ])}`,
-    'COPY clippy.toml cli-git.config.jsonc /work/',
+    `COPY clippy.toml ${settingsFile} /work/`,
     // Path-crate layer: the scanner's build script and the matcher compile here, and again only when they change.
     ...pathCrateRoots()
       .map(function pathCrateCopy(root) {

@@ -235,6 +235,24 @@ pub struct PushShape {
 }
 
 /// What:
+///  The text written after the last occurrence of one option of a push, or `None` when the option is absent or
+///  was written without a value.
+///  `Option<OsString>` is "the text, or no answer".
+/// Why:
+///   `push_shape` reads several valued options (`--repo`, `--recurse-submodules`) the same way,
+///  and a named function takes the place of a closure that would only borrow `parsed` and `region`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function optionValue(parsed: ParsedOptions, region: string[], id: number): string | undefined;
+/// ```
+fn option_value(parsed: &ParsedOptions, region: &[OsString], id: u16) -> Option<OsString> {
+    let occurrence = last_occurrence(parsed, id)?;
+    let value = occurrence.value?;
+    return Some(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(value_bytes(region, value).to_vec()));
+}
+
+/// What:
 ///  Read the destination and the named refs of a push.
 ///  `None` when the region is one Git itself would refuse.
 /// Why:
@@ -246,21 +264,13 @@ pub struct PushShape {
 /// ```
 pub fn push_shape(region: &[OsString]) -> Option<PushShape> {
     let parsed: ParsedOptions = parse_options(region, PUSH_TABLE, DEFAULT_MODE, &[]).ok()?;
-    let mut positionals: Vec<OsString> = positional_tokens(&parsed, region.len())
-        .into_iter()
-        .map(|index| {
-            return region[index].clone();
-        })
-        .collect();
-    let value_of = |id: u16| -> Option<OsString> {
-        let value = last_occurrence(&parsed, id).and_then(|occurrence| {
-            return occurrence.value;
-        })?;
-        return Some(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(value_bytes(region, value).to_vec()));
-    };
+    let mut positionals: Vec<OsString> = Vec::new();
+    for index in positional_tokens(&parsed, region.len()) {
+        positionals.push(region[index].clone());
+    }
     // Git takes the first positional as the repository whatever `--repo` says; the option only fills in when none is typed.
     let repository: Option<OsString> =
-        if positionals.is_empty() { value_of(REPO) } else { Some(positionals.remove(0)) };
+        if positionals.is_empty() { option_value(&parsed, region, REPO) } else { Some(positionals.remove(0)) };
     let mut refspecs: Vec<OsString> = Vec::new();
     let mut words = positionals.into_iter();
     while let Some(word) = words.next() {
@@ -281,7 +291,7 @@ pub fn push_shape(region: &[OsString]) -> Option<PushShape> {
         tags: is_enabled(&parsed, TAGS),
         mirror: is_enabled(&parsed, MIRROR),
         deletes: is_enabled(&parsed, DELETE),
-        recurse_submodules: value_of(RECURSE_SUBMODULES),
+        recurse_submodules: option_value(&parsed, region, RECURSE_SUBMODULES),
     });
 }
 
@@ -319,29 +329,24 @@ const NOT_STACKABLE: &[u16] = &[
 /// ```
 pub fn stackable_option_tokens(region: &[OsString]) -> Option<Vec<OsString>> {
     let parsed: ParsedOptions = parse_options(region, PUSH_TABLE, DEFAULT_MODE, &[]).ok()?;
-    if NOT_STACKABLE.iter().any(|id| {
-        return is_enabled(&parsed, *id);
-    }) {
-        return None;
+    for id in NOT_STACKABLE {
+        if is_enabled(&parsed, *id) {
+            return None;
+        }
     }
     let positionals: Vec<usize> = positional_tokens(&parsed, region.len());
-    if positionals.iter().any(|index| {
-        return region[*index].as_encoded_bytes().first() == Some(&b'+');
-    }) {
-        return None;
+    for index in &positionals {
+        if region[*index].as_encoded_bytes().first() == Some(&b'+') {
+            return None;
+        }
     }
-    return Some(
-        region
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| {
-                return !positionals.contains(index);
-            })
-            .map(|(_, token)| {
-                return token.clone();
-            })
-            .collect(),
-    );
+    let mut tokens: Vec<OsString> = Vec::new();
+    for (index, token) in region.iter().enumerate() {
+        if !positionals.contains(&index) {
+            tokens.push(token.clone());
+        }
+    }
+    return Some(tokens);
 }
 
 /// Facts in every accepted spelling,

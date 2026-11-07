@@ -122,6 +122,24 @@ pub fn parse_args(args: &[String]) -> Result<Config> {
     // copied extracts owned integer options rather than references into matches.
     let app_cpu_quota = matches.get_one::<u32>("app-cpu-quota").copied();
     let app_cpu_weight = matches.get_one::<u32>("app-cpu-weight").copied();
+    // What:     `matches.get_one::<String>("app-memory-max").cloned()`. The memory cap text when given.
+    // Why:      An owned copy, so the configuration does not borrow from the parsed matches.
+    let app_memory_max = matches.get_one::<String>("app-memory-max").cloned();
+    let app_tasks_max = matches.get_one::<u32>("app-tasks-max").copied();
+    // What:     `if let Some(text) = &app_memory_max { ... bail!(...) }`. Runs only when a cap was given;
+    //           `&` lends the text read-only; `anyhow::bail!` returns early with an error (like `throw`).
+    //           The check accepts only letters, digits, `.` and `%`, the characters of a systemd size.
+    // Why:      A bad value would otherwise reach systemd-run and fail the spawn with its own message.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (appMemoryMax !== undefined && !/^[A-Za-z0-9.%]+$/.test(appMemoryMax)) throw new Error(`--app-memory-max ...`);
+    // ```
+    if let Some(text) = &app_memory_max
+        && !text.chars().all(|character| return character.is_ascii_alphanumeric() || character == '.' || character == '%')
+    {
+        anyhow::bail!("--app-memory-max {text:?} is not a systemd size such as 4G, 512M, 50% or infinity");
+    }
     let repeat_rate = matches.get_one::<i32>("repeat-rate").copied().context("validated repeat rate is missing")?;
     let repeat_delay = matches.get_one::<i32>("repeat-delay").copied().context("validated repeat delay is missing")?;
     // What: Ok wraps the validated configuration as the successful Result.
@@ -144,6 +162,8 @@ pub fn parse_args(args: &[String]) -> Result<Config> {
         launcher_log: matches.get_flag("launcher-log"),
         app_cpu_quota,
         app_cpu_weight,
+        app_memory_max,
+        app_tasks_max,
         accessibility: matches.get_flag("accessibility"),
         repeat_rate,
         repeat_delay,

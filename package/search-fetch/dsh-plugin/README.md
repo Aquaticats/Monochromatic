@@ -3,6 +3,13 @@
 A configuration-only DeepSeek Harness bundle that connects
 `@monochromatic-dev/search-fetch-mcp` to a dsh profile over stdio.
 
+## Pi dependency trust
+
+PZJ:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Why
 
 dsh ships exactly one web search provider,

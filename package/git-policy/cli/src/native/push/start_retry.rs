@@ -36,6 +36,22 @@ const LONGEST_PAUSE: Duration = Duration::from_millis(500);
 const TAG: &str = "startRetry";
 
 /// What:
+///  One start that the operating system may refuse for lack of processes, and that the retry runs again.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The retry runs the start again after a refusal, so the start is a value that holds what it needs (the command, the request,
+///  the output it keeps) and can be called more than once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface RefusableStart<T> { start(): T } // throws the refusal
+/// ```
+pub trait RefusableStart<T> {
+    /// Try the start once.
+    fn start(&mut self) -> Result<T>;
+}
+
+/// What:
 ///  Run `start` until it is not refused for lack of processes, pausing between tries.
 /// Why:
 ///   Only `WouldBlock` is retried; every other error is the caller's, at once.
@@ -51,14 +67,14 @@ pub fn retry_refused_start_with<T>(
     what: &str,
     budget: Duration,
     pause: &mut dyn FnMut(Duration),
-    start: &mut dyn FnMut() -> Result<T>,
+    start: &mut dyn RefusableStart<T>,
 ) -> Result<T> {
     // `mut` lets the loop count its refusals and the time it has paused.
     let mut refusals: u32 = 0;
     let mut paused: Duration = Duration::ZERO;
     let mut delay: Duration = FIRST_PAUSE;
     loop {
-        let error: Error = match start() {
+        let error: Error = match start.start() {
             Ok(started) => return Ok(started),
             Err(error) if error.kind() == ErrorKind::WouldBlock => error,
             Err(error) => return Err(error),
@@ -93,8 +109,13 @@ pub fn retry_refused_start_with<T>(
 /// ```ts
 /// await retryRefusedStart({ what, start });
 /// ```
-pub fn retry_refused_start<T>(what: &str, start: &mut dyn FnMut() -> Result<T>) -> Result<T> {
-    return retry_refused_start_with(what, START_RETRY_BUDGET, &mut |delay: Duration| { std::thread::sleep(delay); }, start);
+pub fn retry_refused_start<T>(what: &str, start: &mut dyn RefusableStart<T>) -> Result<T> {
+    return retry_refused_start_with(what, START_RETRY_BUDGET, &mut sleep_for, start);
+}
+
+/// Wait for `delay` on this thread: the pause between two refused starts.
+fn sleep_for(delay: Duration) {
+    std::thread::sleep(delay);
 }
 
 /// Starts of a command that ride out a short shortage of processes.
@@ -107,25 +128,77 @@ pub trait RetryStart {
     fn status_retrying(&mut self) -> Result<ExitStatus>;
 }
 
+/// `Command::spawn` as a start the retry can run again.
+struct SpawnStart<'a> {
+    /// The command to start.
+    command: &'a mut Command,
+}
+
+impl RefusableStart<Child> for SpawnStart<'_> {
+    fn start(&mut self) -> Result<Child> {
+        return self.command.spawn();
+    }
+}
+
+/// `Command::output` as a start the retry can run again.
+struct OutputStart<'a> {
+    /// The command to start.
+    command: &'a mut Command,
+}
+
+impl RefusableStart<Output> for OutputStart<'_> {
+    fn start(&mut self) -> Result<Output> {
+        return self.command.output();
+    }
+}
+
+/// `Command::status` as a start the retry can run again.
+struct StatusStart<'a> {
+    /// The command to start.
+    command: &'a mut Command,
+}
+
+impl RefusableStart<ExitStatus> for StatusStart<'_> {
+    fn start(&mut self) -> Result<ExitStatus> {
+        return self.command.status();
+    }
+}
+
 /// The three ways of starting a command, each retried when the start is refused.
 impl RetryStart for Command {
     /// `Command::spawn`, retried.
     fn spawn_retrying(&mut self) -> Result<Child> {
         let what: String = self.get_program().to_string_lossy().into_owned();
-        return retry_refused_start(what.as_str(), &mut || { return self.spawn(); });
+        return retry_refused_start(what.as_str(), &mut SpawnStart { command: self });
     }
 
     /// `Command::output`, retried.
     ///  A refusal comes only from the start, so no child has run when it is retried.
     fn output_retrying(&mut self) -> Result<Output> {
         let what: String = self.get_program().to_string_lossy().into_owned();
-        return retry_refused_start(what.as_str(), &mut || { return self.output(); });
+        return retry_refused_start(what.as_str(), &mut OutputStart { command: self });
     }
 
     /// `Command::status`, retried.
     fn status_retrying(&mut self) -> Result<ExitStatus> {
         let what: String = self.get_program().to_string_lossy().into_owned();
-        return retry_refused_start(what.as_str(), &mut || { return self.status(); });
+        return retry_refused_start(what.as_str(), &mut StatusStart { command: self });
+    }
+}
+
+/// `Command::exec` as a start the retry can run again: it returns only the error that ended the replacement.
+#[cfg(unix)]
+struct ExecStart<'a> {
+    /// The command that replaces this process.
+    command: &'a mut Command,
+}
+
+#[cfg(unix)]
+impl RefusableStart<()> for ExecStart<'_> {
+    fn start(&mut self) -> Result<()> {
+        /// The Unix extension that adds `exec` to a command.
+        use std::os::unix::process::CommandExt;
+        return Err(self.command.exec());
     }
 }
 
@@ -141,13 +214,11 @@ impl RetryStart for Command {
 /// ```
 #[cfg(unix)]
 pub fn exec_retrying(command: &mut Command) -> Error {
-    /// The Unix extension that adds `exec` to a command.
-    use std::os::unix::process::CommandExt;
     let what: String = command.get_program().to_string_lossy().into_owned();
-    let refused: Result<()> = retry_refused_start(what.as_str(), &mut || { return Err(command.exec()); });
+    let refused: Result<()> = retry_refused_start(what.as_str(), &mut ExecStart { command });
     match refused {
         Err(error) => return error,
-        // `exec` never returns success; the closure above only ever returns an error.
+        // `exec` never returns success; the start above only ever returns an error.
         Ok(()) => return Error::other("exec returned without an error"),
     }
 }

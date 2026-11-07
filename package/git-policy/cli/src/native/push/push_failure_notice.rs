@@ -18,23 +18,25 @@
 //! await recordPushFailure(gitDir, { branchRef, oid, reason }); stderr.write(await takePushFailures(gitDir));
 //! ```
 
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::auto_push::PUSH_FAILED_NOTE;
 use crate::auto_push_branch_key::encode_branch_key;
 use crate::lfs_output_mask::mask_userinfo_text;
+pub use crate::push_failure_notice_machine_output::is_machine_read;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::service_messages::RESTART_COMMAND;
-use std::ffi::OsString;
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::path::{Path, PathBuf};
 
 /// Directory under the worktree's own Git directory that holds the records for the person.
-pub const NOTICE_DIRECTORY: &str = "cli-git/notices";
+pub const NOTICE_DIRECTORY: &str = "monochromatic-git-policy-cli/notices";
 
 /// Directory under the repository's common Git directory that holds the records of removed worktrees, which any worktree's
 ///  command shows because the worktree they were made for is gone.
-pub const ORPHAN_NOTICE_DIRECTORY: &str = "cli-git/orphaned-notices";
+pub const ORPHAN_NOTICE_DIRECTORY: &str = "monochromatic-git-policy-cli/orphaned-notices";
 
 /// First line of a record of a push that was lost with its worktree; its fields are those of a failure record, without words.
-const LOST_MAGIC: &str = "cli-git push lost 1";
+const LOST_MAGIC: &str = "monochromatic-git-policy-cli push lost 1";
 
 /// Separates the parts of a record's name; it is not a character a branch key can contain.
 const NAME_SEPARATOR: char = '+';
@@ -53,11 +55,11 @@ const LONGEST_KEY: usize = 100;
 const LONGEST_REASON: usize = 4000;
 
 /// First line of a record that holds its parts as fields; a file without it is the finished text an earlier release wrote.
-const RECORD_MAGIC: &str = "cli-git push notice 1";
+const RECORD_MAGIC: &str = "monochromatic-git-policy-cli push notice 1";
 
 /// First line of a record of a push the service did not make because the branch has no destination it can name; its fields are
 ///  those of a failure record, and its reason is the service's own words.
-const SKIPPED_MAGIC: &str = "cli-git push skipped 1";
+const SKIPPED_MAGIC: &str = "monochromatic-git-policy-cli push skipped 1";
 
 /// The field names of a record's header lines.
 const BRANCH_FIELD: &str = "branch: ";
@@ -68,7 +70,7 @@ const NO_REASON: &str = "Git gave no reason.";
 
 /// The directory that holds the records of a repository.
 pub fn notice_directory(git_dir: &Path) -> PathBuf {
-    return git_dir.join(NOTICE_DIRECTORY);
+    return path_for_reading(git_dir, NOTICE_DIRECTORY);
 }
 
 /// A 64-bit FNV-1a hash of the text, in hexadecimal.
@@ -110,7 +112,12 @@ pub fn clean_reason(said: &str) -> String {
     let masked: String = mask_userinfo_text(said);
     let mut kept: Vec<String> = Vec::new();
     for line in masked.lines() {
-        let plain: String = line.chars().filter(|character| { return *character == '\t' || !character.is_control(); }).collect();
+        let mut plain: String = String::new();
+        for character in line.chars() {
+            if character == '\t' || !character.is_control() {
+                plain.push(character);
+            }
+        }
         let trimmed: &str = plain.trim_end();
         if !trimmed.is_empty() {
             kept.push(trimmed.to_string());
@@ -144,7 +151,7 @@ fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
     let detail: String = if reason.is_empty() {
         NO_REASON.to_string()
     } else {
-        format!("Git said:\n{}", reason.lines().map(|line| { return format!("    {line}"); }).collect::<Vec<String>>().join("\n"))
+        format!("Git said:\n{}", indented(reason))
     };
     return format!(
         "The backup push of branch {branch} failed for commit {shown}, so that commit exists only on this computer for now. \
@@ -185,7 +192,7 @@ fn worded_skipped(branch_ref: &str, shown: &str, reason: &str) -> String {
     let detail: String = if reason.is_empty() {
         String::from("The commit service gave no reason.")
     } else {
-        format!("The commit service said:\n{}", reason.lines().map(|line| { return format!("    {line}"); }).collect::<Vec<String>>().join("\n"))
+        format!("The commit service said:\n{}", indented(reason))
     };
     return format!(
         "The backup push of branch {branch} for commit {shown} was not made, so that commit exists only on this computer for now. \
@@ -208,11 +215,16 @@ fn worded_skipped(branch_ref: &str, shown: &str, reason: &str) -> String {
 /// ```
 pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
     let directory: PathBuf = notice_directory(git_dir);
-    create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
+    if let Err(error) = create_private_directory_all(directory.as_path()) {
+        return Err(format!("creating the notice directory failed: {error}"));
+    }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     let _removed = std::fs::remove_file(path.as_path());
     let text: String = format!("{SKIPPED_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
-    return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| { return format!("writing the notice failed: {error}"); });
+    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("writing the notice failed: {error}")),
+    };
 }
 
 /// What:
@@ -227,12 +239,17 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
 /// ```
 pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
     let directory: PathBuf = notice_directory(git_dir);
-    create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
+    if let Err(error) = create_private_directory_all(directory.as_path()) {
+        return Err(format!("creating the notice directory failed: {error}"));
+    }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     // A repeat of the same failure replaces its record.
     let _removed = std::fs::remove_file(path.as_path());
     let text: String = format!("{RECORD_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
-    return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| { return format!("writing the notice failed: {error}"); });
+    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("writing the notice failed: {error}")),
+    };
 }
 
 /// What:
@@ -261,7 +278,9 @@ fn worded_lost(branch_ref: &str, shown: &str) -> String {
 /// ```
 pub fn record_lost_push(common_dir: &Path, branch_ref: &str, commit: &str) -> Result<(), String> {
     let directory: PathBuf = common_dir.join(ORPHAN_NOTICE_DIRECTORY);
-    create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
+    if let Err(error) = create_private_directory_all(directory.as_path()) {
+        return Err(format!("creating the notice directory failed: {error}"));
+    }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     if path.exists() {
         return Ok(());
@@ -283,13 +302,31 @@ enum RecordKind<'a> {
     Lost,
 }
 
-/// The branch, the commit and the kind of a record written by this release.
+/// What:
+///  The current first line a record's first line stands for: the line itself, or the same line in the spelling an earlier
+///  release wrote (`cli-git push notice 1`).
+/// Why:
+///   The folder of the records is moved to its current name in place, so records written before the rename are still there with
+///  their own first lines, and they are records of the same fields.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const currentMagic = (line: string) => MAGICS.find((magic) => line === magic || line === magic.replace(CURRENT, EARLIER))
+/// ```
+fn current_magic_of(line: &str) -> Option<&'static str> {
+    for current in [RECORD_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
+        let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(|rest| { return format!("{}{rest}", DATA_FOLDER.earlier); });
+        if line == current || earlier.as_deref() == Some(line) {
+            return Some(current);
+        }
+    }
+    return None;
+}
+
+/// The branch, the commit and the kind of a record written by this release or by the release before the rename.
 fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
     let mut lines = text.splitn(5, '\n');
-    let magic: &str = lines.next()?;
-    if ![RECORD_MAGIC, SKIPPED_MAGIC, LOST_MAGIC].contains(&magic) {
-        return None;
-    }
+    let magic: &str = current_magic_of(lines.next()?)?;
     let branch: &str = lines.next()?.strip_prefix(BRANCH_FIELD)?;
     let commit: &str = lines.next()?.strip_prefix(COMMIT_FIELD)?;
     if !lines.next()?.is_empty() {
@@ -331,7 +368,13 @@ pub fn clear_push_failures_before(git_dir: &Path, branch_ref: &str, cutoff: std:
     let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return };
     let prefix: String = branch_prefix(branch_ref);
     for entry in listing.flatten() {
-        let older: bool = entry.metadata().and_then(|meta| { return meta.modified(); }).is_ok_and(|written| { return written <= cutoff; });
+        let older: bool = match entry.metadata() {
+            Ok(meta) => match meta.modified() {
+                Ok(written) => written <= cutoff,
+                Err(_) => false,
+            },
+            Err(_) => false,
+        };
         if older && entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
             let _removed = std::fs::remove_file(entry.path());
         }
@@ -360,7 +403,10 @@ pub struct Worktrees {
 pub fn branch_of_head(git_dir: &Path) -> Option<String> {
     let text: String = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
     let target: &str = text.lines().next()?.strip_prefix("ref: ")?.trim();
-    return target.starts_with("refs/heads/").then(|| { return target.to_string(); });
+    if target.starts_with("refs/heads/") {
+        return Some(target.to_string());
+    }
+    return None;
 }
 
 /// What:
@@ -384,7 +430,31 @@ pub fn checked_out_branches(common_dir: &Path) -> Vec<String> {
 
 /// Whether a record of `branch_ref` is for the asking worktree: it has the branch checked out, or no worktree has.
 fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
-    return worktrees.here.as_deref() == Some(branch_ref) || !worktrees.all.iter().any(|held| { return held == branch_ref; });
+    if worktrees.here.as_deref() == Some(branch_ref) {
+        return true;
+    }
+    for held in &worktrees.all {
+        if held == branch_ref {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  Where a failure notice asks for the name of a commit as the person should read it.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The name is Git's abbreviation in the repository as it is when the notice is shown, asked of Git once per shown notice; the
+///  state the question needs (the Git context, the directories) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface CommitNamer { nameOf(commit: string): string }
+/// ```
+pub trait CommitNamer {
+    /// The name to show for `commit`.
+    fn name_of(&self, commit: &str) -> String;
 }
 
 /// What:
@@ -398,7 +468,7 @@ fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
 /// ```ts
 /// const texts = await takePushFailuresFor(gitDir, worktrees, abbreviate)
 /// ```
-pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
     return take_records_from(notice_directory(git_dir).as_path(), worktrees, abbreviate);
 }
 
@@ -412,14 +482,17 @@ pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abb
 /// ```ts
 /// const texts = await takeOrphanedFailures(commonDir, abbreviate)
 /// ```
-pub fn take_orphaned_failures(common_dir: &Path, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+pub fn take_orphaned_failures(common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
     return take_records_from(common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(), None, abbreviate);
 }
 
 /// Reads and removes the records in one directory that are for the asking worktree, oldest name first.
-fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
     let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
-    let mut paths: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).collect();
+    let mut paths: Vec<PathBuf> = Vec::new();
+    for entry in listing.flatten() {
+        paths.push(entry.path());
+    }
     paths.sort();
     let mut texts: Vec<String> = Vec::new();
     for path in paths {
@@ -435,9 +508,9 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
             continue;
         }
         texts.push(match parsed {
-            Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate(commit).as_str(), reason),
-            Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate(commit).as_str(), reason),
-            Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate(commit).as_str()),
+            Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
+            Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
+            Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
             // The finished text an earlier release wrote.
             None => text,
         });
@@ -455,52 +528,25 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
 /// const texts = await takePushFailures(gitDir)
 /// ```
 pub fn take_push_failures(git_dir: &Path) -> Vec<String> {
-    return take_push_failures_for(git_dir, None, &|commit| { return commit.to_string(); });
+    return take_push_failures_for(git_dir, None, &FullCommitName);
 }
 
-/// Commands that a program reads the output of, or that carry a protocol on their streams.
-const MACHINE_COMMANDS: &[&[u8]] = &[
-    b"cat-file", b"check-attr", b"check-ignore", b"check-ref-format", b"commit-tree", b"config", b"credential", b"diff-files",
-    b"diff-index", b"diff-tree", b"fast-export", b"fast-import", b"for-each-ref", b"hash-object", b"index-pack", b"ls-files",
-    b"ls-tree", b"merge-base", b"mktree", b"name-rev", b"pack-objects", b"read-tree", b"receive-pack", b"rev-list",
-    b"rev-parse", b"show-ref", b"symbolic-ref", b"unpack-objects", b"update-ref", b"upload-archive", b"upload-pack",
-    b"var", b"write-tree", b"update-index", b"verify-pack",
-];
+/// A commit name as it is, for the callers that show commits in full.
+struct FullCommitName;
 
-/// Option spellings that ask a command for output made to be read by a program.
-fn asks_for_machine_output(option: &[u8]) -> bool {
-    return option == b"-z"
-        || option == b"--null"
-        || option.starts_with(b"--porcelain")
-        || option.starts_with(b"--format")
-        || option.starts_with(b"--pretty");
+impl CommitNamer for FullCommitName {
+    fn name_of(&self, commit: &str) -> String {
+        return commit.to_string();
+    }
 }
 
-/// What:
-///  Whether a command's output is read by a program, so that no record may be shown to it or taken from it.
-/// Why:
-///   A prompt, an editor or a script runs `git status --porcelain` or `git rev-parse` often and reads every byte; the
-///  record is meant for the person, and the first such call would otherwise take it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// isMachineRead(commandWord, region)
-/// ```
-pub fn is_machine_read(command: &[u8], region: &[OsString]) -> bool {
-    if MACHINE_COMMANDS.contains(&command) {
-        return true;
+/// The lines of `reason`, each with four spaces in front, joined by newlines.
+fn indented(reason: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for line in reason.lines() {
+        lines.push(format!("    {line}"));
     }
-    for argument in region {
-        let bytes: &[u8] = argument.as_encoded_bytes();
-        // Everything after the separator is a name, not an option.
-        if bytes == b"--" {
-            break;
-        }
-        if asks_for_machine_output(bytes) {
-            return true;
-        }
-    }
-    return false;
+    return lines.join("\n");
 }
 
 /// Record controls stay out of the release executable.

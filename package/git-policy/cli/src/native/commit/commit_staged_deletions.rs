@@ -51,15 +51,31 @@ pub fn staged_deletions_present_on_disk(
         .collect();
     arguments.extend(pathspecs.iter().cloned());
     let output: GitOutput = run_git_checked(context, &indexed_request(cwd, &arguments, Some(real_index), None))?;
-    return Ok(output
-        .stdout
-        .split(|byte| { return *byte == 0; })
-        .filter(|path| { return !path.is_empty(); })
-        .filter(|path| {
-            return repository_root.join(os_from_path_bytes(path)).symlink_metadata().is_ok();
-        })
-        .map(<[u8]>::to_vec)
-        .collect());
+    let mut remaining: Vec<Vec<u8>> = Vec::new();
+    for path in output.stdout.split(is_nul_byte) {
+        if path.is_empty() {
+            continue;
+        }
+        // A path whose file is still on disk keeps its staged deletion, as the earlier filter kept it.
+        if repository_root.join(os_from_path_bytes(path)).symlink_metadata().is_ok() {
+            remaining.push(path.to_vec());
+        }
+    }
+    return Ok(remaining);
+}
+
+/// What:
+///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
+///  `&u8` borrows the byte, as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
 }
 
 /// What:
@@ -70,13 +86,16 @@ pub fn staged_deletions_present_on_disk(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: git commit with explicit paths selects worktree content, so it cannot record the staged deletion of ...`
+/// `monochromatic-git-policy-cli: git commit with explicit paths selects worktree content, so it cannot record the staged deletion of ...`
 /// ```
 pub fn staged_deletion_message(paths: &[Vec<u8>]) -> String {
-    let names: Vec<String> = paths.iter().map(|path| { return path_message_text(path.as_slice()); }).collect();
+    let mut names: Vec<String> = Vec::new();
+    for path in paths {
+        names.push(path_message_text(path.as_slice()));
+    }
     let listed: String = serde_json::to_string(&names).unwrap_or_default();
     return format!(
-        "cli-git: git commit with explicit paths selects worktree content, so it cannot record the staged deletion of \
+        "monochromatic-git-policy-cli: git commit with explicit paths selects worktree content, so it cannot record the staged deletion of \
 {listed}: the path stays on disk. Choose explicitly: to commit the deletion and keep the file, pass --no-only without \
 paths (this commits every staged change, not only these paths); to commit the file's current content instead, stage it \
 again with git add first (an ignored path also needs git add --force, which tracks the file again)."

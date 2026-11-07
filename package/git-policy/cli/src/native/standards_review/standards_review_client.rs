@@ -17,7 +17,7 @@
 //! ```
 
 /// The measuring of a call's quiet gap, beside the call.
-use crate::thread_quiet::measured_quiet;
+use crate::thread_quiet::QuietMeasurement;
 use std::time::Duration;
 use ureq::tls::{Certificate, RootCerts, TlsConfig};
 
@@ -81,14 +81,20 @@ pub struct Reply {
 /// ```
 pub fn post_decision(gateway: &Gateway, body: &str) -> Result<Reply, String> {
     // The quiet gap of the call is measured beside it; the call itself ends on the transport's idle timeouts below.
-    return measured_quiet("standards review gateway call", || { return post_decision_unmeasured(gateway, body); });
+    let measurement: QuietMeasurement = QuietMeasurement::begin("standards review gateway call");
+    let reply: Result<Reply, String> = post_decision_unmeasured(gateway, body);
+    measurement.finish();
+    return reply;
 }
 
 /// `post_decision` without the measuring thread.
 fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, String> {
     let tls: TlsConfig = match gateway.trusted_pem {
         Some(pem) => {
-            let authority: Certificate<'static> = Certificate::from_pem(pem).map_err(|error| return format!("the trusted authority is unreadable: {error}"))?;
+            let authority: Certificate<'static> = match Certificate::from_pem(pem) {
+                Ok(parsed) => parsed,
+                Err(error) => return Err(format!("the trusted authority is unreadable: {error}")),
+            };
             TlsConfig::builder().root_certs(RootCerts::new_with_certs(&[authority])).build()
         }
         None => TlsConfig::default(),
@@ -108,14 +114,20 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
         .tls_config(tls)
         .build()
         .into();
-    let mut response = agent
+    let sent = agent
         .post(gateway.url)
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", gateway.api_key))
-        .send(body.as_bytes())
-        .map_err(|error| { return describe(error, gateway.ceiling); })?;
+        .send(body.as_bytes());
+    let mut response = match sent {
+        Ok(received) => received,
+        Err(error) => return Err(describe(error, gateway.ceiling)),
+    };
     let status: u16 = response.status().as_u16();
-    let text: String = response.body_mut().read_to_string().map_err(|error| { return describe(error, gateway.ceiling); })?;
+    let text: String = match response.body_mut().read_to_string() {
+        Ok(read) => read,
+        Err(error) => return Err(describe(error, gateway.ceiling)),
+    };
     return Ok(Reply { status, body: text });
 }
 
@@ -124,7 +136,7 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
 ///  otherwise `fetch failed` and the cause.
 /// Why:
 ///   Node prints only `fetch failed` and hides the cause; the cause is what a person needs. The ceiling's sentence names the call,
-///  the ceiling and the command that reviews the commit again, because the call ran as long as cli-git lets it and a person
+///  the ceiling and the command that reviews the commit again, because the call ran as long as monochromatic-git-policy-cli lets it and a person
 ///  reading the log entry needs to know that it was not the endpoint's silence.
 ///
 /// In TS you'd write (pseudocode):
@@ -134,7 +146,7 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
 fn describe(error: ureq::Error, ceiling: Duration) -> String {
     return match error {
         ureq::Error::Timeout(ureq::Timeout::Global) => format!(
-            "the standards-review gateway call ran for {} seconds, the longest cli-git lets it run, and was ended, so this commit has no \
+            "the standards-review gateway call ran for {} seconds, the longest monochromatic-git-policy-cli lets it run, and was ended, so this commit has no \
              verdict; review it again with `SHADOW_REVIEW_SHA=<commit> mise run shadow-review`",
             ceiling.as_secs()
         ),

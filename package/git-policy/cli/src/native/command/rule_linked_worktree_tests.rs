@@ -213,9 +213,9 @@ fn every_text_names_the_loss_an_alternative_and_the_hatch() {
         let main = main_worktree_message(command);
         let dirty = dirty_worktree_message(command);
         let outside = outside_worktree_message(command);
-        assert!(main.starts_with("cli-git: git "), "{command:?}: {main}");
-        assert!(dirty.starts_with("cli-git: git "), "{command:?}: {dirty}");
-        assert!(outside.starts_with("cli-git: git "), "{command:?}: {outside}");
+        assert!(main.starts_with("monochromatic-git-policy-cli: git "), "{command:?}: {main}");
+        assert!(dirty.starts_with("monochromatic-git-policy-cli: git "), "{command:?}: {dirty}");
+        assert!(outside.starts_with("monochromatic-git-policy-cli: git "), "{command:?}: {outside}");
         assert!(main.contains("in the main git worktree"), "{command:?}");
         assert!(dirty.contains("has uncommitted"), "{command:?}");
         assert!(outside.contains("-C <linked-worktree-root>"), "{command:?}");

@@ -3,8 +3,10 @@
 /// Brings the listener, its property record, and the error helpers into scope.
 use super::*;
 
-/// Value types a test puts into a `LauncherEntry.Update` body.
-use zbus::zvariant::Value;
+use crate::bus_step_bound::block_on_bounded;
+
+/// Variant types a test puts into a `LauncherEntry.Update` body.
+use zbus::Variant;
 
 /// Bounds how long a test waits for an update that must already be on the private bus.
 const UPDATE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
@@ -17,8 +19,8 @@ fn shown_at(progress: f64) -> LauncherProperties {
 /// A key absent from an update keeps the previous value.
 #[test]
 fn absent_keys_keep_their_previous_values() {
-    let changes: HashMap<String, OwnedValue> =
-        HashMap::from([("count".to_owned(), OwnedValue::from(3_i64))]);
+    let changes: HashMap<String, OwnedVariant> =
+        HashMap::from([("count".to_owned(), OwnedVariant::from(3_i64))]);
     let merged = merge_properties(shown_at(0.25), &changes);
     assert_eq!(merged.progress, 0.25);
     assert!(merged.progress_visible);
@@ -30,8 +32,8 @@ fn absent_keys_keep_their_previous_values() {
 /// A key holding the wrong type is ignored and the previous value survives.
 #[test]
 fn wrong_typed_keys_keep_their_previous_values() {
-    let changes: HashMap<String, OwnedValue> =
-        HashMap::from([("progress".to_owned(), OwnedValue::from(true))]);
+    let changes: HashMap<String, OwnedVariant> =
+        HashMap::from([("progress".to_owned(), OwnedVariant::from(true))]);
     let merged = merge_properties(shown_at(0.5), &changes);
     assert_eq!(merged.progress, 0.5);
 }
@@ -39,8 +41,8 @@ fn wrong_typed_keys_keep_their_previous_values() {
 /// An unknown key changes nothing.
 #[test]
 fn unknown_keys_change_nothing() {
-    let changes: HashMap<String, OwnedValue> =
-        HashMap::from([("badge-colour".to_owned(), OwnedValue::from(7_u32))]);
+    let changes: HashMap<String, OwnedVariant> =
+        HashMap::from([("badge-colour".to_owned(), OwnedVariant::from(7_u32))]);
     assert_eq!(merge_properties(shown_at(0.75), &changes), shown_at(0.75));
 }
 
@@ -69,21 +71,21 @@ fn wait_for_latest(log: &LauncherLog, ready: impl Fn(&LauncherUpdate) -> bool) -
 fn private_bus_round_trip_records_and_merges_updates() -> anyhow::Result<()> {
     let bus = PrivateBus::start()?;
     let log = LauncherLog::start(&bus, std::time::Instant::now())?;
-    let sender = zbus::blocking::connection::Builder::address(bus.address())?.build()?;
+    let sender = crate::bus_test_client::connect(bus.address())?;
     let path = "/com/canonical/unity/launcherentry/7";
     let uri = "application://org.example.progress.desktop";
 
     // Negative control: a signal on another interface must not appear in the history.
-    let unrelated: HashMap<&str, Value<'_>> = HashMap::from([("progress", Value::from(0.9_f64))]);
-    sender.emit_signal(None::<&str>, path, "org.example.Other", "Update", &(uri, unrelated))?;
+    let unrelated: HashMap<&str, Variant<'_>> = HashMap::from([("progress", Variant::from(0.9_f64))]);
+    block_on_bounded("emitting a test update", sender.emit_signal(None::<&str>, path, "org.example.Other", "Update", &(uri, unrelated)))?;
 
-    let first: HashMap<&str, Value<'_>> = HashMap::from([
-        ("progress", Value::from(0.25_f64)),
-        ("progress-visible", Value::from(true)),
+    let first: HashMap<&str, Variant<'_>> = HashMap::from([
+        ("progress", Variant::from(0.25_f64)),
+        ("progress-visible", Variant::from(true)),
     ]);
-    sender.emit_signal(None::<&str>, path, LAUNCHER_INTERFACE, LAUNCHER_MEMBER, &(uri, first))?;
-    let second: HashMap<&str, Value<'_>> = HashMap::from([("count", Value::from(3_i64))]);
-    sender.emit_signal(None::<&str>, path, LAUNCHER_INTERFACE, LAUNCHER_MEMBER, &(uri, second))?;
+    block_on_bounded("emitting a test update", sender.emit_signal(None::<&str>, path, LAUNCHER_INTERFACE, LAUNCHER_MEMBER, &(uri, first)))?;
+    let second: HashMap<&str, Variant<'_>> = HashMap::from([("count", Variant::from(3_i64))]);
+    block_on_bounded("emitting a test update", sender.emit_signal(None::<&str>, path, LAUNCHER_INTERFACE, LAUNCHER_MEMBER, &(uri, second)))?;
 
     let latest = wait_for_latest(&log, |update| return update.count == 3)?;
     assert_eq!(latest.app_uri, uri);

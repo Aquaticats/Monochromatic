@@ -36,7 +36,8 @@ Harness:
 built and run in `podman run --rm --memory=4g --cpus=4 docker.io/library/rust:1`
 (rustc 1.99.1),
 with the oxc clone mounted read-only.
-The npm arm is the gate probe's (`doc/research/file-enforcer-rust-rewrite-gate-probes.md`, "Probe 2");
+The npm arm is the gate probe's (`doc/research/file-enforcer-rust-rewrite-gate-probes.md`,
+"Probe 2");
 the repository's current `.browserslistrc.resolved.local.json` is byte-equal to it after `jq --compact-output`.
 
 Results for the seven lines together:
@@ -81,7 +82,8 @@ the same families,
 output shape,
 and order;
 a standalone `not dead` fails
-("query cannot start with 'not'; add any other queries before 'not dead'"),
+("query cannot start with 'not';
+add any other queries before 'not dead'"),
 and the control fails ("unknown version '99999' of browser 'ie'"),
 so the harness can show errors.
 
@@ -97,7 +99,8 @@ pub(super) fn firefox_esr() -> QueryResult {
 }
 ```
 
-`browserslist-rs` 0.21.2 hard-codes the same value (`src/queries/firefox_esr.rs:4`, gate probe).
+`browserslist-rs` 0.21.2 hard-codes the same value (`src/queries/firefox_esr.rs:4`,
+gate probe).
 npm `browserslist` 4.29.5 hard-codes `var FIREFOX_ESR_VERSION = '153'` (`index.js:15`).
 So the ESR answer is a constant in every implementation,
 and refreshing data never changes it.
@@ -120,7 +123,8 @@ so `src/generated` on main last changed 2026-10-01 (`3d95fdc`),
 with `caniuse-lite` 1.0.30001813 in its `pnpm-lock.yaml`.
 Releases go through release-plz (`.github/workflows/release.yml`),
 whose release pull request #841,
-"chore: release v5.0.2",
+"chore:
+release v5.0.2",
 has been open since 2026-08-13 and was last refreshed 2026-10-23.
 The data reaches crates.io only when a maintainer merges it;
 the crate has one crates.io owner (`Boshen`).

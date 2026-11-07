@@ -147,6 +147,22 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Option<Vec<u8>> {
     return Some(result);
 }
 
+/// What:
+///  Where a pack finds the base of a `REF_DELTA`, which is named by object and may live outside the pack.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The database that owns the pack also owns the other packs and the loose objects, and it follows a delta chain one step
+///  deeper each time; a type that holds the database and the depth so far implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface BaseByName { baseNamed(name: Uint8Array): RawObject | undefined }
+/// ```
+pub trait BaseByName {
+    /// The object named `name`, or nothing when it cannot be read.
+    fn base_named(&self, name: &[u8]) -> Option<RawObject>;
+}
+
 impl Pack {
     /// Open the pack whose index is at `index_path` (the pack is the same name ending `.pack`); `None` unless the index
     /// is version 2 and its size agrees with its own count.
@@ -159,9 +175,14 @@ impl Pack {
         if table[..8] != *b"\xfftOc\0\0\0\x02" {
             return None;
         }
-        let fanout: Vec<u32> = table[8..].as_chunks::<4>().0.iter().map(|word| { return u32::from_be_bytes(*word); }).collect();
-        if fanout.windows(2).any(|pair| { return pair[0] > pair[1]; }) {
-            return None;
+        let mut fanout: Vec<u32> = Vec::new();
+        for word in table[8..].as_chunks::<4>().0 {
+            fanout.push(u32::from_be_bytes(*word));
+        }
+        for pair in fanout.windows(2) {
+            if pair[0] > pair[1] {
+                return None;
+            }
         }
         let count: u64 = u64::from(fanout[255]);
         let index_length: u64 = index.metadata().ok()?.len();
@@ -257,9 +278,9 @@ impl Pack {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// read(offset: number, byName: (name: Uint8Array) => RawObject | undefined, depth = 0): RawObject | undefined;
+    /// read(offset: number, byName: BaseByName, depth = 0): RawObject | undefined;
     /// ```
-    pub fn read(&self, offset: u64, by_name: &dyn Fn(&[u8]) -> Option<RawObject>, depth: usize) -> Option<RawObject> {
+    pub fn read(&self, offset: u64, by_name: &dyn BaseByName, depth: usize) -> Option<RawObject> {
         if let Some(kept) = self.cache.borrow().get(&offset) {
             return Some(kept.clone());
         }
@@ -272,7 +293,7 @@ impl Pack {
     }
 
     /// The entry at `offset` rebuilt from the pack file, as `read` does it when the entry is not kept.
-    fn decode(&self, offset: u64, by_name: &dyn Fn(&[u8]) -> Option<RawObject>, depth: usize) -> Option<RawObject> {
+    fn decode(&self, offset: u64, by_name: &dyn BaseByName, depth: usize) -> Option<RawObject> {
         if depth > DELTA_DEPTH_LIMIT || offset < 12 || offset >= self.data_length {
             return None;
         }
@@ -317,7 +338,7 @@ impl Pack {
             7 => {
                 let name: &[u8] = head.get(cursor..cursor + self.hash_length)?;
                 cursor += self.hash_length;
-                let base: RawObject = by_name(name)?;
+                let base: RawObject = by_name.base_named(name)?;
                 return self.apply(base, offset + cursor as u64, size);
             }
             _ => return None,

@@ -39,7 +39,7 @@ const TAG: &str = "wordMergeWorktree";
 const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 
 /// The line prefix of every line this module writes.
-const LINE_PREFIX: &str = "cli-git: ";
+const LINE_PREFIX: &str = "monochromatic-git-policy-cli: ";
 
 /// The commands whose conflicts get the pass; a pull's own merge or rebase stops in the same state the command would.
 const OPERATIONS: [&[u8]; 5] = [b"merge", b"rebase", b"cherry-pick", b"revert", b"pull"];
@@ -79,8 +79,15 @@ fn index_entries(layout: &RepoLayout) -> Option<Vec<IndexEntry>> {
 /// ```
 pub fn conflicts_of_index(entries: &[IndexEntry], only: &BTreeSet<Vec<u8>>) -> Vec<Conflict> {
     let mut conflicts: Vec<Conflict> = Vec::new();
-    for entry in entries.iter().filter(|entry| { return entry.stage != 0 && only.contains(&entry.path); }) {
-        if conflicts.last().is_none_or(|last| { return last.path != entry.path; }) {
+    for entry in entries {
+        if !(entry.stage != 0 && only.contains(&entry.path)) {
+            continue;
+        }
+        let starts_new: bool = match conflicts.last() {
+            Some(last) => last.path != entry.path,
+            None => true,
+        };
+        if starts_new {
             conflicts.push(Conflict { path: entry.path.clone(), base: None, ours: None, theirs: None });
         }
         let Some(conflict) = conflicts.last_mut() else { continue };
@@ -116,7 +123,10 @@ pub fn watch_before(forward: &CoordinatedForward) -> Option<Watch> {
 
 /// The records that put a conflict's stages back into the index: remove the path, then each stage it had.
 fn restore_records(conflict: &Conflict) -> Vec<u8> {
-    let width: usize = [&conflict.base, &conflict.ours, &conflict.theirs].into_iter().flatten().map(|stage| { return stage.oid.len(); }).next().unwrap_or(0);
+    let mut width: usize = 0;
+    if let Some(stage) = [&conflict.base, &conflict.ours, &conflict.theirs].into_iter().flatten().next() {
+        width = stage.oid.len();
+    }
     let mut records: Vec<u8> = format!("0 {}\t", "0".repeat(width)).into_bytes();
     records.extend_from_slice(conflict.path.as_slice());
     records.push(0);
@@ -259,13 +269,18 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     let remaining: usize = conflicted_paths(entries.as_slice()).len().saturating_sub(merged.len());
     // Every conflicted file resolved: end the operation the way a clean run does, if the options say how.
     let planned = if remaining == 0 {
-        branch_merge_options(&runner, layout.git_dir.as_path(), &forward.command)
-            .and_then(|configured| { return plan_finish(&forward.command, forward.environment.as_slice(), layout.git_dir.as_path(), configured.as_slice()); })
+        match branch_merge_options(&runner, layout.git_dir.as_path(), &forward.command) {
+            Some(configured) => plan_finish(&forward.command, forward.environment.as_slice(), layout.git_dir.as_path(), configured.as_slice()),
+            None => None,
+        }
     } else {
         None
     };
     if planned.is_none() {
-        let names: Vec<String> = merged.iter().map(|file| { return path_message_text(file.path.as_slice()); }).collect();
+        let mut names: Vec<String> = Vec::new();
+        for file in &merged {
+            names.push(path_message_text(file.path.as_slice()));
+        }
         text.push_str(
             format!(
                 "{LINE_PREFIX}{}: staged as resolved by the second merge pass: {}. {}\n",

@@ -1,5 +1,7 @@
 # monochromatic-xml-edit
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 Formatting-preserving XML parse and edit for Rust.
 
 This crate parses an XML document into a span-annotated element arena,

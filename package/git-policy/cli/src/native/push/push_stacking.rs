@@ -18,7 +18,7 @@
 //! ```
 
 /// The reconcile loop that auto-push shares, and what it needs.
-use crate::auto_push_reconcile::{Destination, Integrated, Reconcile, integrate_and_push};
+use crate::auto_push_reconcile::{Destination, Integrated, MergePusher, Reconcile, integrate_and_push};
 /// The coordinator's Git, its read-only query runner and its error type.
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
 /// The action data of a stacked push.
@@ -43,7 +43,7 @@ use std::ffi::OsString;
 use std::io::Write;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// The environment variable the stacked push carries so that it is never stacked again.
 pub const STACKED_PUSH_MARKER: &str = "CLI_GIT_STACKED_PUSH";
@@ -143,18 +143,8 @@ pub fn stack_failed_push(
         label: "push",
         explicit: true,
     };
-    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        let code: i32 = (request.merge_push)(
-            git,
-            request.global_prefix,
-            &tokens,
-            &[destination.remote.clone(), format!("{merge_oid}:{}", destination.merge_ref)],
-        )?;
-        return Ok(PushAttempt {
-            exit_code: i64::from(code),
-            output: String::new(),
-        });
-    };
+    // The loop takes its push as a value so controls can stand in for it; this one carries the request, the Git context and the tokens.
+    let mut push_merge: StackedMergePush<'_> = StackedMergePush { request, git, tokens: tokens.as_slice() };
     let rejected = PushAttempt {
         exit_code: failed_code,
         output: String::new(),
@@ -173,6 +163,40 @@ pub fn stack_failed_push(
             debug(TAG, &format!("stacking the failed push stopped: {error}"));
             return None;
         }
+    }
+}
+
+/// What:
+///  The push of a merge commit for a failed explicit push: the request's merge planner run with the person's push options.
+/// Why:
+///   The loop that integrates and pushes takes its push as a value; this one carries the request, the Git context and the option
+///  tokens of the push the person typed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class StackedMergePush implements MergePusher { pushMerge(destination, mergeOid) { return { exitCode: request.mergePush(git, prefix, tokens, [remote, `${mergeOid}:${mergeRef}`]), output: '' }; } }
+/// ```
+struct StackedMergePush<'a> {
+    /// The failed push's request, which carries the merge planner.
+    request: &'a StackRequest<'a>,
+    /// The coordinator's Git.
+    git: &'a PushGit,
+    /// The option tokens of the push the person typed.
+    tokens: &'a [OsString],
+}
+
+impl MergePusher for StackedMergePush<'_> {
+    fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
+        let code: i32 = (self.request.merge_push)(
+            self.git,
+            self.request.global_prefix,
+            self.tokens,
+            &[destination.remote.clone(), format!("{merge_oid}:{}", destination.merge_ref)],
+        )?;
+        return Ok(PushAttempt {
+            exit_code: i64::from(code),
+            output: String::new(),
+        });
     }
 }
 

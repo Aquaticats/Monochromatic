@@ -203,7 +203,7 @@ fn load_failures_leave_no_scanner_body(directory: &Path) {
         assert_eq!(error.failure, ScannerFailure::RulesNotLoaded);
         assert!(
             error.message.starts_with(
-                "cli-git could not load the forbidden-strings rules, so no file was scanned: read rules "
+                "monochromatic-git-policy-cli could not load the forbidden-strings rules, so no file was scanned: read rules "
             ),
             "{error}"
         );
@@ -259,7 +259,7 @@ fn unrepresentable_pathname_is_refused_body(directory: &Path) {
     assert_eq!(error.failure, ScannerFailure::PathnameUnrepresentable);
     assert_eq!(
         error.message,
-        "cli-git could not scan candidate 7: its pathname cannot be expressed as a native path on this platform."
+        "monochromatic-git-policy-cli could not scan candidate 7: its pathname cannot be expressed as a native path on this platform."
     );
 }
 

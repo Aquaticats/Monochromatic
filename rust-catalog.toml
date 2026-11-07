@@ -27,6 +27,10 @@ trustPolicyExclude = [
   "parley_engine@0.12.0",
   "smallvec@1.16.4",
   "wayland-server@0.31.14",
+  # Owner, 2026-11-07: "I'm approving the publisher change for jiff." defmt-parser 1.1.0 is published by account 414585 where 0.4.1 was
+  # published by account 84779; it enters the lock only as the optional `defmt` dependency of jiff 0.2.32 and later, and this entry
+  # exempts that one release, not the crate.
+  "defmt-parser@1.1.0",
 ]
 trustPolicyExcludePrune = true
 # 365 days in minutes (owner decision, 2026-10-29): a release more than a year old cannot be a fresh takeover,
@@ -38,32 +42,30 @@ trustPolicyIgnoreAfter = 525600
 trustLockfile = true
 
 [catalog]
-aho-corasick = ">=1.1.4"
+aho-corasick = ">=1.1.5"
 anyhow = ">=1.0.104"
 arbitrary = ">=1.5.0"
-arboard = ">=3.6.1"
-arc-swap = ">=1.9.2"
+arboard = ">=3.7.0"
+arc-swap = ">=1.9.3"
 async-channel = ">=2.5.0"
 base64 = ">=0.23.1"
-bincode = ">=1.3.3"
-branches = ">=0.4.6"
 clap = ">=4.6.7"
 cpal = ">=0.18.2"
-crossbeam-channel = ">=0.5.15"
-cxx = ">=1.0.196"
-cxx-qt = ">=0.9.1"
-cxx-qt-build = ">=0.9.1"
-cxx-qt-lib = ">=0.9.1"
+crossbeam-channel = ">=0.5.17"
+cxx = ">=1.0.205"
+cxx-qt = ">=0.10.0"
+cxx-qt-build = ">=0.10.0"
+cxx-qt-lib = ">=0.10.0"
 directories = ">=6"
-dylint_linting = ">=6.2"
-dylint_testing = ">=6.2"
-flate2 = ">=1.1.10"
+dylint_linting = ">=6.3.2"
+dylint_testing = ">=6.3.2"
+flate2 = ">=1.1.11"
 futures-util = ">=0.3.34"
-getrandom = ">=0.4.2"
-gix-hash = ">=0.25"
-gix-index = ">=0.51"
+getrandom = ">=0.4.3"
+gix-hash = ">=0.28.1"
+gix-index = ">=0.58.0"
 globset = ">=0.4.21"
-gtk4 = ">=0.11.4"
+gtk4 = ">=0.11.5"
 helix-core = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
 helix-loader = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
 helix-lsp = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
@@ -72,61 +74,80 @@ hyper = ">=1.12.0"
 hyper-rustls = ">=0.27.10"
 hyper-util = ">=0.1.21"
 i-slint-backend-winit = ">=1.18.1"
-icu_provider = ">=2.3.1"
+icu_provider = ">=2.4.0"
 ignore = ">=0.4.34"
 image = ">=0.25.10"
+jiff = ">=0.2.39"
 jni = ">=0.22.4"
 jsonschema = ">=0.60.2"
 libc = ">=0.2.191"
 libfuzzer-sys = ">=0.4.13"
-libghostty-vt = ">=0.1.1"
+# A git revision, not the crates.io release: libghostty-vt-sys 0.2.2 vendors a Ghostty that builds only with Zig 0.15.x
+# (its build.zig calls requireZig with an exact minor), and toolchain.lock.json moved Zig to 0.17.x. This revision
+# vendors a Ghostty with minimum_zig_version 0.17.0. Return to a crates.io release once one vendors Ghostty 1.4 or newer.
+libghostty-vt = { git = "https://github.com/Uzaaft/libghostty-rs", rev = "84373f8d48b8f0b794e259f74a71a52686616f5d" }
 memchr = ">=2.8.3"
 miniz_oxide = ">=0.9.1"
 ndk = ">=0.9"
 notify = ">=8.2.1"
 notify-debouncer-mini = ">=0.7"
-objc2 = ">=0.6.4"
+objc2 = ">=0.6.5"
 objc2-app-kit = ">=0.3.2"
 objc2-foundation = ">=0.3.2"
 opus = ">=0.4"
 paranoid-android = ">=0.2.2"
-parley = ">=0.11.1"
+parley = ">=0.12.0"
 pipewire = ">=0.10.1"
 portable-pty = { git = "https://github.com/wezterm/wezterm", rev = "f78f72f2f18bf459561e3681f016365273d3e281" }
 rayon = ">=1.12.0"
-regex = ">=1.12.4"
-regex-automata = ">=0.4.14"
+regex = ">=1.13.1"
+regex-automata = ">=0.4.18"
 rfd = ">=0.17.2"
-ringbuf = ">=0.5.3"
+ringbuf = ">=0.6.0"
 rustix = ">=1.1.6"
 schemars = ">=1.2.3"
 serde = ">=1.0.229"
 serde_json = ">=1.0.154"
+sha1 = ">=0.11.0"
 sha2 = ">=0.11.1"
 similar = ">=3.2.1"
 slint = ">=1.18.1"
 slint-build = ">=1.18.1"
 symphonia = ">=0.6.1"
+sysinfo = ">=0.40.1"
 tar = ">=0.4.46"
 tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
-toml = ">=1.1.6"
-toml_edit = ">=0.25.17"
+toml = ">=1.2.0"
+toml_edit = ">=0.25.18"
 tracing = ">=0.1.44"
 tracing-appender = ">=0.2.5"
 tracing-log = ">=0.2"
 tracing-subscriber = ">=0.3.23"
-trash = ">=5.2.9"
+trash = ">=5.3.0"
 tree-house = ">=0.4"
-turso = ">=0.8.2"
+turso = ">=0.8.3"
 twox-hash = ">=2.1.5"
-unicode-normalization = ">=0.1.25"
-ureq = ">=3.5.0"
+unicode-normalization = ">=0.1.26"
+ureq = ">=3.5.1"
 vello = ">=0.11"
 windows = ">=0.62.2"
-winresource = ">=0.1.32"
-zbus = ">=5.19.0"
-zbus_xml = ">=5.2.1"
+winresource = ">=0.1.34"
+zbus = ">=6.2.1"
+zbus_xml = ">=6.0.0"
+zruntime = ">=0.2.2"
+
+# bincode 1.x only (package/forbidden-strings/core): the crate uses the 1.x serde functions, and bincode 3.0.0 is a
+# placeholder whose library is a single compile_error (its message is an xkcd address, comic 2347). The default
+# catalog's open-ended floor let the 2026-11-07 update lock 3.0.0 and broke every crate that depends on forbidden-strings-core.
+[catalogs.bincode-1]
+bincode = "^1.3.3"
+
+# branches 0.4 only (package/music-player/truepeak-core): `turso_core` requires branches ^0.4.3, and Cargo unifies features only
+# within one semver line, so the `std` feature that keeps `branches::abort` off the removed `core::intrinsics::abort` has to be
+# enabled on the 0.4 line. The default catalog's open-ended floor resolves 0.5.1, which `turso_core` never uses.
+[catalogs.branches-0-4]
+branches = "^0.4.3"
 
 # Exact pins. Each one's reason sits beside the dependency in the crate that selects it.
 [catalogs.pinned]

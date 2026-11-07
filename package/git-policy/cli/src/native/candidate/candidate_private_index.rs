@@ -118,7 +118,7 @@ pub struct PrivateIndex {
 fn private_index_failure(step: &str, error: &std::io::Error) -> CandidateError {
     return CandidateError::new(
         CandidateFailure::PrivateIndexUnavailable,
-        format!("cli-git could not prepare a private copy of the index: {step}: {error}.").as_str(),
+        format!("monochromatic-git-policy-cli could not prepare a private copy of the index: {step}: {error}.").as_str(),
     );
 }
 
@@ -218,7 +218,7 @@ impl PrivateIndex {
         let Some(parent) = real_index.parent() else {
             return Err(CandidateError::new(
                 CandidateFailure::PrivateIndexUnavailable,
-                "cli-git could not prepare a private copy of the index: Git named an index path without a directory.",
+                "monochromatic-git-policy-cli could not prepare a private copy of the index: Git named an index path without a directory.",
             ));
         };
         let directory: PathBuf = parent.join(format!("{PRIVATE_INDEX_PREFIX}{}", unique_suffix()));

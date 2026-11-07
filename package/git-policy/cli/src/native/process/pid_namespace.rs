@@ -48,9 +48,9 @@ pub const FOREIGN_OWNER_PATIENCE: Duration = Duration::from_secs(2 * LOCK_CEILIN
 pub fn current_pid_namespace() -> Option<String> {
     #[cfg(target_os = "linux")]
     {
-        return std::fs::read_link("/proc/self/ns/pid")
-            .ok()
-            .and_then(|target| { return target.into_os_string().into_string().ok(); });
+        // `?` in an `Option` function returns `None` early, where the old `.ok().and_then(..)` chain produced `None` too.
+        let target: std::path::PathBuf = std::fs::read_link("/proc/self/ns/pid").ok()?;
+        return target.into_os_string().into_string().ok();
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -86,7 +86,8 @@ pub fn is_other_namespace(recorded: Option<&str>, current: Option<&str>) -> bool
 /// Date.now() - statSync(recordPath).mtimeMs
 /// ```
 pub fn foreign_record_age(record_path: &Path) -> Option<Duration> {
-    let modified: SystemTime = std::fs::metadata(record_path).and_then(|metadata| { return metadata.modified(); }).ok()?;
+    let metadata: std::fs::Metadata = std::fs::metadata(record_path).ok()?;
+    let modified: SystemTime = metadata.modified().ok()?;
     return SystemTime::now().duration_since(modified).ok();
 }
 
@@ -131,19 +132,19 @@ impl ExpiredForeignRecord {
     ///  another container or a Git process left running, and the exact `rm`.
     /// Why:
     ///   The person must be able to decide, and the condition for removing the record covers the Git processes the wrapper leaves
-    ///  running (a step that cannot be run twice survives the wrapper that started it), not only a running cli-git command.
+    ///  running (a step that cannot be run twice survives the wrapper that started it), not only a running monochromatic-git-policy-cli command.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// `cli-git: the record ${record} was written by process ${pid} ... rm -- ${quoted(record)}`
+    /// `monochromatic-git-policy-cli: the record ${record} was written by process ${pid} ... rm -- ${quoted(record)}`
     /// ```
     pub fn describe(&self, owner_pid: i64) -> String {
         return format!(
-            "cli-git: the record {record} was written by process {owner_pid} in the PID namespace {namespace}, which is not this one, and it is {minutes} \
-             minutes old, past the {patience} minutes after which cli-git no longer takes such a record for a live owner's. Nothing was \
-             changed. The owner may still be alive in another container, and a Git process that cli-git left running (a write it could not \
+            "monochromatic-git-policy-cli: the record {record} was written by process {owner_pid} in the PID namespace {namespace}, which is not this one, and it is {minutes} \
+             minutes old, past the {patience} minutes after which monochromatic-git-policy-cli no longer takes such a record for a live owner's. Nothing was \
+             changed. The owner may still be alive in another container, and a Git process that monochromatic-git-policy-cli left running (a write it could not \
              safely end, such as a merge, a reset or a branch update) may still be working for it. Look in every container and on this host \
-             that use this repository for a cli-git command and for a Git process cli-git left running (`ps` shows them); when none runs, \
+             that use this repository for a monochromatic-git-policy-cli command and for a Git process monochromatic-git-policy-cli left running (`ps` shows them); when none runs, \
              remove the record with `rm -- {path}` and run the command again.",
             record = self.record.display(),
             namespace = self.namespace,
@@ -166,6 +167,8 @@ impl ExpiredForeignRecord {
 /// isOtherNamespace(recorded, current) ? (ageOutlivesPatience(age(recordPath)) ? refused : alive) : undefined
 /// ```
 pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Option<Result<(), ExpiredForeignRecord>> {
+    #[cfg(test)]
+    STANDING_LOOKUPS.with(|count| { count.set(count.get() + 1); });
     if !is_other_namespace(recorded, current_pid_namespace().as_deref()) {
         return None;
     }
@@ -174,6 +177,12 @@ pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Opt
         Some(age) if age_outlives_patience(age) => Err(ExpiredForeignRecord { record: record_path.to_path_buf(), namespace, age }),
         Some(_) | None => Ok(()),
     });
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many times this thread asked for a standing, so a control can see that a decision asked once.
+    pub(crate) static STANDING_LOOKUPS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
 /// Namespace controls stay out of the release executable.

@@ -72,9 +72,39 @@ pub struct Recovered {
     pub given_up: Vec<WorkItem>,
 }
 
+/// What:
+///  Whether a claim stamped `stamp` has expired.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The recovery takes its expiry test as a value, so a control can stand in for it; the state the test needs (the reading and the
+///  lease) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface ClaimExpiry { hasExpired(stamp: ClaimTime): boolean }
+/// ```
+pub(crate) trait ClaimExpiry {
+    /// Whether the claim stamped `stamp` has expired.
+    fn has_expired(&self, stamp: &ClaimTime) -> bool;
+}
+
+/// A claim has expired when it is of an earlier boot, or older than the lease.
+struct LeaseRanOut<'a> {
+    /// The reading the recovery runs at.
+    now: &'a ClaimTime,
+    /// How long a claim lasts without a renewal.
+    lease: Duration,
+}
+
+impl ClaimExpiry for LeaseRanOut<'_> {
+    fn has_expired(&self, stamp: &ClaimTime) -> bool {
+        return self.now.is_past_the_boot_of(stamp) || self.now.elapsed_since(stamp) > self.lease;
+    }
+}
+
 /// `requeue_expired` that also gives the items it moved to `failed` for want of tries.
 pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32) -> Recovered {
-    return requeue_with(work_dir, now, max_tries, &|stamp| { return now.is_past_the_boot_of(stamp) || now.elapsed_since(stamp) > lease; });
+    return requeue_with(work_dir, now, max_tries, &LeaseRanOut { now, lease });
 }
 
 /// What:
@@ -92,12 +122,21 @@ pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Durati
 /// Math.min(...claimed.map((c) => lease - now.elapsedSince(c.stamp)))
 /// ```
 pub fn next_claim_expiry(work_dir: &Path, now: &ClaimTime, lease: Duration) -> Option<Duration> {
-    return [CLAIMED, RECOVERING]
-        .into_iter()
-        .flat_map(|state| { return entries_oldest_first(work_dir, state); })
-        .filter(|(name, _)| { return !name.ends_with(TEMPORARY_SUFFIX); })
-        .map(|(name, modified)| { return lease_left(now, &stamp_of_entry(name.as_str(), modified), lease); })
-        .min();
+    // The least of what every held claim has left; the temporary files of a recovery are not claims.
+    let mut least: Option<Duration> = None;
+    for state in [CLAIMED, RECOVERING] {
+        for (name, modified) in entries_oldest_first(work_dir, state) {
+            if name.ends_with(TEMPORARY_SUFFIX) {
+                continue;
+            }
+            let left: Duration = lease_left(now, &stamp_of_entry(name.as_str(), modified), lease);
+            least = Some(match least {
+                Some(known) => known.min(left),
+                None => left,
+            });
+        }
+    }
+    return least;
 }
 
 /// How much of `lease` a claim stamped `stamp` has left at `now`:
@@ -113,7 +152,10 @@ fn lease_left(now: &ClaimTime, stamp: &ClaimTime, lease: Duration) -> Duration {
 /// The reading in a claim's file name,
 /// or for a claim by an earlier release the wall-clock time of its last stamp.
 fn stamp_of_entry(name: &str, modified: SystemTime) -> ClaimTime {
-    return parse_claim_name(name).map_or_else(|| { return ClaimTime::from_wall(modified); }, |(_, stamp)| { return stamp; });
+    return match parse_claim_name(name) {
+        Some((_token, stamp)) => stamp,
+        None => ClaimTime::from_wall(modified),
+    };
 }
 
 /// What:
@@ -146,7 +188,7 @@ fn stamp_of_entry(name: &str, modified: SystemTime) -> ClaimTime {
 /// ```ts
 /// for (const seen of claimed.filter(expired)) { if (await tryRename(seen.name, owned)) { await rewrite(owned); await rename(owned, pending) } }
 /// ```
-pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn Fn(&ClaimTime) -> bool) -> Recovered {
+pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn ClaimExpiry) -> Recovered {
     let mut recovered: Recovered = Recovered::default();
     for state in [CLAIMED, RECOVERING] {
         for (name, modified) in entries_oldest_first(work_dir, state) {
@@ -154,7 +196,7 @@ pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, exp
                 remove_stray_temporary(work_dir, state, name.as_str(), modified, now);
                 continue;
             }
-            if !expired(&stamp_of_entry(name.as_str(), modified)) {
+            if !expired.has_expired(&stamp_of_entry(name.as_str(), modified)) {
                 continue;
             }
             if let Some(given_up) = recover(work_dir, state, name.as_str(), now, max_tries) {

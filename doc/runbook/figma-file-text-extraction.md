@@ -1,21 +1,39 @@
 # Extract text styles from a Figma `.fig` file without Figma
 
-Purpose: read every text node's font, size, line height and frame ancestry from a downloaded `.fig` file,
-offline, to compare a built site against the design's type at each design width.
-Verified 2026-10-18 on a 276 MB `.fig` (5,624 nodes, 1,113 text nodes) from the Xinyan Chen portfolio.
+Purpose:
+read every text node's font,
+size,
+line height and frame ancestry from a downloaded `.fig` file,
+offline,
+to compare a built site against the design's type at each design width.
+Verified 2026-10-18 on a 276 MB `.fig` (5,624 nodes,
+1,113 text nodes) from the Xinyan Chen portfolio.
 
 ## File format
 
-- A `.fig` download is a zip holding `canvas.fig`, `meta.json`, thumbnails and `images/` (the raster fills by hash).
-- `canvas.fig` starts with the 8-byte magic `fig-kiwi`, then a little-endian `uint32` version,
-  then chunks, each a little-endian `uint32` length followed by that many bytes.
-- Chunk 0 is the compressed binary [kiwi](https://github.com/evanw/kiwi) schema; chunk 1 is the compressed message.
+- A `.fig` download is a zip holding `canvas.fig`,
+  `meta.json`,
+  thumbnails and `images/` (the raster fills by hash).
+- `canvas.fig` starts with the 8-byte magic `fig-kiwi`,
+  then a little-endian `uint32` version,
+  then chunks,
+  each a little-endian `uint32` length followed by that many bytes.
+- Chunk 0 is the compressed binary [kiwi](https://github.com/evanw/kiwi) schema;
+  chunk 1 is the compressed message.
   Chunks are raw deflate in older files and zstd (magic `28 b5 2f fd`) in newer ones.
-- The decoded message's `nodeChanges` is a flat list of nodes; `parentIndex.guid` links each to its parent,
+- The decoded message's `nodeChanges` is a flat list of nodes;
+  `parentIndex.guid` links each to its parent,
   `guid` is `{ sessionID, localID }`.
-  Canvases (pages such as Phone, Tablet, Desktop) and their top-level frames are ancestors of every node.
-- Text nodes have `type: 'TEXT'`, `fontSize`, `fontName.family` and `.style`, `lineHeight`, `letterSpacing`,
-  `textData.characters`, and `textData.styleOverrideTable` holding the sizes of mixed-style runs.
+  Canvases (pages such as Phone,
+  Tablet,
+  Desktop) and their top-level frames are ancestors of every node.
+- Text nodes have `type: 'TEXT'`,
+  `fontSize`,
+  `fontName.family` and `.style`,
+  `lineHeight`,
+  `letterSpacing`,
+  `textData.characters`,
+  and `textData.styleOverrideTable` holding the sizes of mixed-style runs.
 
 ## Decoder
 
@@ -71,18 +89,31 @@ writeFileSync(output, JSON.stringify(texts, null, 1));
 console.log(`${message.nodeChanges.length} nodes, ${texts.length} text nodes`);
 ```
 
-Each entry's `path` reads like `DOCUMENT:Document`, `CANVAS:Phone`, `FRAME:Home`, then nested groups.
+Each entry's `path` reads like `DOCUMENT:Document`,
+`CANVAS:Phone`,
+`FRAME:Home`,
+then nested groups.
 
 ## Comparing against a built site
 
-- Record each text-owning element's computed `font-size` per page at the design widths (390, 744 and 1440 in the
-  portfolio), then match it to Figma text nodes in the same canvas and frame.
-- Match on normalized full text (letters and digits only, lowercased), allowing the site text to start a Figma node
-  or one of its lines: designers often put a heading and its paragraph in one text node.
+- Record each text-owning element's computed `font-size` per page at the design widths (390,
+  744 and 1440 in the
+  portfolio),
+  then match it to Figma text nodes in the same canvas and frame.
+- Match on normalized full text (letters and digits only,
+  lowercased),
+  allowing the site text to start a Figma node
+  or one of its lines:
+  designers often put a heading and its paragraph in one text node.
 - Matching pitfalls that inflate mismatch counts:
-  short strings (`Home`, `Work`) match inside unrelated nodes;
+  short strings (`Home`,
+  `Work`) match inside unrelated nodes;
   the same words appear in a jump list and as a section heading;
-  phone frames draw a hamburger, so their nav words belong to other nodes.
-  Group by the CSS declaration that sets the size, not by element, before deciding on edits.
+  phone frames draw a hamburger,
+  so their nav words belong to other nodes.
+  Group by the CSS declaration that sets the size,
+  not by element,
+  before deciding on edits.
 - Frame names in a hand-made file are inconsistent (the portfolio's Tablet Contact frame is `Contract`,
-  its Desktop Tales frame is `Tales for Safer Trails`); map them to pages explicitly.
+  its Desktop Tales frame is `Tales for Safer Trails`);
+  map them to pages explicitly.

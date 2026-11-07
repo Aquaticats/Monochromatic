@@ -382,6 +382,37 @@ The maintainer then chose a shadow of `mpm` written in Rust with clap,
  `.config/mise/conf.d/20-env.toml` holds the `PATH` entries;
  `mpm.managers.toml` and the extension install command are gone (`mpm-shadow install` runs `cargo binstall` itself).
 
+## Our seven tools install from GitHub release archives (2026-11-07)
+
+- The seven locked tools of this repository (`monochromatic-lint`, `monochromatic-git-policy-cli`,
+ `monochromatic-cargo-shadow`, `monochromatic-pnpm-shadow`, `monochromatic-search-shadow`,
+ `monochromatic-file-enforcer-cli`, `monochromatic-nested-wayland-session`) moved from `cargo-binstall` to the
+ `archive` route of this repository's GitHub releases, the way `mpm-shadow` already was
+ (`"request": "github:Aquaticats/Monochromatic@latest"`, `"route": "archive"`, commit `c048f3a566`, 2026-11-07T08:24:40-05:00).
+ Reason: later releases carry `-alpha.N` and skip crates.io, so `cargo-binstall` could not find them
+ (`doc/planning/crates-io-footprint.md`).
+- Owner, 2026-11-07, asked what this record should say now that the move is done, answered verbatim:
+ "GitHub, but I'm still not seeing the research I asked you to do on some sort of workspace protocol.
+ I know we can't use it as is because we cannot use cargo workspaces, but I'll need the research to make a decision on
+ where to go after GitHub releases. I'm also wondering if pnpm's new rust management capabilities can help."
+- So for these seven, GitHub release archives replace the 2026-11-04 answer recorded in
+ `package/mpm-shadow/cli/README.md` ("The point of cargo-binstall is for us to not manually point to gh releases ourselves!").
+ Other Cargo tools keep "Cargo tools: repository provider via `cargo-binstall`" (section "Ownership split").
+- Where they go after GitHub releases was open: the owner decides after research on a `workspace:`-like protocol and on
+ pnpm's Rust support (owner, 2026-11-05: "The best solution is obviously a workspace: protocol or something.
+ The second best solution is floating git. The third best solution is GitHub package registry.",
+ `doc/planning/crates-io-footprint.md`).
+- Answered 2026-11-07T09:32:48-05:00 after the research `doc/research/rust-workspace-protocol-and-pnpm-rust.md`
+ (Cargo has the local half of `workspace:` as `path` plus `version`, and its publish half only through a registry that
+ already holds each dependency; pnpr can be that registry, run end to end on a throwaway pnpr; pnpm's Cargo support
+ links no independent crate roots and installs no tool; GitHub Packages holds no crates).
+ Asked where the seven tools' program files come from once pnpr serves crates, the owner picked
+ "GitHub releases (Recommended)" over "pnpr npm packages":
+ the tools keep installing from each GitHub release's archives, and pnpr holds the crates other code depends on
+ (the earlier answer "deploy all releases on pnpr" stands for crates).
+ Asked which version of each tool the repository installs, the owner picked "Newest release (Recommended)"
+ over "Checkout's version": the lock keeps `@latest` and the daily timer moves it.
+
 ## Exit and rollback
 
 - Every step lands as its own commit series,

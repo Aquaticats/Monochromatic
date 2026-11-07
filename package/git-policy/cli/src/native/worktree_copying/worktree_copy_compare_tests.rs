@@ -183,7 +183,7 @@ fn changed_source_entry_fails_final_check() {
     .expect_err("changed");
     assert_eq!(
         failure.0,
-        "cli-git: ignored source entry changed while copying: \"cache/file\"."
+        "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\"."
     );
     remove(root.as_path());
 }
@@ -212,7 +212,7 @@ fn added_source_entry_fails_final_check_by_count() {
     .expect_err("count");
     assert_eq!(
         failure.0,
-        "cli-git: ignored source paths changed while snapshot was staged."
+        "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged."
     );
     remove(root.as_path());
 }
@@ -256,7 +256,7 @@ fn an_unchanged_stamp_stands_in_for_reading_the_bytes() {
     final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect("the stamp is unchanged");
     let unstamped: Vec<Option<FileStamp>> = vec![None; entries.len()];
     let failure: WorktreeCopyError = final_check(source.as_path(), stage.as_path(), entries.as_slice(), unstamped.as_slice()).expect_err("bytes differ");
-    assert_eq!(failure.0, "cli-git: ignored source entry changed while copying: \"cache/file\".");
+    assert_eq!(failure.0, "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\".");
     remove(root.as_path());
 }
 
@@ -270,7 +270,7 @@ fn a_source_written_after_the_stamp_fails_the_final_check() {
     // Same size, so only the times can tell; the change time moves on every write.
     std::fs::write(source.join("cache/file"), b"other").expect("write");
     let failure: WorktreeCopyError = final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect_err("written");
-    assert_eq!(failure.0, "cli-git: ignored source entry changed while copying: \"cache/file\".");
+    assert_eq!(failure.0, "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\".");
     remove(root.as_path());
 }
 
@@ -284,4 +284,14 @@ fn a_replaced_source_file_fails_the_final_check() {
     std::fs::rename(source.join("cache/replacement"), source.join("cache/file")).expect("rename over");
     assert!(final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).is_err());
     remove(root.as_path());
+}
+
+/// Where the system starts no thread the two manifest walks run one after the other and the final check still passes. The body runs in
+/// a child that is refused every thread.
+#[test]
+fn the_final_check_where_no_thread_can_start_walks_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "the_final_check_where_no_thread_can_start_walks_in_turn") {
+        return;
+    }
+    unchanged_source_passes_final_check();
 }

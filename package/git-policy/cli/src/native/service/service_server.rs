@@ -12,29 +12,29 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
-use crate::service_journal::{BatchClaim, DONE_RETAINED, Recovery, claim_batch, landed_commits, prune_done};
-use crate::service_land_follow::storage_failure;
-use crate::service_index_lock::{Announce, unsettled_locks};
+pub use crate::service_server_work_loop::work_loop;
+pub use crate::service_server_socket_binding::{Bind, INHERITED_DESCRIPTOR, bind, socket_passed_in};
+#[cfg(test)]
+use crate::service_server_socket_binding::ensure_socket_passed_in;
+use crate::service_server_queue_types_and_send::{GroupKey, Job, Queued, id_of_queued, index_of_queued, place_in_groups, send};
+use crate::service_server_land_group::{land_group, settle_open_batches};
+use crate::service_server_connection_handling::handle_connection;
+use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
+use crate::service_index_lock::unsettled_locks;
 use crate::service_index_prestage::{PrestageGuard, start as start_prestage};
 use crate::service_captures::CaptureMemory;
-use crate::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
-use crate::journald_native::Priority;
-use crate::service_timing::{Answered, Arrival, ExitReason, LandTiming, answered_line, exit_line, log, log_entry, retire_line};
+use crate::service_land::LandContext;
+use crate::service_timing::{ExitReason, exit_line, log};
 use crate::private_storage::remove_tree;
-use crate::service_instance::instance_of;
-use crate::claim_time::ClaimTime;
-use crate::service_retry::RetrySchedule;
 use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
-use crate::service_work::{GitHandlers, Wake, run_round};
-use crate::service_busy::{EarlyAnswer, GroupAdmission, LandingBoard};
-use crate::service_reply::{Reply, write_until_answered_noting};
+use crate::service_work::{GitHandlers, Wake};
+use crate::service_busy::{GroupAdmission, LandingBoard};
 use crate::wait_ceilings::NEVER_ENDED_STEP_SLOW_AFTER;
 use crate::service_protocol::{
-    ClientMessage, CommitRequest, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
+    FailureCode, PROTOCOL_VERSION, RELEASE, ServiceMessage,
 };
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
@@ -58,9 +58,6 @@ pub const BATCH_COST_KNEE: usize = 256;
 ///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups").
 pub const MAX_BATCH: usize = BATCH_COST_KNEE;
 
-/// How long a connection may take to send its request line before it is dropped.
-pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
-
 /// How long the service waits with nothing to do before it exits; the manager's socket stays, so the next connection starts it
 ///  again. Bazel's server does the same with `--max_idle_secs`, whose default is three hours, which is this value's precedent.
 ///  Measured cost of exceeding it: of 1,051 commits in the commit timing log (2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z), the 10
@@ -69,9 +66,6 @@ pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 ///  `systemctl --user show --property=MemoryCurrent`). A shorter exit would trade at most that start for that memory; the owner's
 ///  bound is that a commit should not take 5 s longer than native Git (`SPEC.md`). Kept at three hours as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
-
-/// File descriptor the service manager passes the listening socket on (`SD_LISTEN_FDS_START`).
-pub const INHERITED_DESCRIPTOR: i32 = 3;
 
 /// How a service run behaves apart from where it listens and what it lands.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -96,187 +90,6 @@ impl ServeSettings {
     }
 }
 
-/// Where the listening socket comes from.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Bind {
-    /// A Linux abstract name: one binder at a time, gone with the process, no file to go stale.
-    Abstract(String),
-    /// A path in a private directory, for platforms without abstract names.
-    Path(std::path::PathBuf),
-    /// The socket the service manager opened and passed in.
-    Inherited,
-}
-
-/// What:
-///  Opens the listening socket.
-/// Why:
-///   Socket activation hands over a bound socket, which is the normal way; the others serve tests and development runs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const listener = bind(address)
-/// ```
-pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
-    return match address {
-        #[cfg(target_os = "linux")]
-        Bind::Abstract(name) => {
-            use std::os::linux::net::SocketAddrExt;
-            let socket = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes())?;
-            UnixListener::bind_addr(&socket)
-        }
-        #[cfg(not(target_os = "linux"))]
-        Bind::Abstract(_) => Err(std::io::Error::other("abstract sockets need Linux")),
-        Bind::Path(path) => bind_path(path),
-        Bind::Inherited => {
-            use std::os::fd::FromRawFd;
-            ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id())?;
-            // SAFETY: the manager passed this descriptor to this process and nothing else in the process owns it.
-            Ok(unsafe { UnixListener::from_raw_fd(INHERITED_DESCRIPTOR) })
-        }
-    };
-}
-
-/// Whether the service manager passed this process a listening socket: the variables `LISTEN_PID` and `LISTEN_FDS` of this
-///  process's environment name this process and at least one descriptor.
-pub fn socket_passed_in() -> bool {
-    return ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id()).is_ok();
-}
-
-/// What:
-///  Checks the service manager's socket-activation variables:
-/// `listen_pid` must name this process (`own_pid`) and
-///  `listen_fds` must count at least one descriptor.
-/// Why:
-///   The descriptor the manager passes is taken over as the listening socket,
-/// so a variable set for another process,
-/// or a
-///  count of none,
-/// must be refused instead of adopting a descriptor that was never passed to this process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (listenPid !== String(ownPid) || !(Number.parseInt(listenFds ?? '0') >= 1)) { throw new Error('no socket was passed in') }
-/// ```
-fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Option<&str>, own_pid: u32) -> std::io::Result<()> {
-    let announced_for: bool = listen_pid.is_some_and(|pid| { return pid == own_pid.to_string(); });
-    let count: i32 = listen_fds.and_then(|text| { return text.parse().ok(); }).unwrap_or(0);
-    if !announced_for || count < 1 {
-        return Err(std::io::Error::other("no socket was passed in"));
-    }
-    return Ok(());
-}
-
-/// What:
-///  Binds a socket file, taking over one that no service listens on.
-/// Why:
-///   A service that was killed leaves its socket file behind, and the next bind of the same path then fails with
-///  "Address already in use" although nothing answers there. Only a socket that refuses a connection is replaced: one that
-///  answers belongs to a running service, and any other file is the person's. Two services started on one path at the same
-///  moment are the caller's to avoid (the service manager's socket, which production uses, never comes here).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// try { return listen(path) } catch (inUse) { if (await refusesConnections(path)) { unlink(path); return listen(path) } throw inUse }
-/// ```
-fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener> {
-    use std::os::unix::fs::FileTypeExt;
-    let first: std::io::Error = match UnixListener::bind(path) {
-        Ok(listener) => return Ok(listener),
-        Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => error,
-        Err(error) => return Err(error),
-    };
-    let is_socket: bool = std::fs::symlink_metadata(path).is_ok_and(|meta| { return meta.file_type().is_socket(); });
-    let refused: bool = matches!(UnixStream::connect(path), Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused);
-    if !is_socket || !refused {
-        return Err(first);
-    }
-    std::fs::remove_file(path)?;
-    return UnixListener::bind(path);
-}
-
-/// The user id of the process on the other end of a connection.
-fn peer_user(stream: &UnixStream) -> Option<u32> {
-    use std::os::fd::AsRawFd;
-    let mut credentials = libc::ucred { pid: 0, uid: 0, gid: 0 };
-    let mut length = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
-    // SAFETY: `credentials` and `length` are valid for the call and `length` is its size.
-    let status = unsafe {
-        libc::getsockopt(stream.as_raw_fd(), libc::SOL_SOCKET, libc::SO_PEERCRED, (&raw mut credentials).cast(), &raw mut length)
-    };
-    return if status == 0 { Some(credentials.uid) } else { None };
-}
-
-/// A request waiting to be landed:
-/// what the client sent,
-/// the connection to answer it on,
-/// and how it arrived.
-type Queued = (Box<CommitRequest>, Reply, Arrival);
-
-/// What a landing group shares:
-/// the common Git directory,
-/// the queue reference,
-/// and whether its request lands alone.
-type GroupKey = (std::path::PathBuf, String, bool);
-
-/// What:
-///  Puts `member` into the latest group of its common Git directory and queue reference,
-/// or into a group of its own when
-///  it lands alone,
-/// when that group's request does,
-/// or when no group of that branch exists yet.
-/// Why:
-///   Requests of one branch that may share a batch land together and in arrival order;
-/// an amend is a group of its own and
-///  what arrives after it starts another group,
-/// so the order on one branch is the order of arrival,
-/// and a request never
-///  lands in a batch of another branch.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const joined = groups.findLast((group) => group.common === key.common && group.reference === key.reference)
-/// if (joined && !key.alone && !joined.alone) { joined.members.push(member) } else { groups.push({ key, members: [member] }) }
-/// ```
-fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: GroupKey, member: T) {
-    let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
-    match joins {
-        Some((existing, members)) if !key.2 && !existing.2 => members.push(member),
-        _ => groups.push((key, vec![member])),
-    }
-}
-
-enum Job {
-    Commit(Box<CommitRequest>, Reply, Arrival),
-    Retire,
-    /// The client stopped waiting for the commit of this identity (its ceiling passed): answered with the landed commit, or
-    ///  withdrawn so that it never lands.
-    Withdraw(String, Reply),
-    /// After-commit work was announced; it only restarts the idle clock.
-    Activity,
-    /// A client that held a commit's scratch directory is gone; the directory is removed between batches, never during a
-    ///  landing that may read it.
-    Release(std::path::PathBuf),
-}
-
-/// Returns when the other end of the connection has closed it, or the connection failed. Anything the client sends is ignored.
-fn wait_for_close(stream: &UnixStream) {
-    let mut sink: [u8; 64] = [0; 64];
-    let mut reader = stream;
-    loop {
-        match reader.read(&mut sink) {
-            Ok(0) | Err(_) => return,
-            Ok(_) => {}
-        }
-    }
-}
-
-fn send(stream: &UnixStream, message: &ServiceMessage) {
-    let mut line: String = encode_service(message);
-    line.push('\n');
-    // A client that went away has nothing to be told.
-    let _written = (&*stream).write_all(line.as_bytes());
-}
-
 /// Starts a thread the service cannot do without, or ends the service with a plain line and status 4: a service that goes on
 ///  without its acceptor or its work thread answers no one, while an ended service is started again by the manager.
 fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
@@ -292,380 +105,6 @@ const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 
 /// How long the acceptor waits after a connection it could not give a thread.
 const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
-
-/// What:
-///  The note for a connection's beat: what the landing thread is stuck in when it is inside a write that is never ended, said again
-///  only when the words change (they name whole minutes).
-/// Why:
-///   A client queued behind a write that never returns is told why it waits, and the words become the blocker its error names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
-/// ```
-fn stuck_notice<'a>(board: &'a LandingBoard, request: Option<&'a str>) -> impl FnMut() -> Option<ServiceMessage> + 'a {
-    let mut last: Option<String> = None;
-    return move || {
-        // A client whose own request is in the group being landed is told so when the write starts, because its commit may be on
-        // the branch already; the key changes when the longer words of a minute's stuck write replace the first ones.
-        if let Some((key, words)) = request.and_then(|id| { return board.inside_notice(id); }) {
-            if last.as_deref() == Some(key.as_str()) {
-                return None;
-            }
-            last = Some(key);
-            return Some(ServiceMessage::InsideWrite { text: words });
-        }
-        let words: String = board.describe()?;
-        if last.as_deref() == Some(words.as_str()) {
-            return None;
-        }
-        last = Some(words.clone());
-        return Some(ServiceMessage::Waiting { text: words });
-    };
-}
-
-/// Reads one request line from a new connection, checks who sent it, and queues it.
-fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, busy: &AtomicUsize, board: &LandingBoard, release: &str, instance: Option<&str>) {
-    let accepted: Instant = Instant::now();
-    send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release.to_string()) });
-    // SAFETY: `geteuid` takes no arguments and cannot fail.
-    if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
-        return;
-    }
-    let _timeout = stream.set_read_timeout(Some(REQUEST_READ_TIMEOUT));
-    let Ok(reader_stream) = stream.try_clone() else { return };
-    let mut line: String = String::new();
-    let limit: u64 = u64::try_from(MAX_LINE_BYTES).unwrap_or(u64::MAX) + 1;
-    if BufReader::new(reader_stream.take(limit)).read_line(&mut line).is_err() {
-        return;
-    }
-    let _cleared = stream.set_read_timeout(None);
-    if line.is_empty() {
-        // A connection that only looked (a readiness probe) sends nothing and is not an error.
-        return;
-    }
-    // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
-    //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
-    let foreign = |git_dir: &std::path::Path| -> bool { return instance.is_some_and(|mine| { return instance_of(git_dir) != mine; }); };
-    match decode_client(line.trim_end_matches('\n')) {
-        Ok(ClientMessage::Commit(request)) if foreign(request.git_dir.as_path()) => {
-            crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
-            send(&stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected });
-        }
-        Ok(ClientMessage::Scratch { git_dir, .. } | ClientMessage::Work { git_dir, .. }) if foreign(git_dir.as_path()) => {
-            crate::service_warn!("refused a message for {}, which another instance serves", git_dir.display());
-            send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
-        }
-        Ok(ClientMessage::Commit(request)) => {
-            let id: String = request.id.clone();
-            let (reply, messages) = Reply::new();
-            let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
-            crate::service_fault::queued(id.as_str());
-            // This thread has nothing else to do until the request is answered, so it writes the answers the landing thread
-            //  queues and keeps the client told that the service lives, and what it is stuck in when it is stuck in a write.
-            write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board, Some(id.as_str())));
-        }
-        Ok(ClientMessage::Withdraw { id }) => {
-            // Behind a write that never returns the landing thread answers nothing, so a request that has not begun to land is
-            //  withdrawn here (`service_busy.rs`); otherwise the landing thread answers between two landings, so the answer is
-            //  either that the commit landed or that it never will, and meanwhile this thread keeps the client told that the
-            //  service lives.
-            let withdrawing: String = id.clone();
-            match board.withdraw_early(id.as_str()) {
-                EarlyAnswer::Landed(commit) => send(&stream, &ServiceMessage::Landed { id, commit, already: true }),
-                EarlyAnswer::Withdrawn(words) => {
-                    send(&stream, &ServiceMessage::Waiting { text: words });
-                    send(&stream, &ServiceMessage::Withdrawn { id });
-                }
-                EarlyAnswer::Queued => {
-                    let (reply, messages) = Reply::new();
-                    let _queued = queue.send(Job::Withdraw(id, reply));
-                    // The connection keeps the identity of the request, so a client that withdrew too early to have been told it is
-                    // inside the write is told now.
-                    write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board, Some(withdrawing.as_str())));
-                }
-            }
-        }
-        Ok(ClientMessage::Retire) => {
-            log(retire_line(release).as_str());
-            let _queued = queue.send(Job::Retire);
-        }
-        Ok(ClientMessage::Scratch { git_dir, path }) => {
-            // The connection is the client's claim on the directory. While it is open the service is not idle, and when it
-            //  closes, by the client's end or its death, the directory is no one's.
-            busy.fetch_add(1, Ordering::SeqCst);
-            wait_for_close(&stream);
-            busy.fetch_sub(1, Ordering::SeqCst);
-            let _unused = git_dir;
-            let _queued = queue.send(Job::Release(path));
-        }
-        Ok(ClientMessage::Work { git_dir, review_key }) => {
-            let _queued = work.send((git_dir, review_key));
-            let _touched = queue.send(Job::Activity);
-        }
-        Err(reason) => {
-            crate::service_warn!("refused a request line: {reason}");
-            send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
-        }
-    }
-}
-
-/// Finishes the open batches this instance owns: those of its worktree when it serves one, all of them in a development run.
-fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<crate::service_land::RecoveryReport> {
-    let reports: Vec<crate::service_land::RecoveryReport> = match instance {
-        Some(mine) => recover_instance(context, mine),
-        None => recover(context),
-    };
-    // An open batch means an earlier service stopped between its intent and its end; each one settled is said.
-    for report in &reports {
-        log_entry(
-            Priority::Warning,
-            format!("settled the batch an earlier service left open batch={} decision={}", report.seq, if report.decision == Recovery::Finish { "finish" } else { "drop" }).as_str(),
-            &[("CLI_GIT_BATCH", report.seq.to_string())],
-        );
-    }
-    return reports;
-}
-
-/// The times of one batch that every request of it shares,
-/// and the moment the landing ended.
-struct BatchTimes {
-    /// The batch number,
-    /// zero when no batch ran (a request answered as already landed).
-    batch: u64,
-    /// How many requests of the branch the batch held.
-    size: usize,
-    /// When the group began to be handled,
-    /// which ends every request's wait in the queue.
-    group_began: Instant,
-    /// Time to settle the batches a killed service left open.
-    settle: Duration,
-    /// The phases of the landing.
-    landing: LandTiming,
-    /// Time the landing took,
-    /// from its start to its return.
-    land_total: Duration,
-    /// When the landing returned,
-    /// which starts the answers.
-    landed_at: Instant,
-}
-
-impl BatchTimes {
-    /// The times of a request that no batch landed.
-    fn not_landed(group_began: Instant) -> Self {
-        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now() };
-    }
-}
-
-/// Writes the log line for an answered request:
-/// the phases of its wait,
-/// from the acceptance of its connection to the answer.
-fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
-    let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
-    // What the Git steps and tools since the previous answer showed; the answer that finds them takes them.
-    let quiet: Vec<(String, Duration)> = crate::quiet_ledger::drain();
-    let line: String = answered_line(&Answered {
-        request: request.id.as_str(),
-        reference: request.reference.as_str(),
-        outcome,
-        batch: times.batch,
-        size: times.size,
-        position,
-        arrival: *arrival,
-        queued,
-        settle: times.settle,
-        landing: &times.landing,
-        land_total: times.land_total,
-        answer: times.landed_at.elapsed(),
-        total: arrival.accepted.elapsed(),
-        quiet: quiet.as_slice(),
-    });
-    // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
-    let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };
-    let fields: [(&str, String); 4] = [
-        ("CLI_GIT_REQUEST_ID", request.id.clone()),
-        ("CLI_GIT_BRANCH", request.reference.clone()),
-        ("CLI_GIT_OUTCOME", outcome.to_string()),
-        ("CLI_GIT_BATCH", times.batch.to_string()),
-    ];
-    log_entry(priority, line.as_str(), &fields);
-}
-
-/// Lands one group of jobs that share a branch, and answers each client.
-fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<Queued>, landed: &mut HashMap<String, String>, captures: &mut CaptureMemory) {
-    let group_began: Instant = Instant::now();
-    let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _, _)| { return landed.contains_key(&request.id); });
-    let unlanded: BatchTimes = BatchTimes::not_landed(group_began);
-    for (request, stream, arrival) in again {
-        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
-        log_answer(&unlanded, &request, &arrival, 1, "already");
-    }
-    // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let (fresh, repeats): (Vec<_>, Vec<_>) = pending.into_iter().partition(|(request, _, _)| { return seen.insert(request.id.clone()); });
-    if fresh.is_empty() {
-        return;
-    }
-    // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
-    //  time) left its intent open; settling it first puts the index right before anything else changes it.
-    let settling: Instant = Instant::now();
-    let _settled = settle_open_batches(context, instance);
-    let settle: Duration = settling.elapsed();
-    // The number is taken from the journal, not from this service's count alone: another service of the same journal may count
-    //  from the same clock reading, and two landings with one number would overwrite each other's records.
-    let claim: BatchClaim = match claim_batch(context.journal.as_path(), *seq + 1) {
-        Ok(claim) => claim,
-        Err(error) => {
-            let code: FailureCode = storage_failure(&error);
-            crate::service_error!("no batch number could be taken in {}: {error}", context.journal.display());
-            for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
-                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
-                log_answer(&unlanded, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
-            }
-            return;
-        }
-    };
-    *seq = claim.seq();
-    for (index, (_, stream, _)) in fresh.iter().enumerate().skip(1) {
-        stream.send(&ServiceMessage::Position { number: index + 1, of: fresh.len() });
-    }
-    let requests: Vec<CommitRequest> = fresh.iter().map(|(request, _, _)| { return (**request).clone(); }).collect();
-    let announce = |note: Announce| {
-        for (_, stream, _) in &fresh {
-            match &note {
-                Announce::Waiting(text) => stream.send(&ServiceMessage::Waiting { text: text.clone() }),
-                Announce::Holder(who) => stream.send(&ServiceMessage::Holder { who: who.clone() }),
-            }
-        }
-    };
-    let mut landing: LandTiming = LandTiming::default();
-    let landing_began: Instant = Instant::now();
-    let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
-    // The intent or the finished batch keeps the number now; a landing that wrote none gives the number back.
-    drop(claim);
-    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now() };
-    match result {
-        Ok(outcomes) => {
-            // What this batch landed is remembered before any answer, so a commit sent back in the same batch is told about it.
-            for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
-                if let Outcome::Landed { commit } = outcome {
-                    captures.record_landed(request.common_dir.as_path(), request.repository.as_path(), commit.as_str(), request.captured);
-                }
-            }
-            crate::service_fault::reach("before-ack");
-            for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
-                if let Outcome::Landed { commit } = outcome {
-                    for (repeat, stream, arrival) in repeats.iter().filter(|(repeat, _, _)| { return repeat.id == request.id; }) {
-                        stream.send(&ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true });
-                        log_answer(&times, repeat, arrival, 1, "already");
-                    }
-                }
-            }
-            for (position, ((request, stream, arrival), outcome)) in fresh.iter().zip(outcomes).enumerate() {
-                let word: &str = match outcome {
-                    Outcome::Landed { commit } => {
-                        landed.insert(request.id.clone(), commit.clone());
-                        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
-                        "landed"
-                    }
-                    Outcome::RetryPrepare { base } => {
-                        let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());
-                        stream.send(&ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
-                        "retry-prepare"
-                    }
-                    Outcome::BranchMoved => {
-                        stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
-                        "branch-moved"
-                    }
-                };
-                log_answer(&times, request, arrival, position + 1, word);
-            }
-        }
-        Err(code) => {
-            for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
-                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
-                log_answer(&times, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
-            }
-        }
-    }
-}
-
-/// What:
-///  Runs the after-commit work of each repository named, one repository at a time, folding wakes that arrive while it
-///  works into the next round, and looks again at a repository whose claims another instance held when their lease is over.
-/// Why:
-///   Draining claims everything pending, so a burst of wakes for one repository is one pass. The instance that held a claim
-///  may have died, and nothing but this loop would then wake the work: it waits for a wake no longer than the first lease still
-///  running, and the service counts itself busy meanwhile, so it does not exit idle with work claimed by a dead holder. A
-///  service that has just started has had no wake yet, so the loop looks at every repository an earlier service of this instance
-///  was woken for (`ClaimWatch`), after the schedule's slack, and the claims or pending work it finds are run or waited for as
-///  after any wake: a kill is followed by the work being run with no commit needed. The same
-///  holds for a push the service stopped: the loop owns the plan of its new tries (`PushRetries`), each round hands the workers
-///  what is due and applies what they ask, and the wake for the earliest plan is kept in the same schedule as the lease wakes, so
-///  the service neither forgets the plan nor exits idle while a try is pending.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
-/// ```
-pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, mut push_retries: PushRetries, mut watch: ClaimWatch) {
-    let mut retries: RetrySchedule = RetrySchedule::default();
-    let mut counted_waiting: bool = false;
-    // A plan that is already there when the loop starts (one rebuilt from disk) is woken for like one made by a round.
-    let started: Instant = Instant::now();
-    let mut restored: Vec<(PathBuf, Duration)> = push_retries
-        .directories()
-        .into_iter()
-        .filter_map(|directory| { return push_retries.next_wait(directory.as_path(), started).map(|wait| { return (directory, wait); }); })
-        .collect();
-    // A repository an earlier service was woken for may hold pending work or a claim its holder left: it is looked at without a
-    //  wake, at once unless a push plan already names it with a later time.
-    for directory in watch.directories() {
-        if !restored.iter().any(|(planned, _)| { return *planned == directory; }) {
-            restored.push((directory, Duration::ZERO));
-        }
-    }
-    retries.replace(&[], restored, started);
-    if !retries.is_empty() {
-        busy.fetch_add(1, Ordering::SeqCst);
-        counted_waiting = true;
-    }
-    loop {
-        let first: Option<Wake> = match retries.next_wait(Instant::now()) {
-            None => match receiver.recv() {
-                Ok(wake) => Some(wake),
-                Err(_) => return,
-            },
-            Some(wait) => match receiver.recv_timeout(wait) {
-                Ok(wake) => Some(wake),
-                Err(RecvTimeoutError::Timeout) => None,
-                Err(RecvTimeoutError::Disconnected) => return,
-            },
-        };
-        busy.fetch_add(1, Ordering::SeqCst);
-        let mut wakes: Vec<Wake> = first.into_iter().chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })).collect();
-        wakes.extend(retries.take_due(Instant::now()).into_iter().map(|directory| { return (directory, None); }));
-        let mut ran: Vec<PathBuf> = wakes.iter().map(|(directory, _)| { return directory.clone(); }).collect();
-        // Written down before the first claim of a repository, so that a service killed while it holds the claim is followed by one
-        //  that knows where to look. This thread does it, never the one that lands commits.
-        for directory in &ran {
-            watch.remember(directory.as_path());
-        }
-        let asked: Vec<(PathBuf, Duration)> = run_round(wakes, handlers, &mut push_retries, &ClaimTime::read());
-        // A directory the round named for its plan alone (the common directory of a bare repository) replaces its old entry too.
-        ran.extend(asked.iter().map(|(directory, _)| { return directory.clone(); }));
-        retries.replace(ran.as_slice(), asked, Instant::now());
-        // A repository waiting to be looked at again keeps the service from exiting idle, as running work does.
-        if !retries.is_empty() && !counted_waiting {
-            busy.fetch_add(1, Ordering::SeqCst);
-            counted_waiting = true;
-        } else if retries.is_empty() && counted_waiting {
-            busy.fetch_sub(1, Ordering::SeqCst);
-            counted_waiting = false;
-        }
-        busy.fetch_sub(1, Ordering::SeqCst);
-    }
-}
 
 /// What:
 ///  Runs the service until it is told to retire.
@@ -687,6 +126,10 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
     }
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
+    // What the earlier release's helper of this worktree finished counts as landed too: a client it never answered asks again.
+    if let Some(instance) = settings.instance.as_deref() {
+        landed.extend(crate::earlier_service_journal_adopted::earlier_commits_landed(context.journal.as_path(), instance));
+    }
     // The identities of the requests their clients withdrew; a request with one of these is never landed.
     let mut withdrawn: std::collections::HashSet<String> = std::collections::HashSet::new();
     // What the landed commits were captured at: owned by this loop, the only thread that lands and answers.
@@ -700,13 +143,14 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     // What this landing thread is inside, for the threads that talk to clients (`service_busy.rs`).
     let board: Arc<LandingBoard> = LandingBoard::new(context.journal.clone(), settings.stuck_after);
-    crate::service_busy::use_on_this_thread(Arc::clone(&board));
+    crate::service_busy_step_record_on_this_thread::use_on_this_thread(Arc::clone(&board));
     let connection_board: Arc<LandingBoard> = Arc::clone(&board);
     // The plan of the pushes waiting for a new try is kept in this instance's own journal, so a restarted service rebuilds it.
     let plan_directory: PathBuf = context.journal.join(PLAN_DIRECTORY);
     // The repositories this instance was woken for are kept in the journal the same way, so a restarted service looks at them.
     let watch_directory: PathBuf = context.journal.join(WATCH_DIRECTORY);
-    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path()), ClaimWatch::restored(watch_directory.as_path())); });
+    let watch_instance: Option<String> = settings.instance.clone();
+    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path()), ClaimWatch::restored(watch_directory.as_path(), watch_instance.as_deref())); });
     let announced_release: String = settings.release.clone();
     let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     let instance: Option<String> = settings.instance.clone();
@@ -735,7 +179,10 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     });
     // Microseconds, so that instances started at different times count from different numbers; the number each batch takes is
     //  still claimed in the journal (`claim_batch`), because equal readings and counts that overtake another's are possible.
-    let clock_seed: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(1); });
+    let clock_seed: u64 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => u64::try_from(elapsed.as_micros()).unwrap_or(1),
+        Err(_before_the_epoch) => 1,
+    };
     let mut seq: u64 = crate::service_fault::pinned_first_batch().unwrap_or(clock_seed);
     // The marker made ahead is removed whichever way this loop ends.
     let _prestaged = PrestageGuard;
@@ -809,10 +256,10 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
         for (_, queued_group) in groups {
-            let index: Option<std::path::PathBuf> = queued_group.first().map(|(request, _, _)| { return request.index.clone(); });
+            let index: Option<std::path::PathBuf> = queued_group.first().map(index_of_queued);
             // A request whose client was answered "withdrawn" while this thread was stuck in a write is dropped here, and the
             //  rest are marked as being landed, under one lock (`service_busy.rs`).
-            let ids: Vec<String> = queued_group.iter().map(|(request, _, _)| { return request.id.clone(); }).collect();
+            let ids: Vec<String> = queued_group.iter().map(id_of_queued).collect();
             let admission: GroupAdmission = board.begin_group(ids.as_slice());
             for id in &admission.dropped {
                 crate::service_log!("dropped the request {id} that its client withdrew while the service was stuck in a write");
@@ -820,7 +267,19 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             for id in &admission.unavailable {
                 crate::service_error!("the request {id} could not be admitted to its group (the record of the landing thread cannot be written), so it is answered with a failure and not landed");
             }
-            let (unavailable, admitted): (Vec<Queued>, Vec<Queued>) = queued_group.into_iter().filter(|(request, _, _)| { return !admission.dropped.contains(&request.id); }).partition(|(request, _, _)| { return admission.unavailable.contains(&request.id); });
+            // A dropped request is not answered here; an unavailable one is answered with a failure; the rest are landed.
+            let mut unavailable: Vec<Queued> = Vec::new();
+            let mut admitted: Vec<Queued> = Vec::new();
+            for queued in queued_group {
+                if admission.dropped.contains(&queued.0.id) {
+                    continue;
+                }
+                if admission.unavailable.contains(&queued.0.id) {
+                    unavailable.push(queued);
+                } else {
+                    admitted.push(queued);
+                }
+            }
             for (request, stream, _) in &unavailable {
                 stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable });
             }

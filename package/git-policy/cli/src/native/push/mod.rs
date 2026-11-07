@@ -73,6 +73,30 @@ pub mod push_trigger_log;
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 
+/// What a reconcile of a rejected push shares: the line prefixes, the attempt limit, the stale-rejection test and the small Git queries.
+pub mod auto_push_reconcile_basics_and_limits;
+
+/// The merge commit of a reconcile, built in the object store without a worktree or an index.
+pub mod auto_push_reconcile_merge_commit;
+
+/// The move of the local branch after the merge was pushed, and the checks that guard it.
+pub mod auto_push_reconcile_branch_advance;
+
+/// The reading of a configured push refspec and the judgement of what the refspecs make of one branch.
+pub mod auto_push_refspec_judging;
+
+/// The deadline a push may show nothing for, its default and the patience a push runs under.
+pub mod push_deadline_and_patience_settings;
+
+/// The public update of one pushed reference and the limits on the probe's side-by-side queries.
+pub mod manual_push_update_and_query_limits;
+
+/// What a child watch is made of below its public face: terms, marks, shared flags and the stopping of a child.
+pub mod child_watch_clock_marks_and_stopping;
+
+/// How a watched step may be ended and the errors that say it was.
+pub mod child_watch_step_bounds_and_errors;
+
 /// The paths of a dirty worktree and of a fast-forward, and their overlap.
 pub mod auto_push_dirty_paths;
 
@@ -84,6 +108,9 @@ pub mod manual_push_porcelain;
 
 /// Why a manual push's scope could not be established, as the cause its hint is chosen by.
 pub mod manual_push_cause;
+
+/// Why the probe of a manual push could not establish the updates Git would push, and what Git said when it refused.
+pub mod manual_push_probe_error;
 
 /// The updates a manual `git push` would send, learned from Git's own dry-run report and confirmed against the remote.
 pub mod manual_push_probe;
@@ -99,6 +126,9 @@ pub mod start_retry;
 
 /// The manual-push candidate scope of one push: the commits and trees the destination lacks.
 pub mod manual_push_lifecycle;
+
+/// Whether a command's output is read by a program, so that no failure notice is shown to it.
+pub mod push_failure_notice_machine_output;
 
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;

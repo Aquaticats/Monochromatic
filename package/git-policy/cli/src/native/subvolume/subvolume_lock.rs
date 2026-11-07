@@ -27,8 +27,8 @@
 //! ```
 
 use crate::subvolume_error::MigrateError;
+use crate::subvolume_file_write_steps::write_all_then_sync;
 use crate::subvolume_journal::Journal;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// The name of every Git index lock.
@@ -42,10 +42,10 @@ const LOCK_NAME: &str = "index.lock";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const token = `cli-git migrate-to-subvolume ${journal.started}\n`;
+/// const token = `monochromatic-git-policy-cli migrate-to-subvolume ${journal.started}\n`;
 /// ```
 pub fn token_of(journal: &Journal) -> String {
-    return format!("cli-git migrate-to-subvolume {}\n", journal.started());
+    return format!("monochromatic-git-policy-cli migrate-to-subvolume {}\n", journal.started());
 }
 
 /// What:
@@ -62,7 +62,9 @@ pub fn lock_paths(tree: &Path) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = vec![git_directory.join(LOCK_NAME)];
     if let Ok(names) = std::fs::read_dir(git_directory.join("worktrees")) {
         for name in names.flatten() {
-            if name.file_type().is_ok_and(|kind: std::fs::FileType| { return kind.is_dir(); }) {
+            if let Ok(kind) = name.file_type()
+                && kind.is_dir()
+            {
                 found.push(name.path().join(LOCK_NAME));
             }
         }
@@ -81,15 +83,21 @@ pub fn lock_paths(tree: &Path) -> Vec<PathBuf> {
 /// function relativeLockPaths(tree: string): string[];
 /// ```
 pub fn relative_lock_paths(tree: &Path) -> Vec<PathBuf> {
-    return lock_paths(tree)
-        .into_iter()
-        .filter_map(|path: PathBuf| { return path.strip_prefix(tree).ok().map(Path::to_path_buf); })
-        .collect();
+    let mut relative: Vec<PathBuf> = Vec::new();
+    for path in lock_paths(tree) {
+        if let Ok(inside) = path.strip_prefix(tree) {
+            relative.push(inside.to_path_buf());
+        }
+    }
+    return relative;
 }
 
 /// Whether the lock file holds the token: it is this migration's.
 pub fn is_ours(lock: &Path, token: &str) -> bool {
-    return std::fs::read(lock).is_ok_and(|content: Vec<u8>| { return content == token.as_bytes(); });
+    return match std::fs::read(lock) {
+        Ok(content) => content == token.as_bytes(),
+        Err(_) => false,
+    };
 }
 
 /// What:
@@ -104,8 +112,7 @@ pub fn is_ours(lock: &Path, token: &str) -> bool {
 pub fn acquire(lock: &Path, token: &str) -> Result<(), MigrateError> {
     match std::fs::OpenOptions::new().write(true).create_new(true).open(lock) {
         Ok(mut file) => {
-            let written: std::io::Result<()> = file.write_all(token.as_bytes()).and_then(|()| { return file.sync_all(); });
-            return written.map_err(|error: std::io::Error| { return MigrateError::io("write the lock", lock, &error); });
+            return MigrateError::from_io_result(write_all_then_sync(&mut file, token.as_bytes()), "write the lock", lock);
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             if is_ours(lock, token) {

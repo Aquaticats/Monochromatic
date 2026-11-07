@@ -16,6 +16,17 @@ pub const FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FAULT";
 /// The instants of a batch at which a kill is tested, in the order a batch reaches them.
 pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref", "after-index", "before-ack"];
 
+/// The instant after `index.lock` was created by exclusive creation
+/// (where the filesystem places no file whole)
+/// and before its marker is written:
+/// a kill here leaves a lock without its marker,
+/// as plain Git leaves one.
+pub const LOCK_CREATED_UNMARKED: &str = "lock-created-unmarked";
+
+/// The instant after the marker was written into a lock created by exclusive creation,
+/// before it is flushed.
+pub const LOCK_MARKED_UNSYNCED: &str = "lock-marked-unsynced";
+
 /// What:
 ///  Ends the process if `point` is the armed one.
 /// Why:
@@ -28,7 +39,7 @@ pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref
 pub fn reach(point: &str) {
     #[cfg(test)]
     hooks::run(point);
-    if std::env::var(FAULT_VARIABLE).is_ok_and(|armed| { return armed == point; }) {
+    if matches!(std::env::var(FAULT_VARIABLE), Ok(armed) if armed == point) {
         crate::service_log!("test fault at {point}");
         #[cfg(unix)]
         // SAFETY: `kill` takes no pointers; the process ends itself.
@@ -80,6 +91,19 @@ pub fn fails(point: &str) -> bool {
 pub const QUEUED_DIRECTORY_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY";
 
 /// What:
+///  A character as one that may sit in a file name: ASCII letters and digits stay, anything else becomes an underscore.
+/// Why:
+///  `queued` names a marker file after a request identity, which must not name a path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fileNameCharacter = (c: string) => /[A-Za-z0-9]/.test(c) ? c : '_';
+/// ```
+fn file_name_character(character: char) -> char {
+    return if character.is_ascii_alphanumeric() { character } else { '_' };
+}
+
+/// What:
 ///  Leaves a file named for request `id` in the directory the variable names, when it is armed.
 /// Why:
 ///   A control that sends requests in a set order needs to know that the service holds one before it sends the next; a pause
@@ -92,7 +116,7 @@ pub const QUEUED_DIRECTORY_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DI
 /// ```
 pub fn queued(id: &str) {
     let Some(directory) = std::env::var_os(QUEUED_DIRECTORY_VARIABLE) else { return };
-    let name: String = id.chars().map(|character| { return if character.is_ascii_alphanumeric() { character } else { '_' }; }).collect();
+    let name: String = id.chars().map(file_name_character).collect();
     let path: std::path::PathBuf = std::path::Path::new(&directory).join(format!("queued-{name}"));
     if let Err(error) = std::fs::write(&path, b"") {
         crate::service_warn!("cannot leave the queued-request file {}: {error}", path.display());
@@ -113,59 +137,14 @@ pub const FIRST_BATCH_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FIRST_BATCH";
 /// const pinned = Number(process.env.CLI_GIT_TEST_ONLY_SERVICE_FIRST_BATCH) // undefined when unset or not a number
 /// ```
 pub fn pinned_first_batch() -> Option<u64> {
-    return std::env::var(FIRST_BATCH_VARIABLE).ok().and_then(|text| { return text.parse::<u64>().ok(); });
+    return match std::env::var(FIRST_BATCH_VARIABLE) {
+        Ok(text) => text.parse::<u64>().ok(),
+        Err(_unset) => None,
+    };
 }
 
 /// Hooks a control sets to run its own code at a point of a landing, on the thread that reaches the point; never part of the
 ///  release executable.
 #[cfg(test)]
-pub(crate) mod hooks {
-    use std::cell::RefCell;
-
-    thread_local! {
-        /// The steps of a landing on this thread, in the order they happened.
-        static EVENTS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
-        /// The point and the code to run at it.
-        static HOOK: RefCell<Option<(String, std::rc::Rc<dyn Fn()>)>> = const { RefCell::new(None) };
-        /// The points whose steps fail on this thread.
-        static FAILING: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
-    }
-
-    /// Make the step at `point` fail on this thread's landings until `clear_failures`.
-    pub(crate) fn fail_at(point: &str) {
-        FAILING.with(|failing| { failing.borrow_mut().push(point.to_string()); });
-    }
-
-    /// Let every step succeed again.
-    pub(crate) fn clear_failures() {
-        FAILING.with(|failing| { failing.borrow_mut().clear(); });
-    }
-
-    /// Whether the step at `point` fails.
-    pub(super) fn failing(point: &str) -> bool {
-        return FAILING.with(|failing| { return failing.borrow().iter().any(|named| { return named == point; }); });
-    }
-
-    /// Run `code` whenever the landing of this thread reaches `point`.
-    pub(crate) fn set(point: &str, code: std::rc::Rc<dyn Fn()>) {
-        HOOK.with(|hook| { *hook.borrow_mut() = Some((point.to_string(), code)); });
-    }
-
-    /// Remember that `event` happened.
-    pub(super) fn record(event: &str) {
-        EVENTS.with(|events| { events.borrow_mut().push(event.to_string()); });
-    }
-
-    /// The steps reported on this thread since the last call, in order.
-    pub(crate) fn take_events() -> Vec<String> {
-        return EVENTS.with(|events| { return std::mem::take(&mut *events.borrow_mut()); });
-    }
-
-    /// Run the hook if it is for `point`.
-    pub(super) fn run(point: &str) {
-        let found: Option<std::rc::Rc<dyn Fn()>> = HOOK.with(|hook| { return hook.borrow().as_ref().filter(|(named, _)| { return named == point; }).map(|(_, code)| { return std::rc::Rc::clone(code); }); });
-        if let Some(hook) = found {
-            hook();
-        }
-    }
-}
+#[path = "service_fault_hooks_test_support.rs"]
+pub(crate) mod hooks;

@@ -39,7 +39,8 @@
 //! ```
 
 /// The patience a clock keeps, and what a stop reports.
-use crate::bounded_push::{Patience, StopCause, StopReport};
+use crate::bounded_push::{StopCause, StopReport};
+use crate::push_deadline_and_patience_settings::Patience;
 /// The processes below the push, and the identity of each.
 use crate::process_tree::{TreeMember, descendants_of, member_of};
 /// The connected sockets of the machine with their byte counts, and the sockets a process holds.

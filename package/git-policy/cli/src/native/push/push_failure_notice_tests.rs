@@ -1,6 +1,14 @@
 //! Controls for the record of a failed backup push: its text, its masking, its names, and which commands show it.
 
 use super::*;
+use std::ffi::OsString;
+
+/// A function-like value with the right shape is a namer in these controls: the shipped caller writes a small struct that holds the state.
+impl<Name: Fn(&str) -> String> CommitNamer for Name {
+    fn name_of(&self, commit: &str) -> String {
+        return self(commit);
+    }
+}
 use crate::test_support::{fixture, remove};
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -30,7 +38,7 @@ fn the_text_names_the_branch_the_commit_the_reason_and_the_remedy() {
 #[test]
 fn a_skipped_push_is_worded_as_not_made_and_cleared_by_a_later_push() {
     let directory: PathBuf = fixture("notice-skipped");
-    let reason: &str = "cli-git: the branch refs/heads/main tracks no remote branch that can be named; skipping auto-push.";
+    let reason: &str = "monochromatic-git-policy-cli: the branch refs/heads/main tracks no remote branch that can be named; skipping auto-push.";
     record_push_skip(directory.as_path(), BRANCH, COMMIT, reason).expect("recorded");
     record_push_skip(directory.as_path(), "refs/heads/other", OTHER_COMMIT, reason).expect("recorded");
     clear_push_failures(directory.as_path(), BRANCH);
@@ -202,7 +210,7 @@ fn machine_read_commands_are_told_from_human_ones() {
 fn a_record_is_worded_with_the_askers_abbreviation() {
     let root: PathBuf = fixture("push-failure-abbreviated");
     record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
-    let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &|commit| { return commit[..12].to_string(); });
+    let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &|commit: &str| { return commit[..12].to_string(); });
     assert_eq!(shown, vec![push_failure_text(BRANCH, &COMMIT[..12], "rejected")]);
     assert!(!shown[0].contains("your commit"), "{}", shown[0]);
     assert!(!shown[0].contains(COMMIT), "{}", shown[0]);
@@ -242,9 +250,37 @@ fn a_record_of_an_earlier_release_is_shown_as_it_was_written() {
     std::fs::create_dir_all(&directory).expect("directory");
     std::fs::write(directory.join(record_name(BRANCH, COMMIT)), "The backup push of branch main failed for your commit 0123456.\n").expect("record");
     let nowhere: Worktrees = Worktrees { here: Some(String::from("refs/heads/unrelated")), all: vec![BRANCH.to_string()] };
-    let shown: Vec<String> = take_push_failures_for(root.as_path(), Some(&nowhere), &|commit| { return commit.to_string(); });
+    let shown: Vec<String> = take_push_failures_for(root.as_path(), Some(&nowhere), &|commit: &str| { return commit.to_string(); });
     assert_eq!(shown, vec![String::from("The backup push of branch main failed for your commit 0123456.\n")]);
     assert!(take_push_failures(root.as_path()).is_empty());
+    remove(root.as_path());
+}
+
+/// Found by the audit of the names the rename changed: the three magic first lines of the records name a format, and the records
+///  an earlier release wrote carry its spelling. They are read as the records they are (worded for the asking worktree, held
+///  for the worktree that has the branch), not shown as raw text with their first line.
+#[test]
+fn a_record_of_an_earlier_release_with_its_own_first_line_is_read_as_a_record() {
+    let root: PathBuf = fixture("push-failure-earlier-magic");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    record_push_skip(root.as_path(), "refs/heads/other", OTHER_COMMIT, "no remote branch").expect("record");
+    record_lost_push(root.as_path(), "refs/heads/third", COMMIT).expect("record");
+    let orphans: PathBuf = root.join(ORPHAN_NOTICE_DIRECTORY);
+    for entry in std::fs::read_dir(notice_directory(root.as_path())).expect("directory").flatten().chain(std::fs::read_dir(&orphans).expect("orphans").flatten()) {
+        let text: String = std::fs::read_to_string(entry.path()).expect("record text");
+        let (magic, rest) = text.split_once('\n').expect("a first line");
+        let earlier: String = magic.replacen("monochromatic-git-policy-cli ", "cli-git ", 1);
+        assert_ne!(earlier, magic, "the record names its format by the current spelling: {magic}");
+        std::fs::write(entry.path(), format!("{earlier}\n{rest}")).expect("rewritten with the earlier first line");
+    }
+    let identity = |commit: &str| { return commit.to_string(); };
+    let owner: Worktrees = Worktrees { here: Some(BRANCH.to_string()), all: vec![BRANCH.to_string(), "refs/heads/other".to_string(), "refs/heads/third".to_string()] };
+    assert_eq!(take_push_failures_for(root.as_path(), Some(&owner), &identity), vec![push_failure_text(BRANCH, COMMIT, "rejected")], "only the record of the asking worktree's branch, worded");
+    let mut rest: Vec<String> = take_push_failures(root.as_path());
+    rest.extend(take_orphaned_failures(root.as_path(), &identity));
+    rest.sort();
+    assert_eq!(rest.len(), 2, "{rest:?}");
+    assert!(rest.iter().all(|text| { return !text.contains("cli-git push"); }), "no raw first line is shown: {rest:?}");
     remove(root.as_path());
 }
 

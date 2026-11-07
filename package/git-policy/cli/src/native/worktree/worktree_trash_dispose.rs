@@ -28,6 +28,7 @@ use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_manifest::TrashManifest;
 use crate::parallel_budget::HostResources;
 use crate::worktree_trash_entries::{EntryRemoval, remove_entries};
+use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
 use std::io::Write;
@@ -98,7 +99,7 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
     };
     debug(TAG, format!("the trash {} could not be handed to the service ({why}); emptying it here", manifest.name).as_str());
     // The person waits for this, so they are told what is being done and why, once.
-    let _told = writeln!(notices, "cli-git: emptying the directories left out of the new worktree {} now, because the commit service could not take them over ({why}); this can take a while.", destination.display());
+    let _told = writeln!(notices, "monochromatic-git-policy-cli: emptying the directories left out of the new worktree {} now, because the commit service could not take them over ({why}); this can take a while.", destination.display());
     if let Err(reason) = delete_trash(destination, git_dir, manifest) {
         let stays: String = match record {
             Some(path) => format!("the work item {} stays, so the commit service empties it when it next runs for this worktree", path.display()),
@@ -169,20 +170,38 @@ fn is_not_empty(error: &std::io::Error) -> bool {
     return matches!(error.raw_os_error(), Some(libc::ENOTEMPTY | libc::EEXIST));
 }
 
+/// Whether two paths that both resolve name the same place; a path that cannot be resolved names none.
+fn same_after_resolving(left: &Path, right: &Path) -> bool {
+    return match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
+        (Ok(resolved_left), Ok(resolved_right)) => resolved_left == resolved_right,
+        _ => false,
+    };
+}
+
 /// Check that the worktree at `repository` is the one whose administrative directory is `git_dir`: its `.git` file, read
 ///  below the held root, points at that directory.
 fn verify_association(root: &File, repository: &Path, git_dir: &Path) -> Result<(), String> {
-    let pointer: File = open_file_at(root, std::ffi::OsStr::new(".git")).map_err(|error: std::io::Error| { return format!("{} has no readable .git file ({error}), so it is no linked worktree and its trash is left alone", repository.display()); })?;
-    if !pointer.metadata().is_ok_and(|found: std::fs::Metadata| { return found.is_file(); }) {
+    let pointer: File = match open_file_at(root, std::ffi::OsStr::new(".git")) {
+        Ok(opened) => opened,
+        Err(error) => return Err(format!("{} has no readable .git file ({error}), so it is no linked worktree and its trash is left alone", repository.display())),
+    };
+    let is_file: bool = match pointer.metadata() {
+        Ok(found) => found.is_file(),
+        Err(_unreadable) => false,
+    };
+    if !is_file {
         return Err(format!("{}/.git is not a file, so its trash is left alone", repository.display()));
     }
     let mut text: String = String::new();
-    std::io::Read::read_to_string(&mut std::io::Read::take(&pointer, POINTER_LIMIT), &mut text).map_err(|error: std::io::Error| { return format!("{}/.git cannot be read ({error})", repository.display()); })?;
-    let Some(recorded) = text.strip_prefix("gitdir:").map(|rest: &str| { return rest.trim(); }) else {
+    if let Err(error) = std::io::Read::read_to_string(&mut std::io::Read::take(&pointer, POINTER_LIMIT), &mut text) {
+        return Err(format!("{}/.git cannot be read ({error})", repository.display()));
+    }
+    let Some(after_prefix) = text.strip_prefix("gitdir:") else {
         return Err(format!("{}/.git does not point at an administrative directory, so its trash is left alone", repository.display()));
     };
+    let recorded: &str = after_prefix.trim();
     let pointed: PathBuf = if Path::new(recorded).is_absolute() { PathBuf::from(recorded) } else { repository.join(recorded) };
-    let same: bool = pointed == git_dir || std::fs::canonicalize(&pointed).ok().zip(std::fs::canonicalize(git_dir).ok()).is_some_and(|(left, right): (PathBuf, PathBuf)| { return left == right; });
+    let same: bool = pointed == git_dir || same_after_resolving(pointed.as_path(), git_dir);
     if !same {
         return Err(format!("{}/.git points at {} and not at {}, so its trash is left alone", repository.display(), pointed.display(), git_dir.display()));
     }
@@ -202,10 +221,13 @@ fn verify_association(root: &File, repository: &Path, git_dir: &Path) -> Result<
 /// await deleteTrash({ repository, gitDir, manifest }); // throws the reason something stays
 /// ```
 pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), String> {
-    let root: File = open_root(repository).map_err(|error: std::io::Error| { return format!("{} cannot be opened as the worktree ({error})", repository.display()); })?;
+    let root: File = path_failure(open_root(repository), repository, "cannot be opened as the worktree")?;
     verify_association(&root, repository, git_dir)?;
-    let device: u64 = device_of(&root).map_err(|error: std::io::Error| { return format!("{} cannot be examined ({error})", repository.display()); })?;
-    let names = plain_components(Path::new(TRASH_PARENT)).map_err(|error: std::io::Error| { return format!("the trash parent is not a plain path ({error})"); })?;
+    let device: u64 = path_failure(device_of(&root), repository, "cannot be examined")?;
+    let names = match plain_components(Path::new(TRASH_PARENT)) {
+        Ok(found) => found,
+        Err(error) => return Err(format!("the trash parent is not a plain path ({error})")),
+    };
     let mut shown: PathBuf = repository.to_path_buf();
     let mut holders: Vec<File> = vec![root];
     for name in &names {
@@ -227,7 +249,7 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(format!("{} is not a plain directory ({error}), so it is left alone", shown.join(&manifest.name).display())),
     };
-    let found = identity_of(&trash).map_err(|error: std::io::Error| { return format!("{} cannot be examined ({error})", shown.join(&manifest.name).display()); })?;
+    let found = path_failure(identity_of(&trash), shown.join(&manifest.name).as_path(), "cannot be examined")?;
     if found != manifest.trash {
         return Err(format!("{} is not the directory the snapshot made ({} instead of {}), so it is left alone", shown.join(&manifest.name).display(), found.encode(), manifest.trash.encode()));
     }
@@ -236,16 +258,15 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
     if !left.is_empty() {
         return Err(left.join("; "));
     }
-    let strangers: Vec<String> = std::fs::read_dir(handle_path(&trash))
-        .map_err(|error: std::io::Error| { return format!("{} cannot be listed ({error})", inside.display()); })?
-        .flatten()
-        .map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .collect();
+    let mut strangers: Vec<String> = Vec::new();
+    for entry in path_failure(std::fs::read_dir(handle_path(&trash)), inside.as_path(), "cannot be listed")?.flatten() {
+        strangers.push(entry.file_name().to_string_lossy().into_owned());
+    }
     if !strangers.is_empty() {
         return Err(format!("{} also holds {}, which the snapshot did not put there, so the trash directory is left alone", inside.display(), strangers.join(", ")));
     }
     drop(trash);
-    remove_at(parent, std::ffi::OsStr::new(manifest.name.as_str()), true).map_err(|error: std::io::Error| { return format!("{} cannot be removed ({error})", inside.display()); })?;
+    path_failure(remove_at(parent, std::ffi::OsStr::new(manifest.name.as_str()), true), inside.as_path(), "cannot be removed")?;
     // The parent goes when nothing else is in it; a refusal only means another trash directory is still there.
     if let [.., above, _] = holders.as_slice()
         && let Some(last) = names.last()

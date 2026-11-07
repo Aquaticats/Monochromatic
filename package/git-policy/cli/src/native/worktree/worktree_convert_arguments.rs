@@ -1,5 +1,5 @@
 //! What:
-//!  The grammar of `git cli-git convert-worktree-to-subvolume`.
+//!  The grammar of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
 //! Why:
 //!  The grammar is parsed on every platform by the management namespace; only the run needs Linux and btrfs.
 //!
@@ -9,7 +9,7 @@
 //! ```
 
 /// The text of `--help`.
-pub const CONVERT_HELP: &str = "git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)
+pub const CONVERT_HELP: &str = "git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)
 
 Convert linked worktrees that are ordinary directories into btrfs subvolumes at the same path, side by side.
 A snapshot of the main checkout then shows each converted worktree as an empty directory instead of a full copy.
@@ -38,7 +38,7 @@ renames or replaces a path, between a check and the step that relies on it can l
 ";
 
 /// The one line printed on standard error when a conversion runs, before anything is removed.
-pub const RISK_NOTICE: &str = "cli-git: this deletes the old directory of each worktree after the copy is verified. A process that changes a worktree while it is converted can lose data, and that risk is yours; stop such processes first.";
+pub const RISK_NOTICE: &str = "monochromatic-git-policy-cli: this deletes the old directory of each worktree after the copy is verified. A process that changes a worktree while it is converted can lose data, and that risk is yours; stop such processes first.";
 
 /// What:
 ///  The parsed options.
@@ -94,7 +94,14 @@ pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArg
         };
         match word {
             "--jobs" => {
-                let value: &str = tokens.next().and_then(|next: &std::ffi::OsString| { return next.to_str(); }).ok_or_else(|| { return String::from("--jobs needs a count, as in --jobs 4"); })?;
+                // The word after `--jobs`, as text; a missing word and a word that is not text are the same refusal.
+                let next_text: Option<&str> = match tokens.next() {
+                    Some(next) => next.to_str(),
+                    None => None,
+                };
+                let Some(value) = next_text else {
+                    return Err(String::from("--jobs needs a count, as in --jobs 4"));
+                };
                 parsed.jobs = Some(parse_jobs(value)?);
             }
             other if other.starts_with("--jobs=") => parsed.jobs = Some(parse_jobs(&other["--jobs=".len()..])?),
@@ -102,7 +109,7 @@ pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArg
             "--dry-run" => parsed.dry_run = true,
             "--abandon" => parsed.abandon = true,
             "--all" => parsed.all = true,
-            other if other.starts_with('-') => return Err(format!("unknown option {other}; see `git cli-git convert-worktree-to-subvolume --help`")),
+            other if other.starts_with('-') => return Err(format!("unknown option {other}; see `git monochromatic-git-policy-cli convert-worktree-to-subvolume --help`")),
             _ => parsed.paths.push(token.clone()),
         }
     }
@@ -110,7 +117,7 @@ pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArg
         return Err(String::from("--dry-run and --abandon cannot be combined"));
     }
     if !parsed.help && !parsed.all && parsed.paths.is_empty() {
-        return Err(String::from("name a worktree or pass --all; see `git cli-git convert-worktree-to-subvolume --help`"));
+        return Err(String::from("name a worktree or pass --all; see `git monochromatic-git-policy-cli convert-worktree-to-subvolume --help`"));
     }
     if parsed.all && !parsed.paths.is_empty() {
         return Err(String::from("--all and named worktrees cannot be combined"));
@@ -119,7 +126,7 @@ pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArg
 }
 
 /// What:
-///  Whether the global options before `cli-git` choose an attribute source: `--attr-source`, `-c attr.tree=...` or
+///  Whether the global options before `monochromatic-git-policy-cli` choose an attribute source: `--attr-source`, `-c attr.tree=...` or
 ///  `--config-env=attr.tree=...`.
 /// Why:
 ///   Git would then take its attributes from a tree, which the conversion's content check does not read, so the check refuses
@@ -136,8 +143,15 @@ pub fn selects_attribute_source(globals: &[std::ffi::OsString]) -> bool {
         if text.starts_with("--attr-source") || text.starts_with("--config-env=attr.tree") {
             return true;
         }
-        if text == "-c" && words.next().is_some_and(|value: &std::ffi::OsString| { return value.to_string_lossy().to_lowercase().starts_with("attr.tree"); }) {
-            return true;
+        if text == "-c" {
+            // The value is read only after a `-c`, as the short-circuit of `&&` did.
+            let names_tree: bool = match words.next() {
+                Some(value) => value.to_string_lossy().to_lowercase().starts_with("attr.tree"),
+                None => false,
+            };
+            if names_tree {
+                return true;
+            }
         }
     }
     return false;

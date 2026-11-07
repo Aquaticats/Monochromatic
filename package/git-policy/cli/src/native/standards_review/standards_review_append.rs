@@ -3,7 +3,7 @@
 //!  appends to at the same time: one whole-entry write on an append-mode descriptor, once per commit, creating the
 //!  directory and the file when missing.
 //! Why:
-//!  The live log is an untracked file in the common repository directory (`cli-git/standards-review-shadow.md`), and no
+//!  The live log is an untracked file in the common repository directory (`monochromatic-git-policy-cli/standards-review-shadow.md`), and no
 //!  lock may be taken. One write of the whole entry on an `O_APPEND` descriptor lands at the end of the file in one step,
 //!  so two instances (threads or processes, each with its own descriptor) cannot interleave their entries. Nothing else
 //!  edits this file, so the protection a tracked, session-edited log needed is gone: the per-worktree spool of delivered
@@ -37,7 +37,10 @@ fn token(sha: &str) -> String {
 
 /// Whether the log names the commit already; a log that cannot be read names nothing.
 pub fn names_commit(log: &Path, sha: &str) -> bool {
-    return std::fs::read_to_string(log).is_ok_and(|text| return text.contains(token(sha).as_str()));
+    return match std::fs::read_to_string(log) {
+        Ok(text) => text.contains(token(sha).as_str()),
+        Err(_) => false,
+    };
 }
 
 /// What:
@@ -88,7 +91,9 @@ pub fn deliver(log: &Path, sha: &str, text: &str) -> Result<Delivery, String> {
     if current.contains(token(sha).as_str()) {
         return Ok(Delivery::AlreadyThere);
     }
-    append_whole(log, text).map_err(|error| return format!("appending to {} failed: {error}", log.display()))?;
+    if let Err(error) = append_whole(log, text) {
+        return Err(format!("appending to {} failed: {error}", log.display()));
+    }
     return Ok(Delivery::Appended);
 }
 

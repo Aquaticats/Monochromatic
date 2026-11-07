@@ -63,10 +63,12 @@ fn is_js_whitespace(character: char) -> bool {
 /// const isItem = trimmed.startsWith("- '") && trimmed.endsWith("'") && trimmed.length > 4;
 /// ```
 fn item_name(trimmed: &str) -> Option<&str> {
-    return trimmed
-        .strip_prefix(ITEM_PREFIX)
-        .and_then(|rest: &str| return rest.strip_suffix('\''))
-        .filter(|name: &&str| return !name.is_empty());
+    let rest: &str = trimmed.strip_prefix(ITEM_PREFIX)?;
+    let name: &str = rest.strip_suffix('\'')?;
+    if name.is_empty() {
+        return None;
+    }
+    return Some(name);
 }
 
 /// What: The names in the `packages:` list, in configuration order; nothing when the list
@@ -79,14 +81,27 @@ fn item_name(trimmed: &str) -> Option<&str> {
 /// function readPublishableNames(configText: string): string[];
 /// ```
 pub fn read_publishable_names(config_text: &str) -> Vec<String> {
-    let mut lines = config_text
-        .split('\n')
-        .map(|line: &str| return line.trim_matches(is_js_whitespace));
-    // `.any(...)` consumes lines up to and including the key line.
-    if !lines.any(|line: &str| return line == PACKAGES_KEY) {
+    let mut lines = config_text.split('\n');
+    // This loop consumes lines up to and including the key line, as `.any(...)` did.
+    let mut found_key: bool = false;
+    for line in lines.by_ref() {
+        if line.trim_matches(is_js_whitespace) == PACKAGES_KEY {
+            found_key = true;
+            break;
+        }
+    }
+    if !found_key {
         return Vec::new();
     }
-    return lines.map_while(item_name).map(String::from).collect();
+    // The list ends at the first line that is not an item, as `.map_while(...)` ended it.
+    let mut names: Vec<String> = Vec::new();
+    for line in lines {
+        let Some(name) = item_name(line.trim_matches(is_js_whitespace)) else {
+            break;
+        };
+        names.push(String::from(name));
+    }
+    return names;
 }
 
 /// Publishable-name reading, including every case of the incumbent's unit tests.

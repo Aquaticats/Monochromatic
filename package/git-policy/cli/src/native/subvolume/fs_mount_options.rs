@@ -65,9 +65,38 @@ impl MountFacts {
     /// const hasOption = (m: MountFacts, name: string) => m.mountOptions.includes(name) || m.superOptions.includes(name);
     /// ```
     pub fn has_option(&self, name: &str) -> bool {
-        return self.mount_options.iter().any(|option| { return option == name; })
-            || self.super_options.iter().any(|option| { return option == name; });
+        return list_has(self.mount_options.as_slice(), name) || list_has(self.super_options.as_slice(), name);
     }
+}
+
+/// Whether one of the option texts is exactly `name`.
+fn list_has(options: &[String], name: &str) -> bool {
+    for option in options {
+        if option == name {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Whether `byte` is a comma, the separator inside an option field.
+fn is_comma(byte: &u8) -> bool {
+    return *byte == b',';
+}
+
+/// Whether `byte` is a space, the separator between mountinfo fields.
+fn is_space(byte: &u8) -> bool {
+    return *byte == b' ';
+}
+
+/// Whether `byte` is a newline, the separator between mountinfo lines.
+fn is_newline(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// Whether `byte` is one of the octal digits `0` to `7`.
+fn is_octal_digit(byte: &u8) -> bool {
+    return (b'0'..=b'7').contains(byte);
 }
 
 /// What:
@@ -83,10 +112,11 @@ fn split_options(field: &[u8]) -> Vec<String> {
     if field.is_empty() {
         return Vec::new();
     }
-    return field
-        .split(|byte: &u8| { return *byte == b','; })
-        .map(|option: &[u8]| { return String::from_utf8_lossy(option).into_owned(); })
-        .collect();
+    let mut options: Vec<String> = Vec::new();
+    for option in field.split(is_comma) {
+        options.push(String::from_utf8_lossy(option).into_owned());
+    }
+    return options;
 }
 
 /// What:
@@ -99,8 +129,15 @@ fn split_options(field: &[u8]) -> Vec<String> {
 /// function parseLine(line: Uint8Array): MountFacts | undefined;
 /// ```
 fn parse_line(line: &[u8]) -> Option<MountFacts> {
-    let fields: Vec<&[u8]> = line.split(|byte: &u8| { return *byte == b' '; }).collect();
-    let separator: usize = fields.iter().position(|field: &&[u8]| { return *field == b"-"; })?;
+    let fields: Vec<&[u8]> = line.split(is_space).collect();
+    let mut separator_at: Option<usize> = None;
+    for (position, field) in fields.iter().enumerate() {
+        if *field == b"-" {
+            separator_at = Some(position);
+            break;
+        }
+    }
+    let separator: usize = separator_at?;
     if separator < 6 || fields.len() < separator + 4 {
         return None;
     }
@@ -126,7 +163,7 @@ fn parse_line(line: &[u8]) -> Option<MountFacts> {
 /// ```
 pub fn parse_mount_table(text: &[u8]) -> Vec<MountFacts> {
     return text
-        .split(|byte: &u8| { return *byte == b'\n'; })
+        .split(is_newline)
         .filter_map(parse_line)
         .collect();
 }
@@ -173,33 +210,68 @@ fn longest_mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Op
 /// const mountOf = (table: MountFacts[], path: string) => walkFromRoot(table, path) ?? longestMount(table, path);
 /// ```
 pub fn mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option<&'table MountFacts> {
-    let known: std::collections::HashSet<u64> = table.iter().map(|mount: &MountFacts| { return mount.mount_id; }).collect();
+    let mut known: std::collections::HashSet<u64> = std::collections::HashSet::new();
+    for mount in table {
+        known.insert(mount.mount_id);
+    }
     let mut prefixes: Vec<&Path> = path.ancestors().collect();
     prefixes.reverse();
     let mut current: Option<&MountFacts> = None;
     for prefix in prefixes {
         loop {
-            let here = |mount: &&MountFacts| -> bool { return mount.mount_point == prefix; };
-            let on_top = |mount: &&MountFacts| -> bool {
-                return match current {
-                    Some(held) => mount.parent_id == held.mount_id,
-                    None => !known.contains(&mount.parent_id),
-                };
-            };
-            let linked: Option<&MountFacts> = table.iter().rev().filter(here).find(on_top);
+            let linked: Option<&MountFacts> = topmost_linked(table, prefix, current, &known);
             // A mount whose parent is not in the table cannot be placed by ids; it is taken only when nothing placed has landed here.
-            let unlinked: Option<&MountFacts> = if linked.is_none() && current.is_some_and(|held: &MountFacts| { return held.mount_point != prefix; }) {
-                table.iter().rev().filter(here).find(|mount: &&MountFacts| { return !known.contains(&mount.parent_id); })
-            } else {
-                None
+            let placed_elsewhere: bool = match current {
+                Some(held) => held.mount_point != prefix,
+                None => false,
             };
+            let unlinked: Option<&MountFacts> = if linked.is_none() && placed_elsewhere { topmost_unplaced(table, prefix, &known) } else { None };
             match linked.or(unlinked) {
-                Some(found) if current.is_none_or(|held: &MountFacts| { return !std::ptr::eq(held, found); }) => current = Some(found),
+                Some(found) if is_new_mount(current, found) => current = Some(found),
                 _ => break,
             }
         }
     }
-    return current.or_else(|| { return longest_mount_holding(table, path); });
+    if current.is_some() {
+        return current;
+    }
+    return longest_mount_holding(table, path);
+}
+
+/// The last mount of the table made at `prefix` on top of the mount reached so far (`current`), or, with none reached, whose
+/// parent is not in the table (`known` holds every id).
+fn topmost_linked<'table>(table: &'table [MountFacts], prefix: &Path, current: Option<&MountFacts>, known: &std::collections::HashSet<u64>) -> Option<&'table MountFacts> {
+    for mount in table.iter().rev() {
+        if mount.mount_point != prefix {
+            continue;
+        }
+        let on_top: bool = match current {
+            Some(held) => mount.parent_id == held.mount_id,
+            None => !known.contains(&mount.parent_id),
+        };
+        if on_top {
+            return Some(mount);
+        }
+    }
+    return None;
+}
+
+/// The last mount of the table made at `prefix` whose parent id is not in the table.
+fn topmost_unplaced<'table>(table: &'table [MountFacts], prefix: &Path, known: &std::collections::HashSet<u64>) -> Option<&'table MountFacts> {
+    for mount in table.iter().rev() {
+        if mount.mount_point == prefix && !known.contains(&mount.parent_id) {
+            return Some(mount);
+        }
+    }
+    return None;
+}
+
+/// Whether `found` is a different mount from the one reached so far, so the walk moved on.
+fn is_new_mount(current: Option<&MountFacts>, found: &MountFacts) -> bool {
+    return match current {
+        Some(held) => !std::ptr::eq(held, found),
+        None => true,
+    };
 }
 
 /// What:
@@ -213,10 +285,14 @@ pub fn mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option
 /// const facts = mountOf(parseMountTable(await readFile(MOUNTINFO_PATH)), await realpath(path));
 /// ```
 pub fn read_mount_facts(path: &Path) -> Result<Option<MountFacts>, String> {
-    let real: PathBuf = std::fs::canonicalize(path)
-        .map_err(|error| { return format!("cannot resolve {}: {error}", path.display()); })?;
-    let text: Vec<u8> = std::fs::read(MOUNTINFO_PATH)
-        .map_err(|error| { return format!("cannot read {MOUNTINFO_PATH}: {error}"); })?;
+    let real: PathBuf = match std::fs::canonicalize(path) {
+        Ok(resolved) => resolved,
+        Err(error) => return Err(format!("cannot resolve {}: {error}", path.display())),
+    };
+    let text: Vec<u8> = match std::fs::read(MOUNTINFO_PATH) {
+        Ok(bytes) => bytes,
+        Err(error) => return Err(format!("cannot read {MOUNTINFO_PATH}: {error}")),
+    };
     let table: Vec<MountFacts> = parse_mount_table(text.as_slice());
     return Ok(mount_holding(table.as_slice(), real.as_path()).cloned());
 }
@@ -242,9 +318,7 @@ pub fn unmangle_octal(field: &[u8]) -> Vec<u8> {
     while index < field.len() {
         let is_escape: bool = field[index] == b'\\'
             && index + 3 < field.len()
-            && field[index + 1..index + 4]
-                .iter()
-                .all(|digit: &u8| { return (b'0'..=b'7').contains(digit); });
+            && field[index + 1..index + 4].iter().all(is_octal_digit);
         if is_escape {
             let value: u32 = 64 * u32::from(field[index + 1] & 7)
                 + 8 * u32::from(field[index + 2] & 7)

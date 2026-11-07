@@ -41,3 +41,12 @@ run = ["mise run //package/pi-plugin/advisor:build", "node src/verify-host.ts"]
 
 [tasks."verify:host".env]
 PI_ADVISOR_VERIFY_HOST = "1"
+
+[tasks."verify:source-lint"]
+description = "Check all Advisor source with the normal lint rules without out-of-project task files"
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['src'])
+"""

@@ -20,11 +20,12 @@ use crate::client_journal::record_entry_as;
 use crate::diagnostic_log::debug;
 use crate::journald_native::Priority;
 use crate::path_bytes::path_message_text;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::word_merge::{LineSpan, MergedPart, WordMerge, merge_by_word};
+pub use crate::merge_second_pass_conflicts::{Conflict, Stage, conflicts_of_merge_tree};
+use crate::merge_second_pass_conflicts::{is_nul_byte, split_once};
+pub use crate::merge_second_pass_git_runner::{ContextRunner, GitReply, GitRunner, config_options};
 use std::collections::BTreeMap;
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "wordMerge";
@@ -69,149 +70,6 @@ const TEXT_MERGE_VALUES: [&str; 3] = ["unspecified", "set", "text"];
 
 /// The fields `git check-attr -z` prints for each answer: the path, the attribute and its value.
 const ATTRIBUTE_FIELDS: usize = 3;
-
-/// The stage numbers of the common ancestor, the first side and the second side.
-const BASE_STAGE: u8 = 1;
-const OURS_STAGE: u8 = 2;
-const THEIRS_STAGE: u8 = 3;
-
-/// What a Git start gave back.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GitReply {
-    /// The exit status, or nothing when a signal ended Git.
-    pub code: Option<i32>,
-    /// Standard output.
-    pub stdout: Vec<u8>,
-    /// Standard error.
-    pub stderr: Vec<u8>,
-}
-
-/// How a caller starts Git for the second pass: in the repository it works in, with its environment and global options.
-pub trait GitRunner {
-    /// Start Git with `arguments`, `input` on standard input and `index_file` as the index when given. `Err` means Git could
-    /// not be started; an exit status other than 0 is a reply.
-    fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String>;
-}
-
-/// The runner for callers that start Git through `run_git`: one context, one directory and a fixed set of request options.
-pub struct ContextRunner<'a> {
-    /// The real Git, its overlay and the global options of the invocation.
-    pub context: &'a GitContext,
-    /// The directory every start runs in.
-    pub cwd: &'a Path,
-    /// Whether the invocation's global options are left out (the commit replay's private runs).
-    pub without_prefix: bool,
-    /// The object store that receives written objects, when it is not the repository's own.
-    pub object_directory: Option<&'a Path>,
-    /// Variables added to every start.
-    pub environment: Vec<(OsString, OsString)>,
-}
-
-/// Starting Git through the shared runner.
-impl GitRunner for ContextRunner<'_> {
-    fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String> {
-        let mut request: GitRequest = GitRequest::new(self.cwd, arguments);
-        request.without_prefix = self.without_prefix;
-        request.object_directory = self.object_directory.map(Path::to_path_buf);
-        request.environment.clone_from(&self.environment);
-        request.input = input.map(<[u8]>::to_vec);
-        request.index = index_file.map(PathBuf::from);
-        let output = run_git(self.context, &request).map_err(|error| { return format!("git {} could not start: {error}", arguments.join(" ")); })?;
-        return Ok(GitReply { code: output.code, stdout: output.stdout, stderr: output.stderr });
-    }
-}
-
-/// What:
-///  The configuration options (`-c <name>=<value>`) among an invocation's global options, and nothing else.
-/// Why:
-///   The second pass runs from the top of the worktree, because `git check-attr` and `git checkout-index` read the paths
-///  they are given relative to the directory they run in; `-C` and `--git-dir` would move them again. The settings that change
-///  what a checkout writes (`core.autocrlf`, filters) still apply.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function configOptions(prefix: string[]): string[]; // ['-c', 'a=b', '-c', 'c=d']
-/// ```
-pub fn config_options(prefix: &[OsString]) -> Vec<OsString> {
-    let mut kept: Vec<OsString> = Vec::new();
-    let mut tokens = prefix.iter();
-    while let Some(token) = tokens.next() {
-        if token == "-c"
-            && let Some(setting) = tokens.next()
-        {
-            kept.push(token.clone());
-            kept.push(setting.clone());
-        }
-    }
-    return kept;
-}
-
-/// One side of a conflicted path: its mode and object name.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Stage {
-    /// The file mode with its type bits.
-    pub mode: u32,
-    /// The object name, as hexadecimal text.
-    pub oid: String,
-}
-
-/// A conflicted path with the stages Git recorded for it.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Conflict {
-    /// The path, `/` separated, as bytes.
-    pub path: Vec<u8>,
-    /// The common ancestor, absent for a path both sides added.
-    pub base: Option<Stage>,
-    /// The first side, absent for a path it deleted.
-    pub ours: Option<Stage>,
-    /// The second side, absent for a path it deleted.
-    pub theirs: Option<Stage>,
-}
-
-/// What:
-///  The conflicted paths a merge-tree answer lists, with their stages, in the order Git printed them.
-/// Why:
-///   `git merge-tree --write-tree -z` prints the tree, then one `<mode> <object> <stage>\t<path>` field per stage of every
-///  conflicted path, then an empty field, then the messages. The name-only form does not carry the object names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function conflictsOfMergeTree(stdout: Uint8Array): { tree: string; conflicts: Conflict[] };
-/// ```
-pub fn conflicts_of_merge_tree(stdout: &[u8]) -> (String, Vec<Conflict>) {
-    let mut fields = stdout.split(|byte| { return *byte == 0; });
-    let tree: String = String::from_utf8_lossy(fields.next().unwrap_or_default()).into_owned();
-    let mut by_path: BTreeMap<Vec<u8>, Conflict> = BTreeMap::new();
-    let mut order: Vec<Vec<u8>> = Vec::new();
-    for field in fields {
-        if field.is_empty() {
-            break;
-        }
-        let Some((facts, path)) = split_once(field, b'\t') else { continue };
-        let words: Vec<&[u8]> = facts.split(|byte| { return *byte == b' '; }).collect();
-        let [mode_bytes, oid_bytes, stage_bytes] = words.as_slice() else { continue };
-        let (Ok(mode_text), Ok(oid_text), Ok(stage_text)) = (std::str::from_utf8(mode_bytes), std::str::from_utf8(oid_bytes), std::str::from_utf8(stage_bytes)) else { continue };
-        let (Ok(mode), Ok(stage)) = (u32::from_str_radix(mode_text, 8), stage_text.parse::<u8>()) else { continue };
-        if !by_path.contains_key(path) {
-            order.push(path.to_vec());
-        }
-        let conflict: &mut Conflict = by_path.entry(path.to_vec()).or_insert_with(|| { return Conflict { path: path.to_vec(), base: None, ours: None, theirs: None }; });
-        let side: Option<Stage> = Some(Stage { mode, oid: oid_text.to_owned() });
-        match stage {
-            BASE_STAGE => conflict.base = side,
-            OURS_STAGE => conflict.ours = side,
-            THEIRS_STAGE => conflict.theirs = side,
-            _ => {}
-        }
-    }
-    return (tree, order.into_iter().filter_map(|path| { return by_path.remove(&path); }).collect());
-}
-
-/// The text before the first `separator` and the text after it.
-fn split_once(bytes: &[u8], separator: u8) -> Option<(&[u8], &[u8])> {
-    let at: usize = bytes.iter().position(|byte| { return *byte == separator; })?;
-    return Some((&bytes[..at], &bytes[at + 1..]));
-}
 
 /// Why a conflicted path is left to the person.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -282,7 +140,12 @@ fn unfit(bytes: &[u8]) -> Option<Left> {
 /// The mode all three stages share, when it is a plain file's.
 fn shared_plain_mode(stages: [&Stage; 3]) -> Option<u32> {
     let mode: u32 = stages[0].mode;
-    if stages.iter().all(|stage| { return stage.mode == mode; }) && PLAIN_FILE_MODES.contains(&mode) {
+    for stage in stages {
+        if stage.mode != mode {
+            return None;
+        }
+    }
+    if PLAIN_FILE_MODES.contains(&mode) {
         return Some(mode);
     }
     return None;
@@ -312,7 +175,7 @@ fn merge_attributes(runner: &dyn GitRunner, paths: &[&[u8]]) -> Result<BTreeMap<
     if reply.code != Some(0) {
         return Err(format!("git check-attr failed: {}", String::from_utf8_lossy(&reply.stderr).trim()));
     }
-    let fields: Vec<&[u8]> = reply.stdout.split(|byte| { return *byte == 0; }).collect();
+    let fields: Vec<&[u8]> = reply.stdout.split(is_nul_byte).collect();
     let mut values: BTreeMap<Vec<u8>, String> = BTreeMap::new();
     for triple in fields.as_chunks::<ATTRIBUTE_FIELDS>().0 {
         values.insert(triple[0].to_vec(), String::from_utf8_lossy(triple[2]).into_owned());
@@ -346,7 +209,9 @@ fn read_blobs(runner: &dyn GitRunner, oids: &[&str]) -> Result<BTreeMap<String, 
         let header: String = String::from_utf8_lossy(header_bytes).into_owned();
         let words: Vec<&str> = header.split(' ').collect();
         let [name, _kind, size_text] = words.as_slice() else { return Err(format!("git cat-file could not read {oid}: {header}")) };
-        let size: usize = size_text.parse().map_err(|_| { return format!("git cat-file printed an unreadable size for {oid}: {header}"); })?;
+        let Ok(size) = size_text.parse::<usize>() else {
+            return Err(format!("git cat-file printed an unreadable size for {oid}: {header}"));
+        };
         let Some(content) = after.get(..size) else { return Err(format!("git cat-file ended inside {oid}")) };
         blobs.insert((*name).to_owned(), content.to_vec());
         rest = after.get(size + 1..).unwrap_or_default();
@@ -380,10 +245,11 @@ pub fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict]) -> Result<Vec
             }
         }
     }
-    let attributes: BTreeMap<Vec<u8>, String> = merge_attributes(
-        runner,
-        candidates.iter().map(|(index, _)| { return conflicts[*index].path.as_slice(); }).collect::<Vec<&[u8]>>().as_slice(),
-    )?;
+    let mut candidate_paths: Vec<&[u8]> = Vec::new();
+    for (index, _) in &candidates {
+        candidate_paths.push(conflicts[*index].path.as_slice());
+    }
+    let attributes: BTreeMap<Vec<u8>, String> = merge_attributes(runner, candidate_paths.as_slice())?;
     let mut wanted: Vec<&str> = Vec::new();
     for (index, _) in &candidates {
         let conflict: &Conflict = &conflicts[*index];
@@ -396,16 +262,29 @@ pub fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict]) -> Result<Vec
     let blobs: BTreeMap<String, Vec<u8>> = if wanted.is_empty() { BTreeMap::new() } else { read_blobs(runner, wanted.as_slice())? };
     for (index, mode) in candidates {
         let conflict: &Conflict = &conflicts[index];
-        if let Some(value) = attributes.get(&conflict.path).filter(|value| { return !TEXT_MERGE_VALUES.contains(&value.as_str()); }) {
+        if let Some(value) = attributes.get(&conflict.path)
+            && !TEXT_MERGE_VALUES.contains(&value.as_str())
+        {
             verdicts.insert(index, Verdict::Left { path: conflict.path.clone(), why: Left::Driver(value.clone()) });
             continue;
         }
-        let sides: Vec<&Vec<u8>> = [&conflict.base, &conflict.ours, &conflict.theirs]
-            .into_iter()
-            .filter_map(|stage| { return stage.as_ref().and_then(|found| { return blobs.get(&found.oid); }); })
-            .collect();
+        let mut sides: Vec<&Vec<u8>> = Vec::new();
+        for stage in [&conflict.base, &conflict.ours, &conflict.theirs] {
+            if let Some(found) = stage.as_ref()
+                && let Some(bytes) = blobs.get(&found.oid)
+            {
+                sides.push(bytes);
+            }
+        }
         let [base, ours, theirs] = sides.as_slice() else { return Err(format!("a stage of {} was not read", path_message_text(conflict.path.as_slice()))) };
-        let verdict: Verdict = match [base, ours, theirs].into_iter().find_map(|bytes| { return unfit(bytes); }) {
+        let mut reason: Option<Left> = None;
+        for bytes in [base, ours, theirs] {
+            reason = unfit(bytes);
+            if reason.is_some() {
+                break;
+            }
+        }
+        let verdict: Verdict = match reason {
             Some(why) => Verdict::Left { path: conflict.path.clone(), why },
             None => match merge_by_word(base, ours, theirs) {
                 WordMerge::Resolved { merged, parts } => Verdict::Merged(Box::new(Merged { path: conflict.path.clone(), mode, bytes: merged, parts, stages: conflict.clone() })),
@@ -529,12 +408,11 @@ pub fn report_lines(prefix: &str, merged: &Merged) -> Vec<String> {
     if merged.parts.is_empty() {
         return vec![format!("{prefix}{REPORT_MARK}: {path}: resolved without a word pass (every region took one side)")];
     }
-    return merged
-        .parts
-        .iter()
-        .enumerate()
-        .map(|(at, part)| { return format!("{prefix}{REPORT_MARK}: {path}: part {} of {}: {}", at + 1, merged.parts.len(), part_text(part)); })
-        .collect();
+    let mut lines: Vec<String> = Vec::new();
+    for (at, part) in merged.parts.iter().enumerate() {
+        lines.push(format!("{prefix}{REPORT_MARK}: {path}: part {} of {}: {}", at + 1, merged.parts.len(), part_text(part)));
+    }
+    return lines;
 }
 
 /// What:

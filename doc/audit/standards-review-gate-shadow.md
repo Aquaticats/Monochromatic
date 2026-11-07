@@ -2424,8 +2424,10 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   627fa9c44471 (no code files):
   `chore(git-policy/cli): release 0.4.2: release builds strip symbols to shorten the first start after eviction; fixtures hard-link the wrapper; new tests for the merge isolation, scratch and transaction survivors`
 - Skipped:
-  75daa1c2b9e4 (no model call: the per-commit full-model review is paused
-  since 2026-10-29 on owner cost correction; set SHADOW_REVIEW_ALLOW=1 to run one):
+  75daa1c2b9e4 (no model call:
+  the per-commit full-model review is paused
+  since 2026-10-29 on owner cost correction;
+  set SHADOW_REVIEW_ALLOW=1 to run one):
   `chore(mise): adopt monochromatic-git-policy-cli 0.4.2 and rust nightly-2026-10-30 via toolchain:update`
 - Skipped:
   f763177525a9 (no code files):

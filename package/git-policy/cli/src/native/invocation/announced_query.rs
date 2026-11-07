@@ -102,8 +102,8 @@ pub fn announcement(query: AnnouncedQuery, version: &str, real_git: &Path) -> St
             return format!(
                 "\nmonochromatic-git-policy-cli {version} sits in front of this git\n\
                  It adds repository policies on commit, push and worktree commands,\n\
-                 the `git cli-git` management command (`git cli-git --help`),\n\
-                 and `git cli-git doctor`, which lists the traditional hooks a repository holds.\n\
+                 the `git monochromatic-git-policy-cli` management command (`git monochromatic-git-policy-cli --help`),\n\
+                 and `git monochromatic-git-policy-cli doctor`, which lists the traditional hooks a repository holds.\n\
                  real git: {}\n",
                 real_git.display()
             );

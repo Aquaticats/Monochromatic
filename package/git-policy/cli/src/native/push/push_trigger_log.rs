@@ -12,9 +12,10 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await appendFile(join(commonDir, 'cli-git-push-trigger.jsonl'), JSON.stringify({ command, outcome, reason }) + '\n');
+//! await appendFile(join(commonDir, 'monochromatic-git-policy-cli-push-trigger.jsonl'), JSON.stringify({ command, outcome, reason }) + '\n');
 //! ```
 
+use crate::wrapper_names_old_and_new::PUSH_TRIGGER_LOG;
 use crate::diagnostic_log::debug;
 use crate::discard_audit::append_line;
 use crate::iso_time::now_iso;
@@ -25,7 +26,7 @@ use crate::service_protocol::RELEASE;
 use std::path::Path;
 
 /// The file inside the common Git directory that collects the trigger records of every worktree of the repository.
-pub const TRIGGER_FILE: &str = "cli-git-push-trigger.jsonl";
+pub const TRIGGER_FILE: &str = PUSH_TRIGGER_LOG.current;
 
 /// The version of the record's fields;
 /// it changes only when a field's meaning changes,

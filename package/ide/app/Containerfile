@@ -20,10 +20,16 @@ RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed 
 RUN CARGO_HOME=/usr/local rustup component add rustfmt
 
 # cargo-about writes the Rust crate license list the executable carries (the `notices` task; user decision of
-# 2026-10-06). Pinned to 0.9.2, the latest release on that day: its crates.io archive (sha256
-# 0cd19d99696eb83f0a2d6ab7a347b14968d2980416c8cca827ded220e6e9c4bb) names the tagged commit
-# f7394d5c8f618623573072caadf6594821c789b6. The command needs the `cli` feature; without it the install builds
-# and installs nothing. Installing is the only step that needs the network: the tasks run it with --frozen.
+# 2026-10-06). The version is the one toolchain.lock.json records (`.tools["cargo:cargo-about"].version`), so the image
+# builds with what developers and CI build with and a daily lock update moves it. The build context is this package
+# directory, not the repository root, so the lock cannot be read at build time: the caller passes the version as
+# `--build-arg CARGO_ABOUT_VERSION=` (package/test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts cargo-about
+# prints it); an empty value stops the build. The lock records no archive for this tool, so crates.io's own checksum check
+# is the integrity check. The command needs the `cli` feature; without it the install builds and installs nothing.
+# Installing is the only step that needs the network: the tasks run it with --frozen.
+ARG CARGO_ABOUT_VERSION
+RUN test -n "${CARGO_ABOUT_VERSION}" \
+    || { echo "CARGO_ABOUT_VERSION is empty: pass --build-arg CARGO_ABOUT_VERSION=<version>, as printed by package/test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts cargo-about" >&2; exit 1; }
 RUN CARGO_HOME=/tmp/cargo-about-build \
-    cargo install --locked --features cli --version 0.9.2 --root /usr/local cargo-about \
+    cargo install --locked --features cli --version "${CARGO_ABOUT_VERSION}" --root /usr/local cargo-about \
  && rm -rf /tmp/cargo-about-build

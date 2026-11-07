@@ -1,4 +1,15 @@
 # libFuzzer (libfuzzer-sys 0.4.13) dictionaries reject `\n`, `\r` and `\t` escapes
+
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
 and the target exits before any execution
 
 ## Symptom
@@ -19,8 +30,12 @@ the runner reported
 (evidence `package/git-policy/cli.fuzz/target/verification/campaign-8fWevh/dependent_version`,
 `exit.json` `{"status":1,"signal":null,"executedUnits":0}`).
 
-Entries that trigger it are any backslash not followed by `\`, `"` or `x` and two hexadecimal digits,
-for example `"\n"`, `"\r\n"`, `"\t"`, `"\0"` and `"A"`.
+Entries that trigger it are any backslash not followed by `\`,
+`"` or `x` and two hexadecimal digits,
+for example `"\n"`,
+`"\r\n"`,
+`"\t"`,
+`"\0"` and `"A"`.
 
 ## Root cause
 
@@ -70,7 +85,8 @@ every other backslash fails the entry,
 ```
 
 This is the documented syntax.
-`llvm/docs/LibFuzzer.md`, section "Dictionaries"
+`llvm/docs/LibFuzzer.md`,
+section "Dictionaries"
 (LLVM `main` at `af2d76922b54fc347faac9727b0748387fea043f`),
 lists only these escapes:
 
@@ -129,21 +145,31 @@ for path in sorted(glob.glob('dictionary/*.dict')):
     print(path, [number for number, line in enumerate(open(path, encoding='latin1'), 1) if not parses(line)])
 ```
 
-On the dictionary before the fix it reports lines 30, 31 and 32,
+On the dictionary before the fix it reports lines 30,
+31 and 32,
 the first of which is the line libFuzzer reported;
 after the fix it reports no line in any of the five dictionaries.
 
 Entries that parse:
 
-- `"\x0a"`, `"\x0d\x0a"`, `"\x09"`, `"\x00"`
-- `"\""`, `"\\"`, `"\\\""`
-- `"\"vers\\u0069on\""` (a backslash escaped as `\\`, then plain `u0069`)
+- `"\x0a"`,
+  `"\x0d\x0a"`,
+  `"\x09"`,
+  `"\x00"`
+- `"\""`,
+  `"\\"`,
+  `"\\\""`
+- `"\"vers\\u0069on\""` (a backslash escaped as `\\`,
+  then plain `u0069`)
 - `" "` (spaces inside the quotes are kept)
 
 Entries that fail:
 
-- `"\n"`, `"\r\n"`, `"\t"`
-- `"\0"`, `"A"`
+- `"\n"`,
+  `"\r\n"`,
+  `"\t"`
+- `"\0"`,
+  `"A"`
 - `"\x0"` (one hexadecimal digit)
 
 ## Verified workarounds
@@ -155,16 +181,21 @@ Spell every byte that is not printable as `\xAB`:
 The entries mean the same bytes;
 the only cost is readability.
 This is what `package/git-policy/cli.fuzz/dictionary/dependent_version.dict` now does,
-matching `batch_reply.dict`, which already wrote `"\x0a"`.
+matching `batch_reply.dict`,
+which already wrote `"\x0a"`.
 
 ## What does not work
 
-- C escapes (`\n`, `\t`, `\r`, `\0`):
+- C escapes (`\n`,
+  `\t`,
+  `\r`,
+  `\0`):
   rejected,
   per section "Root cause".
 - A literal line feed inside the quotes:
   the file is split into entries at line feeds before any entry is parsed
-  (`std::getline(ISS, S, '\n')`, `libfuzzer/FuzzerUtil.cpp:137`),
+  (`std::getline(ISS, S, '\n')`,
+  `libfuzzer/FuzzerUtil.cpp:137`),
   so an entry cannot contain one.
 
 ## Upstream filing decision
@@ -174,7 +205,8 @@ matching `batch_reply.dict`, which already wrote `"\x0a"`.
 1.  Is it really upstream's fault?
     No.
     The behavior matches the documented dictionary syntax,
-    which lists only `\\`, `\"` and `\xAB`.
+    which lists only `\\`,
+    `\"` and `\xAB`.
 2.  Can upstream fix it?
     Yes:
     more escapes could be accepted.

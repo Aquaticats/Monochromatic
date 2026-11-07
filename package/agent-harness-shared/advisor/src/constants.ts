@@ -56,11 +56,6 @@ export const DEFAULT_CONTEXT_OVERHEAD_TOKENS = 256;
 export const DEFAULT_MAX_ADVISOR_OUTPUT_TOKENS = 32_000;
 
 /**
- Character-to-token divisor matching pi's compaction estimate.
- */
-export const TOKEN_ESTIMATE_CHARS_PER_TOKEN = 4;
-
-/**
  Latest user prompt excerpt length shown in details and status output.
  */
 export const LATEST_USER_EXCERPT_CHARS = 240;

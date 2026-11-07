@@ -79,14 +79,14 @@ fn the_rebuilt_note_names_each_build_that_did_not_land_and_the_one_that_did() {
     let names = |words: &[&str]| -> Vec<String> { return words.iter().map(|word| { return (*word).to_string(); }).collect() };
     assert_eq!(
         rebuilt_note(&names(&["1a2b3c4"]), "5d6e7f8"),
-        "cli-git: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did."
+        "monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did."
     );
     assert_eq!(
         rebuilt_note(&names(&["1a2b3c4", "9f8e7d6"]), "5d6e7f8"),
-        "cli-git: the branch moved during the commit, so it was built again; 1a2b3c4 and 9f8e7d6 did not land, 5d6e7f8 did."
+        "monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; 1a2b3c4 and 9f8e7d6 did not land, 5d6e7f8 did."
     );
     assert_eq!(
         rebuilt_note(&names(&["1a2b3c4", "9f8e7d6", "0a0b0c0"]), "5d6e7f8"),
-        "cli-git: the branch moved during the commit, so it was built again; 1a2b3c4, 9f8e7d6 and 0a0b0c0 did not land, 5d6e7f8 did."
+        "monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; 1a2b3c4, 9f8e7d6 and 0a0b0c0 did not land, 5d6e7f8 did."
     );
 }

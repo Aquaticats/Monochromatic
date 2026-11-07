@@ -1,9 +1,9 @@
 //! What:
-//!  What `git cli-git doctor` reports from the configuration: the external hooks Git configuration defines, and the
+//!  What `git monochromatic-git-policy-cli doctor` reports from the configuration: the external hooks Git configuration defines, and the
 //!  retired `hooks.concurrentCommits`, `indexLock.unprovenOwnerTimeoutMs` and `landing.reserveAfterLostRaces` keys.
 //! Why:
 //!  The wrapper runs no external hook, so a configured hook is a finding the author must act on, and each retired key in
-//!  `cli-git.config.jsonc` is accepted for older files but means nothing; doctor says both plainly.
+//!  `monochromatic-git-policy-cli.config.jsonc` is accepted for older files but means nothing; doctor says both plainly.
 //!  The commit path prints the first as a warning from the snapshot it already holds; doctor lists it on request.
 //!
 //! In TS you'd write (pseudocode):
@@ -33,11 +33,11 @@ use std::path::{Path, PathBuf};
 pub struct ConfigFindings {
     /// The configured external hooks, none of which runs.
     pub hooks: Vec<ConfiguredHook>,
-    /// Whether `cli-git.config.jsonc` has the retired `hooks` key.
+    /// Whether `monochromatic-git-policy-cli.config.jsonc` has the retired `hooks` key.
     pub retired_hooks_key: bool,
-    /// Whether `cli-git.config.jsonc` sets the retired `indexLock.unprovenOwnerTimeoutMs`.
+    /// Whether `monochromatic-git-policy-cli.config.jsonc` sets the retired `indexLock.unprovenOwnerTimeoutMs`.
     pub retired_index_lock_key: bool,
-    /// Whether `cli-git.config.jsonc` sets the retired `landing.reserveAfterLostRaces`.
+    /// Whether `monochromatic-git-policy-cli.config.jsonc` sets the retired `landing.reserveAfterLostRaces`.
     pub retired_landing_key: bool,
     /// The limits of the folder of saved copies in force: the file's `discardedCopies`, else the defaults.
     pub discarded: Limits,
@@ -76,19 +76,37 @@ fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// configFindings({ context, cwd });
 /// ```
 pub fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
-    let hooks: Vec<ConfiguredHook> = read_config_snapshot(context, cwd)
-        .map(|snapshot| { return configured_hooks(&snapshot); })
-        .unwrap_or_default();
+    // `match` on the `Option`: a snapshot that could not be read gives no hooks, as `.unwrap_or_default()` did.
+    let hooks: Vec<ConfiguredHook> = match read_config_snapshot(context, cwd) {
+        Some(snapshot) => configured_hooks(&snapshot),
+        None => Vec::new(),
+    };
     // A configuration that cannot be loaded is not doctor's to report: the command works beside a broken file, and
     // every other command names the problem.
-    let loaded: Option<CliGitConfig> = top_level(context, cwd).and_then(|root| { return load_repository_config(root.as_path()).ok(); }).map(|found| { return found.config; });
-    let concurrency: Option<ConcurrencyConfig> = loaded.as_ref().map(|found| { return found.concurrency; });
+    let loaded: Option<CliGitConfig> = match top_level(context, cwd) {
+        Some(root) => match load_repository_config(root.as_path()) {
+            Ok(found) => Some(found.config),
+            Err(_) => None,
+        },
+        None => None,
+    };
+    let (retired_hooks_key, retired_index_lock_key, retired_landing_key): (bool, bool, bool) = match loaded.as_ref() {
+        Some(found) => {
+            let retired: ConcurrencyConfig = found.concurrency;
+            (retired.hooks.present, retired.index_lock.present, retired.landing.present)
+        }
+        None => (false, false, false),
+    };
+    let discarded: Limits = match loaded {
+        Some(found) => found.discarded,
+        None => Limits::default(),
+    };
     return ConfigFindings {
         hooks,
-        retired_hooks_key: concurrency.is_some_and(|retired| { return retired.hooks.present; }),
-        retired_index_lock_key: concurrency.is_some_and(|retired| { return retired.index_lock.present; }),
-        retired_landing_key: concurrency.is_some_and(|retired| { return retired.landing.present; }),
-        discarded: loaded.map_or_else(Limits::default, |found| { return found.discarded; }),
+        retired_hooks_key,
+        retired_index_lock_key,
+        retired_landing_key,
+        discarded,
     };
 }
 
@@ -123,30 +141,30 @@ pub fn render_hook_lines(findings: &ConfigFindings) -> String {
 pub fn render_notes(findings: &ConfigFindings) -> String {
     let mut text: String = String::new();
     if !findings.hooks.is_empty() {
-        text.push_str("git cli-git doctor: ");
+        text.push_str("git monochromatic-git-policy-cli doctor: ");
         text.push_str(explain_external_hooks(findings.hooks.as_slice()).as_str());
         text.push('\n');
     }
     if findings.retired_hooks_key {
         text.push_str(
-            "git cli-git doctor: cli-git.config.jsonc has a `hooks` key (`hooks.concurrentCommits`). It is accepted so \
+            "git monochromatic-git-policy-cli doctor: monochromatic-git-policy-cli.config.jsonc has a `hooks` key (`hooks.concurrentCommits`). It is accepted so \
              older files still load, and ignored: the wrapper runs no external hook, so there is no hook lock to \
              tune. Delete the key when convenient.\n",
         );
     }
     if findings.retired_index_lock_key {
         text.push_str(
-            "git cli-git doctor: cli-git.config.jsonc sets `indexLock.unprovenOwnerTimeoutMs`. The key does nothing: the \
+            "git monochromatic-git-policy-cli doctor: monochromatic-git-policy-cli.config.jsonc sets `indexLock.unprovenOwnerTimeoutMs`. The key does nothing: the \
              commit service waits for another process's `index.lock` for as long as the lock stays there, whether the process \
              is proven to hold it or not, says what it knows about the owner while it waits, and reads no timeout from this \
-             file. Remove the key from cli-git.config.jsonc.\n",
+             file. Remove the key from monochromatic-git-policy-cli.config.jsonc.\n",
         );
     }
     if findings.retired_landing_key {
         text.push_str(
-            "git cli-git doctor: cli-git.config.jsonc sets `landing.reserveAfterLostRaces`. The key does nothing: the \
+            "git monochromatic-git-policy-cli doctor: monochromatic-git-policy-cli.config.jsonc sets `landing.reserveAfterLostRaces`. The key does nothing: the \
              commit service lands commits in the order they arrive and no longer reserves a landing slot for a commit \
-             that lost races. Remove the key from cli-git.config.jsonc.\n",
+             that lost races. Remove the key from monochromatic-git-policy-cli.config.jsonc.\n",
         );
     }
     return text;

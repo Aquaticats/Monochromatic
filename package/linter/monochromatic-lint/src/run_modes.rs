@@ -162,6 +162,18 @@ pub const RULES: &[RuleInfo] = &[
         suppressible: false,
     },
     RuleInfo {
+        id: "rust/folder-uses-links",
+        fixable: false,
+        options: &[],
+        suppressible: false,
+    },
+    RuleInfo {
+        id: "rust/file-order-in-folder",
+        fixable: false,
+        options: &[],
+        suppressible: false,
+    },
+    RuleInfo {
         id: "markdown/heading-increment",
         fixable: false,
         options: &[],

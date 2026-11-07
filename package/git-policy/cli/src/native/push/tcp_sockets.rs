@@ -295,7 +295,8 @@ pub fn socket_inodes_of(pid: i32) -> Vec<u64> {
         let Ok(link) = std::fs::read_link(entry.path()) else { continue };
         let text: String = link.to_string_lossy().into_owned();
         // A socket's link reads `socket:[<inode>]` (`man 5 proc_pid_fd`).
-        if let Some(number) = text.strip_prefix("socket:[").and_then(|rest| { return rest.strip_suffix(']'); })
+        if let Some(rest) = text.strip_prefix("socket:[")
+            && let Some(number) = rest.strip_suffix(']')
             && let Ok(inode) = number.parse::<u64>()
         {
             inodes.push(inode);

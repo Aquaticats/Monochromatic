@@ -137,26 +137,26 @@ fn everything_else_passes() {
 fn rejection_text_is_the_incumbent_message() {
     assert_eq!(
         branch_creation_message(BranchCreationCommand::Switch, None),
-        "cli-git: git switch branch creation is rejected in the current worktree. Use `git \
+        "monochromatic-git-policy-cli: git switch branch creation is rejected in the current worktree. Use `git \
          worktree add -b <branch> <path> [<start-point>]` so new branch work starts in its own \
          checkout, or pass --no-enforce-worktree-branch to bypass for this invocation."
     );
     assert_eq!(
         branch_creation_message(BranchCreationCommand::Checkout, Some(OsStr::new("topic"))),
-        "cli-git: git checkout for topic branch creation is rejected in the current worktree. \
+        "monochromatic-git-policy-cli: git checkout for topic branch creation is rejected in the current worktree. \
          Use `git worktree add -b <branch> <path> [<start-point>]` so new branch work starts in \
          its own checkout, or pass --no-enforce-worktree-branch to bypass for this invocation."
     );
     assert!(
         branch_creation_message(BranchCreationCommand::Branch, None)
-            .starts_with("cli-git: git branch branch creation is rejected"),
+            .starts_with("monochromatic-git-policy-cli: git branch branch creation is rejected"),
     );
     assert!(
         branch_creation_message(
             BranchCreationCommand::Switch,
             Some(byte_argument(b"t\xffp").as_os_str())
         )
-        .starts_with("cli-git: git switch for t\u{fffd}p branch creation"),
+        .starts_with("monochromatic-git-policy-cli: git switch for t\u{fffd}p branch creation"),
     );
 }
 

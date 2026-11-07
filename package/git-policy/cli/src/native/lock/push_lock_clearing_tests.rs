@@ -54,7 +54,7 @@ fn a_failed_push_carries_the_notice_of_the_lock_it_could_not_clear() {
     let partial: Judge = Judge { pid_view_complete: false, ..killed::judge() };
     let attempt: PushAttempt = run(&stage, &["push", "--quiet", "origin", "main"], &partial);
     assert!(attempt.output.contains("cannot lock ref"), "Git's own refusal stays: {}", attempt.output);
-    assert!(attempt.output.contains("cli-git: left the reference lock"), "{}", attempt.output);
+    assert!(attempt.output.contains("monochromatic-git-policy-cli: left the reference lock"), "{}", attempt.output);
     assert!(attempt.output.contains(&format!("rm -- {} ", stage.lock_of(TRACKING).display())), "{}", attempt.output);
     assert!(stage.lock_of(TRACKING).exists());
     stage.finish();

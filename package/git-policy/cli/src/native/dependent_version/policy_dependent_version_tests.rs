@@ -458,7 +458,7 @@ fn a_fix_without_a_location_reports_it() {
     let root: PathBuf = fixture("dependent-unlocated");
     let repo: PathBuf = workspace(root.as_path());
     let mut facts: ScriptedFacts = facts_in(repo.as_path());
-    facts.location = Err(String::from("cli-git could not locate the repository"));
+    facts.location = Err(String::from("monochromatic-git-policy-cli could not locate the repository"));
     let mut content: ContentState = ContentState::new();
     assert_eq!(
         check_dependent_version(
@@ -469,7 +469,7 @@ fn a_fix_without_a_location_reports_it() {
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
-            message: String::from("cli-git could not locate the repository"),
+            message: String::from("monochromatic-git-policy-cli could not locate the repository"),
             path: None,
         }
     );

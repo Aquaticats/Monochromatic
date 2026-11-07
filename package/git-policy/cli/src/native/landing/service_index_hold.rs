@@ -48,6 +48,39 @@ pub struct IndexLock {
     armed: bool,
 }
 
+/// What:
+///  What a caller records, durably, between the installation of the index and the giving up of the lock.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The record runs once, while the lock still keeps every other writer out. The state it needs (the journal, the batch, the new
+///  commit) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface Record { record(): void } // throws when the record cannot be made
+/// ```
+pub trait Record {
+    /// Make the record.
+    fn record(&self) -> std::io::Result<()>;
+}
+
+/// What:
+///  A record step that records nothing.
+/// Why:
+///  `release_with` is `release_with_record` for a caller that has nothing to record before the lock is given up.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nothingToRecord = { record: async () => {} };
+/// ```
+struct NothingToRecord;
+
+impl Record for NothingToRecord {
+    fn record(&self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
 impl IndexLock {
     /// A hold on `lock`,
     /// which was made from the file `held` and carries `marker`.
@@ -145,7 +178,7 @@ impl IndexLock {
     /// the lock stays,
     /// and the service ends after its batch so that the restart reclaims it.
     pub fn release_with(self, built: &Path) -> Result<(), std::io::Error> {
-        return self.release_with_record(built, &|| { return Ok(()); });
+        return self.release_with_record(built, &NothingToRecord);
     }
 
     /// What:
@@ -166,7 +199,7 @@ impl IndexLock {
     /// # Errors
     ///
     /// As `release_with`, and the error of `record`, with the lock left in place.
-    pub fn release_with_record(self, built: &Path, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
+    pub fn release_with_record(self, built: &Path, record: &dyn Record) -> Result<(), std::io::Error> {
         return self.release_flushed_with_record(built, false, record);
     }
 
@@ -184,7 +217,7 @@ impl IndexLock {
     /// # Errors
     ///
     /// As `release_with_record`.
-    pub fn release_flushed_with_record(mut self, built: &Path, flushed: bool, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
+    pub fn release_flushed_with_record(mut self, built: &Path, flushed: bool, record: &dyn Record) -> Result<(), std::io::Error> {
         match self.ownership() {
             Ownership::Owned => {}
             Ownership::Replaced => {
@@ -216,7 +249,10 @@ impl IndexLock {
                 let synced: std::io::Result<()> = if crate::service_fault::fails("sync-built-index") {
                     Err(std::io::Error::other("the flush of the new index was made to fail by a control"))
                 } else {
-                    std::fs::File::open(built).and_then(|file| { return crate::service_durable::flush_index(&file, "built-index"); })
+                    match std::fs::File::open(built) {
+                        Ok(file) => crate::service_durable::flush_index(&file, "built-index"),
+                        Err(error) => Err(error),
+                    }
                 };
                 if let Err(error) = synced {
                     crate::service_error!("the new index {} could not be flushed to the disk ({error}), so the index was not replaced", built.display());
@@ -228,8 +264,15 @@ impl IndexLock {
         // From the installation on, the lock is given up only by this function's own removal: a failure or an unwinding panic
         //  in what follows leaves it for the restart, because an installed index must never be left unlocked and replayable.
         self.armed = false;
-        let durable: std::io::Result<()> = self.index.parent().map_or(Ok(()), |directory| { return crate::service_durable::flush_directory(directory, "index-dir"); });
-        let recorded: std::io::Result<()> = durable.and_then(|()| { return record(); });
+        let durable: std::io::Result<()> = match self.index.parent() {
+            Some(directory) => crate::service_durable::flush_directory(directory, "index-dir"),
+            None => Ok(()),
+        };
+        // The record is made only when the directory was made durable.
+        let recorded: std::io::Result<()> = match durable {
+            Ok(()) => record.record(),
+            Err(error) => Err(error),
+        };
         if let Err(error) = recorded {
             crate::service_error!(
                 "the index lock {} stays: the installed index could not be made durable and recorded as complete ({error}), and the service ends after this batch so that the restart reclaims the lock",

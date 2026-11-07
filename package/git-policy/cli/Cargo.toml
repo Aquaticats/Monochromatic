@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.5.34"
+version = "0.6.0"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -26,12 +26,12 @@ path = "src/native/lib.rs"
 # The artifact is deliberately not named `git`: a `target/*/git` or a tool `bin/git` on PATH would shadow Git by accident.
 # The repository's mise tool entry links it as `git` in a per-worktree directory after installing it.
 # It is the crate's only executable: the resident commit service (doc/planning/cli-git-resident-service.md) is its mode
-# `cli-git-native cli-git service run`, which the operating system starts on demand through socket activation and the
+# `monochromatic-git-policy-cli monochromatic-git-policy-cli service run`, which the operating system starts on demand through socket activation and the
 # wrapper never starts. The release archive holds exactly this one file, and cargo-binstall refuses an archive that lacks
 # any `[[bin]]` of the crate, so a second `[[bin]]` here breaks every install that does not compile
 # (`native_release_bins_tests`, `src/native/binary/binary_release_bins_tests.rs`, fails on it first).
 [[bin]]
-name = "cli-git-native"
+name = "monochromatic-git-policy-cli"
 path = "src/native/main.rs"
 
 # cargo-binstall's default URL is {repo}/releases/download/v{version}/{name}-{target}-v{version},
@@ -56,19 +56,19 @@ path = "src/native/candidate/candidate_consumer_tests.rs"
 
 [dependencies]
 # Both native tools use the already adopted comment-preserving JSONC foundation.
-monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
+monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.3" }
 # The pure catalog specifier rule behind the `mono/catalog-specifiers` policy: manifest bytes in, findings out.
 # The pnpm wrapper shares it, so the policy never re-implements the grammar (doc/handover/catalog-specifier-policy.md).
-monochromatic-catalog-specifier = { path = "../../catalog-specifier/core-rust", version = "=0.1.0" }
+monochromatic-catalog-specifier = { path = "../../catalog-specifier/core-rust", version = "=0.1.1" }
 # The repository's own scanner, linked in-process instead of spawned: `src/native/candidate/scanner_adapter.rs`
 # loads its rules once per invocation and scans candidate bytes through `Scanner::scan`.
 # Its catch boundaries need this crate's effective profile to unwind; `scanner_adapter.rs` refuses to build otherwise.
-forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.6.1" }
+forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.6.2" }
 # The Markdown policy's linter, linked in-process instead of spawned: `src/native/markdown/markdown_linter.rs` calls
 # `monochromatic_lint::run_embedded::fix_source`, the executable's own `--stdin --fix` code, on a guarded thread.
 # Without its default `semantic` feature: the rust-analyzer backend is not used by Markdown, and linking it made
 # every start of this executable slower (doc/planning/cli-git-rust-implementation.md, "Markdown policy in process").
-monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.0", default-features = false }
+monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.2-alpha.1", default-features = false }
 # Lock, journal and work records are JSON read and written with `serde_json`.
 # The scanner already links this exact version, so it adds no package to the lockfile.
 serde_json = { workspace = true }
@@ -90,10 +90,36 @@ miniz_oxide = { workspace = true, default-features = false, features = ["with-al
 # (doc/planning/cli-git-merge-auto-resolution.md, "merge-code options measured"); the tests keep it equal to Jujutsu's results.
 similar = { workspace = true, default-features = false }
 
+# The runtime the wrapper's waits move onto, step by step (doc/planning/git-policy-cli-full-tokio.md, owner's answers of
+# 2026-11-07): lazily built on first need, multi-thread, sized to the wrapper's budget. The children are started with the
+# standard library and awaited through a pidfd (`rt`, `net` for `AsyncFd`), so tokio's own `process` and `signal` features
+# stay off: its process type can report a failed start after the child has started, and its signal handling cannot read
+# who sent a signal (the plan, "What tokio cannot do as the code needs").
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "net", "time", "fs", "io-util", "sync", "macros"] }
+
+# The SHA-1 and SHA-256 digests of the index checksum, the lock claims and the content hashes, from the published RustCrypto
+# crates in place of the hand-written functions (owner, 2026-11-07: "Digests: sha1 + sha2"). `sha2` is already in the lockfile.
+sha1 = { workspace = true }
+sha2 = { workspace = true }
+
+# Time stamps (`foundation/iso_time.rs`, the saved-copy names of `conflict/discarded_prune_stamps.rs`) from the published
+# calendar crate in place of the hand-written one (owner, 2026-11-07: "Time stamps: jiff"). Only UTC and formatting are used,
+# so the time-zone database stays off.
+jiff = { workspace = true, default-features = false, features = ["std"] }
+
+# The memory the budget may use: the system's available memory and the control groups' limits, read by the published crate in
+# place of the wrapper's own `/proc` and cgroup parsers (owner, 2026-11-07: "Memory headroom: sysinfo"). Only its memory part is
+# used, so processes, disks, networks and components stay off.
+sysinfo = { workspace = true, default-features = false, features = ["system"] }
+
 # `sigaction` with signal details, `kill` and process-group facts, which the standard library does not expose.
 # Already in the lockfile through the scanner's dependencies.
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
+# Linux calls the standard library does not expose, as the owner chose over hand-written `libc` calls (2026-11-07, "Linux calls:
+# rustix"): the limits a runtime build reads (`getrlimit`), the pidfd, the directory sync (`fsync`) and, in the steps that follow,
+# the inotify watch and the directory-relative file calls. Already in the lockfile through `tempfile`.
+rustix = { workspace = true, features = ["process", "fs"] }
 # The `markdown/autofix` policy's `exclude` patterns are gitignore syntax; the linter it runs and the
 # scanner above match them with this crate's gitignore matcher, already locked through the scanner.
 ignore = { workspace = true }
@@ -137,11 +163,22 @@ opt-level = 3
 
 # Generated by file-enforcer from rust-catalog.toml; edit the catalog, not this table (doc/decision/rust-dependency-catalog.md).
 [workspace.dependencies]
-getrandom = ">=0.4.2"
+getrandom = ">=0.4.3"
 ignore = ">=0.4.34"
+jiff = { version = ">=0.2.39", default-features = false }
 libc = ">=0.2.191"
 miniz_oxide = { version = ">=0.9.1", default-features = false }
+rustix = ">=1.1.6"
 serde_json = ">=1.0.154"
+sha1 = ">=0.11.0"
+sha2 = ">=0.11.1"
 similar = { version = ">=3.2.1", default-features = false }
+sysinfo = { version = ">=0.40.1", default-features = false }
 tempfile = ">=3.27.0"
-ureq = { version = ">=3.5.0", default-features = false }
+tokio = ">=1.54.1"
+ureq = { version = ">=3.5.1", default-features = false }
+
+# Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(dylint_lib, values(any()))"]

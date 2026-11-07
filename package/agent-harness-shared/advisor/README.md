@@ -22,6 +22,13 @@ model resolution,
 transcript,
 and theme.
 
+## Pi dependency trust
+
+PJA:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Provenance
 
 The core moved out of `package/pi-plugin/advisor/src` on 2026-10-20 so a DSH variant can
@@ -265,7 +272,8 @@ scores in `AdvisorDefaultSelection.ranking` and the details `costRanking`.
 With a
 policy,
 ranking entries carry canonical slugs and the policy's reason replaces the
-cost reason, so serial fallback and `defaultReviewerModel` composition keep
+cost reason,
+so serial fallback and `defaultReviewerModel` composition keep
 working on either ranking.
 
 ## Behavior picks (Q5 and Q6)

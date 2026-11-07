@@ -15,17 +15,18 @@
 //! const findings = await repairCargo(request); // one per workspace that failed, one for the rest that worked
 //! ```
 
-use crate::add_timing::work;
+use crate::add_timing::{begin_work, end_work};
 use crate::diagnostic_log::debug;
-use crate::package_repair::RepairRequest;
+use crate::package_repair_request::RepairRequest;
+use crate::package_repair_cargo_concurrent::{ConcurrentWork, ItemLabel, map_concurrent};
+use crate::package_repair_cargo_lock::{read_lock, restore_lock};
+use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories, read_workspace};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, find_program, run_tool};
 use crate::package_repair_report::{Finding, Outcome, Tool, missing_tool};
 use crate::package_repair_tree_clone::clone_tree;
 use crate::shell_quote::shell_quote;
-use crate::transaction_git::{GitRequest, run_git};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 /// Tag used for diagnostics from this module.
@@ -33,33 +34,6 @@ const TAG: &str = "packageRepairCargo";
 
 /// The program the person's environment resolves.
 const PROGRAM: &str = "cargo";
-
-/// The manifest file that makes a directory a Cargo package or workspace root.
-const MANIFEST: &str = "Cargo.toml";
-
-/// The lock file beside a workspace's root manifest.
-const LOCK_FILE: &str = "Cargo.lock";
-
-/// What:
-///  One Cargo workspace as `cargo metadata --no-deps` describes it.
-/// Why:
-///   The root identifies the workspace, the two directories say where its state lives, and the members are what gets cleaned.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Workspace = { root: string; buildDirectory: string; targetDirectory: string; members: string[] };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Workspace {
-    /// The directory holding the workspace's root manifest.
-    pub root: PathBuf,
-    /// Where intermediate build state lives.
-    pub build_directory: PathBuf,
-    /// Where final outputs live.
-    pub target_directory: PathBuf,
-    /// The package names of the workspace members.
-    pub members: Vec<String>,
-}
 
 /// What:
 ///  What a workspace's build state needs in the new worktree.
@@ -104,46 +78,6 @@ pub struct StateFacts {
     pub destination_build_exists: bool,
     /// Whether the worktree's target directory exists.
     pub destination_target_exists: bool,
-}
-
-/// What:
-///  Read the workspace out of `cargo metadata --no-deps --format-version 1` output.
-/// Why:
-///   Only these four facts are used, and any other shape is an error that names what is missing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function parseMetadata(text: string): Workspace; // throws
-/// ```
-pub fn parse_metadata(text: &str) -> Result<Workspace, String> {
-    let metadata: serde_json::Value = serde_json::from_str(text).map_err(|error| { return format!("the output of cargo metadata is not JSON ({error})"); })?;
-    let text_field = |key: &str| -> Option<PathBuf> { return metadata.get(key).and_then(serde_json::Value::as_str).map(PathBuf::from); };
-    let root: PathBuf = text_field("workspace_root").ok_or_else(|| { return String::from("cargo metadata names no workspace_root"); })?;
-    // A Cargo that predates `build-dir` keeps intermediate state in the target directory.
-    let target_directory: PathBuf = text_field("target_directory").ok_or_else(|| { return String::from("cargo metadata names no target_directory"); })?;
-    let build_directory: PathBuf = text_field("build_directory").unwrap_or_else(|| { return target_directory.clone(); });
-    let members: Vec<String> = metadata
-        .get("packages")
-        .and_then(serde_json::Value::as_array)
-        .map(|packages: &Vec<serde_json::Value>| { return packages.iter().filter_map(|package: &serde_json::Value| { return package.get("name").and_then(serde_json::Value::as_str).map(str::to_owned); }).collect(); })
-        .ok_or_else(|| { return String::from("cargo metadata names no packages"); })?;
-    return Ok(Workspace { root, build_directory, target_directory, members });
-}
-
-/// What:
-///  The workspaces once each, in root order.
-/// Why:
-///   Cargo describes a workspace the same way from any of its members' manifests, so several manifests of one workspace
-///  must not be repaired several times.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function distinctWorkspaces(found: Workspace[]): Workspace[];
-/// ```
-pub fn distinct_workspaces(mut found: Vec<Workspace>) -> Vec<Workspace> {
-    found.sort_by(|left: &Workspace, right: &Workspace| { return left.root.cmp(&right.root); });
-    found.dedup_by(|later: &mut Workspace, earlier: &mut Workspace| { return later.root == earlier.root; });
-    return found;
 }
 
 /// What:
@@ -208,98 +142,11 @@ pub fn clean_arguments(members: &[String]) -> Vec<OsString> {
 /// function manualCommand(root: string, members: string[]): string;
 /// ```
 fn manual_command(root: &Path, members: &[String]) -> String {
-    let words: Vec<String> = clean_arguments(members).iter().map(|word: &OsString| { return shell_quote(word.as_encoded_bytes()); }).collect();
+    let mut words: Vec<String> = Vec::new();
+    for word in clean_arguments(members) {
+        words.push(shell_quote(word.as_encoded_bytes()));
+    }
     return format!("cd {} && {PROGRAM} {}", shell_quote(root.as_os_str().as_encoded_bytes()), words.join(" "));
-}
-
-/// What:
-///  The directories of the worktree's tracked `Cargo.toml` files.
-/// Why:
-///   Git knows which manifests belong to the checkout, so no walk reads `node_modules` or build output.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function manifestDirectories(git: GitContext, destination: string): Promise<string[]>;
-/// ```
-fn manifest_directories(request: &RepairRequest<'_>) -> Result<Vec<PathBuf>, String> {
-    use std::os::unix::ffi::OsStrExt;
-    let listing = GitRequest::new(request.destination, &["ls-files", "-z", "--", "*Cargo.toml"]);
-    let output = run_git(request.git, &listing).map_err(|error| { return format!("git could not list the tracked manifests ({error})"); })?;
-    if !output.succeeded() {
-        return Err(format!("git could not list the tracked manifests: {}", output.error_text()));
-    }
-    let mut directories: Vec<PathBuf> = output
-        .stdout
-        .split(|byte: &u8| { return *byte == 0; })
-        .filter(|entry: &&[u8]| { return !entry.is_empty(); })
-        .map(|entry: &[u8]| { return request.destination.join(std::ffi::OsStr::from_bytes(entry)); })
-        .filter(|path: &PathBuf| { return path.file_name().is_some_and(|name| { return name == MANIFEST; }) && path.is_file(); })
-        .filter_map(|path: PathBuf| { return path.parent().map(Path::to_path_buf); })
-        .collect();
-    directories.sort();
-    directories.dedup();
-    return Ok(directories);
-}
-
-/// What:
-///  `cargo metadata` in a directory, as a workspace.
-/// Why:
-///   `--no-deps` resolves nothing, so it needs no network and writes no lock; `--locked` makes that a promise.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function readWorkspace(cargo: string, directory: string, limit: number): Promise<Workspace>;
-/// ```
-fn read_workspace(cargo: &Path, directory: &Path, limit: ToolLimits) -> Result<Workspace, String> {
-    let arguments: Vec<OsString> = ["metadata", "--locked", "--offline", "--no-deps", "--format-version", "1"].iter().map(OsString::from).collect();
-    let command: ToolCommand = ToolCommand { arguments, directory: PathBuf::from(directory), set: Vec::new() };
-    let run: ToolRun = run_tool(cargo, &command, limit);
-    return match run.end {
-        ToolEnd::Succeeded => parse_metadata(String::from_utf8_lossy(run.stdout.as_slice()).as_ref()),
-        ToolEnd::Failed(reason) => Err(format!("cargo metadata in {} failed: {reason}", directory.display())),
-        ToolEnd::TimedOut => Err(format!("cargo metadata in {} showed no sign of work for the quiet window and was stopped", directory.display())),
-        ToolEnd::CeilingReached(ceiling) => Err(format!("cargo metadata in {} ran for {} seconds, the longest the wrapper lets one repair tool run, and was stopped with its whole process group", directory.display(), ceiling.as_secs())),
-    };
-}
-
-/// What:
-///  The bytes of the workspace's `Cargo.lock`, or none when it has none.
-/// Why:
-///   `cargo clean --package` resolves the workspace, and Cargo rewrites a lock that no longer matches its manifest; the
-///  new worktree must stay as checked out, so the file is put back afterwards.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lock = readLock(root); // Uint8Array | undefined
-/// ```
-fn read_lock(root: &Path) -> Option<Vec<u8>> {
-    return std::fs::read(root.join(LOCK_FILE)).ok();
-}
-
-/// What:
-///  Put `Cargo.lock` back as `before` read it, removing a lock that did not exist before.
-/// Why:
-///   A write is made only when the content changed, so an untouched lock keeps its file time. A lock that cannot be put back
-///  is logged, and left for the person: it is the worktree's own file and the checkout shows the difference.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// restoreLock(root, before);
-/// ```
-fn restore_lock(root: &Path, before: Option<&[u8]>) {
-    let path: PathBuf = root.join(LOCK_FILE);
-    let after: Option<Vec<u8>> = std::fs::read(&path).ok();
-    if after.as_deref() == before {
-        return;
-    }
-    let outcome: std::io::Result<()> = match before {
-        Some(bytes) => std::fs::write(&path, bytes),
-        None => std::fs::remove_file(&path),
-    };
-    match outcome {
-        Ok(()) => debug(TAG, format!("{} was put back as checked out after the clean", path.display()).as_str()),
-        Err(error) => debug(TAG, format!("{} changed during the clean and could not be put back ({error})", path.display()).as_str()),
-    }
 }
 
 /// What a repair of one workspace did.
@@ -328,14 +175,13 @@ enum Done {
 /// ```
 fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path, request: &RepairRequest<'_>, clone_workers: usize) -> Done {
     let manual: String = manual_command(workspace.root.as_path(), workspace.members.as_slice());
-    let failed = |reason: String| -> Done { return Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual.clone() } }); };
     let Ok(relative) = workspace.root.strip_prefix(destination_root) else {
         debug(TAG, format!("{} lies outside {} and is left alone", workspace.root.display(), destination_root.display()).as_str());
         return Done::Skipped;
     };
     let source_workspace: PathBuf = request.source.join(relative);
     let source_build: Option<PathBuf> = if source_workspace.join(MANIFEST).is_file() {
-        match work("cargoMetadataSource", || { return read_workspace(cargo, source_workspace.as_path(), request.environment.limits()); }) {
+        match timed_read_workspace("cargoMetadataSource", cargo, source_workspace.as_path(), request.environment.limits()) {
             Ok(found) => Some(found.build_directory),
             Err(reason) => {
                 debug(TAG, format!("the source workspace {} cannot be read: {reason}", source_workspace.display()).as_str());
@@ -346,7 +192,10 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
         None
     };
     let facts: StateFacts = StateFacts {
-        source_build_exists: source_build.as_ref().is_some_and(|path: &PathBuf| { return path.exists(); }),
+        source_build_exists: match source_build.as_ref() {
+            Some(path) => path.exists(),
+            None => false,
+        },
         source_build,
         destination_build_exists: workspace.build_directory.exists(),
         destination_target_exists: workspace.target_directory.exists(),
@@ -357,7 +206,7 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
         BuildStatePlan::Nothing(_) => return Done::Skipped,
         BuildStatePlan::CleanOnly => (false, 0),
         BuildStatePlan::CloneThenClean { from, to } => {
-            match work("cargoCloneTree", || { return clone_tree(from.as_path(), to.as_path(), clone_workers); }) {
+            match timed_clone_tree(from.as_path(), to.as_path(), clone_workers) {
                 Ok(made) => {
                     debug(TAG, format!("cloned {} entries from {} to {}", made.made, from.display(), to.display()).as_str());
                     for path in &made.left_out {
@@ -365,67 +214,20 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
                     }
                     (true, made.left_out.len())
                 }
-                Err(reason) => return failed(format!("the build state could not be cloned: {reason}")),
+                Err(reason) => return workspace_failed(manual.as_str(), format!("the build state could not be cloned: {reason}")),
             }
         }
     };
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
     let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
-    let run: ToolRun = work("cargoClean", || { return run_tool(cargo, &command, request.environment.limits()); });
+    let run: ToolRun = timed_clean(cargo, &command, request.environment.limits());
     restore_lock(workspace.root.as_path(), lock_before.as_deref());
     return match run.end {
         ToolEnd::Succeeded => Done::Cleaned { cloned, left_out },
-        ToolEnd::Failed(reason) => failed(reason),
-        ToolEnd::TimedOut => failed(String::from("it showed no sign of work for the quiet window and was stopped")),
-        ToolEnd::CeilingReached(ceiling) => failed(crate::package_repair_report::ceiling_reason(crate::package_repair_report::Tool::Cargo, ceiling)),
+        ToolEnd::Failed(reason) => workspace_failed(manual.as_str(), reason),
+        ToolEnd::TimedOut => workspace_failed(manual.as_str(), String::from("it showed no sign of work for the quiet window and was stopped")),
+        ToolEnd::CeilingReached(ceiling) => workspace_failed(manual.as_str(), crate::package_repair_report::ceiling_reason(crate::package_repair_report::Tool::Cargo, ceiling)),
     };
-}
-
-/// What:
-///  Run `work` for every item on up to `workers` threads, each item once, one result per item in item order; an item whose work
-///  panicked has an error that names it and says what the panic said.
-/// Why:
-///   The repairs of different workspaces share no state, so a queue of items keeps every thread busy. Each item is run inside its
-///  own catch, so a panic costs that item and never the results its thread had already produced or the items it had still to take.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const results = await mapConcurrent(items, workers, label, work); // Array<{ ok: R } | { error: string }>
-/// ```
-fn map_concurrent<T: Sync, R: Send>(items: &[T], workers: usize, label: &(dyn Fn(&T) -> String + Sync), work: &(dyn Fn(&T) -> R + Sync)) -> Vec<Result<R, String>> {
-    let next: AtomicUsize = AtomicUsize::new(0);
-    let mut results: Vec<(usize, Result<R, String>)> = std::thread::scope(|scope| {
-        let handles: Vec<_> = (0..workers.max(1).min(items.len().max(1)))
-            .map(|_worker: usize| {
-                return scope.spawn(|| {
-                    let mut done: Vec<(usize, Result<R, String>)> = Vec::new();
-                    loop {
-                        let index: usize = next.fetch_add(1, Ordering::Relaxed);
-                        let Some(item) = items.get(index) else { break };
-                        let outcome: Result<R, String> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return work(item); }))
-                            .map_err(|payload: Box<dyn std::any::Any + Send>| { return format!("{} stopped because its worker panicked: {}", label(item), panic_words(payload.as_ref())); });
-                        done.push((index, outcome));
-                    }
-                    return done;
-                });
-            })
-            .collect();
-        // A worker cannot panic outside the catch around each item, so a thread that did not return its list is a bug to raise.
-        return handles.into_iter().flat_map(|handle| { return handle.join().unwrap_or_else(|payload| { std::panic::resume_unwind(payload) }); }).collect();
-    });
-    results.sort_by_key(|(index, _result): &(usize, Result<R, String>)| { return *index; });
-    return results.into_iter().map(|(_index, result): (usize, Result<R, String>)| { return result; }).collect();
-}
-
-/// What a panic said: its text when it carried a string, else a plain statement that it carried none.
-fn panic_words(payload: &(dyn std::any::Any + Send)) -> String {
-    if let Some(text) = payload.downcast_ref::<&str>() {
-        return (*text).to_string();
-    }
-    if let Some(text) = payload.downcast_ref::<String>() {
-        return text.clone();
-    }
-    return String::from("no message");
 }
 
 /// What:
@@ -444,6 +246,149 @@ fn left_out_words(left_out: usize) -> String {
         1 => String::from("; 1 unreadable entry was left out"),
         many => format!("; {many} unreadable entries were left out"),
     };
+}
+
+/// What:
+///  The finding of a workspace whose repair failed: the reason, and the command the person can run instead.
+/// Why:
+///   Every failing step of `repair_workspace` ends the same way, and a named function stands where a closure that
+///  built this result stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const workspaceFailed = (manual: string, reason: string) => ({ kind: 'Failed', reason, runInstead: manual });
+/// ```
+fn workspace_failed(manual: &str, reason: String) -> Done {
+    return Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual.to_owned() } });
+}
+
+/// What:
+///  Read one workspace with `cargo metadata`, timed as the step `name`.
+/// Why:
+///   The add timing record sums the work of worker threads by name; the call runs in place between `begin_work` and `end_work`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork();
+/// const workspace = await readWorkspace(cargo, directory, limits);
+/// endWork(name, began);
+/// ```
+fn timed_read_workspace(name: &str, cargo: &Path, directory: &Path, limits: ToolLimits) -> Result<Workspace, String> {
+    let began: Instant = begin_work();
+    let read: Result<Workspace, String> = read_workspace(cargo, directory, limits);
+    end_work(name, began);
+    return read;
+}
+
+/// What:
+///  Clone a build directory with the timing record's step `cargoCloneTree`.
+/// Why:
+///   Same as `timed_read_workspace`: the call runs in place between `begin_work` and `end_work`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork();
+/// const made = await cloneTree(from, to, workers);
+/// endWork('cargoCloneTree', began);
+/// ```
+fn timed_clone_tree(from: &Path, to: &Path, clone_workers: usize) -> Result<crate::package_repair_tree_clone::Cloned, String> {
+    let began: Instant = begin_work();
+    let made: Result<crate::package_repair_tree_clone::Cloned, String> = clone_tree(from, to, clone_workers);
+    end_work("cargoCloneTree", began);
+    return made;
+}
+
+/// What:
+///  Run `cargo clean` with the timing record's step `cargoClean`.
+/// Why:
+///   Same as `timed_read_workspace`: the call runs in place between `begin_work` and `end_work`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork();
+/// const run = await runTool(cargo, command, limits);
+/// endWork('cargoClean', began);
+/// ```
+fn timed_clean(cargo: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
+    let began: Instant = begin_work();
+    let run: ToolRun = run_tool(cargo, command, limits);
+    end_work("cargoClean", began);
+    return run;
+}
+
+/// The label of a metadata read whose worker panicked: the directory it was reading.
+struct ReadingLabel;
+
+impl ItemLabel<PathBuf> for ReadingLabel {
+    fn label(&self, directory: &PathBuf) -> String {
+        return format!("reading the Cargo workspace at {}", directory.display());
+    }
+}
+
+/// The label of a workspace repair whose worker panicked: the workspace it was repairing.
+struct RepairLabel;
+
+impl ItemLabel<Workspace> for RepairLabel {
+    fn label(&self, workspace: &Workspace) -> String {
+        return format!("the repair of the Cargo workspace at {}", workspace.root.display());
+    }
+}
+
+/// What:
+///  The job of reading the Cargo workspace of one directory, timed as the step `cargoMetadataWorktree`.
+/// Why:
+///   The concurrent runner takes its job as a value with a `run` method, and the state the job needs (the Cargo program and
+///  the request) is two borrowed fields, so a struct stands where a closure that captured them stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ReadWorkspaceJob implements ConcurrentWork<string, Workspace> { constructor(readonly cargo: string, readonly request: RepairRequest) {} }
+/// ```
+struct ReadWorkspaceJob<'a> {
+    /// The Cargo program found on the person's search path.
+    cargo: &'a Path,
+    /// The request whose environment bounds the tool.
+    request: &'a RepairRequest<'a>,
+}
+
+impl ConcurrentWork<PathBuf, Result<Workspace, String>> for ReadWorkspaceJob<'_> {
+    fn run(&self, directory: &PathBuf) -> Result<Workspace, String> {
+        return timed_read_workspace("cargoMetadataWorktree", self.cargo, directory.as_path(), self.request.environment.limits());
+    }
+}
+
+/// What:
+///  The job of repairing one Cargo workspace, timed as the step `cargoRepairWorkspace`.
+/// Why:
+///   Same as `ReadWorkspaceJob`: four borrowed fields and a count stand where a closure that captured them stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RepairWorkspaceJob implements ConcurrentWork<Workspace, Done> {}
+/// ```
+struct RepairWorkspaceJob<'a> {
+    /// The Cargo program found on the person's search path.
+    cargo: &'a Path,
+    /// The real path of the new worktree.
+    destination_root: &'a Path,
+    /// The request whose source, Git and environment the repair reads.
+    request: &'a RepairRequest<'a>,
+    /// How many threads one build-state clone may use.
+    clone_workers: usize,
+}
+
+impl ConcurrentWork<Workspace, Done> for RepairWorkspaceJob<'_> {
+    fn run(&self, workspace: &Workspace) -> Done {
+        return timed_repair_workspace(self, workspace);
+    }
+}
+
+/// Repair one workspace with the timing record's step `cargoRepairWorkspace`; the call runs in place between `begin_work` and `end_work`.
+fn timed_repair_workspace(job: &RepairWorkspaceJob<'_>, workspace: &Workspace) -> Done {
+    let began: Instant = begin_work();
+    let done: Done = repair_workspace(job.cargo, workspace, job.destination_root, job.request, job.clone_workers);
+    end_work("cargoRepairWorkspace", began);
+    return done;
 }
 
 /// What:
@@ -471,10 +416,15 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
         return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --offline --package <member> in each Cargo workspace of the worktree")];
     };
     let workers: usize = request.environment.workers;
-    let read: Vec<Result<Workspace, String>> = map_concurrent(directories.as_slice(), workers, &|directory: &PathBuf| { return format!("reading the Cargo workspace at {}", directory.display()); }, &|directory: &PathBuf| { return work("cargoMetadataWorktree", || { return read_workspace(cargo.as_path(), directory.as_path(), request.environment.limits()); }); })
-        .into_iter()
-        .map(|outcome: Result<Result<Workspace, String>, String>| { return outcome.and_then(|inner: Result<Workspace, String>| { return inner; }); })
-        .collect();
+    let reader: ReadWorkspaceJob<'_> = ReadWorkspaceJob { cargo: cargo.as_path(), request };
+    let mut read: Vec<Result<Workspace, String>> = Vec::new();
+    for outcome in map_concurrent(directories.as_slice(), workers, &ReadingLabel, &reader) {
+        // A panic in the read and a failed read are both a failed read.
+        read.push(match outcome {
+            Ok(inner) => inner,
+            Err(reason) => Err(reason),
+        });
+    }
     let mut findings: Vec<Finding> = Vec::new();
     let mut found: Vec<Workspace> = Vec::new();
     for (directory, outcome) in directories.iter().zip(read) {
@@ -485,15 +435,19 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
     }
     let workspaces: Vec<Workspace> = distinct_workspaces(found);
     // Real paths: Cargo names the workspace by its real path, and the worktree may be reached through a link.
-    let destination_root: PathBuf = std::fs::canonicalize(request.destination).unwrap_or_else(|_error| { return request.destination.to_path_buf(); });
+    let destination_root: PathBuf = match std::fs::canonicalize(request.destination) {
+        Ok(real) => real,
+        Err(_error) => request.destination.to_path_buf(),
+    };
     let clone_workers: usize = if workspaces.len() > 1 { 1 } else { workers };
-    let done: Vec<Done> = map_concurrent(workspaces.as_slice(), workers, &|workspace: &Workspace| { return format!("the repair of the Cargo workspace at {}", workspace.root.display()); }, &|workspace: &Workspace| { return work("cargoRepairWorkspace", || { return repair_workspace(cargo.as_path(), workspace, destination_root.as_path(), request, clone_workers); }); })
-        .into_iter()
-        .zip(workspaces.iter())
-        .map(|(outcome, workspace): (Result<Done, String>, &Workspace)| {
-            return outcome.unwrap_or_else(|reason: String| { return Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual_command(workspace.root.as_path(), &[String::from("<member>")]) } }); });
-        })
-        .collect();
+    let repairer: RepairWorkspaceJob<'_> = RepairWorkspaceJob { cargo: cargo.as_path(), destination_root: destination_root.as_path(), request, clone_workers };
+    let mut done: Vec<Done> = Vec::new();
+    for (outcome, workspace) in map_concurrent(workspaces.as_slice(), workers, &RepairLabel, &repairer).into_iter().zip(workspaces.iter()) {
+        done.push(match outcome {
+            Ok(finished) => finished,
+            Err(reason) => Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual_command(workspace.root.as_path(), &[String::from("<member>")]) } }),
+        });
+    }
     let mut cleaned: usize = 0;
     let mut cloned: usize = 0;
     let mut left_out: usize = 0;

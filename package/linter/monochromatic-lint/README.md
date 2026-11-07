@@ -1,5 +1,7 @@
 # monochromatic-lint
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 Rust replacement for the repository's Rust and Markdown/MDX linters.
 The `monochromatic-lint` executable is verified in containers
 and published to crates.io with prebuilt release binaries,
@@ -573,6 +575,441 @@ which leaves its other rules selected:
 ]
 ```
 
+## Rust layout rules
+
+Two crate-wide rules check that the folder tree of a Rust package shows who depends on whom
+(`AGENTS.md` rules LYD,
+LYL and LYF).
+Both are off by default and are switched on for a package in configuration,
+by selecting them for any of its Rust files:
+
+```jsonc
+// monochromatic-lint.config.jsonc
+[
+  {
+    "files": ["package/git-policy/cli/**/*.rs"],
+    "rules": {
+      "rust/folder-uses-links": { "severity": "error" },
+      "rust/file-order-in-folder": { "severity": "error" }
+    }
+  }
+]
+```
+
+A rule sees the whole package,
+not one file,
+so it runs once per Cargo package after the per-file rules,
+as the closure check does.
+The package of a file is the one whose `Cargo.toml` is nearest above it,
+and the first selecting file of a package decides the severity.
+`--stdin` and embedded sources are not checked.
+The rules report findings that no inline directive can suppress.
+
+### What both rules read
+
+The rules follow the real module tree and never walk folders.
+They start at the library root and every executable root
+(`src/lib.rs`,
+`src/main.rs`,
+`src/bin/*.rs`,
+`src/bin/*/main.rs`,
+and the `path` of `[lib]` and of each `[[bin]]`),
+then follow `mod` lines:
+`mod x;` loads `x.rs` or `x/mod.rs`,
+`#[path = "..."]` moves the file (also with `..`),
+and an inline `mod x { ... }` is a module in the file that holds it.
+A module that cannot be followed (no file,
+both files,
+or a file that loads its own container) fails the run with a `core/processing-failure` finding,
+and that package is not checked.
+
+A module belongs to the folder of its file:
+`a/mod.rs` and `a/b.rs` both belong to the folder `a`.
+Test-only code is outside both rules:
+files named `*_tests.rs` or `tests.rs`,
+files under a `tests` folder,
+and anything marked `#[cfg(test)]` (a module,
+an item or a `use`),
+including a sidecar declared inside a production file with `#[path]`,
+or `#[test]` on a function.
+
+A folder uses another folder when code in one of its module files names a module that the other folder defines.
+The names that count are paths:
+`crate::...`,
+`super::...`,
+`self::...`,
+the leaves of groups such as `use crate::{a, b::{c, d}}`,
+and a path that starts with the name of a module declared beside the code (`use child::Thing;`).
+A path stops at the deepest module it names;
+the names after it are items of that module.
+Paths inside macro calls count,
+and comments,
+strings of every kind and character literals never do,
+because the rules read the parser's tokens and not text.
+`super::` inside an inline module names the module around it.
+
+### Folder rule
+
+`rust/folder-uses-links` asks every source folder
+(a folder that holds a production module file) to hold a `uses` folder of symbolic links,
+one for each folder its code uses and none for any other.
+Findings:
+
+- A used folder has no link.
+  The finding names both folders and the file and line of one reference that proves the use,
+  and gives the command that creates the link.
+- A link points to a folder the code does not use.
+- An entry of `uses` is not a symbolic link,
+  is a broken link,
+  points to a file,
+  points to a folder that is not a source folder of the same package (including a folder outside it),
+  points to its own folder,
+  or is not named like the folder it points to.
+  `uses` itself must be a real folder.
+- Folders use each other,
+  directly or through others:
+  one finding lists the folders and one reference per use inside the loop.
+- A `pub use path::*` glob re-export of a module of the package (see below).
+- A module file lies below a folder named `uses`.
+- A group folder breaks its shelf rules (see "Group folders").
+
+Decisions:
+
+- A folder that holds child folders is a group folder and follows the shelf rules in "Group folders".
+  Before the group rules,
+  a parent folder with code of its own and its child folders were folders like any other,
+  and the parent and a child that named each other were a loop;
+  now a folder that holds child folders holds nothing else,
+  and a folder inside it never names it.
+- A folder that uses nothing needs no `uses` folder,
+  because Git cannot store an empty folder.
+- The link name must be the name of the folder it points to,
+  so two used folders with the same name cannot both be linked:
+  rename one.
+- Glob re-exports hide which folder an item comes from,
+  so each `pub use path::*` (any visibility) of a module of the package is a finding of its own.
+  Module names are still resolved through such a glob (a flat `pub use folder::*;` at the crate root makes
+  `crate::module` reach `folder/module.rs`),
+  one level of glob at a time and with a visited set so rings end,
+  and the path of a glob is read through direct children only.
+  An item that a glob supplies resolves to the module that re-exports it.
+- A name that a module re-exports by name (`pub use sibling::Name;`,
+  or `pub use sibling::Thing as Name;`) is followed to the module that defines it,
+  through any chain of such re-exports;
+  a path that reaches the name through the re-exporting module is a use of the module it names
+  and also of the defining module,
+  which is the child folder when the re-export comes from a child folder.
+  The walk keeps a visited set of module and name pairs,
+  so a ring of re-exports ends
+  and the use stays on the module where the ring closed.
+  The named module stays a used module because dropping it would hide a loop through a re-exporting file:
+  on `package/git-policy/cli` the other choice let three files of a fifteen-file loop escape.
+
+### Group folders
+
+A group folder lets a folder tree show who depends on whom at two scales:
+the entries of a package at the top,
+and the exact folders inside each group.
+The owner picked this rule on 2026-11-07T11:05:21-05:00 ("Shelf + summaries (Recommended)",
+`doc/planning/cli-git-source-layout-target-tree.md`,
+sections "One level of groups in the program" and "The owner's words and the rules that bind this").
+
+#### How the linter knows a folder is a group
+
+A folder is a group when it holds child folders:
+its index file is a `mod.rs`,
+and at least one source folder sits directly inside it.
+The folder of a crate root (`lib.rs`,
+`main.rs` or a `src/bin` root) is never a group,
+because it is where the groups and the one-folder entries sit.
+An **entry** is a group folder,
+or a source folder that sits outside every group (a one-folder entry).
+The entry of a folder inside a group is that group;
+the entry of any other folder is the folder itself.
+
+The form needs no new syntax,
+and a group cannot be forgotten:
+a group folder that grows code of its own still holds child folders,
+so it is still a group,
+and the shelf rules below report the code.
+Nothing in the top doc says "this is a group".
+
+Rejected for now (open to the owner's veto):
+a marker sentence in the top doc,
+in the style of the file list marker,
+for example `//! Folders in this group:`.
+Its pro is that it changes nothing for a folder that has code and child folders today.
+Its cons are new syntax that a reader must learn,
+and that a group whose marker is missing is not a group,
+so the shelf-only restriction is again a convention that nothing enforces.
+The structural form changes one earlier decision:
+a parent folder with code of its own beside child folders used to be "a folder like any other".
+No package of this repository selects the layout rules yet
+(measured on 2026-11-07:
+no `uses` folder anywhere under `package/`,
+and `monochromatic-lint.config.jsonc` does not name `rust/folder-uses-links`),
+so no existing layout is broken by the change.
+
+#### What the rule checks
+
+All group checks belong to `rust/folder-uses-links`,
+and the file rule leaves a group folder alone,
+so a finding is never reported twice.
+
+- A group holds only folders.
+  It holds no module file but its `mod.rs`,
+  and its `mod.rs` holds only its top doc,
+  inner attributes,
+  comments and `mod x;` lines.
+  Every other item is a finding,
+  including a `pub use` re-export,
+  which would make a path through the group name the group instead of the folder that defines the item.
+  The finding names the file and the item.
+- A group's `uses` folder holds one link for every other entry that a folder inside the group uses,
+  and no other link.
+  A folder inside the group uses an entry when the folder's code names a folder of that entry
+  (a use of a folder of the same group is not a use of another entry).
+  A used entry without a link,
+  and a link to an entry that no folder of the group uses,
+  are findings.
+  A link that points to a folder inside another group (not to the group) is a finding of its own
+  that says to link the group.
+  The proving reference of a missing link is the smallest one by file and line,
+  and the help gives the command that creates the link.
+- A folder inside a group keeps the exact links of the folder rule:
+  one link for each folder its code uses and none for any other,
+  including folders of other groups (`h/c/uses/a` links `../../../g/a`).
+- A folder never links a group itself,
+  and its code never names one.
+  It links the folder inside the group that its code names.
+  A link to a group,
+  or a path that names a group,
+  is a finding that says so.
+  A group's own summary links are the one place a group is linked.
+- No two entries use each other,
+  directly or through others,
+  where a use of a folder inside a group counts as a use of the group.
+  Two groups never use each other,
+  and a group and a one-folder entry never use each other.
+  The folder loop check still finds loops between folders;
+  a loop between entries is reported as one more finding that lists the entries and one proving reference per use.
+- A group never sits inside a group:
+  a folder inside a group that holds child folders is a finding,
+  because the owner's rule is one level of groups.
+
+The finding texts,
+one for each check
+(the file and line are the proving reference of a use,
+or the link or file the finding is about):
+
+```text
+src/g holds the file helper.rs, but a group folder holds only its child folders and its mod.rs.
+src/g/mod.rs is the index of the group folder src/g, so it may hold only its top doc and `mod` lines, but it holds a function `helper`.
+src/h/c uses the folder src/g/a (`crate::g::a::X`), which is in the group src/g, but src/h/uses has no link to src/g.
+src/h/uses/k links to src/k, but no folder inside src/h uses it.
+src/h/uses/a links to src/g/a, which is inside the group src/g, so a group links the group and not a folder inside it.
+src/h/c uses the group folder src/g itself (`crate::g`), but a folder names the folders inside a group that it uses, never the group itself.
+src/h/c/uses/g links to the group folder src/g, but a folder links the folders inside a group that it uses, never the group itself.
+These groups and folders use each other in a loop: src/g uses src/h (src/g/a/mod.rs:1 `crate::h::c::Y`); src/h uses src/g (src/h/d/mod.rs:1 `crate::g::b::X`).
+src/g/a holds folders, so it is a group folder, but it sits inside the group folder src/g, and groups go one level deep.
+```
+
+A one-folder entry also keeps exact links:
+when its code names a folder inside a group,
+its `uses` folder links that folder and never the group.
+The source lives in `src/layout_group_entries.rs` (which folders are groups),
+`src/layout_group_summary_links.rs` (the summaries) and `src/layout_group_folders.rs` (the shelf rules,
+the groups that are named or linked,
+and the loop between entries).
+
+The links in a group's `uses` folder are written like the links of any other folder
+(a link named like its target,
+relative,
+to a source folder of the package).
+A group that none of its children make use of needs no `uses` folder.
+
+### File rule
+
+`rust/file-order-in-folder` asks the files of one folder to use each other in no loop
+and the folder's top doc to list them in dependency order.
+A group folder (see "Group folders") has no files to order and is left to the folder rule.
+Findings:
+
+- Files use each other in a loop.
+  One finding lists the files and one reference per use inside the loop.
+- A folder has module files but no `mod.rs` to hold the top doc.
+- An index file holds code (see "Index files hold only the index").
+- The top doc has no file list,
+  lists a file twice,
+  lists a name that is not a module file of the folder,
+  or omits a file.
+- A file uses a file that is listed after it
+  (the finding names both and the proving reference).
+  Uses inside a loop are not reported again here.
+
+The top doc is the `//!` lines at the start of the folder's `mod.rs`
+(`lib.rs`,
+or `main.rs` when `lib.rs` is absent,
+in the folder of a crate root).
+The list starts at the marker sentence below
+and has one `- ` line per file,
+with the file name in backticks first.
+The marker is read as prose,
+like the Markdown rule `markdown/semantic-line-breaks` reads it:
+it may wrap wherever a sentence may,
+because the lines of one paragraph are joined with single spaces before the match,
+and any run of spaces equals one space.
+A blank `//!` line ends a paragraph,
+so a marker with a blank line inside it is no marker:
+
+```rust
+//! What this folder is for,
+//! in words for someone who knows only `git commit` and `git push`.
+//!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `saving_a_file.rs`:
+//!   writes a file so that a crash never leaves half of it.
+//! - `saving_many_files.rs`:
+//!   saves several files together,
+//!   using `saving_a_file.rs` for each one.
+```
+
+Everything else in the doc is free text and is never read.
+An entry starts at a line beginning `- `,
+and the indented lines under it belong to that entry.
+The list ends at the first line that is neither blank,
+an entry nor a continuation.
+The index file itself is not listed,
+and neither are the other crate roots (`main.rs` beside `lib.rs`),
+test files and subfolders.
+Using the index file with `super::` is never reported,
+because the index holds no code that could take part in a loop.
+A sibling that reaches a name through the index is a use of the file the index re-exports the name from
+(see the re-export decision under the folder rule),
+so a re-export hides neither a loop nor a listing order.
+
+#### Index files hold only the index
+
+An index file is the `mod.rs` of a folder,
+or the `lib.rs` (else `main.rs`) of the folder of a crate root.
+It may hold:
+
+- its `//!` top doc,
+  inner attributes and comments;
+- `mod x;` lines with any attributes and docs (`#[path]`,
+  `#[cfg(test)]`,
+  `#[macro_use]`);
+- `pub use`,
+  `pub(crate) use` and `pub(super) use` re-exports.
+
+Every other item is a finding of `rust/file-order-in-folder`,
+on the item's own line (not its attribute or doc line),
+one finding for each:
+a function,
+struct,
+enum,
+union,
+`impl` block,
+trait,
+constant,
+static,
+type alias,
+`macro_rules!` or macro definition,
+a macro call,
+an `extern crate` line,
+an `extern` block,
+a `use` that is not public,
+and an inline `mod x { ... }` with a body.
+The message names the kind and the name:
+
+```text
+src/a/mod.rs is the index of its folder, so it may hold only its top doc, `mod` lines and `pub use` re-exports,
+but it holds a function `helper`.
+```
+
+The help says to move the item into a file of the folder named for what it does,
+to add `mod` for that file in the index,
+and to re-export the names other folders use with `pub use`.
+Code marked for test builds (`#[cfg(test)]`,
+`#[test]`) is not read.
+The check runs even when the index is the only file of its folder.
+
+An entry point is a `main.rs` that is the index of its folder (there is no `lib.rs` beside it).
+The compiler pins `fn main` to that file,
+so it may also hold `fn main` (also `async` or under an attribute)
+and plain `use` lines,
+which feed only `fn main`.
+No code can name `main`,
+so it cannot close a loop,
+and the index stays out of the loop check.
+Any other item is a finding in the entry point's own words:
+
+```text
+src/main.rs is the entry point of its program, so it may hold only its top doc, `mod` lines, `use` lines and `fn main`,
+but it holds a function `run`.
+```
+
+A `main.rs` beside a `lib.rs`,
+and a single-file binary under `src/bin`,
+are other crate roots.
+They stay out of the loop check and the top doc list,
+and they are read for code like an entry point:
+the same items are allowed and the same message is used.
+A `main.rs` that is the index of its own folder under `src/bin/<name>/` is an entry point already.
+A root named by a `[[bin]]` path anywhere else is not read for code.
+
+### Known limits
+
+- A group is recognised by its child folders,
+  so a folder that holds child folders must be a shelf;
+  the rules have no way to say that a folder with code and child folders is on purpose.
+- The group checks are part of `rust/folder-uses-links`,
+  and `rust/file-order-in-folder` leaves a group folder alone.
+  With only the file rule selected,
+  code in a group's `mod.rs` is therefore not reported,
+  where the file rule's index check reported it before the group rules.
+- Only `[lib] path` and `[[bin]] path` written as `path = "..."` lines are read from `Cargo.toml`;
+  dotted keys and inline tables are not,
+  and test,
+  example and benchmark targets are test-only code.
+- Names are resolved by module,
+  not by item:
+  an item that a glob supplies,
+  or a `#[macro_export]` macro used as `crate::name!`,
+  belongs to the module the path names.
+  A name re-exported by name is followed to the module that defines it.
+- A glob import (`use super::*;`) names the index and hides which re-exported file it reaches;
+  only a re-export that is a glob is a finding of its own.
+- When a module re-exports one name twice (for example from two `cfg` branches),
+  the first `pub use` in the file decides.
+- `cfg` gates other than the ones that name `test` are not evaluated;
+  every `mod` line is followed.
+- A module that a macro declares is not seen.
+- The rules cannot see a use through a trait method or a type alias that never names the module.
+- `/*! ... */` top docs are not read.
+
+### Links and other tools
+
+The links form a tree of copies when something follows them.
+The linter's own walk never enters a link
+(`ignore` is configured with `follow_links(false)`),
+so a file behind a `uses` link is linted once;
+the tests `layout_uses_links_are_never_entered_by_the_walk` and
+`layout_rules_run_in_the_built_executable_and_do_not_follow_links` fail when that setting is reversed.
+Only a link that a user names as a command-line path is entered.
+`cargo package` follows the links and packs nested copies,
+so a package that has `uses` folders needs `exclude = ["**/uses"]` in its `Cargo.toml`
+(measured in `doc/planning/cli-git-source-layout.md`,
+section "The `uses/` links and cargo").
+The layout rules themselves find modules by following `mod` lines and read only the names of the entries of a
+`uses` folder,
+never the files behind them.
+
+`mise run //package/linter/monochromatic-lint:test:layout` runs the layout tests alone;
+`test:layout:container` runs them in the bounded container.
+
 ## Explicit Rust types
 
 `rust/require-explicit-types` uses resolved Rust declarations and inferred types,
@@ -790,7 +1227,13 @@ input expansion and the fix loop;
 findings,
 inline directives,
 grouped edits and the syntax-only Rust rules;
-`mutation:semantic` for the semantic engine and the explicit-type rule;
+`mutation:layout` for every layout module,
+against the layout tests;
+`mutation:workflow-shell` for the workflow walk and the shell dialect scanners,
+against the workflow and shell tests;
+`mutation:semantic` for the semantic engine,
+the explicit-type rule,
+the manifest lookup and the router of a build without the `semantic` feature;
 and `mutation:processors:files` for the processor modules.
 The executable and core scopes skip the five tests that load a Cargo workspace,
 which the semantic scope and the full container tests run.
@@ -801,14 +1244,24 @@ as in cargo-mutants) so that its shards can run in separate bounded containers a
 name by name,
 and fails when any mutant is outside every scope.
 A campaign with a missed or timed-out mutant exits nonzero and is not a passing gate.
-The session's main agent starts every campaign and waits on it, never a subagent
+The session's main agent starts every campaign and waits on it,
+never a subagent
 ([why](../../mutation-test/cli-cargo-mutants/README.md#who-runs-a-campaign)).
 Every campaign is resumable:
-after a kill, a reboot or an out-of-memory stop, run the same task with the same options on the same test image and
-it scores only the mutants that no earlier run scored, whatever their outcome.
+after a kill,
+a reboot or an out-of-memory stop,
+run the same task with the same options on the same test image and
+it scores only the mutants that no earlier run scored,
+whatever their outcome.
 Its results are in `target/verification/mutation-<key>/mutants.out/` (`processors-mutation-<key>` for the processor
-campaign; `caught.txt`, `missed.txt`, `timeout.txt`,
-`unviable.txt`, `outcomes.json`), the union of every attempt, and its `exit.json` records the status of the whole
+campaign;
+`caught.txt`,
+`missed.txt`,
+`timeout.txt`,
+`unviable.txt`,
+`outcomes.json`),
+the union of every attempt,
+and its `exit.json` records the status of the whole
 campaign.
 Delete that directory to score everything again.
 The mechanism and its limits are in `package/mutation-test/cli-cargo-mutants/README.md`.
@@ -855,13 +1308,17 @@ The verification scripts in `bin` are TypeScript.
 `mise run //package/linter/monochromatic-lint:lint:scripts:types` type-checks them,
 and `mise run //package/linter/monochromatic-lint:lint:scripts:oxlint -- bin/<file>.ts` lints the files it is given.
 The Oxlint task takes explicit paths and has no package-wide form on purpose.
-A package-wide `lint:oxlint` also lints `task.ts`, which no `tsconfig.json` includes:
+A package-wide `lint:oxlint` also lints `task.ts`,
+which no `tsconfig.json` includes:
 it does not satisfy the isolated-declarations setting of the shared TypeScript preset,
 so adding it to the project fails the type check.
-Measured on 2026-10-30, that run exits 0 but the semantic bridge reports `api-unavailable` for six files
-and the type-aware rules (`prefer-readonly-parameter-type`, for one) throw instead of checking,
+Measured on 2026-10-30,
+that run exits 0 but the semantic bridge reports `api-unavailable` for six files
+and the type-aware rules (`prefer-readonly-parameter-type`,
+for one) throw instead of checking,
 so a green package-wide run would not mean the scripts passed those rules.
-Making the package-wide task usable needs `task.ts` to be fixed or excluded, not a looser rule.
+Making the package-wide task usable needs `task.ts` to be fixed or excluded,
+not a looser rule.
 
 ## License
 

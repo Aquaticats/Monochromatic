@@ -1,5 +1,16 @@
 # A toolchain sync in a worktree with an older lock downgrades the shared `cargo-binstall` installs and breaks git in every checkout
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 ## Symptom
 
 On 2026-10-31 (EDT 2026-10-30 23:54),
@@ -149,39 +160,60 @@ The owner's ruling is "No older repo-maintained tools should ever exist when new
     recorded in `doc/decision/mpm-toolchain-adoption.md` ("Pruning the repository's own crates"),
     so there is no hand-kept list.
     Limit:
-    a crate this repository publishes without the prefix (`forbidden-strings`, if the plan ever provisions it) is treated as third-party until it is renamed or the signal changes.
+    a crate this repository publishes without the prefix (`forbidden-strings`,
+    if the plan ever provisions it) is treated as third-party until it is renamed or the signal changes.
 2.  Order:
     `lockOutcome` first applies the existing `versionMatches`;
-    only when that fails does it ask whether the installed version is newer under semantic version order, pre-releases included (`isNewerVersion` in `version.order.ts`, no new dependency).
-    Text that is not `MAJOR.MINOR.PATCH` (a nightly id, a git revision) is incomparable and falls back to today's replace behavior.
+    only when that fails does it ask whether the installed version is newer under semantic version order,
+    pre-releases included (`isNewerVersion` in `version.order.ts`,
+    no new dependency).
+    Text that is not `MAJOR.MINOR.PATCH` (a nightly id,
+    a git revision) is incomparable and falls back to today's replace behavior.
 3.  Newer installed than the lock:
     the sync skips the install,
     leaves the `cli-git-bin` link and the exposure directory pointing at the installed binary,
-    counts the tool in `unchanged` (and lists it in the new `keptNewer` field of the sync report, printed as "N kept at a newer installed version"),
+    counts the tool in `unchanged` (and lists it in the new `keptNewer` field of the sync report,
+    printed as "N kept at a newer installed version"),
     and `toolchain:status` prints it as `ok` with "kept newer installed=<version>".
 4.  Warning:
-    every `toolchain:sync` and `toolchain:status` run that meets such a tool logs, through the module's tagged logger, a line naming the tool,
+    every `toolchain:sync` and `toolchain:status` run that meets such a tool logs,
+    through the module's tagged logger,
+    a line naming the tool,
     the locked version,
     the version that runs,
     that older repository tools are never kept when a newer one is installed,
     and the remedy:
     upgrade this tree's lock with `mise run toolchain:update` or by merging main.
-    A tree whose lock matches the install, or whose lock is newer, logs nothing of this kind.
-5.  Lock newer than installed, and every third-party tool:
+    A tree whose lock matches the install,
+    or whose lock is newer,
+    logs nothing of this kind.
+5.  Lock newer than installed,
+    and every third-party tool:
     unchanged;
     the install runs and `replacementWarning` still warns about the shared install.
 
 Tests:
-`lock.outcome.unit.test.ts` (order, signal and classification) and `sync.kept-newer.unit.test.ts` (`syncToolchain` and `observeTools` against a fake `cargo` in a disposable home;
-newer kept, older upgraded, third-party newer still replaced, equal untouched and silent, warning present in both sync and status).
+`lock.outcome.unit.test.ts` (order,
+signal and classification) and `sync.kept-newer.unit.test.ts` (`syncToolchain` and `observeTools` against a fake `cargo` in a disposable home;
+newer kept,
+older upgraded,
+third-party newer still replaced,
+equal untouched and silent,
+warning present in both sync and status).
 
 Tradeoff:
 a tree with an older lock now runs a newer repository tool,
 so every release of a repository tool must keep reading configuration written for older releases.
 `rules_file_takes_a_path_or_an_array_of_entries` in `package/git-policy/cli/src/native/config_parse_acceptance_tests.rs` is the example:
-the git wrapper accepts `rulesFile` as one path or an array, so a tree whose `cli-git.config.jsonc` still uses a string keeps working under the newer wrapper.
-The reverse direction, an older wrapper reading a newer configuration, is exactly what the incident was, and this guard is what stops it.
-The Rust `mpm-shadow` is to enforce the same rule after the cutover, with a launcher that warns on every run of the tool, not only on sync and status.
+the git wrapper accepts `rulesFile` as one path or an array,
+so a tree whose `cli-git.config.jsonc` still uses a string keeps working under the newer wrapper.
+The reverse direction,
+an older wrapper reading a newer configuration,
+is exactly what the incident was,
+and this guard is what stops it.
+The Rust `mpm-shadow` is to enforce the same rule after the cutover,
+with a launcher that warns on every run of the tool,
+not only on sync and status.
 
 ## What does not work
 

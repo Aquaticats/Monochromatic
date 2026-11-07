@@ -69,7 +69,7 @@ impl Drop for Services {
 
 fn start(fixture: &Fixture, name: &str, worktrees: &Worktrees) -> Services {
     let runtime: PathBuf = super::service_commit::runtime_for(name);
-    std::fs::create_dir_all(runtime.join("cli-git")).expect("runtime directory");
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
     let mut services: Services = Services { children: Vec::new(), runtime };
     let mut sockets: Vec<PathBuf> = Vec::new();
     for git_dir in [&worktrees.main_git_dir, &worktrees.linked_git_dir] {

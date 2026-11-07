@@ -14,6 +14,7 @@
 //! const refusals: { cause: string; remedy: string }[] = preflight({ platform, layout, journal });
 //! ```
 
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::fs_kind::FilesystemKind;
 use crate::single_owner_claim::live_owner_of;
 use crate::subvolume_entry_count::count_entries;
@@ -103,6 +104,21 @@ pub struct Layout {
     pub claim_prefix: std::ffi::OsString,
 }
 
+/// `parent/<name><suffix>`: the name of a file kept beside the root under a fixed suffix.
+fn with_suffix(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
+    let mut text: std::ffi::OsString = name.to_os_string();
+    text.push(suffix);
+    return parent.join(text);
+}
+
+/// `parent/.cli-git-migrate-<name><suffix>`: the name of a hidden file kept beside the root under a fixed suffix.
+fn dotted(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
+    let mut text: std::ffi::OsString = std::ffi::OsString::from(".cli-git-migrate-");
+    text.push(name);
+    text.push(suffix);
+    return parent.join(text);
+}
+
 /// What:
 ///  The layout for a checkout path.
 ///  A root with no parent or no name (`/`) has no layout.
@@ -116,25 +132,15 @@ pub struct Layout {
 pub fn layout_of(root: &Path) -> Option<Layout> {
     let name: &std::ffi::OsStr = root.file_name()?;
     let parent: &Path = root.parent()?;
-    let with_suffix = |suffix: &str| -> PathBuf {
-        let mut text: std::ffi::OsString = name.to_os_string();
-        text.push(suffix);
-        return parent.join(text);
-    };
-    let dotted = |suffix: &str| -> PathBuf {
-        let mut text: std::ffi::OsString = std::ffi::OsString::from(".cli-git-migrate-");
-        text.push(name);
-        text.push(suffix);
-        return parent.join(text);
-    };
+
     return Some(Layout {
         root: root.to_path_buf(),
         parent: parent.to_path_buf(),
-        new_path: with_suffix(".subvol-new"),
-        old_path: with_suffix(".before-subvolume"),
-        journal_path: dotted(".journal.json"),
-        unreadable_path: dotted(".unreadable.txt"),
-        claim_prefix: dotted(".owner").file_name().unwrap_or_default().to_os_string(),
+        new_path: with_suffix(parent, name, ".subvol-new"),
+        old_path: with_suffix(parent, name, ".before-subvolume"),
+        journal_path: dotted(parent, name, ".journal.json"),
+        unreadable_path: dotted(parent, name, ".unreadable.txt"),
+        claim_prefix: dotted(parent, name, ".owner").file_name().unwrap_or_default().to_os_string(),
     });
 }
 
@@ -239,7 +245,7 @@ fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -
     if journal.has_begun("rollback-swap") {
         found.push(refuse(
             format!("a rollback of {} swapped the directories and did not finish (it is recorded in {})", layout.root.display(), layout.journal_path.display()),
-            "Run `git cli-git migrate-to-subvolume --rollback` again to finish it; migrating again would work on the wrong directories.",
+            "Run `git monochromatic-git-policy-cli migrate-to-subvolume --rollback` again to finish it; migrating again would work on the wrong directories.",
         ));
     }
     if layout.new_path.exists() && !journal.has_begun("create") {
@@ -251,7 +257,7 @@ fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -
     if layout.old_path.exists() && !journal.has_begun("exchange") {
         found.push(refuse(
             format!("{} exists already, and it is where the original tree would be moved", layout.old_path.display()),
-            "If it is the old tree of an earlier migration you have checked, delete it (`git cli-git migrate-to-subvolume --remove-old` needs the journal; otherwise `rm --recursive` it yourself). Otherwise rename it.",
+            "If it is the old tree of an earlier migration you have checked, delete it (`git monochromatic-git-policy-cli migrate-to-subvolume --remove-old` needs the journal; otherwise `rm --recursive` it yourself). Otherwise rename it.",
         ));
     }
     return found;
@@ -263,11 +269,11 @@ fn conversion_refusal(administrative: &Path) -> Option<Refusal> {
         Ok(None) => None,
         Ok(Some(owner)) => Some(refuse(
             format!("process {} is converting the linked worktree registered in {} to a subvolume (it owns {})", owner.pid, administrative.display(), owner.path.display()),
-            "Wait for `git cli-git convert-worktree-to-subvolume` to finish, then run the command again.",
+            "Wait for `git monochromatic-git-policy-cli convert-worktree-to-subvolume` to finish, then run the command again.",
         )),
         Err(error) => Some(refuse(
             format!("whether the linked worktree registered in {} is being converted cannot be decided ({error})", administrative.display()),
-            "Look at the claim file the message names; if no cli-git command is running, remove it, then run the command again.",
+            "Look at the claim file the message names; if no monochromatic-git-policy-cli command is running, remove it, then run the command again.",
         )),
     };
 }
@@ -276,7 +282,7 @@ fn conversion_refusal(administrative: &Path) -> Option<Refusal> {
 fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = Vec::new();
     let git_directory: PathBuf = layout.root.join(".git");
-    if !std::fs::metadata(&git_directory).is_ok_and(|read: std::fs::Metadata| { return read.is_dir(); }) {
+    if !git_directory.is_dir() {
         found.push(refuse(
             format!("{} is not a directory, so this is not the main checkout of a repository", git_directory.display()),
             "Run the command from the main checkout (the directory that holds the repository's `.git` directory), not from a linked worktree.",
@@ -305,11 +311,13 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
             found.push(refusal);
         }
         for queue in ["pending", "claimed"] {
-            let path: PathBuf = directory.join("cli-git").join("work").join(queue);
-            if std::fs::read_dir(&path).is_ok_and(|mut entries: std::fs::ReadDir| { return entries.next().is_some(); }) {
+            let path: PathBuf = path_for_reading(directory.as_path(), "monochromatic-git-policy-cli/work").join(queue);
+            if let Ok(mut entries) = std::fs::read_dir(&path)
+                && entries.next().is_some()
+            {
                 found.push(refuse(
                     format!("the commit service has unfinished work in {}", path.display()),
-                    "Wait for the service to finish landing its commits (`git cli-git service status`), then run the command again.",
+                    "Wait for the service to finish landing its commits (`git monochromatic-git-policy-cli service status`), then run the command again.",
                 ));
             }
         }
@@ -351,7 +359,7 @@ pub fn remove_old_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
     if !journal.is_done("verify") {
         found.push(refuse(
             format!("the migration of {} is not recorded as finished in {}", layout.root.display(), layout.journal_path.display()),
-            "Run `git cli-git migrate-to-subvolume` to finish (or `--rollback` to undo) before deleting the old tree.",
+            "Run `git monochromatic-git-policy-cli migrate-to-subvolume` to finish (or `--rollback` to undo) before deleting the old tree.",
         ));
     }
     if !layout.old_path.exists() {

@@ -1,5 +1,5 @@
 //! What:
-//!  The `discardedCopies` section of `cli-git.config.jsonc`: how long and how much the folder of saved copies of conflicted
+//!  The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`: how long and how much the folder of saved copies of conflicted
 //!  files may keep (`maxAgeDays`, `maxSize`).
 //! Why:
 //!  The settings of the wrapper live in one file with one validation, so a limit is a key there and not a second source in
@@ -43,11 +43,12 @@ fn size_limit(value: &JsoncValue, path: &str) -> Result<u64, ConfigError> {
         return Err(wrong_kind(value, path, "a number of bytes or a size such as \"256m\""));
     }
     let spelled: String = text(value, path)?;
-    return parse_size(spelled.as_str()).ok_or_else(|| {
-        return ConfigError::new(
+    return match parse_size(spelled.as_str()) {
+        Some(size) => Ok(size),
+        None => Err(ConfigError::new(
             format!("Configuration key {path} must be a size above zero in bytes or with k, m or g (for example \"256m\"), found {spelled:?}.").as_str(),
-        );
-    });
+        )),
+    };
 }
 
 /// What:

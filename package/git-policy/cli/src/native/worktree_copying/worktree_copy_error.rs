@@ -21,10 +21,10 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// 'cli-git: automatic ignored-state worktree copy failed.'
+/// 'monochromatic-git-policy-cli: automatic ignored-state worktree copy failed.'
 /// ```
 pub const AUTOMATIC_FAILURE_MESSAGE: &str =
-    "cli-git: automatic ignored-state worktree copy failed. Hint: if you just created a worktree, it works without \
+    "monochromatic-git-policy-cli: automatic ignored-state worktree copy failed. Hint: if you just created a worktree, it works without \
      the copied caches and build output; rebuild them there or copy the ones you need by hand.";
 
 /// What:
@@ -67,7 +67,7 @@ pub fn failure_with_cause(
 ///  A failure from the operating system or from a process, carried as its own text with no wrapper sentence.
 /// Why:
 ///   Every step that does not own a wording of its own leaves the raw text to the nearest enclosing wrapper.
-///   Messages cli-git owns always start with `cli-git:`, so a raw text can be told apart without another flag.
+///   Messages monochromatic-git-policy-cli owns always start with `monochromatic-git-policy-cli:`, so a raw text can be told apart without another flag.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,22 +78,36 @@ pub fn raw_failure(cause: &dyn std::fmt::Display) -> WorktreeCopyError {
 }
 
 /// What:
+///  The same as `raw_failure`, for a cause passed by value, so it can stand where a function path is wanted.
+/// Why:
+///   `map_err` hands its function the error by value; this lets `.map_err(raw_failure_of)` replace a closure that only
+///  borrowed the error to call `raw_failure`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rawFailureOf = (cause: unknown) => rawFailure(cause);
+/// ```
+pub fn raw_failure_of<Cause: std::fmt::Display>(cause: Cause) -> WorktreeCopyError {
+    return raw_failure(&cause);
+}
+
+/// What:
 ///  Whether a failure is raw text that an enclosing wrapper still has to word.
 /// Why:
-///   The incumbent wraps only failures that are not already its own `WorktreeCopyError`, and cli-git's own messages always start with its prefix.
+///   The incumbent wraps only failures that are not already its own `WorktreeCopyError`, and monochromatic-git-policy-cli's own messages always start with its prefix.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// !(error instanceof WorktreeCopyError)
 /// ```
 pub fn is_raw_failure(error: &WorktreeCopyError) -> bool {
-    return !error.0.starts_with("cli-git:");
+    return !error.0.starts_with("monochromatic-git-policy-cli:");
 }
 
 /// What:
 ///  Words a raw failure with the given message, and leaves an owned failure as it is.
 /// Why:
-///   Each wrapping step names the input it was handling, and never hides a message cli-git already wrote.
+///   Each wrapping step names the input it was handling, and never hides a message monochromatic-git-policy-cli already wrote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

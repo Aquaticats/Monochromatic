@@ -25,7 +25,9 @@ The debug-only `SearchFixtureHighlights.kt` in prototype commit
 `b471ec537` takes `MaterialTheme.colorScheme.primary` from the active
 candidate theme,
 then calls the existing production color utility
-`mixOklchWithNeutral` (deleted 2026-10-13; the match fill is now a `core/ThemeRoles.kt` role, D108) in
+`mixOklchWithNeutral` (deleted 2026-10-13;
+the match fill is now a `core/ThemeRoles.kt` role,
+D108) in
 `package/music-player/android-app/app/src/main/kotlin/dev/monochromatic/musicplayer/OklchColor.kt`.
 For the light scene,
 the prototype mixes OKLCH lightness 0.72 of the way to white and chroma
@@ -147,7 +149,8 @@ Raw status-bearing images and hierarchy XML stayed in private scratch.
 The host-JVM package task
 `mise run //package/music-player/android-app:test:unit` passed with the
 debug-only variant tests from prototype commits `12cc19d64` and
-`ba9cc6e38` (`app/src/testDebug/`, not shared release tests):
+`ba9cc6e38` (`app/src/testDebug/`,
+not shared release tests):
 repeated `Cam cam CAM` spans,
 parent-only supporting context,
 empty/nonmatching queries,

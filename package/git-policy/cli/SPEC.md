@@ -1,4 +1,4 @@
-# cli-git policy platform implementation specification
+# monochromatic-git-policy-cli policy platform implementation specification
 
 ## Status and authority
 
@@ -13,7 +13,7 @@ tests,
 and user documentation must conform to it.
 Changing a settled product behavior requires a new decision update rather than an implementation shortcut.
 
-The implementation is the native Rust executable `cli-git-native` (`src/native/`),
+The implementation is the native Rust executable `monochromatic-git-policy-cli` (`src/native/`),
  published as the crate
 `monochromatic-git-policy-cli`.
 The TypeScript implementation (authoring API,
@@ -29,7 +29,7 @@ this file;
 The executable has these external seams:
 
 - the shadowing `git` executable;
-- the repository-root configuration file `cli-git.config.jsonc`;
+- the repository-root configuration file `monochromatic-git-policy-cli.config.jsonc`;
 - JSONL policy events.
 
 It has internal seams for filesystem identity,
@@ -44,7 +44,7 @@ Disposable tests replace those adapters without production environment overrides
 ## Single executable and shipped policies
 
 The release artifact is one executable,
- `cli-git-native`.
+ `monochromatic-git-policy-cli`.
 Every policy is compiled into it;
  no configuration loads code,
  and there are no plugins.
@@ -53,7 +53,7 @@ The optional policies (`markdown/autofix`,
  `mono/forbidden-root-context`,
  `mono/dependent-version-bump`,
  `mono/catalog-specifiers` and
-`security/forbidden-strings`) run only where `cli-git.config.jsonc` lists them.
+`security/forbidden-strings`) run only where `monochromatic-git-policy-cli.config.jsonc` lists them.
 A no-config invocation therefore runs the built-ins only.
 
 The forbidden-strings scanner is linked into the executable and needs no separate installation.
@@ -143,7 +143,7 @@ A commit adds no paths of its own: only the paths it selected reach the landing.
 
 ## Configuration validation
 
-The wrapper reads `cli-git.config.jsonc` at the repository top level.
+The wrapper reads `monochromatic-git-policy-cli.config.jsonc` at the repository top level.
 The file is JSON with comments,
  at most 1 MiB,
  and data only:
@@ -151,7 +151,7 @@ The file is JSON with comments,
 Without the file the defaults apply.
 Legacy executable configuration files (`cli-git.config.mjs`,
  `cli-git.config.ts`) are never read or executed:
-beside a JSONC file `git cli-git check` reports a `legacy-config-ignored` configuration warning (other commands
+beside a JSONC file `git monochromatic-git-policy-cli check` reports a `legacy-config-ignored` configuration warning (other commands
  and `fix` stay silent),
 and alone they are a configuration failure that asks for the translation.
 
@@ -217,7 +217,7 @@ An older file that sets one still loads, and the value is checked and ignored.
   boolean,
   default `false`.
   It tuned the hook lock, and the wrapper runs no external hook, so no lock exists.
-  `git cli-git doctor` says so.
+  `git monochromatic-git-policy-cli doctor` says so.
 - `indexLock.unprovenOwnerTimeoutMs`:
   non-negative safe integer,
   default `1000`.
@@ -225,13 +225,13 @@ An older file that sets one still loads, and the value is checked and ignored.
   The service's wait for a foreign `index.lock` replaced it:
   a holder proven alive and an owner nothing proves alive are both
   waited for until the lock ceiling ("Every wait has a bound"), and this key no longer sets anything.
-  `git cli-git doctor` names the key when a file sets it and says to remove it.
+  `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
   default `1`.
   It was the number of lost landing races after which a transaction asked for a landing reservation.
   The service lands in arrival order and bounds the retries of a commit (see "Retry after a moved branch").
-  `git cli-git doctor` names the key when a file sets it and says to remove it.
+  `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 
 Unknown nested keys,
 wrong types,
@@ -266,7 +266,7 @@ The pass that applies them is described under "Conflicted files during a merge, 
 ## Command facts and classification
 
 `rawArgs` are the exact wrapper arguments after the script name.
-`transformedArgs` contain fixed cli-git transforms but no management-only or escape-hatch tokens.
+`transformedArgs` contain fixed monochromatic-git-policy-cli transforms but no management-only or escape-hatch tokens.
 Both arrays are immutable copies.
 
 `subcommand` is the argument-aware parsed Git subcommand after global options and `-C` chains.
@@ -282,20 +282,20 @@ future command,
 or ambiguous form loads config.
 
 Short-circuit global version and help forms preserve real Git behavior and do not load config.
-Management dispatch occurs only when the parsed subcommand is exactly `cli-git`.
-A pathspec named `cli-git` does not dispatch management.
+Management dispatch occurs only when the parsed subcommand is exactly `monochromatic-git-policy-cli`.
+A pathspec named `monochromatic-git-policy-cli` does not dispatch management.
 
 ## Management grammar
 
 The accepted grammar is:
 
 ```text
-git [<git-global-options>] cli-git (--help | -h)
-git [<git-global-options>] cli-git check [--policy <id>]... --all
-git [<git-global-options>] cli-git check [--policy <id>]... -- <pathspec>...
-git [<git-global-options>] cli-git fix [--policy <id>]... --all
-git [<git-global-options>] cli-git fix [--policy <id>]... -- <pathspec>...
-git [<git-global-options>] cli-git doctor
+git [<git-global-options>] monochromatic-git-policy-cli (--help | -h)
+git [<git-global-options>] monochromatic-git-policy-cli check [--policy <id>]... --all
+git [<git-global-options>] monochromatic-git-policy-cli check [--policy <id>]... -- <pathspec>...
+git [<git-global-options>] monochromatic-git-policy-cli fix [--policy <id>]... --all
+git [<git-global-options>] monochromatic-git-policy-cli fix [--policy <id>]... -- <pathspec>...
+git [<git-global-options>] monochromatic-git-policy-cli doctor
 ```
 
 The retired forms `trust [--yes]`,
@@ -332,7 +332,7 @@ So does a `--policy` selection that names a policy whose effective severity is `
  because that run would check nothing and exit `0` with no output.
 The message names every such policy once,
  in selection order,
- with the `cli-git.config.jsonc` key and the severity that turns it on
+ with the `monochromatic-git-policy-cli.config.jsonc` key and the severity that turns it on
  (the policy's own default severity),
  and the check happens after the configuration loads and before any candidate is prepared.
 Lifecycle runs
@@ -355,7 +355,7 @@ The escape `--no-enforce-<policy>` written for a selected policy is not refused.
 
 ### Doctor
 
-`git cli-git doctor` lists the traditional hooks a repository holds.
+`git monochromatic-git-policy-cli doctor` lists the traditional hooks a repository holds.
 Traditional hooks are unsupported (see "Commit hooks"),
 and this command is where they are found:
 the commit path only warns when `core.hooksPath` is configured and never scans a directory.
@@ -487,7 +487,7 @@ a comparison of the repository's registrations before and after Git would need a
 and copying into a worktree that is not the command's own is worse than copying nothing.
 
 Before forwarding an applicable source,
-cli-git captures the common Git directory and linked-worktree administrative identity set.
+monochromatic-git-policy-cli captures the common Git directory and linked-worktree administrative identity set.
 An invocation targeting the main worktree bypasses journal recovery
 and synchronization,
 even when real Git creates a linked worktree,
@@ -591,7 +591,7 @@ The main checkout is read to be snapshotted and listed (`git --no-optional-locks
 no step runs in it, and its files and index are what they were.
 Unless `--quiet` is given, a second line follows the snapshot note: the uncommitted changes of the main checkout (their number
 of paths) were left out of the new worktree, which holds what Git's own checkout holds.
-The same words go to the journal as one entry of priority `info` under the `SYSLOG_IDENTIFIER` `cli-git`, with the fields
+The same words go to the journal as one entry of priority `info` under the `SYSLOG_IDENTIFIER` `monochromatic-git-policy-cli`, with the fields
 `CLI_GIT_WORKTREE`, `CLI_GIT_DIRTY_PATHS` (the number of paths) and `CLI_GIT_DIRTY_FIRST` (the first of them), also under
 `--quiet`.
 Changes made to the main checkout while the snapshot is taken or restored are out of scope, as for every rung: using the
@@ -689,7 +689,7 @@ Telling why an add was not made as a snapshot:
 when a `git worktree add` that the ladder serves succeeds without being made as a snapshot, and the person could change
 the cause, the wrapper writes one line to standard error unless `--quiet` is given, after Git's own words and before the
 copy summary.
-The line starts with `cli-git: this worktree was not made as a snapshot, so it took longer, because `, then the cause in
+The line starts with `monochromatic-git-policy-cli: this worktree was not made as a snapshot, so it took longer, because `, then the cause in
 plain words, then what makes the next add quick, and it names no internal step.
 The causes it tells are:
 uncommitted changes in a source that is not restored by a snapshot (a linked worktree; the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
@@ -701,24 +701,24 @@ an index that cannot yet vouch for its files although Git lists no change, in a 
 (a file as new as the index, or a size, time or inode that differs; the remedy is `git status` once);
 a Git status that failed (the run, its exit code and what Git said; the remedies are to run `git -C <source> status`
 and fix what it names, or to wait for a Git command that is running there);
-a btrfs source that is no subvolume (the remedy is `git cli-git migrate-to-subvolume` for the main checkout and
-`git cli-git convert-worktree-to-subvolume` for a linked worktree);
+a btrfs source that is no subvolume (the remedy is `git monochromatic-git-policy-cli migrate-to-subvolume` for the main checkout and
+`git monochromatic-git-policy-cli convert-worktree-to-subvolume` for a linked worktree);
 a destination on another btrfs filesystem than the source;
 a feature a snapshot does not reproduce (a sparse checkout, a worktree-specific configuration entry, a nested worktree
 reached through a link), told in the check's own words;
 and a snapshot that started and could not be finished, told with the reason, after which Git's own checkout made the worktree.
 A source or destination that is not on btrfs gets no line, because nothing the person does makes the add a snapshot there.
 A failed add gets no line either; Git's refusal is the thing to read.
-The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `cli-git`, with the
+The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `monochromatic-git-policy-cli`, with the
 fields `CLI_GIT_WORKTREE` (the destination), `CLI_GIT_SLOW_CAUSE` (`uncommitted-changes`, `git-running`,
 `operation-unfinished`, `not-restorable`, `stale-index`, `status-failed`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
 and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it), also under `--quiet`.
 The entry is one datagram on the journal's native socket, sent without waiting; a journal that is absent or full costs the
-command nothing, and `journalctl --identifier=cli-git` lists the entries.
+command nothing, and `journalctl --identifier=monochromatic-git-policy-cli` lists the entries.
 The debug line with the reasons of every step stays (`MONOCHROMATIC_VERBOSE=true`).
 
 Converting a nested worktree:
-`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)` converts a registered
+`git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)` converts a registered
 linked worktree that is an ordinary directory into a subvolume at the same path, several worktrees side by side.
 Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
 filesystem and run concurrently within a budget: the threads the process may run less an eighth of them (at least one, none
@@ -835,7 +835,7 @@ truncated or followed. Releases up to 0.5.20 wrote one fixed sibling name with a
 After a write lands, the plain files beside the journal under the writer's own names (that fixed name included) are removed,
 which is safe because the numbered claim file `.cli-git-migrate-<name>.owner.<generation>` leaves one writer per checkout; a link, a directory or any other name stays.
 
-Migrating the main checkout (`git cli-git migrate-to-subvolume`) is owned the same way, in every mode (migrate, `--rollback`,
+Migrating the main checkout (`git monochromatic-git-policy-cli migrate-to-subvolume`) is owned the same way, in every mode (migrate, `--rollback`,
 `--remove-old`): the command takes a numbered claim file `.cli-git-migrate-<name>.owner.<generation>` in the checkout's parent
 directory before it reads the journal and gives it back when it returns, so a second command on the checkout is refused with
 exit status 1, the owner's process id and the file named, and nothing changed; a preview takes no claim. Before this release
@@ -957,7 +957,7 @@ Dependencies, builds and local files are copied.
 A linked or bare source copies everything it ignores except its nested registered worktrees.
 A file or directory the running user cannot read is left out of every source's copy instead of failing the copy,
 and one stderr line names the count and the first three paths:
-`cli-git: left out <n> unreadable ignored entries from <source>: <paths>`.
+`monochromatic-git-policy-cli: left out <n> unreadable ignored entries from <source>: <paths>`.
 Private stage names are reserved and excluded at every path component.
 Stage each destination separately in a mode-`0700` sibling directory so file cloning stays
  on the destination filesystem.
@@ -1009,7 +1009,7 @@ it removes its journal and private stage,
 so no later invocation replays the same failure.
 
 Each destination uses a schema-versioned journal under
-`<git-common-dir>/cli-git-worktree-copy/v1`.
+`<git-common-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
 Journal writes use a private no-follow temporary file,
 file synchronization,
 atomic rename,
@@ -1334,6 +1334,15 @@ A push the service stopped or that failed is tried again by the service on its o
 The person must act for a conflict, for a login the service does not have, and for a hook on the server that declined the push
 (owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
 these stop the retry until the person's next commit, and the failure record says in plain words which one it was.
+The service never asks anyone for a login (owner decision, 2026-11-07: "Never prompt (Recommended)"): every Git and `git-lfs`
+child it starts gets `GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0` from one list
+(`service_child_overlay` in `src/native/invocation/child_environment.rs`, used for the service's landing and upkeep context and for
+each push's environment in `src/native/landing/service_work.rs`).
+Git and `git-lfs` try `GIT_ASKPASS`, `core.askPass` and `SSH_ASKPASS` before they read `GIT_TERMINAL_PROMPT`, so the terminal
+setting alone left the desktop's password dialog open for nobody to answer; a push with no credential from a helper fails at once
+with "terminal prompts disabled", which is the login failure above.
+`SSH_ASKPASS` stays in the environment for OpenSSH. A command the person typed is forwarded with the prompting Git has.
+Evidence and the source trace: `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
 Being offline, a stall, an HTTP 5xx answer of the LFS server and a held lock are tried again.
 A rejection by the server with a reason no rule names is tried again, and the journal names its line.
 The classification reads Git's own words, which are cited beside the rules in `src/native/push/push_retry.rs`.
@@ -1381,33 +1390,137 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no qui
   Only a step that is safe to run twice is ended: the reads, the writers of content-addressed objects and the changes
   of a
   private index (`may_be_rerun`).
-  A step keeps a ceiling only when `may_be_ended` in `src/native/transaction/transaction_git.rs` says so. The owner decided it for
-  the branch write on 2026-11-04 ("Never cut a branch write (Recommended)"), and the coordinator's follow-up made the owner's
-  criterion the rule for every step: a step keeps its ceiling exactly when it can run twice, decided by cutting it at every
-  mutating system call with `SIGKILL` and `SIGTERM`, running it again, and comparing the end state with an uncut run's
-  (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The rule is a whitelist of the exact forms the experiment
-  ran, parsed by their options and words, so a form it did not run has no ceiling: `update-ref` set or delete of one numbered side
-  ref (`refs/cli-git/kept/<number>`, `refs/worktree/cli-git-service/<number>`) only with `--no-deref` and with
-  `-c core.logAllRefUpdates=false` on the same argv as the last setting of that key (Git takes the last; `--config-env` of the key is refused too), which the wrapper passes at each of its call sites in
-  `src/native/landing/service_land.rs` (the repository's own `core.logAllRefUpdates=always` and a side ref that is a symbolic ref
-  were both run), `stash list
-  --format=%H`, `clean --force -d`, `read-tree --reset -u <tree>`, `update-index` with only `--refresh`, only `--index-info` (and
-  `-z`), or `--add --cacheinfo <triple>`, `add` with `--update` or `--all`, `checkout-index --all --force`, `restore` with
-  `--staged`, `--worktree`, `--source=` and paths after `--`, `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key>
-  <value>`; and the steps `RERUNNABLE` names, and the readers and writers of unreferenced objects (`rev-list`, `merge-base`, `log`,
-  `ls-tree`, `status`, `var`, `diff-files`, `check-attr`, `check-ignore`, `stripspace`, `fmt-merge-msg`, `show-ref`, `name-rev`,
-  `commit-tree`, `mktree`; `fast-import` is not among them: its input can update and checkpoint branches, and the experiment ran the
-  wrapper's own stream and found a marks lock a cut left that the second run could not pass). `RERUNNABLE` no longer names
-  `symbolic-ref` or `init`: `symbolic-ref` may be run again as a read (`--quiet`, `--short`, one name) or, on a shadow repository the
-  wrapper made, as a write of one name to one target with no option (identical in the experiment), and `init` only as the shadow's
-  creation (the one argv `shadow_create.rs` runs, on a shadow request), which the experiment found different after a second run (reftable names are random) and
-  which is private and thrown away with its transaction when it fails. Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
-  `checkout`, `switch`, `config --add`, `gc` and the rest, is never ended. On the commit service's landing thread such a step is
-  announced at the usual interval and waited for as long as it lives. Any other command stops waiting at the bound of the step's
-  class plus `SHORT_EXTRA_WAIT` (7 seconds; the owner's "Class ceiling + 7 s (Recommended)") and exits non-zero with an error that
-  names the step and its command line and says it was left running, so the result is not known, with `git status`, `git log -1`
-  and `ps` to check. The step writes its output into anonymous files, not pipes (`src/native/process/output_capture.rs`), so it
-  does not die of `SIGPIPE` when the command exits, and the system's init or subreaper reaps it.
+  A step keeps a ceiling only when `may_be_ended` in `src/native/transaction/transaction_git.rs` says so.
+  The owner decided it for
+  the branch write on 2026-11-04 ("Never cut a branch write (Recommended)"),
+  and the coordinator's follow-up made the owner's
+  criterion the rule for every step:
+  a step keeps its ceiling exactly when it can run twice,
+  decided by cutting it at every
+  mutating system call with `SIGKILL` and `SIGTERM`,
+  running it again,
+  and comparing the end state with an uncut run's
+  (`doc/planning/cli-git-no-unbounded-waits.md`,
+  "The cut experiment").
+  The rule is a whitelist of the exact forms the experiment
+  ran,
+  parsed by their options and words,
+  so a form it did not run has no ceiling:
+  `stash list
+  --format=%H`,
+  `clean --force -d`,
+  `read-tree --reset -u <tree>`,
+  `update-index` with only `--refresh`,
+  only `--index-info` (and
+  `-z`),
+  or `--add --cacheinfo <triple>`,
+  `add` with `--update` or `--all`,
+  `checkout-index --all --force`,
+  `restore` with
+  `--staged`,
+  `--worktree`,
+  `--source=` and paths after `--`,
+  `reset [--quiet] <commit> -- <paths>`,
+  and `config [--local] <key>
+  <value>`;
+  and the steps `RERUNNABLE` names,
+  and the readers and writers of unreferenced objects (`rev-list`,
+  `merge-base`,
+  `log`,
+  `ls-tree`,
+  `status`,
+  `var`,
+  `diff-files`,
+  `check-attr`,
+  `check-ignore`,
+  `stripspace`,
+  `fmt-merge-msg`,
+  `show-ref`,
+  `name-rev`,
+  `commit-tree`,
+  `mktree`).
+  `fast-import` is not among them:
+  its input can update and checkpoint branches,
+  and the experiment ran the
+  wrapper's own stream and found a marks lock a cut left that the second run could not pass.
+  What bounds it now is the rule for every
+  step that cannot run twice:
+  on the landing thread it is waited for as long as it lives,
+  with the clients behind it told what it is
+  stuck in;
+  a person's command that started it stops waiting at the class ceiling plus `SHORT_EXTRA_WAIT` (7 seconds,
+  the owner's
+  "Class ceiling + 7 s (Recommended)") and says the result is not known.
+  `RERUNNABLE` names neither `symbolic-ref` nor `init`:
+  `symbolic-ref` may be run again as a read (`--quiet`,
+  `--short`,
+  one name) or,
+  on a shadow repository the wrapper made,
+  as a write
+  of one name to one target with no option (identical in the experiment).
+  `init` is never run again in place (a cut leaves reftable
+  tables the second run does not replace:
+  50 of 104 cuts differed);
+  its one form,
+  the argv `shadow_create.rs` runs on a shadow
+  request,
+  keeps its ceiling because `init_with_git` discards the partial directory and starts a fresh one when the start was cut,
+  refused as a finished command,
+  or refused before the command ran (`EAGAIN`;
+  other I/O errors are not retried),
+  at most
+  `SHADOW_CREATION_ATTEMPTS` (2) times,
+  which the experiment found identical to an uncut run in 104 of 104 cuts;
+  a shadow whose `init`
+  is cut every time fails its transaction.
+  No `update-ref` keeps a ceiling,
+  the write of a side ref included
+  (`refs/cli-git/kept/<number>`,
+  `refs/worktree/cli-git-service/<number>`,
+  written by `keep_unlanded` and the scratch deletions in
+  `src/native/landing/service_land.rs`):
+  a reflog that another Git creates between any check and the write is appended to twice by a
+  cut write and its rerun,
+  `core.logAllRefUpdates=false` does not stop an append to a log that exists,
+  and nothing the wrapper holds
+  excludes an ordinary Git.
+  The wrapper still passes `--no-deref` and that setting at those call sites,
+  as hygiene and not as a proof.
+  A write of a side ref is never ended,
+  but it is not the branch write that the owner's "Never cut a branch write (Recommended)" covers,
+  and "nothing should ever wait forever or indefinitely" holds for it:
+  even the landing thread stops waiting at the class ceiling plus `SHORT_EXTRA_WAIT`,
+  gets the not-known error,
+  and the step is left running (`is_side_ref_write`,
+  `leave_running_bound`).
+  A `keep_unlanded` that gets it tells the person the commit could not be confirmed on its side ref;
+  a scratch deletion ignores it.
+  Everything else,
+  every other `update-ref`,
+  `stash`,
+  `merge`,
+  `reset`,
+  `read-tree`,
+  `checkout`,
+  `switch`,
+  `config --add`,
+  `gc` and the rest,
+  is never ended.
+  On the commit service's landing thread such a step is
+  announced at the usual interval and waited for as long as it lives.
+  Any other command stops waiting at the bound of the step's
+  class plus `SHORT_EXTRA_WAIT` (7 seconds;
+  the owner's "Class ceiling + 7 s (Recommended)") and exits non-zero with an error that
+  names the step and its command line and says it was left running,
+  so the result is not known,
+  with `git status`,
+  `git log -1`
+  and `ps` to check.
+  The step writes its output into anonymous files,
+  not pipes (`src/native/process/output_capture.rs`),
+  so it
+  does not die of `SIGPIPE` when the command exits,
+  and the system's init or subreaper reaps it.
 - The person's hook is never ended.
   No hook of the person runs below a step the wrapper starts, because every Git the wrapper starts carries
   `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/invocation/hooks_off.rs`), so the watch
@@ -1458,7 +1571,7 @@ The longest quiet gap of every Git step and tool a command ran is kept (`src/nat
 the
 timing record the command already writes: `longestQuietMs` (the longest among the steps that ended by themselves) and
 `quietMs` (by step name, in milliseconds, a step that was ended for being quiet listed apart under a name that ends in
-` [ended for being quiet]`) in `cli-git-commit-timing.jsonl`, and `quiet` in `cli-git-worktree-add-timing.jsonl`.
+` [ended for being quiet]`) in `monochromatic-git-policy-cli-commit-timing.jsonl`, and `quiet` in `monochromatic-git-policy-cli-worktree-add-timing.jsonl`.
 The resolution of a gap is the sampling interval of the meter, 500 milliseconds, and a window below that interval can
 end a
 step that works between two samples, so no window is set below it outside the controls.
@@ -1587,29 +1700,80 @@ What happens at the bound, on the commit path:
   (`src/native/service/service_busy.rs`) lets the thread that reads a connection answer a `withdraw` itself for a request that has
   not begun to land. Admission and cancellation are one decision per request: the file `<id>.decision` in the journal's `busy`
   directory, made with `link(2)` of a whole file, which exactly one side can create (`landing` by the landing thread before it
-  lands the request, `withdrawn` by a connection thread before it answers). A `withdrawn` decision is provisional until its maker has
-  checked the journal once more and created the file `<id>.cancelled`; only a decision with that file is acknowledged to a client or
-  kept, and a maker that finds the request landed, open or unknown removes its decision, which nobody has acknowledged, so no
-  observer reports a cancellation that is later undone. A `withdrawn` decision with its `.cancelled` file stays as a tombstone, so every
-  copy of the request that reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches, and
-  cleared when the service starts like the service's own memory of withdrawals); a `landing` decision is removed when its group is
-  done, after the batch is in the journal, and a withdrawal that wins afterwards asks the journal again and answers `landed` for a
-  request the journal names. A request that a batch still open names is left to the landing thread. Whatever cannot be established
-  (a file that cannot be made or read, a journal that cannot be read whole) is never evidence of a cancellation: the withdrawal goes
-  to the landing thread, and a request that cannot be admitted is answered with a failure and not landed. So a commit queued behind
-  the write ends at its own `ANSWER_CEILING` and not after `WITHDRAW_CEILING`, with the write named in the error and the log and
-  restart commands as the way out. A request that is the landing thread's is not withdrawn that way, because its commit may be made
-  by the write: the service sends its client, when the write starts and on the connection it opens to withdraw too, the same
-  `waiting` line with one more field, `"inside_write": true` (a client that does not know the field reads a plain `waiting`
-  notice, a service that does not send it leaves a client that does on the older path, and the protocol version stays 7), and that
-  client, at its original `ANSWER_CEILING` deadline plus `SHORT_EXTRA_WAIT` (7 seconds: the owner's "7 s (Recommended)", twice the
-  longest of 2,093 reference updates, 3,438 ms), does not ask to be withdrawn but listens for the landing and then ends with the
-  "not known whether the commit was made" failure, which names the write and the scratch ref and says `git log -1` and `git status`;
-  the write is left running and the commit lands when it returns. A client that is never told takes the older path and waits
-  `WITHDRAW_CEILING`. The record holds no lock (the owner: "Use as few locks as possible."), and the directory is emptied when the
-  service starts. Protocol messages are unchanged.
-  A client that waits behind a hung write keeps the service busy only as long as the write lasts; nothing in the wrapper ends it.
-- A merge waits for a foreign `index.lock` until `LOCK_CEILING`; at the bound it names the holder and ends the wait,
+  lands the request, `withdrawn:<token>` by a connection thread before it answers, the token being the maker's own). A `withdrawn`
+  decision is provisional until its maker has checked the journal once more and created the file `<id>.<token>.cancelled` with the
+  token the decision carries;
+  only a decision whose own confirmation exists is acknowledged to a client or kept,
+  and a maker that
+  finds the request landed,
+  open or unknown removes its decision,
+  which nobody has acknowledged,
+  so no observer reports a
+  cancellation that is later undone.
+  A confirmation belongs to one decision:
+  one that outlives its decision confirms nothing of the
+  decision that replaces it.
+  A `withdrawn` decision with its confirmation stays as a tombstone,
+  so every copy of the request that
+  reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches,
+  forgotten oldest first by the landing
+  thread alone,
+  between two groups,
+  and while it is stuck in a write the record holds at most twice that number:
+  past it the connection
+  threads leave withdrawals to the landing thread,
+  which removes a decision only while it still carries the token of the confirmation it removes;
+  the
+  memory is cleared when the service starts like the service's own memory of withdrawals);
+  a `landing` decision is removed when its group is
+  done,
+  after the batch is in the journal,
+  and a withdrawal that wins afterwards asks the journal again and answers `landed` for a
+  request the journal names.
+  A request that a batch still open names is left to the landing thread.
+  Whatever cannot be established
+  (a file that cannot be made or read,
+  a journal that cannot be read whole) is never evidence of a cancellation:
+  the withdrawal goes
+  to the landing thread,
+  and a request that cannot be admitted is answered with a failure and not landed.
+  So a commit queued behind
+  the write ends at its own `ANSWER_CEILING` and not after `WITHDRAW_CEILING`,
+  with the write named in the error and the log and
+  restart commands as the way out.
+  A request that is the landing thread's is not withdrawn that way,
+  because its commit may be made
+  by the write:
+  the service sends its client,
+  when the write starts and on the connection it opens to withdraw too,
+  the same
+  `waiting` line with one more field,
+  `"inside_write": true` (a client that does not know the field reads a plain `waiting`
+  notice,
+  a service that does not send it leaves a client that does on the older path,
+  and the protocol version stays 7),
+  and that
+  client,
+  at its original `ANSWER_CEILING` deadline plus `SHORT_EXTRA_WAIT` (7 seconds:
+  the owner's "7 s (Recommended)",
+  twice the
+  longest of 2,093 reference updates,
+  3,438 ms),
+  does not ask to be withdrawn but listens for the landing and then ends with the
+  "not known whether the commit was made" failure,
+  which names the write and the scratch ref and says `git log -1` and `git status`;
+  the write is left running and the commit lands when it returns.
+  A client that is never told takes the older path and waits
+  `WITHDRAW_CEILING`.
+  The record holds no lock (the owner:
+  "Use as few locks as possible."),
+  and the directory is emptied when the
+  service starts.
+  Protocol messages are unchanged.
+  A client that waits behind a hung write keeps the service busy only as long as the write lasts;
+  nothing in the wrapper ends it.
+- A merge waits for a foreign `index.lock` until `LOCK_CEILING`;
+  at the bound it names the holder and ends the wait,
   and Git's own
   refusal ends the merge non-zero with nothing changed.
   The index reconciliation of a commit with no change left ends the same
@@ -1659,7 +1823,7 @@ The owner, 2026-11-04, "Refuse and name it (Recommended)" (option B of "Foreign-
 `FOREIGN_OWNER_PATIENCE` expires on a record from another PID namespace, the command stops and changes nothing. An age is not proof
 that an owner is dead: a merge or a copy that cannot run twice may legitimately outlive any number. The error names the record file,
 the owner's process number and namespace, the record's age, that the owner may be a live command in another container, and the exact
-`rm -- '<path>'` to run when no cli-git command is running on the repository in any container and no Git process that cli-git left
+`rm -- '<path>'` to run when no monochromatic-git-policy-cli command is running on the repository in any container and no Git process that monochromatic-git-policy-cli left
 running (a step it stopped waiting for) is either. It covers the merge intent recovery (`merge_isolation_recovery.rs`), the takeover
 of a conversion claim (`single_owner_claim.rs`), and the journals and stage claims of a worktree add (`worktree_copy_owner.rs`,
 `worktree_copy_journal.rs`, `worktree_copy_recovery.rs`, `worktree_copy_stage_claim.rs`), and the legacy transaction owner records
@@ -1671,33 +1835,104 @@ of a conversion claim (`single_owner_claim.rs`), and the journals and stage clai
 
 #### Output of a step, the review runner, and releases that meet
 
-- The output of a step the wrapper started (`src/native/process/output_capture.rs`) is read once, when the step has ended or the
-  command has stopped waiting for it, as a snapshot of the last `STEP_OUTPUT_LIMIT` (8 MiB) bytes of each stream as the files were
-  sized when the read began. What was left out is said in the text the person sees ("N bytes at the start ... are left out"), and
-  a read that fails is said too and is never taken for the end of the output. A descendant that keeps appending after its leader
-  has exited therefore holds nothing up. The files are emptied (`ftruncate`) once nobody will read them, which frees what was
-  written until then; a step left running that keeps writing is held in memory by the kernel (it is anonymous memory of the step's
-  own output file) until the step ends or closes its output, which nothing in the wrapper bounds, and a very verbose step left
-  running can use memory in proportion to what it writes after the command has gone. A step the wrapper stops at its ceiling is
-  stopped with its whole process group, and the leader is reaped within `STOP_GRACE`: a leader that does not end then (an
-  uninterruptible wait for the disk) is handed to a reaper thread, and the command goes on.
-- The review of the commit service (`standards_review_run.rs`) admits one job at a time in one atomic step: a state of a
-  generation and a status, changed by compare-and-swap, so two callers that arrive together are never admitted both, and the
-  release of the state runs from a guard when the job's thread unwinds, so a review that panics after its timeout leaves nothing
-  outstanding. The look at the review's log runs inside the contained job.
-- Releases that meet. The protocol version stays 7 and no message changes: `waiting` with `"inside_write": true`, `withdraw` and
-  `withdrawn` are the messages of 0.5.31 and 0.5.33. A service of 0.5.31 or 0.5.32 (0.5.32 changed the lock claims only) keeps what
-  it was released with: a classifier by the name of the step, a decision race between landing and withdrawal that this release
-  closes, a step left running that dies of `SIGPIPE` when its command exits, and no snapshot bound on output. A client of those
-  releases sends its withdrawal on a connection that the service of this release answers, but it does not take the shortened
-  deadline a late `inside_write` notice gives, and this release's client against a service of those releases may get no timely
-  notice and then keeps to the longer withdrawal path (`WITHDRAW_CEILING`). Installing a new executable does not repair a service
-  that is running: the first connection of the new release sends it a `retire`, which it handles between batches, and waits for it
-  to leave for `START_WAIT`; a service in the middle of a write is never stopped by the wrapper, and the command that waited ends
-  with "The commit service that is running was started from another release of this git wrapper and did not stop when ..." and can be run again. The single service of the releases before one service per
-  worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it, because the manager's
-  stop ends the whole unit and with it a Git step that cannot run twice; one that is still there fails the commit with the stop
-  named for the person to run when no commit is running. Test: `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
+- The output of a step the wrapper started (`src/native/process/output_capture.rs`) is read once,
+  when the step has ended or the
+  command has stopped waiting for it,
+  as a snapshot of the last `STEP_OUTPUT_LIMIT` (8 MiB) bytes of each stream as the files were
+  sized when the read began.
+  What was left out is said in the text the person sees ("N bytes at the start ... are left out"),
+  and
+  a read that fails is said too and is never taken for the end of the output.
+  The notes reach the person with a failure of a repair tool
+  and are kept in the tool's result,
+  where a reader of its output (the `cargo metadata` of a repair) refuses output that was not taken
+  whole.
+  The files are emptied after the read on every path that ends a step,
+  a stop included.
+  A descendant that keeps appending after its leader
+  has exited therefore holds nothing up.
+  The files are emptied (`ftruncate`) once nobody will read them,
+  which frees what was
+  written until then;
+  a step left running that keeps writing is held in memory by the kernel (it is anonymous memory of the step's
+  own output file) until the step ends or closes its output,
+  which nothing in the wrapper bounds,
+  and a very verbose step left
+  running can use memory in proportion to what it writes after the command has gone.
+  A step the wrapper stops at its ceiling is
+  stopped with its whole process group,
+  and the leader is reaped within `STOP_GRACE`:
+  a leader that does not end then (an
+  uninterruptible wait for the disk) is handed to a reaper thread,
+  and the command goes on.
+- The review of the commit service (`standards_review_run.rs`) admits one job at a time in one atomic step:
+  a state of a
+  generation and a status,
+  changed by compare-and-swap,
+  so two callers that arrive together are never admitted both,
+  and the
+  release of the state runs from a guard when the job's thread unwinds,
+  so a review that panics after its timeout leaves nothing
+  outstanding.
+  The look at the review's log runs inside the contained job.
+  A caller whose wait ran out and who finds the job released waits for
+  its value at most `SHORT_EXTRA_WAIT` (7 seconds):
+  the release does not prove the value was sent.
+- Threads that cannot start.
+  A thread is only a way to do work sooner,
+  so no shipped site panics when the system gives none
+  (`Scope::spawn` did,
+  since 0.5.28:
+  on the service's thread it took the service down and the commit could not land).
+  A scoped start
+  (`src/native/foundation/scoped_start.rs`,
+  `start_or_run`) runs the work on the calling thread when the thread is refused,
+  and logs
+  it once for the syncs of a landing;
+  the second-pass input thread of a reconcile reports and stops its command instead,
+  because
+  writing the input in turn could block on a full pipe.
+  The sites and their controls are listed in
+  `doc/planning/cli-git-no-unbounded-waits.md`,
+  "Round 5".
+- Releases that meet.
+  The protocol version stays 7 and no message changes:
+  `waiting` with `"inside_write": true`,
+  `withdraw` and
+  `withdrawn` are the messages of 0.5.31 and 0.5.33.
+  A service of 0.5.31 or 0.5.32 (0.5.32 changed the lock claims only) keeps what
+  it was released with:
+  a classifier by the name of the step,
+  a decision race between landing and withdrawal that this release
+  closes,
+  a step left running that dies of `SIGPIPE` when its command exits,
+  and no snapshot bound on output.
+  A client of those
+  releases sends its withdrawal on a connection that the service of this release answers,
+  but it does not take the shortened
+  deadline a late `inside_write` notice gives,
+  and this release's client against a service of those releases may get no timely
+  notice and then keeps to the longer withdrawal path (`WITHDRAW_CEILING`).
+  Installing a new executable does not repair a service
+  that is running:
+  the first connection of the new release sends it a `retire`,
+  which it handles between batches,
+  and waits for it
+  to leave for `START_WAIT`;
+  a service in the middle of a write is never stopped by the wrapper,
+  and the command that waited ends
+  with "The commit service that is running was started from another release of this git wrapper and did not stop when ..." and can be run again.
+  The single service of the releases before one service per
+  worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it,
+  because the manager's
+  stop ends the whole unit and with it a Git step that cannot run twice;
+  one that is still there fails the commit with the stop
+  named for the person to run when no commit is running.
+  The owner chose this on 2026-11-04 ("A:
+  fail,
+  retry (Recommended)").
+  Test:
+  `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
 
 
 #### Commands that add commits
@@ -1753,7 +1988,7 @@ The trigger keeps reading as a caller that follows a successful Git run,
 because any other value the proof cannot vouch for
 would stop it the same way.
 
-Every ending of the trigger leaves one line in `cli-git-push-trigger.jsonl` in the common Git directory (size-capped like
+Every ending of the trigger leaves one line in `monochromatic-git-policy-cli-push-trigger.jsonl` in the common Git directory (size-capped like
 the commit timing file,
 moved aside to `.1`),
 and a debug line under `MONOCHROMATIC_VERBOSE=true`;
@@ -1815,7 +2050,7 @@ of that branch would do if it were checked out (`setup_default_push_refspecs` in
 and `match_push_refs` in `remote.c`).
 A setting under which Git refuses, or pushes the branch nowhere, is a skip, never a push:
 the push result is `Skipped` with exit code `0`, and its `shown` text is a note that names the branch,
-the setting and the way forward, printed to the same stream and starting with `cli-git: auto-push: `.
+the setting and the way forward, printed to the same stream and starting with `monochromatic-git-policy-cli: auto-push: `.
 One read of the configuration (`config --list -z --show-scope`, answered without starting Git where the
 in-process reader can) gives every value of the multi-valued keys.
 
@@ -1883,7 +2118,7 @@ in-process reader can) gives every value of the multi-valued keys.
   A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
   A merge whose conflicted files all resolved is published with the list of merged parts appended to the merge commit's message
   (the lines `word-level merge: <path>: part <n> of <m>: ...`),
-  the same lines in the report after the push (each begins with `cli-git: auto-push: `),
+  the same lines in the report after the push (each begins with `monochromatic-git-policy-cli: auto-push: `),
   and one journal entry per merged file after the push succeeded.
   A push that is refused as stale again repeats the fetch, the merge and the push,
   at most `MAX_RECONCILE_ATTEMPTS` (10) times in all,
@@ -1902,8 +2137,8 @@ in-process reader can) gives every value of the multi-valued keys.
   Any other state leaves the branch behind the remote, and the report names the reason, with the overlapping paths
   (five by name, then a count).
   The merge commit skips commit-time hooks and policies because it is made from objects.
-  Every line the reconcile adds begins with `cli-git: auto-push: `;
-  a line that begins with `cli-git: auto-push: not published: `
+  Every line the reconcile adds begins with `monochromatic-git-policy-cli: auto-push: `;
+  a line that begins with `monochromatic-git-policy-cli: auto-push: not published: `
   explains a failure and replaces the generic "run `git push`" note,
   which would repeat a push that cannot succeed.
   When the branch could not be fast-forwarded it stays behind the remote,
@@ -1960,7 +2195,7 @@ in-process reader can) gives every value of the multi-valued keys.
   No number is invented to tell a dead remote from a slow one.
   Where the kernel's socket list cannot be read, the connection cannot be seen, and the stall window applies.
   The wait begins once a tree with an open connection has shown nothing for the stall window,
-  and is said once, as a line that starts with `cli-git: <program> <subcommand> is waiting for the server`
+  and is said once, as a line that starts with `monochromatic-git-policy-cli: <program> <subcommand> is waiting for the server`
   (`git push`, `git fetch` or `git-lfs push`) in the run's output and in the diagnostic log.
   Silence during the wait is not counted against the window, so when the connection closes
   (no process of the tree holds an established socket) the stall window runs again from that moment,
@@ -2077,7 +2312,7 @@ in-process reader can) gives every value of the multi-valued keys.
 - A push that lost a race on a pending reference lock (`cannot lock ref` in a push that otherwise delivered)
   is repeated up to three times with growing pauses, because the two worktrees' services share the references.
 - A failed push is reported with its complete output and the note
-  ``cli-git: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
+  ``monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
   unless the reconcile already said why the commit is unpublished.
   A successful push shows only the `remote:` lines and the lines of the reconcile.
 
@@ -2151,7 +2386,7 @@ locks, with one rule: a lock is removed only when its holder is
 - "Invoke real git as rarely as possible."
 - "Fix even pre-existing issues of the pkgs you own."
 - Git's own file-system monitor is off in the person's global configuration, by the owner's decision of 2026-11-03
-  (see the README section "Git's own fsmonitor"; `git cli-git doctor` says so).
+  (see the README section "Git's own fsmonitor"; `git monochromatic-git-policy-cli doctor` says so).
   Nothing here sets, unsets, pins or passes `core.fsmonitor`, and no tier of the judgement counts the daemon's descriptors
   or working directory as evidence of anything.
 
@@ -2355,24 +2590,24 @@ file after the lock was looked for and found absent has no live maker, and it is
 
 #### Messages as printed
 
-Every line starts with `cli-git: `, and every path is quoted for a shell (a plain name as it is, other printable names in single
+Every line starts with `monochromatic-git-policy-cli: `, and every path is quoted for a shell (a plain name as it is, other printable names in single
 quotes with `'\''` for a quote, names with a control character or a byte that is not UTF-8 as `$'...'`), so the command can be
 pasted and a terminal escape in a file name is never printed raw.
 
 ```text
 # A lock the wrapper removed (the process of the pid file ended).
-cli-git: removed the reference lock /r/.git/refs/remotes/origin/gone.lock, left by a Git that is gone: process 2629996, named by the pid file beside it, has ended.
+monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/remotes/origin/gone.lock, left by a Git that is gone: process 2629996, named by the pid file beside it, has ended.
 # A lock whose pid number now belongs to a program that is not Git.
-cli-git: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.
+monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.
 # A lock a running Git holds.
-cli-git: the reference lock /r/.git/packed-refs.lock is in use: process 2630147 (git), which the pid file beside it names, is running; it was left alone.
+monochromatic-git-policy-cli: the reference lock /r/.git/packed-refs.lock is in use: process 2630147 (git), which the pid file beside it names, is running; it was left alone.
 # A lock nothing proves stale.
-cli-git: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open.
-cli-git: it is 0 bytes, made 2026-11-03T11:57:55.882Z (2 seconds ago). If no Git process is running in this repository, clear it with:
-cli-git:   rm -- /r/.git/refs/remotes/origin/gone.lock
+monochromatic-git-policy-cli: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open.
+monochromatic-git-policy-cli: it is 0 bytes, made 2026-11-03T11:57:55.882Z (2 seconds ago). If no Git process is running in this repository, clear it with:
+monochromatic-git-policy-cli:   rm -- /r/.git/refs/remotes/origin/gone.lock
 # A lock whose times are earlier than the boot, with no pid file: the times are said, and prove nothing.
-cli-git: left the reference lock /r/.git/refs/heads/c.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open; its times are earlier than the start of this boot, which a reboot would explain, but so would a correction of the clock, so the times alone prove nothing.
-cli-git: Git writes a process number beside its locks only when `core.lockfilePid` is on. The wrapper turns it on for the Git it starts; `git config --global core.lockfilePid true` does it for the rest, so the next lock can be proven.
+monochromatic-git-policy-cli: left the reference lock /r/.git/refs/heads/c.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open; its times are earlier than the start of this boot, which a reboot would explain, but so would a correction of the clock, so the times alone prove nothing.
+monochromatic-git-policy-cli: Git writes a process number beside its locks only when `core.lockfilePid` is on. The wrapper turns it on for the Git it starts; `git config --global core.lockfilePid true` does it for the rest, so the next lock can be proven.
 ```
 
 For `packed-refs.lock` the `rm` line also names `packed-refs.new` and the pid file when they exist.
@@ -2414,7 +2649,7 @@ Owner decisions, in order, quoted with the date each was superseded:
 and, on 2026-11-03, "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
 disable git's fsmonitor globally entirely and make doctor say so."
 (recorded in `README.md`, "Git's own fsmonitor").
-So the setting is off in the person's global configuration, `git cli-git doctor` says so, and the wrapper still neither
+So the setting is off in the person's global configuration, `git monochromatic-git-policy-cli doctor` says so, and the wrapper still neither
 passes `-c core.fsmonitor=...` to a child nor starts or stops a monitor daemon.
 The wrapper injects no hook of its own, so no event is an exception.
 
@@ -2448,11 +2683,11 @@ The wrapper injects no hook of its own, so no event is an exception.
 
 ### The wrapper never starts itself as Git
 
-The wrapper looks for the real Git on `PATH` and starts it; nothing it starts as Git may be a cli-git wrapper.
+The wrapper looks for the real Git on `PATH` and starts it; nothing it starts as Git may be a monochromatic-git-policy-cli wrapper.
 The owner's rule: "We should never invoke ourselves recursively." (`doc/planning/cli-git-no-self-invocation.md`, which
 holds the incident of release 0.5.26, 2026-11-03, the cause, the options weighed and the controls.)
 
-- Selection skips a candidate that leads back to cli-git: the running executable through any link, spelling or
+- Selection skips a candidate that leads back to monochromatic-git-policy-cli: the running executable through any link, spelling or
   byte-identical copy, a script that starts the TypeScript wrapper, and a toolchain launcher of the wrapper.
   A launcher is recognised by the record `<name>.launch` that sits beside it (or beside the file its links reach):
   the record's `toolId` ends in `monochromatic-git-policy-cli`, or its `real` is this executable.
@@ -2463,23 +2698,23 @@ holds the incident of release 0.5.26, 2026-11-03, the cause, the options weighed
   service's Git work).
   The builders that set it are `git_command` in `forwarding.rs`, `replace_process_with_real_git`, `git_command` in
   `auto_push_single_flight.rs`, and the two starts with a cleared environment, `ask_git_var` and `status_git_dir`.
-- A cli-git executable stops before it plans anything when the marker says it is the process of a `replace` starter
+- A monochromatic-git-policy-cli executable stops before it plans anything when the marker says it is the process of a `replace` starter
   (same process number, same birth), or the child of a `child` starter (the marker names its parent, same birth).
   A hook, an alias or an editor that the real Git starts has another process in between, so running an installed
   wrapper there is not stopped. An identity that cannot be read decides by the numbers.
 - The stop is exit status 2 with one message that names this executable, the starter and how it started this process,
   the file the starter chose as Git (`CLI_GIT_NATIVE_FORWARD_TARGET`), the `PATH` it saw, why it stops, and what to do:
   put the directory of the real Git (for example `/usr/bin`) on the `PATH` of the program that started the first
-  cli-git, or remove the entry that leads back to cli-git from that `PATH`.
+  monochromatic-git-policy-cli, or remove the entry that leads back to monochromatic-git-policy-cli from that `PATH`.
 - No real Git on `PATH` falls back to the Git the commit service was set up with, when a record names one that passes
   the same checks (below). Without a usable record it is a stop with exit status 2. The message gives the counts, the
-  `PATH` value, every candidate with its verdict (skipped because it leads back to cli-git, or missing, not executable
+  `PATH` value, every candidate with its verdict (skipped because it leads back to monochromatic-git-policy-cli, or missing, not executable
   or unreadable), the record when a unit named one that was refused, and the ways out: install Git, add the real Git's
   directory to the `PATH` of the program that ran the command, or remove an entry that should not be used. The wrapper
   does not search outside `PATH` except for the promotion of a conventional location that `PATH` already exposes and
   this record.
-- `cli-git-service` is never started by the wrapper and refuses a `--git` that is a launcher of the wrapper (a unit
-  written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
+- The service mode (`monochromatic-git-policy-cli monochromatic-git-policy-cli service run`) is never started by the wrapper and refuses a `--git` that is the
+  wrapper itself, a link or copy of it, or a launcher of it (a unit written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
   provisions the unit writes it again. Its Git starts go through the marked builders.
 - Not covered: a user script named `git` that starts the wrapper as a child, with no launch record and no marker
   string. The parent of the arriving wrapper is the script, not the starter; the message of a wrapper that cannot find
@@ -2497,7 +2732,7 @@ but once the wrapper is found the person expects `git` to work; the owner's rule
 (`package/git-policy/cli/DESIGN.md`, 2026-11-01). The deliberation is in `doc/planning/cli-git-no-self-invocation.md`,
 section "Falling back to the Git the commit service was set up with".
 
-- The record is the `--git` option on the `ExecStart` line of the unit `cli-git@.service` that the wrapper writes below
+- The record is the `--git` option on the `ExecStart` line of the unit `monochromatic-git-policy-cli@.service` that the wrapper writes below
   `$XDG_RUNTIME_DIR/systemd/user` (`service_provision.rs`) when it sets up the commit service. It is read only when
   `PATH` offers no real Git, only from an absolute `XDG_RUNTIME_DIR`, as text up to 64 KiB, with no process started
   (`real_git_record.rs`). No other file is read and no location is guessed: with no unit, no `--git` word, a relative
@@ -2511,15 +2746,15 @@ section "Falling back to the Git the commit service was set up with".
   as `empty or unset`:
 
   ```text
-  cli-git: no real Git follows this wrapper on PATH (<PATH>); used <path>, the Git recorded in <unit> as the one the commit service starts; to silence this notice, add <directory of path> to the PATH of the program that ran this command.
+  monochromatic-git-policy-cli: no real Git follows this wrapper on PATH (<PATH>); used <path>, the Git recorded in <unit> as the one the commit service starts; to silence this notice, add <directory of path> to the PATH of the program that ran this command.
   ```
 
 - The same resolution serves every start of the real Git: forwarded commands, the announced queries, the commit steps,
-  the push work, `git cli-git doctor`, the direct commands, `service status` and `convert-worktree-to-subvolume`.
+  the push work, `git monochromatic-git-policy-cli doctor`, the direct commands, `service status`, `service settle-earlier-batches` and `convert-worktree-to-subvolume`.
   The service takes the resolved path in the `--git` of its unit as before; a fallback path is therefore written into
   the unit it came from, unchanged.
 - Limits: the unit is in the runtime directory, so it exists only after a commit has provisioned the service in this
-  login and is gone after the account's last logout; before that, the stop stays. A `cli-git-service` started with no
+  login and is gone after the account's last logout; before that, the stop stays. A service started with no
   `--git` still defaults to `/usr/bin/git`; that is a development path, since the wrapper always writes `--git`.
 
 ### Git LFS upload before a push
@@ -2666,7 +2901,7 @@ The step:
   The auto-push after a landed commit is preceded by it, and so is each reconcile push of that auto-push.
   The scope probe of a manual push and the integration step's probe are dry-run pushes that must not upload:
   they never run the upload.
-  No `git cli-git` subcommand pushes.
+  No `git monochromatic-git-policy-cli` subcommand pushes.
 - Bypass.
   `git push --no-verify` (any accepted abbreviation), `--dry-run`, `GIT_LFS_SKIP_PUSH` set to a true value, and
   `-c hook.cli-git-lfs-pre-push.enabled=false` among the global options or in `GIT_CONFIG_COUNT` pairs (the switch an
@@ -2678,7 +2913,7 @@ The step:
   (`setupRepository` then `installHooks(false)`), so deleting the files does not last once an LFS path is cleaned by
   a Git that the wrapper did not start.
   A shim never runs through the wrapper (see "Real Git starts with traditional hooks off"), so there is no second
-  upload; `git cli-git doctor` explains the shims apart from the unsupported hooks (see "Doctor").
+  upload; `git monochromatic-git-policy-cli doctor` explains the shims apart from the unsupported hooks (see "Doctor").
 
 Verified by `src/native/binary/binary_lfs_pre_push_tests.rs`
 (a stand-in `git-lfs` that records the arguments, the input and the origin's branch at the moment it ran)
@@ -2699,7 +2934,7 @@ then atomically replace only changed selected and added worktree files.
 Snapshot the complete real index before and after and fail if any index blob changes.
 Hold no lock:
 a landing by the commit service between the first snapshot and the final one changes the real index,
-and the fix then fails with "the index changed while cli-git fix ran" after restoring every file it replaced,
+and the fix then fails with "the index changed while monochromatic-git-policy-cli fix ran" after restoring every file it replaced,
 so a concurrent landing can never be mistaken for a fix that touched the index.
 Run the fix again.
 Emit final findings and one fix summary to stdout.
@@ -2856,7 +3091,7 @@ A `git commit` in a repository whose configuration sets `core.hooksPath` emits o
 configuration warning on standard error, before anything else the command prints.
 It names the configured value in `path`,
 says that traditional hooks are unsupported and that their behavior is undefined,
-and says to run `git cli-git doctor`.
+and says to run `git monochromatic-git-policy-cli doctor`.
 The warning never blocks the commit and is not a core finding.
 The trigger is the configuration snapshot the commit reads once for its other needs:
 the commit starts no process and makes no file system call for this warning,
@@ -2906,7 +3141,7 @@ and cannot be disabled or assigned a severity through repository config.
 
 Every `concurrent-commit` finding leaves ref,
 real index,
-and worktree bytes unchanged by cli-git.
+and worktree bytes unchanged by monochromatic-git-policy-cli.
 
 ### Fix summary event
 
@@ -2968,11 +3203,11 @@ export type CommitLandedEvent = EventBase & {
 };
 ```
 
-This event is emitted when a commit exists but a post-commit policy or engine failure makes cli-git return `2` after
+This event is emitted when a commit exists but a post-commit policy or engine failure makes monochromatic-git-policy-cli return `2` after
 real Git succeeded.
 It follows any causal finding or engine-failure event and is the final policy event.
 An ordinary auto-push network or remote rejection is not an engine failure:
-cli-git surfaces complete push output,
+monochromatic-git-policy-cli surfaces complete push output,
 leaves the commit local,
 and preserves the successful commit command's exit code `0`.
 
@@ -3042,7 +3277,7 @@ The behavior is on in every repository the wrapper runs in;
 no configuration key or environment variable opts out of it.
 
 Every non-dry-run commit command line is landed by the resident commit service of the worktree:
-one instance of the systemd template units `cli-git@.socket` and `cli-git@.service` per worktree,
+one instance of the systemd template units `monochromatic-git-policy-cli@.socket` and `monochromatic-git-policy-cli@.service` per worktree,
 started by the operating system on the first connection (socket activation).
 The wrapper never starts the service itself,
 and it has no other way to land a commit.
@@ -3234,13 +3469,13 @@ Three things enforce that:
     `recover_selected`),
     are called only from the serve loop and,
     before it starts,
-    from `service_main.rs`.
+    from `service/service_main.rs`.
     Connection threads only queue jobs,
     and the work thread (push and upkeep) never touches an index.
     The calls are sequential on that one thread.
 2.  Across processes of one worktree,
     the worktree has one systemd unit,
-    `cli-git@<instance>.service`,
+    `monochromatic-git-policy-cli@<instance>.service`,
     whose socket does not accept per connection.
     The manager runs at most one main process of that unit and starts it again only after the earlier one is gone.
     An upgrade sends the old release a retire,
@@ -3256,7 +3491,7 @@ Three things enforce that:
 
 The commit route of the wrapper that took a marked lock of its own (transactions) was deleted with task 4d part 2,
 and no other code writes the marker.
-The tests that start `cli-git-service` directly start one service for each Git directory
+The tests that start the service mode directly start one service for each Git directory
 (`binary_support.rs`,
 `serve`,
 keeps one child for each;
@@ -3279,7 +3514,7 @@ not fixed:
   so a new instance can reclaim a lock that the old service still holds.
   The old service releases by pathname and cannot be changed.
   The cure is the documented one:
-  stop `cli-git@*` before committing with the older release.
+  stop `monochromatic-git-policy-cli@*` before committing with the older release.
 - A user who points two worktrees at one index with `GIT_INDEX_FILE` makes two instances take one lock.
   That is not a path the service ships; their reclaims of a stale lock of it are kept apart by the claim chain below, and
   their placements by exclusive creation.
@@ -3362,7 +3597,7 @@ could unlink the file: such a lock is left, named, with the `rm` (answer Foreign
 A marker that names no process is never read as gone (it could be a live service on another machine), and neither is one that names no
 machine ID and another boot when this reader has a machine ID: it cannot be told from a service on another machine. After an upgrade, a
 stale lock an older release's killed service left is therefore removed by hand once; every lock this release writes is reclaimed on its own.
-After a downgrade, the locks of this release are left to the person by the older release (stop `cli-git@*` first, as for any downgrade).
+After a downgrade, the locks of this release are left to the person by the older release (stop `monochromatic-git-policy-cli@*` first, as for any downgrade).
 
 The exclusion is the one that `doc/planning/cli-git-one-reclaimer-per-index.md` argues for: the unit is the one file being
 reclaimed, the hold lasts a few system calls, and a dead claimer's claim is passed over, so no leftover can block a reclaim.
@@ -3428,15 +3663,44 @@ left.
 It then becomes the lock in one step:
 a rename that does not replace (`RENAME_NOREPLACE`),
 else a hard link whose staging name is removed after.
-A filesystem that offers neither (a vfat mount on a kernel without the rename flag,
-for example) gets no lock:
-the attempt fails with the code `unavailable`,
-nothing stays in the directory,
-and the service's log names the filesystem,
-both refusals and what to do.
-Creating the lock and writing the marker afterwards is not done,
-because a kill between the two leaves an empty lock that may be native Git mid-write,
-which no restart can take over.
+A filesystem that offers neither (a FUSE server such as `s3fs-fuse`, or a vfat mount on a kernel without the rename flag,
+for example) gets the lock the way Git takes its own:
+`open` with `O_CREAT | O_EXCL` creates `index.lock`
+(Git 2.56.0, `tempfile.c` line 142, called from `lock_file` in `lockfile.c` lines 168 to 190),
+the marker is written into that file and flushed,
+and the holder keeps that file's descriptor, so the ownership check at release compares the lock's own inode.
+The fallback is taken only when the rename that does not replace and the hard link were both refused
+(`EINVAL`, `ENOSYS`, `EOPNOTSUPP` for the rename; `EPERM`, `EOPNOTSUPP` for the link),
+never when the lock exists or storage failed, and never as the first choice.
+Reason: "Commits should never fail." and the owner's pick "Keep the fallback (Recommended)" for such filesystems;
+real Git commits there and the fallback is never less safe than plain Git on the same filesystem.
+A marker that cannot be written or flushed removes the lock the attempt created and fails the attempt with the storage error.
+The service's log says once per acquisition that the lock was taken this way and why.
+What a kill can leave there:
+the lock created and the marker not yet written leaves an empty lock, as plain Git leaves one
+(`unable_to_lock_message`, `lockfile.c` lines 254 to 267, tells the person to remove it).
+It may be a Git that is mid-write, so nothing here removes it:
+a wrapped `git add` meets it as Git does,
+a landing waits for it until `LOCK_CEILING` and ends with `index_in_use`,
+and the words at the ceiling name the file and the command that clears it.
+A kill after the marker is written leaves the whole marker of a gone process,
+which the next landing removes where a claim file can be placed (any filesystem that offers a rename that does not replace or a hard link);
+on a filesystem that offers neither no claim can be placed, the lock stays (`Unguarded`),
+and the notice names the file, the batch and the command that removes it.
+Self-clearing of an empty lock is not shipped.
+The one proof considered was a file lock held on the lock file (`flock`),
+and it cannot close the gap:
+Git never takes a file lock on `index.lock`,
+and the lock file must exist before anything can lock it,
+so a kill between the creation and the file lock leaves a file that is indistinguishable from a live Git's empty lock.
+The claim chain cannot be used for it either, because a claim must be placed whole and that is the call this filesystem refuses.
+The claim chain stays on the whole-file placement alone (`place_marked`); only the index lock has the fallback (`place_lock`).
+The kill controls are `binary/binary_fault_trace_lock_without_links_tests.rs`
+(kills at `lock-created-unmarked`, `lock-marked-unsynced` and each batch point under `strace --inject` of `EOPNOTSUPP` on `link`, `linkat` and `renameat2`);
+the kill controls recover on a working filesystem after the kill (the injection ends with the faulted service),
+so the `Unguarded` case above is covered by the unit control `a_stale_marked_lock_stays_where_no_claim_can_be_placed` and not end to end;
+a commit through a new service during the kill control also proves the service removes no lock without its marker;
+the end-to-end control with real Git as the control is `a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`.
 A process that cannot read its own birth identity writes no marker and takes no lock,
 for the same reason:
 a marker without an identity reads as a dead instance's.
@@ -3697,7 +3961,7 @@ the wait requires the Git directory's ancestry to stay in place while it lasts.
 A commit on a machine where no socket answers and no user service manager can be asked to start one
 (no runtime directory,
 no session bus,
-no service program beside the wrapper)
+no executable of the wrapper's own to name in a unit)
 changes nothing and ends with exit `1` and a plain message for the platform:
 Linux without user services names `loginctl enable-linger` and the requirement of a systemd user manager,
 and Windows,
@@ -3735,12 +3999,12 @@ any other real ref,
 or shared reflogs.
 It uses:
 
-- a private commit index at `<git-dir>/cli-git-service-<id>/commit.index`,
+- a private commit index at `<git-dir>/monochromatic-git-policy-cli-service-<id>/commit.index`,
   in the commit's scratch directory,
   which the service removes when the command ends,
   however it ends;
 - the real object store.
-  Every cli-git Git command that writes or reads the private index's objects
+  Every monochromatic-git-policy-cli Git command that writes or reads the private index's objects
   (`read-tree`,
   `add`,
   `add --patch`,
@@ -3842,7 +4106,7 @@ Owner decision (2026-11-03), verbatim: "Drop it everywhere (Recommended)", answe
 No such run carries `--quiet` or `-q` where the option only hides messages or progress.
 Git's words are not discarded with the capture of the run: the service records them as one entry at priority `info` in
 its log, which the service manager keeps in the journal of its unit, and the wrapper records the words of a run it made while
-carrying out the person's command as one client entry in the journal (`journalctl --identifier=cli-git`); both carry the field
+carrying out the person's command as one client entry in the journal (`journalctl --identifier=monochromatic-git-policy-cli`); both carry the field
 `CLI_GIT_INNER_COMMAND`, mask the userinfo of URLs, and are made only when the run said something.
 The person's own streams carry what native Git's command prints: the isolated merge's fast-forward says "Updating a..b" and
 "Fast-forward" on standard output, and that goes to the journal, while a warning on its standard error still reaches the person.
@@ -3862,7 +4126,7 @@ so the line of a build that did not land can precede the line of the commit that
 Owner decision (2026-11-03), verbatim: "Add a wrapper note (Recommended)".
 Git's output stays untouched; once the commit has landed, the wrapper adds one line to standard error
 that names every build that did not land and the commit that did, by the names Git's summary lines carry:
-`cli-git: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.`
+`monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.`
 Several builds that did not land are joined with commas and `and`.
 A commit that was not built again prints no note.
 
@@ -3911,7 +4175,7 @@ Options that select the whole index (`--all`, `--no-only`, `--include`, `--inter
 #### Scratch repository layout
 
 The scratch repository (the shadow, in the code and in this section) is made only when real Git must build the commit.
-It lives in `<git-dir>/cli-git-service-<id>/shadow` and holds these private entries:
+It lives in `<git-dir>/monochromatic-git-policy-cli-service-<id>/shadow` and holds these private entries:
 
 - The ref store:
   `HEAD`,
@@ -3929,13 +4193,13 @@ It lives in `<git-dir>/cli-git-service-<id>/shadow` and holds these private entr
   other branches,
   and remote-tracking refs as they stood at invocation.
   With the files backend,
-  cli-git writes the snapshot as one `packed-refs` file
+  monochromatic-git-policy-cli writes the snapshot as one `packed-refs` file
   (header `# pack-refs with: sorted `,
   with the trailing space Git's own writer emits and older readers require)
   and writes the private target ref as a loose ref through `git --git-dir=<shadow> update-ref`,
   which takes precedence over the packed entry.
   With the reftable backend,
-  cli-git writes the snapshot through one `git --git-dir=<shadow> update-ref --stdin` transaction.
+  monochromatic-git-policy-cli writes the snapshot through one `git --git-dir=<shadow> update-ref --stdin` transaction.
   Measured with the files backend
   (Git 2.55.0,
   7 runs each):
@@ -3949,7 +4213,7 @@ It lives in `<git-dir>/cli-git-service-<id>/shadow` and holds these private entr
   Git is started with `GIT_OBJECT_DIRECTORY` naming that real directory,
   so what it writes lands in the real store.
 - `config`,
-  written by cli-git
+  written by monochromatic-git-policy-cli
   (see the config layout in this subsection).
 - `config.worktree`,
   copied from the owning worktree's Git directory when present.
@@ -3958,7 +4222,7 @@ It lives in `<git-dir>/cli-git-service-<id>/shadow` and holds these private entr
   so concurrent preparations never share one message file.
 - The copied conclusion state
   (see "Sequencer conclusion state").
-- `cli-git`,
+- `monochromatic-git-policy-cli`,
   which is never linked.
 
 Every other entry of the real common Git directory,
@@ -3979,7 +4243,7 @@ The shadow has no `index`;
 The shadow `config` has this layout:
 
 ```ini
-; <git-dir>/cli-git-service-<id>/shadow/config
+; <git-dir>/monochromatic-git-policy-cli-service-<id>/shadow/config
 [core]
   repositoryformatversion = <copied value>
 [extensions]
@@ -4111,22 +4375,22 @@ and the executable does not read the name it was started under.
   directory's own config file only (measured on Git 2.56.0), and the wrapper removes `GIT_WORK_TREE` from the environment.
 - A repository that configures hooks gets one `configuration-warning` event (code `external-hooks-unsupported`) on
   each commit, decided from the configuration snapshot the commit already holds: it names the `hook.<name>` keys, their
-  events and the ways forward (remove the keys, or express what the hook checked as a cli-git policy under `policies`
-  in `cli-git.config.jsonc`).
-  `git cli-git doctor` lists the same hooks, one `hook.<name> (events: ...)` line each, and exits 1 while any remain.
+  events and the ways forward (remove the keys, or express what the hook checked as a monochromatic-git-policy-cli policy under `policies`
+  in `monochromatic-git-policy-cli.config.jsonc`).
+  `git monochromatic-git-policy-cli doctor` lists the same hooks, one `hook.<name> (events: ...)` line each, and exits 1 while any remain.
   A push prints the same warning, from the snapshot it already reads for the LFS decision.
   A forwarded command other than a commit or a push prints no warning, because it reads no configuration snapshot.
 - `hooks.concurrentCommits` is retired: an older file that sets it loads, the value is ignored, and doctor says so.
 
-The wrapper itself executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`,
+The wrapper itself executes no program that any configuration names: not a Git config key, not `monochromatic-git-policy-cli.config.jsonc`,
 not the git directory, not the environment.
 The programs Git starts for its own features (filters, editors, signing programs, credential helpers) are Git's, not the
 wrapper's, and stay; a program that is a hook event is switched off.
 `core.fsmonitor` is among them, and the wrapper does not set it: it is off in the person's global configuration
-(owner decision, 2026-11-03), and `git cli-git doctor` says so.
-`cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
-(`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
-What a hook checked belongs in a cli-git policy.
+(owner decision, 2026-11-03), and `git monochromatic-git-policy-cli doctor` says so.
+`monochromatic-git-policy-cli.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
+(`Configuration key postCommit is not supported: monochromatic-git-policy-cli runs no program named by any configuration ...`).
+What a hook checked belongs in a monochromatic-git-policy-cli policy.
 
 ### Policy evaluation during preparation
 
@@ -4263,8 +4527,8 @@ The stages are read with one `git cat-file --batch`, the attributes with one `gi
 each file that resolves is written as a blob (`git hash-object -w`), staged as resolved
 (`git update-index --index-info`, which replaces the conflict stages) and written to the worktree with `git checkout-index --force`,
 so the repository's filters apply; if the checkout fails the conflict stages are put back.
-Standard error gets one line per part, `cli-git: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines> became "<text>"`.
-Each merged file is one journal entry of priority `warning` under `SYSLOG_IDENTIFIER` `cli-git`, with the fields
+Standard error gets one line per part, `monochromatic-git-policy-cli: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines> became "<text>"`.
+Each merged file is one journal entry of priority `warning` under `SYSLOG_IDENTIFIER` `monochromatic-git-policy-cli`, with the fields
 `CLI_GIT_WORD_MERGE_FILE`, `CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
 
 When every conflicted file of the command resolved, the operation is finished the way Git finishes it after a clean run
@@ -4342,7 +4606,7 @@ and they run from the top of the worktree with the invocation's `-c` options onl
 Merges from objects (the isolated merge, the auto-push reconcile merge, the commit replay merge):
 `git merge-tree --write-tree -z` prints the stages of every conflicted path.
 These merges accept the result only when every conflicted file resolves; otherwise they behave as they did, naming the paths.
-The merged blobs are written, a scratch index in the repository's `cli-git-scratch` directory takes the merge tree and the merged blobs
+The merged blobs are written, a scratch index in the repository's `monochromatic-git-policy-cli-scratch` directory takes the merge tree and the merged blobs
 (`read-tree`, `update-index --index-info`, `write-tree`), and the scratch file is removed.
 No worktree is read by these merges, so the attribute tree is named where Git would read none. Git takes the tree from
 `--attr-source`, else `GIT_ATTR_SOURCE`, else the configuration `attr.tree`, and ignores an `attr.tree` that is no tree
@@ -4355,7 +4619,7 @@ The `doc/handover/*.md merge=union` line of `.gitattributes` therefore applies i
 A `.gitattributes` that only the second side has is not read (Git takes one tree).
 The isolated merge prints the part lines before Git's own words and sends the journal entries after the merge is in the checkout;
 the reconcile merge appends the part lines to the merge commit's message, prints them with the push report and sends the entries after the push succeeded,
-under `SYSLOG_IDENTIFIER` `cli-git-service` for the auto-push, which runs inside the service, and `cli-git` for a push a person typed;
+under `SYSLOG_IDENTIFIER` `monochromatic-git-policy-cli-service` for the auto-push, which runs inside the service, and `monochromatic-git-policy-cli` for a push a person typed;
 the replay merge reports the parts in a `word-merged` event and sends the entries when the merge is used.
 
 ### Retry after a moved branch
@@ -4506,7 +4770,7 @@ makes its processes see each other's claims as of an earlier boot.
 
 ### Timing logs
 
-A slow worktree add is split by step from `<common-git-dir>/cli-git-worktree-add-timing.jsonl`, written the same way as the commit
+A slow worktree add is split by step from `<common-git-dir>/monochromatic-git-policy-cli-worktree-add-timing.jsonl`, written the same way as the commit
 timing file below (one append, no flush to disk, size-capped by the same appender, never changing the add's result).
 Code: `src/native/worktree/add_timing.rs`.
 Each line has `schemaVersion`, `time`, `startMillis`, `pid`, `release`, `exitCode`, `totalMs`, `steps`, `otherMs`, `work` and `notes`.
@@ -4539,7 +4803,7 @@ neither starts a process or flushes to disk,
 and neither holds a message,
 an identity or a secret.
 
-The wrapper appends one JSON line per commit that reached the service to `<common-git-dir>/cli-git-commit-timing.jsonl`
+The wrapper appends one JSON line per commit that reached the service to `<common-git-dir>/monochromatic-git-policy-cli-commit-timing.jsonl`
 with `schemaVersion`,
 `time`
 (when the line was written),
@@ -4582,7 +4846,7 @@ and within `submitMs` the reach (`reachMs`,
 `sends`).
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
-The file moves to `cli-git-commit-timing.jsonl.1` at one mebibyte,
+The file moves to `monochromatic-git-policy-cli-commit-timing.jsonl.1` at one mebibyte,
 and a failed write never changes the command's result.
 All three JSONL files (timing,
 push trigger,
@@ -4626,7 +4890,7 @@ The datagram has `MESSAGE` (the line without the prefix),
 `PRIORITY` (`err` 3,
 `warning` 4,
 `info` 6),
-`SYSLOG_IDENTIFIER=cli-git-service`,
+`SYSLOG_IDENTIFIER=monochromatic-git-policy-cli-service`,
 `CLI_GIT_AT_MS`,
 `CLI_GIT_RELEASE`,
 `CLI_GIT_INSTANCE`
@@ -4906,16 +5170,16 @@ A path that Git resolves in the index as the command runs (`checkout <tree-ish> 
 so a later line that names it is judged by the rules again.
 
 The copy is written and synced before Git starts.
-It goes to `<common-git-dir>/cli-git/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
-next to `cli-git-audit.jsonl`;
+It goes to `<common-git-dir>/monochromatic-git-policy-cli/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
+next to `monochromatic-git-policy-cli-audit.jsonl`;
 a second invocation in the same second gets `-1`, `-2` and so on after the time.
 The directories are private (`0700`), and the copy has the file's content and permission bits
 or the symbolic link's target.
 The wrapper prints, before Git runs, for each path:
 
 ```text
-cli-git: saved your copy of a.rs to
-  /path/to/repo/.git/cli-git/discarded/2026-11-02T14-01-07/a.rs
+monochromatic-git-policy-cli: saved your copy of a.rs to
+  /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-02T14-01-07/a.rs
   before this command replaces it (a.rs was conflicted).
 ```
 
@@ -4955,7 +5219,7 @@ A file that another program changes while the save runs is the user's risk.
 The folder is bounded after each save that wrote at least one copy,
 once the copy is complete and synced (so a kill while copying costs no older copy),
 with nothing waiting on it.
-The folder is opened once without following a link at `cli-git` or `discarded`
+The folder is opened once without following a link at `monochromatic-git-policy-cli` or `discarded`
 (a link there, or a non-directory, keeps every copy and is said in the notice and by the doctor),
 and everything is read and removed through that descriptor, never through a path walked again.
 No lock covers the folder (the folder's `flock` of earlier releases is gone):
@@ -4983,7 +5247,7 @@ the oldest remaining save, until the total is within the limit or nothing is wit
 A save younger than 24 hours (counted from the end of the second in its name) is out of reach of both limits,
 and so is the save that was just written,
 so a burst of saves is never cut by size and a save made with an old clock survives its own pass.
-Both settings are keys of the `discardedCopies` section of `cli-git.config.jsonc`:
+Both settings are keys of the `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`:
 `maxAgeDays`, a safe integer of at least 1,
 and `maxSize`, a safe integer of at least 1 (bytes) or a string of digits with an optional suffix `k`, `m` or `g`
 (powers of 1024, any case).
@@ -4999,18 +5263,18 @@ Sizes and ages are computed in 128-bit integers, so no sum or difference wraps.
 Nothing fails silently: a directory that cannot be read has no size to judge by and is kept and named,
 a removal that fails stays and is named (as removed in part when some files went),
 and a pass that cannot append to the audit file removes nothing and says so.
-The sentences are in the notice of the command that saved the copy and in `git cli-git doctor`.
-`git cli-git doctor` writes to standard error, when the folder holds any save,
+The sentences are in the notice of the command that saved the copy and in `git monochromatic-git-policy-cli doctor`.
+`git monochromatic-git-policy-cli doctor` writes to standard error, when the folder holds any save,
 its path, total bytes, number of copies and saves, the oldest save and the limits in force.
 
-Every decision about a guarded form is appended as one JSON line to `<common-git-dir>/cli-git-audit.jsonl`
+Every decision about a guarded form is appended as one JSON line to `<common-git-dir>/monochromatic-git-policy-cli-audit.jsonl`
 with `schemaVersion`, `timeMillis`, `pid`, `parentPid`, `worktree`, `form`, `outcome`
 (`rejected`, `allowed`, `exempt`, `hatch` or `saved-conflict`), `dirty`, `cwd` and `arguments`.
 A `saved-conflict` line also has `copies`, a list of `<path> => <place>` (`none` when there was nothing to copy).
 The line also has `time` (the ISO form),
 `level` (`warn` for `rejected`),
 `release` and `gitDir` (the invocation's own Git directory, which `worktree` the kind word does not name).
-The file moves aside at one mebibyte to the next free generation, `cli-git-audit.jsonl.<number>`,
+The file moves aside at one mebibyte to the next free generation, `monochromatic-git-policy-cli-audit.jsonl.<number>`,
 and generations that name no saved copy on disk are kept up to four mebibytes
 (see "Timing logs").
 A failed write never changes the command's result.
@@ -5388,8 +5652,8 @@ Before release readiness:
 - the package README exists and matches this interface;
 - Clippy reports no warning and the crate's tests pass in the bounded container
   (`mise run //package/git-policy/cli:native:test:container`);
-- the release executable builds with `cargo build --release --locked --bin cli-git-native`;
-- the `git` that `PATH` resolves first leads to `cli-git-native`
+- the release executable builds with `cargo build --release --locked --bin monochromatic-git-policy-cli`;
+- the `git` that `PATH` resolves first leads to `monochromatic-git-policy-cli`
   (`readlink --canonicalize "$(command -v git)"`);
 - the wrapper and all management commands run through the installed executable;
 - direct fix proves index preservation;

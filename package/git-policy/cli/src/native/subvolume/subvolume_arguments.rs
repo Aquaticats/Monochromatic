@@ -1,8 +1,8 @@
 //! What:
-//!  The grammar of `git cli-git migrate-to-subvolume`, the wrapper's command that converts the main checkout into a
+//!  The grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`, the wrapper's command that converts the main checkout into a
 //!  btrfs subvolume, and the help text.
 //! Why:
-//!  The command name says what it does and follows the other multi-word `git cli-git` spellings (`service status`).
+//!  The command name says what it does and follows the other multi-word `git monochromatic-git-policy-cli` spellings (`service status`).
 //!  Running it migrates after the preflight; `--dry-run` previews; `--rollback` and `--remove-old` are the two ways
 //!  out; the rest only switch off a part of the migration. Modes that exclude each other, and switches that belong to
 //!  one mode, are refused with the reason.
@@ -16,9 +16,9 @@ use std::ffi::OsString;
 
 /// The usage and the meaning of each option, printed for `--help` and after a refused invocation.
 pub const MIGRATE_HELP: &str = "\
-Usage: git cli-git migrate-to-subvolume [--dry-run] [--no-nested-worktrees] [--no-refresh-indexes]
-       git cli-git migrate-to-subvolume --rollback [--discard-unreadable] [--dry-run]
-       git cli-git migrate-to-subvolume --remove-old [--discard-unreadable] [--dry-run]
+Usage: git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run] [--no-nested-worktrees] [--no-refresh-indexes]
+       git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable] [--dry-run]
+       git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--dry-run]
 
 Convert the repository's main checkout into a btrfs subvolume at the same path, so that creating a worktree can start
 from a snapshot. Nothing is spawned: the command calls the btrfs ioctls, clones file data, copies the tree, swaps the
@@ -42,7 +42,7 @@ Options:
 
 Before you run it, stop agent sessions and editors that have their working directory inside the checkout: after the
 swap they would keep writing into the old tree. The dry run lists them. Run it on a machine with the checkout's
-filesystem mounted with enough free space; `git cli-git doctor` explains the mount option that makes removal fast.
+filesystem mounted with enough free space; `git monochromatic-git-policy-cli doctor` explains the mount option that makes removal fast.
 ";
 
 /// What:
@@ -110,7 +110,9 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
     };
     let (mut rollback, mut remove_old, mut migrate_switch): (bool, bool, bool) = (false, false, false);
     for token in arguments {
-        let text: &str = token.to_str().ok_or_else(|| { return String::from("an argument is not valid UTF-8 text; the options are ASCII"); })?;
+        let Some(text) = token.to_str() else {
+            return Err(String::from("an argument is not valid UTF-8 text; the options are ASCII"));
+        };
         match text {
             "--dry-run" => parsed.dry_run = true,
             "--rollback" => rollback = true,
@@ -125,7 +127,7 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
                 migrate_switch = true;
             }
             "--help" | "-h" => parsed.help = true,
-            other => return Err(format!("unknown argument {other}; the options are listed by `git cli-git migrate-to-subvolume --help`")),
+            other => return Err(format!("unknown argument {other}; the options are listed by `git monochromatic-git-policy-cli migrate-to-subvolume --help`")),
         }
     }
     if parsed.help {

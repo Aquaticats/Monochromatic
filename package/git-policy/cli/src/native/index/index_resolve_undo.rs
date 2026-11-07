@@ -10,6 +10,7 @@
 //! const undo = ResolveUndo.read(bytes, hashLength); undo.record(entry); const out = undo.write();
 //! ```
 
+use crate::index_byte_search::first_index_of_byte;
 use std::collections::BTreeMap;
 
 /// The three sides of one path: the mode and object name of stage 1, 2 and 3 (mode 0 means the side was absent).
@@ -28,9 +29,14 @@ pub struct ResolveUndo {
     pub paths: BTreeMap<Vec<u8>, Sides>,
 }
 
+/// Whether `byte` is one of the octal digits `0` to `7`.
+fn is_octal_digit(byte: u8) -> bool {
+    return (b'0'..=b'7').contains(&byte);
+}
+
 /// The bytes before the first NUL and the bytes after it.
 fn split_nul(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
-    let nul: usize = bytes.iter().position(|byte| { return *byte == 0; })?;
+    let nul: usize = first_index_of_byte(bytes, 0)?;
     return Some((&bytes[..nul], &bytes[nul + 1..]));
 }
 
@@ -47,7 +53,7 @@ impl ResolveUndo {
                 let (text, following) = split_nul(rest)?;
                 let digits: &str = std::str::from_utf8(text).ok()?;
                 // `strtoul` also takes a sign or a space; only the plain octal digits Git writes are read here.
-                if digits.is_empty() || !digits.bytes().all(|byte| { return (b'0'..=b'7').contains(&byte); }) {
+                if digits.is_empty() || !digits.bytes().all(is_octal_digit) {
                     return None;
                 }
                 *mode = u32::from_str_radix(digits, 8).ok()?;

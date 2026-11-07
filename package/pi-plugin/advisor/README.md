@@ -12,6 +12,19 @@ Pi Advisor is a local Pi extension,
  works across providers,
  and calls the secondary model through Pi's model registry.
 
+## Pi dependency trust
+
+PJO:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
+`mise run //package/pi-plugin/advisor:verify:source-lint` checks every source file with the normal lint rules.
+It provides a bounded source check when TypeScript's native semantic worker crashes during
+whole-package discovery of task or bundler configuration files.
+The ordinary lint task remains unchanged;
+see the [verification limit](../../../doc/troubleshooting/oxlint-typescript-semantic-bridge-epipe-teardown.md).
+
 ## Install
 
 Build the package,

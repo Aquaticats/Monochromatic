@@ -78,9 +78,38 @@ pub enum Waited {
     Stale,
 }
 
+/// What:
+///  Sleeps for the pause between two reads of an empty lock file.
+/// Why:
+///  `holder_of` hands it to `holder_after_pauses`, which takes the pause as a parameter so a control can replace it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pauseWhileEmpty = () => sleep(EMPTY_PAUSE);
+/// ```
+fn pause_while_empty() {
+    std::thread::sleep(EMPTY_PAUSE);
+}
+
+/// What:
+///  Writes a line to the person's terminal and flushes it when the write worked.
+/// Why:
+///  A closed terminal is not a reason to stop the command the person asked for, so a failure is dropped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { out.write(line); out.flush(); } catch { /* terminal closed */ }
+/// ```
+fn note_line(out: &mut dyn Write, line: &str) {
+    let written: std::io::Result<()> = out.write_all(line.as_bytes());
+    if written.is_ok() {
+        let _flushed = out.flush();
+    }
+}
+
 /// Who holds the lock at `lock` now.
 fn holder_of(lock: &Path) -> Holder {
-    return holder_after_pauses(lock, &|| { std::thread::sleep(EMPTY_PAUSE); });
+    return holder_after_pauses(lock, &pause_while_empty);
 }
 
 /// `holder_of` with the pause between the reads of an empty lock given,
@@ -122,24 +151,27 @@ pub fn foreign_holds(real_index: &Path) -> bool {
 /// The line for the person while the wait lasts.
 fn waiting_line(command: &str, waited: Duration) -> String {
     return format!(
-        "cli-git: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; this waits for as long as the service holds the index.\n",
+        "monochromatic-git-policy-cli: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; this waits for as long as the service holds the index.\n",
         waited.as_secs()
     );
 }
 
 /// How long ago the lock at `lock` was made.
 fn age_of(lock: &Path) -> Duration {
-    return std::fs::metadata(lock)
-        .and_then(|metadata| { return metadata.modified(); })
-        .ok()
-        .and_then(|made| { return std::time::SystemTime::now().duration_since(made).ok(); })
-        .unwrap_or(Duration::ZERO);
+    // A lock whose time cannot be read, or is in the future, has no age.
+    let Ok(metadata) = std::fs::metadata(lock) else {
+        return Duration::ZERO;
+    };
+    let Ok(made) = metadata.modified() else {
+        return Duration::ZERO;
+    };
+    return std::time::SystemTime::now().duration_since(made).unwrap_or(Duration::ZERO);
 }
 
 /// The line for the person when the hold is a leftover.
 fn stale_line(command: &str, age: Duration) -> String {
     return format!(
-        "cli-git: the commit service's hold on this repository's index is {} seconds old and nothing shows the service still runs, so git {command} does not wait for it.\n",
+        "monochromatic-git-policy-cli: the commit service's hold on this repository's index is {} seconds old and nothing shows the service still runs, so git {command} does not wait for it.\n",
         age.as_secs()
     );
 }
@@ -147,14 +179,14 @@ fn stale_line(command: &str, age: Duration) -> String {
 /// The line for the person when the hold names a service process that is gone.
 fn gone_line(command: &str) -> String {
     return format!(
-        "cli-git: the commit service that held this repository's index no longer runs, so git {command} does not wait for it. The next commit made through the service removes the lock it left.\n"
+        "monochromatic-git-policy-cli: the commit service that held this repository's index no longer runs, so git {command} does not wait for it. The next commit made through the service removes the lock it left.\n"
     );
 }
 
 /// The line for the person when the wait ran out.
 fn gave_up_line(command: &str, waited: Duration) -> String {
     return format!(
-        "cli-git: the commit service was still finishing a commit in this repository after {} seconds, so git {command} runs now and reports what Git says.\n",
+        "monochromatic-git-policy-cli: the commit service was still finishing a commit in this repository after {} seconds, so git {command} runs now and reports what Git says.\n",
         waited.as_secs()
     );
 }
@@ -207,15 +239,15 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
         }
         // A holder the mark names and the system no longer has will never release the lock, however young the lock is.
         if mark_names_a_gone_holder(&lock) {
-            let _noted = out.write_all(gone_line(command).as_bytes()).and_then(|()| { return out.flush(); });
+            note_line(out, gone_line(command).as_str());
             return Waited::Stale;
         }
         let age: Duration = age_of(&lock);
         // A service the marker proves to run is finishing a landing, however long ago its marker was written: the file's age
         //  is only a guide for a hold that proves nothing (a mark without a process, or a process this one cannot see).
-        let running: bool = marker_of(&lock).is_some_and(|marked| { return holder_is_running(marked.holder.as_ref()); });
+        let running: bool = matches!(marker_of(&lock), Some(marked) if holder_is_running(marked.holder.as_ref()));
         if age >= UNASKABLE_HOLD_AGE && !running {
-            let _noted = out.write_all(stale_line(command, age).as_bytes()).and_then(|()| { return out.flush(); });
+            note_line(out, stale_line(command, age).as_str());
             return Waited::Stale;
         }
         held = true;
@@ -223,12 +255,12 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
         // The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". At the ceiling the command runs and reports
         //  what Git says.
         if elapsed >= ceiling {
-            let _noted = out.write_all(gave_up_line(command, elapsed).as_bytes()).and_then(|()| { return out.flush(); });
+            note_line(out, gave_up_line(command, elapsed).as_str());
             return Waited::GaveUp;
         }
         if ticker.due(elapsed) {
             // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = out.write_all(waiting_line(command, elapsed).as_bytes()).and_then(|()| { return out.flush(); });
+            note_line(out, waiting_line(command, elapsed).as_str());
         }
         let pause: Duration = ticker.next_in(elapsed).min(ceiling.saturating_sub(elapsed)).max(Duration::from_millis(1));
         match watch.as_ref() {

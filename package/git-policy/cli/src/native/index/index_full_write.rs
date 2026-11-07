@@ -12,6 +12,7 @@
 //! const bytes = writeFullIndex(index, (data) => sha1(data)); // undefined: a name or size outside what the format holds
 //! ```
 
+use crate::index_byte_search::common_prefix_length;
 use crate::index_fsmonitor::write_fsmonitor;
 use crate::index_full::{EXTENDED, FullEntry, FullIndex, INTENT_TO_ADD, SKIP_WORKTREE};
 use crate::index_stat::encode_varint;
@@ -45,7 +46,7 @@ fn write_entry(out: &mut Vec<u8>, entry: &FullEntry, earlier: Option<&mut Vec<u8
         out.resize(out.len() + padding, 0);
         return;
     };
-    let common: usize = previous.iter().zip(entry.path.iter()).take_while(|(left, right)| { return left == right; }).count();
+    let common: usize = common_prefix_length(previous.as_slice(), entry.path.as_slice());
     encode_varint((previous.len() - common) as u64, out);
     out.extend_from_slice(&entry.path[common..]);
     out.push(0);
@@ -84,7 +85,12 @@ pub fn write_full_index(index: &FullIndex, hash: &dyn Fn(&[u8]) -> Vec<u8>) -> O
     }
     if let Some(monitor) = &index.fsmonitor {
         // The bitmap lists, by position among the entries written, those the monitor does not vouch for.
-        let dirty: Vec<usize> = index.entries.iter().enumerate().filter(|(_, entry)| { return !entry.monitor_valid; }).map(|(position, _)| { return position; }).collect();
+        let mut dirty: Vec<usize> = Vec::new();
+        for (position, entry) in index.entries.iter().enumerate() {
+            if !entry.monitor_valid {
+                dirty.push(position);
+            }
+        }
         write_extension(&mut out, b"FSMN", write_fsmonitor(monitor.token.as_slice(), dirty.as_slice()).as_slice());
     }
     let checksum: Vec<u8> = hash(out.as_slice());

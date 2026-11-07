@@ -4,12 +4,14 @@ import {
 } from 'node:path';
 
 import { buildCommitMessage } from './commit-message.ts';
+import { goesToCratesIo } from './crates-io-version-label.ts';
 import {
   cargoProgram,
   gitProgram,
   lockFileName,
   manifestFileName,
   systemdRunProgram,
+  unitIoWeight,
 } from './constants.ts';
 import type {
   ReleaseHost,
@@ -55,7 +57,12 @@ export function lockFileBeside(manifestPath: string): string {
 }
 
 /**
- Paths a release commits: the crate's manifest and lockfile, then each pin file's manifest and lockfile.
+ Paths a release commits: the crate's manifest and lockfile, then each pin file's manifest and lockfile, then the
+ lockfile of each lock directory.
+
+ A lock directory holds a manifest that depends on the crate without pinning it (it reaches the crate through another
+ crate), so the lock refresh changes its lockfile only; naming the lockfile keeps that change in the commit, where a
+ refreshed but uncommitted lockfile would stay stale on the branch.
 
  @param options - validated release options
 
@@ -78,12 +85,21 @@ export function commitPaths(options: ReleaseOptions): readonly string[] {
     ...options.pinFiles,
   ];
   return [
-    ...new Set(manifests.flatMap(function withLockfile(manifest) {
-      return [
-        manifest,
-        lockFileBeside(manifest)
-      ];
-    })),
+    ...new Set([
+      ...manifests.flatMap(function withLockfile(manifest) {
+        return [
+          manifest,
+          lockFileBeside(manifest)
+        ];
+      }),
+      ...options.lockDirectories
+        .map(function lockfileOf(directory) {
+          return posix.join(
+            directory,
+            lockFileName
+          );
+        }),
+    ]),
   ];
 }
 
@@ -114,7 +130,7 @@ function offlineArguments(host: ReleaseHost): readonly string[] {
 
  @example
  ```ts
- buildCheckArguments({ checkBins: ['cli-git-native'], host: 'local' });
+ buildCheckArguments({ checkBins: ['monochromatic-git-policy-cli'], host: 'local' });
  ```
  */
 export function buildCheckArguments({
@@ -185,21 +201,29 @@ export function buildPublishDryRunTail(): readonly string[] {
 
  @param memoryMax - systemd `MemoryMax` value of the unit
 
+ @param cpuQuota - systemd `CPUQuota` value of the unit
+
+ @param tasksMax - systemd `TasksMax` value of the unit, which counts threads and processes
+
  @returns the arguments after `systemd-run`; the cargo call is last, so no shell reads anything
 
  @example
  ```ts
- buildPublishDryRunArguments({ unitName: 'u', workingDirectory: '/r/c', memoryMax: '12G' });
+ buildPublishDryRunArguments({ unitName: 'u', workingDirectory: '/r/c', memoryMax: '12G', cpuQuota: '800%', tasksMax: '2048' });
  ```
  */
 export function buildPublishDryRunArguments({
   unitName,
   workingDirectory,
   memoryMax,
+  cpuQuota,
+  tasksMax,
 }: {
   readonly unitName: string;
   readonly workingDirectory: string;
   readonly memoryMax: string;
+  readonly cpuQuota: string;
+  readonly tasksMax: string;
 }): readonly string[] {
   return [
     '--user',
@@ -209,6 +233,9 @@ export function buildPublishDryRunArguments({
     '--pipe',
     `--working-directory=${workingDirectory}`,
     `--property=MemoryMax=${memoryMax}`,
+    `--property=CPUQuota=${cpuQuota}`,
+    `--property=TasksMax=${tasksMax}`,
+    `--property=IOWeight=${String(unitIoWeight)}`,
     cargoProgram,
     ...buildPublishDryRunTail(),
   ];
@@ -245,7 +272,50 @@ export function buildCommitArguments({
 }
 
 /**
- Plan the program calls of a release, in the order they run: check, lockfile refreshes, publish dry run, commit.
+ Plan the step that dry-runs the publish of the crate to crates.io.
+
+ @param options - validated release options
+
+ @param crateRoot - absolute directory of the crate
+
+ @returns the step: a capped transient unit on a local host, cargo directly on a runner
+
+ @example
+ ```ts
+ publishDryRunStep({ options, crateRoot: '/r/package/c' });
+ ```
+ */
+function publishDryRunStep({
+  options,
+  crateRoot,
+}: {
+  readonly options: ReleaseOptions;
+  readonly crateRoot: string;
+}): ReleaseStep {
+  return options.host === 'local'
+    ? {
+      label: 'publish dry run',
+      program: systemdRunProgram,
+      args: buildPublishDryRunArguments({
+        unitName: options.unitName,
+        workingDirectory: crateRoot,
+        memoryMax: options.memoryMax,
+        cpuQuota: options.cpuQuota,
+        tasksMax: options.tasksMax,
+      }),
+      cwd: crateRoot,
+    }
+    : {
+      label: 'publish dry run',
+      program: cargoProgram,
+      args: buildPublishDryRunTail(),
+      cwd: crateRoot,
+    };
+}
+
+/**
+ Plan the program calls of a release, in the order they run: check, lockfile refreshes, publish dry run, commit. A
+ version that never goes to crates.io (alpha, beta, and every form the label rule does not name) has no publish dry run.
 
  A local host keeps cargo offline and runs the dry run in a capped transient unit; a runner lets cargo use the network
  and runs the dry run directly, because the runner is a disposable machine of its own.
@@ -289,23 +359,11 @@ export function buildReleaseSteps(options: ReleaseOptions): readonly ReleaseStep
           ),
         };
       }),
-    options.host === 'local'
-      ? {
-        label: 'publish dry run',
-        program: systemdRunProgram,
-        args: buildPublishDryRunArguments({
-          unitName: options.unitName,
-          workingDirectory: crateRoot,
-          memoryMax: options.memoryMax,
-        }),
-        cwd: crateRoot,
-      }
-      : {
-        label: 'publish dry run',
-        program: cargoProgram,
-        args: buildPublishDryRunTail(),
-        cwd: crateRoot,
-      },
+    // The dry run asks crates.io, which never holds an alpha or a beta, so those versions skip it.
+    ...(goesToCratesIo(options.to) ? [publishDryRunStep({
+      options,
+      crateRoot
+    })] : []),
     {
       label: 'commit',
       program: gitProgram,

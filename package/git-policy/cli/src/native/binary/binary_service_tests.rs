@@ -14,8 +14,9 @@
 //! ```
 
 use super::commit::{git_text, remove_settled};
-use super::support::{Fixture, fixture, git, repository};
+use super::support::{Fixture, ServiceLaunch, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
+use git_policy_cli::earlier_service_process_look::Hold;
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE};
 use git_policy_cli::service_instance::instance_of;
 use git_policy_cli::service_journal::{DONE_EXTENSION, DONE_RETAINED, landed_commits};
@@ -26,6 +27,7 @@ use git_policy_cli::service_protocol::{
 use git_policy_cli::service_server::Bind;
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Write};
+use std::os::fd::FromRawFd;
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
@@ -228,6 +230,239 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
         assert!(shared.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} of the shared journal is among the newest and is kept");
     }
     stop(service);
+    remove_settled(&fixture);
+}
+
+/// Starts the service of one worktree with its journal in `journal`, as the unit does with `--journal` and `--instance`,
+///  and with the further words a control gives.
+fn start_instance_service(name: &str, journal: &Path, instance: &str, further: &[&str]) -> Service {
+    let mut command: Command = super::support::service_command();
+    command
+        .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name, "--instance", instance])
+        .args(further)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+    return Service { child: command.spawn().expect("the service starts") };
+}
+
+/// Leaves a batch of the earlier helper open in `earlier`, as after a kill between landing and finishing: the earlier helper
+///  lands a commit and is stopped, and the batch's finished record is turned back into an open one. Gives the open record and
+///  the finished record it came from.
+fn leave_a_batch_open(fixture: &Fixture, repo: &Path, instance: &str, earlier: &Path, label: &str) -> (PathBuf, PathBuf) {
+    std::fs::create_dir_all(earlier).expect("the earlier journal");
+    let first_name: String = address(fixture, format!("{label}-first").as_str());
+    let first: Service = start_instance_service(first_name.as_str(), earlier, instance, &[]);
+    wait_until_reachable(first_name.as_str());
+    let sent: CommitRequest = request(fixture, repo, format!("{label}-1").as_str(), "a.txt", "a\n");
+    submit_quietly(&config(first_name.as_str()), &sent).expect("answered");
+    stop(first);
+    let finished: Vec<PathBuf> = std::fs::read_dir(earlier)
+        .expect("the earlier journal lists")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .filter(|path| { return path.extension().is_some_and(|extension| { return extension == DONE_EXTENSION; }); })
+        .collect();
+    assert_eq!(finished.len(), 1, "one landed batch");
+    let open: PathBuf = finished[0].with_extension(git_policy_cli::service_journal::OPEN_EXTENSION);
+    std::fs::rename(&finished[0], &open).expect("reopen the batch");
+    return (open, finished[0].clone());
+}
+
+/// The words after the program that make it settle the batches an earlier release left open.
+const SETTLE_WORDS: [&str; 3] = ["monochromatic-git-policy-cli", "service", "settle-earlier-batches"];
+
+/// How long a settle run waits before it asks again when the look could not resolve another process's journal word.
+const SETTLE_ASK_AGAIN_PAUSE: Duration = Duration::from_millis(20);
+
+/// What:
+///  Runs the settle command of the fixture's worktree and gives what the caller saw; while the command answers that it could
+///  not resolve the `--journal` word of a running program, it is asked again after a short pause, for at most `PATIENCE`.
+/// Why:
+///   The look reads the command line of every process of the user, and a process whose `--journal` folder does not exist yet
+///  (a service another control is starting, one whose fixture was just removed, a program another session runs) is counted as an
+///  earlier helper that may be running. That answer is the product's, it changes nothing, and its own words tell the person to
+///  run the command again, which is what this does. Every other answer, held or not, is what the control checks, so it is returned
+///  at once. A word that never clears fails the control with the last answer after `PATIENCE`. A PID namespace of its own would
+///  keep other processes out of the look, but the gate's container refuses its `/proc` mount (`unshare: mount /proc failed:
+///  Permission denied`).
+fn run_settle_when_the_look_is_unsure(fixture: &Fixture, repo: &Path) -> super::support::Observed {
+    let begun: Instant = Instant::now();
+    loop {
+        let observed = super::support::run_wrapped(fixture, repo, &SETTLE_WORDS);
+        let unsure: bool = observed.code == Some(1)
+            && observed.stdout.is_empty()
+            && String::from_utf8_lossy(observed.stderr.as_slice()).contains(Hold::HelperUnsure.words());
+        if !unsure || begun.elapsed() >= PATIENCE {
+            return observed;
+        }
+        std::thread::sleep(SETTLE_ASK_AGAIN_PAUSE);
+    }
+}
+
+/// The owner's rule is "never discard user data", and the owner's pick of 2026-11-07 ("Off, settle on request"): a batch that
+///  the helper of an earlier release accepted and left open is finished when the person runs
+///  `git monochromatic-git-policy-cli service settle-earlier-batches`, after the command has said the condition it is safe
+///  under; it is finished where it was, remembered as finished, and a second run finds nothing.
+#[test]
+fn the_settle_command_finishes_a_batch_the_earlier_helper_left_open() {
+    let fixture: Fixture = fixture("service-settle-on-request");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    // The wrapper reads the state folder from the home folder the hermetic environment gives it.
+    let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "settle");
+    let settled = run_settle_when_the_look_is_unsure(&fixture, &repo);
+    let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
+    assert_eq!(settled.code, Some(0), "{stderr}");
+    assert!(stderr.contains("no wrapper of the earlier release is in use in this worktree"), "the condition is said before it acts: {stderr}");
+    assert!(String::from_utf8_lossy(settled.stdout.as_slice()).contains("finished batch 1"), "{}", String::from_utf8_lossy(settled.stdout.as_slice()));
+    assert!(!open.exists(), "the open batch of the earlier journal was finished");
+    assert!(finished.exists(), "and is remembered as finished where it was");
+    let again = run_settle_when_the_look_is_unsure(&fixture, &repo);
+    assert_eq!(again.code, Some(0));
+    assert!(String::from_utf8_lossy(again.stdout.as_slice()).contains("No batch of the earlier release is left open"), "{}", String::from_utf8_lossy(again.stdout.as_slice()));
+    remove_settled(&fixture);
+}
+
+/// A batch the command cannot examine (here its repository is gone) is named with its journal, stays on disk untouched, and
+///  makes the exit status nonzero, even though another batch was finished in the same run.
+#[test]
+fn the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero() {
+    let fixture: Fixture = fixture("service-settle-unanswered");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "unanswered");
+    let mut intent = git_policy_cli::service_journal::parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
+    intent.seq += 1;
+    intent.repository = fixture.root.join("repository-that-is-not-there");
+    git_policy_cli::service_journal::write_intent(earlier.as_path(), &intent).expect("an intent whose repository is gone");
+    let unavailable: PathBuf = earlier.join(format!("{}.intent", intent.seq));
+    let settled = run_settle_when_the_look_is_unsure(&fixture, &repo);
+    let stdout: String = String::from_utf8_lossy(settled.stdout.as_slice()).into_owned();
+    let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
+    assert_eq!(settled.code, Some(1), "{stdout}{stderr}");
+    assert!(stdout.contains("finished batch 1"), "the batch that could be examined is finished: {stdout} (standard error: {stderr})");
+    assert!(stdout.contains(format!("batch {}", intent.seq).as_str()) && stdout.contains("could not be examined"), "the other is named: {stdout}");
+    assert!(unavailable.exists(), "its intent stays on disk");
+    assert!(!open.exists() && finished.exists());
+    remove_settled(&fixture);
+}
+
+/// Whether a process of any user has `folder` on its command line, as the `--journal` word a service started for it carries.
+fn a_process_names(folder: &Path) -> bool {
+    let wanted: &[u8] = folder.as_os_str().as_encoded_bytes();
+    let Ok(listing) = std::fs::read_dir("/proc") else { return false };
+    return listing.flatten().any(|entry| {
+        let Ok(bytes) = std::fs::read(entry.path().join("cmdline")) else { return false };
+        return bytes.split(|byte| { return *byte == 0; }).any(|word| { return word == wanted; });
+    });
+}
+
+/// How long the start of the other control's service is held back, so that the settle command runs while that process already
+///  shows its `--journal` word and the service has not made the folder yet. It is the stand-in for the moments in which every
+///  service another control starts (and every service whose fixture was just removed) is in that state.
+const SERVICE_START_DELAY_SECONDS: &str = "3";
+
+/// Review finding of 2026-11-07 ("passes alone, fails in its suite"): the look that the settle command makes reads the command
+///  line of every process of the user, and a process whose `--journal` folder cannot be resolved counts as a service that may be
+///  running. The services other controls start show that word for as long as their start takes, so a settle command that ran
+///  beside them stopped with nothing on standard output, and every settle control did the same whenever one was starting. The
+///  hold is the product's answer and changes nothing; the controls ask again, as its words say, so the batch must be finished
+///  once the other service has made its folder, and no control may end on the hold while that is only a start.
+#[test]
+fn the_settle_command_is_not_held_by_a_service_another_control_is_starting() {
+    let fixture: Fixture = fixture("service-settle-beside-a-start");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "beside");
+    let other: Fixture = super::support::fixture("service-settle-the-other-start");
+    let _other_repo: PathBuf = repository(&other, OsStr::new("repo"));
+    *other.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: ["/usr/bin/sh", "-c", format!("sleep {SERVICE_START_DELAY_SECONDS}; exec \"$@\"").as_str(), "sh"].map(std::ffi::OsString::from).to_vec(),
+        ..ServiceLaunch::default()
+    };
+    let other_journal: PathBuf = other.root.join("journal");
+    std::thread::scope(|scope| {
+        let starting = scope.spawn(|| { return super::support::service_runtime(&other); });
+        let begun: Instant = Instant::now();
+        while !a_process_names(other_journal.as_path()) {
+            assert!(begun.elapsed() < PATIENCE, "the other control's service never started");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!other_journal.exists(), "the other service has not made its folder yet, so its word cannot be resolved");
+        let settled = run_settle_when_the_look_is_unsure(&fixture, &repo);
+        let stdout: String = String::from_utf8_lossy(settled.stdout.as_slice()).into_owned();
+        let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
+        assert_eq!(settled.code, Some(0), "{stdout}{stderr}");
+        assert!(stdout.contains("finished batch 1"), "{stdout} (standard error: {stderr})");
+        assert!(!open.exists() && finished.exists());
+        starting.join().expect("the other service starts");
+    });
+    remove_settled(&other);
+    remove_settled(&fixture);
+}
+
+/// When the safety condition cannot be delivered (standard error is closed), the command settles nothing: the batch is still
+///  open afterwards and the exit status is not success.
+#[test]
+fn the_settle_command_changes_nothing_when_its_condition_cannot_be_written() {
+    let fixture: Fixture = fixture("service-settle-closed-stderr");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "closed");
+    // Standard error is a pipe whose read end was closed before the wrapper starts, so every write it makes meets a broken pipe
+    //  (cross-vendor review of 2026-11-07: dropping the read end after `spawn` let the wrapper write and flush the condition first).
+    //  The command changes nothing, so the same state is tried again: each run must end without success and leave the batch open.
+    for attempt in 0..3 {
+        let [read_end, write_end] = super::support::close_on_exec_pipe();
+        // SAFETY: both descriptors were just made by `close_on_exec_pipe` and are owned here; each is used once.
+        let (read_owned, write_owned) = unsafe { (std::os::fd::OwnedFd::from_raw_fd(read_end), std::os::fd::OwnedFd::from_raw_fd(write_end)) };
+        drop(read_owned);
+        let mut command: Command = super::support::wrapped(&fixture);
+        command
+            .current_dir(&repo)
+            .args(SETTLE_WORDS)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::from(write_owned));
+        let mut child: Child = command.spawn().expect("the wrapper starts");
+        drop(command);
+        let status = child.wait().expect("the wrapper ends");
+        assert_ne!(status.code(), Some(0), "attempt {attempt}: {status:?}");
+        assert!(open.exists(), "attempt {attempt}: the batch is still open");
+        assert!(!finished.exists(), "attempt {attempt}: and was not marked finished");
+    }
+    remove_settled(&fixture);
+}
+
+/// Review finding of 2026-11-07 (cross-vendor, rounds 5 and 6): the look at the earlier sockets and processes cannot exclude an
+///  earlier-release wrapper that sets its socket unit up and starts the helper between the look and the end of a recovery, and
+///  masking the unit would make that wrapper fail its commits. So the service runs no adoption at all: whatever options it is
+///  started with, including the one an earlier build of this branch took, a batch of the earlier helper stays exactly where it is.
+#[test]
+fn the_service_has_no_start_option_that_settles_the_earlier_helpers_batches() {
+    let fixture: Fixture = fixture("service-no-adoption-option");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let state: PathBuf = fixture.root.join("state");
+    let earlier: PathBuf = state.join("cli-git/service").join(instance.as_str());
+    let current: PathBuf = state.join("monochromatic-git-policy-cli/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "held");
+    for (index, further) in [vec![], vec!["--adopt-earlier-journals"], vec!["--adopt-earlier-journals", "true"], vec!["--adopt"]].into_iter().enumerate() {
+        let name: String = address(&fixture, format!("held-second-{index}").as_str());
+        let second: Service = start_instance_service(name.as_str(), current.as_path(), instance.as_str(), further.as_slice());
+        wait_until_reachable(name.as_str());
+        // The first answer comes after the start, where an adoption would have run.
+        let next: CommitRequest = request(&fixture, &repo, format!("held-next-{index}").as_str(), format!("b{index}.txt").as_str(), "b\n");
+        submit_quietly(&config(name.as_str()), &next).expect("answered");
+        assert!(open.exists(), "{further:?}: the open batch of the earlier journal is left where it is");
+        assert!(!finished.exists(), "{further:?}: and is not marked finished by the service of this release");
+        stop(second);
+    }
     remove_settled(&fixture);
 }
 

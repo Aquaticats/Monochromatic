@@ -213,7 +213,7 @@ before installing the binary in `~/.local/bin`.
 - `Containerfile`:
    CachyOS build environment with Rust,
    Slint runtime libraries,
-   and Zig 0.15.2.
+   and the Zig archive `toolchain.lock.json` records (the image tasks pass it as build arguments).
 - `Containerfile.release`:
    the Ubuntu 24.04 release build environment,
    kept so binaries that ship (the IDE release builds on it) run on the oldest glibc they promise.
@@ -242,7 +242,8 @@ container otherwise.
  when all resolve it builds natively,
  and when any is missing it runs
 the identical cargo command in podman.
- Zig 0.15.2 comes from the repo-wide mise `zig` tool.
+ Zig comes from the repo-wide mise `zig` tool,
+which follows `toolchain.lock.json`.
  On an immutable-style
 Fedora the host libraries are layered with:
 

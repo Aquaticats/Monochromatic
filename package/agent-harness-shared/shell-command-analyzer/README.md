@@ -35,3 +35,10 @@ historical recovery does not grant execution permission.
 
 See the [AST adapter troubleshooting record](../../../doc/troubleshooting/unbash-5-ast-adapter.md)
 for the original failure and verification commands.
+
+## Pi dependency trust
+
+PJE:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.

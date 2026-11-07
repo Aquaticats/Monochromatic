@@ -13,8 +13,20 @@
 //! // service/index.ts: one `export * from './file'` per module below.
 //! ```
 
+/// Whether a socket of an earlier release's unit listens, read from the table of unix sockets.
+pub mod earlier_unix_sockets_that_listen;
+
 /// Messages between the wrapper and the resident commit service.
 pub mod service_protocol;
+
+/// The protocol messages as typed values, and the checks on the names they carry.
+pub mod service_protocol_messages_and_name_checks;
+
+/// Writes protocol messages as one JSON object per line.
+pub mod service_protocol_encode_messages_to_lines;
+
+/// Reads protocol lines as messages, checking every field.
+pub mod service_protocol_decode_lines_to_messages;
 
 /// The longest the wrapper waits for each thing it waits for, with the measurement beside each number.
 pub mod wait_ceilings;
@@ -22,17 +34,29 @@ pub mod wait_ceilings;
 /// What the one landing thread is doing, shared with the threads that talk to waiting clients.
 pub mod service_busy;
 
+/// The answers the landing board gives and the checks on the names it keeps.
+pub mod service_busy_answers_and_name_checks;
+
+/// The step record a thread keeps while it is inside a write that is never ended.
+pub mod service_busy_step_record_on_this_thread;
+
 /// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
 
 /// The commit service's journal and its restart decisions.
 pub mod service_journal;
 
+/// The text form of a batch intent: written and parsed.
+pub mod service_journal_intent_text_and_parse;
+
 /// Test-only fault points of the commit service.
 pub mod service_fault;
 
 /// The native journal protocol and the standard error fallback the service's entries go through.
 pub mod journald_native;
+
+/// The address native journal entries are sent to.
+pub mod journald_native_socket_target;
 
 /// The lines the commit service writes about its life and about the time each request took.
 pub mod service_timing;
@@ -43,17 +67,47 @@ pub mod service_signal;
 /// The commit service's loop.
 pub mod service_server;
 
+/// The loop of the commit service's work thread.
+pub mod service_server_work_loop;
+
+/// The shapes the connection threads and the landing thread pass between them, and the one-message send.
+pub mod service_server_queue_types_and_send;
+
+/// Lands one group of queued requests as a batch and answers each client.
+pub mod service_server_land_group;
+
+/// Handles one client connection of the commit service.
+pub mod service_server_connection_handling;
+
+/// Gets the listening socket of the commit service.
+pub mod service_server_socket_binding;
+
 /// The service as a mode of the one executable: the words that select it and the start of the service.
 pub mod service_main;
 
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
 
+/// Connecting to the service, reading one line from it, and asking an older service to retire.
+pub mod service_client_listen_and_ask_to_retire;
+
+/// The settings of one client run and the watch on the service manager's answer.
+pub mod service_client_settings_and_watches;
+
+/// Reaching the commit service, starting it when nothing answers.
+pub mod service_client_reach_service;
+
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
 
+/// Checks and writes on the unit files of the commit service.
+pub mod service_provision_unit_file_ownership_and_writes;
+
 /// A minimal D-Bus client for the user session bus, for the provisioning's two calls.
 pub mod systemd_dbus;
+
+/// The D-Bus wire format of the user manager client: calls written, replies read.
+pub mod systemd_dbus_wire_format;
 
 /// Which commit service instance belongs to a worktree: its name, socket and unit instances.
 pub mod service_instance;

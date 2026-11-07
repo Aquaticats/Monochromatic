@@ -133,6 +133,21 @@ fn jsonc_extension(text: &str) -> Option<&'static str> {
     return None;
 }
 
+/// What: The refusal for a manifest whose text is not one JSON value.
+/// Why:  `parse_json` builds the same refusal for several causes, and a named function takes the place of a
+///       closure that only borrowed `path`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const manifestSyntax = (path: Uint8Array, detail: string) => ({ kind: 'ManifestSyntax', path, detail });
+/// ```
+fn manifest_syntax(path: &[u8], detail: String) -> PolicyIncomplete {
+    return PolicyIncomplete::ManifestSyntax {
+        path: path.to_vec(),
+        detail,
+    };
+}
+
 /// What: Parse text as one JSON value of any kind.
 /// Why:  The JSONC parser accepts only an object or array at the root, while `JSON.parse`
 ///       accepts any value; wrapping the text in `[` and `]` and requiring exactly one
@@ -144,27 +159,22 @@ fn jsonc_extension(text: &str) -> Option<&'static str> {
 /// const value: unknown = JSON.parse(text);
 /// ```
 fn parse_json(path: &[u8], text: &str) -> Result<JsoncValue, PolicyIncomplete> {
-    let syntax = |detail: String| {
-        return PolicyIncomplete::ManifestSyntax {
-            path: path.to_vec(),
-            detail,
-        };
-    };
     // `if let Some(found) = ...` runs only when an extension was found.
     if let Some(extension) = jsonc_extension(text) {
-        return Err(syntax(format!("JSON allows no {extension}")));
+        return Err(manifest_syntax(path, format!("JSON allows no {extension}")));
     }
     let wrapped: JsoncValue = match parse_jsonc(&format!("[{text}]")) {
         Ok(value) => value,
-        Err(error) => return Err(syntax(error.message)),
+        Err(error) => return Err(manifest_syntax(path, error.message)),
     };
     // A slice pattern with one binding matches a list of exactly one element.
     if let Some([single]) = wrapped.elements() {
         return Ok(single.clone());
     }
-    return Err(syntax(String::from(
-        "the text is not exactly one JSON value",
-    )));
+    return Err(manifest_syntax(
+        path,
+        String::from("the text is not exactly one JSON value"),
+    ));
 }
 
 /// What: The value of the last member with a key, as `JSON.parse` keeps it.
@@ -176,11 +186,12 @@ fn parse_json(path: &[u8], text: &str) -> Result<JsoncValue, PolicyIncomplete> {
 /// const value = parsed[key];
 /// ```
 fn member<'value>(entries: &'value [JsoncEntry], key: &str) -> Option<&'value JsoncValue> {
-    return entries
-        .iter()
-        .rev()
-        .find(|entry: &&JsoncEntry| return entry.key.units.iter().copied().eq(key.encode_utf16()))
-        .map(|entry: &JsoncEntry| return &entry.value);
+    for entry in entries.iter().rev() {
+        if entry.key.units.iter().copied().eq(key.encode_utf16()) {
+            return Some(&entry.value);
+        }
+    }
+    return None;
 }
 
 /// What: The keys of one dependency field, unique, in first-occurrence order; nothing when

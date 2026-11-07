@@ -14,16 +14,19 @@ already supplied that argument.
 The research adapter added it again.
 Public run `39144499822` therefore compiled/discovered no test body in its GNU context.
 The other host contexts have separate actual runtime outcomes.
-This rejection is a research harness failure, not an application assertion failure.
+This rejection is a research harness failure,
+not an application assertion failure.
 
 ## Qualified continuation
 
 The [immutable GNU admission](../audit/depot-windows-gnu-owner-correction-admission-2026-10-18.evidence.json)
-retains actual decoded bootstrap equality, source hashes and the corrected argument boundary.
+retains actual decoded bootstrap equality,
+source hashes and the corrected argument boundary.
 The GNU expanded owning task now stays byte-identical to its original frozen expansion.
 Owners lacking the scheduler flag receive one copy.
 Application assertions and default Cargo/Nextest concurrency are unchanged.
-The continuation runs only the GNU context, with a 30-minute job cap.
+The continuation runs only the GNU context,
+with a 30-minute job cap.
 An actual functional outcome still requires its repository-owner execution.
 
 The installed Nextest0.9.148 parser reproduced the duplicate diagnostic with exit status2.

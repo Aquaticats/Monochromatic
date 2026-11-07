@@ -15,7 +15,7 @@
 //! ```
 
 /// Hunks and lines from `replay_patch`.
-use crate::replay_patch::{PatchHunk, split_keeping_newlines};
+use crate::replay_patch::{PatchHunk, PatchLine, split_keeping_newlines};
 
 /// One image line:
 ///       its bytes and whether an earlier hunk wrote it,
@@ -35,6 +35,26 @@ struct ImageLine {
     patched: bool,
 }
 
+/// Whether one byte is not one of the white-space bytes that Git's quick hash leaves out. Used by `filter`.
+fn is_not_hash_whitespace(byte: &u8) -> bool {
+    return !matches!(*byte, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r');
+}
+
+/// Whether a hunk line is an addition or a removal and not context. `&PatchLine` borrows the line, as `rposition` hands it over.
+fn is_change_line(line: &PatchLine) -> bool {
+    return line.op != b' ';
+}
+
+/// The position `at` as a start in the image when the preimage matches there; nothing for a negative position or a mismatch.
+fn position_that_matches(image: &[ImageLine], preimage: &[Vec<u8>], at: i64, match_beginning: bool, match_end: bool) -> Option<usize> {
+    // A negative position has no `usize`, and `matches_at` rejects a position whose preimage runs past the image.
+    let index: usize = usize::try_from(at).ok()?;
+    if matches_at(image, preimage, index, match_beginning, match_end) {
+        return Some(index);
+    }
+    return None;
+}
+
 /// What:
 ///  The bytes Git's quick line hash ignores:
 ///       spaces, tabs, newlines, vertical tabs, form feeds and carriage returns.
@@ -49,7 +69,7 @@ fn hash_key(text: &[u8]) -> Vec<u8> {
     return text
         .iter()
         .copied()
-        .filter(|byte| { return !matches!(*byte, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r'); })
+        .filter(is_not_hash_whitespace)
         .collect();
 }
 
@@ -96,10 +116,13 @@ fn matches_at(
     if end > image.len() || (match_end && end != image.len()) || (match_beginning && at != 0) {
         return false;
     }
-    return preimage.iter().enumerate().all(|(index, wanted)| {
+    for (index, wanted) in preimage.iter().enumerate() {
         let incomplete_last: bool = index + 1 == preimage.len() && !wanted.ends_with(b"\n");
-        return line_matches(&image[at + index], wanted, incomplete_last, match_end);
-    });
+        if !line_matches(&image[at + index], wanted, incomplete_last, match_end) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:
@@ -132,20 +155,16 @@ fn find_position(
     };
     let first: i64 = anchored.max(0).min(length);
     // A negative position has no `usize`, and `matches_at` rejects a position whose preimage runs past the image.
-    let matches = |at: i64| -> Option<usize> {
-        let index: usize = usize::try_from(at).ok()?;
-        return matches_at(image, preimage, index, match_beginning, match_end).then_some(index);
-    };
-    if let Some(found) = matches(first) {
+    if let Some(found) = position_that_matches(image, preimage, first, match_beginning, match_end) {
         return Some(found);
     }
     // `mut` lets the search widen by one line per side until it passes both ends of the image.
     let mut distance: i64 = 1;
     while first + distance <= length || first - distance >= 0 {
-        if let Some(found) = matches(first + distance) {
+        if let Some(found) = position_that_matches(image, preimage, first + distance, match_beginning, match_end) {
             return Some(found);
         }
-        if let Some(found) = matches(first - distance) {
+        if let Some(found) = position_that_matches(image, preimage, first - distance, match_beginning, match_end) {
             return Some(found);
         }
         distance += 1;
@@ -166,22 +185,20 @@ fn find_position(
 /// reverseHunk({ image, hunk }); // image or HUNK_REJECTED
 /// ```
 fn reverse_hunk(image: &[ImageLine], hunk: &PatchHunk) -> Option<Vec<ImageLine>> {
-    let preimage: Vec<Vec<u8>> = hunk
-        .lines
-        .iter()
-        .filter(|line| { return line.op != b'-'; })
-        .map(|line| { return line.text.clone(); })
-        .collect();
-    let postimage: Vec<ImageLine> = hunk
-        .lines
-        .iter()
-        .filter(|line| { return line.op != b'+'; })
-        .map(|line| { return ImageLine {
-            text: line.text.clone(),
-            patched: true,
-        }; })
-        .collect();
-    let trailing: usize = match hunk.lines.iter().rposition(|line| { return line.op != b' '; }) {
+    let mut preimage: Vec<Vec<u8>> = Vec::new();
+    let mut postimage: Vec<ImageLine> = Vec::new();
+    for line in &hunk.lines {
+        if line.op != b'-' {
+            preimage.push(line.text.clone());
+        }
+        if line.op != b'+' {
+            postimage.push(ImageLine {
+                text: line.text.clone(),
+                patched: true,
+            });
+        }
+    }
+    let trailing: usize = match hunk.lines.iter().rposition(is_change_line) {
         Some(last_change) => hunk.lines.len() - 1 - last_change,
         None => hunk.lines.len(),
     };
@@ -212,13 +229,13 @@ fn reverse_hunk(image: &[ImageLine], hunk: &PatchHunk) -> Option<Vec<ImageLine>>
 /// ```
 pub fn reverse_applies(hunks: &[PatchHunk], prepared: &[u8]) -> bool {
     // `mut` lets the image be replaced by each hunk's result.
-    let mut image: Vec<ImageLine> = split_keeping_newlines(prepared)
-        .into_iter()
-        .map(|text| { return ImageLine {
+    let mut image: Vec<ImageLine> = Vec::new();
+    for text in split_keeping_newlines(prepared) {
+        image.push(ImageLine {
             text,
             patched: false,
-        }; })
-        .collect();
+        });
+    }
     for hunk in hunks {
         match reverse_hunk(&image, hunk) {
             Some(next) => image = next,

@@ -164,7 +164,8 @@ No further Pro call was made to repair the original record.
 
 The user subsequently requested trying `respan/span-02`.
 Current anonymous metadata lists endpoint `Respan | respan/span-02-20261015`.
-Eight bounded Decisions calls return HTTP `200`, that exact versioned model label,
+Eight bounded Decisions calls return HTTP `200`,
+that exact versioned model label,
 and complete categorical distributions.
 The `state` is the original Gateway input string;
 question instructions remain unchanged and choice descriptions become keyed `criteria`.
@@ -190,8 +191,11 @@ three unchanged repeats of the recorded escalation,
 two recorded approvals and a new prohibition appended to the original conversation.
 All routes match the authored expectations.
 The [package trial evidence](../../package/pi-plugin/auto-mode/doc/span-02-trial.md)
-records distributions, measurements, receipt locations and limits.
-The hosted implementation remains uninspected; no server-source cause or general accuracy claim follows.
+records distributions,
+measurements,
+receipt locations and limits.
+The hosted implementation remains uninspected;
+no server-source cause or general accuracy claim follows.
 No new failing pattern or upstream filing arises from this successful trial.
 
 ### Historical Span 01 filing decision

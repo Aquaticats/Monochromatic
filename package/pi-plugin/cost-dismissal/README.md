@@ -2,6 +2,13 @@
 
 Shadow-records cost dismissals found in pi sessions.
 
+## Pi dependency trust
+
+PJV:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## What it does
 
 Folds every finished assistant message

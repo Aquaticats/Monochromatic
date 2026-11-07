@@ -78,7 +78,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
 - Every workspace package except those under `package/test-fixture/`,
    private ones included.
    Selection lives in `generatePnprConfig` in `file-enforcer.config.ts`
-   (moved 2026-10-30 to `package/config/pnpr/src/generated-config-selection.ts`, which the root file now calls);
+   (moved 2026-10-30 to `package/config/pnpr/src/generated-config-selection.ts`,
+  which the root file now calls);
    the publish workflow reads the generated name list instead of re-deriving it.
 - A package publishes only if its manifest still declares `exports`,
    `main`,
@@ -128,7 +129,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
    typed exports type-checked under `nodenext`,
    and every bin run with `--help`.
    Findings and fixes are listed in the handover.
-- Owner decision (2026-09-15, #543):
+- Owner decision (2026-09-15,
+  #543):
    the hook plugins bundle `claude-code-plugin-source`,
    so they list it as a development dependency,
    and it is excluded from pnpr because it exports only TypeScript source;
@@ -184,7 +186,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
     so both apply the same edge and publishability rules.
    It imports only Node built-ins and sibling source files,
     so the job needs no build step.
-   Evidence (2026-09-15, disposable clone of `main`):
+   Evidence (2026-09-15,
+  disposable clone of `main`):
     hand-bumping `@monochromatic-dev/or-throw-core` and running the runner planned 19 dependent bumps,
     and `git diff --shortstat` reported `20 files changed, 20 insertions(+), 20 deletions(-)`,
     version lines only.
@@ -214,7 +217,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
 - file-enforcer generates the pnpr config,
    including the package-name list and the exclusion list
    (since 2026-10-30 the generator and its check live in `package/config/pnpr`,
-   per `doc/decision/file-enforcer-rust-rewrite.md`, "Elsewhere").
+   per `doc/decision/file-enforcer-rust-rewrite.md`,
+  "Elsewhere").
 - The deployment lives in `package/config/pnpr/`
    and Coolify redeploys it on push through a GitHub App source,
    limited by Watch Paths to `config.yaml`,
@@ -277,15 +281,82 @@ Results on 2026-09-15 against `https://pnpr.c.aquati.cat`:
 
 GitHub issue #521 tracks checking installability of the remaining published packages.
 
+## Upstream alpha.17 upgrade at 2026-11-05T04:59:15Z
+
+The owner requested `0.1.0-alpha.17`
+and selected "Repair publishing,
+then rebuild packages" for its incompatible storage layout.
+Use the official upstream image pinned in `package/config/pnpr/Containerfile`.
+GitHub workload publication passed against that image in isolated run `41941248129`,
+satisfying the standing condition for leaving the discovery-fix fork.
+The existing subject,
+repository,
+owner,
+workflow,
+audience,
+and package restrictions remain in place.
+
+Keep the `/npm/~monochromatic-dev/` consumer URL.
+Generate `maxUsers` instead of `max_users` for the new schema.
+Select `pnpr-readable-registry-storage` for the new store
+and retain `pnpr-registry-storage` with the alpha.16 image as the rollback pair.
+Rebuild current versions after repairing the existing CI runner.
+This chooses no archive transfer and makes no claim that older consumer lockfile integrities survive rebuilding.
+The old `upgrade-storage` command does not apply to alpha.17.
+
+The full build-and-pack check passed in runs `41962968333` and `41969715357`.
+The latter checked the cleaned-up execution path at `c656fdb235`.
+Final task-module validation accepted all current declarations separately.
+The upgrade and publisher repair landed on `main` in merge `1f6a6f8dc8`.
+Missing CI build declarations were restored,
+and the existing runner now shares matching task executions within an invocation.
+The separate task-system replacement was not adopted.
+
+### Production verification at 2026-11-05T05:29:26Z
+
+Production readiness reported storage and authentication healthy at `2026-11-05T05:06:42.668Z`.
+The metrics endpoint changed from the observed alpha.16 version response
+to the expected disabled endpoint.
+The deployment uses the tested upstream digest from `Containerfile`;
+the public API does not expose its exact version with metrics disabled.
+The retained rollback volume remains declared in Compose;
+host-side volume inventory was not inspected.
+
+Push-triggered [publication run 41971694888][initial-alpha17-publish] succeeded,
+but its inventory was taken before deployment switched stores.
+The post-cutover [publication run 41972276692][final-alpha17-publish]
+found and published the remaining 132 current versions.
+
+At `2026-11-05T05:24:06.435Z`,
+anonymous requests verified all 169 selected current manifests and archives.
+Every downloaded archive matched its declared SHA-512 integrity.
+A positive control changed an archive byte locally and observed the expected integrity mismatch.
+A fresh npm consumer with empty credential configuration and no forwarded authentication variables
+installed `@monochromatic-dev/or-throw-core@0.0.1`,
+imported its exports,
+and exercised their successful and throwing cases.
+
+The isolated upgrade worktree was removed after checking its ignored artifacts,
+dependency symlinks,
+and active processes.
+The deployment and publication watchers finished,
+and the browser sessions were closed.
+
+The Cargo registry remains the separate proposal in
+`doc/planning/self-hosted-cargo-registry.md`.
+This npm upgrade does not authorize Cargo deployment or change Cargo retention policy.
+
+[initial-alpha17-publish]: https://github.com/Aquaticats/Monochromatic/actions/runs/41971694888
+[final-alpha17-publish]: https://github.com/Aquaticats/Monochromatic/actions/runs/41972276692
+
 ## Consequences
 
 - A hand bump rewrites,
    in the same commit,
    the manifest of every dependent reached through runtime or bundled edges.
-- pnpr is alpha software pinned by image digest,
-   so upstream changes arrive only when the fork branch is rebased,
-   its workflow publishes a new image,
-   and the `Containerfile` digest moves.
+- pnpr is alpha software pinned by image digest.
+  Each upgrade requires testing that artifact and its storage transition before the `Containerfile` digest moves.
+  The discovery-fix fork was required before the verified upstream alpha.17 release.
 - Each consumer adds the scope route itself;
    nothing here wires `labwc-config`.
 - A push that adds names to `config.yaml` starts the Coolify redeploy and `pnpr-publish` together,

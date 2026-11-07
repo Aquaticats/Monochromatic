@@ -8,6 +8,9 @@
 //! // index/index.ts: one `export * from './file'` per module below.
 //! ```
 
+/// Byte searches the index readers share: first position of a byte, a leading run, any non-zero byte.
+pub mod index_byte_search;
+
 /// A read of the assume-unchanged and skip-worktree marks of an index file.
 pub mod index_flags;
 

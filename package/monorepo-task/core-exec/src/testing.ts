@@ -90,3 +90,39 @@ export {
   isDiagnosticLine,
   isNodeModulesDiagnostic,
 } from './tsc-output-filter.ts';
+export {
+  dailyUpdateGroups,
+  INSTALL_TIMEOUT_MS,
+  miseExec,
+  miseTask,
+  type PathSelector,
+  RESOLVE_TIMEOUT_MS,
+  selects,
+  type UpdateCommand,
+  type UpdateGroup,
+  type UpdateStep,
+} from './daily-update-plan.ts';
+export {
+  absoluteOf,
+  type CommandOutcome,
+  type DailyUpdateEffects,
+  type GroupReport,
+  relativeOf,
+  restoreFiles,
+  runDailyUpdate,
+  runGroup,
+  runStep,
+} from './daily-update-run.ts';
+export {
+  findOnPath,
+  renderUnit,
+  SERVICE_LIMITS,
+  SERVICE_UNIT_NAME,
+  TIMER_UNIT_NAME,
+  UNIT_SOURCE_DIRECTORY,
+} from './daily-update-timer-install-logic.ts';
+export {
+  isAlive,
+  takeRunLock,
+} from './daily-update-lock.ts';
+export { runCommandBounded, } from './daily-update-command.ts';

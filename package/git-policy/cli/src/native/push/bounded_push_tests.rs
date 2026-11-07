@@ -193,7 +193,7 @@ fn a_silent_stalled_push_reports_only_the_reason() {
     assert!(
         attempt
             .output
-            .starts_with("cli-git: git push did not finish"),
+            .starts_with("monochromatic-git-policy-cli: git push did not finish"),
         "{}",
         attempt.output
     );

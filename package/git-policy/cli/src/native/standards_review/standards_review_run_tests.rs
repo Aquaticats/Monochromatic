@@ -1,6 +1,20 @@
 //! Controls for the run, the options and the bounded runner, against the loopback mock and a fixed clock.
 
 use super::*;
+
+/// A function-like value with the right shape is a lookup in these controls: the shipped caller writes a small struct that holds the key.
+impl<Lookup: Fn(&str) -> Option<String>> EnvironmentVariables for Lookup {
+    fn variable(&self, name: &str) -> Option<String> {
+        return self(name);
+    }
+}
+
+/// A function-like value with the right shape is a reader in these controls: the shipped caller writes a small struct that holds the state.
+impl<Read: Fn(&[String]) -> Result<LandedCommit, String>> LandedCommitReader for Read {
+    fn read(&self, files: &[String]) -> Result<LandedCommit, String> {
+        return self(files);
+    }
+}
 use crate::standards_review_mock::{Answer, Mock, SILENT_AT_MOST, http_reply};
 use crate::standards_review_entry::SHORT_SHA_LENGTH;
 use crate::standards_review_input::{CODE_SUFFIXES, SHARED_LOG_RELATIVE, TRACKED_LOG_RELATIVE};
@@ -54,7 +68,7 @@ fn a_review_sends_the_built_input_and_logs_the_verdict() {
     let names: Vec<String> = code_names();
     let commit: LandedCommit = reader(&names[..1]).expect("commit");
     let expected_body: String = request_body(build_input(&commit, &names[..1]).model_input.as_str());
-    let outcome: ReviewOutcome = review_landed(&names, "0123456789abcdefff", "the subject", &|files| return reader(files), &opts, &clock());
+    let outcome: ReviewOutcome = review_landed(&names, "0123456789abcdefff", "the subject", &|files: &[String]| return reader(files), &opts, &clock());
     assert!(matches!(&outcome, ReviewOutcome::Reviewed(judged) if judged.top == "partial"), "{outcome:?}");
     assert!(mock.finish().ends_with(expected_body.as_str()));
     let log: String = std::fs::read_to_string(opts.log_path.as_path()).expect("log");
@@ -72,12 +86,12 @@ fn failures_are_logged_as_entries() {
     let names: Vec<String> = code_names();
     for (key, sha) in [(None, "aaaaaaaaaaaa"), (Some(""), "bbbbbbbbbbbb")] {
         let opts: ReviewOptions = options(directory.as_path(), "http://127.0.0.1:1/unused", key);
-        let outcome: ReviewOutcome = review_landed(&names, sha, "s", &|files| return reader(files), &opts, &clock());
+        let outcome: ReviewOutcome = review_landed(&names, sha, "s", &|files: &[String]| return reader(files), &opts, &clock());
         assert!(matches!(&outcome, ReviewOutcome::Reviewed(judged) if judged.outcome == format!("Luna failed: {NO_KEY_MESSAGE}")));
     }
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("500 Internal Server Error", "boom")));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
-    review_landed(&names, "cccccccccccc", "s", &|files| return reader(files), &opts, &clock());
+    review_landed(&names, "cccccccccccc", "s", &|files: &[String]| return reader(files), &opts, &clock());
     mock.finish();
     let log: String = std::fs::read_to_string(opts.log_path.as_path()).expect("log");
     assert_eq!(log.matches("Named superlinear cost:\n  unjudged\n").count(), 3);
@@ -91,7 +105,7 @@ fn a_silent_gateway_costs_at_most_the_quiet_window() {
     let directory: PathBuf = fixture("run-silent");
     let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
-    review_landed(&code_names(), "sha", "s", &|files| return reader(files), &opts, &clock());
+    review_landed(&code_names(), "sha", "s", &|files: &[String]| return reader(files), &opts, &clock());
     mock.finish();
     assert!(std::fs::read_to_string(opts.log_path.as_path()).expect("log").contains("Luna failed: The operation was aborted due to timeout"));
     remove(directory.as_path());
@@ -116,14 +130,14 @@ fn silent_and_skipped_commits_read_nothing() {
 fn read_and_write_failures_are_outcomes() {
     let directory: PathBuf = fixture("run-faults");
     let opts: ReviewOptions = options(directory.as_path(), "http://127.0.0.1:1/unused", None);
-    let unread = review_landed(&code_names(), "sha", "s", &|_| return Err(String::from("no such commit")), &opts, &clock());
+    let unread = review_landed(&code_names(), "sha", "s", &|_: &[String]| return Err(String::from("no such commit")), &opts, &clock());
     assert_eq!(unread, ReviewOutcome::Unread(String::from("no such commit")));
     assert!(!opts.log_path.exists(), "an unread commit creates no log");
     // A file where the log's directory should be: the directory cannot be created, so the log cannot be written.
     std::fs::write(directory.join("not-a-directory"), "").expect("a file in the way");
     let mut blocked: ReviewOptions = opts.clone();
     blocked.log_path = directory.join("not-a-directory").join("log.md");
-    assert!(matches!(review_landed(&code_names(), "sha", "s", &|files| return reader(files), &blocked, &clock()), ReviewOutcome::Unwritable(_)));
+    assert!(matches!(review_landed(&code_names(), "sha", "s", &|files: &[String]| return reader(files), &blocked, &clock()), ReviewOutcome::Unwritable(_)));
     remove(directory.as_path());
 }
 
@@ -198,10 +212,10 @@ fn a_repeated_item_asks_nothing_and_a_missing_log_is_created() {
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
     assert!(!opts.log_path.exists());
     let names: Vec<String> = code_names();
-    let first = review_landed(&names, "0123456789abcdefff", "s", &|files| return reader(files), &opts, &clock());
+    let first = review_landed(&names, "0123456789abcdefff", "s", &|files: &[String]| return reader(files), &opts, &clock());
     assert!(matches!(first, ReviewOutcome::Reviewed(_)));
     mock.finish();
-    let again = review_landed(&names, "0123456789abcdefff", "s", &|_| panic!("a logged commit is not read again"), &opts, &clock());
+    let again = review_landed(&names, "0123456789abcdefff", "s", &|_: &[String]| -> Result<LandedCommit, String> { panic!("a logged commit is not read again") }, &opts, &clock());
     assert_eq!(again, ReviewOutcome::AlreadyLogged);
     let text: String = std::fs::read_to_string(opts.log_path.as_path()).expect("the first entry created the log");
     assert_eq!(text.matches(&"0123456789abcdefff"[..SHORT_SHA_LENGTH]).count(), 1, "the repeated item added nothing");
@@ -304,4 +318,40 @@ fn two_callers_that_arrive_together_are_never_admitted_at_once() {
         assert!(outcomes.iter().all(|outcome| { return matches!(outcome, Contained::Finished(1) | Contained::Busy); }), "round {round}: {outcomes:?}");
         assert_eq!(MOST.load(std::sync::atomic::Ordering::SeqCst), 1, "round {round}: two jobs ran at once");
     }
+}
+
+/// A worker that released the runner and stalls before it sends its value (sol-1 round 3, P1 D): the caller's wait for the value is
+/// bounded, so the call returns, as a ceiling, and the next job runs. The job returns at once and the ceiling is long beside it, so the
+/// worker has released the runner (and stands at the gate, withholding the send) before the caller's wait runs out: the caller meets a
+/// runner that is idle, which is the schedule of the review, every time. The control has a deadline of its own around the call.
+#[test]
+fn a_worker_that_stalls_between_its_release_and_its_send_does_not_hold_the_caller() {
+    static OWN: Containment = Containment::with_handoff_wait(Duration::from_millis(300));
+    let ceiling: Duration = Duration::from_millis(600);
+    let gate = OWN.handoff_gate.lock().expect("the control holds the handoff");
+    let (sender, receiver) = std::sync::mpsc::channel::<Contained<u32>>();
+    std::thread::spawn(move || { let _sent = sender.send(run_contained_in(&OWN, || { return 7_u32; }, ceiling)); });
+    let answer: Contained<u32> = receiver.recv_timeout(Duration::from_secs(30)).expect("the caller came back without the value");
+    assert_eq!(answer, Contained::CeilingReached(ceiling), "the value never came, so the wait ends as a ceiling");
+    drop(gate);
+    // The runner is free again once the worker is let go, and the next job runs.
+    let waiting_since: std::time::Instant = std::time::Instant::now();
+    while OWN.outstanding() > 0 || OWN.admit().map(|generation| { return OWN.change(generation, RUNNING, IDLE); }).is_none() {
+        assert!(waiting_since.elapsed() < Duration::from_secs(30), "the runner stayed closed");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(run_contained_in(&OWN, || { return 8_u32; }, Duration::from_secs(30)), Contained::Finished(8));
+}
+
+/// While a job is admitted and running, no other is: one controlled step, no scheduling luck (sol-1 round 3).
+#[test]
+fn a_runner_with_a_running_job_admits_no_other() {
+    static OWN: Containment = Containment::new();
+    let first: u64 = OWN.admit().expect("an idle runner admits");
+    assert_eq!(OWN.admit(), None, "a running job closes the runner");
+    assert!(OWN.change(first, RUNNING, ABANDONED));
+    assert_eq!(OWN.admit(), None, "an abandoned job closes it too");
+    assert_eq!(OWN.outstanding(), 1);
+    assert!(OWN.change(first, ABANDONED, IDLE));
+    assert!(OWN.admit().is_some_and(|second| { return second > first; }), "a released runner admits the next generation");
 }

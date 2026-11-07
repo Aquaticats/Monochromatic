@@ -67,7 +67,40 @@ fn write_line(stream: &UnixStream, message: &ServiceMessage) -> bool {
 /// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (!write(m ?? heartbeat)) return; }
 /// ```
 pub fn write_until_answered(stream: &UnixStream, messages: &Receiver<ServiceMessage>, every: Duration) {
-    write_until_answered_noting(stream, messages, every, &mut || { return None; });
+    write_until_answered_noting(stream, messages, every, &mut NothingToSay);
+}
+
+/// What:
+///  Where a connection's beat asks for a message to write before the beat.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The beat asks at most once; what it asks (the board, the request's identity, the last words said) is the state of a small
+///  struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface NoteSource { note(): ServiceMessage | undefined }
+/// ```
+pub trait NoteSource {
+    /// The message to write before the beat, or nothing.
+    fn note(&mut self) -> Option<ServiceMessage>;
+}
+
+/// What:
+///  A note source that never has a note.
+/// Why:
+///  `write_until_answered` is `write_until_answered_noting` with nothing to add before each beat.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nothingToSay = { note: (): ServiceMessage | undefined => undefined };
+/// ```
+struct NothingToSay;
+
+impl NoteSource for NothingToSay {
+    fn note(&mut self) -> Option<ServiceMessage> {
+        return None;
+    }
 }
 
 /// What:
@@ -85,7 +118,7 @@ pub fn write_until_answered_noting(
     stream: &UnixStream,
     messages: &Receiver<ServiceMessage>,
     every: Duration,
-    note: &mut dyn FnMut() -> Option<ServiceMessage>,
+    note: &mut dyn NoteSource,
 ) {
     loop {
         match messages.recv_timeout(every) {
@@ -95,7 +128,7 @@ pub fn write_until_answered_noting(
                 }
             }
             Err(RecvTimeoutError::Timeout) => {
-                if let Some(notice) = note()
+                if let Some(notice) = note.note()
                     && !write_line(stream, &notice)
                 {
                     return;

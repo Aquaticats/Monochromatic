@@ -64,7 +64,7 @@ secret: \${PNPR_SECRET}
 auth:
   htpasswd:
     file: /pnpr/storage/htpasswd
-    max_users: -1
+    maxUsers: -1
   oidc:
     - name: github
       issuer: https://token.actions.githubusercontent.com

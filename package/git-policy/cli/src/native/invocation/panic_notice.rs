@@ -19,7 +19,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // process.on('uncaughtException', () => process.stderr.write('cli-git: internal error ...\n'));
+//! // process.on('uncaughtException', () => process.stderr.write('monochromatic-git-policy-cli: internal error ...\n'));
 //! ```
 
 /// What:
@@ -66,7 +66,7 @@ pub fn panic_notice(location: Option<&Location<'_>>) -> String {
     match location {
         Some(found) => {
             return format!(
-                "cli-git: internal error at {}:{}:{}; its message is not shown because it may \
+                "monochromatic-git-policy-cli: internal error at {}:{}:{}; its message is not shown because it may \
                  contain repository content. Hint: if you were running a Git command, run it again; your files are \
                  not changed by this notice, so `git status` shows where things stand. If it repeats, report this \
                  location.\n",
@@ -77,7 +77,7 @@ pub fn panic_notice(location: Option<&Location<'_>>) -> String {
         }
         None => {
             return String::from(
-                "cli-git: internal error; its message is not shown because it may contain \
+                "monochromatic-git-policy-cli: internal error; its message is not shown because it may contain \
                  repository content. Hint: if you were running a Git command, run it again; `git status` shows where \
                  things stand. If it repeats, report the command you ran.\n",
             );
@@ -106,7 +106,39 @@ pub fn payload_free_panic_hook(information: &PanicHookInfo<'_>) {
     // ```ts
     // try { process.stderr.write(notice); } catch { /* stream closed */ }
     // ```
+    if panics_are_expected_here() {
+        return;
+    }
     let _ = std::io::stderr().write_all(panic_notice(information.location()).as_bytes());
+}
+
+std::thread_local! {
+    /// How many calls on this thread are inside `while_panics_are_expected`. A panic hook runs on the thread that panics,
+    ///  so this thread's count is the right one for its hook to read.
+    static EXPECTED_PANIC_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Whether the calling thread is inside a call whose panic its caller catches and reports itself.
+pub fn panics_are_expected_here() -> bool {
+    return EXPECTED_PANIC_CALLS.with(|calls| { return calls.get() > 0; });
+}
+
+/// What:
+///  Runs `call` and returns what `std::panic::catch_unwind` returns, with the notice of the hook silenced for a panic inside it.
+/// Why:
+///  tokio panics, instead of returning an error, when the system refuses a thread (`doc/planning/git-policy-cli-full-tokio.md`,
+///  "A multi-thread runtime panics, then hangs"). The caller turns that panic into a plain error value of its own, so the
+///  notice "run it again, report this location" would tell the person of a defect on a command that went on to succeed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return Ok(call()); } catch (error) { return Err(error); } // with no uncaughtException message printed
+/// ```
+pub fn while_panics_are_expected<T>(call: impl FnOnce() -> T) -> std::thread::Result<T> {
+    EXPECTED_PANIC_CALLS.with(|calls| { calls.set(calls.get() + 1); });
+    let outcome: std::thread::Result<T> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(call));
+    EXPECTED_PANIC_CALLS.with(|calls| { calls.set(calls.get() - 1); });
+    return outcome;
 }
 
 /// What:

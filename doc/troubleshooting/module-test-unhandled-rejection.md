@@ -249,7 +249,8 @@ Choosing whichever concurrent test happens to be active would invent attribution
 
 ## Verification
 
-Runtime: `node --version` returned `v26.8.1`.
+Runtime:
+`node --version` returned `v26.8.1`.
 Repository HEAD at the reproduction was `2d8af1c44ff3e43f05cd2e1919eb7ee5d3443bbd`.
 The source worktree included existing changes;
 the reproduction exercised current harness source without rebuilding or modifying production code.
@@ -339,7 +340,8 @@ The proposed design uses the supported rejection event at an explicit test-file 
 
 The user's preference is to avoid installing `unhandledRejection` handling repeatedly or intrusively.
 The user clarified that this is a preference,
-not a prohibition: broader handling may be proposed if narrower approaches fail verification.
+not a prohibition:
+broader handling may be proposed if narrower approaches fail verification.
 The initial recommendation placed activation in the file launcher.
 The user rejected that choice as prone to misuse:
 running the file directly would silently omit the requested behavior.
@@ -594,14 +596,30 @@ and a separate process per program.
 The page replays captured output;
 it does not run Node inside the browser.
 
-| Program | Recorded behavior | Exit status |
-| --- | --- | --- |
-| Ordinary throw | Catch prints A failure; B runs | 1 |
-| Awaited save | Catch prints A failure; B runs | 1 |
-| Detached save without listener | A body passes; Node prints `Error: save failed`; B does not run | 1 |
-| Detached save with listener | A body passes; observer reports error; B runs | 1 |
-| Shared runtime | One listener added; two rejections reported; both body markers printed | 1 |
-| Shared context storage | B starts before the observer reports A; B body completes | 1 |
+Each program is listed with its recorded behavior,
+and every one exited with status 1:
+
+- Ordinary throw:
+  catch prints A failure;
+  B runs.
+- Awaited save:
+  catch prints A failure;
+  B runs.
+- Detached save without listener:
+  A body passes;
+  Node prints `Error: save failed`;
+  B does not run.
+- Detached save with listener:
+  A body passes;
+  observer reports error;
+  B runs.
+- Shared runtime:
+  one listener added;
+  two rejections reported;
+  both body markers printed.
+- Shared context storage:
+  B starts before the observer reports A;
+  B body completes.
 
 The final example's downloaded bytes matched the source embedded in the HTML.
 Running that downloaded file reproduced the captured stdout,
@@ -741,19 +759,26 @@ no `AGENTS.md` rule was edited or assigned a new shortcode.
 No `.out-of-scope/` entry names this Node rejection behavior.
 The defect tracked here belongs to the repository's test reporting.
 
-1.  Upstream fault: no.
+1.  Upstream fault:
+    no.
     Node's observed default behavior matches its implementation and documentation.
-2.  Upstream fixability: Node can change policy,
+2.  Upstream fixability:
+    Node can change policy,
     but no Node change is required for the consumer's reporting contract.
-3.  Supported use case: Node documents rejection listeners and selectable rejection modes.
-4.  Contribution welcome: not evaluated because no upstream filing is proposed.
+3.  Supported use case:
+    Node documents rejection listeners and selectable rejection modes.
+4.  Contribution welcome:
+    not evaluated because no upstream filing is proposed.
     This is not a claim that contributions are unwelcome.
-5.  Likelihood of an upstream fix: not evaluated;
+5.  Likelihood of an upstream fix:
+    not evaluated;
     no Node defect is asserted.
-6.  Upstream prototype: unnecessary because the upstream-fault condition fails.
+6.  Upstream prototype:
+    unnecessary because the upstream-fault condition fails.
     Consumer implementation follows the accepted separate-failure design.
 
-Upstream filing artifact: nothing to file.
+Upstream filing artifact:
+nothing to file.
 No upstream issue or comment was drafted or sent.
 Issue tracking is not evidence that every exported artifact was verified.
 

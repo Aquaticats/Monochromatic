@@ -73,8 +73,10 @@ for (const version of [undefined, '1.0', '1.1']) {
 
 Working catalog:
 
-- Omitted version: `default accept`.
-- Explicit TOML 1.1: `1.1 accept`.
+- Omitted version:
+  `default accept`.
+- Explicit TOML 1.1:
+  `1.1 accept`.
 
 Failing catalog:
 
@@ -87,10 +89,12 @@ The package-level regression in `package/toml-edit/core/src/parse-toml-edit.unit
 ## Verified workarounds
 
 - Request `parseTomlEdit({ source, tomlVersion: '1.0', })` when TOML 1.0 grammar is required.
-  Tradeoff: this correctly rejects TOML 1.1-only inputs.
+  Tradeoff:
+  this correctly rejects TOML 1.1-only inputs.
 - Leave the version unset only when tracking the parser's default is intended.
   Our TSDoc now names the observed 1.1 default and a unit test pins the current result.
-  Tradeoff: a future parser release may change its default,
+  Tradeoff:
+  a future parser release may change its default,
   so callers needing a stable grammar should select a version explicitly.
 
 ## What does not work
@@ -106,18 +110,24 @@ Searches of open and closed issues and pull requests in `ota-meshi/toml-eslint-p
  for `default tomlVersion 1.1` found no matching report.
 No upstream filing is warranted:
 
-- **Upstream fault:** No.
+- **Upstream fault:**
+  No.
   The release's README and source agree on TOML 1.1;
   our local comment was wrong.
-- **Upstream fixability:** A default can be changed in source,
+- **Upstream fixability:**
+  A default can be changed in source,
   but no correction is needed for this behavior.
-- **Supported use case:** Yes.
+- **Supported use case:**
+  Yes.
   `README.md:51-53` lists explicit 1.0 and 1.1 options.
-- **Contribution welcome:** The tag contains a README but no CONTRIBUTING or issue/PR template was found.
+- **Contribution welcome:**
+  The tag contains a README but no CONTRIBUTING or issue/PR template was found.
   No ban was found,
   but no contribution is needed.
-- **Likelihood of upstream fix:** No defect is established for them to fix.
-- **Minimal compatible prototype:** No upstream patch was made because the local TSDoc and test were mistaken.
+- **Likelihood of upstream fix:**
+  No defect is established for them to fix.
+- **Minimal compatible prototype:**
+  No upstream patch was made because the local TSDoc and test were mistaken.
   The local test passed after explicitly selecting TOML 1.0 and pinning the default behavior.
 
 ## Upstream filing artifact

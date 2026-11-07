@@ -14,6 +14,13 @@ The package exports `formatTimeContext()`,
 <time>HH:MM</time>
 ```
 
+## Pi dependency trust
+
+PJB:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Why this exists
 
 Claude Code hooks and pi extensions both inject the same coarse local time context.

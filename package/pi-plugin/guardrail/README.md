@@ -5,6 +5,13 @@ Tool-call guardrails for pi.
 The extension blocks misleading `bun test` Bash tool calls and refuses `edit` or
 `write` calls for protected paths matched with `.gitignore` semantics.
 
+## Pi dependency trust
+
+PJY:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Installation
 
 Add this package to global pi settings at `~/.pi/agent/settings.json`:

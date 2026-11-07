@@ -319,6 +319,7 @@ export async function startSession(
       socket,
       options,
       releaseBinary: config.releaseBinary,
+      limits: config.unitLimits,
     },),
   },);
   expect({

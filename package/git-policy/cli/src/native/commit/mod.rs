@@ -77,6 +77,9 @@ pub mod commit_args;
 /// The private commit index: copies, selection modes, pathspec files and listings.
 pub mod commit_index;
 
+/// The copying of the real index into a private index and the check of whether it may seed an explicit-path commit.
+pub mod commit_index_copying;
+
 /// Native `git commit` in the shadow, the prepared commit read back and `prepared.json`.
 pub mod commit_preparation;
 

@@ -433,3 +433,32 @@ fn a_path_that_cannot_be_deleted_is_reported_with_the_systems_reason_and_the_res
     assert_eq!(report.deleted.len(), 1, "the source directory still went: {report:?}");
     assert_eq!(report.bytes, SOURCE_BYTES, "only what was removed is counted: {report:?}");
 }
+
+/// The newest cached version is the one with the longer alpha number,
+/// because semver reads the identifier after `alpha` as a number.
+#[test]
+fn keeps_the_longer_alpha_number_without_an_install_record() {
+    let stale = find_stale(
+        vec![
+            entry("monochromatic-jsonc-edit", "0.1.3-alpha.9"),
+            entry("monochromatic-jsonc-edit", "0.1.3-alpha.10"),
+        ],
+        &BTreeMap::new(),
+    );
+    assert_eq!(versions_of(&stale), vec!["monochromatic-jsonc-edit-0.1.3-alpha.9"]);
+}
+
+/// Of two version-keyed records the one with the longer alpha number is the newest installed.
+#[test]
+fn the_newest_recorded_install_is_the_longer_alpha_number() {
+    let directory = scratch();
+    let home: PathBuf = directory.path().join("cargo-home");
+    let root: PathBuf = directory.path().join("toolchain");
+    fs::create_dir_all(&home).expect("make the cargo home");
+    write_record(&home, "monochromatic-lint 0.5.1-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)");
+    finish_version(&root, "monochromatic-lint", "0.5.1-alpha.10");
+
+    let installed: BTreeMap<String, String> = installed_everywhere(&home, &[root]);
+
+    assert_eq!(installed.get("monochromatic-lint").map(String::as_str), Some("0.5.1-alpha.10"));
+}

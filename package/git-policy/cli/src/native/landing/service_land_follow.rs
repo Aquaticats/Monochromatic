@@ -58,7 +58,10 @@ fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Ve
     let mut request: GitRequest = GitRequest::new(repository, arguments);
     request.input = input;
     request.index = index.map(Path::to_path_buf);
-    return run_git(git, &request).map_err(|_| { return FailureCode::Unavailable; });
+    return match run_git(git, &request) {
+        Ok(output) => Ok(output),
+        Err(_unstartable) => Err(FailureCode::Unavailable),
+    };
 }
 
 /// The failure a Git step that did not succeed stands for.
@@ -101,10 +104,49 @@ fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> R
     return Ok(output.stdout);
 }
 
+/// What:
+///  Whether a byte is the NUL that separates the names of a pathspec list.
+/// Why:
+///  `pathspec_input` splits a NUL-separated list into names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isZeroByte = (byte: number) => byte === 0;
+/// ```
+fn is_zero_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether a name from a NUL-separated list is not empty.
+/// Why:
+///  Two NULs in a row leave an empty name that names nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNotEmptyName = (name: Uint8Array) => name.length > 0;
+/// ```
+fn is_not_empty_name(name: &&[u8]) -> bool {
+    return !name.is_empty();
+}
+
+/// What:
+///  A path as a pathspec that matches that path from the top of the worktree and nothing else.
+/// Why:
+///  `reset` is given one such spec per path the batch changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const topLiteralSpec = (path: string) => `:(top,literal)${path}`;
+/// ```
+fn top_literal_spec(path: &String) -> String {
+    return format!(":(top,literal){path}");
+}
+
 /// The standard input of `reset --pathspec-from-file=- --pathspec-file-nul` for a list of NUL-separated names.
 fn pathspec_input(names: &[u8]) -> Vec<u8> {
     let mut input: Vec<u8> = Vec::new();
-    for name in names.split(|byte| { return *byte == 0; }).filter(|name| { return !name.is_empty(); }) {
+    for name in names.split(is_zero_byte).filter(is_not_empty_name) {
         input.extend(literal(name));
         input.push(0);
     }
@@ -115,13 +157,18 @@ fn pathspec_input(names: &[u8]) -> Vec<u8> {
 fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<(), FailureCode> {
     let output: GitOutput = match paths {
         IndexPaths::Listed(listed) => {
-            let specs: Vec<String> = listed.iter().map(|path| { return format!(":(top,literal){path}"); }).collect();
+            let specs: Vec<String> = listed.iter().map(top_literal_spec).collect();
             let mut arguments: Vec<&str> = vec!["reset", "--no-refresh", new, "--"];
             arguments.extend(specs.iter().map(String::as_str));
             run(git, repository, &arguments, None, index)?
         }
         IndexPaths::Named(names) => {
-            let joined: Vec<u8> = names.iter().flat_map(|name| { return name.iter().copied().chain(std::iter::once(0)); }).collect();
+            // Each name followed by a NUL, as `--pathspec-file-nul` reads them.
+            let mut joined: Vec<u8> = Vec::new();
+            for name in names.iter() {
+                joined.extend(name.iter().copied());
+                joined.push(0);
+            }
             let input: Vec<u8> = pathspec_input(joined.as_slice());
             if input.is_empty() {
                 return Ok(());

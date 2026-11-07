@@ -13,12 +13,26 @@ export default {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()], force: true })
 ` },
   },
   "image:release": {
     description: "Build the Ubuntu 24.04 release container image: the base of the IDE release image, so shipped binaries keep the glibc of Ubuntu 24.04",
-    run: "podman build --tag localhost/monochromatic/terminal-release --file Containerfile.release .",
+    run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArgument = execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image: 'localhost/monochromatic/terminal-release', containerfile: 'Containerfile.release', buildArguments: ['--build-arg', rustToolchainBuildArgument, ...zigArchiveBuildArguments()], force: true })
+` },
   },
   "build": {
     description: "Release build (host if Zig + dev libs present, else container), then stage runtime shared libraries",
@@ -36,10 +50,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -64,10 +82,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -180,10 +202,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -207,10 +233,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -234,10 +264,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -261,10 +295,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -288,10 +326,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -384,10 +426,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -412,10 +458,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -439,10 +489,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -466,10 +520,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -496,10 +554,14 @@ const hostEnv = () => {
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
+const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }

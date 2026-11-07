@@ -260,16 +260,15 @@ pub fn settled_passes(convergence: &Convergence) -> u64 {
 /// createPrivateIndexFacts({ paths: candidatePaths, baseRevision })
 /// ```
 pub fn staged_at_base(base: Option<ObjectId>, paths: &[Vec<u8>]) -> CandidateRequest {
+    let mut pathspecs: Vec<OsString> = Vec::new();
+    for path in paths {
+        let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
+        pathspec.extend_from_slice(path.as_slice());
+        pathspecs.push(os_from_path_bytes(pathspec.as_slice()));
+    }
     return CandidateRequest::StagedAtBase {
         base,
-        pathspecs: paths
-            .iter()
-            .map(|path| {
-                let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
-                pathspec.extend_from_slice(path.as_slice());
-                return os_from_path_bytes(pathspec.as_slice());
-            })
-            .collect(),
+        pathspecs,
     };
 }
 

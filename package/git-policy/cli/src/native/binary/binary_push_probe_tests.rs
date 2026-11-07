@@ -13,11 +13,11 @@ const FINDING: &str = "noncanonical-final-newline";
 fn blocked_world(fixture: &Fixture) -> World {
     let world: World = world(fixture, false, None);
     std::fs::write(
-        world.repo.join("cli-git.config.jsonc"),
+        world.repo.join("monochromatic-git-policy-cli.config.jsonc"),
         "{ \"policies\": { \"final-newline\": \"error\" } }\n",
     )
     .expect("policy file");
-    commit_directly(fixture, world.repo.as_path(), "cli-git.config.jsonc", "{ \"policies\": { \"final-newline\": \"error\" } }\n");
+    commit_directly(fixture, world.repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", "{ \"policies\": { \"final-newline\": \"error\" } }\n");
     std::fs::write(world.repo.join("a.txt"), "no final newline").expect("a.txt");
     git(fixture, world.repo.as_path(), &["add", "--", "a.txt"]);
     git(fixture, world.repo.as_path(), &["commit", "--quiet", "--no-verify", "--message=a", "--", "a.txt"]);

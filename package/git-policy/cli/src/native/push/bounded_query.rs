@@ -17,7 +17,8 @@
 /// The failure type of the auto-push coordination.
 use crate::auto_push_single_flight::SingleFlightError;
 /// The deadline runner shared with the push, and its stop causes.
-use crate::bounded_push::{MAX_PUSH_OUTPUT, Patience, StopCause, push_deadline, stop_push, wait_until_done};
+use crate::bounded_push::{MAX_PUSH_OUTPUT, StopCause, stop_push, wait_until_done};
+use crate::push_deadline_and_patience_settings::{Patience, push_deadline};
 /// The longest quiet gap of each step, kept for the timing records.
 use crate::quiet_ledger;
 /// The lock files a stopped query leaves, and the ledger that finds them.

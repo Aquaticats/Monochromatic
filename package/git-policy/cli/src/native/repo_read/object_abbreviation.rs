@@ -22,6 +22,7 @@ use crate::repo_read_odb::alternates_of;
 use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::path::{Path, PathBuf};
+use crate::object_abbreviation_byte_and_prefix_checks::{is_hex_digit, is_nul, shared_prefix_length};
 
 /// Git's `FALLBACK_DEFAULT_ABBREV`: the shortest automatic length.
 pub const FALLBACK_ABBREVIATION: usize = 7;
@@ -219,7 +220,9 @@ fn read_midx(pack_directory: &Path, length: usize) -> Result<Option<Midx>, ()> {
     let path: PathBuf = pack_directory.join("multi-pack-index");
     let Ok(file) = File::open(&path) else { return Ok(None) };
     let mut header: [u8; 12] = [0; 12];
-    file.read_exact_at(&mut header, 0).map_err(|_| {})?;
+    if file.read_exact_at(&mut header, 0).is_err() {
+        return Err(());
+    }
     // Signature, version, object format, chunk count, number of base files, number of packs.
     if &header[..4] != b"MIDX" || header[4] != 1 || header[7] != 0 {
         return Err(());
@@ -246,14 +249,25 @@ fn read_midx(pack_directory: &Path, length: usize) -> Result<Option<Midx>, ()> {
     }
     let (fanout_at, names_at, (packs_start, packs_end)) = (fanout_chunk.ok_or(())?, names_chunk.ok_or(())?, packs_chunk.ok_or(())?);
     let count: u64 = u64::from(be32(&file, fanout_at + 255 * 4).ok_or(())?);
-    let mut listed: Vec<u8> = vec![0; usize::try_from(packs_end.saturating_sub(packs_start)).map_err(|_| {})?];
-    file.read_exact_at(listed.as_mut_slice(), packs_start).map_err(|_| {})?;
-    let covered: Vec<String> = listed
-        .split(|byte| { return *byte == 0; })
-        .filter(|name| { return !name.is_empty(); })
-        .map(|name| { return String::from_utf8_lossy(name).into_owned(); })
-        .take(usize::try_from(packs).map_err(|_| {})?)
-        .collect();
+    let Ok(listed_length) = usize::try_from(packs_end.saturating_sub(packs_start)) else {
+        return Err(());
+    };
+    let mut listed: Vec<u8> = vec![0; listed_length];
+    if file.read_exact_at(listed.as_mut_slice(), packs_start).is_err() {
+        return Err(());
+    }
+    let Ok(pack_limit) = usize::try_from(packs) else {
+        return Err(());
+    };
+    let mut covered: Vec<String> = Vec::new();
+    for name in listed.split(is_nul) {
+        if covered.len() >= pack_limit {
+            break;
+        }
+        if !name.is_empty() {
+            covered.push(String::from_utf8_lossy(name).into_owned());
+        }
+    }
     return Ok(Some(Midx { names: SortedNames { file, first: names_at, stride: length as u64, count, length }, covered }));
 }
 
@@ -274,9 +288,12 @@ fn open_packed(root: &Path, length: usize) -> Result<Packed, ()> {
     let midx: Option<Midx> = read_midx(directory.as_path(), length)?;
     let mut indexes: Vec<SortedNames> = Vec::new();
     for entry in listing {
-        let path: PathBuf = entry.map_err(|_| {})?.path();
-        let Some(name) = path.file_name().and_then(|name| { return name.to_str(); }).map(str::to_string) else { continue };
-        if !name.ends_with(".idx") || midx.as_ref().is_some_and(|covering| { return covering.covered.contains(&name); }) {
+        let Ok(found) = entry else {
+            return Err(());
+        };
+        let path: PathBuf = found.path();
+        let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str).map(str::to_string) else { continue };
+        if !name.ends_with(".idx") || midx_covers(&midx, &name) {
             continue;
         }
         indexes.push(open_index(path.as_path(), length).ok_or(())?);
@@ -296,10 +313,10 @@ fn loose_shared(root: &Path, hex: &str) -> Option<usize> {
     for entry in listing {
         let file_name = entry.ok()?.file_name();
         let Some(other) = file_name.to_str() else { continue };
-        if other.len() != rest.len() || !other.bytes().all(|byte| { return byte.is_ascii_hexdigit(); }) || other == rest {
+        if other.len() != rest.len() || !other.bytes().all(is_hex_digit) || other == rest {
             continue;
         }
-        let shared: usize = rest.bytes().zip(other.bytes()).take_while(|(left, right)| { return left == right; }).count();
+        let shared: usize = shared_prefix_length(rest, other);
         longest = longest.max(2 + shared);
     }
     return Some(longest);
@@ -307,10 +324,22 @@ fn loose_shared(root: &Path, hex: &str) -> Option<usize> {
 
 /// The bytes of a lower-case hexadecimal name.
 fn bytes_of(hex: &str) -> Option<Vec<u8>> {
-    if hex.len() % 2 != 0 || !hex.bytes().all(|byte| { return byte.is_ascii_hexdigit(); }) {
+    if hex.len() % 2 != 0 || !hex.bytes().all(is_hex_digit) {
         return None;
     }
-    return (0..hex.len() / 2).map(|at| { return u8::from_str_radix(&hex[at * 2..at * 2 + 2], 16).ok(); }).collect();
+    let mut bytes: Vec<u8> = Vec::new();
+    for at in 0..hex.len() / 2 {
+        bytes.push(u8::from_str_radix(&hex[at * 2..at * 2 + 2], 16).ok()?);
+    }
+    return Some(bytes);
+}
+
+/// Whether the multi-pack-index, when there is one, already lists the pack index `name`.
+fn midx_covers(midx: &Option<Midx>, name: &String) -> bool {
+    return match midx {
+        Some(covering) => covering.covered.contains(name),
+        None => false,
+    };
 }
 
 /// What:
@@ -340,10 +369,15 @@ pub fn abbreviate(object_directory: &Path, setting: Setting, hex: &str) -> Optio
     let mut length: usize = match setting {
         Setting::Length(asked) => asked,
         Setting::Auto => {
-            let counted: u64 = opened
-                .iter()
-                .map(|(_, packed)| { return packed.midx.as_ref().map_or(0, |midx| { return midx.names.count; }) + packed.indexes.iter().map(|index| { return index.count; }).sum::<u64>(); })
-                .sum();
+            let mut counted: u64 = 0;
+            for (_, packed) in &opened {
+                if let Some(midx) = packed.midx.as_ref() {
+                    counted += midx.names.count;
+                }
+                for index in &packed.indexes {
+                    counted += index.count;
+                }
+            }
             automatic_length(counted)
         }
     };
@@ -352,7 +386,12 @@ pub fn abbreviate(object_directory: &Path, setting: Setting, hex: &str) -> Optio
     }
     for (root, packed) in &opened {
         let mut longest: usize = loose_shared(root.as_path(), hex)?;
-        for names in packed.midx.iter().map(|midx| { return &midx.names; }).chain(packed.indexes.iter()) {
+        let mut all_names: Vec<&SortedNames> = Vec::new();
+        if let Some(midx) = packed.midx.as_ref() {
+            all_names.push(&midx.names);
+        }
+        all_names.extend(packed.indexes.iter());
+        for names in all_names {
             longest = longest.max(names.longest_shared(&target)?);
         }
         if longest >= length {

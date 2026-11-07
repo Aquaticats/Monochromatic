@@ -1,5 +1,16 @@
 # cli-git Rust open decisions
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 A decision brief for the owner of this repository.
 It takes every choice that the `Open questions` section of the
 [behavior ledger](cli-git-rust-behavior-ledger.md) left undetermined for the Rust rewrite of the Git policy wrapper
@@ -48,7 +59,9 @@ even where an item section below still reads "Needs the owner".
 The answers are recorded in this document,
 section `User decisions 2026-10-05` (moved here on 2026-11-03 from the cli-git handover):
 the owner answered the optional-policy batch and four transactions-phase questions
-(signals, the exit status of a signaled Git, and the hook entries on Unix and on Windows),
+(signals,
+the exit status of a signaled Git,
+and the hook entries on Unix and on Windows),
 and asked on 2026-10-06 that a clearly dominant option be adopted without a question for that session.
 Every other item was adopted on that basis,
 each with its reason and open to the owner's veto,
@@ -626,14 +639,18 @@ Which exit status the wrapper reports when real Git itself was ended by a signal
 
 - The incumbent installs no signal handler
   (ledger,
-  "Forwarding, standard streams, signals, and exit codes",
+  "Forwarding,
+  standard streams,
+  signals,
+  and exit codes",
   with the `rg` that finds none).
   By reading,
   a signal to the wrapper ends the wrapper,
   and nothing signals the Git child.
 - The incumbent maps a signaled Git to exit `1` (`src/bin.ts:454-456`).
   The ledger lists that under "Incumbent defects and stale comments".
-- The spec says "When real Git runs, preserve its exit code" (`SPEC.md:1600-1601`)
+- The spec says "When real Git runs,
+  preserve its exit code" (`SPEC.md:1600-1601`)
   and is silent on a Git that has none.
 - The spec says policy cancellation uses a signal object (`SPEC.md:383-385`);
   nothing ever aborts it (ledger,
@@ -668,7 +685,8 @@ Which exit status the wrapper reports when real Git itself was ended by a signal
   `574-590`).
 - [sudo][sudo-man] relays signals to its command,
   but `SIGINT` and `SIGQUIT` "are only relayed when the command is being run in a new pty
-  or when the signal was sent by a user process, not the kernel.
+  or when the signal was sent by a user process,
+  not the kernel.
   This prevents the command from receiving SIGINT twice each time the user enters control-C."
 - [cargo][cargo] replaces its process on Unix,
   and on Windows installs a console handler that ignores Ctrl-C in the parent,
@@ -1238,8 +1256,10 @@ because Git starts a hook differently on each.
   `src/hook-dispatch/hook-shim-writer.ts:107-128`),
   and a `pre-push` file of the same kind (`src/policy-engine/manual-push-hook.ts:187-203`).
 - The spec chose its form on purpose:
-  "The shim is a runtime-generated Node program, not a shell script" (`SPEC.md:2417-2418`).
-- The spec leaves open "the shebang form for Windows, where Git for Windows parses shebangs itself,
+  "The shim is a runtime-generated Node program,
+  not a shell script" (`SPEC.md:2417-2418`).
+- The spec leaves open "the shebang form for Windows,
+  where Git for Windows parses shebangs itself,
   and for a `process.execPath` containing spaces" (`SPEC.md:2460-2462`).
   The incumbent refuses only a line break in that path (`src/policy-engine/manual-push-hook.ts:188-192`).
 - The transaction silences the repository's own config-based hooks with `hook.<event>.enabled=false`
@@ -1965,7 +1985,8 @@ or has to stay alive behind it.
 
 - Native state:
   neither is printed,
-  "forwarding replaces the process, so nothing runs after Git"
+  "forwarding replaces the process,
+  so nothing runs after Git"
   (`doc/handover/cli-git-native-policy-engine.md`,
   section `Post-command output`).
   The status-hints transform is applied,
@@ -2094,7 +2115,8 @@ and whether it learns where the cache is on other systems.
   then `<home>/.cache/uv`,
   with no platform branch (`src/allowed-worktree-dirs.ts:60-88`).
   Its comment:
-  "Baked into the binary because the set is a property of the machine's tooling, not of any repository" (`95-99`).
+  "Baked into the binary because the set is a property of the machine's tooling,
+  not of any repository" (`95-99`).
 - The native code repeats the same derivation and the same reasoning
   (`uv_cache_dir` and `default_allowed_worktree_dirs`,
   `src/native/effective_target.rs:57-105`).
@@ -2519,7 +2541,8 @@ Whether the slow commit the owner reported is part of the measured workload.
   the incumbent's budgets are "synthetic-fixture overhead budgets".
 - The reported observation:
   staging and committing one Markdown file took 8.9 seconds,
-  which "establishes an end-to-end workload to investigate, not its cause" (rewrite scope lines 80 to 89).
+  which "establishes an end-to-end workload to investigate,
+  not its cause" (rewrite scope lines 80 to 89).
 - The incumbent's budgets:
   a ceiling of 2,000 ms,
   described in the source as user-required (`perf/lifecycle-latency-contracts.ts:210-212`;
@@ -2622,7 +2645,8 @@ so by the rewrite scope's own account it "cannot establish or dismiss the cause 
 #### Option B: add a repository-shaped scenario and gate on it
 
 One Markdown file committed with this repository's real policies and rules,
-measured under the gate chosen in "Options: the numbers that gate the native wrapper".
+measured under the gate chosen in "Options:
+the numbers that gate the native wrapper".
 
 For:
 it measures the experience that prompted the rewrite.
@@ -2663,7 +2687,8 @@ or skip the policy.
   the policy selects the coordinated installation's own linter,
   and repository JSONC cannot choose the executable.
 - The incumbent treats a command that cannot start as a failure:
-  "markdown-lint could not be started." is thrown
+  "markdown-lint could not be started."
+  is thrown
   (`src/optional/markdown-lint/rewrite-candidates.ts:335-336`),
   and a thrown check becomes an engine failure with exit status `2`,
   whatever the policy's severity (`src/policy-engine/policy-stage.ts:162-176`).

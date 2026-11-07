@@ -82,7 +82,7 @@ fn a_plain_run_reports_git_status_or_the_start_failure() {
     ) {
         ForwardedRun::Failed { stderr, code } => {
             assert_eq!(code, 2);
-            assert!(stderr.starts_with("cli-git: cannot start /nonexistent/git: "), "{stderr}");
+            assert!(stderr.starts_with("monochromatic-git-policy-cli: cannot start /nonexistent/git: "), "{stderr}");
         }
         other => panic!("expected a start failure, got {other:?}"),
     }

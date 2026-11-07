@@ -167,19 +167,41 @@ pub struct ScopeEnvironment {
     pub unresolvable: bool,
 }
 
+/// The value of the last variable named `name`, or nothing; later entries override earlier ones, as in a child's environment.
+pub fn last_variable(variables: &[(OsString, OsString)], name: &str) -> Option<OsString> {
+    for (candidate, value) in variables.iter().rev() {
+        if candidate == name {
+            return Some(value.clone());
+        }
+    }
+    return None;
+}
+
+/// The last variable named `name` as a path, or nothing when it is unset.
+fn path_variable(variables: &[(OsString, OsString)], name: &str) -> Option<PathBuf> {
+    if let Some(value) = last_variable(variables, name) {
+        return Some(PathBuf::from(value));
+    }
+    return None;
+}
+
+/// The last variable named `name` as a path, or nothing when it is unset or empty.
+fn nonempty_variable(variables: &[(OsString, OsString)], name: &str) -> Option<PathBuf> {
+    if let Some(value) = last_variable(variables, name)
+        && !value.is_empty()
+    {
+        return Some(PathBuf::from(value));
+    }
+    return None;
+}
+
 impl ScopeEnvironment {
     /// The facts of an environment as a child would see it: the process variables with a run's additions over them, which
     ///  include the forward-target variable naming the real Git; the wrapper's own environment does not carry it, so there is
     ///  deliberately no constructor that reads the process environment alone.
     pub fn from_variables(variables: &[(OsString, OsString)]) -> ScopeEnvironment {
-        let find = |name: &str| -> Option<OsString> {
-            return variables.iter().rev().find(|(candidate, _)| { return candidate == name; }).map(|(_, value)| { return value.clone(); });
-        };
-        let nonempty = |name: &str| -> Option<PathBuf> {
-            return find(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from);
-        };
         // `GIT_CONFIG_NOSYSTEM` is a boolean: absent or false reads the system file, an empty value is false.
-        let (no_system, boolean_ok): (bool, bool) = match find("GIT_CONFIG_NOSYSTEM") {
+        let (no_system, boolean_ok): (bool, bool) = match last_variable(variables, "GIT_CONFIG_NOSYSTEM") {
             None => (false, true),
             Some(value) if value.is_empty() => (false, true),
             Some(value) => match parse_bool(Some(value.as_encoded_bytes())) {
@@ -188,12 +210,12 @@ impl ScopeEnvironment {
             },
         };
         let mut scope: ScopeEnvironment = ScopeEnvironment {
-            home: nonempty("HOME"),
-            xdg: nonempty("XDG_CONFIG_HOME"),
+            home: nonempty_variable(variables, "HOME"),
+            xdg: nonempty_variable(variables, "XDG_CONFIG_HOME"),
             no_system,
-            system: find("GIT_CONFIG_SYSTEM").map(PathBuf::from),
+            system: path_variable(variables, "GIT_CONFIG_SYSTEM"),
             system_default: None,
-            global: find("GIT_CONFIG_GLOBAL").map(PathBuf::from),
+            global: path_variable(variables, "GIT_CONFIG_GLOBAL"),
             unresolvable: !boolean_ok,
         };
         // Git reads its compiled-in system file unless the environment removes or replaces it.
@@ -201,7 +223,14 @@ impl ScopeEnvironment {
             scope.system_default = crate::git_system_config::system_config_for(variables);
             scope.unresolvable = scope.system_default.is_none();
         }
-        let relative: bool = [&scope.home, &scope.xdg, &scope.system, &scope.global].iter().any(|path| { return path.as_ref().is_some_and(|found| { return !found.is_absolute(); }); });
+        let mut relative: bool = false;
+        for path in [&scope.home, &scope.xdg, &scope.system, &scope.global] {
+            if let Some(found) = path.as_ref()
+                && !found.is_absolute()
+            {
+                relative = true;
+            }
+        }
         scope.unresolvable = scope.unresolvable || relative;
         return scope;
     }
@@ -213,7 +242,9 @@ impl ScopeEnvironment {
         if !self.no_system && (self.system.is_some() || self.system_default.is_some()) {
             labelled.push(("system", files.remove(0)));
         }
-        labelled.extend(files.into_iter().map(|file| { return ("global", file); }));
+        for file in files {
+            labelled.push(("global", file));
+        }
         return labelled;
     }
 
@@ -221,7 +252,11 @@ impl ScopeEnvironment {
     pub fn files(&self) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = Vec::new();
         if !self.no_system {
-            files.extend(self.system.clone().or_else(|| { return self.system_default.clone(); }));
+            if let Some(system) = self.system.clone() {
+                files.push(system);
+            } else if let Some(default) = self.system_default.clone() {
+                files.push(default);
+            }
         }
         if let Some(global) = &self.global {
             files.push(global.clone());

@@ -22,7 +22,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// Whether the person's command is one that updates references from or to a remote and is covered.
 pub fn is_covered(word: &[u8]) -> bool {
@@ -46,7 +46,10 @@ pub fn forwarded_lock_notice(word: &[u8], global_prefix: &[OsString], environmen
     let Some(start) = start_directory(global_prefix, current.as_path()) else {
         return String::new();
     };
-    let named: Option<PathBuf> = environment_value(environment, "GIT_DIR").map(|path| { return start.join(path); });
+    let mut named: Option<PathBuf> = None;
+    if let Some(path) = environment_value(environment, "GIT_DIR") {
+        named = Some(start.join(path));
+    }
     let outcome = clear_stale_ref_locks(roots_for(start.as_path(), named).as_slice(), judge);
     let notice: String = outcome.notice();
     if !notice.is_empty() {

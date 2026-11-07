@@ -1,6 +1,9 @@
 # Unified-linter executable handoff
 
-Note 2026-10-30: `package/linter/monochromatic-lint.fuzz/bin/container.mjs`, named below, is `container.ts` now.
+Note 2026-10-30:
+`package/linter/monochromatic-lint.fuzz/bin/container.mjs`,
+named below,
+is `container.ts` now.
 
 ## Purpose and scope
 

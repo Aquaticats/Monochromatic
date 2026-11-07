@@ -50,7 +50,7 @@ const START_POLL_MILLISECONDS = 10;
 /**
  Directory of the service sockets under a runtime directory; each worktree's socket in it is named by its instance.
  */
-const SOCKET_DIRECTORY = 'cli-git';
+const SOCKET_DIRECTORY = 'monochromatic-git-policy-cli';
 
 /**
  The longest socket path the operating system accepts, in bytes: `sun_path` holds 108 bytes with its terminator on Linux.
@@ -61,7 +61,7 @@ const SOCKET_PATH_LIMIT = 107;
  The wrapper's diagnostic that succeeds only when the service of the worktree it runs in answers.
  */
 const STATUS_ARGUMENTS = [
-  'cli-git',
+  'monochromatic-git-policy-cli',
   'service',
   'status',
 ] as const;
@@ -186,7 +186,7 @@ export async function makeService({
    */
   const runtime = await mkdtemp(join(
     scratchParent,
-    'rt-',
+    'r',
   ));
   await mkdir(
     join(
@@ -340,7 +340,7 @@ export async function makeService({
 /**
  Fail before any measurement when a wrapped command in a repository cannot reach that repository's commit service.
 
- The wrapper answers `git cli-git service status` with success only when the service of the worktree it is run in answers
+ The wrapper answers `git monochromatic-git-policy-cli service status` with success only when the service of the worktree it is run in answers
  at the socket it derives from the worktree's Git directory, so a service started under another name, or in another
  runtime directory, fails here once instead of failing every commit sample.
 

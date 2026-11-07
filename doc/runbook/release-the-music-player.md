@@ -16,9 +16,13 @@ One release holds one file per platform and a checksum file:
    no Microsoft toolchain)
 - `music-player-<version>-macos-arm64.dmg` (there is no Intel Mac build)
 - `music-player-<version>-linux-x64.tar.gz` and `music-player-<version>-linux-arm64.tar.gz` (glibc)
-- `music-player-<version>-linux-musl-x64.tar.gz` and `music-player-<version>-linux-musl-arm64.tar.gz` (Alpine, musl)
+- `music-player-<version>-linux-musl-x64.tar.gz` and `music-player-<version>-linux-musl-arm64.tar.gz` (Alpine,
+  musl)
 - `music-player-<version>-android-arm64-v8a.apk` and `music-player-<version>-android-x86_64.apk`
-  (one APK per ABI, no universal APK; phones, tablets and foldables take the `arm64-v8a` one)
+  (one APK per ABI,
+  no universal APK;
+  phones,
+  tablets and foldables take the `arm64-v8a` one)
 - `music-player-<version>-desktop-third-party-licenses.txt` and
   `music-player-<version>-android-third-party-licenses.txt`
   (license notices;
@@ -42,38 +46,56 @@ Its single source is the `version` line of the `[package]` table in
 `package/music-player/desktop-app/Cargo.toml`.
 The Android app reads it at build time:
 `versionName` is the version,
-and `versionCode` is `major * 10000 + minor * 100 + patch` (version `0.1.0` is code `100`, `1.2.3` is code `10203`).
+and `versionCode` is `major * 10000 + minor * 100 + patch` (version `0.1.0` is code `100`,
+`1.2.3` is code `10203`).
 
-The rules the workflow enforces, and fails loudly on:
+The rules the workflow enforces,
+and fails loudly on:
 
-- The version is plain `MAJOR.MINOR.PATCH`, with minor and patch at most 99.
-  A suffix such as `-beta.1` is refused, because it would give two versions the same Android code.
+- The version is plain `MAJOR.MINOR.PATCH`,
+  with minor and patch at most 99.
+  A suffix such as `-beta.1` is refused,
+  because it would give two versions the same Android code.
 - `package/music-player/android-app/rust/Cargo.toml` carries the same version.
-  Bump both files together; the run fails on a mismatch.
-- On a push, the new version is higher than the old one.
+  Bump both files together;
+  the run fails on a mismatch.
+- On a push,
+  the new version is higher than the old one.
 
 ## Cut a release
 
 1.  Pick the new version and edit both manifests by hand:
     the `version` line in `package/music-player/desktop-app/Cargo.toml`
     and the one in `package/music-player/android-app/rust/Cargo.toml`.
-    Both files are managed by `file-enforcer`, but it does not own `version`:
-    the `toml-keys` rules in `file-enforcer.config.jsonc` list edition, license, publish, lints, repository, readme,
-    homepage and profiles, and `rust-catalog` renders the shared dependencies; with both versions bumped
+    Both files are managed by `file-enforcer`,
+    but it does not own `version`:
+    the `toml-keys` rules in `file-enforcer.config.jsonc` list edition,
+    license,
+    publish,
+    lints,
+    repository,
+    readme,
+    homepage and profiles,
+    and `rust-catalog` renders the shared dependencies;
+    with both versions bumped
     `file-enforcer write` leaves the bumps in place (it sets only the keys its rules name).
-    Run `mise run sync:files` after the edit anyway, as for any manifest change, and commit whatever it rewrites.
+    Run `mise run sync:files` after the edit anyway,
+    as for any manifest change,
+    and commit whatever it rewrites.
 2.  Refresh both lock files without touching any dependency,
     because the release builds with `--locked` and fails on a stale `Cargo.lock`:
     run `cargo update --workspace` in `package/music-player/desktop-app`
     and in `package/music-player/android-app/rust`.
     Each lock file changes by exactly one line (the crate's own `version` in its `[[package]]` entry;
-    checked offline on both crates, and `cargo metadata --locked --offline` then resolves).
+    checked offline on both crates,
+    and `cargo metadata --locked --offline` then resolves).
 3.  Commit the four files and merge to `main`.
     A push to `main` that changes either manifest starts the workflow.
     The detect job compares the old and new version and starts the build only if the version changed.
 4.  Watch the run:
     `gh run list --workflow music-player-release.yml` and `gh run watch <run id>`.
-    A full run is the desktop builds (the two Alpine builds are the slowest, because they are never cached)
+    A full run is the desktop builds (the two Alpine builds are the slowest,
+    because they are never cached)
     in parallel with the Android build,
     then a checksum job and the release job.
 5.  Open the release page `https://github.com/Aquaticat/Monochromatic/releases/tag/music-player-v<version>`
@@ -102,18 +124,21 @@ gh workflow run music-player-release.yml --ref main --field dry-run=false
 
 ## Dry run
 
-A dry run builds, packages and signs every file,
+A dry run builds,
+packages and signs every file,
 runs the same checks as a real run,
 uploads the files as workflow artifacts that expire after one day,
 and prints in the `release` job log the exact `gh release create` command,
-the tag, the asset list and the release notes it would use.
+the tag,
+the asset list and the release notes it would use.
 It skips attestation and creates no tag and no release.
 
 Start one with `gh workflow run music-player-release.yml --ref <branch> --field dry-run=true`
 (the workflow file must exist on `main` before `gh workflow run` can find it).
 On any ref other than `main` the Android app is signed with a throwaway key made for that run,
 and the run refuses `dry-run=false`.
-On `main` a dry run signs with the real release key, so the signing path is proven without publishing.
+On `main` a dry run signs with the real release key,
+so the signing path is proven without publishing.
 
 Download a dry run's files with `gh run download <run id> --dir <new empty directory>`.
 Each `asset-*` artifact becomes a subdirectory.
@@ -132,7 +157,8 @@ and `file` on the arm64 binary must say `ARM aarch64`.
 The job has already started both binaries with `--version` in an Alpine image that holds only the packages of
 `INSTALL.txt`.
 To repeat that by hand,
-mount the binary into `alpine:3.24`, run the `apk add` line of `INSTALL.txt` first,
+mount the binary into `alpine:3.24`,
+run the `apk add` line of `INSTALL.txt` first,
 and bound the container with `podman run --memory=2g --cpus=2 --rm`.
 
 Check the Windows files of a dry run the same way,
@@ -159,7 +185,8 @@ Check the license notices of a dry run:
   how many third-party crates it links and that all are covered,
   then the size of the file.
 - The `notices` job log prints cargo-about's ten warnings `LicenseRef-Slint-Royalty-free-2.0 has no license file`.
-  They are expected: the script adds the Slint license text itself.
+  They are expected:
+  the script adds the Slint license text itself.
   The desktop file has a heading starting `Slint (10 crates): Slint Royalty-free Desktop`.
 - Every desktop job's step "Smoke test the binary (--version)" compares `--licenses` with that file byte for byte.
 - The Linux and Alpine archives must hold `THIRD-PARTY-LICENSES.txt` next to `LICENSE`
@@ -188,15 +215,18 @@ Read the message:
   `package/music-player/desktop-app/about.toml` or `package/music-player/android-app/rust/about.toml`.
   Read the crate's license.
   Add it to the `accepted` list only when it can be combined with the LGPL version 3 (both apps;
-  the desktop programs use Slint under its Royalty-free license, so they are not GPL works),
+  the desktop programs use Slint under its Royalty-free license,
+  so they are not GPL works),
   and write the reason in the comment above the list and in the decision document;
   otherwise replace or drop the dependency.
 - `does not match the checksum recorded in this script` or `does not ship ... with the vendored license text`
   means a Slint release changed its Royalty-free license file.
-  Read the new text, and in particular its section 2 (attribution):
+  Read the new text,
+  and in particular its section 2 (attribution):
   the Licenses page of the desktop Settings must keep showing the `AboutSlint` widget,
   and the release notes template in `.github/workflows/music-player-release.yml` must keep the Slint attribution badge
-  (the `#MadeWithSlint` image line near the top; section 2(b)).
+  (the `#MadeWithSlint` image line near the top;
+  section 2(b)).
   Reread the badge's file name and license in `logo/README.md` of the Slint repository,
   and move the commit in the image URL to the current Slint `master` head.
   Then replace `desktop-app/notices/slint-royalty-free-2.0.md` and the SHA-256 in `bin/third-party-notices.mjs`.
@@ -222,7 +252,8 @@ nothing is published.
 Read the failure with `gh run view <run id> --log-failed`,
 fix the cause on a branch,
 merge,
-and start a new run (a dispatch of the same version, or the next push).
+and start a new run (a dispatch of the same version,
+or the next push).
 `gh run rerun <run id> --failed` also works for a transient failure of a build job,
 unless the failed job had already uploaded its file:
 the upload then conflicts with the earlier one and a fresh dispatch is needed.
@@ -244,11 +275,13 @@ Look at `gh release list --repo Aquaticat/Monochromatic`:
 
 ## Caches
 
-The build jobs restore cargo, target and Gradle caches (keys that start with `music-player-`),
+The build jobs restore cargo,
+target and Gradle caches (keys that start with `music-player-`),
 so a run after a small change takes minutes and not tens of minutes.
 Only runs on `main` and manual dispatches save them.
 A changed lock file starts from the previous entry and rebuilds only what changed.
-The entries together are about 4 GB, against the repository's 10 GB cap.
+The entries together are about 4 GB,
+against the repository's 10 GB cap.
 The two Alpine release jobs (`build-desktop-musl`) and the Windows GNU job cache no cargo registry or target directory:
 every run builds them from a clean registry and target directory
 (14 to 20 minutes for the Alpine jobs in the two dry runs measured,
@@ -332,21 +365,28 @@ so the key must never be lost or replaced casually.
 Where it lives:
 
 - Four repository secrets in `Aquaticat/Monochromatic`:
-  `MUSIC_PLAYER_KEYSTORE_BASE64` (the PKCS12 keystore, base64),
+  `MUSIC_PLAYER_KEYSTORE_BASE64` (the PKCS12 keystore,
+  base64),
   `MUSIC_PLAYER_KEYSTORE_PASSWORD`,
   `MUSIC_PLAYER_KEY_ALIAS` (`music-player-release`),
   and `MUSIC_PLAYER_KEY_PASSWORD`.
-  A PKCS12 keystore uses one password for the store and the key, so the two password secrets hold the same value.
+  A PKCS12 keystore uses one password for the store and the key,
+  so the two password secrets hold the same value.
   Secrets cannot be read back from GitHub.
-- A backup outside GitHub, encrypted with sops to the age identity at `~/.config/mise/age.txt`:
+- A backup outside GitHub,
+  encrypted with sops to the age identity at `~/.config/mise/age.txt`:
   `music-player-release.p12.sops.json` (the keystore) and `credentials.txt.sops.json` (its alias and password),
   in `~/.local/share/music-player-release-keys` on the maintainer's primary machine
-  (directory mode 700, files mode 600; made on 2026-10-14, encrypted on 2026-10-15 with the plaintext deleted).
+  (directory mode 700,
+  files mode 600;
+  made on 2026-10-14,
+  encrypted on 2026-10-15 with the plaintext deleted).
   Restore the keystore with
   `SOPS_AGE_KEY_FILE=~/.config/mise/age.txt sops --decrypt --input-type json --output-type binary <file>.sops.json`
   and write the output to the file name without the `.sops.json` suffix.
   The backup is only as safe as that age identity:
-  keep a copy of `age.txt` outside the machine, or the signing key is lost with the machine.
+  keep a copy of `age.txt` outside the machine,
+  or the signing key is lost with the machine.
 - The public certificate fingerprint is written in the workflow as `EXPECTED_ANDROID_CERT_SHA256`.
   A real release fails if the APK carries any other certificate.
   Print the fingerprint of a keystore with `keytool -list -v -keystore <file>`.
@@ -400,8 +440,10 @@ The Windows and macOS programs and the Linux arm64 build are built by CI and sta
 and nothing more.
 The Alpine builds are started with `--version` in an Alpine container in the release run;
 the `test-alpine` job of the same workflow (`.github/workflows/music-player-release.yml`) runs the unit tests and a
-headless window and sound check in Alpine containers on both architectures, on debug builds and not on the released
-files, and the release waits on it.
+headless window and sound check in Alpine containers on both architectures,
+on debug builds and not on the released
+files,
+and the release waits on it.
 No real Alpine machine has run them.
 No build has run on a real Android device.
 A bug report from one of these platforms is the first evidence about it.

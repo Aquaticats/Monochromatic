@@ -45,7 +45,8 @@ The decision and its context are recorded in `doc/planning/lfs-readme-image-rend
   reached through the Worker's `BUCKET` binding.
   No R2 access keys are stored in the repo or in the Worker source.
 - Which oids exist is also recorded in the `monochromatic-lfs-index` D1 database (`INDEX` binding),
-  so a batch needs one query instead of one R2 lookup per object; see "Presence index".
+  so a batch needs one query instead of one R2 lookup per object;
+  see "Presence index".
 
 Routes:
 
@@ -92,7 +93,8 @@ R2 stays the source of truth:
 - a download batch confirms its first 10 index misses with `head`,
   records the ones R2 holds,
   and reports further misses absent (a stored object can then get a per-object 404
-  until later batches record it, so rebuild a stale index promptly);
+  until later batches record it,
+  so rebuild a stale index promptly);
 - `PUT /<oid>` records the oid once R2 has accepted the bytes;
 - without the binding,
   or when a query fails,
@@ -110,7 +112,9 @@ its measurements and the rebuild procedure are in
 The `markdown/lfs-image-url` rule of `monochromatic-lint` (`package/linter/monochromatic-lint`)
 rewrites a Markdown image whose target is an LFS-tracked file to
 `https://monochromatic-lfs.aquaticat.workers.dev/<oid>/<repo-relative path>`.
-The `markdown/autofix` cli-git policy (native wrapper `package/git-policy/cli`, configured in `cli-git.config.jsonc`)
+The `markdown/autofix` cli-git policy (native wrapper `package/git-policy/cli`,
+configured in the repository's settings file,
+`monochromatic-git-policy-cli.config.jsonc`)
 applies that rewrite inside every commit,
 so authors keep writing relative links and the landed commit carries absolute ones.
 `package/ssg/` is excluded because those MDX pages resolve images through the site build.
@@ -160,11 +164,29 @@ The R2 bucket is created once with `cf r2 buckets create --name monochromatic-lf
 
 ## Pushing new images
 
-A machine that adds images needs the upload token in its local git config (not committed):
+A machine that adds images needs the upload token in a Git credential helper,
+never in a Git config value.
+The committed `.lfsconfig` already names the plain Worker URL,
+so no local `lfs.url` is needed.
+`git-lfs` sends the token as the Basic-auth password when the Worker answers an upload batch with
+`401` and `LFS-Authenticate: Basic`;
+it asks `git credential fill` for it,
+and a credential helper answers.
 
 ```sh
-git config --local lfs.url "https://lfs:<LFS_WRITE_TOKEN>@monochromatic-lfs.aquaticat.workers.dev"
+# package/config/lfs-r2-worker/README.md
+mkdir --parents --mode 700 "${HOME}/.config/monochromatic-lfs"
+git config --global credential.https://monochromatic-lfs.aquaticat.workers.dev.helper \
+  "store --file ${HOME}/.config/monochromatic-lfs/credentials"
 ```
+
+On the first push `git-lfs` prompts for the user name (any value) and the password (the token) and hands them to the
+helper,
+so the token never passes through a command line,
+a Git config value or a URL.
+`doc/runbook/lfs-r2-worker.md` lists the helper choices and the verification.
+The helper above is the stock `git credential-store` with a file scoped to this host;
+a keyring-backed helper is a drop-in replacement.
 
 With that set,
 the normal flow uploads to R2 automatically,
@@ -176,19 +198,34 @@ git commit -m "..."
 git push
 ```
 
-The committed `.lfsconfig` stays anonymous;
-the local config override supplies write credentials only on machines that push.
-That value must never appear in issues,
-docs,
-logs,
-or commits.
+Never put the token in `lfs.url`,
+in a remote URL,
+in a `lfs.<url>.*` key name,
+or in `http.extraHeader`:
+`git-lfs` echoes the URL it uses in its error messages and crash logs (`.git/lfs/logs`),
+and every copy of `.git` carries Git config.
+Guards that fail on it:
+
+- `mise run //package/config/lfs-r2-worker:check:no-credential-in-git-config` checks every Git config scope and the tracked tool configs
+  and prints only the key names (credentials masked) and `credential-free: yes` or `no`.
+- The `url-userinfo-credential` rule in `forbidden-strings.append.txt` blocks a committed file that holds
+  `scheme://user:password@host`.
+
+The incident that produced these guards,
+with the inventory of copies and the open design decisions
+(per-client credentials,
+read and write scopes,
+CI through GitHub OIDC),
+is in `doc/troubleshooting/lfs-credential-in-url.md`.
 
 ## CI note
 
 CI in this repo checks out with `lfs: false`,
 so no workflow pulls or pushes LFS objects and none needs the token.
 If a future workflow commits images (for example a screenshot regenerator),
-give it `LFS_WRITE_TOKEN` as an Actions secret and set the authenticated `lfs.url` before `git push`.
+give it a credential through a Git credential helper (see "Pushing new images"),
+never through `lfs.url`.
+The open decision on how CI authenticates is in `doc/troubleshooting/lfs-credential-in-url.md`.
 
 ## Develop
 

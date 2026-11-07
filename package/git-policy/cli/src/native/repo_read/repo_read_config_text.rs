@@ -258,7 +258,12 @@ pub fn parse_config_text(text: &[u8]) -> Option<Vec<ConfigEntry>> {
 /// entries.findLast((entry) => entry.key === key)
 /// ```
 pub fn last_entry<'a>(entries: &'a [ConfigEntry], key: &str) -> Option<&'a ConfigEntry> {
-    return entries.iter().rev().find(|entry| { return entry.key == key; });
+    for entry in entries.iter().rev() {
+        if entry.key == key {
+            return Some(entry);
+        }
+    }
+    return None;
 }
 
 /// What:

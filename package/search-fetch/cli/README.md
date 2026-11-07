@@ -5,6 +5,13 @@ the terminal front door for the shared web search and fetch
 tools,
 writing the shared tools' rendered text to stdout.
 
+## Pi dependency trust
+
+PZH:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Why
 
 The pi extension `@monochromatic-dev/search-fetch-pi-plugin` serves pi hosts and

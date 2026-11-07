@@ -9,9 +9,9 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Terminal, RenderState, TerminalOptions } from "libghostty-vt";
+/// import { Terminal, RenderState } from "libghostty-vt";
 /// ```
-use libghostty_vt::{RenderState, Terminal, TerminalOptions};
+use libghostty_vt::{RenderState, Terminal};
 
 /// What:
 ///      `use libghostty_vt::render::{CellIterator, RowIterator};` imports
@@ -373,19 +373,21 @@ impl TerminalEngine {
         geometry: ViewportGeometry,
         max_scrollback: usize,
     ) -> Result<Self, TerminalError> {
-        // What:     `Terminal::new(TerminalOptions { ... })?` creates Ghostty's
-        //           terminal. `?` returns early after converting errors.
-        // Why:      This is the actual VT parser and scrollback store.
+        // What:     `Terminal::new(cols, rows)?` creates Ghostty's terminal, and
+        //           `set_scrollback_max_lines(Some(max_scrollback))?` caps the
+        //           scrollback history in lines. `?` returns early after
+        //           converting errors.
+        // Why:      This is the actual VT parser and scrollback store. The
+        //           libghostty-vt revision pinned in rust-catalog.toml takes the
+        //           scrollback limit through a setter, not a constructor option.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const terminal = new Terminal({ cols: geometry.cols, rows: geometry.rows, maxScrollback });
+        // const terminal = new Terminal(geometry.cols, geometry.rows);
+        // terminal.setScrollbackMaxLines(maxScrollback);
         // ```
-        let mut terminal = Terminal::new(TerminalOptions {
-            cols: geometry.cols,
-            rows: geometry.rows,
-            max_scrollback,
-        })?;
+        let mut terminal = Terminal::new(geometry.cols, geometry.rows)?;
+        terminal.set_scrollback_max_lines(Some(max_scrollback))?;
         // What:     `terminal.resize(...)?` tells Ghostty the pixel cell size.
         // Why:      Size reports and image protocols depend on pixel dimensions.
         //
@@ -685,10 +687,12 @@ impl TerminalEngine {
         //           above the active viewport.
         // Why:      Slint uses this as the maximum whole-row scroll.
         let scrollback_rows = self.terminal.scrollback_rows()?;
-        // What:     `let title = self.terminal.title()?.to_string()` copies the
-        //           borrowed Ghostty title into an owned `String`.
-        // Why:      The borrowed title expires on the next VT write or reset.
-        let title = self.terminal.title()?.to_string();
+        // What:     `let title = String::from_utf8_lossy(self.terminal.title()?).into_owned()`
+        //           copies the borrowed Ghostty title bytes into an owned `String`,
+        //           replacing bytes that are not UTF-8 with U+FFFD.
+        // Why:      The borrowed title expires on the next VT write or reset, and
+        //           the program that set it does not promise UTF-8.
+        let title = String::from_utf8_lossy(self.terminal.title()?).into_owned();
         // What:     `Ok(TerminalSnapshot { ... })` constructs and returns the frame.
         // Why:      The binary receives one owned value with all UI data.
         return Ok(TerminalSnapshot {

@@ -70,6 +70,18 @@ const listedCrateNames = registryCrateNames(packageRegistry)
   .join(', ');
 
 /**
+ The `forbidden-strings` entry of the registry, whose lock directories the registry-based tests derive their calls from.
+ */
+const scannerEntry = packageRegistry.get('forbidden-strings');
+if (scannerEntry === undefined)
+  throw new Error('the registry has no forbidden-strings entry');
+
+/**
+ Lock directories of the `forbidden-strings` entry, as a constant that stays typed inside functions.
+ */
+const scannerLockDirectories: readonly string[] = scannerEntry.lockDirectories;
+
+/**
  Note that holds every character a shell treats as syntax.
  */
 const hostileNote = `it's "done"; $HOME \`id\` $(id) && touch pwned`;
@@ -102,11 +114,13 @@ async function writeRegistryRepository(fixture: StubFixture): Promise<void> {
     path: 'package/forbidden-strings/cli/Cargo.toml',
     text: '[package]\nname = "forbidden-strings"\nversion = "0.6.0"\n',
   });
-  // The lock directory must exist, because the lock step starts cargo inside it.
-  await fixture.write({
-    path: 'package/git-policy/cli.fuzz/Cargo.toml',
-    text: '[package]\nname = "fuzz"\nversion = "0.0.0"\n',
-  });
+  // Each lock directory must exist, because the lock step starts cargo inside it.
+  await Promise.all(scannerLockDirectories.map(async function writeLockDirectory(directory) {
+    await fixture.write({
+      path: `${directory}/Cargo.toml`,
+      text: '[package]\nname = "fuzz"\nversion = "0.0.0"\n',
+    });
+  }));
   await Promise.all([
     'package/git-policy/cli/Cargo.toml',
     'package/forbidden-strings/cli.fuzz/Cargo.toml',
@@ -302,12 +316,70 @@ async function scriptOriginHoldsDefaultBranch(fixture: StubFixture): Promise<voi
   });
 }
 
+/**
+ The registry entry of a crate that other crates of the repository depend on, which the dependency tests write as an
+ alpha.
+ */
+const dependencyEntry = packageRegistry.get('forbidden-regex');
+if (dependencyEntry === undefined)
+  throw new Error('the registry has no forbidden-regex entry');
+
+/**
+ Directory of the dependency crate, as a constant that stays typed inside functions.
+ */
+const dependencyDirectory: string = dependencyEntry.crateDirectory;
+
+/**
+ Make the fixture crate `package/demo/cli` depend on `forbidden-regex`, which sits at an alpha version.
+
+ @param fixture - fixture to fill
+ */
+async function writeAlphaDependency(fixture: StubFixture): Promise<void> {
+  await fixture.write({
+    path: 'package/demo/cli/Cargo.toml',
+    text: '[package]\nname = "demo-cli"\nversion = "0.4.9"\n\n[dependencies]\n'
+      + 'forbidden-regex = { path = "../../forbidden-strings/core", version = "=0.1.0-alpha.1" }\n',
+  });
+  await fixture.write({
+    path: `${dependencyDirectory}/Cargo.toml`,
+    text: '[package]\nname = "forbidden-regex"\nversion = "0.1.0-alpha.1"\n',
+  });
+}
+
 await describe({
   name: '',
   children: [
     describe({
       name: 'release executable',
       children: [
+        it({
+          name: 'refuses a plain-number release whose dependency is at alpha, names the dependency, and changes and starts nothing',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRepository(fixture);
+            await writeAlphaDependency(fixture);
+            const child = runRelease({ fixture, extra: ['0.4.9', '0.5.0', 'n'] });
+            expect(child.status).toBe(usageExitCode);
+            expect(child.stderr).toContain('forbidden-regex');
+            expect(child.stderr).toContain('0.1.0-alpha.1');
+            expect(await fixture.read('package/demo/cli/Cargo.toml')).toContain('version = "0.4.9"');
+            expect(await fixture.calls()).toEqual([]);
+          },
+        }),
+        it({
+          name: 'releases an alpha whose dependency is at alpha, and starts no publish dry run',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRepository(fixture);
+            await writeAlphaDependency(fixture);
+            const child = runRelease({ fixture, extra: ['0.4.9', '0.5.0-alpha.1', 'n'] });
+            expect(child.status).toBe(0);
+            expect(child.stdout).toContain('RELEASE COMMITTED');
+            expect((await fixture.calls()).map(function programOf(call) {
+              return call.program;
+            })).toEqual([cargoProgram, cargoProgram, gitProgram]);
+          },
+        }),
         it({
           name: 'bumps the manifests and starts the four programs in order with the hostile note as one argument',
           fn: async () => {
@@ -362,14 +434,25 @@ await describe({
             expect(await fixture.read('package/forbidden-strings/cli/Cargo.toml')).toContain('version = "0.6.1"');
             expect(await fixture.read('package/git-policy/cli/Cargo.toml')).toContain('version = "=0.6.1"');
             const calls = await fixture.calls();
+            const lockCount = scannerLockDirectories.length;
             expect(calls.map(function programOf(call) {
               return call.program;
-            })).toEqual(['cargo', 'cargo', 'cargo', 'git']);
+            })).toEqual(['cargo', ...scannerLockDirectories.map(function cargoOf() {
+              return 'cargo';
+            }), 'cargo', 'git']);
             expect(calls[0]?.args).toEqual(['check', '--bin', 'forbidden-strings']);
-            expect(calls[1]?.args).toEqual(['update', '--workspace']);
-            expect(calls[2]?.args).toEqual(['publish', '--dry-run', '--locked', '--allow-dirty']);
-            expect(calls[1]?.cwd).toBe(`${fixture.directory}/package/git-policy/cli.fuzz`);
-            expect(calls[3]?.args.slice(0, 3)).toEqual([
+            expect(calls.slice(1, 1 + lockCount).map(function argsOf(call) {
+              return call.args;
+            })).toEqual(scannerLockDirectories.map(function updateOf() {
+              return ['update', '--workspace'];
+            }));
+            expect(calls.slice(1, 1 + lockCount).map(function cwdOf(call) {
+              return call.cwd;
+            })).toEqual(scannerLockDirectories.map(function directoryOf(directory) {
+              return `${fixture.directory}/${directory}`;
+            }));
+            expect(calls[1 + lockCount]?.args).toEqual(['publish', '--dry-run', '--locked', '--allow-dirty']);
+            expect(calls[2 + lockCount]?.args.slice(0, 3)).toEqual([
               'commit',
               '--message',
               `chore(forbidden-strings/cli): release 0.6.1: ${hostileNote}`,
@@ -476,9 +559,73 @@ await describe({
       name: 'dispatch executable',
       children: [
         it({
+          name: 'refuses a plain-number release whose dependency is at alpha before it asks origin or starts gh',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
+            await fixture.write({
+              path: 'package/forbidden-strings/cli/Cargo.toml',
+              text: '[package]\nname = "forbidden-strings"\nversion = "0.6.0"\n\n[dependencies]\n'
+                + 'forbidden-regex = { path = "../core", version = "=0.1.0-alpha.1" }\n',
+            });
+            await fixture.write({
+              path: `${dependencyDirectory}/Cargo.toml`,
+              text: '[package]\nname = "forbidden-regex"\nversion = "0.1.0-alpha.1"\n',
+            });
+            const child = spawnSync('node', [
+              dispatchBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '0.6.0',
+              '0.7.0',
+              'n',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(usageExitCode);
+            expect(child.stderr).toContain('forbidden-regex');
+            expect(child.stderr).toContain('0.1.0-alpha.1');
+            expect(await fixture.calls()).toEqual([]);
+          },
+        }),
+        it({
+          name: 'dispatches an alpha release whose dependency is at alpha',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
+            await fixture.write({
+              path: 'package/forbidden-strings/cli/Cargo.toml',
+              text: '[package]\nname = "forbidden-strings"\nversion = "0.6.0"\n\n[dependencies]\n'
+                + 'forbidden-regex = { path = "../core", version = "=0.1.0-alpha.1" }\n',
+            });
+            await fixture.write({
+              path: `${dependencyDirectory}/Cargo.toml`,
+              text: '[package]\nname = "forbidden-regex"\nversion = "0.1.0-alpha.1"\n',
+            });
+            await scriptOriginHoldsDefaultBranch(fixture);
+            await fixture.script({
+              key: 'gh.workflow-run',
+              stdout: 'https://github.com/o/r/actions/runs/43\n',
+            });
+            const child = spawnSync('node', [
+              dispatchBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '0.6.0',
+              '0.7.0-alpha.1',
+              'n',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(0);
+            expect(child.stdout).toContain('RELEASE STARTED https://github.com/o/r/actions/runs/43');
+          },
+        }),
+        it({
           name: 'starts the release workflow for a registry crate with gh only and prints the run address',
           fn: async () => {
             await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
             await scriptOriginHoldsDefaultBranch(fixture);
             await fixture.script({
               key: 'gh.workflow-run',
@@ -544,6 +691,7 @@ await describe({
           name: 'exits 1 and shows what gh said when gh refuses to start the workflow',
           fn: async () => {
             await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
             await scriptOriginHoldsDefaultBranch(fixture);
             await fixture.script({ key: 'gh.workflow-run', status: 1 });
             const child = spawnSync('node', [
@@ -564,6 +712,7 @@ await describe({
           name: 'exits 1 without starting gh when origin lacks a commit of the local default branch',
           fn: async () => {
             await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
             await scriptOriginHoldsDefaultBranch(fixture);
             await fixture.script({ key: 'git.merge-base', status: 1 });
             await fixture.script({ key: 'git.rev-list', stdout: '2\n' });
@@ -755,8 +904,10 @@ await describe({
               }) ?? '';
             }).toSorted()).toEqual([
               'package/forbidden-strings/cli/Cargo.toml',
-              'package/git-policy/cli.fuzz/Cargo.toml',
-            ].map(function optionOf(manifest) {
+              ...scannerLockDirectories.map(function manifestOf(directory) {
+                return `${directory}/Cargo.toml`;
+              }),
+            ].toSorted().map(function optionOf(manifest) {
               return `--manifest-path=${manifest}`;
             }));
             expect(cargo.every(function inRoot(call) {

@@ -1,12 +1,26 @@
 # File-enforcer Rust rewrite
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 ## Status
 
-Being grilled with the user, started 2026-10-29.
+Being grilled with the user,
+started 2026-10-29.
 Nothing here is accepted yet;
 decisions land in this file as the user answers them.
 
-Superseded next action (2026-10-29; the current one is the section "Next action (2026-10-29, after confirmation)"):
+Superseded next action (2026-10-29;
+the current one is the section "Next action (2026-10-29,
+after confirmation)"):
 before confirming shared understanding,
 the user asked for reviews by `openai/gpt-6.1-sol`,
 `openai/gpt-6-astra`,
@@ -45,7 +59,8 @@ Both found:
   or what the user wants that the old tool never did.
 - Withdrawn:
   a point that the program's size and its one-switch cutover were the main risk.
-  The user answered "Massiveness and single switchover are not problems." (2026-10-29)
+  The user answered "Massiveness and single switchover are not problems."
+  (2026-10-29)
 - Three toolchain files (plan,
   resolution,
   lock) exist partly to repair a two-writer hazard the plan/lock split created.
@@ -271,7 +286,8 @@ because this grilling left its crates as vet gates after acceptance
 and four vets ran to depth before the user could hand them to a cheaper model:
 grilling enumerates and picks every dependency first (`GXD` in `AGENTS.md`),
 and each broad vet checks in with the user before enumerating candidates
-(`.agents/skills/choosing-technology/SKILL.md`, "Check in before broad discovery").
+(`.agents/skills/choosing-technology/SKILL.md`,
+"Check in before broad discovery").
 The user defined broad:
 "naming or finding candidates from none of 1 your memory or general knowledge 2 my picks 3 repo precedent".
 
@@ -427,11 +443,15 @@ and history.
 
 "Migrate to Rust + clap + config with jsonc for file-enforcer.
 Ground up rewrite.
-No need to preserve anything." (user, 2026-10-29)
+No need to preserve anything."
+(user,
+2026-10-29)
 
 ## Constraints stated by the user
 
-- "Consider the original file-enforcer bad in every way and don't treat it as Jesus." (user, 2026-10-29)
+- "Consider the original file-enforcer bad in every way and don't treat it as Jesus."
+  (user,
+  2026-10-29)
   The TypeScript package at `package/file-enforcer/core` is evidence only of which files the repo needs managed.
   Its builder API,
   subsystem boundaries,
@@ -445,9 +465,11 @@ No need to preserve anything." (user, 2026-10-29)
 ### Standalone tool that meow can embed
 
 Asked 2026-10-29 how the rewrite relates to meow,
-whose accepted decision (`doc/decision/monorepo-manager-all-rust.md`, 2026-09-16)
+whose accepted decision (`doc/decision/monorepo-manager-all-rust.md`,
+2026-09-16)
 puts file enforcement inside the single meow binary with an HCL config and daemon-owned watch mode.
-The user chose "Standalone, meow can embed".
+The user chose "Standalone,
+meow can embed".
 
 - The engine is a library crate and the CLI is a clap binary over it;
   meow may depend on the library later instead of rewriting it.
@@ -460,7 +482,9 @@ The user chose "Standalone, meow can embed".
 
 Evidence at the time:
 meow is plan-only with no code
-(`doc/handover/monorepo-manager.md`, "Design research; no product code"),
+(`doc/handover/monorepo-manager.md`,
+"Design research;
+no product code"),
 last designed 2026-09-21,
 and issue #1799 prefers an existing tool over building a monorepo manager.
 
@@ -480,7 +504,8 @@ the user chose "In-repo jsonc-edit" over `jsonc-parser` (dprint) and the `config
 - Missing features (serde,
   value spans) get added to the crate,
   not worked around.
-- Why not config-rs (`config` 0.15.27, researched 2026-10-29):
+- Why not config-rs (`config` 0.15.27,
+  researched 2026-10-29):
   no JSONC format (only JSON5 through `FileFormat::Json5`),
   no line or column on `ConfigError`,
   environment keys lowercased,
@@ -540,7 +565,8 @@ the user chose "Rust lib in dependency-catalog".
 ### pnpr owns its publishable-package list
 
 Asked 2026-10-29 who produces `package/config/pnpr/config.yaml`;
-the user chose "pnpr owns it, own check".
+the user chose "pnpr owns it,
+own check".
 
 - `package/config/pnpr` generates the file with its own write and check tasks,
   reusing its `isTypeScriptSourcePath`;
@@ -644,7 +670,8 @@ so mpm-shadow stays the only owner of the exposure layout.
 
 ### Update: mpm where it can, ported lookups elsewhere
 
-Asked 2026-10-29 (re-asked in plainer words after the user wrote "What is going on? I don't understand.")
+Asked 2026-10-29 (re-asked in plainer words after the user wrote "What is going on?
+I don't understand.")
 how `mpm-shadow update` finds new versions;
 the user chose "Ask mpm where it can" over porting every lookup (my recommendation).
 
@@ -695,7 +722,8 @@ the user chose "Rust rule kind (browserslist-rs)" over moving resolution into ro
 ### Out-of-repo rules: per-user config, opt-in
 
 Asked 2026-10-29 what happens to the Harper policy written into JetBrains state under `~/.config/JetBrains/`;
-the user chose "Per-user config, opt-in".
+the user chose "Per-user config,
+opt-in".
 
 - A per-user JSONC config under `~/.config` holds rules that write outside the repo,
   matching `doc/decision/monorepo-manager-per-user-config.md`.
@@ -729,7 +757,8 @@ the user chose "core-rust lib + cli bin".
 ### Config schema: generated and self-enforced
 
 Asked 2026-10-29 whether the config gets a JSON Schema;
-the user chose "Generated, self-enforced".
+the user chose "Generated,
+self-enforced".
 
 - The schema is derived from the Rust config types with `schemars`,
   which needs a choosing-technology vet.
@@ -751,7 +780,10 @@ since nothing reads the spelling and Mise is due to be removed.
 Asked 2026-10-29 how `_.path` (`mise.toml:1262`) lists `package/*/*/node_modules/.bin` directories;
 the user chose "Keep existence-based",
 noting:
-"The existence of option 1 means you don't understand how pnpm, mise, node_modules, path works."
+"The existence of option 1 means you don't understand how pnpm,
+mise,
+node_modules,
+path works."
 
 - The rule globs the `node_modules/.bin` directories that exist and sorts them,
   as the TypeScript generator does (`file-enforcer.config.ts:722-745`),
@@ -968,7 +1000,8 @@ No native mechanism shares these settings across independent Cargo roots
 (nested workspaces are open as rust-lang/cargo#5042),
 and `.cargo/config.toml` profiles both override manifest values and are found from the current directory,
 with per-package overrides unable to set `panic` or `lto`
-(`doc/research/file-enforcer-rust-rewrite-replacements.md`, "Per-crate Cargo.toml keys").
+(`doc/research/file-enforcer-rust-rewrite-replacements.md`,
+"Per-crate Cargo.toml keys").
 The TOML editor is needed for the catalog anyway,
 so the metadata,
 lint,
@@ -1005,7 +1038,8 @@ discovery,
 startup,
 and the relation to `watch` are follow-up questions.
 Transport adopted from meow's design
-(`doc/planning/monorepo-manager-from-scratch-design.md`, "RPC"):
+(`doc/planning/monorepo-manager-from-scratch-design.md`,
+"RPC"):
 a filesystem Unix socket under `$XDG_RUNTIME_DIR` with owner-only permissions,
 newline-delimited JSON-RPC 2.0,
 private plumbing behind the tool's own commands,
@@ -1214,7 +1248,8 @@ and the advisor's corrections are folded in here.
 #### Rules list: a trailing '?' marks the optional file
 
 Asked how the comma-separated list marks the file that may be missing;
-the user chose "Trailing '?' marks optional"
+the user chose "Trailing '?'
+marks optional"
 over treating `.local.` names as optional (recommended after the advisor's note).
 An entry ending in `?` may be absent,
 every other entry must exist,
@@ -1313,15 +1348,25 @@ the user asked for an outside review before confirming.
 ### Adopted from the request and repository rules
 
 - Rust is approved for this tool by the request itself;
-  no existing approval scope (meow, cli-git, the linter) covers a standalone file-enforcer.
+  no existing approval scope (meow,
+  cli-git,
+  the linter) covers a standalone file-enforcer.
 - The CLI uses clap,
   as requested;
   repository precedent is clap derive in `package/forbidden-strings/cli` and others.
 - Every Rust dependency comes from `rust-catalog.toml` through `workspace = true`
   (`doc/decision/rust-dependency-catalog.md`).
 - Rust tests run through nextest (`RNQ` in `AGENTS.md`).
-- Every line the tool writes is one JSON object (`schemaVersion`, `sequence`, `type`, `code`, `message`, `hint`),
-  matching meow's accepted "Emit every line as a json, error or warning or not." (user, 2026-09-17)
+- Every line the tool writes is one JSON object (`schemaVersion`,
+  `sequence`,
+  `type`,
+  `code`,
+  `message`,
+  `hint`),
+  matching meow's accepted "Emit every line as a json,
+  error or warning or not."
+  (user,
+  2026-09-17)
   and the live cli-git event stream (`package/git-policy/cli/src/native/diagnostics.rs:223`).
   Adopted because the library is meant for meow to embed,
   then confirmed 2026-10-29 when the user chose "JSON lines always" over a TTY-dependent text renderer

@@ -6,6 +6,7 @@ use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::shadow_git::shadow_request;
+use crate::transaction_git::run_git_checked;
 use crate::transaction_journal::RefFormat;
 
 /// Captures the invocation of a repository's working directory, as the transaction does.
@@ -52,7 +53,7 @@ fn shadow_answers_head_base_and_upstream_like_the_real_repository() {
     git(repo.as_path(), &["config", "branch.main.remote", "origin"]);
     git(repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
-    assert_eq!(shadow, repo.join(".git").join("cli-git").join("shadow").join(TRANSACTION));
+    assert_eq!(shadow, repo.join(".git").join("monochromatic-git-policy-cli").join("shadow").join(TRANSACTION));
     assert_eq!(shadow_text(shadow.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/main");
     assert_eq!(shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]), head);
     assert_eq!(
@@ -280,7 +281,7 @@ fn an_existing_private_directory_is_accepted_and_a_file_is_not() {
 #[test]
 fn concurrent_creators_of_the_shared_parents_all_succeed() {
     let root: PathBuf = fixture("shadow-parents-race");
-    let shadow: PathBuf = root.join("cli-git/shadow/one");
+    let shadow: PathBuf = root.join("monochromatic-git-policy-cli/shadow/one");
     let workers: Vec<std::thread::JoinHandle<std::io::Result<()>>> = (0..16)
         .map(|_| {
             let target: PathBuf = shadow.clone();
@@ -290,7 +291,7 @@ fn concurrent_creators_of_the_shared_parents_all_succeed() {
     for worker in workers {
         worker.join().expect("worker").expect("every creator succeeds");
     }
-    assert!(root.join("cli-git/shadow").is_dir());
+    assert!(root.join("monochromatic-git-policy-cli/shadow").is_dir());
     remove(root.as_path());
 }
 
@@ -323,4 +324,84 @@ fn the_reftable_shadow_is_made_by_an_init_without_quiet() {
     assert_eq!(inits.len(), 1, "the shadow is made by one start of init: {inits:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(root.as_path());
+}
+
+/// A reftable repository, and a Git shim that hangs in the first `hang` starts of `init` after it made a partial shadow directory
+///  (the way a cut `init` leaves one), and passes everything else to real Git. Returns the context, the repository, its capture, the
+///  file that counts the starts of `init`, and the transaction directory.
+fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, InvocationCapture, PathBuf, PathBuf) {
+    let reftable: PathBuf = root.join("reftable");
+    std::fs::create_dir(&reftable).expect("reftable directory");
+    git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(reftable.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let capture: InvocationCapture = capture_of(reftable.as_path());
+    let count: PathBuf = root.join("init-starts");
+    let shim: PathBuf = root.join("hanging-init-git");
+    crate::test_support::executable(
+        shim.as_path(),
+        format!(
+            "#!/bin/sh\nfor argument in \"$@\"; do last=\"$argument\"; if [ \"$argument\" = init ]; then is_init=1; fi; done\nif [ -n \"$is_init\" ]; then\n  n=$(cat '{count}' 2>/dev/null || echo 0); n=$((n + 1)); echo $n > '{count}'\n  if [ $n -le {hang} ]; then mkdir -p \"$last\"; : > \"$last/PARTIAL\"; exec sleep 600; fi\nfi\nexec /usr/bin/git \"$@\"\n",
+            count = count.display(),
+        )
+        .as_bytes(),
+    );
+    let mut context: GitContext = GitContext { real_git: shim, ..git_context() };
+    context.common_dir = Some(reftable.join(".git"));
+    let transaction: PathBuf = root.join("transaction-hanging-init");
+    std::fs::create_dir_all(&transaction).expect("transaction directory");
+    return (context, reftable, capture, count, transaction);
+}
+
+/// A shadow whose `init` was ended at its ceiling is thrown away and made again in a fresh directory, never run again in the partial
+/// one: the experiment found a cut `init` does not run twice to the same state in place (50 of 104 second runs ended with
+/// different reftable tables), and after the partial directory is discarded the second run equals an uncut one (104 of 104; the owner's
+/// "Never cut a branch write (Recommended)": a step that cannot run twice has no ceiling unless it is restartable like this).
+#[test]
+fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
+    let root: PathBuf = fixture("shadow-create-init-cut");
+    let (context, reftable, capture, count, transaction) = reftable_with_hanging_init(root.as_path(), 1);
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(std::time::Duration::from_millis(700))); });
+    let made = create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path());
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    let shadow: PathBuf = made.expect("the second start made the shadow");
+    assert_eq!(std::fs::read_to_string(&count).expect("count").trim(), "2", "init was started twice");
+    assert!(!shadow.join("PARTIAL").exists(), "nothing of the cut start is left in the shadow");
+    assert_eq!(shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]), git_text(reftable.as_path(), &["rev-parse", "HEAD"]));
+    remove(root.as_path());
+}
+
+/// The fresh start is made a bounded number of times: a shadow whose `init` is cut every time fails the transaction with a message
+/// that names the step, and leaves no partial directory.
+#[test]
+fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing() {
+    let root: PathBuf = fixture("shadow-create-init-cut-always");
+    let (context, reftable, capture, count, transaction) = reftable_with_hanging_init(root.as_path(), 1000);
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(std::time::Duration::from_millis(500))); });
+    let began: std::time::Instant = std::time::Instant::now();
+    let made = create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path());
+    let waited: std::time::Duration = began.elapsed();
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    let failure: GitFailure = made.expect_err("every start was cut");
+    assert!(failure.0.contains("init"), "{failure:?}");
+    assert_eq!(std::fs::read_to_string(&count).expect("count").trim(), SHADOW_CREATION_ATTEMPTS.to_string(), "{failure:?}");
+    assert!(waited < std::time::Duration::from_secs(60), "{waited:?}");
+    let shadow: PathBuf = crate::shadow_git::shadow_repository_path(reftable.join(".git").as_path(), TRANSACTION);
+    assert!(!shadow.exists(), "the partial directory is discarded");
+    remove(root.as_path());
+}
+
+/// Which outcomes of a start of `init` are retried in a fresh directory (sol-1 round 4): a start ended at its ceiling, a start the system
+/// refused as a finished command with Git's words, and a start the system refused before the command ran (`EAGAIN`, which reaches here
+/// as an I/O error of kind `WouldBlock`). Another I/O error is not retried, and neither is a finished command.
+#[test]
+fn only_a_cut_or_refused_start_of_init_is_retried() {
+    let refused_text = b"fatal: unable to create thread: Resource temporarily unavailable\n".to_vec();
+    let finished = |code: i32, stderr: Vec<u8>| -> std::io::Result<GitOutput> { return Ok(GitOutput { code: Some(code), stdout: Vec::new(), stderr }); };
+    assert!(start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::TimedOut))), "ended at the ceiling");
+    assert!(start_was_cut_or_refused(&Err(std::io::Error::from_raw_os_error(libc::EAGAIN))), "the system refused the process before it ran");
+    assert!(start_was_cut_or_refused(&finished(128, refused_text)), "Git reported the refusal");
+    assert!(!start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::NotFound))), "no such program");
+    assert!(!start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))), "not an executable");
+    assert!(!start_was_cut_or_refused(&finished(128, b"fatal: not a repository\n".to_vec())), "a failure of another kind");
+    assert!(!start_was_cut_or_refused(&finished(0, Vec::new())), "a start that worked");
 }

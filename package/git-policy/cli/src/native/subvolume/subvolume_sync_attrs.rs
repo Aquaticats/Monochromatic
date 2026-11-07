@@ -111,11 +111,18 @@ fn attribute_names(handle: Handle<'_>) -> Vec<Vec<u8>> {
         return Vec::new();
     }
     names.truncate(filled as usize);
-    return names
-        .split(|byte: &u8| { return *byte == 0; })
-        .filter(|name: &&[u8]| { return !name.is_empty(); })
-        .map(<[u8]>::to_vec)
-        .collect();
+    let mut found: Vec<Vec<u8>> = Vec::new();
+    for name in names.split(is_zero_byte) {
+        if !name.is_empty() {
+            found.push(name.to_vec());
+        }
+    }
+    return found;
+}
+
+/// Whether `byte` is zero, the separator between attribute names.
+fn is_zero_byte(byte: &u8) -> bool {
+    return *byte == 0;
 }
 
 /// The value of one extended attribute, or nothing when it cannot be read.
@@ -372,7 +379,10 @@ pub fn preserve_on_descriptor(
     remove_extras: bool,
     losses: &mut AttributeLosses,
 ) -> Result<(), AttributeFailure> {
-    let current: Metadata = destination.metadata().map_err(|error: std::io::Error| { return AttributeFailure { action: "examine", error }; })?;
+    let current: Metadata = match destination.metadata() {
+        Ok(found) => found,
+        Err(error) => return Err(AttributeFailure { action: "examine", error }),
+    };
     return apply(source, Handle::Descriptor(destination), &current, metadata, remove_extras, losses);
 }
 
@@ -386,8 +396,14 @@ pub fn preserve_on_descriptor(
 /// await lchown(link, st.uid, st.gid); await lutimes(link, st.atime, st.mtime);
 /// ```
 pub fn preserve_on_link(source: &Path, destination: &Path, metadata: &Metadata, losses: &mut AttributeLosses) -> Result<(), AttributeFailure> {
-    let name: CString = c_path("lchown", destination).map_err(|error| { return AttributeFailure { action: "address", error: std::io::Error::from_raw_os_error(error.errno) }; })?;
-    let current: Metadata = std::fs::symlink_metadata(destination).map_err(|error: std::io::Error| { return AttributeFailure { action: "examine", error }; })?;
+    let name: CString = match c_path("lchown", destination) {
+        Ok(text) => text,
+        Err(error) => return Err(AttributeFailure { action: "address", error: std::io::Error::from_raw_os_error(error.errno) }),
+    };
+    let current: Metadata = match std::fs::symlink_metadata(destination) {
+        Ok(found) => found,
+        Err(error) => return Err(AttributeFailure { action: "examine", error }),
+    };
     return apply(source, Handle::Link(name.as_c_str()), &current, metadata, false, losses);
 }
 
@@ -416,7 +432,10 @@ pub fn open_fifo(path: &Path) -> std::io::Result<File> {
 /// await mkfifo(path, mode);
 /// ```
 pub fn make_fifo(path: &Path, mode: u32) -> std::io::Result<()> {
-    let name = c_path("mkfifo", path).map_err(|error| { return std::io::Error::from_raw_os_error(error.errno); })?;
+    let name = match c_path("mkfifo", path) {
+        Ok(text) => text,
+        Err(error) => return Err(std::io::Error::from_raw_os_error(error.errno)),
+    };
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
     let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), mode & 0o7777) };
     if result != 0 {

@@ -10,6 +10,13 @@ Legacy Codex ordinary and priority-request live checks passed on pi `1.0.0`,
 The additional native OpenAI mapping passes offline native HTTP and real CLI startup checks.
 No live new-sign-in or API-key billing verification was added.
 
+## Pi dependency trust
+
+PZA:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Model selection
 
 Each registered base chat model gets a selectable virtual companion:

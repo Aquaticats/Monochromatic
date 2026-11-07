@@ -67,9 +67,10 @@ fn located(found: &[Diagnostic]) -> Vec<String> {
     return lines;
 }
 
-/// One expected finding: the diagnostic code and the source line that carries it.
+/// One expected finding:
+/// the diagnostic code and the source line that carries it.
 fn expected(code: &str, line: usize) -> String {
-    return format!("{code}@{line}")
+    return format!("{code}@{line}");
 }
 
 /// A real Rust rule is suppressed at the line it reports,
@@ -140,7 +141,10 @@ fn virtual_rust_in_markdown_fences_is_not_suppressible() {
     let refused: Vec<Diagnostic> = check(&fixture.path, RULES, "doc/a.md", outside, None);
     assert_eq!(
         located(&refused),
-        [expected("rust/require-rustdoc", 5), expected(NON_SUPPRESSIBLE, 3)]
+        [
+            expected("rust/require-rustdoc", 5),
+            expected(NON_SUPPRESSIBLE, 3)
+        ]
     );
     let bare: &str =
         "# Title\n\n<!-- monochromatic-lint-disable -- r -->\n```rust\nlet value = 1;\n```\n";
@@ -206,7 +210,10 @@ fn semantic_findings_follow_the_same_directive_rules() {
     let mut checker: HostChecker<'_> = HostChecker::new(&planned, &lfs, Some(&mut engine));
     let control: Vec<Diagnostic> =
         checker.check_snapshot("fn main() {\n    let value = 1_u16;\n}\n");
-    assert_eq!(located(&control), [expected("rust/require-explicit-types", 2)]);
+    assert_eq!(
+        located(&control),
+        [expected("rust/require-explicit-types", 2)]
+    );
     let covered: &str = "fn main() {\n    // monochromatic-lint-disable-next-line rust/require-explicit-types -- r\n    let value = 1_u16;\n    // monochromatic-lint-disable-next-line rust/require-explicit-types -- r\n}\n";
     let found: Vec<Diagnostic> = checker.check_snapshot(covered);
     // The first directive covers the binding;
@@ -277,10 +284,7 @@ fn json_output_carries_directive_findings() {
     );
     let quiet: RunOutput = run(&fixture.path, &[], "");
     assert_eq!(quiet.exit_code, 1);
-    assert_eq!(
-        codes(quiet.stdout.as_str()),
-        [MISSING_JUSTIFICATION]
-    );
+    assert_eq!(codes(quiet.stdout.as_str()), [MISSING_JUSTIFICATION]);
     let loud: RunOutput = run(&fixture.path, &["--report-unused-disable-directives"], "");
     assert_eq!(loud.exit_code, 1);
     let found = records(loud.stdout.as_str());

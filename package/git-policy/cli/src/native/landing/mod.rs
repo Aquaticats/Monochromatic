@@ -25,6 +25,9 @@ pub mod maintenance_run;
 /// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
 pub mod work_item;
 
+/// The state folders of the work queue, the names of claim files, and the listing of a folder oldest first.
+pub mod work_item_state_directories_and_claim_names;
+
 pub mod work_item_recovery;
 
 /// The clocks a claim's lease is judged by.
@@ -41,6 +44,27 @@ pub mod service_messages;
 
 /// The commit service's serialized step.
 pub mod service_land;
+
+/// The batches the commit service of an earlier release left open, finished by the service of this release when none runs.
+pub mod earlier_service_journal_adopted;
+
+/// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
+pub mod earlier_service_process_look;
+
+/// The description of one running program that the look for an earlier commit service could not rule out, for the message that names it.
+pub mod earlier_service_unsure_program;
+
+/// What the commit service needs to land a batch.
+pub mod service_land_context;
+
+/// Takes the index lock for a batch that is ready to land.
+pub mod service_land_take_index_lock;
+
+/// The Git steps of a landing, the import stream of a batch and the overlap tests of its requests.
+pub mod service_land_git_steps_and_import_stream;
+
+/// The objects a batch lands: the commit Git built, or the commits made from the requests' changes.
+pub mod service_land_objects_of_batch;
 
 /// What the commit service's landing does once the branch has moved: index entries and conclusion state.
 pub mod service_land_copy;
@@ -85,8 +109,17 @@ pub mod service_index_watch;
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
 
+/// The shapes a service preparation hands back.
+pub mod service_prepare_ready_shapes;
+
+/// The smaller steps of a service preparation.
+pub mod service_prepare_changes_config_and_pathspec_steps;
+
 /// Which commit command lines the commit service covers, and the message they stand for.
 pub mod service_commit_args;
+
+/// Whether a `commit` command line opens an editor.
+pub mod service_commit_args_editor_opening;
 
 /// The one summary line a landed commit prints, with the abbreviated name Git would print.
 pub mod landed_summary;
@@ -100,11 +133,20 @@ pub mod service_hold_retry;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
+/// The small steps of a service commit and the commit the service builds itself.
+pub mod service_commit_input_notes_and_embedded_commit;
+
+/// The requests of a service commit and what a landed commit leaves for the person.
+pub mod service_commit_requests_and_landing_report;
+
 /// The service's memory of when the bytes of the commits it landed were captured, per worktree.
 pub mod service_captures;
 
 /// The retry of a commit the service sent back: the captured change merged onto the branch, never prepared again from the worktree.
 pub mod service_replay;
+
+/// Small text steps of the replay of captured changes.
+pub mod service_replay_path_and_line_text;
 
 /// Which way a commit goes: through the service, set up first, or the earlier path.
 pub mod service_route;
@@ -123,6 +165,15 @@ pub mod service_claim_renewal;
 
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
+
+/// The kinds, handlers, acceptance rules, settling and replanning of the service's work.
+pub mod service_work_handlers_replanning_and_acceptance;
+
+/// Drains the pending items of one work directory.
+pub mod service_work_drain_pending_claims;
+
+/// Runs one round of the service's work over several directories.
+pub mod service_work_run_round;
 
 /// The drain of several repositories of one round, side by side and without a lock.
 pub mod service_round;

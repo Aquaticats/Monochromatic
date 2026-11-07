@@ -81,7 +81,7 @@ fn a_mix_says_the_success_is_partial() {
 fn a_tool_stopped_at_its_ceiling_is_named_with_what_it_did_and_the_command_to_run() {
     let ceiling: std::time::Duration = crate::wait_ceilings::REPAIR_TOOL_CEILING;
     for (tool, name) in [(Tool::Pnpm, "pnpm"), (Tool::Cargo, "cargo"), (Tool::Toolchain, "mpm-shadow")] {
-        let run: ToolRun = ToolRun { end: ToolEnd::CeilingReached(ceiling), millis: ceiling.as_millis(), stdout: Vec::new() };
+        let run: ToolRun = ToolRun { end: ToolEnd::CeilingReached(ceiling), millis: ceiling.as_millis(), stdout: Vec::new(), notes: Vec::new() };
         let finding: Finding = finding_from(tool, &run, "detail", "the command to run");
         let Outcome::Failed { reason, run_instead } = &finding.outcome else { panic!("{finding:?}") };
         assert!(reason.contains(name) && reason.contains(ceiling.as_secs().to_string().as_str()) && reason.contains("whole process group"), "{reason}");

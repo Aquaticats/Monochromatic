@@ -1,6 +1,9 @@
 //! Staging checks against real Git repositories: what the private stage holds and how it is cleaned up.
 
 use super::*;
+use crate::parallel_budget::HostResources;
+use crate::worktree_copy_manifest::{EntryKind, stamp_of};
+use crate::worktree_copy_stage_leaf_copying::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 
 /// A source with ignored files, a symbolic link, an executable and a nested private-looking name.
@@ -447,4 +450,26 @@ fn the_copy_workers_follow_the_hosts_budget_up_to_the_ceiling() {
 #[test]
 fn the_copy_threshold_is_the_measured_break_even() {
     assert_eq!(PARALLEL_COPY_MIN_ENTRIES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
+}
+
+/// Where the system starts no thread the copy workers' slices are copied in turn and every file arrives with its bytes. The body runs
+/// in a child that is refused every thread.
+#[test]
+fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn") {
+        return;
+    }
+    let root: PathBuf = fixture("stage-copy-no-threads");
+    let source: PathBuf = root.join("source");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(source.join("many")).expect("many");
+    std::fs::create_dir_all(stage.join("many")).expect("stage many");
+    for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
+        std::fs::write(source.join(format!("many/file-{index:05}")), format!("{index}")).expect("file");
+    }
+    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[String::from("many")], &[]).expect("manifest");
+    let stamps = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied here");
+    assert_eq!(stamps.len(), entries.len());
+    assert_eq!(std::fs::read(stage.join("many/file-00007")).expect("copied"), b"7");
+    remove(&root);
 }

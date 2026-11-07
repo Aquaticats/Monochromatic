@@ -399,7 +399,8 @@ A helper beats `virsh` on standard input because the latter was measured slower 
 
 ### Limits
 
-From the QEMU guest agent protocol reference (version 11.1.50, fetched 2026-10-05) and measured here:
+From the QEMU guest agent protocol reference (version 11.1.50,
+fetched 2026-10-05) and measured here:
 
 - One write carries 96000 bytes.
   The chunk travels base64-encoded inside one command-line argument of `virsh`,
@@ -529,7 +530,8 @@ and no daemon started by hand.
 Every VM has the generated defaults:
 4 virtual CPUs,
 8192 MiB of memory,
-a thin qcow2 overlay over the cached template (20 GiB for Alpine, 40 GiB for Windows),
+a thin qcow2 overlay over the cached template (20 GiB for Alpine,
+40 GiB for Windows),
 and user-mode networking.
 The host was under heavy load from other work throughout (load average between 30 and 106),
 so the rates are lower bounds.
@@ -793,7 +795,9 @@ What was verified instead:
 a scratch client (`mcp-probe.ts`) started the rebuilt server with the registration's command
 and spoke its protocol over standard input and output,
 one request per process.
-With VM `fp-mcp-20261005` (Alpine, 4 virtual CPUs, 8192 MiB):
+With VM `fp-mcp-20261005` (Alpine,
+4 virtual CPUs,
+8192 MiB):
 
 - `list_vms` answered `No VMs found.` before and listed the VM as `running` after `create_vm`.
 - `create_vm` with `image: alpine` created and started the VM.
@@ -937,7 +941,8 @@ Unverified:
 
 Observed since,
 by the scanner's Windows run on 2026-10-06
-(`doc/handover/scanner-native-verification.md`, section `Windows run with mvm alone`):
+(`doc/handover/scanner-native-verification.md`,
+section `Windows run with mvm alone`):
 
 - The scanner's Windows suite ran with the built `mvm` command-line program alone:
   no PATH shims,
@@ -1071,7 +1076,8 @@ private to the user:
   `real-fp-windows3-20261005/`,
   `real-fp-mcp-20261005/`:
   one directory per real run,
-  each with `run.log` (every command, its exit status and output) and `results.json`.
+  each with `run.log` (every command,
+  its exit status and output) and `results.json`.
 - `real-linux-run.ts`,
   `real-linux-run-2.ts`,
   `real-windows-run.ts`,

@@ -1,5 +1,16 @@
 # cli-git and unified-linter Rust implementation proposal
 
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+The new names arrive with the first release after this date;
+this repository switches its installed program and its settings file when it installs that release.
+This record keeps the names of its time.
+
 ## Authority and scope
 
 The user confirmed the scope in
@@ -191,22 +202,32 @@ not a generic custom-policy facility.
 
 Superseded on 2026-11-01 for the integration mechanism (the rule that repository JSONC cannot choose a program stays):
 the wrapper links the linter library and runs the markdown policy in process.
-The owner said, verbatim: "git wrapper should embed in forbidden-strings and the like.
+The owner said,
+verbatim:
+"git wrapper should embed in forbidden-strings and the like.
 That's why we rewrote everything in Rust in the first place."
 The decision above ("keep the already accepted linter CLI integration rather than introducing a new public library interface")
-carried no measured reason, and the owner's statement overrides it.
+carried no measured reason,
+and the owner's statement overrides it.
 The measured cost of the child process it kept:
 the PATH lookup found a mise shim that printed `No version is set for shim: monochromatic-lint` in a directory mise did not trust,
 the linter exited 1 with no explanation,
 and the commit policy reported `policy-incomplete`.
 The replacement is `monochromatic_lint::run_embedded::fix_source`,
 which is the executable's `--config --stdin --stdin-filename --fix` run without the program start,
-built from the same code (`run_source`, `exit_status`),
-and `package/git-policy/cli/src/native/markdown_linter_guard.rs`, which rebuilds the kill boundary a child gave
-(a thread, a deadline, panic containment).
+built from the same code (`run_source`,
+`exit_status`),
+and `package/git-policy/cli/src/native/markdown_linter_guard.rs`,
+which rebuilds the kill boundary a child gave
+(a thread,
+a deadline,
+panic containment).
 The linter's semantic engine is an optional default feature the wrapper does not enable,
 because linking it cost start-up time in every Git command.
-Release order: the linter crate first, then the wrapper, whose exact pin must name the released linter version.
+Release order:
+the linter crate first,
+then the wrapper,
+whose exact pin must name the released linter version.
 
 Preserve the LFS-image rule's findings and localized edits,
 including astral Unicode and BOM fixtures.

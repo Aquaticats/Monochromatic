@@ -10,12 +10,12 @@ import type {
   Model,
 } from '@earendil-works/pi-ai';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+import { TOKEN_ESTIMATE_CHARS_PER_TOKEN, } from '@monochromatic-dev/agent-harness-shared-model-selection/ts';
 import {
   ADVISOR_MESSAGE_TYPE,
   ADVISOR_TOOL_NAME,
   CONTEXT_TRUNCATION_MARKER,
   DEFAULT_CONTEXT_OVERHEAD_TOKENS,
-  TOKEN_ESTIMATE_CHARS_PER_TOKEN,
 } from './constants.ts';
 import {
   latestUserPromptExcerpt,

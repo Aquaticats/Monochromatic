@@ -16,6 +16,8 @@
 //! const flags = readIndexFlags(await readFile(indexPath)); // 'plain' | 'marked' | 'unreadable'
 //! ```
 
+use crate::index_byte_search::first_index_of_byte;
+
 /// Bit of the 16-bit entry flags that marks assume-unchanged.
 const ASSUME_VALID: u16 = 0x8000;
 
@@ -111,10 +113,10 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<bool> {
                 cursor += 1;
             }
             cursor += 1;
-            let terminator: usize = bytes.get(cursor..end)?.iter().position(|byte| { return *byte == 0; })?;
+            let terminator: usize = first_index_of_byte(bytes.get(cursor..end)?, 0)?;
             at = cursor + terminator + 1;
         } else {
-            let terminator: usize = bytes.get(name_start..end)?.iter().position(|byte| { return *byte == 0; })?;
+            let terminator: usize = first_index_of_byte(bytes.get(name_start..end)?, 0)?;
             // An entry is padded with one to eight NULs to a multiple of eight bytes from its own start.
             at = at.checked_add((head + terminator + 8) & !7)?;
         }

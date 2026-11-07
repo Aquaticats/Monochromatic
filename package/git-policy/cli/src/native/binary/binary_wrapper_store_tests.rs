@@ -141,7 +141,7 @@ fn concurrent_callers_end_with_links_to_one_final_file_of_the_build() {
     let name: String = content_name(&built).expect("the stand-in's name");
     let store: PathBuf = created.root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store).expect("store");
-    let other_build: String = String::from("0000000000000000-1-cli-git-native");
+    let other_build: String = String::from("0000000000000000-1-monochromatic-git-policy-cli");
     std::fs::write(store.join(&other_build), b"another build").expect("another build's copy");
     let (arrived, together): (AtomicUsize, AtomicUsize) = (AtomicUsize::new(0), AtomicUsize::new(0));
     let links: Vec<PathBuf> = std::thread::scope(|scope| {

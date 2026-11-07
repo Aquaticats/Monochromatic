@@ -44,7 +44,7 @@ use std::path::PathBuf;
 ///  command, so the result is the same and only the number of starts changes. Classed once in
 ///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
-pub const ATTRIBUTE_CHUNK_SIZE: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE;
+pub const ATTRIBUTE_CHUNK_SIZE: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE;
 
 /// What:
 ///  Where the attributes of the candidates are read from.
@@ -106,13 +106,27 @@ pub struct CandidateAttributes {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const attributeFailure = (failure, detail) => new CandidateError(failure, `cli-git could not read the text attribute of candidate files: ${detail}`);
+/// const attributeFailure = (failure, detail) => new CandidateError(failure, `monochromatic-git-policy-cli could not read the text attribute of candidate files: ${detail}`);
 /// ```
 fn attribute_failure(failure: CandidateFailure, detail: &str) -> CandidateError {
     return CandidateError::new(
         failure,
-        format!("cli-git could not read the text attribute of candidate files: {detail}").as_str(),
+        format!("monochromatic-git-policy-cli could not read the text attribute of candidate files: {detail}").as_str(),
     );
+}
+
+/// What:
+///  Whether one byte is the NUL byte that ends each field of `git check-attr -z` output.
+///  `&u8` borrows the byte, as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
 }
 
 /// What:
@@ -139,7 +153,7 @@ pub fn parse_text_unset(
     paths: &[&[u8]],
 ) -> Result<Vec<Vec<u8>>, CandidateError> {
     // `.split(..)` yields the NUL-separated fields; the last one is empty after the final terminator.
-    let mut fields: Vec<&[u8]> = output.split(|byte| { return *byte == 0; }).collect();
+    let mut fields: Vec<&[u8]> = output.split(is_nul_byte).collect();
     if fields.pop() != Some(b"".as_slice()) || fields.len() != asked.len() * 3 {
         return Err(attribute_failure(
             CandidateFailure::ListingMalformed,
@@ -333,8 +347,15 @@ impl CandidateAttributes {
                             "a candidate was not listed from any commit or tree.",
                         ));
                     };
-                    match groups.iter_mut().find(|group| { return group.0.as_ref() == Some(tree); }) {
-                        Some(group) => group.1.push(*path),
+                    let mut existing: Option<usize> = None;
+                    for (group_index, group) in groups.iter().enumerate() {
+                        if group.0.as_ref() == Some(tree) {
+                            existing = Some(group_index);
+                            break;
+                        }
+                    }
+                    match existing {
+                        Some(group_index) => groups[group_index].1.push(*path),
                         None => groups.push((Some(tree.clone()), vec![path])),
                     }
                 }
@@ -363,10 +384,10 @@ impl CandidateAttributes {
         for (tree, group) in self.groups(paths)? {
             for chunk in group.chunks(ATTRIBUTE_CHUNK_SIZE) {
                 // Each asked name is the top level, a separator and the candidate's pathname.
-                let asked: Vec<Vec<u8>> = chunk
-                    .iter()
-                    .map(|path| { return [top.as_slice(), b"/", *path].concat(); })
-                    .collect();
+                let mut asked: Vec<Vec<u8>> = Vec::new();
+                for path in chunk {
+                    asked.push([top.as_slice(), b"/", *path].concat());
+                }
                 let command: Vec<OsString> = self.command(tree.as_ref(), asked.as_slice())?;
                 let output: Vec<u8> = self.run(command.as_slice())?;
                 unset.extend(parse_text_unset(output.as_slice(), asked.as_slice(), chunk)?);

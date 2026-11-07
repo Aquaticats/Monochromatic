@@ -13,11 +13,13 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const l = tagged({ tag: 'cli-git' }); l.debug(message); l.warn(message);
+//! const l = tagged({ tag: 'monochromatic-git-policy-cli' }); l.debug(message); l.warn(message);
 //! ```
 
 /// The current time in `toISOString` form.
 use crate::iso_time::now_iso;
+/// Replaces the userinfo of every URL in a message, as the relays of Git's and `git-lfs` words do.
+use crate::lfs_output_mask::mask_userinfo_text;
 /// The trait that gives output streams `.write_all(..)`.
 use std::io::Write;
 
@@ -81,28 +83,33 @@ fn is_false(value: std::ffi::OsString) -> bool {
 
 /// What:
 ///  One diagnostic line in the incumbent's console format,
-///       `[<level>] [<ISO time>] [cli-git] [<tag>] <message>`,
-///  with every control character of
+///       `[<level>] [<ISO time>] [monochromatic-git-policy-cli] [<tag>] <message>`,
+///  with the userinfo of every URL in the message hidden and every control character of
 ///       the message replaced by a space.
 /// Why:
-///   The incumbent's tagged loggers print `[warn] [2026-10-06T21:40:39.524Z] [cli-git] ...`;
+///   The incumbent's tagged loggers print `[warn] [2026-10-06T21:40:39.524Z] [monochromatic-git-policy-cli] ...`;
 ///       one line per record keeps standard error parseable beside JSONL events.
+///  Debug and warning lines carry Git's words (a failed fetch names its remote), and a remote written as
+///       `https://user:token@host` would put its token on the terminal; every caller passes through here,
+///  so the userinfo is hidden once, before the control characters go, so that no character inside the userinfo
+///       decides where the hiding ends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `[${level}] [${new Date().toISOString()}] [cli-git] [${tag}] ${neutralize(message)}\n`
+/// `[${level}] [${new Date().toISOString()}] [monochromatic-git-policy-cli] [${tag}] ${neutralize(maskUserinfo(message))}\n`
 /// ```
 pub fn diagnostic_line(level: &str, time: &str, tag: &str, message: &str) -> String {
+    let masked: String = mask_userinfo_text(message);
     // `mut` allows building the neutralized message one character at a time.
-    let mut single: String = String::with_capacity(message.len());
-    for character in message.chars() {
+    let mut single: String = String::with_capacity(masked.len());
+    for character in masked.chars() {
         if character.is_control() {
             single.push(' ');
         } else {
             single.push(character);
         }
     }
-    return format!("[{level}] [{time}] [cli-git] [{tag}] {single}\n");
+    return format!("[{level}] [{time}] [monochromatic-git-policy-cli] [{tag}] {single}\n");
 }
 
 /// What:

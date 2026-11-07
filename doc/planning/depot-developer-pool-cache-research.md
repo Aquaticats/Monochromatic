@@ -392,7 +392,8 @@ binary compilation,
 cache pruning/saving,
 and test execution in `.github/workflows/music-player-windows.yml:260`
 (the production workflow moved into the `test-windows` job of `.github/workflows/music-player-release.yml`
-on 2026-10-22, so that line number refers to the file before the move).
+on 2026-10-22,
+so that line number refers to the file before the move).
 Preserve test failures and original consumer statuses;
 do not turn the complete workflow green through `continue-on-error`.
 Keep failed seed uploads and no-restoration consumers in the result ledger.

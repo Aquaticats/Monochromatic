@@ -355,7 +355,7 @@ fn the_proven_holder_line_names_its_proof() {
     let descriptor: String = proven_holder_line(55, true, Some("git"), Path::new("/repo/index.lock"));
     assert_eq!(
         descriptor,
-        "cli-git: waiting for PID 55 (git), which holds /repo/index.lock (proven by an open descriptor); this waits for as long as that process holds the lock and leaves the lock in place.\n"
+        "monochromatic-git-policy-cli: waiting for PID 55 (git), which holds /repo/index.lock (proven by an open descriptor); this waits for as long as that process holds the lock and leaves the lock in place.\n"
     );
     assert!(!descriptor.contains("giving up"), "a holder proven alive is waited for with no bound: {descriptor}");
     let file: String = proven_holder_line(9, false, None, Path::new("/repo/index.lock"));

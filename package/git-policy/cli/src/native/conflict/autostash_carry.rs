@@ -58,6 +58,31 @@ fn conflicted_autostash(git: &GitContext, cleanup: &Cleanup) -> Option<String> {
     return Some(recorded);
 }
 
+/// Whether the text of `git stash list --format=%H` has a line equal to `stash`. The first match settles it, as `any` did.
+fn lists_stash(listing: &str, stash: &str) -> bool {
+    for line in listing.lines() {
+        if line == stash {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Whether one byte is the NUL byte that ends each entry of a `-z` listing. `&u8` borrows the byte, as `split` hands it over.
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// Whether one byte is the space that separates the mode from the object name in an entry. `&u8` borrows the byte.
+fn is_space_byte(byte: &u8) -> bool {
+    return *byte == b' ';
+}
+
+/// Whether one byte is the tab that separates the stage columns from the path in an entry. `&u8` borrows the byte.
+fn is_tab_byte(byte: &u8) -> bool {
+    return *byte == b'\t';
+}
+
 /// What:
 ///  Store the conflicted autostash of the commit in the real repository's stash list, once.
 /// Why:
@@ -72,7 +97,7 @@ pub fn carry_stash(git: &GitContext, repository: &Path, cleanup: &Cleanup) -> bo
     let listed = run_git(git, &GitRequest::new(repository, &["stash", "list", "--format=%H"]));
     if let Ok(output) = &listed
         && output.succeeded()
-        && String::from_utf8_lossy(output.stdout.as_slice()).lines().any(|line| { return line == stash; })
+        && lists_stash(String::from_utf8_lossy(output.stdout.as_slice()).as_ref(), stash.as_str())
     {
         return true;
     }
@@ -113,9 +138,22 @@ pub fn carry_stages(git: &GitContext, repository: &Path, cleanup: &Cleanup, buil
         return true;
     }
     // Each entry is `mode oid stage TAB path`, ended by a NUL; the first entry's object name gives the hash length.
-    let entries: Vec<&[u8]> = stages.stdout.split(|byte| { return *byte == 0; }).filter(|entry| { return !entry.is_empty(); }).collect();
-    let length: usize = entries[0].split(|byte| { return *byte == b' '; }).nth(1).map_or(0, <[u8]>::len);
-    let mut paths: Vec<&[u8]> = entries.iter().filter_map(|entry| { return entry.split(|byte| { return *byte == b'\t'; }).nth(1); }).collect();
+    let mut entries: Vec<&[u8]> = Vec::new();
+    for entry in stages.stdout.split(is_nul_byte) {
+        if !entry.is_empty() {
+            entries.push(entry);
+        }
+    }
+    let length: usize = match entries[0].split(is_space_byte).nth(1) {
+        Some(object_name) => object_name.len(),
+        None => 0,
+    };
+    let mut paths: Vec<&[u8]> = Vec::new();
+    for entry in &entries {
+        if let Some(path) = entry.split(is_tab_byte).nth(1) {
+            paths.push(path);
+        }
+    }
     paths.dedup();
     let mut input: Vec<u8> = Vec::new();
     for path in &paths {

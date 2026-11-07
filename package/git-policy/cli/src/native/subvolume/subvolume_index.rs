@@ -154,13 +154,13 @@ pub(crate) fn walk_entries(bytes: &[u8], hash_length: usize) -> Option<(Vec<Loca
                 strip = strip.checked_add(1)?.checked_shl(7)? | usize::from(byte & 0x7f);
             }
             let keep: usize = previous.len().checked_sub(strip)?;
-            let end: usize = cursor + bytes.get(cursor..limit)?.iter().position(|stored: &u8| { return *stored == 0; })?;
+            let end: usize = cursor + first_nul_at(bytes.get(cursor..limit)?)?;
             let mut joined: Vec<u8> = previous[..keep].to_vec();
             joined.extend_from_slice(&bytes[cursor..end]);
             path = joined;
             next = end + 1;
         } else {
-            let length: usize = bytes.get(name_at..limit)?.iter().position(|stored: &u8| { return *stored == 0; })?;
+            let length: usize = first_nul_at(bytes.get(name_at..limit)?)?;
             path = bytes[name_at..name_at + length].to_vec();
             next = at.checked_add((name_at - at + length + 8) & !7)?;
         }
@@ -172,6 +172,31 @@ pub(crate) fn walk_entries(bytes: &[u8], hash_length: usize) -> Option<(Vec<Loca
         at = next;
     }
     return Some((found, at));
+}
+
+/// Whether `byte` is zero.
+fn is_zero_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// The position of the first NUL byte of `bytes`, or `None` when there is none.
+fn first_nul_at(bytes: &[u8]) -> Option<usize> {
+    for (position, stored) in bytes.iter().enumerate() {
+        if *stored == 0 {
+            return Some(position);
+        }
+    }
+    return None;
+}
+
+/// Whether `signature` is one of the four-byte extension names in `names`.
+fn is_listed(names: &[&[u8; 4]], signature: &[u8]) -> bool {
+    for name in names {
+        if signature == name.as_slice() {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -190,7 +215,9 @@ fn extensions_fit(bytes: &[u8], entries_end: usize, hash_length: usize) -> bool 
     let mut at: usize = entries_end;
     while at < limit {
         let Some(size) = be32(bytes, at + 4) else { return false };
-        let Some(end) = at.checked_add(8).and_then(|header_end: usize| { return header_end.checked_add(usize::try_from(size).ok()?); }) else { return false };
+        let Some(header_end) = at.checked_add(8) else { return false };
+        let Ok(extension_size) = usize::try_from(size) else { return false };
+        let Some(end) = header_end.checked_add(extension_size) else { return false };
         if end > limit {
             return false;
         }
@@ -227,14 +254,18 @@ fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), St
             return Ok((*length, false));
         }
     }
-    let fitting: Vec<usize> = candidates
-        .iter()
-        .copied()
-        .filter(|length: &usize| {
-            let zero: bool = bytes.len() >= HEADER + length && bytes[bytes.len() - length..].iter().all(|byte: &u8| { return *byte == 0; });
-            return zero && walk_entries(bytes, *length).is_some_and(|(_entries, end): (Vec<Located>, usize)| { return extensions_fit(bytes, end, *length); });
-        })
-        .collect();
+    let mut fitting: Vec<usize> = Vec::new();
+    for length in candidates.iter().copied() {
+        let zero: bool = bytes.len() >= HEADER + length && bytes[bytes.len() - length..].iter().all(is_zero_byte);
+        if !zero {
+            continue;
+        }
+        if let Some((_entries, end)) = walk_entries(bytes, length)
+            && extensions_fit(bytes, end, length)
+        {
+            fitting.push(length);
+        }
+    }
     return match fitting.as_slice() {
         [length] => Ok((*length, true)),
         [] if known.is_some() => Err(String::from("the checksum does not match the repository's hash and is not all zero")),
@@ -246,7 +277,7 @@ fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), St
 /// What:
 ///  Rewrite the stat fields of an index file; see the module description for the rules.
 ///  `lookup` is called with an entry's path and returns what `lstat` reports now, or nothing for a missing file.
-///  `&mut dyn FnMut(&[u8]) -> Option<StatFields>` is a borrowed callback that may keep state (sibling `Fn` cannot).
+///  `&mut dyn StatLookup` is a borrowed lookup that may keep state (a table, a cursor over a directory).
 /// Why:
 ///   Keeping the file system out of this function makes every branch testable with built bytes.
 ///
@@ -254,8 +285,47 @@ fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), St
 /// ```ts
 /// function rewriteIndexStat(bytes: Uint8Array, lookup: (path: Uint8Array) => StatFields | undefined): IndexOutcome;
 /// ```
-pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn FnMut(&[u8]) -> Option<StatFields>) -> IndexOutcome {
-    return rewrite_index_stat_with(bytes, &RewriteContext::default(), lookup, &mut |_path: &[u8], _stored: &StoredStat| { return true; });
+pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn StatLookup) -> IndexOutcome {
+    return rewrite_index_stat_with(bytes, &RewriteContext::default(), lookup, &mut AcceptEveryStat);
+}
+
+/// What:
+///  Where the rewrite of an index asks what `lstat` reports now for an entry's path.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The lookup may keep state (a table the clone filled, a cursor that keeps its directory open), and the rewrite stays free of the
+///  file system; a type that holds the state implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface StatLookup { statNow(path: Uint8Array): StatFields | undefined }
+/// ```
+pub trait StatLookup {
+    /// What `lstat` reports now for `path`, or nothing for a file that is missing.
+    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields>;
+}
+
+/// What:
+///  Where the rewrite of an index asks whether the file an entry was recorded for is still the one the copy was made from.
+/// Why:
+///   The check keeps the reference trees it compares with; a type that holds them implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface StatTrust { isTrusted(path: Uint8Array, stored: StoredStat): boolean }
+/// ```
+pub trait StatTrust {
+    /// Whether the entry for `path`, with the fields it stored, is still trusted.
+    fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool;
+}
+
+/// The check that accepts every entry: no reference index needs to agree.
+pub struct AcceptEveryStat;
+
+impl StatTrust for AcceptEveryStat {
+    fn is_trusted(&mut self, _path: &[u8], _stored: &StoredStat) -> bool {
+        return true;
+    }
 }
 
 /// What:
@@ -324,8 +394,8 @@ pub struct StoredStat {
 pub fn rewrite_index_stat_with(
     bytes: &[u8],
     context: &RewriteContext,
-    lookup: &mut dyn FnMut(&[u8]) -> Option<StatFields>,
-    trusted: &mut dyn FnMut(&[u8], &StoredStat) -> bool,
+    lookup: &mut dyn StatLookup,
+    trusted: &mut dyn StatTrust,
 ) -> IndexOutcome {
     if bytes.len() < HEADER || &bytes[..4] != b"DIRC" {
         return IndexOutcome::Skipped(String::from("the file is not an index (no DIRC signature)"));
@@ -353,10 +423,10 @@ pub fn rewrite_index_stat_with(
         if end > limit {
             return IndexOutcome::Skipped(String::from("an extension runs past the end of the file"));
         }
-        if DECLINED.iter().any(|name: &&[u8; 4]| { return signature == name.as_slice(); }) {
+        if is_listed(&DECLINED, signature) {
             return IndexOutcome::Skipped(format!("the index uses the {} extension (split or sparse index)", String::from_utf8_lossy(signature)));
         }
-        if !DROPPED.iter().any(|name: &&[u8; 4]| { return signature == name.as_slice(); }) {
+        if !is_listed(&DROPPED, signature) {
             kept.extend_from_slice(&bytes[at..end]);
         }
         at = end;
@@ -374,10 +444,12 @@ pub fn rewrite_index_stat_with(
         let stored_nanos: u32 = be32(bytes, entry.start + 12).unwrap_or(0);
         // Git's racy test: an entry modified in the same second as the index file, or later, cannot be trusted by its
         // stat fields alone. Its fields stay as recorded, which no longer match the copy, so Git hashes the file.
-        if context.index_mtime.is_some_and(|(index_seconds, _nanos): (u32, u32)| { return stored_seconds >= index_seconds; }) {
+        if let Some((index_seconds, _nanos)) = context.index_mtime
+            && stored_seconds >= index_seconds
+        {
             continue;
         }
-        let Some(now) = lookup(entry.path.as_slice()) else { continue };
+        let Some(now) = lookup.stat_now(entry.path.as_slice()) else { continue };
         // An index written by a Git built without nanosecond support stores 0 there.
         let same_time: bool = now.mtime_seconds == stored_seconds && (stored_nanos == 0 || stored_nanos == now.mtime_nanos);
         if now.size != stored_size || !same_time {
@@ -393,7 +465,7 @@ pub fn rewrite_index_stat_with(
             gid: be32(bytes, entry.start + 32).unwrap_or(0),
             size: stored_size,
         };
-        if !trusted(entry.path.as_slice(), &recorded) {
+        if !trusted.is_trusted(entry.path.as_slice(), &recorded) {
             continue;
         }
         let fields: [(usize, u32); 6] = [(0, now.ctime_seconds), (4, now.ctime_nanos), (16, now.dev), (20, now.ino), (28, now.uid), (32, now.gid)];

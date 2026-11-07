@@ -1,5 +1,5 @@
 //! What:
-//!  The folder of saved copies (`<common git dir>/cli-git/discarded`) opened once without following a link, and every
+//!  The folder of saved copies (`<common git dir>/monochromatic-git-policy-cli/discarded`) opened once without following a link, and every
 //!  read and removal inside it addressed through descriptors: the folder's, then each directory's, never a path walked again.
 //! Why:
 //!  A pass that lists a path and later removes a path can be led anywhere by a link or a rename that happens in between.
@@ -13,50 +13,17 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const store = await openStore(commonDir);          // throws on a link at cli-git or discarded
+//! const store = await openStore(commonDir);          // throws on a link at monochromatic-git-policy-cli or discarded
 //! const directory = await store.open('2026-11-02T14-01-07'); // never follows a link
 //! await directory.empty();                           // unlinkat by descriptor, files before subdirectories
 //! ```
 
+pub use crate::discarded_store_records::{Identity, Interrupted, MAX_DEPTH, Tally};
 #[cfg(unix)]
 pub use unix::{Directory, OpenFailure, Store};
 
 #[cfg(not(unix))]
 pub use other::{Directory, OpenFailure, Store};
-
-/// Which directory a listing saw: the pair that tells a directory from one that took its name later.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Identity {
-    /// The device it lives on.
-    pub device: u64,
-    /// Its inode number.
-    pub inode: u64,
-    /// When it last changed, whole seconds.
-    pub changed_seconds: i64,
-    /// When it last changed, the nanoseconds past the second.
-    pub changed_nanos: i64,
-}
-
-/// The files met below a directory, as names relative to it, and the sum of their sizes (links by their own size).
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Tally {
-    /// The relative names, in the order they were met.
-    pub names: Vec<String>,
-    /// The sum of the sizes; wide, so no number of files can wrap it.
-    pub bytes: u128,
-}
-
-/// The deepest tree a pass enters; a deeper one is kept and reported, because every level holds a descriptor open.
-pub const MAX_DEPTH: usize = 128;
-
-/// A walk that failed after meeting `tally` of what it was asked to count or remove.
-#[derive(Debug)]
-pub struct Interrupted {
-    /// What was met (surveying) or removed (removing) before the failure.
-    pub tally: Tally,
-    /// What stopped the walk.
-    pub error: std::io::Error,
-}
 
 #[cfg(unix)]
 mod unix {
@@ -69,7 +36,7 @@ mod unix {
     /// Why the folder could not be opened as a store.
     #[derive(Debug)]
     pub enum OpenFailure {
-        /// A symbolic link, or something that is not a directory, stands at `cli-git` or `discarded`.
+        /// A symbolic link, or something that is not a directory, stands at `monochromatic-git-policy-cli` or `discarded`.
         Link,
         /// The system refused to open it.
         Refused(std::io::Error),
@@ -77,7 +44,10 @@ mod unix {
 
     /// The name as the C string the system calls take.
     fn c_name(name: &OsStr) -> std::io::Result<CString> {
-        return CString::new(name.as_bytes()).map_err(|_| { return std::io::Error::from_raw_os_error(libc::EINVAL); });
+        return match CString::new(name.as_bytes()) {
+            Ok(text) => Ok(text),
+            Err(_) => Err(std::io::Error::from_raw_os_error(libc::EINVAL)),
+        };
     }
 
     /// Takes ownership of a descriptor a system call returned, or the error it left.
@@ -164,7 +134,7 @@ mod unix {
             let entry: *mut libc::dirent = unsafe { libc::readdir(stream) };
             if entry.is_null() {
                 let error: std::io::Error = std::io::Error::last_os_error();
-                if error.raw_os_error().is_some_and(|number| { return number != 0; }) {
+                if matches!(error.raw_os_error(), Some(number) if number != 0) {
                     failure = Some(error);
                 }
                 break;
@@ -353,10 +323,10 @@ mod unix {
 
     impl Store {
         /// What:
-        ///  Opens `<common_dir>/cli-git/discarded`, following a link in `common_dir` (Git names it) and none below it.
+        ///  Opens `<common_dir>/monochromatic-git-policy-cli/discarded`, following a link in `common_dir` (Git names it) and none below it.
         ///  Nothing when the folder does not exist.
         /// Why:
-        ///   A link at `cli-git` or `discarded` would send every later read and removal to wherever it points.
+        ///   A link at `monochromatic-git-policy-cli` or `discarded` would send every later read and removal to wherever it points.
         ///
         /// In TS you'd write (pseudocode):
         /// ```ts
@@ -426,7 +396,10 @@ mod unix {
         /// # Errors
         /// The system's error when the removal fails, `ENOTEMPTY` included.
         pub fn remove_empty_directory(&self, name: &OsStr, expected: Identity) -> std::io::Result<bool> {
-            let same: bool = self.directory_identity(name)?.is_some_and(|found| { return found.device == expected.device && found.inode == expected.inode; });
+            let same: bool = match self.directory_identity(name)? {
+                Some(found) => found.device == expected.device && found.inode == expected.inode,
+                None => false,
+            };
             if !same {
                 return Ok(false);
             }

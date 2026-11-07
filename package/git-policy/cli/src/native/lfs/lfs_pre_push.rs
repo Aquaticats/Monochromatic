@@ -47,25 +47,56 @@ const MACHINE_SCOPES: [&str; 2] = ["system", "global"];
 /// entries.some(({ scope, key }) => !['system', 'global'].includes(scope) && (key.startsWith('filter.lfs.') || key.startsWith('lfs.')));
 /// ```
 pub fn uses_lfs(snapshot: &ConfigSnapshot) -> bool {
-    return snapshot.entries().iter().any(|entry| {
-        return !MACHINE_SCOPES.contains(&entry.scope.as_str())
-            && LFS_KEY_PREFIXES.iter().any(|prefix| {
-                return entry.key.starts_with(prefix);
-            });
-    });
+    for entry in snapshot.entries() {
+        if MACHINE_SCOPES.contains(&entry.scope.as_str()) {
+            continue;
+        }
+        for prefix in LFS_KEY_PREFIXES {
+            if entry.key.starts_with(prefix) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The number the environment gives in `GIT_CONFIG_COUNT`: how many `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` pairs
+///  it holds, or zero when the variable is missing or is not a plain number.
+/// Why:
+///   Both the switch reader and the pair builder of the upload start from this count, and a function stands where a
+///  chain of closures stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const count = Number.parseInt(env.GIT_CONFIG_COUNT ?? '0', 10) || 0;
+/// ```
+pub fn environment_config_count(environment: &[(OsString, OsString)]) -> usize {
+    let Some(value) = crate::child_environment::environment_value(environment, "GIT_CONFIG_COUNT") else {
+        return 0;
+    };
+    let Some(text) = value.to_str() else {
+        return 0;
+    };
+    return text.parse::<usize>().unwrap_or(0);
+}
+
+/// One numbered variable of the environment's configuration pairs: `GIT_CONFIG_KEY_3` for kind `KEY` and index 3.
+fn numbered_config_variable(environment: &[(OsString, OsString)], kind: &str, index: usize) -> Option<OsString> {
+    return crate::child_environment::environment_value(environment, &format!("GIT_CONFIG_{kind}_{index}"));
 }
 
 /// Whether a configuration name is the switch: Git reads the section and the variable case-insensitively and the
 ///  subsection exactly.
 fn is_switch_key(name: &str) -> bool {
     const VARIABLE: &str = ".enabled";
-    let Some(rest) = name.get(..5).filter(|section| {
-        return section.eq_ignore_ascii_case("hook.");
-    }).map(|_| {
-        return &name[5..];
-    }) else {
+    let Some(section) = name.get(..5) else {
         return false;
     };
+    if !section.eq_ignore_ascii_case("hook.") {
+        return false;
+    }
+    let rest: &str = &name[5..];
     if rest.len() <= VARIABLE.len() {
         return false;
     }
@@ -78,9 +109,12 @@ fn is_switch_key(name: &str) -> bool {
 
 /// Whether a value of the switch reads as false the way Git reads a boolean (an empty value counts as false).
 fn reads_as_false(value: &str) -> bool {
-    return ["false", "no", "off", "0", ""].iter().any(|spelling| {
-        return value.eq_ignore_ascii_case(spelling);
-    });
+    for spelling in ["false", "no", "off", "0", ""] {
+        if value.eq_ignore_ascii_case(spelling) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -98,23 +132,17 @@ fn reads_as_false(value: &str) -> bool {
 /// ```
 pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> bool {
     let mut off: bool = false;
-    let count: usize = crate::child_environment::environment_value(environment, "GIT_CONFIG_COUNT")
-        .and_then(|value| {
-            return value.to_str().and_then(|text| {
-                return text.parse::<usize>().ok();
-            });
-        })
-        .unwrap_or(0);
+    let count: usize = environment_config_count(environment);
     for index in 0..count {
-        let name_of = |kind: &str| -> Option<OsString> {
-            return crate::child_environment::environment_value(environment, &format!("GIT_CONFIG_{kind}_{index}"));
+        let key_is_switch: bool = match numbered_config_variable(environment, "KEY", index) {
+            Some(name) => is_switch_key(&name.to_string_lossy()),
+            None => false,
         };
-        if name_of("KEY").is_some_and(|name| {
-            return is_switch_key(&name.to_string_lossy());
-        }) {
-            off = name_of("VALUE").is_some_and(|value| {
-                return reads_as_false(&value.to_string_lossy());
-            });
+        if key_is_switch {
+            off = match numbered_config_variable(environment, "VALUE", index) {
+                Some(value) => reads_as_false(&value.to_string_lossy()),
+                None => false,
+            };
         }
     }
     let mut tokens = global_prefix.iter();
@@ -122,15 +150,17 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
         if token.as_os_str() != "-c" {
             continue;
         }
-        let Some(setting) = tokens.next().and_then(|value| {
-            return value.to_str();
-        }) else {
+        let Some(setting_token) = tokens.next() else {
+            continue;
+        };
+        let Some(setting) = setting_token.to_str() else {
             continue;
         };
         // Git reads the name case-insensitively and a name without `=` as the boolean true.
-        let (name, value) = setting.split_once('=').map_or((setting, None), |(name, value)| {
-            return (name, Some(value));
-        });
+        let (name, value): (&str, Option<&str>) = match setting.split_once('=') {
+            Some((named, valued)) => (named, Some(valued)),
+            None => (setting, None),
+        };
         if is_switch_key(name) {
             off = value.is_some_and(reads_as_false);
         }
@@ -151,20 +181,19 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
 /// ```
 pub fn find_program(path: &OsStr) -> Option<std::path::PathBuf> {
     use std::os::unix::fs::PermissionsExt;
-    return std::env::split_paths(path)
-        .map(|directory| {
-            let base: &Path = if directory.as_os_str().is_empty() { Path::new(".") } else { directory.as_path() };
-            return base.join(LFS_PROGRAM);
-        })
-        .find(|candidate| {
-            return std::fs::metadata(candidate).is_ok_and(|found| {
-                return found.is_file() && found.permissions().mode() & 0o111 != 0;
-            });
-        })
-        // A relative `PATH` entry is relative to where the lookup happens; the child may start elsewhere (`-C`).
-        .and_then(|found| {
-            return std::path::absolute(found).ok();
-        });
+    for directory in std::env::split_paths(path) {
+        let base: &Path = if directory.as_os_str().is_empty() { Path::new(".") } else { directory.as_path() };
+        let candidate: std::path::PathBuf = base.join(LFS_PROGRAM);
+        let is_executable_file: bool = match std::fs::metadata(&candidate) {
+            Ok(found) => found.is_file() && found.permissions().mode() & 0o111 != 0,
+            Err(_) => false,
+        };
+        if is_executable_file {
+            // A relative `PATH` entry is relative to where the lookup happens; the child may start elsewhere (`-C`).
+            return std::path::absolute(candidate).ok();
+        }
+    }
+    return None;
 }
 
 /// Whether `git-lfs` is an executable file in one of the directories of a `PATH` value.
@@ -188,10 +217,13 @@ pub fn program_on_path(path: &OsStr) -> bool {
 /// ['1', 't', 'true', 'y', 'yes', 'on'].includes(env.GIT_LFS_SKIP_PUSH?.toLowerCase())
 /// ```
 pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) -> bool {
-    return crate::child_environment::environment_value(environment, "GIT_LFS_SKIP_PUSH").is_some_and(|value| {
-        let text: String = value.to_string_lossy().to_ascii_lowercase();
-        return ["1", "t", "true", "y", "yes", "on"].contains(&text.as_str());
-    });
+    return match crate::child_environment::environment_value(environment, "GIT_LFS_SKIP_PUSH") {
+        Some(value) => {
+            let text: String = value.to_string_lossy().to_ascii_lowercase();
+            ["1", "t", "true", "y", "yes", "on"].contains(&text.as_str())
+        }
+        None => false,
+    };
 }
 
 /// What:
@@ -202,11 +234,11 @@ pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: this push was stopped before it sent anything: ...`
+/// `monochromatic-git-policy-cli: this push was stopped before it sent anything: ...`
 /// ```
 pub fn missing_program_message() -> String {
     return format!(
-        "cli-git: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
+        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
          keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} push` to upload the large \
          files the pushed commits point to before it publishes the pointer files, but `{LFS_PROGRAM}` was not found in \
          any directory of PATH. Pushing without that upload would publish pointers whose content the LFS server does \
@@ -225,11 +257,11 @@ pub fn missing_program_message() -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: this push was stopped before it sent anything: ${why}...`
+/// `monochromatic-git-policy-cli: this push was stopped before it sent anything: ${why}...`
 /// ```
 pub fn plan_failed_message(why: &str) -> String {
     return format!(
-        "cli-git: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
+        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
          keys, so the wrapper uploads the large files the pushed commits point to before it publishes the pointer \
          files, but it could not work out which refs this push sends ({why}). Pushing without that upload could \
          publish pointers whose content the LFS server does not have. Ways forward: push again, because the cause may \
@@ -245,11 +277,11 @@ pub fn plan_failed_message(why: &str) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: git-lfs push exited with status ${code}; ...`
+/// `monochromatic-git-policy-cli: git-lfs push exited with status ${code}; ...`
 /// ```
 pub fn failed_message(status: &str) -> String {
     return format!(
-        "cli-git: `{LFS_PROGRAM} push` {status}, so this push was not started and nothing was published. \
+        "monochromatic-git-policy-cli: `{LFS_PROGRAM} push` {status}, so this push was not started and nothing was published. \
          The lines above come from `{LFS_PROGRAM}`; they usually name the cause: the LFS server \
          (`lfs.url`) is unreachable or refused the credentials, or a large file the pushed commits point to is not \
          in this clone's `.git/lfs`. Ways forward: fix that cause and push again, because objects the server already \
