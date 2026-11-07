@@ -69,6 +69,17 @@ pub(crate) struct RuntimeRules {
     regex_rule_ids: Vec<usize>,
 }
 
+/// The rule name one parsed rule carries,
+/// if it has one.
+fn name_of_input(input: &RuntimeRuleInput) -> Option<String> {
+    return input.name.clone();
+}
+
+/// The matcher error for a regex subset the engine rejected as a whole.
+fn regex_set_failure(reason: CompileError) -> RuntimeMatcherError {
+    return RuntimeMatcherError::RegexSet { reason };
+}
+
 /// Hybrid matcher construction,
 ///  artifact projection,
 ///  and scan behavior.
@@ -99,10 +110,7 @@ impl RuntimeRules {
 
     /// Builds both matcher subsets from parsed rules in original order.
     fn from_inputs(inputs: Vec<RuntimeRuleInput>) -> Result<Self, RuntimeMatcherError> {
-        let names: Vec<Option<String>> = inputs
-            .iter()
-            .map(|input| return input.name.clone())
-            .collect();
+        let names: Vec<Option<String>> = inputs.iter().map(name_of_input).collect();
         let mut literal_groups: Vec<LiteralGroup> = Vec::new();
         let mut literal_indices: HashMap<Vec<u8>, usize> = HashMap::new();
         let mut regex_patterns: Vec<String> = Vec::new();
@@ -132,9 +140,7 @@ impl RuntimeRules {
         let regex_set = if regex_patterns.is_empty() {
             None
         } else {
-            Some(RegexSet::new(&regex_patterns).map_err(|reason| {
-                return RuntimeMatcherError::RegexSet { reason }
-            })?)
+            Some(RegexSet::new(&regex_patterns).map_err(regex_set_failure)?)
         };
         return Self::from_artifact(names, literal_groups, regex_set, regex_rule_ids)
     }
@@ -185,11 +191,11 @@ impl RuntimeRules {
         let Some(regex_set) = &self.regex_set else {
             return Vec::new();
         };
-        return regex_set
-            .line_matches(buf, starts)
-            .into_iter()
-            .map(|(line, local_rule)| return (line, self.regex_rule_ids[local_rule]))
-            .collect()
+        let mut pairs: Vec<(usize, usize)> = Vec::new();
+        for (line, local_rule) in regex_set.line_matches(buf, starts) {
+            pairs.push((line, self.regex_rule_ids[local_rule]));
+        }
+        return pairs;
     }
 
     /// Appends boundary-valid literal matches for one line.
@@ -206,10 +212,22 @@ impl RuntimeRules {
             let group_index = found.pattern().as_usize();
             let group = &self.literal_groups[group_index];
             if literal_boundaries_match(line, found.start(), found.end(), &group.bytes) {
-                hits.extend(group.rule_ids.iter().map(|&rule_id| return (line_index, rule_id)));
+                for &rule_id in &group.rule_ids {
+                    hits.push((line_index, rule_id));
+                }
             }
         }
     }
+}
+
+/// The exact bytes one literal group matches.
+fn literal_bytes_of(group: &LiteralGroup) -> &[u8] {
+    return group.bytes.as_slice();
+}
+
+/// Turns any builder failure into the redacted literal-build error.
+fn literal_build_failed<Cause>(_cause: Cause) -> RuntimeMatcherError {
+    return RuntimeMatcherError::LiteralBuild;
 }
 
 /// Builds overlapping standard matcher over unique literal groups.
@@ -219,11 +237,11 @@ fn build_literal_matcher(
     if groups.is_empty() {
         return Ok(None);
     }
-    let patterns: Vec<&[u8]> = groups.iter().map(|group| return group.bytes.as_slice()).collect();
+    let patterns: Vec<&[u8]> = groups.iter().map(literal_bytes_of).collect();
     let matcher = AhoCorasick::builder()
         .match_kind(MatchKind::Standard)
         .build(&patterns)
-        .map_err(|_| return RuntimeMatcherError::LiteralBuild)?;
+        .map_err(literal_build_failed)?;
     return Ok(Some(matcher))
 }
 
@@ -260,7 +278,7 @@ fn validate_mappings(
             seen_rule_ids[rule_id] = true;
         }
     }
-    if seen_rule_ids.iter().any(|seen| return !seen) {
+    if seen_rule_ids.contains(&false) {
         return Err(RuntimeMatcherError::InvalidArtifact);
     }
     return Ok(())
