@@ -1181,6 +1181,13 @@ proved the Wayland library step.
   crates.io `2026-11-07T11:58:24.564425Z`, `yanked` false.
   GitHub release `monochromatic-search-shadow-v0.2.2` holds both Linux tarballs and the checksums file.
 
+- `forbidden-regex` 0.1.1 to 0.1.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370496745`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370600358`
+  (built from `3374eccf8a`),
+  crates.io `2026-11-07T12:02:25.921188Z`, `yanked` false.
+  Exempt crate: no README notice; note carries the homepage path fix.
+
 ## Evidence log
 
 - crates.io API reads:
