@@ -113,7 +113,10 @@ pub struct PolicyDescriptor {
     /// policies that plugins used to provide are off everywhere else,
     ///  with or without
     /// a configuration file (decided 2026-10-05).
-    ///  `mono/catalog-specifiers`, added afterwards, is optional the same way, so a configuration that does not
+    ///  `mono/catalog-specifiers`,
+    /// added afterwards,
+    /// is optional the same way,
+    /// so a configuration that does not
     /// name it behaves as it did before the policy shipped.
     pub off_unless_listed: bool,
 }
@@ -130,7 +133,9 @@ pub struct PolicyDescriptor {
 ///  a borrowed
 ///       constant needs no allocation and cannot be reordered at runtime.
 ///       Every default is the incumbent policy definition's own `defaultSeverity`.
-///       The four formerly plugin-provided policies, and `mono/catalog-specifiers`, are additionally off unless the
+///       The four formerly plugin-provided policies,
+/// and `mono/catalog-specifiers`,
+/// are additionally off unless the
 ///       repository configuration names them,
 ///  because the incumbent only ran them in
 ///       repositories whose configuration registered their plugin.

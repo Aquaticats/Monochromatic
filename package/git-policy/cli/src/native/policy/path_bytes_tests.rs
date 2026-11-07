@@ -12,7 +12,8 @@
 /// The conversions under test.
 use super::{os_from_path_bytes, path_message_text};
 
-/// Unix keeps every byte of a name, invalid UTF-8 included.
+/// Unix keeps every byte of a name,
+/// invalid UTF-8 included.
 #[cfg(unix)]
 #[test]
 fn an_operating_system_string_keeps_every_byte() {

@@ -1,11 +1,20 @@
 //! What:
-//!  The hint that follows a finding, an engine failure or a warn-unsafe notice: a guess at what the person was
-//!  trying to do, and the concrete next step.
+//!  The hint that follows a finding,
+//! an engine failure or a warn-unsafe notice:
+//! a guess at what the person was
+//!  trying to do,
+//! and the concrete next step.
 //! Why:
-//!  A block that only states a rule leaves the next move to guesswork. Every block and every divergence from real
-//!  Git's behavior names the likely intent and a way forward, so a rejected command is a step toward the goal.
-//!  Messages built with their own hint (the discard, branch, add, root and commit-only rejections) are listed as
-//!  self-hinted, and a guard test fails when a code has neither.
+//!  A block that only states a rule leaves the next move to guesswork.
+//! Every block and every divergence from real
+//!  Git's behavior names the likely intent and a way forward,
+//! so a rejected command is a step toward the goal.
+//!  Messages built with their own hint (the discard,
+//! branch,
+//! add,
+//! root and commit-only rejections) are listed as
+//!  self-hinted,
+//! and a guard test fails when a code has neither.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,10 +32,12 @@ pub const SELF_HINTED: &[(&str, &str)] = &[
 ];
 
 /// What:
-///  The hint for a policy finding, or none when the message carries its own.
+///  The hint for a policy finding,
+/// or none when the message carries its own.
 ///  `&'static str` is text compiled into the program.
 /// Why:
-///   A finding's wording is the rule; the hint is the guess about the goal and the way to reach it.
+///   A finding's wording is the rule;
+/// the hint is the guess about the goal and the way to reach it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,11 +144,15 @@ pub fn finding_hint(policy: &str, code: &str, fix_available: bool) -> Option<&'s
 }
 
 /// What:
-///  The hint for a manual push whose scope could not be established, by the cause the failure carries.
+///  The hint for a manual push whose scope could not be established,
+/// by the cause the failure carries.
 /// Why:
-///   One engine-failure code covers causes the person answers differently, so the hint names the cause and the move for it:
-///  the existing missing-content hint stays where content is what is missing, and a message that already says what to do
-///  (a deadline with its setting, a repository that cannot be located) gets none.
+///   One engine-failure code covers causes the person answers differently,
+/// so the hint names the cause and the move for it:
+///  the existing missing-content hint stays where content is what is missing,
+/// and a message that already says what to do
+///  (a deadline with its setting,
+/// a repository that cannot be located) gets none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -174,9 +189,13 @@ pub fn manual_push_failure_hint(cause: ManualPushCause) -> Option<&'static str> 
 }
 
 /// What:
-///  The hint for an engine failure, by the code's wire spelling.
+///  The hint for an engine failure,
+/// by the code's wire spelling.
 /// Why:
-///   An engine failure stops the command before Git runs; the person needs to know whether to retry, fix a file, or
+///   An engine failure stops the command before Git runs;
+/// the person needs to know whether to retry,
+/// fix a file,
+/// or
 ///  report a defect.
 ///
 /// In TS you'd write (pseudocode):
@@ -252,7 +271,8 @@ pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
 /// What:
 ///  The hint for a warn-unsafe notice.
 /// Why:
-///   The person who set a policy to warn wanted commits to keep flowing; the notice says what that costs and what to
+///   The person who set a policy to warn wanted commits to keep flowing;
+/// the notice says what that costs and what to
 ///  choose instead.
 ///
 /// In TS you'd write (pseudocode):
@@ -271,7 +291,8 @@ pub const POST_COMMIT_BLOCKED_HINT: &str = "Hint: if you wanted this commit back
 ///  Append the `hint` field to a JSON event line when a hint exists.
 ///  `&mut String` lends the line for appending.
 /// Why:
-///   The `message` field stays byte-identical to the retired wrapper's; the hint is an additive field that readers of
+///   The `message` field stays byte-identical to the retired wrapper's;
+/// the hint is an additive field that readers of
 ///  the line see without any change to the message.
 ///
 /// In TS you'd write (pseudocode):
