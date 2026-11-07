@@ -93,4 +93,4 @@ bench = false
 anyhow = ">=1.0.104"
 arbitrary = ">=1.5.0"
 libfuzzer-sys = ">=0.4.13"
-regex = ">=1.12.4"
+regex = ">=1.13.1"
