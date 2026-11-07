@@ -311,8 +311,8 @@ fn a_child_released_late_has_its_lock_swept_when_it_ends() {
     let locks: LockLedger = LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
     let child: Child = command.spawn().expect("start the child");
     let member: TreeMember = member_of(i32::try_from(child.id()).expect("pid")).expect("a running child");
-    let sweeper = sweep_after_exit(child, vec![member], locks).expect("the sweeping thread starts");
-    sweeper.join().expect("the sweeping thread ends");
+    let sweeper = sweep_after_exit(child, vec![member], locks).expect("the sweeping task starts");
+    crate::lazy_runtime::run_on_runtime(sweeper).expect("the runtime runs the wait").expect("the sweeping task ends");
     assert!(!lock.exists(), "the lock the child left is swept once it ended");
     crate::test_support::remove(root.as_path());
 }
@@ -342,12 +342,12 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
     std::fs::write(heads.join("lingering~pid.lock"), format!("pid {}\n", member.pid)).expect("the pid file of the member");
     ended.wait().expect("the child is collected");
     std::thread::sleep(HELD_UP_TEST_THREAD);
-    let started = settle_locks(ended, true, vec![member], locks, Duration::from_millis(100));
+    let started = crate::lazy_runtime::run_on_runtime(settle_locks(None, vec![member], locks, Duration::from_millis(100))).expect("the runtime runs the settling");
     assert!(lock.exists(), "a tree that still runs is not swept");
-    let sweeper = started.expect("the sweep waits for the tree on a thread of its own");
+    let sweeper = started.expect("the sweep waits for the tree in a task of its own");
     drop(lingering.stdin.take());
     lingering.wait().expect("the member ends");
-    sweeper.join().expect("the sweeping thread ends");
+    crate::lazy_runtime::run_on_runtime(sweeper).expect("the runtime runs the wait").expect("the sweeping task ends");
     assert!(!lock.exists(), "the lock is swept once the tree has ended");
     crate::test_support::remove(root.as_path());
 }

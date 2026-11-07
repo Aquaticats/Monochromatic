@@ -124,6 +124,23 @@ impl OwnedChild {
         }
     }
 
+    /// What:
+    ///  Sends `SIGKILL` to the child without waiting for it; the exit is still collected by `wait`.
+    /// Why:
+    ///  A stop that kills a child in an uninterruptible call must not wait for the kernel to release it, so the kill and the wait
+    ///  are separate.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// owned.kill(); // does not wait
+    /// ```
+    pub fn kill(&mut self) -> std::io::Result<()> {
+        return match self.child.as_mut() {
+            Some(child) => child.kill(),
+            None => Ok(()),
+        };
+    }
+
     /// Ends the child with `SIGKILL` and reaps it; nothing happens when it is already reaped or handed over.
     pub fn end_and_reap(&mut self) {
         if let Some(mut child) = self.child.take() {
@@ -144,6 +161,22 @@ impl OwnedChild {
     /// ```
     pub fn into_std(mut self) -> Child {
         return self.child.take().expect("the child is still owned: it was neither reaped nor handed over");
+    }
+}
+
+impl OwnedChild {
+    /// What:
+    ///  Gives the standard-library child back when it has not been reaped, and nothing when it was.
+    /// Why:
+    ///  A stop hands a child that is still not collected to the task that waits for it, and has nothing to hand over once the
+    ///  wait has collected it; `into_std` would refuse the second case.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const child = owned.intoStdWhenUnreaped(); // undefined once reaped
+    /// ```
+    pub fn into_std_when_unreaped(mut self) -> Option<Child> {
+        return self.child.take();
     }
 }
 

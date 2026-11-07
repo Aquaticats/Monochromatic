@@ -26,14 +26,16 @@ use crate::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output files of the query, made in the per-user scratch directory.
 use crate::scratch_location::scratch_file;
-use crate::start_retry::RetryStart;
+use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
+use crate::lazy_runtime::run_on_runtime;
+use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
 /// The anonymous output files and their reading back.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 /// `Command` describes the query; `Stdio` connects its streams.
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 /// Time spans.
 use std::time::Duration;
 
@@ -97,6 +99,29 @@ fn read_back(file: &mut File) -> Result<Vec<u8>, SingleFlightError> {
 /// async function runBoundedQuery({ command, arguments, windowMs, graceMs }): Promise<QueryOutput>;
 /// ```
 pub fn run_bounded_query(
+    command: Command,
+    arguments: &str,
+    window: Duration,
+    grace: Duration,
+    environment: &[(OsString, OsString)],
+) -> Result<QueryOutput, SingleFlightError> {
+    return match run_on_runtime(run_bounded_query_awaiting(command, arguments, window, grace, environment)) {
+        Ok(output) => output,
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+    };
+}
+
+/// What:
+///  `run_bounded_query` as a task of the runtime: the wait for the query is awaited, and no worker is held while it runs.
+/// Why:
+///   The synchronous face enters the runtime until the callers are asynchronous themselves; from inside the runtime that face
+///  refuses, and this one is called.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await runBoundedQueryAwaiting({ command, arguments, windowMs, graceMs, environment });
+/// ```
+pub async fn run_bounded_query_awaiting(
     mut command: Command,
     arguments: &str,
     window: Duration,
@@ -113,11 +138,12 @@ pub fn run_bounded_query(
         .stderr(Stdio::from(for_stderr));
     // Taken before the query starts, so a lock born earlier is never taken for the query's.
     let locks = LockLedger::before_start(&command);
-    let mut child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
+    let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
+    let mut child: OwnedChild = adopt(started);
     let mut quiet: Option<Duration> = None;
     let ended: Result<ExitStatus, StopCause> =
-        wait_until_done(&mut child, &[&stdout, &stderr], Patience::Progress { stall: window }, &mut quiet)?;
+        wait_until_done(&mut child, &[&stdout, &stderr], Patience::Progress { stall: window }, &mut quiet).await?;
     let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
     if let Some(gap) = quiet {
         quiet_ledger::note(step.as_str(), gap, ended.is_err());
@@ -129,7 +155,7 @@ pub fn run_bounded_query(
             stderr: read_back(&mut stderr)?,
         }),
         Err(cause) => {
-            stop_push(child, grace, locks);
+            stop_push(child, grace, locks).await;
             Err(match cause {
                 // A query waits on its signs of work, so only a stall reaches here; a deadline is the same wait.
                 StopCause::Deadline | StopCause::Stalled(_) => SingleFlightError::TimedOut {
