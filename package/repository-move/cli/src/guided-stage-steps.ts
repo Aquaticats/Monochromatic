@@ -33,6 +33,13 @@ export type EngineRun = {
   readonly flags: GuidedFlags;
   readonly phase: string;
   readonly stages: readonly Stage[];
+
+  /**
+   Builds the same stage list again from what is on disk now. The engine calls it before each stage, so a stage's text
+   can depend on a file an earlier stage of the same run wrote (the fixture folder f1a makes). Without it the list
+   built at the start is used as it is.
+   */
+  readonly restage?: () => Promise<readonly Stage[]>;
   readonly out: (text: string,) => void;
 };
 

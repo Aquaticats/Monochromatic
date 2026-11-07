@@ -4,6 +4,7 @@
  @module
  */
 
+import { canonicalOptions, } from './canonical-path.ts';
 import { createRunner, } from './command-runner.ts';
 import { runCopyPass, } from './copy-pass.ts';
 import { startDeadlineClock, } from './deadline-clock.ts';
@@ -26,7 +27,12 @@ export async function runMove(argv: readonly string[],): Promise<void> {
   /**
    The options of this invocation.
    */
-  const options = parseMoveOptions(argv,);
+  const givenOptions = parseMoveOptions(argv,);
+  /**
+   The options with the folders the run compares in their canonical spelling: a folder reached through a link and the
+   same folder as Git records it are one subvolume, so the records and the placement use the one spelling.
+   */
+  const options = await canonicalOptions(givenOptions,);
   /**
    The clock of this step.
    */
@@ -49,7 +55,7 @@ export async function runMove(argv: readonly string[],): Promise<void> {
     await thaw({
       loadCurrent: async function loadCurrent() {
         return await reconcileInventory({
-          options,
+          options: givenOptions,
           log: runner.log,
         },);
       },
@@ -63,7 +69,7 @@ export async function runMove(argv: readonly string[],): Promise<void> {
    The subvolumes this step covers.
    */
   const subvolumes = await reconcileInventory({
-    options,
+    options: givenOptions,
     log: runner.log,
   },);
   if (options.pass === 'freeze') {

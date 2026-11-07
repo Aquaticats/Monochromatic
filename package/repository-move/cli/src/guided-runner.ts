@@ -13,6 +13,7 @@ import {
 import { join, } from 'node:path';
 import { pathExists, } from './completion-records.ts';
 import { cutoverStages, } from './guided-cutover-stages.data.ts';
+import { canonicalPath, } from './canonical-path.ts';
 import { runPhase, } from './guided-engine.ts';
 import {
   compactTimestamp,
@@ -190,13 +191,14 @@ async function stagesFor(
       'fixture-path',
     );
     /**
-     The fixture folder.
+     The fixture folder in its canonical spelling, so a folder recorded before the stage resolved links still matches the
+     mount table and Git's registry.
      */
     const fixture = await pathExists(fixturePath,)
-      ? (await readFile(
+      ? await canonicalPath((await readFile(
         fixturePath,
         'utf8',
-      )).trim()
+      )).trim(),)
       : `${config.fixtureParent}/send-fixture.DRYRUN`;
     return await prepareStages({
       c: config,
@@ -390,6 +392,12 @@ export async function runGuided(
         config,
         flags,
       },),
+      restage: async function restage() {
+        return await stagesFor({
+          config,
+          flags,
+        },);
+      },
       out,
     },);
     if ((!flags.dryRun) && ((flags.command === 'thaw') || (flags.command === 'rollback'))) {

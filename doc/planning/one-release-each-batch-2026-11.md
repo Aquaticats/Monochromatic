@@ -2157,6 +2157,50 @@ not to crates.io.
   a shared crate for the identity rule was not added (the broader option,
   left to the owner).
 
+### Release record: `monochromatic-lint` 0.5.2-alpha.3, `--fix` changes only whitespace (2026-11-07T15:42:54-05:00)
+
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session."
+An alpha under the label gate:
+it goes to the GitHub release and the toolchain lock,
+not to crates.io.
+
+- The change it carries (branch `fix/monochromatic-lint-fix-changes-only-whitespace`,
+  merged to main by `2941e1e60e`):
+  `--fix` no longer wraps a URL whose link text swallowed a code span backtick,
+  no longer rewrites a pipe table,
+  no longer rewrites a rustdoc comment inside a fenced listing
+  and no longer adds `>` to a broken blockquote line.
+  The open split of whitespace fixes from content fixes is
+  `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`.
+- Gates on the merged tree:
+  `lint` and `lint:types` (clippy with warnings denied) exit 0;
+  the test run ended `871 tests run: 868 passed, 3 failed, 3 skipped`,
+  the three failures being `config_pin::tests::the_hint_names_a_measured_newer_pin_and_nothing_else`,
+  `config_pin::tests::unmeasured_pins_and_farther_lockfiles_produce_no_hint` and
+  `binary::a_newer_repository_pin_adds_the_stale_binary_hint`,
+  the pin-hint family the 0.5.2-alpha.2 record above already names as failing in a module this change does not touch
+  (`numeric_triple` in `src/config_pin.rs` reads `0.5.2-alpha.3` as four parts and measures nothing).
+- Release runs:
+  dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42410774214` (success),
+  release `https://github.com/Aquaticats/Monochromatic/actions/runs/42410912719`,
+  publish `https://github.com/Aquaticats/Monochromatic/actions/runs/42411061993`;
+  crates.io skipped it ("the alpha label is not published to crates.io"),
+  and the GitHub release `monochromatic-lint-v0.5.2-alpha.3` holds the platform archives.
+- Lock move:
+  `4076b89351`,
+  one tool moved by `mise run toolchain:update` (`cargo:monochromatic-lint` 0.5.2-alpha.2 to 0.5.2-alpha.3);
+  `mise run toolchain:install` then installed it and `monochromatic-lint --version` printed `monochromatic-lint 0.5.2-alpha.3`.
+- Proof at the user boundary:
+  the installed 0.5.2-alpha.3 binary run with `--fix` on the five reproductions left the URL and the pipe table
+  unchanged and still reported (`markdown/no-bare-urls`,
+  `markdown/no-pipe-tables`),
+  left the fenced Rust listing in Markdown unchanged and still reported,
+  broke the outer doc comment of a Rust file and left its doc example alone,
+  and broke the blockquote lines without adding a `>`.
+
 ## Evidence log
 
 - crates.io API reads:
