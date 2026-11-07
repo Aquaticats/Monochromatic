@@ -1,0 +1,44 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."format:dprint"]
+description = "Format this package's files with dprint"
+run = "dprint fmt src"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the node bin, then run unit tests; the unit tests spawn the built bins"
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."install:outside-repository"]
+description = "Copy the built bins to the data folder outside the repository so the check never dangles"
+run = "node src/install-outside-repository.ts"
