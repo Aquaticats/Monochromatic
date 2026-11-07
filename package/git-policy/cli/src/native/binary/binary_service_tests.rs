@@ -14,7 +14,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled};
-use super::support::{Fixture, fixture, git, repository};
+use super::support::{Fixture, ServiceLaunch, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE};
 use git_policy_cli::service_instance::instance_of;
@@ -311,10 +311,64 @@ fn the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero() {
     let stdout: String = String::from_utf8_lossy(settled.stdout.as_slice()).into_owned();
     let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
     assert_eq!(settled.code, Some(1), "{stdout}{stderr}");
-    assert!(stdout.contains("finished batch 1"), "the batch that could be examined is finished: {stdout}");
+    assert!(stdout.contains("finished batch 1"), "the batch that could be examined is finished: {stdout} (standard error: {stderr})");
     assert!(stdout.contains(format!("batch {}", intent.seq).as_str()) && stdout.contains("could not be examined"), "the other is named: {stdout}");
     assert!(unavailable.exists(), "its intent stays on disk");
     assert!(!open.exists() && finished.exists());
+    remove_settled(&fixture);
+}
+
+/// Whether a process of any user has `folder` on its command line, as the `--journal` word a service started for it carries.
+fn a_process_names(folder: &Path) -> bool {
+    let wanted: &[u8] = folder.as_os_str().as_encoded_bytes();
+    let Ok(listing) = std::fs::read_dir("/proc") else { return false };
+    return listing.flatten().any(|entry| {
+        let Ok(bytes) = std::fs::read(entry.path().join("cmdline")) else { return false };
+        return bytes.split(|byte| { return *byte == 0; }).any(|word| { return word == wanted; });
+    });
+}
+
+/// How long the start of the other control's service is held back, so that the settle command runs while that process already
+///  shows its `--journal` word and the service has not made the folder yet. It is the stand-in for the moments in which every
+///  service another control starts (and every service whose fixture was just removed) is in that state.
+const SERVICE_START_DELAY_SECONDS: &str = "3";
+
+/// Review finding of 2026-11-07 ("passes alone, fails in its suite"): the look that the settle command makes reads the command
+///  line of every process of the user, and a process whose `--journal` folder cannot be resolved counts as a service that may be
+///  running. The services other controls start show that word for as long as their start takes, so a settle command that runs
+///  beside them stopped with nothing on standard output. A settle command is held back by an earlier helper of its own worktree,
+///  never by what another fixture's service is doing, so the batch must be finished here although the other service is starting.
+#[test]
+fn the_settle_command_is_not_held_by_a_service_another_control_is_starting() {
+    let fixture: Fixture = fixture("service-settle-beside-a-start");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "beside");
+    let other: Fixture = super::support::fixture("service-settle-the-other-start");
+    let _other_repo: PathBuf = repository(&other, OsStr::new("repo"));
+    *other.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: ["/usr/bin/sh", "-c", format!("sleep {SERVICE_START_DELAY_SECONDS}; exec \"$@\"").as_str(), "sh"].map(std::ffi::OsString::from).to_vec(),
+        ..ServiceLaunch::default()
+    };
+    let other_journal: PathBuf = other.root.join("journal");
+    std::thread::scope(|scope| {
+        let starting = scope.spawn(|| { return super::support::service_runtime(&other); });
+        let begun: Instant = Instant::now();
+        while !a_process_names(other_journal.as_path()) {
+            assert!(begun.elapsed() < PATIENCE, "the other control's service never started");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!other_journal.exists(), "the other service has not made its folder yet, so its word cannot be resolved");
+        let settled = super::support::run_wrapped(&fixture, &repo, &["monochromatic-git-policy-cli", "service", "settle-earlier-batches"]);
+        let stdout: String = String::from_utf8_lossy(settled.stdout.as_slice()).into_owned();
+        let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
+        assert_eq!(settled.code, Some(0), "{stdout}{stderr}");
+        assert!(stdout.contains("finished batch 1"), "{stdout} (standard error: {stderr})");
+        assert!(!open.exists() && finished.exists());
+        starting.join().expect("the other service starts");
+    });
+    remove_settled(&other);
     remove_settled(&fixture);
 }
 
