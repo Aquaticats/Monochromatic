@@ -1639,6 +1639,48 @@ the gate's Windows clippy task keeps type-checking it.
   plus a count of pool threads after an abandoned job,
   bounded by `max_blocking_threads`.
 
+## The owner's answers at 2026-11-07
+
+Picked in the question tool,
+verbatim labels:
+
+1.  When the runtime is built:
+    "Lazily, on first need (Recommended)".
+2.  What "sized to budget" fixes:
+    "Build size + job limit (Recommended)".
+3.  Address-space protection:
+    "Cap pools + read limits (Recommended)".
+4.  The landing loop and thread-affine state:
+    "Rewrite per-thread state"
+    (option C: each `thread_local!` becomes a task-local or a context value).
+5.  Library API:
+    "Everything async, and safe-file-saving shouldn't be something we own at all."
+    So every I/O library is async,
+    and saving files safely is done with published crates,
+    not with a crate or module of ours.
+6.  The signal relay:
+    "Registry of children",
+    with the recipient rule
+    "Only that operation's children (Recommended)":
+    a signal reaches only the children of the operation it belongs to,
+    and a stop of the service is handled as an operation of its own.
+7.  How children are started and awaited:
+    "std start + pidfd (Recommended)".
+8.  When tokio starts relative to the layout moves:
+    "All tokio now".
+    The conversions run on today's layout,
+    before the layout moves.
+9.  A bound on the runtime build:
+    "Helper thread + deadline (Recommended)".
+10. What "Commits should never fail." means for the gate:
+    "Strong: what Git completes, we complete (Recommended)";
+    each fault case gets a native-Git control.
+11. Calls that can wait on storage when no thread can start:
+    "Fail plainly".
+    No inline fallback;
+    the command fails with a plain message in that state,
+    which the owner chose over option A.
+
 ## Open choices for the owner
 
 Rankings are the recommendation;
