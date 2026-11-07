@@ -42,6 +42,15 @@ use std::ffi::OsString;
 use std::path::Path;
 /// Diagnostics for a decision no failure reports.
 use crate::diagnostic_log::debug;
+/// The in-memory claim that makes the checked rename one step to the other threads of the process.
+use crate::name_held_while_one_thread_publishes_it::{HeldName, hold_name_while_publishing};
+use std::time::Duration;
+
+/// How long the checked rename waits for another thread of this process that is publishing the same name: the bound of "nothing
+///  should ever wait forever" for a step that takes a check and a rename. No measurement picked it; it is the budget the start
+///  retry gives a refused start (`push/start_retry.rs`, `START_RETRY_BUDGET`), open to the owner's veto, and it is only reached by a
+///  rename that stalls on a disk that has neither exclusive publish.
+const HELD_NAME_WAIT: Duration = Duration::from_secs(5);
 
 /// Mode of every private directory the wrapper creates:
 ///  owner only.
@@ -195,6 +204,9 @@ fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTempFile> {
 /// if (await exists(path)) throw alreadyExists(path); await rename(staged, path);
 /// ```
 fn publish_by_checked_rename(staged: &Path, path: &Path) -> std::io::Result<()> {
+    // The check and the rename are one step to every other thread of this process that publishes the name by this fallback; the
+    //  claim ends when this function returns, on every way out. `TimedOut` means nothing was published.
+    let _held: HeldName = hold_name_while_publishing(path, HELD_NAME_WAIT)?;
     if std::fs::symlink_metadata(path).is_ok() {
         return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
     }
