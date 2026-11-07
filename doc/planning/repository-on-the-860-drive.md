@@ -481,7 +481,9 @@ is in the section "Work items per tool".
   If it is loaded and `cpu-watch.ts` is missing,
   `Restart=always` with `RestartSec=2` and the default start limit
   (5 starts in 10 s,
-  read with `systemctl --user show`) ends in a failed unit that stays failed until `reset-failed`.
+  read with `systemctl --user show`) never trips the start limit:
+  the unit restarts every few seconds without end
+  (measured, see W8; an earlier version of this plan said it ends in a failed unit, which the measurement disproved).
   This is the item most sensitive to ordering.
 - Claude Code hooks (`bash-output-filter`,
   statusline) and the two MCP servers:
@@ -1426,13 +1428,21 @@ or waits.
     (`ls -l` printed `-> /home/user/Monochromatic/package/claude-cpu-cap/daemon/systemd/claude-cpu-watch.service`),
     so the user manager reads through the link while loading units;
     if the repository is away at manager start or at `daemon-reload` the unit is not loaded and nothing retries
-    [read from the earlier measurement of 2026-11-07T05:47:00-05:00;
-    a transient probe unit meant to re-measure the start limit was refused by the tool guard and was not retried].
+    [read from the earlier measurement of 2026-11-07T05:47:00-05:00].
     With the unit loaded and `cpu-watch.ts` missing,
     `Restart=always` with `RestartSec=2` and the default start limit
-    (5 starts in 10 s,
-    read in the earlier run with `systemctl --user show`)
-    ends in a failed unit that stays failed.
+    (5 starts in 10 s;
+    `systemctl --user show` at 2026-11-07T06:44:29-05:00 printed `StartLimitIntervalUSec=10s`, `StartLimitBurst=5`,
+    `Restart=always`, `RestartUSec=2s`, `NRestarts=0` for the live unit)
+    restarts without end and never reaches a failed state.
+    Measured after the owner approved the probe that the tool guard had refused:
+    a transient unit `dangling-probe-cpu-watch` with the same restart settings,
+    running Node on a script behind a link to a missing target,
+    showed `activating (auto-restart)` with `NRestarts=8` at 2026-11-07T06:45:28-05:00
+    and `NRestarts=12` after a further thirty-second watch,
+    and was stopped and cleared at 2026-11-07T06:45:43-05:00.
+    Starts two seconds apart never put more than five starts inside a ten-second window.
+    An earlier version of this item said the unit ends failed and stays failed; that reading was wrong.
     Change:
     the unit file in `~/.config/systemd/user` becomes a regular copy
     (the repository keeps the original;
@@ -2323,8 +2333,9 @@ so they keep working while the 860 is mounted and show "not a git repository" wh
   not the real mount's.
 - A transient systemd unit meant to re-measure the `claude-cpu-watch` start limit,
   and a follow-up `systemctl --user show`,
-  were refused by the tool guard and were not retried;
-  the start-limit values are from the earlier run.
+  were refused by the tool guard;
+  after the owner approved both exact commands, the coordinator ran them at 2026-11-07T06:44:29-05:00 to 06:45:43-05:00
+  (results in W8: the unit restarts without end rather than failing).
 - The commit service's behavior when its repository vanishes mid-request,
   `cargo`,
   `pnpm` and `search-shadow` mid-run failures,
