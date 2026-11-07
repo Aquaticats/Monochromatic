@@ -1243,9 +1243,21 @@ against the layout tests;
 `mutation:workflow-shell` for the workflow walk and the shell dialect scanners,
 against the workflow and shell tests;
 `mutation:semantic` for the semantic engine,
-the explicit-type rule,
-the manifest lookup and the router of a build without the `semantic` feature;
+the explicit-type rule and the manifest lookup;
+`mutation:syntax-only` for the router of a build without the `semantic` feature,
+built without the default features against its own test target
+(`src/syntax_only_engine_tests.rs`,
+which `mise run test:syntax-only` also runs);
 and `mutation:processors:files` for the processor modules.
+The router's source file is compiled only without the `semantic` feature,
+so a campaign built with the default features never compiles it,
+and every one of its mutants survives there:
+this is why it has a scope of its own.
+That scope lists one mutant that no test can kill,
+`replace RustFileEngine::workspace_count -> usize with 0`,
+because the function already returns `0`
+(`src/rust_file_engine_syntax.rs`),
+so a campaign of that scope always exits with the missed-mutant status.
 The executable and core scopes skip the five tests that load a Cargo workspace,
 which the semantic scope and the full container tests run.
 The semantic scope has its own per-mutant limit,
