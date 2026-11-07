@@ -7,6 +7,8 @@ import spawn from 'nano-spawn';
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
+  readFileSync,
   rmSync,
   utimesSync,
   writeFileSync,
@@ -39,6 +41,11 @@ const CLI_BOUND_SECONDS = 1;
  and short enough that a leftover shell child from a killed pipeline ends by itself soon after the test.
  */
 const STUCK_CHILD_SLEEP_SECONDS = 30;
+
+/**
+ Exclusive upper bound of the random fraction that makes a stuck pipeline's `sleep` argument unique to one test run.
+ */
+const RANDOM_SUFFIX_RANGE = 1_000_000;
 
 /**
  How long the harness lets one bounded-wait test run, in milliseconds; above the CLI bound plus the Node start of both
@@ -90,6 +97,37 @@ async function stderrOfFailure(command: string,): Promise<string> {
     return String((error as { readonly stderr?: string; }).stderr,);
   }
   throw new Error(`command succeeded but was expected to fail: ${command}`,);
+}
+
+/**
+ Process ids of live `sleep <seconds>` processes with exactly this argument, read from `/proc`.
+
+ Matches the argument vector, not a command line that merely mentions the text, so the CLI under test and the shell
+ that started it never count. An unreadable or vanished entry is a process that ended while being read and is skipped.
+
+ @param seconds - Exact text of the one argument the `sleep` was given
+
+ @returns Process ids still alive
+
+ @example
+ ```ts
+ const alive = sleepPidsWithArgument('31.123456'); // [] once the pipeline is gone
+ ```
+ */
+function sleepPidsWithArgument(seconds: string,): readonly number[] {
+  return readdirSync('/proc',)
+    .filter(function isProcessEntry(entry,): boolean {
+      return /^\d+$/u.test(entry,);
+    },)
+    .filter(function hasSleepArgument(entry,): boolean {
+      try {
+        return readFileSync(`/proc/${entry}/cmdline`, 'utf8',) === `sleep\0${seconds}\0`;
+      }
+      catch {
+        return false;
+      }
+    },)
+    .map(Number,);
 }
 
 //region Fixture Setup: temp directory with controllable source and output files
@@ -1171,6 +1209,47 @@ await describe({
             );
 
             expect(stderr,).toContain(`timed out after ${CLI_BOUND_SECONDS} seconds`,);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'leaves no pipeline member of a timed-out sh: source item running',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, outDir, } = fixtures;
+            // A fresh fraction makes the argument unique to this run, so no other process on the host can match it.
+            const pipelineSleep = `${STUCK_CHILD_SLEEP_SECONDS + 1}.${Math.floor(Math.random() * RANDOM_SUFFIX_RANGE,)}`;
+
+            await stderrOfFailure(
+              `node ${cliPath} --query-timeout-seconds ${CLI_BOUND_SECONDS} -s "sh:sleep ${pipelineSleep} | cat" -o "${outDir}/**" -- true`,
+            );
+            const leftover = sleepPidsWithArgument(pipelineSleep,);
+            for (const pid of leftover)
+              process.kill(pid, 'SIGKILL',);
+
+            expect(leftover,).toEqual([],);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'leaves no pipeline member of a timed-out command running',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, } = fixtures;
+            const pipelineSleep = `${STUCK_CHILD_SLEEP_SECONDS + 1}.${Math.floor(Math.random() * RANDOM_SUFFIX_RANGE,)}`;
+
+            await stderrOfFailure(
+              `node ${cliPath} --command-timeout-seconds ${CLI_BOUND_SECONDS} -s "sh:echo Infinity" -o "sh:echo -Infinity" -- sh -c "sleep ${pipelineSleep} | cat"`,
+            );
+            const leftover = sleepPidsWithArgument(pipelineSleep,);
+            for (const pid of leftover)
+              process.kill(pid, 'SIGKILL',);
+
+            expect(leftover,).toEqual([],);
 
             teardown(fixtures,);
           },
