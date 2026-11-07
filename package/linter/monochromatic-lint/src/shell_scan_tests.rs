@@ -10,7 +10,7 @@
 //! ```
 
 /// Import the dispatch and the tables.
-use super::scan;
+use super::{expression_end, scan};
 use crate::shell_dialect::{Construct, ShellDialect};
 
 /// The constructs found,
@@ -43,4 +43,27 @@ fn dialects_filter_their_own_constructs() {
     );
     assert_eq!(kinds("a & b", ShellDialect::Cmd), [Construct::Ampersand]);
     assert_eq!(kinds("a | b", ShellDialect::Fish), [Construct::Pipe]);
+}
+
+/// An expression ends after its closing braces,
+///  or at the end of the body when they never come,
+///  and no expression starts where its opening does not.
+#[test]
+fn shell_an_expression_ends_after_its_closing_braces_or_at_the_end_of_the_body() {
+    let closed: &[u8] = b"${{ a }} b";
+    let after_closing: usize = closed
+        .windows(2)
+        .position(|pair| return pair == b"}}")
+        .expect("closing braces")
+        + 2;
+    assert_eq!(expression_end(closed, 0), Some(after_closing));
+    let later: &[u8] = b"x ${{ a }}";
+    assert_eq!(expression_end(later, 2), Some(later.len()));
+    let empty: &[u8] = b"${{}}";
+    assert_eq!(expression_end(empty, 0), Some(empty.len()));
+    let open: &[u8] = b"${{ a";
+    assert_eq!(expression_end(open, 0), Some(open.len()));
+    let one_brace: &[u8] = b"${{ a }";
+    assert_eq!(expression_end(one_brace, 0), Some(one_brace.len()));
+    assert_eq!(expression_end(b"echo", 0), None);
 }
