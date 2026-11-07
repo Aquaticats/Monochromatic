@@ -18,7 +18,8 @@
 ///  the mapping and the failure finding of the check.
 use crate::{
     closure_cargo::{
-        DylintRun, cargo_program, dependencies_missing, dylint_probe, run_dylint, rustc_dev_missing,
+        DylintRun, ProbeFailure, cargo_program, dependencies_missing, dylint_probe, run_dylint,
+        rustc_dev_missing,
     },
     closure_driver::{
         DriverGaps, DriverSite, driver_gaps, driver_site_from_environment, gaps_hold_library,
@@ -306,9 +307,19 @@ pub fn run_closure_step_at(
         outcome.findings.extend(library_failures);
         return outcome;
     }
-    let probe: Result<String, String> = dylint_probe(cargo);
+    let probe: Result<String, ProbeFailure> = dylint_probe(cargo);
+    if let Err(ProbeFailure::Broken(reason)) = &probe {
+        outcome.findings.push(processing_failure(
+            grouping.packages[0].configuration.as_str(),
+            file_start(),
+            format!(
+                "{RULE} could not check any package, and fails instead of skipping because nothing was checked: {reason}"
+            ),
+        ));
+        return outcome;
+    }
     let machine_gap: Option<String> = match &probe {
-        Err(reason) => Some(reason.clone()),
+        Err(failure) => Some(failure.reason().to_string()),
         Ok(_) => rustc_dev_missing(cargo),
     };
     if let Some(reason) = machine_gap {
