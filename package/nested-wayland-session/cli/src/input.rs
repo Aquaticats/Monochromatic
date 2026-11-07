@@ -27,7 +27,7 @@
 use smithay::{
     backend::input::{ButtonState, KeyState},
     input::{
-        keyboard::{FilterResult, Keycode},
+        keyboard::{FilterResult, Keycode, KeysymHandle, ModifiersState},
         pointer::{ButtonEvent, MotionEvent},
     },
     utils::{Logical, Point, SERIAL_COUNTER},
@@ -199,10 +199,10 @@ pub fn send_key(state: &mut Compositor, evdev: u32, key_state: KeyState) {
     let keycode: Keycode = (evdev + 8).into();
 
     // What:     `keyboard.input::<(), _>(state, keycode, key_state,
-    //           SERIAL_COUNTER.next_serial(), time, |_, _, _| FilterResult::Forward);`. Feed
+    //           SERIAL_COUNTER.next_serial(), time, forward_every_key);`. Feed
     //           the event. The turbofish `::<(), _>` sets the filter's return payload type
-    //           to `()` and infers the closure type. The filter `|_, _, _|
-    //           FilterResult::Forward` always forwards the key to the focused client (no
+    //           to `()` and infers the callable type. The filter `forward_every_key`
+    //           always forwards the key to the focused client (no
     //           compositor shortcut handling).
     // Why:      Deliver the synthetic key to the hosted app.
     keyboard.input::<(), _>(
@@ -211,6 +211,23 @@ pub fn send_key(state: &mut Compositor, evdev: u32, key_state: KeyState) {
         key_state,
         SERIAL_COUNTER.next_serial(),
         time,
-        |_, _, _| return FilterResult::Forward,
+        forward_every_key,
     );
+}
+
+/// The keyboard filter that forwards every key to the focused client.
+///
+/// What:
+///      `fn forward_every_key(_state: &mut Compositor, _modifiers: &ModifiersState, _handle: KeysymHandle<'_>) -> FilterResult<()>`.
+///  Always `FilterResult::Forward`.
+/// Why:
+///       There is no compositor shortcut handling;
+///  a named function replaces the closure that ignored its three arguments.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const forwardEveryKey = (_state, _modifiers, _handle): FilterResult => "forward";
+/// ```
+fn forward_every_key(_state: &mut Compositor, _modifiers: &ModifiersState, _handle: KeysymHandle<'_>) -> FilterResult<()> {
+    return FilterResult::Forward
 }

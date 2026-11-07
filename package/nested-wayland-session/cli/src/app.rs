@@ -56,6 +56,7 @@ use anyhow::{Context, Result};
 /// import { initBackend } from "./backend"; import { spawnChild, ... } from "./child"; ...
 /// ```
 use crate::{
+    lazy_error_text::failed_error,
     appearance_portal::{AppearancePortal, PortalStart},
     backend::init_backend,
     backend_headless::init_headless_backend,
@@ -166,11 +167,8 @@ pub fn run(config: Config) -> Result<i32> {
     //           registration error into `anyhow`.
     // Why:      Route resize / redraw / close events into the compositor.
     if let Some(winit_source) = winit {
-        loop_handle
-            .insert_source(winit_source, |event, _, event_state: &mut Compositor| {
-                handle_winit_event(event, event_state);
-            })
-            .map_err(|err| anyhow::anyhow!("registering the winit source failed: {err}"))?;
+        let inserted = loop_handle.insert_source(winit_source, on_winit_event);
+        failed_error(inserted, "registering the winit source failed")?;
     }
 
     // What:     `if let Some(socket_path) = &config.control_socket { control::start(
@@ -245,9 +243,7 @@ pub fn run(config: Config) -> Result<i32> {
     // ```ts
     // const privateBusAddress = privateBus?.address();
     // ```
-    let private_bus_address = private_bus
-        .as_ref()
-        .map(|bus| return bus.address().to_owned());
+    let private_bus_address = private_bus.as_ref().map(address_of_bus);
 
     // Keep the portal, bus, and listener reachable from control commands for the whole session.
     state.a11y = match (config.accessibility, private_bus.as_ref()) {
@@ -304,9 +300,7 @@ pub fn run(config: Config) -> Result<i32> {
 
     // What: Run the event loop and flush protocol replies after each dispatch cycle.
     // Why: Registry, configure, clipboard, and input delivery must not wait for GPU redraws.
-    let outcome = event_loop.run(None, &mut state, |current| {
-        crate::protocol_flush::finish_dispatch(&mut current.display_handle);
-    });
+    let outcome = event_loop.run(None, &mut state, flush_after_dispatch);
 
     // What:     Return the failure an event-source callback stored, before the loop's own result.
     // Why:      A callback that failed stopped the loop on purpose, so its error is the cause.
@@ -326,6 +320,51 @@ pub fn run(config: Config) -> Result<i32> {
 ///  redraw,
 ///  or stop on close.
 ///
+/// What:
+///      `fn on_winit_event(event: WinitEvent, _metadata: &mut (), state: &mut Compositor)`.
+///  The event-loop callback of the winit source.
+///  The unit-typed `_metadata` is the source's per-event metadata slot,
+///  which the winit source leaves empty.
+/// Why:
+///       The loop takes a callable with this signature;
+///  naming the function replaces a closure that only forwarded to `handle_winit_event`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function onWinitEvent(event, _metadata, state) { handleWinitEvent(event, state); }
+/// ```
+fn on_winit_event(event: WinitEvent, _metadata: &mut (), state: &mut Compositor) {
+    handle_winit_event(event, state);
+}
+
+/// What:
+///      `fn address_of_bus(bus: &Arc<PrivateBus>) -> String`.
+///  The private bus's address as an owned `String`.
+/// Why:
+///       `Option::map` takes it by path instead of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const addressOfBus = (bus: PrivateBus): string => bus.address();
+/// ```
+fn address_of_bus(bus: &Arc<PrivateBus>) -> String {
+    return bus.address().to_owned()
+}
+
+/// What:
+///      `fn flush_after_dispatch(current: &mut Compositor)`.
+///  Flush protocol replies after one event-loop dispatch cycle.
+/// Why:
+///       `EventLoop::run` takes it by path instead of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function flushAfterDispatch(current: Compositor) { finishDispatch(current.displayHandle); }
+/// ```
+fn flush_after_dispatch(current: &mut Compositor) {
+    crate::protocol_flush::finish_dispatch(&mut current.display_handle);
+}
+
 /// What:
 ///      `fn handle_winit_event(event: WinitEvent, state: &mut Compositor)`.
 ///  Private

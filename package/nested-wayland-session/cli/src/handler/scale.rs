@@ -64,6 +64,13 @@ impl FractionalScaleHandler for Compositor {
         // ```ts
         // fractionalScaleOf(surface).setPreferredScale(factor);
         // ```
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "smithay's with_states and with_fractional_scale take FnOnce callables that must carry the scale factor; see doc/closure-lint-suppressions.md"
+            )
+        )]
         with_states(&surface, |states| {
             with_fractional_scale(states, |fractional| {
                 fractional.set_preferred_scale(factor);

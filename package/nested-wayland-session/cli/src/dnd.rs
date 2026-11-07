@@ -45,13 +45,11 @@ use std::{
 };
 
 /// What:
-///      `use anyhow::{anyhow, Context, Result};`.
-///  Error construction (`anyhow!`),
-///           context attachment (`.context`/`.with_context`),
-///  and the `Result` alias.
+///      `use anyhow::Result;`.
+///  The `Result` alias.
 /// Why:
 ///       `drop_file` reports human-readable failures to the control caller.
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 
 /// What:
 ///      Grouped `use` of the input state enum,
@@ -98,7 +96,11 @@ use tracing::info;
 /// import { PointerButton } from "./protocol";
 /// import { Compositor } from "./state";
 /// ```
-use crate::{protocol::PointerButton, state::Compositor};
+use crate::{
+    lazy_error_text::{failed_error, option_or_error, with_message},
+    protocol::PointerButton,
+    state::Compositor,
+};
 
 /// What:
 ///      `const URI_LIST: &str = "text/uri-list";`.
@@ -156,10 +158,8 @@ pub fn drop_file(state: &mut Compositor, paths: &[PathBuf], x: Option<f64>, y: O
     // Why:      A `file:` URI must be absolute, and every file must exist to be dropped.
     let mut absolute_paths = Vec::with_capacity(paths.len());
     for path in paths {
-        absolute_paths.push(
-            path.canonicalize()
-                .with_context(|| format!("resolving drop-file path {}", path.display()))?,
-        );
+        let canonical = path.canonicalize();
+        absolute_paths.push(with_message(canonical, format_args!("resolving drop-file path {}", path.display()))?);
     }
     let borrowed: Vec<&Path> = absolute_paths.iter().map(PathBuf::as_path).collect();
 
@@ -193,18 +193,16 @@ pub fn drop_file(state: &mut Compositor, paths: &[PathBuf], x: Option<f64>, y: O
     //           Hit-test which surface (and its origin) sits under the point; error if none.
     // Why:      The drag must target the app's surface; no surface means the app is not
     //           mapped yet.
-    let (surface, surface_loc) = state
-        .surface_under(location)
-        .ok_or_else(|| anyhow!("no surface under ({px}, {py}); is the app mapped?"))?;
+    let (surface, surface_loc) = option_or_error(
+        state.surface_under(location),
+        format_args!("no surface under ({px}, {py}); is the app mapped?"),
+    )?;
 
     // What:     `let pointer = state.seat.get_pointer().ok_or_else(...)?;`. Fetch the pointer
     //           handle (a cheap `Arc` clone, NOT a borrow of `state`, so `state` is still
     //           passable mutably below).
     // Why:      Motion / button events are sent through this handle.
-    let pointer = state
-        .seat
-        .get_pointer()
-        .ok_or_else(|| anyhow!("seat has no pointer"))?;
+    let pointer = option_or_error(state.seat.get_pointer(), format_args!("seat has no pointer"))?;
 
     // What:     `let button = PointerButton::Left.evdev_code();`. The `BTN_LEFT` evdev code.
     // Why:      The drag is a held-left-button gesture.
@@ -332,19 +330,15 @@ fn window_centre(state: &Compositor) -> Result<(f64, f64)> {
     // What:     `let window = state.space.elements().next().ok_or_else(...)?;`. The first (and
     //           only) mapped window; error if none.
     // Why:      There is nothing to target before the app maps its toplevel.
-    let window = state
-        .space
-        .elements()
-        .next()
-        .ok_or_else(|| anyhow!("no window mapped; the app has not created its toplevel yet"))?;
+    let window = option_or_error(
+        state.space.elements().next(),
+        format_args!("no window mapped; the app has not created its toplevel yet"),
+    )?;
 
     // What:     `let bbox = state.space.element_bbox(window).ok_or_else(...)?;`. The window's
     //           bounding box (`Rectangle<i32, Logical>`); error if it has none.
     // Why:      The centre is derived from the box's origin and size.
-    let bbox = state
-        .space
-        .element_bbox(window)
-        .ok_or_else(|| anyhow!("mapped window has no bounding box"))?;
+    let bbox = option_or_error(state.space.element_bbox(window), format_args!("mapped window has no bounding box"))?;
 
     // What:     `let cx = f64::from(bbox.loc.x) + f64::from(bbox.size.w) / 2.0;`. Horizontal
     //           centre. `f64::from(i32)` is a lossless widening conversion (`.loc.x` is the
@@ -380,18 +374,23 @@ fn schedule_release(state: &mut Compositor, button: u32) -> Result<()> {
     //           .map_err(...)?;`. Register the timer; its callback runs on the main thread
     //           with `&mut Compositor`. `move` captures `button` (a `Copy` `u32`) by value.
     // Why:      Perform the release where the seat lives, once the dwell elapses.
-    state
-        .loop_handle
-        .insert_source(timer, move |_, _, event_state: &mut Compositor| {
-            // What:     release_drag sends the deferred button release through the current seat.
-            // Why:      The callback receives event-loop state, not the registration borrow.
-            release_drag(event_state, button);
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "calloop's insert_source needs a callable that carries the button; see doc/closure-lint-suppressions.md"
+        )
+    )]
+    let inserted = state.loop_handle.insert_source(timer, move |_, _, event_state: &mut Compositor| {
+        // What:     release_drag sends the deferred button release through the current seat.
+        // Why:      The callback receives event-loop state, not the registration borrow.
+        release_drag(event_state, button);
 
-            // What:     `TimeoutAction::Drop`. Tell calloop not to re-arm the timer.
-            // Why:      The release is a one-shot.
-            return TimeoutAction::Drop
-        })
-        .map_err(|err| anyhow!("scheduling the drop-file release timer failed: {err}"))?;
+        // What:     `TimeoutAction::Drop`. Tell calloop not to re-arm the timer.
+        // Why:      The release is a one-shot.
+        return TimeoutAction::Drop
+    });
+    failed_error(inserted, "scheduling the drop-file release timer failed")?;
 
     // What:     `Ok(())`. The timer is armed.
     // Why:      Signal the release is scheduled.
