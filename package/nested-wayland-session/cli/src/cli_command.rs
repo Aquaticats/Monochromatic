@@ -128,6 +128,17 @@ pub(super) fn command() -> Command {
     weight = weight.help("Relative systemd CPU weight for the isolated app");
     command = command.arg(weight);
 
+    let mut memory = Arg::new("app-memory-max");
+    memory = memory.long("app-memory-max").value_name("VALUE");
+    memory = memory.help("App memory cap under --isolate, as a systemd MemoryMax value such as 4G");
+    command = command.arg(memory);
+
+    let mut tasks = Arg::new("app-tasks-max");
+    tasks = tasks.long("app-tasks-max").value_name("COUNT");
+    tasks = tasks.value_parser(RangedU64ValueParser::<u32>::new());
+    tasks = tasks.help("App limit on threads and processes under --isolate");
+    command = command.arg(tasks);
+
     let mut accessibility = Arg::new("accessibility");
     accessibility = accessibility.long("accessibility").action(ArgAction::SetTrue);
     accessibility = accessibility.help(

@@ -174,7 +174,7 @@ monochromatic-nested-wayland-session [--socket PATH] [--size WIDTHxHEIGHT]
     [--scale SCALE] [--color-scheme dark|light] [--accent-color RRGGBB]
     [--notifications none|freedesktop|kde] [--launcher-log] [--accessibility]
     [--repeat-rate PER_SECOND] [--repeat-delay MS] [--isolate]
-    [--app-cpu-quota PCT] [--app-cpu-weight N] [--headless [--gpu auto|software|NODE]] [--] COMMAND [ARG...]
+    [--app-cpu-quota PCT] [--app-cpu-weight N] [--app-memory-max SIZE] [--app-tasks-max N] [--headless [--gpu auto|software|NODE]] [--] COMMAND [ARG...]
 monochromatic-nested-wayland-session --list-gpus
 ```
 
@@ -245,6 +245,18 @@ monochromatic-nested-wayland-session --list-gpus
    Default:
    a low weight,
    so the app yields to the compositor under contention.
+- `--app-memory-max SIZE` overrides the app's systemd `MemoryMax` under `--isolate`
+   (for example `4G`, `512M` or `infinity`).
+   Default:
+   `4G`,
+   about thirty times the resident peak of the music player over a full end-to-end run.
+- `--app-tasks-max N` overrides the app's systemd `TasksMax` under `--isolate`.
+   Threads count as well as processes.
+   Default:
+   `512`,
+   about eight times the thread count of the music player in the same run.
+- Under `--isolate` the app scope also carries a fixed `IOWeight` of 10 (a tenth of systemd's default disk share),
+   which no option raises.
 - `--headless` renders with surfaceless EGL on the GPU render node instead of a nested window.
   No parent display is used or needed,
   and no window appears anywhere.
@@ -1919,9 +1931,10 @@ holds even when the hosted app is laggy or greedy.
   is reported.
 - A greedy app is contained with systemd.
    Under `--isolate` the app runs in a transient
-  systemd scope with a `CPUQuota` (hard cap) and a low `CPUWeight`,
+  systemd scope with a `CPUQuota` (hard cap), a low `CPUWeight`,
+   a `MemoryMax`, a `TasksMax` and an `IOWeight` of 10,
    reserving CPU for the
-  capture pipeline.
+  capture pipeline and keeping a runaway app from exhausting memory, tasks or disk time.
    When systemd is unavailable this degrades to a direct launch with a
   warning;
    isolation is a robustness enhancement,
