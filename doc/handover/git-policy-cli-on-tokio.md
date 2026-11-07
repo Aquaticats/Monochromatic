@@ -38,7 +38,6 @@
 - The replacement of `foundation/private_storage.rs` by the crates of the vet report, with the owner's answer on its item G1.
 - `zbus` 6 for the service client (step T8): main's `toolchain.lock.json` now names `nightly-2026-11-07`, so it compiles; the catalog
   floor is 5.19 and the release-age exclusion names `zbus@5.19.0`, both to be moved to 6.
-- A newer `jiff` than 0.2.24 waits for the owner's review of `defmt-parser@1.1.0` (see the plan).
 - The mutation campaign (`native:mutation:scoped`) over the new files and the planted controls.
 
 ## Rules that bit during this work

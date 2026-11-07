@@ -1763,10 +1763,19 @@ The order follows the owner's answers: the conversions run on today's layout (ch
   The text shape is unchanged (`YYYY-MM-DDTHH:MM:SS.mmmZ`).
   An instant past the end of year 9999 is clamped to the crate's last instant (`9999-12-30T22:00:00.999Z`), where the old code
   printed a meaningless date.
-  `jiff` stays at the already locked 0.2.24: the releases from 0.2.32 name `defmt` 1.x as an optional dependency, which locks
-  `defmt-parser` 1.1.0, and the trust policy refuses that release (published by account 414585 where 0.4.1 was published by
-  account 84779).
-  A newer `jiff` needs the owner to review `defmt-parser@1.1.0` and add it to `trustPolicyExclude`, or `jiff` to drop the optional dependency.
+  `jiff` was first kept at the already locked 0.2.24: the releases from 0.2.32 name `defmt` 1.x as an optional dependency, which
+  locks `defmt-parser` 1.1.0, and the trust policy refused that release (published by account 414585 where 0.4.1 was published
+  by account 84779).
+  The owner, 2026-11-07, verbatim: "I'm approving the publisher change for jiff."
+  `rust-catalog.toml` now lists `defmt-parser@1.1.0` in `trustPolicyExclude` (that one release, not the crate, with the sentence
+  beside it), `jiff` moved to 0.2.39 through `cargo update -p jiff` under the shadow (seven versions newly locked, all checked:
+  `bitflags` 1.3.2, `defmt-macros` 1.2.0, `defmt-parser` 1.1.0, `defmt` 1.2.0, `jiff-core` 0.1.2, `jiff-static` 0.2.39, `jiff` 0.2.39),
+  and the catalog floor is raised to 0.2.39.
+  The guard is `the_lock_no_longer_holds_jiff_at_the_release_kept_while_the_trust_policy_refused_the_newer_ones` in
+  `foundation/iso_time_tests.rs`.
+  With the exclusion in place the daily dependency update has no refusal to trip on at this path; before it, the shadow's update
+  rule would have kept nothing: it sets a refused release aside for an older one in the same caret class and, when that fails,
+  restores every lockfile of the run (`package/cargo-shadow/cli/README.md`, the `cargo update` line of the flag table).
 - Memory headroom (`8955195670` red, `0a59ee9272` green):
   `HostResources::read` takes the available memory and the control-group headroom from `sysinfo` 0.40.1 (feature `system` only);
   the readers of `/proc/meminfo`, `memory.max` and `memory.current` and their tests are gone.

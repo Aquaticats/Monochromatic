@@ -111,6 +111,12 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
+version = "1.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
+
+[[package]]
+name = "bitflags"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4512299f36f043ab09a583e57bceb5a5aab7a73db1805848e8fef3c9e8c78b3"
@@ -347,6 +353,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "defmt"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4a0795ac740cb54d7b3775c9c17345f6aaecf884c01733b39d6017738e0e3e1"
+dependencies = [
+ "bitflags 1.3.2",
+ "defmt-macros",
+]
+
+[[package]]
+name = "defmt-macros"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "840bb056bd99c495c9188198a258ab787c79f306d864db3e6e8451442d6d8366"
+dependencies = [
+ "defmt-parser",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
+name = "defmt-parser"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71958f69fb2de856c5dd51ac9377e986ca1aa5919f931bf5395a807277f889a0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -409,7 +446,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -646,7 +683,7 @@ version = "0.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54c3ef97ad08121e4327a6226bd63fed6b9e3c6b976d48bddd4356d9d41191db"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
  "bstr",
  "filetime",
  "fnv",
@@ -750,7 +787,7 @@ version = "0.57.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a14b7052c0786676c03e71fcfde7d7f0f8e8316e642b5cec6bb3998719b2ce5c"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
  "gix-commitgraph",
  "gix-date",
  "gix-hash",
@@ -1020,25 +1057,38 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jiff"
-version = "0.2.24"
+version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f00b5dbd620d61dfdcb6007c9c1f6054ebd75319f163d886a9055cec1155073d"
+checksum = "3ac703058abac89e5c39b0b879dce2b6b14a4ba36600c7e7e3d0c60a6883ef3c"
 dependencies = [
+ "defmt",
+ "jiff-core",
  "jiff-static",
  "jiff-tzdb-platform",
  "log",
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
- "windows-sys 0.61.2",
+ "windows-link",
+]
+
+[[package]]
+name = "jiff-core"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aee43309eb53bafb8c36d35d6e444769c8f8e6206a9fbf7546f5db9d7d4a0e93"
+dependencies = [
+ "defmt",
+ "log",
 ]
 
 [[package]]
 name = "jiff-static"
-version = "0.2.24"
+version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e000de030ff8022ea1da3f466fbb0f3a809f5e51ed31f6dd931c35181ad8e6d7"
+checksum = "6dc32470c67eb7d0e9ccb74303fa925313dc04cecb1aa048beaa6f391e36a93d"
 dependencies = [
+ "jiff-core",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -1289,7 +1339,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
 ]
 
 [[package]]
@@ -1373,7 +1423,7 @@ version = "0.121.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06ec0e9560cce8917197c7b13be7288707177f48a6f0ca116d0b53689e18bbc3"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
  "oxc_allocator",
  "oxc_ast_macros",
  "oxc_data_structures",
@@ -1463,7 +1513,7 @@ version = "0.121.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "487f41bdacb3ef9afd8c5b0cb5beceec3ac4ecd0c348804aa1907606d370c731"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
  "cow-utils",
  "memchr",
  "num-bigint",
@@ -1486,7 +1536,7 @@ version = "0.121.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d495c085efbde1d65636497f9d3e3e58151db614a97e313e2e7a837d81865419"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
  "oxc_allocator",
  "oxc_ast_macros",
  "oxc_diagnostics",
@@ -1528,7 +1578,7 @@ version = "0.121.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a10c19c89298c0b126d12c5f545786405efbad9012d956ebb3190b64b29905a"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
  "cow-utils",
  "dragonbox_ecma",
  "nonmax",
@@ -1790,7 +1840,7 @@ version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
 ]
 
 [[package]]
@@ -1861,11 +1911,11 @@ version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1960,7 +2010,7 @@ version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcd3c0c0af2c48cf770383ba4bb3f45fa37fe3162bee7febd955c562d5af27e1"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
  "memchr",
  "oxc_allocator",
  "oxc_ast",
@@ -2244,7 +2294,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2604,7 +2654,7 @@ version = "0.244.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47b807c72e1bac69382b3a6fb3dbe8ea4c0ed87ff5629b8685ae6b9a611028fe"
 dependencies = [
- "bitflags",
+ "bitflags 2.11.1",
  "hashbrown 0.15.5",
  "indexmap",
  "semver",
@@ -2641,7 +2691,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2912,7 +2962,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d66ea20e9553b30172b5e831994e35fbde2d165325bec84fc43dbf6f4eb9cb2"
 dependencies = [
  "anyhow",
- "bitflags",
+ "bitflags 2.11.1",
  "indexmap",
  "log",
  "serde",

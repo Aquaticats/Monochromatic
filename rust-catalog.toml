@@ -27,6 +27,10 @@ trustPolicyExclude = [
   "parley_engine@0.12.0",
   "smallvec@1.16.4",
   "wayland-server@0.31.14",
+  # Owner, 2026-11-07: "I'm approving the publisher change for jiff." defmt-parser 1.1.0 is published by account 414585 where 0.4.1 was
+  # published by account 84779; it enters the lock only as the optional `defmt` dependency of jiff 0.2.32 and later, and this entry
+  # exempts that one release, not the crate.
+  "defmt-parser@1.1.0",
 ]
 trustPolicyExcludePrune = true
 # 365 days in minutes (owner decision, 2026-10-29): a release more than a year old cannot be a fresh takeover,
@@ -75,7 +79,7 @@ i-slint-backend-winit = ">=1.18.1"
 icu_provider = ">=2.3.1"
 ignore = ">=0.4.34"
 image = ">=0.25.10"
-jiff = ">=0.2.24"
+jiff = ">=0.2.39"
 jni = ">=0.22.4"
 jsonschema = ">=0.60.2"
 libc = ">=0.2.191"
