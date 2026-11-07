@@ -3563,6 +3563,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
 
+### Claude Code restart (2026-11-07, about 10:00 -05:00; owner raising the subagent limit to 8)
+
+- Owner: "Do whatever you need to do, but don't abandon any work."
+- Five agents were told to commit their work in progress, write a resume note and stop their units: tokio T5 onward,
+  the crate-release label gate plus the `mpm-shadow` `0.2.7-alpha.1` release, Zig from the lock in two Containerfiles,
+  the `core-exec` depends follow-ups, and the fold's late-line fix.
+- Resume instructions, the six briefs and the common constraints are in
+  `~/temp/agent/coordinator-briefs/resume-after-restart.md` (scratch: survives a restart, not a reboot); the waiting
+  briefs are beside it in `waiting-for-a-slot.md`. Each branch and its commits are the durable record.
+
 ### After the release: agents at work (2026-11-07, resumed after a usage-limit stop)
 
 - Post-release steps are done (lock on the archive route `c048f3a566`, live commit through 0.6.0, 14 yanks, daily timer on,
