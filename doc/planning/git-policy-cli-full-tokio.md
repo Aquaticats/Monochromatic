@@ -1823,6 +1823,53 @@ The owner picked, verbatim: "Keep the fallback (Recommended)".
 So the replacement of `private_storage.rs` is built on `tempfile::persist_noclobber`, and the checked rename stays as the fallback
 for that one case only: the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard link.
 
+### Safe file saving: the publish replaced, 2026-11-07T07:55:00-05:00
+
+- The owner's answer on G1 is recorded above, verbatim: "Keep the fallback (Recommended)".
+- `1cff4935cd` records it; `bcaf8579e4` is the red test of the defect the previous agent found
+  (`binary/binary_fault_trace_tests.rs`, `a_filesystem_that_refuses_hard_links_does_not_stop_a_commit`: every `link` and `linkat`
+  of the service and of each Git it starts answers `EOPNOTSUPP`; real Git lands the same commit under the same fault as the native
+  control, the wrapper fails with "The commit service could not finish this commit, so it was not made.");
+  `3ec166d146` is the guard red for the module; `2a503fc9e1` is the replacement; `baf34e09d3` makes `decide` in
+  `service/service_busy.rs` publish its decision file through the same exclusive publish, which turns the first red green.
+- What changed in `foundation/private_storage.rs`: the staging file is `tempfile::Builder` (prefix `.<name>.`, suffix `.partial`),
+  written, synced when durable, chmod to 0600, then `persist_noclobber`; `publish_by_checked_rename` and
+  `settle_exclusive_publish` keep the owner's fallback for any refusal that is not `AlreadyExists`; the directory sync is
+  `rustix::fs::fsync` (feature `fs` added to the manifest, no new locked package).
+  Gone: the hand-built staging name, the link-then-rename order, `staging_removal_report`, the uuid use.
+  The controls: `a_filesystem_with_neither_no_replace_rename_nor_links_gets_the_checked_rename`,
+  `the_checked_rename_refuses_a_taken_name_and_leaves_no_staging_file` (planted control: the fallback replaced by an error failed
+  both), `a_taken_name_is_refused_with_the_operating_systems_error`, `a_published_record_is_private_and_a_failed_publish_leaves_nothing`.
+- Not done, by design: the public faces of the module stay synchronous (the 38 callers become asynchronous in T11), so the reads
+  (`O_NOFOLLOW`), the exclusive scratch create and the private folders still use the standard library; their move to `tokio::fs`
+  lands with the callers, as the vet report's ledger says. Other `hard_link` users outside this module
+  (`binary/binary_wrapper_store.rs`, `conflict/discard_audit*.rs`, `lock/single_owner_claim.rs`, `lock/stale_ref_lock_retire.rs`,
+  `landing/service_index_placement.rs`) were not part of the step and were not changed.
+- Two facts for the owner, not decided here:
+  1. On a filesystem with neither no-replace rename nor links, `decide` is a check then rename. Its racers are the landing thread and
+     a connection thread of one service, not two programs, so both can see themselves as the winner: a client could be told its
+     request was withdrawn while the commit lands. The owner's question described the race as two programs saving one file; it
+     did not say this case.
+  2. A commit through the service on such a filesystem still fails for another reason: with `link`, `linkat` and `renameat2` all
+     refused (injected under `strace`), the service answers "cannot take the index lock ...: the btrfs filesystem mounted at ... can
+     neither rename a file without replacing another nor make a hard link ... so the lock cannot be created with its marker in one
+     step, and the service takes no lock that a kill could leave empty", and the commit fails; real Git, under the same injection,
+     lands the commit. That refusal is a deliberate earlier design in `landing/service_index_placement.rs`. Whether it should give way
+     to "Commits should never fail" (and what a kill could then leave) needs the owner. The state directory is the subject of the
+     fix above; the repository's Git directory on such a filesystem is this second case.
+
+### Step T4, the rest: descriptor-limit sweeps
+
+- `b028cc43c0`, `0e51e63ae4`: `process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs` lowers `RLIMIT_NOFILE` of the test's
+  own process (nextest gives each test a process) in three sweeps: a limit that leaves no descriptor for `pidfd_open` changes the
+  wait to the timer and nothing else (with one free the pidfd is used, which proves the limit reached the call); a refused start
+  is `EMFILE` and leaves no child; a start that worked is awaited to its status; the captured run is whole or the plain `EMFILE`
+  error; in every case the descriptor count returns to its baseline and `waitpid(-1)` finds no child.
+  Planted control: `pidfd_open` made to `expect` failed the first sweep. The sweep of the captured run cannot reach a failing
+  `pidfd_open` (a start needs more descriptors than the pidfd, so a start that worked leaves room), so it does not fail under that
+  plant; it guards leaks and the error kind.
+- `OwnedChild::waits_on_a_pidfd` was added for these controls.
+
 ### What is left
 
 Steps T5 to T13 (the watchers, `bounded_push`, the signal relay on a pidfd with the registry of children, the service client and

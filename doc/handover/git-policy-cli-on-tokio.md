@@ -3,7 +3,7 @@
 ## Current state
 
 - Written:
-  2026-11-07T07:05:00-05:00.
+  2026-11-07T07:56:00-05:00.
 - Branch and worktree:
   `feat/git-policy-cli-on-tokio` in `.claude/worktrees/wrapper-on-tokio`.
   Not merged into main until the coordinator says the wrapper's release is out; keep it current by merging main into it.
@@ -32,10 +32,10 @@
 
 ## Open work, in order
 
-- T4 remainder: the descriptor-limit sweeps for the child helper; nothing else on Linux.
+- T4 is done on Linux (descriptor-limit sweeps landed).
 - T5 to T13 as listed in the plan, with the owner's answers applied (task-local state instead of a `LocalSet`, the registry of
   children for the relay, no inline fallback when no thread starts).
-- The replacement of `foundation/private_storage.rs` by the crates of the vet report; it waits for the owner's answer on item G1 (facts in the vet report, section "Facts for the owner's answer on G1"); today's checked rename stays until then.
+- `foundation/private_storage.rs`: the exclusive publish is `tempfile::persist_noclobber` with the owner's checked-rename fallback (G1 answered, "Keep the fallback (Recommended)"); the module's other faces move to `tokio::fs` with the callers in T11. Two facts for the owner are in the plan ("Safe file saving: the publish replaced"): the in-process race of `decide` on a filesystem with neither, and the service's index-lock refusal there.
 - `zbus` 6 for the service client (step T8): main's `toolchain.lock.json` now names `nightly-2026-11-07`, so it compiles; the catalog
   floor is 5.19 and the release-age exclusion names `zbus@5.19.0`, both to be moved to 6.
 - The mutation campaign (`native:mutation:scoped`) over the new files and the planted controls.
