@@ -563,3 +563,114 @@ impl From<opus::Error> for PlayerError {
         return PlayerError::Opus(e)
     }
 }
+
+/// What:
+///      `impl PlayerError { ... }` adds named constructors for the `Unsupported` failures that more than
+///  one place reports,
+///  and the one `map_err` replacement for a closed worker channel.
+///  Each takes no argument (or ignores its one),
+///  so a call site passes the function by path (`ok_or_else(PlayerError::no_audio_track)`)
+///  instead of writing a closure.
+/// Why:
+///       `ok_or_else` and `map_err` call the function only on failure,
+///  so the message `String` is still allocated lazily.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PlayerError = {
+///   noAudioTrack: () => ({ kind: "unsupported", message: "no audio track" }),
+/// };
+/// ```
+impl PlayerError {
+    /// What:
+    ///      `fn no_audio_track() -> PlayerError`.
+    ///  The error for a file whose container holds no audio track.
+    /// Why:
+    ///       A file with no audio track is unsupported;
+    ///  the open path reports it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const noAudioTrack = () => new PlayerError.Unsupported("no audio track");
+    /// ```
+    pub(crate) fn no_audio_track() -> PlayerError {
+        return PlayerError::Unsupported("no audio track".to_string())
+    }
+
+    /// What:
+    ///      `fn no_audio_codec_parameters() -> PlayerError`.
+    ///  The error for a track that carries no audio codec parameters.
+    /// Why:
+    ///       The codec id decides the decode path,
+    ///  so a track without parameters cannot be opened.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const noAudioCodecParameters = () => new PlayerError.Unsupported("track has no audio codec parameters");
+    /// ```
+    pub(crate) fn no_audio_codec_parameters() -> PlayerError {
+        return PlayerError::Unsupported("track has no audio codec parameters".to_string())
+    }
+
+    /// What:
+    ///      `fn opus_no_audio_codec_parameters() -> PlayerError`.
+    ///  The Opus path's error for a track that carries no audio codec parameters.
+    /// Why:
+    ///       The Opus source reads the channel layout from the audio parameters.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const opusNoAudioCodecParameters = () => new PlayerError.Unsupported("opus: no audio codec parameters");
+    /// ```
+    pub(crate) fn opus_no_audio_codec_parameters() -> PlayerError {
+        return PlayerError::Unsupported("opus: no audio codec parameters".to_string())
+    }
+
+    /// What:
+    ///      `fn seek_track_not_found() -> PlayerError`.
+    ///  The error for a seek that names a track id the container does not list.
+    /// Why:
+    ///       A stale track id is a real failure,
+    ///  not something to guess around.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const seekTrackNotFound = () => new PlayerError.Unsupported("seek: track not found");
+    /// ```
+    pub(crate) fn seek_track_not_found() -> PlayerError {
+        return PlayerError::Unsupported("seek: track not found".to_string())
+    }
+
+    /// What:
+    ///      `fn seek_unknown_sample_rate() -> PlayerError`.
+    ///  The error for a seek on a track whose sample rate is unknown.
+    /// Why:
+    ///       Seconds convert to frames with the rate;
+    ///  without it the target is undefined.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const seekUnknownSampleRate = () => new PlayerError.Unsupported("seek: unknown sample rate");
+    /// ```
+    pub(crate) fn seek_unknown_sample_rate() -> PlayerError {
+        return PlayerError::Unsupported("seek: unknown sample rate".to_string())
+    }
+
+    /// What:
+    ///      `fn engine_worker_gone<SendFailure>(_failure: SendFailure) -> PlayerError`.
+    ///  The error for a command sent after the engine worker thread has exited.
+    ///  The generic parameter (one type placeholder,
+    ///  like a TS generic) accepts whatever value the failed channel send carries,
+    ///  and the function ignores it.
+    /// Why:
+    ///       The engine reports a closed channel as `Unsupported`;
+    ///  the send error holds the unsent command and adds nothing to the message.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const engineWorkerGone = <E>(_failure: E) => new PlayerError.Unsupported("engine worker gone");
+    /// ```
+    pub(crate) fn engine_worker_gone<SendFailure>(_failure: SendFailure) -> PlayerError {
+        return PlayerError::Unsupported("engine worker gone".to_string())
+    }
+}

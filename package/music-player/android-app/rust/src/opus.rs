@@ -46,6 +46,20 @@ use symphonia::core::errors::Error;
 use symphonia::core::formats::{FormatReader, Track};
 
 /// What:
+///      `use symphonia::core::codecs::CodecParameters;` imports the enum a track's codec
+///  parameters come in.
+///  Its `audio` method selects the audio variant,
+///  and the code passes that method by path to `and_then`.
+/// Why:
+///       The Opus source reads the channel layout from the audio parameters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CodecParameters } from "symphonia/codecs";
+/// ```
+use symphonia::core::codecs::CodecParameters;
+
+/// What:
 ///      `use crate::decode::{seek_format, AudioSpec, Source};` imports the shared seek
 ///           helper,
 ///  our spec record,
@@ -335,13 +349,13 @@ impl OpusSource {
         track: Track,
         track_id: u32,
     ) -> Result<Self, PlayerError> {
-        // What:     `let audio_params = track.codec_params.as_ref().and_then(|cp| cp.audio()).ok_or_else(|| ...)?;`.
+        // What:     `let audio_params = track.codec_params.as_ref().and_then(CodecParameters::audio).ok_or_else(...)?;`.
         //           `track.codec_params` is an `Option<CodecParameters>` (maybe-present).
         //           `.as_ref()` turns `&Option<T>` into `Option<&T>` so we borrow the inside
-        //           rather than move it out. `.and_then(|cp| cp.audio())` runs the closure
-        //           `|cp| cp.audio()` only when present, flattening `Option<Option<_>>` to
-        //           one `Option`. `.ok_or_else(|| ...)` converts `None` into an `Err` built
-        //           by the closure. The trailing `?` unwraps `Ok` or returns the `Err` from
+        //           rather than move it out. `.and_then(CodecParameters::audio)` runs the method
+        //           `CodecParameters::audio` only when present, flattening `Option<Option<_>>` to
+        //           one `Option`. `.ok_or_else(...)` converts `None` into an `Err` built
+        //           by the named constructor. The trailing `?` unwraps `Ok` or returns the `Err` from
         //           `new`.
         // Why:      The channel layout lives on the audio params.
         //
@@ -353,22 +367,17 @@ impl OpusSource {
         let audio_params = track
             .codec_params
             .as_ref()
-            .and_then(|cp| return cp.audio())
-            .ok_or_else(|| {
-                // What:     `PlayerError::Unsupported("opus: no audio codec parameters".to_string())`.
-                //           Constructs the `Unsupported` variant of our error enum
-                //           (`::` reaches a variant inside the type). The literal is a
-                //           `&'static str` (borrowed, baked into the binary); `.to_string()`
-                //           ALLOCATES a fresh owned `String` copy of it.
-                // Why:      The `Unsupported` variant holds an owned `String`, so we must
-                //           convert the borrowed literal into one the error can keep.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // new PlayerError.Unsupported("opus: no audio codec parameters")
-                // ```
-                return PlayerError::Unsupported("opus: no audio codec parameters".to_string())
-            })?;
+            .and_then(CodecParameters::audio)
+            // What:     `.ok_or_else(PlayerError::opus_no_audio_codec_parameters)`. Passes the named
+            //           constructor of the `Unsupported` error by path; it runs only on `None`,
+            //           so the owned message `String` is allocated only on failure.
+            // Why:      A track without audio parameters cannot give a channel layout.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // new PlayerError.Unsupported("opus: no audio codec parameters")
+            // ```
+            .ok_or_else(PlayerError::opus_no_audio_codec_parameters)?;
 
         // What:     `let channels = match &audio_params.channels { ... };`. `match` is
         //           pattern-matching (an exhaustive switch on a value's shape). `&audio_params.channels`

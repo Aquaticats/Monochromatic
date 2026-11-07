@@ -92,7 +92,7 @@ use jni::EnvUnowned;
 /// Runs a body with the call's `Env`,
 /// catching a panic and logging it,
 /// as every entry point of this crate does.
-use crate::jni_call::run_with_env;
+use crate::jni_call::{ReadJavaString, run_with_env};
 
 /// What:
 ///      `use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};`.
@@ -446,11 +446,12 @@ impl TruePeakService {
         // startWorker(() => runtime.blockOn(run(dbPath, readRx, writeRx)));
         // ```
         thread::spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .inspect_err(|error| tracing::error!(error = %error, "could not build cache runtime"))
-                .expect("music-player: build cache runtime");
+            let built = tokio::runtime::Builder::new_current_thread().enable_all().build();
+            // Log a failed build before `expect` panics, as the former `inspect_err` did.
+            if let Err(error) = &built {
+                tracing::error!(error = %error, "could not build cache runtime");
+            }
+            let runtime = built.expect("music-player: build cache runtime");
             runtime.block_on(run(db_path, read_rx, write_rx));
         });
         // What:     Return the handle. Tail -> return.
@@ -916,8 +917,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
 ) -> jlong {
     // Install the logcat subscriber once (idempotent) before any native work logs.
     crate::logging::init();
-    // What:     `let Some(path) = run_with_env(&mut env, ..., |jni_env| ...) else { ... };` with the closure
-    //           body `return db_path.try_to_string(jni_env)`.
+    // What:     `let Some(path) = run_with_env(&mut env, ..., ReadJavaString { text: &db_path }) else { ... };`.
     //           Read the Java string; `run_with_env` logs and the `else` arm returns `0` on the
     //           (unreachable) read failure.
     // Why:      The actor needs an owned path string.
@@ -926,9 +926,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     // ```ts
     // let path; try { path = env.getString(dbPath); } catch { return 0; }
     // ```
-    let Some(path) = run_with_env(&mut env, "nativeTruePeakServiceCreate db path", |jni_env| {
-        return db_path.try_to_string(jni_env);
-    }) else {
+    let Some(path) = run_with_env(&mut env, "nativeTruePeakServiceCreate db path", ReadJavaString { text: &db_path }) else {
         tracing::warn!("could not read db path string; no service created");
         return 0;
     };
