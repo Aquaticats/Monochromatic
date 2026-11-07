@@ -34,16 +34,16 @@ use std::sync::{
 /// The private bus this portal is served on,
 ///  shared with the compositor,
 ///  and the accent color the portal can serve beside the color scheme.
-use crate::{accent_color::AccentColor, private_bus::PrivateBus};
+use crate::{accent_color::AccentColor, bus_step_bound::{block_on_bounded, build_bounded}, private_bus::PrivateBus};
 
 /// Imports shared error context and result channel.
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 /// What:
-///      Import the blocking D-Bus connection and two variant types.
-///  `OwnedValue` owns a
+///      Import the D-Bus connection and two variant types.
+///  `OwnedVariant` owns a
 ///           dynamically typed D-Bus value for method replies;
-///  `Value` is the same wrapper
+///  `Variant` is the same wrapper
 ///           for a value serialized immediately,
 ///  here the signal body.
 /// Why:
@@ -54,10 +54,7 @@ use anyhow::{Context, Result};
 /// ```ts
 /// type Variant = { signature: string; value: unknown };
 /// ```
-use zbus::{
-    blocking::Connection,
-    zvariant::{OwnedValue, Structure, Value},
-};
+use zbus::{Connection, OwnedVariant, Structure, Variant};
 
 /// Stores portal well-known bus name.
 const PORTAL_BUS_NAME: &str = "org.freedesktop.portal.Desktop";
@@ -176,19 +173,19 @@ const _: () = {
     impl PortalSettings {
         /// Serves Slint's `ReadOne` compatibility method.
         #[zbus(name = "ReadOne")]
-        fn read_one(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
+        fn read_one(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedVariant> {
             return self.read_setting(namespace, key);
         }
 
         /// Serves standard XDG portal `Read` method.
         #[zbus(name = "Read")]
-        fn read(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
+        fn read(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedVariant> {
             return self.read_setting(namespace, key);
         }
 
         /// Serves standard XDG portal `ReadAll` method for appearance consumers.
         #[zbus(name = "ReadAll")]
-        fn read_all(&self, namespaces: Vec<String>) -> HashMap<String, HashMap<String, OwnedValue>> {
+        fn read_all(&self, namespaces: Vec<String>) -> HashMap<String, HashMap<String, OwnedVariant>> {
             if !namespaces_match_appearance(&namespaces) {
                 return HashMap::new();
             }
@@ -212,17 +209,17 @@ impl PortalSettings {
     ///
     /// The accent color leaves as the `(ddd)` structure of doubles in `[0, 1]` the portal defines,
     ///  which Slint reads with `downcast_ref::<(f64, f64, f64)>()`.
-    fn read_setting(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
+    fn read_setting(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedVariant> {
         if namespace == APPEARANCE_NAMESPACE && key == COLOR_SCHEME_KEY {
             let served = self.served_value.load(Ordering::SeqCst);
             if served != NOT_SERVED {
-                return Ok(OwnedValue::from(served));
+                return Ok(OwnedVariant::from(served));
             }
         }
         if namespace == APPEARANCE_NAMESPACE && key == ACCENT_COLOR_KEY {
             let packed = self.served_accent.load(Ordering::SeqCst);
             if packed != NOT_SERVED {
-                return match OwnedValue::try_from(accent_variant(AccentColor::unpack(packed))) {
+                return match OwnedVariant::try_from(accent_variant(AccentColor::unpack(packed))) {
                     Ok(value) => Ok(value),
                     Err(error) => Err(zbus::fdo::Error::Failed(error.to_string())),
                 };
@@ -235,8 +232,8 @@ impl PortalSettings {
 }
 
 /// Builds the `(ddd)` value the portal serves and announces for an accent color.
-fn accent_variant(color: AccentColor) -> Value<'static> {
-    return Value::Structure(Structure::from(color.portal_value()));
+fn accent_variant(color: AccentColor) -> Variant<'static> {
+    return Variant::Structure(Structure::from(color.portal_value()));
 }
 
 /// Returns whether portal namespace filters request appearance values.
@@ -328,11 +325,11 @@ impl AppearancePortal {
             served_value: Arc::clone(&served_value),
             served_accent: Arc::clone(&served_accent),
         };
-        let connection = zbus::blocking::connection::Builder::address(start.bus.address())?
-            .name(PORTAL_BUS_NAME)?
-            .serve_at(PORTAL_OBJECT_PATH, settings)?
-            .build()
-            .context("starting private XDG Settings portal")?;
+        // zbus 6 defers a bad name or path to `build()`, so the setters return the builder itself.
+        let builder = zbus::connection::Builder::address(start.bus.address())
+            .name(PORTAL_BUS_NAME)
+            .serve_at(PORTAL_OBJECT_PATH, settings);
+        let connection = build_bounded(builder, "starting private XDG Settings portal")?;
         tracing::info!(
             color_scheme = ?start.color_scheme,
             accent_color = ?start.accent_color,
@@ -391,7 +388,7 @@ impl AppearancePortal {
         // What:     `emit_signal(destination, path, interface, member, body)`. `None::<&str>` is
         //           the absent destination, spelled with its type because nothing else names
         //           it; absence makes the signal a broadcast. `&(...)` lends a three-element
-        //           tuple as the body. `Value::from(value)` wraps the integer in a variant, so
+        //           tuple as the body. `Variant::from(value)` wraps the integer in a variant, so
         //           the wire signature is `ssv`, not `ssu`.
         // Why:      Slint deserializes exactly (string, string, variant) and silently skips
         //           any other body shape.
@@ -400,12 +397,15 @@ impl AppearancePortal {
         // ```ts
         // const emitted = tryEmit(connection, undefined, path, iface, "SettingChanged", body);
         // ```
-        let emitted = self.connection.emit_signal(
-            None::<&str>,
-            PORTAL_OBJECT_PATH,
-            SETTINGS_INTERFACE,
-            SETTING_CHANGED_SIGNAL,
-            &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY, Value::from(value)),
+        let emitted = block_on_bounded(
+            "emitting SettingChanged on the private appearance bus",
+            self.connection.emit_signal(
+                None::<&str>,
+                PORTAL_OBJECT_PATH,
+                SETTINGS_INTERFACE,
+                SETTING_CHANGED_SIGNAL,
+                &(APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY, Variant::from(value)),
+            ),
         );
         // What:     `if let Err(error) = emitted` runs the block only for the failure variant.
         // Why:      A switch nobody was told about is not a switch: restore the old value so a
@@ -417,7 +417,7 @@ impl AppearancePortal {
         // ```
         if let Err(error) = emitted {
             self.served_value.store(previous, Ordering::SeqCst);
-            return Err(error).context("emitting SettingChanged on the private appearance bus");
+            return Err(error);
         }
         tracing::info!(?preference, "switched isolated appearance and emitted SettingChanged");
         return Ok(SwitchOutcome::Changed);

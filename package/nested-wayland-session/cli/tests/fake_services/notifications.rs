@@ -9,8 +9,9 @@ use nested_wayland_session::{
     notification_service::{CAPABILITIES, NOTIFICATIONS_INTERFACE, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH},
     protocol::NotificationCommand,
 };
-use super::support::{err_message, field, ok_data, proxy, start, Fixture, Signals};
-use zbus::{blocking::Proxy, zvariant::Value};
+use super::support::{err_message, error_reply, field, ok_data, proxy, start, Fixture, Signals};
+use nested_wayland_session::bus_test_client::Proxy;
+use zbus::Variant;
 
 /// Opens the client's proxy to the fake service by its well-known name.
 fn notifications_proxy(fixture: &Fixture) -> anyhow::Result<Proxy<'static>> {
@@ -23,7 +24,7 @@ fn notify(
     replaces_id: u32,
     summary: &str,
     actions: &[&str],
-    hints: &HashMap<&str, Value<'_>>,
+    hints: &HashMap<&str, Variant<'_>>,
 ) -> anyhow::Result<u32> {
     return Ok(client.call(
         "Notify",
@@ -53,10 +54,10 @@ fn notify_and_replacement() -> anyhow::Result<()> {
     let fixture = start(NotificationMode::Freedesktop)?;
     let client = notifications_proxy(&fixture)?;
     let hints = HashMap::from([
-        ("urgency", Value::U8(2)),
-        ("value", Value::I32(50)),
-        ("transient", Value::Bool(true)),
-        ("category", Value::from("transfer")),
+        ("urgency", Variant::U8(2)),
+        ("value", Variant::I32(50)),
+        ("transient", Variant::Bool(true)),
+        ("category", Variant::from("transfer")),
     ]);
     let first = notify(&client, 0, "Analysis started", &["default", "Open"], &hints)?;
     assert_eq!(first, 1);
@@ -229,11 +230,12 @@ fn capabilities_and_server_information() -> anyhow::Result<()> {
 fn freedesktop_mode_has_no_job_server() -> anyhow::Result<()> {
     let fixture = start(NotificationMode::Freedesktop)?;
     let job_proxy = proxy(&fixture.client, "org.kde.kuiserver", "/JobViewServer", "org.kde.JobViewServerV2")?;
-    let attempt = job_proxy.call::<_, _, zbus::zvariant::OwnedObjectPath>("requestView", &("org.example", 3_i32, HashMap::<&str, Value<'_>>::new()));
-    let Err(zbus::Error::MethodError(name, ..)) = attempt else {
-        panic!("expected a method error, got {attempt:?}");
+    let attempt = job_proxy.call::<_, _, zbus::OwnedObjectPath>("requestView", &("org.example", 3_i32, HashMap::<&str, Variant<'_>>::new()));
+    let Err(error) = &attempt else {
+        panic!("expected a bus error, got {attempt:?}");
     };
-    assert_eq!(name.as_str(), "org.freedesktop.DBus.Error.ServiceUnknown");
+    let (name, _) = error_reply(error).unwrap_or_else(|| panic!("expected a bus error reply, got {error:?}"));
+    assert_eq!(name, "org.freedesktop.DBus.Error.ServiceUnknown");
     let refusal = err_message(nested_wayland_session::control_job::run(
         Some(&fixture.services),
         &nested_wayland_session::protocol::JobCommand::List,

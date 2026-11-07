@@ -58,7 +58,10 @@ pub fn raise_current_thread_for_decode() -> bool {
     // ```ts
     // const connection = await systemBus(); // on failure: log, return false
     // ```
-    let connection = match zbus::blocking::Connection::system() {
+    let connection = match crate::dbus_step_bound::connect(
+        zbus::connection::Builder::system(),
+        crate::dbus_step_bound::DBUS_STEP_BOUND,
+    ) {
         Ok(connection) => connection,
         Err(error) => {
             tracing::warn!(error = %error, "system bus unavailable; decode thread keeps normal priority");
@@ -77,13 +80,13 @@ pub fn raise_current_thread_for_decode() -> bool {
     // ```ts
     // await rtkit.MakeThreadHighPriorityWithPID(pid, tid, DECODE_NICE_LEVEL);
     // ```
-    let result = connection.call_method(
+    let result = crate::dbus_step_bound::step(connection.call_method(
         Some("org.freedesktop.RealtimeKit1"),
         "/org/freedesktop/RealtimeKit1",
         Some("org.freedesktop.RealtimeKit1"),
         "MakeThreadHighPriorityWithPID",
         &(process, thread, DECODE_NICE_LEVEL),
-    );
+    ));
     if let Err(error) = result {
         tracing::warn!(error = %error, "rtkit refused the decode thread priority; keeping normal priority");
         return false;

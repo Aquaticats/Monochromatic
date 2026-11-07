@@ -27,6 +27,14 @@ pub mod app;
 /// Exposes private XDG Settings portal used for deterministic nested appearance.
 pub mod appearance_portal;
 
+/// The time bound on every D-Bus step a synchronous thread takes through zbus's `block_on`.
+pub mod bus_step_bound;
+
+/// A blocking client for tests,
+///  replacing the `zbus::blocking` types zbus 6 removed;
+///  the compositor does not call it.
+pub mod bus_test_client;
+
 /// What:
 ///      `pub mod backend;`.
 ///  Declares the winit/EGL/dmabuf backend init module.

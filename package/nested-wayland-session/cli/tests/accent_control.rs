@@ -10,7 +10,8 @@ use nested_wayland_session::{
     protocol::Response,
     ColorSchemePreference,
 };
-use zbus::{blocking::Proxy, zvariant::OwnedValue};
+use nested_wayland_session::bus_test_client::{connect, Proxy};
+use zbus::OwnedVariant;
 
 /// Parses a color the way the verb does.
 fn color(text: &str) -> AccentColor {
@@ -43,7 +44,7 @@ fn accent_change_reaches_a_slint_style_client() -> anyhow::Result<()> {
         accent_color: Some(color("3584E4")),
         bus,
     })?;
-    let connection = zbus::blocking::connection::Builder::address(portal.bus_address())?.build()?;
+    let connection = connect(portal.bus_address())?;
     let settings = Proxy::new(
         &connection,
         "org.freedesktop.portal.Desktop",
@@ -52,16 +53,16 @@ fn accent_change_reaches_a_slint_style_client() -> anyhow::Result<()> {
     )?;
     // Slint subscribes before its initial read.
     let mut changes = settings.receive_signal("SettingChanged")?;
-    let initial: OwnedValue = settings.call("ReadOne", &("org.freedesktop.appearance", "accent-color"))?;
+    let initial: OwnedVariant = settings.call("ReadOne", &("org.freedesktop.appearance", "accent-color"))?;
     assert_eq!(initial.downcast_ref::<(f64, f64, f64)>()?, color("3584E4").portal_value());
 
     assert_eq!(switch(Some(&portal), color("3584E4")), Response::OkWith("unchanged".to_string()));
     assert_eq!(switch(Some(&portal), color("FF7800")), Response::OkWith("changed".to_string()));
     let message = changes.next().expect("the signal stream stays open");
-    let (namespace, key, value): (String, String, OwnedValue) = message.body().deserialize()?;
+    let (namespace, key, value): (String, String, OwnedVariant) = message.body().deserialize()?;
     assert_eq!((namespace.as_str(), key.as_str()), ("org.freedesktop.appearance", "accent-color"));
     assert_eq!(value.downcast_ref::<(f64, f64, f64)>()?, (1.0, 120.0 / 255.0, 0.0));
-    let reread: OwnedValue = settings.call("ReadOne", &("org.freedesktop.appearance", "accent-color"))?;
+    let reread: OwnedVariant = settings.call("ReadOne", &("org.freedesktop.appearance", "accent-color"))?;
     assert_eq!(reread.downcast_ref::<(f64, f64, f64)>()?, (1.0, 120.0 / 255.0, 0.0));
     return Ok(());
 }

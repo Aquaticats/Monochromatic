@@ -12,14 +12,13 @@
 ///  `time::Instant` from `std`.
 use std::{sync::Arc, time::Instant};
 
-/// Imports `Context`,
-///  `Result` from `anyhow`.
-use anyhow::{Context, Result};
+/// Imports `Result` from `anyhow`.
+use anyhow::Result;
 /// Imports `info` from `tracing`.
 use tracing::info;
 /// Imports `connection::Builder`,
-///  `Connection` from `zbus::blocking`.
-use zbus::blocking::{connection::Builder, Connection};
+///  `Connection` from `zbus`.
+use zbus::{connection::Builder, Connection};
 
 /// Imports the items this module uses from `crate`.
 use crate::{
@@ -28,6 +27,7 @@ use crate::{
         KUISERVER_NAME,
     },
     job_store::JobStore,
+    bus_step_bound::{block_on_bounded, build_bounded},
     job_view::JOB_VIEW_INTERFACE,
     notification_mode::NotificationMode,
     notification_service::{
@@ -71,18 +71,19 @@ impl PlasmaServices {
         }
         let notifications = Shared::new(NotificationStore::default(), start_time);
         let jobs = if mode.serves_jobs() { Some(Shared::new(JobStore::default(), start_time)) } else { None };
-        let mut builder = Builder::address(bus.address())?
-            .name(NOTIFICATIONS_NAME)?
-            .serve_at(NOTIFICATIONS_PATH, Notifications::new(notifications.clone()))?;
+        // zbus 6 defers a bad name or path to `build()`, so the setters return the builder itself.
+        let mut builder = Builder::address(bus.address())
+            .name(NOTIFICATIONS_NAME)
+            .serve_at(NOTIFICATIONS_PATH, Notifications::new(notifications.clone()));
         if let Some(store) = &jobs {
             builder = builder
-                .name(JOB_VIEW_SERVER_NAME)?
-                .name(KUISERVER_NAME)?
-                .serve_at(JOB_VIEW_SERVER_PATH, JobViewServerV1::new(store.clone()))?
-                .serve_at(JOB_VIEW_SERVER_PATH, JobViewServerV2::new(store.clone()))?
-                .serve_at(JOB_VIEW_SERVER_PATH, Kuiserver::new(store.clone()))?;
+                .name(JOB_VIEW_SERVER_NAME)
+                .name(KUISERVER_NAME)
+                .serve_at(JOB_VIEW_SERVER_PATH, JobViewServerV1::new(store.clone()))
+                .serve_at(JOB_VIEW_SERVER_PATH, JobViewServerV2::new(store.clone()))
+                .serve_at(JOB_VIEW_SERVER_PATH, Kuiserver::new(store.clone()));
         }
-        let connection = builder.build().context("starting the private notification services")?;
+        let connection = build_bounded(builder, "starting the private notification services")?;
         info!(?mode, "started the private notification services");
         return Ok(Some(Self { connection, mode, notifications, jobs, _bus: bus }));
     }
@@ -108,17 +109,25 @@ impl PlasmaServices {
 
     /// Emits `NotificationClosed(id, reason)` as a broadcast from the service path.
     pub fn emit_closed(&self, id: u32, reason: u32) -> Result<()> {
-        self.connection
-            .emit_signal(None::<&str>, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE, "NotificationClosed", &(id, reason))
-            .context("emitting NotificationClosed on the private bus")?;
+        block_on_bounded(
+            "emitting NotificationClosed on the private bus",
+            self.connection.emit_signal(
+                None::<&str>,
+                NOTIFICATIONS_PATH,
+                NOTIFICATIONS_INTERFACE,
+                "NotificationClosed",
+                &(id, reason),
+            ),
+        )?;
         return Ok(());
     }
 
     /// Emits `ActionInvoked(id, key)` as a broadcast from the service path.
     pub fn emit_action(&self, id: u32, key: &str) -> Result<()> {
-        self.connection
-            .emit_signal(None::<&str>, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE, "ActionInvoked", &(id, key))
-            .context("emitting ActionInvoked on the private bus")?;
+        block_on_bounded(
+            "emitting ActionInvoked on the private bus",
+            self.connection.emit_signal(None::<&str>, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE, "ActionInvoked", &(id, key)),
+        )?;
         return Ok(());
     }
 
@@ -129,9 +138,10 @@ impl PlasmaServices {
     ///  Plasma's Qt adaptor broadcasts these signals;
     ///  the app's match rule selects them by path.
     pub fn emit_job_signal(&self, path: &str, name: &str) -> Result<()> {
-        self.connection
-            .emit_signal(None::<&str>, path, JOB_VIEW_INTERFACE, name, &())
-            .context("emitting a job view signal on the private bus")?;
+        block_on_bounded(
+            "emitting a job view signal on the private bus",
+            self.connection.emit_signal(None::<&str>, path, JOB_VIEW_INTERFACE, name, &()),
+        )?;
         return Ok(());
     }
 }

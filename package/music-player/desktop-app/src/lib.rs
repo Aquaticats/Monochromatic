@@ -1104,6 +1104,12 @@ pub mod analysis_notification_wire;
 /// Why: the system notification replaces the in-app banner; off Linux the handle does nothing.
 pub mod analysis_notification;
 
+/// What: `pub mod dbus_step_bound;` the time bound on every D-Bus step a synchronous thread takes, Linux only.
+/// Why: zbus 6 has no blocking API, so each thread drives the async API with `zbus::block_on`, and no step may wait
+/// without a bound.
+#[cfg(target_os = "linux")]
+pub mod dbus_step_bound;
+
 /// What: `pub mod unplayable_notification_logic;` the wording and the told-before rule of the "cannot be played" report.
 /// Why: D122 sends that report to the desktop instead of drawing it in the window; what it says and when it repeats need
 /// no bus, so they are tested without one.
