@@ -5343,6 +5343,20 @@ they are in append mode now).
   and with a stand-in upload of 8 s;
   the fixture pushes before the commit returns,
   so the origin read is not a race.
+  Two probes of the wait notice proved nothing:
+  setting `CLI_GIT_WAIT_NOTICE_SECONDS` outside the test never reaches the wrapper
+  (`hermetic()` in `binary_support.rs` clears the environment),
+  and the variable is read as a whole number of seconds,
+  so a fraction falls back to the 10 s default.
+  Passing the variable through `commit_file`'s environment argument from the two threads hangs the test
+  (killed at 300 s by nextest,
+  and at 130 s by hand without the slow upload),
+  while the same variable set on the command alone passes in 4 s with no notice and no positive control;
+  the mechanism of the hang is not measured
+  (`give_service_environment` takes the environment lock and then the service lock;
+  the order of the service start was not read),
+  and the shipped test passes an empty environment,
+  so it never reaches that path.
   Open until a failure keeps its output.
 - Found 2026-11-07 by the same study:
   `zbus` 5.19.0 and 6.x do not compile on the pinned `nightly-2026-11-01`
