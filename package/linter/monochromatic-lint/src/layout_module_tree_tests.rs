@@ -8,6 +8,7 @@
 //! test('mod lines load plain and nested files', () => expect(files(tree)).toEqual([...]));
 //! ```
 
+use crate::test_deadline::finished_within_deadline;
 use crate::{
     layout_module_tree::ModuleTree,
     layout_test_support::{module_in, package_with, tree_of},
@@ -238,5 +239,22 @@ fn links_in_uses_folders_add_no_modules() {
     assert_eq!(
         files_of(&tree, &fixture.path),
         ["src/lib.rs", "src/middle/mod.rs", "src/top/mod.rs"]
+    );
+}
+
+/// A file that loads itself through `#[path]` ends the tree build with a problem instead of looping.
+#[test]
+fn layout_a_file_that_loads_itself_ends_the_tree_build() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a.rs", "#[path = \"a.rs\"]\nmod again;\n"),
+    ]);
+    let root: PathBuf = fixture.path.clone();
+    let tree: ModuleTree = finished_within_deadline(move || return tree_of(&root));
+    assert_eq!(tree.problems.len(), 1, "{:?}", tree.problems);
+    assert!(
+        tree.problems[0].message.contains("already contains"),
+        "{}",
+        tree.problems[0].message
     );
 }

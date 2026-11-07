@@ -320,3 +320,53 @@ fn layout_a_group_inside_a_group_is_reported() {
         "{found:#?}"
     );
 }
+
+/// Two child folders that use the same entry make one missing-summary finding,
+///  on the reference of the smaller proof,
+///  whichever child is read last.
+#[cfg(unix)]
+#[test]
+fn layout_the_missing_summary_is_reported_on_the_smallest_proof_of_two_children() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod g;\nmod h;\n"),
+        ("src/g/mod.rs", "//! The group g.\nmod a;\nmod b;\n"),
+        ("src/g/a/mod.rs", "pub struct X;\n"),
+        ("src/g/b/mod.rs", ""),
+        ("src/h/mod.rs", "mod c;\nmod d;\n"),
+        ("src/h/c/mod.rs", "use crate::g::a::X;\n"),
+        ("src/h/d/mod.rs", "use crate::g::a::X;\n"),
+    ]);
+    link(&fixture.path, "src/h/c/uses/a", "../../../g/a");
+    link(&fixture.path, "src/h/d/uses/a", "../../../g/a");
+    let missing: Vec<String> = findings_of(&fixture.path)
+        .into_iter()
+        .filter(|item| return item.contains("src/h/uses has no link to src/g"))
+        .collect::<Vec<String>>();
+    assert_eq!(missing.len(), 1, "{missing:#?}");
+    assert!(
+        missing[0].starts_with("src/h/c/mod.rs:1 "),
+        "{}",
+        missing[0]
+    );
+}
+
+/// A summary link to a folder inside its own group is a link that nothing needs,
+///  and is not described as a link into another group.
+#[cfg(unix)]
+#[test]
+fn layout_a_summary_link_to_a_folder_of_its_own_group_is_an_unneeded_link() {
+    let fixture = package_with(&two_groups());
+    link_child_to_a(&fixture.path);
+    link_group_h_to_g(&fixture.path);
+    link(&fixture.path, "src/h/uses/c", "../c");
+    let extra: Vec<String> = findings_of(&fixture.path)
+        .into_iter()
+        .filter(|item| return item.contains("src/h/uses/c links to"))
+        .collect::<Vec<String>>();
+    assert_eq!(extra.len(), 1, "{extra:#?}");
+    assert!(
+        extra[0].contains("src/h/uses/c links to src/h/c, but no folder inside src/h uses it."),
+        "{}",
+        extra[0]
+    );
+}

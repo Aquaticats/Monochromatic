@@ -405,6 +405,10 @@ mod workflow_walk;
 #[cfg(test)]
 mod test_fs;
 
+/// A deadline that turns a probe that never finishes into a failing test.
+#[cfg(test)]
+mod test_deadline;
+
 /// Compiles the stub `cargo` that the closure-check tests run instead of the real one.
 #[cfg(test)]
 mod closure_stub_support;

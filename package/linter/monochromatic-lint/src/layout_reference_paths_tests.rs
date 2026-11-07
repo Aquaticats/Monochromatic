@@ -10,6 +10,7 @@
 //! ```
 
 use crate::layout_test_support::{aliases_of, references_of};
+use crate::test_deadline::finished_within_deadline;
 
 /// A plain path is one reference with every segment.
 #[test]
@@ -181,4 +182,23 @@ fn a_leading_name_is_kept_and_a_continued_path_is_not_split() {
         ),
         ["child::Thing", "std::mem::swap", "crate::tr::Tr"]
     );
+}
+
+/// An entry that follows a nested group is still read,
+///  and an entry before it is not lost.
+#[test]
+fn layout_entries_after_a_nested_group_are_still_read() {
+    assert_eq!(
+        references_of("use crate::{a, b::{c, d}, e};"),
+        ["crate::a", "crate::b::c", "crate::b::d", "crate::e"]
+    );
+}
+
+/// A group that the source never closes ends with the source,
+///  and reading it must not stand still.
+#[test]
+fn layout_a_group_that_is_never_closed_ends_with_the_source() {
+    let found: Vec<String> =
+        finished_within_deadline(|| return references_of("use crate::{a, b::{c, d"));
+    assert_eq!(found, ["crate::a", "crate::b::c", "crate::b::d"]);
 }
