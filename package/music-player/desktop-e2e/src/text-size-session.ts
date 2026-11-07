@@ -17,7 +17,11 @@
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import {
+  type Action,
   chordKeys,
+  pauseFor,
+  repeatAction,
+  sequenceOf,
   tapKey,
 } from './actions.ts';
 import {
@@ -63,9 +67,138 @@ const MOVE_SETTLE_MS = 250;
 const DOWNS_TO_FIRST_STEPPER = 3;
 
 /**
+ How many Down presses lead from the Pane titles stepper to the Folder names stepper: past the Group headings stepper.
+ */
+const DOWNS_FROM_PANE_TITLES_TO_FOLDER_NAMES = 2;
+
+/**
+ How many Down presses lead from the Pane titles stepper to the Track titles stepper: past the Group headings and
+ Folder names steppers.
+ */
+const DOWNS_FROM_PANE_TITLES_TO_TRACK_TITLES = 3;
+
+/**
+ How long the player page is given to redraw with the new sizes after Escape, in milliseconds.
+ */
+const PLAYER_PAGE_REDRAW_MS = 1_000;
+
+/**
+ Pane title size of a fresh configuration, in pixels.
+ */
+const DEFAULT_PANE_TITLE_PX = 20;
+
+/**
+ Group heading size of a fresh configuration, in pixels.
+ */
+const DEFAULT_GROUP_HEADING_PX = 20;
+
+/**
+ Folder name size of a fresh configuration, in pixels.
+ */
+const DEFAULT_FOLDER_NAME_PX = 14;
+
+/**
+ Track title size of a fresh configuration, in pixels.
+ */
+const DEFAULT_TRACK_TITLE_PX = 14;
+
+/**
+ How much one press of Right makes a size larger, and one press of Left makes it smaller, in pixels.
+ */
+const STEP_PX = 1;
+
+/**
+ The smallest size a stepper reaches: Left stops there.
+ */
+const SMALLEST_PX = 10;
+
+/**
+ Pane title size after one press of Right from the default, in pixels.
+ */
+const PANE_TITLE_ONE_RIGHT_PX = DEFAULT_PANE_TITLE_PX + STEP_PX;
+
+/**
+ Pane title size after two presses of Right from the default, in pixels.
+ */
+const PANE_TITLE_TWO_RIGHTS_PX = PANE_TITLE_ONE_RIGHT_PX + STEP_PX;
+
+/**
+ Track title size after one press of Right from the default, in pixels.
+ */
+const TRACK_TITLE_ONE_RIGHT_PX = DEFAULT_TRACK_TITLE_PX + STEP_PX;
+
+/**
+ Track title size after two presses of Right from the default, in pixels.
+ */
+const TRACK_TITLE_TWO_RIGHTS_PX = TRACK_TITLE_ONE_RIGHT_PX + STEP_PX;
+
+/**
  The four sizes of a state, in the order of the Settings rows.
  */
-type Sizes = readonly [number, number, number, number,];
+type Sizes = readonly [
+  paneTitle: number,
+  groupHeading: number,
+  folderName: number,
+  trackTitle: number,
+];
+
+/**
+ Sizes that differ from the default; a size left out stays the default.
+ */
+type SizeChanges = {
+  readonly folderName?: number;
+  readonly groupHeading?: number;
+  readonly paneTitle?: number;
+  readonly trackTitle?: number;
+};
+
+/**
+ Builds the four sizes as the default ones with some replaced, so that every wanted size is the default moved by the
+ presses that are expected, never a typed number.
+
+ @param changes - the sizes that differ from the default
+
+ @returns the four sizes
+
+ @example
+ ```ts
+ defaultSizesWith({ paneTitle: PANE_TITLE_ONE_RIGHT_PX, },);
+ ```
+ */
+function defaultSizesWith(changes: SizeChanges,): Sizes {
+  return [
+    changes.paneTitle ?? DEFAULT_PANE_TITLE_PX,
+    changes.groupHeading ?? DEFAULT_GROUP_HEADING_PX,
+    changes.folderName ?? DEFAULT_FOLDER_NAME_PX,
+    changes.trackTitle ?? DEFAULT_TRACK_TITLE_PX,
+  ];
+}
+
+/**
+ The four sizes of a fresh configuration.
+ */
+const DEFAULT_SIZES = defaultSizesWith({},);
+
+/**
+ The two sizes the first launch sets last and the second launch finds again after the restart.
+ */
+const SAVED_SIZES = defaultSizesWith({
+  paneTitle: PANE_TITLE_ONE_RIGHT_PX,
+  trackTitle: TRACK_TITLE_TWO_RIGHTS_PX,
+},);
+
+/**
+ The Folder names sizes that Left passes through from the default down to the smallest size, in order.
+ */
+const FOLDER_NAME_SIZES_ON_THE_WAY_DOWN: readonly number[] = Array.from(
+  { length: (DEFAULT_FOLDER_NAME_PX - SMALLEST_PX) / STEP_PX, },
+  function folderNameAfterLeftPresses(
+    _unused: unknown,
+    index: number,
+  ): number {
+    return DEFAULT_FOLDER_NAME_PX - ((index + 1) * STEP_PX);
+  },
+);
 
 /**
  Reads the four sizes of a state.
@@ -97,7 +230,7 @@ function sizesOf(state: UiState,): Sizes {
 
  @example
  ```ts
- sizesAre([20, 20, 14, 14,],);
+ sizesAre(DEFAULT_SIZES,);
  ```
  */
 function sizesAre(wanted: Sizes,): (state: UiState,) => boolean {
@@ -235,22 +368,44 @@ async function quitApp(session: Session,): Promise<void> {
 }
 
 /**
- Taps a navigation key of the Settings list and gives the app a moment to move the keyboard position, which writes no
- state line.
-
- @param session - the running launch
+ Builds the action that taps a navigation key of the Settings list and gives the app a moment to move the keyboard
+ position, which writes no state line.
 
  @param key - key name
 
+ @returns the action
+
  @example
  ```ts
- await move(session, 'down',);
+ await tapAndSettle('down',)(session,);
  ```
  */
-async function move(session: Session, key: string,): Promise<void> {
-  await session.tap(key,);
-  await wait(MOVE_SETTLE_MS,);
+function tapAndSettle(key: string,): Action {
+  return sequenceOf([
+    tapKey(key,),
+    pauseFor(MOVE_SETTLE_MS,),
+  ],);
 }
+
+/**
+ Moves the keyboard to the first row of the Settings list.
+ */
+const MOVE_TO_FIRST_ROW = tapAndSettle('home',);
+
+/**
+ Moves the keyboard to the last row of the Settings list, the Reset text sizes row.
+ */
+const MOVE_TO_LAST_ROW = tapAndSettle('end',);
+
+/**
+ Moves the keyboard up by one row without changing a size.
+ */
+const MOVE_UP_ONE_ROW = tapAndSettle('up',);
+
+/**
+ Moves the keyboard down by one row without changing a size.
+ */
+const MOVE_DOWN_ONE_ROW = tapAndSettle('down',);
 
 /**
  Opens Settings and puts the keyboard on the first stepper row, Pane titles.
@@ -268,30 +423,21 @@ async function openSettingsOnFirstStepper(session: Session,): Promise<void> {
   await press({
     session,
     act: chordKeys({
-      mods: ['ctrl', 'alt',],
+      mods: [
+        'ctrl',
+        'alt',
+      ],
       key: 's',
     },),
     until: isSettingsPage,
     what: 'Settings',
   },);
   await wait(MOVE_SETTLE_MS,);
-  await move(session, 'home',);
-  for (let step = 0; step < DOWNS_TO_FIRST_STEPPER; step += 1)
-    await move(session, 'down',);
-}
-
-/**
- Moves the keyboard down by one row without changing a size.
-
- @param session - the running launch
-
- @example
- ```ts
- await nextRow(session,);
- ```
- */
-async function nextRow(session: Session,): Promise<void> {
-  await move(session, 'down',);
+  await MOVE_TO_FIRST_ROW(session,);
+  await repeatAction({
+    action: MOVE_DOWN_ONE_ROW,
+    times: DOWNS_TO_FIRST_STEPPER,
+  },)(session,);
 }
 
 /**
@@ -309,7 +455,7 @@ async function nextRow(session: Session,): Promise<void> {
 
  @example
  ```ts
- await stepTo({ session, key: 'right', wanted: [21, 20, 14, 14,], },);
+ await stepTo({ session, key: 'right', wanted: defaultSizesWith({ paneTitle: PANE_TITLE_ONE_RIGHT_PX, },), },);
  ```
  */
 async function stepTo(
@@ -329,6 +475,28 @@ async function stepTo(
     until: sizesAre(wanted,),
     what: `${key} arrow giving the sizes ${JSON.stringify(wanted,)}`,
   },);
+}
+
+/**
+ Builds the action that presses Left on the stepper row under the keyboard and waits for the sizes it must cause.
+
+ @param wanted - the four sizes after the press
+
+ @returns the action
+
+ @example
+ ```ts
+ await pressingLeftGives(defaultSizesWith({ folderName: SMALLEST_PX, },),)(session,);
+ ```
+ */
+function pressingLeftGives(wanted: Sizes,): Action {
+  return async function pressLeft(session: Session,): Promise<void> {
+    await stepTo({
+      session,
+      key: 'left',
+      wanted,
+    },);
+  };
 }
 
 /**
@@ -363,7 +531,7 @@ async function runFirstLaunch(context: RunContext,): Promise<void> {
        */
       const state = await session.last();
       expect({
-        condition: sizesAre([20, 20, 14, 14,],)(state,),
+        condition: sizesAre(DEFAULT_SIZES,)(state,),
         message: `the sizes in a fresh configuration are ${JSON.stringify(sizesOf(state,),)}`,
       },);
       await session.shot('text-size-defaults-player',);
@@ -376,20 +544,44 @@ async function runFirstLaunch(context: RunContext,): Promise<void> {
     title: 'Right and Left on a stepper row of Settings change that size by one pixel, and Left stops at 10 px',
     body: async function keysStep(): Promise<string> {
       await openSettingsOnFirstStepper(session,);
-      await stepTo({ session, key: 'right', wanted: [21, 20, 14, 14,], },);
-      await stepTo({ session, key: 'right', wanted: [22, 20, 14, 14,], },);
-      await nextRow(session,);
-      await nextRow(session,);
-      for (const folderName of [13, 12, 11, 10,])
-        await stepTo({ session, key: 'left', wanted: [22, 20, folderName, 14,], },);
+      await stepTo({
+        session,
+        key: 'right',
+        wanted: defaultSizesWith({ paneTitle: PANE_TITLE_ONE_RIGHT_PX, },),
+      },);
+      await stepTo({
+        session,
+        key: 'right',
+        wanted: defaultSizesWith({ paneTitle: PANE_TITLE_TWO_RIGHTS_PX, },),
+      },);
+      await repeatAction({
+        action: MOVE_DOWN_ONE_ROW,
+        times: DOWNS_FROM_PANE_TITLES_TO_FOLDER_NAMES,
+      },)(session,);
+      await sequenceOf(FOLDER_NAME_SIZES_ON_THE_WAY_DOWN.map(
+        function leftGivesFolderName(folderName: number,): Action {
+          return pressingLeftGives(defaultSizesWith({
+            paneTitle: PANE_TITLE_TWO_RIGHTS_PX,
+            folderName,
+          },),);
+        },
+      ),)(session,);
       await noEffect({
         session,
         act: tapKey('left',),
         watch: sizesOf,
         what: 'Left on Folder names at 10 px',
       },);
-      await nextRow(session,);
-      await stepTo({ session, key: 'right', wanted: [22, 20, 10, 15,], },);
+      await MOVE_DOWN_ONE_ROW(session,);
+      await stepTo({
+        session,
+        key: 'right',
+        wanted: defaultSizesWith({
+          paneTitle: PANE_TITLE_TWO_RIGHTS_PX,
+          folderName: SMALLEST_PX,
+          trackTitle: TRACK_TITLE_ONE_RIGHT_PX,
+        },),
+      },);
       await session.shot('text-size-settings-section',);
       return 'pane titles 22, folder names 10 (stopped there), track titles 15';
     },
@@ -399,12 +591,12 @@ async function runFirstLaunch(context: RunContext,): Promise<void> {
     id: 'text-size/reset-row-restores-the-defaults',
     title: 'End, Up and Enter on the Reset text sizes row put all four sizes back, and the row then does nothing',
     body: async function resetRow(): Promise<string> {
-      await move(session, 'end',);
-      await move(session, 'up',);
+      await MOVE_TO_LAST_ROW(session,);
+      await MOVE_UP_ONE_ROW(session,);
       await press({
         session,
         act: tapKey('enter',),
-        until: sizesAre([20, 20, 14, 14,],),
+        until: sizesAre(DEFAULT_SIZES,),
         what: 'Enter on the Reset text sizes row putting all four sizes back',
       },);
       await noEffect({
@@ -422,22 +614,38 @@ async function runFirstLaunch(context: RunContext,): Promise<void> {
     title: 'two sizes set again are the ones the player page logs after Escape',
     body: async function setAgain(): Promise<string> {
       await openSettingsOnFirstStepper(session,);
-      await stepTo({ session, key: 'right', wanted: [21, 20, 14, 14,], },);
-      await nextRow(session,);
-      await nextRow(session,);
-      await nextRow(session,);
-      await stepTo({ session, key: 'right', wanted: [21, 20, 14, 15,], },);
-      await stepTo({ session, key: 'right', wanted: [21, 20, 14, 16,], },);
+      await stepTo({
+        session,
+        key: 'right',
+        wanted: defaultSizesWith({ paneTitle: PANE_TITLE_ONE_RIGHT_PX, },),
+      },);
+      await repeatAction({
+        action: MOVE_DOWN_ONE_ROW,
+        times: DOWNS_FROM_PANE_TITLES_TO_TRACK_TITLES,
+      },)(session,);
+      await stepTo({
+        session,
+        key: 'right',
+        wanted: defaultSizesWith({
+          paneTitle: PANE_TITLE_ONE_RIGHT_PX,
+          trackTitle: TRACK_TITLE_ONE_RIGHT_PX,
+        },),
+      },);
+      await stepTo({
+        session,
+        key: 'right',
+        wanted: SAVED_SIZES,
+      },);
       await press({
         session,
         act: tapKey('escape',),
         until: isPlayerRoute,
         what: 'the player page after Escape',
       },);
-      await wait(1_000,);
+      await wait(PLAYER_PAGE_REDRAW_MS,);
       await session.shot('text-size-21-and-16-player',);
       expect({
-        condition: sizesAre([21, 20, 14, 16,],)(await session.last(),),
+        condition: sizesAre(SAVED_SIZES,)(await session.last(),),
         message: 'leaving Settings changed a size',
       },);
       return 'pane titles 21 and track titles 16 px on the player page';
@@ -477,8 +685,8 @@ async function runSecondLaunch(context: RunContext,): Promise<void> {
        */
       const state = await session.last();
       expect({
-        condition: sizesAre([21, 20, 14, 16,],)(state,),
-        message: `the sizes after the restart are ${JSON.stringify(sizesOf(state,),)}, not 21, 20, 14, 16`,
+        condition: sizesAre(SAVED_SIZES,)(state,),
+        message: `the sizes after the restart are ${JSON.stringify(sizesOf(state,),)}, not ${JSON.stringify(SAVED_SIZES,)}`,
       },);
       await session.shot('text-size-after-restart-player',);
       return `sizes ${JSON.stringify(sizesOf(state,),)} after the restart`;
