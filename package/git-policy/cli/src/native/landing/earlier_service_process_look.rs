@@ -223,8 +223,8 @@ fn earlier_socket_may_listen(look: &ServiceLook, proc_root: &Path) -> bool {
         format!("/{EARLIER_SOCKET_FOLDER}/{}{SOCKET_EXTENSION}", look.instance).into_bytes(),
         format!("/{EARLIER_SOCKET_FOLDER}/{EARLIER_SHARED_SOCKET_FILE}").into_bytes(),
     ];
-    for line in std::io::BufReader::new(table).split(b'\n') {
-        let Ok(line) = line else {
+    for read in std::io::BufReader::new(table).split(b'\n') {
+        let Ok(line) = read else {
             return true;
         };
         if is_listening_earlier_socket(line.as_slice(), &endings) {
@@ -234,20 +234,37 @@ fn earlier_socket_may_listen(look: &ServiceLook, proc_root: &Path) -> bool {
     return false;
 }
 
+/// The flags column of a line of `/proc/net/unix`, which the kernel prints in hexadecimal; `None` when it is not.
+#[cfg(unix)]
+fn socket_flags_of(column: &[u8]) -> Option<u32> {
+    let text: &str = std::str::from_utf8(column).ok()?;
+    return u32::from_str_radix(text, 16).ok();
+}
+
 /// Whether one line of `/proc/net/unix` is a socket that listens and whose path ends with one of `endings`.
 ///  A flags column that is not hexadecimal counts as listening.
 #[cfg(unix)]
 fn is_listening_earlier_socket(line: &[u8], endings: &[Vec<u8>]) -> bool {
-    let columns: Vec<&[u8]> = line.split(u8::is_ascii_whitespace).filter(|column| !column.is_empty()).collect();
+    let mut columns: Vec<&[u8]> = Vec::new();
+    for column in line.split(u8::is_ascii_whitespace) {
+        if !column.is_empty() {
+            columns.push(column);
+        }
+    }
     if columns.len() < SOCKET_TABLE_COLUMNS {
         return false;
     }
-    let listens: bool = std::str::from_utf8(columns[SOCKET_FLAGS_COLUMN])
-        .ok()
-        .and_then(|text| u32::from_str_radix(text, 16).ok())
-        .is_none_or(|flags| flags & SOCKET_LISTENS_FLAG != 0);
+    let listens: bool = match socket_flags_of(columns[SOCKET_FLAGS_COLUMN]) {
+        Some(flags) => flags & SOCKET_LISTENS_FLAG != 0,
+        None => true,
+    };
     let path: &[u8] = columns[columns.len() - 1];
-    return listens && endings.iter().any(|ending| path.ends_with(ending.as_slice()));
+    for ending in endings {
+        if path.ends_with(ending.as_slice()) {
+            return listens;
+        }
+    }
+    return false;
 }
 
 /// What a look at one process found.

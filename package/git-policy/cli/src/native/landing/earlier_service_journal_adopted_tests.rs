@@ -98,11 +98,12 @@ fn a_service_of_the_worktree_is_found_among_the_processes_and_nothing_else_is() 
     let proc_root: PathBuf = empty_proc(&world);
     let own: u32 = 4242;
     // Journals other than the worktree's earlier ones exist as folders: a journal that cannot be resolved counts as "may be running".
-    let other_journal: PathBuf = world.root.join("other-journal");
-    let other_instance_journal: PathBuf = world.root.join("shared-of-other/other");
-    std::fs::create_dir_all(other_journal.as_path()).expect("another journal");
-    std::fs::create_dir_all(other_instance_journal.as_path()).expect("another instance's journal");
-    let (other_journal, other_instance_journal) = (other_journal.to_string_lossy().into_owned(), other_instance_journal.to_string_lossy().into_owned());
+    let other_journal_folder: PathBuf = world.root.join("other-journal");
+    let other_instance_journal_folder: PathBuf = world.root.join("shared-of-other/other");
+    std::fs::create_dir_all(other_journal_folder.as_path()).expect("another journal");
+    std::fs::create_dir_all(other_instance_journal_folder.as_path()).expect("another instance's journal");
+    let other_journal: String = other_journal_folder.to_string_lossy().into_owned();
+    let other_instance_journal: String = other_instance_journal_folder.to_string_lossy().into_owned();
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "no process");
     fake_process(proc_root.as_path(), 10, &["/bin/sh", "-c", "service run --instance abc"]);
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "one word, not separate words");

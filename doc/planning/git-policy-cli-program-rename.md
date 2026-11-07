@@ -125,7 +125,8 @@ twice on a retry.
   journal above it, in place (nothing is moved or copied; a finished batch is marked done where it was), before it accepts a
   connection.
 - One owner: it does so only when no process of the same user has the start arguments of a service of that instance
-  (`/proc`), so a running helper finishes its own batches and two services never settle one batch.
+  (`/proc`) and no socket of the earlier units listens (see "Changes after the fourth review"), so a running helper finishes
+  its own batches and two services never settle one batch.
   A look that cannot be made counts as "may be running"; the adoption is tried again at the next start of the service
   (it exits when idle and the socket starts it again), so a false "may be running" defers it until then;
   nothing waits for it, nothing takes a lock.
@@ -184,6 +185,51 @@ Still uncovered:
   killed old helper within a fraction of a second, so the old helper settles its own batches before the new service reads anything.
   The adoption matters mainly when the earlier units are disabled or removed; the second pass's risks (all addressed above)
   weigh against that.
+
+#### Changes after the fourth review
+
+Recorded 2026-11-07T02:25:36-05:00, after the fourth cross-vendor run
+(`~/temp/agent/issue-6261/sol-review-retry-4/review.txt`) found three defects in the look.
+
+- What the earlier helper holds, read at tag `monochromatic-git-policy-cli-v0.5.34` (the release installed on this machine,
+  `monochromatic-git-policy-cli 0.5.34`): nothing this program could also take.
+  `service_main.rs` creates the journal folder, binds the socket the manager passed, recovers the shared journal, and serves;
+  it takes no `flock`, writes no pid file, and opens no singleton.
+  The `O_EXCL` file in `service_journal.rs` (`claim_batch`) is per batch number, and the `flock` in `service_land_copy.rs`
+  is on a private copy folder.
+  The only gate on its start is the manager's socket activation: the unit `cli-git@<instance>.service` `Requires` and runs
+  after `cli-git@<instance>.socket` (`ListenStream=%t/cli-git/%i.sock`), and the first connection starts the helper.
+  So the reviewer's first choice (an exclusion both sides honour) does not exist, and its second (defer) is taken.
+- The adoption defers while a socket of the earlier units listens: the worktree's `<runtime>/cli-git/<instance>.sock` and the
+  first releases' `<runtime>/cli-git/service.sock`.
+  The look reads `/proc/net/unix` and takes a line whose flags column has `__SO_ACCEPTCON` (`1 << 16`, Linux
+  `include/linux/net.h`; `net/unix/af_unix.c`, `unix_seq_show`) and whose path ends with one of those names.
+  It does not stat the socket file (a stopped socket unit leaves the file unless `RemoveOnStop=` is set, and the unit text does not set it) and
+  never connects (a connection starts the helper).
+  The sockets are read before the processes, so once none listens, no helper can be started by a connection and the
+  processes seen afterwards are all there can be.
+  A table that cannot be read counts as "may be running".
+  Measured on this machine at 2026-11-07: with the three earlier sockets listening, the look answers yes for one of
+  their instances and no for an instance that has none, over a `/proc` of 744 processes, in 9 ms (a test that called the look on the real `/proc`, removed afterwards).
+- Deferred batches stay on disk, discarded by nobody.
+  They are settled by the first of: the earlier helper (its start recovers the shared journal; it recovers its own journal
+  before each batch it lands), or this service at its first start after no earlier socket listens (the earlier units are
+  stopped or removed, or the machine restarted: they live under the runtime directory).
+  While an earlier unit stays active and no earlier client connects, an open batch of the earlier helper stays open and the
+  person's index shows the landed commit as reverted; this is the cost of not racing a helper the look cannot see coming.
+- A journal argument is compared by the folder it names (device and inode), not by spelling: on this machine `/home` is a link
+  to `/var/home`, so a helper started with `--journal /home/user/...` is the same service as the folder `/var/home/user/...`
+  the service derives.
+  A relative argument is resolved in the working directory of the inspected process (`/proc/<pid>/cwd`); an argument that
+  cannot be resolved counts as "may be running"; the same-spelling check stays as the first test.
+  All of it runs inside the bounded scan.
+- A command line is read to the limit plus one byte; one that is longer counts as "may be running", because the words past
+  the limit were not looked at (an `exec -a` program name of 70 KiB hides the service words).
+  A trailing NUL no longer makes an empty last word.
+- Still uncovered: a wrapper of the earlier release run in the same worktree writes the earlier units again and starts their
+  socket, which can start the earlier helper after the look and before the adoption ends; nothing the earlier release left
+  behind can stop that, and the recovery's checks of the branch and the index make the second settling a repeat of the same
+  step.
 
 ### Where the plan was wrong or incomplete
 
