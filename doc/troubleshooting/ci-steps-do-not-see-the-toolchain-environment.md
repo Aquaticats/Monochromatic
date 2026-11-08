@@ -173,6 +173,19 @@ because `wasm32-wasip1-threads` is a different standard library from `wasm32-was
 After a component add the target listing is read once more,
 since `rustup component add rust-std-<triple>` also supplies a target.
 
+One declared shape stays wrong:
+a bare `rust-std`,
+which rustup has no such component for (`rustup component add rust-std` fails),
+counts as installed when any of the toolchain's targets has its standard library listed.
+Telling the host standard library from a cross-target one costs another `rustup` process on every
+sync,
+for a declaration rustup refuses anyway,
+so name the triple (`rust-std-x86_64-unknown-linux-gnu`) if one is ever needed.
+A part added earlier in the same run is not added again,
+so two declarations that name one component,
+or one triple twice,
+add it once.
+
 On a machine that already holds every declared part the whole cost is the two listings.
 Measured on 2026-11-08 on this machine,
 a no-change `mpm-shadow install` of a one-tool lock

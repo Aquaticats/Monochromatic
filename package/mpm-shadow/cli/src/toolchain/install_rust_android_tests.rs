@@ -162,6 +162,29 @@ fn a_component_add_rereads_the_target_listing_before_adding_a_target() {
 }
 
 #[test]
+fn two_declarations_that_name_one_part_add_it_once() {
+    let rig = Rig::new();
+    let mut tool: LockedTool = rust_tool(&rig);
+    // The first declaration names the component with its triple, the second names the same part bare,
+    // and the third repeats a target.
+    tool.declaration.options.rust_components = Some(vec![
+        "rust-std-x86_64-unknown-linux-gnu".to_string(),
+        "rust-std".to_string(),
+    ]);
+    tool.declaration.options.rust_targets = Some(vec!["aarch64-linux-android".to_string(), "aarch64-linux-android".to_string()]);
+    let added: Vec<String> = reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "rust-src\n").expect("listed");
+    assert_eq!(added.len(), 2, "one component and one target: {added:?}");
+    let adds: Vec<String> = rig.runner.lines().into_iter().filter(|line| return line.contains(" add ")).collect();
+    assert_eq!(
+        adds,
+        vec![
+            "rustup component add rust-std-x86_64-unknown-linux-gnu --toolchain nightly-2026-10-30".to_string(),
+            "rustup target add aarch64-linux-android --toolchain nightly-2026-10-30".to_string(),
+        ]
+    );
+}
+
+#[test]
 fn the_added_sentence_names_the_part_and_the_listing_that_missed_it() {
     let rig = Rig::new();
     let added: Vec<String> = reconcile_with(&rig, &rust_tool(&rig), "aarch64-linux-android\n", "rust-src\n").expect("one component added");

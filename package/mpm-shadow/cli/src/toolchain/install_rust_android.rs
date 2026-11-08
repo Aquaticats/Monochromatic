@@ -278,13 +278,16 @@ pub fn reconcile_rust_parts(ctx: &Context, tool: &LockedTool, added: &mut Vec<St
     let mut installed_targets: Vec<String> = installed_names(ctx, tool, "target")?;
     // The components come second only because the check for them needs the toolchain's targets.
     if !components.is_empty() {
-        let installed_components: Vec<String> = installed_names(ctx, tool, "component")?;
+        let mut installed_components: Vec<String> = installed_names(ctx, tool, "component")?;
         let mut added_component: bool = false;
         for name in components {
             if lists_component(&installed_components, &name, &installed_targets) {
                 continue;
             }
             add_part(ctx, tool, "component", &name, added)?;
+            // A successful add leaves that component installed, so a later declaration naming the same
+            // component (the same text, or the same part under another spelling) is not added again.
+            installed_components.push(name.clone());
             added_component = true;
         }
         // A component add can bring a target's standard library with it (`rust-std-<triple>`), so the target
@@ -298,6 +301,9 @@ pub fn reconcile_rust_parts(ctx: &Context, tool: &LockedTool, added: &mut Vec<St
             continue;
         }
         add_part(ctx, tool, "target", &name, added)?;
+        // Same reason as the components above: the triple is installed now, and a duplicate declaration of it
+        // must not add it twice.
+        installed_targets.push(name.clone());
     }
     return Ok(());
 }
