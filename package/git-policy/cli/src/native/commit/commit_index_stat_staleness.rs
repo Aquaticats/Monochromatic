@@ -3,7 +3,8 @@
 //! answered in process.
 //! Why:
 //!  The scratch `git commit` reads and hashes every file whose index entry records stat data the worktree no longer
-//!  has, and that read is what the scratch step's ceiling ends
+//!  has,
+//!  and that read is what the scratch step's ceiling ends
 //!  (`commit_index_stat_refresh.rs`).
 //!  A refresh of the real index pays those reads where the ceiling does not apply and keeps them,
 //!  but every `git update-index --refresh` takes Git's `index.lock` on the real index,
@@ -14,7 +15,8 @@
 //!  An index Git calls racily clean is not asked for:
 //!  its entries record the stat data their files have,
 //!  and three refreshes of an index written in the same second as its entry left the index's bytes identical (the same
-//!  SHA-1), so such a refresh writes nothing the private copies could carry,
+//!  SHA-1),
+//!  so such a refresh writes nothing the private copies could carry,
 //!  and the scratch commit reads those entries just as native `git commit` does.
 //!  The entries of paths the commit stages from the worktree are skipped as well,
 //!  because `git add` writes their stat data into the private index afresh.
@@ -114,8 +116,10 @@ const MODE_EXECUTABLE_FILE: u32 = 0o100_755;
 
 /// The stat data one worktree file has,
 /// each field cut to the 32 bits an index entry stores.
-/// Why not the full 64-bit fields: Git compares the index's cut fields with the file's own, so a comparison here has to
-/// cut them the same way or every entry would look changed.
+/// Why not the full 64-bit fields:
+/// Git compares the index's cut fields with the file's own,
+/// so a comparison here has to cut them the same way,
+/// or every entry would look changed.
 #[cfg(unix)]
 struct WorktreeFile {
     /// The device.
@@ -147,8 +151,10 @@ struct WorktreeFile {
 /// What:
 ///  Whether one entry is one Git's own refresh never re-reads.
 /// Why:
-///  An unmerged entry, one marked assume-unchanged or skip-worktree, and a gitlink have no file this reading could
-///  compare, and Git's `refresh_index` skips exactly those.
+///  An unmerged entry,
+///  one marked assume-unchanged or skip-worktree,
+///  and a gitlink have no file this reading could compare,
+///  and Git's `refresh_index` skips exactly those.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -171,7 +177,8 @@ fn is_left_to_git(entry: &FullEntry) -> bool {
 /// What:
 ///  Whether one byte of a pathspec is one of the characters that make a pathspec name more than the one path it spells.
 /// Why:
-///  A pathspec with magic, an escape or a wildcard names paths this reading cannot work out,
+///  A pathspec with magic,
+///  an escape or a wildcard names paths this reading cannot work out,
 ///  and exempting the wrong entry would leave the scratch commit to read a file it need not.
 ///
 /// In TS you'd write (pseudocode):
@@ -187,7 +194,8 @@ fn is_not_a_magic_byte(byte: &u8) -> bool {
 ///  Whether a pathspec names exactly the one path it spells.
 /// Why:
 ///  Only such a pathspec can be matched against an index path without guessing what a directory or a glob names,
-/// and a pathspec this refuses costs one Git start, never a wrong answer.
+/// and a pathspec this refuses costs one Git start,
+/// never a wrong answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -241,7 +249,12 @@ fn restaged_paths(staging: &WorktreeStaging<'_>, prefix: &[u8]) -> Vec<Vec<u8>> 
 /// ```
 #[cfg(unix)]
 fn is_restaged(restaged: &[Vec<u8>], path: &[u8]) -> bool {
-    return restaged.iter().any(|named: &Vec<u8>| { return named.as_slice() == path; });
+    for named in restaged.iter() {
+        if named.as_slice() == path {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -251,7 +264,8 @@ fn is_restaged(restaged: &[Vec<u8>], path: &[u8]) -> bool {
 ///  Git records a regular file as 100644 or 100755 and a link as 120000,
 /// whatever the rest of the permission bits say,
 /// so comparing the raw mode would report every file as changed.
-/// A directory, socket or device in a tracked path is a change only Git can judge.
+/// A directory,
+/// socket or device in a tracked path is a change only Git can judge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

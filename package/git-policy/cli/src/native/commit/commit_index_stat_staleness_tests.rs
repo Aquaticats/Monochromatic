@@ -64,7 +64,9 @@ fn a_file_whose_inode_changed_needs_the_refresh() {
 /// A change the commit stages from the worktree is written into the private index afresh,
 /// so its stale record cannot cost the scratch commit a read,
 /// and a change it does not stage can:
-/// one index, two selections, two answers.
+/// one index,
+/// two selections,
+/// two answers.
 #[test]
 fn only_a_change_the_commit_does_not_stage_needs_the_refresh() {
     let root: PathBuf = fixture("index-staleness-named");
