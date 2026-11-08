@@ -45,6 +45,25 @@ use crate::lean_sizes::add_tree_bytes;
 /// The name prefixes of run records.
 pub const RECORD_PREFIXES: [&str; 5] = ["campaign-", "native-", "git-image-", "mutation-", "planted-"];
 
+/// What:
+/// `pub fn is_record_name(name: &str) -> bool` says whether an entry of a verification directory is a run record.
+/// Why:
+/// One predicate decides what the retention may remove,
+/// so a test can ask it about a name without building a directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const isRecordName = (name: string): boolean => RECORD_PREFIXES.some((prefix) => name.startsWith(prefix));
+/// ```
+pub fn is_record_name(name: &str) -> bool {
+    for prefix in RECORD_PREFIXES {
+        if name.starts_with(prefix) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// The retention of one verification directory.
 #[derive(Clone, Copy, Debug)]
 pub struct RetentionPolicy {
@@ -138,13 +157,7 @@ fn records_of(directory: &Path, deadline: &Deadline) -> Vec<Record> {
     let Ok(entries) = fs::read_dir(directory) else { return records };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().to_string();
-        let mut is_record: bool = false;
-        for prefix in RECORD_PREFIXES {
-            if name.starts_with(prefix) {
-                is_record = true;
-            }
-        }
-        if !is_record {
+        if !is_record_name(&name) {
             continue;
         }
         let path: PathBuf = entry.path();
