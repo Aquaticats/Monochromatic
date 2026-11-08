@@ -62,7 +62,7 @@ The result is a non-empty foreign set for a callable nothing marked.
 
 `scopeNamesOwnershipMarker` skips the closure entirely for a scope whose text names no marker,
 and its doc comment calls that "an equivalence rather than a trade".
-For the case above it is not an equivalence.
+For the case in the `What the reading turned up instead` section it is not an equivalence.
 A recursive callable in a marker-free scope is skipped and reported with no foreign parameters,
 while the same callable in a scope that names a marker anywhere gets a closure that reports its
 parameters foreign.

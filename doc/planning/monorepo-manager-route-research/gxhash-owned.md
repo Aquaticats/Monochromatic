@@ -820,7 +820,7 @@ Upstream activity:
 
 Each option is designed until a disqualifying problem appears or none is found.
 The output-version question is separate and is in "Output compatibility";
-every option below can target gxhash 3 output.
+every option in the `Options` section can target gxhash 3 output.
 
 ### Option A: dirty-room reimplementation in the repository
 

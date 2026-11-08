@@ -643,7 +643,7 @@ which made `UnansweredContestSliceError` reachable on the production pass path.
 It was computed AFTER `writeFileAtomic`,
 so a document whose lanes differ at a slice the contest names nowhere
 would have its complete artifact written
-and then be reported `status=ERROR` by the entry catch below.
+and then be reported `status=ERROR` by the entry catch in `pass-entry.ts`.
 Every later reader would find a settled file the pass reported as failed.
 
 Asking first makes the refusal truthful,

@@ -10,7 +10,7 @@ meow's hash is XXH3-128 rather than `gxhash`,
 so the AES-specific startup check became a check for whatever target features a build was compiled with,
 and the release matrix now ships separate `x86-64-v3` and `x86-64-v4` builds
 of which only `x86-64-v4` and aarch64 block publishing.
-The measurements and the static-pie work below are unaffected.
+The measurements in `Probe 1` to `Probe 6` and the static-pie work those probes record are unaffected.
 Work directory:
 `/tmp/claude-1000/-var-home-user-Monochromatic/e28ad59c-f3f5-46e9-8c8c-59a61c331610/scratchpad/platforms/`
 (called `platforms/` in this file).

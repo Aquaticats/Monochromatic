@@ -106,7 +106,7 @@ commit `c7b46ae`).
   "CI keeps the frozen
   behavior already recorded (the 2026-10-29 trustLockfile amendment)".
   A frozen policy refusal stops the command by a delegated
-  pick of 2026-11-03 (below).
+  pick under the `Delegated picks of 2026-11-03` heading.
   Replaces the fail-closed behavior built first,
   and,
   for a policy refusal of a local install,
@@ -268,7 +268,8 @@ and what each rests on:
 - A local install checks existing entries (pnpm's `startLockfileVerification` is not gated on frozen).
 - `--breaking` edits the manifests,
   so they are part of the transaction.
-  The catalog write and the `file-enforcer` sync are inside the transaction by a delegated pick of 2026-11-03 (below).
+  The catalog write and the `file-enforcer` sync are inside the transaction by a delegated pick
+  under the `Delegated picks of 2026-11-03` heading.
 - Update arguments are read in every supported spelling,
   before and after the command word,
   and an unmapped option is refused.
@@ -288,7 +289,7 @@ and what each rests on:
 The second review covered `504a82aa3f..09bb7820ea` in three parts (Git reader,
 journal and restore,
 install and policy).
-The nine delegated picks below stand;
+The nine delegated picks under the `Delegated picks of 2026-11-03` heading stand;
 the review found defects in how they were built,
 not in the picks.
 What changed:
@@ -1175,7 +1176,7 @@ The contract is `doc/planning/cargo-shadow-guarantees.md`;
 its acceptance list is the reviewer's finite checklist,
 and its coverage map
 says which test shows each row.
-Where the sections of rounds 5 to 7 above say otherwise,
+Where the sections of rounds 5 to 7 say otherwise,
 the contract and this section are current:
 
 - The wrapper no longer enters a group around a spawn (7a F1,
@@ -1666,7 +1667,7 @@ for the boot
 authority,
 "Check and state premise (Recommended)",
 which is what round 10 built and is kept unchanged.
-Option B of "9a D1" above is therefore built;
+Option B of "9a D1" is therefore built;
 options A (refuse and acknowledge) stays as the fallback for what B cannot prove,
 and C
 is not built.

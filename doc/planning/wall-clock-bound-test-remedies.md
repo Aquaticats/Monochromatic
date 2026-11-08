@@ -368,7 +368,7 @@ the measured slack already makes the absolute bound robust.
   and the `shouldClearNativeTimers` caveat
   (kept as general guidance even after [#1771][i1771] lands,
   because tests' own native timers can still cross domains;
-  reviewer question below).
+  reviewer question under `Questions for the reviewer`).
 - `package/test-harness/core/README.md`:
   new section on duration upper bounds,
   distinguishing surrogate bounds

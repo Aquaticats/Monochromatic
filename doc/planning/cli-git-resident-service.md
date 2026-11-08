@@ -1107,7 +1107,7 @@ every request has its id in the service log so a user report can be traced.
 
 ## What is deleted and what is kept
 
-Line counts below are of the files as of this branch,
+Line counts in the `What is deleted and what is kept` section are of the files as of this branch,
 without tests;
 tests are listed after.
 
@@ -2168,7 +2168,7 @@ bus calls are skipped when the check there finds nothing to change:
    A new
    file needs no reload:
    measured on this machine,
-   the probe unit below was found and started with no reload,
+   the uniquely named runtime-only probe unit was found and started with no reload,
    while one
    reload took over twenty seconds on the loaded host and interrupted other clients of the manager for that time.
 4. Clear failed state (`ResetFailedUnit` on both units,
