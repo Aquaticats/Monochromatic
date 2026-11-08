@@ -678,8 +678,14 @@ fn a_group_record_that_cannot_be_read_defers_the_recovery() {
     assert!(journal.join("0.lock").exists() && journal.join("groups").is_dir(), "the journal's snapshot or its unreadable record is gone: {messages:?}");
 }
 
-/// Round 6 (5b2 2):
+/// Round 6 (5b2 2,
+/// sixth pass group 10):
 /// a malformed group record is uncertainty too.
+/// The refusal names the line that is not understood,
+/// the journal and its snapshot stay,
+/// and an acknowledgement of that uncertainty lets the same recovery settle it,
+/// so the malformed line is the only blocker (a record that merely lacks an acknowledgement would pass the
+/// refusal and then fail the settlement).
 #[test]
 fn a_malformed_group_record_defers_the_recovery() {
     let root = repository("unchecked output of the killed run");
@@ -689,6 +695,13 @@ fn a_malformed_group_record_defers_the_recovery() {
     let messages = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
 
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("not understood"); }), "the refusal does not name the malformed line: {messages:?}");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "the journal with the malformed record was removed: {messages:?}");
+    assert!(journal.join("0.lock").exists(), "the snapshot of the malformed journal is gone: {messages:?}");
+
+    crate::acknowledge::acknowledge(&journal).expect("acknowledge the uncertainty");
+    let settled = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "original", "the acknowledged journal was not settled, so the malformed line was not what blocked it: {settled:?}");
 }
 
 /// Round 6 (5b2 1):
@@ -702,12 +715,17 @@ fn a_survivor_of_one_journal_stops_the_recovery_of_another() {
     let _other = plant(root.path(), &[snapshot("second")], &[]);
     let mut orphan = std::process::Command::new("sleep").arg("30").process_group(0).spawn().expect("a surviving child");
     fs::write(survivor_journal.join("groups"), format!("pgroup {}\n", orphan.id())).expect("record the group");
+    // The record is acknowledged, so containment uncertainty alone no longer blocks: the live member is the only thing left
+    // that can refuse, and removing the membership check turns this red (sixth pass, group 10).
+    crate::acknowledge::acknowledge(&survivor_journal).expect("acknowledge the record");
 
     let messages = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("still running"); }), "the refusal is not the live member: {messages:?}");
     let _ = orphan.kill();
     let _ = orphan.wait();
-
-    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+    let settled = recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "the control: with the acknowledged member gone the journals were not settled: {settled:?}");
 }
 
 /// Round 6 (5b2 1):
@@ -719,12 +737,17 @@ fn a_new_transaction_does_not_start_beside_a_survivor() {
     let journal = plant(root.path(), &[snapshot("first")], &[]);
     let mut orphan = std::process::Command::new("sleep").arg("30").process_group(0).spawn().expect("a surviving child");
     fs::write(journal.join("groups"), format!("pgroup {}\n", orphan.id())).expect("record the group");
+    // Acknowledged, so the live member is the only blocker (sixth pass, group 10); the control after the member ends shows that
+    // admission becomes possible because it ended.
+    crate::acknowledge::acknowledge(&journal).expect("acknowledge the record");
 
     let started = begin(root.path(), &[snapshot("second")], false);
+    assert!(started.as_ref().is_err_and(|error| { return error.to_string().contains("still running"); }), "a transaction started beside a surviving child, or the refusal is not the member: {:?}", started.as_ref().err());
+    assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "the refused admission removed the survivor's journal");
     let _ = orphan.kill();
     let _ = orphan.wait();
-
-    assert!(started.is_err(), "a transaction started beside a surviving child");
+    let control = begin(root.path(), &[snapshot("second")], false);
+    assert!(control.is_ok(), "the control: admission was refused after the member ended: {:?}", control.err());
 }
 
 #[test]

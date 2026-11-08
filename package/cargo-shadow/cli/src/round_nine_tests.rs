@@ -524,6 +524,69 @@ fn another_machine_an_unreadable_identity_no_record_or_the_same_boot_keeps_the_r
 }
 
 /// Contract assumption c,
+/// the boot identity (sixth pass,
+/// groups 10 and 11):
+/// a record that is not evidence of a reboot of this machine keeps a live process group blocking,
+/// and both consumers refuse under the same identity:
+/// the recovery restores nothing and keeps the journal with its snapshot,
+/// and admission starts no transaction.
+/// The cases are another machine,
+/// a current identity that cannot be read,
+/// a current identity that is malformed,
+/// a recorded identity that is malformed,
+/// and a record without an identity.
+/// The control is a well-formed record of another boot of this machine,
+/// which settles the journal,
+/// so the refusals above are the identity's.
+#[test]
+fn a_boot_identity_that_is_not_a_reboot_keeps_recovery_and_admission_refused() {
+    use std::os::unix::process::CommandExt;
+    let now: Identity = current_identity().expect("an identity");
+    let other: Identity = after_a_reboot();
+    let mut group = Command::new("sleep").arg("600").process_group(0).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().expect("a live group");
+    let cases: Vec<(&str, Option<Result<Identity, String>>, Option<String>)> = vec![
+        ("another machine", Some(Ok(Identity { boot: with_first_digit_changed(&now.boot), machine: with_first_digit_changed(&now.machine) })), None),
+        ("an unreadable current identity", Some(Err("the boot id cannot be read".to_string())), None),
+        ("a malformed current identity", Some(Ok(Identity { boot: "not-a-boot-id".to_string(), machine: now.machine.clone() })), None),
+        ("a malformed recorded identity", None, Some(format!("boot not-a-boot-id\nmachine {}\n", now.machine))),
+        ("a record without an identity", Some(Ok(after_a_reboot())), Some(String::new())),
+    ];
+    for (label, identity, recorded_lines) in cases {
+        let root = repository();
+        let journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", group.id()));
+        if let Some(lines) = recorded_lines {
+            let recorded: String = fs::read_to_string(journal.join("view")).expect("the view record");
+            let first: &str = recorded.lines().next().expect("a view line");
+            fs::write(journal.join("view"), format!("{first}\n{lines}")).expect("rewrite the view");
+        }
+        use_identity_for_test(identity);
+        let report = crate::journal_recover::recover_report(root.path(), &refusing);
+        let admitted = begin(root.path(), &[snapshot("second")], false);
+        use_identity_for_test(None);
+
+        assert!(!report.mandatory_failure, "{label}: the refusal was a mandatory finish failure: {report:?}");
+        assert_eq!(live_lock(root.path()), "unchecked output of the killed run", "{label}: the recovery restored a file: {report:?}");
+        assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "{label}: the journal was not kept as it is: {report:?}");
+        assert!(journal.join("0.lock").exists(), "{label}: the snapshot is gone");
+        assert!(admitted.as_ref().is_err_and(|error| { return error.to_string().contains("still running"); }), "{label}: a transaction was admitted, or the refusal does not name the member: {:?}", admitted.as_ref().err());
+    }
+    let _ = group.kill();
+    let _ = group.wait();
+    // The control: a well-formed record of another boot of this machine, with an identity in the journal's view, clears the group.
+    let root = repository();
+    let mut control_group = Command::new("sleep").arg("600").process_group(0).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().expect("a live group");
+    let journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", control_group.id()));
+    let _ = control_group.kill();
+    let _ = control_group.wait();
+    use_identity_for_test(Some(Ok(other)));
+    let note: Option<String> = survivor_note(&journal);
+    let settled: Vec<String> = recover(root.path(), &refusing);
+    use_identity_for_test(None);
+    assert_eq!(note, None, "the control: a well-formed record of another boot did not clear the group");
+    assert_eq!(live_lock(root.path()), "original", "the control: the journal was not settled after the reboot: {settled:?}");
+}
+
+/// Contract assumption c,
 /// the boot identity:
 /// the discharge is of process liveness only:
 /// a missing snapshot and an incomplete listing of the journals still keep the journal,
