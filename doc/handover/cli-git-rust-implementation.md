@@ -4113,12 +4113,38 @@ the audit's remaining findings are not recorded here).
 Unmeasured:
 whether a later `pnpm install` in a copy made without `storeDir` writes into the source's in-tree store.
 The owner's statement of accepted risk for races with other programs ("That is not an our problem...",
-see "Worktree add and package managers" under owner decisions in force) is to be stated
-plainly in command help,
-in a short notice when a destructive command runs,
-and once for the whole program in `README.md` and
-`SPEC.md`;
-a search of both files on 2026-11-03 found no such statement yet.
+see "Worktree add and package managers" under owner decisions in force) is now stated in all three places it asked for,
+and the 2026-11-03 search no longer holds.
+The whole-program statement is `package/git-policy/cli/README.md`,
+"Other processes changing files",
+which has said it since 34910352b9 (2026-11-03),
+and `package/git-policy/cli/SPEC.md`,
+same heading,
+which said it only inside single commands until 335e482e38 added it with the inventory of the commands that say it.
+Per command:
+`git monochromatic-git-policy-cli convert-worktree-to-subvolume` states it in `--help` and in `RISK_NOTICE`
+before the first worktree is touched (34910352b9);
+`git worktree remove` states it in `DESTROY_NOTICE` once it has destroyed the subvolume in one step,
+and its `--help` is Git's own;
+`git monochromatic-git-policy-cli migrate-to-subvolume` states it in `--help` and,
+since a15963680f,
+in `MIGRATE_RISK_NOTICE` before the first step that writes,
+keeps,
+swaps or deletes anything in a run,
+a `--rollback` or a `--remove-old`,
+while a `--dry-run` and a refusal change nothing and say nothing.
+Each command prints its own line and never a second one.
+The controls (`subvolume_arguments_tests.rs`,
+`subvolume_migrate_tests.rs`) count it:
+once and first in a run,
+absent in a preview and in a refusal,
+once in each deleting mode,
+and never the conversion's line.
+On the built binary at a disposable btrfs checkout:
+`--help` stated the risk,
+a dry run printed none,
+a real run and a `--remove-old` each printed it once as the first line of standard error,
+and a refused `--rollback` printed none.
 
 ### Service follow-ups
 
