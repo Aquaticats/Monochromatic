@@ -341,7 +341,8 @@ The `fuzz_target!` input looks like a closure signature but is macro input gramm
 
 ## The lockfile
 
-`Cargo.lock` here must lock every package the subject locks, at the same version.
+`Cargo.lock` here must lock every package the subject locks,
+at the same version.
 A sidecar links the subject by path,
 so it resolves the subject's whole dependency graph,
 and a dependency the subject gains,

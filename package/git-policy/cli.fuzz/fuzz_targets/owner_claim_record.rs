@@ -3,7 +3,8 @@
 //! through the decoder that decides whether a command may work on an item.
 //! Why:
 //! A claim file is text any process can write.
-//! The decoder is private to the command that writes claims, so this target reaches it through `decode`,
+//! The decoder is private to the command that writes claims,
+//! so this target reaches it through `decode`,
 //! and reading a claim wrong either stops a command for nothing or lets two commands share one item.
 //!
 //! In TS you'd write (pseudocode):

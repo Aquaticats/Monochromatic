@@ -75,7 +75,8 @@ fn field_text(cursor: &mut Cursor<'_>, nonempty: bool) -> String {
 }
 
 /// What:
-///  A generated owner: a process id of at least one,
+///  A generated owner:
+/// a process id of at least one,
 /// a birth identity and a namespace that is absent,
 /// empty or text.
 /// Why:
@@ -198,13 +199,13 @@ fn broken_owned_claim(header: &str, cursor: &mut Cursor<'_>) -> String {
     let ClaimRecord::Owned { pid, birth, namespace } = &owner else {
         panic!("a generated owner is an owned claim: {owner:?}");
     };
-    let namespace: &str = namespace_text(namespace.as_deref());
+    let namespace_line: &str = namespace_text(namespace.as_deref());
     return match cursor.byte() % 3 {
         0 => {
             let no_process: &str = NO_PROCESS_PIDS[usize::from(cursor.byte()) % NO_PROCESS_PIDS.len()];
-            format!("{header}\npid={no_process}\nbirth={birth}\nnamespace={namespace}\n")
+            format!("{header}\npid={no_process}\nbirth={birth}\nnamespace={namespace_line}\n")
         }
-        1 => format!("{header}\npid={pid}\nbirth=\nnamespace={namespace}\n"),
+        1 => format!("{header}\npid={pid}\nbirth=\nnamespace={namespace_line}\n"),
         _ => format!("{header}\npid={pid}\nbirth={birth}\n"),
     };
 }
@@ -223,7 +224,7 @@ fn holds_carriage_return(record: &ClaimRecord) -> bool {
     return match record {
         ClaimRecord::Released => false,
         ClaimRecord::Owned { birth, namespace, .. } => {
-            birth.contains('\r') || namespace.as_deref().is_some_and(|text| text.contains('\r'))
+            birth.contains('\r') || namespace.as_deref().is_some_and(|text| return text.contains('\r'))
         }
     };
 }
