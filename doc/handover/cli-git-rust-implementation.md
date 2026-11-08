@@ -3122,13 +3122,68 @@ which runs `git status` in every registered worktree
 (`${HOME}/temp/agent/860-move/refresh-moved-indexes.ts`;
 delete the script once the fix lands).
 
-Still to do,
-with a failing test first:
-a commit over an index whose stat data is stale must finish,
-or its stop must keep the refresh so that the retry succeeds.
-The likely reason a retry repeats the failure is that the scratch step works on a copy of the index,
-so what it refreshed never reaches the real one;
-that has not been read in the source yet.
+Fixed on 2026-11-08 (`cd1755d728`,
+controls retuned in `9aae10b295`).
+The guess was right:
+the scratch step works on a copy of the index.
+`run_native_commit_within` gives Git `GIT_INDEX_FILE` = the private index
+(`commit/commit_preparation.rs` `native_commit_arguments`),
+`initialize_commit_index` and `initialize_retry_index` copy the real index into it
+(`commit/commit_index.rs`),
+and Git's own refresh of the stat data,
+which native `git commit` writes back to the real index,
+landed in that copy and was removed with the transaction,
+so every attempt copied the same stale stat data again.
+Measured in a throwaway repository on 2026-11-08 (Git 2.56.0,
+a clean filter that sleeps 100 ms per file,
+every file with a new inode and its modification time kept):
+a `git commit` over a copy of a stale index paid the whole refresh,
+1,248 ms for 12 files,
+and left the real index stale;
+a second copy of that index paid it again;
+the same commit over a refreshed index took 109 ms.
+On a fresh index of this checkout (about 20,000 entries)
+`git update-index --refresh` took 2 to 50 ms.
+
+`commit/commit_index_stat_refresh.rs` now refreshes the stat data before the copies are made,
+with `git update-index --refresh` on the real index:
+the copies carry the worktree's stat data,
+so the scratch commit reads only the files whose content changed,
+and the real index keeps the refresh,
+so the commit after this one does not pay it again.
+The step is a form the cut experiment proved may be run twice,
+so the existing bulk-step ceiling (`OBJECT_STEP_CEILING`) bounds it,
+and a stop leaves the index as it was.
+The scratch step's 3,006 ms ceiling is unchanged.
+An index another program has locked is not written:
+the private index is refreshed instead,
+so the commit still finishes and the real index keeps its stat data until a later commit can write it.
+`initialize_commit_index` therefore refreshes the person's index and not only a copy,
+as native `git commit` does;
+`preparation_leaves_real_refs_index_and_worktree_unchanged`
+(`commit_preparation_tests.rs`) still passes,
+because in its fixture the one changed path is the one Git would not refresh either.
+
+Controls (all of them failed before the fix and pass after it;
+`commit_index_stat_tests.rs`,
+`commit_index_stat_refresh_tests.rs`):
+a commit over a stale index finishes under a ceiling that ends one paying the refresh in its own step
+(825 ms against the 1,100 ms of reading a stale copy costs),
+the refresh reaches the real index (inode compared with `ls-files --debug`),
+an index another program holds is refreshed in the private copy,
+a locked index is left byte-identical,
+an unstaged change keeps the refresh of the other entries,
+and a Git that cannot start is answered without failing the commit.
+The full native library suite passed (4,700 tests),
+as did `native:clippy` and `monochromatic-lint --max-warnings 0`.
+Not measured:
+the cost this adds to a wrapper commit on main against native Git.
+The step is one more Git start plus a stat pass of the whole index,
+which the 2 to 50 ms above bound on this checkout,
+and the next commit's own record in the timing log will show it.
+Also unmeasured:
+how the locked-index fallback behaves while the service lands another commit,
+which is the case that reaches it.
 
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 
