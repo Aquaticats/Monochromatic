@@ -117,9 +117,17 @@ fn a_landing_takes_a_stale_lock_under_a_claim_without_waiting() {
     let (root, index, _lock) = index_in("claim-landing");
     let platform: Platform = SYSTEM;
     let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 20;
-    let began: std::time::Instant = std::time::Instant::now();
-    let taken = acquire_within(&platform, &index, 9, ceiling, &|_| {}).expect("the stale lock is reclaimed and the lock is taken");
-    assert!(began.elapsed() < ceiling, "the acquisition waited for its ceiling");
+    // What the person would have been told while it waited: nothing, because the lock is taken at once.
+    // A wall-clock budget cannot carry this claim: one btrfs transaction commit from another session held every test of a
+    //  wave for tens of seconds on 2026-11-08, and a test's own fixture writes then cost more than any such budget.
+    let announced: std::cell::RefCell<Vec<String>> = std::cell::RefCell::new(Vec::new());
+    let taken = acquire_within(&platform, &index, 9, ceiling, &|announce| {
+        if let Announce::Waiting(text) = announce {
+            announced.borrow_mut().push(text);
+        }
+    })
+    .expect("the stale lock is reclaimed and the lock is taken");
+    assert!(announced.borrow().is_empty(), "the stale lock was taken without waiting for a holder: {:?}", announced.borrow());
     drop(taken);
     assert_eq!(names_in(&root), vec![String::from("index")], "no claim and no lock is left");
     remove(root.as_path());
@@ -413,6 +421,13 @@ fn counting_rename<'a>(refused: &'a std::cell::Cell<usize>, first_refusal: &'a s
     };
 }
 
+/// How long the helper that plays another reclaimer holds its claim before it gives up,
+/// so a failed control cannot hang.
+/// Far beyond any file system stall this suite has met:
+/// a btrfs transaction commit from another session held every test of a wave for tens of seconds on 2026-11-08,
+/// and a helper that gave up in a few seconds released its claim before the control under test could meet it.
+const CLAIMER_GIVE_UP: std::time::Duration = std::time::Duration::from_secs(120);
+
 /// The thread that plays another reclaimer:
 /// it places a running claim,
 /// says so,
@@ -440,7 +455,7 @@ fn a_landing_waits_for_the_reclaimer_that_holds_a_claim() {
     let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 20;
     let (placed_tx, placed_rx) = std::sync::mpsc::channel::<()>();
     let (let_go_tx, let_go_rx) = std::sync::mpsc::channel::<()>();
-    let other = spawn_other_claimer(claim_at(&lock, 0), placed_tx, let_go_rx, ceiling * 4);
+    let other = spawn_other_claimer(claim_at(&lock, 0), placed_tx, let_go_rx, CLAIMER_GIVE_UP);
     placed_rx.recv().expect("the claim is placed");
     let refused = std::cell::Cell::new(0_usize);
     let (first_tx, _first_rx) = std::sync::mpsc::channel::<()>();
@@ -470,13 +485,12 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
     let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 20;
     let (placed_tx, placed_rx) = std::sync::mpsc::channel::<()>();
     let (first_tx, first_rx) = std::sync::mpsc::channel::<()>();
-    let other = spawn_other_claimer(claim_at(&lock, 0), placed_tx, first_rx, ceiling * 4);
+    let other = spawn_other_claimer(claim_at(&lock, 0), placed_tx, first_rx, CLAIMER_GIVE_UP);
     placed_rx.recv().expect("the claim is placed");
     let refused = std::cell::Cell::new(0_usize);
     let counting = counting_rename(&refused, &first_tx);
     let platform: Platform = Platform { rename: &counting, ..SYSTEM };
     let holders = std::cell::RefCell::new(Vec::<String>::new());
-    let began: std::time::Instant = std::time::Instant::now();
     let taken = acquire_within(&platform, &index, 9, ceiling, &|announce| {
         if let Announce::Holder(who) = announce {
             holders.borrow_mut().push(who);
@@ -484,7 +498,6 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
     })
     .expect("the stale lock is reclaimed in the same acquisition once the claim is dropped");
     assert!(refused.get() >= 1, "the acquisition met the other reclaimer's claim");
-    assert!(began.elapsed() < ceiling, "the acquisition took the whole ceiling");
     assert!(holders.borrow().is_empty(), "a claimed stale lock is no dead holder to give up on: {:?}", holders.borrow());
     drop(taken);
     other.join().expect("the other reclaimer ends");

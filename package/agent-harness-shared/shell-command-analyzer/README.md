@@ -40,6 +40,63 @@ historical recovery does not grant execution permission.
 See the [AST adapter troubleshooting record](../../../doc/troubleshooting/unbash-5-ast-adapter.md)
 for the original failure and verification commands.
 
+## Real-Git mutation guard
+
+`invokesMutatingGitThroughRealGitPath` reports shell source that mutates a repository
+by spelling the real Git binary as a path,
+which skips the `git` wrapper this repository puts on PATH.
+
+The executable name is read from `@monochromatic-dev/git-executable-core`
+rather than spelled here,
+so an install outside `/usr/bin` is still recognized;
+callers may inject executable names for fixtures.
+A word counts as the real Git only when it carries a path separator and its last segment matches,
+so a document under a directory named `git` and a differently named binary beside Git stay allowed.
+
+Program wrappers are stripped before the subcommand is read:
+`NAME=value` prefixes,
+`env` (including `-S` split-string payloads),
+`sudo`,
+`doas`,
+`command`,
+`builtin`,
+`exec`,
+`nohup`,
+`setsid`,
+`time`,
+`nice`,
+`ionice`,
+`stdbuf`,
+`timeout`,
+and `xargs`,
+for every wrapper layer a command line spells.
+A nested shell `-c` script string is analyzed too,
+from a work list rather than by recursion.
+
+Read-only subcommands and read-only argument shapes stay allowed:
+plain `rev-parse`,
+`for-each-ref`,
+`log`,
+`show`,
+`status`,
+`ls-remote` and the rest of the read set,
+plus `branch`/`tag`/`config`/`symbolic-ref` listing forms and the verb-first read forms of
+`stash`,
+`remote`,
+`worktree`,
+`reflog`,
+`notes`,
+`submodule`,
+`bisect`,
+`bundle`,
+`sparse-checkout` and `commit-graph`.
+Every other subcommand counts as mutating,
+including one this package has never seen,
+because only a proven read may skip the wrapper.
+
+When real-Git resolution fails the guard stays inactive and logs at debug level:
+a throwing hook would fail every Bash call.
+
 ## Pi dependency trust
 
 PJE:

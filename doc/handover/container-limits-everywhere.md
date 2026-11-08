@@ -109,6 +109,32 @@ default").
 Threads count against `pids.max`,
 and browsers and package managers start many.
 
+Update 2026-11-08T17:10:51-05:00:
+every size marked "adopted" now says beside it whether the repository holds a measurement of that site's own
+workload,
+because the audit of the queue
+(`queue-audit-report.md`,
+item 16)
+found that some numbers came from a sibling package's documentation.
+What was searched:
+every Markdown file under `doc/` for each site's workload name beside a peak,
+RSS,
+OOM or `memory.peak` term,
+uncapped,
+and the comment beside each size in this inventory and in the task that sets it.
+What that search found:
+no adopted size is backed by a measurement of its own bounded run.
+Three sites say so in their own comments
+(`mise.toml:350`,
+`package/browserslist/core-rust/bin/regenerate-conformance.ts`,
+`package/test-harness/core-matrix/src/container.ts`).
+The one own-workload record is the matrix cell's growth to 42 GB RSS and the OOM kill of 2026-10-26,
+which records the unbounded failure and says nothing about the cell's CPU or process caps.
+Those searches cannot prove that no measurement exists outside the files they read,
+so "unmeasured here" means "none found in `doc/` or beside the size".
+No container was built or started for this check;
+`## What each adopted size would need measured` lists the runs that would take.
+
 Documented sizes cited:
 - `package/mutation-test/cli-cargo-mutants/src/container-limits.ts`:
   2g,
@@ -159,6 +185,8 @@ sizing source.
 "weight" means `--blkio-weight=10 --cgroup-conf=io.weight=10`.
 "build bound" means memory and CFS period and quota,
 which is all `podman build` accepts.
+"unmeasured here" means the repository holds no record of a peak measured at that site,
+so the number beside it was adopted from the sibling the parentheses name.
 
 ### Already complete before this branch
 
@@ -210,9 +238,11 @@ never by gaining flags.
   label=disable`.
   Needs:
   2g,
-  2 CPUs (adopted from `test-harness/core` `test:browser`),
+  2 CPUs (adopted from `test-harness/core` `test:browser`;
+  unmeasured here),
   2048 processes (adopted,
-  default),
+  the Podman default;
+  unmeasured here),
   weight.
 - `package/music-player/desktop-app/mise.toml:114` and the same body in `task.ts`,
   and
@@ -220,8 +250,10 @@ never by gaining flags.
   `containerCargo` runs with `limits: []` by default.
   Needs:
   12g,
-  4 CPUs (adopted from the file's Alpine guard),
-  1024 processes (adopted from `container-bounds.ts`),
+  4 CPUs (adopted from the file's Alpine guard;
+  unmeasured here),
+  1024 processes (adopted from `container-bounds.ts`;
+  unmeasured here),
   weight.
   The Windows GNU leg (`gnuContainer`,
   6g,
@@ -231,15 +263,19 @@ never by gaining flags.
   Needs:
   2g,
   2 CPUs,
-  128 processes (adopted from `vm-builder` `image:check`),
+  128 processes (adopted from `vm-builder` `image:check`;
+  those three numbers are unmeasured here),
   weight.
 - `package/vm-builder/cli/src/build-and-import.ts` `bootc-image-builder` run (rootful,
   `--privileged`):
   weight only.
   Needs:
-  12g and 8 CPUs (adopted from `image:build`),
+  12g and 8 CPUs (adopted from `image:build`;
+  unmeasured here,
+  and this run needs root to measure at all),
   2048 processes (adopted,
-  default),
+  the Podman default;
+  unmeasured here),
   weight kept.
   `--pids-limit` on a privileged `osbuild` partitioning step is unverified:
   it cannot be exercised without root.
@@ -247,35 +283,49 @@ never by gaining flags.
   no limits.
   Needs:
   build bound 12g and 8 CPUs,
-  as `mise.toml:15`.
+  as `mise.toml:15` (adopted there too;
+  unmeasured here,
+  and rootful).
 
 ### Partial limits, no weight
 
 - `package/terminal/app/mise.toml:68` and the twelve copies in `task.ts` (`--memory=4g --cpus=4`):
-  add 1024 processes and the weight.
+  add 1024 processes (the IDE's 4-CPU bound;
+  unmeasured here,
+  as is the 4g) and the weight.
 - `package/test-harness/core/mise.toml:64` (2g,
-  2 CPUs):
+  2 CPUs,
+  unmeasured here):
   add 2048 processes (adopted,
-  default) and the weight.
+  the Podman default;
+  unmeasured here) and the weight.
 - `package/test-harness/core-matrix/src/container.ts:391` (every matrix cell,
   reached from `env-local-json` and the other
   `*:test:container` tasks;
   2g,
   2 CPUs,
-  documented 42 GB incident):
+  adopted after the unbounded 42 GB incident of 2026-10-26;
+  no bounded run's peak is recorded,
+  so these two are unmeasured here):
   add 2048 processes (adopted,
-  default) and the weight.
+  the Podman default;
+  unmeasured here) and the weight.
   Gets an exported argument builder and an argv test.
 - `package/upstream-fork/conf/mise.toml:71` and the sixteen `spawn('podman'` sites of
   `package/upstream-fork/deepmerge-ts.fuzz/mise.toml` (2g,
   2 CPUs):
-  add 512 processes (`defaultPidsLimit`) and the weight.
+  add 512 processes (`defaultPidsLimit`,
+  whose 128-fork failure was measured on the mutation runner,
+  not at these sites;
+  unmeasured here) and the weight.
 - `package/config/pnpr/{mise.toml:53,task.ts:44}` (2g,
   2 CPUs):
-  add 256 processes (as `pnpr-publish.yml`) and the weight.
+  add 256 processes (as `pnpr-publish.yml`;
+  unmeasured here) and the weight.
 - `package/browserslist/core-rust/bin/regenerate-conformance.ts:287` (`ORACLE_MEMORY`,
   `ORACLE_CPUS`):
-  add 512 processes and the weight.
+  add 512 processes and the weight (the file says the 512 is adopted for one Node.js process and not measured;
+  the memory and CPU figures there are unmeasured here too).
 - `package/repository-move/cli/src/guided-cutover-stages.data.ts:597` (256m,
   1 CPU,
   64 processes,
@@ -297,7 +347,8 @@ Builds get the memory and CPU bound only.
   `nested-wayland-session/cli`);
   no bound today.
   Needs:
-  build bound 4g and 4 CPUs (adopted from `terminal/app`),
+  build bound 4g and 4 CPUs (adopted from `terminal/app`;
+  unmeasured here),
   applied unless the caller passes its own `--memory`.
 - `package/music-player/desktop-app/mise.toml:242` (`--memory=4g` only),
   `:594` and `:705` (none).
@@ -312,9 +363,64 @@ Builds get the memory and CPU bound only.
   none).
   Needs:
   12g and 4 CPUs (the 4 vCPU,
-  16 GB runner of `music-player-release.yml`).
+  16 GB runner of `music-player-release.yml`;
+  a runner size,
+  not a measurement of this build).
 - `.github/workflows/music-player-release.yml` `podman build` (two jobs):
   none.
+
+## What each adopted size would need measured
+
+What each one needs is a measurement of that site's own workload under its own bound,
+from a representative run and recorded beside the size with the command that produced it:
+the container cgroup's `memory.peak`,
+whether the run reached its bound (a limit hit shows in the run's own error or in `pids.current` reaching
+`pids.max`),
+the elapsed time and the CPU throttling in `cpu.stat`,
+and which workload variants the run covered,
+because one short run does not establish that a bound is adequate.
+`AGENTS.md` rule LQM asks for a workload measurement or an owner decision beside a shipped limit,
+and rule NQH keeps the measurement at the load the host already has.
+The audit that produced this list
+(`queue-audit-report.md`,
+item 16)
+ran no container;
+those runs are the separate work.
+
+- The Playwright browser run of the root `mise.toml` `runPlaywright` task,
+  for the memory,
+  CPU and process peaks a browser set reaches.
+- The `containerCargo` cargo build of `package/music-player/desktop-app`
+  (build,
+  clippy and nextest),
+  whose bound was copied from that package's Alpine guard.
+  Its Windows GNU leg stays paused with the rest of Windows.
+- The music player's icon and signing one-shot tool containers,
+  whose bound was copied from `vm-builder` `image:check`.
+- The `test-harness/core` `test:browser` run,
+  whose 2048 processes is the Podman default.
+- One matrix cell of `package/test-harness/core-matrix`,
+  which bounds every cell from the one `CELL_LIMITS` constant and is the one site already known to have grown to
+  42 GB RSS unbounded,
+  with 2048 processes that is the Podman default.
+- The `upstream-fork/conf` and `deepmerge-ts.fuzz` container runs,
+  whose 512 processes is the mutation runner's constant.
+- The `config/pnpr` verification containers,
+  whose 256 processes was copied from the publish workflow.
+- The browserslist oracle container,
+  whose 512 processes the file itself calls adopted and unmeasured.
+- The `terminal/app` compile containers,
+  whose 4g and 4 CPUs predate this branch and whose 1024 processes is the IDE's 4-CPU bound.
+- The image builds:
+  `core-matrix`'s `buildWithPodman` (4g and 4 CPUs from `terminal/app`),
+  `playwright-image-build` (12g and 4 CPUs from the release runner's size),
+  and the `vm-builder` `bootc-image-builder` run and rootful build,
+  which need root before any figure can be read.
+
+Each is one run,
+not a benchmark:
+the rule asks for a peak that a bound can be read against,
+and `AGENTS.md` rule NQH keeps the measurement at the load the host already has.
 
 ## Workflow decisions
 
@@ -520,9 +626,18 @@ which the published crates do not use.
 - The workflow flags ran on a hosted runner in `ide-release` dry run 42448765561,
   which succeeded on `08c50b0bbb`,
   the commit with the disk-weight fix.
-  `music-player-release` run 42521054342 fails later,
-  in its Android and macOS jobs,
-  for other reasons.
+  `music-player-release` dry run 42525780309 on `b7ecf6e22f` fails only in its macOS job,
+  `bundle:macos` throwing on a `versionLine` it did not find,
+  and macOS is paused by the owner:
+  "Ignore Win and mac until I say so."
+  Its Android job,
+  which failed in run 42521054342,
+  now succeeds.
 - Sizes marked "adopted" in the inventory are documented siblings,
   not measurements.
+  Update 2026-11-08T16:49:36-05:00:
+  each one now carries "unmeasured here" beside it,
+  and `## What each adopted size would need measured` lists the run each still needs.
+  The check found no measurement of any adopted site's own workload,
+  and the ledger gains one only when such a run is recorded.
 - `package-paused/` and `package/git-policy/**` are unchanged.

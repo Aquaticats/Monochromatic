@@ -171,6 +171,24 @@ pub enum LeanAction {
         #[arg(long)]
         unit_directory: Option<std::path::PathBuf>,
     },
+    /// Sweep the run records under the verification directories a producing task writes,
+    /// with the same age,
+    /// size cap and proof of "not in use" as `lean run`.
+    /// A producing task calls this before it writes a record,
+    /// so its own directory is bounded without the task reimplementing the retention.
+    Records {
+        /// The `target/verification` directories to sweep;
+        /// a relative path is taken from the working directory.
+        #[arg(required = true)]
+        directory: Vec<std::path::PathBuf>,
+        /// Report what would be removed and remove nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// The longest the sweep may take,
+        /// in minutes.
+        #[arg(long)]
+        deadline_minutes: Option<u64>,
+    },
 }
 
 /// What:

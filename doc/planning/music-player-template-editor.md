@@ -705,7 +705,7 @@ Shown that page,
 the human answered that a library is always open (D95),
 that scrolling suffices to reach the field list (D96),
 and that the agent builds one version of which other rows get templates for approval (D97).
-That version is the next section.
+That version is `Which rows get templates: the agent's version (2026-10-06)`.
 The human then accepted the editor as shown (D98),
 approved the version as built (D99),
 and decided what D95 means for the first-run study (D100).

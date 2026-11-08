@@ -164,7 +164,7 @@ at schedule time,
 schedule through the captured `setTimeout`,
 and clear through the captured `clearTimeout`,
 so a global replacement mid-race cannot cross clock domains.
-The reviewer question below covers the alternative of fixing at the harness
+The reviewer question under `Questions for the reviewer` covers the alternative of fixing at the harness
 `withHostTimeout` boundary instead.
 
 Guard test (in `package/async-time/core`):
@@ -368,7 +368,7 @@ the measured slack already makes the absolute bound robust.
   and the `shouldClearNativeTimers` caveat
   (kept as general guidance even after [#1771][i1771] lands,
   because tests' own native timers can still cross domains;
-  reviewer question below).
+  reviewer question under `Questions for the reviewer`).
 - `package/test-harness/core/README.md`:
   new section on duration upper bounds,
   distinguishing surrogate bounds

@@ -320,3 +320,41 @@ fn a_stop_of_an_idle_service_ends_it_by_the_signal_without_waiting() {
     end_client(&mut landing.client);
     remove_settled(&fixture);
 }
+
+/// The commit of a branch write that outlived the stop bound is kept on `refs/cli-git/kept/<number>` by the next
+/// commit of the worktree:
+/// the service ended inside the write,
+/// the branch never moved,
+/// and the batch's intent was still open,
+/// so the next landing settles it and keeps the commit where the wrapper says work it did not land is kept.
+/// Without that,
+/// the commit is only on the landing's scratch branch,
+/// which no message and no documented surface name.
+#[test]
+fn the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit() {
+    let fixture: Fixture = fixture("stop-hung-write-kept-ref");
+    let repo: PathBuf = edited_repository(&fixture);
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    let name: String = format!("stop-hung-write-kept-ref-{}", std::process::id());
+    let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::EndsAtTerm, StallAt::TheBranchWrite);
+    let limit: Duration = SETTLE_CEILING + STOP_GRACE;
+    let (status, took): (std::process::ExitStatus, Duration) = stop_and_wait(&mut landing, limit);
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
+    assert!(took >= SETTLE_CEILING.saturating_sub(Duration::from_secs(1)), "the service waited for the write up to the bound: ended after {took:?}");
+    end_the_process(landing.git_pid);
+    end_client(&mut landing.client);
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), before, "the branch did not move");
+    assert!(kept_commits(&fixture, &repo).trim().is_empty(), "nothing is on a kept ref yet: the service ended inside the write");
+    // The next commit of this worktree settles the batch the stopped service left open, before it lands its own.
+    let after_the_stop: String = format!("{name}-after");
+    let service: Held = service_with_git(&fixture, after_the_stop.as_str(), repo.join(".git").as_path(), Path::new("/usr/bin/git"));
+    let output: std::process::Output = served(&fixture, &repo, after_the_stop.as_str(), &["commit", "--quiet", "-m", "after the stop", "--", "a.txt"])
+        .output()
+        .expect("the next commit runs");
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(output.status.success(), "{stderr}");
+    let kept: String = kept_commits(&fixture, &repo);
+    assert!(kept.contains("stopped commit"), "the stopped commit is kept on a kept ref: {kept:?}");
+    drop(service);
+    remove_settled(&fixture);
+}

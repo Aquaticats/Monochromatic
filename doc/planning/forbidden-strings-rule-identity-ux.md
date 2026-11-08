@@ -12,8 +12,8 @@ sidecar),
 unnamed legacy rules keep the offset numeric fallback,
 cross-set name collisions fail the load closed,
 and local-appendix rules take opaque sequential `local-NNN` names.
-The namespacing (`builtin:`/`local:`) and hash options below were not
-adopted;
+The namespacing (`builtin:`/`local:`) and hash options in `The hash idea, assessed`
+and `Options` were not adopted;
 names alone kill the index drift.
 The analysis stays for the record.
 

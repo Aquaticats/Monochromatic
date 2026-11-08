@@ -18,7 +18,12 @@
 //! ```
 
 /// The functions under test and the pairs they settle.
-use super::{data_folder_for_reading, settle_kept_names};
+use super::{data_folder_for_reading, settle_kept_names_within};
+/// The surroundings the controls give the fold,
+/// which name no process and no state folder of this host.
+use crate::earlier_names_folded_into_current::FoldSurroundings;
+/// The steps a fold reports through when nothing stops it.
+use crate::earlier_log_lines_added_to_current_log::NeverStopped;
 use crate::earlier_name_moved_to_current_in_place::place_kept_name;
 use crate::wrapper_names_old_and_new::{
     COMMIT_TIMING_LOG, DATA_FOLDER, DISCARD_AUDIT_LOG, MERGE_INTENT_FOLDER, PUSH_TRIGGER_LOG, RenamedName, WORKTREE_ADD_TIMING_LOG,
@@ -29,6 +34,26 @@ use std::path::{Path, PathBuf};
 /// Create one empty fixture directory owned by this test process and test name.
 fn fixture(name: &str) -> PathBuf {
     return crate::test_support::fixture_with_prefix("native-kept-names", name);
+}
+
+/// What:
+///  Settle a fixture's names with surroundings of its own.
+/// Why:
+///   The fold defers while an earlier release's service may be running,
+/// and the look reads a process table and a state folder.
+/// Reading the host's made four of these controls defer a fold
+/// whenever this machine's own services were met (2026-11-08),
+/// so the control gives an empty process table and no state folder instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// settleWithin(fixture, fixture, { procRoot: emptyDir, stateDir: null });
+/// ```
+fn settle_within(git_dir: &Path, common_dir: &Path) {
+    // The fixture root holds only directories named after tests, so it is a process table that lists no process.
+    let proc_root: PathBuf = crate::test_support::fixture_root();
+    let surroundings: FoldSurroundings = FoldSurroundings { state_dir: None, proc_root };
+    settle_kept_names_within(git_dir, common_dir, &surroundings, &mut NeverStopped);
 }
 
 /// The kinds that are folders,
@@ -75,7 +100,7 @@ fn every_kind_planted_under_its_earlier_name_is_renamed_in_place_with_its_conten
     for kind in [DATA_FOLDER, WORKTREE_COPY_RECORD_FOLDER, DISCARD_AUDIT_LOG, COMMIT_TIMING_LOG, WORKTREE_ADD_TIMING_LOG, PUSH_TRIGGER_LOG] {
         plant_earlier(common.as_path(), kind);
     }
-    settle_kept_names(own.as_path(), common.as_path());
+    settle_within(own.as_path(), common.as_path());
     for kind in [DATA_FOLDER, MERGE_INTENT_FOLDER] {
         assert_eq!(read_current(own.as_path(), kind), kind.earlier, "{kind:?} in the worktree directory");
         assert!(!own.join(kind.earlier).exists(), "{kind:?}: no second name");
@@ -95,7 +120,7 @@ fn a_main_worktree_directory_serves_both_roles() {
     for kind in [DATA_FOLDER, MERGE_INTENT_FOLDER, DISCARD_AUDIT_LOG, PUSH_TRIGGER_LOG] {
         plant_earlier(root.as_path(), kind);
     }
-    settle_kept_names(root.as_path(), root.as_path());
+    settle_within(root.as_path(), root.as_path());
     for kind in [DATA_FOLDER, MERGE_INTENT_FOLDER, DISCARD_AUDIT_LOG, PUSH_TRIGGER_LOG] {
         assert_eq!(read_current(root.as_path(), kind), kind.earlier, "{kind:?}");
     }
@@ -116,8 +141,8 @@ fn current_names_are_left_alone_and_settling_twice_is_the_same() {
             std::fs::write(path, "current").expect("file");
         }
     }
-    settle_kept_names(root.as_path(), root.as_path());
-    settle_kept_names(root.as_path(), root.as_path());
+    settle_within(root.as_path(), root.as_path());
+    settle_within(root.as_path(), root.as_path());
     for kind in FOLDER_KINDS.iter().chain(FILE_KINDS.iter()) {
         assert_eq!(read_current(root.as_path(), *kind), "current", "{kind:?}");
         assert!(!root.join(kind.earlier).exists(), "{kind:?}: nothing was created under the earlier name");
@@ -132,7 +157,7 @@ fn both_spellings_are_folded_into_the_current_one_with_every_byte() {
     let root: PathBuf = fixture("both");
     plant_earlier(root.as_path(), DATA_FOLDER);
     std::fs::create_dir_all(root.join(DATA_FOLDER.current)).expect("the current folder");
-    settle_kept_names(root.as_path(), root.as_path());
+    settle_within(root.as_path(), root.as_path());
     assert_eq!(std::fs::read_to_string(root.join(DATA_FOLDER.current).join("inner").join("record")).expect("moved"), DATA_FOLDER.earlier);
     assert!(!root.join(DATA_FOLDER.earlier).exists(), "the earlier name is gone");
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
@@ -148,7 +173,7 @@ fn the_numbered_older_copies_of_a_rotated_log_move_with_it() {
     std::fs::write(root.join(format!("{}.1", DISCARD_AUDIT_LOG.earlier)), "one").expect("first");
     std::fs::write(root.join(format!("{}.12", DISCARD_AUDIT_LOG.earlier)), "twelve").expect("twelfth");
     std::fs::write(root.join(format!("{}.old", DISCARD_AUDIT_LOG.earlier)), "not a number").expect("other");
-    settle_kept_names(root.as_path(), root.as_path());
+    settle_within(root.as_path(), root.as_path());
     assert_eq!(std::fs::read_to_string(root.join(DISCARD_AUDIT_LOG.current)).expect("log"), "newest");
     assert_eq!(std::fs::read_to_string(root.join(format!("{}.1", DISCARD_AUDIT_LOG.current))).expect("first"), "one");
     assert_eq!(std::fs::read_to_string(root.join(format!("{}.12", DISCARD_AUDIT_LOG.current))).expect("twelfth"), "twelve");
@@ -172,7 +197,7 @@ fn a_reader_of_another_worktree_does_not_move_its_folder() {
 #[test]
 fn directories_that_do_not_exist_are_not_an_error() {
     let root: PathBuf = fixture("absent");
-    settle_kept_names(root.join("no-git-dir").as_path(), root.join("no-common-dir").as_path());
+    settle_within(root.join("no-git-dir").as_path(), root.join("no-common-dir").as_path());
     assert_eq!(std::fs::read_dir(root.as_path()).expect("list").count(), 0);
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
@@ -187,7 +212,7 @@ fn awkward_directory_names_are_settled_like_any_other() {
     std::fs::create_dir_all(directory.as_path()).expect("directory");
     plant_earlier(directory.as_path(), DATA_FOLDER);
     plant_earlier(directory.as_path(), PUSH_TRIGGER_LOG);
-    settle_kept_names(directory.as_path(), directory.as_path());
+    settle_within(directory.as_path(), directory.as_path());
     assert_eq!(read_current(directory.as_path(), DATA_FOLDER), DATA_FOLDER.earlier);
     assert_eq!(read_current(directory.as_path(), PUSH_TRIGGER_LOG), PUSH_TRIGGER_LOG.earlier);
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
@@ -258,7 +283,7 @@ fn all_file_contents(root: &Path) -> Vec<Vec<u8>> {
 fn both_spellings_of_every_kept_name_leave_no_earlier_name_and_no_notice() {
     let root: PathBuf = fixture("fold-no-notice");
     plant_both_spellings(root.as_path());
-    settle_kept_names(root.as_path(), root.as_path());
+    settle_within(root.as_path(), root.as_path());
     for kind in KINDS_EXISTING_TWICE {
         assert!(!root.join(kind.earlier).exists(), "{kind:?}: the earlier name is gone");
         assert!(root.join(kind.current).exists(), "{kind:?}: the current name stays");
@@ -275,7 +300,7 @@ fn both_spellings_of_every_kept_name_leave_no_earlier_name_and_no_notice() {
 fn every_line_of_both_logs_survives_under_the_current_name() {
     let root: PathBuf = fixture("fold-lines");
     plant_both_spellings(root.as_path());
-    settle_kept_names(root.as_path(), root.as_path());
+    settle_within(root.as_path(), root.as_path());
     for kind in FILE_KINDS {
         let mut wanted: Vec<String> = log_lines(kind.earlier, 10);
         wanted.extend(log_lines(kind.current, 20));
@@ -295,7 +320,7 @@ fn every_line_of_both_logs_survives_under_the_current_name() {
 fn every_entry_of_both_folders_survives_under_the_current_name() {
     let root: PathBuf = fixture("fold-folders");
     plant_both_spellings(root.as_path());
-    settle_kept_names(root.as_path(), root.as_path());
+    settle_within(root.as_path(), root.as_path());
     for kind in FOLDER_KINDS.iter().filter(|kind| return KINDS_EXISTING_TWICE.contains(kind)) {
         let found: Vec<Vec<u8>> = all_file_contents(root.join(kind.current).as_path());
         for spelling in [kind.earlier, kind.current] {
@@ -320,7 +345,7 @@ fn both_spellings_in_a_linked_worktrees_directory_fold_there_too() {
             std::fs::write(own.join(spelling).join(format!("only-in-{spelling}")), spelling).expect("own entry");
         }
     }
-    settle_kept_names(own.as_path(), root.as_path());
+    settle_within(own.as_path(), root.as_path());
     for kind in [DATA_FOLDER, MERGE_INTENT_FOLDER] {
         assert!(!own.join(kind.earlier).exists(), "{kind:?}: the earlier name is gone");
         for spelling in [kind.earlier, kind.current] {

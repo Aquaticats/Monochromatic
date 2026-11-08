@@ -21,6 +21,7 @@ use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput};
 use std::path::{Path, PathBuf};
 use crate::service_land_git_steps_and_import_stream::{commits_from_marks, import_stream, run};
+use crate::service_scratch_ref_marker_of_a_batch::record_scratch_ref;
 
 /// What:
 ///  Makes the commits a batch lands:
@@ -101,6 +102,10 @@ pub(crate) fn objects_of_batch(
             Some(value) => format!("core.fsync={value}"),
             None => String::new(),
         };
+        // The import moves `refs/worktree/cli-git-service/<seq>` at its end, and a service killed between that and the intent
+        //  leaves the reference with nothing that names its worktree; the record written here is what a restart finds it by
+        //  (`service_scratch_ref_marker_of_a_batch.rs`).
+        record_scratch_ref(journal, seq, first.repository.as_path(), first.git_dir.as_path());
         let mut import_arguments: Vec<&str> = Vec::new();
         if import_fsync.is_some() {
             import_arguments.extend(["-c", fsync_setting.as_str()]);

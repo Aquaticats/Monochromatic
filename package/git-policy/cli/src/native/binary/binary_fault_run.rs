@@ -281,6 +281,37 @@ pub(super) fn in_batches<T: Sync>(items: &[T], check: &(dyn Fn(&T) -> Result<(),
     return failures.into_inner().expect("failure list");
 }
 
+/// What a failure of a fault control says:
+/// the message it was given and what the fixture's services logged.
+/// Why:
+///   A service that refuses a step or ends says so only on its own standard error,
+/// and a sweep runs several cases at once,
+/// so the line that settles one failure is mixed with the other cases';
+/// the log the fixture keeps says which service said what
+/// (the recorded failure of 2026-11-07 could be settled only by such a line).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = `${message}\n${serviceLog(fixture)}`;
+/// ```
+pub(super) fn with_service_log(fixture: &Fixture, message: String) -> String {
+    return format!("{message}\n{}", super::support::service_log(fixture.root.as_path()));
+}
+
+/// The verdict of a fault case,
+/// with the fixture's service log carried on a failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const verdict = raw.ok ? raw : { error: withServiceLog(fixture, raw.error) };
+/// ```
+pub(super) fn keeping_the_service_log(fixture: &Fixture, verdict: Result<(), String>) -> Result<(), String> {
+    return match verdict {
+        Ok(()) => Ok(()),
+        Err(message) => Err(with_service_log(fixture, message)),
+    };
+}
+
 /// The pressure ends:
 /// the running services are stopped,
 /// and the next one starts as in production,

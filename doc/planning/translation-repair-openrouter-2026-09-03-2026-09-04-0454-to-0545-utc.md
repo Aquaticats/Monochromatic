@@ -299,7 +299,7 @@ logs `~/temp/agent/luxuanwen3-shapes-20260904.log` and `mtf_0615-shapes-20260904
     Its picture read fine (three readers,
     corroborated at 0.934).
     The cause is in the front matter,
-    next section.
+    in the `luxuanwen3's front matter, and the rule the archive breaks` section.
     64 cut streams,
     same endpoints.
 - **The endpoint cut rates,

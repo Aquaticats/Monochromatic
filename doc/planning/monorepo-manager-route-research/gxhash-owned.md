@@ -2,7 +2,8 @@
 
 Merged into "Repository-owned gxhash" in `doc/planning/monorepo-manager-from-scratch-design.md` on 2026-09-17.
 Withdrawn the same day:
-meow's cache keys left `gxhash` after the collision findings below,
+meow's cache keys left `gxhash` after the collision findings in `Findings`
+and `Quality and collision resistance`,
 and use XXH3-128 from `twox-hash`
 (`doc/decision/monorepo-manager-cache-key-hash.md`),
 so no repository-owned reimplementation is planned for meow.
@@ -819,7 +820,7 @@ Upstream activity:
 
 Each option is designed until a disqualifying problem appears or none is found.
 The output-version question is separate and is in "Output compatibility";
-every option below can target gxhash 3 output.
+every option in the `Options` section can target gxhash 3 output.
 
 ### Option A: dirty-room reimplementation in the repository
 

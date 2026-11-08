@@ -1,5 +1,14 @@
 # cli-git native replay core
 
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -309,6 +318,15 @@ A long fuzz campaign (900 s per target,
 15 targets) runs as the unit `cli-git-fuzz-campaign`
 (log `~/temp/agent/fuzz-campaign-20261015.log`);
 read it for crashes before the release.
+Note 2026-11-08T16:49:36-05:00:
+the unit started three times on 2026-10-15 and each start exited 1 (11:38,
+11:45 and 12:53:55,
+the last after 57 minutes and 20 seconds of wall clock),
+the log is gone from `${HOME}/temp/agent`,
+and no crash or total from it is recorded anywhere,
+so the campaign must run again
+(`mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=900`)
+with its totals recorded here.
 The fuzz sidecar had fallen behind the subject (stale lockfile version,
 byte paths in the journal helper,
 a refusal

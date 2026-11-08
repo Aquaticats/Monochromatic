@@ -5,7 +5,9 @@ import type {
 import {
   BUN_TEST_BAN_REASON,
   invokesBunTest,
+  invokesMutatingGitThroughRealGitPath,
   PROCESS_NAME_WAIT_BAN_REASON,
+  REAL_GIT_MUTATION_BAN_REASON,
   waitsOnProcessName,
 } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer/ts';
 import type { ReadonlyDeep, } from 'type-fest';
@@ -42,6 +44,17 @@ const PROCESS_NAME_WAIT_DENY_OUTPUT: GuardrailOutput = {
 };
 
 /**
+ Deny response for mutating Git commands that run the real Git binary by path.
+ */
+const REAL_GIT_MUTATION_DENY_OUTPUT: GuardrailOutput = {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    permissionDecision: 'deny',
+    permissionDecisionReason: REAL_GIT_MUTATION_BAN_REASON,
+  },
+};
+
+/**
  Build deny response for Agent resume polling.
  
  @param resume - Agent resume identifier
@@ -72,16 +85,21 @@ function agentResumeDenyOutput(resume: string,): GuardrailOutput {
 /**
  Guard for Agent and Bash tool calls.
  
+ The Git mutation check resolves the real Git executable,
+ so the handler answers asynchronously and the hook runtime awaits it.
+ 
  @param event - parsed {@link PreToolUseInput} event from Claude Code
  
  @returns deny response with reason, or `{}` to allow tool call
  
  @example
  ```ts
- guardrailHandler({ tool_name: 'Bash', tool_input: { command: 'mise run //pkg:test' }, ... });
+ await guardrailHandler({ tool_name: 'Bash', tool_input: { command: 'mise run //pkg:test' }, ... });
  ```
  */
-function guardrailHandler(event: ReadonlyDeep<PreToolUseInput>,): GuardrailOutput {
+async function guardrailHandler(
+  event: ReadonlyDeep<PreToolUseInput>,
+): Promise<GuardrailOutput> {
   if (event.tool_name === 'Bash') {
     /**
      Bash command string extracted defensively; `undefined` when field is absent.
@@ -91,11 +109,16 @@ function guardrailHandler(event: ReadonlyDeep<PreToolUseInput>,): GuardrailOutpu
         .command
       : undefined;
 
-    if (((typeof command) === 'string') && invokesBunTest(command,))
-      return BUN_TEST_DENY_OUTPUT;
+    if ((typeof command) === 'string') {
+      if (invokesBunTest(command,))
+        return BUN_TEST_DENY_OUTPUT;
 
-    if (((typeof command) === 'string') && waitsOnProcessName(command,))
-      return PROCESS_NAME_WAIT_DENY_OUTPUT;
+      if (waitsOnProcessName(command,))
+        return PROCESS_NAME_WAIT_DENY_OUTPUT;
+
+      if (await invokesMutatingGitThroughRealGitPath({ command, },))
+        return REAL_GIT_MUTATION_DENY_OUTPUT;
+    }
 
     return {};
   }

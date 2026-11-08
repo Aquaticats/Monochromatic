@@ -71,9 +71,15 @@ Two rule sources participate in this repository:
 
 The local cli-git policy in `cli-git.config.ts` spawns the release scanner.
 The canonical adapter is
-`package/git-policy/forbidden-strings/src/scan-candidates.ts`.
+`package/git-policy/forbidden-strings/src/scan-candidates.ts`,
+which is now `package/git-policy/cli/src/native/candidate/scanner_adapter.rs`
+(deleted 2026-10-13 by `a2b56c548c` with the four git-policy authoring packages).
 It inherits scanner environment variables and parses scanner stderr strictly through
-`package/git-policy/forbidden-strings/src/scanner-output.ts`.
+`package/git-policy/forbidden-strings/src/scanner-output.ts`,
+which has no successor:
+it was deleted 2026-10-13 by `a2b56c548c`,
+when the findings began
+arriving typed from the linked scanner.
 Every nonempty unrecognized stderr line currently fails the policy as malformed output.
 
 ## Issue evidence
@@ -593,8 +599,14 @@ Monorepo integration changes:
 - `file-enforcer.config.ts`
 - Generated `mise.toml`
 - `package/git-policy/forbidden-strings/src/scanner-output.ts`
+  has no successor:
+  it was deleted 2026-10-13 by `a2b56c548c`,
+  when the findings began arriving
+  typed from the linked scanner.
 - Its generated mirror under
   `package/git-policy/cli/src/optional/forbidden-strings/scanner-output.ts`
+  has no successor either:
+  it was deleted 2026-10-13 by `642b6d72cb` with the TypeScript wrapper.
 - Canonical and integration tests for warning parsing.
 
 ## Required verification

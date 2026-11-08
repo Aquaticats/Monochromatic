@@ -2968,6 +2968,30 @@ on the commit path:
   (the landing sweeps its own batch when it fails,
   the restart when it drops one;
   `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`).
+- A service killed between the import of a batch's objects and the write of its intent leaves the scratch reference with no
+  intent to settle it,
+  and a service instance is a hash of its worktree's Git directory,
+  which no path can be made from,
+  so the
+  landing writes `<batch>.scratch` in its own journal before the import,
+  naming the worktree root and the worktree's own Git
+  directory,
+  and a restart's recovery does what the drop does for a named batch:
+  it keeps the commit the reference holds on
+  `refs/cli-git/kept/<batch>`,
+  removes the reference,
+  and removes the record once the reference is gone.
+  A record that cannot be read,
+  a keep Git refused,
+  a kept reference that names another commit and a reference Git cannot read all leave the
+  reference and the record where they are,
+  and the journal keeps that batch number out of use while the record stays,
+  because the next
+  import of that number would move the reference
+  (`src/native/landing/service_scratch_ref_marker_of_a_batch.rs`).
+  The record is written without a flush,
+  so a power loss
+  rather than a kill can lose it and leave the reference where it was.
 - The branch write (`git update-ref --stdin`) is never ended (owner,
   2026-11-04,
   "Never cut a branch write (Recommended)").
@@ -5462,6 +5486,21 @@ Owner,
 "Remove all three (Recommended)" for the CPU,
 task and disk limits,
 after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
+A service that finds the worktree it serves gone stops its own socket and serves nothing,
+and it asks when it starts and once a minute while it serves:
+the administrative directory is missing while the repository that held it is there
+(a repository on a drive that is not mounted proves nothing),
+and the note provisioning wrote beside the socket,
+or the `gitdir=` records of the service's own journal,
+names that directory and hashes to the instance.
+It stops its socket unit with the job mode that leaves the units requiring it alone,
+because its own end is what stops its service unit,
+and a stop of that unit from inside the service would signal it before it could remove the note and the socket file.
+It ends with status 0,
+not a refusal,
+because `Restart=on-failure` would start a refused unit again,
+and a socket that could not be stopped is left to `service stop-units-of-removed-worktrees` and to `doctor`'s count.
+Nothing starts a unit.
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 
 Each commit passes through three phases:
@@ -7463,8 +7502,30 @@ and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 ### Recovery
 
-The service keeps a journal of each batch it lands and settles an unfinished batch when it starts again;
-the wrapper recovers nothing for a commit.
+The service keeps a journal of each batch it lands and settles an unfinished batch before its next batch;
+a service's start settles only an earlier release's shared journal,
+and the wrapper recovers nothing for a commit.
+A batch whose branch does not show its commit is dropped:
+its commit is written to `refs/cli-git/kept/<batch>` before the intent goes
+(`keep_what_the_branch_does_not_show` in `src/native/landing/service_land_finish.rs`),
+so the commit of a branch write that a stop left running,
+including one Git built,
+which has no scratch branch,
+reaches a ref the wrapper names instead of an unnamed one,
+or none at all.
+The kept write runs only on this drop,
+never during a landing,
+and it is a side-ref write,
+so the stop's own bounds cut it as they cut every other Git of a landing.
+It writes a kept reference only where nothing is kept under that number yet:
+a kept reference that already names another commit is left as it is,
+and so is the batch's scratch reference,
+whose removal waits for the keep
+(`service_scratch_ref_of_a_dropped_batch.rs`).
+A drop whose kept write fails is logged with Git's words and the commit's name,
+and it still drops:
+the drop is what releases the worktree's index lock and forgets the batch,
+so a ref that cannot be written holds up neither the next commit nor the stop.
 What the wrapper still settles at the start of a command is state other code writes:
 an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format

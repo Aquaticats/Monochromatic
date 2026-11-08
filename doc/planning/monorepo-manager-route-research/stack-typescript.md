@@ -57,7 +57,7 @@ Nothing under `/var/home/user/Monochromatic` was modified
     `spawn_process.rs`,
     `bun.d.ts`.
 - `SCRATCH` abbreviates `/tmp/claude-1000/-var-home-user-Monochromatic/e28ad59c-f3f5-46e9-8c8c-59a61c331610/scratchpad`.
-  Every probe script named below lives there;
+  Every probe script this document names lives there;
   raw outputs are in `SCRATCH/watch-results.jsonl` and `SCRATCH/spawn-results.jsonl`,
   fetched doc pages in `SCRATCH/docs/`.
 - Probe constraints honored:

@@ -909,6 +909,9 @@ and a manager that cannot be reached is logged and never fails the removal.
 Two forms are not seen afterwards because the process becomes Git
 (`git worktree remove --force` and `git worktree prune`),
 and a worktree deleted without Git leaves its units too.
+Those leftovers end at the first connection,
+when the service starts and finds the worktree gone,
+or when the command named next runs.
 `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those:
 it takes no options and looks at every unit instance of the user,
 not at one repository.
@@ -931,6 +934,18 @@ running the command again tries it again.
 It starts nothing,
 nothing runs it by itself,
 and no unit it concerns is enabled for login.
+A service that finds its own worktree gone stops its own socket and serves nothing,
+so those leftovers also go without anyone running the command.
+It asks the same question of the same note and journal records,
+when it starts and then once a minute while it serves
+(a removal by another Git takes the worktree while its service is running,
+so no start of that service ever comes),
+stops its socket with the stop mode that leaves the units requiring it alone,
+removes the note and the socket file,
+and ends with status 0.
+Its own end is what stops its service unit,
+so it never asks the manager to stop the service it is,
+and a failure status would make `Restart=on-failure` start it again.
 `git monochromatic-git-policy-cli doctor` says on standard error
 how many removed worktrees still have units and names this command.
 
@@ -3268,6 +3283,7 @@ mise run //package/git-policy/cli:native:clippy
 mise run //package/git-policy/cli:native:build
 mise run //package/git-policy/cli:native:test:host -- <test name filter>
 mise run //package/git-policy/cli:native:test:binary:host -- <test name filter>
+mise run //package/git-policy/cli:native:test:host:btrfs -- <test name filter>
 mise run //package/git-policy/cli:native:test:container
 ```
 
@@ -3283,6 +3299,20 @@ mise run //package/git-policy/cli:native:test:container
   A shell loop that a failing push-progress test never ended ran for 87 minutes on 2026-11-03 before this.
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
+- The controls that need a btrfs filesystem cannot run in the gate container,
+  which is an overlay:
+  each one prints `BTRFS CONTROL NOT RUN: <control> (<what its fixture root is on>)` and passes there.
+  `native:test:host:btrfs` is the other half of that bargain.
+  It points `CLI_GIT_TEST_ROOT` at `${HOME}/temp/agent/cli-git-btrfs-fixtures`
+  (or at the directory that variable already names),
+  unsets `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`,
+  and runs every target on that root with `--success-output=final`,
+  so a control that cannot run fails the run with the filesystem it found instead of passing,
+  a control that had nothing to check here names itself in the log,
+  and no list of control names has to stay current.
+  Selected by name,
+  the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
+  `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
   Before it copies or builds anything it runs `lint:sidecar-locks`,
@@ -4335,8 +4365,21 @@ and `KillMode=mixed` makes the manager kill whatever is left of the unit at that
 (or when `TimeoutStopSec` has passed).
 A branch write that outlives the bound is therefore cut by the manager,
 the branch stays where it was,
-the commit stays on its scratch branch `refs/worktree/cli-git-service/<seq>`,
+the commit stays on its scratch branch `refs/worktree/cli-git-service/<seq>` when the landing made one,
+but on no ref at all when only Git could build it,
+which asks for a hook,
+an editor,
+a signature or an unusual head,
 and the batch's open intent is what recovery reads.
+The next commit in that worktree settles the intent before it lands:
+it keeps the commit on `refs/cli-git/kept/<seq>`,
+the ref this wrapper names for work it did not land,
+and removes the intent,
+so `git for-each-ref refs/cli-git/kept/` shows the commit from then on.
+Until such a commit comes,
+the commit is on the scratch branch alone,
+or on no ref at all when the landing made none,
+and the client that saw the stop is told only that the service stopped before it could confirm the commit.
 `TimeoutStopSec` is written into the unit from the stop bounds (`STOP_TIMEOUT_SECONDS`),
 above the service's last-resort alarm,
 so the host's default stop timeout never decides

@@ -44,7 +44,8 @@ from `main` at `05c16d73d2`,
 The round removes or cheapens work the person waits for during `git commit`;
 every change has a control that was seen to
 fail first (the red commit is named),
-and every figure below was measured on this host under the load it had (load
+and every figure in `Result of the third round (less work on the wait)` was measured on this host
+under the load it had (load
 average
 about 9 during the runs),
 never after waiting for a quiet one.
@@ -435,7 +436,7 @@ a hand-over to the service) was forced to disk first and survives.").
 The 0.5.28 base is worse than the installed 0.5.27,
 in two ways.
 Warm,
-its commits take longer (below).
+its commits take longer (the numbers under `Warm numbers first`).
 And under a stalled disk it is more exposed:
 it waits for twelve syncs per landing where 0.5.27 waits for about four
 and
@@ -817,7 +818,7 @@ the commit of the red control is named.
 - The harness (`cd592cf885`,
   `aa1f633677`,
   `ed2f907a3e`):
-  the options above,
+  the options under `How it was measured`,
   the evidence,
   the refresh of the
   fixtures.
@@ -1377,7 +1378,8 @@ The evidence that bears on it:
   rest is process starts (about 14 Git starts) and the work of the policies.
 - Proposed number:
   none that is finite.
-  A bound of "native plus 5 s" can hold only if the syncs leave the waiting path (options B to E above);
+  A bound of "native plus 5 s" can hold only if the syncs leave the waiting path
+  (options B to E);
   keeping all
   of them means the bound holds only while the disk's stall is under 5 s.
   Raising the number would not fix that,

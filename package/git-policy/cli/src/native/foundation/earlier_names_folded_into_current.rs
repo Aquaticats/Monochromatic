@@ -347,7 +347,25 @@ fn failure_line(directory: &Path, name: RenamedName, outcome: &Outcome) -> Optio
 /// function foldAndTell(directory: string, names: KeptName[]): void;
 /// ```
 pub fn fold_and_tell(directory: &Path, names: &[KeptName]) {
-    let report: FoldReport = fold_kept_names(directory, names, &FoldSurroundings::of_this_process(), &mut NeverStopped);
+    fold_kept_names_and_tell(directory, names, &FoldSurroundings::of_this_process(), &mut NeverStopped);
+}
+
+/// What:
+///  `fold_and_tell` with the surroundings and steps given.
+/// Why:
+///   The surroundings name the process table and the state folder the look reads,
+/// and a control must give its own:
+/// a fold that reads the host's processes and services takes a different decision
+///  depending on what else runs on the machine
+/// (four controls of `kept_names_in_the_git_directories` deferred a fold because the
+///  look met this host's own services on 2026-11-08).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// foldKeptNamesAndTell(directory, names, { procRoot: fixtureProc, stateDir: null }, steps);
+/// ```
+pub fn fold_kept_names_and_tell(directory: &Path, names: &[KeptName], surroundings: &FoldSurroundings, steps: &mut dyn FoldSteps) {
+    let report: FoldReport = fold_kept_names(directory, names, surroundings, steps);
     if let Some(hold) = report.held
         && !WAIT_SAID.swap(true, Ordering::Relaxed)
     {

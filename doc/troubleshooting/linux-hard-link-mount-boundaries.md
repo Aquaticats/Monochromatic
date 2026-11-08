@@ -53,6 +53,9 @@ The actual-command test passes at the frozen checkpoint containing `57c1ae4c03`.
 
 The task is `mise run //package/pi-plugin/auto-mode:test:native:build-reuse:mount`,
 with the disposable previous-file and output-mount paths as arguments.
+That address no longer resolves:
+commit `ff55ced353` (2026-10-19) retired the native Pi build and deleted
+`package/pi-plugin/auto-mode/native/` with its `test:native:*` tasks.
 The private driver and logs are retained under
 `${HOME}/temp/agent/pi-mimo-preparation-failure-20261018`.
 The fallback trades deduplication for correctness on unsupported mount boundaries.

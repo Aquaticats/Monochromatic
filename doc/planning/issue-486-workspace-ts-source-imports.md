@@ -346,7 +346,7 @@ so its saving is an upper bound on the program-size effect alone.
   does not disable this JS plugin rule.
   A fixture probe kept its 11 findings under every spelling,
   and a cold sweep under `--allow` still wrote the rule cache and reported 22 findings.
-  Every rule-allowed timing recorded earlier in this document
+  Every rule-allowed timing in `Measurements (2026-09-06, this machine)`
   (file-enforcer 1.3 s,
    sweeps 65.3 s,
    the quiet-machine pair) measured the rule on and is void.

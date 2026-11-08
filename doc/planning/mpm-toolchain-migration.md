@@ -418,7 +418,7 @@ Shape additions and clarifications the implementation needed;
  `node`,
  `pnpm`,
  then the remaining tools in plan order
- (the staging list above extended with the bootstrap prerequisites).
+ (the staging list under `Sync algorithm` extended with the bootstrap prerequisites).
 - `mpm restore` is invoked with mpm's global manager selectors
  (`mpm --rustup restore mpm.packages.toml`),
  not a `--manager` flag.

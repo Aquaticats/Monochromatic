@@ -817,3 +817,59 @@ the positive controls `a_python_tool_that_uv_lists_at_the_locked_version_is_inst
 and `sync_warns_before_replacing_a_different_installed_version` (`sync_tests.rs`),
 whose fake `uv tool list` now answers the locked version after the install.
 No release was dispatched from the branch that carries it.
+
+## A linked worktree reuses the store instance built for the main checkout (2026-11-08T17:23:50-05:00)
+
+A second worktree of this repository saw the same missing `proper-lockfile`
+after its own `mise exec -- pnpm install --offline --frozen-lockfile` reported
+`Already up to date`:
+
+```text
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'proper-lockfile'
+imported from .../pi-coding-agent/dist/core/settings-manager.js
+```
+
+The installed dependency link was
+
+```text
+../../../../../../../../../../../../../var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-pi-guardrail-denies-real-git/package/pnpm-override/shim-proper-lockfile
+```
+
+from
+`/var/home/user/.local/share/pnpm/store/v11/links/@earendil-works/pi-coding-agent/1.5.0/5a60a4ca.../node_modules/`.
+Thirteen parent traversals reach `/var`,
+so the target resolved to the nonexistent `/var/var/mnt/...`,
+the shape recorded above for `/var/var/home/...`.
+
+The instance was created for the main checkout,
+whose `link:` target sits at a shallower depth,
+and the reuse check above accepted it for a deeper worktree path.
+The worktree's install neither rewrote nor reported the link.
+
+The recorded workaround repaired it,
+and this run is the measured evidence for a linked worktree:
+
+```sh
+# Worktree root
+mise run prepare:pnpm:install -- --force --frozen-lockfile --ignore-scripts
+```
+
+Pnpm added 627 packages in 2 minutes 20 seconds with no lockfile change,
+rewrote the same link to thirteen parent traversals plus
+`mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-pi-guardrail-denies-real-git/package/...`,
+and importing the package then printed `imported function`:
+
+```sh
+# Package root
+node --input-type=module-typescript -e 'const m = await import("@earendil-works/pi-coding-agent"); console.log("imported", typeof m.createAgentSession)'
+```
+
+Two consumers needed that import in the same worktree:
+`package/pi-plugin/guardrail/src/mise.verify-extension.ts`,
+which had failed before the repair,
+and the package's new `verify:pi-runtime` task,
+which drives a real Pi session through `createAgentSession`.
+The observable before the repair was `mise run //package/pi-plugin/guardrail:verify:extension`
+failing at the same `proper-lockfile` error;
+after it,
+that task printed `pi guardrail extension verified: event:tool_call`.
