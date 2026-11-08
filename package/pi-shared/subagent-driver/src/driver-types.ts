@@ -90,3 +90,61 @@ export type DriverOptions = {
   readonly idleSeconds: number;
   readonly turnCap: number;
 };
+
+/**
+ One event and how to decline a dialog so it cannot stall the session.
+ */
+export type EventObservation = {
+  readonly event: PiRecord;
+  readonly declineDialog: (id: unknown,) => void;
+};
+
+/**
+ What the summary needs from the end of the run.
+ */
+export type RunEnding = {
+  readonly endReason: EndReason;
+  readonly piExit: PiExit;
+  readonly piHasExited: boolean;
+  readonly sessionStats: unknown;
+};
+
+/**
+ The feed and the counts of one run.
+ */
+export type RecordOfPiRun = {
+  /**
+   Whether Pi is at work. Only `agent_settled` clears this: `agent_end` ends one low-level run, and retries or follow-up work can
+   still come.
+   */
+  readonly isRunning: () => boolean;
+  readonly settledCount: () => number;
+  readonly turnCount: () => number;
+
+  /**
+   How long nothing has been heard or noted.
+   */
+  readonly silentMilliseconds: () => number;
+
+  /**
+   Writes one feed line, which also counts as activity: a message just delivered must not look like a long silence.
+   */
+  readonly note: (entry: PiRecord,) => void;
+
+  /**
+   Counts a prompt Pi handled without starting a run, for which no `agent_settled` will come.
+   */
+  readonly countHandledPrompt: () => void;
+
+  /**
+   Keeps what went wrong in the driver itself, for the summary.
+   */
+  readonly noteDriverFailure: (failure: string,) => void;
+  readonly observe: (observation: EventObservation,) => void;
+  readonly summarize: (ending: RunEnding,) => RunSummary;
+
+  /**
+   Finishes writing the feed.
+   */
+  readonly close: () => Promise<void>;
+};

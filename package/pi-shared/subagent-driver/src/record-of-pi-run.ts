@@ -8,11 +8,15 @@ import { createWriteStream, } from 'node:fs';
 import { finished, } from 'node:stream/promises';
 import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
 import type {
-  EndReason,
-  PiExit,
+  EventObservation,
   PiRecord,
-  RunSummary,
+  RecordOfPiRun,
 } from './driver-types.ts';
+import {
+  preview,
+  textOfParts,
+  thinkingLengthOf,
+} from './previews-of-pi-messages.ts';
 import {
   fieldsOf,
   recordsIn,
@@ -28,116 +32,6 @@ const DIALOG_METHODS: ReadonlySet<string> = new Set(['select', 'confirm', 'input
  The events worth a feed line of their own detail.
  */
 const NOTED_EVENT_TYPES: ReadonlySet<string> = new Set(['auto_retry_start', 'compaction_start', 'queue_update',],);
-
-/**
- One event and how to decline a dialog so it cannot stall the session.
- */
-export type EventObservation = {
-  readonly event: PiRecord;
-  readonly declineDialog: (id: unknown,) => void;
-};
-
-/**
- What the summary needs from the end of the run.
- */
-export type RunEnding = {
-  readonly endReason: EndReason;
-  readonly piExit: PiExit;
-  readonly piHasExited: boolean;
-  readonly sessionStats: unknown;
-};
-
-/**
- The feed and the counts of one run.
- */
-export type RecordOfPiRun = {
-  /**
-   Whether Pi is at work. Only `agent_settled` clears this: `agent_end` ends one low-level run, and retries or follow-up work can
-   still come.
-   */
-  readonly isRunning: () => boolean;
-  readonly settledCount: () => number;
-  readonly turnCount: () => number;
-
-  /**
-   How long nothing has been heard or noted.
-   */
-  readonly silentMilliseconds: () => number;
-
-  /**
-   Writes one feed line, which also counts as activity: a message just delivered must not look like a long silence.
-   */
-  readonly note: (entry: PiRecord,) => void;
-
-  /**
-   Counts a prompt Pi handled without starting a run, for which no `agent_settled` will come.
-   */
-  readonly countHandledPrompt: () => void;
-
-  /**
-   Keeps what went wrong in the driver itself, for the summary.
-   */
-  readonly noteDriverFailure: (failure: string,) => void;
-  readonly observe: (observation: EventObservation,) => void;
-  readonly summarize: (ending: RunEnding,) => RunSummary;
-
-  /**
-   Finishes writing the feed.
-   */
-  readonly close: () => Promise<void>;
-};
-
-/**
- Shortens a value for a feed line, saying how long it was.
-
- @param value - value to show
-
- @param length - longest text to keep
-
- @returns the value as text, cut if long
-
- @example
- ```ts
- const text = preview({ value: 'abc', length: 2, },);
- ```
- */
-export function preview({ value, length, }: { readonly value: unknown; readonly length: number; },): string {
-  /**
-   The value as text.
-   */
-  const text = (typeof value === 'string') ? value : (JSON.stringify(value,) ?? '');
-  return (text.length > length) ? `${text.slice(0, length,)}...[${String(text.length,)}]` : text;
-}
-
-/**
- Joins the text parts of a message.
-
- @param parts - message's parts
-
- @returns the message's text
- */
-function textOfParts(parts: readonly PiRecord[],): string {
-  return parts.filter(function isTextPart(part,) {
-    return part.type === 'text';
-  },).map(function textOfPart(part,) {
-    return textOf(part.text,);
-  },).join('\n',);
-}
-
-/**
- Counts the characters of a message's thinking.
-
- @param parts - message's parts
-
- @returns the count
- */
-function thinkingLengthOf(parts: readonly PiRecord[],): number {
-  return parts.filter(function isThinkingPart(part,) {
-    return part.type === 'thinking';
-  },).reduce(function addLength(sum, part,) {
-    return sum + textOf(part.thinking,).length;
-  }, 0,);
-}
 
 /**
  Starts the record of a run.

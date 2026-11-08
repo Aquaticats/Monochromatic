@@ -157,7 +157,9 @@ await describe({
         await opened.connection.send({ command: { type: 'get_state', }, },);
         const toolLine = (await readFile(opened.log, 'utf8',)).split('\n',).find((line,) => line.startsWith('tool ',));
         await opened.connection.shutDown();
-        kill(Number(String(toolLine,).slice('tool '.length,),),);
+        kill(
+          Number(String(toolLine,).slice('tool '.length,),),
+        );
         expect(opened.connection.hasExited(),).toBe(true,);
         expect(opened.connection.exitDetails().code,).toBe(0,);
       },

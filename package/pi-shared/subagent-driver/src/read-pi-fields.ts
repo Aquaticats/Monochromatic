@@ -19,7 +19,8 @@ import type { PiRecord, } from './driver-types.ts';
  ```
  */
 export function isRecord(value: unknown,): value is PiRecord {
-  return (typeof value === 'object') && (value !== null) && !Array.isArray(value,);
+  return ((typeof value) === 'object') && (value !== null)
+    && (!Array.isArray(value,));
 }
 
 /**
@@ -67,5 +68,5 @@ export function recordsIn(value: unknown,): readonly PiRecord[] {
  ```
  */
 export function textOf(value: unknown,): string {
-  return (typeof value === 'string') ? value : '';
+  return ((typeof value) === 'string') ? value : '';
 }

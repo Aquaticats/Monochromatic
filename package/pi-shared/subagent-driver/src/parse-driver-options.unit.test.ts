@@ -74,7 +74,9 @@ await describe({
       name: 'requires every limit, so a run is always bounded',
       fn: async () => {
         for (const name of ['wall-seconds', 'idle-seconds', 'turn-cap',]) {
-          expect(errorOf(COMPLETE.filter((option,) => !option.startsWith(`--${name}`,)),),).toContain(`--${name} is required`,);
+          expect(
+            errorOf(COMPLETE.filter((option,) => !option.startsWith(`--${name}`,)),),
+          ).toContain(`--${name} is required`,);
         }
       },
     },),

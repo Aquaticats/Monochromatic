@@ -39,8 +39,14 @@ export class DriverOptionsError extends Error {
  const folder = requiredText({ value: 'x', name: 'run-folder', },);
  ```
  */
-function requiredText({ value, name, }: { readonly value: unknown; readonly name: string; },): string {
-  if ((typeof value !== 'string') || (value === '')) {
+function requiredText({
+  value,
+  name,
+}: {
+  readonly value: unknown;
+  readonly name: string
+},): string {
+  if (((typeof value) !== 'string') || (value === '')) {
     throw new DriverOptionsError(`--${name} is required.\nUsage: ${DRIVER_USAGE}`,);
   }
   return value;
@@ -62,16 +68,25 @@ function requiredText({ value, name, }: { readonly value: unknown; readonly name
  const seconds = requiredPositiveNumber({ value: '60', name: 'wall-seconds', },);
  ```
  */
-function requiredPositiveNumber({ value, name, }: { readonly value: unknown; readonly name: string; },): number {
+function requiredPositiveNumber({
+  value,
+  name,
+}: {
+  readonly value: unknown;
+  readonly name: string
+},): number {
   /**
    The option's text.
    */
-  const text = requiredText({ value, name, },);
+  const text = requiredText({
+    value,
+    name,
+  },);
   /**
    The option's number.
    */
   const parsed = Number(text,);
-  if (!Number.isFinite(parsed,) || (parsed <= 0)) {
+  if ((!Number.isFinite(parsed,)) || (parsed <= 0)) {
     throw new DriverOptionsError(`--${name} must be a number above zero; it was "${text}".\nUsage: ${DRIVER_USAGE}`,);
   }
   return parsed;
@@ -107,29 +122,59 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
         provider: { type: 'string', },
         model: { type: 'string', },
         session: { type: 'string', },
-        'pi-argument': { type: 'string', multiple: true, },
+        'pi-argument': {
+          type: 'string',
+          multiple: true,
+        },
         'wall-seconds': { type: 'string', },
         'idle-seconds': { type: 'string', },
         'turn-cap': { type: 'string', },
       },
     },);
     return {
-      runFolder: requiredText({ value: values['run-folder'], name: 'run-folder', },),
-      workingFolder: requiredText({ value: values['working-folder'], name: 'working-folder', },),
-      promptFile: requiredText({ value: values['prompt-file'], name: 'prompt-file', },),
-      provider: requiredText({ value: values.provider, name: 'provider', },),
-      model: requiredText({ value: values.model, name: 'model', },),
+      runFolder: requiredText({
+        value: values['run-folder'],
+        name: 'run-folder',
+      },),
+      workingFolder: requiredText({
+        value: values['working-folder'],
+        name: 'working-folder',
+      },),
+      promptFile: requiredText({
+        value: values['prompt-file'],
+        name: 'prompt-file',
+      },),
+      provider: requiredText({
+        value: values.provider,
+        name: 'provider',
+      },),
+      model: requiredText({
+        value: values.model,
+        name: 'model',
+      },),
       ...(values.session === undefined ? {} : { session: values.session, }),
       piArguments: values['pi-argument'] ?? [],
-      wallSeconds: requiredPositiveNumber({ value: values['wall-seconds'], name: 'wall-seconds', },),
-      idleSeconds: requiredPositiveNumber({ value: values['idle-seconds'], name: 'idle-seconds', },),
-      turnCap: requiredPositiveNumber({ value: values['turn-cap'], name: 'turn-cap', },),
+      wallSeconds: requiredPositiveNumber({
+        value: values['wall-seconds'],
+        name: 'wall-seconds',
+      },),
+      idleSeconds: requiredPositiveNumber({
+        value: values['idle-seconds'],
+        name: 'idle-seconds',
+      },),
+      turnCap: requiredPositiveNumber({
+        value: values['turn-cap'],
+        name: 'turn-cap',
+      },),
     };
   }
   catch (error) {
     if (error instanceof DriverOptionsError) {
       throw error;
     }
-    throw new DriverOptionsError(`${String(error,)}\nUsage: ${DRIVER_USAGE}`, { cause: error, },);
+    throw new DriverOptionsError(
+      `${String(error,)}\nUsage: ${DRIVER_USAGE}`,
+      { cause: error, },
+    );
   }
 }

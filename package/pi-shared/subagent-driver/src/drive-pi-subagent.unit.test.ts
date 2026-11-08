@@ -247,7 +247,7 @@ async function runDriver(
     standardError,
     summary: await readSummary(join(runFolder, 'summary.json',),),
     feed: (await readLines(join(runFolder, 'feed.jsonl',),)).map((line,) => JSON.parse(line,) as Record<string, unknown>),
-    commands: logged.filter((line,) => !line.startsWith('arguments ',) && !line.startsWith('nested ',)),
+    commands: logged.filter((line,) => (!line.startsWith('arguments ',)) && (!line.startsWith('nested ',))),
     nestedVariable: logged.find((line,) => line.startsWith('nested ',))?.slice('nested '.length,) ?? '',
     piArguments: logged.filter((line,) => line.startsWith('arguments ',)).flatMap((line,) =>
       JSON.parse(line.slice('arguments '.length,),) as string[]

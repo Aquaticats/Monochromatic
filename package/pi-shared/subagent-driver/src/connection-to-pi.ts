@@ -110,14 +110,21 @@ export type ConnectionToPi = {
  ```
  */
 async function keepStandardError(
-  { source, file, onProblem, }: {
+  {
+    source,
+    file,
+    onProblem,
+  }: {
     readonly source: Readable;
     readonly file: string;
     readonly onProblem: (problem: string,) => void;
   },
 ): Promise<void> {
   try {
-    await pipeline(source, createWriteStream(file,),);
+    await pipeline(
+      source,
+      createWriteStream(file,),
+    );
   }
   catch (error) {
     onProblem(`could not keep Pi's standard error: ${String(error,)}`,);
@@ -129,7 +136,7 @@ async function keepStandardError(
 
  @param chunk - bytes as they arrived
 
- @yields offset of each line feed
+ @returns offset of each line feed, one at a time
 
  @example
  ```ts
@@ -137,7 +144,10 @@ async function keepStandardError(
  ```
  */
 function* lineEndsIn(chunk: Buffer,): Generator<number> {
-  for (let lineEnd = chunk.indexOf(LINE_FEED,); lineEnd !== -1; lineEnd = chunk.indexOf(LINE_FEED, lineEnd + 1,)) {
+  for (let lineEnd = chunk.indexOf(LINE_FEED,); lineEnd !== (-1); lineEnd = chunk.indexOf(
+    LINE_FEED,
+    lineEnd + 1,
+  )) {
     yield lineEnd;
   }
 }
@@ -177,11 +187,19 @@ export function startConnectionToPi(
   /**
    The Pi process.
    */
-  const child = spawn('pi', [...piArguments,], {
-    cwd: workingFolder,
-    stdio: ['pipe', 'pipe', 'pipe',],
-    env: environment,
-  },);
+  const child = spawn(
+    'pi',
+    [...piArguments,],
+    {
+      cwd: workingFolder,
+      stdio: [
+        'pipe',
+        'pipe',
+        'pipe',
+      ],
+      env: environment,
+    },
+  );
   /**
    The commands waiting for Pi's answers, by identifier.
    */
@@ -193,7 +211,14 @@ export function startConnectionToPi(
   /**
    What changes while Pi runs.
    */
-  const state: { exit?: PiExit; commandsSent: number; partialLine: Buffer[]; } = { commandsSent: 0, partialLine: [], };
+  const state: {
+    exit?: PiExit;
+    commandsSent: number;
+    partialLine: Buffer[]
+  } = {
+    commandsSent: 0,
+    partialLine: [],
+  };
 
   /**
    Records that Pi has gone, once, and answers every command still waiting.
@@ -207,7 +232,10 @@ export function startConnectionToPi(
     state.exit = exit;
     listeners.onExit(exit,);
     for (const answer of waitingForAnswer.values()) {
-      answer({ success: false, error: 'pi exited', },);
+      answer({
+        success: false,
+        error: 'pi exited',
+      },);
     }
     closed.resolve('closed',);
   }
@@ -228,9 +256,12 @@ export function startConnectionToPi(
    Lets go of Pi's pipes and handle, so a process that will not end cannot keep the driver alive.
    */
   function releaseHandles(): void {
-    child.stdin.destroy();
-    child.stdout.destroy();
-    child.stderr.destroy();
+    child.stdin
+      .destroy();
+    child.stdout
+      .destroy();
+    child.stderr
+      .destroy();
     child.unref();
   }
 
@@ -275,7 +306,7 @@ export function startConnectionToPi(
     if (record === UNREADABLE_LINE) {
       return;
     }
-    if ((record.type === 'response') && (typeof record.id === 'string')) {
+    if ((record.type === 'response') && ((typeof record.id) === 'string')) {
       waitingForAnswer.get(record.id,)?.(record,);
       return;
     }
@@ -292,17 +323,31 @@ export function startConnectionToPi(
     /**
      Where the part after the last complete line starts.
      */
-    const tailStart = [...lineEndsIn(chunk,),].reduce(function readOneLine(lineStart, lineEnd,) {
+    const tailStart = [...lineEndsIn(chunk,),].reduce(
+      function readOneLine(
+        lineStart,
+        lineEnd,
+      ) {
       /**
        The whole line.
        */
-      const line = Buffer.concat([...state.partialLine, chunk.subarray(lineStart, lineEnd,),],).toString('utf8',);
-      state.partialLine = [];
-      readLine(line,);
-      return lineEnd + 1;
-    }, 0,);
+        const line = Buffer.concat([
+          ...state.partialLine,
+          chunk.subarray(
+            lineStart,
+            lineEnd,
+          ),
+        ],)
+          .toString('utf8',);
+        state.partialLine = [];
+        readLine(line,);
+        return lineEnd + 1;
+      },
+      0,
+    );
     if (tailStart < chunk.length) {
-      state.partialLine.push(chunk.subarray(tailStart,),);
+      state.partialLine
+        .push(chunk.subarray(tailStart,),);
     }
   }
 
@@ -313,7 +358,8 @@ export function startConnectionToPi(
    */
   function write(command: PiRecord,): void {
     if (state.exit === undefined) {
-      child.stdin.write(`${JSON.stringify(command,)}\n`,);
+      child.stdin
+        .write(`${JSON.stringify(command,)}\n`,);
     }
   }
 
@@ -327,10 +373,16 @@ export function startConnectionToPi(
    @returns Pi's answer, or a failed answer when Pi has gone or stays silent
    */
   async function send(
-    { command, answerMilliseconds = COMMAND_ANSWER_MILLISECONDS, }: CommandRequest,
+    {
+      command,
+      answerMilliseconds = COMMAND_ANSWER_MILLISECONDS,
+    }: CommandRequest,
   ): Promise<PiRecord> {
     if (state.exit !== undefined) {
-      return { success: false, error: 'pi exited', };
+      return {
+        success: false,
+        error: 'pi exited',
+      };
     }
     state.commandsSent += 1;
     /**
@@ -344,11 +396,23 @@ export function startConnectionToPi(
     /**
      The bound on the wait.
      */
-    const timer = setTimeout(function giveUpOnAnswer() {
-      answer.resolve({ success: false, error: `no answer in ${String(answerMilliseconds,)} ms`, },);
-    }, answerMilliseconds,);
-    waitingForAnswer.set(id, answer.resolve,);
-    write({ id, ...command, },);
+    const timer = setTimeout(
+      function giveUpOnAnswer() {
+        answer.resolve({
+          success: false,
+          error: `no answer in ${String(answerMilliseconds,)} ms`,
+        },);
+      },
+      answerMilliseconds,
+    );
+    waitingForAnswer.set(
+      id,
+      answer.resolve,
+    );
+    write({
+      id,
+      ...command,
+    },);
     /**
      What came back.
      */
@@ -369,7 +433,11 @@ export function startConnectionToPi(
      */
     const outcome = await Promise.race([
       closed.promise,
-      wait(graceMilliseconds, 'still-running' as const, { ref: false, },),
+      wait(
+        graceMilliseconds,
+        'still-running' as const,
+        { ref: false, },
+      ),
     ],);
     return outcome === 'closed';
   }
@@ -381,7 +449,8 @@ export function startConnectionToPi(
     if (state.exit !== undefined) {
       return;
     }
-    child.stdin.end();
+    child.stdin
+      .end();
     if (await wentWithinGrace()) {
       return;
     }
@@ -394,24 +463,49 @@ export function startConnectionToPi(
     releaseHandles();
   }
 
-  child.stdout.on('data', readChunk,);
-  child.stdin.on('error', function onInputError({ message, }: { readonly message: string; },) {
-    listeners.onProblem(`could not write to Pi: ${message}`,);
-  },);
-  child.on('error', function onProcessError({ message, }: { readonly message: string; },) {
-    markExited({ processError: message, },);
-  },);
-  child.on('exit', function onChildExit() {
+  child.stdout
+    .on(
+    'data',
+    readChunk,
+    );
+  child.stdin
+    .on(
+    'error',
+    function onInputError({ message, }: { readonly message: string; },) {
+      listeners.onProblem(`could not write to Pi: ${message}`,);
+    },
+    );
+  child.on(
+    'error',
+    function onProcessError({ message, }: { readonly message: string; },) {
+      markExited({ processError: message, },);
+    },
+  );
+  child.on(
+    'exit',
+    function onChildExit() {
     // A tool Pi started can keep Pi's output open after Pi has gone, and then 'close' never comes.
-    setTimeout(function stopWaitingForOutput() {
-      releaseHandles();
+      setTimeout(
+        function stopWaitingForOutput() {
+          releaseHandles();
+          markExited(exitOfChild(),);
+        },
+        graceMilliseconds,
+      )
+        .unref();
+    },
+  );
+  child.on(
+    'close',
+    function onChildClose() {
       markExited(exitOfChild(),);
-    }, graceMilliseconds,).unref();
+    },
+  );
+  void keepStandardError({
+    source: child.stderr,
+    file: standardErrorFile,
+    onProblem: listeners.onProblem,
   },);
-  child.on('close', function onChildClose() {
-    markExited(exitOfChild(),);
-  },);
-  void keepStandardError({ source: child.stderr, file: standardErrorFile, onProblem: listeners.onProblem, },);
 
   return {
     hasExited: function hasExited() {

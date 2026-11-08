@@ -58,32 +58,59 @@ export type WatchRequest = {
 
  @param name - message's file name
  */
-async function deliverMessage({ watch, name, }: { readonly watch: WatchRequest; readonly name: string; },): Promise<void> {
+async function deliverMessage({
+  watch,
+  name,
+}: {
+  readonly watch: WatchRequest;
+  readonly name: string
+},): Promise<void> {
   /**
    The message file.
    */
-  const path = join(watch.inbox, name,);
+  const path = join(
+    watch.inbox,
+    name,
+  );
   /**
    The message.
    */
-  const text = await readFile(path, 'utf8',);
+  const text = await readFile(
+    path,
+    'utf8',
+  );
   /**
    How the message reaches Pi: a steer while it works, a new prompt while it rests.
    */
-  const sentAs = watch.record.isRunning() ? 'steer' : 'prompt';
+  const sentAs = watch.record
+    .isRunning() ? 'steer' : 'prompt';
   /**
    Pi's answer.
    */
-  const answer = await watch.connection.send({ command: { type: sentAs, message: text, }, },);
-  await (answer.success === true ? unlink(path,) : rename(path, join(watch.inbox, `.failed-${name}`,),));
-  watch.record.note({
-    kind: 'inbox',
-    file: name,
-    sentAs,
-    success: answer.success,
-    error: answer.error ?? null,
-    preview: preview({ value: text, length: FEED_PREVIEW_CHARACTERS.inboxMessage, },),
-  },);
+  const answer = await watch.connection
+    .send({ command: {
+      type: sentAs,
+      message: text,
+    }, },);
+  await (answer.success === true ? unlink(path,) : rename(
+    path,
+    join(
+      watch.inbox,
+      `.failed-${name}`,
+    ),
+  ));
+  watch.record
+    .note({
+      kind: 'inbox',
+      file: name,
+      sentAs,
+      success: answer.success,
+      error: answer.error ?? null,
+      preview: preview({
+        value: text,
+        length: FEED_PREVIEW_CHARACTERS.inboxMessage,
+      },),
+    },);
 }
 
 /**
@@ -93,13 +120,35 @@ async function deliverMessage({ watch, name, }: { readonly watch: WatchRequest; 
 
  @param name - entry's name
  */
-async function deliverOrSetAside({ watch, name, }: { readonly watch: WatchRequest; readonly name: string; },): Promise<void> {
+async function deliverOrSetAside({
+  watch,
+  name,
+}: {
+  readonly watch: WatchRequest;
+  readonly name: string
+},): Promise<void> {
   try {
-    await deliverMessage({ watch, name, },);
+    await deliverMessage({
+      watch,
+      name,
+    },);
   }
   catch (error) {
-    watch.record.note({ kind: 'problem', problem: `could not deliver ${name}: ${String(error,)}`, },);
-    await rename(join(watch.inbox, name,), join(watch.inbox, `.failed-${name}`,),);
+    watch.record
+      .note({
+        kind: 'problem',
+        problem: `could not deliver ${name}: ${String(error,)}`,
+      },);
+    await rename(
+      join(
+        watch.inbox,
+        name,
+      ),
+      join(
+        watch.inbox,
+        `.failed-${name}`,
+      ),
+    );
   }
 }
 
@@ -113,18 +162,29 @@ async function deliverOrSetAside({ watch, name, }: { readonly watch: WatchReques
  @returns why the run is over, or that it goes on
  */
 async function progressAgainstLimits(
-  { watch, wallDeadline, }: { readonly watch: WatchRequest; readonly wallDeadline: number; },
+  {
+    watch,
+    wallDeadline,
+  }: {
+    readonly watch: WatchRequest;
+    readonly wallDeadline: number
+  },
 ): Promise<RunProgress> {
-  if (watch.connection.hasExited()) {
+  if (watch.connection
+    .hasExited()) {
     return 'pi-exited';
   }
   if (Date.now() >= wallDeadline) {
     return 'wall-clock';
   }
-  if ((await readdir(watch.options.runFolder,)).includes(STOP_FILE_NAME,)) {
+  if ((await readdir(watch.options
+    .runFolder,)).includes(STOP_FILE_NAME,)) {
     return 'stop-file';
   }
-  return watch.record.turnCount() >= watch.options.turnCap ? 'turn-cap' : 'still-running';
+  return watch.record
+    .turnCount()
+    >= watch.options
+      .turnCap ? 'turn-cap' : 'still-running';
 }
 
 /**
@@ -137,7 +197,8 @@ async function progressAgainstLimits(
 async function readyMessages(inbox: string,): Promise<readonly string[]> {
   return (await readdir(inbox,)).filter(function isReady(name,) {
     return !name.startsWith('.',);
-  },).toSorted();
+  },)
+    .toSorted();
 }
 
 /**
@@ -148,9 +209,16 @@ async function readyMessages(inbox: string,): Promise<readonly string[]> {
  @returns whether the idle wait has passed
  */
 function idleLongEnough(watch: WatchRequest,): boolean {
-  return !watch.record.isRunning()
-    && (watch.record.settledCount() >= 1)
-    && (watch.record.silentMilliseconds() > (watch.options.idleSeconds * MILLISECONDS_PER_SECOND));
+  return (!watch.record
+    .isRunning())
+    && (watch.record
+      .settledCount()
+      >= 1)
+    && (watch.record
+      .silentMilliseconds()
+      > (watch.options
+        .idleSeconds
+        * MILLISECONDS_PER_SECOND));
 }
 
 /**
@@ -169,11 +237,17 @@ function idleLongEnough(watch: WatchRequest,): boolean {
  ```
  */
 export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> {
-  for await (const wallDeadline of everyInterval(POLL_MILLISECONDS, watch.deadline,)) {
+  for await (const wallDeadline of everyInterval(
+    POLL_MILLISECONDS,
+    watch.deadline,
+  )) {
     /**
      Where the run stands against its limits.
      */
-    const progress = await progressAgainstLimits({ watch, wallDeadline, },);
+    const progress = await progressAgainstLimits({
+      watch,
+      wallDeadline,
+    },);
     if (progress !== 'still-running') {
       return progress;
     }
@@ -182,7 +256,10 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
      */
     const [nextMessage,] = await readyMessages(watch.inbox,);
     if (nextMessage !== undefined) {
-      await deliverOrSetAside({ watch, name: nextMessage, },);
+      await deliverOrSetAside({
+        watch,
+        name: nextMessage,
+      },);
     }
     else if (idleLongEnough(watch,)) {
       return 'idle';

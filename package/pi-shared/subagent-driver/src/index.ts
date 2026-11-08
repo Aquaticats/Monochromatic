@@ -18,8 +18,11 @@ export {
 export type {
   DriverOptions,
   EndReason,
+  EventObservation,
   PiExit,
   PiRecord,
+  RecordOfPiRun,
+  RunEnding,
   RunProgress,
   RunSummary,
 } from './driver-types.ts';
@@ -29,18 +32,17 @@ export {
   parseDriverOptions,
 } from './parse-driver-options.ts';
 export {
+  preview,
+  textOfParts,
+  thinkingLengthOf,
+} from './previews-of-pi-messages.ts';
+export {
   fieldsOf,
   isRecord,
   recordsIn,
   textOf,
 } from './read-pi-fields.ts';
-export {
-  type EventObservation,
-  preview,
-  type RecordOfPiRun,
-  type RunEnding,
-  startRecordOfPiRun,
-} from './record-of-pi-run.ts';
+export { startRecordOfPiRun, } from './record-of-pi-run.ts';
 export {
   NestedDriverError,
   PiRunEndedEarlyError,
