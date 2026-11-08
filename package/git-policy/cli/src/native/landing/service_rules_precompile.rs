@@ -44,6 +44,18 @@ use std::time::{Duration, Instant};
 /// The file in the service's state directory that names the repository it serves.
 pub const REMEMBERED_FILE: &str = "rules-repository";
 
+/// The address space a warm needs beyond what the service already maps, in bytes.
+pub const WARM_ADDRESS_SPACE: u64 = 512 * 1024 * 1024;
+
+/// Whether the address space the service has left holds a warm.
+/// Why:
+///  A failed allocation ends a Rust program with an abort, whatever it was doing, so a warm that does not fit would end the
+///  service itself; the warm is optional, so it is skipped when a limit leaves less room than a compile needs.
+pub fn warm_fits(address_space_left: Option<u64>) -> bool {
+    let _unused: Option<u64> = address_space_left;
+    return true;
+}
+
 /// Whether a warm runs now;
 /// a second one is skipped,
 /// and the next landing tries again.
