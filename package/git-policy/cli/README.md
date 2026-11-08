@@ -910,6 +910,9 @@ The command stops only an instance whose Git directory is missing while the repo
 (a repository on a drive that is not mounted proves nothing),
 says which worktree each stopped instance was,
 and names an instance that maps to nothing without touching it.
+A stopped instance's note and socket file are removed,
+because the manager leaves the socket file of a stopped socket unit in place,
+and a file that stayed would count the instance again.
 A refused stop is named with the reason and makes the exit status 1;
 running the command again tries it again.
 It starts nothing,

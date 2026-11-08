@@ -30,7 +30,7 @@
 use crate::diagnostic_log::{debug, warn};
 use crate::service_instance::{socket_path, try_instance_of};
 use crate::service_provision_host_and_manager::Manager;
-use crate::service_units_of_removed_worktrees::{UnitFolders, note_path, stop_units, worktree_is_gone};
+use crate::service_units_of_removed_worktrees::{UnitFolders, forget_stopped_instance, note_path, stop_units, worktree_is_gone};
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, session_bus_path};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_remove_registry::registration_of;
@@ -117,7 +117,7 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
     }
     manager.within(EXCHANGE_WAIT);
     stop_units(manager, about.instance.as_str())?;
-    let _removed = std::fs::remove_file(note_path(folders.runtime_dir, about.instance.as_str()));
+    forget_stopped_instance(folders.runtime_dir, about.instance.as_str());
     return Ok(true);
 }
 

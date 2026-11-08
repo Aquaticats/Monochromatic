@@ -181,6 +181,9 @@ fn the_sweep_stops_the_units_of_gone_worktrees_only() {
     assert_eq!(outcome.survey.unmapped, vec![unknown.clone()]);
     assert_eq!(recorder.stops(), vec![format!("stop {}", socket_unit_instance(gone_instance.as_str())), format!("stop {}", service_unit_instance(gone_instance.as_str()))]);
     assert!(!note_path(machine.runtime.as_path(), gone_instance.as_str()).exists(), "the stopped instance's note is removed");
+    assert!(!socket_path(machine.runtime.as_path(), gone_instance.as_str()).exists(), "the stopped instance's socket file is removed, so it is not counted or stopped again");
+    assert!(socket_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's socket file stays");
+    assert_eq!(survey(&machine.folders()), Survey { gone: Vec::new(), unmapped: vec![unknown], present: 1 });
     assert!(note_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's note stays");
     remove(machine.root.as_path());
 }
