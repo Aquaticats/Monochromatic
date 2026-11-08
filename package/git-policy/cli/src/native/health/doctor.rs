@@ -422,7 +422,7 @@ such as `/usr/bin/git` directly, would run them.\n",
 /// async function doctor({ context, cwd }): Promise<Action>;
 /// ```
 pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
-    return doctor_action_with_section(context, cwd, &no_filesystem_section);
+    return doctor_action_with_section(context, cwd, None, &no_filesystem_section);
 }
 
 /// What:
@@ -430,19 +430,20 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
 /// Why:
 ///   `doctor_action` prints no filesystem section,
 /// and `doctor_action_with_section` takes its section as a function,
-///  so this named function stands where a closure that ignored its argument stood.
+///  so this named function stands where a closure that ignored its arguments stood.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const noFilesystemSection = (_commonDirectory: string) => '';
+/// const noFilesystemSection = (_commonDirectory: string, _home: string | undefined) => '';
 /// ```
-fn no_filesystem_section(_common_directory: &Path) -> String {
+fn no_filesystem_section(_common_directory: &Path, _home: Option<&Path>) -> String {
     return String::new();
 }
 
 /// What:
 ///  The same decision with a filesystem section appended to standard error.
-///  `&dyn Fn(&Path) -> String` is a borrowed function from the repository's common Git directory to the section text.
+///  `&dyn Fn(&Path, Option<&Path>) -> String` is a borrowed function from the repository's common Git directory and
+/// the home the invocation names to the section text.
 /// Why:
 ///   The section is informational and comes last,
 /// after every hook line and note;
@@ -452,15 +453,20 @@ fn no_filesystem_section(_common_directory: &Path) -> String {
 /// Git selected the common directory
 ///  (so `-C`,
 /// `--git-dir` and linked worktrees are honored),
-/// and the caller supplies the text function,
+/// and the caller supplies the text function and the home the invocation names,
 /// so the
 ///  exact-output controls pass one that returns nothing and stay independent of the host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function doctorWithSection({ context, cwd, section }): Promise<Action>;
+/// async function doctorWithSection({ context, cwd, home, section }): Promise<Action>;
 /// ```
-pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_section: &dyn Fn(&Path) -> String) -> Action {
+pub fn doctor_action_with_section(
+    context: &GitContext,
+    cwd: &Path,
+    home: Option<&Path>,
+    filesystem_section: &dyn Fn(&Path, Option<&Path>) -> String,
+) -> Action {
     let location: HooksLocation = match locate_hooks(context, cwd) {
         Ok(found) => found,
         Err(message) => return doctor_failure(message.as_str()),
@@ -484,7 +490,7 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
     // The first time the common Git directory is known to this command, an earlier release's names in it are moved.
     crate::kept_names_in_the_git_directories::settle_common_directory_names(location.common_directory.as_path());
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
-    let section: String = filesystem_section(location.common_directory.as_path());
+    let section: String = filesystem_section(location.common_directory.as_path(), home);
     if hooks.is_empty() && findings.hooks.is_empty() {
         return Action::Exit {
             code: 0,

@@ -152,7 +152,8 @@ struct InvocationHome {
     environment: Vec<(std::ffi::OsString, std::ffi::OsString)>,
 }
 
-/// A world whose recorded link dangles, with the environment that names its home.
+/// A world whose recorded link dangles,
+/// with the environment that names its home.
 #[cfg(unix)]
 fn invocation_home(name: &str) -> InvocationHome {
     let root: PathBuf = std::fs::canonicalize(fixture(name)).expect("root");

@@ -229,7 +229,8 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path) -> Res
 /// Why:
 ///   Shared by wrapped commands,
 /// read-only commands and direct commands.
-/// The home the link gate reads is the one this invocation's environment names, never this process's,
+/// The home the link gate reads is the one this invocation's environment names,
+/// never this process's,
 /// so the entry gate and this step judge the same command by the same identity file.
 /// A recovery failure stops the command with exit 2,
 ///  as the incumbent's `content-unavailable` engine failure does;

@@ -289,7 +289,8 @@ fn run_convert(_arguments: &ConvertArguments, _cwd: &Path, _environment: &[(OsSt
     return failure("git monochromatic-git-policy-cli convert-worktree-to-subvolume works on Linux with btrfs only");
 }
 
-/// The doctor's filesystem section read from the running system, followed by its line about the repository's link to the
+/// The doctor's filesystem section read from the running system,
+/// followed by its line about the repository's link to the
 /// 860 drive below the home the invocation names.
 #[cfg(target_os = "linux")]
 pub fn host_filesystem_section(common_directory: &Path, home: Option<&Path>) -> String {
@@ -346,10 +347,7 @@ fn plan_doctor(
         common_dir: None,
     };
     let home: Option<PathBuf> = environment_home(environment);
-    // The section is asked for the common directory after the hooks were located, so the invocation's home is bound here,
-    // where everything the section reads is already known.
-    let section = |common_directory: &Path| { return filesystem_section(common_directory, home.as_deref()); };
-    let action: Action = doctor_action_with_section(&context, cwd.as_path(), &section);
+    let action: Action = doctor_action_with_section(&context, cwd.as_path(), home.as_deref(), filesystem_section);
     let batches_noted: Action = with_earlier_batches_note(action, git_global_arguments, environment, context.real_git.as_path());
     let noted: Action = with_units_note(batches_noted, environment);
     return with_leading_notice(noted, resolved.notice.as_deref());
