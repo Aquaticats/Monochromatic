@@ -63,6 +63,25 @@ pub struct ProvisionHost {
 ///  an unreachable manager.
 pub const RETIREMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
+/// How many seconds the manager waits for a stopped service before it kills what is left of the unit
+/// (`TimeoutStopSec=` of the service unit):
+/// the service's last-resort alarm (`LAST_RESORT`,
+/// the stop bounds of `stop_of_the_service_noticed_by_its_children.rs`)
+/// and one more grace (`STOP_GRACE`),
+/// in whole seconds,
+/// the next whole second above the sum.
+/// The service ends itself within the last-resort bound,
+/// so the manager's final kill is for what the service left,
+/// and the unit never falls back to the host's default stop timeout,
+/// which a user's `DefaultTimeoutStopSec=` can set shorter than the bounds
+/// (15 s on this host,
+/// `/etc/systemd/user.conf.d/timeout.conf`).
+/// The margin is the coordinator's pick of 2026-11-08 with the owner's veto open.
+pub const STOP_TIMEOUT_SECONDS: u64 = crate::stop_of_the_service_noticed_by_its_children::LAST_RESORT
+    .saturating_add(crate::bounded_push::STOP_GRACE)
+    .as_secs()
+    .saturating_add(1);
+
 /// What the manager is asked to do,
 /// so a control can record it instead of reaching a manager.
 pub trait Manager {

@@ -185,6 +185,27 @@ fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
     remove(machine.root.as_path());
 }
 
+/// The service unit makes the manager signal only the service on a stop (`KillMode=mixed`),
+/// so the service ends its own Gits and lets a branch write finish,
+/// and it gives the stop a timeout of its own that is above the service's last-resort bound,
+/// so the host's default (15 s here) never decides.
+#[test]
+fn the_service_unit_signals_only_the_service_and_waits_longer_than_the_last_resort() {
+    let machine: Machine = machine("unit-stop-timeout-lib");
+    let text: String = unit_texts(&machine.host).into_iter().find(|(name, _text)| { return *name == SERVICE_UNIT_NAME; }).expect("the service unit").1;
+    assert!(text.lines().any(|line| { return line == "KillMode=mixed"; }), "{text}");
+    let written: u64 = text
+        .lines()
+        .find_map(|line| { return line.strip_prefix("TimeoutStopSec="); })
+        .expect("the unit sets its own stop timeout")
+        .parse()
+        .expect("whole seconds");
+    assert_eq!(written, STOP_TIMEOUT_SECONDS);
+    assert!(std::time::Duration::from_secs(written) > crate::stop_of_the_service_noticed_by_its_children::LAST_RESORT, "{written} s is not above the last resort");
+    assert!(!text.contains("@STOP_TIMEOUT_SECONDS@"), "no placeholder is left: {text}");
+    remove(machine.root.as_path());
+}
+
 /// Provisioning writes the worktree's Git directory beside the socket,
 /// so the units can be told apart from a removed worktree's later,
 /// and a second provisioning leaves the same note.

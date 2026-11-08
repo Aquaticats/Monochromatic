@@ -27,7 +27,7 @@
 
 use crate::diagnostic_log::warn;
 use crate::private_storage::create_private_directory_all;
-use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_unit_instance};
+use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
 use crate::service_provision_host_and_manager::{Manager, runtime_unit_dir};
 use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
 use crate::systemd_dbus::{CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
@@ -347,8 +347,31 @@ fn reason_of(error: &CallError) -> String {
 }
 
 /// What:
+///  Removes the files that say an instance has units once its units are stopped:
+/// its note and its socket file.
+/// Why:
+///   The manager leaves the socket file of a stopped socket unit where it was (`RemoveOnStop=` is off),
+/// and a file that stays makes the survey count the instance again and the next sweep stop it again.
+/// The worktree is gone,
+/// so nothing will make that socket listen at that path again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.all([rm(notePath(runtimeDir, instance)), rm(socketPath(runtimeDir, instance))]);
+/// ```
+pub fn forget_stopped_instance(runtime_dir: &Path, instance: &str) {
+    for path in [note_path(runtime_dir, instance), socket_path(runtime_dir, instance)] {
+        if let Err(error) = std::fs::remove_file(path.as_path())
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            warn(TAG, format!("{} could not be removed after the units of {instance} were stopped ({error})", path.display()).as_str());
+        }
+    }
+}
+
+/// What:
 /// Stops the units of every instance whose worktree is gone,
-/// and removes the note of each one that was stopped.
+/// and removes the note and the socket file of each one that was stopped.
 /// Why:
 ///   An instance that maps to nothing,
 /// or whose worktree is still there,
@@ -367,7 +390,7 @@ pub fn stop_units_of_gone_worktrees(manager: &mut dyn Manager, folders: &UnitFol
     for instance in &surveyed.gone {
         match stop_units(manager, instance.as_str()) {
             Ok(()) => {
-                let _removed = std::fs::remove_file(note_path(folders.runtime_dir, instance.as_str()));
+                forget_stopped_instance(folders.runtime_dir, instance.as_str());
                 outcome.stopped.push(instance.clone());
             }
             Err(error) => {

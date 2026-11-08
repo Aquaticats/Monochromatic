@@ -71,6 +71,7 @@ fn a_removed_worktrees_units_are_stopped_after_the_removal() {
     let stopped: bool = stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped");
     assert!(stopped);
     assert_eq!(recorder.stops(), vec![format!("stop {}", socket_unit_instance(about.instance.as_str())), format!("stop {}", service_unit_instance(about.instance.as_str()))]);
+    assert!(!socket_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the stopped socket's file is removed");
     remove(fixture.root.as_path());
 }
 

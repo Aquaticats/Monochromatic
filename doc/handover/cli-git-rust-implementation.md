@@ -4063,6 +4063,26 @@ a search of both files on 2026-11-03 found no such statement yet.
 
 ### Service follow-ups
 
+Stop of the service and a branch write (2026-11-08):
+the owner answered "B: let a branch write finish (Recommended)";
+the unit now sets `KillMode=mixed` and its own `TimeoutStopSec`,
+and the stop waits for the branch write instead of ending it
+(`doc/planning/git-policy-cli-full-tokio.md`,
+"Owner answer of 2026-11-08 and what it changed").
+The container gate of that branch (5423 tests,
+one run,
+lint clean) failed one control,
+open and not rerun:
+`native_binary service_sequencer::a_pathspec_commit_during_a_revert_is_what_git_makes` (11.9 s),
+whose wrapper side printed the line "still waiting for git --git-dir=..." on standard error where real Git printed none.
+The line is the wait notice of a Git child that showed no progress for its cadence;
+the control ran beside other sessions' work on this host (the load average during that run was not recorded; it was 22.7 a quarter of an hour later).
+Whether the stop change (a branch write takes no stop arm) can move that notice is unmeasured;
+the notice code (`watch_loop`) is not changed by it.
+Open:
+whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
+(today it stays on its scratch branch with the open intent).
+
 Commit service units and removed worktrees (2026-11-08):
 the unit instance is the 128-bit FNV-1a hash of the worktree's real own Git directory (`service_instance.rs`),
 so it cannot be turned back into a path.

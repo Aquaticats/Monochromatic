@@ -47,9 +47,12 @@ use tokio::sync::{Notify, watch};
 /// so this bound is that wait,
 /// the grace of the kill that follows it,
 /// and the unwinding.
-/// The service manager's own stop timeout is longer (ninety seconds unless the unit says otherwise;
-/// the unit of this crate says nothing),
+/// The unit sets its own stop timeout,
+/// written from these bounds (`STOP_TIMEOUT_SECONDS` in `service_provision_host_and_manager.rs`),
 /// so the shutdown ends before the manager would kill the unit.
+/// The host's default (15 s on this host,
+/// `DefaultTimeoutStopSec=` in `/etc/systemd/user.conf.d/timeout.conf`) is shorter than these bounds:
+/// the first version of this step assumed ninety seconds and the unit set none.
 pub const SETTLE_CEILING: Duration = crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING
     .saturating_add(crate::bounded_push::STOP_GRACE)
     .saturating_add(Duration::from_secs(1));
