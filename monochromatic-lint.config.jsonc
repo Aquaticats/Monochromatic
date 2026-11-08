@@ -283,4 +283,22 @@
       },
     },
   },
+  // A license text is verbatim legal text: reflowing it ships bytes the license was not granted in.
+  // package/music-player/desktop-app/bin/third-party-notices.mjs verifies the vendored Slint license against the
+  // SHA-256 of the file every Slint crate ships, and the rewrap fixer broke that check twice: 5513294572 reflowed
+  // the file, 5b9e9be057 restored it, 2f369455ca reflowed it again and failed the release's notices job.
+  // Every other Markdown rule still judges these files; only the rewrap is off, and the file stays checkable by its
+  // pinned SHA-256. This narrowing awaits the repository owner's approval (AGENTS.md LN7); the alternatives are
+  // renaming the vendored text out of Markdown or letting every format run rewrite it.
+  {
+    "name": "verbatim-license-texts",
+    "files": [
+      "package/music-player/desktop-app/notices/**",
+    ],
+    "rules": {
+      "markdown/semantic-line-breaks": {
+        "severity": "off",
+      },
+    },
+  },
 ]
