@@ -20,7 +20,8 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
-use crate::push_retry::{Due, RetryChange, pause_before};
+use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
+use crate::service_instance::GitDirUnreachable;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_review_key::ReviewKey;
@@ -330,6 +331,38 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
         &fields,
     );
     return format!("{plan}\n{text}");
+}
+
+/// What:
+///  What a drain does for a Git directory that cannot be reached (a link to a drive that is not mounted):
+/// nothing runs,
+/// its work stays where it is for the next command,
+/// and every push that was due keeps its plan with the next pause,
+/// doubled the way a failed try doubles it.
+/// Why:
+///  The push is not given up on and never runs on another path;
+/// the plan is asked again for the pause that follows,
+/// so the push is tried when the directory is back.
+/// Without a first pause (a drain that keeps no plan) nothing is planned.
+/// The person's failure record is inside the directory and is not touched.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const due of retrying.due) if (due.gitDir === gitDir) plan(gitDir, due.item, due.attempt + 1, pauseBefore(due.attempt + 1))
+/// ```
+pub(crate) fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retrying, unreachable: &GitDirUnreachable) -> Drained {
+    crate::service_warn!("{unreachable}; its work stays where it is for the next command, nothing runs, and its push plans keep their pauses");
+    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new() };
+    let Some(first) = retrying.first else {
+        return Drained { wait: None, changes: replanning.changes };
+    };
+    for due in &retrying.due {
+        if due.git_dir == git_dir {
+            let cause: String = format!("the repository at {} is not reachable now (is its drive mounted?)", git_dir.display());
+            let _said: String = planned_retry(git_dir, &mut replanning, first, &due.item, due.attempt + 1, cause.as_str());
+        }
+    }
+    return Drained { wait: None, changes: replanning.changes };
 }
 
 /// What:

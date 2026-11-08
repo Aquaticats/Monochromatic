@@ -144,6 +144,10 @@ pub fn drain_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTim
 
 /// `drain_planned` with the lease and the renewal given.
 pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>, retrying: &Retrying) -> Drained {
+    // A directory that cannot be reached runs nothing and keeps its push plans (plan item W3).
+    if let Err(unreachable) = crate::service_instance::try_instance_of(git_dir) {
+        return keep_plans_while_unreachable(git_dir, retrying, &unreachable);
+    }
     let work_dir: PathBuf = work_directory(git_dir);
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new() };
     tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
