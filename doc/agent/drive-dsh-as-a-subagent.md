@@ -1,33 +1,51 @@
 # Driving dsh as a subagent from another agent
 
 Purpose:
-record how an agent in another harness starts a `dsh` session, sends it messages,
-steers it mid-turn, and reads its events back.
+record how an agent in another harness starts a `dsh` session,
+sends it messages,
+steers it mid-turn,
+and reads its events back.
 Everything here was run against dsh 0.2.2-rc.1 on 2026-11-07,
 except where a line says it was not run.
 
 ## Which mode to use
 
-- **Web profile over HTTP** (`dsh --profile web`):
-  run end to end with real model replies.
-  It is the only mode run that steers a turn already in progress.
-  Use it when the controller needs to send a follow-up while the agent works.
-- **SDK JSON-RPC** (`dsh --profile sdk`, newline-delimited JSON-RPC on stdio):
-  initialize, two prompts, wait, and shutdown were run.
-  The second prompt was queued as `next-turn`, so it does not steer.
-  The model call failed for lack of a key for the `deepseek-official` route,
-  so no model reply was seen in this mode.
-- **ACP** (`dsh --profile acp`):
-  only `--help` was run.
-  Its README allows one in-flight prompt per session and cancel,
-  so it does not steer.
-  Not run beyond the help text.
-- **Headless** (`dsh --profile headless "task"`):
-  read from `--help` only.
-  One task per process,
-  resumable with `--session-id`,
-  with no way to message a running task.
-  Not run.
+### Web profile over HTTP
+
+`dsh --profile web`.
+Run end to end with real model replies.
+It is the only mode run that steers a turn already in progress.
+Use it when the controller needs to send a follow-up while the agent works.
+
+### SDK JSON-RPC
+
+`dsh --profile sdk`,
+newline-delimited JSON-RPC on stdio.
+Initialize,
+two prompts,
+wait,
+and shutdown were run.
+The second prompt was queued as `next-turn`,
+so it does not steer.
+The model call failed for lack of a key for the `deepseek-official` route,
+so no model reply was seen in this mode.
+
+### ACP
+
+`dsh --profile acp`.
+Only `--help` was run.
+Its README allows one in-flight prompt per session and cancel,
+so it does not steer.
+Not run beyond the help text.
+
+### Headless
+
+`dsh --profile headless "task"`.
+Read from `--help` only.
+One task per process,
+resumable with `--session-id`,
+with no way to message a running task.
+Not run.
 
 ## Web profile over HTTP
 
@@ -90,8 +108,12 @@ and `session/list` names it `_request` because it ignores it.
   `requestId` makes a retry return the original acceptance.
 - `session/wait` with `{"request":{"sessionId":"<id>"}}`
   returns when the session goes idle,
-  with `reason`, `state`, and `output`.
-- `session/state` with the same shape returns `cursor`, `running`, and the pending `queue`.
+  with `reason`,
+  `state`,
+  and `output`.
+- `session/state` with the same shape returns `cursor`,
+  `running`,
+  and the pending `queue`.
 - `session/events` with
   `{"request":{"address":{"kind":"session","sessionId":"<id>"}}}`
   returns `records` of `{ type: "event", event: { type, seq, time, data } }`.

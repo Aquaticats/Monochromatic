@@ -122,7 +122,9 @@ A session created through the web profile's HTTP API with this repository as its
 (session `trial-real-home-3` on the real `~/.dsh`)
 has one `Instructions from: AGENTS.md` header in its decompressed log,
 no `Instructions from: CLAUDE.md` header,
-and none of the preamble markers `question tool is unreliable`, `spawn-claude`, or `claude-code-bash`.
+and none of the preamble markers `question tool is unreliable`,
+`spawn-claude`,
+or `claude-code-bash`.
 The working-directory line and the `AGENTS.md` block are the positive controls,
 and both were present.
 
@@ -186,7 +188,13 @@ and the web profile then booted with no `skipping profile bundle` line.
    with a `MAINTENANCE` comment as the only defence.
    A repo task that diffs the shipped preset against the override and fails on
    drift would make that loud.
-   Proposed and not taken.
+   The predicted failure happened on 2026-11-07:
+   the user-level patch restated three presets with a `list-agents` row that 0.2.2-rc.1 removed,
+   and no session could be created
+   (`doc/troubleshooting/dsh-list-agents-subpath-removed-in-0-2-2-rc-1.md`).
+   The row is fixed.
+   The drift guard is still proposed and not taken,
+   and is the owner's call.
 4. The 14 hidden workflow skills.
    `~/.agents/skills/` has 29 `SKILL.md` files and exactly 14 carry
    `disable-model-invocation: true`,

@@ -81,6 +81,23 @@ The row's plugin never starts,
 and the error surfaces when the first session composes its agent,
 not at server boot.
 
+### Why the stale row survived the upgrade
+
+The three rows were not a hand-added extra.
+Each sat inside a full restatement of a shipped agent preset in the user-level patch:
+`preset-standard` (row at line 173),
+`preset-ptc` (line 338),
+and `preset-cordis` (line 515),
+each restating that preset's `delegation` group.
+A restated preset shadows the shipped one,
+so when 0.2.2-rc.1 removed the `list-agents` row from its own presets,
+the restatements kept it.
+That is the failure `doc/handover/dsh-setup-hardening.md` predicted as Priority 7:
+an override that shadows a shipped preset loses upstream changes silently at the next upgrade.
+The handover's wording concerned the profile-level `preset-cordis` override.
+This incident came from the user-level patch's copies of three presets,
+which drift the same way.
+
 ### Evidence that the user patch is the only difference
 
 `dsh --profile web --dump-config` run against the real home and against the throwaway home
@@ -103,7 +120,8 @@ and it cannot detect this fault before a session is created.
 The `skipping profile bundle` stderr lines for `neuralwatt` and `advisor` were the visible errors,
 and they looked like the cause.
 The throwaway run printed the same two lines and created sessions,
-so they are a separate, unrelated incompatibility with the same upgrade.
+so they are a separate,
+unrelated incompatibility with the same upgrade.
 
 ## Verification
 
