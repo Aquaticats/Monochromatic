@@ -5,7 +5,9 @@ description: Use when delegating a task to Pi (DeepSeek or another model) as a s
 
 # Pi as a subagent
 
-Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` as a child process.
+Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` as a child process,
+and cite rule `ATH` of `AGENTS.md` in every prompt to it,
+because the model writes scratch to `/tmp` unprompted.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
@@ -111,11 +113,10 @@ so a brief needs no step-by-step handholding.
   A one-line import change took 34 seconds.
 - At `xhigh` the feed went quiet for 20 seconds or more while it thought.
   Check the process state and the time of the last event before calling a run stuck.
-- It writes outside the task:
-  scripts and binaries in `/tmp`,
-  notes and sources in its working directory,
-  and long compiled jobs (one build used OpenMP).
-  Delete those leftovers by exact name afterwards.
+- It left scripts and compiled binaries in `/tmp`,
+  and notes and sources in its working directory,
+  and it ran long compiled jobs (one build used OpenMP).
+  Delete what it leaves by exact name afterwards.
 - It reads this repository's docs,
   including ones that describe the problem it was given.
   Record that as a confound when judging an unassisted attempt.
