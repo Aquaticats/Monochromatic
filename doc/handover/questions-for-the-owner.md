@@ -20,6 +20,23 @@ so any of them can be undone.
 
 ## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
 
+- When the repository move to the 860 runs:
+  "Back to back,
+  after agents (Recommended)":
+  once the agents running at 2026-11-07T23:30-05:00 finish,
+  the coordinator starts no new agents,
+  then runs the first copy and the cutover in one go,
+  and tells the owner when it reaches the IDE step (`c28-ide-through-link`).
+  State at the answer:
+  prepare passed through the print pass (`repository-move-prepare-13`:
+  inventory agrees,
+  270 nested subvolumes;
+  272 snapshots and 272 sends planned);
+  the space rule passed (860 925 GiB free,
+  NVMe 284 GiB);
+  the inventory is redone (`--redo=r0-inventory --redo=r0-reconcile`) right before the first copy,
+  because agents add and remove worktrees.
+
 - How the repository linter stays at zero
   (`doc/planning/repository-linter-stays-at-zero.md`):
   "None for now.
