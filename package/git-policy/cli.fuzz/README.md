@@ -185,6 +185,47 @@ the reader must return that start time for a running process,
 nothing for a zombie or dead one,
 and refuse a line without the start time or without a closing parenthesis.
 
+### `owner_claim_record`
+
+Runs `decode`,
+the reader of a single-owner claim file
+(`package/git-policy/cli/src/native/lock/single_owner_claim.rs`),
+over raw text and over claim files built from the input.
+A built file chooses its first line
+(the current folder spelling,
+the earlier one,
+the current one in capitals,
+or the header with no folder name)
+and then a released claim,
+a claim holding only the process id,
+a whole claim whose last field line is missing,
+or a whole claim followed by lines no reader acts on.
+Its process id is a positive one,
+zero,
+a negative one,
+a fraction,
+a value past the integer range,
+a leading-zero spelling,
+or text;
+its birth identity is text holding quotes,
+escapes,
+a NUL,
+a space,
+the released marker and non-ASCII characters,
+or empty;
+its namespace is the released marker,
+empty,
+that text,
+or the line is left out.
+An accepted claim must name one of the two folder spellings,
+a released claim or a process id of at least one with a non-empty birth identity,
+and a namespace that is never the released marker,
+and it must hold exactly its own record when restated here in the current spelling.
+A hand-written file whose field ends in a carriage return is read without that carriage return,
+because line splitting removes it,
+so that record is not restated;
+raw bytes still reach the decoder for the refusal rules and for panics.
+
 ### `dependent_version`
 
 Runs the dependent-version planner's two text scanners over three views of every input.
@@ -264,6 +305,9 @@ removed and new paths of a staged delta,
 every `rulesFile` refusal,
 every final-newline outcome,
 accepted and refused owner tokens,
+every claim outcome
+(a released claim,
+an owned claim and a refusal),
 running,
 exited and malformed stat lines,
 so an invariant that is never reached cannot pass unnoticed.
@@ -285,6 +329,7 @@ a reply accepted for another object,
 a changed path left out of the staged delta,
 a `rulesFile` value with `..` accepted,
 an owner token naming PID 0 accepted,
+a claim naming PID 0 accepted,
 the start time read from the field before it,
 extra final line feeds kept),
 and requires a generator control to fail for each.
@@ -293,6 +338,23 @@ Removing a flag from a mutation list alone is not a usable plant:
 unlisted `branch` and `tag` flags already require configuration.
 
 The `fuzz_target!` input looks like a closure signature but is macro input grammar.
+
+## The lockfile
+
+`Cargo.lock` here must lock every package the subject locks, at the same version.
+A sidecar links the subject by path,
+so it resolves the subject's whole dependency graph,
+and a dependency the subject gains,
+drops or moves makes this lock stale.
+The subject's `lint:sidecar-locks`
+(`package/git-policy/cli/bin/native-sidecar-lock-check.ts`)
+fails on a lock that fell behind,
+and the subject's container gate runs the same check before it builds anything;
+the root `lint` still reaches this package's own `lint`,
+which compiles the targets against the subject.
+`mise run //package/git-policy/cli.fuzz:lock:members` records the versions again,
+and `lock:subject` seeds this lock from the subject's,
+so both lock the same registry versions.
 
 ## Campaigns
 
