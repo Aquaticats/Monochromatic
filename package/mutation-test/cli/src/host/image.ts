@@ -23,6 +23,10 @@ import { join, } from 'node:path';
 
 import spawn from 'nano-spawn';
 
+import {
+  imageBuildLimitArguments,
+  type ImageBuildLimits,
+} from '@monochromatic-dev/container-limit-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
@@ -34,6 +38,16 @@ import {
  Module logger for host-side image management.
  */
 const l = tagged({ tag: 'mutation-test', },);
+
+/**
+ Bound of the runtime image build: 4 GiB and 4 CPUs, the bound `package/terminal/app` has put on the build of its Ghostty and
+ Slint image (adopted for this CachyOS image, not measured).
+ `podman build` has no process or disk-weight option, so the bound is memory and the CFS quota only.
+ */
+export const RUNTIME_IMAGE_BUILD_LIMITS: ImageBuildLimits = {
+  memory: '4g',
+  cpus: 4,
+};
 
 /**
  Local image repository name for the mutation runtime.
@@ -229,6 +243,52 @@ async function imageExists(reference: string,): Promise<boolean> {
 }
 
 /**
+ Arguments after `podman` that build the runtime image.
+
+ @param repoRoot - absolute path of the repository, the build context
+
+ @param baseImage - CachyOS image the Containerfile starts from
+
+ @param reference - content-derived tag of the image
+
+ @returns `build` with its memory and CFS bound ahead of the build arguments
+
+ @example
+ ```ts
+ const args = runtimeImageBuildArguments({ repoRoot: '/repo', baseImage: 'docker.io/cachyos/cachyos-v4:latest', reference: 'localhost/x:1' });
+ ```
+ */
+export function runtimeImageBuildArguments({
+  repoRoot,
+  baseImage,
+  reference,
+}: {
+  readonly repoRoot: string;
+  readonly baseImage: string;
+  readonly reference: string;
+},): readonly string[] {
+  return [
+    'build',
+    ...imageBuildLimitArguments(RUNTIME_IMAGE_BUILD_LIMITS,),
+    '--build-arg',
+    `${CACHYOS_IMAGE_BUILD_ARGUMENT_NAME}=${baseImage}`,
+    '--file',
+    join(
+      repoRoot,
+      CONTAINERFILE,
+    ),
+    '--ignorefile',
+    join(
+      repoRoot,
+      CONTAINER_IGNOREFILE,
+    ),
+    '--tag',
+    reference,
+    repoRoot,
+  ];
+}
+
+/**
  Ensures the runtime image exists, building it when needed.
  
  @param options - Repository root and build-skip toggle.
@@ -284,22 +344,11 @@ export async function ensureRuntimeImage(options: {
   await spawn(
     'podman',
     [
-      'build',
-      '--build-arg',
-      `${CACHYOS_IMAGE_BUILD_ARGUMENT_NAME}=${base.image}`,
-      '--file',
-      join(
-        options.repoRoot,
-        CONTAINERFILE,
-      ),
-      '--ignorefile',
-      join(
-        options.repoRoot,
-        CONTAINER_IGNOREFILE,
-      ),
-      '--tag',
-      reference,
-      options.repoRoot,
+      ...runtimeImageBuildArguments({
+        repoRoot: options.repoRoot,
+        baseImage: base.image,
+        reference,
+      },),
     ],
     {
       stdout: 'inherit',

@@ -16,6 +16,7 @@
 use crate::bounded_push::StopCause;
 use crate::child_watch_clock_marks_and_stopping::{Mark, Marks, SHORTEST_SLEEP, WatchFlags, WatchTerms, stop_process};
 use crate::push_progress::{Clock, SAMPLE_INTERVAL};
+use crate::stop_of_the_service_noticed_by_its_children::StopArm;
 use crate::stopped_git_locks::LockLedger;
 use crate::wait_progress::{ChildWaitFacts, Ticker, child_wait_line};
 use std::io::Write;
@@ -48,7 +49,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 /// ```ts
 /// for await (const mark of marksUntilTimeout()) { if (since === undefined) continue; if (stoppable && clock.stalled()) await stop(pid); else if (ticker.due(elapsed)) await notice(); }
 /// ```
-pub(crate) async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: WatchFlags, waiting_for: String, pid: u32, terms: WatchTerms, locks: LockLedger) {
+pub(crate) async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: WatchFlags, waiting_for: String, pid: u32, terms: WatchTerms, locks: LockLedger, mut stop: Option<StopArm>) {
     let expired: &AtomicBool = flags.expired.as_ref();
     let stoppable: &AtomicBool = flags.stoppable.as_ref();
     let longest: Arc<AtomicU64> = Arc::clone(&flags.longest);
@@ -77,7 +78,14 @@ pub(crate) async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: Wat
             });
             marks.printed += 1;
             if let Some(sink) = notices.take() {
-                notices = write_notice(sink, line).await;
+                match or_the_stop(&mut stop, write_notice(sink, line)).await {
+                    Some(kept) => notices = kept,
+                    None => {
+                        stop = None;
+                        end_for_the_stop(&mut marks, flags.stopped.as_ref(), pid, &locks, &mut incoming).await;
+                        continue;
+                    }
+                }
             }
             // The wait may have ended, or another begun, while the line was written.
             while let Ok(mark) = incoming.try_recv() {
@@ -118,10 +126,14 @@ pub(crate) async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: Wat
         let until_notice: Duration = marks.ticker.next_in(since.elapsed());
         let until_ceiling: Duration = Duration::from_micros(flags.ceiling.load(Ordering::Acquire)).saturating_sub(since.elapsed());
         let sleep: Duration = until_notice.min(SAMPLE_INTERVAL).min(limit).min(until_ceiling).max(SHORTEST_SLEEP);
-        match tokio::time::timeout(sleep, incoming.recv()).await {
-            Ok(Some(mark)) => marks.apply(mark, cadence),
-            Ok(None) => return,
-            Err(_slept) => {}
+        match or_the_stop(&mut stop, tokio::time::timeout(sleep, incoming.recv())).await {
+            Some(Ok(Some(mark))) => marks.apply(mark, cadence),
+            Some(Ok(None)) => return,
+            Some(Err(_slept)) => {}
+            None => {
+                stop = None;
+                end_for_the_stop(&mut marks, flags.stopped.as_ref(), pid, &locks, &mut incoming).await;
+            }
         }
     }
 }
@@ -159,4 +171,51 @@ async fn write_notice(mut sink: Box<dyn Write + Send>, line: String) -> Option<B
             None
         }
     };
+}
+
+/// What:
+///  Awaits `work`,
+/// or gives up on it and returns nothing when the service's stop is told first.
+/// Why:
+///  Every await of the watcher races the stop,
+/// so a stop is acted on at the next await whatever the watcher was doing,
+/// a terminal that holds a notice included.
+/// Where there is no arm (a command of the wrapper,
+/// or a step that began after the stop and must finish) the work is awaited as it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// return arm ? await Promise.race([work, arm.stopTold().then(() => undefined)]) : await work;
+/// ```
+async fn or_the_stop<T>(stop: &mut Option<StopArm>, work: impl std::future::Future<Output = T>) -> Option<T> {
+    let Some(arm) = stop.as_mut() else {
+        return Some(work.await);
+    };
+    return tokio::select! {
+        biased;
+        () = arm.stop_told() => None,
+        done = work => Some(done),
+    };
+}
+
+/// What:
+///  Ends the child because the service was stopped:
+/// raises the flag its waiter reads,
+/// stops watching its quiet time,
+/// and signals the child and what it started,
+/// with the grace and the sweep of its locks that every other stop of a step has.
+/// Why:
+///  The flag is raised before the signal,
+/// so the thread that the child's end releases never reads a stale false.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stopped = true; since = undefined; await stopProcess(pid, locks);
+/// ```
+async fn end_for_the_stop(marks: &mut Marks, stopped: &AtomicBool, pid: u32, locks: &LockLedger, incoming: &mut UnboundedReceiver<Mark>) {
+    stopped.store(true, Ordering::Release);
+    marks.keep_gap();
+    marks.since = None;
+    marks.clock = None;
+    stop_process(pid, locks, incoming).await;
 }

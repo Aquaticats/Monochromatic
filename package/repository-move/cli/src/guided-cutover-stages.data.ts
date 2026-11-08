@@ -6,6 +6,8 @@
  @module
  */
 
+import { containerLimitArguments, } from '@monochromatic-dev/container-limit-core/ts';
+
 import { realArguments, } from './guided-prepare-stages.data.ts';
 import type {
   GuidedConfig,
@@ -18,6 +20,22 @@ import {
   hookWindowMaximum,
 } from './guided-stage-hooks.ts';
 import { externalNames, } from './guided-holders.ts';
+
+/**
+ Bounds of the container that checks the bind through the link: one `test -d` command, so 256 MiB, one CPU and 64
+ processes, with the lowest disk weight added by the shared helper.
+ */
+const CONTAINER_BIND_LIMITS = {
+  memory: '256m',
+  cpus: 1,
+  pidsLimit: 64,
+};
+
+/**
+ The limit options of that container as the shell command spells them, the lowest disk weight included.
+ */
+const CONTAINER_BIND_LIMIT_OPTIONS = containerLimitArguments(CONTAINER_BIND_LIMITS,)
+  .join(' ',);
 
 /**
  The stages of `cutover`.
@@ -594,7 +612,7 @@ kopia snapshot list ${kopiaSource} | tail --lines=6`,
       says: 'W13: a container with the repository as a read-only bind source, spelled through the link, starts and sees the Git folder. It uses the first image already on this host and pulls nothing; its memory, processor and process counts are capped.',
       command: `image=$(podman images --noheading --format '{{.Repository}}:{{.Tag}}' | grep --invert-match '<none>' | head --lines=1)
 test -n "$image"
-podman run --rm --pull=never --memory=256m --cpus=1 --pids-limit=64 --mount type=bind,source=${c.repo},target=/repository,ro --entrypoint test "$image" -d /repository/.git
+podman run --rm --pull=never ${CONTAINER_BIND_LIMIT_OPTIONS} --mount type=bind,source=${c.repo},target=/repository,ro --entrypoint test "$image" -d /repository/.git
 echo 'container bind through the link: ok'`,
       check: `grep --fixed-strings 'container bind through the link: ok' "$OUTPUT_FILE"`,
       checkText: 'the container saw /repository/.git',

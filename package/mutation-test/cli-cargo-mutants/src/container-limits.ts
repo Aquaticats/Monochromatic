@@ -10,6 +10,11 @@
  Image builds take the CPU bound as a CFS period and quota (`quota = cpus * period`) because `podman build` has no `--cpus`.
  Every option is checked with a linear scan over its characters, so a malformed option fails before any container starts.
  */
+import {
+  diskWeightArguments as sharedDiskWeightArguments,
+  LOWEST_DISK_WEIGHT,
+} from '@monochromatic-dev/container-limit-core/ts';
+
 import { CargoMutantsToolingError, } from './error.ts';
 
 /**
@@ -37,12 +42,13 @@ export const defaultPidsLimit = 512;
 export const cpuPeriodMicroseconds = 100_000;
 
 /**
- Lowest weight Podman accepts for a container's disk I/O (`podman run --blkio-weight` takes 10 to 1000).
+ Lowest weight Podman accepts for a container's disk I/O, from `@monochromatic-dev/container-limit-core`, which holds the
+ one copy.
 
  The container-wide default is 100, so at this weight a started container gets a tenth of the disk time of a default
  sibling when both want it. A task cannot raise it.
  */
-export const lowestDiskWeight = 10;
+export const lowestDiskWeight: number = LOWEST_DISK_WEIGHT;
 
 /**
  Smallest CPU count a task may request.
@@ -258,12 +264,8 @@ export function buildLimitArguments(limits: ContainerLimits,): string[] {
 }
 
 /**
- Disk-weight bound of a started container, in the two forms the two block-layer weight files need.
-
- `--blkio-weight` sets the cgroup file `io.bfq.weight`, which the BFQ I/O scheduler reads, and leaves `io.weight`
- (which the iocost controller reads) at the default. `--cgroup-conf=io.weight=` sets `io.weight` and leaves
- `io.bfq.weight` at the default. Passing both puts whichever file the host's scheduler reads at the lowest weight.
- `podman build` has neither option, so image builds are not covered.
+ Disk-weight bound of a started container, in the two forms the two block-layer weight files need, from
+ `@monochromatic-dev/container-limit-core`, which holds the one copy of the weight and of its explanation.
 
  @returns `['--blkio-weight=10', '--cgroup-conf=io.weight=10']`
 
@@ -273,10 +275,7 @@ export function buildLimitArguments(limits: ContainerLimits,): string[] {
  ```
  */
 export function diskWeightArguments(): string[] {
-  return [
-    `--blkio-weight=${String(lowestDiskWeight,)}`,
-    `--cgroup-conf=io.weight=${String(lowestDiskWeight,)}`,
-  ];
+  return [...sharedDiskWeightArguments(),];
 }
 
 /**

@@ -75,6 +75,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 /// the task owns every other piece of state.
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 /// The lock files a stopped step leaves.
+use crate::stop_of_the_service_noticed_by_its_children::{Unfinished, begin_unfinished_work};
 use crate::stopped_git_locks::LockLedger;
 /// The watcher task,
 /// started on the process's runtime.
@@ -85,7 +86,7 @@ use std::time::{Duration, Instant};
 pub use crate::child_watch_clock_marks_and_stopping::{WatchTerms, grace_for};
 use crate::child_watch_clock_marks_and_stopping::{Mark, WatchFlags};
 use crate::child_watch_task_loop_and_notice::watch_loop;
-pub use crate::child_watch_step_bounds_and_errors::{CeilingReached, NotKnown, StepBound, is_ceiling, is_not_known, not_known_text};
+pub use crate::child_watch_step_bounds_and_errors::{CeilingReached, EndedByStop, NotKnown, StepBound, ended_by_the_stop, is_ceiling, is_ended_by_stop, is_not_known, not_known_text, refused_while_stopping};
 use crate::child_watch_step_bounds_and_errors::{output_of};
 
 /// The running watcher for a task that started,
@@ -142,6 +143,8 @@ pub struct ChildWatch {
     ceiling: Arc<AtomicU64>,
     /// Whether the child was ended because the ceiling passed.
     ceiling_hit: Arc<AtomicBool>,
+    /// Raised by the watcher task when it ended the child because the service was stopped.
+    stopped: Arc<AtomicBool>,
 }
 
 impl ChildWatch {
@@ -161,18 +164,36 @@ impl ChildWatch {
     /// and the waits it marks run unannounced and
     ///  unended.
     pub fn start_with_locks(waiting_for: &str, pid: u32, terms: WatchTerms, locks: LockLedger) -> Self {
+        return Self::start_under_stop(waiting_for, pid, terms, locks, None);
+    }
+
+    /// What:
+    ///  `start_with_locks`,
+    /// and the child is ended when the service's stop is told through `stop`.
+    /// Why:
+    ///  A step the service waits for must not outlive the service (the owner's pick for open choice 12);
+    /// the watcher already knows how to end a child and sweep the locks it leaves,
+    /// so the stop is one more reason for it to do that.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ChildWatch.startUnderStop(waitingFor, pid, terms, locks, work.takeArm())
+    /// ```
+    pub fn start_under_stop(waiting_for: &str, pid: u32, terms: WatchTerms, locks: LockLedger, stop: Option<crate::stop_of_the_service_noticed_by_its_children::StopArm>) -> Self {
         let (marks, incoming): (UnboundedSender<Mark>, UnboundedReceiver<Mark>) = unbounded_channel();
         let expired: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let stoppable: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
         let longest: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
         let ceiling: Arc<AtomicU64> = Arc::new(AtomicU64::new(u64::MAX));
         let ceiling_hit: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+        let stopped: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let flags: WatchFlags = WatchFlags {
             expired: Arc::clone(&expired),
             stoppable: Arc::clone(&stoppable),
             longest: Arc::clone(&longest),
             ceiling: Arc::clone(&ceiling),
             ceiling_hit: Arc::clone(&ceiling_hit),
+            stopped: Arc::clone(&stopped),
         };
         let subject: String = String::from(waiting_for);
         let limit: Duration = terms.limit;
@@ -181,10 +202,10 @@ impl ChildWatch {
         // disconnection.
         let spawned: Option<JoinHandle<()>> = spawn_on_runtime(async move {
             let _ends_with_the_task: std::sync::mpsc::Sender<()> = ended;
-            watch_loop(incoming, flags, subject, pid, terms, locks).await;
+            watch_loop(incoming, flags, subject, pid, terms, locks, stop).await;
         });
         let task: Option<RunningWatcher> = running_watcher_of(spawned, finished);
-        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit };
+        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit, stopped };
     }
 
     /// Keep the longest quiet gap of this watch in the ledger under `step` when the watch is dropped.
@@ -210,6 +231,11 @@ impl ChildWatch {
     pub fn within(self, ceiling: Duration) -> Self {
         self.ceiling.store(u64::try_from(ceiling.as_micros()).unwrap_or(u64::MAX - 1), Ordering::Release);
         return self;
+    }
+
+    /// Whether the watcher ended the child because the service was stopped.
+    pub fn ended_by_the_stop(&self) -> bool {
+        return self.stopped.load(Ordering::Acquire);
     }
 
     /// Whether the child was ended because its ceiling passed.
@@ -435,6 +461,12 @@ pub fn output_watched_within(
         let (out, err) = files.stdio()?;
         command.stdout(out).stderr(err);
     }
+    // The service's shutdown waits for this step and ends it when the service is stopped. A landing that is already unwinding after a stop
+    //  may start the steps that undo what the stop cut (the side ref that keeps its commit); every other step begun after the stop is refused.
+    let mut unfinished: Unfinished = match begin_unfinished_work(crate::service_busy_step_record_on_this_thread::on_landing_thread(), waiting_for) {
+        Ok(counted) => counted,
+        Err(refusal) => return Err(refused_while_stopping(&refusal)),
+    };
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
     let spawned: std::io::Result<Child> = command.spawn_retrying();
@@ -443,7 +475,7 @@ pub fn output_watched_within(
         release_write_ends(command);
     }
     let child: Child = spawned?;
-    let started: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step);
+    let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, unfinished.take_arm()).kept_as(ledger_step);
     // A step with no ceiling is waited for as long as it lives: the watch starts without one.
     let watch: ChildWatch = match ceiling {
         Some(limit) => started.within(limit),
@@ -495,6 +527,10 @@ pub fn output_watched_within(
         }
     };
     watch.end();
+    // The stop ended the step: the caller is told so, whatever the step's own end looked like.
+    if watch.ended_by_the_stop() {
+        return Err(ended_by_the_stop(waiting_for));
+    }
     if let Some(limit) = ceiling
         && watch.ceiling_hit()
     {

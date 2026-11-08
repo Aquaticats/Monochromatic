@@ -96,9 +96,11 @@ floor) and `--timeout-factor` (multiple of baseline test time),
  `--report <file>`.
 
 Every shard container also starts at the lowest disk weight,
-`--blkio-weight=10` and `--cgroup-conf=io.weight=10` (`LOWEST_DISK_WEIGHT` in `src/host/podman.ts`),
+`--blkio-weight=10` and `--cgroup-conf=io.weight=10` (`LOWEST_DISK_WEIGHT` from `@monochromatic-dev/container-limit-core`, re-exported by `src/host/podman.ts`),
 and no flag raises it:
 a rootless container sits outside the launcher's unit and ignores the launcher's `IOWeight`.
+The runtime image build (`podman build`, which has no weight option) is bounded to 4 GiB and 4 CPUs
+(`RUNTIME_IMAGE_BUILD_LIMITS` in `src/host/image.ts`).
 
 Test selection:
  `<stem>.unit.test.ts` plus dot-sidecars

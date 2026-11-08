@@ -36,6 +36,8 @@ use crate::push_deadline_and_patience_settings::{Patience, push_deadline};
 use crate::quiet_ledger;
 /// The lock files a stopped query leaves,
 /// and the ledger that finds them.
+use crate::child_watch::{ended_by_the_stop, refused_while_stopping};
+use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
 use crate::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output files of the query,
@@ -158,6 +160,12 @@ pub async fn run_bounded_query_awaiting(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
+    // The service's shutdown waits for this query and ends it when the service is stopped; a query that would begin after the stop is not started.
+    let mut unfinished: Unfinished = match begin_unfinished_work(false, "git query") {
+        Ok(counted) => counted,
+        Err(refusal) => return Err(SingleFlightError::Start(refused_while_stopping(&refusal))),
+    };
+    let stop: Option<StopArm> = unfinished.take_arm();
     let mut stdout: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let mut stderr: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let for_stdout: File = stdout.try_clone().map_err(SingleFlightError::Start)?;
@@ -173,7 +181,7 @@ pub async fn run_bounded_query_awaiting(
     let mut child: OwnedChild = adopt(started);
     let mut quiet: Option<Duration> = None;
     let ended: Result<ExitStatus, StopCause> =
-        wait_until_done(&mut child, &[&stdout, &stderr], Patience::Progress { stall: window }, &mut quiet).await?;
+        wait_until_done(&mut child, &[&stdout, &stderr], Patience::Progress { stall: window }, &mut quiet, stop.as_ref()).await?;
     let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
     if let Some(gap) = quiet {
         quiet_ledger::note(step.as_str(), gap, ended.is_err());
@@ -192,6 +200,7 @@ pub async fn run_bounded_query_awaiting(
                     arguments: arguments.to_owned(),
                     seconds: window.as_secs(),
                 },
+                StopCause::ServiceStopped => SingleFlightError::Start(ended_by_the_stop(step.as_str())),
                 StopCause::Flood => SingleFlightError::Git {
                     arguments: arguments.to_owned(),
                     code: None,

@@ -68,11 +68,20 @@ export { sanitizeShardTag, } from './host/shard-tag.ts';
 
  @internal
  */
+export { buildShardArgs, } from './host/podman.ts';
 export {
-  buildShardArgs,
   diskWeightArguments,
   LOWEST_DISK_WEIGHT,
-} from './host/podman.ts';
+} from '@monochromatic-dev/container-limit-core/ts';
+/**
+ Runtime image build argv and its bound, exported so built-artifact tests can check the options podman receives.
+
+ @internal
+ */
+export {
+  RUNTIME_IMAGE_BUILD_LIMITS,
+  runtimeImageBuildArguments,
+} from './host/image.ts';
 export {
   selectSources,
   selectTests,

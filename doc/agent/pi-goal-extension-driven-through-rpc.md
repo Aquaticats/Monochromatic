@@ -19,6 +19,15 @@ and read its result.
 Two behaviors need the driver's attention:
 
 - An objective the primary model cannot satisfy produces a deny-and-continue loop with no stop of its own.
+  That is the documented design:
+  "There is no arbitrary consecutive-denial cap.
+  The active run continues until approval,
+  user abort,
+  or `/goal clear`"
+  (`doc/planning/pi-goal-tool-free-completion.md`).
+  The defect is that the cycles made no progress:
+  the reviewer's remaining-work text told the primary to explain and ask the user,
+  and the primary complied instead of trying again.
   The documented exit for a stuck goal is `ask_user_question`,
   and that tool does not work in RPC mode.
 - The outcome depends on the reviewer model.
@@ -110,6 +119,11 @@ await send({ type: 'abort' });
 
 ## Runs
 
+The owner's example prompt `solve 3x + 1` was meant as the Collatz (3x + 1) problem.
+The first runs took it literally,
+so they tested an ambiguous objective.
+The last two runs in this list use the Collatz meaning.
+
 - Objective `solve 3x + 1`,
   reviewer `opencode-go/deepseek-v4.1-flash` as the only candidate:
   the goal ended as `review_unavailable` with the diagnostic
@@ -160,6 +174,51 @@ await send({ type: 'abort' });
   (`x = 4`,
   reviewer `synthetic/hf:openai/gpt-oss-120b`).
   No review of the first goal appeared.
+- Objective `prove the Collatz conjecture (the 3x + 1 problem)`,
+  `--tools read`,
+  cheap reviewer scope (`synthetic/hf:openai/gpt-oss-120b`):
+  the goal did not end.
+  It went through 7 `review_denied` and `continuation_issued` cycles with 8 agent runs in 40 seconds,
+  about 5 seconds per cycle,
+  and stopped only at the client's turn cap.
+  The primary said the conjecture is unproven every time,
+  and no run claimed a proof.
+  The reviewer denied every time and no run was falsely accepted.
+  Its remaining-work texts were `ask_user_question` once,
+  `ask_user_question: Explain that a proof ... is currently unknown ...` once,
+  and otherwise requests to explain that the conjecture is unproven
+  and to ask the user which alternative help they want.
+- Objective `verify the Collatz conjecture (the 3x + 1 problem) for every starting value from 1 to 1000 by running code,
+  then report which starting value takes the most steps to reach 1 and how many steps it takes`,
+  `--tools read,bash`,
+  same reviewer:
+  accepted after 3 turns in 22.1 seconds.
+  The primary wrote a script,
+  ran it,
+  and reported start 871 with 178 steps,
+  which is the known answer for starting values below 1000.
+  The reviewer's rationale cites the executed code and the reported maximum.
+  The script was written to `/tmp/collatz.py`,
+  outside the throwaway folder,
+  and was removed afterwards.
+- Objective `prove the Collatz conjecture (the 3x + 1 problem)`,
+  `--tools read,bash`,
+  same reviewer:
+  the goal again did not end.
+  It went through 4 `review_denied` and `continuation_issued` cycles with 5 agent runs and 8 turns in 38.7 seconds,
+  and stopped only at the client's turn cap.
+  The primary worked first:
+  its second `bash` call checked every start up to 10^6 and printed a maximum of 524 steps at 837799,
+  the known values,
+  after a first script failed with an `IndexError`.
+  Then it stated that no proof is known.
+  The reviewer's remaining work was `ask_user_question` once,
+  the same instruction with an explanation request twice,
+  and "Ask the user to choose an alternative task" once.
+  The primary replied that no `ask_user_question` tool is exposed to it and asked in plain text,
+  then restated that the conjecture is open.
+  Having `bash` changed the first cycle and not the loop:
+  the later cycles tried nothing new.
 
 ## Problems found
 
@@ -171,8 +230,21 @@ The goal went through `review_denied` and `continuation_issued` four times
 with 5 agent runs and 8 turns in about 30 seconds,
 and it stopped only because the client's turn cap fired.
 The file was not created.
+The Collatz proof objective in the list of runs showed the same loop with a genuinely open problem:
+7 cycles in 40 seconds,
+a model that restated each time that the problem is open and did not try a new approach,
+and a reviewer that kept denying with remaining work that asked the model to explain and ask the user.
+The owner's position is that the statement is true and the model should have kept trying anyway.
+The reviewer prompt contributes:
+`package/pi-plugin/goal/src/review-contract.ts` line 52 says
+"When work needs human input,
+remaining_work must directly instruct the primary model to use ask_user_question."
+For an open problem the reviewer treated the missing proof as needing human input,
+so its instruction asked the primary to stop working and consult the user.
+At that rate an unbounded session would run about 10 reviewer calls and primary runs a minute.
 
-The source agrees that nothing in the denial path stops it.
+The source agrees that nothing in the denial path stops it,
+which matches the planning doc's decision not to cap consecutive denials.
 `package/pi-plugin/goal/src/completion-outcome.ts` lines 130 to 209 record the denial,
 add one to `continuationSequence`,
 and issue the continuation,

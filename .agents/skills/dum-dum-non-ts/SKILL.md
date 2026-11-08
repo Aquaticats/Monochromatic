@@ -505,7 +505,7 @@ Bad — the dum-dum block is written as plain `//` comments,
 name-derived doc comment is bolted on only to satisfy a "every item needs a doc
 comment" lint:
 
-````rust
+````rust monochromatic-lint-skip-rustdoc
 // What:     `const CEILING: f32 = ...` is the -1 dBTP linear-amplitude ceiling.
 // Why:      Normalised output must never exceed it.
 //
@@ -547,7 +547,7 @@ compile error.
 Bad — no comment on the function's tail expression because "it's just
 wrapping a value":
 
-```rust
+```rust monochromatic-lint-skip-rustdoc
 fn load_rules(path: &str) -> Result<Vec<Rule>, String> {
     // ... body with comments ...
     Ok(rules)
@@ -577,7 +577,7 @@ fn load_rules(path: &str) -> Result<Vec<Rule>, String> {
 
 Bad — `.to_string()` slipped in unexplained on a string literal:
 
-```rust
+```rust monochromatic-lint-skip-rustdoc
 return Err("no rules loaded".to_string());
 ```
 
@@ -604,7 +604,7 @@ return Err("no rules loaded".to_string());
 
 Bad — silent because "it's obviously the return":
 
-```rust
+```rust monochromatic-lint-skip-rustdoc
 fn parse_rule_source(line: &str) -> Option<String> {
     // ... body ...
     Some(escape_literal(trimmed))
@@ -634,7 +634,7 @@ fn parse_rule_source(line: &str) -> Option<String> {
 
 Bad — silently appended to a method chain:
 
-```rust
+```rust monochromatic-lint-skip-rustdoc
 if !combined.is_match(&content).unwrap_or(false) {
     return Ok(false);
 }
@@ -670,7 +670,7 @@ if !combined.is_match(&content).unwrap_or(false) {
 Bad — names `usize` and `String` without saying why these and not the
 siblings:
 
-```rust
+```rust monochromatic-lint-skip-rustdoc
 // What:     `struct Rule { ... }` with `index` (usize), `src` (String),
 //           `regex` (Regex).
 // Why:      We keep one Rule per forbidden-string entry.

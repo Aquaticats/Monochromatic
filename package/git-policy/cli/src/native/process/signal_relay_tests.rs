@@ -364,7 +364,9 @@ fn the_relay_descriptor_names_the_child_while_it_runs_and_nothing_after() {
 /// no guard takes the handlers there,
 /// so a stop reaches the service's
 ///  own handling (here the default,
-/// which ends the helper) and the child of the commit is not signalled.
+/// which ends the helper) and the relay does not signal the child of the commit.
+/// Ending the Gits a service waits on is the service's own shutdown,
+/// not the relay's (`binary_service_stop_ends_its_gits_tests.rs`).
 #[cfg(unix)]
 #[test]
 fn a_stop_of_a_service_is_not_relayed_to_the_child_of_a_commit() {
@@ -614,4 +616,32 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
     assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     interrupter.join().expect("interrupter finishes");
     assert_eq!(outcome, ChildOutcome::Exited(0));
+}
+
+/// A child of a commit step that is running when the service is stopped is ended by the service's shutdown,
+/// and the caller is told the stop did it;
+/// the shutdown finds nothing left unfinished.
+/// (The stop is process-wide state,
+/// so this control runs in a process of its own,
+/// as every control does under nextest.)
+#[cfg(unix)]
+#[test]
+fn a_commit_step_running_when_the_service_is_stopped_is_ended_by_the_stop() {
+    use crate::stop_of_the_service_noticed_by_its_children::{Settled, prepare_to_notice, record_from_a_signal_handler, tell_the_stop_and_wait_for_the_work, wake_the_shutdown_from_a_signal_handler};
+    prepare_to_notice().expect("the wake pipe");
+    let guard: SignalGuard = SignalGuard::install().expect("a guard");
+    let mut command: Command = Command::new("sleep");
+    command.arg("60");
+    let (outcome, settled): (io::Result<ChildOutcome>, Settled) = run_on_runtime(async {
+        return tokio::join!(guard.run_child_awaiting(&mut command), async {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            assert!(record_from_a_signal_handler(libc::SIGTERM));
+            assert!(wake_the_shutdown_from_a_signal_handler());
+            return tell_the_stop_and_wait_for_the_work(std::time::Duration::from_secs(60)).await;
+        });
+    })
+    .expect("the runtime");
+    let error: io::Error = outcome.expect_err("a stopped step has no outcome");
+    assert!(crate::child_watch::is_ended_by_stop(&error), "{error}");
+    assert_eq!(settled, Settled::Completely);
 }

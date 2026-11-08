@@ -1,0 +1,41 @@
+# `@monochromatic-dev/container-limit-core`
+
+The one lowest disk weight, and the Podman options that bound a started container or an image build.
+
+Repository rule HXR (`AGENTS.md`) starts every container that can exhaust the host with CPU, memory, process and
+disk-weight limits.
+A container sits in its own cgroup scope outside the unit of whatever launched it, so the launcher's `IOWeight` never
+reaches it; the options have to be on the container's own command line.
+This package holds the weight once, so a change of it is one edit, and the tasks, runners and workflows that start
+containers take it from here instead of spelling their own copy.
+
+## Exports
+
+Import the TypeScript source with the `/ts` subpath.
+A `mise.toml` script of a package without a `package.json` imports `src/index.ts` by relative path
+(`../../container-limit/core/src/index.ts` from a package directory), which node reads by stripping types; the file
+imports nothing for that reason.
+
+- `LOWEST_DISK_WEIGHT`: `10`, the lowest weight `podman run --blkio-weight` accepts.
+- `diskWeightArguments()`: `--blkio-weight=10` and `--cgroup-conf=io.weight=10`.
+  The first sets `io.bfq.weight`, which the BFQ scheduler reads; the second sets `io.weight`, which iocost reads.
+  Each leaves the other file at the default, so both are passed.
+- `containerLimitArguments({ memory, cpus, pidsLimit })`: the options of a started container (`podman run` or
+  `podman create`): memory, CPUs, processes and the weight.
+- `imageBuildLimitArguments({ memory, cpus })`: the options of `podman build`: memory and the CFS period and quota.
+  `podman build` has no `--cpus`, no `--pids-limit` and no weight option (probed on `podman` 6.1.3 with
+  `podman build --help`), so an image build cannot be put at the lowest disk weight.
+
+`docker run` has `--blkio-weight` and no `--cgroup-conf`, so `.github/workflows/pnpr-publish.yml` keeps a literal
+`--blkio-weight=10`; `src/container-start-sites.unit.test.ts` reads it and fails when it differs from the constant.
+
+## Start sites ledger
+
+`src/container-start-sites.unit.test.ts` lists every tracked file that starts a container or builds an image, and fails
+when a file names `podman` or `docker` as a program and is not on the list, so a new start site cannot skip the limits
+unnoticed.
+Each listed starter must carry one of the shared helpers or the literal options.
+
+## Verification
+
+`mise run //package/container-limit/core:test:unit` runs the tests.

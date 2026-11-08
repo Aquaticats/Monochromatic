@@ -9,6 +9,12 @@ const { existsSync, mkdirSync, chmodSync, readdirSync, statSync, mkdtempSync, re
 const { availableParallelism, homedir } = await import('node:os')
 const { dirname, join, relative, resolve } = await import('node:path')
 const REPO_ROOT = process.env.TASK_REPO_ROOT
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR). They are read on
+// first use, by a synchronous require of the source (node strips its types), so a body that starts no container never needs the file.
+const containerLimitArguments = (bound) => process.getBuiltinModule('node:module').createRequire(join(REPO_ROOT, 'package.json'))(join(REPO_ROOT, 'package', 'container-limit', 'core', 'src', 'index.ts')).containerLimitArguments(bound)
+// 12 GiB and 4 CPUs are music-player's Alpine guard bound, and 1024 processes is the IDE's bound for 4 CPUs
+// (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const cargoContainerBound = { memory: '12g', cpus: 4, pidsLimit: 1024 }
 const scratchBase = () => {
   const base = join(REPO_ROOT, 'node_modules', '.monochromatic', 'task-scratch')
   mkdirSync(base, { recursive: true })
@@ -133,7 +139,7 @@ const hostEnv = () => {
   const resourceDir = clangDirs[clangDirs.length - 1]
   return { ...process.env, LIBCLANG_PATH: '/usr/lib64', BINDGEN_EXTRA_CLANG_ARGS: '-resource-dir=' + resourceDir }
 }
-const defaultContainer = { image: 'localhost/monochromatic/music-player', containerfile: 'Containerfile', cargoVolume: 'music-player-cargo', limits: [], env: [], program: 'cargo' }
+const defaultContainer = { image: 'localhost/monochromatic/music-player', containerfile: 'Containerfile', cargoVolume: 'music-player-cargo', bound: cargoContainerBound, env: [], program: 'cargo' }
 // The build arguments the Containerfiles declare without a default: the CachyOS base image of this host's CPU level, the Rust
 // nightly and the Zig archive that toolchain.lock.json records. Each comes from a core-matrix command, never from a copy here.
 const coreMatrixCommand = (name, commandArgs) => execFileSync('node', [join(REPO_ROOT, 'package', 'test-harness', 'core-matrix', 'src', 'bin', name + '.ts'), ...commandArgs], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
@@ -152,7 +158,7 @@ const containerCargo = (cargoArgs, containerOptions = {}) => {
     if (!existsSync(host)) { throw new Error('containerCargo needs ' + host + ' (mounted read-only at ' + inside + ') but it does not exist') }
     return ['-v', host + ':' + inside + ':ro']
   })
-  execFileSync('podman', ['run', '--rm', ...container.limits, '--security-opt', 'label=disable', ...debugInfoEnv, ...container.env, '-v', process.cwd() + ':/work', ...siblingMountArgs, '-v', container.cargoVolume + ':/cargo', '-w', '/work', container.image, container.program, ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(container.bound), '--security-opt', 'label=disable', ...debugInfoEnv, ...container.env, '-v', process.cwd() + ':/work', ...siblingMountArgs, '-v', container.cargoVolume + ':/cargo', '-w', '/work', container.image, container.program, ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => {
   if (process.platform !== 'linux') { execFileSync('cargo', cargoArgs, { stdio: 'inherit' }) }
@@ -164,7 +170,7 @@ const gnuContainer = {
   image: 'localhost/monochromatic/music-player-windows-gnu',
   containerfile: 'Containerfile.windows-gnu',
   cargoVolume: 'music-player-cargo-windows-gnu',
-  limits: ['--memory=6g', '--cpus=4'],
+  bound: { ...cargoContainerBound, memory: '6g' },
   env: ['-e', 'CARGO_TARGET_DIR=/work/target/windows-gnu'],
 }
 const runWindowsGnu = (cargoArgs) => {
