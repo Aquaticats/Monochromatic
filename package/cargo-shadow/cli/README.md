@@ -1150,13 +1150,34 @@ Six mechanisms
   and no process uses anything under it.
 - D,
   retention of verification run records under `target/verification`:
-  records (`campaign-`,
-  `native-`,
+  records (`RECORD_PREFIXES` in `src/lean_run_records.rs` names every program of this repository that writes one,
+  with its prefix:
+  `campaign-`,
+  `clippy-`,
+  `container-`,
+  `coverage-`,
+  `embedding-fuzz-`,
+  `fuzz-clippy-`,
   `git-image-`,
+  `guard-observer-`,
+  `guard-protected-`,
+  `guard-without-`,
   `mutation-`,
-  `planted-`) older than the retention age go,
+  `native-`,
+  `pathname-mutation-`,
+  `planted-`,
+  `processors-mutation-`,
+  `release-test-`,
+  `startup-mutation-`,
+  `test-`,
+  `windows-`) older than the retention age go,
   and the oldest go while the directory is over its cap.
-  Anything else in the directory is never touched.
+  Anything else in the directory is never touched:
+  a rendered handover,
+  a manifest,
+  a cache directory,
+  and a log a person redirected there by hand,
+  which has no producer here and so no prefix.
   The sweep runs from `cargo-shadow lean run` over every checkout's directory,
   and from `cargo-shadow lean records <directory>...` over the directories one producing task names:
   the task that writes records calls that first,

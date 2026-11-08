@@ -3,12 +3,8 @@
 //! the retention of verification run records under a `target/verification` directory.
 //! Why:
 //! Fuzz,
-//! mutation and container-gate runs leave a record directory or log per run
-//! (`campaign-*`,
-//! `native-*`,
-//! `git-image-*`,
-//! `mutation-*`,
-//! `planted-*`),
+//! mutation and container-gate runs leave a record directory or log per run,
+//! named by the program that wrote it (`RECORD_PREFIXES` names every such program and its prefix),
 //! and nothing ever removes them (`doc/planning/lean-build-dirs.md`,
 //! option D;
 //! 6.2 GiB in five packages on 2026-11-04).
@@ -42,8 +38,75 @@ use crate::lean_removal::{TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::add_tree_bytes;
 
-/// The name prefixes of run records.
-pub const RECORD_PREFIXES: [&str; 5] = ["campaign-", "native-", "git-image-", "mutation-", "planted-"];
+/// The name prefixes of run records,
+/// one entry per program of this repository that writes a record of its own run into a verification directory,
+/// each beside what writes it.
+/// Why:
+/// An entry whose name no prefix matches is never removed,
+/// so a producer missing here leaves its records for good;
+/// and an entry whose name matches one by accident would lose data,
+/// so every entry is a name a program really writes.
+/// The names are read from the programs, not invented:
+/// a producer that takes a new name adds it here in the same change.
+///
+/// - `campaign-`:
+///   `package/git-policy/cli.fuzz/bin/container.ts` and `package/linter/monochromatic-lint.fuzz/bin/container.ts`.
+/// - `clippy-`, `release-test-`, `test-`:
+///   `package/forbidden-strings/cli/bin/test-container.ts` (`nameOf`).
+/// - `container-`:
+///   `package/forbidden-strings/cli/bin/container-snapshot.ts` before it took a name per run;
+///   the records of 2026-10-04 are still on disk.
+/// - `coverage-`:
+///   `package/mutation-test/cli-cargo-mutants/src/scope-tools.ts`.
+/// - `embedding-fuzz-`, `fuzz-clippy-`:
+///   `package/forbidden-strings/cli.fuzz/bin/smoke-container.ts`.
+/// - `git-image-`:
+///   `package/git-policy/cli/bin/build-git-test-image.ts`.
+/// - `guard-protected-`, `guard-without-`:
+///   `package/forbidden-strings/cli/bin/guard-container.ts`;
+///   `guard-observer-`:
+///   `package/forbidden-strings/cli/bin/observe-guards-container.ts`.
+///   The fixed names of `package/forbidden-strings/cli/bin/verify-evidence.ts`
+///   (`guard-source-comparison`, `guard-input-comparisons.json`) are rewritten in place, not kept per run,
+///   and no prefix here matches them.
+/// - `mutation-`:
+///   `package/linter/monochromatic-lint/bin/mutate-container.ts`,
+///   `package/forbidden-strings/core/bin/mutate-container.ts` and
+///   `package/mutation-test/cli-cargo-mutants/src/campaign-attempt.ts`.
+/// - `native-` (which also covers `native-mutation-`):
+///   `package/git-policy/cli/bin/test-native-container.ts` and the gate prefix of `bin/native-gate-proof.ts`.
+/// - `pathname-mutation-` (which also covers `pathname-mutation-list-`), `startup-mutation-`:
+///   `package/forbidden-strings/cli/bin/mutate-container.ts`.
+/// - `planted-`:
+///   the `planted-controls.ts` of both fuzz packages.
+/// - `processors-mutation-`:
+///   `package/linter/monochromatic-lint/bin/mutate-processors.ts`.
+/// - `windows-`:
+///   the scanner's Windows snapshots before the same producer took its names per run;
+///   the records of 2026-10-05 are still on disk.
+/// - `native-mutation-` is written by `bin/mutate-native-container.ts` and `bin/native-planted-controls-only.ts`
+///   and is already covered by `native-`.
+pub const RECORD_PREFIXES: [&str; 19] = [
+    "campaign-",
+    "clippy-",
+    "container-",
+    "coverage-",
+    "embedding-fuzz-",
+    "fuzz-clippy-",
+    "git-image-",
+    "guard-observer-",
+    "guard-protected-",
+    "guard-without-",
+    "mutation-",
+    "native-",
+    "pathname-mutation-",
+    "planted-",
+    "processors-mutation-",
+    "release-test-",
+    "startup-mutation-",
+    "test-",
+    "windows-",
+];
 
 /// What:
 /// `pub fn is_record_name(name: &str) -> bool` says whether an entry of a verification directory is a run record.
