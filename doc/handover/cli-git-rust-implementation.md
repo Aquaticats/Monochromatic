@@ -4867,14 +4867,67 @@ and each is fixed now:
   Red first:
   the assertion `no scratch branch is left` failed with
   `left: "8739469b3585d5e9d29e4f5608ac70dbe5ef607b commit refs/worktree/cli-git-service/1"` and `right: ""`.
-  Open:
-  a `SIGKILL` between the import of the objects and the intent write leaves the reference with no journal record,
-  and nothing runs to clear it:
+  A `SIGKILL` between the import of the objects and the intent write left the reference with no journal record,
+  and nothing ran to clear it:
   `after-objects` is one of `service_fault::FAULT_POINTS`,
-  and the binary-level control that kills a service there and restarts it does not check the reference.
-  Clearing it needs a sweep by something that knows the worktree (the next landing of the same worktree,
-  or a marker the landing writes before the import),
-  because a service instance cannot turn its instance hash back into a worktree path.
+  and a service instance cannot turn its instance hash back into a worktree path,
+  so recovery had nothing to look the reference up by.
+  The landing now leaves that lookup before the reference can exist (`b90c2b88be`,
+  `417c103ee0`):
+  `<seq>.scratch` in the service's journal,
+  one unsynced file published whole,
+  naming the worktree root and the worktree's own Git directory (`service_scratch_ref_marker_of_a_batch.rs`).
+  Recovery sweeps it (`recover_selected` in `service_land_finish.rs`,
+  over this service's own journal only,
+  before the service accepts a connection and again before each landing):
+  a batch an open intent names is left to that intent,
+  and for every other record the commit the reference holds is kept at `refs/cli-git/kept/<seq>` first,
+  the reference is removed,
+  and the record goes only when the reference is gone.
+  A keep Git refused,
+  a kept reference that names another commit,
+  a reference Git cannot read and a record that cannot be read all leave the reference and the record where they are,
+  and the journal then keeps that batch number out of use (`244f0014fc`),
+  because the next import of that number would move the reference.
+  A landing that ends still drops its own record,
+  so a healthy commit writes one small unsynced file and removes it,
+  and `clear_after_dropped_batch` now answers whether the reference is gone
+  (the restart's own intent recovery ignores the answer).
+  Controls:
+  `a_restart_keeps_the_commit_of_a_batch_whose_intent_was_never_written_and_removes_its_scratch_branch`
+  ends a landing at the `after-objects` test hook,
+  the disk state a `SIGKILL` there leaves,
+  and checks that the branch did not move,
+  no intent exists,
+  recovery reports nothing to settle,
+  the scratch reference is gone,
+  the commit is at `refs/cli-git/kept/1` with the batch's own subject,
+  it survives `git prune --expire=now`,
+  and the record is gone;
+  `a_kept_reference_that_names_another_commit_leaves_the_scratch_branch_and_its_record` proves the safe side.
+  Red first:
+  the assertion `no scratch branch is left` failed with
+  `left: "fff5276fdafe0d71b9b4d763141701c3386f6c7f commit refs/worktree/cli-git-service/1"` and `right: ""`.
+  The binary-level control (`a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once`)
+  now reads both side namespaces at every point it kills the service at:
+  it failed before the fix with
+  `left: [("refs/worktree/cli-git-service/1794175649293749", "e293acc4bb497cf3d8aa36ebe367bea9351eea78")]`,
+  `right: []`,
+  and it now checks that no scratch reference survives the restart,
+  and that the killed batch's commit is kept (with its own message) exactly at the points before the branch moved.
+  Limits:
+  the record is not flushed,
+  so a power loss rather than a kill can lose it and leave the reference where it was,
+  which is the answer for anything that cannot be proven safe;
+  references left in an earlier release's journal directory (`cli-git/service/<instance>`) are not swept,
+  because the record only ever exists in this release's journal;
+  a record whose landing is still in flight on a second service instance of the same worktree
+  (an upgrade handover,
+  which shares one journal) is swept like a dropped batch:
+  its commit is kept before the reference goes,
+  and the landing that continues deletes a reference that is already gone.
+  The recovery of open intents takes the same risk there today,
+  so this adds no new one.
 - The `claimed/` scan that was quadratic for a drain of N claims (`7ae9113b61`).
   `claim_next_of` listed and sorted `pending` for each claim,
   and `current_name` listed the whole of `claimed` for each claim it checked or settled,
@@ -4892,16 +4945,47 @@ and each is fixed now:
   The old `current_name` listed `claimed` with its own `read_dir` at every check and settlement,
   which that count did not see and which the fix removes
   (`service_claim_renewal.rs` has no listing of its own now).
+  The same backlog,
+  cost from the producer's side,
+  is fixed too (`c533c6837a`):
+  `enqueue` listed `claimed` and `recovering` to answer "already known" for every item,
+  so a producer of N items cost N listings.
+  `enqueue_all` answers a whole round from one listing per directory,
+  `enqueue` is that round of one item,
+  and the commit's handoff builds its records and queues them in one round (`service_handoff.rs`).
+  Control:
+  `a_producer_of_many_items_lists_the_state_directories_once` counts the listings at rounds of 4,
+  24 and 96 items.
+  Red first:
+  `the listings of a producer's round do not grow with its items: [(4, 8), (24, 48), (96, 192)]`.
+  The round's listing is taken once at its start,
+  so an item another consumer claims after it is queued again,
+  where the per-item listing of the old code narrowed that window;
+  nothing reads the queue back,
+  so the window is written into `enqueue_all`'s contract.
   Untouched:
-  `enqueue` still lists `claimed` and `recovering` to answer "already known",
-  so a producer that enqueues N items costs N listings,
-  and the one shared listing of a round is refilled when a renewal renamed a claim it must settle.
+  the one shared listing of a drain round is refilled when a renewal renamed a claim it must settle.
 
 `started` and `ready` service lines now carry distinct journal times;
 lines of a retiring older service still share one stream timestamp (nothing to fix).
 
 ### Gate and tooling
 
+- `native:test:binary:host` fails nine controls on this machine for reasons that predate the branch
+  and are the host,
+  not the code (measured 2026-11-08 on a clean checkout of `8520518962`,
+  the commit the two leftovers above were fixed on):
+  the five `budget::*` controls that count Git starts report one extra
+  `git update-index --refresh` (`starts of git update-index: observed 1, budget 0`),
+  `fixture_guard::a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_is_serving`
+  and `service_mode::the_same_start_with_the_real_git_listens` fail because the fixture's socket path
+  under `CARGO_TARGET_DIR` (`/var/mnt/encrypted/cargo-build/toolchain/<toolchain>/<two>/<hash>/tmp/...`)
+  is longer than `SUN_LEN` (`path must be shorter than SUN_LEN`,
+  and the service ends before it listens),
+  and `commit_timing::a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free`
+  reports the client's own lock rename.
+  The container gate is the authority for all nine;
+  a host run of the rest of that suite passed 720 of 729 (three skipped) with the full lib suite at 4725 of 4725.
 - Gate-slot and campaign-lock claim files are merged,
   with the 2026-11-03 liveness and signal fixes (see "Open review findings" for what remains).
 - Mutation campaigns for wrapper code merged since the last recorded campaigns (conversion,

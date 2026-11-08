@@ -44,6 +44,12 @@ const TEMPORARY_EXTENSION: &str = "tmp";
 /// never read as an intent.
 pub const CLAIM_EXTENSION: &str = "claim";
 
+/// Extension of the record a landing writes before it imports,
+/// naming the worktree whose scratch reference the import is about to
+///  create (`service_scratch_ref_marker_of_a_batch.rs`);
+/// never read as an intent.
+pub const SCRATCH_EXTENSION: &str = "scratch";
+
 /// How old a temporary file must be before a listing treats it as the remains of a killed write and removes it.
 /// A write takes
 ///  milliseconds;
@@ -122,9 +128,15 @@ impl Drop for BatchClaim {
 }
 
 /// Whether the journal already holds a record under the number:
-/// an open intent or a finished batch.
+/// an open intent,
+/// a finished batch,
+/// or the record of a scratch
+///  reference.
 fn number_has_record(dir: &Path, seq: u64) -> bool {
-    return batch_path(dir, seq, OPEN_EXTENSION).exists() || batch_path(dir, seq, DONE_EXTENSION).exists();
+    // A record of a scratch reference outlives its landing only when that reference was left where it is, because a commit only
+    //  the reference holds could not be proven safe elsewhere. A number whose reference may still be such a holder is not taken
+    //  again: the next import would move that reference and lose what it held.
+    return batch_path(dir, seq, OPEN_EXTENSION).exists() || batch_path(dir, seq, DONE_EXTENSION).exists() || batch_path(dir, seq, SCRATCH_EXTENSION).exists();
 }
 
 /// What:

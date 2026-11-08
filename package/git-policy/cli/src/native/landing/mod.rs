@@ -30,6 +30,10 @@ pub mod maintenance_run;
 /// maintenance) left for a resident consumer.
 pub mod work_item;
 
+/// The kinds of work a landed object can ask for,
+/// and the names that pick a consumer's handler.
+pub mod work_item_kinds_and_their_names;
+
 /// The state folders of the work queue,
 /// the names of claim files,
 /// and the listing of a folder oldest first.
@@ -282,3 +286,7 @@ pub mod service_index_same;
 /// The two side references of a landing,
 /// and the scratch reference a restart removes once a batch it dropped has its commit kept.
 pub mod service_scratch_ref_of_a_dropped_batch;
+
+/// The record that names the worktree of a batch's scratch reference,
+/// so a restart can remove a reference whose landing was killed before its intent.
+pub mod service_scratch_ref_marker_of_a_batch;
