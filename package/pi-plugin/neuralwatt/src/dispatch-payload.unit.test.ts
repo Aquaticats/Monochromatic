@@ -27,6 +27,7 @@ import type {
 } from '@monochromatic-dev/logger-core/ts';
 import {
   createNeuralWattProvider,
+  NEURALWATT_OPENAI_COMPLETIONS_COMPAT,
   projectNeuralWattModel,
   type NeuralWattPiModel,
 } from '../dist/final/node/index.mjs';
@@ -260,6 +261,37 @@ await describe({
               reasoningEfforts: { medium: 'MEDIUM', },
             },
           },),
+          options: { reasoningEffort: 'medium', },
+        },);
+        const payload = payloadOf(requests);
+        expect(payload.reasoning_effort).toBe('MEDIUM');
+      },
+    }),
+    it({
+      name: 'observed verdict: auto-detection without the reasoning pins still sends the mapped wire value, so the pins are redundant-but-kept-for-parity',
+      fn: async () => {
+        const pinned = projectNeuralWattModel({
+          facts: {
+            id: 'fixture-reasoning',
+            name: 'Fixture Reasoning',
+            input: ['text'],
+            reasoningEfforts: { medium: 'MEDIUM', },
+          },
+        },);
+        /**
+         The same model with the reasoning pins removed: `supportsReasoningEffort`
+         and `thinkingFormat` fall back to pi's URL auto-detection while the role
+         pin stays, so only the reasoning path differs.
+         */
+        const autoDetected: NeuralWattPiModel = {
+          ...pinned,
+          compat: {
+            supportsDeveloperRole:
+              NEURALWATT_OPENAI_COMPLETIONS_COMPAT.supportsDeveloperRole,
+          },
+        };
+        const requests = await captureDispatch({
+          model: autoDetected,
           options: { reasoningEffort: 'medium', },
         },);
         const payload = payloadOf(requests);
