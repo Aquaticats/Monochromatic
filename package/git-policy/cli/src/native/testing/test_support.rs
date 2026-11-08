@@ -424,34 +424,6 @@ pub(crate) fn git_context() -> crate::transaction_git::GitContext {
 }
 
 /// What:
-///  The configuration and attribute locations a content decision reads in a fixture:
-/// no system or global file,
-///  and no system attributes file.
-/// Why:
-///   A control that settled a file by content must not depend on the machine's own Git configuration;
-/// this names none,
-///  and reaches no Git to learn about one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const environment = { scope: { noSystem: true, global: '/nonexistent-global-config' }, systemAttributes: 'disabled', variables: [] };
-/// ```
-pub(crate) fn content_environment() -> crate::worktree_clean_content::ConversionEnvironment {
-    return crate::worktree_clean_content::ConversionEnvironment {
-        scope: crate::repo_read_config_scan::ScopeEnvironment {
-            no_system: true,
-            global: Some(PathBuf::from("/nonexistent-global-config")),
-            home: None,
-            xdg: None,
-            ..crate::repo_read_config_scan::ScopeEnvironment::default()
-        },
-        system_attributes: crate::worktree_clean_content::SystemAttributes::Disabled,
-        alternate_attribute_source: None,
-        variables: Vec::new(),
-    };
-}
-
-/// What:
 ///  An environment whose home is a directory beside the fixtures,
 ///  where the per-user scratch directory of a child runner is made.
 /// Why:

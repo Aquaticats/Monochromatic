@@ -5,7 +5,10 @@
 //! the summary line and exit statuses.
 
 use super::*;
+use crate::add_timing::{begin_work, end_work};
+use crate::side_by_side_threads::in_thread_scope;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
+use crate::worktree_copy_after_lock::TrashBesideRepair;
 use crate::worktree_copy_journal::{create_journal_for, journal_root, read_pending_journals};
 use crate::test_support::dead_copy_owner;
 use std::process::Output;
@@ -355,7 +358,8 @@ fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_th
     use std::sync::atomic::{AtomicUsize, Ordering};
     /// How many times the stand-in emptied the trash.
     static CALLS: AtomicUsize = AtomicUsize::new(0);
-    /// The stand-in records the work as the shipped job does, and leaves the trash where it is.
+    /// The stand-in records the work as the shipped job does,
+    /// and leaves the trash where it is.
     fn refuse(_state: (&GitContext, &PendingTrash)) -> Result<(), String> {
         let began: std::time::Instant = begin_work();
         CALLS.fetch_add(1, Ordering::SeqCst);

@@ -23,7 +23,7 @@ use crate::worktree_add_plan::AddPlan;
 /// and report what the index step settled.
 fn take(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &Path, pointer: &[u8]) -> Result<CopyState, String> {
     let held: File = open_root(admin).expect("administrative directory");
-    return take_snapshot(source, plan, stage, &held, pointer, &crate::test_support::content_environment()).map(|made: Snapshotted| { return made.state; }).map_err(|failure: SnapshotFailure| { return failure.reason; });
+    return take_snapshot(source, plan, stage, &held, pointer, &crate::fixture_content_decision::content_environment()).map(|made: Snapshotted| { return made.state; }).map_err(|failure: SnapshotFailure| { return failure.reason; });
 }
 
 /// The identity of a directory by its canonical path.
@@ -99,10 +99,10 @@ fn btrfs_a_main_source_that_changed_after_the_check_keeps_the_snapshot() {
 fn btrfs_a_linked_source_that_changed_after_the_check_is_refused() {
     let Some(root) = btrfs_fixture("snapshot-linked-changed") else { return };
     let repo: PathBuf = subvolume_repository(root.as_path());
-    let linked: PathBuf = root.join("linked");
-    crate::fs_btrfs_ioctl::subvolume_create_at(linked.as_path()).expect("the linked worktree is a subvolume");
+    let made: PathBuf = root.join("linked");
+    crate::fs_btrfs_ioctl::subvolume_create_at(made.as_path()).expect("the linked worktree is a subvolume");
     git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "linked", "../linked"]);
-    let linked: PathBuf = std::fs::canonicalize(linked.as_path()).expect("canonical");
+    let linked: PathBuf = std::fs::canonicalize(made.as_path()).expect("canonical");
     // The checkout wrote every file as new as its index; only an aged tree is provably clean.
     for name in [".gitignore", "shared.txt", "src/deep/leaf.txt", "new/added.txt"] {
         age(linked.join(name).as_path());
@@ -420,11 +420,11 @@ fn btrfs_the_stage_a_snapshot_made_is_identified_even_when_the_snapshot_fails() 
     std::fs::write(admin.join("index.lock"), b"held by another Git").expect("a lock");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
     let held: File = open_root(admin.as_path()).expect("administrative directory");
-    let failure: SnapshotFailure = take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice(), &crate::test_support::content_environment()).expect_err("refused");
+    let failure: SnapshotFailure = take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).expect_err("refused");
     assert_eq!(failure.stage, Some(id_of_directory(stage.as_path())), "the failed run names the stage it made");
     std::fs::remove_file(admin.join("index.lock")).expect("lock gone");
     let stage_two: PathBuf = root.join(".cli-git-worktree-copy-test-two");
-    let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice(), &crate::test_support::content_environment()).expect("snapshot").stage;
+    let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).expect("snapshot").stage;
     assert_eq!(made, id_of_directory(stage_two.as_path()));
     remove(root.as_path());
 }

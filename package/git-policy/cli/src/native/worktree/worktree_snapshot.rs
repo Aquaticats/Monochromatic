@@ -17,11 +17,8 @@
 //!  empty directory real Git made at the stage name,
 //! which is then removed.
 //! A source that changed while the snapshot was taken is caught by comparing the snapshot's own files with the index
-//!  entries copied from the source:
-//! a file whose stat data cannot vouch for it is settled by content,
-//! and a source that changed in content is
-//!  restored to the new `HEAD` from the index the snapshot carries,
-//! when that index is the main checkout's own.
+//!  entries copied from the source;
+//! the index step itself is in `worktree_snapshot_index_step.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,15 +29,12 @@
 use crate::add_timing::{begin_step, end_step};
 use crate::fs_beneath::{ObjectId, exchange_at, identity_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, remove_at, rename_at};
 use crate::fs_btrfs_ioctl::snapshot_create_at;
-use crate::repo_read_index::parse_index;
-use crate::repo_read_layout::ObjectFormat;
-use crate::subvolume_index_files::install_index_in;
 use crate::subvolume_remove::remove_tree;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_path_failure_message::subject_failure;
-use crate::subvolume_index::{StatFields, StatLookup};
-use crate::worktree_clean::{ContentTarget, StatCursor, StatEntry, stored_stats, tree_fields_by_content};
 use crate::worktree_clean_content::ConversionEnvironment;
+pub use crate::worktree_snapshot_index_step::CopyState;
+use crate::worktree_snapshot_index_step::{install_index, read_own_index};
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_trash::{Pruned, TrashManifest, prune_snapshot};
 use std::ffi::{OsStr, OsString};
@@ -265,188 +259,6 @@ fn replace_git_pointer(stage: &Path, pointer: &[u8]) -> Result<(), String> {
     let path = stage.join(".git");
     subject_failure(remove_tree(path.as_path()), &"the source's .git", "cannot be removed from the snapshot")?;
     return subject_failure(std::fs::write(path.as_path(), pointer), &"the .git pointer", "cannot be written");
-}
-
-/// What:
-///  What the snapshot's index step settled about the copy.
-/// Why:
-///   A clean source's index is compared with the snapshot;
-/// a source that changed under the copy keeps the snapshot
-///  and is
-/// restored to the new `HEAD` instead of leaving the worktree to Git's own checkout.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CopyState = 'agrees' | 'changed-under-copy';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CopyState {
-    /// Every tracked file of the snapshot equals the index the new worktree received.
-    Agrees,
-    /// The source changed while it was copied,
-    /// so the snapshot's own index was installed and the copy must be
-    ///  restored to the new `HEAD`.
-    ChangedUnderCopy,
-}
-
-/// What:
-///  Whether the snapshot carries the index a restore starts from:
-/// the main checkout's own index,
-/// which lies inside its
-///  directory.
-/// Why:
-///   A linked worktree's index lies outside its directory and is not in the snapshot;
-/// the clone rung and the Git rung never
-///  look at one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// source.gitDir === source.commonDir && source.gitDir === join(source.root, '.git')
-/// ```
-fn own_index_in_reach(source: &SnapshotSource) -> bool {
-    return source.git_dir == source.common_dir && source.git_dir == source.root.join(".git");
-}
-
-/// What:
-///  Check the snapshot against the source's index,
-/// then install that index in the new worktree's administrative
-///  directory with stat fields refreshed and the accelerator extensions of the source dropped;
-/// a source that changed in content keeps the
-///  snapshot and its own index when that index is in reach.
-/// Why:
-///   Every tracked file of the snapshot must equal its entry,
-/// which proves the snapshot and the index describe the same
-///  state whatever the source did meanwhile.
-/// An entry the stat data cannot vouch for is settled by content, as the conversion
-///  settles one.
-/// A file that really changed ends Git's own checkout for a linked worktree's snapshot;
-/// a main checkout's
-///  snapshot is restored to the new `HEAD` from its own index instead,
-/// which is one instant with the copied files.
-/// The
-///  extensions (`UNTR`,
-/// `FSMN`) name the source's worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await installIndex({ source, stage, admin, ownIndex, environment }); // the state of the copy
-/// ```
-fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index: Option<&[u8]>, environment: &ConversionEnvironment) -> Result<CopyState, String> {
-    let root: File = subject_failure(open_root(stage), &"the stage", "cannot be opened")?;
-    let format: ObjectFormat = if source.clean.hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
-    // A clean source proved its index equal to its files, so it is compared with the snapshot. A source with changes has no such
-    //  proof: the snapshot's own index, one instant with its files, is installed as it is and the restore settles the rest.
-    let mut seed: &[u8] = match own_index {
-        Some(bytes) => bytes,
-        None => source.clean.index_bytes.as_slice(),
-    };
-    let mut state: CopyState = CopyState::Agrees;
-    let mut restored: Option<Vec<u8>> = None;
-    let mut entries: Vec<StatEntry> = Vec::new();
-    let mut walked: Vec<StatFields> = Vec::new();
-    if own_index.is_none() {
-        let Some(stats) = stored_stats(seed, source.clean.hash_length) else {
-            return Err(String::from("the source's index changed shape"));
-        };
-        let Some(indexed) = parse_index(seed, format) else {
-            return Err(String::from("the source's index has a layout the reader does not know"));
-        };
-        let target: ContentTarget<'_> = ContentTarget { root: stage, git_dir: source.git_dir.as_path(), common_dir: source.common_dir.as_path(), environment, format };
-        // One walk of the snapshot proves it equal to the source's index and returns the stat fields the new index takes: every
-        //  file is looked at once, and the fields are the ones the verdict was given on.
-        let walk_snapshot_entered: bool = begin_step("walkSnapshot");
-        let walk_snapshot_outcome = tree_fields_by_content(&target, stats.as_slice(), indexed.as_slice(), source.clean.index_seconds);
-        end_step(walk_snapshot_entered);
-        match walk_snapshot_outcome {
-            Ok(fields) => {
-                entries = stats;
-                walked = fields;
-            }
-            Err(refusal) => {
-                if !own_index_in_reach(source) || !refusal.kind.restorable() {
-                    return Err(format!("the source changed while it was copied ({})", refusal.reason));
-                }
-                let read_own_index_entered: bool = begin_step("readOwnIndex");
-                let read_own_index_outcome = read_own_index(stage);
-                end_step(read_own_index_entered);
-                let Ok(own) = read_own_index_outcome else {
-                    return Err(format!("the source changed while it was copied ({})", refusal.reason));
-                };
-                restored = Some(own);
-                state = CopyState::ChangedUnderCopy;
-            }
-        }
-    }
-    // A copy the source changed under carries the snapshot's own index, which is one instant with its files; the source's
-    //  proven index is the seed every other copy installs.
-    if let Some(own) = restored.as_deref() {
-        seed = own;
-    }
-    let mut known: std::collections::HashMap<&[u8], StatFields> = std::collections::HashMap::new();
-    for (entry, fields) in entries.iter().zip(walked) {
-        known.insert(entry.path.as_slice(), fields);
-    }
-    // An entry the walk did not cover (a source with changes has no walk) is looked at through a cursor that keeps its directory.
-    let mut cursor: StatCursor<'_> = StatCursor::new(&root);
-    let install_index_file_entered: bool = begin_step("installIndexFile");
-    let install_index_file_outcome = install_index_in(admin, seed, &mut WalkedThenCursor { known: &known, cursor: &mut cursor }, source.clean.hash_length);
-    end_step(install_index_file_entered);
-    let report: String = install_index_file_outcome?;
-    crate::diagnostic_log::debug("takeSnapshot", report.as_str());
-    return Ok(state);
-}
-
-/// What:
-///  The stat fields of the snapshot's files:
-/// the ones the walk returned,
-/// and a cursor for an entry the walk did not cover.
-/// Why:
-///   One walk of the snapshot gave the fields of the files it covered;
-/// a source with changes has no walk,
-/// so its entries are looked
-///  at through a cursor that keeps its directory open.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class WalkedThenCursor implements StatLookup { statNow(path) { return this.known.get(path) ?? this.cursor.fields(path); } }
-/// ```
-struct WalkedThenCursor<'a, 'root> {
-    /// The fields the walk returned,
-    /// by path.
-    known: &'a std::collections::HashMap<&'a [u8], StatFields>,
-    /// The cursor for an entry the walk did not cover.
-    cursor: &'a mut StatCursor<'root>,
-}
-
-impl StatLookup for WalkedThenCursor<'_, '_> {
-    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
-        return match self.known.get(path) {
-            Some(fields) => Some(*fields),
-            None => self.cursor.fields(path),
-        };
-    }
-}
-
-/// What:
-///  The bytes of the index inside the snapshot's own `.git`,
-/// read below handles that follow no link.
-/// Why:
-///   A source with uncommitted changes has no index that was proven equal to its files;
-/// the copy's index and the copy's files
-///  are one instant,
-/// whatever the source does next.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const bytes = await readOwnIndex(stage); // throws a reason
-/// ```
-fn read_own_index(stage: &Path) -> Result<Vec<u8>, String> {
-    let root: File = subject_failure(open_root(stage), &"the stage", "cannot be opened")?;
-    let git_dir: File = subject_failure(open_directory_at(&root, OsStr::new(".git")), &"the snapshot", "has no .git directory")?;
-    let mut index: File = subject_failure(open_file_at(&git_dir, OsStr::new("index")), &"the snapshot", "has no index")?;
-    let mut bytes: Vec<u8> = Vec::new();
-    subject_failure(std::io::Read::read_to_end(&mut index, &mut bytes), &"the snapshot's index", "is unreadable")?;
-    return Ok(bytes);
 }
 
 /// What:

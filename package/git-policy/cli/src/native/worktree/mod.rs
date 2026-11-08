@@ -115,6 +115,14 @@ pub mod worktree_snapshot_source;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot;
 
+/// The index step of the snapshot rung:
+/// prove the copy against the source's index,
+/// settle an entry by content where the stat data cannot vouch for it,
+/// and keep the
+///  snapshot's own index when the source changed under the copy.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_index_step;
+
 /// The binding of a `git worktree add` to the directories Git made for it,
 /// its record,
 /// and the check that the binding holds.

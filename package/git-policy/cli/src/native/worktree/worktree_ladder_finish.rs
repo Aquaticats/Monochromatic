@@ -201,7 +201,10 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     }
     // What a snapshot of the main checkout set aside is emptied by the lifecycle once the package repair of the new worktree has
     //  run, beside it, and never fails the add. Nothing is set aside for a linked worktree.
-    let pending: Option<PendingTrash> = trash.map(|manifest| PendingTrash { destination: plan.destination.clone(), git_dir: target.admin.clone(), manifest, quiet: plan.quiet });
+    let mut pending: Option<PendingTrash> = None;
+    if let Some(manifest) = trash {
+        pending = Some(PendingTrash { destination: plan.destination.clone(), git_dir: target.admin.clone(), manifest, quiet: plan.quiet });
+    }
     return Ok(Served { line: target.line, trash: pending });
 }
 
