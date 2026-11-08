@@ -281,7 +281,7 @@ await describe({
               kind: 'missing',
               name: 'io.pressure',
               source: 'music-player-e2e-4242-wide.service',
-              reason: 'systemctl show exited with status 4: Unit music-player-e2e-4242-wide.service could not be found.',
+              reason: 'systemd names no control group for the unit',
             },
           ],
         },);
@@ -296,7 +296,7 @@ await describe({
         expect(files,).toEqual([
           'session--wide.failure.txt',
         ],);
-        expect(failure,).toContain('session--wide.io.pressure not kept: systemctl show exited with status 4',);
+        expect(failure,).toContain('session--wide.io.pressure not kept: systemd names no control group for the unit',);
       },
     },),
     it({
