@@ -327,40 +327,44 @@ Owner decisions given in this session:
   and an earlier repo-wide `--fix` run finished in about 100 seconds.
   The cause was not investigated.
 
-## Next steps in order
+## Landed, 2026-11-08
 
-1. Update the planning doc paragraph "Human decisions use `ask_user_question` inside the primary run" in
-   `doc/planning/pi-goal-tool-free-completion.md`,
-   and the matching line in `package/pi-plugin/goal/README.md`.
-   Both depend on which branch lands;
-   the solo branch already edits its README.
-2. The owner decides which branch lands,
-   or a combination.
-   The evidence:
-   both new builds removed every user-asking and stop-instruction guidance in the measured runs,
-   the baseline did not;
-   the solo build's post-filter never fired where its audit field was visible,
-   missed one substitute objective,
-   and carries phrase-list false-positive risk and the repository's rule against magic lists;
-   the handheld build is a prompt change only and is smaller;
-   the one multi-cycle handheld arm reworded the same instruction while two solo arms changed approach,
-   on counts too small to separate them.
-   The user's live Pi keeps the old build until someone rebuilds the goal package in the main checkout,
-   because `package/pi-plugin/goal/dist` is git-ignored (`.gitignore` line 53) and Pi loads `dist/final/node/index.mjs`.
-   Say so in the final report.
-   Do not rebuild in the main checkout before the change lands.
+The owner chose the prompt-only branch.
+`fix/pi-goal-reviewer-human-input-rubric` merged into `main` as `fd99ad1bce`,
+and `build`,
+`lint:types`,
+`test:unit` and `lint` of `//package/pi-plugin/goal` all exit 0 on the merged result,
+with the three new `buildBudgetedGoalReviewPrompt` test names in the unit output.
+The README line and the planning paragraph "Human decisions use `ask_user_question` inside the primary run" were updated
+to say the reviewer prompt follows the session mode (commit `d5bead0b81`).
+The goal package in the main checkout was rebuilt to verify the merge,
+so the owner's live Pi,
+which loads `package/pi-plugin/goal/dist/final/node/index.mjs` by absolute path from its
+`settings.json`,
+now runs the new rubric for sessions started after that build.
+The unassisted branch `fix/pi-goal-reviewer-rubric-solo` (commit `9ac27cf235`) is not merged and stays on `origin`.
 
-## Cleanup when finished
+## Open work
 
-- Confirm no `pi --mode rpc` process and no `pi-goal-*` unit remains
-  (the lane units were started with `--collect` and are gone once they end).
-- Delete the copies of the credentials file:
-  `~/temp/agent/pi-goal-agent-home/auth.json`
-  and `auth.json` in `~/temp/agent/pi-goal-home-baseline`,
-  `pi-goal-home-handheld` and `pi-goal-home-solo`.
-- Remove both worktrees with `git worktree remove` after their branches are merged or dropped,
-  then delete the branches.
-- Delete `~/temp/agent/pi-solo-shim` when no run needs it.
-- No stray files outside the worktrees:
-  the goal runs left files in `/tmp` and in the throwaway fixture folder `~/temp/agent/dsh-rpc-trial/fixture` twice,
-  so check both after every subagent run that had a shell.
+Everything still open is in GitHub issue 6270:
+measuring the rubric over many cycles,
+with other reviewer models,
+whether the unmerged phrase post-filter is needed,
+substitute-objective guidance,
+the faster `neuralwatt` `deepseek-v4.1-flash` provider,
+and the unexplained repo-wide lint hang.
+Delete this handover once that issue is closed and its findings sit in
+`doc/agent/pi-goal-extension-driven-through-rpc.md`.
+
+## Cleanup state
+
+- No `pi --mode rpc` process and no `pi-goal-*` unit remains.
+- The copies of the credentials file in the isolated Pi homes were deleted.
+- The throwaway files the shell-enabled runs left in `/tmp` and the fixture folder were deleted by name.
+- Still to do when the issue work starts or ends:
+  remove the two worktrees under `.claude/worktrees` (`pi-goal-reviewer-rubric`,
+  `pi-goal-rubric-solo`) with
+  `git worktree remove`,
+  delete the merged local branch,
+  and delete `~/temp/agent/pi-solo-shim`.
+  Keep the solo branch on `origin` while the issue is open.
