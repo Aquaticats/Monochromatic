@@ -169,6 +169,9 @@ fn a_request_that_lands_alone_neither_joins_nor_is_joined() {
 /// at the `warning` priority with the
 /// batch number as a field:
 /// an open batch means a service stopped between its intent and its end.
+/// The commit the drop keeps on a side ref is said before it,
+/// at the `info` priority with the ref's name,
+/// because that is where the person finds the commit.
 #[test]
 fn a_restart_says_each_batch_it_settled() {
     use crate::journald_native::Priority;
@@ -181,13 +184,17 @@ fn a_restart_says_each_batch_it_settled() {
     //  Git cannot read gives no answer, and the batch then stays open with an error entry instead.)
     let worktree = crate::test_support::repository(root.as_path(), "worktree");
     let git_dir = worktree.join(".git");
+    let head = crate::test_support::git_text(worktree.as_path(), &["rev-parse", "HEAD"]);
+    // The batch's commit, which the intent names because the objects are written before it: nothing points at it while the
+    //  branch stays where it was.
+    let built = crate::test_support::git_text(worktree.as_path(), &["commit-tree", "HEAD^{tree}", "-p", head.as_str(), "-m", "the batch's commit"]);
     let intent: Intent = Intent {
         seq: 41,
         repository: worktree.clone(),
         common_dir: git_dir.clone(),
         reference: String::from("refs/heads/main"),
-        old: crate::test_support::git_text(worktree.as_path(), &["rev-parse", "HEAD"]),
-        new: "1".repeat(40),
+        old: head,
+        new: built,
         ids: vec![String::from("r")],
         commits: vec![String::from("c")],
         paths: Vec::new(),
@@ -204,10 +211,13 @@ fn a_restart_says_each_batch_it_settled() {
         lock_ceiling: crate::wait_ceilings::LOCK_CEILING,
     };
     let entries = crate::service_timing::capture::entries_of(|| { let _reports = settle_open_batches(&context, None); });
-    assert_eq!(entries.len(), 1, "{entries:?}");
-    assert_eq!(entries[0].priority, Priority::Warning);
-    assert!(entries[0].message.starts_with("settled the batch an earlier service left open batch=41 decision="), "{}", entries[0].message);
-    assert!(entries[0].fields.contains(&(String::from("CLI_GIT_BATCH"), String::from("41"))), "{:?}", entries[0].fields);
+    assert_eq!(entries.len(), 2, "{entries:?}");
+    assert_eq!(entries[0].priority, Priority::Info);
+    assert!(entries[0].message.starts_with("batch 41 is not on its branch, so its commit "), "{}", entries[0].message);
+    assert!(entries[0].message.contains(" is kept at refs/cli-git/kept/41"), "{}", entries[0].message);
+    assert_eq!(entries[1].priority, Priority::Warning);
+    assert!(entries[1].message.starts_with("settled the batch an earlier service left open batch=41 decision="), "{}", entries[1].message);
+    assert!(entries[1].fields.contains(&(String::from("CLI_GIT_BATCH"), String::from("41"))), "{:?}", entries[1].fields);
     crate::test_support::remove(root.as_path());
 }
 

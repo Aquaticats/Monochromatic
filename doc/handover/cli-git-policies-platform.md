@@ -1,5 +1,33 @@
 # cli-git policies platform implementation grilling handover
 
+Note 2026-11-08:
+these tasks this document names no longer exist:
+`//package/git-policy/cli:test:built:trust` went with the trust workflow on 2026-10-13 (`642b6d72cb`);
+
+Note 2026-10-13:
+`package/git-policy/api`
+`package/git-policy/forbidden-strings`
+`package/git-policy/markdown-lint`
+`package/git-policy/repository`
+were deleted by `a2b56c548c`
+with the four git-policy authoring packages;
+no same-name package replaced them.
+The scanner moved to `package/forbidden-strings/cli` on 2026-10-29 (`113633b259`)
+and the candidate scan it fed is `package/git-policy/cli/src/native/candidate/scanner_adapter.rs`.
+
+Note 2026-10-13:
+the TypeScript wrapper this document names under `package/git-policy/cli/src`
+was deleted by `642b6d72cb`,
+and the four authoring packages by `a2b56c548c`.
+That covered `package/git-policy/cli/src/bin.ts`
+`package/git-policy/cli/src/optional`
+`package/git-policy/cli/src/parser`
+`package/git-policy/cli/src/policy-engine`
+and `package/git-policy/cli/src/rule`;
+no `.ts` path under `package/git-policy` survives,
+and that work is Rust under `package/git-policy/cli/src/native/`.
+
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

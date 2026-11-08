@@ -469,6 +469,9 @@ app-observable keyboard API lacks geometry or that all overlay approaches fail.
   Build and install with
   `ANDROID_SERIAL=emulator-5554 mise run //package/music-player/android-app:prototype:install`
   from that worktree.
+  That address exists only on branch `prototype/music-player-theme-compose`
+  (commit `d99257112e` on 2026-09-04);
+  `main`'s `package/music-player/android-app/mise.toml` has no `prototype:*` task.
   `adb -s emulator-5554 shell ime enable dev.monochromatic.musicplayer/.FoldProbeInputMethod`
   and `adb -s emulator-5554 shell ime set dev.monochromatic.musicplayer/.FoldProbeInputMethod`
   select the probe after launching the activity.

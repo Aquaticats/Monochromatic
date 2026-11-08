@@ -73,10 +73,10 @@ echo real git "$@"
 `;
 
 /**
- Bundled entry marker emitted by pnpm command shims.
+ Package name marker emitted by a package manager's `git` shim.
  */
-const BUNDLED_ENTRY_SHIM_CONTENT = `#!/bin/sh
-exec node "$basedir/../../package/git-policy/cli/dist/final/node/index.mjs" "$@"
+const PACKAGE_NAME_SHIM_CONTENT = `#!/bin/sh
+# @monochromatic-dev/git-policy-cli
 `;
 
 /**
@@ -88,24 +88,12 @@ const SELF_SHIM_CASES: readonly {
 }[] = [
   {
     name: 'package name marker',
-    content: `#!/bin/sh
-# @monochromatic-dev/git-policy-cli
-`,
-  },
-  {
-    name: 'bundled entry marker',
-    content: BUNDLED_ENTRY_SHIM_CONTENT,
+    content: PACKAGE_NAME_SHIM_CONTENT,
   },
   {
     name: 'Windows package marker',
     content: String.raw`@ECHO off
 node "%~dp0\..\@monochromatic-dev\git-policy-cli\dist\final\node\index.mjs" %*
-`,
-  },
-  {
-    name: 'Windows bundled entry marker',
-    content: String.raw`@ECHO off
-node "%~dp0\..\..\package\git-policy\cli\dist\final\node\index.mjs" %*
 `,
   },
 ];
@@ -576,7 +564,7 @@ await describe({
         const selfGit = join(selfBin, 'git',);
         await Promise.all([
           writeExecutable({ path: externalGit, content: REAL_GIT_CONTENT, },),
-          writeExecutable({ path: selfGit, content: BUNDLED_ENTRY_SHIM_CONTENT, },),
+          writeExecutable({ path: selfGit, content: PACKAGE_NAME_SHIM_CONTENT, },),
         ],);
 
         expect(await resolveRealGit({

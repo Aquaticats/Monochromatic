@@ -21,31 +21,12 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, fixture, git, remove, repository, run_direct, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, fixture, git, on_btrfs_or_acknowledged, remove, repository, run_direct, run_wrapped, stderr_of};
 use git_policy_cli::fs_btrfs_ioctl::subvolume_create_at;
-use git_policy_cli::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
+use git_policy_cli::fs_kind::is_subvolume_root;
 use git_policy_cli::fs_mount_options::read_mount_facts;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-
-/// Whether the fixture root is on btrfs;
-/// where it is not,
-/// the run must have said so,
-/// and one loud line names the control.
-fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
-    let kind = filesystem_kind(fixture.root.as_path());
-    if kind == Ok(FilesystemKind::Btrfs) {
-        return true;
-    }
-    let acknowledged: bool = std::env::var_os("CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED").is_some_and(|value| { return !value.is_empty(); });
-    assert!(
-        acknowledged,
-        "the control {control} needs a btrfs fixture root, but {} is on {kind:?}; set CLI_GIT_TEST_ROOT to a directory on btrfs, or set CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1",
-        fixture.root.display()
-    );
-    eprintln!("BTRFS CONTROL NOT RUN: {control} (fixture root {} is on {kind:?})", fixture.root.display());
-    return false;
-}
 
 /// Whether the mount holding `path` has the option that lets a regular user destroy a subvolume.
 fn removal_allowed(path: &Path) -> bool {

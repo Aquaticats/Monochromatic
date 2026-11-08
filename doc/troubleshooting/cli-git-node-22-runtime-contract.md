@@ -38,6 +38,14 @@ mise run //package/git-policy/cli:test:unit
 mise run //package/git-policy/cli:verify:supported-runtime
 ```
 
+`//package/git-policy/cli:verify:supported-runtime` no longer resolves:
+commit `642b6d72cb` (2026-10-13) deleted the TypeScript wrapper,
+its tasks,
+and its trust workflow.
+The package now builds and tests the Rust binary through
+`//package/git-policy/cli:native:build` and `//package/git-policy/cli:native:test:host`,
+which run no Node runtime contract.
+
 The build accepted manifest-derived target `node24.11.0`.
 Unit execution completed at Node 24.11.0,
 and minimum-runtime host evidence confirmed:

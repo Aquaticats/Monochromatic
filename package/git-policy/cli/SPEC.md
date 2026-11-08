@@ -7477,8 +7477,30 @@ and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 ### Recovery
 
-The service keeps a journal of each batch it lands and settles an unfinished batch when it starts again;
-the wrapper recovers nothing for a commit.
+The service keeps a journal of each batch it lands and settles an unfinished batch before its next batch;
+a service's start settles only an earlier release's shared journal,
+and the wrapper recovers nothing for a commit.
+A batch whose branch does not show its commit is dropped:
+its commit is written to `refs/cli-git/kept/<batch>` before the intent goes
+(`keep_what_the_branch_does_not_show` in `src/native/landing/service_land_finish.rs`),
+so the commit of a branch write that a stop left running,
+including one Git built,
+which has no scratch branch,
+reaches a ref the wrapper names instead of an unnamed one,
+or none at all.
+The kept write runs only on this drop,
+never during a landing,
+and it is a side-ref write,
+so the stop's own bounds cut it as they cut every other Git of a landing.
+It writes a kept reference only where nothing is kept under that number yet:
+a kept reference that already names another commit is left as it is,
+and so is the batch's scratch reference,
+whose removal waits for the keep
+(`service_scratch_ref_of_a_dropped_batch.rs`).
+A drop whose kept write fails is logged with Git's words and the commit's name,
+and it still drops:
+the drop is what releases the worktree's index lock and forgets the batch,
+so a ref that cannot be written holds up neither the next commit nor the stop.
 What the wrapper still settles at the start of a command is state other code writes:
 an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format

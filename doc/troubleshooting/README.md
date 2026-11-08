@@ -23,6 +23,7 @@ Problems with test execution and test suite organization:
 - [Sinon drops an injected undefined exception](sinon-undefined-exception-sentinel.md)
 - [chai 6.3.0 `truncateThreshold` cuts failing compare values](chai-failure-value-truncation.md),
    and any finite replacement threshold is non-monotonic
+- [nextest counts a test that reports it did not run as passed, and shows nothing it printed](nextest-hides-a-passing-tests-output.md)
 
 ### [LFS R2 Worker](lfs-r2-worker-error-1102.md)
 
