@@ -37,6 +37,16 @@ use std::path::PathBuf;
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeCopyAfterLock";
 
+/// The thread the last disposal ran on,
+/// so a control can tell a thread of its own from the calling thread.
+/// Why:
+///  Whether a thread is started where nothing runs beside it is not visible in what the disposal does,
+/// only in the thread
+///  that does it,
+/// and a timing threshold would say nothing on a busy host.
+#[cfg(test)]
+pub(crate) static DISPOSED_ON: std::sync::Mutex<Option<std::thread::ThreadId>> = std::sync::Mutex::new(None);
+
 /// What:
 ///  What is left to do once the ignored state is in place:
 /// the source the ignored files came from and the worktrees the
@@ -121,6 +131,10 @@ fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn W
 #[cfg(target_os = "linux")]
 fn dispose_timed((context, pending): (&GitContext, &PendingTrash)) -> Result<(), String> {
     let began: std::time::Instant = begin_work();
+    #[cfg(test)]
+    if let Ok(mut last) = DISPOSED_ON.lock() {
+        *last = Some(std::thread::current().id());
+    }
     let mut notices: Box<dyn Write + Send> = if pending.quiet { Box::new(std::io::sink()) } else { Box::new(std::io::stderr()) };
     let outcome: Result<(), String> = dispose_pending_trash(context, pending.destination.as_path(), pending.git_dir.as_path(), Some(&pending.manifest), &mut notices);
     end_work("disposeTrash", began);
@@ -229,3 +243,8 @@ pub(crate) fn finish_trash_and_repair(invocation: &Invocation, after: &AfterLock
     };
     in_thread_scope(TrashBesideRepair { invocation, after, pending, stderr, dispose: dispose_timed });
 }
+
+/// Trash-beside-repair controls stay out of the release executable.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "worktree_copy_after_lock_tests.rs"]
+mod tests;
