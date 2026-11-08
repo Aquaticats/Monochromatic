@@ -288,8 +288,8 @@
   // SHA-256 of the file every Slint crate ships, and the rewrap fixer broke that check twice: 5513294572 reflowed
   // the file, 5b9e9be057 restored it, 2f369455ca reflowed it again and failed the release's notices job.
   // Every other Markdown rule still judges these files; only the rewrap is off, and the file stays checkable by its
-  // pinned SHA-256. This narrowing awaits the repository owner's approval (AGENTS.md LN7); the alternatives are
-  // renaming the vendored text out of Markdown or letting every format run rewrite it.
+  // pinned SHA-256. The repository owner chose this exception over renaming the vendored text out of Markdown
+  // (doc/handover/questions-for-the-owner.md, "Rule exception for notices/").
   {
     "name": "verbatim-license-texts",
     "files": [
