@@ -54,7 +54,7 @@ use std::os::unix::net::UnixListener;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use std::sync::Arc;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// The largest batch whose landing still costs about what its size predicts: 256.
@@ -126,8 +126,32 @@ pub const MAX_BATCH: usize = BATCH_COST_KNEE;
 /// "Sizes and ages of the service's own housekeeping").
 pub const IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
 
+/// How often a serving service asks whether the worktree whose units are its own is still there.
+/// Why:
+///   A removal Git ran with the wrapper replaced and a worktree deleted without Git leave the socket unit listening,
+/// and the service that serves it is already running:
+/// no start happens for a gone worktree,
+/// so nothing would ever ask,
+/// and the socket would listen for that directory until a person remembered the sweep.
+/// At this interval the socket stops at most this long after the removal,
+/// and the price is one wake of the landing thread and two stat calls per service per interval:
+/// one `symlink_metadata` on the Git directory and one `is_dir` on the place that holds it
+/// (`service_units_of_removed_worktrees::worktree_is_gone`),
+/// measured on this host at 11.4 microseconds for the pair (five rounds of a million,
+/// 11.32 to 11.74),
+/// so 355 services cost 0.07 milliseconds a second between them.
+/// A minute rather than an hour because the leftover is a listening socket,
+/// and a minute rather than a second
+/// because the loop's own wake is what it costs;
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
+pub const OWN_WORKTREE_CHECK: Duration = Duration::from_secs(60);
+
 /// How a service run behaves apart from where it listens and what it lands.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// No equality:
+/// the stop of a service's own units is a function pointer,
+/// whose addresses are not comparable.
+#[derive(Clone, Debug)]
 pub struct ServeSettings {
     /// How long the service waits with nothing to do before it exits.
     pub idle: Duration,
@@ -147,13 +171,34 @@ pub struct ServeSettings {
     /// `NEVER_ENDED_STEP_SLOW_AFTER`);
     /// a control shortens it.
     pub stuck_after: Duration,
+    /// The Git directory of the worktree whose units are this service's,
+    /// as its note or its journal named it when the service started,
+    /// and nothing when it was not there or could not be told.
+    /// The serving loop asks about it every `own_worktree_check`.
+    pub own_git_dir: Option<PathBuf>,
+    /// How often the serving loop asks whether `own_git_dir` is still there.
+    pub own_worktree_check: Duration,
+    /// What the service does when that directory is gone:
+    /// the shipped one stops this service's own socket through the user manager
+    ///  (`service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone`),
+    /// and a control passes its own,
+    /// so the loop is checked without a manager.
+    pub own_units_stop: fn(&str, &Path) -> bool,
 }
 
 impl ServeSettings {
     /// The settings of an ordinary run:
     /// the given idle exit and this build's release.
     pub fn new(idle: Duration) -> Self {
-        return Self { idle, release: String::from(RELEASE), instance: None, stuck_after: NEVER_ENDED_STEP_SLOW_AFTER };
+        return Self {
+            idle,
+            release: String::from(RELEASE),
+            instance: None,
+            stuck_after: NEVER_ENDED_STEP_SLOW_AFTER,
+            own_git_dir: None,
+            own_worktree_check: OWN_WORKTREE_CHECK,
+            own_units_stop: crate::service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone,
+        };
     }
 }
 
@@ -174,6 +219,27 @@ fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
 ///  remembers (`DONE_RETAINED`),
 /// since a client that withdrew sends nothing more for its request.
 const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
+
+/// What:
+///  Whether this service should stop serving because the worktree whose units are its own is gone.
+/// Why:
+///   Every wake of a service whose worktree is known asks this:
+/// the removal that takes a worktree while its service runs is what leaves a socket listening for a directory that is gone.
+/// The answer is the same rule the sweep and `doctor` use (`worktree_is_gone`),
+/// so an unmounted device and an instance nothing names keep the service serving.
+/// The idle bound alone ends the service,
+/// and that is answered before this one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (ownWorktreeGoneNow(settings, untilIdle)) stopOwnUnitsAndEnd();
+/// ```
+fn own_worktree_gone_now(settings: &ServeSettings, until_idle: Duration) -> bool {
+    if settings.own_git_dir.is_none() || until_idle <= settings.own_worktree_check {
+        return false;
+    }
+    return settings.own_git_dir.as_deref().is_some_and(crate::service_units_of_removed_worktrees::worktree_is_gone);
+}
 
 /// What:
 ///  Runs the service until it is told to retire.
@@ -255,11 +321,33 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     // The marker made ahead is removed whichever way this loop ends.
     let _prestaged = PrestageGuard;
     let mut retiring: bool = false;
+    // When the service last took work, so that the idle exit stays what `IDLE_EXIT` says while a known worktree is asked about
+    //  far more often.
+    let mut last_work: Instant = Instant::now();
     while !retiring {
-        let first: Job = match receive_for_at_most(&mut receiver, Some(idle)) {
+        // A service whose worktree is known wakes at least every `own_worktree_check`: nothing else asks whether that worktree
+        //  is still there, and the removal that takes it may happen while this service runs.
+        let until_idle: Duration = idle.saturating_sub(last_work.elapsed());
+        let wait: Duration = if settings.own_git_dir.is_some() { until_idle.min(settings.own_worktree_check) } else { idle };
+        let first: Job = match receive_for_at_most(&mut receiver, Some(wait)) {
             Received::Item(job) => job,
             // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
-            Received::Timeout if busy.load(Ordering::SeqCst) > 0 => continue,
+            Received::Timeout if busy.load(Ordering::SeqCst) > 0 => {
+                last_work = Instant::now();
+                continue;
+            }
+            // The interval of a service whose worktree is known, with the idle bound still ahead: the worktree may have been
+            //  removed by another Git, and then no start of this service ever comes again to notice it.
+            Received::Timeout if own_worktree_gone_now(settings, until_idle) => {
+                let instance: &str = settings.instance.as_deref().unwrap_or_default();
+                let _asked = (settings.own_units_stop)(instance, context.journal.as_path());
+                // Leaving as the idle exit does, so the syncs of the landings that were answered are made first.
+                crate::service_durable::drain();
+                log(exit_line(ExitReason::WorktreeGone, serving_since.elapsed()).as_str());
+                return;
+            }
+            // The interval of a service whose worktree is known, and that worktree is still there: serve on.
+            Received::Timeout if settings.own_git_dir.is_some() && until_idle > settings.own_worktree_check => continue,
             Received::Timeout => {
                 // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
                 crate::service_durable::drain();
@@ -278,6 +366,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         if is_stopping() {
             continue;
         }
+        last_work = Instant::now();
         let mut jobs: Vec<Job> = vec![first];
         while jobs.len() < MAX_BATCH {
             match receiver.try_recv() {
@@ -393,3 +482,8 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 #[cfg(test)]
 #[path = "service_server_tests.rs"]
 mod tests;
+
+/// Controls for a service whose own worktree is deleted while it serves stay out of the release executable.
+#[cfg(test)]
+#[path = "service_server_own_worktree_tests.rs"]
+mod own_worktree_tests;

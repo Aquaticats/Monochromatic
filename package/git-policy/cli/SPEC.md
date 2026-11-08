@@ -5462,7 +5462,8 @@ Owner,
 "Remove all three (Recommended)" for the CPU,
 task and disk limits,
 after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
-A service that starts and finds the worktree it serves gone stops its own socket and serves nothing:
+A service that finds the worktree it serves gone stops its own socket and serves nothing,
+and it asks when it starts and once a minute while it serves:
 the administrative directory is missing while the repository that held it is there
 (a repository on a drive that is not mounted proves nothing),
 and the note provisioning wrote beside the socket,

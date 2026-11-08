@@ -4706,9 +4706,16 @@ Closed on 2026-11-08,
 the leftovers a person had to remember:
 a removal Git runs with the wrapper replaced (`worktree remove --force`,
 `worktree prune`) and a worktree deleted without Git used to leave their units until someone ran the command.
-A service that starts and finds its own worktree gone now stops its own socket before it serves anything
-(`service_main.rs`,
-`service_units_of_removed_worktrees.rs`):
+A service that finds its own worktree gone now stops its own socket before it serves anything (`service_main.rs`)
+and keeps asking once a minute while it serves (`service_server.rs`,
+`OWN_WORKTREE_CHECK`),
+because a measurement against a real user manager showed that the start-time check alone almost never fires:
+the worktree another Git removes is served by a service that is already running,
+so no start of it comes again.
+The price is one wake and two stats per service a minute,
+11.4 microseconds measured for the pair on this host (`measure-present-check.rs` in the coordinator's scratch),
+so 355 services cost 0.07 milliseconds a second between them.
+Both answers use `service_units_of_removed_worktrees.rs`:
 it asks the same question of the same note and journal records the sweep and `doctor` use,
 stops the socket with the stop mode that leaves the units requiring it alone,
 removes the note and the socket file,
@@ -4720,15 +4727,35 @@ The controls:
 `a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing`,
 `a_service_whose_worktree_is_on_a_device_that_is_not_mounted_serves`,
 `a_service_whose_worktree_cannot_be_told_serves`,
+`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git, then the sweep),
+the binary-level `a_service_whose_worktree_is_gone_serves_nothing`,
+and, for the serving loop,
+`a_service_whose_worktree_is_deleted_while_it_serves_ends_and_asks_for_its_socket_to_be_stopped`,
+`a_service_whose_worktree_is_there_keeps_serving` and
+`a_service_whose_worktree_is_on_a_device_that_is_not_mounted_keeps_serving`
+(`service_server_own_worktree_tests.rs`),
+the first of which failed for 60 seconds against a loop that did not ask.
+Measured against a real user manager on 2026-11-08,
+with a throwaway `systemd --user` of the probe's own (its own runtime, state and config directories,
+its own bus from its own `dbus.socket`, the host session's units untouched):
+a commit landed through a real socket-activated service there,
+the worktree's Git directory was then deleted,
+and the serving service stopped its own socket 60 seconds later (the check interval, one wake),
+removed the note and the socket file,
+logged the line and ended with status 0 and no restart,
+with no connection able to start anything afterwards;
+the worktree whose mount point was left empty and whose repository had gone was served and not stopped.
+The throwaway manager needed its bus to be the manager's own (`dbus.socket`),
+because `systemd --user` takes `$XDG_RUNTIME_DIR/bus` and ignores `DBUS_SESSION_BUS_ADDRESS`,
+which is why the first attempt could not reach a manager at all.
 `a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git,
 then the sweep),
 and the binary-level `a_service_whose_worktree_is_gone_serves_nothing`,
 which was red against a service that served the gone worktree.
 What is still unmeasured:
-the self-stop has not run against a real user manager,
-because the controls start no unit and look for the bus in a fixture runtime directory;
-and a socket nobody ever connects to still listens,
-so the automatic stop needs a first connection and the sweep or `doctor` remains for the rest.
+the controls start no unit,
+so the composition of the loop's stop with a manager is checked only by that measurement,
+not by a control that runs in the gate.
 `doctor` counted the leftovers before this change and counts them still.
 The stopped instance's state directory (`$XDG_STATE_HOME/monochromatic-git-policy-cli/service/<instance>`,
 the service's journal) stays after its units go:
