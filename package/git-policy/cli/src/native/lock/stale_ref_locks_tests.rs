@@ -560,14 +560,14 @@ fn the_roots_of_a_command_are_found_without_git() {
 /// The number of the one process of a fake table.
 const FAKE_PROCESS: i64 = 4242;
 
-/// A process table with one process of this account whose descriptors cannot be read,
+/// A process table with one process of this account whose descriptor record cannot be read,
 /// as `systemd --user` is on a host;
 /// the judge of it scans that process and no other.
 fn table_with_unreadable(stage: &Stage, command: &str) -> Judge {
     use std::os::unix::fs::PermissionsExt as _;
     let table: PathBuf = stage.root.join("proc");
     let process: PathBuf = table.join(FAKE_PROCESS.to_string());
-    let descriptors: PathBuf = process.join("fd");
+    let descriptors: PathBuf = process.join("fdinfo");
     std::fs::create_dir_all(descriptors.as_path()).expect("fake process");
     std::fs::write(process.join("comm"), format!("{command}\n")).expect("comm");
     std::fs::set_permissions(descriptors.as_path(), std::fs::Permissions::from_mode(0o000)).expect("hide the descriptors");
@@ -577,7 +577,7 @@ fn table_with_unreadable(stage: &Stage, command: &str) -> Judge {
 /// Make the fake table removable again.
 fn reveal(table: &Path) {
     use std::os::unix::fs::PermissionsExt as _;
-    std::fs::set_permissions(table.join(FAKE_PROCESS.to_string()).join("fd"), std::fs::Permissions::from_mode(0o700)).expect("reveal");
+    std::fs::set_permissions(table.join(FAKE_PROCESS.to_string()).join("fdinfo"), std::fs::Permissions::from_mode(0o700)).expect("reveal");
 }
 
 /// A process of this account that is not Git and cannot be looked into (the user's service manager) cannot hold a Git lock.
