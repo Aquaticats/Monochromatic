@@ -60,6 +60,8 @@ const STAND_IN = new URL('stand-in-pi-for-tests.ts', import.meta.url,).pathname;
 const WALL_SECONDS = 60;
 /** Seconds the tests about the wall clock allow. */
 const SHORT_WALL_SECONDS = 1;
+/** Seconds a run that stalls on an inbox answer allows, so start-up cannot outlast it. */
+const STALLED_INBOX_WALL_SECONDS = 4;
 /** Seconds of silence after which a settled run ends. */
 const IDLE_SECONDS = 0.2;
 /** Seconds of idle wait in tests that end the run with the stop file. */
@@ -574,9 +576,10 @@ await describe({
       fn: async () => {
         const run = await runDriver({
           scenario: 'silent-inbox',
-          wallSeconds: SHORT_WALL_SECONDS,
-          whileRunning: async ({ runFolder, log, },) => {
-            await waitForLine({ file: log, text: '"message":"hello"', },);
+          wallSeconds: STALLED_INBOX_WALL_SECONDS,
+          prepare: async ({ runFolder, },) => {
+            // The message is there before the run starts, so no start-up delay can hide it from the watch.
+            await mkdir(join(runFolder, 'inbox',), { recursive: true, },);
             await dropInInbox({ runFolder, text: 'never answered', },);
           },
         },);
