@@ -335,3 +335,44 @@ pub(crate) fn tab_labels(app: &AppWindow, count: usize) -> Vec<String> {
         })
         .collect();
 }
+
+/// What:
+/// `LogSink` is a writer that keeps what a test's log subscriber wrote.
+/// Why:
+/// the state lines of the end-to-end run exist only in the log,
+/// so a test that asserts on one reads it from a
+/// subscriber instead of from the window.
+struct LogSink(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+/// Writes buffered text into the sink's shared buffer.
+impl std::io::Write for LogSink {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().expect("the log buffer lock is not poisoned").extend_from_slice(bytes);
+        return Ok(bytes.len());
+    }
+
+    /// Accepts a flush without doing anything, because the buffer takes every write at once.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+/// `logged_by` runs `action` with a log subscriber for this thread that records every level,
+/// and returns the log text.
+/// Why:
+/// the window writes its state lines from the thread that handles the input,
+/// so a test that runs the click there reads exactly
+/// the lines the end-to-end run would keep.
+pub(crate) fn logged_by(action: impl FnOnce()) -> String {
+    let buffer: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let writer: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::clone(&buffer);
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::TRACE)
+        .with_ansi(false)
+        .with_writer(move || return LogSink(std::sync::Arc::clone(&writer)))
+        .finish();
+    tracing::subscriber::with_default(subscriber, action);
+    return String::from_utf8(buffer.lock().expect("the log buffer lock is not poisoned").clone())
+        .expect("the log is UTF-8");
+}

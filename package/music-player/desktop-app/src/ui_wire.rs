@@ -174,11 +174,36 @@ fn wire_library(app: &AppWindow, host: &Rc<dyn Host>) {
     });
     let folder_host = Rc::clone(host);
     let folder_weak = app.as_weak();
+    // What:
+    // `on_name_pointer_event` writes one debug line per pointer event over a folder name.
+    // Why:
+    // the end-to-end run keeps the app's log beside a failing click, and that log must say whether a
+    // press reached the picker at all and which name row it landed on: a click that changed nothing
+    // is otherwise the same silence as a click the compositor never sent.
+    // Only the press and the release are written, because a hover writes a move per frame.
+    app.on_name_pointer_event(move |label, kind| {
+        if kind.as_str() == "move" {
+            return;
+        }
+        tracing::debug!(
+            folder = label.as_str(),
+            kind = kind.as_str(),
+            "a pointer event reached a folder name",
+        );
+    });
     app.on_select_folder(move |label| {
         if let Some(window) = folder_weak.upgrade() {
             mark_user_acted();
             select_folder(folder_host.as_ref(), label.as_str());
             project(&window);
+            // What:
+            // `ui_state_log::emit` writes one line naming the folder the click opened.
+            // Why:
+            // the projection above already shows that folder, and the end-to-end run reads the click's effect
+            // from this line. Without it the run waited for whatever line came next: measured on 2026-11-08, a
+            // click that reached the name row in 0.15 ms was reported opened 2.4 s later under the run's CPU
+            // quota, and 14.5 s later on a loaded host, so the check called the click lost.
+            crate::ui_state_log::emit(&window, "folder-select");
         }
     });
 }
