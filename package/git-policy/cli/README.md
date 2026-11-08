@@ -938,7 +938,8 @@ A service that finds its own worktree gone stops its own socket and serves nothi
 so those leftovers also go without anyone running the command.
 It asks the same question of the same note and journal records,
 when it starts and then once a minute while it serves
-(a removal by another Git takes the worktree while its service is running, so no start of that service ever comes),
+(a removal by another Git takes the worktree while its service is running,
+so no start of that service ever comes),
 stops its socket with the stop mode that leaves the units requiring it alone,
 removes the note and the socket file,
 and ends with status 0.
