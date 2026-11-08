@@ -183,7 +183,6 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
 /// await provisionWith(host, manager)
 /// ```
 pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<(), ClientFailure> {
-    note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
     // A reload makes the manager re-read every unit and interrupts its other clients for a while, so it is asked for only
     //  when a unit it may already hold changed or went away. A file that is new is found by the manager when the unit is
     //  first started.
@@ -220,6 +219,8 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         }
         return Err(refusal(error));
     }
+    // After the units are in place and started: a refused provisioning writes nothing, and no note of a worktree whose units never started stays.
+    note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
     stop_earlier_instance_socket(host, manager);
     return Ok(());
 }

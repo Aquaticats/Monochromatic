@@ -4088,6 +4088,10 @@ so it now lives in a folder of the unit directory that the manager reads as no u
 and `service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`
 (the test recorder held a `Mutex`,
 so it now holds `Rc<RefCell<..>>`).
+The second gate run (5393 tests) then failed `service_provision::tests::a_foreign_unit_is_left_alone_and_named`
+(a refused provisioning must write nothing,
+and the note was written before the refusal;
+it is now written after the units start).
 Open:
 a removal Git runs with the wrapper replaced (`worktree remove --force`,
 `worktree prune`) and a worktree deleted without Git leave their units until the command runs;
