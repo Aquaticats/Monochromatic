@@ -96,7 +96,11 @@ fn owned_record(cursor: &mut Cursor<'_>) -> ClaimRecord {
     let namespace: Option<String> = match cursor.byte() % 3 {
         0 => None,
         1 => Some(String::new()),
-        _ => Some(field_text(cursor, false)),
+        _ => {
+            // The file writes an absent namespace as `-`, so a text of exactly that marker reads back as none.
+            let text: String = field_text(cursor, false);
+            if text == "-" { None } else { Some(text) }
+        }
     };
     return ClaimRecord::Owned { pid, birth, namespace };
 }

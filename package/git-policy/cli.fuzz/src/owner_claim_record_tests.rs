@@ -94,6 +94,37 @@ fn known_claim_spellings_hold_the_invariants() {
     }
 }
 
+/// The `-` namespace marker reads as no namespace,
+/// and no generated claim may expect one named `-`.
+/// The input is the artifact the campaign found after 6,938 executions (`campaign-Xw7gB3`),
+/// kept as
+/// `seed/owner_claim_record/marker-namespace`.
+#[test]
+fn a_generated_namespace_of_the_marker_is_no_namespace() {
+    let found: [u8; 55] = [
+        0x6f, 0x63, 0x68, 0x6f, 0x6f, 0x6e, 0x72, 0x6f, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xef, 0xee,
+        0xef, 0xef, 0xef, 0xef, 0x70, 0x69, 0x64, 0x3d, 0x39, 0x32, 0x32, 0x33, 0x33, 0x37, 0x32, 0x30, 0x70, 0x69,
+        0x64, 0x3d, 0x39, 0x30, 0x30, 0x39, 0x31, 0x37, 0x39, 0x32, 0x35, 0x34, 0x37, 0x34, 0x30, 0x39, 0x39, 0x31,
+        0x0a,
+    ];
+    check_generated_claim_text(found.as_slice());
+    let (text, expected) = generated_claim_text(found.as_slice());
+    assert_eq!(decode(text.as_str()), expected, "{text:?}");
+    let Some(ClaimRecord::Owned { namespace, .. }) = expected else { panic!("{expected:?}") };
+    assert_eq!(namespace, None, "{text:?}");
+    assert!(text.ends_with("namespace=-\ngarbage\n"), "{text:?}");
+}
+
+/// A generated namespace of the released marker reads as no namespace on every generated claim.
+#[test]
+fn generated_namespaces_are_never_the_released_marker() {
+    for data in inputs() {
+        let (_, expected) = generated_claim_text(data.as_slice());
+        let Some(ClaimRecord::Owned { namespace, .. }) = expected else { continue };
+        assert_ne!(namespace.as_deref(), Some("-"));
+    }
+}
+
 /// A claim whose text is the record's own text gives that record back,
 /// and a hand-written file whose field ends in a carriage return is read without the carriage return.
 #[test]
