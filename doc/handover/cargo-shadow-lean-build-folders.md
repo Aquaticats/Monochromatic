@@ -322,27 +322,21 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   and the uninspectable ones of this user or of root,
   whose descriptors the kernel hides from a plain user.
   Measured on this host 2026-11-08T17:59:37-05:00 over 1028 processes:
-  372 read,
-  656 whose working directory could not be read,
-  of which 608 kernel threads,
-  2 ended,
-  11 processes of this user whose own programs made them undumpable (`systemd --user`,
-  `kwin_wayland`,
-  `ssh-agent`,
-  `sudo`,
-  `fusermount`,
-  `polkit-kde-auth`,
-  `sd-pam`),
-  35 user-space processes of root,
-  and 12 processes of other uids (avahi,
+  372 were read and 656 had no readable working directory,
+  and the scan called all 656 "other users",
+  although 11 of them ran as this user.
+  The same count at 18:10 over 1071 processes,
+  this time reading `/proc/<pid>/status`:
+  385 read,
+  608 kernel threads,
+  2 ended processes,
+  and 76 uninspectable,
+  of which 65 of this user or of root
+  and 11 of other uids (avahi,
   dbus,
   systemd-oomd and other daemons).
-  At 18:10 the same count read 385 read,
-  608 kernel threads,
-  2 ended,
-  76 uninspectable (65 of this user or of root,
-  11 of another uid),
-  so the figures move with the machine.
+  The figures move with the machine,
+  so these are two readings minutes apart and not one rate.
   A real sweep of a disposable directory printed,
   on the same build:
   "366 processes read,
