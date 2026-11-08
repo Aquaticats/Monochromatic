@@ -24,7 +24,7 @@
 use crate::journald_native::send_without_waiting;
 use crate::lazy_runtime::spawn_on_runtime;
 use crate::service_timing::LOG_PREFIX;
-use crate::stop_of_the_service_noticed_by_its_children::{SETTLE_CEILING, Settled, end_by_the_signal, stopping_signal, tell_the_stop_and_wait_for_the_work, unfinished_work};
+use crate::stop_of_the_service_noticed_by_its_children::{SETTLE_CEILING, Settled, end_by_the_signal, is_noticing, stopping_signal, tell_the_stop_and_wait_for_the_work, unfinished_work};
 
 /// What:
 ///  Starts the shutdown task on the process's runtime,
@@ -39,6 +39,11 @@ use crate::stop_of_the_service_noticed_by_its_children::{SETTLE_CEILING, Settled
 /// startOrExit('the shutdown after a stop', () => shutDownAfterAStop());
 /// ```
 pub(crate) fn start_shutdown_after_a_stop_or_exit() {
+    // A process that never prepared to notice a stop (a development run, or a control that serves on a thread of its own) has no
+    //  handler to wake a shutdown, and a shutdown with nothing to wait for must not end it.
+    if !is_noticing() {
+        return;
+    }
     if spawn_on_runtime(shut_down_after_a_stop()).is_none() {
         crate::service_error!("cannot start the shutdown after a stop: the runtime that runs it has no worker thread (the system may refuse threads; check `ulimit -u` and the control group's `pids.max`)");
         std::process::exit(4);
@@ -63,9 +68,9 @@ async fn shut_down_after_a_stop() {
         // A line that cannot be written without waiting is lost: the exit is what matters.
         let _written = send_without_waiting(libc::STDERR_FILENO, line.as_bytes());
     }
-    // A wake without a recorded signal cannot happen (the handler records first); the plain exit is the safe side if it did.
+    // A wake without a recorded signal cannot happen (the handler records first); nothing is ended for it.
     let Some(signal) = stopping_signal() else {
-        std::process::exit(1);
+        return;
     };
     end_by_the_signal(signal);
 }

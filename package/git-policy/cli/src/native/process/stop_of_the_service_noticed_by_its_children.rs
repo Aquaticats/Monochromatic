@@ -221,6 +221,12 @@ pub fn stopping_signal() -> Option<libc::c_int> {
     };
 }
 
+/// Whether this process is a service that notices a stop:
+/// `prepare_to_notice` made its pipe.
+pub fn is_noticing() -> bool {
+    return NOTICING.load(Ordering::SeqCst);
+}
+
 /// Whether a stop has been recorded.
 pub fn is_stopping() -> bool {
     return STOP_SIGNAL.load(Ordering::SeqCst) != 0;

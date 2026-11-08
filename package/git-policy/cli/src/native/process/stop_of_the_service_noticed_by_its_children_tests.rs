@@ -133,3 +133,12 @@ fn the_bounds_end_before_the_managers_default_stop_timeout() {
 fn without_a_pipe_the_handler_has_nothing_to_wake() {
     assert!(!wake_the_shutdown_from_a_signal_handler());
 }
+
+/// A process is a service that notices a stop only once it has prepared,
+/// so a control that serves on a thread of its own is never ended by a shutdown it did not ask for.
+#[test]
+fn a_process_notices_a_stop_only_once_it_has_prepared() {
+    assert!(!is_noticing());
+    prepare_to_notice().expect("the pipe");
+    assert!(is_noticing());
+}
