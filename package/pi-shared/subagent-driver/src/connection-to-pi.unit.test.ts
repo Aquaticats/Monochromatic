@@ -5,9 +5,13 @@
  @module
  */
 
+import { constants, } from 'node:fs';
+import { execFile, } from 'node:child_process';
 import {
   chmod,
+  mkdir,
   mkdtemp,
+  open,
   readFile,
   rm,
   writeFile,
@@ -17,7 +21,9 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { kill } from 'node:process';
+import { kill, } from 'node:process';
+import { setTimeout as wait, } from 'node:timers/promises';
+import { promisify, } from 'node:util';
 import {
   describe,
   expect,
@@ -29,13 +35,24 @@ import {
   type PiRecord,
   startConnectionToPi,
 } from '../dist/final/node/index.mjs';
+import { STANDARD_ERROR_TEXT, } from './stand-in-pi-prompt-plays.ts';
 
 const STAND_IN = new URL('stand-in-pi-for-tests.ts', import.meta.url,).pathname;
 
+/**
+ Specialized promisified `execFile`, typed through Node's own adapter contract.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+const execFileAsync = promisifyExecFile(execFile,);
+
 /** Milliseconds Pi gets at each stage of ending; the stand-in needs no more than its own start-up. */
 const GRACE_MILLISECONDS = 1_500;
-/** Milliseconds to wait for an answer that will never come. */
+/** Milliseconds to wait for an answer that will never come, far below the bound the driver ships. */
 const SHORT_ANSWER_MILLISECONDS = 50;
+/** Milliseconds between looks at what a test waits for. */
+const LOOK_MILLISECONDS = 20;
+/** Milliseconds a test waits for something the connection reports before giving up on it. */
+const REPORT_DEADLINE_MILLISECONDS = 10_000;
 
 type Heard = {
   readonly events: PiRecord[];
@@ -47,14 +64,121 @@ type Opened = {
   readonly connection: ConnectionToPi;
   readonly heard: Heard;
   readonly log: string;
+  readonly standardErrorFile: string;
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
 
+/**
+ Makes a named pipe, which waits for a writer.
+
+ @param path - where the pipe is made
+ */
+async function makePipe(path: string,): Promise<void> {
+  await execFileAsync('mkfifo', [path,],);
+}
+
+/**
+ Waits until what the connection reported contains a text.
+
+ @param heard - what the connection reported
+
+ @param text - text to wait for
+ */
+async function waitForProblem({
+  heard,
+  text,
+}: {
+  readonly heard: Heard;
+  readonly text: string
+},): Promise<void> {
+  /**
+   When to give up.
+   */
+  const deadline = Date.now() + REPORT_DEADLINE_MILLISECONDS;
+  while (Date.now() <= deadline) {
+    if (heard.problems.some((problem,) => problem.includes(text,))) {
+      return;
+    }
+    await wait(LOOK_MILLISECONDS, undefined, { ref: false, },);
+  }
+  throw new Error(`no problem naming ${text}; the ones reported were ${heard.problems.join(', ')}`,);
+}
+
+/**
+ Waits until the stand-in's log holds a line.
+
+ @param log - file the stand-in writes
+
+ @param text - text to wait for
+ */
+async function waitForLogLine({
+  log,
+  text,
+}: {
+  readonly log: string;
+  readonly text: string
+},): Promise<void> {
+  /**
+   When to give up.
+   */
+  const deadline = Date.now() + REPORT_DEADLINE_MILLISECONDS;
+  while (Date.now() <= deadline) {
+    if ((await readFile(log, 'utf8',)).includes(text,)) {
+      return;
+    }
+    await wait(LOOK_MILLISECONDS, undefined, { ref: false, },);
+  }
+  throw new Error(`the log never showed ${text}`,);
+}
+
+/**
+ Ends the tool a scenario started, so no fixture outlives the test.
+
+ @param log - file the stand-in logs the tool's process number to
+ */
+async function stopToolIn(log: string,): Promise<void> {
+  /**
+   The log, which holds no tool line when the scenario started none.
+   */
+  const logged = await readFile(log, 'utf8',);
+  /**
+   The tool's process number, when the log holds one.
+   */
+  const toolLine = logged.split('\n',).find((line,) => line.startsWith('tool ',));
+  if (toolLine !== undefined) {
+    try {
+      kill(Number(toolLine.slice('tool '.length,),),);
+    }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+        throw error;
+      }
+    }
+  }
+}
+
 async function openConnection(
-  { scenario, withoutPi = false, }: { readonly scenario: string; readonly withoutPi?: boolean; },
+  {
+    scenario,
+    withoutPi = false,
+    standardErrorIsPipe = false,
+  }: {
+    readonly scenario: string;
+    readonly withoutPi?: boolean;
+    readonly standardErrorIsPipe?: boolean;
+  },
 ): Promise<Opened> {
   const folder = await mkdtemp(join(scratchRoot(), 'pi-connection-',),);
   const log = join(folder, 'commands.log',);
+  const standardErrorFile = join(folder, 'stderr.log',);
+  /**
+   A folder holding no executable, so a test that takes Pi away cannot reach a real one.
+   */
+  const withoutExecutables = join(folder, 'no-executables',);
+  await mkdir(withoutExecutables,);
+  if (standardErrorIsPipe) {
+    await makePipe(standardErrorFile,);
+  }
   if (!withoutPi) {
     await writeFile(join(folder, 'pi',), `#!/usr/bin/env bash\nexec '${process.execPath}' '${STAND_IN}' "$@"\n`,);
     await chmod(join(folder, 'pi',), 0o700,);
@@ -64,12 +188,12 @@ async function openConnection(
     piArguments: [],
     workingFolder: folder,
     environment: {
-      PATH: withoutPi ? dirname(process.execPath,) : [folder, dirname(process.execPath,), '/usr/bin',].join(delimiter,),
+      PATH: withoutPi ? withoutExecutables : [folder, dirname(process.execPath,), '/usr/bin',].join(delimiter,),
       HOME: process.env.HOME,
       STAND_IN_PI_SCENARIO: scenario,
       STAND_IN_PI_LOG: log,
     },
-    standardErrorFile: join(folder, 'stderr.log',),
+    standardErrorFile,
     graceMilliseconds: GRACE_MILLISECONDS,
     listeners: {
       onEvent: (record,) => {
@@ -90,8 +214,20 @@ async function openConnection(
     connection,
     heard,
     log,
+    standardErrorFile,
     async [Symbol.asyncDispose]() {
       await connection.shutDown();
+      await stopToolIn(log,);
+      if (standardErrorIsPipe) {
+        /**
+         A reader of the pipe, so the copy's open finishes and the test process holds nothing open.
+         */
+        const reader = await open(
+          standardErrorFile,
+          constants.O_RDONLY | constants.O_NONBLOCK,
+        );
+        await reader.close();
+      }
       await rm(folder, { recursive: true, force: true, },);
     },
   };
@@ -106,18 +242,34 @@ await describe({
         await using opened = await openConnection({ scenario: 'normal', },);
         const answer = await opened.connection.send({ command: { type: 'get_state', }, },);
         expect(answer.success,).toBe(true,);
-        await opened.connection.shutDown();
+        const outcome = await opened.connection.shutDown();
+        expect(outcome.stopped,).toBe(true,);
         expect(opened.connection.hasExited(),).toBe(true,);
         expect(opened.connection.exitDetails().code,).toBe(0,);
       },
     },),
     it({
-      name: 'a silent Pi gives a failed answer within the bound',
+      name: 'matches an answer to a command that brought an identifier of its own',
       fn: async () => {
-        await using opened = await openConnection({ scenario: 'silent', },);
+        await using opened = await openConnection({ scenario: 'normal', },);
+        const answer = await opened.connection.send({
+          command: {
+            id: 'custom',
+            type: 'get_state',
+          },
+          answerMilliseconds: SHORT_ANSWER_MILLISECONDS,
+        },);
+        expect(answer.success,).toBe(true,);
+      },
+    },),
+    it({
+      name: 'a silent Pi gives a failed answer before it leaves, so the bound asked for is the one used',
+      fn: async () => {
+        await using opened = await openConnection({ scenario: 'exit-later', },);
         const answer = await opened.connection.send({ command: { type: 'get_state', }, answerMilliseconds: SHORT_ANSWER_MILLISECONDS, },);
         expect(answer.success,).toBe(false,);
         expect(String(answer.error,),).toContain('no answer',);
+        expect(opened.connection.hasExited(),).toBe(false,);
       },
     },),
     it({
@@ -137,7 +289,8 @@ await describe({
       fn: async () => {
         await using opened = await openConnection({ scenario: 'ignores-input-close', },);
         await opened.connection.send({ command: { type: 'get_state', }, },);
-        await opened.connection.shutDown();
+        const outcome = await opened.connection.shutDown();
+        expect(outcome.stopped,).toBe(true,);
         expect(opened.connection.exitDetails().signal,).toBe('SIGTERM',);
       },
     },),
@@ -146,7 +299,8 @@ await describe({
       fn: async () => {
         await using opened = await openConnection({ scenario: 'ignores-sigterm', },);
         await opened.connection.send({ command: { type: 'get_state', }, },);
-        await opened.connection.shutDown();
+        const outcome = await opened.connection.shutDown();
+        expect(outcome.stopped,).toBe(true,);
         expect(opened.connection.exitDetails().signal,).toBe('SIGKILL',);
       },
     },),
@@ -155,11 +309,8 @@ await describe({
       fn: async () => {
         await using opened = await openConnection({ scenario: 'keeps-output-open', },);
         await opened.connection.send({ command: { type: 'get_state', }, },);
-        const toolLine = (await readFile(opened.log, 'utf8',)).split('\n',).find((line,) => line.startsWith('tool ',));
-        await opened.connection.shutDown();
-        kill(
-          Number(String(toolLine,).slice('tool '.length,),),
-        );
+        const outcome = await opened.connection.shutDown();
+        expect(outcome.stopped,).toBe(true,);
         expect(opened.connection.hasExited(),).toBe(true,);
         expect(opened.connection.exitDetails().code,).toBe(0,);
       },
@@ -181,6 +332,36 @@ await describe({
         const answer = await opened.connection.send({ command: { type: 'get_state', }, },);
         expect(answer.error,).toBe('pi exited',);
         expect(String(opened.connection.exitDetails().processError,),).toContain('ENOENT',);
+      },
+    },),
+    it({
+      name: 'keeps what Pi writes to its standard error',
+      fn: async () => {
+        await using opened = await openConnection({ scenario: 'stderr-note', },);
+        await opened.connection.send({ command: { type: 'get_state', }, },);
+        const outcome = await opened.connection.shutDown();
+        expect(outcome.stopped,).toBe(true,);
+        expect(await readFile(opened.standardErrorFile, 'utf8',),).toContain(STANDARD_ERROR_TEXT,);
+      },
+    },),
+    it({
+      name: 'a standard error copy that cannot finish is reported, and ending the run still returns',
+      fn: async () => {
+        await using opened = await openConnection({ scenario: 'normal', standardErrorIsPipe: true, },);
+        const outcome = await opened.connection.shutDown();
+        expect(outcome.stopped,).toBe(true,);
+        expect(opened.heard.problems.some((problem,) => problem.includes('standard error',)),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'a write to a Pi that closed its input is reported, and is not taken for an exit',
+      fn: async () => {
+        await using opened = await openConnection({ scenario: 'closes-input', },);
+        await opened.connection.send({ command: { type: 'get_state', }, },);
+        await waitForLogLine({ log: opened.log, text: 'marker input-closed', },);
+        opened.connection.write({ type: 'get_state', },);
+        await waitForProblem({ heard: opened.heard, text: 'could not write', },);
+        expect(opened.connection.hasExited(),).toBe(false,);
       },
     },),
   ],

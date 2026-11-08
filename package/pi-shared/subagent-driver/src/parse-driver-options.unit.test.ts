@@ -83,9 +83,24 @@ await describe({
     it({
       name: 'refuses a limit that is not a number above zero',
       fn: async () => {
-        for (const value of ['0', '-1', 'soon', 'Infinity',]) {
-          expect(errorOf([...COMPLETE.filter((option,) => !option.startsWith('--wall-seconds',)), `--wall-seconds=${value}`,],),)
-            .toContain('must be a number above zero',);
+        for (const name of ['wall-seconds', 'idle-seconds', 'turn-cap',]) {
+          for (const value of ['0', '-1', 'soon', 'Infinity',]) {
+            expect(
+              errorOf([...COMPLETE.filter((option,) => !option.startsWith(`--${name}`,)), `--${name}=${value}`,],),
+            ).toContain('must be a number above zero',);
+          }
+        }
+      },
+    },),
+    it({
+      name: 'refuses a duration whose milliseconds or deadline would not be finite',
+      fn: async () => {
+        for (const name of ['wall-seconds', 'idle-seconds',]) {
+          for (const value of ['1e308', '1e307',]) {
+            expect(
+              errorOf([...COMPLETE.filter((option,) => !option.startsWith(`--${name}`,)), `--${name}=${value}`,],),
+            ).toContain('must be a number of seconds whose milliseconds stay finite',);
+          }
         }
       },
     },),
