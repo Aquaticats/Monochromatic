@@ -74,6 +74,17 @@ pub fn safe_file_name(url: &str) -> String {
     return cleaned;
 }
 
+/// The program an alias names:
+/// the second half of a `binAliases` entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function primaryOfAlias(entry: [string, string]): string
+/// ```
+fn primary_of_alias(entry: &(String, String)) -> String {
+    return entry.1.clone();
+}
+
 /// What:
 /// Every program name the plan declares for `tool`:
 /// its `bins` and the program side of every `binAliases` entry,
@@ -90,7 +101,7 @@ pub fn safe_file_name(url: &str) -> String {
 fn program_names(tool: &LockedTool) -> Vec<String> {
     let mut names: Vec<String> = tool.declaration.bins.clone();
     if let Some(aliases) = &tool.declaration.options.bin_aliases {
-        names.extend(aliases.iter().map(|(_alias, primary)| return primary.clone()));
+        names.extend(aliases.iter().map(primary_of_alias));
     }
     names.sort();
     names.dedup();
