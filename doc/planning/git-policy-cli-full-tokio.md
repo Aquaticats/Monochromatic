@@ -1686,6 +1686,11 @@ verbatim labels:
     No inline fallback;
     the command fails with a plain message in that state,
     which the owner chose over option A.
+12. What a stop of the service does to the Git child of a commit it is preparing
+    (answered 2026-11-07T22:19:43-05:00):
+    "C:
+    shutdown stops its Gits (Recommended)",
+    built in T11 (see open choice 12).
 
 ## Progress on the branch `feat/git-policy-cli-on-tokio`
 
@@ -3669,7 +3674,8 @@ the one failing test was run once.
 
 #### Gate of T10 after the rulings
 
-Container gate (`--cpus 8 --memory 8g --pids-limit 2048`) of the tree at `2c88301e85`, which has main at `f981e1b493` (W3) merged in:
+Container gate (`--cpus 8 --memory 8g --pids-limit 2048`) of the tree at `2c88301e85`,
+which has main at `f981e1b493` (W3) merged in:
 5344 run,
 5343 passed (3 slow),
 1 failed,
@@ -3693,8 +3699,8 @@ the same test) passed it,
 so the cap,
 the resolver,
 the bounded drop,
-the sweep and the main merge are all candidates;
-none is measured.
+the sweep and the main merge were all candidates;
+the cause is found below ("The holder kind of the timing record").
 
 Latency of the final binary against the one before T10 (three alternating rounds;
 `${HOME}/temp/agent/t10-perf2/`),
@@ -3711,6 +3717,115 @@ signed commit 31.1,
 30.1,
 31.5 after;
 forwarded commands 1.2 to 1.9 ms before and after.
+
+#### The holder kind of the timing record: safety, cause and fix, 2026-11-08T05:00:00-05:00
+
+The gate's one failure after the rulings,
+`commit_timing::a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait` (`unproven` for `proven-alive`),
+was diagnosed by instrumentation and bounded single-test runs,
+not by gate reruns.
+
+- Safety:
+  the failing value is only the attribution in the wrapper's timing record.
+  `lockHolderKind` is set in `service/service_client.rs` from the text of the waiting notices (`holder_kind_of`) and no remediation reads it.
+  The service's own look (`look_at_holder`,
+  `landing/service_index_attempts.rs`) answers `Proved::Alive`,
+  `Dead` or `Nothing`;
+  `Nothing` and `Alive` are waited for until the ceiling and then refused with `IndexInUse`;
+  `Dead` ends the wait with a failure and removes nothing.
+  The only removal is `reclaim_if` (`landing/service_index_reclaim.rs`):
+  a lock with no marker returns `Kept` at `marker_of_file`,
+  and a marked lock goes only when its marker's process identity judges it stale
+  (a foreign or earlier-format lock is told to the person and left).
+  So `unproven` can neither remove a lock a live process holds nor step over it:
+  not a P1.
+- Not starvation of the look:
+  the service's answer line of the failing gate run named `lock_holder="Process 80482"` with `lock_looks=1`,
+  so the one look returned `ProvenAlive`,
+  and in every instrumented run below the only holder notice was proven.
+  The look did not reach its ceiling in any run.
+  The pool's busy count was not recorded,
+  because no look waited on the pool.
+- Cause,
+  confirmed:
+  the client overwrote `trace.holder_kind` on every waiting notice and every inside-a-write notice,
+  so the last notice decided the kind.
+  The control releases the holder 4 s after the first notice,
+  which is the same instant as the 4th heartbeat of the connection (beats at +1.0,
+  +2.0,
+  +3.0 and +4.0 s after the first notice).
+  The beat asks the board for a note,
+  and when the landing has just begun its first write the answer is an inside-a-write notice,
+  whose text has no `(proven by `:
+  it arrives after the proof and the kind becomes `unproven`.
+  A message writer that logged each message and each landing write showed it in each failing run:
+  one proven waiting notice,
+  then a heartbeat,
+  and an inside-a-write notice with `proven=false` at +4005 or +4006 ms,
+  on the 4th beat;
+  no run without that notice failed.
+- Counts of the one test under the gate's limits (the host test binary in a scope with `CPUQuota=800%`,
+  `MemoryMax=8G`,
+  `TasksMax=2048`;
+  the gate image takes no test filter,
+  so the image was not used),
+  20 runs each:
+  cap 4,
+  3 failed (run 3,
+  8,
+  19,
+  without the message log);
+  cap 4 with the message log,
+  2 failed (both with the inside-a-write notice at the 4th beat);
+  uncapped,
+  1 failed (the same notice at +4005 ms).
+  So the cap is not the cause.
+  Whether T10 raised the rate over the tree before it was not measured:
+  the coincidence of the beat and the release is in the old writer as well,
+  and only its offset (a few milliseconds of task and pool hops against a thread) differs.
+- The other fields of the timing record:
+  `waitingNotices` counts and `positions` appends;
+  `last_blocker` and the holder's words are last-wins by design (the error names the latest blocker),
+  and `lockHolderKind` was the only last-wins field of the record.
+- Fix,
+  test first (`binary_service_heartbeat_tests.rs`:
+  a proven holder followed by an inside-a-write notice,
+  or by a notice that names no proof,
+  stays `proven-alive`;
+  an unproven wait that a later notice proves is `proven-alive`;
+  an inside-a-write notice alone records no kind;
+  three of the four were red):
+  `holder_kind_after` never undoes a proof (`commit/commit_timing.rs`),
+  and an inside-a-write notice no longer sets the kind (`service/service_client.rs`).
+  No capacity was reserved for the look,
+  because nothing starved it.
+
+#### Gate of T10, third and last, 2026-11-08T05:40:00-05:00
+
+Container gate (`--cpus 8 --memory 8g --pids-limit 2048`,
+image tag `t10-liveness`) of the tree at `4e3bde33c0`:
+5349 run,
+5349 passed (3 slow),
+11 skipped,
+no failure;
+host Clippy clean;
+package lint 0 errors and 0 warnings (the closure check ran,
+no `skipped` line).
+Latency of the final binary against the one before T10 (three alternating rounds,
+`${HOME}/temp/agent/t10-perf3/`),
+added median of a commit through the service:
+before 20.4,
+20.0,
+19.1 ms (spread 1.3),
+after 20.6,
+20.4,
+19.4 (spread 1.2);
+signed commit 27.2,
+26.3,
+25.6 before and 25.5,
+25.4,
+25.7 after;
+forwarded commands 1.0 to 1.9 ms either way.
 
 ### Where the remaining steps stand after T5
 
@@ -4198,6 +4313,28 @@ which leaves that Git running when the service is stopped.
   The agent built A because it is the only option that needed no new design,
   and it is the narrowest;
   a veto of A in favour of C is enough to start C.
+
+The owner's pick,
+2026-11-07T22:19:43-05:00,
+verbatim label:
+"C:
+shutdown stops its Gits (Recommended)".
+Option C is the design:
+the stop handler only records the stop,
+and the service's own shutdown signals the Git processes it is waiting on,
+through a registry of those children.
+Built in T11,
+after T10 merges,
+under the owner's rules:
+"Use as few locks as possible."
+(one owner per piece of state,
+not a shared table),
+"nothing should ever wait forever or indefinitely" (every wait after the signal is bounded,
+then `SIGKILL`),
+and "never discard user data" (a commit whose Git is stopped keeps its work on its side ref,
+as withdrawals do).
+Red tests first:
+a stop during a long-running commit Git leaves no Git process and no `index.lock` behind within the bound.
 
 ## Cross-vendor review
 
