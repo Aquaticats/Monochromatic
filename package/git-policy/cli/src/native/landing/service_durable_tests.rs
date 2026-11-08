@@ -262,3 +262,33 @@ fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_n
     assert_eq!(std::fs::read_to_string(root.join("done")).expect("the helper finished").trim(), "3", "the background batch was made here, handle by handle: {said}");
     remove(root.as_path());
 }
+
+/// The names of the threads this process has,
+/// read from `/proc`.
+fn thread_names_of_this_process() -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for task in std::fs::read_dir("/proc/self/task").expect("the tasks of this process").flatten() {
+        if let Ok(name) = std::fs::read_to_string(task.path().join("comm")) {
+            names.push(name.trim_end().to_string());
+        }
+    }
+    return names;
+}
+
+/// The syncs a publishing landing queued are made by a job of the runtime's blocking pool,
+/// not by a thread the module started for them.
+#[test]
+fn the_background_syncs_are_made_without_a_thread_of_their_own() {
+    let (root, file) = record("durable-no-own-thread");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let before = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+        let deferral = begin(false);
+        flush_file(&file, "x").expect("queued");
+        deferral.settle(true);
+        drain();
+        assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the queued sync was made");
+    });
+    let own: Vec<String> = thread_names_of_this_process().into_iter().filter(|name| name == "cli-git-durable").collect();
+    assert!(own.is_empty(), "the background syncs started a thread of their own: {own:?}");
+    remove(root.as_path());
+}
