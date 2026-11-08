@@ -74,6 +74,12 @@ so any of them can be undone.
   "Feel free to use worktrees.
   I said "be okay with pi committing directly to main",
   not that they have to."
+- How to stop the formatter re-wrapping the vendored Slint license,
+  whose bytes must match a published checksum
+  (options:
+  rename it to `.txt`,
+  or turn the rewrap rule off for `package/music-player/desktop-app/notices/**`):
+  "Rule exception for notices/".
 
 ## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
 
