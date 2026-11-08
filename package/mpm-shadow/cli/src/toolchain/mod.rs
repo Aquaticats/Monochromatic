@@ -311,6 +311,10 @@ mod observe_tests;
 #[cfg(test)]
 mod install_tests;
 
+/// The unit tests of the Rust component and target reconciler.
+#[cfg(test)]
+mod install_rust_android_tests;
+
 /// The unit tests of `install`,
 /// the exposure directory and the postinstall steps.
 #[cfg(test)]

@@ -97,15 +97,20 @@ pub struct Ladder {
 /// What:
 ///  What the ladder tells the lifecycle after Git:
 /// Git's status as the person should see it,
-/// and the destination whose
-///  ignored state the rung already carried.
+/// the destination whose
+///  ignored state the rung already carried,
+/// and the trash a snapshot left there.
 /// Why:
 ///   A snapshot carries the source's ignored state,
 /// so the lifecycle's own copy skips that destination.
+/// The trash is only emptied
+///  once the repair has run,
+/// beside it,
+/// so the lifecycle owns the emptying.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LadderResult = { git: GitStatus; carried?: string };
+/// type LadderResult = { git: GitStatus; carried?: string; trash?: PendingTrash };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LadderResult {
@@ -113,6 +118,10 @@ pub struct LadderResult {
     pub git: GitStatus,
     /// The destination that received the source's ignored state with the snapshot.
     pub carried: Option<PathBuf>,
+    /// The trash that snapshot left in the destination,
+    /// when it left one.
+    #[cfg(target_os = "linux")]
+    pub trash: Option<crate::worktree_trash::PendingTrash>,
 }
 
 /// What:

@@ -50,6 +50,9 @@ pub fn format_sync_report(report: &SyncReport) -> String {
         report.unchanged.len(),
         report.failed.len()
     ));
+    for line in &report.reconciled {
+        text.push_str(&format!("toolchain install: {line}\n"));
+    }
     text.push_str(&old_copy_lines_text(report));
     for line in &report.retired_links {
         text.push_str(&format!("toolchain install: {line}\n"));
