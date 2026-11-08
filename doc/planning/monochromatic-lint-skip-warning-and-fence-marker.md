@@ -56,17 +56,30 @@ The README section "Exempting a fenced example from `rust/require-rustdoc`" docu
   58 files,
   no finding left in them),
   and the 12 warnings of the six Bad fences of the skill are exempt.
-- Open:
-  the 24 skill warnings are 12 in the six Bad fences and 12 in the six Good fences.
+- Done 2026-11-08T03:36:12-05:00:
+  the 24 skill warnings were 12 in the six Bad fences and 12 in the six Good fences.
   Only the Bad fences carry the marker,
-  as the answer says.
-  The Good fences keep 12 warnings until the owner chooses to mark them or to document them.
-- Open:
-  `doc/handover` has 52 further `rust/require-rustdoc` warnings
+  as the answer says ("exempt only" the Bad ones),
+  so the coordinator documented the Good fences by hand (commit `019c5f2b15`):
+  each opens with a `//!` caption line,
+  the two function examples gain a `///` dum-dum block,
+  and the `Rule` example moves its type rationale onto `///` blocks on the struct and its fields,
+  which is the skill's own first lesson (an item's dum-dum block is its doc comment).
+  The skill file lints clean.
+  The `//!` captions are the coordinator's choice and open to the owner's veto.
+- Done 2026-11-08T03:39:43-05:00:
+  `doc/handover` had 52 further `rust/require-rustdoc` warnings
   (`cli-git-native-candidates.md` 48,
   `cli-git-native-command-parser.md` 2,
   `resharp-panic-fix.md` 1,
-  `slint-ide-0x.md` 1) that were not in the owner's list and belong to other sessions' documents.
+  `slint-ide-0x.md` 1) outside the owner's list,
+  in other sessions' documents.
+  Under the owner's rule "Lint issues need to be taken care of asap" the coordinator documented them
+  (commits `fd195ddb78` and `f6664812a4`):
+  the API sketches gained one-line `///` summaries taken from the current source's rustdoc,
+  and the one-line `enum` and `struct` sketches were split so each variant and field carries one.
+  The formatter re-broke the lines of two more handovers with an unchanged word stream (commit `19e759079c`),
+  and `monochromatic-lint doc/handover` then reported no finding.
 
 ## Decision records reflowed
 
