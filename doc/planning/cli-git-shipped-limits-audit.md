@@ -909,13 +909,13 @@ which are not limits.
   and the margin is the coordinator's,
   open to the owner's veto.
 - Note 2026-11-08T16:01:42-05:00:
-  the basis above is stale.
+  the basis this entry states is stale.
   The merge waits `MERGE_LOCK_CEILING` (one minute) since the entry
   "Timing record names every step; the other lock waits" of 2026-11-07,
   so twice the longest a merge waits is two minutes, not twenty;
   the constant keeps its value because another change owns it.
   The timing log read that day (1,332 records,
-  "The lock ceiling and the three waits it fed" below) holds a whole command of 1,228,797 ms,
+  "The lock ceiling and the three waits it fed" in the measurement record) holds a whole command of 1,228,797 ms,
   which is longer than the 20 minutes,
   though that figure is of a command and not of an owner record.
 
