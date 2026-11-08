@@ -56,7 +56,7 @@ pub fn doctor_link_line_with_probe(probe: Arc<dyn LinkProbe + Send + Sync>, home
 /// doctorLinkLine(home)
 /// ```
 pub fn doctor_link_line(home: Option<&Path>) -> String {
-    return doctor_link_line_with_probe(Arc::new(RealLinkProbe), home);
+    return doctor_link_line_with_probe(Arc::new(RealLinkProbe::default()), home);
 }
 
 /// Doctor line controls stay out of the release executable.

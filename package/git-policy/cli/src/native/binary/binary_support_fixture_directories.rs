@@ -108,7 +108,8 @@ pub fn fixture(name: &str) -> Fixture {
 /// Why:
 ///  A run of the gate once lost its fixture root between `create_dir_all` and the next `create_dir`,
 /// and 217 later tests failed with a bare `NotFound`
-/// (`doc/handover/repository-move-dangling-link-items.md`, open harness item);
+/// (`doc/handover/repository-move-dangling-link-items.md`,
+/// open harness item);
 /// nothing in the log said what removed it or how far up the loss went.
 ///
 /// In TS you'd write (pseudocode):

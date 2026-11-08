@@ -6,7 +6,10 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 
-/// A state folder holding a manifest of two frozen subvolumes (the runner's rows: UUID, tab, path).
+/// A state folder holding a manifest of two frozen subvolumes (the runner's rows:
+/// UUID,
+/// tab,
+/// path).
 fn state_with_manifest(name: &str) -> PathBuf {
     let state: PathBuf = fixture(name);
     std::fs::write(
@@ -31,7 +34,8 @@ fn a_repository_under_a_frozen_subvolume_is_covered_and_a_neighbour_is_not() {
     remove(state.as_path());
 }
 
-/// No manifest, an unreadable one and one the thaw renamed aside cover nothing.
+/// No manifest,
+/// an unreadable one and one the thaw renamed aside cover nothing.
 #[test]
 fn without_a_manifest_or_after_the_thaw_nothing_is_covered() {
     let state: PathBuf = fixture("freeze-none");

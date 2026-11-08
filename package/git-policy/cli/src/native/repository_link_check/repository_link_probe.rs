@@ -14,7 +14,7 @@
 //! ```
 
 #[cfg(target_os = "linux")]
-use crate::fs_mount_options::{MountFacts, read_mount_facts};
+use crate::fs_mount_options::{MOUNTINFO_PATH, MountFacts, mount_holding, parse_mount_table};
 #[cfg(target_os = "linux")]
 use crate::fs_uuid_of_source::{BY_UUID_DIRECTORY, filesystem_uuid_of_source};
 use std::path::{Path, PathBuf};
@@ -101,33 +101,97 @@ pub trait LinkProbe {
 ///  The probe that reads the running system.
 /// Why:
 ///  The gate's only probe in production.
+/// It reads the mount table once and looks each device's UUID up once,
+/// because a check asks for the holder of three paths on one filesystem
+/// and the table of this host has hundreds of lines:
+/// the first version read it three times and cost about a millisecond more than the commands it gates.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export const realProbe: Probe = { ... };
 /// ```
-#[derive(Clone, Copy, Debug, Default)]
-pub struct RealLinkProbe;
-
-/// The mount that holds a path,
-/// from the table of this process,
-/// nothing when the path does not resolve or the table cannot be read.
-#[cfg(target_os = "linux")]
-fn mount_of(path: &Path) -> Option<MountFacts> {
-    return read_mount_facts(path).ok().flatten();
+#[derive(Debug, Default)]
+pub struct RealLinkProbe {
+    /// The mount table,
+    /// parsed on first use.
+    #[cfg(target_os = "linux")]
+    table: std::sync::OnceLock<Vec<MountFacts>>,
+    /// The filesystem UUID found for each device,
+    /// by the device's name in the table.
+    #[cfg(target_os = "linux")]
+    uuids: std::sync::Mutex<Vec<(String, String)>>,
+    /// The table text to use instead of `/proc/self/mountinfo`,
+    /// for the controls.
+    #[cfg(target_os = "linux")]
+    table_text: Option<Vec<u8>>,
+    /// The folder of UUID links to use instead of `/dev/disk/by-uuid`,
+    /// for the controls.
+    #[cfg(target_os = "linux")]
+    by_uuid_directory: Option<PathBuf>,
 }
 
-/// The filesystem UUID of the device a mount names.
 #[cfg(target_os = "linux")]
-fn uuid_of_mount(mount: &MountFacts) -> String {
-    return filesystem_uuid_of_source(mount.source.as_str(), Path::new(BY_UUID_DIRECTORY)).unwrap_or_default();
+impl RealLinkProbe {
+    /// A probe over a table text and a folder of UUID links the caller made,
+    /// so a control needs no real mount.
+    #[cfg(test)]
+    pub(crate) fn over(table_text: Vec<u8>, by_uuid_directory: PathBuf) -> RealLinkProbe {
+        return RealLinkProbe { table_text: Some(table_text), by_uuid_directory: Some(by_uuid_directory), ..RealLinkProbe::default() };
+    }
+
+    /// The mount table:
+    /// the one of this process,
+    /// read and parsed once.
+    fn table(&self) -> &[MountFacts] {
+        if self.table.get().is_none() {
+            let text: Vec<u8> = match &self.table_text {
+                Some(given) => given.clone(),
+                None => std::fs::read(MOUNTINFO_PATH).unwrap_or_default(),
+            };
+            let _first: Result<(), Vec<MountFacts>> = self.table.set(parse_mount_table(text.as_slice()));
+        }
+        return self.table.get().map_or(&[], Vec::as_slice);
+    }
+
+    /// The mount that holds a path,
+    /// nothing when the path does not resolve.
+    fn mount_of(&self, path: &Path) -> Option<MountFacts> {
+        let real: PathBuf = std::fs::canonicalize(path).ok()?;
+        return mount_holding(self.table(), real.as_path()).cloned();
+    }
+
+    /// The filesystem UUID of the device a mount names,
+    /// looked up once per device.
+    fn uuid_of_mount(&self, mount: &MountFacts) -> String {
+        if let Ok(known) = self.uuids.lock() {
+            for (source, uuid) in known.iter() {
+                if *source == mount.source {
+                    return uuid.clone();
+                }
+            }
+        }
+        let folder: &Path = self.by_uuid_directory.as_deref().unwrap_or(Path::new(BY_UUID_DIRECTORY));
+        let found: String = filesystem_uuid_of_source(mount.source.as_str(), folder).unwrap_or_default();
+        if let Ok(mut known) = self.uuids.lock() {
+            known.push((mount.source.clone(), found.clone()));
+        }
+        return found;
+    }
 }
 
 /// Without the Linux mount table there is no mount to name:
 /// the check then reports an unknown filesystem and a drive that is not mounted.
 #[cfg(not(target_os = "linux"))]
-fn mount_of(_path: &Path) -> Option<NoMount> {
-    return None;
+impl RealLinkProbe {
+    /// No mount.
+    fn mount_of(&self, _path: &Path) -> Option<NoMount> {
+        return None;
+    }
+
+    /// Never reached without the Linux mount table.
+    fn uuid_of_mount(&self, _mount: &NoMount) -> String {
+        return String::new();
+    }
 }
 
 /// A mount that cannot exist on a system without the Linux mount table.
@@ -135,12 +199,6 @@ fn mount_of(_path: &Path) -> Option<NoMount> {
 struct NoMount {
     /// Never read.
     mount_point: PathBuf,
-}
-
-/// Never reached without the Linux mount table.
-#[cfg(not(target_os = "linux"))]
-fn uuid_of_mount(_mount: &NoMount) -> String {
-    return String::new();
 }
 
 impl LinkProbe for RealLinkProbe {
@@ -174,17 +232,17 @@ impl LinkProbe for RealLinkProbe {
     }
 
     fn uuid_of(&self, path: &Path) -> String {
-        let Some(mount) = mount_of(path) else {
+        let Some(mount) = self.mount_of(path) else {
             return String::new();
         };
-        return uuid_of_mount(&mount);
+        return self.uuid_of_mount(&mount);
     }
 
     fn is_mount_point(&self, path: &Path) -> bool {
         let Ok(resolved) = std::fs::canonicalize(path) else {
             return false;
         };
-        return match mount_of(resolved.as_path()) {
+        return match self.mount_of(resolved.as_path()) {
             Some(mount) => mount.mount_point == resolved,
             None => false,
         };
@@ -201,3 +259,8 @@ fn path_is_absent(path: &Path) -> bool {
         }
     };
 }
+
+/// Probe controls stay out of the release executable.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "repository_link_probe_tests.rs"]
+mod tests;

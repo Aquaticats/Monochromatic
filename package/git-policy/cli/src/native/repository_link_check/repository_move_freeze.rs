@@ -23,7 +23,8 @@ use std::path::{Path, PathBuf};
 pub const FREEZE_MANIFEST_NAME: &str = "freeze-manifest.tsv";
 
 /// The runner's state folder below the home directory when `MOVE_STATE_DIR` is not set
-/// (`guided-config.ts`, `moveState`).
+/// (`guided-config.ts`,
+/// `moveState`).
 pub const DEFAULT_STATE_FOLDER_NAME: &str = "repository-move-state";
 
 /// What:
