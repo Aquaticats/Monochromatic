@@ -6,23 +6,32 @@ This decision is in force.
 
 ## Decision
 
-Mise is no longer installed, configured or invoked by any GitHub Actions
+Mise is no longer installed,
+configured or invoked by any GitHub Actions
 workflow in this repository.
 (When this was decided,
 the rule also covered the Depot CI workflows;
 Depot was not adopted and `.depot/workflows/` was deleted on 2026-11-01.)
 Every workflow installs its tools directly (Node and pnpm through the vendor
-archives `.github/actions/task-cli-setup` downloads, Java through the pinned
-Temurin archive, Rust through `rustup`) and runs the repository's tasks
-through `task-run`, the node-native task CLI at
+archives `.github/actions/task-cli-setup` downloads,
+Java through the pinned
+Temurin archive,
+Rust through `rustup`) and runs the repository's tasks
+through `task-run`,
+the node-native task CLI at
 `package/monorepo-task/cli/src/run.ts`.
-No external GitHub action installs a tool: the user asked to avoid
-third-party actions where possible, because every one of them is an
+No external GitHub action installs a tool:
+the user asked to avoid
+third-party actions where possible,
+because every one of them is an
 organization and repository allow-list entry
 (`doc/troubleshooting/github-actions-organization-policy.md`).
-The root `mise.toml`, `mise.no-env.toml` and `mise.lock` remain as the local
-developer task system and the pinned-tool source of truth; `mise.lock` is
-still read for version pins, but mise itself is never executed in CI.
+The root `mise.toml`,
+`mise.no-env.toml` and `mise.lock` remain as the local
+developer task system and the pinned-tool source of truth;
+`mise.lock` is
+still read for version pins,
+but mise itself is never executed in CI.
 Moved on 2026-10-26:
  the pinned-tool source of truth is now `toolchain.lock.json`
  (`doc/decision/mpm-toolchain-adoption.md`) and `mise.lock` is retired.
@@ -31,13 +40,16 @@ Moved on 2026-10-26:
 
 - Applies to every workflow under `.github/workflows/`.
   It also covered `.depot/workflows/` until Depot was not adopted and that folder was deleted on 2026-11-01.
-- Does not change local development: `mise run` keeps working unchanged on
+- Does not change local development:
+  `mise run` keeps working unchanged on
   developer machines.
 - Does not change publishing issuers or release producers.
   It also left the trust boundaries recorded in `depot-ci-adoption.md` unchanged,
   a decision the owner withdrew on 2026-11-01.
-- Keeps `mise.lock` as the pinned version record CI reads for Rust, Node,
-  pnpm, the Android SDK components and the conformance tool.
+- Keeps `mise.lock` as the pinned version record CI reads for Rust,
+  Node,
+  pnpm,
+  the Android SDK components and the conformance tool.
   Moved on 2026-10-26:
   the record CI reads is `toolchain.lock.json`
   (`doc/decision/mpm-toolchain-adoption.md`).
@@ -45,108 +57,178 @@ Moved on 2026-10-26:
 ## Replacement
 
 `@monochromatic-dev/monorepo-task-cli` (`package/monorepo-task/cli`)
-executes the same task graph the `mise.toml` tree declared, from `task.ts`
-files that mirror each package's `mise.toml` task names, bodies, `extends`,
+executes the same task graph the `mise.toml` tree declared,
+from `task.ts`
+files that mirror each package's `mise.toml` task names,
+bodies,
+`extends`,
 `depends` and `usage` options.
 
-- Root templates (`build`, `build:js:*`, `test`, `test:unit`, `lint`,
-  `lint:oxlint`, `lint:types`, `watch:*`) live in `task.ts` at the repo root
+- Root templates (`build`,
+  `build:js:*`,
+  `test`,
+  `test:unit`,
+  `lint`,
+  `lint:oxlint`,
+  `lint:types`,
+  `watch:*`) live in `task.ts` at the repo root
   and carry the shared bodies the old `[task_templates.*]` held.
-- Root tasks (`prepare:pnpm*`, `lint:monochromatic-lint`, `npm:module:*`,
+- Root tasks (`prepare:pnpm*`,
+  `lint:monochromatic-lint`,
+  `npm:module:*`,
   `changeset:*`) are inlined in `task.ts`.
-- Package tasks live in `package/**/task.ts`, one per package the CI
-  workflows reference, generated from the matching `mise.toml` and verified
+- Package tasks live in `package/**/task.ts`,
+  one per package the CI
+  workflows reference,
+  generated from the matching `mise.toml` and verified
   by running each body through `task-run`.
 - `task-run` resolves `//package/<category>/<name>:<task>` and root task
-  names, honours `-- <options> [-- passthrough]`, `usage_*` environment
-  variables and `depends` chains, and fans out umbrella tasks over every
+  names,
+  honours `-- <options> [-- passthrough]`,
+  `usage_*` environment
+  variables and `depends` chains,
+  and fans out umbrella tasks over every
   package `task.ts` carrying the suffix.
 
 The shared composite action `.github/actions/task-cli-setup` installs Node
 and pnpm at the versions `mise.lock` records with plain shell steps (vendor
 archives plus `npm install --global`) and exposes `task-run` on `PATH` through
-a shim directory it adds to `GITHUB_PATH`, so it works on the Windows runners
+a shim directory it adds to `GITHUB_PATH`,
+so it works on the Windows runners
 where `/usr/local/bin` does not exist.
 
 ## Why
 
-- Every workflow previously installed mise, then a subset of tools through
-  mise, then ran tasks through mise; the action, its version pin and its
+- Every workflow previously installed mise,
+  then a subset of tools through
+  mise,
+  then ran tasks through mise;
+  the action,
+  its version pin and its
   toolchain installer were three moving parts between the runner and the
   task body (`doc/troubleshooting/mise-action-version-ahead-of-release.md`,
   `doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md`).
-- Direct tool setup removes the action, the pin and the auto-install footgun
+- Direct tool setup removes the action,
+  the pin and the auto-install footgun
   (`MISE_AUTO_INSTALL=false` guards in twelve workflows) in one step.
-- `task-run` runs bodies with the runner's node directly, so a task failure
+- `task-run` runs bodies with the runner's node directly,
+  so a task failure
   reports the body's own diagnostic instead of a mise wrapper frame.
 
 ## Verification
 
-- Local: `task-run //package/logger/core:build`,
-  `//package/logger/core:test:unit`, `//package/toml-edit/core:build`,
-  `//package/toml-edit/core:test:unit`, `//package/upstream-fork/p-map:build`,
+- Local:
+  `task-run //package/logger/core:build`,
+  `//package/logger/core:test:unit`,
+  `//package/toml-edit/core:build`,
+  `//package/toml-edit/core:test:unit`,
+  `//package/upstream-fork/p-map:build`,
   `//package/forbidden-strings/cli:build` and
   `//package/linter/monochromatic-lint:build` all pass through the CLI on the
   developer machine.
-- Remote (Namespace `nsc` ephemeral instance, Wolfi base): after `apk add
-  libatomic`, the `task-cli-setup` recipe (Node 26.12.0 archive, pnpm 12.14.0
-  through `npm install --global`, `task-run` shims) and
-  `pnpm install --frozen-lockfile` run on a bare instance, and
-  `task-run //package/logger/core:build`, `//package/logger/core.fuzz:lint:types`
+- Remote (Namespace `nsc` ephemeral instance,
+  Wolfi base):
+  after `apk add
+  libatomic`,
+  the `task-cli-setup` recipe (Node 26.12.0 archive,
+  pnpm 12.14.0
+  through `npm install --global`,
+  `task-run` shims) and
+  `pnpm install --frozen-lockfile` run on a bare instance,
+  and
+  `task-run //package/logger/core:build`,
+  `//package/logger/core.fuzz:lint:types`
   and `//package/logger/core.fuzz:fuzz -- --budget 3000` pass there through
   the shim.
 - The JDK recipe the kotlin and music-player jobs run was verified on a bare
-  instance: it installs `Temurin-21.0.12+8`, the `mise.lock` `tools.java` pin.
+  instance:
+  it installs `Temurin-21.0.12+8`,
+  the `mise.lock` `tools.java` pin.
 - Every tool archive URL the setup code uses answers HTTP 200
-  (`nodejs.org/dist` for Node 26.12.0 and 26.5.0, the Adoptium release assets
+  (`nodejs.org/dist` for Node 26.12.0 and 26.5.0,
+  the Adoptium release assets
   for `jdk-21.0.12+8`).
 - `task-run //package/logger/core.fuzz:fuzz -- --budget 1` reports the
-  `1ms` budget in its campaign line, and
+  `1ms` budget in its campaign line,
+  and
   `task-run lint:monochromatic-lint -- 'a b.txt'` reaches the linter as one
-  path word, which proves the `--` option mapping and argv forwarding.
+  path word,
+  which proves the `--` option mapping and argv forwarding.
 - Workflow files were checked with `rg 'mise-action|mise run|mise install|
   mise exec|MISE_AUTO_INSTALL|MISE_JOBS' .github/workflows .depot/workflows`
-  and return no matches; `rg 'actions/setup-node|actions/setup-java|corepack'`
-  also returns none, and `actionlint` reports only the pre-existing
+  and return no matches;
+  `rg 'actions/setup-node|actions/setup-java|corepack'`
+  also returns none,
+  and `actionlint` reports only the pre-existing
   `depot-ubuntu-24.04-8` runner labels.
 
 ## Limits
 
-- `mise.toml`, `mise.no-env.toml` and `mise.lock` are unchanged and remain
-  the local developer surface; removing mise from local development is a
+- `mise.toml`,
+  `mise.no-env.toml` and `mise.lock` are unchanged and remain
+  the local developer surface;
+  removing mise from local development is a
   separate decision.
 - The `toml-edit` conformance task now fetches the upstream `toml-test`
   runner through `npx --yes toml-test` instead of
-  `mise exec github:toml-lang/toml-test@latest`; the moving-oracle property
+  `mise exec github:toml-lang/toml-test@latest`;
+  the moving-oracle property
   is preserved and the version is still logged.
-- Rust toolchains in CI come from the runner's `rustup` (`nightly`, matching
-  `mise.lock`'s `tools.rust` entry) instead of `mise install rust`; the
+- Rust toolchains in CI come from the runner's `rustup` (`nightly`,
+  matching
+  `mise.lock`'s `tools.rust` entry) instead of `mise install rust`;
+  the
   dated-nightly pin remains recorded in `mise.lock` for local use and for the
   `music-player-release` jobs that still parse it for cache keys.
-- Tool setup carries no external action, but the workflows still use the
-  approved platform actions (`actions/checkout`, `actions/cache`, the artifact
-  and attestation actions, the publishing actions, `github/codeql-action`,
-  `ossf/scorecard-action`, `anthropics/claude-code-action`). Replacing those
-  with shell and API calls is open work, not decided here.
+- Tool setup carries no external action,
+  but the workflows still use the
+  approved platform actions (`actions/checkout`,
+  `actions/cache`,
+  the artifact
+  and attestation actions,
+  the publishing actions,
+  `github/codeql-action`,
+  `ossf/scorecard-action`,
+  `anthropics/claude-code-action`).
+  Replacing those
+  with shell and API calls is open work,
+  not decided here.
 - `logger.fuzz`'s file-sink property has been red since 2026-10-22 on its own
   cause (`doc/handover/mise-free-ci-migration.md` names the counterexample and
-  the reproduction); it is not a migration defect and it keeps the
+  the reproduction);
+  it is not a migration defect and it keeps the
   `logger-fuzz` fuzz smoke step red.
 - The `package/music-player/*/task.ts` bodies still need the port repairs the
   handover lists before `music-player-release` runs them.
 - `pnpr-publish` builds every trusted package whose version the registry lacks,
-  so it needs a CI build task for the whole trusted list, not for the packages a
-  workflow names. Measured on 2026-11-01 over the 169 trusted packages
-  (`package/config/pnpr/config.yaml`): 15 declare no build, 11 have a `task.ts`,
-  and 143 declare `build` only in `mise.toml`. Of those 143, 107 extend only the
-  root templates (`build`, `build:js`, then `build:js:node` or `build:js:browser`),
+  so it needs a CI build task for the whole trusted list,
+  not for the packages a
+  workflow names.
+  Measured on 2026-11-01 over the 169 trusted packages
+  (`package/config/pnpr/config.yaml`):
+  15 declare no build,
+  11 have a `task.ts`,
+  and 143 declare `build` only in `mise.toml`.
+  Of those 143,
+  107 extend only the
+  root templates (`build`,
+  `build:js`,
+  then `build:js:node` or `build:js:browser`),
   and 36 carry cross-package `depends` or a custom body (the `translation-repair`
-  family, `test-harness/core`, `oxlint-plugin/no-restricted-syntax` and
-  `typeface/aquaticat`). The publisher now refuses the 143 with
+  family,
+  `test-harness/core`,
+  `oxlint-plugin/no-restricted-syntax` and
+  `typeface/aquaticat`).
+  The publisher now refuses the 143 with
   `MissingCiBuildTaskError` instead of publishing a tarball without its `dist`
-  (`package/config/pnpr/src/build-plan.ts`), so the workflow stays red until each
-  of them gets a `task.ts`, leaves the trusted list, or the task-system migration
+  (`package/config/pnpr/src/build-plan.ts`),
+  so the workflow stays red until each
+  of them gets a `task.ts`,
+  leaves the trusted list,
+  or the task-system migration
   (`doc/planning/task-slice-pants-migration.md`) replaces the `task.ts` mirrors.
   Writing 143 mirrors extends a layer that `doc/handover/task-slice-plan-revision.md`
-  records the user calling a stopgap; holding for the migration leaves the registry
-  without those 143 new versions meanwhile. Neither is decided here.
+  records the user calling a stopgap;
+  holding for the migration leaves the registry
+  without those 143 new versions meanwhile.
+  Neither is decided here.

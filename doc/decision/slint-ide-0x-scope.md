@@ -345,7 +345,8 @@ Quotations are the user's words.
   rust-analyzer keeps watching files itself,
   and stopped servers are collected for at most 2 s after the worker's runtime ends.
 - The application logs warnings and errors by default,
-  and the standard `RUST_LOG` variable turns on more detail ("Warnings, with override").
+  and the standard `RUST_LOG` variable turns on more detail ("Warnings,
+  with override").
 - Language servers' own output lines are not shown at the default level;
   the IDE keeps each server's last few lines and puts them into its warning
   when a server stops unexpectedly ("Keep last lines for crashes").
@@ -380,16 +381,20 @@ Quotations are the user's words.
 - The embedded license and notice texts are printed by `monochromatic-ide --licenses` ("--licenses flag").
 - The license notices of the Rust crates compiled into the executable are collected by a notice generator,
   namely cargo-about without comparing alternatives
-  ("No need to consider any alternatives. Just it."),
+  ("No need to consider any alternatives.
+  Just it."),
   embedded beside the other notices,
   and printed by `--licenses` ("Adopt a notice generator").
 - Slint is used under GPL-3.0-only ("GPL-3.0-only"),
   so a copy of the executable given to someone falls under GPL-3.0 terms as a whole,
   while the IDE's own files stay LGPL-3.0-or-later;
   the royalty-free license would need Slint's attribution in an About view or on a public page.
-- For crates offering a choice, cargo-about picks MIT first ("MIT first"),
+- For crates offering a choice,
+  cargo-about picks MIT first ("MIT first"),
   because each crate's own MIT file carries its copyright lines:
-  197 texts for 424 crates, against 117 with Apache-2.0 first, where 66 crates would get the generic text.
+  197 texts for 424 crates,
+  against 117 with Apache-2.0 first,
+  where 66 crates would get the generic text.
 - Settled by the agent:
   the application's private state folder may lie inside any open project folder,
   since only that folder becomes writable either way.
@@ -411,7 +416,10 @@ Quotations are the user's words.
   to back off and stay quiet when the limit is reached,
   and to keep its build containers from starting podman's network helper.
 - The IDE watches the project's source folders for the language servers
-  (skipping `node_modules`, `target`, `.git`, and git-ignored folders)
+  (skipping `node_modules`,
+  `target`,
+  `.git`,
+  and git-ignored folders)
   and reports changes to every server that registers for them;
   rust-analyzer stops watching on its own ("IDE watches for the servers").
   Measured before:
@@ -476,76 +484,116 @@ and the frames under `package/ide/app/design/screenshots/2026-10-06-ui-batch-3b/
 
 - The divider's pointer grab zone stays 5 px wide ("5 px").
 - Selected text in the find and search boxes takes the same ink as every other selection on that fill,
-  white in both schemes ("White, like the rest").
+  white in both schemes ("White,
+  like the rest").
 - A hovered or focused selected row keeps its darker blue ("Darker blue").
 - An unfocused long query may run into the clear button's empty cell ("Use it when unfocused").
 - The divider's keyboard focus mark is the accent line plus a 5 by 96 px handle ("Line + 96 px handle").
-- The clear button's hover and press plate fills its whole 48 by 48 cell, translucent,
+- The clear button's hover and press plate fills its whole 48 by 48 cell,
+  translucent,
   so the box's border and focus line show through:
-  "Whole cell, it's more honest. And you don't have to compromise here: Use transparency."
+  "Whole cell,
+  it's more honest.
+  And you don't have to compromise here:
+  Use transparency."
 - A click on the panel padding leaves the focus in the box ("Box keeps focus").
 - Correction of the page:
   it gave the whole-cell plate the cost of covering the box's focus line;
   the frames show the focus line whole and the plate's boundary over the box's thin border instead.
   Shown the applied plate
-  (fill at 10 percent hovered and 24 percent pressed, boundary 1 px at 50 percent and 2 px at 80 percent),
+  (fill at 10 percent hovered and 24 percent pressed,
+  boundary 1 px at 50 percent and 2 px at 80 percent),
   the user kept it ("Keep as applied").
 - Reaching the file-watch limit is reported in the log only ("Log only").
 
 ### Accessibility decisions
 
-- The text inside tree, search-result, and location rows is hidden from assistive technology,
+- The text inside tree,
+  search-result,
+  and location rows is hidden from assistive technology,
   so each row's name is exposed once ("Hide the inner text").
-- The search box's accessible description carries the result count, as the find box's does ("Add the count").
+- The search box's accessible description carries the result count,
+  as the find box's does ("Add the count").
 - Kept as the agent added them ("Keep both"):
-  a tree row with a slot badge describes its shortcut ("Source file, Ctrl+N"),
+  a tree row with a slot badge describes its shortcut ("Source file,
+  Ctrl+N"),
   since the hidden text no longer exposes the badge,
-  and the search box says "M results, none selected" when no row is selected.
+  and the search box says "M results,
+  none selected" when no row is selected.
 
 ### Language-server start allowance
 
 - A starting language server gets three request timeouts (60 s at Helix's default of 20 s)
-  before it is reported failed, instead of one ("3 times, 60 s").
+  before it is reported failed,
+  instead of one ("3 times,
+  60 s").
   Reason measured on the test-flake branch:
-  under load, a working server's first answer can arrive after the request timeout,
+  under load,
+  a working server's first answer can arrive after the request timeout,
   helix-lsp drops a late answer,
-  and the start failures were the most common gate failure (24 of 200 runs before, 0 of 200 after).
-  Cost: a server that really hangs is reported after 62 s instead of 22 s.
+  and the start failures were the most common gate failure (24 of 200 runs before,
+  0 of 200 after).
+  Cost:
+  a server that really hangs is reported after 62 s instead of 22 s.
 
 ### Install check and Rust format check
 
 - The user allowed installing the single executable and its launcher entry into the real home
-  to check the installed copy (answered 2026-10-10, "Yes, install and check").
+  to check the installed copy (answered 2026-10-10,
+  "Yes,
+  install and check").
   `~/.local/bin/monochromatic-ide` and `~/.local/share/applications/monochromatic.ide.desktop` were installed
   with `bin/install.mjs` (now `bin/install.ts`,
   renamed 2026-10-22);
   the installed file passed `inspect:bundle` 10 of 10.
 - The package's `lint` task runs a new `lint:rustfmt` task (`cargo fmt --check`)
-  (answered 2026-10-10, "Add the check").
-  Reason: formatter drift had surfaced only as separate cleanup commits.
-  Cost: a few seconds in `lint`.
+  (answered 2026-10-10,
+  "Add the check").
+  Reason:
+  formatter drift had surfaced only as separate cleanup commits.
+  Cost:
+  a few seconds in `lint`.
 
 ### Tree order, wrapping, and renderer (user requests of 2026-10-10)
 
-- The file tree sorts mixed (folders and files together), case folded, with digit runs compared as numbers
-  (answered "Mixed, natural order").
-  Until then it showed the file system's enumeration order, which on btrfs is arbitrary.
+- The file tree sorts mixed (folders and files together),
+  case folded,
+  with digit runs compared as numbers
+  (answered "Mixed,
+  natural order").
+  Until then it showed the file system's enumeration order,
+  which on btrfs is arbitrary.
   The earlier survey of editord had missed that editord sorts through the CSS `order` property
-  (the first four lowercased characters as a base-128 number, folders and files alike);
+  (the first four lowercased characters as a base-128 number,
+  folders and files alike);
   the IDE sorts the whole name.
 - Source lines always wrap to the view with a wrap indicator in the gutter for each wrapped line;
   there is no horizontal scrolling at all.
   This reverses the 0.x choice of unwrapped lines with a horizontal scroll range.
   The look of the indicator is not decided yet.
-- The user suspects Slint's new Vello renderer (experimental in Slint 1.18, feature `renderer-vello`)
-  would fix the choppy scrolling, asked for that lead to be pursued first,
+- The user suspects Slint's new Vello renderer (experimental in Slint 1.18,
+  feature `renderer-vello`)
+  would fix the choppy scrolling,
+  asked for that lead to be pursued first,
   and approved the new `wgpu` and `vello` dependencies as they come.
-  If the nested compositor cannot host a GPU renderer, the nested compositor changes.
+  If the nested compositor cannot host a GPU renderer,
+  the nested compositor changes.
 - The user approved running `git cli-git trust --yes` in worktrees created for this work.
-- For the open soft-wrap decisions (the gutter indicator, where lines break, continuation indent,
-  Home, End, Up, Down, and caret placement at a wrap), the IDE follows what JetBrains IntelliJ IDEA Community does,
-  read from its source (the user's answer of 2026-10-10: "go with what JetBrains does. IDEA is OSS").
-- Choppy scrolling is a defect to fix, not a symptom of host load:
+- For the open soft-wrap decisions (the gutter indicator,
+  where lines break,
+  continuation indent,
+  Home,
+  End,
+  Up,
+  Down,
+  and caret placement at a wrap),
+  the IDE follows what JetBrains IntelliJ IDEA Community does,
+  read from its source (the user's answer of 2026-10-10:
+  "go with what JetBrains does.
+  IDEA is OSS").
+- Choppy scrolling is a defect to fix,
+  not a symptom of host load:
   the user said that even under extreme host load choppiness is not excusable (2026-10-10).
   A scroll step must therefore not depend on UI-thread CPU work that can miss a frame;
-  measurements under load count as evidence against the app, not as noise to wait out.
+  measurements under load count as evidence against the app,
+  not as noise to wait out.

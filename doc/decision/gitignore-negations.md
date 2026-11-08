@@ -205,8 +205,12 @@ Observation for any future pass:
 ## Music player design runtime (2026-10-18)
 
 Four more negations were added for the Design Component runtime files that 97 tracked music player design pages load
- (`support.js` in `design/` and `design/candidates/`, plus `artists.js` and `buckets.js` in `design/candidates/`).
-The pages name the files by relative path (`./support.js`), so renaming them is not possible without editing every page.
-The blanket `*.js` ignore hid them from `git status`, so a fresh clone rendered no page (issue 1639).
-This is the same family of collision as the KWin pair: a blanket basename ignore meeting tracked source.
+ (`support.js` in `design/` and `design/candidates/`,
+plus `artists.js` and `buckets.js` in `design/candidates/`).
+The pages name the files by relative path (`./support.js`),
+so renaming them is not possible without editing every page.
+The blanket `*.js` ignore hid them from `git status`,
+so a fresh clone rendered no page (issue 1639).
+This is the same family of collision as the KWin pair:
+a blanket basename ignore meeting tracked source.
 Scoping `*.js` remains undecided and was not designed here.
