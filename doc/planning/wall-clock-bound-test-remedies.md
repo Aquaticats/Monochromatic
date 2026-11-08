@@ -164,7 +164,7 @@ at schedule time,
 schedule through the captured `setTimeout`,
 and clear through the captured `clearTimeout`,
 so a global replacement mid-race cannot cross clock domains.
-The reviewer question below covers the alternative of fixing at the harness
+The reviewer question under `Questions for the reviewer` covers the alternative of fixing at the harness
 `withHostTimeout` boundary instead.
 
 Guard test (in `package/async-time/core`):

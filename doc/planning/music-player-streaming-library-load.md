@@ -129,7 +129,7 @@ The library itself still loads,
 but the per-session resume is lost on each launch.
 
 This is an ordering bug,
- walked through under "How resume state is persisted" below.
+ walked through under the "How resume state is persisted" heading.
 
 ## How the relevant parts work today
 

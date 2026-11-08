@@ -48,7 +48,7 @@ all "not closed"),
 amended after the cross-vendor review of this contract (`cargo-shadow-sol-contract-1.txt`,
 "fit after the named edits"),
 which also
-supplied the acceptance list below.
+supplied the acceptance list under the `Acceptance list` heading.
 This file specifies transaction safety (acceptance,
 rollback,
 kept copies,
@@ -97,7 +97,7 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   Verified absence counts only for a run that recorded its end (a `settled` line in the journal,
   written after the launcher was
   reaped and the scope shown empty),
-  or whose launcher is recorded and shown gone (the launcher record below):
+  or whose launcher is recorded and shown gone (the launcher record in the `Record the launcher` pick):
   until then an absent scope may be one the launcher has not made yet,
   and a scope that exists
   with `populated 0` may be one whose launcher the manager has not attached yet (the manager creates the control group and attaches
@@ -262,7 +262,7 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   this is the process model,
   not a measurement against a manager that handles a request after its sender died.
   The earlier choice of round 10 (refuse every unsettled scope,
-  acknowledge) stays as the fallback for the list above.
+  acknowledge) stays as the fallback for the launcher-line cases of guarantee A1.
   Verified absence is proof under amended assumption c and one invariant of the manager:
   systemd removes a scope only when it is empty or after stopping its members
   (probed:
@@ -711,7 +711,7 @@ Round 10 (9a D2 and section 4) makes the identity strict and authoritative:
   this purpose;
   a boot id that a runtime replaces by a bind mount (`systemd-nspawn` does,
   with a random id per container start) fails
-  the check above,
+  the check that the boot id file is the kernel's own file,
   so such a container gets the acknowledgement,
   not the clearance.
 Tests:
@@ -1954,7 +1954,8 @@ The second certification pass (`cargo-shadow-cert2-sol-1.txt` to `-4.txt`) judge
 with no production
 defect,
 only test-discrimination and bundle defects.
-Each item below names the test that now carries it and says whether a planted regression turned an earlier assertion red;
+Each item of `Round 17 additions` names the test that now carries it
+and says whether a planted regression turned an earlier assertion red;
 where no
 cheap plant exists the entry says so.
 No row is certified by this map.
@@ -2520,7 +2521,8 @@ Substantive findings and their state:
   a hit there reaches the arrival stop of the second cargo-shadow (exit status 2),
   so nothing runs twice.
   The
-  owner has not been asked to accept this residual beyond the rule above;
+  owner has not been asked to accept this residual beyond the
+  `Check-to-start race, closed for compiled programs` rule;
   it is stated,
   not hidden.
 - **Group 2 and group 4 named fixes.**
@@ -2555,7 +2557,8 @@ Substantive findings and their state:
   "one greater than the maximum PID") no longer counts as an
   acknowledging process.
   Limits that stay,
-  stated so the claim above is read as it is:
+  stated so the `Check-to-start race, closed for compiled programs` claim
+  is read as it is:
   the descriptor start pins the file object that was checked,
   not its bytes (an in-place rewrite,
   or an `ETXTBSY` refusal while a

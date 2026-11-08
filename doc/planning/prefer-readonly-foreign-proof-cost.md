@@ -81,7 +81,7 @@ and the inconsistency costs precision rather than soundness.
 ## What this does to the attempt
 
 The planned per-callable reachability test extends the gate from whole-scope to per-callable.
-If the reading above holds,
+If the reading in `What the reading turned up instead` holds,
 it will not leave the sweep unchanged:
 it removes spurious withholding wherever a recursive callable sits in a marker-bearing scope,
 which shows up as new offers.
@@ -342,7 +342,7 @@ So a root's own closure always returns an entry for its own key,
 that write always lands last before the read,
 and the `?? new Set()` fallback at the read site is dead code.
 
-The comment above that fallback says the opposite:
+The comment on the `?? new Set()` fallback says the opposite:
 "a callable the closure finds no inbound for is absent from the result rather than present and
 empty".
 That is false about this implementation and is corrected in the same commit.

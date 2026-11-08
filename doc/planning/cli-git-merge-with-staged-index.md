@@ -151,7 +151,8 @@ and the alternative below is implemented.
 
 Evidence:
 
-- Case d1 above shows native Git updating the worktree and index for exactly the paths a fast-forward writes,
+- Case d1 in `Measurements: what native Git refuses` shows native Git updating the worktree and index
+  for exactly the paths a fast-forward writes,
   keeping every other staged entry,
   on the very index state that blocks a merge.
   Case d2 shows it refusing only on overlap.

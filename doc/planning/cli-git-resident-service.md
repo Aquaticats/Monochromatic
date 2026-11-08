@@ -285,7 +285,7 @@ the service.
 - No service at all:
   the client gave up after its bounded connect wait (500 ms in the test) with exit status 75.
 - Service cold start:
-  see above.
+  see the `Cold start` measurement under `What the prototype measured`.
 - Eight external `SIGKILL`s of the service while 16 clients were in flight (the kill came 6 ms to 45 ms after the burst
   started,
   plus three at later moments):
@@ -343,7 +343,7 @@ the service.
    owner record,
    recovery,
    shadow repository and replay machinery are deleted once the service is the only
-   writer of the commit path (list and line counts below).
+   writer of the commit path (the list and line counts under `What is deleted and what is kept`).
 
 ## One service, no lock
 
@@ -559,7 +559,7 @@ Client to service:
   expected branch
   reference,
   expected base commit,
-  the prepared change (see below),
+  the prepared change (described under `The prepared change`),
   message source resolved to text,
   author and
   committer identity,
@@ -890,7 +890,7 @@ Resolved silently:
   with activation there is no stale socket (the manager owns it);
   stale journal intents are
   resolved by recovery;
-  in an unmanaged development run a stale path is replaced as described above.
+  in an unmanaged development run a stale path is replaced as the `One service, no lock` fallback describes.
 - Version skew:
   the `welcome` frame shows an older service than the client.
   The client sends `retire`;
@@ -2144,7 +2144,7 @@ What the wrapper does,
 in order,
 whenever the session bus socket and the wrapper's own executable (which is also the service,
 see "One executable") exist (an existing socket does not end it:
-see "Upgrades heal on the first commit" below).
+see the "Upgrades heal on the first commit" section).
 The first two steps and the
 bus calls are skipped when the check there finds nothing to change:
 1. Remove units of an earlier release from `~/.config/systemd/user` (they outrank runtime units in the unit search path),

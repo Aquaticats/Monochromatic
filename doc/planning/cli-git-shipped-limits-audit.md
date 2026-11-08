@@ -701,7 +701,7 @@ which are not limits.
   then a diagnostic listing the evidence."
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   the wait for a foreign `index.lock` (proven alive or not)
   ends at `LOCK_CEILING`,
   10 minutes,
@@ -744,7 +744,7 @@ which are not limits.
   It is listed under the open questions.
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   a hold the mark proves to run is waited for until `SERVICE_HOLD_CEILING`,
   10 minutes (five times the longest measured hold,
   119.7 s);
@@ -1452,7 +1452,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   a start the manager reports as under way is waited for until `START_CEILING`,
   60 seconds (58 times the slowest observed
   start,
@@ -1510,7 +1510,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   not by this.
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   the client's wait for the answer ends at `ANSWER_CEILING`,
   20 minutes (3.9 times the longest observed answer wait,
   308 s;
@@ -1993,7 +1993,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   in "Questions raised while building picks 5 and 12".
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   a push whose connection is open is ended when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW`,
   150 seconds,
   unmeasured (twice the longest whole push,
@@ -3786,7 +3786,7 @@ each with its measurement beside it:
   `START_CEILING` 60 seconds;
   `SERVICE_HOLD_CEILING` 10 minutes
   (measured,
-  with the margins given at each entry above).
+  with the margins given at each limit's own section).
 - `LOCK_CEILING` 10 minutes:
   measured on 2026-11-08 from the commit timing log (1,332 records,
   2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z).
@@ -4961,7 +4961,7 @@ and 4 of those 11 determine the value.
 
 ### After the delegated picks
 
-Counted by entry as in the lists above;
+Counted by entry as in the lists under the `Counts` heading;
 the first count is unchanged and describes main at the audited commit.
 
 - Newly cited,
@@ -6165,7 +6165,8 @@ option A,
 where the data allow;
 see the entries of the same names and "Measurement
 record".
-The follow-up questions below list what the data could not settle.
+The questions under the `Follow-up questions after the delegated picks` heading
+list what the data could not settle.
 
 Covers:
 `MAX_BATCH` 64,
@@ -6412,7 +6413,8 @@ and A for `STOP_GRACE` and `MAX_PUSH_OUTPUT`.
 ### Follow-up questions after the delegated picks
 
 Each lists what the measurements could not settle.
-The ranking is the coordinator's reading of the options against the decisions quoted above.
+The ranking is the coordinator's reading of the options against the decisions quoted in
+"Owner decisions that bear on limits".
 
 #### Batch size and claim lease
 

@@ -364,7 +364,7 @@ Runtime floor checks (`platforms/logs/probe-results.jsonl`,
    through binfmt_misc QEMU),
    and exits 1 in an arm64 `fedora:34` container with "version `GLIBC_2.34' not found".
 - Minimum glibc for both glibc targets:
-   2.34 (Verified by the runs above).
+   2.34 (Verified by the runtime floor checks in `glibc floor`).
   A release build host with glibc 2.39 or newer adds the loader warning on glibc 2.34 to 2.38
   (Verified on 2.34 and 2.35 only).
 

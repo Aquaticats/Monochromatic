@@ -244,7 +244,8 @@ and verified publication-quality outcome before recommendation.
 ## Open on 2026-09-24
 
 Every numbered question in this document is answered.
-The items below are the owner questions and the open observations of the 2026-09-16 to 2026-09-24 sessions
+The `Open on 2026-09-24` items are the owner questions and the open observations of the
+2026-09-16 to 2026-09-24 sessions
 that have not been put or not been built;
 the pass log carries the evidence under the read that found each.
 
