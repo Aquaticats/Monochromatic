@@ -267,7 +267,8 @@ fn btrfs_a_held_index_lock_leaves_the_index_alone() {
 /// The snapshot is checked against the index that was proven clean,
 /// not a second read of the file:
 /// a source that moved to
-///  another commit after the check is refused.
+///  another commit after the check is caught,
+/// and its copy keeps the frozen index for the restore.
 #[test]
 fn btrfs_the_snapshot_is_checked_against_the_frozen_index() {
     let Some(root) = btrfs_fixture("snapshot-frozen") else { return };
@@ -277,11 +278,14 @@ fn btrfs_the_snapshot_is_checked_against_the_frozen_index() {
     let (destination, admin, pointer) = no_checkout_worktree(repo.as_path(), "topic");
     let plan = plan_to(destination);
     let source = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a source");
+    // The source goes back a commit under the copy, so the source's index read now would not name the file the copy holds.
     git(repo.as_path(), &["reset", "--quiet", "--hard", "HEAD~1"]);
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
-    let reason: String = take(&source, &plan, stage.as_path(), admin.as_path(), pointer.as_slice()).expect_err("refused");
-    assert!(reason.contains("later.txt"), "{reason}");
-    assert!(!admin.join("index").exists());
+    let state: CopyState = take(&source, &plan, stage.as_path(), admin.as_path(), pointer.as_slice()).expect("the frozen index catches the move");
+    assert_eq!(state, CopyState::ChangedUnderCopy, "the copy is restored, not taken for equal");
+    let installed: Vec<crate::repo_read_index::IndexEntry> =
+        parse_index(std::fs::read(admin.join("index")).expect("index").as_slice(), ObjectFormat::Sha1).expect("the installed index is plain");
+    assert!(!installed.iter().any(|entry: &crate::repo_read_index::IndexEntry| { return entry.path == b"later.txt"; }), "the installed index is the snapshot's own, one instant with the files the copy holds");
     remove(root.as_path());
 }
 
