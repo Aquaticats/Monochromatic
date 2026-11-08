@@ -5,12 +5,12 @@
 //! Every test works in a disposable scope and home.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::context::Host;
 use super::error::ErrorKind;
 use super::fakes::Rig;
-use super::model::{OsFamily, expand_version};
+use super::model::{OsFamily, Request, expand_version};
 use super::scope::{EnvMap, global_scope};
 use super::sync::sync_tools;
 use super::tool_env::write_tool_env;
@@ -93,6 +93,66 @@ fn a_plan_value_with_the_version_placeholder_reaches_the_fragment_as_an_absolute
     write_tool_env(&rig.context()).expect("the fragment is written");
     let java = path_text(&rig.scope.toolchain_root.join("java/21.0.13+9.0.LTS"));
     assert!(env_body(&fragment(&rig)).contains(&format!("JAVA_HOME = \"{java}\"\n")), "{}", fragment(&rig));
+}
+
+/// What:
+/// Adds the `java` tool to the rig's lock the way the repository's plan declares it:
+/// an archive of Adoptium's Temurin JDK whose `env` names its own directory,
+/// the plan line `"JAVA_HOME": "java/{version}"` already expanded.
+/// Why:
+/// The value is the install directory,
+/// while the archive unpacks the JDK into the release's own `jdk-<release>` folder inside it,
+/// which is the layout `install` left on the machine (`.../java/temurin-21.0.13+9.0.LTS/jdk-21.0.13+9`).
+fn add_java_tool(rig: &mut Rig) {
+    let mut java = rig.tool("android-sdk");
+    java.declaration.id = "java".to_string();
+    java.declaration.request = Request::parse("java:temurin@21").expect("parses");
+    java.declaration.bins = vec!["java".to_string(), "jar".to_string()];
+    java.version = "temurin-21.0.13+9.0.LTS".to_string();
+    java.declaration.env = vec![("JAVA_HOME".to_string(), format!("java/{}", java.version))];
+    rig.lock.tools.push(java);
+}
+
+/// Writes the JDK an Adoptium archive unpacks into the tool's version directory:
+/// its programs under `<version>/jdk-<release>/bin`,
+/// and returns the JDK's home.
+fn install_jdk(rig: &Rig, version: &str, release: &str) -> PathBuf {
+    let home = rig.scope.toolchain_root.join("java").join(version).join(format!("jdk-{release}"));
+    super::fakes::write_executable(&home.join("bin").join("java"));
+    super::fakes::write_executable(&home.join("bin").join("jar"));
+    return home;
+}
+
+/// What:
+/// `JAVA_HOME` is exported as the directory the JDK was unpacked into,
+/// not as the tool's version directory, which holds nothing but that folder.
+/// Why:
+/// Gradle checks that `JAVA_HOME` names a directory holding `bin/java`, `lib` and `conf`;
+/// the fragment named `.../java/temurin-21.0.13+9.0.LTS`,
+/// so `./gradlew --version` stopped with `ERROR: JAVA_HOME is set to an invalid directory`.
+#[test]
+fn a_tool_directory_that_holds_only_the_unpacked_jdk_exports_the_jdk_directory() {
+    let mut rig = Rig::new();
+    add_java_tool(&mut rig);
+    let home = install_jdk(&rig, "temurin-21.0.13+9.0.LTS", "21.0.13+9");
+    write_tool_env(&rig.context()).expect("the fragment is written");
+    assert!(env_body(&fragment(&rig)).contains(&format!("JAVA_HOME = \"{}\"\n", path_text(&home))), "{}", fragment(&rig));
+}
+
+/// The control: a directory that holds no unpacked folder, or several, is exported as it is named.
+#[test]
+fn a_tool_directory_that_is_the_home_itself_is_exported_as_it_is_named() {
+    let mut rig = Rig::new();
+    add_java_tool(&mut rig);
+    let version_dir = rig.scope.toolchain_root.join("java").join("temurin-21.0.13+9.0.LTS");
+    super::fakes::write_executable(&version_dir.join("bin").join("java"));
+    super::fakes::write_executable(&version_dir.join("bin").join("jar"));
+    write_tool_env(&rig.context()).expect("the fragment is written");
+    assert!(
+        env_body(&fragment(&rig)).contains(&format!("JAVA_HOME = \"{}\"\n", path_text(&version_dir))),
+        "a JDK unpacked without its own folder stays where it is: {}",
+        fragment(&rig)
+    );
 }
 
 #[test]

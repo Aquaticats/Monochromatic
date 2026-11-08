@@ -156,7 +156,9 @@ fn sync_warns_before_replacing_a_different_installed_version() {
     let mut rig = Rig::new();
     rig.lock.tools.retain(|tool| return tool.declaration.id == "pipx:slopo" || tool.declaration.id == "uv");
     rig.install_binary("uv", "uv");
+    // The tool is listed at another version before the install, and at the locked one after it: the route reads it back.
     rig.runner.answer("uv tool list", "slopo v0.9.0\n- slopo\n", 0);
+    rig.runner.answer_after("uv tool install", "uv tool list", "slopo v1.2.3\n- slopo\n", 0);
     let report = sync_tools(&rig.context(), None);
     assert_eq!(report.installed, vec!["pipx:slopo".to_string()]);
     assert_eq!(report.warnings.len(), 1);
