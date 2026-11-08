@@ -32,6 +32,7 @@ use crate::service_index_refused_lock::{forget, recall, remember};
 use crate::service_index_placement::{Placed, Platform, Reclaimed, log_placement_failure, place_lock, reclaim};
 use crate::service_index_reclaim::{foreign_words, stale_lock_words, unjudged_words};
 use crate::service_index_staging::refresh_age;
+use crate::service_index_unheld_removal::{Unheld, remove_if_unheld, told_words};
 use crate::service_index_watch::{POLL_PAUSE, Watch};
 use crate::service_protocol::FailureCode;
 use std::path::Path;
@@ -205,7 +206,20 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                     Reclaimed::Unguarded(marked) => left_stale = Some((stale_lock_words(lock, &marked), "A service that is gone")),
                     Reclaimed::Foreign { file, marked } => left_stale = Some((foreign_words(file.as_path(), &marked), "A service on another machine")),
                     Reclaimed::Unjudged { file, marked } => left_stale = Some((unjudged_words(file.as_path(), marked.as_ref()), "A reclaimer that cannot be judged")),
-                    Reclaimed::Kept => {}
+                    Reclaimed::Kept => {
+                        // A lock that nothing holds and no Git lock PID file stands behind is removed (owner, 2026-11-07, "Service removes it"):
+                        //  the check is made at the first look and at each repeat of the notice, as the evidence is, not at every wake.
+                        if first || last_notice.elapsed() >= notice_every() {
+                            match remove_if_unheld(platform, index, &scan_platform_holders_bounded) {
+                                Unheld::Removed(proof) => {
+                                    announce.announce(Announce::Waiting(told_words(&proof)));
+                                    continue;
+                                }
+                                Unheld::Changed => continue,
+                                Unheld::Kept => {}
+                            }
+                        }
+                    }
                 }
             }
             Err(error) => {

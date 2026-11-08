@@ -253,6 +253,10 @@ pub mod service_land_finish;
 /// by a rename and a second look.
 pub mod service_index_reclaim;
 
+/// The removal of an index lock that no process holds and no Git lock PID file stands behind,
+/// on a proof written to the service journal.
+pub mod service_index_unheld_removal;
+
 /// The claim chain that keeps two reclaimers apart where the file system gives no `flock`.
 pub mod service_index_claim;
 
