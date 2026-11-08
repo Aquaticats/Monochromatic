@@ -29,6 +29,10 @@ import {
   finalEndReason,
 } from './end-reasons.ts';
 import {
+  type EnvironmentWithoutCredentials,
+  stripCredentialsFromEnvironment,
+} from './environment-without-credentials.ts';
+import {
   DRIVER_USAGE,
   DriverOptionsError,
 } from './parse-driver-options.ts';
@@ -279,6 +283,15 @@ export async function supervisePiRun(
     'feed.jsonl',
   ), },);
   /**
+   What Pi starts with: the driver's environment without the credentials no command needs, so a dumped environment shows names a
+   command may read and no value it may not. The allow list in `environment-without-credentials.ts` names what stays and why.
+   */
+  const givenToPi: EnvironmentWithoutCredentials = stripCredentialsFromEnvironment({ environment, },);
+  record.note({
+    kind: 'environment',
+    removedNames: givenToPi.removedNames,
+  },);
+  /**
    Declines a dialog, which would otherwise wait for an answer forever.
 
    @param id - dialog's identifier
@@ -297,7 +310,7 @@ export async function supervisePiRun(
     piArguments: piCommandLine(options,),
     workingFolder: options.workingFolder,
     environment: {
-      ...environment,
+      ...givenToPi.environment,
       [NESTED_RUN_VARIABLE]: '1',
     },
     standardErrorFile: join(

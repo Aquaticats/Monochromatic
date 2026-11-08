@@ -135,6 +135,17 @@ await describe({
           },
         },),
         it({
+          name: 'keeps XAUTHORITY, the name a GUI check needs, which the rule would otherwise remove',
+          fn: async () => {
+            expect(carriesCredentialName({ name: 'XAUTHORITY', },),).toBe(true,);
+            const stripped = stripCredentialsFromEnvironment({
+              environment: { XAUTHORITY: ORDINARY_VALUE, },
+            },);
+            expect(stripped.environment.XAUTHORITY,).toBe(ORDINARY_VALUE,);
+            expect(stripped.removedNames,).toEqual([],);
+          },
+        },),
+        it({
           name: 'answers an empty environment for an empty one, having removed nothing',
           fn: async () => {
             const stripped = stripCredentialsFromEnvironment({ environment: {}, },);
