@@ -263,11 +263,15 @@ echo "subvolumes to freeze: $(grep --count '^btrfs property set -ts ' ${c.wiz}/f
       says: 'THE WINDOW STARTS AT THIS STEP. It stops the repository\'s user units, so commits fail from here. Freeze, final pass, verification and swap must finish inside the stated maximum or the runner stops and tells you to thaw.',
       assertion: 'No agent is working in any worktree, and commits may be refused until the window ends.',
       windowStart: true,
-      command: `systemctl --user list-units --plain --no-legend --all ${COMMIT_SERVICE_UNIT_PATTERNS} | awk '{ print $1 }' > ${c.wiz}/stopped-units.txt
-systemctl --user is-active --quiet claude-cpu-watch.service && echo claude-cpu-watch.service >> ${c.wiz}/stopped-units.txt || true
-xargs --arguments-file=${c.wiz}/stopped-units.txt --no-run-if-empty systemctl --user stop`,
-      check: `test "$(systemctl --user list-units --plain --no-legend --state=active ${COMMIT_SERVICE_UNIT_PATTERNS} | wc --lines)" = 0 && ! systemctl --user is-active --quiet claude-cpu-watch.service`,
-      checkText: 'no commit service is active and claude-cpu-watch.service is stopped',
+      command: `${ // A rerun after a partial stop merges into the list instead of replacing it, so release and thaw still restart what the first attempt stopped.
+        ''}touch ${c.wiz}/stopped-units.txt
+{ cat ${c.wiz}/stopped-units.txt; systemctl --user list-units --plain --no-legend --all ${COMMIT_SERVICE_UNIT_PATTERNS} | awk '{ print $1 }'; if systemctl --user is-active --quiet claude-cpu-watch.service; then echo claude-cpu-watch.service; fi; } | sort --unique > ${c.wiz}/stopped-units.txt.new
+mv ${c.wiz}/stopped-units.txt.new ${c.wiz}/stopped-units.txt
+${ // A listed unit that is no longer loaded fails its stop; the check decides whether anything still runs.
+        ''}xargs --arguments-file=${c.wiz}/stopped-units.txt --no-run-if-empty systemctl --user stop || echo 'a listed unit could not be stopped (one no longer loaded fails this way); the check reads what still runs'`,
+      check: `${ // Each query's own failure fails the check, so a manager that cannot be reached never reads as "stopped".
+        ''}running="$(systemctl --user list-units --plain --no-legend --state=active,activating,deactivating,reloading ${COMMIT_SERVICE_UNIT_PATTERNS})" && test -z "$running" && watch="$(systemctl --user show --property=ActiveState --value claude-cpu-watch.service)" && test "$watch" != active && test "$watch" != activating`,
+      checkText: 'no commit service is active, starting or stopping, and claude-cpu-watch.service is stopped',
       rollback: 'the thaw command restarts claude-cpu-watch.service; commit services start again on the next commit',
       root: 'no',
       unprivileged: 'not needed: user units stop as the user',
@@ -538,7 +542,8 @@ ${link}/check.mjs`,
       window: true,
       says: 'RELEASE: start the stopped commit sockets and claude-cpu-watch.service again and close the window. After this the fast rollback no longer applies (writes will reach the 860 tree); a later rollback is the full reverse migration in the plan, section Rollback, which this runner does not run.',
       assertion: 'Release now: this is the last chance for the fast rollback.',
-      command: `{ grep '\\.socket$' ${c.wiz}/stopped-units.txt || true; } | xargs --no-run-if-empty systemctl --user start || echo 'WARNING: a commit socket did not restart; list-units cli-git@* shows which'
+      command: `{ grep '\\.socket$' ${c.wiz}/stopped-units.txt || true; } | xargs --no-run-if-empty systemctl --user start || echo 'WARNING: a commit socket did not restart; the lines below name each one'
+{ grep '\\.socket$' ${c.wiz}/stopped-units.txt || true; } | while read -r unit; do systemctl --user is-active --quiet "$unit" || echo "not listening again: $unit"; done
 if grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service ${c.wiz}/stopped-units.txt; then systemctl --user start claude-cpu-watch.service; fi
 date +%s > ${c.wiz}/window-end
 echo "window length: $(( $(cat ${c.wiz}/window-end) - $(cat ${c.wiz}/window-start) )) s"`,

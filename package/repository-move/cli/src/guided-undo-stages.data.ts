@@ -64,7 +64,8 @@ while read -r p; do if mountpoint --quiet "$p"; then sudo umount "$p"; fi; done 
       title: 'Restart the stopped unit',
       says: 'Start again what the cut-over stopped: the commit sockets (restarting them is harmless; whether the wrapper would start them itself was not verified) and claude-cpu-watch.service.',
       command: `touch ${c.wiz}/stopped-units.txt
-{ grep '\\.socket$' ${c.wiz}/stopped-units.txt || true; } | xargs --no-run-if-empty systemctl --user start || echo 'WARNING: a commit socket did not restart; list-units cli-git@* shows which'
+{ grep '\\.socket$' ${c.wiz}/stopped-units.txt || true; } | xargs --no-run-if-empty systemctl --user start || echo 'WARNING: a commit socket did not restart; the lines below name each one'
+{ grep '\\.socket$' ${c.wiz}/stopped-units.txt || true; } | while read -r unit; do systemctl --user is-active --quiet "$unit" || echo "not listening again: $unit"; done
 if grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service ${c.wiz}/stopped-units.txt; then systemctl --user start claude-cpu-watch.service; else echo 'claude-cpu-watch.service was not stopped by the cut-over'; fi`,
       check: 'true',
       checkText: 'the command exited 0',

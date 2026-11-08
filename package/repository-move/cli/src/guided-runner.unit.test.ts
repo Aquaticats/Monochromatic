@@ -170,6 +170,50 @@ async function writeStandIns(home: string,): Promise<StandIns> {
   return { folder, log, mounts, };
 }
 
+/**
+ A stand-in `systemctl` whose behavior `STAND_IN_SYSTEMCTL` picks: `fail` answers every call with a bus error, `running`
+ lists one renamed commit socket as still loaded, `idle` lists none; `show` reads every unit as inactive, `is-active`
+ says no, and `stop` and `start` record their arguments in `STAND_IN_SYSTEMCTL_LOG`.
+ */
+const SYSTEMCTL_STAND_IN = [
+  '#!/bin/sh',
+  'if [ "$STAND_IN_SYSTEMCTL" = fail ]; then echo "Failed to connect to bus" >&2; exit 1; fi',
+  'case "$*" in',
+  '  *list-units*) if [ "$STAND_IN_SYSTEMCTL" = running ]; then echo "monochromatic-git-policy-cli@0123.socket loaded active listening stand-in"; fi; exit 0 ;;',
+  '  *show*) echo inactive; exit 0 ;;',
+  '  *is-active*) exit 3 ;;',
+  String.raw`  *stop*|*start*) printf '%s\n' "$*" >> "$STAND_IN_SYSTEMCTL_LOG"; exit 0 ;;`,
+  'esac',
+  'exit 0',
+  '',
+].join('\n',);
+
+/** Runs stage shell text the way the runner does, with the stand-in `systemctl` first on the path; resolves to the exit status and output. */
+async function runWithSystemctlStandIn(
+  { text, mode, home, }: { text: string; mode: string; home: string; },
+): Promise<{ status: number; output: string; }> {
+  const folder = join(home, 'systemctl-stand-in',);
+  await mkdir(folder, { recursive: true, },);
+  await writeFile(join(folder, 'systemctl',), SYSTEMCTL_STAND_IN,);
+  await chmod(join(folder, 'systemctl',), EXECUTABLE_MODE,);
+  try {
+    const result = await execFileAsync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', text,], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${folder}:${process.env.PATH ?? ''}`,
+        STAND_IN_SYSTEMCTL: mode,
+        STAND_IN_SYSTEMCTL_LOG: join(home, 'systemctl-stand-in.log',),
+      },
+    },);
+    return { status: 0, output: result.stdout, };
+  }
+  catch (error) {
+    const failed = error as { code?: number; stdout?: string; };
+    return { status: failed.code ?? Number.NaN, output: failed.stdout ?? '', };
+  }
+}
+
 /** Marks stages of the prepare phase done, as a completed earlier run would have. */
 async function markPrepareDone({ config, ids, }: { config: GuidedConfig; ids: readonly string[]; },): Promise<void> {
   await mkdir(join(config.wiz, 'done', 'prepare',), { recursive: true, },);
@@ -827,6 +871,32 @@ await describe({
               expect(config.wrapperState.endsWith('/monochromatic-git-policy-cli/service',),).toBe(true,);
               expect(stateCommand,).toContain(config.earlierWrapperState,);
               expect(stateCommand,).toContain(config.wrapperState,);
+            },);
+          },
+        },),
+        it({
+          name: 'the window stop check fails when the service manager cannot be asked or a commit unit still runs, a rerun of the stop keeps what the first attempt listed, and release names each socket that did not come back',
+          fn: async () => {
+            await withConfig(async ({ config, home, },) => {
+              const stages = await cutoverStages({ c: config, stamp: 'S', },);
+              const stop = stages.find((s,) => s.id === 'c06-stop-units',) as Stage;
+              const check = stop.check ?? '';
+              expect((await runWithSystemctlStandIn({ text: check, mode: 'fail', home, },)).status,).not.toBe(0,);
+              expect((await runWithSystemctlStandIn({ text: check, mode: 'running', home, },)).status,).not.toBe(0,);
+              expect((await runWithSystemctlStandIn({ text: check, mode: 'idle', home, },)).status,).toBe(0,);
+              const earlier = 'cli-git@aaaa.socket';
+              await mkdir(config.wiz, { recursive: true, },);
+              await writeFile(join(config.wiz, 'stopped-units.txt',), `${earlier}\n`,);
+              const stopRun = await runWithSystemctlStandIn({ text: await resolvedCommand({ stage: stop, config, },), mode: 'running', home, },);
+              expect(stopRun.status,).toBe(0,);
+              const listed = (await readFile(join(config.wiz, 'stopped-units.txt',), 'utf8',)).trim().split('\n',);
+              expect(listed,).toContain(earlier,);
+              expect(listed,).toContain('monochromatic-git-policy-cli@0123.socket',);
+              const release = stages.find((s,) => s.id === 'c21-release',) as Stage;
+              await writeFile(join(config.wiz, 'window-start',), '0\n',);
+              const releaseRun = await runWithSystemctlStandIn({ text: await resolvedCommand({ stage: release, config, },), mode: 'idle', home, },);
+              expect(releaseRun.status,).toBe(0,);
+              expect(releaseRun.output,).toContain(`not listening again: ${earlier}`,);
             },);
           },
         },),
