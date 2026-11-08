@@ -187,8 +187,7 @@ Two facts fell out of the work and are now pinned by tests:
 ## Next actions, in order
 
 1.  ~~**The version 2 parser**~~,
-    landed;
-    see above.
+    landed.
     Original note kept for the shape of the requirement:
     `settleEntry` writes version 2 and `artifact-read.ts` read version 1 only.
     Read the CORRECTED contract in the planning doc rather than re-deriving it,
@@ -265,7 +264,7 @@ Two facts fell out of the work and are now pinned by tests:
 2.  ~~**The mixed-generation trap**~~,
     landed as `pass-schema-guard.ts` (`ed80db5cc`).
     Its premise was WRONG as first written here;
-    the corrected account is kept below because it is
+    the corrected account is kept in this handover because it is
     what the guard was built to,
     and because the correction is the reusable part.
     `settledEntryIds` does read FILENAMES only (`pass-settled.ts`),
@@ -360,7 +359,7 @@ and two were already built:
     pinned by a driver test shown to
     fail with the branch stripped (`112295ed2`).
 -   The `unrecorded` collapse,
-    fixed and described in the next-actions item 3 above.
+    fixed and described in next-actions item 3.
 
 ## A GFP trap worth knowing about in the translate driver (`#95` closed)
 
