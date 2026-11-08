@@ -747,7 +747,7 @@ described in its README, section "Keeping the build folders lean"):
   Wiring each producer to call it first is a separate change and is open.
 - E, size caps:
   `lean_size_caps.rs`.
-  The caps are absolute per profile directory (see the next section),
+  The caps are absolute per profile directory (see the `Measured picks, 2026-11-07` section),
   because a cap relative to a directory's own newest-compiler bytes can never bind.
 - F, the timer:
   `lean_timer_units.rs`,
@@ -1403,7 +1403,7 @@ and the section "Measured picks" holds the numbers.
   A is not applied to them,
   B and E keep them lean;
   G is not built.
-- The open items below are not answered:
+- The open items among the original questions are not answered:
   what runs `cargo package` or `cargo publish --dry-run` about 90 times per crate,
   and which wrapper build is installed.
 
