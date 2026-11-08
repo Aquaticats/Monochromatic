@@ -264,11 +264,11 @@ await describe({
             );
             e(isDeny(result,),).toBe(true,);
             e(
-              isDeny(result,)
-                && result
-                  .hookSpecificOutput
-                  .permissionDecisionReason
-                  .includes('git -C <repository-root>',),
+              result
+                .hookSpecificOutput
+                ?.permissionDecisionReason
+                ?.includes('git -C <repository-root>',)
+                ?? false,
             ).toBe(true,);
           },
         },),
