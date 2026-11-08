@@ -3059,6 +3059,28 @@ and measured on main against native Git.
 Each item names what remains,
 where it lives and its evidence.
 
+### A commit service kept an index-lock marker open for hours
+
+Seen 2026-11-08T06:43-05:00 by a holder scan before the 860 cut-over:
+the commit service PID 1573518 (`monochromatic-git-policy-cli@fc85fdf7a58f866b7f7a84b44fe0b69a.service`,
+release `0.6.1-alpha.4`,
+working folder `/var/home/user`)
+held descriptor 10 on
+`/var/home/user/Monochromatic/.git/index.lock.cli-git-marker-1573518.4026531836-1794117366015933-70bae06f-c81b-4bfa-a9ec-4916e95edd2c`,
+a marker whose name stamps about 2026-11-08T00:56-05:00,
+while `.git/index.lock` was absent (the cut-over table showed no held lock)
+and the cut-over's `busy/` check is not yet run.
+Unknown:
+whether the hold is intended (a claim kept for the service's life) or a leaked descriptor.
+Next:
+before stopping that instance,
+keep `/proc/1573518/fdinfo/10`,
+the link target (live or deleted),
+`stat` of the marker and the unit's journal around 00:56;
+then read the marker release path in the wrapper and decide leak or intended hold.
+Either way the move runner's `c03-holders-before` refuses it,
+because that scan runs before `c06-stop-units` stops the commit services.
+
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 
 Found 2026-11-08 when the move to the 860 stopped on one

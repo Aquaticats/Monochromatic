@@ -18,6 +18,40 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
+
+- Who checks the IDE at the cut-over stage `c28-ide-through-link`:
+  "I believe you can do the IDE check yourself?",
+  then "The IDE I use is obviously our own IDE."
+  and "And using the nested compositor is fine."
+  The coordinator runs `package/ide/app` in a nested compositor against the repository through the link,
+  confirms the file tree and one search,
+  then passes the assertion.
+- A restart of Claude Code:
+  "Once you finish the move,
+  prepare for a restart of Claude Code,
+  and tell me whenever it's a good time to restart.
+  I need to restart Claude Code."
+- When to restart,
+  after the agent found that the cut-over's holder scan counts this session
+  (its working folder is the repository):
+  "Restart now,
+  outside repo (Recommended)".
+  The owner starts the session again from `/var/home/user` with `--resume`,
+  `--add-dir /var/home/user/Monochromatic` and `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`
+  (tested on a throwaway folder:
+  the added folder's `CLAUDE.md` loads with the variable and not without it).
+- The other processes whose working folder was in the repository
+  (terminal shells,
+  Zed,
+  a Codex session with three Codex app-server daemons,
+  a DeepSeek `dsh` session with its search-fetch server,
+  the `adb` server):
+  "Stop agents and adb for me".
+  The agent sent TERM to those seven processes by PID after re-reading each command line,
+  and all seven exited;
+  the owner closes Zed and the terminals.
+
 ## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
 
 - Which `index.lock` files the commit service may remove,
