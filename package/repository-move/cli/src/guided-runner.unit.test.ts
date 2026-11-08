@@ -977,6 +977,32 @@ await describe({
           },
         },),
         it({
+          name: 'the fresh-inventory check counts the real send of each subvolume and not the no-data comparison beside it, and fails when a real send is missing',
+          fn: async () => {
+            await withConfig(async ({ config, home, },) => {
+              const stages = await cutoverStages({ c: config, stamp: 'S', },);
+              const inventory = stages.find((s,) => s.id === 'c05-fresh-inventory',) as Stage;
+              const subvolumes = ['s000', 's001',];
+              const realSend = (name: string,): string => `scope bash -c 'btrfs send -p /snap/${name} /snap/f${name} | btrfs receive /dest'\n`;
+              const comparison = (name: string,): string => `scope bash -c 'btrfs send --no-data -p /snap/${name} /snap/f${name} | btrfs receive --dump'\n`;
+              const outputFile = join(home, 'inventory-output.txt',);
+              await mkdir(config.wiz, { recursive: true, },);
+              await writeFile(outputFile, 'inventory agrees: 1 nested subvolumes\n',);
+              await writeFile(join(config.wiz, 'freeze-print.txt',), subvolumes.map((name,) => `btrfs property set -ts /tree/${name} ro true\n`).join('',),);
+              const statusWith = async (plan: string,): Promise<number> => {
+                await writeFile(join(config.wiz, 'final-pass-print.txt',), plan,);
+                return (await runWithStandInCommands({ text: `export OUTPUT_FILE=${outputFile}\n${inventory.check}`, home, scripts: {}, },)).status;
+              };
+              const correctPlan = subvolumes.map((name,) => `${comparison(name,)}${realSend(name,)}`).join('',);
+              expect(await statusWith(correctPlan,),).toBe(0,);
+              // The comparison of the last subvolume stays, so a count of every send line would still see three.
+              expect(await statusWith(`${comparison('s000',)}${realSend('s000',)}${comparison('s001',)}`,),).not.toBe(0,);
+              // As many send lines as subvolumes, but one of them only a comparison.
+              expect(await statusWith(`${realSend('s000',)}${comparison('s001',)}`,),).not.toBe(0,);
+            },);
+          },
+        },),
+        it({
           name: 'the footprint of the checkout is measured by the tool that measures again when a worktree vanishes, and the preflight still reads its output',
           fn: async () => {
             await withConfig(async ({ config, },) => {

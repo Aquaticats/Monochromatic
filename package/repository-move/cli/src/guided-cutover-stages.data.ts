@@ -252,7 +252,7 @@ compgen -G '${c.repo}/.git/cli-git-transactions/*.pending' || echo 'no pending t
 ${copy} --pass=freeze ${args} > ${c.wiz}/freeze-print.txt
 ${copy} --pass=final ${args} > ${c.wiz}/final-pass-print.txt
 echo "subvolumes to freeze: $(grep --count '^btrfs property set -ts ' ${c.wiz}/freeze-print.txt)"`,
-      check: `grep --extended-regexp 'inventory agrees' "$OUTPUT_FILE" && test "$(grep --count '^btrfs property set -ts ' ${c.wiz}/freeze-print.txt)" -ge 1 && test "$(grep --count '^btrfs property set -ts ' ${c.wiz}/freeze-print.txt)" = "$(grep --count 'btrfs send' ${c.wiz}/final-pass-print.txt)"`,
+      check: `grep --extended-regexp 'inventory agrees' "$OUTPUT_FILE" && test "$(grep --count '^btrfs property set -ts ' ${c.wiz}/freeze-print.txt)" -ge 1 && test "$(grep --count '^btrfs property set -ts ' ${c.wiz}/freeze-print.txt)" = "$(grep 'btrfs send' ${c.wiz}/final-pass-print.txt | grep --count --invert-match --fixed-strings 'btrfs send --no-data')"`,
       checkText: 'the inventory agrees with Git and one freeze line exists per subvolume to send',
       rollback: 'read-only. On a refusal give the named subvolumes a written disposition and start the cut-over again',
       root: 'yes',
