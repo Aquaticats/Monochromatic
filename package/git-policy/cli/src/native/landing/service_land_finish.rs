@@ -30,6 +30,7 @@ use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION,
 use crate::service_land_follow::{IndexPaths, build_index, remove_conclusion_state};
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{IndexLock, Record, remove_stale, try_acquire};
+use crate::service_scratch_ref_of_a_dropped_batch::clear_after_dropped_batch;
 use crate::autostash_carry::carry_stages;
 use crate::service_land_context::LandContext;
 use crate::service_protocol::FailureCode;
@@ -531,6 +532,9 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unread
             (Recovery::Drop, JournalOwner::EarlierHelper) => Handled::Left,
             (Recovery::Drop, JournalOwner::ThisService) => {
                 remove_stale(intent.index.as_path(), intent.seq);
+                // The batch will never land, so the scratch reference its killed landing left is removed here; the commit it
+                //  holds is kept first, on the batch's side reference (`service_scratch_ref_of_a_dropped_batch.rs`).
+                clear_after_dropped_batch(&git, &intent);
                 let _removed = std::fs::remove_file(&path);
                 let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));
                 remove_start(context.journal.as_path(), intent.seq);
