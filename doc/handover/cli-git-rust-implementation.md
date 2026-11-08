@@ -3269,6 +3269,133 @@ A clean-up of them is separate work:
 only the session that owns a worktree may remove a folder in it,
 and no command offers that today.
 
+### Two lock controls claim their endings, and the btrfs controls wait for commits (2026-11-08T17:47:31-05:00)
+
+Two controls failed in a large run and passed alone:
+`landing::service_index_lock::tests::a_dead_owner_ends_the_wait_at_once`
+at 23.5 s against 0.28 s alone,
+and
+`lock::index_holder_wait::tests::an_owner_nothing_proves_alive_is_given_up_on_at_the_ceiling`
+under a lock watch.
+Both ran the wait on a second thread and read it with `recv_timeout(10 s)`,
+so both asserted how fast this host scheduled that thread (rule `SUF`).
+
+What they claim.
+The dead-owner control claims an order:
+evidence that a Git lock PID file names a process which no longer runs ends the wait,
+and the lock is not waited for like one nothing proves.
+The ceiling control claims the ending at the ceiling,
+with the blocker named and the lock left in place;
+there the time is the behaviour,
+and its bound is `SHORT_CEILING`.
+
+Done on branch `fix/git-policy-cli-lock-controls-claim-order-not-time`:
+`2b33c7bd32` hands the dead-owner controls the shortest ceiling there is,
+`NO_CEILING` (zero),
+on the control's own thread,
+so a wait that ignores the dead owner ends in the ceiling's words at once
+and the control reads the difference;
+and the three ceiling controls run the wait on the control's own thread,
+which ends by itself at the ceiling,
+so the `recv_timeout` witness and its thread are gone.
+A wait that never ends now falls to the run's own 120 s watchdog
+(`test_support::arm_watchdog`),
+not a per-control budget a stalled disk can outrun.
+The unproven-owner ceiling control asserts the whole ceiling passed,
+as its sibling did.
+The landing dead-owner control needed a new assertion against the ceiling's line:
+that line names the dead PID too,
+so the PID's words alone would have passed.
+
+Each changed control was broken and failed before being restored:
+dead verdict read as nothing proves a lock,
+`GaveUp(8.34µs)` for the lock crate and
+the landing one on `a dead owner is not waited for: ... is still held after 0 seconds by PID ...`;
+`GaveUp(8.59µs)` when the ceiling fired before the ceiling;
+`left: Err(Unavailable) right: Err(IndexInUse)` when the withdrawal reported a storage failure;
+`left: Released right: GaveUp` when the ceiling ended as a release;
+and `the ceiling, not the count, ended it` when the ceiling was dropped from the reruns.
+Swept every control in `src/native/landing` and `src/native/lock` that read a wait through a
+`recv_timeout` patience;
+the upper bounds left there are claims whose time is the relation under
+test (`began.elapsed() >= holding`,
+`< slow.interval`) or fixture readiness witnesses.
+
+`787fe20ed3` fixes a control in that module that failed alone on this checkout:
+`the_scan_for_open_holders_stops_at_its_deadline_and_says_so` passed `metadata.dev()`
+where commit `7a1aa21f5d` made the scan compare the mount number the kernel writes in
+`fdinfo`,
+so it now asks `process_use::mount_of`,
+as the service's own scan does.
+
+Measured 2026-11-08 on this host with `btrfs` on the scratch directory,
+alternating the arms:
+creating an empty subvolume took a median 4.1 ms (7.8,
+4.1,
+4.6,
+4.2,
+3.4,
+3.4,
+4.2,
+3.1,
+3.1);
+a snapshot of a source with three files and 5 KB took a median 52.1 ms;
+a snapshot of an empty subvolume took a median 59.6 ms,
+so a control pays for the commit a snapshot forces,
+which turns expensive only once its source holds tens of files (433 ms for 51 files,
+measured by the sibling).
+Under the contention of its own run,
+one snapshot of 51 files took up to 1.44 and 1.88 s,
+and 72 to 81 of them ran in 4.2 and 6.9 s.
+
+What the btrfs controls of `subvolume_btrfs_tests` wait on,
+for the coordinator's filter of 454 tests where five of them were stopped by the 120 s watchdog:
+the same six tests alone finished in 2.5,
+4.5 and 7.0 s in three runs,
+then in 31.8 s minutes later with nothing of this session running
+(per test 25.9 to 30.9 s;
+load average 28 to 43),
+so the difference was the filesystem's other traffic,
+not the tests'.
+In two filtered runs of 75 tests with their snapshot-taking neighbours
+(`worktree_snapshot`,
+`worktree_trash`) the same tests took 9.8,
+9.8,
+10.0,
+5.8 and 17.4 s,
+then 6.3,
+6.3,
+6.4,
+3.2 and 12.9 s,
+and in the second of them 52,653 thread samples of the test processes named 16 wait channels:
+`futex_do_wait` 43,852,
+`ep_poll` 8,660,
+`wait_for_commit` 24,
+`wait_current_trans` 22,
+`blk_mq_get_tag` 22,
+`btrfs_sync_log` 12,
+`btrfs_btree_wait_writeback_range` 11.
+The btrfs waits are transaction commits and log syncs,
+which is what a neighbour's snapshot forces;
+nothing in those controls waits on a socket,
+a claim or another test.
+The 120 s stop itself was not reproduced here.
+
+Fixtures that take a content snapshot whose content does not matter:
+none found,
+so none changed.
+Every snapshot in the lib suite is taken from the repository the control then reads
+(`worktree_snapshot_tests` and `worktree_ladder_run_tests` read the stage's files,
+pointer or
+index;
+`worktree_trash_tests` and `worktree_trash_safety_tests` assert which left-out paths
+the stage keeps;
+`subvolume_remove_walk_tests` asserts the nested subvolumes and their files;
+`fs_btrfs_ioctl_tests` is the control of the snapshot call itself).
+The saving is real where such a fixture appears:
+a create is 4.1 ms against a snapshot's 52 ms here,
+and every one of them forces a commit its neighbours wait for.
+
 ### Verify 0.5.26 against native Git
 
 Measured with 0.5.27 installed (`~/temp/agent/tools/observe-main-commit.ts`,
