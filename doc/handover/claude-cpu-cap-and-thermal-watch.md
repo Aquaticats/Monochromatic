@@ -1607,7 +1607,7 @@ The day-one checks under "Checks before buying" still decide it.
   and the paste is not the Noctua NT-H1 the checklist assumes.
   The user tightened the screws until they
   could not turn them with a normal screwdriver and little force,
-  which matches Noctua's instruction (below).
+  which matches the NH-D15 manual's tightening instruction.
   Noctua's NH-D15 manual and torque FAQ (fetched 2026-10-13) give this checklist,
   with the user's answers pending:
   - Tighten the heatsink screws 2 to 3 turns each in turn,
@@ -1646,7 +1646,7 @@ The day-one checks under "Checks before buying" still decide it.
 - What do the six motherboard readings measure?
   (The ambient reference is the Corsair probe;
   see the hardware facts.)
-- The probe cannot touch the fins (answered above),
+- The probe cannot touch the fins (the hardware facts answer it),
   so fin or exhaust temperature stays unmeasured.
   Contact versus airflow now has to be judged from Tctl against watts and fan speed.
 - A higher fan floor was offered and not taken:

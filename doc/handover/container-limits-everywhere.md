@@ -164,7 +164,7 @@ which is all `podman build` accepts.
 
 These start containers through `runLimitArguments`,
 `limitArguments` or a literal that already carries the weight.
-They change only by taking the shared constant (the copies above),
+They change only by taking the shared constant (the copies the "Shared constant" section lists),
 never by gaining flags.
 
 - `package/git-policy/cli/bin/*.ts` (`build-git-test-image.ts`,
@@ -363,7 +363,7 @@ after the first dry runs of the two release workflows on `main`:
   neither starts a container or reads this branch's files.
 
 Earlier reasoning,
-kept for the record (superseded by the update above):
+kept for the record (superseded by the update dated 2026-11-08 in "Workflow decisions"):
 - On a dedicated hosted runner the job is the only tenant,
   so the weight has no sibling to yield disk time to.
 - `playwright-image.yml` builds through `core-exec`'s `playwright-image-build.ts` (build bound only).

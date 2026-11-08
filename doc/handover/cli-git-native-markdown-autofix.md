@@ -51,7 +51,7 @@ The implementation is complete on this branch.
 The final gated commit is recorded in "Final gated commit";
 the gate,
 the scoped mutation campaign and the fuzz smoke run pass on it.
-The earlier records (merge commit `db2857189` and the first campaigns) are kept below for history.
+The earlier records (merge commit `db2857189` and the first campaigns) stay in this handover for history.
 The one surviving mutant that a test should kill (`markdown_exclude.rs:95:39`) is killed by commit `2e10ab6fb2`,
 and the two base64 `|` to `^` survivors are equivalent mutants.
 `main` changed `package/git-policy/cli/Cargo.lock` and `package/git-policy/cli.fuzz/Cargo.lock`

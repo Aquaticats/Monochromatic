@@ -162,7 +162,7 @@ whole corpus).
    601 ms,
    12.0 MB/s.
 - Variant 3 plugin rewrite:
-   611 ms (see the correctness caveat below).
+   611 ms (see the two correctness hazards in variant 3).
 
 ### Lint, mangled corpus (min ms)
 
@@ -183,7 +183,7 @@ whole corpus).
    4198 ms,
    and this undercounts (about 22 files per
   pass crash on re-parse and were skipped;
-   see the MDX hazard below).
+   see the MDX hazard in "Two correctness hazards in variant 3").
 
 ## Why variant 3 does not win
 
