@@ -1064,16 +1064,28 @@ whichever route installed them.
   and the next install of that version replaces it.
   A run killed without cleanup leaves its staging directory behind;
   nothing reads it and it can be deleted by hand.
+- A release archive of this repository gets one link per declared program before the marker is written:
+  `<version directory>/<program name>`,
+  pointing at the program inside the folder the archive unpacked into
+  (a relative target,
+  so a moved toolchain root still resolves).
+  The program is then reachable at `current/<program name>`,
+  a path that names no version,
+  which is the shape a `cargo-binstall` tool already has (`current/bin/<name>`).
+  Without it the program below `current` sits in a folder whose name carries the version,
+  and any tree that installs a newer version deletes that folder.
+  A version directory an earlier release unpacked in place carries no such link,
+  and its program is still found below `current`.
 - Downloaded archives are kept in `<toolchain root>/downloads/<tool>/<version>/`
   and removed with their version.
 - `<toolchain root>/cargo/<crate>/current` (for a release archive,
   `<toolchain root>/<tool id>/current`) is a link to the newest finished version.
   Every tree's exposed link goes through it,
   and two trees syncing at once converge on the newest.
-  The link itself never dangles when an older version is deleted,
-  but for a release archive the program below it sits in a folder whose name carries the version,
-  so a launcher record that names that path would dangle;
-  see "The launcher" for how the launcher follows `current` instead.
+  Neither the link nor the program named through it dangles when an older version is deleted:
+  a crate's program is `current/bin/<name>`,
+  and a release archive's is `current/<program name>`,
+  because of the link the previous bullet describes.
 - A running `mpm-shadow` that installs a newer `mpm-shadow` has just deleted its own file.
   That no longer stops the launchers:
   they are copied from the newest install,
@@ -1206,6 +1218,9 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   the tree's lock file,
   the real binary
   and which scope made it (the warning names that scope's upgrade command).
+  The real binary is named through the tool's `current` link,
+  `current/<program name>` for a release archive and `current/bin/<name>` for a crate,
+  so the record names no version.
   The kernel resolves a symlink chain to its final file,
   so a hard link per tree is what lets the running process learn which tree's link started it
   (`/proc/self/exe`).
@@ -1226,11 +1241,17 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   or,
   when that file no longer exists,
   the program of the same file name under the `current` link above it.
-  A release archive of this repository unpacks into a folder named after the version
+  A record written by a release that carries the newest-only rule names `current/<program name>`,
+  which survives every version move;
+  one written before that rule names the folder the release archive unpacked into,
+  whose name carries the version
   (`monochromatic-cargo-shadow-0.1.4-x86_64-unknown-linux-gnu`),
   so a record written while `current` named 0.1.4 holds a path through that folder,
   and installing 0.1.5 in any tree deletes it.
-  Before this rule every other tree's launcher then exited 127 with `mpm-shadow: could not start <path>: No such file or directory`
+  Following `current` therefore runs the program the version that runs holds,
+  and the rewrite below names `current/<program name>`,
+  a path no later version move can stale.
+  Before that rule every other tree's launcher exited 127 with `mpm-shadow: could not start <path>: No such file or directory`
   although `current` named a working program
   (measured 2026-11-07:
   122 of the 853 launcher records in this repository's checkouts named a deleted folder).

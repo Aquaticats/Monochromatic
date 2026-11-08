@@ -220,7 +220,7 @@ fn the_retire_line_names_the_release_that_retires() {
 #[test]
 fn the_exit_line_states_reason_and_uptime() {
     let up: Duration = Duration::from_millis(READS_MS * 1_000);
-    for (reason, word) in [(ExitReason::Idle, "idle"), (ExitReason::Retire, "retire"), (ExitReason::Error, "error")] {
+    for (reason, word) in [(ExitReason::Idle, "idle"), (ExitReason::Retire, "retire"), (ExitReason::Error, "error"), (ExitReason::WorktreeGone, "worktree-gone")] {
         let found: HashMap<String, String> = fields(exit_line(reason, up).as_str());
         assert_eq!(found["reason"], word);
         assert_eq!(found["uptime_ms"], up.as_millis().to_string());

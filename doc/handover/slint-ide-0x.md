@@ -775,7 +775,7 @@ the items after it are the record of 2026-10-05 and older.
     worktree `.claude/worktrees/ide-wrap`,
     through `a973a163f1`,
     package tree `80e74506a4`;
-    the merged tree `b63b63eb7f` adds only the check-script fix below).
+    the merged tree `b63b63eb7f` adds only the check-script fix).
     Four slices:
     IntelliJ break rules and wrapped shaping;
     wrap width,
@@ -1260,7 +1260,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     `test` (792),
     `test:wrap` (15 and 67) and
     `test:native` (203) passed,
-    and the ten `inspect:source-guards` cases above (seven new,
+    and the ten `inspect:source-guards` cases this fix names (seven new,
     three re-anchored) each
     passed at baseline,
     failed with the guard removed,
@@ -2437,7 +2437,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     the 64 MiB tile byte bound is unchanged;
     +52 MiB RSS,
     +260 MiB VRAM and +34 ms
-    first frame are accepted until stage 6 and the item below;
+    first frame are accepted until stage 6 and the queued Vello video-memory item;
     `inspect:native` keeps `--accessibility` on,
     the
     measuring tasks leave it off.
@@ -3567,7 +3567,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     a chunk shifted by a whole
     line is invisible to the capture measure (only `minimap_seam_tests.rs` covers it).
     Findings outside the checks,
-    all being worked (agents below):
+    all being worked:
     (1) in a 7680x4320 window at scale 1 the code tile is
     cut to 7259x2280 and 52% of the code view is blank (I confirmed it in `~/temp/agent/sss-shots/w8k/plain.png`);
     (2)
@@ -4152,7 +4152,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     tip `420b7ceb2e`,
     not on `main`):
     it found
-    the release jobs and binstall metadata already present (see the correction above) and only hardened them:
+    the release jobs and binstall metadata already present (see the CORRECTION block about the compositor releases) and only hardened them:
     a dry
     run now builds every target,
     a smoke run and an archive verification step,
@@ -5023,7 +5023,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
       under whatever load there is;
       the stall pass agent) and whether a tile taken in an
     input gap over 20 ms costs a frame;
-      (1b) the code tile stack and the minimap fling lag (the two agents above);
+      (1b) the code tile stack and the minimap fling lag (the two agent handbacks this record describes);
     (2) the flake work,
       in `doc/handover/ide-native-flakes.md`:
     fixed with counts (refused-tile test 10 of 360 to 0 of 360,
@@ -8165,7 +8165,7 @@ guard runs and known costs:
 `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
 section "Skip a hint request that stored answers cover:
 built".
-Hint skip rule (owner answer above):
+Hint skip rule (the owner skip-rule answer):
 landed 2026-10-24 as `83f6240e4b` (fast-forward to the agent's tip),
 installed (sha256 `36c9caad610ced81…`,
 prints 0.1.1).
@@ -10173,7 +10173,7 @@ scratch trees,
 `~/temp/agent/lp`,
 `ft`
 (34 GB),
-`verify` and the disposable projects (see below).
+`verify` and the disposable projects (the scratch list names them).
 Lesson:
 the gates and the agent's counts all passed while the picture was blank;
 the check that found it was
@@ -10181,7 +10181,7 @@ screenshots of the real binary after each press,
 so every change of when the view or hints are handled needs
 a drawn-text check on the installed binary before it is called done.
 Scratch left until the owner confirms the fixes on the installed binary
-(`~/temp/agent/cr` and `~/temp/agent/verify` join the list below):
+(`~/temp/agent/cr` and `~/temp/agent/verify` join the scratch list):
 `~/temp/agent/mm`,
 `~/temp/agent/mm2`,
 `~/temp/agent/reaim` (354 MB,
@@ -10468,7 +10468,7 @@ drawn under the pointer (a constant position for a resting pointer).
 
 ## A pointer that rests over no character asks when the view puts a character under it, 2026-10-25 (branch worktree-agent-a9743aae63279d55b)
 
-The limitation noted in the block above is fixed on the branch (not merged or installed).
+The no-new-popup-after-a-scroll limitation is fixed on the branch (not merged or installed).
 Record:
 `doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
 section "A hover request after a far wheel jump",
@@ -11051,7 +11051,7 @@ three sessions at a time):
   all 300 ended at 36,024 px.
   Arm B,
   60 interleaved sessions:
-  30 normal (all 36,024 px) and 30 positive-control stalls (below).
+  30 normal (all 36,024 px) and 30 positive-control stalls (the positive control this entry records).
   The verifier's own total for sessions without the control stall is 0 of 310 not at 36,024 px.
 - Positive control:
   stopping the app for 2.2 s at the first `row map rebuilt` showed the narrow-width map of 36,456 px at `viewport_width=173` in 30 of 30,
@@ -11526,7 +11526,7 @@ on `origin/main` at `a800292c31`):
 Two of 210 press events (agent `a1ba2331a7bd7b972`,
 docs only,
 merged as `6c2ae6af8b`):
-explained as late log lines in the section above.
+explained as late log lines in the "Two of 210 press events that logged nothing" section.
 The log writer thread sat in `write(1)` (state `D`,
 `folio_wait_bit_common`) for up to 2.75 s on this btrfs host;
 `WAYLAND_DEBUG` writes from the window thread and stalls the press itself.

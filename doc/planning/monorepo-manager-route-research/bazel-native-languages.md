@@ -47,7 +47,7 @@
 
 ## Shared Bazel layer
 
-This `MODULE.bazel` sketch is the skeleton every section below plugs into.
+This `MODULE.bazel` sketch is the skeleton every section from `1. Rust` to `Yikes candidates` plugs into.
 It is a design artifact and has never been evaluated.
 
 ```starlark

@@ -359,7 +359,7 @@ presentation lands on the orientation the lesson now puts first.
 Owned fixtures were stopped and their profiles removed after verification.
 
 Still open at that point,
-and taken up in the next section:
+and taken up in `Second increment: pacing, takeaways, audience labels, and a diagnosis exercise`:
 the unannounced reading load and
 the two unsettled judgment items about audience and `Waiting…`.
 Still open now:

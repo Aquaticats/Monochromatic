@@ -19,7 +19,7 @@ and the stop condition in the index applies.
 
 ## Aged out of the current handover on 2026-08-26 (register item A-5)
 
-The sections below moved here verbatim from `doc/handover/translation-repair.md` on 2026-08-26,
+The sections of this handover moved here verbatim from `doc/handover/translation-repair.md` on 2026-08-26,
 when that file stood 1586 lines over its cap.
 Nothing in them was edited;
 each is closed work whose

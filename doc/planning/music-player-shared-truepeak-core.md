@@ -3,7 +3,7 @@
 Status:
  implementation in progress.
 Stage zero (Turso on Android) is de-risked;
- see the Turso on Android risk note below.
+ see the `Turso on Android` risk note under `Risks and review questions`.
 Stage one (the shared `truepeak-core` crate:
  meter,
  gain,
@@ -269,7 +269,8 @@ The classifier acceptance goal is exact fit on the current corpus:
 The corpus is considered large and varied enough for this product's current acceptance target.
 
 Amended 2026-07-01,
- after the Stage-two evidence (see the fine-bin findings below):
+ after the Stage-two evidence (see the fine-bin collect pass finding under
+ `Stage two evidence and the feasible no-classifier finding`):
 strict exact fit is disproportionately expensive at the quarter budget,
  because a handful of
 tracks hide a sub-tenth-second transient that no sparse probe catches,
@@ -1013,7 +1014,8 @@ Stage-two decisions (2026-07-01):
 - The proportional-coverage probe and the margin-versus-clamp tradeoff are wired into the bench
   as the committed `--proportional` evaluation,
    which reads the shipped
-  `truepeak_core::default_policy` and reproduces the numbers above on the fine corpus.
+  `truepeak_core::default_policy` and reproduces the numbers in the
+  `Stage two evidence and the feasible no-classifier finding` section on the fine corpus.
 - The shipped margin is `0.8 dB`,
    decided with the requester:
    about ninety-nine percent of
@@ -1376,7 +1378,8 @@ would make a stale-cache bug impossible rather than merely discouraged.
 
 These came from a later review pass on 2026-06-25,
 an external review plus direct codebase verification.
-They extend the named sections above and should be merged in place during implementation.
+They extend the sections from `Agreed design decisions` to `Risks and review questions`
+and should be merged in place during implementation.
 They do not reopen any agreed design decision.
 
 ### Decoded-seconds accounting
@@ -1550,7 +1553,8 @@ because the service API depends on Turso being viable on Android:
    durable evidence.
   `package/music-player/truepeak-core.bench` evaluates and searches on the shared meter;
    its
-  run produced the feasible no-classifier finding above.
+  run produced the feasible no-classifier finding in the
+  `Stage two evidence and the feasible no-classifier finding` section.
   The finer-bin shared-meter `collect` regeneration and exact-window verification remain.
 - Stage three (shared surface done):
    full shared service.
@@ -1601,7 +1605,7 @@ because the service API depends on Turso being viable on Android:
 - Stage seven:
    decoder-sharing follow-up.
 
-This supersedes the stage list below.
+This supersedes the stage list under `Suggested implementation stages`.
 Stage zero plus the meter-first order keep benchmark evidence
 from being generated with code that later diverges from production.
 

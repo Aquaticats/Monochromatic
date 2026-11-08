@@ -5,6 +5,13 @@
  `sudo`, `env`, `timeout`, or a shell script string,
  so each wrapper contributes the option words that belong to it.
  
+ A wrapper also changes the environment of the program it launches:
+ `command -p` searches the platform default path instead of the caller's,
+ `env -i` drops the environment altogether,
+ and `env -u` removes a named variable.
+ Those effects are reported so a caller can tell whether that program still
+ finds a wrapper binary the caller's path exposes.
+ 
  @module
  */
 
@@ -26,6 +33,16 @@ type CommandWrapper = {
    Options whose value is a command line the wrapper splits and runs.
    */
   readonly payloadOptions: ReadonlySet<string>;
+  /**
+   Options that run the wrapped program on the platform default search path
+   instead of the caller's, as `command -p` and `env -i` do.
+   */
+  readonly defaultSearchPathFlags: ReadonlySet<string>;
+  /**
+   Options whose value names a variable the wrapper removes from the wrapped
+   program's environment, as `env -u` does.
+   */
+  readonly unsetVariableOptions: ReadonlySet<string>;
   /**
    Leading non-option words consumed before the wrapped program,
    as `timeout` does with its duration.
@@ -60,6 +77,22 @@ const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
       '-S',
       '--split-string',
     ],),
+    defaultSearchPathFlags: new Set([
+      '--ignore-environment',
+      '-i',
+    ],),
+    unsetVariableOptions: new Set([
+      '--unset',
+      '-u',
+    ],),
+    leadingWordsToSkip: 0,
+  },
+  {
+    names: new Set(['command',],),
+    optionsWithValue: NO_OPTIONS,
+    payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: new Set(['-p',],),
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 0,
   },
   {
@@ -92,17 +125,20 @@ const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
       '--user',
     ],),
     payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: NO_OPTIONS,
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 0,
   },
   {
     names: new Set([
       'builtin',
-      'command',
       'nohup',
       'setsid',
     ],),
     optionsWithValue: NO_OPTIONS,
     payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: NO_OPTIONS,
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 0,
   },
   {
@@ -112,6 +148,8 @@ const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
       '--argv0',
     ],),
     payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: NO_OPTIONS,
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 0,
   },
   {
@@ -123,6 +161,8 @@ const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
       '--output',
     ],),
     payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: NO_OPTIONS,
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 0,
   },
   {
@@ -132,6 +172,8 @@ const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
       '--adjustment',
     ],),
     payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: NO_OPTIONS,
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 0,
   },
   {
@@ -149,6 +191,8 @@ const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
       '--uid',
     ],),
     payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: NO_OPTIONS,
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 0,
   },
   {
@@ -162,6 +206,8 @@ const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
       '--output',
     ],),
     payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: NO_OPTIONS,
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 0,
   },
   {
@@ -173,6 +219,8 @@ const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
       '--signal',
     ],),
     payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: NO_OPTIONS,
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 1,
   },
   {
@@ -197,6 +245,8 @@ const COMMAND_WRAPPERS: readonly CommandWrapper[] = [
       '--replace',
     ],),
     payloadOptions: NO_OPTIONS,
+    defaultSearchPathFlags: NO_OPTIONS,
+    unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 0,
   },
 ];

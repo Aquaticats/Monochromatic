@@ -3,7 +3,7 @@
 Status:
  package implementation landed;
  `ssg-test` migration (Phase 6) landed.
- See "Implementation status" below for what shipped and "Footguns encountered" for traps the next contributor should
+ See "Implementation status" for what shipped and "Footguns encountered" for traps the next contributor should
  sidestep.
 
 This plan supersedes the earlier brainstorm for `PLANNING.module-i18n-compose.md`.
@@ -205,7 +205,7 @@ These trapped the first implementation and will trap the next contributor unless
     oxlint's `eslint/max-lines` is `error` and `AGENTS.md` forbids disabling it.
     The remediation is the
     `locales/<lang>/{index,types,render-np,render-adverbial,render-vp,render-sentence,render-fragment}.ts` split
-    documented above.
+    documented in the `package/i18n-compose/core/` tree under "Implementation status".
     `test-vocab.ts` hit the same limit and split into `test-vocab/{index,types,en,zh,ca}.ts`.
     Plan §12's flat layout is normative for the public API surface but not for source-file organization.
 

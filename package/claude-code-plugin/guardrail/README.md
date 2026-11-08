@@ -52,13 +52,17 @@ The handler implements denial responses for four cases:
    `ps | grep` loops are not detected.
 
 4. **Mutating real-Git path blocking**:
-    when a Bash call runs a mutating Git subcommand through a path to the real Git binary
-   (as in `/usr/bin/git commit`),
+    when a Bash call runs a mutating Git subcommand outside the repository's `git` wrapper
+   (as in `/usr/bin/git commit`,
+   `PATH=/usr/bin:$PATH git commit`,
+   `command -p git commit`,
+   `env -i git commit`,
+   or `env -u PATH git commit`),
    it is denied
    with a message naming `git -C <repository-root> <subcommand>` instead.
    The repository's `git` on PATH is a wrapper that applies commit-time policies
    and pushes after a commit;
-   the absolute path skips all of them.
+   each of those forms starts the real binary and skips all of them.
 
 ## Mutating real-Git paths
 
@@ -75,7 +79,11 @@ Covered spellings include a quoted path,
 `cd x && /usr/bin/git add .`,
 `bash -c '/usr/bin/git commit'`,
 a function body,
-and Git global options in front of the subcommand.
+Git global options in front of the subcommand,
+a `PATH` assignment on the same command line or in an earlier statement,
+an attached or separated `env -S` payload,
+and the default search path forms `command -p`,
+`env -i` and `env -u PATH`.
 Only a word carrying a path separator matches,
 so `/usr/share/doc/git/RelNotes` and `/usr/bin/gitk` stay allowed,
 and so does the PATH wrapper,
@@ -90,8 +98,13 @@ Read-only subcommands (`for-each-ref`,
 `cat-file`,
 `ls-files`,
 `merge-base` and the rest of the read set)
-stay allowed through the same absolute path.
+stay allowed through the same absolute path and under any of those search-path forms.
 A subcommand this analyzer has never seen counts as mutating.
+
+A Git path known only at run time stays undetected:
+`bash -c "$CMD commit"` and `G=/usr/bin/git; $G commit` are not refused,
+because the check reads command text and runs no shell evaluator.
+The shared analyzer README lists every undetected form.
 
 The handler is asynchronous because the check resolves the real Git executable;
 the hook runtime awaits every handler.

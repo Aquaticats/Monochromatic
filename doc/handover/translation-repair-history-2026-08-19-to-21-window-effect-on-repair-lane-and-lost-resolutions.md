@@ -202,7 +202,7 @@ one that returns it near 16 has.
 
 ## CORRECTION: `no-region` means the panel said no, not that a quote failed to anchor
 
-The fixed-build re-run settled on 2026-08-20 and refuted the mechanism recorded above.
+The fixed-build re-run settled on 2026-08-20 and refuted the anchoring-failure mechanism that the pre-registered outcomes rest on.
 
 THE EQUIVALENCE,
 over every settled artifact carrying issues:

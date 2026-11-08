@@ -188,7 +188,7 @@ Both push and
 Full record:
 `doc/troubleshooting/pnpr-oidc-github-actions-subject-claim.md`.
 
-The fix (held items 9 and 10 above) makes the generated subject identical to the minted claim,
+The fix (the held items 9 and 10 in "Held lockstep commit (uncommitted)") makes the generated subject identical to the minted claim,
 measured with a node string comparison.
 Ranking note:
 hypotheses 2 (signature or metadata) and 3

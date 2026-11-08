@@ -646,6 +646,10 @@ fn traced_for_files(inner: &Command, trace: &Path) -> Command {
 /// links,
 /// renames or removes the worktree's real `index.lock`,
 /// so it holds no lock of its own across the upgrade;
+/// the one step that does write that lock is the refresh of a stale index's stat data,
+/// and it runs before the request is made and only when the index no longer describes the worktree
+/// (`commit_index_stat_staleness.rs`),
+/// where this repository's index is one Git has just written;
 /// and the service that lands the commit finds the lock free at its first
 /// placement (no look at a held lock),
 /// so the wait for the lock in an upgrade round is another program's,

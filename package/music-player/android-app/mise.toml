@@ -11,9 +11,7 @@
 # *components* (platforms, build-tools, ndk, platform-tools) and the Android Rust
 # target are installed by the run-once root `prepare:android` task (auto-run by the
 # `prepare` umbrella). That task reconciles the Rust target even for a toolchain
-# already at the locked version, once toolchain.lock.json pins an mpm-shadow
-# release carrying that fix; until then the release workflow's Rust step installs
-# it itself
+# already at the locked version
 # (doc/troubleshooting/ci-steps-do-not-see-the-toolchain-environment.md).
 #
 # One engine, one variant: the media3 and hybrid flavors are gone (the full-Rust

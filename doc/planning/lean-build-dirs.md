@@ -757,7 +757,7 @@ section "Keeping the build folders lean"):
 - E,
   size caps:
   `lean_size_caps.rs`.
-  The caps are absolute per profile directory (see the next section),
+  The caps are absolute per profile directory (see the `Measured picks, 2026-11-07` section),
   because a cap relative to a directory's own newest-compiler bytes can never bind.
 - F,
   the timer:
@@ -1414,7 +1414,7 @@ and the section "Measured picks" holds the numbers.
   A is not applied to them,
   B and E keep them lean;
   G is not built.
-- The two open items below were answered on 2026-11-08;
+- The two open items among the original questions were answered on 2026-11-08;
   their answers sit beside the questions,
   and section "Open" of `doc/handover/cargo-shadow-lean-build-folders.md` holds the measurements.
 

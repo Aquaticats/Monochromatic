@@ -638,7 +638,7 @@ and
 `cargo binstall --dry-run --disable-strategies compile,quick-install` finds the archive.
 The plan entry (commit
 `b8f5581796`) installs it through `mpm`;
-see the next section.
+see `Activation, as verified`.
 
 ## Activation, as verified
 

@@ -293,7 +293,7 @@ with no new color role and no new library component.
   Raws and unreviewed frames were deleted.
   Nothing was committed or uploaded;
   the captures are in `/home/user/temp/agent/sp/kept`,
-  and each difference below names its pair by file name.
+  and each difference under `Differences found` names its pair by file name.
 
 ### The stock reference
 
