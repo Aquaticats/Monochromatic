@@ -1,6 +1,6 @@
 //! What:
 //!  The names of the two side references a landing uses,
-//! and what a restart does with the scratch reference of a batch it drops.
+//! and what a landing or a restart does with the scratch reference of a batch that will not land.
 //! Why:
 //!  A landing keeps the objects of its batch reachable with `refs/worktree/cli-git-service/<seq>`,
 //! and the branch write that
@@ -9,9 +9,11 @@
 //!  the deletion,
 //! so the reference stays,
 //! holding objects no branch names.
-//! The restart that finds the batch open and the branch
-//!  unmoved knows the landing will never happen,
-//! so it keeps the commit the reference holds on `refs/cli-git/kept/<seq>`
+//! A batch whose landing ends without recording itself in the journal,
+//! and a batch a restart finds open with the branch
+//!  unmoved,
+//! will never land,
+//! so each keeps the commit the reference holds on `refs/cli-git/kept/<seq>`
 //!  (where the ceiling of an ended step keeps a commit that was not made) and only then removes the scratch
 //!  reference:
 //! no commit is lost,
@@ -19,10 +21,9 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await keepThenRemove(scratchRef(seq), keptRef(seq)); // only for a batch the journal dropped
+//! await keepThenRemove(scratchRef(seq), keptRef(seq)); // only for a batch that will not land
 //! ```
 
-use crate::service_journal::Intent;
 use crate::transaction_git::{GitContext, GitRequest, NO_REFLOG_SETTING, run_git};
 use std::path::Path;
 
@@ -142,12 +143,13 @@ fn left(seq: u64, reason: &str) {
 }
 
 /// What:
-///  Removes the scratch reference of a batch whose landing is proven gone,
+///  Removes the scratch reference of a batch that will not land,
 /// after the commit it holds is on the batch's
 ///  kept reference.
 /// Why:
 ///   The caller has decided that the batch never landed and never will (the branch is neither at the batch's commit
-///  nor below it),
+///  nor below it,
+/// or the intent that would let a restart land it was not written),
 /// so the only thing the scratch reference still does is keep the batch's objects alive.
 /// Its commit is
 ///  kept first,
@@ -162,16 +164,15 @@ fn left(seq: u64, reason: &str) {
 /// ```ts
 /// const tip = await valueOf(scratch); if (tip === 'absent' || tip === 'unasked') return; if (!await keep(tip)) return; await git(['update-ref', '-d', '--no-deref', scratch])
 /// ```
-pub(crate) fn clear_after_dropped_batch(git: &GitContext, intent: &Intent) {
-    let repository: &Path = intent.repository.as_path();
-    let scratch: String = scratch_ref(intent.seq);
-    let kept: String = kept_ref(intent.seq);
+pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq: u64) {
+    let scratch: String = scratch_ref(seq);
+    let kept: String = kept_ref(seq);
     let tip: String = match value_of(git, repository, scratch.as_str()) {
         RefValue::Names(found) => found,
         // No scratch reference at all: the landing made no objects, or its branch write removed it.
         RefValue::Absent => return,
         RefValue::Unasked => {
-            left(intent.seq, format!("{scratch} cannot be read, so nothing is removed").as_str());
+            left(seq, format!("{scratch} cannot be read, so nothing is removed").as_str());
             return;
         }
     };
@@ -179,27 +180,27 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, intent: &Intent) {
     match &already {
         RefValue::Names(named) if *named == tip => {}
         RefValue::Names(named) => {
-            left(intent.seq, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
+            left(seq, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
             return;
         }
         RefValue::Unasked => {
-            left(intent.seq, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
+            left(seq, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
             return;
         }
         RefValue::Absent => {
             if !write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str()]) {
                 left(
-                    intent.seq,
+                    seq,
                     format!("the commit {tip} of a batch that did not land could not be kept at {kept}, so its scratch reference {scratch} is left as it is").as_str(),
                 );
                 return;
             }
-            crate::service_log!("batch {}: the commit {tip} of a batch that did not land is kept at {}", intent.seq, kept);
+            crate::service_log!("batch {}: the commit {tip} of a batch that did not land is kept at {}", seq, kept);
         }
     }
     if write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()]) {
-        crate::service_log!("batch {}: the scratch reference {scratch} of a batch that did not land is removed", intent.seq);
+        crate::service_log!("batch {}: the scratch reference {scratch} of a batch that did not land is removed", seq);
     } else {
-        left(intent.seq, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
+        left(seq, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
     }
 }

@@ -534,7 +534,7 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unread
                 remove_stale(intent.index.as_path(), intent.seq);
                 // The batch will never land, so the scratch reference its killed landing left is removed here; the commit it
                 //  holds is kept first, on the batch's side reference (`service_scratch_ref_of_a_dropped_batch.rs`).
-                clear_after_dropped_batch(&git, &intent);
+                clear_after_dropped_batch(&git, intent.repository.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
                 let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));
                 remove_start(context.journal.as_path(), intent.seq);
