@@ -6,7 +6,7 @@ read-only).
 Nothing was deleted and no build configuration was changed in that round.
 
 Status,
-2026-11-07T23:36:26-05:00:
+2026-11-07T23:40:00-05:00:
 the owner decided in the question tool ("A to F, B allowed (Recommended)")
 and the six mechanisms are built in `package/cargo-shadow/cli`.
 Section "Owner decision and what was built" says what exists,
