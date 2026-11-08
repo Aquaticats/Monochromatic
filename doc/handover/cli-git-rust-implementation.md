@@ -4076,7 +4076,7 @@ open and not rerun:
 `native_binary service_sequencer::a_pathspec_commit_during_a_revert_is_what_git_makes` (11.9 s),
 whose wrapper side printed the line "still waiting for git --git-dir=..." on standard error where real Git printed none.
 The line is the wait notice of a Git child that showed no progress for its cadence;
-the control ran under a host load average of about 50 beside other sessions' gates.
+the control ran beside other sessions' work on this host (the load average during that run was not recorded; it was 22.7 a quarter of an hour later).
 Whether the stop change (a branch write takes no stop arm) can move that notice is unmeasured;
 the notice code (`watch_loop`) is not changed by it.
 Open:
