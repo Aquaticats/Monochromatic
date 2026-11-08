@@ -99,7 +99,9 @@ and that lasted four turns:
 ### Follow-up, abort, and clear_queue
 
 Each ran in its own Pi process on 2026-11-07,
-with the `synthetic` model at `--thinking low`.
+with the `synthetic` model started with `--thinking low`
+(the effective level is inferred to have been `xhigh`,
+see "The thinking-default plugin overrides --thinking").
 The prompt asked for `sleep 20` through `bash`,
 then two file reads,
 as separate tool calls,
@@ -237,9 +239,116 @@ for widgets,
 titles,
 status entries,
 and notices.
+In the first full run,
+18 of 131 records were these,
+about 14 percent,
+and 7 of them arrived back to back before `agent_start`.
+Examples were `setWidget` (`processes-dock`,
+`processes-status`),
+`setTitle`,
+`setStatus` (`pi-statusline.usage`,
+`hyper`,
+`goal`),
+and a `notify` warning that MCP tools are only reachable from the codemode or tool_search tool.
+A client has to recognize and skip them.
 Those that were seen need no reply.
-A dialog-style request would,
-and none appeared in the run.
+A dialog-style request does,
+and none appeared in any run.
+
+### Dialog requests block until answered
+
+`docs/rpc-extension-ui.md` splits the methods in two.
+The dialog methods `select`,
+`confirm`,
+`input`,
+and `editor`
+"block until the client sends back an `extension_ui_response`" with the matching `id`.
+The fire-and-forget methods `notify`,
+`setStatus`,
+`setWidget`,
+`setTitle`,
+and `set_editor_text`
+expect no response.
+If a dialog carries a `timeout` field,
+the agent side auto-resolves with a default value when it expires.
+
+The source agrees (`packages/coding-agent/src/modes/rpc/rpc-mode.ts`,
+[`createDialogPromise`, lines 94 to 135][dialog-source]).
+The awaiting extension code resumes on a matching response,
+on its abort signal,
+or on a timeout the extension chose.
+With none of those,
+the promise stays pending forever.
+That blocks whatever extension code awaits it,
+and a tool call,
+command,
+or run that depends on that code waits too.
+No run here produced a dialog request,
+so the stall itself was not observed.
+
+A client should answer every `extension_ui_request` whose `method` is a dialog method
+with an `extension_ui_response` carrying the same `id`.
+
+### Which of the owner's extensions can raise a dialog
+
+Pi loaded 18 packages from `~/.pi/agent/settings.json`:
+13 from this repository and 5 from npm
+(`pi-btw`,
+`pi-processes`,
+`pi-synthetic-provider`,
+`pi-hyper-provider`,
+`pi-radius`).
+A static search of their sources for calls to the UI context found these.
+
+- Can block,
+  and only when a command is sent:
+  `@earendil-works/pi-radius` runs `ctx.ui.select("Select provider for <model>")`
+  (`extensions/radius-routing.ts` lines 474 and 556)
+  inside its `/radius` command when the action is `force` or `prefer` and no provider id is given.
+  `@charmland/pi-hyper-provider` runs `ctx.ui.select("Hyper status settings", ...)` in a loop
+  and then `ctx.ui.confirm("Save Hyper status settings?")`
+  (`src/credits.ts` lines 324 and 355)
+  inside its `/hyper-status` command (`src/index.ts` line 199).
+  Neither fires by itself.
+  Both need a `prompt` whose message starts with the command,
+  and extension commands execute immediately even while a run is streaming.
+- Cannot block through the protocol:
+  `ui.custom()` returns `undefined` at once in RPC mode
+  (`rpc-mode.ts` lines 232 to 235,
+  "Custom UI not supported in RPC mode").
+  `pi-btw`,
+  `pi-processes`,
+  and the `pi-synthetic-provider` commands only use `ui.custom`.
+  The repository's `goal` plugin also uses it for a manual review dialog,
+  and returns `review_unavailable` before reaching it when `context.mode !== 'tui'`
+  (`package/pi-plugin/goal/src/review-unavailable.ts` line 20).
+  The `ask-user-question` plugin works only in interactive TUI mode and answers RPC with an unavailable-tool error
+  (its README,
+  and `src/tool.ts` line 155).
+- The other 11 packages:
+  no dialog calls found.
+
+The search looked for `select`,
+`confirm`,
+`input`,
+`editor`,
+and `custom` on the UI context.
+It would miss a dialog created through a wrapper or an alias,
+and code reached only through dependencies of dependencies.
+
+### One session per process
+
+A Pi process holds one active session at a time.
+`fork`,
+`clone`,
+`switch_session`,
+and `new_session` replace it:
+`get_state` showed a different `sessionFile` after each,
+and `switchSession` tears down the current runtime before applying a new one
+(`packages/coding-agent/src/core/agent-session-runtime.ts` lines 196 to 224).
+To run N agents in parallel,
+start N processes,
+each with its own model connection and extensions.
 
 ## Choosing a model
 
@@ -331,6 +440,77 @@ finds a suffix that is not a thinking level,
 and warns.
 It is noise from that pattern and unrelated to the model in use.
 
+### The thinking-default plugin overrides --thinking
+
+The owner's `thinking-default` plugin (`package/pi-plugin/thinking-default`) calls `pi.setThinkingLevel(...)`
+on `session_start` and on every model change
+(`src/index.ts` lines 101 to 142;
+its README,
+"Behavior" and "Level selection").
+It picks `xhigh` when the model supports it and `high` otherwise,
+whatever the command line says.
+Tested with `get_state` after startup and `--thinking low`:
+
+- `synthetic` / `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
+  extensions on:
+  `xhigh`.
+- `openrouter` / `deepseek/deepseek-v4.1-flash`,
+  extensions on:
+  `high`.
+- The same `openrouter` model with `--no-extensions`:
+  `low`.
+
+The last two differ only in whether extensions load,
+so the plugin is what changed the level.
+The scenario and persisted-session runs in this doc were started with `--thinking low`.
+`get_state` was not read in those runs,
+so their effective level is inferred to have been `xhigh` from this test.
+Send `set_thinking_level` after startup if the level matters,
+and read `get_state`.
+The README says a manual change stays in effect until the next session start or model selection.
+That was not tested.
+
+### Project trust is silent in RPC mode
+
+A folder with a project `.pi/settings.json`
+(or `mcp.json`,
+`extensions`,
+`skills`,
+`prompts`,
+`themes`,
+`SYSTEM.md`,
+`APPEND_SYSTEM.md`,
+or an `.agents/skills` folder in it or an ancestor)
+needs a trust decision.
+In RPC mode Pi does not ask.
+Its trust context returns `undefined` from `select` and `false` from `confirm` unless the mode is interactive
+([`packages/coding-agent/src/cli/project-trust.ts` lines 11 to 30][trust-source]),
+and `resolveProjectTrusted` treats an unanswered prompt as not trusted
+(`packages/coding-agent/src/core/project-trust.ts` lines 9 to 18).
+Tested in a throwaway folder whose `.pi/settings.json` set steering mode `one-at-a-time` and follow-up mode `all`,
+against a baseline of `all` and `one-at-a-time` in a plain folder:
+
+- No flag:
+  baseline values,
+  so the project settings were ignored.
+  No dialog record.
+- `--approve`:
+  the project values.
+  No dialog record.
+- `--no-approve`:
+  baseline values.
+  No dialog record.
+
+`~/.pi/agent/trust.json` kept its modification time,
+so no decision was saved.
+To use a folder's project-level settings or packages from a subagent,
+pass `--approve`.
+Without it they are ignored with no message in the stream.
+Only a project `settings.json` was tested.
+A first attempt that used `defaultThinkingLevel` showed no effect even with `--approve`,
+because of the override in "The thinking-default plugin overrides --thinking",
+and was discarded.
+
 ### The readiness check: right about two providers, one open discrepancy
 
 `pi auth check --provider <p> --model <m> --json --no-refresh` prints `status` and `provider`
@@ -386,6 +566,45 @@ For a missing key,
 the text names the provider and points to Pi's `docs/providers.md` and `docs/models.md`.
 A client that only waits for `agent_settled` will wait forever,
 so give it a deadline and an exit handler.
+
+## Compared with driving dsh
+
+Both were driven from this repository on 2026-11-07,
+with one run per scenario and no spread measured,
+so the timings in this section are single runs.
+The dsh side is in `doc/agent/drive-dsh-as-a-subagent.md`.
+
+Pi is the easier of the two to drive as a throwaway subagent:
+
+- One process and stdin and stdout JSONL,
+  with no token,
+  cookie,
+  or port.
+- A documented protocol in the installed package.
+  dsh's HTTP call shapes had to be read from source.
+- A full control set that behaved as documented:
+  `steer`,
+  `follow_up`,
+  `abort`,
+  `clear_queue`,
+  `fork`,
+  `clone`,
+  `switch_session`.
+- Fast:
+  the 27-command idle sweep took under two seconds and the persisted-session run 35 seconds,
+  while dsh's SDK server took about 18 seconds to answer `initialize`.
+- Nothing persists with `--no-session`,
+  while a dsh session lands in the owner's real session list.
+
+dsh's web profile wins when a long-lived server with durable,
+resumable sessions and pageable history is wanted.
+Its docs say one connection can run several sessions at once.
+That was not tested here:
+the dsh runs executed one session at a time,
+and the Pi side runs one active session per process.
+
+Part of Pi's advantage is that its protocol is documented,
+and that would shrink the gap if dsh documented a stable HTTP API.
 
 ## Client script
 
@@ -604,13 +823,23 @@ reading `get_state` after most steps.
 - `prompt` without `streamingBehavior` during a run is documented as an error and was not run.
 - Whether Pi writes a forked session file lazily,
   which fits one forked file being absent from disk and was not checked in the source.
-- Extension dialog requests that need a reply.
+- A dialog request actually stalling a run.
+  The behavior is documented and in the source,
+  and no run produced a dialog request.
+- Project trust for resources other than a project `settings.json`,
+  such as project `extensions` or `.agents/skills`.
+- Loading only a provider extension with `-e <path>` to avoid the extension noise,
+  as an alternative to `--no-extensions`.
+- Whether `set_thinking_level` survives until the next model change,
+  as the `thinking-default` README says.
 - Image prompts,
   `codemode`,
   and MCP tools.
 - The cause of `invalid_state` for the `synthetic` readiness check,
   because the runtime error text was not captured.
 
+[dialog-source]: https://github.com/earendil-works/pi/blob/6e2222a8dda06e3d69fad46d630f152f5873567a/packages/coding-agent/src/modes/rpc/rpc-mode.ts#L94-L135
+[trust-source]: https://github.com/earendil-works/pi/blob/6e2222a8dda06e3d69fad46d630f152f5873567a/packages/coding-agent/src/cli/project-trust.ts#L11-L30
 [resolver-source]: https://github.com/earendil-works/pi/blob/6e2222a8dda06e3d69fad46d630f152f5873567a/packages/coding-agent/src/core/model-resolver.ts#L121-L126
 [abort-source]: https://github.com/earendil-works/pi/blob/6e2222a8dda06e3d69fad46d630f152f5873567a/packages/coding-agent/src/core/agent-session.ts#L2601-L2611
 [auth-check-source]: https://github.com/earendil-works/pi/blob/6e2222a8dda06e3d69fad46d630f152f5873567a/packages/coding-agent/src/cli/auth-check.ts#L22-L53
