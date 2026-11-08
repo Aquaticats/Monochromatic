@@ -99,6 +99,70 @@ Owner decisions given in this session:
 - Throwaway Pi home:
   `~/temp/agent/pi-goal-agent-home` (`settings.json` plus a copy of `auth.json`).
 
+## Unassisted attempt
+
+The owner's calibration:
+DeepSeek V4.1 Flash at `xhigh` is about a Sonnet 5.5 low-level model.
+The first attempt (commit `9cbfa55e70` on `fix/pi-goal-reviewer-human-input-rubric`) followed a detailed brief with exact wording,
+so it measures instruction-following.
+The owner asked for a second attempt with less handholding in an isolated worktree,
+to see whether it works satisfactorily.
+
+- Worktree `.claude/worktrees/pi-goal-rubric-solo`,
+  branch `fix/pi-goal-reviewer-rubric-solo`,
+  based on `d3dab4839d`.
+- Brief `~/temp/agent/pi-rpc-trial/prompts/solo.md`:
+  the problem,
+  the evidence,
+  and the owner's intent only.
+  No files,
+  names,
+  wording,
+  steps,
+  or test list.
+  The model has a shell and is told to verify with the repository's own checks.
+- Git guard:
+  a shim at `~/temp/agent/pi-solo-shim/git` first in `PATH` refuses every git subcommand except read-only ones,
+  because a commit in this repository auto-pushes.
+  It was checked to refuse `commit` and `push` and to pass `rev-parse`.
+  It guards against mistakes only,
+  since an absolute path to the real git bypasses it.
+- Acceptance criteria,
+  fixed before the run.
+  Satisfactory means all of these hold and the model's report matches reality:
+  1. After `build`,
+     `lint:types`,
+     `test:unit` and `lint` of `//package/pi-plugin/goal` all exit 0 in the worktree,
+     and the new test names appear in the unit test output.
+  2. For a session that cannot reach the user,
+     the reviewer system prompt holds no instruction to ask the user or to use `ask_user_question`.
+  3. For hard,
+     unsolved,
+     or unfinished work,
+     the prompt requires one concrete next attempt that differs from the earlier ones
+     and forbids stopping,
+     explaining impossibility,
+     or asking for a different task.
+  4. For a session that can reach the user,
+     routing to `ask_user_question` remains for what only the user can supply.
+  5. The signal for "can reach the user" comes from the real session mode at the production call site.
+  6. The new tests fail on the base without the model's source change.
+  7. Scope:
+     edits only under `package/pi-plugin/goal/`,
+     no stray files in the worktree,
+     `/tmp`,
+     or the main checkout,
+     no git state changed.
+- Recorded and not graded:
+  wall time,
+  tokens,
+  cost,
+  tool calls and errors,
+  which checks it ran and in what order,
+  whether it noticed that the tests run against the built artifact,
+  and any claim in its report that the checks contradict.
+- The two attempts are then compared on the same Collatz rerun under "Next steps in order".
+
 ## Next steps in order
 
 1. When the subagent settles,

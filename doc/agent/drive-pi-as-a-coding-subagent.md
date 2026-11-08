@@ -21,11 +21,20 @@ because the git-policy tooling copies ignored files in
 the paragraph on what happens after `git worktree add` has filled a worktree).
 `mise run //package/pi-plugin/goal:lint:types` and `:test:unit` ran in it with no install step.
 
-Piping that command into `tail` made the shell call hang,
-although the worktree and branch existed within seconds.
-A long-lived git-policy process holds the pipe open.
-Send its output to a file,
-or check the worktree directly instead of waiting on the pipe.
+The `git worktree add` call itself returned only after minutes,
+on both worktrees made this way,
+although the directory,
+the branch,
+and the copied `node_modules` were usable within seconds.
+Redirecting its output to a file did not change that,
+so a held pipe is not the cause.
+The same README paragraph says the wrapper starts each tool's offline repair in the new worktree after the copy
+(`pnpm install --offline --frozen-lockfile`,
+a Cargo build directory clone,
+and `mpm-shadow install --frozen-lockfile`).
+That the add waits for those repairs is inferred from the delay and is not stated in the README.
+Run the add in the background with its output in a file,
+and check the worktree directly.
 
 ### A baseline before the subagent edits anything
 
@@ -327,6 +336,12 @@ Record shapes the feed relies on:
   A small first task still took 34 seconds from prompt to settle.
 - Gaps of 20 seconds or more between events occurred during thinking at `xhigh`.
   Silence in the feed is not a hang.
+Every timing in this doc was measured on the `synthetic` provider on 2026-11-07,
+which the owner describes as a relatively slow provider for this model,
+with roughly three times the prefill and generation speed expected later.
+Read the seconds as that provider's,
+  not as the model's.
+The counts of tool calls and turns do not depend on speed.
 - A second task sent through the inbox while the agent was idle became a new prompt in the same session,
   and the model started on it by reading the files its context did not yet hold.
 - No dialog request arrived in the runs so far.
