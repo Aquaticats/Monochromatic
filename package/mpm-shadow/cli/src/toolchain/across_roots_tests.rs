@@ -15,7 +15,7 @@ use super::cargo_installs::{current_link, older_lock_message_for, point_current_
 use super::context::Context;
 use super::fakes::{Rig, write_executable};
 use super::fakes_cargo::{fake_binstall, finish_install};
-use super::launcher::{LaunchRecord, parse_record, prepare_launch, record_path};
+use super::launcher::{LaunchRecord, parse_record, prepare_launch, record_path, warning_naming_program};
 use super::layout::find_tool_bin;
 use super::lock::{Lock, render_lock};
 use super::model::LockedTool;
@@ -275,7 +275,11 @@ fn the_global_scope_does_the_same_with_the_global_upgrade_command_and_its_postin
     assert_eq!(record.real, duo.copy_in(&duo.repository_root()), "the launcher runs the repository root's newest copy");
     assert_eq!(record.scope, ScopeKind::Global);
     let launch = prepare_launch(&record, Some(&fs::read_to_string(&duo.global.lock_file).expect("read the lock")));
-    assert_eq!(launch.warning, Some(expected), "the launcher warns on every run with the global command");
+    assert_eq!(
+        launch.warning,
+        Some(warning_naming_program(&expected, &launch.program)),
+        "the launcher warns on every run with the global command, naming the program it starts"
+    );
     assert!(launch.program.is_file());
 
     let listed = run_status(&duo.global, &duo.rig.env, &duo.rig.runner, &duo.rig.host).expect("listed");

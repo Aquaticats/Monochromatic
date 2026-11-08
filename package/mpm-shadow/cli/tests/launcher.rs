@@ -472,10 +472,12 @@ fn a_record_that_cannot_be_rewritten_is_a_warning_and_the_program_still_runs() {
     assert!(stderr.ends_with(&*String::from_utf8_lossy(&direct.stderr)), "{stderr}");
 }
 
-/// Guard, green before the change except for the named path:
-/// the machine-global launcher (`~/.local/bin/git` on the owner's machine) went through the same follow-current route
-/// when it ran as a current build,
-/// and only a launcher binary older than that route started the deleted folder.
+/// A guard for the machine-global launcher (`~/.local/bin/git` on the owner's machine):
+/// a global record whose version folder was deleted runs the program under `current`,
+/// names that path and the global upgrade command,
+/// and keeps the global scope when it rewrites the record.
+/// A launcher binary older than the follow-current rule started the deleted folder and failed;
+/// only the named path was red before this change.
 #[test]
 fn a_global_launcher_whose_recorded_version_was_deleted_names_the_path_it_starts_and_the_global_command() {
     let moved = MovedArchive::in_scope(ScopeKind::Global, "0.1.4", "0.1.4", "0.1.5");
@@ -498,6 +500,6 @@ fn a_launcher_never_prints_the_older_lock_warning_for_a_program_it_does_not_star
     fs::remove_file(moved.program_of("0.1.5")).expect("remove the program");
     let launched = run(&moved.launcher, &[], &[]);
     let stderr = String::from_utf8_lossy(&launched.stderr);
-    assert!(!stderr.contains("starting"), "a warning that says starting is printed only when a program starts: {stderr}");
+    assert!(!stderr.contains("; starting"), "a warning that says starting is printed only when a program starts: {stderr}");
     assert!(!stderr.contains("warning:"), "{stderr}");
 }

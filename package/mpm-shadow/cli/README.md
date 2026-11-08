@@ -1165,7 +1165,10 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   (`/proc/self/exe`).
 - Started under that path,
   `mpm-shadow` reads the record and the lock,
-  prints the warning above on standard error when the version behind `current` is newer than the lock pins,
+  prints the warning above on standard error when the version behind `current` is newer than the lock pins
+  (the line ends with `; starting <path>`,
+  the program it is about to start,
+  never a path a stale record named),
   then replaces itself with the real binary (`exec`):
   argv,
   environment,
@@ -1219,14 +1222,17 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   which exits 127 for a deleted folder until `mise run toolchain:install` or `mpm install` runs in that tree
   (that run rewrites the record from `current`).
 - When no program of that name exists under `current` either,
-  the launcher exits 127 and prints,
-  after the `could not start` line,
+  the launcher exits 127 without starting anything:
+  it checks that the program is a file before it starts it,
+  prints `mpm-shadow: not starting <path>: no file exists there` with no older-lock warning,
+  and then
   one sentence naming the tool,
   the version the lock pins,
   the version `current` names
   and the command to run:
   `mpm install` in the tree (`mpm install -g` for the machine-global launcher).
   An unreadable lock or link leaves out the version it would have named.
+  A file that vanishes between the check and the start still gets the `could not start` line and the same sentence.
 - The launcher never reads `PATH` or the working directory,
   so which tree's launcher runs depends only on the path it was started by.
   Mise puts the tree's own `.cache/*-bin` directories first on `PATH` for `mise run`,
