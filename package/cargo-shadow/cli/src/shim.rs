@@ -165,6 +165,8 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
     if let Some(value) = guard_value {
         command.env(GUARD_VARIABLE, value);
     }
+    // Mechanism A: the build folder of this toolchain and workspace, for the child cargo only (`lean_keyed_folder.rs`).
+    crate::lean_keyed_folder::apply_keyed_build_dir(&mut command, arguments, &env::current_dir().unwrap_or_default());
     crate::shadow_identity::mark_start(&mut command, crate::shadow_identity::StartMode::Spawn);
     let status: ExitStatus = command.status()?;
     return Ok(exit_code_of(status));
@@ -313,6 +315,8 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
             }
         };
         command.args(&arguments).env(GUARD_VARIABLE, &guard_value);
+        // Mechanism A: the build folder of this toolchain and workspace, for the child cargo only (`lean_keyed_folder.rs`).
+        crate::lean_keyed_folder::apply_keyed_build_dir(&mut command, &arguments, &env::current_dir().unwrap_or_default());
         crate::shadow_identity::mark_start(&mut command, crate::shadow_identity::StartMode::Exec);
         let error: std::io::Error = command.exec();
         eprintln!("cargo-shadow: could not start {}: {error}", program.display());

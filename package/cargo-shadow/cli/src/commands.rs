@@ -398,6 +398,10 @@ fn now_millis() -> i64 {
 /// export async function runCommand(command: Command): Promise<number>
 /// ```
 pub fn run_command(command: Command) -> i32 {
+    // The lean-folder tools need no catalog: they start from the checkout that holds the working directory.
+    if let Command::Lean { action } = &command {
+        return crate::lean_command::run_lean_action(action);
+    }
     // Acknowledging a journal needs no catalog: it names the journal and the workspace follows from its path.
     if let Command::Acknowledge { journal } = &command {
         return match crate::acknowledge::acknowledge(journal) {
@@ -679,6 +683,11 @@ pub fn run_command(command: Command) -> i32 {
                     INSTALL_FAILED_EXIT_CODE
                 }
             };
+        }
+        // Handled before the catalog is read; reaching this arm means the early return above was removed.
+        Command::Lean { .. } => {
+            eprintln!("cargo-shadow: lean reached the catalog commands; this is a defect");
+            return INSTALL_FAILED_EXIT_CODE;
         }
         // Handled before the catalog is read; reaching this arm means the early return above was removed.
         Command::Acknowledge { .. } => {

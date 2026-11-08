@@ -922,3 +922,142 @@ mod workspace_tests;
 /// The tests of the limits a run's scope keeps from its caller.
 #[cfg(test)]
 mod inherited_limits_tests;
+
+/// The device and inode of an entry,
+/// the clock and the deadline of the lean-folder tools.
+pub mod lean_identity;
+
+/// The non-blocking take of a Cargo profile directory's build locks.
+pub mod lean_lock_probe;
+
+/// The scan of `/proc` for processes using a path.
+pub mod lean_proc_scan;
+
+/// The one way the lean-folder tools remove an entry.
+pub mod lean_removal;
+
+/// Disk sizes of trees.
+pub mod lean_sizes;
+
+/// The proof that a profile directory is not in use.
+pub mod lean_guard;
+
+/// The reader of a profile directory's units.
+pub mod lean_unit_reader;
+
+/// The removal of units under the shared protocol.
+pub mod lean_unit_removal;
+
+/// The decision of the sweep of older compilers.
+pub mod lean_sweep_plan;
+
+/// Fixtures of the lean-folder tests.
+#[cfg(test)]
+mod lean_test_support;
+
+/// The tests of the sweep and the protocol under it.
+#[cfg(test)]
+mod lean_sweep_tests;
+
+/// The tests of the removal primitive.
+#[cfg(test)]
+mod lean_removal_tests;
+
+/// Mechanism A:
+/// the toolchain-keyed build folder of a host cargo run.
+pub mod lean_keyed_folder;
+
+/// The tests of the toolchain-keyed build folder.
+#[cfg(test)]
+mod lean_keyed_folder_tests;
+
+/// The trees of a host build base.
+pub mod lean_build_trees;
+
+/// Mechanism C:
+/// the collection of verified-idle trees.
+pub mod lean_idle_trees;
+
+/// The tests of the idle-tree collection.
+#[cfg(test)]
+mod lean_idle_trees_tests;
+
+/// Mechanism E:
+/// the size cap of a profile directory.
+pub mod lean_size_caps;
+
+/// The tests of the size cap.
+#[cfg(test)]
+mod lean_size_caps_tests;
+
+/// Mechanism D:
+/// the retention of verification run records.
+pub mod lean_run_records;
+
+/// The tests of the run-record retention.
+#[cfg(test)]
+mod lean_run_records_tests;
+
+/// The checkouts of a repository,
+/// found from the Git directory's files.
+pub mod lean_checkouts;
+
+/// The tests of the checkout listing.
+#[cfg(test)]
+mod lean_checkouts_tests;
+
+/// The removal of dated nightly toolchains no checkout pins.
+pub mod lean_rustup_toolchains;
+
+/// The tests of the toolchain retirement.
+#[cfg(test)]
+mod lean_rustup_toolchains_tests;
+
+/// The words of the repository's sources that can name an image or a volume.
+pub mod lean_container_references;
+
+/// The removal of unused container images and volumes.
+pub mod lean_podman_cleanup;
+
+/// Real Podman behind the cleanup's interface.
+pub mod lean_podman_real;
+
+/// The tests of the Podman cleanup.
+#[cfg(test)]
+mod lean_podman_cleanup_tests;
+
+/// The numbers of the lean-folder tools and what each rests on.
+pub mod lean_policy;
+
+/// Where the lean-folder run looks.
+pub mod lean_run_discovery;
+
+/// The free-space figures of a lean-folder run.
+pub mod lean_run_report;
+
+/// The run-record retention with the real clock.
+pub mod lean_run_records_glue;
+
+/// The steps of a lean-folder run.
+pub mod lean_run_steps;
+
+/// The lean-folder run.
+pub mod lean_run;
+
+/// Mechanism F:
+/// the daily systemd user timer and its installer.
+pub mod lean_timer_units;
+
+/// The tests of the timer units.
+#[cfg(test)]
+mod lean_timer_units_tests;
+
+/// The command-line glue of `cargo-shadow lean`.
+pub mod lean_command;
+
+/// Named reads of paths and text shared by the lean-folder tools.
+pub mod lean_text;
+
+/// The tests of the ban on the lean-folder tools starting cargo or themselves.
+#[cfg(test)]
+mod lean_no_recursion_tests;
