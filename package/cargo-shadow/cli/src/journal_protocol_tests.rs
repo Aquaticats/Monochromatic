@@ -1681,3 +1681,153 @@ fn the_output_barrier_syncs_the_file_and_then_its_directory_as_the_kernel_sees_i
     };
     assert!(first < second, "the directory was synchronized before the file: {calls:?}");
 }
+
+/// Acceptance rows A4 and V5 (sixth pass,
+/// group 5):
+/// the manifest's own output barrier is failed on its own,
+/// with a fault that names that file,
+/// while the lockfile's barrier is left to succeed.
+/// The finish stops as a mandatory failure of the output phase,
+/// no marker is renamed,
+/// no cleanup is attempted,
+/// and the journal stays active.
+/// A regression that stops propagating the manifest's barrier error still reaches the
+/// marker (the lockfile's barrier is untouched) and turns this red.
+#[test]
+fn a_manifest_barrier_that_fails_on_its_own_stops_the_ordinary_finish() {
+    for directory_barrier in [false, true] {
+        let root = repository("final output");
+        let manifest: PathBuf = root.path().join(CRATE_DIR).join("Cargo.toml");
+        fs::write(&manifest, "final manifest").expect("manifest");
+        let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin");
+        transaction.add_manifests(&[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "before".to_string(), produced: None }]).expect("manifests");
+        if directory_barrier {
+            crate::failpoints::arm_output_directory_sync_of(&manifest);
+        } else {
+            crate::failpoints::arm_output_file_sync_of(&manifest);
+        }
+        let _ = crate::bounded_run::take_trace_for_test();
+
+        let outcome = transaction.finish();
+
+        let (file_armed, directory_armed) = crate::failpoints::path_targets_armed();
+        assert!(!file_armed && !directory_armed, "directory={directory_barrier}: the manifest's barrier was never reached");
+        let error = outcome.expect_err("a failed manifest barrier must fail the finish");
+        assert!(!error.cleanup_only(), "directory={directory_barrier}: the failure was read as a cleanup: {error}");
+        let seen: Vec<String> = crate::bounded_run::take_trace_for_test();
+        assert!(seen.iter().any(|event| { return event == "durable Cargo.lock"; }), "directory={directory_barrier}: the lockfile barrier did not succeed first, so the schedule is not the manifest's alone: {seen:?}");
+        assert!(!seen.iter().any(|event| { return event.starts_with("marker ") || event.starts_with("cleanup "); }), "directory={directory_barrier}: the marker or the cleanup went on after a failed manifest barrier: {seen:?}");
+        let journals: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
+        assert_eq!(journals.len(), 1, "directory={directory_barrier}");
+        assert!(!journals[0].to_string_lossy().ends_with(".done"), "directory={directory_barrier}: the journal was marked done");
+
+        // The control: the same schedule without the fault reaches the marker, so the stop above is the fault's.
+        let control = repository("final output");
+        let control_manifest: PathBuf = control.path().join(CRATE_DIR).join("Cargo.toml");
+        fs::write(&control_manifest, "final manifest").expect("manifest");
+        let control_transaction = begin(control.path(), &[snapshot("original")], true).expect("begin");
+        control_transaction.add_manifests(&[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: control_manifest.clone(), before: "before".to_string(), produced: None }]).expect("manifests");
+        let _ = crate::bounded_run::take_trace_for_test();
+        control_transaction.finish().expect("the control finishes");
+        let control_seen: Vec<String> = crate::bounded_run::take_trace_for_test();
+        assert!(control_seen.iter().any(|event| { return event == "durable Cargo.toml"; }) && control_seen.iter().any(|event| { return event == "marker renamed"; }), "the control did not reach the manifest barrier and the marker: {control_seen:?}");
+    }
+}
+
+/// Acceptance row V5 (sixth pass,
+/// group 5):
+/// a recovery's manifest barrier is failed on its own,
+/// with a fault that names that file:
+/// the recovery is a mandatory failure,
+/// names the manifest,
+/// keeps the journal,
+/// and the settled lockfile and manifest stay where the recovery put them.
+/// A regression that skips the manifest's barrier keeps the journal's state unchanged here and spends no
+/// targeted fault,
+/// so the reached assertion fails.
+#[test]
+fn a_recovery_manifest_barrier_that_fails_on_its_own_is_mandatory_and_keeps_the_journal() {
+    for directory_barrier in [false, true] {
+        let root = repository("unchecked output of the killed run");
+        let manifest: PathBuf = root.path().join(CRATE_DIR).join("Cargo.toml");
+        fs::write(&manifest, "edited manifest of the killed run").expect("manifest");
+        let manifests: Vec<ManifestEdit> = vec![ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "manifest before".to_string(), produced: None }];
+        let journal: PathBuf = plant(root.path(), &[snapshot("original")], &manifests);
+        if directory_barrier {
+            crate::failpoints::arm_output_directory_sync_of(&manifest);
+        } else {
+            crate::failpoints::arm_output_file_sync_of(&manifest);
+        }
+
+        let report = crate::journal_recover::recover_report(root.path(), &|_before: &[LockSnapshot], _live: &[LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+        let (file_armed, directory_armed) = crate::failpoints::path_targets_armed();
+        assert!(!file_armed && !directory_armed, "directory={directory_barrier}: the manifest's barrier was never reached: {report:?}");
+        assert!(report.mandatory_failure, "directory={directory_barrier}: a failed manifest barrier was not mandatory: {report:?}");
+        assert!(report.messages.iter().any(|message| { return message.contains(&manifest.display().to_string()) && message.contains("could not be synced"); }), "directory={directory_barrier}: no message names the manifest's barrier: {report:?}");
+        assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal], "directory={directory_barrier}: the journal was not kept as it is");
+        assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "original", "directory={directory_barrier}: the settled lockfile did not stay");
+        assert_eq!(fs::read_to_string(&manifest).expect("manifest"), "manifest before", "directory={directory_barrier}: the settled manifest did not stay");
+    }
+}
+
+/// Acceptance row V5 (sixth pass,
+/// group 5,
+/// syscall observation):
+/// the directory that lists the completion marker is synchronized by the kernel after the rename that publishes it,
+/// and before the journal is removed.
+/// The helper process runs the production `finish_journal` under `strace`, so no in-process
+/// trace can stand in for the barrier: a regression that keeps the failpoint and the trace event but drops the
+/// `sync_directory` call removes the fsync that this test requires between the rename and the removal.
+#[test]
+fn the_completion_parent_barrier_is_synchronized_by_the_kernel_before_the_journal_is_removed() {
+    let found = std::process::Command::new("strace").arg("--version").output();
+    if found.is_err() {
+        crate::test_scratch::skip_or_fail("strace is not installed, so the system calls of the completion barrier cannot be observed here");
+        return;
+    }
+    let root = repository("final output");
+    let journals: PathBuf = root.path().join(".cache/cargo-shadow/journal");
+    let journal: PathBuf = journals.join("completion");
+    fs::create_dir_all(&journal).expect("a journal directory");
+    let log: PathBuf = root.path().join("strace-completion.log");
+
+    let status = std::process::Command::new("strace")
+        .args(["-f", "-y", "-e", "trace=rename,renameat,renameat2,unlinkat,rmdir,fsync,fdatasync", "-o"])
+        .arg(&log)
+        .arg(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "journal_protocol_tests::completion_parent_barrier_fixture", "--nocapture"])
+        .env(FIXTURE_COMPLETION_JOURNAL, &journal)
+        .status()
+        .expect("strace runs the helper");
+
+    assert!(status.success(), "the helper or strace failed: {status:?}");
+    let text: String = fs::read_to_string(&log).expect("the strace log");
+    let calls: Vec<&str> = text.lines().filter(|line| { return line.contains("rename(") || line.contains("renameat") || line.contains("unlinkat(") || line.contains("rmdir(") || line.contains("fsync(") || line.contains("fdatasync("); }).collect();
+    let renamed_at: Option<usize> = calls.iter().position(|line| { return line.contains(&format!("{}.done", journal.display())) && !line.contains("= -1"); });
+    let Some(renamed_at) = renamed_at else {
+        panic!("the completion marker was never renamed: {calls:?}");
+    };
+    let parent: String = format!("<{}>", journals.display());
+    let removed_at: Option<usize> = calls.iter().position(|line| { return (line.contains("unlinkat(") || line.contains("rmdir(")) && line.contains(&format!("{}.done", journal.display())); });
+    let synced_at: Option<usize> = calls.iter().enumerate().skip(renamed_at + 1).find(|(_, line)| { return (line.contains("fsync(") || line.contains("fdatasync(")) && line.contains(&parent) && line.contains("= 0"); }).map(|(index, _)| { return index; });
+    let Some(synced_at) = synced_at else {
+        panic!("no fsync of the directory that lists the marker came after the rename: {calls:?}");
+    };
+    assert!(removed_at.is_none_or(|removal| { return synced_at < removal; }), "the journal was removed before its marker's directory was synchronized: {calls:?}");
+}
+
+/// The environment variable that gives the completion-barrier helper its journal.
+const FIXTURE_COMPLETION_JOURNAL: &str = "CARGO_SHADOW_FIXTURE_COMPLETION_JOURNAL";
+
+/// The helper process of the completion-parent barrier test:
+/// it finishes one journal through the production path and exits.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of the_completion_parent_barrier_is_synchronized_by_the_kernel_before_the_journal_is_removed"]
+fn completion_parent_barrier_fixture() {
+    let Ok(journal) = std::env::var(FIXTURE_COMPLETION_JOURNAL) else {
+        return;
+    };
+    crate::journal_transaction::finish_journal(Path::new(&journal)).expect("finishes the journal");
+}

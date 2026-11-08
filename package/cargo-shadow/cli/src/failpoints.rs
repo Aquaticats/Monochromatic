@@ -24,6 +24,10 @@
 // ```
 /// Imports `std::cell::Cell` for this file.
 use std::cell::Cell;
+/// Imports `std::cell::RefCell` for the path-targeted switches.
+use std::cell::RefCell;
+/// Imports `std::path::Path` for the path-targeted switches.
+use std::path::Path;
 
 thread_local! {
     /// Whether the next lockfile restore on this thread fails.
@@ -85,6 +89,12 @@ thread_local! {
     static CONTAINMENT_INSPECTION: Cell<bool> = const { Cell::new(false) };
     /// Whether the next publication of a journal's durable completion marker on this thread fails.
     static FINISH_COMPLETION: Cell<bool> = const { Cell::new(false) };
+    /// The one output file whose next data barrier on this thread fails,
+    /// or `None`.
+    static OUTPUT_FILE_SYNC_OF: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
+    /// The one output file whose next directory barrier on this thread fails,
+    /// or `None`.
+    static OUTPUT_DIRECTORY_SYNC_OF: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
 }
 
 /// The steps that can be made to fail.
@@ -158,6 +168,96 @@ pub enum Point {
     ContainmentInspection,
     /// The publication of a journal's durable completion marker (the rename to its done name and the sync of the directory that lists it).
     FinishCompletion,
+}
+
+/// What:
+/// `pub fn arm_output_file_sync_of(path: &Path)` makes the next data barrier of exactly this file on this thread fail.
+/// Why:
+/// A one-shot `OutputFileSync` fails at whichever output the run reaches first (the lockfile),
+/// so a barrier that is
+/// skipped for the manifest alone stays green (sixth certification pass,
+/// group 5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function armOutputFileSyncOf(path: string): void
+/// ```
+pub fn arm_output_file_sync_of(path: &Path) {
+    OUTPUT_FILE_SYNC_OF.with(|slot| { *slot.borrow_mut() = Some(path.to_path_buf()); });
+}
+
+/// What:
+/// `pub fn arm_output_directory_sync_of(path: &Path)` makes the next directory barrier of the file's parent on this thread fail
+/// (the barrier `make_durable` runs for that file).
+/// Why:
+/// The directory barrier of one named output must fail on its own,
+/// without the lockfile's barrier failing first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function armOutputDirectorySyncOf(path: string): void
+/// ```
+pub fn arm_output_directory_sync_of(path: &Path) {
+    OUTPUT_DIRECTORY_SYNC_OF.with(|slot| { *slot.borrow_mut() = Some(path.to_path_buf()); });
+}
+
+/// What:
+/// `pub(crate) fn output_file_sync_of(path: &Path) -> bool` says whether this file's data barrier was armed,
+/// and disarms it.
+/// Why:
+/// The fault reaches the named file only.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function outputFileSyncOf(path: string): boolean
+/// ```
+pub(crate) fn output_file_sync_of(path: &Path) -> bool {
+    return OUTPUT_FILE_SYNC_OF.with(|slot| {
+        let mut pending = slot.borrow_mut();
+        let matches: bool = pending.as_deref() == Some(path);
+        if matches {
+            *pending = None;
+        }
+        return matches;
+    });
+}
+
+/// What:
+/// `pub(crate) fn output_directory_sync_of(path: &Path) -> bool` says whether this file's directory barrier was armed,
+/// and disarms it.
+/// Why:
+/// The fault reaches the named file's directory only.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function outputDirectorySyncOf(path: string): boolean
+/// ```
+pub(crate) fn output_directory_sync_of(path: &Path) -> bool {
+    return OUTPUT_DIRECTORY_SYNC_OF.with(|slot| {
+        let mut pending = slot.borrow_mut();
+        let matches: bool = pending.as_deref() == Some(path);
+        if matches {
+            *pending = None;
+        }
+        return matches;
+    });
+}
+
+/// What:
+/// `pub(crate) fn path_targets_armed() -> (bool, bool)` reports whether a data barrier and a directory barrier are still waiting for
+/// their file on this thread.
+/// Why:
+/// A test must show that the targeted fault was reached,
+/// not only that the run failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function pathTargetsArmed(): [boolean, boolean]
+/// ```
+pub(crate) fn path_targets_armed() -> (bool, bool) {
+    let file: bool = OUTPUT_FILE_SYNC_OF.with(|slot| { return slot.borrow().is_some(); });
+    let directory: bool = OUTPUT_DIRECTORY_SYNC_OF.with(|slot| { return slot.borrow().is_some(); });
+    return (file, directory);
 }
 
 /// What:
