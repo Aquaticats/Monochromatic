@@ -11,7 +11,7 @@
 //! (`doc/handover/cli-git-rust-implementation.md`,
 //! "Slow rebuilds and the moved-branch bound").
 //! The first build of a commit that took 171,383 ms on 2026-11-08 was never explained,
-//! because the two lines that say which way a build went are written only under `MONOCHROMATIC_VERBOSE`,
+//! because the two lines that said which way a build went were written only under `MONOCHROMATIC_VERBOSE`,
 //! which nothing sets in normal use.
 //! The timing record is written on every commit,
 //! so it carries the fact instead.
@@ -19,6 +19,8 @@
 //! in the order built:
 //! the first entry is the first preparation's build,
 //! and a later one is a rebuild after the branch moved.
+//! The command's own process builds the index,
+//! so every build of one command is in that command's record.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
