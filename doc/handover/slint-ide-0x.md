@@ -775,7 +775,7 @@ the items after it are the record of 2026-10-05 and older.
     worktree `.claude/worktrees/ide-wrap`,
     through `a973a163f1`,
     package tree `80e74506a4`;
-    the merged tree `b63b63eb7f` adds only the check-script fix below).
+    the merged tree `b63b63eb7f` adds only the check-script fix).
     Four slices:
     IntelliJ break rules and wrapped shaping;
     wrap width,
