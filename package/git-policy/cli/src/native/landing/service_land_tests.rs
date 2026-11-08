@@ -596,7 +596,7 @@ fn a_restart_keeps_the_commit_of_a_batch_whose_intent_was_never_written_and_remo
     // Nothing is lost that only the removed reference held: the kept commit survives a maintenance that drops unreachable objects.
     git(world.repo.as_path(), &["prune", "--expire=now"]);
     assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", "refs/cli-git/kept/1"]), "commit", "the kept commit is still in the object store after a prune");
-    assert!(!batch_path(world.context.journal.as_path(), 1, "scratch").exists(), "the record of the batch's scratch reference goes with the reference");
+    assert!(!crate::service_scratch_ref_marker_of_a_batch::record_path(world.context.journal.as_path(), 1).exists(), "the record of the batch's scratch reference goes with the reference");
     remove(world.root.as_path());
 }
 
@@ -621,7 +621,7 @@ fn a_kept_reference_that_names_another_commit_leaves_the_scratch_branch_and_its_
         "a kept reference that names another commit proves nothing about the batch's commit, so the scratch branch stays"
     );
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), elsewhere, "and the kept reference is not moved");
-    assert!(batch_path(world.context.journal.as_path(), 1, "scratch").exists(), "the record stays for the next restart to try again");
+    assert!(crate::service_scratch_ref_marker_of_a_batch::record_path(world.context.journal.as_path(), 1).exists(), "the record stays for the next restart to try again");
     remove(world.root.as_path());
 }
 

@@ -30,6 +30,7 @@ use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION,
 use crate::service_land_follow::{IndexPaths, build_index, remove_conclusion_state};
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{IndexLock, Record, remove_stale, try_acquire};
+use crate::service_scratch_ref_marker_of_a_batch::clear_recorded_scratch_refs;
 use crate::service_scratch_ref_of_a_dropped_batch::clear_after_dropped_batch;
 use crate::autostash_carry::carry_stages;
 use crate::service_land_context::LandContext;
@@ -551,6 +552,12 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unread
             }
         };
         reports.push(RecoveryReport { seq: intent.seq, decision, handled });
+    }
+    // A landing killed between its import and its intent leaves its batch's scratch reference with no intent to settle it, and
+    //  the record it wrote is the only thing that names that reference's worktree: the sweep keeps the commit it holds and then
+    //  removes it (`service_scratch_ref_marker_of_a_batch.rs`). An earlier helper's journal is its own to settle.
+    if owner == JournalOwner::ThisService {
+        clear_recorded_scratch_refs(context, instance);
     }
     return reports;
 }

@@ -282,3 +282,7 @@ pub mod service_index_same;
 /// The two side references of a landing,
 /// and the scratch reference a restart removes once a batch it dropped has its commit kept.
 pub mod service_scratch_ref_of_a_dropped_batch;
+
+/// The record that names the worktree of a batch's scratch reference,
+/// so a restart can remove a reference whose landing was killed before its intent.
+pub mod service_scratch_ref_marker_of_a_batch;
