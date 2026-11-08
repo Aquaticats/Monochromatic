@@ -619,19 +619,20 @@ Coordinator answers during the second agent's work (2026-11-07):
 
 ## Next, in order
 
-W12 to W15:
-the checks after the cut-over,
-added to the runner and the runbook;
-W15 also needs the wrapper `doctor` line
-(`src/native/health/`,
-the same gate function `invocation_link_gate` or `link_gate`).
-The freeze text (above),
-after W3's go.
+Merged into main as `f981e1b493` (2026-11-08, gate 5319 of 5319 in the container, package lint 0 warnings):
+the second branch with W3, the freeze text, W12 to W15, the doctor line and the sibling tools.
+The first gate run on it failed one test,
+`lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works`
+(two locks expected cleared, one was);
+the branch does not touch `src/native/lock`,
+the test passed alone and in the second full run,
+and no cause or rate was measured: an open flake for an owner.
 Then the releases (alphas for the crates changed,
 then `toolchain:update`,
 `toolchain:install`,
 commit the lock;
-ask the coordinator first).
+ask the coordinator first; the wrapper alpha.2 is the coordinator's).
+W6 and W7 stay the owner's call (blocked section above).
 
 Hot-path facts to keep:
 phase `before` is one `lstat`;
